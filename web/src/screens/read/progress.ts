@@ -22,11 +22,15 @@ export function bindReadingProgress({controller, session, initial, authority, re
   const flush = (): Promise<void> => {
     if (writing) return writing;
     if (timer !== undefined) {clearTimeout(timer); timer = undefined;}
+    const request = new AbortController(), signal = AbortSignal.any([life.signal, request.signal]);
+    // A departure must also finish when the server stops answering. The reader
+    // remains usable if another blocker cancels navigation or Settings covers it.
+    const deadline = setTimeout(() => request.abort(), 2000);
     writing = (async () => {
-      while (pending && !blocked && current()) {
+      while (pending && !blocked && current() && !signal.aborted) {
         const location = pending; pending = undefined;
         try {
-          const result = await session.saveProgress({expectedRevision, location}, life.signal);
+          const result = await session.saveProgress({expectedRevision, location}, signal);
           if (result.progress !== null) expectedRevision = result.progress.revision;
           // saved:false/null is an actual unsaved observation, never revision+1.
         } catch (error) {
@@ -35,7 +39,7 @@ export function bindReadingProgress({controller, session, initial, authority, re
           break;
         }
       }
-    })().finally(() => {writing = undefined;});
+    })().finally(() => {clearTimeout(deadline);writing = undefined;});
     return writing;
   };
   const update = () => {
@@ -54,9 +58,7 @@ export function bindReadingProgress({controller, session, initial, authority, re
     if (stopping) return stopping;
     accepting = false; off();
     if (timer !== undefined) {clearTimeout(timer); timer = undefined;}
-    // Back/teardown is bounded even when a response body stalls.
-    const deadline = setTimeout(() => life.abort(), 2000);
-    stopping = (save ? flush() : Promise.resolve()).finally(() => {clearTimeout(deadline); life.abort(); pending = undefined;});
+    stopping = (save ? flush() : Promise.resolve()).finally(() => {life.abort(); pending = undefined;});
     return stopping;
   };
   const landed = () => {

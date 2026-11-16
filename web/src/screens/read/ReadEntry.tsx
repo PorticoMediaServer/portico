@@ -1,7 +1,7 @@
 import {useGuardedLibraryContext, useLibraryRouteGuard} from '../browse/library-route-guard';
 import {forwardFacts} from '../../shell/fact-source';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
-import {useLocation} from '@tanstack/react-router';
+import {useBlocker, useLocation} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {ReadingError, type ReadingSession} from '@portico/client-core';
 import {createComicAdapter, createEpubAdapter, createPdfAdapter, createReadingPublication,
@@ -103,6 +103,13 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
   const [stagedContents] = useState(() => takeContentsTarget(captured.context, itemId, sourceId));
   const contentsTarget = receiver.received.kind === 'ordinary' ? stagedContents : undefined;
   const [retry, setRetry] = useState(0);
+  const progressWriter = useRef<ReturnType<typeof bindReadingProgress> | undefined>(undefined);
+  // History waits here before changing location or firing the route's retirement events.
+  // Flush rather than stop: Settings covers the reader, and a cancelled navigation keeps it open.
+  useBlocker({enableBeforeUnload: false, shouldBlockFn: useCallback(async () => {
+    await progressWriter.current?.flush();
+    return false;
+  }, [])});
   // RD-7: an ended session has its own page (Open again); the reads it cut short don't also toast.
   const reportError = useCallback((error: unknown) => {if (readFailureKind(error) !== 'ended') receiver.reportError(error);}, [receiver]);
   const guard = useLibraryRouteGuard(receiver.context, receiver, receiver.current, {itemId}, reportError,
@@ -122,9 +129,9 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
       if (disposal) return disposal;
       alive = false; offRetired(); life.abort();
       disposal = (async () => {
-        try {await reader?.dispose();}
+        try {await progress?.stop();}
         finally {
-          try {await progress?.stop();}
+          try {await reader?.dispose();}
           finally {
             try {publication?.dispose();}
             finally {try {fonts?.dispose();} finally {await bindings.dispose();}}
@@ -169,6 +176,7 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
       // An open with its own target (a chapter from the contents) goes there instead of near the old place.
       const near = contentsTarget ? undefined : readerNear(saved);
       progress = bindReadingProgress({controller: reader.controller, session, initial: saved, authority: bindings.authority, reportError, held: near !== undefined});
+      progressWriter.current = progress;
       // RD-7: the client already reopened an ended session once, transparently; if the session ends
       // anyway, leave the book for the ended page with Open again (which resumes at the saved place).
       session.signal.addEventListener('abort', () => {
@@ -189,7 +197,7 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
       if (alive && !life.signal.aborted && currentReading()) {if (readFailureReported(kind) && bindings.authority.isCurrent()) reportError(error); setState({failed: kind});}
       void dispose().catch(() => {});
     });
-    return () => {void dispose().catch(() => {});};
+    return () => {if (progressWriter.current === progress) progressWriter.current = undefined;void dispose().catch(() => {});};
   }, [captured.context, itemId, sourceId, stagedContents, contentsTarget, reportError, retry, receiver, readingContext, currentReading]);
   // No "Search all books": the app's Search does not look inside books (reading rule 34, ruling R3); search inside the
   // open book stays (rules 32 and 33).
