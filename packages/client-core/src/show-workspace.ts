@@ -98,7 +98,8 @@ export class ShowWorkspaceService{
  private active(){if(this.disposed)throw new Error('Show workspace is disposed.');}
  private publish(p:Partial<ShowWorkspaceSnapshot>){if(this.disposed)return;this.state=Object.freeze({...this.state,...p});for(const f of this.listeners)f();}
  private stop(){this.generation++;this.controller?.abort();this.pending=undefined;this.key='';this.stopShown?.();this.stopShown=undefined;this.shown=undefined;}
- cancel(){this.active();this.stop();this.operation=undefined;this.publish(this.empty());}
+ /** Teardown too: after dispose there is nothing left to stop. */
+ cancel(){if(this.disposed)return;this.stop();this.operation=undefined;this.publish(this.empty());}
  dispose(){this.stop();this.disposed=true;this.listeners.clear();}
  select(input:ShowWorkspaceRoute,restore?:ShowWorkspaceRestore):Promise<void>{this.active();const route=validateShowWorkspaceRoute(input);let op:Operation={route,cursor:null,history:[],seasonCursor:null,seasonHistory:[],anchor:blankAnchor(),pageAnchors:[],returning:null};if(restore){if(!record(restore)||restore.scope?.serverId!==this.scope.serverId||restore.scope?.viewerId!==this.scope.viewerId||JSON.stringify(validateShowWorkspaceRoute(restore.route))!==JSON.stringify(route))throw new Error('Show restoration belongs to another scope or route.');op={route,cursor:cursor(restore.cursor),history:arr(restore.history,64).map(cursor),seasonCursor:cursor(restore.seasonCursor),seasonHistory:arr(restore.seasonHistory,64).map(cursor),anchor:anchor(restore.anchor),pageAnchors:arr(restore.pageAnchors,64).map(v=>{if(!id(v))invalid();return v;}),returning:{}};}return this.load(op);}
  /** Workspace-only order; reset both cursor histories without changing playback or owner settings. */

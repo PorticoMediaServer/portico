@@ -284,7 +284,8 @@ export class DetailService {
     for (const related of ['all', 'none'] as const) this.queries.client.setQueryData<DetailProjection>(queryKeys.itemDetail(itemId, related), held =>
       !held ? held : Object.freeze({ ...held, item: Object.freeze({ ...held.item, progressSeconds: personal.progressSeconds }), personal }));
   }
-  cancel(): void { this.active(); this.fence(); this.publish(this.empty()); }
+  /** Stopping what was asked is also teardown: after dispose there is nothing left to stop. */
+  cancel(): void { if (this.disposed) return; this.fence(); this.publish(this.empty()); }
   dispose(): void { this.fence(); this.disposed = true; this.listeners.clear(); }
   private async pump(): Promise<void> {
     if (this.running || this.disposed || !this.commands.length || this.commands[0].phase !== 'queued') return;
