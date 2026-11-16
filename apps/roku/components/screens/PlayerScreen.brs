@@ -58,7 +58,8 @@ sub makeButtons()
         plate.translation = [spec.x, (100 - spec.size) / 2]
         icon = m.buttons.createChild("Poster")
         icon.uri = "pkg:/images/i-" + spec.icon + ".png"
-        iconSize = spec.icon.split("-")[1].toInt()
+        parts = spec.icon.split("-")
+        iconSize = parts[parts.count() - 1].toInt()
         icon.width = iconSize
         icon.height = iconSize
         icon.translation = [spec.x + (spec.size - iconSize) / 2, (100 - iconSize) / 2]
