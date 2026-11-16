@@ -104,7 +104,7 @@ func (sh *shelf) unmatched() []UnmatchedEntry {
 }
 
 // The owner sees why a film was not matched, finds it by name or by a pasted address, uses a
-// match, keeps another as it is, merges two by choosing the same match, splits them again,
+// match, keeps another as it is (TestKeepAsIsTakesAWrongMatchOff for a matched one), merges two by choosing the same match, splits them again,
 // and refreshes; a provider that is down changes nothing and says so.
 func TestFixMatchRoutes(t *testing.T) {
 	sh := newShelf(t, "the.matrix.1999.1080p.mkv", "Heat.mkv", "Zzyzx Home Video (2011).mkv")
@@ -145,7 +145,6 @@ func TestFixMatchRoutes(t *testing.T) {
 		t.Fatalf("after using a match: %+v", item)
 	}
 	sh.do("PUT", "/v1/admin/items/"+heat+"/match", MatchRequest{Provider: "tmdb", ID: "949", EpisodeOrder: "dvd"}, nil, 422) // a film has no episodes
-	sh.do("PUT", "/v1/admin/items/"+heat+"/match", MatchRequest{KeepAsIs: true}, nil, 409)                                   // matched: nothing to keep
 	sh.do("PUT", "/v1/admin/items/"+zzyzx+"/match", MatchRequest{KeepAsIs: true}, nil, 200)
 	if list := sh.unmatched(); len(list) != 0 {
 		t.Fatalf("after Keep as is: %+v", list)
@@ -231,5 +230,58 @@ func TestAnEpisodeOrderTheProviderLacksFallsBackToAired(t *testing.T) {
 	sh.do("PUT", "/v1/admin/items/"+show+"/match", MatchRequest{Provider: "tmdb", ID: "1396", EpisodeOrder: "dvd"}, &result, 200)
 	if result.Notice != "" {
 		t.Fatalf("DVD order, which the show has: %+v", result)
+	}
+}
+
+// An owner takes a wrong match off a film with Keep as is (the demo's "Portico HDR10 Test
+// Pattern" matched to Portico (2014), 16 Nov): the provider's ids, details, cast and pictures
+// go, the film is named as its file names it, it is not on Unmatched items, and neither a scan
+// nor a lookup pass matches it again by itself; Look it up again does.
+func TestKeepAsIsTakesAWrongMatchOff(t *testing.T) {
+	sh := newShelf(t, "the.matrix.1999.1080p.mkv")
+	ctx := context.Background()
+	libraryID, err := sh.s.db.LibraryID(ctx, sh.library)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sh.s.metadata.FetchPictures(ctx, libraryID, 100); err != nil {
+		t.Fatal(err)
+	}
+	var page ItemPage
+	sh.do("GET", "/v1/items?library="+sh.library+"&kind=movie", nil, &page, 200)
+	film := page.Items[0].ID
+	if before := sh.detail(film); before.ExternalIDs["tmdb"] != "603" || len(before.Credits) == 0 || before.Images["poster"] == "" {
+		t.Fatalf("the film before: ids %v, %d credits, poster %q", before.ExternalIDs, len(before.Credits), before.Images["poster"])
+	}
+	sh.do("PUT", "/v1/admin/items/"+film+"/match", MatchRequest{KeepAsIs: true}, nil, 200)
+	title, year := scan.FileTitle(db.LibraryMovies, "the.matrix.1999.1080p.mkv")
+	check := func(when string) {
+		t.Helper()
+		after := sh.detail(film)
+		if len(after.ExternalIDs) != 0 || len(after.Credits) != 0 || after.Images["poster"] != "" || after.Summary != "" ||
+			after.Title != title || after.Year != year {
+			t.Fatalf("%s: %q (%d), ids %v, %d credits, poster %q, summary %q; want %q (%d) with nothing from the provider",
+				when, after.Title, after.Year, after.ExternalIDs, len(after.Credits), after.Images["poster"], after.Summary, title, year)
+		}
+	}
+	check("after Keep as is")
+	if list := sh.unmatched(); len(list) != 0 {
+		t.Fatalf("a film kept as it is is on Unmatched items: %+v", list)
+	}
+	libraries, err := sh.s.db.AllLibraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (&scan.Scanner{DB: sh.s.db, Prober: stillProber{}}).Scan(ctx, libraries[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sh.s.metadata.MatchLibrary(ctx, libraryID); err != nil {
+		t.Fatal(err)
+	}
+	check("after a scan and a lookup pass")
+	var refreshed MetadataRefreshed
+	sh.do("POST", "/v1/admin/items/"+film+"/metadata/refresh", nil, &refreshed, 200)
+	if after := sh.detail(film); !refreshed.Matched || after.ExternalIDs["tmdb"] != "603" {
+		t.Fatalf("Look it up again: matched %v, ids %v", refreshed.Matched, after.ExternalIDs)
 	}
 }

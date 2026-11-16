@@ -556,6 +556,11 @@ func (d *DB) MatchTarget(ctx context.Context, publicID string) (MatchTarget, err
 //
 // When a person chooses a match that another title of the library already has, the two
 // become one, as MergeItems does, and the id of the title that remains is returned.
+//
+// With details.Match MatchKept a person takes a wrong match off the title (Keep as is on a
+// matched title): its ids, key, provider details, cast and pictures go, it takes the name its
+// files give (details.Title), and it is kept as it is: off Unmatched items and not looked up
+// again until its files change or a person asks.
 func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details ItemDetails) (string, error) {
 	var remaining string
 	err := d.write(ctx, p, func(tx *sql.Tx) error {
@@ -582,8 +587,10 @@ func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details 
 			}
 			return b.queryRow(`SELECT public_id FROM items WHERE id = ?`, holder).Scan(&remaining)
 		}
-		// A match a person chose is in the title's History; looking it up again is not.
-		if details.Match == MatchChosen {
+		// A match a person chose, or took off with Keep as is, is in the title's History; looking
+		// it up again is not.
+		byPerson := details.Match == MatchChosen || details.Match == MatchKept
+		if byPerson {
 			if err := remember(b, itemID, HistoryMatch, now); err != nil {
 				return err
 			}
@@ -614,9 +621,10 @@ func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details 
 				return err
 			}
 		}
-		if details.Match == MatchChosen {
-			// A person choosing again is the owner's own act: a lock on the match does not
-			// hold against it, and the new choice is itself locked by being chosen.
+		if byPerson {
+			// A person choosing again, or keeping the title as it is, is the owner's own act: a
+			// lock on the match does not hold against it, and a new choice is itself locked by
+			// being chosen.
 			if _, err := b.exec(`UPDATE items SET locked_fields = (SELECT nullif(json_group_array(value), '[]') FROM json_each(locked_fields)
 				WHERE value <> ?) WHERE id = ? AND locked_fields IS NOT NULL`, FieldMatch, itemID); err != nil {
 				return err
@@ -631,10 +639,21 @@ func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details 
 				return err
 			}
 		}
+		if details.Match == MatchKept {
+			// Without a match the provider's pictures go too, from the title and from what it
+			// holds; a picture a person chose stays. A film named by its file takes the title
+			// written inside it, as an unmatched film does.
+			if err := dropProviderPictures(b, itemID); err != nil {
+				return err
+			}
+			if err := useEmbeddedTitle(b, itemID, now); err != nil {
+				return err
+			}
+		}
 		if err := b.settleWatchedForAll(now); err != nil {
 			return err
 		}
-		if details.Match == MatchChosen {
+		if byPerson {
 			if err := rememberAfter(b, itemID); err != nil {
 				return err
 			}
@@ -730,4 +749,43 @@ func resetEpisodes(b *batchTx, showID, now int64) error {
 		return err
 	}
 	return b.ratingChanged(showID)
+}
+
+// dropProviderPictures removes the provider's pictures of a title and of what it holds (a
+// show's seasons and episodes), except one a person chose, and shows the next best of each.
+func dropProviderPictures(b *batchTx, itemID int64) error {
+	type shown struct {
+		item int64
+		role ImageRole
+	}
+	gone, err := queryAll(context.Background(), b.tx, `SELECT DISTINCT item_id, role FROM images WHERE source = ?1 AND locked = 0
+		AND (item_id = ?2 OR item_id IN (SELECT id FROM items WHERE root_id = ?2))`, []any{ImageFromProvider, itemID},
+		func(p *shown) []any { return []any{&p.item, &p.role} })
+	if err != nil {
+		return err
+	}
+	if _, err := b.exec(`DELETE FROM images WHERE source = ?1 AND locked = 0 AND (item_id = ?2 OR item_id IN (SELECT id FROM items WHERE root_id = ?2))`,
+		ImageFromProvider, itemID); err != nil {
+		return err
+	}
+	for _, p := range gone {
+		if err := selectPicture(b, p.item, p.role); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// FirstFile answers the path, inside its library folder, of the first file a title plays, or
+// of a show's first episode: what a scan named it by.
+func (d *DB) FirstFile(ctx context.Context, itemID int64) (string, error) {
+	var rel string
+	err := d.read.QueryRowContext(ctx, `SELECT CASE WHEN dir.rel_path = '' THEN f.name ELSE dir.rel_path || '/' || f.name END
+		FROM items i JOIN media m ON m.item_id = i.id JOIN media_parts p ON p.media_id = m.id AND p.position = 0
+		JOIN files f ON f.id = p.file_id JOIN directories dir ON dir.id = f.directory_id
+		WHERE i.id = ?1 OR i.root_id = ?1 ORDER BY i.id = ?1 DESC, i.parent_index, i.index_number, m.position, m.id LIMIT 1`, itemID).Scan(&rel)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return rel, err
 }

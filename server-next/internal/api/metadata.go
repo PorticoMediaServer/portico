@@ -51,7 +51,10 @@ type UnmatchedEntry struct {
 type MatchRequest struct {
 	Provider string `json:"provider,omitempty"`
 	ID       string `json:"id,omitempty"`
-	// KeepAsIs takes an unmatched title off Unmatched items until its files change.
+	// KeepAsIs takes an unmatched title off Unmatched items until its files change. On a matched
+	// title it takes the match off: the provider's ids, details, cast and pictures go, the title
+	// is named as its files name it, and it is not looked up again until its files change or a
+	// person asks (Look it up again, or a match).
 	KeepAsIs bool `json:"keepAsIs,omitempty"`
 	// For a show: the episode order its files are numbered in, aired (the default), dvd or
 	// absolute, and a whole number added to every episode number the files give before the
@@ -194,9 +197,7 @@ func (s *Server) setMatch(r *http.Request, req MatchRequest) (MatchResult, error
 	case req.KeepAsIs && req.ID != "":
 		return MatchResult{}, ErrInvalid("Send a match or Keep as is, not both.")
 	case req.KeepAsIs:
-		if err := s.db.KeepAsIs(r.Context(), id); errors.Is(err, db.ErrConflict) {
-			return MatchResult{}, ErrConflict("already_matched", "This title is matched, so there is nothing to keep as it is.")
-		} else if err != nil {
+		if err := s.metadata.KeepAsIs(r.Context(), id); err != nil {
 			return MatchResult{}, refuse(err)
 		}
 		return MatchResult{ItemID: id}, nil
