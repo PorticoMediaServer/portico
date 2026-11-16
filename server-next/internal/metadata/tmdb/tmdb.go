@@ -272,7 +272,8 @@ type details struct {
 	Networks     []named `json:"networks"`
 	InProduction bool    `json:"in_production"`
 	Seasons      []struct {
-		Number int `json:"season_number"`
+		Number     int    `json:"season_number"`
+		PosterPath string `json:"poster_path"`
 	} `json:"seasons"`
 	Collection *title `json:"belongs_to_collection"`
 	// Images are the other pictures TMDB has for the title, best first in each list.
@@ -396,6 +397,12 @@ func (c *Client) Details(ctx context.Context, ref metadata.Ref, locale metadata.
 	}
 	for _, season := range d.Seasons {
 		r.Groups = append(r.Groups, season.Number)
+		if season.PosterPath != "" {
+			if r.GroupPictures == nil {
+				r.GroupPictures = map[int][]metadata.Picture{}
+			}
+			r.GroupPictures[season.Number] = []metadata.Picture{{Role: "poster", URL: c.picture(season.PosterPath)}}
+		}
 	}
 	if d.Collection != nil {
 		collection := d.Collection.candidate(c, "collection", true)

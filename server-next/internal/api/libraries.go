@@ -16,6 +16,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaanalysis"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 )
 
@@ -50,6 +51,10 @@ type LibraryOptions struct {
 	// model for Mixes and radio by sound. On unless turned off, like watch; off keeps what was
 	// read. Its status is GET /v1/admin/libraries/{id}/sound-analysis.
 	SoundAnalysis *bool `json:"soundAnalysis,omitempty"`
+	// EpisodeThumbnails is a show or anime library's "Episode thumbnails": provider_then_made
+	// (the default: the provider's picture, else one made from the video), provider (the
+	// provider's only) or off. Left out of an edit, it is the default.
+	EpisodeThumbnails string `json:"episodeThumbnails,omitempty"`
 }
 
 // TrashRule is days (the default, with Days from 1 to 3,650, starting at 30), scan (after
@@ -296,7 +301,11 @@ func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 	watch := !o.NoWatch
 	group, sound := o.GroupSeries == nil || *o.GroupSeries, !o.NoSoundAnalysis
 	out := LibraryOptions{Depth: o.Depth, Trash: TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
-		Watch: &watch, RescanMinutes: o.RescanMinutes, GroupSeries: &group, Lyrics: o.Lyrics, SoundAnalysis: &sound, SegmentDetection: o.SegmentDetection}
+		Watch: &watch, RescanMinutes: o.RescanMinutes, GroupSeries: &group, Lyrics: o.Lyrics, SoundAnalysis: &sound, SegmentDetection: o.SegmentDetection,
+		EpisodeThumbnails: o.EpisodeThumbnails}
+	if out.EpisodeThumbnails == "" {
+		out.EpisodeThumbnails = mediaanalysis.EpisodeThumbnailDefaultMode
+	}
 	if out.SegmentDetection == "" {
 		out.SegmentDetection = "server"
 	}
@@ -313,9 +322,13 @@ func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 }
 
 func optionsIn(o LibraryOptions) db.LibraryOptions {
-	return db.LibraryOptions{Depth: o.Depth, Trash: db.TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
+	out := db.LibraryOptions{Depth: o.Depth, Trash: db.TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
 		NoWatch: o.Watch != nil && !*o.Watch, RescanMinutes: o.RescanMinutes, GroupSeries: o.GroupSeries, Lyrics: o.Lyrics,
-		NoSoundAnalysis: o.SoundAnalysis != nil && !*o.SoundAnalysis, SegmentDetection: o.SegmentDetection}
+		NoSoundAnalysis: o.SoundAnalysis != nil && !*o.SoundAnalysis, SegmentDetection: o.SegmentDetection, EpisodeThumbnails: o.EpisodeThumbnails}
+	if out.EpisodeThumbnails == mediaanalysis.EpisodeThumbnailDefaultMode {
+		out.EpisodeThumbnails = ""
+	}
+	return out
 }
 
 func (s *Server) foldersOut(lib db.Library, folders []db.LibraryFolder) []LibraryFolder {

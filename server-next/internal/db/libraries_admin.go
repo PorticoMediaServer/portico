@@ -296,6 +296,11 @@ func (o LibraryOptions) check() error {
 	if o.Lyrics != "" && o.Lyrics != LyricsLRCLIB {
 		return invalid("unknown lyrics source %q", o.Lyrics)
 	}
+	switch o.EpisodeThumbnails {
+	case "", EpisodeThumbnailsProvider, EpisodeThumbnailsOff:
+	default:
+		return invalid("unknown episode thumbnails choice %q", o.EpisodeThumbnails)
+	}
 	return nil
 }
 

@@ -155,6 +155,8 @@ type Record struct {
 	ParentIndex int
 	// Groups are the numbers Children can be asked for: a show's seasons, an album's discs.
 	Groups []int
+	// GroupPictures are, for a show, its seasons' own pictures, by season number.
+	GroupPictures map[int][]Picture
 	// Collection is the series of films this one belongs to, if any.
 	Collection *Candidate
 }

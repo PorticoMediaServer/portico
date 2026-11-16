@@ -1,6 +1,7 @@
 package api
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"math"
@@ -11,7 +12,8 @@ import (
 )
 
 // jobPictures is a library's picture pass: it fetches the provider's pictures that its lookups
-// and refreshes recorded, so a title's details never wait for its pictures. It is started by the
+// and refreshes recorded, so a title's details never wait for its pictures, then makes a
+// picture for each episode that has none (makeEpisodePictures). It is started by the
 // server after every lookup and refresh, and joins one already waiting or running.
 const jobPictures = "metadata_pictures"
 
@@ -26,9 +28,20 @@ func (s *Server) picturePass() {
 		}
 		_, err = s.metadata.FetchPictures(ctx, id, math.MaxInt)
 		if errors.Is(err, metadata.ErrPictureHostDown) {
-			return jobs.DoneWith{Note: "The provider's picture server did not answer. The pictures not fetched are fetched by a later pass, after the next lookup or refresh."}
+			err = jobs.DoneWith{Note: "The provider's picture server did not answer. The pictures not fetched are fetched by a later pass, after the next lookup or refresh."}
 		}
-		return err
+		if ctx.Err() != nil || err != nil && !errors.As(err, new(jobs.DoneWith)) {
+			return err
+		}
+		// Then a picture made from the video for each episode still without one. An episode
+		// whose still is waiting for the provider's picture server waits for it.
+		all, listErr := s.db.AllLibraries(ctx)
+		for _, lib := range all {
+			if lib.ID == id && listErr == nil {
+				listErr = s.makeEpisodePictures(ctx, lib)
+			}
+		}
+		return cmp.Or(listErr, err)
 	}})
 }
 
