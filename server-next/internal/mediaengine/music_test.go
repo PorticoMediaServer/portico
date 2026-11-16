@@ -95,8 +95,7 @@ func TestSongsArePlannedForTheAppsOwnMusicEngine(t *testing.T) {
 		// A play that comes before the file has been measured is planned the ordinary way,
 		// and the measurement carries on: a later play has it.
 		for deadline := time.Now().Add(60 * time.Second); ; time.Sleep(200 * time.Millisecond) {
-			var session api.PlaybackSession
-			h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: songs[song]}, &session, 201)
+			session := h.startPlayback(api.PlaybackStart{ItemID: songs[song]})
 			var plan render
 			if err := json.Unmarshal(session.Presentation.AudioRender, &plan); err == nil {
 				return session, plan

@@ -64,8 +64,7 @@ func TestTheConversionFolderChangesWithoutARestart(t *testing.T) {
 	}
 	second := filepath.Join(chosen, "portico-conversions", "2")
 
-	var session api.PlaybackSession
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID, Quality: &playback.Quality{Mode: playback.QualityFixed, ID: "240p"}}, &session, 201)
+	session := h.startPlayback(api.PlaybackStart{ItemID: page.Items[0].ID, Quality: &playback.Quality{Mode: playback.QualityFixed, ID: "240p"}})
 	before := session.Presentation
 	if code, _, _ := h.media(before.URL); code != 200 || entries(first) == 0 {
 		t.Fatalf("the conversion answered %d with %d entries in its folder", code, entries(first))
