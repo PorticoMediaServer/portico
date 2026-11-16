@@ -39,8 +39,11 @@ func NeverCopies(err error) bool {
 	return errors.Is(err, errDamaged) || errors.Is(err, ErrFormatLater) || errors.Is(err, ErrLocked)
 }
 
-// copyKeep is how long a copy no download has fetched is kept.
-const copyKeep = 30 * 24 * time.Hour
+// copyLife is how long a copy is kept after it was made (area 9 rule 24, Justin 16 Nov: download
+// copies are temporary). It goes sooner when the last download waiting for it has its file
+// (DropCopy), and one asked for again is made again, the same bytes, so a fetch that was under
+// way when it went carries on.
+const copyLife = 48 * time.Hour
 
 // DownloadCopy returns the copy a book version downloads as, made now if it is not made yet.
 // ok is false for a book whose own file is what the app reads.
@@ -60,8 +63,6 @@ func (s *Service) DownloadCopy(ctx context.Context, v db.BookVersion) (c Copy, o
 	defer s.copying.Unlock()
 	if made, err := os.Stat(c.Path); err == nil {
 		if sum, err := os.ReadFile(c.Path + ".sha256"); err == nil {
-			now := time.Now()
-			os.Chtimes(c.Path, now, now)
 			c.Size, c.SHA256 = made.Size(), strings.TrimSpace(string(sum))
 			return c, true, nil
 		}
@@ -114,7 +115,6 @@ func (s *Service) DownloadCopy(ctx context.Context, v db.BookVersion) (c Copy, o
 	if err = os.Rename(making.Name(), c.Path); err != nil {
 		return c, true, err
 	}
-	s.pruneCopies()
 	return c, true, nil
 }
 
@@ -177,9 +177,28 @@ func (s *Service) picturesCopy(ctx context.Context, v db.BookVersion, out io.Wri
 	return z.Close()
 }
 
-// pruneCopies removes copies no download has fetched for copyKeep, and anything left by one
-// that was being made when the server stopped.
-func (s *Service) pruneCopies() {
+// DropCopy removes a version's copy, when no download waits for it any more.
+func (s *Service) DropCopy(v db.BookVersion) {
+	if s.Copies == "" {
+		return
+	}
+	s.copying.Lock()
+	defer s.copying.Unlock()
+	for _, container := range []string{FormatEPUB, FormatCBZ} {
+		name := filepath.Join(s.Copies, fmt.Sprintf("%d-%s.%s", v.FileID, Fingerprint(v.Size, v.ModifiedNS), container))
+		os.Remove(name)
+		os.Remove(name + ".sha256")
+	}
+}
+
+// PruneCopies removes copies made more than copyLife ago, and anything left by one that was
+// being made when the server stopped.
+func (s *Service) PruneCopies(context.Context) error {
+	if s.Copies == "" {
+		return nil
+	}
+	s.copying.Lock()
+	defer s.copying.Unlock()
 	entries, _ := os.ReadDir(s.Copies)
 	for _, e := range entries {
 		name := filepath.Join(s.Copies, e.Name())
@@ -197,9 +216,10 @@ func (s *Service) pruneCopies() {
 			if _, err := os.Stat(strings.TrimSuffix(name, ".sha256")); os.IsNotExist(err) {
 				os.Remove(name)
 			}
-		case age > copyKeep:
+		case age > copyLife:
 			os.Remove(name)
 			os.Remove(name + ".sha256")
 		}
 	}
+	return nil
 }

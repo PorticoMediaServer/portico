@@ -632,7 +632,6 @@ export interface DownloadOptions {
   titles: number;
   items: DownloadChoice[];
   default: string;
-  roomBytes?: number;
 }
 
 export interface DownloadPage {
@@ -680,7 +679,6 @@ export interface DownloadTitle {
 
 export interface DownloadUsage {
   copiesBytes: number;
-  roomBytes?: number;
 }
 
 export interface DownloadedItem {
@@ -694,12 +692,6 @@ export interface DownloadedItem {
   chapters: PlaybackChapter[];
   markers: PlaybackMarker[];
   lyrics?: Lyrics[];
-}
-
-export interface DownloadsByPerson {
-  items: PersonDownloads[];
-  copiesBytes: number;
-  roomBytes?: number;
 }
 
 export interface DriveSettings {
@@ -2622,13 +2614,6 @@ export interface Person {
   knownFor?: Item[];
 }
 
-export interface PersonDownloads {
-  userId: string;
-  username: string;
-  titles: number;
-  copiesBytes: number;
-}
-
 export interface PersonPage {
   items: Person[];
   nextCursor?: string;
@@ -4150,16 +4135,6 @@ export interface StorageCacheReport {
   bytes: number;
 }
 
-export interface StorageKeeping {
-  preset: string;
-  preparedDownloadsDays: number;
-}
-
-export interface StorageKeepingEdit {
-  preset?: string;
-  preparedDownloadsDays?: number;
-}
-
 export interface StorageLocation {
   folder: string;
   bytes: number;
@@ -4701,8 +4676,6 @@ export interface Routes {
   'POST /v1/admin/updates/check': {access: 'owner'; request: undefined; response: State};
   'GET /v1/admin/storage/cache': {access: 'owner'; request: undefined; response: StorageCacheReport};
   'POST /v1/admin/storage/cache/empty': {access: 'owner'; request: undefined; response: StorageCacheReport};
-  'GET /v1/admin/storage/keeping': {access: 'owner'; request: undefined; response: StorageKeeping};
-  'PUT /v1/admin/storage/keeping': {access: 'owner'; request: StorageKeepingEdit; response: StorageKeeping};
   'GET /v1/admin/storage': {access: 'owner'; request: undefined; response: Storage};
   'GET /v1/admin/data-folder/permissions': {access: 'owner'; request: undefined; response: DataFolderPermissions};
   'POST /v1/admin/data-folder/permissions/fix': {access: 'owner'; request: undefined; response: DataFolderPermissions};
@@ -4808,9 +4781,8 @@ export interface Routes {
   'DELETE /v1/downloads/{id}': {access: 'withProfile'; request: undefined; response: undefined};
   'GET /v1/downloads/{id}/items/{itemId}': {access: 'withProfile'; request: undefined; response: DownloadedItem};
   'DELETE /v1/downloads/{id}/items/{itemId}': {access: 'withProfile'; request: undefined; response: undefined};
+  'POST /v1/downloads/{id}/items/{itemId}/received': {access: 'withProfile'; request: undefined; response: undefined};
   'POST /v1/downloads/sync': {access: 'withProfile'; request: DownloadSync; response: DownloadSyncReply};
-  'GET /v1/admin/downloads': {access: 'owner'; request: undefined; response: DownloadsByPerson};
-  'DELETE /v1/admin/members/{id}/downloads': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/items/{id}/book': {access: 'withProfile'; request: undefined; response: BookAnswer};
   'GET /v1/items/{id}/annotations': {access: 'withProfile'; request: undefined; response: AnnotationPage};
   'PUT /v1/items/{id}/annotations/{annotationId}': {access: 'withProfile'; request: AnnotationBody; response: Annotation};

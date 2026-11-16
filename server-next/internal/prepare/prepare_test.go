@@ -139,7 +139,7 @@ func waitReady(t *testing.T, d *db.DB, id int64) db.Prepared {
 // file whose hash is what a device checks, and a second person asking gets the same copy.
 // Thirty days after anyone last asked for or fetched it, the copy and its file are gone,
 // along with any file in the folder that no copy names.
-func TestACopyIsMadeOnceSharedAndRemovedWhenUnused(t *testing.T) {
+func TestACopyIsMadeOnceSharedAndRemovedWhenDone(t *testing.T) {
 	d, film, wanting := filmLibrary(t)
 	clock := time.Now()
 	folder := t.TempDir()
@@ -183,30 +183,27 @@ func TestACopyIsMadeOnceSharedAndRemovedWhenUnused(t *testing.T) {
 	if err != nil || again.ID != first.ID {
 		t.Fatalf("a second request made another copy: %+v %v", again, err)
 	}
-	if used, _ := d.PreparedSpace(ctx); used != ready.Size {
-		t.Fatalf("the space used is %d; the one copy is %d", used, ready.Size)
-	}
 
 	stray := filepath.Join(folder, "prp_nothing.mp4")
 	os.WriteFile(stray, []byte("x"), 0o600)
 	old := clock.Add(-2 * time.Hour)
 	os.Chtimes(stray, old, old)
-	clock = clock.Add(29 * 24 * time.Hour)
+	// Asked for again just now, it stays though ready long ago; two hours later it goes.
 	if err := s.Tidy(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := d.PreparedByID(ctx, first.ID); err != nil {
-		t.Fatal("a copy asked for 29 days ago was removed")
+		t.Fatal("a copy asked for in the last hour was removed")
 	}
 	if _, err := os.Stat(stray); !os.IsNotExist(err) {
 		t.Fatal("a file no copy names was kept")
 	}
-	clock = clock.Add(2 * 24 * time.Hour)
+	clock = clock.Add(2 * time.Hour)
 	if err := s.Tidy(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := d.PreparedByID(ctx, first.ID); err != db.ErrNotFound {
-		t.Fatal("a copy nobody asked for in 31 days was kept")
+		t.Fatal("a copy ready for ten days and unused for two hours was kept")
 	}
 	if _, err := os.Stat(files[0]); !os.IsNotExist(err) {
 		t.Fatal("the removed copy's file was kept")

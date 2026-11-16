@@ -95,7 +95,7 @@ func TestCastReachesOnlyItsOwnPlayback(t *testing.T) {
 	th := newTheatre(t)
 	phone := th.owner.AccessToken
 	tv := pairCast(t, th).Session.AccessToken
-	fill := strings.NewReplacer("{id}", "x1", "{entryId}", "x2", "{requestId}", "x3", "{imageId}", "x4", "{grant}", "x5")
+	fill := strings.NewReplacer("{id}", "x1", "{entryId}", "x2", "{requestId}", "x3", "{imageId}", "x4", "{grant}", "x5", "{itemId}", "x6")
 	for _, route := range th.s.Routes() {
 		if route.Access == Public || castRoutes[route.Pattern] {
 			continue

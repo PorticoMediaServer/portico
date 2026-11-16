@@ -8,6 +8,7 @@ func init() {
 			count: func() int { return len(get[Page[Download]](th.T, th.s, th.owner.AccessToken, "/v1/downloads").Items) }}}
 	})
 	safeToRepeat(map[string]string{
-		"POST /v1/downloads/sync": "reads what a device must remove and fetch, and changes nothing",
+		"POST /v1/downloads/sync":                         "reads what a device must remove and fetch, and changes nothing",
+		"POST /v1/downloads/{id}/items/{itemId}/received": "marks the title received; a second time finds it received and changes nothing",
 	})
 }

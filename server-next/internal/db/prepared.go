@@ -34,19 +34,21 @@ type Prepared struct {
 	ContentHash string
 	CreatedAt   time.Time
 	LastUsedAt  time.Time
+	// ReadyAt is when it was made, once ready: its 48 hours start then (download_received.go).
+	ReadyAt time.Time
 }
 
 const preparedColumns = `id, public_id, media_id, recipe, state, ifnull(error, ''), ifnull(container, ''), ifnull(size, 0),
-	ifnull(content_hash, ''), created_at, last_used_at`
+	ifnull(content_hash, ''), created_at, last_used_at, ifnull(ready_at, 0)`
 
 func scanPrepared(row interface{ Scan(...any) error }) (Prepared, error) {
 	var p Prepared
-	var created, used int64
-	err := row.Scan(&p.ID, &p.PublicID, &p.MediaID, &p.Recipe, &p.State, &p.Error, &p.Container, &p.Size, &p.ContentHash, &created, &used)
+	var created, used, ready int64
+	err := row.Scan(&p.ID, &p.PublicID, &p.MediaID, &p.Recipe, &p.State, &p.Error, &p.Container, &p.Size, &p.ContentHash, &created, &used, &ready)
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, ErrNotFound
 	}
-	p.CreatedAt, p.LastUsedAt = time.UnixMilli(created), time.UnixMilli(used)
+	p.CreatedAt, p.LastUsedAt, p.ReadyAt = time.UnixMilli(created), time.UnixMilli(used), time.UnixMilli(ready)
 	return p, err
 }
 
@@ -120,35 +122,6 @@ func (d *DB) UsePrepared(ctx context.Context, id int64, now time.Time) error {
 		_, err := tx.ExecContext(ctx, `UPDATE prepared_media SET last_used_at = max(last_used_at, ?) WHERE id = ?`, now.UnixMilli(), id)
 		return err
 	})
-}
-
-// PreparedSpace is the room the server's copies take, each copy once however many people
-// asked for it: a copy made at its size, one waiting or being made at its estimate. A copy
-// that could not be made takes none. Thousands of rows at most.
-func (d *DB) PreparedSpace(ctx context.Context) (int64, error) {
-	var used int64
-	err := d.read.QueryRowContext(ctx, `SELECT ifnull(sum(size), 0) FROM prepared_media WHERE state <> 'failed'`).Scan(&used)
-	return used, err
-}
-
-// UnusedPrepared returns up to limit copies nobody has asked for or fetched since before.
-// A copy being made is never among them.
-func (d *DB) UnusedPrepared(ctx context.Context, before time.Time, limit int) ([]Prepared, error) {
-	rows, err := d.read.QueryContext(ctx, `SELECT `+preparedColumns+` FROM prepared_media
-		WHERE last_used_at < ? AND state <> 'preparing' ORDER BY last_used_at LIMIT ?`, before.UnixMilli(), limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Prepared
-	for rows.Next() {
-		p, err := scanPrepared(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	return out, rows.Err()
 }
 
 // RemovePrepared deletes copies' rows. A download that waited for one reads as expired.

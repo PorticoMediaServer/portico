@@ -130,6 +130,18 @@ type File struct {
 	Name      string
 	release   func()
 	closeOnce sync.Once
+	// last says it is the title's last file; whole, when set, is called once it has all
+	// been sent (Whole).
+	last  bool
+	whole func()
+}
+
+// Whole tells the download that the whole file was sent, for a browser, which cannot say it
+// has it (area 9 rule 42).
+func (f *File) Whole() {
+	if f.whole != nil {
+		f.whole()
+	}
 }
 
 func (f *File) Close() error {
@@ -170,7 +182,7 @@ func (s *Service) Open(ctx context.Context, token, name string, atHome bool) (ou
 		return nil, ErrGone
 	}
 	dl, title, err := s.DB.DownloadedTitle(ctx, held.viewer.ProfileID, held.download, held.item)
-	if err != nil || title.State != db.DownloadWanted || dl.DeviceID != session.DeviceID {
+	if err != nil || title.State != db.DownloadWanted && title.State != db.DownloadReceived || dl.DeviceID != session.DeviceID {
 		return nil, ErrGone
 	}
 	if visible, err := s.DB.Visible(ctx, held.viewer, title.ItemID); err != nil || !visible {
@@ -197,9 +209,15 @@ func (s *Service) Open(ctx context.Context, token, name string, atHome bool) (ou
 			return nil, ErrGone
 		}
 		if dl.Quality != Original {
-			return s.openCopy(ctx, held, title, n)
+			out, err = s.openCopy(ctx, held, title, n)
+		} else {
+			out, err = s.openOriginal(ctx, held.viewer, title, n)
 		}
-		return s.openOriginal(ctx, held.viewer, title, n)
+		// A browser cannot say it has the file: sending its last file's last byte counts.
+		if err == nil && out.last && session.Platform == "web" {
+			out.whole = func() { s.Received(context.WithoutCancel(ctx), held.viewer, dl, title) }
+		}
+		return out, err
 	case "subtitles":
 		return s.openSubtitle(ctx, held.viewer, dl, title, rest)
 	}
@@ -219,8 +237,8 @@ func (s *Service) openCopy(ctx context.Context, held *grant, title db.DownloadTi
 	if n > len(files) || len(hashes) != len(files) {
 		return nil, ErrGone
 	}
-	// Fetching keeps the copy: its keeping time starts again, at most once an hour per title.
-	if now := s.Now(); now.Sub(held.usedRecorded) > time.Hour {
+	// Fetching now keeps the copy past its 48 hours (prepare.Tidy): noted every ten minutes.
+	if now := s.Now(); now.Sub(held.usedRecorded) > 10*time.Minute {
 		s.DB.UsePrepared(ctx, p.ID, now)
 		s.recordUse(held.grantKey, now)
 	}
@@ -238,7 +256,7 @@ func (s *Service) openCopy(ctx context.Context, held *grant, title db.DownloadTi
 		contentType = "audio/mp4"
 	}
 	return &File{ReadSeeker: file, Closer: file, Size: info.Size(), Modified: info.ModTime(), ETag: `"` + hashes[n-1] + `"`,
-		ContentType: contentType, Name: saveName(title.Title, n, len(files), p.Container)}, nil
+		ContentType: contentType, Name: saveName(title.Title, n, len(files), p.Container), last: n == len(files)}, nil
 }
 
 func (s *Service) openOriginal(ctx context.Context, viewer db.Viewer, title db.DownloadTitle, n int) (*File, error) {
@@ -271,7 +289,7 @@ func (s *Service) openOriginal(ctx context.Context, viewer db.Viewer, title db.D
 	}
 	return &File{ReadSeeker: io.NewSectionReader(source, 0, size), Closer: source, Size: size, Modified: modified,
 		ETag: fmt.Sprintf(`"%x-%x"`, size, modified.UnixNano()), ContentType: mediafacts.OriginalContentType(v.Container, video),
-		Name: saveName(title.Title, n, len(v.Parts), container)}, nil
+		Name: saveName(title.Title, n, len(v.Parts), container), last: n == len(v.Parts)}, nil
 }
 
 // openBookCopy opens the copy a book downloads as: an EPUB or a CBZ made from its own file.
@@ -287,7 +305,7 @@ func openBookCopy(c reading.Copy, title string) (*File, error) {
 	}
 	contentType := map[string]string{reading.FormatEPUB: "application/epub+zip", reading.FormatCBZ: "application/vnd.comicbook+zip"}[c.Container]
 	return &File{ReadSeeker: file, Closer: file, Size: c.Size, Modified: info.ModTime(), ETag: `"` + c.SHA256 + `"`,
-		ContentType: contentType, Name: saveName(title, 1, 1, c.Container)}, nil
+		ContentType: contentType, Name: saveName(title, 1, 1, c.Container), last: true}, nil
 }
 
 // openSubtitle opens a subtitle file beside the original, or, for a smaller copy, a text
