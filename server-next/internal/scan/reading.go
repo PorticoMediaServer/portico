@@ -288,7 +288,8 @@ func (r *run) readingPictures(f *folder, file *found, alone bool) []db.ImportIma
 func (r *run) embedded(file *found, wantCover bool) (d details, images []db.ImportImage, read bool) {
 	d = details{}
 	ext := strings.ToLower(path.Ext(file.rel))
-	if r.lib.Options.Depth == db.DepthFiles || ext != ".epub" && ext != ".cbz" && ext != ".cbr" && ext != ".cb7" {
+	pdf := ext == ".pdf" && wantCover && r.s.Pictures != nil
+	if r.lib.Options.Depth == db.DepthFiles || ext != ".epub" && ext != ".cbz" && ext != ".cbr" && ext != ".cb7" && !pdf {
 		return d, nil, true
 	}
 	// A CBR or CB7 is read whole to find anything in it, which on remote storage means
@@ -302,6 +303,13 @@ func (r *run) embedded(file *found, wantCover bool) (d details, images []db.Impo
 		return d, nil, false
 	}
 	defer f.Close()
+	if pdf {
+		// A PDF's details are what its name says; its cover is its first page, drawn.
+		if raw, err := reading.Cover(f, f.Size(), ext, maxPicture); err == nil {
+			images = r.embeddedCover(file, raw)
+		}
+		return d, images, true
+	}
 	var more map[string]string
 	if ext == ".epub" {
 		raw, err := reading.EPUBPackage(f, f.Size())

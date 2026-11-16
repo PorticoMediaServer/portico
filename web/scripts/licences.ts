@@ -13,7 +13,7 @@
 //     interface font and the icons.
 //   * What the server binary carries (the web app is the server's own screen): Go and the Go
 //     modules linked into it on every release platform (`go list -deps`, offline), the vendored
-//     server code and fonts, and the qualified FFmpeg build.
+//     server code and fonts, the qualified FFmpeg build, and PDFium's WebAssembly build.
 //
 // Every repository file read is recorded with its SHA-256 in `inputs`; web/test/licences.test.ts
 // fails when any of them changes without the file being generated again. Needs node_modules and
@@ -196,6 +196,13 @@ function serverComponents(read: (rel: string) => string, licenceText: string): C
     id: 'server:ffmpeg', name: 'FFmpeg (qualified server build)', version: ffmpeg.ffmpeg?.version ?? ffmpeg.releaseTag, licence: 'GPL-3.0-or-later',
     // The bundle installed with the server carries every library's own licence in its licenses folder.
     group: 'server', text: licenceText, url: `${FFMPEG_SOURCE}/releases/tag/${ffmpeg.releaseTag}`,
+  });
+  // PDFium as WebAssembly, embedded in the go-pdfium module: its own and its bundled libraries' notices.
+  const pdfium = JSON.parse(read('third_party/pdfium-wasm/provenance.json'));
+  out.push({
+    id: `server:pdfium-wasm@${pdfium.pdfium}`, name: 'PDFium (WebAssembly build, draws PDF covers)', version: pdfium.pdfium, licence: pdfium.declaredLicense,
+    group: 'server', url: pdfium.upstream,
+    text: (pdfium.licenses as {component: string; file: string}[]).map(l => `${l.component}\n\n${read(`third_party/pdfium-wasm/licenses/${l.file}`)}`).join('\n\n'),
   });
   return out;
 }
