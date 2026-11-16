@@ -1,4 +1,3 @@
-import {NativeAppPasswords} from './integrations/AppPasswords';
 import {NativeIntegrationAdvanced} from './integrations/Advanced';
 import React, {useCallback, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {ScrollView, Share, Text, View} from 'react-native';
@@ -34,9 +33,8 @@ export function NativeServerIntegrations({ports, runtime, compactHeader = false}
       <ServerHeader serverName={context.serverName} viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} variant="phone" style={{marginBottom: 12}}/>
       {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{t('settings.server.integrations')}</Text>}
       <Tabs testID="server-integrations-tabs" style={{marginTop: 12, marginHorizontal: -20}} value={tab} onValueChange={setTab} accessibilityLabel={t('settings.server.integrations')}
-        items={[{value: 'keys', label: t('web.access.apiKeys')}, {value: 'compatibility',label:t('integrations.appPasswords.title')}, {value: 'webhooks', label: t('api.webhooks.title')}, {value: 'assistants', label: t('api.mcp.title')}]}/>
+        items={[{value: 'keys', label: t('web.access.apiKeys')}, {value: 'webhooks', label: t('api.webhooks.title')}, {value: 'assistants', label: t('api.mcp.title')}]}/>
       {tab === 'keys' && keys?.context === context && keys.current() && <NativeApiKeys group={keys} runtime={runtime} createRequest={keyCreateRequest} consumeCreateRequest={consumeKeyCreate}/>}
-      {tab === 'compatibility'&&<NativeAppPasswords ports={ports} runtime={runtime}/>}
       {tab === 'webhooks' && <NativeWebhooks ports={ports} runtime={runtime}/>}
       {tab === 'assistants' && <AssistantsTab ports={ports} t={t} openCreateKey={openCreateKey} isCurrent={() => keys?.context === context && keys.current()}/>}
       <NativeIntegrationAdvanced ports={ports} runtime={runtime}/>
