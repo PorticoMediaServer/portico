@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"slices"
+	"strings"
 )
 
 // HomeRowItems opens a Home source as an ordinary item list, so See all keeps the library's
@@ -44,6 +45,10 @@ func (d *DB) HomeRowItems(ctx context.Context, v Viewer, row string, q ItemQuery
 			q.Sort, q.Desc = SortOrder, false
 		}
 	default:
+		if strings.HasPrefix(row, "collection:") {
+			q.Collection = strings.TrimPrefix(row, "collection:")
+			return d.Items(ctx, v, q)
+		}
 		choice, err := d.MoodRow(ctx, v, row)
 		if err != nil {
 			return ItemPage{}, err
