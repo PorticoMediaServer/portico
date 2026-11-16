@@ -265,6 +265,10 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
     finally {if (mounted.current) setSaving(false);}
   };
   const canEdit = live && !denied && bindings.authority.isCurrent() && !!person && person.accountId !== bindings.actor.accountId && managesTier(bindings.actor.role, person.role);
+  // W2 F8: the server lists devices only of an account the viewer manages, and refuses your own (and, for an
+  // administrator, the owner's), which the page read as a lost role and left Settings. Your own devices are in
+  // Profile & account › Signed-in devices; another account's are here when you manage it.
+  const devicesShown = !!person && person.accountId !== bindings.actor.accountId && managesTier(bindings.actor.role, person.role);
   const resetView = useMemberResetCodeView(bindings.memberResetCodes, person, bindings.authority.isCurrent, saving || !canEdit, bindings.reportError, tab);
   const values: Readonly<Record<string, SettingsValue | undefined>> = person ? {
     'people.username': person.username, ...(bindings.signIn === 'portico' && person.email !== undefined ? {'people.email': person.email} : {}), 'people.notes': person.notes ?? '', 'people.role': person.role === 'admin' ? 'administrator' : person.role,
@@ -388,7 +392,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
     {advancedRows}
     {personId && <SettingsPanel open onClose={() => {if (resetView && !resetView.leave()) return; admitPerson();}} title={person?.username ?? personRow?.username ?? t(section.title)} audience={t(bindings.actor.role === 'owner' ? 'next.shell.serverVisibility.ownerShared' : 'next.shell.serverVisibility.administrator')}
       returnFocusRef={opener} selectedTab={tab} onTabChange={next => {if (next === tab) return; if (resetView && !resetView.leave()) return; setTab(next);}} saveState={saving ? 'saving' : saved ? 'saved' : undefined}
-      error={error ? t('next.states.pageFailedBody') : undefined} tabs={personPanel.tabs!.filter(tab => tab.id !== 'devices' || bindings.devices).map(tab => ({id: tab.id, title: t(tab.title), content: !person ? <p role="status">{t('next.settings.loading')}</p> : tab.id === 'devices' && bindings.devices ? <PeopleDevices key={person.accountId} accountId={person.accountId} api={bindings.devices} isCurrent={bindings.authority.isCurrent} canSignOut={canEdit} onError={failure} /> : <SettingsRows holder={tab} state={state} change={change} reset={() => {}} advancedOpen={advanced} onAdvancedChange={setAdvanced}
+      error={error ? t('next.states.pageFailedBody') : undefined} tabs={personPanel.tabs!.filter(tab => tab.id !== 'devices' || bindings.devices && devicesShown).map(tab => ({id: tab.id, title: t(tab.title), content: !person ? <p role="status">{t('next.settings.loading')}</p> : tab.id === 'devices' && bindings.devices ? <PeopleDevices key={person.accountId} accountId={person.accountId} api={bindings.devices} isCurrent={bindings.authority.isCurrent} canSignOut={canEdit} onError={failure} /> : <SettingsRows holder={tab} state={state} change={change} reset={() => {}} advancedOpen={advanced} onAdvancedChange={setAdvanced}
         renderSpecial={special} />
       }))} />}
     {resetView?.sheet && <MemberResetCodeSheet {...resetView.sheet} />}

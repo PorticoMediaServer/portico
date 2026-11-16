@@ -319,10 +319,10 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	s.tell(StatePlaying, sess)
 	sess.op.Lock()
 	s.mu.Unlock()
+	// The play itself, and who played, are counted once it has played a second (sampleLocked),
+	// as Play history lists it: a start that never plays is in neither.
 	if s.totals != nil {
-		s.totals.Add("plays"+split(&sess.Session), 1)
 		s.totals.Most("streams_peak", int64(total+1))
-		s.totals.Person(c.Viewer.UserID)
 	}
 	defer sess.op.Unlock()
 	for _, other := range replaced {

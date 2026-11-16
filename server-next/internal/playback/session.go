@@ -164,6 +164,8 @@ type session struct {
 	sampleAt time.Time
 	playedMs int64
 	dirty    bool
+	// counted says this play is in the day's totals: once Play history lists it (countLocked).
+	counted bool
 	// awayKbps is what this stream takes of the upload speed, 0 at home. See away.go.
 	awayKbps int
 	// uploadHeld says the upload speed lowered the quality this stream was asked for.
@@ -453,7 +455,22 @@ func (s *Service) sampleLocked(sess *session, positionMs, playedMs int64, now ti
 	if s.totals != nil && sess.playedMs > before {
 		s.totals.Add("played_ms"+split(&sess.Session), sess.playedMs-before)
 	}
+	if sess.playedMs >= db.PlayedOne {
+		s.countLocked(sess)
+	}
 	sess.sampleAt, sess.dirty = now, true
+}
+
+// countLocked counts a play, and who played it, in the day's totals at the moment Play history
+// lists it: once it has played a second, or when a save finds it finished. A start that never
+// plays is in neither, so the Dashboard's plays and Play history agree (W2 F11, 16 Nov).
+func (s *Service) countLocked(sess *session) {
+	if s.totals == nil || sess.counted {
+		return
+	}
+	sess.counted = true
+	s.totals.Add("plays"+split(&sess.Session), 1)
+	s.totals.Person(sess.UserID)
 }
 
 // Save writes the progress that has not been saved yet: of the named sessions, or of all.
@@ -484,7 +501,15 @@ func (s *Service) Save(ctx context.Context, p db.Priority, only ...string) {
 	if len(batch) == 0 {
 		return
 	}
-	if _, err := s.db.SaveProgress(context.WithoutCancel(ctx), p, batch); err != nil {
+	finished, err := s.db.SaveProgress(context.WithoutCancel(ctx), p, batch)
+	s.mu.Lock()
+	for i, done := range finished {
+		if done {
+			s.countLocked(owners[i])
+		}
+	}
+	s.mu.Unlock()
+	if err != nil {
 		s.log.Error("saving playback progress failed", "error", err)
 		s.mu.Lock()
 		for _, sess := range owners {
