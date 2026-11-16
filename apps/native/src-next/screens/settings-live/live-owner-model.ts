@@ -146,3 +146,16 @@ export const secondsOf = (ms: number | null): string => ms === null ? '' : Strin
 export const millisOf = (value: string): number | null => value.trim() === '' ? null : Math.max(0, Math.round(Number(value) || 0)) * 1000;
 export const megabytes = 1048576;
 export const listOf = (value: string): string[] => value.split(',').map(part => part.trim()).filter(Boolean);
+
+/** A rebuilt source (`GET /v1/admin/live/sources`, client-core live-sources.ts) as the row these sheets draw. The
+ * rebuilt server keeps its health on the source itself, so there are no separate refresh rows; a paused source
+ * is drawn as paused. */
+export function liveSourceFromOwner(source: import('../../../../../packages/client-core/src/server-admin/live-sources').OwnerSource): LiveSource {
+  const report = source.report;
+  return Object.freeze({
+    id: source.id, name: source.name, revision: Number(source.revision), state: source.paused ? 'paused' : source.state, acquisition: source.acquisition,
+    tunerCount: source.tunerCount ?? 0, tunerCountMode: '', generation: '', publishedAt: source.refreshedAt ?? '',
+    channels: report?.channels ?? 0, programmes: report?.programmes ?? 0, deliveryValidation: '', capacityKnown: false, planningEstimate: 0,
+    diagnostics: {skippedChannels: report?.skippedChannels ?? 0, skippedProgrammes: report?.skippedProgrammes ?? 0, adjustedProgrammes: 0, examples: report?.examples ?? []},
+  });
+}

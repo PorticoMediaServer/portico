@@ -1,14 +1,14 @@
-import {changeOwnerLiveSource, deleteOwnerRecordingRule, discoverOwnerTuners, importOwnerSourceLogos, previewOwnerSourceFiles, readOwnerChannelMap, readOwnerDvrDefaults, readOwnerLiveDefaults, readOwnerLiveSources, readOwnerRecordingGuide, readOwnerRecordingOwners, readOwnerRecordingPermissions, readOwnerRecordingRules, readOwnerSourceConfiguration, readOwnerTuners, saveOwnerRemoteSource, saveOwnerSourceFiles, writeOwnerChannelMap, writeOwnerDvrDefaults, writeOwnerLiveDefaults, writeOwnerRecordingPermission, ownerRecordingRuleChange, sendOwnerRecordingRuleCommand, writeOwnerSourceConfiguration} from '../../../../../packages/client-core/src/owner-requests';
+import {deleteOwnerRecordingRule, discoverOwnerTuners, importOwnerSourceLogos, readOwnerChannelMap, readOwnerDvrDefaults, readOwnerLiveDefaults, readOwnerRecordingGuide, readOwnerRecordingOwners, readOwnerRecordingPermissions, readOwnerRecordingRules, readOwnerSourceConfiguration, readOwnerTuners, writeOwnerChannelMap, writeOwnerDvrDefaults, writeOwnerLiveDefaults, writeOwnerRecordingPermission, ownerRecordingRuleChange, sendOwnerRecordingRuleCommand, writeOwnerSourceConfiguration} from '../../../../../packages/client-core/src/owner-requests';
 import {setServerChannelHidden} from '../../../../../packages/client-core/src/server-channel-visibility';
 import {clonePortableDto} from '../../../../../packages/client-core/src';
 import {liveSourceChoicesService, parseEnvelope, type LiveSourceChoicePage} from '../../../../../packages/client-core/src/administration';
-import {rebaseDraft, sendWithFreshRecord, ALREADY_DONE} from '../../../../../packages/client-core/src/freshness-actions';
-import {lanConfirmationRoots, previewRemoteSource, remoteSourceDraft, withConfirmedLanRoots, type RemoteSourceDraft, type RemoteSourcePreview, type SourceKind} from '../../../../../packages/client-core/src/linear-api';
-import {normalizeHdHomerunLocator} from '../../../../../packages/client-core/src/server-admin/panel-logic';
+import {rebaseDraft} from '../../../../../packages/client-core/src/freshness-actions';
+import {lanConfirmationRoots, remoteSourceDraft, withConfirmedLanRoots, type RemoteSourceDraft, type RemoteSourcePreview, type SourceKind} from '../../../../../packages/client-core/src/linear-api';
 import type {LiveSourceInput} from '../../../../../packages/client-core/src/live-source-draft';
 import {NativeScreenLifetime, NativeScreenStore, screenScopeEnded} from './lifetime';
+import {changeOwnerSource, createOwnerSource, previewOwnerSource, readOwnerSources, remoteSourceSave, uploadSourceSave, type OwnerSource, type SourceSave} from '../../../../../packages/client-core/src/server-admin/live-sources';
 import {
-  adminResult, parseChannelMapPage, parseLiveDefaults, parseLiveSourceReceipt, parseLiveSources, parseLogoImport, parseSourceDocument, parseTunerDiscovery, parseUploadPreview, type UploadPreview,
+  adminResult, liveSourceFromOwner, parseChannelMapPage, parseLiveDefaults, parseLogoImport, parseSourceDocument, parseTunerDiscovery, type UploadPreview,
   type ChannelMapEdit, type ChannelMapPage, type LiveDefaults, type LiveSource, type LiveSources, type LiveSourceSettings, type LogoImportOutcome, type TunerDiscovery,
 } from './live-owner-model';
 import {needsRuleOwner, parseAdminRulePage, parseDVRDocument, parseRecordingPolicy, parseTunerView, type AdminRule, type DVRDefaults, type DVRDocument, type RecordingPolicy, type TunerView} from './recording-owner-model';
@@ -21,7 +21,8 @@ export type LiveOwnerSnapshot = Readonly<{
   list?: LiveSources; loading: boolean; busy: boolean; checkedAt?: number; error?: unknown; notice?: string;
 }>;
 
-export type LiveOwnerApi = Readonly<{request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<T>}>;
+/** The screen's transport; `requestRaw` (the app's header-sending call, guarded by the screen) carries a source's revision. */
+export type LiveOwnerApi = Readonly<{request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<T>}> & Partial<Pick<LibraryContentApi, 'requestRaw'>>;
 export type NativeRecordingCommandLifetime = Readonly<{signal: AbortSignal; isCurrent: () => boolean}>;
 type Request = <T>(path: string, method?: string, body?: unknown) => Promise<T>;
 
@@ -45,9 +46,9 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
     if (!this.current()) return Promise.resolve();
     const ticket = ++this.loadTicket;
     if (!quiet) this.publish({...this.getSnapshot(), loading: true, error: undefined});
-    return readOwnerLiveSources({request: this.request}).then(raw => {
+    return this.readSources().then(sources => {
       if (!this.current() || ticket !== this.loadTicket) return;
-      this.publish({list: parseLiveSources(raw, this.lifetime.authority.serverId), loading: false, busy: this.getSnapshot().busy, checkedAt: Date.now(), error: undefined});
+      this.publish({list: {sources: sources.map(liveSourceFromOwner), refresh: []}, loading: false, busy: this.getSnapshot().busy, checkedAt: Date.now(), error: undefined});
     }, error => {
       if (this.current() && ticket === this.loadTicket) this.publish({...this.getSnapshot(), loading: false, error});
     });
@@ -81,33 +82,23 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
     return setServerChannelHidden(api, this.lifetime.authority.serverId, sourceId, channelId, hidden, this.operationId, caller.signal, current, expected);
   };
   nextId = (): string => this.operationId();
-  private row = (id: string) => this.getSnapshot().list?.sources.find(value => value.id === id);
-  private freshRow = async (id: string) => {
-    const raw = await readOwnerLiveSources({request: this.request});
-    const list = parseLiveSources(raw, this.lifetime.authority.serverId);
-    return list.sources.find(value => value.id === id);
-  };
-  refreshSource = (id: string) => this.act(async () => {
-    const row = this.row(id); if (!row) throw new Error('missing_source');
-    const result = await sendWithFreshRecord(row, (fresh, retries) => changeOwnerLiveSource({request: this.request}, fresh.id, 'refresh', {expectedRevision: fresh.revision, ...(retries ? {} : {})}), {reread: () => this.freshRow(id), applies: now => now.state !== 'disabled'});
-    if (result === ALREADY_DONE) return;
+  /** The rebuilt sources, kept as read so a change is sent against the revision the row shows. */
+  private owned = new Map<string, OwnerSource>();
+  private rebuiltApi = (): LibraryContentApi => ({request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => this.lifetime.request(next => this.api.request<T>(path, method, body, next), signal), ...(this.api.requestRaw ? {requestRaw: this.api.requestRaw} : {})}) as LibraryContentApi;
+  private async readSources(): Promise<readonly OwnerSource[]> {
+    const {sources} = await readOwnerSources(this.rebuiltApi());
+    this.owned = new Map(sources.map(source => [source.id, source]));
+    return sources;
+  }
+  private change = (id: string, action: 'refresh' | 'toggle' | 'remove') => this.act(async () => {
+    const source = this.owned.get(id); if (!source) throw new Error('missing_source');
+    await changeOwnerSource(this.rebuiltApi(), source, action);
     await this.load(true);
   }, () => undefined);
-  setEnabled = (id: string, enabled: boolean) => this.act(async () => {
-    const row = this.row(id); if (!row) throw new Error('missing_source');
-    const key = this.operationId();
-    const result = await sendWithFreshRecord(row, fresh => changeOwnerLiveSource({request: this.request}, fresh.id, 'enabled', {expectedRevision: fresh.revision, enabled, requestId: key}),
-      {reread: () => this.freshRow(id), applies: now => (now.state !== 'disabled') !== enabled});
-    if (result === ALREADY_DONE) return;
-    await this.load(true);
-  }, () => undefined);
-  removeSource = (id: string) => this.act(async () => {
-    const row = this.row(id); if (!row) throw new Error('missing_source');
-    const key = this.operationId();
-    const result = await sendWithFreshRecord(row, fresh => changeOwnerLiveSource({request: this.request}, fresh.id, 'remove', {expectedRevision: fresh.revision, requestId: key}), {reread: () => this.freshRow(id), applies: () => false});
-    if (result === ALREADY_DONE) return;
-    await this.load(true);
-  }, () => undefined);
+  refreshSource = (id: string) => this.change(id, 'refresh');
+  /** Pausing and resuming is one switch on the rebuilt server; a source already as asked is left alone. */
+  setEnabled = (id: string, enabled: boolean) => {const source = this.owned.get(id); return source && source.paused === enabled ? this.change(id, 'toggle') : Promise.resolve(undefined);};
+  removeSource = (id: string) => this.change(id, 'remove');
   importLogos = (id: string) => this.act(async () => parseLogoImport(await importOwnerSourceLogos({request: this.request}, id, {operationId: this.operationId()}), this.lifetime.authority.serverId), () => undefined);
   document = async (id: string) => parseSourceDocument(await readOwnerSourceConfiguration({request: this.request}, id), this.lifetime.authority.serverId);
   saveDocument = async (mark: Readonly<{sourceId: string; revision: number; settings: LiveSourceSettings}>, draft: LiveSourceSettings) => this.act(async () => {
@@ -152,26 +143,38 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
   discover = async (): Promise<TunerDiscovery> => parseTunerDiscovery(await discoverOwnerTuners({request: this.request}, {windowMs: 5000}), this.lifetime.authority.serverId);
   liveDefaults = async () => parseLiveDefaults(await readOwnerLiveDefaults({request: this.request}), this.lifetime.authority.serverId);
   saveLiveDefaults = async (revision: number, value: LiveDefaults) => parseLiveDefaults(await writeOwnerLiveDefaults({request: this.request}, {expectedRevision: revision, operationId: this.operationId(), settings: value}), this.lifetime.authority.serverId);
+  /** A checked remote source waits here, by an id only this screen knows, until the owner saves it: the rebuilt
+   * server previews a body and creates from the same body (no stored preview). */
+  private checked = new Map<string, SourceSave>();
   previewRemote = async (draft: RemoteSourceDraft): Promise<RemoteSourcePreview> => {
-    const normalized = draft.kind === 'hdhomerun' ? {...draft, locator: normalizeHdHomerunLocator(draft.locator)} : draft;
-    return previewRemoteSource({request: this.request}, this.lifetime.authority.serverId, normalized);
+    const body = remoteSourceSave({...draft, tunerCount: draft.ownerLimit > 0 ? draft.ownerLimit : 1});
+    const preview = await this.lifetime.request(signal => previewOwnerSource(this.rebuiltApi(), body, signal));
+    // A tuner reports how many it has; that is what the source keeps.
+    const kept = draft.kind === 'hdhomerun' && preview.tuners > 0 ? {...body, tunerCount: preview.tuners} : body;
+    const previewId = this.operationId(); this.checked.set(previewId, kept);
+    return Object.freeze({previewId, expiresAt: '', mappingKeys: [], discoveredCapacity: preview.tuners, capacityMode: preview.tuners > 0 ? 'discovered' : 'defaulted',
+      preview: {diagnostics: {skippedChannels: preview.report.skippedChannels, skippedProgrammes: preview.report.skippedProgrammes, adjustedProgrammes: 0, examples: preview.report.examples ?? []},
+        channels: preview.report.channels, programmes: preview.report.programmes, availableStart: '', availableEnd: preview.report.guideThrough ?? '', names: [...preview.names]}});
   };
-  saveRemote = (previewId: string) => this.act(async () => parseSourceDocument(await saveOwnerRemoteSource({request: this.request}, {previewId, requestId: this.operationId()}), this.lifetime.authority.serverId), () => undefined);
-  private uploadRequest = <T,>(action: 'preview' | 'save', draft: LiveSourceInput, caller?: Readonly<{isCurrent: () => boolean; signal?: AbortSignal}>) =>
-    this.lifetime.request(signal => (action === 'preview' ? previewOwnerSourceFiles<T> : saveOwnerSourceFiles<T>)(this.api, draft, signal), caller?.signal);
+  saveRemote = (previewId: string) => this.act(async () => {
+    const body = this.checked.get(previewId); if (!body) throw new Error('missing_preview');
+    const source = await this.lifetime.request(signal => createOwnerSource(this.rebuiltApi(), body, previewId, signal));
+    this.checked.delete(previewId);
+    return liveSourceFromOwner(source);
+  }, () => undefined);
   previewFiles = async (draft: LiveSourceInput, caller?: Readonly<{isCurrent: () => boolean; signal?: AbortSignal}>): Promise<UploadPreview> => {
     this.lifetime.assert();
     if (caller && (!caller.isCurrent() || caller.signal?.aborted === true)) throw new Error('cancelled');
-    const raw = await this.uploadRequest<unknown>('preview', draft, caller);
+    const preview = await this.lifetime.request(signal => previewOwnerSource(this.rebuiltApi(), uploadSourceSave(draft), signal), caller?.signal);
     if (caller && (!caller.isCurrent() || caller.signal?.aborted === true)) throw new Error('cancelled');
-    return parseUploadPreview(raw, this.lifetime.authority.serverId);
+    return Object.freeze({channels: preview.report.channels, programmes: preview.report.programmes, names: Object.freeze(preview.names.slice(0, 100))});
   };
   saveFiles = (draft: LiveSourceInput, caller?: Readonly<{isCurrent: () => boolean; signal?: AbortSignal}>) =>
     this.act(async () => {
       if (caller && (!caller.isCurrent() || caller.signal?.aborted === true)) throw new Error('cancelled');
-      const raw = await this.uploadRequest<unknown>('save', draft, caller);
+      const source = await this.lifetime.request(signal => createOwnerSource(this.rebuiltApi(), uploadSourceSave(draft), draft.requestId, signal), caller?.signal);
       if (caller && (!caller.isCurrent() || caller.signal?.aborted === true)) throw new Error('cancelled');
-      return parseLiveSourceReceipt(raw, this.lifetime.authority.serverId);
+      return liveSourceFromOwner(source);
     }, () => undefined, caller);
   tuners = async (): Promise<TunerView> => parseTunerView(await readOwnerTuners({request: this.request}), this.lifetime.authority.serverId);
   policy = async (cursor = ''): Promise<RecordingPolicy> => {

@@ -2,6 +2,7 @@ import type {LiveSource} from '../../../contracts/src/next/api.ts';
 import type {LibraryContentApi} from '../library-content.ts';
 import {callServer, serverPath} from '../query/server-api.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
+import {normalizeHdHomerunLocator} from './panel-logic.ts';
 
 export type OwnerSource = LiveSource & Readonly<{acquisition: 'upload' | 'remote'}>;
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -61,3 +62,20 @@ export async function createOwnerSource(api: LibraryContentApi, body: SourceSave
  return ownerSource(answer.body);
 }
 export type {DvrTuners as OwnerTunerView} from '../../../contracts/src/next/api.ts';
+
+/** What the add-source forms ask for (a playlist, Xtream server or HDHomeRun tuner), as the rebuilt server stores it.
+ * Shared so every app sends the same body. */
+export type RemoteSourceForm = Readonly<{kind: 'm3u' | 'xtream' | 'hdhomerun'; name: string; locator: string; guideUrl: string; username: string; password: string;
+ viewerAccess: 'server-members' | 'owner-only'; refreshMs: number; tunerCount: number}>;
+export function remoteSourceSave(form: RemoteSourceForm): SourceSave {
+ const config = {refreshHours: form.refreshMs / 3_600_000,
+  ...(form.kind === 'm3u' ? {playlistUrl: form.locator} : form.kind === 'xtream' ? {serverUrl: form.locator} : {tunerUrl: normalizeHdHomerunLocator(form.locator)}),
+  ...(form.guideUrl.trim() ? {guideUrl: form.guideUrl.trim()} : {})};
+ return {kind: form.kind === 'm3u' ? 'playlist' : form.kind, name: form.name.trim(), audience: form.viewerAccess === 'owner-only' ? 'owner' : 'everyone', tunerCount: form.tunerCount, config,
+  ...(form.kind === 'xtream' ? {signIn: {username: form.username, password: form.password}} : {})};
+}
+/** An uploaded playlist and/or guide file. */
+export function uploadSourceSave(form: Readonly<{name: string; playlist: string; guide: string; tunerCount: number}>): SourceSave {
+ return {kind: form.playlist ? 'playlist' : 'guide', name: form.name.trim(), audience: 'everyone', tunerCount: form.tunerCount,
+  ...(form.playlist ? {playlist: form.playlist} : {}), ...(form.guide ? {guide: form.guide} : {})};
+}
