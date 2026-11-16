@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -312,23 +313,29 @@ func TestScanProbeLaneUsesCPUScaledCapacity(t *testing.T) {
 // Duplicate-key fencing is a correctness rule, not a capacity one, so it still
 // answers at once rather than queueing.
 func TestADuplicateKeyIsStillRefusedImmediately(t *testing.T) {
-	s := &Supervisor{}
-	release := make(chan struct{})
-	defer close(release)
-	started := make(chan struct{})
-	go func() {
-		_ = s.Run(context.Background(), "playback:reader:same", exec.Command("sh", "-c", "read line"), func(io.Reader) error {
-			close(started)
-			<-release
+	synctest.Test(t, func(t *testing.T) {
+		s := &Supervisor{Limit: 1}
+		release, started, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+		defer func() { close(release); <-done }()
+		go func() {
+			defer close(done)
+			_ = s.RunFunc(context.Background(), "playback:reader:same", func(context.Context, bool) error {
+				close(started)
+				<-release
+				return nil
+			})
+		}()
+		<-started
+		begin := time.Now()
+		err := s.RunFunc(context.Background(), "playback:reader:same", func(context.Context, bool) error {
+			t.Error("duplicate operation ran")
 			return nil
 		})
-	}()
-	<-started
-	begin := time.Now()
-	if err := s.Run(context.Background(), "playback:reader:same", exec.Command("sh", "-c", "exit 0"), func(io.Reader) error { return nil }); !errors.Is(err, ErrBusy) {
-		t.Fatalf("a duplicate key answered %v", err)
-	}
-	if time.Since(begin) > time.Second {
-		t.Fatalf("a duplicate key waited %s", time.Since(begin))
-	}
+		if !errors.Is(err, ErrBusy) {
+			t.Fatalf("a duplicate key answered %v", err)
+		}
+		if time.Since(begin) != 0 {
+			t.Fatalf("a duplicate key waited %s", time.Since(begin))
+		}
+	})
 }
