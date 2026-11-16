@@ -99,3 +99,17 @@ func wordsMatch(typed, words []string) (int, bool) {
 	}
 	return 2, true
 }
+
+// MatchingLiveTitles applies the channel search's folded word-prefix rules to the listings
+// already made safe for this viewer. One parse covers a batch of programme titles.
+func MatchingLiveTitles(text string, titles []string) ([]bool, error) {
+	terms, err := parseSearch(text)
+	if err != nil {
+		return nil, err
+	}
+	matches := make([]bool, len(titles))
+	for n, title := range titles {
+		_, matches[n] = channelNameMatch(terms, title)
+	}
+	return matches, nil
+}

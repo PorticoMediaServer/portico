@@ -59,6 +59,11 @@ func (s *Server) searchChannels(r *http.Request, q db.SearchQuery) (group Search
 			shown = append(shown, m)
 		}
 	}
+	shown, programmes, programmeMore, err := s.searchChannelProgrammes(r, lv, q.Text, shown)
+	if err != nil {
+		return SearchGroup{}, true, err
+	}
+	more = more || programmeMore
 	slices.SortStableFunc(shown, func(a, b db.LiveChannelMatch) int {
 		if sort == db.SortTitle {
 			order := cmp.Or(cmp.Compare(a.SortName, b.SortName), cmp.Compare(a.ID, b.ID))
@@ -76,7 +81,9 @@ func (s *Server) searchChannels(r *http.Request, q db.SearchQuery) (group Search
 	}
 	end := min(from.Offset+limit, len(shown))
 	for _, m := range shown[min(from.Offset, end):end] {
-		group.Channels = append(group.Channels, channelOut(m.LiveChannel))
+		channel := channelOut(m.LiveChannel)
+		channel.MatchedProgramme = programmes[m.ID]
+		group.Channels = append(group.Channels, channel)
 	}
 	if end < len(shown) {
 		group.NextCursor = encodeOpaque(liveSearchCursor{Sort: sort, Desc: q.Desc, Offset: end})
