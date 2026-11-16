@@ -18,7 +18,8 @@ import (
 // MetadataField is one field as the editor shows it.
 type MetadataField struct {
 	Value any `json:"value"`
-	// Source is where the value came from: provider, file or edit.
+	// Source is where the value came from: provider, file or edit; for metadataLanguage, library
+	// when it follows the library's.
 	Source string `json:"source"`
 	Locked bool   `json:"locked"`
 	// ProviderValue is the provider's value, beside a value it could not change (locked, edited
@@ -103,6 +104,9 @@ type MetadataPatch struct {
 	// document's providerValue: each is unlocked and the provider's again. A field named here
 	// is not also sent with a value.
 	UseProvider []string `json:"useProvider,omitempty"`
+	// MetadataLanguage is a film's or show's own metadata language ("fr", "pt-BR"); "" goes back
+	// to the library's. The title is refreshed in it soon after.
+	MetadataLanguage *string `json:"metadataLanguage,omitempty"`
 }
 
 // MetadataHistoryEntry is one change a person made: fields_edited, artwork_chosen,
@@ -208,6 +212,15 @@ func (s *Server) document(r *http.Request, id string) (MetadataDocument, error) 
 		}
 		out.Fields[f] = field
 	}
+	// A film or show has its own metadata language (definition area 4, rule 19): its value, or
+	// absent (null) with source "library" while it follows its library's.
+	if doc.Kind == db.KindMovie || doc.Kind == db.KindShow {
+		language := MetadataField{Source: "library"}
+		if doc.Language != "" {
+			language = MetadataField{Value: doc.Language, Source: "edit"}
+		}
+		out.Fields["metadataLanguage"] = language
+	}
 	for _, l := range offer.lists {
 		list := MetadataList{Values: doc.Lists[l], Source: source(l), Locked: locked[l]}
 		if l == "labels" {
@@ -242,7 +255,8 @@ func (s *Server) editMetadata(r *http.Request, req MetadataPatch) (MetadataDocum
 	revision, _ := strconv.ParseInt(header, 10, 64)
 	edit := db.MetadataEdit{PublicationType: req.PublicationType, Title: req.Title, SortTitle: req.SortTitle, OriginalTitle: req.OriginalTitle, Edition: req.Edition, Tagline: req.Tagline,
 		Summary: req.Summary, Year: req.Year, ReleaseDate: req.ReleaseDate, ContentRating: req.ContentRating, Genres: req.Genres, Studios: req.Studios,
-		Networks: req.Networks, Countries: req.Countries, Labels: req.Labels, Lock: req.Lock, Unlock: req.Unlock, LockAll: req.LockAll, UnlockAll: req.UnlockAll}
+		Networks: req.Networks, Countries: req.Countries, Labels: req.Labels, Lock: req.Lock, Unlock: req.Unlock, LockAll: req.LockAll, UnlockAll: req.UnlockAll,
+		Language: req.MetadataLanguage}
 	if err := s.useProvider(r, id, req.UseProvider, &edit); err != nil {
 		return MetadataDocument{}, err
 	}

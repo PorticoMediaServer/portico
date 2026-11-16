@@ -206,6 +206,7 @@ func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats
 }
 
 func (s *Service) match(ctx context.Context, p Provider, locale Locale, libraryKind string, item db.MatchItem, artists map[int64]bool) (bool, error) {
+	locale = locale.For(item.Language)
 	title, year, err := s.searchName(ctx, libraryKind, item)
 	if err != nil {
 		return false, err
@@ -424,7 +425,7 @@ func (s *Service) target(ctx context.Context, itemID string) (db.MatchTarget, Pr
 	if p == nil || providerKinds[t.Kind] == "" {
 		return t, nil, Locale{}, ErrNoProvider
 	}
-	return t, p, Locale{Language: src.Language, Region: src.Region}, nil
+	return t, p, Locale{Language: src.Language, Region: src.Region}.For(t.Language), nil
 }
 
 // ErrNotAShow is the answer to an episode order or offset given with the match of a title

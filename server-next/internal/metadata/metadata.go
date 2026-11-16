@@ -83,6 +83,15 @@ type Locale struct {
 	Region   string // "US"
 }
 
+// For is the locale a title is asked about in: its own metadata language, when it has one,
+// in place of its library's (definition area 4, rule 19).
+func (l Locale) For(language string) Locale {
+	if language != "" {
+		l.Language = language
+	}
+	return l
+}
+
 // Query is what a title's files say about it.
 type Query struct {
 	Kind  string // movie, show, album or artist, as in Ref

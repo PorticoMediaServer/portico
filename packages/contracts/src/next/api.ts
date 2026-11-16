@@ -2303,6 +2303,7 @@ export interface MetadataPatch {
   lockAll?: boolean;
   unlockAll?: boolean;
   useProvider?: string[];
+  metadataLanguage?: string;
 }
 
 export interface MetadataRefreshed {
