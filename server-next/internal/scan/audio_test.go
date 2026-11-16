@@ -1,7 +1,9 @@
 package scan_test
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -399,4 +401,9 @@ func TestTagTitlesGiveWayToTheProvidersAndTheRestOfTheTagsStay(t *testing.T) {
 			t.Errorf("a song matched by the provider is still %q", got.Title)
 		}
 	}
+}
+
+func (p *kept) Hash(data []byte) (string, error) {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), nil
 }

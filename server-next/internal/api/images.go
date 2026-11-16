@@ -14,7 +14,7 @@ import (
 // imageRoutes serves artwork. An item, a person or a credit carries the address of each of
 // its pictures, and an app fetches it as it is, adding only the size it will draw at.
 //
-// The address is its own permission: it is named by a long hash that only a reply about
+// The address is its own permission: it is named by a server-keyed content hash that only a reply about
 // something the caller may see ever contains, so the route asks for no token. That is what
 // lets a web page put it in an <img>, and lets every cache keep it for good, because the
 // picture behind one address never changes.

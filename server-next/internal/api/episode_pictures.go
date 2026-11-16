@@ -2,8 +2,6 @@ package api
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
@@ -46,8 +44,10 @@ func (s *Server) makeEpisodePictures(ctx context.Context, lib db.Library) error 
 			}
 			hash := ""
 			if err == nil {
-				sum := sha256.Sum256(data)
-				hash = hex.EncodeToString(sum[:])
+				hash, err = s.artwork.Hash(data)
+				if err != nil {
+					return err
+				}
 				if err := s.artwork.Put(hash, data); errors.Is(err, artwork.ErrNotAPicture) {
 					hash = ""
 				} else if err != nil {

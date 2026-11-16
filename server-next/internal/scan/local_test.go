@@ -2,6 +2,8 @@ package scan_test
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"image"
 	"image/png"
 	"os"
@@ -159,4 +161,9 @@ func TestAShowsFolderDescribesTheShowItsSeasonsAndEpisodes(t *testing.T) {
 	if renamed, ok := f.titles(db.KindEpisode)["The Target (Pilot)"]; !ok || renamed.PublicID != episode.PublicID {
 		t.Errorf("episode after its NFO file changed: %v", keys(f.titles(db.KindEpisode)))
 	}
+}
+
+func (p pictures) Hash(data []byte) (string, error) {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), nil
 }

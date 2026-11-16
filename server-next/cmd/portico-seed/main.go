@@ -47,7 +47,15 @@ func main() {
 	if *phase == "all" || *phase == "import" {
 		last := time.Now()
 		cfg := seed.Config{Seed: *seedValue, Items: *items, BatchFiles: *batch}
-		if store := artwork.New(filepath.Dir(*path)); *pictures > 0 {
+		store := artwork.New(filepath.Dir(*path))
+		cfg.PictureKey = func(value string) string {
+			id, err := store.Hash([]byte(value))
+			if err != nil {
+				log.Fatal(err)
+			}
+			return id
+		}
+		if *pictures > 0 {
 			cfg.Picture = func(hash string) {
 				if *pictures--; *pictures >= 0 {
 					if err := store.Put(hash, plainPicture(hash)); err != nil {

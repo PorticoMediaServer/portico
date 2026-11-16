@@ -723,6 +723,9 @@ func (s *Server) logoRoute() {
 		}
 		hash, err := librarychannels.LogoID(data)
 		if err == nil {
+			hash, err = s.artwork.Hash(data)
+		}
+		if err == nil {
 			_, _, err = s.artwork.PutSized(hash, data, librarychannels.LogoSizes)
 		}
 		if errors.Is(err, librarychannels.ErrLogo) || errors.Is(err, artwork.ErrNotAPicture) {
