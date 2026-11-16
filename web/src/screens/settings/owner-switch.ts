@@ -40,7 +40,6 @@ export class SettingsOwnerSwitch {
   private closed = false;
   private deliveredAttemptId?: string;
   private move: AccountMove | null = null;
-  private moveReading = false;
   private readonly moveListeners = new Set<() => void>();
   private readonly origin: string;
   private readonly routes: ReturnType<HttpLocalApi['getRouteConnection']>;
@@ -200,13 +199,11 @@ export class SettingsOwnerSwitch {
     this.move = move;
     for (const listener of this.moveListeners) listener();
   }
-  /** One read of the current move. A refusal or outage leaves the page without a
-   * claim of its own, so the drawn rows stay exactly as they were. */
-  refreshMove(signal?: AbortSignal) {
-    if (!this.current() || this.moveReading) return;
-    this.moveReading = true;
-    void this.moves.current(signal).then(move => {this.publishMove(move);}, () => undefined)
-      .finally(() => {this.moveReading = false;});
+  /** The rebuilt server keeps no move record at the old address (`GET /v1/admin/sign-in/move`): a move in
+   * progress is part of `GET /v1/admin/sign-in`, which the Sign-in page reads itself (signin-source.ts). So
+   * there is nothing to read here, and no request is made that can only answer 404. */
+  refreshMove(_signal?: AbortSignal) {
+    if (this.current()) this.publishMove(null);
   }
   private finishing = false;
   /** The origin this server was actually proved at, or nothing. A page that cannot

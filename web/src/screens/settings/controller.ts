@@ -14,7 +14,7 @@ import {searchConfiguration, type SettingsConfiguration} from '@core/settings-co
 import {isSignInPolicyRow, patchSignInPolicy, signInPolicyConflict, signInPolicyValues, signInPolicyWith} from '@core/sign-in-policy.ts';
 import {applySettingsBindingPatch, changedFromDefault, exactPresetValue, presetPatch, readSettingsBinding, settingsBinding, settingsBindingPatch, settingsStorableChoices, type SettingsBindingForm, type SettingsBindingSources, type SettingsBindingValue} from '@core/presentation/settings-bindings.ts';
 import {settingsRowIndex, settingsSpec, type SettingsOption, type SettingsRow, type SettingsSection, type SettingsValue} from '@core/presentation/settings-spec.ts';
-import {runtimeForm, connectivityForm, maintenanceForm, alertsForm, namedSettingsForm, type ServerFormDeps} from '@core/server-admin/server-forms.ts';
+import {namedSettingsForm, type ServerFormDeps} from '@core/server-admin/server-forms.ts';
 import type {DraftForm} from '@core/server-admin/draft-form.ts';
 import {randomId} from '@core/random-id.ts';
 import {defaultI18n} from '@i18n';
@@ -111,6 +111,8 @@ export class SettingsController {
   private readonly console: ConsoleClient;
   private readonly preferencesReader: PreferencesReader;
   private readonly forms: Partial<Record<SettingsBindingForm, DocumentForm>> = {};
+  /** The owner's main profile on a server they manage: the server pages read the owner's documents. */
+  private readonly owner: boolean;
   private awayLimit?: DocumentForm;
   private preferences: PreferenceSnapshot;
   private configuration?: SettingsConfiguration;
@@ -167,33 +169,35 @@ export class SettingsController {
       this.publish({});
     }, () => {});
     this.console = new ConsoleClient(options.api, scope);
-    this.backups = new ServerBackupSource(options.api, () => this.current() && !!this.forms.runtime, () => this.publish({}));
+    this.owner = options.role === 'owner' && options.mainProfile && options.capabilities.manageServer;
+    this.backups = new ServerBackupSource(options.api, () => this.current() && this.owner, () => this.publish({}));
     this.preferencesReader = options.reader;
     this.offPreferences = options.reader.subscribe(() => {const snapshot = options.reader.getSnapshot('web');if (snapshot && this.current()) {this.preferences = snapshot;this.publish({});}});
     this.offDevice = options.device?.subscribe(() => this.publish({}));
-    if (options.role === 'owner' && options.mainProfile && options.capabilities.manageServer) {
+    if (this.owner) {
       const deps: ServerFormDeps = {api: options.api, console: this.console, serverId: options.serverId, operationId: randomId};
-      this.forms.runtime = documentForm(runtimeForm(deps));
-      this.forms.connectivity = documentForm(connectivityForm(deps));
-      // ST-7: the owner Quality page's away-limit row reads the same value through its own form, quietly:
+      // ST-7: the owner Quality page's away-limit row reads the Streaming document through its own form, quietly:
       // a refusal (a remembered owner past the management hour) leaves that row out, never asks for the
       // PIN and never fails the page (FB-10 regression).
       this.awayLimit = documentForm(ownerAwayLimitForm(deps, options.api));
-      this.forms.maintenance = documentForm(maintenanceForm(deps));
-      this.forms.alerts = documentForm(alertsForm(deps));
-      // Intros and credits' settings document on the rebuilt server (#3255).
+      // The rebuilt server's settings documents these pages' rows are stored in (General and Streaming
+      // have their own adapters): notices, the title data switch, and Intros and credits (#3255).
+      this.forms.notices = documentForm(namedSettingsForm(deps, 'notices'));
+      this.forms.titleData = documentForm(namedSettingsForm(deps, 'title_data'));
       this.forms.segments = documentForm(namedSettingsForm(deps, 'segments'));
       for (const form of Object.values(this.forms)) this.offForms.push(form.subscribe(() => this.publish({})));
       this.offForms.push(this.awayLimit.subscribe(() => this.publish({})));
     }
   }
   private current = () => !this.closed && this.options.isCurrent();
+  /** The page's own configuration reader (General, Streaming, Remote access, Sign-in). The rebuilt server
+   * keeps no configuration document of its own, so a page without a reader has none to read. */
+  private hasConfiguration = () => !!(this.options.ownerSettings ?? this.options.streaming ?? this.options.readConfiguration);
+  private configurationRead = (signal: AbortSignal): Promise<SettingsConfiguration | undefined> =>
+    ((this.options.ownerSettings ?? this.options.streaming)?.readConfiguration(signal) ?? this.options.readConfiguration?.(signal) ?? Promise.resolve(undefined))
+      .catch(error => {if (notOnThisServer(error)) return undefined; throw error;});
   private readConfiguration = async () => {
-    const configuration = await ((this.options.ownerSettings ?? this.options.streaming)?.readConfiguration(this.lifetime.signal) ?? this.options.readConfiguration?.(this.lifetime.signal) ?? this.console.configuration()).catch(error => {
-      // The rebuilt server has no configuration document: its settings move page by page.
-      if (notOnThisServer(error)) return undefined;
-      throw error;
-    });
+    const configuration = await this.configurationRead(this.lifetime.signal);
     if (this.current()) this.configuration = configuration;
   };
   /** A separately confirmed owner command has reread the same settings; its earlier refusal is spent. */
@@ -250,7 +254,7 @@ export class SettingsController {
     return {configuration: this.configuration, preferences: this.preferences,
       device: this.options.device?.getSnapshot().document?.values, deviceDefaults: this.options.device?.getSnapshot().document?.defaults,
       forms: {...Object.fromEntries(Object.entries(this.forms).map(([name, form]) => [name, form.value()])),
-        connectivityStatus: this.forms.connectivity?.status(), awayLimit: this.awayLimit?.value()}};
+        awayLimit: this.awayLimit?.value()}};
   }
   private read(row: SettingsRow, context?: SettingsContext): SettingsBindingValue | undefined {
     if (!this.eligible(row, context)) return undefined;
@@ -281,19 +285,6 @@ export class SettingsController {
     const location = settingsRowIndex.get(row.id);
     if (!location || !this.sectionVisible(location.section)) return {present: false};
     if (this.options.role !== 'member' && !troubleshootingRowShown(row.id, this.options.role)) return {present: false};
-    // The drawn status line above Home networks says whether this connection
-    // counts as home, from the same connectivity report the form holds.
-    if (row.id === 'remote.thisDevice') {
-      const status = this.forms.connectivity?.status(), connection = status?.connection;
-      // The connectivity form publishes an untyped status document. Draw this row only from a
-      // complete connection row: a real address string and an explicit home/away answer.
-      if (typeof connection !== 'object' || connection === null || Array.isArray(connection)
-        || !('clientAddress' in connection) || typeof connection.clientAddress !== 'string' || !connection.clientAddress
-        || !('remote' in connection) || typeof connection.remote !== 'boolean') return {present: false};
-      const address = connection.clientAddress, remote = connection.remote;
-      return {present: true, statusTone: remote ? 'warn' : 'ok',
-        displayValue: defaultI18n.t(remote ? 'next.remoteStatus.deviceAway' : 'next.remoteStatus.deviceHome', {address})};
-    }
     const value = this.read(row, context);
     if (!value || value.configOnly) return {present: false};
     const current = value.current as SettingsValue;
@@ -316,7 +307,7 @@ export class SettingsController {
    * every server page, including pages that own their other reads (Live TV & Channels, Remote sources). */
   loadServerHeader = (section: SettingsSection): Promise<void> => {
     if (!this.current() || !this.sectionVisible(section)) return Promise.resolve();
-    if (section.scope === 'server' && this.forms.runtime && !this.headerLoading) this.headerLoading = (async () => {
+    if (section.scope === 'server' && this.owner && !this.headerLoading) this.headerLoading = (async () => {
       const [storage, status] = await Promise.all([readServerStorage(this.options.api, this.lifetime.signal).catch(() => undefined),
         new DashboardDataClient(this.options.api).status(this.lifetime.signal).catch(() => undefined)]);
       if (!this.current()) return;
@@ -331,7 +322,6 @@ export class SettingsController {
     void this.loadServerHeader(section);
     const formIds = new Set([...settingsRowIndex.values()].filter(location => location.section === section && this.eligible(location.row))
       .map(location => settingsBinding(location.row.id)?.form)
-      .map(id => id === 'connectivityStatus' ? 'connectivity' : id)
       .filter((id): id is NonNullable<typeof id> => id !== undefined && !!this.forms[id] && !this.options.streaming && !this.options.ownerSettings));
     // A form whose route the rebuilt server does not have yet leaves its rows out (they have no value) instead of
     // failing the section: its settings move page by page.
@@ -340,26 +330,26 @@ export class SettingsController {
     const awayLimit = this.awayLimit;
     if (awayLimit && [...settingsRowIndex.values()].some(location => location.section === section && settingsBinding(location.row.id)?.form === 'awayLimit' && this.eligible(location.row)))
       reads.push({id: 'form/awayLimit', load: () => awayLimit.load().catch(() => {})});
-    if (section.scope === 'server' && this.forms.runtime) reads.push({id: 'configuration', load: this.readConfiguration});
-    if (section.scope === 'server' && section.id === 'storage' && this.forms.runtime) reads.push({id: 'backups', load: this.backups.load});
+    if (section.scope === 'server' && this.owner && this.hasConfiguration()) reads.push({id: 'configuration', load: this.readConfiguration});
+    if (section.scope === 'server' && section.id === 'storage' && this.owner) reads.push({id: 'backups', load: this.backups.load});
     return this.sectionReads.load(`${section.scope}/${section.id}`, reads);
   };
   quietInputs = (section: SettingsSection): readonly QuietInput[] => {
     if (!this.current() || !this.sectionVisible(section)) return [];
     const formIds = new Set([...settingsRowIndex.values()].filter(location => location.section === section && this.eligible(location.row))
-      .map(location => settingsBinding(location.row.id)?.form).map(id => id === 'connectivityStatus' ? 'connectivity' : id)
+      .map(location => settingsBinding(location.row.id)?.form)
       .filter((id): id is NonNullable<typeof id> => id !== undefined && !!this.forms[id] && !this.options.streaming && !this.options.ownerSettings));
     const inputs: QuietInput[] = [...formIds].map(id => {
       const form = this.forms[id]!, key = `form/${id}`;
       return {id: key, cancel:form.invalidateQuiet, subscribe: this.subscribe, blocked: () => this.inputActive || this.writing || form.blocked(), settlement: form.settlement,
         refresh: () => this.sectionReads.hasRead(key) ? this.sectionReads.refresh(`${section.scope}/${section.id}`, [{id: key, refresh: form.refresh}]) : Promise.resolve({kind: 'deferred'})};
     });
-    if (section.scope === 'server' && this.forms.runtime) {
-      inputs.push({id:'configuration',cancel:()=>this.cancelQuietRead('configuration'),subscribe:this.subscribe,
+    if (section.scope === 'server' && this.owner) {
+      if (this.hasConfiguration()) inputs.push({id:'configuration',cancel:()=>this.cancelQuietRead('configuration'),subscribe:this.subscribe,
         blocked:()=>this.inputActive || this.writing,settlement:()=>this.writeSerial,
         refresh:async()=>{
           if(!this.current() || this.inputActive || this.writing || !this.sectionReads.hasRead('configuration'))return {kind:'deferred'};
-          return this.quietRead('configuration',(client,signal)=>((this.options.ownerSettings ?? this.options.streaming)?.readConfiguration(signal) ?? this.options.readConfiguration?.(signal) ?? client.configuration()).catch(error=>{if(notOnThisServer(error))return undefined;throw error;}),configuration=>{this.configuration=configuration;},this.writeSerial);
+          return this.quietRead('configuration',(_client,signal)=>this.configurationRead(signal),configuration=>{this.configuration=configuration;},this.writeSerial);
         }});
       inputs.push({id:'header/storage',cancel:()=>this.cancelQuietRead('header/storage'),subscribe:this.subscribe,
         blocked:()=>!this.headerLoaded,

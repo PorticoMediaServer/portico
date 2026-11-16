@@ -36,7 +36,7 @@ export function SecureAddressProvider({api, isCurrent, active, children}: {
         // The click speaks only for this exact receipt and this live read. A replaced,
         // retired or inactive read refuses; a re-composed URL must still be the drawn one.
         if (!lease.live || leaseRef.current !== lease || !lease.active || !isCurrent()) return;
-        if (secureAddressReceipt(receipt.status, receipt.remote)?.url !== receipt.url) return;
+        if (secureAddressReceipt(receipt.settings, receipt.certificate)?.url !== receipt.url) return;
         window.location.assign(receipt.url);
       }});
       setHeld({lease, offer});
