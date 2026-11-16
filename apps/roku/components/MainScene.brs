@@ -155,6 +155,7 @@ sub onOpen(event as object)
 end sub
 
 sub showSignIn()
+    m.entered = false
     show("SignInScreen")
     m.screen.observeField("signedIn", "onSignedIn")
     m.screen.active = true
