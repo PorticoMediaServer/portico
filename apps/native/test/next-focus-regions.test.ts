@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createFocusRegistry, focusTestID, type FocusAddress} from '../src-next/kit/focus/registry.ts';
+import {appLog} from '../../../packages/client-core/src/app-log.ts';
 import {reconcileRowSlots, indexRowSlots, visibleRowSlots, rowNeedsPage, type RowPage} from '../src-next/kit/layout/row-state.ts';
 
 function fixture() {
@@ -127,7 +128,15 @@ test('true exhaustion/failure removes waiting target; short rows never invent a 
   assert.equal(reconcileRowSlots(slots, entries(['a', 'b']), key, true, page('cursor', {hasMore: false})).some(s => s.waiting), false);
   assert.equal(reconcileRowSlots(slots, entries(['a', 'b']), key, true, page('cursor', {failed: true})).some(s => s.waiting), false);
   assert.equal(reconcileRowSlots([], entries(['a']), key, false).length, 1);
-  assert.throws(() => reconcileRowSlots([], entries(['a', 'a']), key, true), /unique/);
+});
+test('a repeated identity in one row keeps the first, drops the repeat and notes it once in the app log', () => {
+  appLog.clear();
+  const first = {id: 'a', title: 'writer'}, repeat = {id: 'a', title: 'producer'};
+  const slots = reconcileRowSlots([], [first, {id: 'b'}, repeat], key, true);
+  assert.deepEqual(slots.map(slot => [slot.id, slot.item, slot.position]), [['a', first, 0], ['b', {id: 'b'}, 1]]);
+  assert.deepEqual(reconcileRowSlots(slots, [first, repeat, {id: 'c'}], key, true).map(slot => slot.id), ['a', 'c']);
+  const lines = appLog.snapshot().split('\n').filter(Boolean).map(line => JSON.parse(line));
+  assert.deepEqual(lines.map(line => [line.level, line.area, line.message, line.facts]), [['warn', 'screen', 'warning', {}]]);
 });
 test('next-page admission starts about ten cards before loaded end and never loops on loading/error/end', () => {
   assert.equal(rowNeedsPage(9, 20, {hasMore: true, loading: false}), false);
