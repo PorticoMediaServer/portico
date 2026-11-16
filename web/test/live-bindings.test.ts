@@ -15,10 +15,10 @@ test('Live accepts an actual channel identity without inventing its source or pr
   assert.throws(() => parseLiveScreenSearch({tab: 'invented'}));
   for (const raw of [{view: 'invented'}, {kind: 'library'}, {favorites: 'true'}, {channelId: ['opaque']}, {sourceId: 'x\n'}]) assert.throws(() => parseLiveScreenSearch(raw));
 });
-test('Search navigation preserves only its canonical channel tuple and keeps Person separate', () => {
+test('Search opens a channel in the guide by its id alone, never narrowed to a source, and keeps Person separate', () => {
   assert.deepEqual(screenEntryDestination({id: 'channel/a', kind: 'channel', title: 'Actual channel',
-    navigation: {view: 'channel', entityId: 'channel/a', channelId: 'channel/a', sourceId: 'actual-source', provenance: 'live-source'}}),
-  {to: '/live', search: {sourceId: 'actual-source', channelId: 'channel/a', kind: 'live-source'}});
+    navigation: {view: 'channel', entityId: 'channel/a', channelId: 'channel/a', sourceId: 'server', provenance: 'live-source'}}),
+  {to: '/live', search: {channelId: 'channel/a'}});
   assert.deepEqual(screenEntryDestination({id: 'legacy', kind: 'channel', title: 'Actual legacy channel', navigation: {view: 'channel', entityId: 'legacy'}}),
     {to: '/live', search: {channelId: 'legacy'}});
   assert.deepEqual(screenEntryDestination({id: 'person/a', kind: 'person', title: 'Actual person', navigation: {view: 'person', entityId: 'person/a'}}),

@@ -17,7 +17,6 @@ export function screenEntryDestination(entry: SearchEntry): ScreenDestination {
       ? {...target, search: {...target.search, category: entry.navigation.category}} : target;
   }
   if (entry.kind === 'person') return {to: '/person/$personId', params: {personId: entry.navigation.entityId}};
-  const {entityId, sourceId, channelId, provenance} = entry.navigation;
-  return {to: '/live', search: sourceId && channelId && provenance
-    ? {sourceId, channelId, kind: provenance} : {channelId: entityId}};
+  // The rebuilt server names a channel by its id alone: the guide opens on it without narrowing to a source.
+  return {to: '/live', search: {channelId: entry.navigation.channelId ?? entry.navigation.entityId}};
 }

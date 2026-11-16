@@ -1,4 +1,4 @@
-import {readSearchLiveGuideResponse} from '@core/query/search-guide.ts';
+import {readSearchLiveChannels, type SearchLiveChannel} from '@core/query/search-guide.ts';
 import {serverNow} from '@core/server-clock.ts';
 import {forwardIdentity} from '../detail/context';
 import {entryStartDisplay} from '../../platform/playback/subject';
@@ -6,10 +6,8 @@ import {SearchService, clearSearchHistory, deleteSearchHistoryEntry, searchFirst
 import {queryKeys} from '@core/query/keys.ts';
 import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {serviceI18n} from '@core/presentation/service-text.ts';
-import {guideWindow, parseChannelGuide, type GuideChannel} from '@core/channel-guide.ts';
-import {nowNext, type GuideProgram} from '@core/guide/index.ts';
-import {legacyProgram} from '@core/guide/legacy-source.ts';
-import {channelTint, programmeFactParts, type ChannelMarkModel, type FactPart} from '@portico/client-core/kit-model';
+import type {GuideProgram} from '@core/guide/index.ts';
+import {programmeFactParts, type ChannelMarkModel, type FactPart} from '@portico/client-core/kit-model';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 import {createDetailBindings} from '../detail/bindings';
 import {createShowBindings} from '../detail/show-bindings';
@@ -51,17 +49,13 @@ function liveProgramme(programme: GuideProgram, now: number, timezone: string, p
     live: programme.flags?.live, isNew: programme.flags?.new, premiere: programme.flags?.premiere, recording: programme.recording?.state === 'recording'});
 }
 
-/** Only the identity, mark, logo and actual on-air facts this guide answer carries. */
-function liveCard(channel: GuideChannel, now: number, timezone: string): SearchLiveCard {
-  const programmes = channel.programmes.map(legacyProgram);
-  const current = nowNext(programmes, now), onNow = current.now;
-  const mark = channel.mark ? Object.freeze({...channel.mark, sourceId: channel.sourceId, id: channel.id}) : undefined;
+/** Only the identity, logo and actual on-air facts this guide answer carries. */
+function liveCard(sourceId: string, found: SearchLiveChannel, now: number, timezone: string): SearchLiveCard {
+  const {row, now: onNow} = found;
   return Object.freeze({
-    channel: Object.freeze({sourceId: channel.sourceId, id: channel.id, name: channel.name,
-      ...(channel.number ? {number: channel.number} : {}), ...(channel.favorite ? {favorite: true} : {}),
-      ...(mark ? {mark} : {}), ...(channel.logoPath ? {logoUrl: channel.logoPath} : {})}),
-    ...(onNow ? {programme: liveProgramme(onNow, now, timezone, current.progress)} : {}),
-    ...(channel.mark ? {tint: channelTint(channel.mark.seed)} : {}),
+    channel: Object.freeze({sourceId, id: row.id, name: row.name,
+      ...(row.number ? {number: row.number} : {}), ...(row.favorite ? {favorite: true} : {}), ...(row.logoUrl ? {logoUrl: row.logoUrl} : {})}),
+    ...(onNow ? {programme: liveProgramme(onNow, now, timezone, Math.min(1, Math.max(0, (now - onNow.start) / Math.max(1, onNow.end - onNow.start))))} : {}),
   });
 }
 
@@ -107,13 +101,6 @@ export function createSearchBindings(context: ScreenContext, queries: ViewerQuer
     if (key === liveKey) return;
     liveKey = key; retireLive();
     if (!key || !entries.length || !data) { if (cards.size) publishLive(NO_LIVE_CARDS); return; }
-    const bySource = new Map<string, string[]>();
-    for (const entry of entries) {
-      const sourceId = entry.navigation.sourceId ?? '';
-      if (!sourceId) continue;
-      bySource.set(sourceId, [...(bySource.get(sourceId) ?? []), entry.id]);
-    }
-    if (!bySource.size) { if (cards.size) publishLive(NO_LIVE_CARDS); return; }
     const generation = liveGeneration, controller = new AbortController(), signal = life.signal(controller.signal);
     liveController = controller;
     const still = () => life.current() && !signal.aborted && generation === liveGeneration && liveKey === key && results.getSnapshot().phase === 'ready';
@@ -122,16 +109,9 @@ export function createSearchBindings(context: ScreenContext, queries: ViewerQuer
       const timezone = serviceI18n().region.timeZone;
       // A confirmed zone is required: no read and no card under a guessed UTC.
       if (!timezone) { publishLive(NO_LIVE_CARDS); return; }
-      for (const [sourceId, ids] of bySource) {
-        const route = {kind: 'live-source' as const, sourceId, timezone, search: '', ...guideWindow()};
-        for (let start = 0; start < ids.length; start += 50) {
-          const raw = await readSearchLiveGuideResponse(life.api, route, ids.slice(start, start + 50), signal);
-          if (!still()) return;
-          const guide = parseChannelGuide(raw, context.scope.serverId, route);
-          const now = serverNow();
-          for (const channel of guide.channels) next.set(channel.id, liveCard(channel, now, timezone));
-        }
-      }
+      const now = serverNow(), found = await readSearchLiveChannels(life.api, entries.map(entry => entry.id), now, signal);
+      if (!still()) return;
+      for (const entry of entries) {const channel = found.get(entry.id); if (channel) next.set(entry.id, liveCard(entry.navigation.sourceId ?? entry.id, channel, now, timezone));}
       if (!still()) return;
       publishLive(next);
     })().catch(() => { if (still()) publishLive(NO_LIVE_CARDS); });

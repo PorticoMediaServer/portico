@@ -135,7 +135,7 @@ test('preserves server group order and publishes what each answered group can be
 
 
 test('a result or a group this app cannot show is left out and the rest of the answer is kept',async()=>{
- const s=service(async path=>result(path,{groups:[{...group('movies',['one','two']),items:[{id:'one',kind:'movie',title:'Server one',libraryId:'library'},{id:'odd',kind:'hologram',title:'?'},{id:'',kind:'movie',title:'no id'},{id:'two',kind:'movie',title:'Server two',libraryId:'library'}]},{kind:'channel',total:3,items:[]},group('shows')]}));
+ const s=service(async path=>result(path,{groups:[{...group('movies',['one','two']),items:[{id:'one',kind:'movie',title:'Server one',libraryId:'library'},{id:'odd',kind:'hologram',title:'?'},{id:'',kind:'movie',title:'no id'},{id:'two',kind:'movie',title:'Server two',libraryId:'library'}]},{kind:'hologram',total:3,items:[]},group('shows')]}));
  await s.select('harbor');
  assert.equal(s.getSnapshot().phase,'ready');
  assert.deepEqual(s.getSnapshot().groups.map(g=>g.id),['movies','shows'],'a kind this app does not show is left out');
