@@ -9,6 +9,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
+	"github.com/PorticoMediaServer/portico/server-next/internal/subtitles"
 )
 
 // CapabilityDocument is what a device's players can do, exactly as the app wrote it. It can
@@ -58,8 +59,9 @@ type PlaybackAudio struct {
 }
 
 type PlaybackSubtitle struct {
-	ID     string `json:"id"`
-	Format string `json:"format"`
+	Deliveries []subtitles.SubtitleDelivery `json:"deliveries"`
+	ID         string                       `json:"id"`
+	Format     string                       `json:"format"`
 	// Source is embedded (in the file), sidecar (a file beside it) or downloaded (found by a
 	// subtitle search and kept for everyone who may play the title).
 	Source   string `json:"source"`
@@ -418,7 +420,11 @@ func versionOut(v db.PlaybackVersion) PlaybackVersion {
 			case t.Sidecar:
 				source = "sidecar"
 			}
-			out.Subtitles = append(out.Subtitles, PlaybackSubtitle{ID: id, Format: t.Codec, Source: source, Language: t.Language,
+			format := subtitles.CodecFormat(t.Codec)
+			if format == "" {
+				format = t.Codec
+			}
+			out.Subtitles = append(out.Subtitles, PlaybackSubtitle{ID: id, Format: t.Codec, Deliveries: subtitles.DeliveryFormats(format), Source: source, Language: t.Language,
 				Title: t.Title, Forced: t.Forced, SDH: t.HearingImpaired, Default: t.Default})
 		}
 	}

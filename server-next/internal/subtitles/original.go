@@ -9,7 +9,7 @@ type FontAttachment struct {
 	Name string `json:"name"`
 	Data []byte `json:"data"`
 }
-type Delivery struct {
+type SubtitleDelivery struct {
 	Format       string `json:"format"`
 	URL          string `json:"url,omitempty"`
 	CompanionURL string `json:"companionUrl,omitempty"`
@@ -33,18 +33,18 @@ func MediaBaseURL(grant, resource string, revision int64) string {
 	return "/v1/media/subtitles/" + grant + "/" + resource + "/" + strconv.FormatInt(revision, 10)
 }
 
-func deliveryFormats(format string) []Delivery {
+func deliveryFormats(format string) []SubtitleDelivery {
 	switch format {
 	case "ass", "ssa":
-		return []Delivery{{Format: "text"}, {Format: "ass"}}
+		return []SubtitleDelivery{{Format: "text"}, {Format: "ass"}}
 	case "pgs", "sup":
-		return []Delivery{{Format: "pgs"}}
+		return []SubtitleDelivery{{Format: "pgs"}}
 	case "vobsub", "idx":
-		return []Delivery{{Format: "vobsub"}}
+		return []SubtitleDelivery{{Format: "vobsub"}}
 	case "dvb":
-		return []Delivery{{Format: "dvb"}}
+		return []SubtitleDelivery{{Format: "dvb"}}
 	default:
-		return []Delivery{{Format: "text"}}
+		return []SubtitleDelivery{{Format: "text"}}
 	}
 }
 
@@ -60,7 +60,7 @@ func originalURL(base, format string) string {
 	}
 	return base + "/original." + suffix
 }
-func deliveries(base, format string) []Delivery {
+func deliveries(base, format string) []SubtitleDelivery {
 	out := deliveryFormats(format)
 	for i := range out {
 		if out[i].Format == "text" {
@@ -96,3 +96,6 @@ func originalArchive(raw []byte) bool {
 	}
 	return json.Unmarshal(raw, &a) == nil && a.Version == 2
 }
+
+// DeliveryFormats lists what a track offers before a playback grant exists.
+func DeliveryFormats(format string) []SubtitleDelivery { return deliveryFormats(format) }

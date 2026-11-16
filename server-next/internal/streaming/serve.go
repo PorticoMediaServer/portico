@@ -21,7 +21,11 @@ import (
 // failed, and a file name the stream does not have, are the same hidden 404.
 func (s *Streams) ServeMedia(w http.ResponseWriter, r *http.Request, grant, file string) {
 	if grant == "subtitles" {
-		s.serveText(w, r, file)
+		if strings.Count(file, "/") > 2 {
+			s.serveSubtitleOriginal(w, r, file)
+		} else {
+			s.serveText(w, r, file)
+		}
 		return
 	}
 	st, err := s.grant(grant)

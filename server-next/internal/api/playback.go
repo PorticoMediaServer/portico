@@ -47,6 +47,13 @@ func (s *Server) playbackRoutes() {
 			return
 		}
 		grant := r.PathValue("grant")
+		if grant == "subtitles" {
+			playbackGrant, _, _ := strings.Cut(r.PathValue("file"), "/")
+			if !s.playback.SubtitleMediaVisible(r.Context(), playbackGrant) {
+				s.writeError(w, r, ErrNotFound())
+				return
+			}
+		}
 		counted := &countingWriter{ResponseWriter: w}
 		s.media(counted, r, grant, r.PathValue("file"))
 		// What was sent counts towards the day's data sent, at home or away.
