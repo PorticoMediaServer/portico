@@ -755,7 +755,7 @@ func (s *Server) downloadedItem(r *http.Request, _ None) (DownloadedItem, error)
 			out.Revision = reading.Fingerprint(book.Size, book.ModifiedNS)
 			made, ok, err := s.reading.DownloadCopy(ctx, book)
 			if ok && err != nil {
-				return DownloadedItem{}, ErrConflict("book_unreadable", err.Error())
+				return DownloadedItem{}, bookCopyError(err)
 			}
 			if copied = ok; copied {
 				out.Files = append(out.Files, DownloadFile{URL: base + "file/1", SizeBytes: made.Size, SHA256: made.SHA256, Container: made.Container})
@@ -907,4 +907,19 @@ func pathEscape(name string) string {
 		}
 	}
 	return b.String()
+}
+
+// bookCopyError answers a book whose download copy could not be made. Only one that never will
+// is book_unreadable, which an app takes as final; a file that changed, or storage that cannot
+// be reached or a copy that ran out of time, may work when asked again.
+func bookCopyError(err error) error {
+	switch {
+	case reading.NeverCopies(err):
+		return ErrConflict("book_unreadable", err.Error())
+	case errors.Is(err, reading.ErrChanged):
+		return refusal(http.StatusConflict, "book_changed", "This book changed while it was being made ready. Ask again.", true)
+	}
+	e := refusal(http.StatusServiceUnavailable, "book_copy_unavailable", "This book can't be made ready to download right now. Try again in a little while.", true)
+	e.RetryAfterMs = 30_000
+	return e
 }

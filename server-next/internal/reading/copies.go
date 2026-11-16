@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -29,6 +30,13 @@ type Copy struct {
 	Container string
 	Size      int64
 	SHA256    string
+}
+
+// NeverCopies reports whether a copy failed for a reason that will not pass: the file is
+// damaged, of a kind this server cannot read, or locked (DRM). Anything else (a file that
+// changed, storage that cannot be reached for now, a copy that ran out of time) may work later.
+func NeverCopies(err error) bool {
+	return errors.Is(err, errDamaged) || errors.Is(err, ErrFormatLater) || errors.Is(err, ErrLocked)
 }
 
 // copyKeep is how long a copy no download has fetched is kept.

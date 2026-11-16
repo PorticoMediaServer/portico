@@ -249,6 +249,10 @@ func (s *Service) openOriginal(ctx context.Context, viewer db.Viewer, title db.D
 	if kind.Reading() && s.BookCopy != nil {
 		copied, ok, err := s.BookCopy(ctx, viewer, title.ItemPublicID, v.Parts[0].FileID)
 		if ok {
+			// A copy that may still work is not ready yet; one that never will is gone.
+			if err != nil && !reading.NeverCopies(err) {
+				return nil, ErrNotReady
+			}
 			if err != nil || n != 1 {
 				return nil, ErrGone
 			}
