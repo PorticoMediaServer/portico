@@ -25,8 +25,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 )
 
-// The formats this server opens, by the file's extension. A book in any other format the
-// scanner lists (MOBI, AZW3) says it cannot be opened yet, and can be saved as a file.
+// The formats this server opens, by the file's extension, with MOBI and AZW3 (mobi.go). A book
+// in any other format says it cannot be opened yet, and can be saved as a file.
 const (
 	FormatEPUB = "epub"
 	FormatPDF  = "pdf"
@@ -64,7 +64,8 @@ type Service struct {
 	FromHome func(*http.Request) bool
 
 	mu    sync.Mutex
-	books map[string]*epub // EPUB package documents already read, by file and fingerprint
+	books map[string]*epub     // EPUB package documents already read, by file and fingerprint
+	mobis map[string]*mobiBook // MOBI and AZW3 books already rebuilt, by file and fingerprint
 	// checked remembers, for a few seconds, that an address's profile may still see its book,
 	// so a page turn costs no database read. See allowed.
 	checked map[string]checked
@@ -81,7 +82,8 @@ type Reader struct {
 // New makes the service. key signs the addresses it hands out; it is kept by the server so
 // an address still works after a restart. sources opens remote sources, as playback's do.
 func New(d *db.DB, key string, now func() time.Time, sources func(context.Context, int64) (remote.Storage, time.Duration, error)) *Service {
-	return &Service{db: d, key: []byte(key), now: now, remote: sources, books: map[string]*epub{}, checked: map[string]checked{}}
+	return &Service{db: d, key: []byte(key), now: now, remote: sources, books: map[string]*epub{}, mobis: map[string]*mobiBook{},
+		checked: map[string]checked{}}
 }
 
 // Opened is a book as its reader needs it.
@@ -122,7 +124,7 @@ func Fingerprint(size, modifiedNS int64) string {
 }
 
 // Choose picks the version to open: the one asked for, or else the first that can be read,
-// EPUB before CBZ before PDF, since an EPUB fits any screen.
+// EPUB (then AZW3 and MOBI, read as EPUBs) before CBZ before PDF, since an EPUB fits any screen.
 func Choose(book db.Book, version string) (db.BookVersion, bool) {
 	if version != "" {
 		for _, v := range book.Versions {
@@ -132,7 +134,7 @@ func Choose(book db.Book, version string) (db.BookVersion, bool) {
 		}
 		return db.BookVersion{}, false
 	}
-	for _, format := range []string{FormatEPUB, FormatCBZ, FormatCBR, FormatCB7, FormatImages, FormatPDF} {
+	for _, format := range []string{FormatEPUB, FormatAZW3, FormatMOBI, FormatCBZ, FormatCBR, FormatCB7, FormatImages, FormatPDF} {
 		for _, v := range book.Versions {
 			if VersionFormat(v) == format && (format != FormatCBR || rarEnabled) && (format != FormatCB7 || sevenEnabled) {
 				return v, true
@@ -159,7 +161,7 @@ func (s *Service) Open(ctx context.Context, who Reader, book db.Book, v db.BookV
 		}
 	}
 	switch {
-	case out.Format != FormatEPUB && out.Format != FormatPDF && !comicFormat(out.Format) && out.Format != FormatImages:
+	case out.Format != FormatEPUB && !mobiFormat(out.Format) && out.Format != FormatPDF && !comicFormat(out.Format) && out.Format != FormatImages:
 		out.Problem = ErrFormatLater
 	case v.Path == "" && s.remote == nil:
 		out.Problem = ErrRemote
@@ -191,6 +193,10 @@ func (s *Service) Open(ctx context.Context, who Reader, book db.Book, v db.BookV
 	})
 	if err != nil {
 		out.Problem, out.Pages = err, nil
+	}
+	if mobiFormat(out.Format) && out.Problem == nil {
+		// The reader reads the EPUB it is rebuilt into.
+		out.Format = FormatEPUB
 	}
 	return out
 }
@@ -234,12 +240,37 @@ func (s *Service) withArchive(ctx context.Context, v db.BookVersion, fn func(*ar
 	if place.Size != v.Size || place.ModifiedNS != v.ModifiedNS {
 		return ErrChanged
 	}
-	a, err := openBookArchive(ctx, f, VersionFormat(v))
+	a, err := s.bookArchive(ctx, v, f, VersionFormat(v))
 	if err != nil {
 		return f.explain(err)
 	}
 	defer a.close()
 	return f.explain(fn(a))
+}
+
+// bookArchive opens a book's file as its reader reads it. A MOBI or AZW3 is rebuilt as an EPUB
+// once and kept for as long as the file is unchanged; its pictures are read from this file.
+func (s *Service) bookArchive(ctx context.Context, v db.BookVersion, f *bookFile, format string) (*archive, error) {
+	if !mobiFormat(format) {
+		return openBookArchive(ctx, f, format)
+	}
+	key := fmt.Sprint(v.FileID, ":", Fingerprint(v.Size, v.ModifiedNS))
+	s.mu.Lock()
+	book := s.mobis[key]
+	s.mu.Unlock()
+	if book == nil {
+		var err error
+		if book, err = convertMobi(f.at, f.size); err != nil {
+			return nil, err
+		}
+		s.mu.Lock()
+		if len(s.mobis) >= 8 {
+			clear(s.mobis)
+		}
+		s.mobis[key] = book
+		s.mu.Unlock()
+	}
+	return book.archive(f.at, f.size)
 }
 
 // ErrChanged says the file is no longer the one the reader was given; the app opens the book again.
