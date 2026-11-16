@@ -126,8 +126,9 @@ type ItemQuery struct {
 	Limit     int
 	WithTotal bool
 
-	homeIDs    []int64 // a Continue row, in its own order; nil for other lists
-	homeRecent bool
+	homeIDs      []int64 // a Continue row, in its own order; nil for other lists
+	homeRecent   bool
+	homeUnplayed bool
 
 	entries bool // the rows are a list's entries, already narrowed to a list the viewer may read
 }
@@ -646,6 +647,9 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	if q.homeIDs != nil {
 		w.add(" AND i.id IN ", intList(q.homeIDs))
 		scoped = true
+	}
+	if q.homeUnplayed {
+		w.add(" AND ifnull(", ownState("played"), ", 0) = 0 AND ifnull(", ownState("favorite"), ", 0) = 0 AND ifnull(", ownState("hidden"), ", 0) = 0")
 	}
 	if q.homeRecent {
 		w.add(fmt.Sprintf(` AND (i.kind IN (%d,%d,%d,%d,%d,%d) OR

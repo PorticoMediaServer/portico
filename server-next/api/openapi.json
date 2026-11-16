@@ -11066,6 +11066,9 @@
             },
             "type": "array"
           },
+          "nextCursor": {
+            "type": "string"
+          },
           "person": {
             "$ref": "#/components/schemas/RelatedPerson"
           },

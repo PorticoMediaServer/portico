@@ -331,10 +331,12 @@ type Related struct {
 // Tag and up to 20 other titles of its kind in its library, best rated first (all of them:
 // GET /v1/items?library=&kind=&tag=). A group with nothing in it is left out.
 type RelatedGroup struct {
-	Relation string         `json:"relation"`
-	Person   *RelatedPerson `json:"person,omitempty"`
-	Tag      *RelatedTag    `json:"tag,omitempty"`
-	Items    []Item         `json:"items"`
+	// NextCursor continues more_like_this on this route with relation=more_like_this.
+	NextCursor string         `json:"nextCursor,omitempty"`
+	Relation   string         `json:"relation"`
+	Person     *RelatedPerson `json:"person,omitempty"`
+	Tag        *RelatedTag    `json:"tag,omitempty"`
+	Items      []Item         `json:"items"`
 }
 
 // RelatedPerson is the person a "cast" or "creator" group of a title's page is of.
