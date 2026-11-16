@@ -74,7 +74,7 @@ func TestMarkAWholeViewWatched(t *testing.T) {
 	albums := url.Values{"library": {music}, "kind": {"album"}}.Encode()
 	var refused Job
 	call(t, s, "POST", "/v1/jobs", token, JobStart{Kind: stateJobKind, Target: JobTarget{Filter: albums}, Params: JSON(`{"watched": true}`)}, &refused)
-	if refused = waitForJob(t, s, token, refused.ID); refused.State != db.JobFailed || !strings.Contains(refused.Error, "titles were left as they were") ||
+	if refused = waitForJob(t, s, token, refused.ID); refused.State != db.JobFailed || !strings.Contains(refused.Error, "Some titles could not be changed") ||
 		strings.Contains(refused.Error, "The first was") {
 		t.Fatalf("marking albums watched ended %s: %q", refused.State, refused.Error)
 	}

@@ -89,6 +89,10 @@ func (s *Server) adminJobs(r *http.Request, _ None) (Page[AdminJob], error) {
 		out.NextCursor = fmt.Sprintf("%d.%d", last.FinishedAt, last.ID)
 	}
 	for _, j := range append(list, ended...) {
+		j, err := s.jobResult(r, j)
+		if err != nil {
+			return out, err
+		}
 		out.Items = append(out.Items, s.adminJob(r, j, names))
 	}
 	return out, nil

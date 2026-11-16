@@ -1343,6 +1343,17 @@ export interface Job {
   error?: string;
 }
 
+export interface JobItemFailure {
+  itemId: string;
+  title: string;
+  error: BatchError;
+}
+
+export interface JobItemFailurePage {
+  items: JobItemFailure[];
+  nextCursor?: string;
+}
+
 export interface JobProgress {
   done: number;
   total?: number;
@@ -4661,6 +4672,7 @@ export interface Routes {
   'POST /v1/admin/jobs/{id}/retry': {access: 'owner'; request: undefined; response: Job};
   'POST /v1/jobs': {access: 'signedIn'; request: JobStart; response: Job};
   'GET /v1/jobs/{id}': {access: 'signedIn'; request: undefined; response: Job};
+  'GET /v1/jobs/{id}/failures': {access: 'signedIn'; request: undefined; response: JobItemFailurePage};
   'DELETE /v1/jobs/{id}': {access: 'signedIn'; request: undefined; response: undefined};
   'GET /v1/admin/load': {access: 'owner'; request: undefined; response: Load};
   'GET /v1/admin/settings': {access: 'owner'; request: undefined; response: SettingsDocumentPage};

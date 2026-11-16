@@ -38,6 +38,7 @@ func (s *Server) jobRoutes() {
 	// A key needs the library scope.
 	Handle(s, "POST /v1/jobs", SignedIn, s.startJob).with(ScopeLibrary).Status = http.StatusAccepted
 	Handle(s, "GET /v1/jobs/{id}", SignedIn, s.readJob)
+	Handle(s, "GET /v1/jobs/{id}/failures", SignedIn, s.readJobFailures)
 	Handle(s, "DELETE /v1/jobs/{id}", SignedIn, s.cancelJob).with(ScopeLibrary)
 }
 
@@ -62,6 +63,10 @@ func (s *Server) startJob(r *http.Request, req JobStart) (Job, error) {
 		UserID: c.UserID, ProfileID: c.ProfileID, IdempotencyKey: key})
 	if err != nil {
 		return Job{}, libraryError(err)
+	}
+	job, err = s.jobResult(r, job)
+	if err != nil {
+		return Job{}, err
 	}
 	return *jobOut(r, job), nil
 }
@@ -93,7 +98,7 @@ func (s *Server) job(r *http.Request) (db.Job, error) {
 	if !mine && c.Role != "owner" && c.Role != "admin" {
 		return job, ErrNotFound()
 	}
-	return job, nil
+	return s.jobResult(r, job)
 }
 
 func (s *Server) readJob(r *http.Request, _ None) (Job, error) {

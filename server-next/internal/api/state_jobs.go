@@ -3,10 +3,8 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -116,8 +114,7 @@ func (s *Server) runStateJob(ctx context.Context, work jobs.Work) error {
 	}
 	asked := time.UnixMilli(work.Job.CreatedAt)
 	q.WithTotal = true
-	var done, total, refused int64
-	var reason, title string
+	var done, total int64
 	for {
 		page, err := s.db.Items(ctx, v, q)
 		if err != nil {
@@ -131,24 +128,14 @@ func (s *Server) runStateJob(ctx context.Context, work jobs.Work) error {
 			total, q.WithTotal = int64(page.Total), false
 		}
 		edit.Ago = max(time.Since(asked), 0)
-		first := 0 // where this write's titles start in the page
 		for _, write := range stateWrites(page.Items, edit) {
-			_, refusals, err := s.db.SetStates(ctx, db.Background, v, write)
+			_, _, err := s.db.SetJobStates(ctx, v, write, work.Job.ID)
 			if err != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
 				return err
 			}
-			for n, refusal := range refusals {
-				if refusal != nil && !errors.Is(refusal, db.ErrNotFound) {
-					refused++
-					if reason == "" {
-						reason, title = strings.TrimPrefix(refusal.Error(), db.ErrInvalid.Error()+": "), page.Items[first+n].Title
-					}
-				}
-			}
-			first += len(write)
 		}
 		done += int64(len(page.Items))
 		work.Progress(done, max(total, done))
@@ -160,11 +147,12 @@ func (s *Server) runStateJob(ctx context.Context, work jobs.Work) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if refused > 0 {
-		// The rest is done. The person is told how many were left as they were and why, in
-		// words that name no title; the owner also reads the first title.
-		return &jobs.Failure{Shown: fmt.Sprintf("%d of %d titles were left as they were: %s", refused, done, reason),
-			Detail: "The first was " + title + "."}
+	failed, err := s.db.JobHasItemFailures(ctx, work.Job.ID)
+	if err != nil {
+		return err
+	}
+	if failed {
+		return &jobs.Failure{Shown: selectionFailureSummary}
 	}
 	return nil
 }
