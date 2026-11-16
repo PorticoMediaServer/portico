@@ -20,7 +20,7 @@ import {porticoHandoffUrl} from './portico-handoff';
 import type {JoinLink} from '@core/join-link.ts';
 import {parseShortInvitationCode} from '@core/short-invitation-code.ts';
 import {passwordStrength} from '@core/password-strength.ts';
-import {requestOwnerResetFile, verifyOwnerResetFile, redeemMemberResetCode, finishOwnerReset, ownerResetFailure, type ResetFileLocation} from '@core/account-reset.ts';
+import {requestOwnerResetFile, enterOwnerResetSession, redeemMemberResetCode, finishOwnerReset, ownerResetFailure, type ResetFileLocation} from '@core/account-reset.ts';
 import {MemberAccountMoveClient, type MoveCodePreview, type MoveCodeLink} from '@core/account-move.ts';
 import {IdentityClient, type TwoFactorEnrolment} from '@core/identity-client.ts';
 import {CodedError, unreadableServerResponse} from '@core/server-messages.ts';
@@ -484,7 +484,7 @@ export class BrowserAccountEntry {
   }catch(error){if(op.current())this.publish({...state,busy:false,error});}
  }
  /** Portico's emergency file is a separate purpose: no username, local
-  * password/member reset, Hosted lookup or refresh credential is involved. */
+  * password/member reset or Hosted lookup is involved. */
  async requestPorticoOwnerResetFile():Promise<ResetFileLocation|undefined>{
   const state=this.state,api=this.api;
   if(state.phase!=='portico'||state.server?.signIn!=='portico'||state.invitation||!state.pin||!state.origin||!api||state.busy)return;
@@ -497,15 +497,15 @@ export class BrowserAccountEntry {
   if(state.phase!=='portico'||state.server?.signIn!=='portico'||state.invitation)return;
   this.operation();this.publish({...state,busy:false,error:undefined});
  }
- /** The done page grants no new authority. Check the original access-only
+ /** The done page grants no new authority. Check the original server-local
   * owner admission again before its explicit navigation, without Hosted IO. */
  async completePorticoOwnerReset(isCurrent:()=>boolean):Promise<boolean>{
   const state=this.state,api=this.api,session=this.session,epoch=this.epoch;
   const current=()=>!this.disposed&&this.epoch===epoch&&this.state===state&&this.api===api&&this.session===session&&isCurrent();
-  if(!current()||state.phase!=='ready'||!state.ownerResetSessionReady||state.server?.signIn!=='portico'||state.invitation||!state.pin||!session||!api||session.refreshToken||session.viewer.role!=='owner'||Date.parse(session.expiresAt)<=serverNow())return false;
+  if(!current()||state.phase!=='ready'||!state.ownerResetSessionReady||state.server?.signIn!=='portico'||state.invitation||!state.pin||!session||!api||session.viewer.role!=='owner')return false;
   const selected=await this.ports.store.selected();
-  return current()&&!!selected&&selected.signIn==='portico'&&selected.resetFileOwner===true&&!selected.connection.hosted&&
-   sameServerPin(selected.connection.pin,state.pin)&&sameRecoveryAdmission(session,selected.connection.session)&&selected.connection.session.accessToken===session.accessToken&&
+  return current()&&!!selected&&Date.parse(selected.connection.session.expiresAt)>serverNow()&&selected.signIn==='portico'&&selected.resetFileOwner===true&&!selected.connection.hosted&&
+   sameServerPin(selected.connection.pin,state.pin)&&sameRecoveryAdmission(session,selected.connection.session)&&
    selected.connection.logicalOrigin===state.origin&&selected.connection.session.viewer.profileId===state.snapshot?.account.primaryProfileId;
  }
  async verifyPorticoOwnerResetFile(code:string):Promise<boolean>{
@@ -515,12 +515,12 @@ export class BrowserAccountEntry {
   let grant:Extract<DirectSignIn,{kind:'signed-in'}>|undefined,privateAPI:HttpLocalApi|undefined,accepted=false;
   try{
    const revision=(await this.ports.store.read()).revision;if(!op.current()||this.api!==source)return false;
-   const result=await verifyOwnerResetFile(source,code,false,op.signal);
+   const result=await enterOwnerResetSession(source,code,op.signal);
    if(result.kind!=='signed-in')throw new CodedError('invalid_response','The reset file did not return an owner session.');
    grant=result;if(!op.current()||this.api!==source)return false;
    const pin=source.getRouteConnection()?.pin;
    if(!pin||!sameServerPin(pin,state.pin)||result.snapshot.serverId!==state.server.id||result.snapshot.authority!=='local'||
-    !result.resetFileOwnerSession||result.accountScoped||result.passwordChangeRequired||result.session.refreshToken||result.snapshot.twoStepSetupRequired||
+    result.accountScoped||result.passwordChangeRequired||result.snapshot.twoStepSetupRequired||
     result.snapshot.account.disabled||result.snapshot.account.role!=='owner'||result.session.viewer.authority!=='local'||result.session.viewer.serverId!==state.server.id||
     result.session.viewer.role!=='owner'||result.session.viewer.accountId!==result.snapshot.account.id||result.session.viewer.profileId!==result.snapshot.account.primaryProfileId||
     !result.snapshot.profiles.some(profile=>profile.id===result.snapshot.account.primaryProfileId&&profile.primary))throw new CodedError('invalid_response','The reset file did not match this server owner.');
@@ -530,7 +530,7 @@ export class BrowserAccountEntry {
    if(!op.current()||this.api!==source)return false;
    const selected=await this.ports.store.selected();if(!op.current()||this.api!==source)return false;
    if(!selected||selected.signIn!=='portico'||selected.resetFileOwner!==true||selected.connection.hosted||!sameServerPin(selected.connection.pin,pin)||
-    !sameRecoveryAdmission(result.session,selected.connection.session)||selected.connection.session.accessToken!==result.session.accessToken||selected.connection.session.viewer.accountId!==result.snapshot.account.id||
+    !sameRecoveryAdmission(result.session,selected.connection.session)||selected.connection.session.viewer.accountId!==result.snapshot.account.id||
     selected.connection.session.viewer.profileId!==result.snapshot.account.primaryProfileId||selected.connection.session.viewer.role!=='owner')throw new CodedError('cancelled','The server selection changed.');
    this.api=privateAPI;this.session=result.session;this.challenge=undefined;this.challengeRevision=undefined;this.retired();
    if(!op.current()||this.api!==privateAPI)return false;

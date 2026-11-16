@@ -197,3 +197,17 @@ test('another family on the server still needs a current admission', async () =>
   await assert.rejects(stale.change(() => other), {code: 'cancelled'});
   assert.equal((await store.selected())!.connection.session.sessionFamilyId, a.connection.session.sessionFamilyId);
 });
+
+
+test('a reset-file owner session renews locally without a Hosted account', async () => {
+  const base = entry('owner');
+  const saved: AppServerSession = {...base, signIn: 'portico', resetFileOwner: true, connection: {...base.connection, session: {...base.connection.session, refreshToken: 'refresh-token-long-enough', viewer: {...base.connection.session.viewer, role: 'owner'}}}};
+  const store = storage([saved]);
+  const connection = store.connectionStorage('owner');
+  await connection.change(value => ({...value!, session: {...value!.session, accessToken: 'renewed', tokenGeneration: '2'}}));
+  const current = await store.selected();
+  assert.equal(current?.resetFileOwner, true); assert.equal(current?.connection.hosted, undefined);
+  assert.equal(current?.connection.session.accessToken, 'renewed'); assert.equal(current?.connection.session.refreshToken, 'refresh-token-long-enough');
+  assert.throws(() => parseAppSessionRecord({version: 1, revision: 0, servers: [{...saved, connection: {...saved.connection, hosted}}]}));
+  assert.throws(() => parseAppSessionRecord({version: 1, revision: 0, servers: [{...saved, connection: {...saved.connection, session: {...saved.connection.session, viewer: {...saved.connection.session.viewer, role: 'member'}}}}]}));
+});

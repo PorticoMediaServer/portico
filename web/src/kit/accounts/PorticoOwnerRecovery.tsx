@@ -39,7 +39,7 @@ export function PorticoOwnerRecoveryRequest({serverName, busy = false, error, on
   </section></PorticoOwnerRecoveryStage>;
 }
 
-/** auth 20e: the code worked, so the owner is in for this session only. Both
+/** auth 20e: the code worked, so the owner is signed in. Both
  * drawn choices are explicit: nothing here changes the owner or the sign-in kind
  * on its own. */
 export function PorticoOwnerRecoveryDone({serverName, busy = false, error, onChangeOwner, onSwitchToLocal, onContinue}: {
