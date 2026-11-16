@@ -46,7 +46,7 @@ export function BrowseEntryCard({entry, actions, artwork, env, width, family, mi
     fallback: <GeneratedCover title={coverTitle(entry)} glyph={Array.from(coverTitle(entry).trim())[0] ?? ''} tint={generatedCoverTint(coverTitle(entry))}/>};
   const source = artwork.foreground(entry.posterUrl, width * devicePixelRatio, shape === 'poster' ? 2 / 3 : 1, {group, order});
   if (entry.kind === 'category' && family === 'music') return <GenreTile variant="music" context="grid" visible={visible} onNavigate={actions.onOpen} selection={actions.selection} style={props.style}
-    model={{title, caption: entry.count === undefined ? [] : [{id: 'song-count', role: 'supplement', text: defaultI18n.t(entry.countIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: entry.count, pivot: 'songs'})}]}}
+    model={{title, caption: entry.count === undefined ? [] : [{id: 'album-count', role: 'supplement', text: defaultI18n.t(entry.countIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: entry.count, pivot: 'albums'})}]}}
     covers={(entry.artworkPaths ?? []).slice(0, 3).flatMap((path, index) => {const cover = artwork.foreground(path, 76 * devicePixelRatio, 1, {group, order: order * 3 + index});return cover ? [cover] : [];})}/>;
   if (entry.kind === 'collection') return <CollectionTile {...props} artwork={backdrops ? artwork.foreground(entry.backdropUrl, width * devicePixelRatio, 16 / 9, {group, order}) : undefined}
     ambient={backdrops ? artwork.ambient(entry.backdropUrl, {group, order}) : undefined}

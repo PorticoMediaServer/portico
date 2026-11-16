@@ -3,7 +3,7 @@ import type {FetchPage} from './collections/windowed.ts';
 import type {ContentEntry} from './library-content.ts';
 import {countItems, entriesFromItems, entryFromPerson, readFacet, readItems} from './items.ts';
 import {callServer} from './query/server-api.ts';
-import {libraryItemQuery} from './library-browse.ts';
+import {genreEntry, libraryItemQuery} from './library-browse.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
 import {rememberFilterNames} from './filter-value-names.ts';
 import {isStaleAnswer} from './freshness-actions.ts';
@@ -122,8 +122,8 @@ export class BrowseSession<T> {
     if (this.ended) throw browseListMoved();
     const lifetime = linkAbortSignals([signal, this.life.signal]), active = lifetime.signal;
     const api = {request: <R>(path: string, method = 'GET', body?: unknown, input?: AbortSignal) => this.options.request(path, method, body, input ?? active) as Promise<R>};
-    if (this.query.pivot === 'authors') {
-      try {return await this.readAuthors(api, start, count, signal, active);}
+    if (this.query.pivot === 'authors' || this.query.pivot === 'genres') {
+      try {return await (this.query.pivot === 'authors' ? this.readAuthors(api, start, count, signal, active) : this.readGenres(api, start, count, signal, active));}
       catch (error) {if (!this.retired && this.options.current() && !signal.aborted && ended(error)) this.end(error); throw error;}
       finally {lifetime.dispose();}
     }
@@ -172,6 +172,16 @@ export class BrowseSession<T> {
     rememberFilterNames(entries.map(entry => ({value: entry.id, label: entry.title})));
     if (this.retired || !this.options.current() || signal.aborted) throw browseSessionClosed();
     return this.answer(entries, start, start + people.length, page.nextCursor, signal);
+  }
+  /** A music library's Genres tab: every genre of the library the profile may see, by name, read whole
+   * (the server lists at most 200) and handed out a page at a time. */
+  private async readGenres(api: Parameters<typeof readItems>[0], start: number, count: number, signal: AbortSignal, active: AbortSignal) {
+    const answer = await callServer(api, 'GET /v1/genres', {query: {library: this.query.libraryId}, signal: active});
+    const all = (answer?.genres ?? []).flatMap(genre => {const entry = genreEntry(genre, this.query.libraryId); return entry ? [entry] : [];});
+    if (this.query.sorts[0]?.direction === 'desc') all.reverse();
+    this.total = all.length;
+    if (this.retired || !this.options.current() || signal.aborted) throw browseSessionClosed();
+    return this.answer(all.slice(start, start + count), start, Math.min(all.length, start + count), undefined, signal);
   }
   /** One page as the screens take it, with what is known of the list's length. */
   private answer(entries: readonly ContentEntry[], start: number, end: number, nextCursor: string | undefined, signal: AbortSignal) {

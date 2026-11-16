@@ -266,8 +266,9 @@
 .videoGenre .primary, .musicGenre .primary, .series .primary { height:100%; }
 .genreBackdrop { position:absolute; inset:0; }
 .genreBackdrop::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,rgba(7,16,24,.88) 0%,rgba(7,16,24,.5) 55%,rgba(7,16,24,.15)); }
-.genreCopy { position:absolute; left:20px; bottom:18px; right:20px; }
-.genreTitle { display:block; font-size:24px; font-weight:800; letter-spacing:-.025em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.genreCopy { position:absolute; z-index:1; left:20px; bottom:18px; right:20px; }
+/* A long genre name wraps to a second line before it is cut (visual rules: cut text). */
+.genreTitle { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; font-size:24px; line-height:1.1; font-weight:800; letter-spacing:-.025em; overflow:hidden; }
 .genreFacts { font-size:13px; color:var(--color-text-secondary); margin-top:2px; }
 .musicGenre { --cards-width:250px; height:152px; border-radius:14px; background:radial-gradient(120% 150% at 100% 0%,var(--cards-tint) 0%,transparent 70%),var(--color-raised); }
 .musicGenre .genreTitle { font-size:22px; letter-spacing:-.02em; text-shadow:0 2px 16px rgba(7,16,24,.6); }

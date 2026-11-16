@@ -6,7 +6,8 @@
  * assumed that it does not offer. A filter the screen can build but the server cannot answer is
  * refused in plain words before anything is asked.
  */
-import type {Library as WireLibrary} from '../../contracts/src/next/api.ts';
+import type {GenreEntry, Library as WireLibrary} from '../../contracts/src/next/api.ts';
+import type {ContentEntry} from './library-content.ts';
 import {acrossLibraries, BrowseQueryError, type BrowseNode, type BrowseSortSelection} from './browse.ts';
 import {itemKindOf, libraryKind, type ItemListQuery} from './items.ts';
 import {serverPath} from './query/server-api.ts';
@@ -29,6 +30,8 @@ const pivots: readonly Readonly<{id: string; kind: string; labelKey: string; vie
   // A comic library's tab lists its comics with their series, each series opening its volumes.
   {id: 'comics', kind: 'comic', labelKey: 'library.tab.volumesAndIssues', views: ['grid', 'list'], lists: 'comic,series'},
   {id: 'collections', kind: 'collection', labelKey: 'library.tab.collections', views: ['grid', 'list']},
+  // A music library's Genres tab is its genres list (GET /v1/genres?library=), not an item list: by name, with no filters.
+  {id: 'genres', kind: 'genre', labelKey: 'library.tab.genres', views: ['grid']},
 ];
 /** The server's sort names and the app's. */
 const sortIds: Readonly<Record<string, string>> = {title: 'title', added: 'added', year: 'year', release: 'releaseDate', latest: 'latestAired'};
@@ -59,7 +62,7 @@ const readingKind = (kind: string) => kind === 'books' || kind === 'comics';
  * audiobook, book or comic library, drawn by the same grid; Authors is the library's people list
  * (where it can be filtered by author), not one of its views. */
 const offers = (library: WireLibrary, pivot: (typeof pivots)[number]): boolean =>
-  pivot.id === 'authors' ? library.kind === 'audiobooks' || readingKind(library.kind) && !!library.filters?.some(filter => filter.id === 'author')
+  pivot.id === 'genres' ? library.kind === 'music' : pivot.id === 'authors' ? library.kind === 'audiobooks' || readingKind(library.kind) && !!library.filters?.some(filter => filter.id === 'author')
     : (pivot.id !== 'series' || library.kind === 'audiobooks' || readingKind(library.kind)) && !!library.views?.some(view => view.kind === pivot.kind);
 const pivotFor = (library: WireLibrary, pivotId: string) => pivots.find(pivot => pivot.id === pivotId && offers(library, pivot));
 
@@ -77,11 +80,12 @@ export function libraryBrowseCapabilities(library: WireLibrary, pivotId: string)
     return [{...field, cost: 'indexed', applicableKinds: [], ...(values ? {allowedValues: values} : {}), ...(facet ? {facetSource: {endpoint: serverPath('GET /v1/facets'), field: facet}} : {})}];
   });
   const shaped = offered.map(pivot => {
-    // The people list is in name order only, with no filters.
-    const own = pivot.id === 'authors' ? sorts.filter(sort => sort.id === 'title') : sorts, lead = own[0];
+    // The people list and the genres list are in name order only, with no filters.
+    const named = pivot.id === 'authors' || pivot.id === 'genres';
+    const own = named ? sorts.filter(sort => sort.id === 'title') : sorts, lead = own[0];
     return {id: pivot.id, labelKey: pivot.labelKey, entityKinds: [pivot.kind === 'track' ? 'song' : pivot.kind], supportedViews: pivot.views, browsable: true,
-      defaultSort: lead ? [{field: lead.id, direction: pivot.id === 'authors' ? 'asc' : lead.defaultDirection}] : [], sorts: own.map(sort => sort.id),
-      filters: pivot.id === 'authors' ? [] : filters.map(filter => filter.id), paging: 'keyset'};
+      defaultSort: lead ? [{field: lead.id, direction: named ? 'asc' : lead.defaultDirection}] : [], sorts: own.map(sort => sort.id),
+      filters: named ? [] : filters.map(filter => filter.id), paging: 'keyset'};
   });
   const list = (id: string, field: string) => ({id, labelKey: 'library.tab.' + id, entityKinds: [field], supportedViews: ['grid', 'list'], browsable: false,
     defaultSort: [], sorts: [], filters: [], facetSource: {endpoint: routePattern('get_library_facets'), field}});
@@ -180,6 +184,18 @@ export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibr
   if (sorts.length > 1 || sort && !name) throw new BrowseQueryError('sort', 'That sort is not available here.');
   if (sort) { query.sort = name; query.order = sort.direction; }
   return query as ItemListQuery;
+}
+
+/** One genre of a music library's Genres tab as its tile: the name, how many albums carry it and up to
+ * three of their covers. It opens the library's Albums tab (`releases`) with that genre as the filter. */
+export function genreEntry(genre: GenreEntry, libraryId: string): ContentEntry | undefined {
+  if (!genre?.value || typeof genre.label !== 'string' || !genre.label) return undefined;
+  const covers = (genre.posters ?? []).flatMap(images => typeof (images?.cover ?? images?.poster) === 'string' ? [String(images.cover ?? images.poster)] : []);
+  return Object.freeze({id: genre.value, kind: 'category', title: genre.label, libraryId, ...(typeof genre.count === 'number' ? {count: genre.count} : {}),
+    artworkPaths: Object.freeze(covers.slice(0, 3)),
+    navigation: Object.freeze({view: 'releases', browse: Object.freeze({pivot: 'albums',
+      query: Object.freeze({variant: 'predicate', field: 'genre', operator: 'equals', value: genre.label}),
+      sort: Object.freeze([Object.freeze({field: 'title', direction: 'asc'})])})})}) as ContentEntry;
 }
 
 /** A holder's own list (a show's seasons, a season's episodes, an album's tracks), in its own order. */

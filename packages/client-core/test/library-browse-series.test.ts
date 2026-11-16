@@ -107,3 +107,23 @@ test("a re-checked card keeps a magazine's or newspaper's periodical link, and r
   assert.throws(() => validateContentEntry({...atlas, navigation: {view: 'series', entityId: 'itm_a', pivot: 'albums'}}));
   assert.throws(() => validateContentEntry({...atlas, navigation: {view: 'book_series', entityId: 'itm_a', pivot: 'magazines'}}));
 });
+
+test("a music library's Genres tab lists its genres by name, each opening Albums filtered to it", async () => {
+  const {BrowseSession} = await import('../src/browse-session.ts');
+  const library = {id: 'lib_m', name: 'Music', kind: 'music', views: [{kind: 'artist'}, {kind: 'album'}, {kind: 'track'}], sorts: [{id: 'added', order: 'desc'}, {id: 'title', order: 'asc'}], filters: [{id: 'genre'}]} as never;
+  const caps = libraryBrowseCapabilities(library, 'genres') as {resolvedPivot: {sorts: string[]; filters: string[]; defaultSort: unknown[]}};
+  assert.deepEqual([caps.resolvedPivot.sorts, caps.resolvedPivot.filters, caps.resolvedPivot.defaultSort], [['title'], [], [{field: 'title', direction: 'asc'}]]);
+  assert.equal((libraryBrowseCapabilities({...(library as object), kind: 'movies', views: [{kind: 'movie'}]} as never, 'genres') as {resolvedPivot: unknown}).resolvedPivot, null);
+  const asked: string[] = [];
+  const session = new BrowseSession({query: {libraryId: 'lib_m', pivot: 'genres', capabilities: {} as never, nodes: [], sorts: [{field: 'title', direction: 'asc'}]},
+    current: () => true, item: entry => entry, request: async (path: string) => {
+      asked.push(path);
+      return {genres: [{value: 'tag_1', label: 'Jazz', count: 3, posters: [{cover: '/v1/images/a'}]}, {value: 'tag_2', label: 'Rock', count: 5, posters: []}]};
+    }});
+  const page = await session.fetchPage(0, 60, new AbortController().signal);
+  assert.equal(asked[0], '/v1/genres?library=lib_m');
+  assert.equal(page.total, 2);
+  assert.deepEqual(page.items.map(entry => [entry.kind, entry.title, entry.count, entry.artworkPaths, entry.navigation]), [
+    ['category', 'Jazz', 3, ['/v1/images/a'], {view: 'releases', browse: {pivot: 'albums', query: {variant: 'predicate', field: 'genre', operator: 'equals', value: 'Jazz'}, sort: [{field: 'title', direction: 'asc'}]}}],
+    ['category', 'Rock', 5, [], {view: 'releases', browse: {pivot: 'albums', query: {variant: 'predicate', field: 'genre', operator: 'equals', value: 'Rock'}, sort: [{field: 'title', direction: 'asc'}]}}]]);
+});
