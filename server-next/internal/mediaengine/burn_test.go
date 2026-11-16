@@ -142,8 +142,7 @@ func TestSubtitlesAreBurnedIntoThePicture(t *testing.T) {
 		if c.track == "" {
 			t.Fatalf("%s: the title's subtitles are %v", name, tracks)
 		}
-		var session api.PlaybackSession
-		h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID, Subtitles: &api.SubtitlePick{TrackID: &c.track, Delivery: c.delivery}}, &session, 201)
+		session := h.startPlayback(api.PlaybackStart{ItemID: page.Items[0].ID, Subtitles: &api.SubtitlePick{TrackID: &c.track, Delivery: c.delivery}})
 		if light := brightest(session, c.crop); light < 180 {
 			t.Fatalf("%s: where the subtitle should be the picture is no brighter than %d", name, light)
 		}
@@ -155,7 +154,7 @@ func TestSubtitlesAreBurnedIntoThePicture(t *testing.T) {
 	late := int64(3000)
 	var nudged api.PlaybackSession
 	track := tracks["embedded eng"]
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID, Subtitles: &api.SubtitlePick{TrackID: &track, Delivery: "burn"}}, &nudged, 201)
+	nudged = h.startPlayback(api.PlaybackStart{ItemID: page.Items[0].ID, Subtitles: &api.SubtitlePick{TrackID: &track, Delivery: "burn"}})
 	plain := nudged.Presentation.URL
 	h.call("PATCH", "/v1/playback/sessions/"+nudged.ID, api.PlaybackChange{SubtitleOffsetMs: &late}, &nudged, 200)
 	if nudged.Presentation.URL == plain {

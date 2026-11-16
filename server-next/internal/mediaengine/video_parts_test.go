@@ -328,8 +328,7 @@ func TestSplitVideoCodecSetupChangesKeepFirstPartPlaying(t *testing.T) {
 			if len(page.Items) != 1 {
 				t.Fatalf("scanned %d films", len(page.Items))
 			}
-			var session api.PlaybackSession
-			h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID}, &session, 201)
+			session := h.startPlayback(api.PlaybackStart{ItemID: page.Items[0].ID})
 			if session.Presentation.Route != playback.RouteOriginal {
 				t.Fatal("different setup must retain first-part original playback")
 			}

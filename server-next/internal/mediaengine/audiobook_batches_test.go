@@ -88,8 +88,7 @@ func manyPartBooks(t *testing.T, h *house, d *db.DB, ffmpeg string, counts ...in
 // player does, is the right part's sound.
 func playFrom(t *testing.T, h *house, ffmpeg, id string, atMs int64) api.PlaybackSession {
 	t.Helper()
-	var session api.PlaybackSession
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: id, StartPositionMs: &atMs}, &session, 201)
+	session := h.startPlayback(api.PlaybackStart{ItemID: id, StartPositionMs: &atMs})
 	p := session.Presentation
 	if !strings.HasSuffix(p.URL, ".m3u8") || p.StartPositionMs != atMs {
 		t.Fatalf("start at %d ms: %+v", atMs, p)
@@ -163,7 +162,7 @@ func TestABookOfThreeHundredPartsPlays(t *testing.T) {
 	positions := make([]int64, 4)
 	for b, client := range clients {
 		positions[b] = int64(b) * int64(whole*1000/4) / 6000 * 6000
-		client.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: ids[b], StartPositionMs: &positions[b]}, &sessions[b], 201)
+		sessions[b] = client.startPlayback(api.PlaybackStart{ItemID: ids[b], StartPositionMs: &positions[b]})
 	}
 	var wg sync.WaitGroup
 	for b, client := range clients {
@@ -246,8 +245,7 @@ func TestABatchJoinIsInaudible(t *testing.T) {
 	h.call("GET", "/v1/items?library="+lib.PublicID+"&kind=audiobook", nil, &page, 200)
 	// Read through the first batch and across its hand-over, as a listener does.
 	start := int64(0)
-	var session api.PlaybackSession
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID, StartPositionMs: &start}, &session, 201)
+	session := h.startPlayback(api.PlaybackStart{ItemID: page.Items[0].ID, StartPositionMs: &start})
 	base := session.Presentation.URL[:strings.LastIndex(session.Presentation.URL, "/")+1]
 	segments := h.mediaSegments(t, session.Presentation.URL)
 	var joined, before []byte
@@ -270,7 +268,7 @@ func TestABatchJoinIsInaudible(t *testing.T) {
 	// A restart before the batch edge must cut on the same packet as the run
 	// from zero. Starting at 48 s used to shift the 60 s cut by one MP3 frame.
 	start = 48_000
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID, StartPositionMs: &start}, &session, 201)
+	session = h.startPlayback(api.PlaybackStart{ItemID: page.Items[0].ID, StartPositionMs: &start})
 	base = session.Presentation.URL[:strings.LastIndex(session.Presentation.URL, "/")+1]
 	for _, n := range []int{8, 10} {
 		code, _, body := h.media(base + segments[n])
@@ -416,8 +414,7 @@ func TestAMixedBookCrossesABatch(t *testing.T) {
 			t.Fatalf("part %d page offset: %v, want %d ms on the playback clock", part+1, p.OffsetMs, want)
 		}
 	}
-	var session api.PlaybackSession
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: ids[0]}, &session, 201)
+	session := h.startPlayback(api.PlaybackStart{ItemID: ids[0]})
 	if session.Presentation.Route != "converted" {
 		t.Fatalf("mixed book route: %s", session.Presentation.Route)
 	}

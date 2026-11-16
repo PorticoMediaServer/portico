@@ -47,8 +47,7 @@ func reviewHouse(t *testing.T) (*house, string) {
 func TestSwitchingBackDoesNotEmptyAFolderStillPlayedFrom(t *testing.T) {
 	h, item := reviewHouse(t)
 	first := filepath.Join(h.data, "transcodes", "1")
-	var session api.PlaybackSession
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: item, Quality: &playback.Quality{Mode: playback.QualityFixed, ID: "240p"}}, &session, 201)
+	session := h.startPlayback(api.PlaybackStart{ItemID: item, Quality: &playback.Quality{Mode: playback.QualityFixed, ID: "240p"}})
 	url := session.Presentation.URL
 	if code, _, _ := h.media(url); code != 200 {
 		t.Fatalf("the conversion answered %d", code)

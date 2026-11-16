@@ -58,8 +58,7 @@ func TestAMultiFileAudiobookPlaysAsOneBook(t *testing.T) {
 	}
 
 	for _, start := range []int64{0, 30_000} {
-		var session api.PlaybackSession
-		h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: item, StartPositionMs: &start}, &session, 201)
+		session := h.startPlayback(api.PlaybackStart{ItemID: item, StartPositionMs: &start})
 		p := session.Presentation
 		if !strings.HasSuffix(p.URL, ".m3u8") || p.StartPositionMs != start {
 			t.Fatalf("start at %d ms: %+v", start, p)
@@ -86,8 +85,7 @@ func TestAMultiFileAudiobookPlaysAsOneBook(t *testing.T) {
 	// The place is whole-book time too: a listener 45 s in (five seconds into part three)
 	// reports it, stops, and comes back to the same place in part three, less the rewind
 	// when resuming (rule 61). A seek through the session is a place in the whole book.
-	var session api.PlaybackSession
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: item}, &session, 201)
+	session := h.startPlayback(api.PlaybackStart{ItemID: item})
 	h.call("PUT", "/v1/playback/sessions/"+session.ID+"/progress", api.PlaybackProgress{State: "playing", PositionMs: 45_000}, nil, 200)
 	var sought api.PlaybackSession
 	h.call("PATCH", "/v1/playback/sessions/"+session.ID, api.PlaybackChange{Seek: &api.PlaybackSeek{PositionMs: 41_000, ID: "seek-1"}}, &sought, 200)
@@ -96,8 +94,7 @@ func TestAMultiFileAudiobookPlaysAsOneBook(t *testing.T) {
 	}
 	stop := int64(45_000)
 	h.call("DELETE", "/v1/playback/sessions/"+session.ID, api.PlaybackStop{PositionMs: &stop}, nil, 204)
-	var resumed api.PlaybackSession
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: item}, &resumed, 201)
+	resumed := h.startPlayback(api.PlaybackStart{ItemID: item})
 	at := resumed.Presentation.StartPositionMs
 	if at < 15_000 || at > 45_000 {
 		t.Fatalf("a book left 45 s in resumes at %d ms", at)
@@ -321,8 +318,7 @@ func TestABookInPartsEncodedDifferentlyPlaysThroughBoth(t *testing.T) {
 		t.Fatalf("the library lists %+v", page.Items)
 	}
 	for _, start := range []int64{0, 25_000} {
-		var session api.PlaybackSession
-		h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID, StartPositionMs: &start}, &session, 201)
+		session := h.startPlayback(api.PlaybackStart{ItemID: page.Items[0].ID, StartPositionMs: &start})
 		p := session.Presentation
 		if !strings.HasSuffix(p.URL, ".m3u8") || p.StartPositionMs != start || p.Route != "converted" {
 			t.Fatalf("start at %d ms: a book whose parts differ should be converted into one stream: %+v", start, p)
