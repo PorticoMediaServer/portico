@@ -633,6 +633,13 @@ func (d *DB) unlessSwapped(td *titleData, err error) error {
 // MoreLikeThisPage uses the ranking's own position and a title id to continue through ties.
 // The initial read costs the same as MoreLikeThis; no library-wide candidate query is added.
 func (d *DB) MoreLikeThisPage(ctx context.Context, v Viewer, itemID, cursor string, limit int) (ItemPage, error) {
+	enhanced, err := d.hasSimilarTitles(ctx, v, itemID)
+	if err != nil {
+		return ItemPage{}, err
+	}
+	if !enhanced {
+		return d.localSimilarPage(ctx, v, itemID, cursor, limit)
+	}
 	items, err := d.MoreLikeThis(ctx, v, itemID)
 	if err != nil {
 		return ItemPage{}, err
