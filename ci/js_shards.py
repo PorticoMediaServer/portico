@@ -5,7 +5,7 @@ import json
 import math
 from pathlib import Path
 
-SHARD_COUNTS = {'apps/native': 4, 'packages': 3, 'web': 2, 'apps/desktop': 1, 'apps/vega': 1}
+SHARD_COUNTS = {'apps/native': 4, 'packages': 3, 'web': 2, 'apps/desktop': 1, 'apps/vega': 1, 'apps/tv-web': 1}
 
 
 def roots(files):

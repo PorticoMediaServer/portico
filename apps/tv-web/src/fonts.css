@@ -1,0 +1,7 @@
+/* The TV apps' typeface, from the same files the Apple and Android TV apps bundle
+   (apps/native/assets), under the family names the kit asks for (packages/design). */
+@font-face { font-family: 'Manrope-Regular'; src: url('../../native/assets/manrope-400.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Manrope-Medium'; src: url('../../native/assets/manrope-500.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Manrope-SemiBold'; src: url('../../native/assets/manrope-600.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Manrope-Bold'; src: url('../../native/assets/manrope-700.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Manrope-ExtraBold'; src: url('../../native/assets/manrope-800.ttf') format('truetype'); font-display: block; }

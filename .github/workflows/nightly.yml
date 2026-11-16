@@ -196,7 +196,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: ${{ !cancelled() }}
         with:
-          name: js-${{ matrix.component == 'apps/native' && 'native' || matrix.component == 'apps/desktop' && 'desktop' || matrix.component == 'apps/vega' && 'vega' || matrix.component }}-${{ matrix.index }}
+          name: js-${{ matrix.component == 'apps/native' && 'native' || matrix.component == 'apps/desktop' && 'desktop' || matrix.component == 'apps/vega' && 'vega' || matrix.component == 'apps/tv-web' && 'tv-web' || matrix.component }}-${{ matrix.index }}
           path: ci-results/js/
           if-no-files-found: error
   android:
