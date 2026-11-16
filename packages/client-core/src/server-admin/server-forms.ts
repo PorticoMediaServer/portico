@@ -199,11 +199,6 @@ export function parseMaintenanceDocument(raw: unknown): MaintenanceDocument {
 
 export const maintenanceForm = (deps: ServerFormDeps) => documentForm<MaintenanceSettings, MaintenanceDocument>(deps, routePath("get_admin_maintenance_settings"), parseMaintenanceDocument);
 
-/** Reuse operationId when retrying the same pause/resume action. */
-export async function pauseBackgroundWork(deps: Pick<ServerFormDeps, 'api'>, paused: boolean, operationId: string): Promise<MaintenanceDocument> {
-  return parseMaintenanceDocument(await deps.api.request(routePath("post_admin_background_pause"), 'POST', routeBody("post_admin_background_pause", {paused, operationId})));
-}
-
 export type ResourceUsage = Readonly<{connections: {ordinary: number; total: number; ordinaryLimit: number; consoleReserve: number} | null; analysis: {trackedBytes: number; limitBytes: number; measured: boolean}; localArtwork: {trackedBytes: number; limitBytes: number; measured: boolean}; streams: number; streamLimit: number | null; subtitleTracksPerFile: number; subtitleFileLimitMiB: number}>;
 export async function loadResourceUsage(api: Pick<HttpLocalApi, 'request'>, signal?: AbortSignal): Promise<ResourceUsage> {
   const value = await api.request<ResourceUsage>(routePath("get_admin_resource_usage"), 'GET', undefined, signal);
