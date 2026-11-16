@@ -106,7 +106,7 @@ export class DownloadsService {
         const downloads = await listDownloads(this.api, this.everyDevice, this.lifetime.signal);
         if (generation !== this.generation || this.disposed) return;
         this.show(downloads);
-        void readDownloadUsage(this.api, this.lifetime.signal).then(u => {if (generation === this.generation) this.publish({usage: {profileId: this.profileId, profileBytes: u.copiesBytes, profileCount: downloads.length, serverBytes: u.copiesBytes, serverCount: downloads.length, distinctArtifactBytes: u.copiesBytes, maxPreparedBytes: 0, remainingBytes: u.roomBytes ?? null, retentionDays: 0, profiles: []}});}, () => {});
+        void readDownloadUsage(this.api, this.lifetime.signal).then(u => {if (generation === this.generation) this.publish({usage: {profileId: this.profileId, profileBytes: u.copiesBytes, profileCount: downloads.length, serverBytes: u.copiesBytes, serverCount: downloads.length, distinctArtifactBytes: u.copiesBytes, maxPreparedBytes: 0, remainingBytes: null, retentionDays: 0, profiles: []}});}, () => {});
       } catch (e) {
         if (generation !== this.generation || this.disposed) return;
         const unavailable = (e as {status?: number; code?: string})?.status === 404 || (e as {code?: string})?.code === 'downloads_unavailable';

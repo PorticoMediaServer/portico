@@ -80,8 +80,8 @@ const downloadColumns = `d.id, d.public_id, d.profile_id, d.device_id, dv.public
 	ifnull(i.kind, 0), ifnull(d.list_id, 0), ifnull(l.public_id, ''), coalesce(i.title, l.name, ''), ifnull(m.public_id, ''), d.quality,
 	d.selection, ifnull(d.keep_next, 0), d.paused, d.created_at, d.updated_at,
 	(SELECT count(*) FROM download_items x WHERE x.download_id = d.id AND x.state <> 2),
-	(SELECT count(*) FROM download_items x LEFT JOIN prepared_media p ON p.id = x.prepared_id WHERE x.download_id = d.id AND x.state = 0
-		AND (d.quality = 'original' OR p.state = 'ready')),
+	(SELECT count(*) FROM download_items x LEFT JOIN prepared_media p ON p.id = x.prepared_id WHERE x.download_id = d.id
+		AND (x.state = 3 OR x.state = 0 AND (d.quality = 'original' OR p.state = 'ready'))),
 	(SELECT count(*) FROM download_items x JOIN prepared_media p ON p.id = x.prepared_id WHERE x.download_id = d.id AND x.state = 0
 		AND p.state IN ('waiting', 'preparing')),
 	(SELECT count(*) FROM download_items x LEFT JOIN prepared_media p ON p.id = x.prepared_id WHERE x.download_id = d.id
@@ -295,7 +295,7 @@ func (d *DB) DownloadOf(ctx context.Context, profileID int64, publicID string) (
 
 const downloadTitleColumns = `x.item_id, i.public_id, i.kind, i.title, ifnull(x.media_id, 0), x.state, ifnull(x.reason, ''),
 	x.position, p.id IS NOT NULL, p.id, p.public_id, p.media_id, p.recipe, p.state, p.error, p.container, p.size, p.content_hash,
-	p.created_at, p.last_used_at`
+	p.created_at, p.last_used_at, p.ready_at`
 
 const downloadTitleFrom = ` FROM download_items x JOIN items i ON i.id = x.item_id LEFT JOIN prepared_media p ON p.id = x.prepared_id`
 
@@ -305,15 +305,15 @@ func scanDownloadTitle(rows *sql.Rows, front ...any) (DownloadTitle, error) {
 	var has bool
 	var pid, media, size sql.NullInt64
 	var public, recipe, state, reason, container, hash sql.NullString
-	var created, used sql.NullInt64
+	var created, used, ready sql.NullInt64
 	if err := rows.Scan(append(front, &t.ItemID, &t.ItemPublicID, &t.Kind, &t.Title, &t.MediaID, &t.State, &t.Reason, &t.Position, &has,
-		&pid, &public, &media, &recipe, &state, &reason, &container, &size, &hash, &created, &used)...); err != nil {
+		&pid, &public, &media, &recipe, &state, &reason, &container, &size, &hash, &created, &used, &ready)...); err != nil {
 		return t, err
 	}
 	if has {
 		t.Prepared = &Prepared{ID: pid.Int64, PublicID: public.String, MediaID: media.Int64, Recipe: recipe.String, State: state.String,
 			Error: reason.String, Container: container.String, Size: size.Int64, ContentHash: hash.String,
-			CreatedAt: time.UnixMilli(created.Int64), LastUsedAt: time.UnixMilli(used.Int64)}
+			CreatedAt: time.UnixMilli(created.Int64), LastUsedAt: time.UnixMilli(used.Int64), ReadyAt: time.UnixMilli(ready.Int64)}
 	}
 	return t, nil
 }
@@ -620,36 +620,4 @@ func (d *DB) KeepTitles(ctx context.Context, downloadID int64, keep []int64, add
 		}
 		return insertDownloadTitles(ctx, tx, downloadID, add)
 	})
-}
-
-// PersonDownloads is one account's downloads, for the owner's Storage page.
-type PersonDownloads struct {
-	UserPublicID string
-	Username     string
-	Titles       int
-	// CopiesBytes is what the server's copies for the account's requests take, each once.
-	CopiesBytes int64
-}
-
-// DownloadsByPerson lists every account that has asked for downloads, username first. One row
-// per account; the copies are summed per account.
-func (d *DB) DownloadsByPerson(ctx context.Context) ([]PersonDownloads, error) {
-	rows, err := d.read.QueryContext(ctx, `SELECT u.public_id, u.username, count(x.item_id),
-		(SELECT ifnull(sum(pm.size), 0) FROM prepared_media pm WHERE pm.id IN (SELECT y.prepared_id FROM download_items y
-			JOIN downloads e ON e.id = y.download_id JOIN profiles q ON q.id = e.profile_id WHERE q.user_id = u.id))
-		FROM users u JOIN profiles p ON p.user_id = u.id JOIN downloads d ON d.profile_id = p.id
-		LEFT JOIN download_items x ON x.download_id = d.id AND x.state = 0 GROUP BY u.id ORDER BY u.username`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []PersonDownloads{}
-	for rows.Next() {
-		var p PersonDownloads
-		if err := rows.Scan(&p.UserPublicID, &p.Username, &p.Titles, &p.CopiesBytes); err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	return out, rows.Err()
 }

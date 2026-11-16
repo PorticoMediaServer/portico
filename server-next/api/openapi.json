@@ -2107,9 +2107,6 @@
           "kind": {
             "type": "string"
           },
-          "roomBytes": {
-            "type": "integer"
-          },
           "titles": {
             "type": "integer"
           }
@@ -2276,9 +2273,6 @@
         "properties": {
           "copiesBytes": {
             "type": "integer"
-          },
-          "roomBytes": {
-            "type": "integer"
           }
         },
         "required": [
@@ -2346,27 +2340,6 @@
           "subtitles",
           "chapters",
           "markers"
-        ],
-        "type": "object"
-      },
-      "DownloadsByPerson": {
-        "properties": {
-          "copiesBytes": {
-            "type": "integer"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/PersonDownloads"
-            },
-            "type": "array"
-          },
-          "roomBytes": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "copiesBytes"
         ],
         "type": "object"
       },
@@ -8719,29 +8692,6 @@
           "id",
           "name",
           "images"
-        ],
-        "type": "object"
-      },
-      "PersonDownloads": {
-        "properties": {
-          "copiesBytes": {
-            "type": "integer"
-          },
-          "titles": {
-            "type": "integer"
-          },
-          "userId": {
-            "type": "string"
-          },
-          "username": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "userId",
-          "username",
-          "titles",
-          "copiesBytes"
         ],
         "type": "object"
       },
@@ -15940,39 +15890,6 @@
         "x-scope": "admin"
       }
     },
-    "/v1/admin/downloads": {
-      "get": {
-        "operationId": "get_v1_admin_downloads",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DownloadsByPerson"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            },
-            "description": "A refusal"
-          }
-        },
-        "tags": [
-          "Integrations"
-        ],
-        "x-access": "owner",
-        "x-audience": "Integrations",
-        "x-scope": "admin"
-      }
-    },
     "/v1/admin/dvr/folder": {
       "get": {
         "operationId": "get_v1_admin_dvr_folder",
@@ -19344,42 +19261,6 @@
           "Integrations"
         ],
         "x-access": "admin",
-        "x-audience": "Integrations",
-        "x-scope": "admin"
-      }
-    },
-    "/v1/admin/members/{id}/downloads": {
-      "delete": {
-        "operationId": "delete_v1_admin_members_id_downloads",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Done"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            },
-            "description": "A refusal"
-          }
-        },
-        "tags": [
-          "Integrations"
-        ],
-        "x-access": "owner",
         "x-audience": "Integrations",
         "x-scope": "admin"
       }
@@ -23840,6 +23721,50 @@
               }
             },
             "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
+      }
+    },
+    "/v1/downloads/{id}/items/{itemId}/received": {
+      "post": {
+        "operationId": "post_v1_downloads_id_items_itemId_received",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
           },
           "default": {
             "content": {

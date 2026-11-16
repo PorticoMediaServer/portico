@@ -47,7 +47,9 @@ type Service struct {
 	// BookCopy is the copy a book downloads as when its own file is not one the app reads
 	// (reading.DownloadCopy): the book version whose first file is fileID, of item, as v sees it.
 	BookCopy func(ctx context.Context, v db.Viewer, item string, fileID int64) (reading.Copy, bool, error)
-	grants   grants
+	// DropBookCopy removes that copy once no download waits for it.
+	DropBookCopy func(ctx context.Context, v db.Viewer, item string, fileID int64)
+	grants       grants
 }
 
 // Owner is the owner's downloads settings as they stand.
@@ -190,8 +192,6 @@ func (s *Service) plan(ctx context.Context, source db.DownloadSource, version, q
 	}
 	p, err := s.Prepare.Want(ctx, v, source.Kind, quality)
 	switch {
-	case errors.Is(err, prepare.ErrSpaceFull):
-		t.State, t.Reason = db.DownloadLeftOut, "The server's download space is full."
 	case errors.Is(err, prepare.ErrNoConverter):
 		t.State, t.Reason = db.DownloadLeftOut, "This server can't make smaller copies."
 	case err != nil:
@@ -300,4 +300,30 @@ func (s *Service) stopUnwanted(ctx context.Context, copies []int64) {
 		}
 	}
 	s.Prepare.Wake()
+}
+
+// Received records that the device has a title's whole file (POST
+// /v1/downloads/{id}/items/{itemId}/received, or a browser sent its last byte). The copy the
+// server made for it goes at once when no other download waits for it (area 9 rule 24): a
+// smaller video's prepared copy, or a book's EPUB or CBZ. An original is never touched.
+func (s *Service) Received(ctx context.Context, v db.Viewer, dl db.Download, title db.DownloadTitle) error {
+	prepared, err := s.DB.ReceiveTitle(ctx, dl.ID, title.ItemID)
+	if err != nil {
+		return err
+	}
+	if prepared != 0 {
+		return s.Prepare.Release(ctx, prepared)
+	}
+	if !title.Kind.Reading() || s.DropBookCopy == nil || title.MediaID == 0 {
+		return nil
+	}
+	if waiting, err := s.DB.MediaAwaited(ctx, title.MediaID); err != nil || waiting {
+		return err
+	}
+	version, _, err := s.DB.PreparedVersion(ctx, title.MediaID)
+	if err != nil || len(version.Parts) == 0 {
+		return err
+	}
+	s.DropBookCopy(ctx, v, title.ItemPublicID, version.Parts[0].FileID)
+	return nil
 }
