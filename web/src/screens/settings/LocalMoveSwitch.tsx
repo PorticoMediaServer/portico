@@ -30,9 +30,10 @@ type Attempt = {
   phase: 'open' | 'confirming' | 'handed' | 'closed';
 };
 
-type Draft = Readonly<{username: string; password: string; match: string; confirmation: string; twoStep: boolean}>;
+/** currentPassword and code are the owner's own, asked by a server with local sign-in before Start over. */
+type Draft = Readonly<{username: string; password: string; match: string; confirmation: string; twoStep: boolean; currentPassword: string; code: string}>;
 type DraftState = Readonly<{revision: number; value: Draft}>;
-const emptyDraft: Draft = Object.freeze({username: '', password: '', match: '', confirmation: '', twoStep: false});
+const emptyDraft: Draft = Object.freeze({username: '', password: '', match: '', confirmation: '', twoStep: false, currentPassword: '', code: ''});
 const withField = <K extends keyof Draft>(draft: Draft, field: K, value: Draft[K]): Draft => Object.freeze({...draft, [field]: value});
 const cancelPreview = (attempt: Attempt) => {
   try {if (attempt.source.getSnapshot().preview === attempt.preview) void attempt.source.cancelPreview().catch(() => {});} catch { /* the controller already ended */ }
@@ -112,11 +113,13 @@ export function LocalMoveSwitch({source, isCurrent, onError, startOver = false}:
     if (preview.to !== 'local' || preview.startOver !== attempt.startOver) return;
     if (!values.username.trim() || !values.password || values.password !== values.match || !passwordStrength(values.password).acceptable) return;
     if (attempt.startOver && values.confirmation !== preview.serverName) return;
+    if (attempt.source.needsProof() && !values.currentPassword) return;
     if (attempt.source.getSnapshot().preview !== preview) return;
     const owned = ticket.current;
     if (!owned || owned.retired || ticket.current !== owned || attempt.source !== sourceRef.current) return;
     // Claim this exact opening and freeze only its admitted tuple before any await.
-    const submission = Object.freeze({username: values.username.trim(), password: values.password, confirmation: attempt.startOver ? values.confirmation : '', twoStep: values.twoStep});
+    const submission = Object.freeze({username: values.username.trim(), password: values.password, confirmation: attempt.startOver ? values.confirmation : '', twoStep: values.twoStep,
+      proof: attempt.source.needsProof() ? {currentPassword: values.currentPassword, ...(values.code.trim() ? {code: values.code.trim()} : {})} : {}});
     attempt.phase = 'confirming';resetDraft();
     void (async () => {
       try {
@@ -125,7 +128,7 @@ export function LocalMoveSwitch({source, isCurrent, onError, startOver = false}:
           // synchronously aborted signal, stop credentials before any IO.
           isCurrent: () => active.current === attempt && attempt.phase === 'confirming' && ticket.current === owned && !owned.retired,
           signal: attempt.abort.signal,
-        });
+        }, submission.proof);
         // Compare the originally captured ticket; a replaced layout cannot revive it.
         if (active.current !== attempt || attempt.phase !== 'confirming' || ticket.current !== owned || owned.retired || sourceRef.current !== attempt.source) {
           attempt.phase = 'closed';attempt.abort.abort();await custody.retire();return;
@@ -149,6 +152,7 @@ export function LocalMoveSwitch({source, isCurrent, onError, startOver = false}:
   const mismatch = Boolean(draft.value.match) && draft.value.password !== draft.value.match, keys = panel(startOver);
   const ready = Boolean(current && current.phase === 'open' && preview && preview.to === 'local' && preview.startOver === startOver
     && draft.value.username.trim() && draft.value.password && !mismatch && (!startOver || draft.value.confirmation === preview.serverName)
+    && (!source.needsProof() || !!draft.value.currentPassword)
     && passwordStrength(draft.value.password).acceptable);
   return <>
     <Button className={startOver ? styles.destructive : undefined} variant="glass" size="small" disabled={state.busy || !!state.preview || state.confirmed || !!active.current}
@@ -208,6 +212,12 @@ export function LocalMoveSwitch({source, isCurrent, onError, startOver = false}:
           <h3>{t('next.settingsSpec.server.signin.panels.startOverLocal.groups.3.title')}</h3>
           <TextField label={t('next.settingsSpec.server.signin.panels.startOverLocal.groups.3.rows.0.label')} placeholder={t('next.settingsSpec.server.signin.panels.startOverLocal.groups.3.rows.0.control.placeholder')}
             value={draft.value.confirmation} disabled={busy} onChange={event => {if (current) editDraft(current, 'confirmation', event.currentTarget.value);}}/>
+        </>}
+        {source.needsProof() && <>
+          <TextField type="password" autoComplete="current-password" label={t('next.settings.ownerSwitch.currentPassword')} description={t('next.settings.ownerSwitch.currentPasswordHelp')}
+            value={draft.value.currentPassword} disabled={busy} onChange={event => {if (current) editDraft(current, 'currentPassword', event.currentTarget.value);}}/>
+          <TextField inputMode="numeric" autoComplete="one-time-code" label={t('next.settings.ownerSwitch.twoStepCode')}
+            value={draft.value.code} disabled={busy} onChange={event => {if (current) editDraft(current, 'code', event.currentTarget.value);}}/>
         </>}
       </div>}
     </SettingsPanel>

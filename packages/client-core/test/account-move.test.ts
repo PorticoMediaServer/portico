@@ -138,3 +138,25 @@ test('a move in progress keeps how many still wait, and the total only when the 
   assert.equal(totalled.move?.total, 5);
   assert.equal(parseOwnerSignInSettings({...base}).move, null);
 });
+
+// The owner's switch to local sign-in, or its Start over, on the rebuilt server (definition 02 rules 24 and 29): one
+// request with the new owner's username and password, the typed server name for Start over and, on a server that
+// already signs in locally, the owner's current password. The answer is the owner's new sign-in on this device.
+test('a switch to local sign-in sends the new owner credentials and answers the owner\'s new sign-in',async()=>{
+ const {setInstallationIdentity}=await import('../src/installation.ts');
+ setInstallationIdentity({installationId:'i'.repeat(43),name:'Test browser',platform:'web',app:'portico',appVersion:'1'});
+ try{
+  const later=(minutes:number)=>new Date(Date.now()+minutes*60000).toISOString();
+  const f=fixture({session:{accessToken:'access',expiresAt:later(15),sessionId:'ses_1',tokenGeneration:'1',sessionExpiresAt:later(60*24*90),deviceId:'dev_1',installationId:'i'.repeat(43),refreshToken:'refresh_token_0000000001',viewer:{accountId:'owner',serverId:'server',role:'account'}},
+   account:{id:'owner',username:'newowner',role:'owner'},profiles:[{id:'main',name:'Owner',color:'blue',isPrimary:true,pinRequired:false}]});
+  const client=new AccountMoveClient(f.api,f.options);
+  const grant=await client.switchTo({to:'local',startOver:true,serverName:'Den',currentPassword:'old',username:'newowner',password:'ordinary-new-password'});
+  assert.equal(grant.kind,'signed-in');
+  const sent=f.calls.at(-1)!;
+  assert.equal(sent.path,'/v1/admin/sign-in/switch');
+  assert.deepEqual({...sent.body,device:undefined},{to:'local',startOver:true,serverName:'Den',currentPassword:'old',username:'newowner',password:'ordinary-new-password',device:undefined});
+  assert.throws(()=>client.switchTo({to:'local',startOver:false}),{code:'invalid_account_move'},'no new owner, no request');
+  client.dispose();
+ }finally{setInstallationIdentity(undefined);}
+});
+

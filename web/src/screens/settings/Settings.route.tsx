@@ -346,6 +346,7 @@ export function SettingsEntry() {
           context.facts.identity.primaryProfile === true && context.facts.identity.capabilities?.manageSignIn === true && context.facts.identity.signIn === identity.signIn,
         hostedOrigin: browserAccountOrigin(import.meta.env, globalThis.location),
         selectionRevision: async () => (await browserAppSessions().read()).revision,
+        signIn: identity.signIn, serverName: () => context.facts.identity.serverName,
       }) : undefined;
     const localOwnerCurrent = () => {
       if (!current() || route.scope !== 'server' || route.section !== 'signin' || identity.signIn !== 'local' || viewer.authority !== 'local' ||
