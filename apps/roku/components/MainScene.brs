@@ -90,7 +90,8 @@ end sub
 ' A page asks for a title to be opened or played.
 sub onOpen(event as object)
     ask = event.getData()
-    if ask.play = true
+    kind = ask.item.kind
+    if ask.play = true and (kind = "movie" or kind = "episode")
         player = push("PlayerScreen")
         player.observeField("closed", "onPlayerClosed")
         player.item = ask.item
