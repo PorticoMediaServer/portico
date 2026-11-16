@@ -93,7 +93,7 @@ function libraryJsx(): Plugin {
 
 export default defineConfig(({mode}) => ({
   root: app,
-  tsconfig: path.join(app, 'tsconfig.json'),
+  tsconfig: path.join(app, 'tsconfig.build.json'),
   base: './',
   plugins: [portico(), libraryJsx(), react({babel: {plugins: [
     // The shared screens re-render whole rows on every focus move (row focus state, the shell's
