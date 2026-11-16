@@ -111,15 +111,12 @@ async function fixture(t: TestContext, options: Readonly<{
   const retire = async (_api: unknown, session: LocalSession) => {retireCalls.push(session.sessionFamilyId);};
   let pairDisposals = 0;
   const deps: SetupAdapterDeps = {
-    tokenRoute: 'start_app_setup',
-    finish: {kind: 'here', ports: {sessions, environment: () => ({}) as never, now: () => NOW, connect: connect as never, connectPortico: connectPortico as never,
-      remember: remember as never, retire: retire as never}},
     hostedOrigin, pageOrigin: () => origin,
     pair: async () => ({server: {id: pin.serverId, name: 'Den'} as never, api: makeApi(), pin, dispose: () => {pairDisposals += 1;}}),
     sessions: () => sessions, environment: () => ({}) as never, restore: async () => undefined, remember: async () => {},
     store: () => store, installationId: () => installationId, navigate: url => {navigated.push(url);},
     ...(options.approveInApp ? {approveInApp: options.approveInApp} : {}),
-    now: () => NOW, newRequestId: () => REQUEST,
+    now: () => NOW,
   };
   const adapter = createSetupAdapter(deps);
   t.after(() => adapter.dispose());
@@ -170,7 +167,7 @@ test('in-app approval is unsupported without the app\'s own approval', async t =
 
 test('the setup code the app shares uses no abort helper the app runtime lacks (Hermes has no AbortSignal.any or AbortSignal.timeout)', async () => {
   const {readFileSync} = await import('node:fs');
-  for (const file of ['setup-adapter.ts', 'setup-exchange.ts', 'setup-approval-client.ts', 'setup-claim-client.ts', 'setup-controller.ts', 'setup-custody.ts', 'setup-slot-store.ts']) {
+  for (const file of ['setup-adapter.ts', 'setup-exchange.ts', 'setup-claim-client.ts', 'setup-controller.ts', 'setup-custody.ts', 'setup-slot-store.ts']) {
     const source = readFileSync(new URL('../src/' + file, import.meta.url), 'utf8').replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, '');
     assert.doesNotMatch(source, /AbortSignal\.(any|timeout)\s*\(/, file);
   }
