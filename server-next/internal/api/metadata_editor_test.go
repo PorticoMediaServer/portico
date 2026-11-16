@@ -3,6 +3,7 @@ package api
 import (
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -143,4 +144,37 @@ func TestTheEditorOffersTheProvidersValueBesideAnEditedField(t *testing.T) {
 		t.Fatalf("after Use it: %+v; want the provider's, unlocked, with nothing beside it", f)
 	}
 	sh.patch(heat, doc.Revision, MetadataPatch{UseProvider: []string{"tagline"}}, nil, 400)
+}
+
+// A film's own Metadata language (definition area 4, rule 19) is the language its details are
+// fetched in instead of its library's; clearing it goes back to the library's.
+func TestAFilmsOwnMetadataLanguage(t *testing.T) {
+	sh := newShelf(t, "Heat (1995).mkv")
+	var items ItemPage
+	sh.do("GET", "/v1/items?kind=movie&library="+sh.library, nil, &items, 200)
+	heat := items.Items[0].ID
+	var doc MetadataDocument
+	sh.do("GET", "/v1/admin/items/"+heat+"/metadata", nil, &doc, 200)
+	if f := doc.Fields["metadataLanguage"]; f.Value != nil || f.Source != "library" {
+		t.Fatalf("a film's language before any choice: %+v; want the library's", f)
+	}
+	french := "fr"
+	sh.patch(heat, doc.Revision, MetadataPatch{MetadataLanguage: &french}, &doc, 200)
+	if f := doc.Fields["metadataLanguage"]; f.Value != "fr" || f.Source != "edit" {
+		t.Fatalf("after choosing French: %+v", f)
+	}
+	sh.do("POST", "/v1/admin/items/"+heat+"/metadata/refresh", nil, nil, 200)
+	if got := *sh.tmdb.Language.Load(); got != "fr" && !strings.HasPrefix(got, "fr-") {
+		t.Fatalf("the refresh asked TMDB in %q; want French", got)
+	}
+	none := ""
+	sh.do("GET", "/v1/admin/items/"+heat+"/metadata", nil, &doc, 200)
+	sh.patch(heat, doc.Revision, MetadataPatch{MetadataLanguage: &none}, &doc, 200)
+	sh.do("POST", "/v1/admin/items/"+heat+"/metadata/refresh", nil, nil, 200)
+	if got := *sh.tmdb.Language.Load(); strings.HasPrefix(got, "fr") {
+		t.Fatalf("after going back to the library's, TMDB was asked in %q", got)
+	}
+	bad := "French"
+	sh.do("GET", "/v1/admin/items/"+heat+"/metadata", nil, &doc, 200)
+	sh.patch(heat, doc.Revision, MetadataPatch{MetadataLanguage: &bad}, nil, 422)
 }

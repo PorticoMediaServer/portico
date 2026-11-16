@@ -95,6 +95,9 @@ type MatchItem struct {
 	ParentAsked bool
 	// Layout is, for an album, how many tracks the library has on each disc, in disc order.
 	Layout []int
+	// Language is the title's own metadata language, which its details are fetched in
+	// instead of its library's; "" for the library's.
+	Language string
 }
 
 // refreshGrown makes a matched show or album that gained an episode or a track in this import
@@ -127,12 +130,12 @@ func (d *DB) ToMatch(ctx context.Context, libraryID int64, kinds []ItemKind, aft
 	// The condition is written as the items_to_match index has it, so the read is the index. A
 	// title the provider failed on waits until its time comes round again (see ProviderFailed).
 	items, err := queryAll(ctx, tx, `SELECT i.id, i.kind, i.title, ifnull(i.year, 0), ifnull(p.id, 0), ifnull(p.title, ''),
-		ifnull(p.match_state, 0) != 0 FROM items i LEFT JOIN items p ON p.id = i.parent_id
+		ifnull(p.match_state, 0) != 0, ifnull(i.extra ->> '$.language', '') FROM items i LEFT JOIN items p ON p.id = i.parent_id
 		WHERE i.library_id = ? AND i.match_state = 0 AND (i.parent_id IS NULL OR i.kind = 6) AND i.id > ? AND i.kind IN `+intList(list)+`
 		AND ifnull(i.extra ->> '$.lookupAfter', 0) <= ?
 		ORDER BY i.id LIMIT ?`, []any{libraryID, after, time.Now().UnixMilli(), limit},
 		func(m *MatchItem) []any {
-			return []any{&m.ID, &m.Kind, &m.Title, &m.Year, &m.ParentID, &m.ParentTitle, &m.ParentAsked}
+			return []any{&m.ID, &m.Kind, &m.Title, &m.Year, &m.ParentID, &m.ParentTitle, &m.ParentAsked, &m.Language}
 		})
 	if err != nil {
 		return nil, err
@@ -538,8 +541,8 @@ func (d *DB) MatchTarget(ctx context.Context, publicID string) (MatchTarget, err
 	}
 	defer tx.Rollback()
 	var t MatchTarget
-	err = tx.QueryRowContext(ctx, `SELECT id, kind, title, ifnull(year, 0), library_id, match_state FROM items WHERE public_id = ?`, publicID).
-		Scan(&t.ID, &t.Kind, &t.Title, &t.Year, &t.LibraryID, &t.Match)
+	err = tx.QueryRowContext(ctx, `SELECT id, kind, title, ifnull(year, 0), library_id, match_state, ifnull(extra ->> '$.language', '')
+		FROM items WHERE public_id = ?`, publicID).Scan(&t.ID, &t.Kind, &t.Title, &t.Year, &t.LibraryID, &t.Match, &t.Language)
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, ErrNotFound
 	}

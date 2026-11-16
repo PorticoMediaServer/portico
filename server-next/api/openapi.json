@@ -7701,6 +7701,9 @@
           "lockAll": {
             "type": "boolean"
           },
+          "metadataLanguage": {
+            "type": "string"
+          },
           "networks": {
             "items": {
               "type": "string"

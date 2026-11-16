@@ -57,9 +57,9 @@ func (d *DB) DueForRefresh(ctx context.Context, libraryID, now int64, after *Ref
 		where += ` AND (refresh_due, id) > (?, ?)`
 		args = append(args, after.Due, after.ID)
 	}
-	return queryAll(ctx, tx, `SELECT id, kind, ifnull(refreshed_at, 0), added_at, refresh_due FROM items WHERE `+where+`
+	return queryAll(ctx, tx, `SELECT id, kind, ifnull(refreshed_at, 0), added_at, refresh_due, ifnull(extra ->> '$.language', '') FROM items WHERE `+where+`
 		ORDER BY refresh_due, id LIMIT ?`, append(args, limit),
-		func(r *RefreshItem) []any { return []any{&r.ID, &r.Kind, &r.RefreshedAt, &r.AddedAt, &r.Due} })
+		func(r *RefreshItem) []any { return []any{&r.ID, &r.Kind, &r.RefreshedAt, &r.AddedAt, &r.Due, &r.Language} })
 }
 
 // ScheduleUnscheduled makes due at once a library's matched titles that have no due time, so no
