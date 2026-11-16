@@ -353,6 +353,31 @@ test('auto-skip Undo inside the policy window uses the policy, with or without a
   } finally {await host.unmount(); controls.dispose(); isTV = previousTV;}
 });
 
+test('a phone wait replaces the centre transport while leaving the edge controls available', async () => {
+  const previousTV = isTV; isTV = false;
+  const controls = new NativeWatchControls(false);
+  const source: any = {fence, retired: false, dock: {local: {expanded: true}}, queue: {},
+    capabilities: {play: true, pause: true, seek: true}, playback: {intent: 'playing', positionSeconds: 0, duration: 60}};
+  const playback = {getSnapshot: () => source};
+  controls.source(fence, {expanded: true, autoHide: false, hiddenByPanel: false, paused: false, scrubbing: false, focusHeld: false}); controls.reveal(fence);
+  let waiting = true, tree: any; const measured: number[] = [];
+  const host = createFabricHookHost(() => {tree = NativeWatchChrome({source, controls, playback, waiting, onPictureControlsLayout: (height: number) => measured.push(height), text: {t: defaultI18n.t}, quality: 'Original',
+    width: 390, height: 219.375, compact: true, skipBackSeconds: 10, skipForwardSeconds: 30, onMinimize() {}, reportError: assert.fail});});
+  await host.mount();
+  try {
+    const byId = (id: string) => descendants(tree).find(node => node.props.testID === id);
+    for (const id of ['watch-toggle', 'watch-skip-back', 'watch-skip-forward']) assert.equal(byId(id), undefined, id);
+    assert.ok(byId('watch-minimize')); assert.ok(byId('watch-options')); assert.ok(byId('watch-option-quality'));
+    assert.ok(descendants(tree).some(node => node.type === 'Timeline'), 'progress remains');
+    const footer = byId('watch-picture-controls');
+    footer.props.onLayout({nativeEvent: {layout: {height: 46}}});
+    footer.props.onLayout({nativeEvent: {layout: {height: 90}}});
+    assert.deepEqual(measured, [54, 98], 'the waiting column clears the actual footer, including a taller text layout');
+    waiting = false; await host.rerender();
+    for (const id of ['watch-toggle', 'watch-skip-back', 'watch-skip-forward']) assert.ok(byId(id), id);
+  } finally {await host.unmount(); controls.dispose(); isTV = previousTV;}
+});
+
 test('TV: the remote\'s channel keys step a live channel as the on-screen channel buttons do; other playback ignores them', async () => {
   const channel = playbackFence({kind: 'channel', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1},
     sessionId: 'session', channelKind: 'live-source', sourceId: 'source', channelId: 'channel', channelGeneration: 'g', generation: 1});

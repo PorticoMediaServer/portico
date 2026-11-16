@@ -444,7 +444,7 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
     AccessibilityInfo: {addEventListener: () => ({remove() {}}), isScreenReaderEnabled: async () => false},
   };
   const animated = {default: {View, createAnimatedComponent: c => c}, useSharedValue: value => React.useRef({value}).current,
-    useAnimatedStyle: read => read(), withTiming: value => value, withSpring: value => value, cancelAnimation() {}};
+    useAnimatedStyle: read => read(), withTiming: value => value, withSpring: value => value, withRepeat: value => value, cancelAnimation() {}};
 
   // ---------- the reconciler ----------
   const attributes = p => Object.fromEntries(Object.entries(p).filter(([key]) => key !== 'children' && key !== 'ref'));

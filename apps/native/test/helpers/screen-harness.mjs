@@ -21,6 +21,7 @@ import * as nativeStopScope from '../../src-next/platform/native-stop-scope.ts';
 import * as shellPlayback from '../../src-next/shell/playback.ts';
 import * as controlModel from '../../src-next/kit/controls/control-model.ts';
 import * as captionMetrics from '../../src-next/kit/cards/caption-metrics.ts';
+import * as playbackWaitingRule from '../../../../packages/client-core/src/presentation/playback-waiting.ts';
 import * as listEdgesModule from '../../src-next/kit/layout/list-edges.ts';
 import * as personalHistoryActions from '../../../../packages/client-core/src/personal-history-actions.ts';
 import * as failureWords from '../../src-next/screens/watch/failure-words.ts';
@@ -118,6 +119,9 @@ const leaf = (source, react, native) => source === '@portico/design' ? design : 
   : /(^|\/)kit\/cards\/caption-metrics$/.test(source) ? captionMetrics
   // Every Settings page's one top (the standard backdrop) draws as a named element.
   : /(^|\/)SettingsBackdrop$/.test(source) ? {SettingsBackdrop: 'SettingsBackdrop'}
+  // The player's waiting line draws as a named element; its own tests render it. Its rule is the shared real module.
+  : /(^|\/)kit\/states\/PlaybackWaiting$/.test(source) ? {PlaybackWaiting: 'PlaybackWaiting'}
+  : /client-core\/src\/presentation\/playback-waiting(\.ts)?$/.test(source) ? playbackWaitingRule
   // Which ends of a list continue is plain arithmetic: the real module.
   : /(^|\/)kit\/layout\/list-edges$|^\.\/list-edges$/.test(source) ? listEdgesModule
   // The shell's one top-bar Play on button draws as a named element; next-play-on-top-bar tests it.
