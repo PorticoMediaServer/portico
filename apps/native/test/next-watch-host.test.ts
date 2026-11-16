@@ -183,3 +183,19 @@ for (const scenario of [
     assert.equal(child(d.tree(), 'watch-failed-pane'), undefined);
   } finally {await d.dispose();}
 });
+test('the native player draws the waiting line over its picture: Getting ready while the server converts, the connection line on a stall (definition 07, rule 3)', async () => {
+  for (const isTV of [false, true]) {
+    const d = await fixture(isTV);
+    try {
+      await act(() => {});
+      const waiting = () => child(d.tree(), 'watch-waiting-pane').props.children.props;
+      assert.deepEqual(waiting(), {waiting: false, preparing: false}, 'playing normally: nothing');
+      await act(() => d.source({playback: {intent: 'playing', phase: 'starting', session: {converting: true}}}));
+      assert.deepEqual(waiting(), {waiting: true, preparing: true}, 'a converted start says Getting ready');
+      await act(() => d.source({playback: {intent: 'playing', phase: 'ready', recovering: true, session: {converting: false}}}));
+      assert.deepEqual(waiting(), {waiting: true, preparing: false}, 'a stall of a stream played as it is says the connection line');
+      await act(() => d.source({playback: {intent: 'paused', phase: 'ready', recovering: true}}));
+      assert.deepEqual(waiting(), {waiting: false, preparing: false}, 'a paused player waits for nothing');
+    } finally {await d.dispose();}
+  }
+});

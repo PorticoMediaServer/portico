@@ -15,3 +15,4 @@ export {ringProgress, retryProgress, gridWindow, showSkeleton, isSlowLoading, sk
 export type {StateAction, StateContentProps, StateTone} from './types';
 export {ActionNotice, type ActionNoticeProps} from './ActionNotice';
 export {useUserAction} from './use-user-action';
+export {PlaybackWaiting} from './PlaybackWaiting';

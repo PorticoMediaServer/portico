@@ -17,7 +17,7 @@ export async function tvKitOverlays(kit, {wait = 60} = {}) {
   const native = {...engine.native, useWindowDimensions: () => ({width: 1920, height: 1080, scale: 1, fontScale: 1}), TextInput: engine.native.View,
     Keyboard: {addListener: () => ({remove() {}})}};
   const animated = {...engine.animated, runOnJS: fn => fn, cancelAnimation() {}, withSpring: value => value,
-    withTiming: (value, _config, done) => {if (done) setTimeout(() => done(true), 0); return value;}};
+    withTiming: (value, _config, done) => {if (done) setTimeout(() => done(true), 0); return value;}, withRepeat: value => value};
   const none = () => null;
   const svg = {default: none, Defs: none, LinearGradient: none, RadialGradient: none, Rect: none, Stop: none};
   const theme = {...kit.theme, platform: 'tv', textScale: 1,
