@@ -921,7 +921,8 @@ CREATE TABLE list_entries (
   list_id  INTEGER NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
   item_id  INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
   position INTEGER NOT NULL,
-  added_at INTEGER NOT NULL
+  added_at INTEGER NOT NULL,
+  addition_receipt TEXT
 );
 CREATE UNIQUE INDEX list_entries_order ON list_entries (list_id, position);
 CREATE INDEX list_entries_item ON list_entries (item_id, list_id);
