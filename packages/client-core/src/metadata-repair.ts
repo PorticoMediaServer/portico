@@ -120,6 +120,7 @@ const wireRole=(role:string)=>role==='thumbnail'?'thumb':role;
 const short={group:'general' as const,type:'text' as const,maxLength:300},list={group:'general' as const,type:'list' as const,max:64,maxLength:128};
 const FIELD_SPECS:Readonly<Record<string,Omit<RepairFieldSpec,'field'|'bulk'>>>={
  title:{label:'web.metadata.field.title',...short},sortTitle:{label:'web.metadata.field.sortTitle',...short},originalTitle:{label:'web.metadata.field.originalTitle',...short},
+ metadataLanguage:{label:'web.libraries.metadataLanguage',group:'general',type:'enum'},
  edition:{label:'web.metadata.field.edition',...short},tagline:{label:'web.metadata.field.tagline',...short},contentRating:{label:'web.metadata.field.contentRating',...short},
  summary:{label:'web.metadata.field.description',group:'text',type:'multiline',maxLength:20000},year:{label:'web.metadata.field.year',group:'numbers',type:'integer',min:0,max:9999},
  releaseDate:{label:'web.metadata.field.releaseDate',group:'numbers',type:'date'},publicationType:{label:'web.metadata.field.publicationType',group:'general',type:'enum',allowed:['','book','magazine','newspaper']},
@@ -132,7 +133,7 @@ const PROVIDERS=['tmdb','tvdb','anilist','musicbrainz'];
 type Pictures=Readonly<Record<string,readonly ArtworkPicture[]>>;
 export function rebuiltRepair(doc:MetadataDocument,pictures:Pictures,history:readonly MetadataHistoryEntry[],candidates:RepairData['candidates'],scope:RepairScope,target:RepairTarget):RepairData{
  const ids=doc.match?.ids??{},provider=PROVIDERS.find(name=>ids[name])??'';
- const source=(value:string)=>value==='edit'?'manual':value==='file'?'scanner':provider||'automatic';
+ const source=(value:string)=>value==='edit'?'manual':value==='file'||value==='library'?'scanner':provider||'automatic';
  const schema:RepairFieldSpec[]=[],fields:Record<string,RepairField>={};
  for(const [name,field] of Object.entries(doc.fields??{})){const spec=FIELD_SPECS[name];if(!spec)continue;schema.push({field:name,bulk:false,...spec});
   fields[name]={value:field.value===null||field.value===undefined||field.value===0&&name==='year'?'':String(field.value),automaticValue:'',locked:field.locked,source:source(field.source)};}
@@ -160,6 +161,7 @@ export function repairPatch(fields:NonNullable<RepairCommand['fields']>,data:Rep
   const before=data.snapshot.fields[name],spec=data.schema.find(row=>row.field===name);if(!before||!spec)continue;
   const changed=spec.type==='list'?JSON.stringify(change.values??before.values??[])!==JSON.stringify(before.values??[]):(change.value??before.value)!==before.value;
   if(changed)patch[name]=spec.type==='list'?[...(change.values??[])]:spec.type==='integer'?Number(change.value||0):change.value??'';
+  if(name==='metadataLanguage')continue; // A language override follows the library again when cleared; it has no lock.
   if(change.locked===false&&(changed||before.locked))unlock.push(name);else if(change.locked===true&&!changed&&!before.locked)lock.push(name);
  }
  return {...patch,...(lock.length?{lock}:{}),...(unlock.length?{unlock}:{})} as MetadataPatch;

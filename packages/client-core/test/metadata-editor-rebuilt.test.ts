@@ -9,8 +9,8 @@ import assert from 'node:assert/strict';
 import {MetadataRepairService} from '../src/metadata-repair.ts';
 
 const scope = {serverId: 'server', viewerId: 'owner'}, target = {kind: 'show' as const, id: 'itm_1', libraryId: 'lib'};
-const doc = (revision = '7') => ({itemId: 'itm_1', kind: 'show', revision,
-  fields: {title: {value: 'Heat', source: 'provider', locked: false}, year: {value: 1995, source: 'provider', locked: false}, rating: {value: 8.3, source: 'provider', locked: false}},
+const doc = (revision = '7', language: string | null = null) => ({itemId: 'itm_1', kind: 'show', revision,
+  fields: {title: {value: 'Heat', source: 'provider', locked: false}, metadataLanguage: {value: language, source: language ? 'edit' : 'library', locked: false}, year: {value: 1995, source: 'provider', locked: false}, rating: {value: 8.3, source: 'provider', locked: false}},
   lists: {genres: {values: ['Crime'], source: 'provider', locked: false}, labels: {values: [], source: 'edit', locked: false}},
   credits: {values: [{personId: 'per_1', name: 'Al Pacino', role: 'actor', character: 'Hanna'}], source: 'provider', locked: false},
   match: {state: 'matched', locked: false, ids: {tmdb: '949', imdb: 'tt0113277'}, episodeOrder: 'aired'}});
@@ -19,10 +19,11 @@ const picture = (id: string, selected = false) => ({id, source: 'tmdb', url: `/v
 function server() {
   const calls: {path: string; method: string; body?: unknown; headers?: Record<string, string>}[] = [];
   let revision = '7', patchStatus = 200;
+  let language: string | null = null;
   const answer = (path: string, method: string): unknown => {
     if (path.startsWith('/v1/admin/items/itm_1/artwork?role=')) return {items: path.endsWith('poster') ? [picture('img_a', true), picture('img_b')] : []};
     if (path === '/v1/admin/items/itm_1/metadata/history') return {items: [{id: 'h_1', kind: 'fields_edited', at: '2026-11-16T12:00:00Z'}]};
-    if (path === '/v1/admin/items/itm_1/metadata') return doc(revision);
+    if (path === '/v1/admin/items/itm_1/metadata') return doc(revision, language);
     if (path.startsWith('/v1/admin/items/itm_1/matches')) return {items: [{provider: 'tmdb', id: '1396', title: 'Breaking Bad', year: 2008}]};
     if (method === 'POST' && path.endsWith('/refresh')) return {matched: true};
     return {itemId: 'itm_1'};
@@ -32,7 +33,9 @@ function server() {
     async requestRaw(path: string, method: string, options: {headers?: Record<string, string>; body?: unknown}) {
       calls.push({path, method, body: options.body, headers: options.headers});
       if (patchStatus !== 200) return {status: patchStatus, body: {error: {code: patchStatus === 412 ? 'stale' : 'invalid_value', message: 'refused'}}};
-      revision = '8'; return {status: 200, body: doc(revision)};
+      const next = (options.body as {metadataLanguage?: string})?.metadataLanguage;
+      if (next !== undefined) language = next || null;
+      revision = '8'; return {status: 200, body: doc(revision, language)};
     },
   };
   return {api, calls, refuse: (status: number) => {patchStatus = status;}, writes: () => calls.filter(call => call.method !== 'GET')};
@@ -54,6 +57,19 @@ test('the editor reads the title, its pictures per role and its History from the
   assert.equal(data.snapshot.relationships[0].label, 'Al Pacino');
   assert.deepEqual(data.artwork.candidates.map(each => [each.id, each.current]), [['img_a', true], ['img_b', false]]);
   assert.deepEqual(data.history.map(entry => [entry.id, entry.trigger]), [['h_1', 'edit']]);
+  service.dispose();
+});
+
+test('a title can choose its metadata language or follow the library again, without locks', async () => {
+  const {api, calls} = server();
+  const service = new MetadataRepairService({api, scope});
+  await service.load(target);
+  assert.equal(service.getSnapshot().data!.snapshot.fields.metadataLanguage.source, 'scanner');
+  await service.command({action: 'edit', fields: {metadataLanguage: {value: 'fr', locked: true}}});
+  assert.equal(service.getSnapshot().data!.snapshot.fields.metadataLanguage.value, 'fr');
+  await service.command({action: 'edit', fields: {metadataLanguage: {value: '', locked: false}}});
+  assert.deepEqual(calls.filter(call => call.method === 'PATCH').map(call => call.body), [{metadataLanguage: 'fr'}, {metadataLanguage: ''}]);
+  assert.equal(service.getSnapshot().data!.snapshot.fields.metadataLanguage.source, 'scanner');
   service.dispose();
 });
 
