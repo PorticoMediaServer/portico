@@ -10,7 +10,7 @@ import {MetadataRepairService} from '../src/metadata-repair.ts';
 
 const scope = {serverId: 'server', viewerId: 'owner'}, target = {kind: 'show' as const, id: 'itm_1', libraryId: 'lib'};
 const doc = (revision = '7') => ({itemId: 'itm_1', kind: 'show', revision,
-  fields: {title: {value: 'Heat', source: 'provider', locked: false}, year: {value: 1995, source: 'provider', locked: false}, rating: {value: 8.3, source: 'provider', locked: false}},
+  fields: {title: {value: 'Heat', source: 'provider', locked: false}, summary: {value: 'My own words.', source: 'edit', locked: true, providerValue: 'A thief and a detective.'}, year: {value: 1995, source: 'provider', locked: false}, rating: {value: 8.3, source: 'provider', locked: false}},
   lists: {genres: {values: ['Crime'], source: 'provider', locked: false}, labels: {values: [], source: 'edit', locked: false}},
   credits: {values: [{personId: 'per_1', name: 'Al Pacino', role: 'actor', character: 'Hanna'}], source: 'provider', locked: false},
   match: {state: 'matched', locked: false, ids: {tmdb: '949', imdb: 'tt0113277'}, episodeOrder: 'aired'}});
@@ -122,5 +122,15 @@ test('Undo, Lock everything, and the picture choices go to their rebuilt routes'
     ['PUT', '/v1/admin/items/itm_1/artwork/poster', {imageId: 'img_b'}],
     ['PUT', '/v1/admin/items/itm_1/artwork/poster', {unlock: true}],
     ['POST', '/v1/admin/items/itm_1/artwork/find?role=poster', undefined]]);
+  service.dispose();
+});
+
+test('Use it takes the provider\'s value beside an edited field, by name, unlocked (rule 23)', async () => {
+  const {api, calls} = server();
+  const service = new MetadataRepairService({api, scope});
+  await service.load(target);
+  assert.equal(service.getSnapshot().data!.snapshot.fields.summary.automaticValue, 'A thief and a detective.');
+  await service.command({action: 'edit', fields: {summary: {value: 'A thief and a detective.', locked: false}}});
+  assert.deepEqual(calls.find(call => call.method === 'PATCH')!.body, {useProvider: ['summary']});
   service.dispose();
 });

@@ -244,7 +244,7 @@ function Field({spec, field, draft, set, requiredTitle = false}: {requiredTitle?
     </span>
     {error ? <small id={id + '-error'} className={styles.fieldError} role="alert"><Icon name="i-warn" size={16}/>{error}</small> : null}
     <small id={id + '-hint'}>{said}{hint ? <span className={styles.fieldBounds}>{hint}</span> : null}</small>
-    {field && field.automaticValue && field.automaticValue !== value ? <small className={styles.automatic}>{provider ? t('web.metadata.automaticValueFrom', {source: providerName(provider), value: field.automaticValue}) : t('web.metadata.automaticValue', {value: field.automaticValue})}<button type="button" onClick={() => set({value: field.automaticValue})}>{t('web.metadata.useIt')}</button></small> : null}
+    {field && field.automaticValue && field.automaticValue !== value ? <small className={styles.automatic}>{provider ? t('web.metadata.automaticValueFrom', {source: providerName(provider), value: field.automaticValue}) : t('web.metadata.automaticValue', {value: field.automaticValue})}<button type="button" onClick={() => set({value: field.automaticValue, locked: false})}>{t('web.metadata.useIt')}</button></small> : null}
   </label>;
 }
 
