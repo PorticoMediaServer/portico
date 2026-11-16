@@ -82,9 +82,17 @@ func TestIntervalsAndTheTrashWithoutAScan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for state := ""; state != db.JobDone; time.Sleep(5 * time.Millisecond) {
-		again, _ := d.JobFor(ctx, db.JobScan, lib.PublicID)
-		state = again.State
+	for deadline := time.Now().Add(30 * time.Second); ; time.Sleep(5 * time.Millisecond) {
+		again, err := d.Job(ctx, job.PublicID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if again.State == db.JobDone {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("scan stayed %s", again.State)
+		}
 	}
 	if _, err := m.Scan(ctx, lib.PublicID, 0, false); err != nil {
 		t.Fatal(err)

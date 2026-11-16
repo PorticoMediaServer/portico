@@ -25,10 +25,12 @@ func TestAWatchedFolderIsScannedWhenItChanges(t *testing.T) {
 	f.scan()
 	f.write("Leon (1994).mkv") // put there while the server was off
 	run, stop := context.WithCancel(ctx)
-	defer stop()
+
 	runner := jobs.New(run, f.d, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	m := scan.NewManager(runner, f.s)
-	go m.Run(run)
+	ended := make(chan struct{})
+	go func() { defer close(ended); m.Run(run) }()
+	defer func() { stop(); <-ended }()
 	appears := func(title string) {
 		t.Helper()
 		for deadline := time.Now().Add(30 * time.Second); ; time.Sleep(100 * time.Millisecond) {
@@ -45,7 +47,15 @@ func TestAWatchedFolderIsScannedWhenItChanges(t *testing.T) {
 			}
 		}
 	}
-	time.Sleep(2 * time.Second)
+	for deadline := time.Now().Add(30 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		watched, _, ready := m.FolderSchedule(f.lib, f.lib.Paths[0])
+		if ready && watched {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the library watcher did not become ready")
+		}
+	}
 	if _, scanned := f.titles(db.KindMovie)["Leon"]; scanned {
 		t.Fatal("starting the server scanned the library")
 	}

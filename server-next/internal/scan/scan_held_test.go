@@ -39,24 +39,36 @@ func TestAScanHeldOnAFileNamesThatFile(t *testing.T) {
 	f.s.Prober = p
 	var mu sync.Mutex
 	var current string
+	named := make(chan struct{}, 1)
 	f.s.Progress = func(stats scan.Stats) {
 		mu.Lock()
 		current = stats.Current
+		if current == stuck {
+			select {
+			case named <- struct{}{}:
+			default:
+			}
+		}
 		mu.Unlock()
 	}
 	done := make(chan struct{})
 	go func() { defer close(done); f.scan() }()
+	release := sync.OnceFunc(func() { close(p.release); <-done })
+	defer release()
 	select {
 	case <-p.reached:
 	case <-time.After(20 * time.Second):
 		t.Fatal("the scan never reached the file")
 	}
-	time.Sleep(500 * time.Millisecond) // every other file of the batch is read by now
+	select {
+	case <-named:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the scan did not name the held file")
+	}
 	mu.Lock()
 	got := current
 	mu.Unlock()
-	close(p.release)
-	<-done
+	release()
 	if got != stuck {
 		t.Fatalf("the scan is held on %q and its progress names %q", stuck, got)
 	}
