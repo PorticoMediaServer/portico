@@ -23,6 +23,7 @@ import {TVRow} from '../../kit/layout/TVRow';
 import {usePageWidth} from '../../kit/layout/page-inset';
 import {useCreditRefocus, useCreditRowRefocus} from './credit-refocus';
 import {TopBar} from '../../kit/layout/TopBar';
+import {FocusRegion} from '../../kit/focus';
 
 /** TV: one department of the all-credits page, read as its own window and drawn as its own row. */
 export type NativePersonCreditGroup = Readonly<{id: string; department: string; total: number; collection: WindowedCollection<PersonCredit>}>;
@@ -175,6 +176,8 @@ export function TVPerson({focusScope, page, role, collection, groups, runtime, a
   const credits = useCreditRefocus(page, creditSlotKey);
   // Department rows for All, Cast and Crew alike (Filters apply to every row); one flat row when there are none.
   const grouped = !!groups?.length;
+  const headerRegion = `${focusScope}.header`, knownRegion = `${focusScope}.known`;
+  const firstCredits = grouped ? `${focusScope}.credits.${groups![0]!.id}` : `${focusScope}.credits`;
   // Filters sits on the first department heading or the flat Credits heading, so a filter that changes the first row
   // (or switches grouped and flat) remounts it: the page holds its ref and a stable focus id, so closing the menu returns there.
   const filtersRef = useRef<View>(null);
@@ -184,43 +187,46 @@ export function TVPerson({focusScope, page, role, collection, groups, runtime, a
   return <View testID="native-person" style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     <View pointerEvents="none" style={{position: 'absolute', inset: 0, overflow: 'hidden'}}><AmbientArt source={runtime.ambient(known[0]?.backdropUrl || person.portraitUrl || known[0]?.posterUrl)} treatment="person"/></View>
     <ScrollView contentContainerStyle={{paddingLeft: 200, paddingRight: 96, paddingTop: 92, paddingBottom: 80}}>
-      <View style={{flexDirection: 'row', alignItems: 'flex-start', gap: 60, minHeight: 284}}>
+      <FocusRegion id={headerRegion} orientation="horizontal" entry={person.biography ? 'person-biography' : 'person-header'}
+        edges={{down: known.length ? knownRegion : firstCredits}} stops={{up: true}} style={{flexDirection: 'row', alignItems: 'flex-start', gap: 60, minHeight: 284}}>
         <View style={{marginTop: 4}}><PersonCircle size={280} initials={initials} source={runtime.artwork(person.portraitUrl)}
           covers={known.flatMap(entry => {const art = runtime.artwork(entry.posterUrl); return art ? [art] : [];})}/></View>
         <View style={{width: 1180, minWidth: 0}}>
           {person.roles.length > 0 && <Text style={[browseType(theme, 24, 600), {color: theme.colors.accentStrong, marginBottom: 16}]}>{defaultI18n.list(person.roles)}</Text>}
-          <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, 96, 800, -.035, 94.08), {color: theme.colors.text, marginBottom: 16}]}>{person.name}</Text>
+          <Focusable testID="person-header" accessibilityRole="header" focusable={!person.biography} preferredFocus={!person.biography} focusKind="row" focusRadius={10}>
+            <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, 96, 800, -.035, 94.08), {color: theme.colors.text, marginBottom: 16}]}>{person.name}</Text>
+          </Focusable>
           <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 28, rowGap: 10, marginBottom: 20}}>
             {dates && <Text style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{dates}</Text>}
             {person.birthPlace && <Text style={[browseType(theme, 24), {color: theme.colors.textSecondary}]}>{person.birthPlace}</Text>}
             <Text style={[browseType(theme, 24, 500), {color: theme.colors.textSecondary}]}>{t('web.person.titlesOnServer', {count: total})}</Text>
           </View>
-          {person.biography && <Focusable testID="person-biography" onPress={() => setExpanded(value => !value)} accessibilityRole="button"
+          {person.biography && <Focusable testID="person-biography" preferredFocus onPress={() => setExpanded(value => !value)} accessibilityRole="button"
             accessibilityState={{expanded}} focusKind="row" focusRadius={10} style={{maxWidth: 1060}}>
             <Text numberOfLines={expanded ? undefined : 3} style={[browseType(theme, 24, 400, 0, 34.8), {color: theme.colors.textSecondary}]}>{person.biography}</Text>
           </Focusable>}
         </View>
-      </View>
+      </FocusRegion>
       {!!known.length && <View style={{marginTop: 48}}>
         <Text accessibilityRole="header" style={[browseType(theme, 38, 800, -.02), {color: theme.colors.text, marginBottom: 22}]}>{t('web.person.knownFor')}</Text>
-        <TVShelf items={known} getKey={knownShelfKey} itemWidth={214} itemHeight={420}
+        <TVShelf items={known} getKey={knownShelfKey} itemWidth={214} itemHeight={420} focus={{id: knownRegion, edges: {up: headerRegion, down: firstCredits}}}
           renderItem={(entry, slot) => <PersonEntryCard entry={entry} group="known" actions={actions} selection={selection} testID={`person-known-${entry.id}`} title={entry.displayTitle || entry.title} width={214}
-            onFocus={slot.onFocus} onBlur={slot.onBlur} preferredFocus={slot.index === 0} artwork={runtime.artwork(entry.posterUrl)} caption={entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context'}]}/>}/>
+            onFocus={slot.onFocus} onBlur={slot.onBlur} artwork={runtime.artwork(entry.posterUrl)} caption={entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context'}]}/>}/>
       </View>}
       {/* Frame 10 (`f9`): with department rows there is no Credits heading; the first department's heading carries Filters. */}
       {!grouped && <TVCreditHeading title={t('web.person.credits')} count={total} first tools={filtersChip}/>}
       {grouped ? groups!.map((group, row) => <TVCreditRow key={group.id} group={group} runtime={runtime} actions={actions} selection={selection} first={row === 0}
         tools={row === 0 ? filtersChip : undefined}
-        regionId={`${focusScope}.credits.${group.id}`} upRegionId={row > 0 ? `${focusScope}.credits.${groups![row - 1]!.id}` : undefined}
+        regionId={`${focusScope}.credits.${group.id}`} upRegionId={row > 0 ? `${focusScope}.credits.${groups![row - 1]!.id}` : known.length ? knownRegion : headerRegion}
         downRegionId={row < groups!.length - 1 ? `${focusScope}.credits.${groups![row + 1]!.id}` : undefined}/>) :
       <TVShelf items={slots} getKey={creditSlotKey} itemWidth={214} itemHeight={440} isFocusable={index => !!collection.itemAt(index)?.media}
-        focus={{id: `${focusScope}.credits`}} refocus={credits.refocus}
+        focus={{id: `${focusScope}.credits`, edges: {up: known.length ? knownRegion : headerRegion}}} refocus={credits.refocus}
         onVisibleRange={(first, last) => setRange(current => current.first === first && current.last === last ? current : {first, last})}
         renderItem={(index, slot) => {
           const credit = collection.itemAt(index), entry = credit?.media;
           if (!entry) return <View testID={`person-credit-placeholder-${index}`} style={{width: 214, height: 321, borderRadius: 10, backgroundColor: theme.colors.raised}}/>;
           return <PersonEntryCard entry={entry} group="credits" actions={actions} selection={selection} testID={`person-credit-${index}`} title={entry.displayTitle || entry.title} width={214}
-            onFocus={() => {credits.onFocus(index); slot.onFocus();}} onBlur={slot.onBlur} preferredFocus={index === 0} artwork={runtime.artwork(entry.posterUrl)} watched={entry.watched} progress={entry.duration && entry.progressSeconds ? entry.progressSeconds / entry.duration : undefined}
+            onFocus={() => {credits.onFocus(index); slot.onFocus();}} onBlur={slot.onBlur} artwork={runtime.artwork(entry.posterUrl)} watched={entry.watched} progress={entry.duration && entry.progressSeconds ? entry.progressSeconds / entry.duration : undefined}
             caption={[...(entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context' as const}]),
               ...(credit.character ? [{id: 'character', text: t('web.person.as', {character: credit.character}), role: 'context' as const}] : [])]}/>;
         }}/>}
@@ -282,7 +288,7 @@ function TVCreditRow({group, runtime, actions, selection, first, tools, regionId
         const credit = collection.itemAt(index), entry = credit?.media;
         if (!entry) return <View testID={`person-credit-placeholder-${group.id}-${index}`} style={{width: 214, height: 321, borderRadius: 10, backgroundColor: theme.colors.raised}}/>;
         return <PersonEntryCard entry={entry} group="credits" actions={actions} selection={selection} testID={`person-credit-${group.id}-${index}`} focusId={slot.focusId} title={entry.displayTitle || entry.title} width={214}
-          onFocus={() => {credits.onFocus(index); slot.onFocus();}} onBlur={slot.onBlur} preferredFocus={first && index === 0} artwork={runtime.artwork(entry.posterUrl)} watched={entry.watched} progress={entry.duration && entry.progressSeconds ? entry.progressSeconds / entry.duration : undefined}
+          onFocus={() => {credits.onFocus(index); slot.onFocus();}} onBlur={slot.onBlur} artwork={runtime.artwork(entry.posterUrl)} watched={entry.watched} progress={entry.duration && entry.progressSeconds ? entry.progressSeconds / entry.duration : undefined}
           caption={[...(entry.year === undefined ? [] : [{id: 'year', text: String(entry.year), role: 'context' as const}]),
             ...(credit.character ? [{id: 'character', text: t('web.person.as', {character: credit.character}), role: 'context' as const}] : [])]}/>;
       }}/>

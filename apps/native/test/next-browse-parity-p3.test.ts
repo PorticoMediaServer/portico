@@ -23,7 +23,7 @@ test('the phone person page counts its credits as titles on this server', async 
     'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', VirtualizedList: 'VirtualizedList'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', PersonCircle: 'PersonCircle', AmbientArt: 'AmbientArt', Artwork: 'Artwork'},
-    '../../kit/cards': {PosterCard: 'PosterCard'}, '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'},
+    '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/cards': {PosterCard: 'PosterCard'}, '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'},
     '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {StateView: 'StateView'},
     '../../kit/browse/presentation': {browseType: (_theme: unknown, size: number) => ({fontSize: size})},
     '../../kit/theme': {useTheme: () => ({isTV: false, platform: 'phone', colors: {text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#111'}, type: {}})},
