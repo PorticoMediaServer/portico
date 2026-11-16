@@ -17,6 +17,19 @@ func (d *DB) EpisodesWithoutPicture(ctx context.Context, library string, after i
 		KindEpisode, library, after, ImageThumb)
 }
 
+// EpisodeVideo is an episode's first version, for Make from the video. ErrNotFound for a
+// title that is not an episode or has no video.
+func (d *DB) EpisodeVideo(ctx context.Context, publicID string) (SegmentEntry, error) {
+	entries, err := d.segmentEntries(ctx, ` AND i.kind=? AND i.public_id=? AND m.video_codec IS NOT NULL ORDER BY m.id LIMIT 1`, KindEpisode, publicID)
+	if err != nil {
+		return SegmentEntry{}, err
+	}
+	if len(entries) == 0 {
+		return SegmentEntry{}, ErrNotFound
+	}
+	return entries[0], nil
+}
+
 // AddMadePicture records the picture made from an episode's video file, and shows it where
 // nothing better is there (selectPicture). An empty hash records that no picture could be
 // made from this file, so it is not tried again until the file is replaced. An episode that

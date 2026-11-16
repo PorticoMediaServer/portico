@@ -95,6 +95,65 @@ func (s *Server) artworkRoutes() {
 		}
 		return s.pictures(r, id, role)
 	}))
+	// Re-fetch chosen: the provider's picture the role shows is downloaded again (a copy that
+	// went bad or was cleared), in place, keeping its choice and lock (definition area 4, section 3).
+	library(Handle(s, "POST /v1/admin/items/{id}/artwork/refetch", Admin, func(r *http.Request, _ None) (Page[ArtworkPicture], error) {
+		id, role, err := s.artworkTarget(r, r.URL.Query().Get("role"))
+		if err != nil {
+			return Page[ArtworkPicture]{}, err
+		}
+		image, address, err := s.db.ChosenProviderPicture(r.Context(), id, role)
+		if errors.Is(err, db.ErrNotFound) {
+			return Page[ArtworkPicture]{}, ErrConflict("not_from_provider", "The picture in use is not the provider's, so there is nothing to fetch again.")
+		}
+		if err != nil {
+			return Page[ArtworkPicture]{}, err
+		}
+		hash, err := s.metadata.CandidatePoster(r.Context(), address)
+		if err != nil {
+			return Page[ArtworkPicture]{}, refusal(http.StatusBadGateway, "provider_unavailable", "The provider did not give the picture. Try again later.", true)
+		}
+		if err := s.db.PictureRefetched(r.Context(), image, hash); err != nil {
+			return Page[ArtworkPicture]{}, refuse(err)
+		}
+		return s.pictures(r, id, role)
+	}))
+	// Make from the video: an episode's picture made from a frame of its own video at the
+	// owner's asking, whatever its library's Episode thumbnails says, and made the episode's
+	// choice, as an upload is (definition area 4, rules 39, 40 and 46).
+	library(Handle(s, "POST /v1/admin/items/{id}/artwork/make", Admin, func(r *http.Request, _ None) (Page[ArtworkPicture], error) {
+		id, err := s.editable(r)
+		if err != nil {
+			return Page[ArtworkPicture]{}, err
+		}
+		e, err := s.db.EpisodeVideo(r.Context(), id)
+		if errors.Is(err, db.ErrNotFound) {
+			return Page[ArtworkPicture]{}, ErrConflict("not_an_episode", "Only an episode's picture can be made from its video.")
+		}
+		if err != nil {
+			return Page[ArtworkPicture]{}, err
+		}
+		data, err := s.madeFrame(r.Context(), e)
+		switch {
+		case errors.Is(err, errNoDecoder):
+			return Page[ArtworkPicture]{}, refusal(http.StatusServiceUnavailable, "no_decoder", "This server cannot read video to make a picture.", false)
+		case errors.Is(err, errOutOfReach):
+			return Page[ArtworkPicture]{}, refusal(http.StatusServiceUnavailable, "file_unavailable", "The episode's file cannot be read now. Try again later.", true)
+		case err != nil:
+			return Page[ArtworkPicture]{}, refusal(http.StatusUnprocessableEntity, "not_made", "No picture could be made from this video.", false)
+		}
+		sum := sha256.Sum256(data)
+		hash := hex.EncodeToString(sum[:])
+		width, height, err := s.artwork.PutSized(hash, data, artwork.Artwork)
+		if err != nil {
+			return Page[ArtworkPicture]{}, err
+		}
+		if _, err := s.db.UploadPicture(r.Context(), id, db.NewPicture{Role: db.ImageThumb, Hash: hash, Width: width, Height: height,
+			Source: db.ImageFromFrame}); err != nil {
+			return Page[ArtworkPicture]{}, refuse(err)
+		}
+		return s.pictures(r, id, db.ImageThumb)
+	}))
 	// An upload's body is the picture itself, not JSON, so it is registered by hand.
 	upload := &Route{Pattern: "POST /v1/admin/items/{id}/artwork", Access: Admin, Scope: ScopeLibrary, Response: reflect.TypeFor[ArtworkPicture]()}
 	s.routes = append(s.routes, upload)
