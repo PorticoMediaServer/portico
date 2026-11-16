@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The side rail: icons when closed, an opaque panel with names when open (focus is in it). -->
+<component name="Rail" extends="Group">
+  <interface>
+    <!-- The destinations between the mark and Settings: [{id, icon, label}]. -->
+    <field id="entries" type="array" onChange="onEntries"/>
+    <field id="current" type="string" onChange="onCurrent"/>
+    <field id="profileName" type="string" onChange="onProfile"/>
+    <field id="profileColour" type="string" onChange="onProfile"/>
+    <!-- Set true to open the rail and give it focus. -->
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="chosen" type="string" alwaysNotify="true"/>
+    <!-- Set true when Right or Back leaves the rail without choosing. -->
+    <field id="left" type="boolean" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="Rail.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Rectangle id="dim" width="1920" height="1080" color="0x071018FF" opacity="0.62" visible="false"/>
+    <Poster id="edge" uri="pkg:/images/rail-scrim.png" width="200" height="1080"/>
+    <Rectangle id="panel" width="440" height="1080" color="0x0B1822FF" visible="false"/>
+    <Poster id="mark" uri="pkg:/images/mark.png" width="33" height="44" translation="[88,56]"/>
+    <Poster id="wordmark" uri="pkg:/images/wordmark.png" width="149" height="34" translation="[88,61]" visible="false"/>
+    <Poster id="plate" uri="pkg:/images/round-14.9.png" blendColor="0x162C3AFF" width="344" height="72" visible="false"/>
+    <Poster id="ring" uri="pkg:/images/focus-14.9.png" width="416" height="144" visible="false"/>
+    <Group id="window" translation="[0,158]">
+      <Group id="list"/>
+    </Group>
+    <Group id="foot" translation="[0,884]"/>
+  </children>
+</component>

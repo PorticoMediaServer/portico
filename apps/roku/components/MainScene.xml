@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="MainScene" extends="Scene">
+  <interface>
+    <field id="launchArgs" type="assocarray" onChange="onLaunchArgs"/>
+  </interface>
+  <script type="text/brightscript" uri="MainScene.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
+  <children>
+    <Backdrop id="backdrop"/>
+    <Group id="screens"/>
+    <Rail id="rail" visible="false"/>
+    <!-- Development builds only: counts drawn frames, for judging smoothness without eyes on the screen. -->
+    <Rectangle id="frameProbe" width="1" height="1" opacity="0"/>
+    <Animation id="frameClock" duration="1" repeat="true" easeFunction="linear">
+      <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[0.0, 0.01]" fieldToInterp="frameProbe.opacity"/>
+    </Animation>
+  </children>
+</component>

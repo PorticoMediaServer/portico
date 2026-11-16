@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A heading and one row of cards. The card in focus holds a fixed slot at the left safe edge and
+     the row slides under it; the focus ring is drawn once, at the slot. Used by every page with rows. -->
+<component name="Shelf" extends="Group">
+  <interface>
+    <field id="heading" type="string" onChange="onHeading"/>
+    <field id="subheading" type="string" onChange="onHeading"/>
+    <!-- "landscape", "poster" or "square" -->
+    <field id="shape" type="string" value="poster" onChange="onShape"/>
+    <!-- A ContentNode whose children are the cards. -->
+    <field id="cards" type="node" onChange="onCards"/>
+    <!-- Set true to take focus; the row keeps the card it had. -->
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="focusedIndex" type="integer" alwaysNotify="true"/>
+    <field id="selectedIndex" type="integer" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="Shelf.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Label id="heading" translation="[200,0]"/>
+    <Label id="subheading"/>
+    <RowList id="list" numRows="1" rowFocusAnimationStyle="fixedFocus" drawFocusFeedback="false"
+             itemComponentName="Card" focusXOffset="[200]" showRowLabel="[false]" showRowCounter="[false]"/>
+    <Poster id="ring" uri="pkg:/images/focus-14.9.png" visible="false"/>
+  </children>
+</component>

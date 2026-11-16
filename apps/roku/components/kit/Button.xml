@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A button. Set `on` when it has focus: the one in focus is the pale filled one with the ring. -->
+<component name="Button" extends="Group">
+  <interface>
+    <field id="text" type="string" onChange="onChange"/>
+    <!-- Name of a 28 px icon (images/i-<name>-28.png), or "". -->
+    <field id="icon" type="string" onChange="onChange"/>
+    <field id="on" type="boolean" onChange="onChange"/>
+    <field id="buttonWidth" type="float"/>
+  </interface>
+  <script type="text/brightscript" uri="Button.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Poster id="ring" uri="pkg:/images/focus-14.9.png" visible="false"/>
+    <Poster id="plate" uri="pkg:/images/round-14.9.png" height="72"/>
+    <Poster id="icon" width="28" height="28" translation="[36,22]"/>
+    <Label id="label" height="72" vertAlign="center"/>
+  </children>
+</component>
