@@ -163,6 +163,16 @@ const statesWritten = 300
 // statesWritten titles written; one holder that marks more is a write of its own. If a write
 // fails, the edits before it stand and the error is returned. It offers no undo.
 func (d *DB) SetStates(ctx context.Context, p Priority, v Viewer, edits []ItemEdit) ([]State, []error, error) {
+	return d.setStates(ctx, p, v, edits, 0)
+}
+
+// SetJobStates applies a selection job's changes and records its per-title refusals in
+// the same bounded background transactions. A restart cannot lose a committed outcome.
+func (d *DB) SetJobStates(ctx context.Context, v Viewer, edits []ItemEdit, jobID int64) ([]State, []error, error) {
+	return d.setStates(ctx, Background, v, edits, jobID)
+}
+
+func (d *DB) setStates(ctx context.Context, p Priority, v Viewer, edits []ItemEdit, jobID int64) ([]State, []error, error) {
 	states, refusals := make([]State, len(edits)), make([]error, len(edits))
 	for start := 0; start < len(edits); {
 		next := start
@@ -177,6 +187,18 @@ func (d *DB) SetStates(ctx context.Context, p Priority, v Viewer, edits []ItemEd
 				state, offer, err := w.apply(edits[n].ItemID, edits[n].StateEdit)
 				if err != nil && !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrInvalid) {
 					return err
+				}
+				if jobID != 0 {
+					code := ""
+					switch {
+					case errors.Is(err, ErrInvalid) && edits[n].Ago > MaxEditAge:
+						code = "edit_too_old"
+					case errors.Is(err, ErrInvalid):
+						code = "unsupported_state"
+					}
+					if err := jobItemOutcome(tx, jobID, edits[n].ItemID, code); err != nil {
+						return err
+					}
 				}
 				states[n], refusals[n], next = state, err, n+1
 				written++

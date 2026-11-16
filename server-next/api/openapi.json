@@ -4456,6 +4456,42 @@
         ],
         "type": "object"
       },
+      "JobItemFailure": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/BatchError"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId",
+          "title",
+          "error"
+        ],
+        "type": "object"
+      },
+      "JobItemFailurePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JobItemFailure"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "JobProgress": {
         "properties": {
           "done": {
@@ -26316,6 +26352,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
+      }
+    },
+    "/v1/jobs/{id}/failures": {
+      "get": {
+        "operationId": "get_v1_jobs_id_failures",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobItemFailurePage"
                 }
               }
             },
