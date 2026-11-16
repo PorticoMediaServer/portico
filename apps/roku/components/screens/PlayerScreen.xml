@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The video player: one playback session with the server, Roku's Video node under our own controls. -->
+<component name="PlayerScreen" extends="Group">
+  <interface>
+    <field id="item" type="assocarray"/>
+    <!-- True to start from the beginning instead of where the title was left. -->
+    <field id="startOver" type="boolean"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="art" type="string"/>
+    <!-- Set true when the player is done and the page under it should come back. -->
+    <field id="closed" type="boolean" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="PlayerScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <children>
+    <Rectangle width="1920" height="1080" color="0x000000FF"/>
+    <Video id="video" width="1920" height="1080" enableUI="false"/>
+    <Group id="controls" visible="false">
+      <Poster uri="pkg:/images/player-top.png" width="1920" height="300"/>
+      <Poster uri="pkg:/images/player-bottom.png" width="1920" height="420" translation="[0,660]"/>
+      <Label id="title" translation="[96,84]" width="1300"/>
+      <Label id="sub" translation="[96,140]" width="1300"/>
+      <Label id="clock" translation="[1324,84]" width="500" horizAlign="right"/>
+      <Label id="ends" translation="[1324,128]" width="500" horizAlign="right"/>
+      <Rectangle id="track" translation="[96,828]" width="1728" height="6" color="0xEDF5FA40"/>
+      <Rectangle id="played" translation="[96,828]" height="6" color="0x409FD4FF"/>
+      <Poster id="knob" uri="pkg:/images/disc.png" width="22" height="22"/>
+      <Poster id="knobRing" uri="pkg:/images/focus-disc.png" width="60" height="60" visible="false"/>
+      <Label id="at" translation="[96,862]"/>
+      <Label id="left" translation="[1324,862]" width="500" horizAlign="right"/>
+      <Group id="buttons" translation="[0,906]"/>
+      <Poster id="ring" uri="pkg:/images/focus-disc.png"/>
+    </Group>
+    <Notice id="notice" visible="false"/>
+    <Timer id="hide" duration="5"/>
+    <Timer id="report" duration="10" repeat="true"/>
+    <Timer id="tick" duration="1" repeat="true"/>
+    <Timer id="settle" duration="0.5"/>
+    <Timer id="again" duration="1"/>
+  </children>
+</component>

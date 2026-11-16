@@ -82,11 +82,22 @@ sub pop()
     m.screen.active = true
 end sub
 
+sub onPlayerClosed()
+    m.rail.visible = true
+    pop()
+end sub
+
 ' A page asks for a title to be opened or played.
 sub onOpen(event as object)
     ask = event.getData()
     if ask.play = true
-        return   ' the player comes with the next change
+        player = push("PlayerScreen")
+        player.observeField("closed", "onPlayerClosed")
+        player.item = ask.item
+        player.startOver = (ask.startOver = true)
+        m.rail.visible = false
+        player.active = true
+        return
     end if
     if ask.item.kind = "movie"
         page = push("TitleScreen")
@@ -168,7 +179,13 @@ sub onMe(event as object)
     showHome()
 end sub
 
+sub onCapabilitiesSent(event as object)
+    result = event.getData()
+    if not result.ok then ? "PORTICO capabilities refused "; result.status; " "; result.error
+end sub
+
 sub showHome()
+    api("PUT", "/v1/devices/current/capabilities", deviceProfile(), "onCapabilitiesSent")
     api("GET", "/v1/libraries", invalid, "onLibraries")
     api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
     show("HomeScreen")
