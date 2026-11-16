@@ -249,7 +249,7 @@ export function TVArtistScreen({controller, entry, runtime, actions, openEntry, 
             {group.entries.map(album => <AlbumCard key={album.id} album={album} controller={controller} runtime={runtime} actions={actions} selection={selection} openEntry={openFrom(`music-release-${album.id}`)} preferred={returnTo === `music-release-${album.id}`} width={240} focusId={`music-release-${album.id}`} onFocus={()=>{controller.focusRelease(album,snapshot.releases);if(album===group.entries.at(-1))void controller.nextReleases(snapshot.releases);}} onBlur={()=>controller.blurRelease(album,snapshot.releases)} caption={album.year === undefined ? '' : defaultI18n.number(album.year, {useGrouping: false})}/>)}
           </View>
         </View>)}
-        <View>
+        {(snapshot.similar.length > 0 || !!snapshot.similarError) && <View>
           <SectionHeading title={t('music.similarArtists')} detail={snapshot.similarBySound?t('music.moreLikeThisBySound'):undefined}/>
           {snapshot.similarError?<MusicErrorView testID={`music-similar-${entry.id}-error`} error={snapshot.similarError} onRetry={()=>{void controller.load();}} style={{marginTop:24}}/>:null}
           <View style={{marginTop: 24}}>
@@ -265,7 +265,7 @@ export function TVArtistScreen({controller, entry, runtime, actions, openEntry, 
               </Focusable>;
             }}/>
           </View>
-        </View>
+        </View>}
         <View>
           <SectionHeading title={t('title.details')}/>
           <DetailRows rows={detailFacts} testID={`music-artist-details-${encodeURIComponent(entry.id)}`}/>
