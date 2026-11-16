@@ -711,8 +711,9 @@ function LibraryCard({entry, family, width, wide = false, placeholderHeight, run
     artwork: runtime.artwork(entry.posterUrl), onNavigate: () => actions.play(entry), onFocus, onBlur});
   if (entry.kind === 'playlist' || entry.kind === 'category' && entry.navigation?.browse?.pivot === 'albums') {
     const covers = (entry.artworkPaths ?? []).flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];});
-    const caption = entry.count === undefined ? [] : [{id: 'songs', role: 'value' as const,
-      text: defaultI18n.t(entry.countIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: entry.count, pivot: 'songs'})}];
+    // A playlist counts its songs; a genre the albums that carry it (the tile opens Albums filtered to it).
+    const caption = entry.count === undefined ? [] : [{id: 'count', role: 'value' as const,
+      text: defaultI18n.t(entry.countIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: entry.count, pivot: entry.kind === 'playlist' ? 'songs' : 'albums'})}];
     const resource = {focusId, disabled, width, title: entry.title, caption, covers, onNavigate: () => actions.open(entry), onFocus, onBlur};
     return entry.kind === 'playlist' ? renderCard(PlaylistMosaic, {...resource, titleLines: 2})
       : renderCard(GenreTile, {...resource, variant: 'music' as const, height: theme.isTV ? 180 : 84});

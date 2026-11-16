@@ -92,6 +92,8 @@ export function BrowseResults(props: BrowseResultsProps) {
   // The canonical Songs tab maps its pivot to 'songs' (library-tabs.ts); only that tab is the song table.
   const music = musicLibrary && controller.source.pivot === 'songs';
   const musicGenres = musicLibrary && controller.source.pivot === 'genres';
+  // A music genre is the kit's genre tile, drawn at its own width (cards.module.css .musicGenre), as on Discover; two across on a phone.
+  const musicGenreWidth = phone ? 160 : 250;
   const reading = state.capabilities?.library.kind === 'book' || state.capabilities?.library.kind === 'comic';
   const drawnColumns = reading ? readingColumns : music ? musicColumns : columns;
   // Frame #collections draws three 16:9 series tiles at 24px: a page of about ten groups reads as
@@ -114,7 +116,7 @@ export function BrowseResults(props: BrowseResultsProps) {
       </div>;
     })}{!reading && !music && <span aria-label={t('next.cards.watched')} role="columnheader"/>}<span/></div>}
     <WindowedGrid collection={controller.collection} ref={grid} label={props.label} height={size.height} retainRemovals paintScope={controller} empty={props.empty}
-      cardWidth={tiles ? tileWidth : cardWidth} fullWidth={list} fill={!list && !tiles} rowHeight={rowHeight} gap={list ? 0 : gap} rowGap={list ? 0 : tiles ? 24 : gridRowGap} reducedMotion={props.reducedMotion}
+      cardWidth={tiles ? tileWidth : musicGenres ? musicGenreWidth : cardWidth} fullWidth={list} fill={!list && !tiles} rowHeight={rowHeight} gap={list ? 0 : gap} rowGap={list ? 0 : tiles ? 24 : gridRowGap} reducedMotion={props.reducedMotion}
       onVisibleRange={range} renderPlaceholder={(_, width) => <Skeleton height={list ? 54 : musicGenres ? 152 : width / ratio} width={list ? '100%' : width}/>}
       renderItem={(member, context) => list ? <BrowseListRow {...props} member={member} index={context.index} reading={reading} music={music}/> : <BrowseEntryCard entry={member.entry} actions={props.actions(member, context.index)} artwork={props.artwork} env={props.env}
         width={context.width} family={props.familyForEntry?.(member.entry) ?? state.capabilities?.library.kind} mixed={controller.source.libraryId === '*'} visible order={context.index} group={controller.source.libraryId} backdrops={props.backdrops}/>} />
