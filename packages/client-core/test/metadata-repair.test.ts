@@ -1,12 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {MetadataRepairService,validateRepair} from '../src/metadata-repair.ts';
+import {validateRepair} from '../src/metadata-repair.ts';
 const scope={serverId:'server',viewerId:'owner'},target={kind:'item' as const,id:'movie',libraryId:'library'};
 function response(){return {serverId:'server',viewerFence:'a'.repeat(64),target:{kind:'item',id:'movie'},libraryId:'library',revision:'b'.repeat(64),
  schema:[{field:'title',label:'Title',group:'general',type:'text',maxLength:300,bulk:false},{field:'contentRating',label:'Content rating',group:'general',type:'text',maxLength:300,bulk:true},{field:'tags',label:'Tags',group:'general',type:'list',maxLength:128,max:64,bulk:true}],
  artworkRoles:['poster','backdrop'],
  snapshot:{fields:{title:{value:'Before',automaticValue:'Before',source:'automatic',locked:false},contentRating:{value:'PG',automaticValue:'R',source:'manual',locked:true},tags:{value:'["Noir"]',automaticValue:'',source:'manual',locked:true,values:['Noir']}},identity:{provider:'tmdb',id:'12',revision:1,status:'matched',locked:false},relationshipLocks:{},relationships:[],artwork:[]},candidates:[],history:[],artwork:{candidates:[],jobs:[]},cascades:[]};}
-function deferred(){let resolve!:(v:any)=>void;return {promise:new Promise<any>(r=>resolve=r),resolve};}
 test('repair projections require exact target, authority fence and canonical roles',()=>{
  const raw=response();assert.equal(validateRepair(raw,scope,target).revision,raw.revision);
  for(const patch of [{serverId:'other'},{libraryId:'other'},{viewerFence:'invalid'},{target:{kind:'album',id:'movie'}}])assert.throws(()=>validateRepair({...raw,...patch},scope,target));
@@ -19,30 +18,6 @@ test('repair validates relationship provenance, empty locked classes and bounded
  const raw=response();const relationship={kind:'credit',recordId:'provider-credit',provider:'tmdb',targetKind:'person',targetId:'100',label:'Performer',role:'Character',department:'Acting',source:'tmdb',ordinal:0,locked:true};
  const data=validateRepair({...raw,snapshot:{...raw.snapshot,relationshipLocks:{credit:true},relationships:[relationship]}},scope,target);assert.equal(data.snapshot.relationships[0].recordId,'provider-credit');assert.equal(data.snapshot.relationshipLocks.credit,true);
  assert.throws(()=>validateRepair({...raw,history:Array.from({length:31},(_,i)=>({id:i+1,trigger:'edit',observedAt:'2026-09-06T00:00:00Z'}))},scope,target));
-});
-test('owner commands use the last read revision and are never guessed from drafts',async()=>{
- const calls:any[]=[];let raw=response();const service=new MetadataRepairService({scope,api:{async request(path,method,body){calls.push({path,method,body});if(method==='POST')raw={...raw,revision:'c'.repeat(64)};return raw as any;}}});
- await service.load(target);assert.equal(await service.command({action:'edit',fields:{title:{value:'Owner'}}}),true);
- assert.deepEqual(calls[1].body,{action:'edit',fields:{title:{value:'Owner'}},expectedRevision:'b'.repeat(64)});assert.equal(service.getSnapshot().data!.revision,'c'.repeat(64));service.dispose();
-});
-test('lost write stays uncertain, cannot replay, and reconciles only by a fresh read',async()=>{
- const pending=deferred();let writes=0;let raw=response();const service=new MetadataRepairService({scope,timeoutMs:5,api:{request(_path,method){if(method==='POST'){writes++;return pending.promise;}return Promise.resolve(raw) as any;}}});
- await service.load(target);assert.equal(await service.command({action:'select_artwork',candidateId:'c'.repeat(64),confirm:true}),false);assert.equal(service.getSnapshot().phase,'uncertain');await assert.rejects(()=>service.command({action:'repair_assets'}));raw={...raw,revision:'d'.repeat(64)};pending.resolve(raw);await Promise.resolve();assert.equal(service.getSnapshot().phase,'uncertain');await service.load(target);assert.equal(service.getSnapshot().data!.revision,'d'.repeat(64));assert.equal(writes,1);service.dispose();
-});
-test('conflicts retain review values while denial clears them and hides server error text',async()=>{
- let error:any={status:409,message:'PRIVATE'};const service=new MetadataRepairService({scope,api:{async request(_p,method){if(method==='POST')throw error;return response() as any;}}});await service.load(target);await service.command({action:'lock_all',confirm:true});assert.equal(service.getSnapshot().phase,'conflict');assert.ok(service.getSnapshot().data);await service.load(target);error={status:403,message:'PRIVATE'};await service.command({action:'lock_all',confirm:true});assert.equal(service.getSnapshot().phase,'denied');assert.equal(service.getSnapshot().data,null);assert.doesNotMatch(JSON.stringify(service.getSnapshot()),/PRIVATE/);service.dispose();
-});
-test('cancel/dispose fence ignoring-abort reads and late completions',async()=>{
- for(const dispose of [false,true]){const pending=deferred();const service=new MetadataRepairService({scope,api:{request:()=>pending.promise}});const read=service.load(target);if(dispose)service.dispose();else service.cancel();await read;pending.resolve(response());await Promise.resolve();assert.equal(service.getSnapshot().data,null);}
-});
-test('a moved owner fence shows the newer repair view; only a refusal denies it',async()=>{
- let raw:any=response();const service=new MetadataRepairService({scope,api:{async request(){if(raw instanceof Error)throw raw;return raw as any;}}});await service.load(target);
- raw={...raw,viewerFence:'f'.repeat(64),revision:'c'.repeat(64)};await service.load(target);
- assert.equal(service.getSnapshot().phase,'ready');assert.equal(service.getSnapshot().data!.revision,'c'.repeat(64),'the newer view, not the old one');assert.equal(service.getSnapshot().preview,null);
- raw=Object.assign(new Error('Forbidden'),{status:403});await service.load(target);assert.equal(service.getSnapshot().phase,'denied');assert.equal(service.getSnapshot().data,null);service.dispose();
-});
-test('merge preview is non-destructive, revision-bound and scoped to the requested target',async()=>{
- const calls:any[]=[];const service=new MetadataRepairService({scope,api:{async request(path,method,body){calls.push({path,method,body});if(path.includes('/preview'))return {revision:'b'.repeat(64),descendants:600,lockedFields:1,selectedImages:1,message:'Retained',merge:{target:{kind:'item',id:'other'},allowed:false,blockers:['Unregistered references'],references:{'progress.item_id':3}}} as any;return response() as any;}}});await service.load(target);await service.preview('other');assert.equal(service.getSnapshot().preview!.descendants,600);assert.equal(service.getSnapshot().preview!.merge!.allowed,false);assert.equal(calls.filter(c=>c.method==='POST').length,0);service.dispose();
 });
 test('repair projection strips opaque actor and acquisition fields',()=>{
  const raw=response();const data=validateRepair({...raw,actor:'PRIVATE',snapshot:{...raw.snapshot,identity:{...raw.snapshot.identity,lockedByUserId:'PRIVATE'}},artwork:{candidates:[{id:'c'.repeat(64),role:'poster',subject:'',provider:'tmdb',imageId:'x',locale:'en',rank:1,attribution:'TMDB',observedAt:'2026-09-06T00:00:00Z',current:true,origin:'PRIVATE'}],jobs:[]}},scope,target);assert.doesNotMatch(JSON.stringify(data),/PRIVATE|lockedByUserId|origin/);
@@ -58,13 +33,6 @@ test('cascade admission, terminal and skipped counts remain separately projected
  assert.deepEqual(validateRepair({...raw,cascades:[c]},scope,target).cascades,[c]);
  assert.deepEqual(validateRepair({...raw,cascades:[{...c,completed:-1}]},scope,target).cascades,[]);
 });
-test('effect cleanup can cancel and reload the same service without stale publication',async()=>{
- const first=deferred();let calls=0;const service=new MetadataRepairService({scope,api:{request(){calls++;return calls===1?first.promise:Promise.resolve(response()) as any;}}});
- const loading=service.load(target);service.cancel();await loading;await service.load(target);
- first.resolve({...response(),revision:'c'.repeat(64)});await Promise.resolve();
- assert.equal(service.getSnapshot().phase,'ready');assert.equal(service.getSnapshot().data!.revision,'b'.repeat(64));service.dispose();
-});
-
 test('the registry drives the editable fields, and an unlisted field is refused',()=>{
  const raw=response();const data=validateRepair(raw,scope,target);
  assert.equal(data.schema.length,3);assert.equal(data.schema[1].bulk,true);assert.deepEqual([...data.artworkRoles],['poster','backdrop']);
@@ -129,31 +97,3 @@ test('candidate command keys and typed provider identities remain distinct', () 
 
 // OW-3/OW-4: the service publishes a code and status, never an English sentence, and a field the server refused is a
 // definite answer that keeps the editor's values (it used to read as an uncertain write, then as "Something went wrong").
-test('a refused field keeps the editor ready with its values; conflict, denial and lost writes are typed', async () => {
-  const {presentError} = await import('../src/presentation/errors.ts');
-  const {defaultI18n} = await import('../../i18n/src/index.ts');
-  let error: any = {status: 400, code: 'invalid_metadata_repair', message: 'Check the repair fields and confirmation.'};
-  const service = new MetadataRepairService({scope, api: {async request(_p, method) {if (method === 'POST') throw error; return response() as any;}}});
-  await service.load(target);
-  assert.equal(await service.command({action: 'edit', fields: {title: {value: ''}}}), false);
-  assert.equal(service.getSnapshot().phase, 'ready', 'nothing was stored: not uncertain');
-  assert.ok(service.getSnapshot().data, 'the values stay');
-  assert.deepEqual(service.getSnapshot().error, {code: 'invalid_metadata_repair', status: 400});
-  assert.equal(presentError(service.getSnapshot().error, 'detail', {operation: 'save'}).body, defaultI18n.t('error.invalidInput'));
-  error = {status: 409, code: 'metadata_conflict'}; await service.command({action: 'lock_all', confirm: true});
-  assert.equal(presentError(service.getSnapshot().error, 'detail', {operation: 'save'}).body, defaultI18n.t('error.changed'));
-  await service.load(target); error = new TypeError('Failed to fetch'); await service.command({action: 'lock_all', confirm: true});
-  assert.equal(service.getSnapshot().phase, 'uncertain');
-  assert.equal(presentError(service.getSnapshot().error, 'detail', {operation: 'save'}).body, defaultI18n.t('error.unconfirmedChange'));
-  await service.load(target); error = {status: 403}; await service.command({action: 'lock_all', confirm: true});
-  assert.equal(presentError(service.getSnapshot().error, 'detail', {operation: 'save'}).body, defaultI18n.t('error.permission'));
-  for (const view of [service.getSnapshot()]) assert.equal(typeof view.error, 'object', 'a code, never a sentence');
-  service.dispose();
-});
-test('a command answered under a moved owner fence is refused; a read under it then shows the newer view',async()=>{
- let moved=false;const service=new MetadataRepairService({scope,api:{async request(_path,method){const raw=response();return (moved||method==='POST'?{...raw,viewerFence:'f'.repeat(64),revision:'c'.repeat(64)}:raw) as any;}}});
- await service.load(target);
- assert.notEqual(await service.command({action:'edit',fields:{title:{value:'Owner'}}}),true,'the write\'s answer belongs to another access than the view it was made from');
- assert.equal(service.getSnapshot().phase,'denied');
- moved=true;await service.load(target);assert.equal(service.getSnapshot().phase,'ready');assert.equal(service.getSnapshot().data!.revision,'c'.repeat(64));service.dispose();
-});

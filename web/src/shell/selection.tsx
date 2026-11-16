@@ -72,7 +72,7 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
     subscribe: listener => {const a = context.home.subscribe(listener), b = subscribeFacts(context, listener), c = router.subscribe('onResolved', listener); return () => {a();b();c();};}});
   const anchor: {current: HTMLElement | null} = {current: null};
   const source: SelectionRendererSource = {controller, queryActions,
-    metadata: {api: {request: context.api.request.bind(context.api), requestMetadataUpload: context.api.requestMetadataUpload.bind(context.api)}, scope: {serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId])},
+    metadata: {api: {request: context.api.request.bind(context.api), requestRaw: context.api.requestRaw.bind(context.api), requestMetadataUpload: context.api.requestMetadataUpload.bind(context.api)}, scope: {serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId])},
       // Ruling A: the editor's preview is never compared with another domain's fence. The selection's Home context gates
       // the write, and SelectionSurfaces checks the preview itself is still the one shown.
       current: snapshot => viewer.role === 'owner' && isCurrent(snapshot.context)}, anchor, artwork: context.artwork, reportError, owner: viewer.role === 'owner', editorAudience: selectionEditorAudience(viewer.role), dockVisible};

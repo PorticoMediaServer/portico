@@ -694,14 +694,15 @@ export class HttpLocalApi {
     try { void this.send(path, method, body, undefined, this.token, undefined, true).then(r => { void r.body?.cancel().catch(() => {}); }, () => {}); } catch { /* the page is going away */ }
   }
   /** One artwork upload under the captured selected-server session. Never refresh/replay a lost write. */
-  async requestMetadataUpload<T>(path: string, body: FormData, input?: AbortSignal): Promise<T> {
-    if (!/^\/v1\/metadata\/(?:item|show|season|album|artist|book)\/[A-Za-z0-9_-]+\/art\/(?:poster|backdrop|cover|square|thumbnail|banner|logo|still|portrait)\/upload$/.test(path)) throw new Error('Invalid metadata upload path.');
+  /** One picture uploaded to a title (`POST /v1/admin/items/{id}/artwork?role=`): the image's own bytes, typed as the image. */
+  async requestMetadataUpload<T>(path: string, body: Blob, input?: AbortSignal): Promise<T> {
+    if (!/^\/v1\/admin\/items\/[A-Za-z0-9_-]+\/artwork\?role=(?:poster|backdrop|logo|thumb|banner|cover|portrait)$/.test(path)) throw new Error('Invalid metadata upload path.');
     const token = this.token, epoch = this.certificateSessionEpoch;
     const current = () => {if (this.token !== token || this.certificateSessionEpoch !== epoch) throw new Error('The metadata upload belongs to an old session.');};
     return withinDeadline(30000, input, async signal => {
       current(); throwIfAborted(signal);
       const response = await this.fetcher(this.baseUrl + path, {method: 'POST', body, signal, redirect: 'error', credentials: 'omit', referrerPolicy: 'no-referrer',
-        headers: {Accept: 'application/json', ...(token ? {Authorization: `Bearer ${token}`} : {}), ...this.deliveryHeaders()}});
+        headers: {Accept: 'application/json', 'Content-Type': body.type || 'application/octet-stream', ...(token ? {Authorization: `Bearer ${token}`} : {}), ...this.deliveryHeaders()}});
       current(); throwIfAborted(signal);
       const value = await response.json();
       current(); throwIfAborted(signal);

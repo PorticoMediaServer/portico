@@ -77,7 +77,17 @@ export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, ma
           return result;
         } finally {scoped.dispose();}
       },
-      requestMetadataUpload: async <T,>(path: string, body: FormData, callerSignal?: AbortSignal): Promise<T> => {
+      requestRaw: async (path: string, method: string, options: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>) => {
+        const flight = coverFlight.current?.controller, ticket = operation.current;
+        const scoped = linkNativeAbortSignals([linked.signal, options.signal, flight?.signal]);
+        try {
+          admitted(scoped.signal, flight, ticket);
+          const result = await context.api.requestRaw(path, method, {...options, signal: scoped.signal});
+          admitted(scoped.signal, flight, ticket);
+          return result;
+        } finally {scoped.dispose();}
+      },
+      requestMetadataUpload: async <T,>(path: string, body: Blob, callerSignal?: AbortSignal): Promise<T> => {
         const flight = coverFlight.current?.controller, ticket = operation.current;
         const scoped = linkNativeAbortSignals([linked.signal, callerSignal, flight?.signal]);
         try {

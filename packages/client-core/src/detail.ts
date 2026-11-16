@@ -130,6 +130,9 @@ export function detailProjection(item: Item, scope: DetailScope): DetailProjecti
   // 25, 27); which lists it may change is each list's own role, shown in the add-to sheet. A playlist takes a show,
   // season or album as its playable titles (rule 24); a collection holds each title once (rule 33).
   actions.push({id: 'add_to_playlist', labelKey: 'action.add_to_playlist', enabled: true}, {id: 'add_to_collection', labelKey: 'action.add_to_collection', enabled: true});
+  // Edit metadata is offered with the title; the screens show it to the owner, and the server's editor routes admit only the
+  // owner and administrators (area 4).
+  actions.push({id: 'metadata_edit', labelKey: 'entry.editMetadata', enabled: true});
   if (playable && position > 0) actions.push({id: 'resume', labelKey: 'action.resume', enabled: true, playback: {itemId: item.id, startSeconds: position}}, {id: 'start_over', labelKey: 'action.start_over', enabled: true, playback: {itemId: item.id, startSeconds: 0}});
   else if (playable) actions.push({id: 'play', labelKey: 'action.play', enabled: true, playback: {itemId: item.id, startSeconds: 0}});
   const all = (item.credits ?? []).map(credit), cast = all.filter(each => each.department === 'cast').length;
