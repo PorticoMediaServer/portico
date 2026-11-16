@@ -55,13 +55,16 @@ function HistoryTable({bindings: b}: {bindings: DashboardBindings}) {
     }};
   }), [rows, b]);
   return <SettingsGroup title={t('next.dashboard.playsHeading')} plain><ReadFeedback openHome={b.effects.openHome} state={failed ? {loading: false, failed: true, refresh: () => {state.refresh(); people.refresh();}} : state} />{!failed && <SettingsTable label={t('next.dashboard.history')} searchLabel={t('next.dashboard.search')} rows={tableRows}
+    // Phone width: each play is a card, as People's rows are (W2 F13: the scrolled desktop table hid Played, Played for and Where).
+    phoneCards={{rowHeight: 172}}
     columns={[
-      {id: 'title', label: t('next.dashboard.titleColumn'), kind: 'main', sortable: false, width: '27%'},
-      {id: 'person', label: t('next.dashboard.person'), kind: 'main', sortable: false, width: '15%'},
-      {id: 'player', label: t('next.dashboard.player'), kind: 'text', sortable: false, width: '18%'},
-      {id: 'played', label: t('next.dashboard.played'), kind: 'text', sortable: false, width: '17%'},
+      // The person column holds an avatar beside the name, so it needs more than its text.
+      {id: 'title', label: t('next.dashboard.titleColumn'), kind: 'main', sortable: false, width: '25%'},
+      {id: 'person', label: t('next.dashboard.person'), kind: 'main', sortable: false, width: '20%'},
+      {id: 'player', label: t('next.dashboard.player'), kind: 'text', sortable: false, width: '19%'},
+      {id: 'played', label: t('next.dashboard.played'), kind: 'text', sortable: false, width: '14%'},
       {id: 'for', label: t('next.dashboard.playedFor'), kind: 'text', sortable: false, width: '12%'},
-      {id: 'where', label: t('next.dashboard.where'), kind: 'badge', sortable: false, width: '11%'},
+      {id: 'where', label: t('next.dashboard.where'), kind: 'badge', sortable: false, width: '10%'},
     ]} query={query} onQueryChange={setQuery} filters={[
       {id: 'media', label: t('next.dashboard.media'), options: ['all', ...mediaKinds.filter(kind => kind !== 'live')].map(kind => ({value: kind, label: mediaLabel(kind)}))},
       {id: 'person', label: t('next.dashboard.person'), options: [{value: 'all', label: t('next.dashboard.everyone')}, ...people.items.map(p => ({value: p.accountId, label: p.username}))]},
