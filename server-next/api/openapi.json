@@ -3734,6 +3734,9 @@
           },
           "title": {
             "type": "string"
+          },
+          "total": {
+            "type": "integer"
           }
         },
         "required": [
@@ -11034,6 +11037,9 @@
               "$ref": "#/components/schemas/Item"
             },
             "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
           },
           "person": {
             "$ref": "#/components/schemas/RelatedPerson"
@@ -25013,6 +25019,49 @@
         "x-scope": "read"
       }
     },
+    "/v1/home/rows/{id}": {
+      "get": {
+        "operationId": "get_v1_home_rows_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeRow"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
+      }
+    },
     "/v1/hosted/approvals/{id}/poll": {
       "post": {
         "operationId": "post_v1_hosted_approvals_id_poll",
@@ -25815,6 +25864,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Related"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
+      }
+    },
+    "/v1/items/{id}/related/more-like-this": {
+      "get": {
+        "operationId": "get_v1_items_id_related_more_like_this",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemPage"
                 }
               }
             },

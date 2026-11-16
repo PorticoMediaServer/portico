@@ -331,10 +331,11 @@ type Related struct {
 // Tag and up to 20 other titles of its kind in its library, best rated first (all of them:
 // GET /v1/items?library=&kind=&tag=). A group with nothing in it is left out.
 type RelatedGroup struct {
-	Relation string         `json:"relation"`
-	Person   *RelatedPerson `json:"person,omitempty"`
-	Tag      *RelatedTag    `json:"tag,omitempty"`
-	Items    []Item         `json:"items"`
+	NextCursor string         `json:"nextCursor,omitempty"`
+	Relation   string         `json:"relation"`
+	Person     *RelatedPerson `json:"person,omitempty"`
+	Tag        *RelatedTag    `json:"tag,omitempty"`
+	Items      []Item         `json:"items"`
 }
 
 // RelatedPerson is the person a "cast" or "creator" group of a title's page is of.
@@ -434,6 +435,8 @@ type HomeSpotlightText struct {
 // HomeRow is one row. Shape says how to draw its cards: "landscape" or "poster". Reason is the
 // line under a personal row's title saying why these titles ("Because you watched Paddington").
 type HomeRow struct {
+	// Total counts only visible titles, on See all with total=true.
+	Total  *int   `json:"total,omitempty"`
 	ID     string `json:"id"`
 	Title  string `json:"title"`
 	Reason string `json:"reason,omitempty"`

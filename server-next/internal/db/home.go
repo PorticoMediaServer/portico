@@ -54,6 +54,11 @@ func (d *DB) ContinueIn(ctx context.Context, v Viewer, library string) ([]Item, 
 
 // continueRow lists what is in progress among kinds (nil: any kind) in library ("": every one).
 func (d *DB) continueRow(ctx context.Context, v Viewer, kinds []ItemKind, library string) ([]Item, error) {
+	return d.continueItems(ctx, v, kinds, library, homeRowSize)
+}
+
+// continueItems reads this profile's started titles; limit < 0 reads its complete Continue source for See all.
+func (d *DB) continueItems(ctx context.Context, v Viewer, kinds []ItemKind, library string, limit int) ([]Item, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
@@ -69,7 +74,7 @@ func (d *DB) continueRow(ctx context.Context, v Viewer, kinds []ItemKind, librar
 		AND (s.position_ms > 0 OR s.position_text IS NOT NULL) AND `+kindIn(kinds)+
 		acc.visible("i")+`
 		AND (@library = '' OR i.library_id = (SELECT id FROM libraries WHERE public_id = @library))
-		ORDER BY s.last_played_at DESC LIMIT `+fmt.Sprint(homeRowSize),
+		ORDER BY s.last_played_at DESC LIMIT `+fmt.Sprint(limit),
 		append(v.args(), sql.Named("since", time.Now().Add(-continueWindow).UnixMilli()), sql.Named("library", library))...)
 	if err != nil {
 		return nil, err
@@ -92,7 +97,7 @@ func (d *DB) continueRow(ctx context.Context, v Viewer, kinds []ItemKind, librar
 		}
 	}
 	if kinds == nil || slices.Contains(kinds, KindEpisode) {
-		if items, err = continueNext(ctx, tx, v, acc, library, items); err != nil {
+		if items, err = continueNextLimit(ctx, tx, v, acc, library, items, limit); err != nil {
 			return nil, err
 		}
 	}
@@ -103,6 +108,10 @@ func (d *DB) continueRow(ctx context.Context, v Viewer, kinds []ItemKind, librar
 // watched episodes, without an expiry: a season may arrive years after the last play.
 // Each next episode is one seek in that show's episode order.
 func continueNext(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library string, items []Item) ([]Item, error) {
+	return continueNextLimit(ctx, tx, v, acc, library, items, homeRowSize)
+}
+
+func continueNextLimit(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library string, items []Item, limit int) ([]Item, error) {
 	type recentEpisode struct{ root, last, season, number, at int64 }
 	recent, err := queryAll(ctx, tx, `SELECT root, last, season, number, at FROM (
 		SELECT e.root_id AS root, e.id AS last, ifnull(e.parent_index, 0) AS season,
@@ -165,7 +174,10 @@ func continueNext(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library
 	slices.SortFunc(items, func(a, b Item) int {
 		return cmp.Or(cmp.Compare(activity[b.ID], activity[a.ID]), cmp.Compare(a.ID, b.ID))
 	})
-	return items[:min(len(items), homeRowSize)], nil
+	if limit >= 0 {
+		items = items[:min(len(items), limit)]
+	}
+	return items, nil
 }
 
 // RecentlyAdded lists the newest titles across the libraries the viewer may see: films and
