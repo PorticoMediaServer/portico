@@ -24,6 +24,8 @@ func (s *Server) homeRow(r *http.Request, _ None) (HomeRow, error) {
 		row.Title = "Continue your books"
 	case "recently_released":
 		row.Title = "Recently Released"
+	case "popular":
+		row.Title = popularHomeTitle
 	case "recently_added":
 		row.Title = "Recently Added"
 	default:
@@ -68,6 +70,7 @@ func (s *Server) homeRow(r *http.Request, _ None) (HomeRow, error) {
 	if err != nil {
 		return row, err
 	}
+	q.HomeAt = s.now()
 	page, err := s.db.HomeRowItems(r.Context(), viewer(r), id, q)
 	return homePage(row, page, q.WithTotal), refuse(err)
 }
@@ -92,7 +95,7 @@ func (s *Server) pageHomeRows(r *http.Request, rows []HomeRow, library string) (
 			rows[n].Items, rows[n].NextCursor = itemShapes(items), db.RecentlyAddedCursor(items)
 			continue
 		}
-		page, err := s.db.HomeRowItems(r.Context(), viewer(r), rows[n].ID, db.ItemQuery{Library: library, Limit: 40})
+		page, err := s.db.HomeRowItems(r.Context(), viewer(r), rows[n].ID, db.ItemQuery{Library: library, Limit: 40, HomeAt: s.now()})
 		if err != nil {
 			return nil, refuse(err)
 		}
