@@ -71,6 +71,13 @@ sub onEntries()
     m.count = m.rows.count()
     m.rows.push(makeRow(m.foot, 0, {id: "settings", icon: "settings", label: "Settings"}))
     m.rows.push(makeRow(m.foot, 72, {id: "profile", icon: "profile", label: ""}))
+    under = m.foot.createChild("Label")
+    under.text = "Profile and server"
+    under.translation = [141, 118]
+    setType(under, "micro", colours().textTertiary)
+    m.profileUnder = under
+    m.rows[m.rows.count() - 1].label.height = 56
+    m.rows[m.rows.count() - 1].label.translation = [141, 2]
     onProfile()
     onCurrent()
 end sub
@@ -80,6 +87,7 @@ sub onProfile()
     row = m.rows[m.rows.count() - 1]
     name = m.top.profileName
     row.label.text = name
+    row.node.getChild(1).visible = (name <> "")       ' no face until the profile is known
     if m.top.profileColour <> "" then row.node.getChild(1).blendColor = m.top.profileColour
     row.node.getChild(2).text = ucase(left(name, 1))
 end sub
@@ -107,6 +115,7 @@ end sub
 
 sub paint()
     c = colours()
+    if m.top.isOpen <> m.open then m.top.isOpen = m.open
     m.dim.visible = m.open
     m.panel.visible = m.open
     m.wordmark.visible = m.open
@@ -123,6 +132,7 @@ sub paint()
         hasFocus = (m.open and i = m.focus)
         row.bar.visible = isCurrent and not hasFocus
         row.label.visible = m.open
+        if row.id = "profile" and m.profileUnder <> invalid then m.profileUnder.visible = m.open
         tint = c.textTertiary
         if isCurrent or hasFocus then tint = c.text
         row.label.color = tint
@@ -140,7 +150,13 @@ end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
     if not m.open then return false
+    holdKey(key, press and (key = "up" or key = "down"))
     if not press then return true
+    pressKey(key)
+    return true   ' the rail holds focus until it is left
+end function
+
+function pressKey(key as string) as boolean
     if key = "up" and m.focus > 0
         m.focus = m.focus - 1
         paint()
@@ -154,6 +170,8 @@ function onKeyEvent(key as string, press as boolean) as boolean
     else if key = "right" or key = "back"
         close()
         m.top.left = true
+    else
+        return false
     end if
-    return true   ' the rail holds focus until it is left
+    return true
 end function

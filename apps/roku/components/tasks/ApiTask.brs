@@ -9,15 +9,35 @@ sub serve()
     m.waiting = []      ' requests held while the sign-in is renewed
     m.renewing = false
     m.top.ready = true
+    m.clock = createObject("roTimespan")
     while true
-        msg = wait(0, m.port)
+        msg = wait(1000, m.port)
         t = type(msg)
         if t = "roSGNodeEvent"
             send(msg.getData(), false)
         else if t = "roUrlEvent"
             finish(msg)
         end if
+        giveUpOnSilent()
     end while
+end sub
+
+' Roku's transfers have no time limit of their own. One the server has not answered in 20 seconds
+' is cancelled and counts as out of reach, so nothing (a renewal least of all) waits for ever.
+sub giveUpOnSilent()
+    now = m.clock.totalMilliseconds()
+    for each key in m.pending.keys()
+        p = m.pending[key]
+        if now - p.started > 20000
+            p.xfer.asyncCancel()
+            m.pending.delete(key)
+            if p.renewal = true
+                renewed(0, invalid)
+            else
+                answer(p.req, {ok: false, status: 0, error: {code: "unreachable", message: "The server could not be reached.", retry: true}})
+            end if
+        end if
+    end for
 end sub
 
 function newTransfer(url as string) as object
@@ -65,7 +85,7 @@ sub send(req as object, retried as boolean)
         answer(req, {ok: false, status: 0, error: {code: "unreachable", message: "The server could not be reached.", retry: true}})
         return
     end if
-    m.pending[x.getIdentity().toStr()] = {xfer: x, req: req, retried: retried}
+    m.pending[x.getIdentity().toStr()] = {xfer: x, req: req, retried: retried, started: m.clock.totalMilliseconds()}
 end sub
 
 sub finish(msg as object)
@@ -120,7 +140,7 @@ sub renew()
     x = newTransfer(s.origin + "/v1/auth/refresh")
     x.addHeader("Idempotency-Key", requestId)
     x.asyncPostFromString(formatJson({refreshToken: s.refreshToken, installationId: s.installationId, requestId: requestId}))
-    m.pending[x.getIdentity().toStr()] = {xfer: x, renewal: true}
+    m.pending[x.getIdentity().toStr()] = {xfer: x, renewal: true, started: m.clock.totalMilliseconds()}
 end sub
 
 sub renewed(status as integer, data as dynamic)

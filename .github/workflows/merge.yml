@@ -392,6 +392,8 @@ jobs:
           node-version-file: .node-version
       - name: Compile check
         run: apps/roku/tools/check.sh
+      - name: Rule tests
+        run: apps/roku/tools/test.sh
   merge:
     name: ci/required
     if: ${{ !cancelled() }}

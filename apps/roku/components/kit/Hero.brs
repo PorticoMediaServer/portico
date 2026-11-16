@@ -35,8 +35,7 @@ sub onModel()
     model = m.top.model
     if model = invalid then return
     spotlight = (m.top.mode = "spotlight")
-    y = 150
-    if spotlight then y = 222
+    y = 0
     m.eyebrow.text = model.eyebrow
     m.eyebrow.translation = [0, y]
     if model.eyebrow <> "" then y = y + 44
@@ -77,16 +76,19 @@ sub onModel()
     m.synopsis.translation = [0, y]
     if model.synopsis <> "" then y = y + 84
 
-    m.hints.visible = not spotlight
+    ' The words end at a fixed line and grow upwards from it: what is under them (buttons, hints,
+    ' a title page's own rows) never moves when a title has no summary or runs to two lines.
+    base = 420
+    if spotlight then base = 576
+    if m.top.mode = "preview" then base = 490
+    m.top.findNode("words").translation = [0, base - y]
+    m.hints.visible = (m.top.mode = "preview")
     m.buttonRow.visible = spotlight
     m.dots.visible = spotlight
-    if spotlight
-        m.buttonRow.translation = [0, y + 14]
-        m.dots.translation = [0, y + 118]
-    else
-        m.okText.text = m.top.okText
-        m.hints.translation = [0, y + 16]
-    end if
+    m.buttonRow.translation = [0, 590]
+    m.dots.translation = [0, 694]
+    m.okText.text = m.top.okText
+    m.hints.translation = [0, 506]
 end sub
 
 ' A LayoutGroup lays out what it holds, so a part that is not shown is taken out of it.

@@ -188,13 +188,13 @@ sub moveTo(i as integer)
         m.hero.mode = "spotlight"
         showSpot()
         m.hero.visible = true
-        m.hero.active = true
+        if m.top.visible then m.hero.active = true
     else
         m.hero.mode = "preview"
         m.hero.visible = (i = first)
         pageY = 507 - m.rows[i].y
         if i = first then pageY = 595 - m.rows[i].y
-        m.rows[i].shelf.active = true
+        if m.top.visible then m.rows[i].shelf.active = true
         describe()
     end if
     m.slide.control = "stop"
@@ -256,8 +256,14 @@ sub showSpot()
 end sub
 
 ' The spotlight turns by itself only while it is the opening state; focus stays where it is.
+sub onToTop()
+    if m.focus = -2 then return
+    if m.spots.count() > 0 then moveTo(-1) else moveTo(rowFrom(0, 1))
+end sub
+
 sub onTurn()
-    if m.focus <> -1 then return
+    ' never behind the rail or a sheet: the page you left is the page you come back to
+    if m.focus <> -1 or not m.top.isInFocusChain() then return
     m.spot = (m.spot + 1) mod m.spots.count()
     showSpot()
 end sub
@@ -302,7 +308,13 @@ sub onListSaved(event as object)
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
-    if not press or m.focus = -2 then return false
+    holdKey(key, press and (key = "up" or key = "down"))
+    if not press then return false
+    return pressKey(key)
+end function
+
+function pressKey(key as string) as boolean
+    if m.focus = -2 then return false
     if key = "down"
         target = rowFrom(m.focus + 1, 1)
         if target >= 0 then moveTo(target)

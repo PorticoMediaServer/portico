@@ -268,7 +268,7 @@ def read_ts(expr, imports):
 # Icon name in the registry -> the sizes (px) the app draws it at.
 ICONS = {
     'search': [32], 'home': [32], 'film': [32], 'tv': [32], 'book': [32], 'music': [32], 'folder': [32],
-    'live': [32], 'bookmark': [32], 'settings': [32], 'warning': [32], 'refresh': [28], 'server': [28], 'play': [28], 'plus': [28], 'check': [28], 'info': [28],
+    'live': [32], 'bookmark': [32], 'settings': [32], 'warning': [32], 'refresh': [28], 'server': [28], 'play': [28, 40], 'pause': [40], 'back10': [36], 'forward10': [36], 'plus': [28], 'check': [28], 'info': [28],
 }
 
 
@@ -284,10 +284,11 @@ def main():
         save_png(round_line(r), 'line-%d.9.png' % r)
     for r in (14, 20):
         save_png(focus_ring(r + 4), 'focus-%d.9.png' % r)
-    for w, h in ((214, 320), (400, 225), (214, 214)):
+    for w, h in ((214, 320), (400, 225), (214, 214), (384, 216)):
         save_png(card_mask(w, h, 14), 'mask-%dx%d.png' % (w, h))
     save_png(shade(8, 256, [(0, '#000000', 0), (0.45, '#03080c', 0.35), (1, '#03080c', 0.92)]), 'card-shade.png')
     save_png(shade(8, 256, [(0, INK, 0), (1, INK, 1)]), 'fade-down.png')
+    save_png(shade(8, 256, [(0, INK, 1), (1, INK, 0)]), 'fade-up.png')
 
     for i, (first, second) in enumerate(COVER_TINTS):
         generated_cover(first, second).convert('RGB').save(os.path.join(OUT, 'cover-%d.jpg' % i), quality=88)

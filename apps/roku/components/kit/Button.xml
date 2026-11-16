@@ -6,6 +6,9 @@
     <!-- Name of a 28 px icon (images/i-<name>-28.png), or "". -->
     <field id="icon" type="string" onChange="onChange"/>
     <field id="on" type="boolean" onChange="onChange"/>
+    <!-- For Resume: how far through (0 to 1, below 0 for none) and the time left, drawn after the label. -->
+    <field id="progress" type="float" value="-1" onChange="onChange"/>
+    <field id="detail" type="string" onChange="onChange"/>
     <field id="buttonWidth" type="float"/>
   </interface>
   <script type="text/brightscript" uri="Button.brs"/>
@@ -15,5 +18,8 @@
     <Poster id="plate" uri="pkg:/images/round-14.9.png" height="72"/>
     <Poster id="icon" width="28" height="28" translation="[36,22]"/>
     <Label id="label" height="72" vertAlign="center"/>
+    <Rectangle id="track" width="100" height="6" visible="false"/>
+    <Rectangle id="bar" height="6" visible="false"/>
+    <Label id="detail" height="72" vertAlign="center" visible="false"/>
   </children>
 </component>

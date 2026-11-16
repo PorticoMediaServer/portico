@@ -8,8 +8,17 @@ sub init()
     m.fadeOut = m.top.findNode("fadeOut")
     m.shown = ""
     m.rest.observeField("fire", "onRest")
+    m.fade.observeField("state", "onFadeState")
     m.top.findNode("artA").observeField("loadStatus", "onLoad")
     m.top.findNode("artB").observeField("loadStatus", "onLoad")
+end sub
+
+sub onQuiet()
+    if m.top.quiet then m.top.findNode("artLayer").opacity = 0.28 else m.top.findNode("artLayer").opacity = 1
+end sub
+
+sub onPoster()
+    m.top.findNode("poster").uri = m.top.poster
 end sub
 
 sub onArt()
@@ -37,18 +46,32 @@ end sub
 ' Bring the back picture in (or just take the front one out) and exchange their roles.
 sub swap(bringIn as boolean)
     m.fade.control = "finish"
+    freeBack()
     m.fadeOut.fieldToInterp = m.front.id + ".opacity"
     m.fadeOut.keyValue = [m.front.opacity, 0.0]
+    m.fadeIn.fieldToInterp = m.back.id + ".opacity"
     if bringIn
-        m.fadeIn.fieldToInterp = m.back.id + ".opacity"
+        m.fadeIn.keyValue = [0.0, 1.0]
         m.scrim.visible = true
         m.shown = m.back.uri
         old = m.front
         m.front = m.back
         m.back = old
+        m.leaving = old
     else
-        m.fadeIn.fieldToInterp = ""
+        m.fadeIn.keyValue = [0.0, 0.0]     ' nothing comes in; the front picture only goes out
         m.shown = ""
+        m.leaving = m.front
     end if
     m.fade.control = "start"
+end sub
+
+' A picture that has faded out gives its memory back (television texture memory is small).
+sub freeBack()
+    if m.leaving <> invalid and m.leaving.opacity = 0 and not m.leaving.isSameNode(m.front) then m.leaving.uri = ""
+    m.leaving = invalid
+end sub
+
+sub onFadeState()
+    if m.fade.state = "stopped" then freeBack()
 end sub

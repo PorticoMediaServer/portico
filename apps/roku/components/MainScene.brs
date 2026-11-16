@@ -7,8 +7,18 @@ sub init()
     m.global.addFields({api: m.task, origin: ""})
     m.task.observeField("signInEnded", "onSignInEnded")
     m.task.control = "run"
+    ' Roku's own dialogs (the keyboard) wear Portico's colours.
+    palette = createObject("roSGNode", "RSGPalette")
+    palette.colors = {
+        DialogBackgroundColor: "0x132634FF", DialogItemColor: "0xEDF5FAFF", DialogTextColor: "0xEDF5FAFF",
+        DialogFocusColor: "0xD8E6EEFF", DialogFocusItemColor: "0x03121CFF", DialogSecondaryTextColor: "0xBDCCD6FF",
+        DialogSecondaryItemColor: "0x409FD4FF", DialogInputFieldColor: "0x0C1A25FF", DialogKeyboardColor: "0x1D3848FF",
+        DialogFootprintColor: "0x1D3848FF"
+    }
+    m.top.palette = palette
     m.rail.observeField("chosen", "onRailChosen")
     m.rail.observeField("left", "onRailLeft")
+    m.rail.observeField("isOpen", "onRailOpen")
     if createObject("roAppInfo").isDev()
         m.frames = 0
         m.frameClock = createObject("roTimespan")
@@ -47,32 +57,135 @@ sub onLaunchArgs()
     origin = storeRead("origin")
     token = storeRead("refreshToken")
     if origin = "" or token = ""
-        return   ' sign-in screens come next
+        showSignIn()
+        return
     end if
     m.global.origin = origin
     m.task.session = {origin: origin, refreshToken: token, installationId: installationId()}
-    api("GET", "/v1/libraries", invalid, "onLibraries")
     api("GET", "/v1/me", invalid, "onMe")
-    api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
-    show("HomeScreen")
 end sub
 
+' One screen at a time fills the page; the rail shows only once someone is signed in with a profile.
 sub show(component as string)
-    if m.screen <> invalid then m.screens.removeChild(m.screen)
+    m.screens.removeChildrenIndex(m.screens.getChildCount(), 0)
     m.screen = m.screens.createChild(component)
+    m.rail.visible = false
+    m.backdrop.art = ""
+    m.backdrop.poster = ""
+end sub
+
+sub showSignIn()
+    show("SignInScreen")
+    m.screen.observeField("signedIn", "onSignedIn")
+    m.screen.active = true
+end sub
+
+sub onSignedIn(event as object)
+    signIn = event.getData()
+    session = signIn.session
+    m.global.origin = signIn.origin
+    m.task.session = {origin: signIn.origin, accessToken: session.accessToken, refreshToken: session.refreshToken, installationId: installationId()}
+    storeWrite({origin: signIn.origin, serverName: signIn.serverName, refreshToken: session.refreshToken, renewalId: ""})
+    if session.viewer <> invalid and session.viewer.profileId <> invalid
+        enter()
+    else
+        showProfiles(signIn.profiles)
+    end if
+end sub
+
+' Who's watching, unless there is one profile with no PIN: then there is nothing to ask.
+sub showProfiles(profiles as object)
+    show("ProfilesScreen")
+    m.screen.serverName = storeRead("serverName")
+    m.screen.last = storeRead("profileId")
+    m.screen.profiles = profiles
+    m.screen.observeField("chosen", "onProfileChosen")
+    m.screen.active = true
+    if profiles.count() = 1 and profiles[0].pinRequired <> true then m.screen.callFunc("chooseOnly")
+end sub
+
+sub onProfileChosen(event as object)
+    chosen = event.getData()
+    session = m.task.session
+    session.accessToken = chosen.session.accessToken
+    if chosen.session.refreshToken <> invalid
+        session.refreshToken = chosen.session.refreshToken
+        storeWrite({refreshToken: session.refreshToken})
+    end if
+    m.task.session = session
+    storeWrite({profileId: chosen.profile.id})
+    enter()
+end sub
+
+sub onProfiles(event as object)
+    result = event.getData()
+    if result.ok and result.data.items <> invalid then showProfiles(result.data.items) else showSignIn()
+end sub
+
+' Signed in with a profile: the rail's facts, then Home.
+sub enter()
+    api("GET", "/v1/me", invalid, "onMe")
+end sub
+
+sub onMe(event as object)
+    result = event.getData()
+    if not result.ok
+        if result.status = 401 or result.status = 403
+            showSignIn()
+        else
+            showHome()   ' out of reach: Home says so and offers to try again
+        end if
+        return
+    end if
+    profile = result.data.profile
+    if profile = invalid
+        api("GET", "/v1/profiles", invalid, "onProfiles")
+        return
+    end if
+    m.rail.profileName = profile.name
+    m.rail.profileColour = "0x28587AFF"
+    showHome()
+end sub
+
+sub onCapabilitiesSent(event as object)
+    result = event.getData()
+    if not result.ok then ? "PORTICO capabilities refused "; result.status; " "; result.error
+end sub
+
+sub showHome()
+    api("PUT", "/v1/devices/current/capabilities", deviceProfile(), "onCapabilitiesSent")
+    api("GET", "/v1/libraries", invalid, "onLibraries")
+    api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
+    show("HomeScreen")
     m.screen.observeField("art", "onArt")
     m.rail.visible = true
     m.rail.current = "home"
     m.screen.active = true
 end sub
 
+' A page names its art as a picture path, or "poster|<path>" for a title with only a poster, or
+' "cover|<n>" for one with no picture at all (mock.html, "When the artwork isn't there").
 sub onArt(event as object)
-    m.backdrop.art = imageUrl(event.getData(), 1344, 756)
+    ' only the page on top sets the backdrop; one underneath keeps its art for when it comes back
+    if m.screen <> invalid and event.getRoSGNode().isSameNode(m.screen) then setArt(event.getData())
+end sub
+
+sub setArt(art as string)
+    if left(art, 7) = "poster|"
+        m.backdrop.poster = imageUrl(mid(art, 8), 400, 600)
+        m.backdrop.art = ""
+    else if left(art, 6) = "cover|"
+        m.backdrop.poster = ""
+        m.backdrop.art = "pkg:/images/cover-" + mid(art, 7) + ".jpg"
+    else
+        m.backdrop.poster = ""
+        m.backdrop.art = imageUrl(art, 1344, 756)
+    end if
 end sub
 
 function libraryIcon(kind as string) as string
     if kind = "movies" or kind = "movie" then return "film"
-    if kind = "shows" or kind = "tv" or kind = "anime" then return "tv"
+    if kind = "shows" or kind = "tv" then return "tv"
     if kind = "music" then return "music"
     if kind = "audiobooks" or kind = "audiobook" then return "book"
     return "folder"
@@ -113,21 +226,22 @@ sub onLibrariesAgain()
     m.rail.current = "home"
 end sub
 
-sub onMe(event as object)
-    result = event.getData()
-    if not result.ok then return
-    profile = result.data.profile
-    if profile <> invalid
-        m.rail.profileName = profile.name
-        m.rail.profileColour = "0x28587AFF"
-    end if
+' The server ended this sign-in (signed out elsewhere, or it ran out): start again at the front door.
+sub onSignInEnded()
+    storeWrite({refreshToken: "", renewalId: ""})
+    showSignIn()
 end sub
 
-sub onSignInEnded()
+' The open rail pushes the page right, so none of it is covered (tv.html frame 2).
+sub onRailOpen()
+    if m.rail.isOpen then m.screens.translation = [metrics().pageShift, 0] else m.screens.translation = [0, 0]
 end sub
 
 sub onRailChosen(event as object)
-    if m.screen <> invalid then m.screen.active = true
+    if m.screen = invalid then return
+    ' OK on the page you are on goes to its top, the same place as Back.
+    if event.getData() = m.rail.current and m.screen.hasField("toTop") then m.screen.toTop = true
+    m.screen.active = true
 end sub
 
 sub onRailLeft()

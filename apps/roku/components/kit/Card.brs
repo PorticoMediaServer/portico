@@ -16,9 +16,14 @@ sub init()
     m.badgePlate = m.top.findNode("badgePlate")
     m.badge = m.top.findNode("badge")
     c = colours()
+    m.person = m.top.findNode("person")
+    setType(m.top.findNode("faceInitials"), "personInitials", c.textSecondary)
+    setType(m.top.findNode("faceName"), "cardTitle", c.text)
+    setType(m.top.findNode("facePart"), "cardSubtitle", c.textTertiary)
     setType(m.title, "wideTitle", c.text)
     setType(m.sub, "cardSubtitle", c.textSecondary)
     setType(m.badge, "badge", c.actionInk)
+    setType(m.top.findNode("corner"), "tag", c.text)
     setType(m.madeTitle, "coverTitle", c.text)
     setType(m.madeGlyph, "lockup", c.text)
     m.w = 0
@@ -33,6 +38,7 @@ sub onLayout()
     m.top.findNode("frame").translation = [0, pad]
     m.w = w
     m.h = h
+    m.fullH = h
     m.under.scaleRotateCenter = [w / 2, h / 2]
     m.over.scaleRotateCenter = [w / 2, h / 2]
     m.plate.width = w
@@ -62,13 +68,43 @@ end sub
 sub onContent()
     item = m.top.itemContent
     if item = invalid or m.w = 0 then return
+    isPerson = (item.kind = "person")
+    m.person.visible = isPerson
+    m.top.findNode("frame").getChild(0).visible = not isPerson
+    m.clip.visible = not isPerson
+    m.over.visible = not isPerson
+    if isPerson
+        x = (m.w - 150) / 2
+        for each id in ["faceDisc", "faceInitials", "faceClip"]
+            m.top.findNode(id).translation = [x, 0]
+        end for
+        m.top.findNode("facePhoto").uri = item.art
+        m.top.findNode("faceInitials").text = item.badge
+        name = m.top.findNode("faceName")
+        name.width = m.w + 20
+        name.translation = [-10, 162]
+        name.text = item.title
+        part = m.top.findNode("facePart")
+        part.width = m.w + 20
+        part.text = item.sub
+        if name.boundingRect().height > 40 then part.translation = [-10, 222] else part.translation = [-10, 194]
+        return
+    end if
     ' A cover is shown whole, in its own shape; other art fills the card.
+    ' An episode card: the picture is 16:9 at the top and the words go under it.
+    under = (item.under = true)
+    if under then m.h = m.w * 9 / 16 else m.h = m.fullH
+    m.art.height = m.h
+    m.art.loadHeight = m.h
+    m.plate.height = m.h
+    m.clip.maskUri = "pkg:/images/mask-" + int(m.w).toStr() + "x" + int(m.h).toStr() + ".png"
+    grow(1)
     overlay = item.overlay
     if item.art = ""
         ' no picture: the generated cover, with the title on it unless the card already words it
         m.art.loadDisplayMode = "noScale"
         m.art.uri = "pkg:/images/cover-" + coverTint(item.title).toStr() + ".jpg"
-        if not overlay
+        if not overlay and not under
             m.madeTitle.text = item.title
             m.madeGlyph.text = ucase(left(item.title, 1))
         end if
@@ -76,19 +112,72 @@ sub onContent()
         if item.whole then m.art.loadDisplayMode = "scaleToFit" else m.art.loadDisplayMode = "scaleToZoom"
         m.art.uri = item.art
     end if
-    m.made.visible = (item.art = "" and not overlay)
+    m.made.visible = (item.art = "" and not overlay and not under)
     m.plate.visible = (item.art <> "" and (overlay or not item.whole))
     m.shade.visible = overlay
     m.title.visible = overlay
     m.sub.visible = overlay
-    hasBar = overlay and item.progress >= 0   ' progress is drawn on wide cards only, as the mock-ups have it
+    hasBar = (overlay or under) and item.progress >= 0   ' progress is drawn on wide cards only, as the mock-ups have it
     m.track.visible = hasBar
     m.bar.visible = hasBar
+    c = colours()
+    wordsWidth = m.w - 40
     if overlay
         m.title.text = item.title
         m.sub.text = item.sub
+        m.title.width = m.w - 40
+        m.title.wrap = false
+        if item.whole and item.art <> ""
+            ' beside a cover the words have less room: the title takes a second line before it is cut
+            wordsWidth = m.w - m.h - 30
+            m.title.width = wordsWidth
+            m.title.wrap = true
+            m.title.maxLines = 2
+        end if
+        m.title.translation = [20, m.h - 96]
+        if m.title.boundingRect().height > 44 then m.title.translation = [20, m.h - 128]
+        m.sub.translation = [20, m.h - 60]
+        setType(m.title, "wideTitle", c.text)
+    else if under
+        m.title.visible = true
+        m.sub.visible = true
+        m.title.text = item.title
+        m.sub.text = item.sub
+        m.title.width = m.w
+        m.title.wrap = true
+        m.title.maxLines = 2
+        setType(m.title, "episodeTitle", c.text)
+        m.title.translation = [0, m.h + 22]
+        if m.title.boundingRect().height > 44 then m.sub.translation = [0, m.h + 88] else m.sub.translation = [0, m.h + 58]
     end if
-    if hasBar then m.bar.width = (m.w - 40) * item.progress
+    m.track.translation = [20, m.h - 24]
+    m.bar.translation = [20, m.h - 24]
+    if under
+        m.track.translation = [0, m.h - 6]
+        m.bar.translation = [0, m.h - 6]
+        m.track.width = m.w
+        m.track.visible = false
+    else
+        m.track.width = wordsWidth
+    end if
+    if hasBar and under then m.bar.width = m.w * item.progress
+    if hasBar and not under then m.bar.width = wordsWidth * item.progress
+    corner = m.top.findNode("corner")
+    cornerPlate = m.top.findNode("cornerPlate")
+    hasCorner = (item.corner <> invalid and item.corner <> "")
+    corner.visible = hasCorner
+    cornerPlate.visible = hasCorner
+    if hasCorner
+        corner.text = item.corner
+        cw = corner.boundingRect().width + 24
+        cornerPlate.width = cw
+        cornerPlate.translation = [m.w - cw - 14, 14]
+        corner.translation = [m.w - cw - 2, 14]
+    end if
+    m.top.findNode("tick").visible = (item.played = true)
+    m.top.findNode("tickPlate").visible = (item.played = true)
+    if item.badge <> "" and item.played = true then m.top.findNode("tick").visible = false
+    if item.badge <> "" and item.played = true then m.top.findNode("tickPlate").visible = false
     if item.badge <> ""
         m.badge.text = item.badge
         bw = m.badge.boundingRect().width + 22
@@ -109,6 +198,8 @@ end sub
 
 sub grow(s as float)
     if m.w = 0 then return
+    item = m.top.itemContent
+    aside = (item <> invalid and item.overlay = true and item.whole = true and item.art <> "")
     m.under.scale = [s, s]
     m.over.scale = [s, s]
     w = m.w * s
@@ -117,6 +208,14 @@ sub grow(s as float)
     m.clip.maskSize = [w, h]
     m.art.width = w
     m.art.height = h
+    m.art.translation = [0, 0]
+    if aside
+        ' a cover on a wide card: whole, at the right, with the title and progress beside it on the plate
+        m.art.width = h - 24 * s
+        m.art.height = h - 24 * s
+        m.art.translation = [w - h + 12 * s, 12 * s]
+    end if
+    m.shade.visible = (item <> invalid and item.overlay = true and not aside)
     m.shade.width = w
     m.shade.height = h * 0.62
     m.shade.translation = [0, h - h * 0.62]
