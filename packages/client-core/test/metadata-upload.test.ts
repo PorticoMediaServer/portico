@@ -11,7 +11,7 @@ test('artwork upload sends the image to the rebuilt route and refuses a stale se
   const pending = api.requestMetadataUpload('/v1/admin/items/itm_1/artwork?role=poster', body);
   api.setAccessToken('second');
   finish(new Response('{}', {status: 201, headers: {'Content-Type': 'application/json'}}));
-  await assert.rejects(pending, /old session/);
+  await assert.rejects(pending, {name: 'AbortError'});
   const headers = new Headers(received?.headers);
   assert.equal(url, 'https://server.example/v1/admin/items/itm_1/artwork?role=poster');
   assert.equal(received?.body, body);
