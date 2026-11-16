@@ -1,13 +1,13 @@
 import type {AuthRecovery, HttpLocalApi} from '@core/index.ts';
 import {ambientArtworkSource, type AmbientArtworkIdentity, type ArtworkRequestOptions} from '@core/artwork/index.ts';
-import {artworkFailure, foregroundArtwork, channelLogoArtwork, memberProfileAvatarArtwork, trickplayTileArtwork,
-  readAuthenticatedArtworkBytes, channelLogoArtworkSource, memberProfileAvatarArtworkSource} from '@core/artwork/media-sources.ts';
+import {artworkFailure, foregroundArtwork, memberProfileAvatarArtwork, trickplayTileArtwork,
+  readAuthenticatedArtworkBytes, memberProfileAvatarArtworkSource} from '@core/artwork/media-sources.ts';
 import {createArtworkRuntime, type ArtworkLoadRequest} from '../kit/artwork/source';
 import type {ArtworkImage} from '../kit/artwork/types';
 import type {ProfileAvatar} from '@core/identity-restrictions.ts';
 import {trickplayTileUrl, type TrickplaySet} from '@core/trickplay.ts';
 
-export {artworkFailure, foregroundArtwork, channelLogoArtwork, memberProfileAvatarArtwork, trickplayTileArtwork};
+export {artworkFailure, foregroundArtwork, memberProfileAvatarArtwork, trickplayTileArtwork};
 
 /** Real credentials go through the selected route transport, never an img URL or localStorage. */
 export function authenticatedArtwork(options: {
@@ -40,11 +40,6 @@ export function authenticatedArtwork(options: {
     foreground(url: string | undefined, pixels: number, aspect: number, request?: Omit<ArtworkRequestOptions, 'signal'>) {
       const selected = foregroundArtwork(url, pixels, aspect, identity);
       return selected ? runtime.source(selected, request) : undefined;
-    },
-    channelLogo(id: string, revision?: number) {
-      if (!isCurrent()) return undefined;
-      const selected = channelLogoArtworkSource(id, revision, identity);
-      return selected ? runtime.source(selected) : undefined;
     },
     /** One sheet of a parsed preview set, by tile; the set is the server's (`readItemTrickplay`). */
     trickplayTile(set: TrickplaySet, tileIndex: number) {
