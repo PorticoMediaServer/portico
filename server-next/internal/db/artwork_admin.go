@@ -249,7 +249,8 @@ func (d *DB) PictureHashes(ctx context.Context, fn func(hash string) error) erro
 	// A removed upload that a History entry still names is kept, so Undo can put it back.
 	rows, err := d.read.QueryContext(ctx, `SELECT file_hash FROM images WHERE file_hash IS NOT NULL
 		UNION SELECT u.value ->> '$.hash' FROM metadata_history h, json_each(h.before, '$.uploads') u
-		UNION SELECT logo_hash FROM channels WHERE logo_hash IS NOT NULL ORDER BY 1`)
+		UNION SELECT logo_hash FROM channels WHERE logo_hash IS NOT NULL
+ UNION SELECT file_hash FROM scrub_preview_sheets ORDER BY 1`)
 	if err != nil {
 		return err
 	}

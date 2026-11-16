@@ -264,6 +264,9 @@ func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) e
 				info, err := e.Info()
 				// One entry a picture: its small size, the last file to be written.
 				id, small := strings.CutSuffix(e.Name(), ".small")
+				if !small {
+					id, small = strings.CutSuffix(e.Name(), ".sheet")
+				}
 				if err == nil && small && ValidID(id) && info.ModTime().Before(before) {
 					stored = append(stored, id)
 				}
@@ -293,11 +296,15 @@ func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) e
 	removed := 0
 	for _, id := range unused {
 		// Stored again while the sweep ran: it may be named by a row the sweep did not see.
-		if info, err := os.Stat(s.place(id, "small")); err != nil || !info.ModTime().Before(before) {
+		info, err := os.Stat(s.place(id, "small"))
+		if os.IsNotExist(err) {
+			info, err = os.Stat(s.place(id, "sheet"))
+		}
+		if err != nil || !info.ModTime().Before(before) {
 			continue
 		}
 		removed++
-		for _, size := range []string{"small", "large", AmbientVariant, AmbientVariantV2} {
+		for _, size := range []string{"small", "large", AmbientVariant, AmbientVariantV2, "sheet"} {
 			if err := os.Remove(s.place(id, size)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return 0, err
 			}
