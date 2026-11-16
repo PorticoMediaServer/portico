@@ -227,12 +227,12 @@ func useEmbeddedTitle(b *batchTx, itemID, now int64) error {
 	err := b.queryRow(`SELECT ifnull(json_extract(f.extra, '$.title'), ''), ifnull(l.language, '') FROM items i JOIN libraries l ON l.id = i.library_id
 		JOIN media m ON m.id = (SELECT id FROM media WHERE item_id = i.id ORDER BY position, id LIMIT 1)
 		JOIN media_parts p ON p.media_id = m.id AND p.position = 0 JOIN files f ON f.id = p.file_id
-		WHERE i.id = ? AND i.kind IN (?, ?) AND i.match_state IN (?, ?)
+		WHERE i.id = ? AND i.kind IN (?, ?) AND i.match_state IN (?, ?, ?)
 		AND (ifnull(l.metadata_provider, '') = ? OR i.refreshed_at IS NOT NULL)
 		AND json_extract(ifnull(i.local_fields, '{}'), '$.title') IS NULL
 		AND NOT EXISTS (SELECT 1 FROM json_each(ifnull(i.locked_fields, '[]')) WHERE value = 'title')
 		AND (SELECT count(*) FROM media_parts o WHERE o.file_id = f.id) = 1`,
-		itemID, KindMovie, KindEpisode, MatchNone, MatchNeedsAttention, providerLocal).Scan(&title, &language)
+		itemID, KindMovie, KindEpisode, MatchNone, MatchNeedsAttention, MatchKept, providerLocal).Scan(&title, &language)
 	if errors.Is(err, sql.ErrNoRows) || title == "" {
 		return nil
 	}

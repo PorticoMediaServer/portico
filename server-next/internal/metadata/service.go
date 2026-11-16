@@ -438,6 +438,41 @@ var ErrUnknownOrder = errors.New("not an episode order")
 // local metadata only, or it is of a kind the library's provider does not know.
 var ErrNoProvider = errors.New("this title's library has no provider to ask")
 
+// KeepAsIs is Keep as is. An unmatched title leaves its library's Unmatched items list. A
+// matched title loses its match, which is how an owner takes a wrong match off: the provider's
+// ids, details, cast and pictures go, the title is named as its files name it (what an NFO
+// file, its own tags or a person gave stays), and it is not looked up again by itself until
+// its files change; Look it up again or choosing a match asks again.
+func (s *Service) KeepAsIs(ctx context.Context, itemID string) error {
+	err := s.DB.KeepAsIs(ctx, itemID)
+	if !errors.Is(err, db.ErrConflict) {
+		return err
+	}
+	t, err := s.DB.MatchTarget(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	src, err := s.DB.LibrarySource(ctx, t.LibraryID)
+	if err != nil {
+		return err
+	}
+	details := db.ItemDetails{Match: db.MatchKept}
+	if t.Kind == db.KindMovie || t.Kind == db.KindShow {
+		rel, err := s.DB.FirstFile(ctx, t.ID)
+		if err != nil && !errors.Is(err, db.ErrNotFound) {
+			return err
+		}
+		if rel != "" {
+			details.Title, details.Year = scan.FileTitle(src.Kind, rel)
+		}
+	}
+	if _, err := s.DB.ChangeMatch(ctx, db.User, t.ID, details); err != nil {
+		return err
+	}
+	s.moods(ctx, t.ID) // the title data's tags follow the ids, which are gone
+	return nil
+}
+
 // Identify makes a title the one a person chose from the provider. The title keeps its id,
 // everyone's state, its lists, locked fields and chosen pictures; its details are fetched
 // again, and the match is locked against every scan and refresh. If the library already has
