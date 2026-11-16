@@ -3,6 +3,7 @@ package segments
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/seed"
@@ -94,5 +95,54 @@ func TestDetectionUsesSavedModeAndKeepsCompletedFiles(t *testing.T) {
 	run()
 	if reads != first*3 {
 		t.Fatal("the library's own mode was not used", reads, first)
+	}
+}
+
+// A file whose reading fails once (a busy machine, a port taken for a moment) is read again
+// and finishes, rather than being recorded for good as one whose intro and credits could not
+// be read. A file that keeps failing is still recorded as failed.
+func TestAFileThatFailsOnceIsReadAgain(t *testing.T) {
+	saved := readRetries
+	readRetries = []time.Duration{0, 0}
+	t.Cleanup(func() { readRetries = saved })
+	ctx := context.Background()
+	d, err := db.Open(ctx, filepath.Join(t.TempDir(), "main.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := seed.Import(ctx, d, seed.Config{Seed: 7, Items: 60}, nil); err != nil {
+		t.Fatal(err)
+	}
+	docs, _, err := settings.Open(ctx, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	libs, err := d.AllLibraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lib := libs[0]
+	reads, broken := map[int64]int{}, int64(0)
+	read := func(_ context.Context, e db.SegmentEntry, _ string) (segmentdetect.Evidence, []segmentdetect.Detection, error) {
+		reads[e.MediaID]++
+		if broken == 0 {
+			broken = e.MediaID
+		}
+		if e.MediaID == broken || reads[e.MediaID] == 1 {
+			return segmentdetect.Evidence{}, nil, errors.New("the decoder could not start")
+		}
+		return segmentdetect.Evidence{DurationUS: e.DurationMS * 1000}, nil, nil
+	}
+	s := &Service{DB: d, Settings: docs, Now: time.Now, readEvidence: read}
+	if err := s.Kind().Run(ctx, jobs.Work{Request: jobs.Request{Target: jobs.Target{Library: lib.PublicID}}, Progress: func(int64, int64) {}}); err != nil {
+		t.Fatal(err)
+	}
+	counts, _, err := d.SegmentCounts(ctx, lib.PublicID, "", "standard")
+	if err != nil || counts.Pending != 0 || counts.Failed != 1 || counts.Complete == 0 {
+		t.Fatal("files that failed once were not read again", counts, err)
+	}
+	if reads[broken] != 1+len(readRetries) {
+		t.Fatal("a file that keeps failing was read", reads[broken], "times")
 	}
 }
