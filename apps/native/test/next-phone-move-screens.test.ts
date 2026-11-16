@@ -194,7 +194,7 @@ test('the TV\'s move hand-off: the server\'s own sign-in page as a QR and its ad
     'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/i18n/src': {catalogue, defaultI18n, enUS}, '../../kit/controls': {Button: 'Button'},
     '../../kit/focus': {FocusProvider: 'Provider', FocusRegion: 'Region'}, '../../kit/theme': {nativeType, useTheme: () => createTheme({isTV: true, width: 1920})},
     '../../kit/states/sentence-parts': {stateSentenceParts}, '../../platform/native-blur': {BlurView: 'Blur', glassRecipe: () => ({nativeBlur: false})},
-    '../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: () => {}}, './TVAuthLayout': {TVAuthLayout: 'Layout'}, './entry-revision': revision,
+    '../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: () => {}}, './TVAuthLayout': {TVAuthLayout: 'Layout', TVAccountFields: 'AccountFields', TVAccountCanvas: 'Canvas'}, './entry-revision': revision,
     '../../platform/account-authority': {hostedUrl: 'https://web.getportico.tv'}, '../../platform/forgot-pin-handoff': {forgotPINHandoff: () => ({url: '', body: 'next.auth.tv.forgotPINBody'})},
   });
   const draw = (url: string) => {const outer = TVMoveHandoff({serverName: 'Den', url, onBack: () => backs.push('back')}); const inner = [outer.props.children].flat()[0]; return inner.type(inner.props);};
@@ -202,7 +202,7 @@ test('the TV\'s move hand-off: the server\'s own sign-in page as a QR and its ad
   const host = createFabricHookHost(() => {tree = draw('https://den.example:32500/sign-in');});
   await act(() => host.mount());
   try {
-    assert.deepEqual([tree.props.eyebrow, tree.props.heading, tree.props.body], ['Den', defaultI18n.t('next.auth.tv.moveOnPhone'), defaultI18n.t('next.auth.tv.moveBody', {server: 'Den'})]);
+    assert.deepEqual([tree.props.eyebrow, tree.props.title, tree.props.body], ['Den', defaultI18n.t('next.auth.tv.moveOnPhone'), defaultI18n.t('next.auth.tv.moveBody', {server: 'Den'})]);
     const card = nodes(tree.props.aside);
     assert.equal(card.find((node: any) => node.type === 'QR').props.value, 'https://den.example:32500/sign-in');
     assert.ok(card.some((node: any) => node.props.children === 'den.example:32500/sign-in'));

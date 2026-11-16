@@ -113,7 +113,7 @@ async function presenter(f: Awaited<ReturnType<typeof fixture>>, kind: TVCodeKin
     '../../kit/focus': {FocusProvider: 'Provider', FocusRegion: 'Region'}, '../../kit/theme': {nativeType, useTheme: () => createTheme({isTV: true, width: 1920})},
     '../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: (activation: unknown, address: unknown) => {entries.push({activation, address});}},
     '../../platform/native-blur': {BlurView: 'Blur', glassRecipe: () => ({nativeBlur: false})},
-    './entry-revision': {useTVBusyEntryRevision}, './TVAuthLayout': {TVAuthLayout: 'Layout'},
+    './entry-revision': {useTVBusyEntryRevision}, './TVAuthLayout': {TVAuthLayout: 'Layout', TVAccountFields: 'AccountFields', TVAccountCanvas: 'Canvas'},
   });
   let tree: any;
   const host = createFabricHookHost(() => {
@@ -435,7 +435,7 @@ async function approvalPresenter(entry: Awaited<ReturnType<typeof accountEntry>>
     react: {...React, default: React}, 'react-native': {View: 'View', Text: 'Text'}, 'react-native-qrcode-svg': {default: 'QR'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/controls': {Button: 'Button'}, '../../kit/focus': {FocusProvider: 'Provider', FocusRegion: 'Region'},
     '../../kit/theme': {useTheme: () => createTheme({isTV: true, width: 1920}), nativeType}, '../../screens/destinations/useEntryFocus': {useDestinationEntryFocus() {}},
-    '../../platform/native-blur': {glassRecipe: () => ({nativeBlur: false}), BlurView: 'Blur'}, './entry-revision': {useTVBusyEntryRevision}, './TVAuthLayout': {TVAuthLayout: 'Layout'},
+    '../../platform/native-blur': {glassRecipe: () => ({nativeBlur: false}), BlurView: 'Blur'}, './entry-revision': {useTVBusyEntryRevision}, './TVAuthLayout': {TVAuthLayout: 'Layout', TVAccountFields: 'AccountFields', TVAccountCanvas: 'Canvas'},
   });
   let tree: any; const host = createFabricHookHost(() => {const wrapped = TVCodePresenter(entry.tree().props); tree = wrapped.props.children.type(wrapped.props.children.props);});
   await act(() => host.mount());

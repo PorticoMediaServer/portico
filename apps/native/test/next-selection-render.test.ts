@@ -132,7 +132,7 @@ test('TV BulkEditor binds real schema fields to native controls without writing 
     try {
       const field = ofType(input.tree, TextField)[0]!;
       assert.equal(field.props.value, ''); assert.equal(field.props.keyboardType, 'numbers-and-punctuation');
-      assert.equal(field.props.fieldStyle.height, 64); assert.equal(field.props.fieldStyle.borderRadius, 14);
+      assert.equal(field.props.fieldStyle.height, 84); assert.equal(field.props.fieldStyle.borderRadius, 16);
       assert.match(text(input.tree), /Mixed/); assert.match(text(input.tree), /4 values/);
       assert.deepEqual(calls, []);
       const focus = {focus() {}}; field.props.ref(focus);
@@ -632,7 +632,7 @@ test('Selection input uses real phone focus/blur/ref and default ring; TV draws 
   state.theme = createTheme({isTV: true, width: 1920});
   const tv = await mount(TextField, {appearance: 'selection', value: ''});
   try {
-    assert.equal(ofType(tv.tree, Focusable)[0]!.props.focusKind, 'row', 'TV uses the kit focus treatment on its visible box');
+    assert.equal(ofType(tv.tree, Focusable)[0]!.props.focusKind, 'field', 'TV uses the kit field focus treatment on its visible box');
     assert.equal(ofType(tv.tree, NativeInput)[0]!.props.style.opacity, 0, 'the keyboard editor has no inline chrome');
   } finally {await tv.host.unmount(); state.theme = previous;}
 });

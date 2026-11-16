@@ -14,6 +14,7 @@ import {MFARequiredError, type IdentityOptions, type IdentityTransaction, type R
 import type {SetupCodeSnapshot} from '../../../../../packages/client-core/src/setup-code';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../packages/i18n/src';
+import {TVAccountFields, TVAuthLayout} from '../../tv/auth/TVAuthLayout';
 import {StateLayout} from '../../kit/states';
 import {Button, Focusable, TextField, FormError} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
@@ -816,7 +817,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       accessibilityLabel={t(passwordShown ? 'accounts.signIn.hidePassword' : 'accounts.signIn.showPassword')} accessibilityState={{selected: passwordShown}}
       disabled={busy} style={{height: 40, width: 40, paddingHorizontal: 0}} onPress={() => {if (lifetime.current && stageRef.current === stage && !busyRef.current && !acting.current) setPasswordShown(value => !value);}}/> : undefined}/>;
   const codeField = (label: string, value: string, change: (next: string) => void) => field(label, value, change, false, undefined, undefined, undefined, undefined, true);
-  const fields = (...children: React.ReactNode[]) => <View style={{alignSelf: 'stretch', width: theme.isTV ? 720 : undefined, gap: 14, marginBottom: 20}}>{children}</View>;
+  const fields = (...children: React.ReactNode[]) => theme.isTV ? <TVAccountFields>{children}</TVAccountFields>
+    : <View style={{alignSelf: 'stretch', gap: 14, marginBottom: 20}}>{children}</View>;
   const action = (id: string, label: string, work: () => Promise<void>, disabled = false) => ({id, label, disabled: busy || disabled, loading: busy, onPress: () => {void run(work);}});
   const renderedTV = stage === 'tv' ? tvView?.opening : undefined;
   const codeBack = () => {if (renderedTV?.current()) back();};
@@ -882,9 +884,9 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   }, [stage, target, directoryView, hostedWaiting, busy, appActive, allDirectoryOffline, servers, directoryScope, stopRetry]);
   // One setup target per server shown for setup: NativeSetup keeps one controller for it.
   const setupTarget = useMemo(() => server && setupAddress ? Object.freeze({origin: setupAddress, server, expected: endedTarget.current}) : undefined, [server, setupAddress]);
-  const FormLayout = theme.platform === 'phone' ? PhoneAccountForm : StateLayout;
+  const FormLayout = theme.isTV ? TVAuthLayout : theme.platform === 'phone' ? PhoneAccountForm : StateLayout;
   // Pickers and directory/recovery states keep their authored centred composition.
-  const EntryLayout = ['profiles', 'profile-pin', 'servers', 'account-sign-out', 'tv'].includes(stage) ? StateLayout : FormLayout;
+  const EntryLayout = theme.isTV ? TVAuthLayout : ['profiles', 'profile-pin', 'servers', 'account-sign-out', 'tv'].includes(stage) ? StateLayout : FormLayout;
   const formStep = theme.platform === 'phone' && stage.startsWith('setup-')
     ? <Text style={[theme.type.captionStrong, {fontSize: 13.5 * theme.textScale, color: theme.colors.textSecondary}]}>{t('accounts.setup.title')}</Text> : undefined;
   const layout = (title: string, body?: string, before?: React.ReactNode, primary?: ReturnType<typeof action>, more?: React.ReactNode) => <EntryLayout testID="accounts-entry" title={title} body={body} kicker={formStep} beforeActions={<>{before}{status}</>} primaryAction={primary} secondaryAction={backAction} avoidKeyboard={stage === 'profile-pin'}>{more}</EntryLayout>;
@@ -946,7 +948,9 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       onDone={() => leave('servers')} onJoin={() => leave('invitation-entry')} onFind={() => leave('address')} onSignOut={() => leave('account-sign-out')}/>;
   }
   if (stage === 'welcome' && theme.isTV) return <TVFrontDoor busy={busy} error={status}
-    onPortico={() => {void run(portico);}} onLocal={() => {if (!busy) {setError(undefined); setStage('address');}}}/>;
+    onPortico={() => {void run(portico);}} onLocal={() => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) {
+      setAddress(''); setUsername(''); setPassword(''); setError(undefined); stageRef.current = 'address'; setStage('address');
+    }}}/>;
   const authOptions = account.current && preparedAuthSource.current === account.current ? options : undefined;
   const availableProviders = authOptions?.providers.filter(value => value.enabled
     && (NativeModules.PorticoAccountAuth.canOpenBrowser || value.id === 'apple' && value.native
@@ -979,15 +983,15 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const current = () => !!ticket?.active && nearbySource.current === ticket && lifetime.current && stageRef.current === 'address';
     return layout(t('accounts.signIn.local'), undefined, fields(field(t('accounts.signIn.address'), address, setAddress)), action('inspect', t('action.continue'), async () => {await inspect();}, !address.trim()),
       <View style={{alignSelf: 'stretch', gap: 10, marginTop: 18}}>
-        <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('playOn.onThisNetwork')}</Text>
-        {nearbyStatus === 'loading' && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('status.loading')}</Text>}
-        {nearbyStatus === 'failed' && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('connection.discovery.failed')}</Text>}
-        {nearbyStatus === 'ready' && nearby.length === 0 && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('connection.discovery.empty')}</Text>}
+        <Text style={[theme.isTV ? theme.type.accountHint : theme.type.caption, {color: theme.isTV ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{t('playOn.onThisNetwork')}</Text>
+        {nearbyStatus === 'loading' && <Text style={[theme.isTV ? theme.type.accountHint : theme.type.caption, {color: theme.isTV ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{t('status.loading')}</Text>}
+        {nearbyStatus === 'failed' && <Text accessibilityRole="alert" style={[theme.isTV ? theme.type.accountLede : theme.type.caption, {color: theme.colors.textSecondary}]}>{t('connection.discovery.failed')}</Text>}
+        {nearbyStatus === 'ready' && nearby.length === 0 && <Text style={[theme.isTV ? theme.type.accountLede : theme.type.caption, {color: theme.colors.textSecondary}]}>{t('connection.discovery.empty')}</Text>}
         {nearby.map(value => <View key={value.origin} style={{gap: 4}}><Button variant="glass" disabled={busy} onPress={() => {
           if (!current() || busyRef.current) return;
           setAddress(value.origin); void run(async () => {await inspect(value.origin);});
         }}>{value.server.name}{value.server.setupRequired ? ' · ' + t('accounts.setup.confirmAction') : ''}</Button>
-          <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{new URL(value.origin).host}</Text></View>)}
+          <Text style={[theme.isTV ? theme.type.accountHint : theme.type.caption, {color: theme.isTV ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{new URL(value.origin).host}</Text></View>)}
         {nearbyStatus !== 'loading' && <Button variant="link" disabled={busy} onPress={() => {
           if (!current() || busyRef.current) return; ticket!.active = false; setNearbyRefresh(value => value + 1);
         }}>{t('web.chooser.tryAgain')}</Button>}

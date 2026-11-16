@@ -18,7 +18,7 @@ export type ButtonProps = Omit<FocusableProps, 'children'> & {
   /** Optional drawn glyph color; labels continue to use textStyle. */
   iconColor?: string;
   iconOnly?: boolean;
-  /** Providing a loading state reserves its icon slot, keeping both label and width stable. */
+  /** TV draws a slot only for an icon or a running spinner; touch keeps its loading geometry. */
   loading?: boolean;
   textStyle?: StyleProp<TextStyle>;
   /** Lines the label may take before it is cut (default 1); the face grows to hold them. Larger text always wraps. */
@@ -47,9 +47,10 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
   const glyphSize = iconSize ?? geometry.icon;
   const recipe = glassRecipe();
   const white = variant === 'primary';
+  const tvDisabledPrimary = theme.isTV && white && disabled;
   const glass = variant === 'glass' || variant === 'icon' || variant === 'danger';
   const androidGlass = glass && recipe.nativeBlur && Platform.OS === 'android';
-  const foreground = white ? theme.colors.ink : variant === 'danger' ? theme.colors.record : variant === 'link' ? theme.colors.accentStrong : variant === 'text' ? theme.platform === 'web' ? theme.colors.textSecondary : theme.colors.accentStrong : theme.colors.text;
+  const foreground = tvDisabledPrimary ? theme.colors[buttonSpec.tvDisabledPrimary.foreground] : white ? theme.colors.ink : variant === 'danger' ? theme.colors.record : variant === 'link' ? theme.colors.accentStrong : variant === 'text' ? theme.platform === 'web' ? theme.colors.textSecondary : theme.colors.accentStrong : theme.colors.text;
   const glyphColor = iconColor ?? foreground;
   const labelStyle = [theme.type.button, styles.label, {fontSize: geometry.fontSize * theme.textScale, color: foreground}, textStyle];
   const labelId = props.testID ?? props.focusId;
@@ -69,17 +70,19 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
       const minimum = typeof resolved?.height === 'number' ? resolved.height : height;
       return [styles.button, {height, paddingHorizontal: iconOnly ? 0 : geometry.paddingX,
         width: iconOnly ? height : undefined, borderRadius: radius,
-        opacity: disabled ? buttonSpec.disabledOpacity : 1}, align === 'start' ? undefined : {alignSelf: align === 'center' ? 'center' : align === 'end' ? 'flex-end' : 'stretch'}, supplied,
+        opacity: disabled && !tvDisabledPrimary ? buttonSpec.disabledOpacity : 1},
+        theme.isTV && variant === 'link' ? {marginHorizontal: -geometry.paddingX} : undefined,
+        align === 'start' ? undefined : {alignSelf: align === 'center' ? 'center' : align === 'end' ? 'flex-end' : 'stretch'}, supplied,
         fluid ? {height: undefined, minHeight: Math.max(minimum, typeof resolved?.minHeight === 'number' ? resolved.minHeight : 0), paddingVertical: resolved?.paddingVertical ?? 4} : undefined,
         androidGlass ? styles.androidHost : undefined];
     }}>
     {state => {
       const suppliedStyle = StyleSheet.flatten(typeof style === 'function' ? style(state) : style);
-      const fillStyle = [StyleSheet.absoluteFill, {backgroundColor: white ? state.hovered && !blocked ? theme.colors.white : theme.colors.text : glass ? colorAlpha(theme.colors.text, state.focused && theme.isTV ? buttonSpec.glass.focusedTvAlpha : state.hovered && !blocked ? buttonSpec.glass.hoverAlpha : buttonSpec.glass.alpha) : 'transparent'}];
+      const fillStyle = [StyleSheet.absoluteFill, {backgroundColor: tvDisabledPrimary ? colorAlpha(theme.colors[buttonSpec.tvDisabledPrimary.background], buttonSpec.tvDisabledPrimary.backgroundAlpha ?? 1) : white ? state.hovered && !blocked ? theme.colors.white : theme.colors.text : glass ? colorAlpha(theme.colors.text, state.focused && theme.isTV ? buttonSpec.glass.focusedTvAlpha : state.hovered && !blocked ? buttonSpec.glass.hoverAlpha : buttonSpec.glass.alpha) : 'transparent'}];
       if (typeof __DEV__ !== 'undefined' && __DEV__) fillObservation.recordDeclaredStyle(StyleSheet.flatten(fillStyle));
       const fill = <View ref={fillObservation.ref} style={fillStyle} />;
       const content = <View pointerEvents="none" style={[styles.content, {gap: suppliedStyle?.columnGap ?? suppliedStyle?.gap ?? geometry.gap}]}>
-        {icon || loading !== undefined ? <View style={{width: glyphSize, height: glyphSize, alignItems: 'center', justifyContent: 'center'}}>
+        {icon || (theme.isTV ? loading : loading !== undefined) ? <View style={{width: glyphSize, height: glyphSize, alignItems: 'center', justifyContent: 'center'}}>
           {loading ? <ActivityIndicator size={glyphSize} color={glyphColor} /> : icon ? <Icon name={icon} size={glyphSize} color={glyphColor} /> : null}
         </View> : null}
         {/* A control's label is never cut (owner's rule): a one-line label that does not fit shrinks a little first ("Continue readi…", W4 F11). */}
