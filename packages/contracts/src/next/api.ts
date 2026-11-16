@@ -920,6 +920,12 @@ export interface DvrTuners {
   conflicts: DvrRecording[];
 }
 
+export interface EpisodeDisplay {
+  grouping: string;
+  numbering: string;
+  order: string;
+}
+
 export interface ApiError {
   code: string;
   message: string;
@@ -1229,6 +1235,7 @@ export interface Item {
   libraryId: string;
   chapter?: ItemChapter;
   entryId?: string;
+  episodeDisplay?: EpisodeDisplay;
   nextEpisode?: Item;
   originalTitle?: string;
   summary?: string;
@@ -4593,6 +4600,7 @@ export interface Routes {
   'POST /v1/admin/api-keys': {access: 'owner'; request: KeyCreate; response: KeyCreated};
   'DELETE /v1/admin/api-keys/{id}': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/home/rows/{id}': {access: 'withProfile'; request: undefined; response: HomeRow};
+  'PUT /v1/admin/items/{id}/episode-display': {access: 'owner'; request: EpisodeDisplay; response: EpisodeDisplay};
   'GET /v1/genres': {access: 'withProfile'; request: undefined; response: GenreList};
   'GET /v1/search': {access: 'withProfile'; request: undefined; response: SearchResults};
   'GET /v1/search/suggestions': {access: 'withProfile'; request: undefined; response: SearchSuggestions};

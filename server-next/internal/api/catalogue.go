@@ -47,6 +47,7 @@ func errCursorExpired() *Error {
 
 func (s *Server) catalogueRoutes() {
 	s.homeRowRoutes()
+	s.episodeDisplayRoutes()
 	s.searchRoutes()
 	Handle(s, "GET /v1/libraries", WithProfile, func(r *http.Request, _ None) (Libraries, error) {
 		libraries, err := s.db.Libraries(r.Context(), viewer(r))

@@ -3106,6 +3106,25 @@
         ],
         "type": "object"
       },
+      "EpisodeDisplay": {
+        "properties": {
+          "grouping": {
+            "type": "string"
+          },
+          "numbering": {
+            "type": "string"
+          },
+          "order": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "grouping",
+          "numbering",
+          "order"
+        ],
+        "type": "object"
+      },
       "Error": {
         "properties": {
           "code": {
@@ -4061,6 +4080,9 @@
           },
           "entryId": {
             "type": "string"
+          },
+          "episodeDisplay": {
+            "$ref": "#/components/schemas/EpisodeDisplay"
           },
           "externalIds": {
             "additionalProperties": {
@@ -16935,6 +16957,59 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeletionPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
+      }
+    },
+    "/v1/admin/items/{id}/episode-display": {
+      "put": {
+        "operationId": "put_v1_admin_items_id_episode_display",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EpisodeDisplay"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeDisplay"
                 }
               }
             },
