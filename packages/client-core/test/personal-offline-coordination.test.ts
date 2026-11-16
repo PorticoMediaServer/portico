@@ -7,11 +7,11 @@ import type {DownloadReceipt} from '../src/downloads.ts';
 import type {ReadingLocation} from '../src/reading.ts';
 import {refreshOfflineReadingProgressResponse, syncOfflineReadingObservationResponse} from '../src/reading-offline-coordination.ts';
 
-test('history clear keeps the captured revision, intent and cancellation and sends once', async () => {
+test('history clear uses the rebuilt route once with captured cancellation', async () => {
   const calls: unknown[][] = [], signal = new AbortController().signal;
   const held = new Promise<void>(() => {});
   assert.strictEqual(clearPersonalHistory({request: <T>(...args: unknown[]) => {calls.push(args); return held as Promise<T>;}}, 'held', 23, signal), held);
-  assert.deepEqual(calls, [['/v1/personal-history/actions', 'POST', {operationId: 'held', expectedRevision: 23, action: 'clear-history'}, signal]]);
+  assert.deepEqual(calls, [['/v1/history', 'DELETE', undefined, signal]]);
 });
 test('collection successor follows the collection page\'s order and cursor, skipping titles that cannot play', async () => {
   const calls: unknown[][] = [], signal = new AbortController().signal;
