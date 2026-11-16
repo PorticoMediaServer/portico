@@ -198,10 +198,11 @@ export async function probeRoute(origin:string,pin:ServerPin|undefined,options:{
   observeResponseClock(baseUrl,response,sentAt);
   const tlsLeaf=options.observedTLSLeaf?.(response);if(tlsLeaf!==undefined)routeBytes(tlsLeaf,32);
   const signed=envelope(await routeJSON(response,controller.signal,8192)),v=parseSignedJSON(signed);
-  if(Object.keys(v).some(k=>!['kind','version','baseUrl','nonce','serverId','publicKey','fingerprint',...(v.version==='2'?['tlsCertificateFingerprints']:[])].includes(k))||v.kind!=='portico.route-proof'||(v.version!=='1'&&v.version!=='2')||v.baseUrl!==baseUrl||v.nonce!==nonce||typeof v.serverId!=='string'||typeof v.publicKey!=='string'||typeof v.fingerprint!=='string')throw new RouteError('identity_mismatch','The server did not prove this connection.');
+  const certificateField=v.version==='1'?'certificates':'tlsCertificateFingerprints';
+  if(Object.keys(v).some(k=>!['kind','version','baseUrl','nonce','serverId','publicKey','fingerprint',certificateField].includes(k))||v.kind!=='portico.route-proof'||(v.version!=='1'&&v.version!=='2')||v.baseUrl!==baseUrl||v.nonce!==nonce||typeof v.serverId!=='string'||typeof v.publicKey!=='string'||typeof v.fingerprint!=='string')throw new RouteError('identity_mismatch','The server did not prove this connection.');
   let fingerprints:readonly string[]|undefined;
-  if(v.tlsCertificateFingerprints!==undefined){
-   const values=v.tlsCertificateFingerprints;
+  if(v[certificateField]!==undefined){
+   const values=v[certificateField];
    if(!Array.isArray(values)||values.length<1||values.length>8||new Set(values).size!==values.length)throw new RouteError('invalid_identity','Invalid TLS certificate binding.');
    for(const value of values)routeBytes(value,32);
    fingerprints=Object.freeze([...values] as string[]);
