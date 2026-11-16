@@ -21,7 +21,8 @@ import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {linkNativeAbortSignals} from '../../platform/abort-signals';
 import {captureNativeDownloadPaintCurrent} from './download-opening';
 
-type Version = Readonly<{sourceId: string; format: string; size: number; inventoryAvailable: boolean; policy: DownloadOptionsView}>;
+/** `unreadable`: why the server cannot open this version, in its words; such a version offers no download. */
+type Version = Readonly<{sourceId: string; format: string; size: number; inventoryAvailable: boolean; policy: DownloadOptionsView; unreadable?: string}>;
 type Opening = {current: () => boolean; paintCurrent: () => boolean; retire: () => void; dispose: () => void; pending: boolean; attempts: DownloadAttempts; lease: ReturnType<typeof createNativeDownloadsDevice>; versions: readonly Version[]; abort: AbortController; signal: AbortSignal};
 type Family = {retired: boolean; active?: Opening;
   /** Private: the exact context and request this family was constructed for. Reading them here
@@ -29,10 +30,10 @@ type Family = {retired: boolean; active?: Opening;
   binding: Readonly<{context: NativeShellBootstrapContext; request: NativeDownloadRequest}>};
 type State = Readonly<{opening?: Opening; versions?: readonly Version[]; policy?: DownloadOptionsView; busy?: string; error?: unknown}>;
 
-/** The versions this device can read once downloaded: the app only downloads a version it can read
- * (owner's ruling, 16 Nov), so a RAR, 7z or MOBI file is not offered until the server hands it over
- * as a CBZ or an EPUB. */
-const readableOffline = (format: string) => ['epub', 'pdf', 'cbz'].includes(format);
+/** The versions this device can read once downloaded (owner's ruling, 16 Nov: the app only downloads a
+ * version it can read). A MOBI or AZW3 arrives as the EPUB the server makes from it, and a CBR, a CB7
+ * or a folder of pictures as a CBZ. */
+const readableOffline = (format: string) => ['epub', 'pdf', 'cbz', 'mobi', 'azw3', 'cbr', 'cb7', 'images'].includes(format);
 
 /** The existing download sheet's original-publication branch: the book's versions, each with the
  * size of its original as the server's download choices give it; no media-quality ladder. */
@@ -80,10 +81,10 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
       await Promise.all(Array.from({length: Math.min(4, supported.length)}, async () => {
         while (next < supported.length) {
           const index = next++, version = supported[index]; if (!version || !current()) return;
-          const raw = await readDownloadOptions(context.api, itemId, {versionId: version.sourceId}, signal);
+          const [raw, book] = await Promise.all([readDownloadOptions(context.api, itemId, {versionId: version.sourceId}, signal), reader.book(itemId, version.sourceId, signal)]);
           if (!current()) return;
           const policy = parseDownloadOptions(raw, itemId);
-          rows[index] = Object.freeze({...version, size: policy.source.bytes, policy});
+          rows[index] = Object.freeze({...version, size: policy.source.bytes, policy, ...(book.unreadable ? {unreadable: book.unreadable.message} : {})});
         }
       }));
       if (!current()) return;
@@ -94,7 +95,7 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
   const close = (opening: Opening | undefined) => {if (!opening) {if (!family.retired && family.active === undefined && context.current()) closeNativeDownload(request); return;} if (family.active !== opening || !opening.current()) return; opening.retire(); closeNativeDownload(request);};
   const choose = async (opening: Opening, version: Version) => {
     const policy = version.policy;
-    if (!opening.current() || opening.pending || !opening.versions.includes(version) || !version.inventoryAvailable || !readableOffline(version.format) || !policy.policy.allowDownloads || !policy.source.available || !policy.options.some(value => value.quality === 'original' && value.available) || !Number.isSafeInteger(version.size) || version.size < 1 || version.size > 2 ** 31) return;
+    if (!opening.current() || opening.pending || !opening.versions.includes(version) || !version.inventoryAvailable || !readableOffline(version.format) || version.unreadable !== undefined || !policy.policy.allowDownloads || !policy.source.available || !policy.options.some(value => value.quality === 'original' && value.available) || !Number.isSafeInteger(version.size) || version.size < 1 || version.size > 2 ** 31) return;
     const device = opening.lease.device.getSnapshot();
     if (!device.ready || opening.lease.device.admission?.(version.size) || version.size > device.freeBytes || policy.storage.remainingBytes !== null && policy.storage.remainingBytes !== undefined && version.size > policy.storage.remainingBytes) return;
     opening.pending = true; setState(value => value.opening === opening && opening.current() ? {...value, busy: version.sourceId, error: undefined} : value);
@@ -128,7 +129,7 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
     // borrowed device; a stale opening's lease is already released.
     if (!opened || !opened.current()) return false;
     const policy = version.policy, device = opened.lease.device.getSnapshot();
-    return device.ready && !!policy && version.inventoryAvailable && policy.policy.allowDownloads && policy.source.available
+    return device.ready && !!policy && version.inventoryAvailable && version.unreadable === undefined && policy.policy.allowDownloads && policy.source.available
       && policy.options.some(value => value.quality === 'original' && value.available) && Number.isSafeInteger(version.size) && version.size > 0 && version.size <= 2 ** 31 && !shown.busy
       && !opened.lease.device.admission?.(version.size) && version.size <= device.freeBytes
       && (policy.storage.remainingBytes === undefined || policy.storage.remainingBytes === null || version.size <= policy.storage.remainingBytes);
@@ -183,15 +184,18 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
           </View> : null}
           {side
             ? <><Text style={[browseType(theme, 16, 800), {color: theme.colors.text, flex: 1}]}>{version.format.toUpperCase()}</Text>
-                <Text style={[browseType(theme, 14.5, 700), {color: theme.colors.textSecondary}]}>{downloadBytes(version.size)}</Text></>
+                {version.unreadable === undefined ? <Text style={[browseType(theme, 14.5, 700), {color: theme.colors.textSecondary}]}>{downloadBytes(version.size)}</Text> : null}</>
             : <><View style={{width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', borderWidth: 2,
                 borderColor: selectedVersionId ? theme.colors.accentStrong : theme.colors.lineStrong}}>
                 {selectedVersionId ? <View style={{width: 10, height: 10, borderRadius: 5, backgroundColor: theme.colors.accentStrong}}/> : null}
               </View>
                 <Text style={[browseType(theme, 15, 700), {color: theme.colors.text, flex: 1}]}>{version.format.toUpperCase()}</Text>
-                <Text style={[browseType(theme, 13, 700), {color: theme.colors.textSecondary}]}>{downloadBytes(version.size)}</Text></>}
+                {version.unreadable === undefined ? <Text style={[browseType(theme, 13, 700), {color: theme.colors.textSecondary}]}>{downloadBytes(version.size)}</Text> : null}</>}
         </Focusable>;
       })}
+      {/* A version the server cannot open says why, in full, and offers no download (10-reading rule 4). */}
+      {versions.filter(version => version.unreadable !== undefined).map(version => <Text key={'why-' + version.sourceId}
+        style={[theme.type.body, {color: theme.colors.textSecondary}]}>{`${version.format.toUpperCase()}: ${version.unreadable}`}</Text>)}
       {freeBytes !== undefined && <Text style={side ? [browseType(theme, 13.5, 400), {color: theme.colors.textTertiary, marginTop: 6}] : [theme.type.caption, {color: theme.colors.textTertiary}]}>{t(theme.platform === 'phone' ? 'next.saved.phone.free' : 'downloads.freeOnDevice', {size: downloadBytes(freeBytes)})}</Text>}
       {side
         ? <View style={{marginTop: 'auto', gap: 10}}>
