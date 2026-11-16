@@ -32,14 +32,11 @@ import {browserServerDisplay} from './server-display';
 import {BrowserProfileRecovery} from './profile-recovery';
 import {dispatchPorticoReturn, type CapturedPorticoReturn} from './portico-return-dispatch';
 import {createBrowserOwnerClaim, type BrowserOwnerClaim} from './owner-claim';
-import {createBrowserSetupReturn, type BrowserSetupReturn} from './setup-return';
 import type {PorticoServerAccess} from './portico-server-access';
 import {CapturedAccountIdentityFailure, type AccountIdentityFailureBinding} from './account-identity-failure';
 
 type InvitationCapability=Readonly<{code:string}|{shortCode:string}>;
 type OwnerReturnController=Pick<BrowserOwnerClaim,'pendingReturn'|'finish'|'cancel'>;
-type SetupReturnController=Pick<BrowserSetupReturn,'pendingReturn'|'finish'|'cancel'>;
-type ContinuationReturnController=OwnerReturnController|SetupReturnController;
 type AdmittedCompletion=Readonly<{api:HttpLocalApi;result:Extract<DirectSignIn,{kind:'signed-in'}>}>;
 /** The owner's reset in progress: the username typed when the file was asked for. The code is held privately and
  * proved only when the new password is set (`POST /v1/auth/owner-reset/confirm`). */
@@ -73,7 +70,6 @@ type EntryPorts = Readonly<{
  invitationDestination?:'adopt'|'server-origin';
  observeSelection?:(changed:()=>void)=>()=>void;
  ownerReturn?:()=>OwnerReturnController;
- setupReturn?:()=>SetupReturnController;
  setupRequired?:(origin:string,pin:ServerPin)=>void;
  rememberName?:(api:HttpLocalApi,name:string)=>void;
  serverName?:(serverId:string)=>string|undefined;
@@ -89,7 +85,7 @@ export class BrowserAccountEntry {
  private readonly retiredListeners=new Set<()=>void>();private offSelection?:()=>void;
  private epoch=0;private controller?:AbortController;private api?:HttpLocalApi;private session?:LocalSession;
  private challenge?:Extract<DirectSignIn,{kind:'challenge'}>;private challengeRevision?:number;private disposed=false;
- private ownerReturn?:ContinuationReturnController;
+ private ownerReturn?:OwnerReturnController;
  private invitationCapability?:InvitationCapability;private joinedAccountId?:string;private joinedUsername?:string;
  private ownerResetCode?:string;
  private moveProof?:Readonly<{code:string;revision:number;preview:MoveCodePreview}>;
@@ -652,7 +648,7 @@ export class BrowserAccountEntry {
    current.session.viewer.serverId===session.viewer.serverId&&current.session.viewer.authority===session.viewer.authority&&current.session.viewer.accountId===session.viewer.accountId?undefined:current);}
   finally{try{await this.retire(api,session);}finally{api.getRouteConnection()?.dispose();}}
  }
- private async admittedCompletion({api,result}:AdmittedCompletion,op:ReturnType<BrowserAccountEntry['operation']>,initialSetup=false){
+ private async admittedCompletion({api,result}:AdmittedCompletion,op:ReturnType<BrowserAccountEntry['operation']>){
   if(!op.current()){await this.discardReturn(api,result.session);return;}
   const pin=api.getRouteConnection()?.pin;this.api=api;
   if(!pin)throw new CodedError('invalid_return',unreadableServerResponse);
@@ -661,20 +657,7 @@ export class BrowserAccountEntry {
   if(selected?.signIn!=='portico'||!sameServerPin(selected.connection.pin,pin)||!saved||saved.sessionFamilyId!==result.session.sessionFamilyId||
     result.snapshot.serverId!==pin.serverId||result.snapshot.account.id!==saved.viewer.accountId||(['serverId','authority','accountId','profileId','role'] as const).some(key=>saved.viewer[key]!==result.session.viewer[key])){await this.discardReturn(api,result.session);throw new CodedError('cancelled','The server selection changed.');}
   this.api=api;this.session=result.session;
-  try{
-   await this.restoreProfiles({pin,session:result.session,initialSetup});
-   // The fresh setup writer may issue its single, unprotected main-profile
-   // owner directly. Do not choose a profile or promote an account-only grant.
-   const state=this.state;
-   if(initialSetup&&!this.disposed&&state.phase==='profiles'&&!state.busy&&!state.error&&this.session?.sessionFamilyId===result.session.sessionFamilyId&&
-     this.session.viewer.role==='owner'&&!result.accountScoped&&state.snapshot?.profiles.length===1&&!state.snapshot.profiles[0]!.pinRequired&&
-     state.snapshot.profiles[0]!.id===this.session.viewer.profileId&&!state.snapshot.twoStepSetupRequired){
-    this.publish({...state,phase:'ready',setupCompleted:true,setupPending:undefined});
-   }
-  }finally{
-   // Decided or failed, the page is never left waiting on a setup decision.
-   if(!this.disposed&&this.state.setupPending)this.publish({...this.state,setupPending:undefined});
-  }
+  await this.restoreProfiles({pin,session:result.session});
  }
  /** On a Portico Accounts server's own page, signing in goes on at web.getportico.tv
   * (`portico-handoff.ts`), with the invitation being joined. */
@@ -723,26 +706,17 @@ export class BrowserAccountEntry {
   // Cancel prior entry work BEFORE selecting an owner journal. Calling cancel
   // between pendingReturn and finish would delete that very captured attempt.
   this.cancel();const op=this.operation();this.publish({phase:'checking',busy:true});
-  let owner:ContinuationReturnController|undefined;
+  let owner:OwnerReturnController|undefined;
   try{
-   // Only the protected journal selects a continuation. An ambiguous pair of
-   // active journals refuses without consuming either one; URL purpose cannot
-   // choose setup or confer owner-switch authority.
-   const choices:{controller:ContinuationReturnController;pending:NonNullable<Awaited<ReturnType<ContinuationReturnController['pendingReturn']>>>}[]=[];
-   for(const create of [this.ports.setupReturn,this.ports.ownerReturn]){
-    if(!create)continue;
-    const controller=create(),pending=await controller.pendingReturn();
-    if(!op.current()){await controller.cancel();return;}
-    if(pending)choices.push({controller,pending});
-   }
-   if(choices.length>1)throw new CodedError('invalid_return',unreadableServerResponse);
-   if(choices.length===1){
-    const choice=choices[0]!;owner=choice.controller;this.ownerReturn=owner;
-    dispatchPorticoReturn(captured,choice.pending);
-    this.stopAuthorityWatch();
-    await this.admittedCompletion(await owner.finish(captured),op,choice.pending.kind==='setup');return;
-   }
-   throw new CodedError('invalid_return',unreadableServerResponse);
+   // Only the protected owner journal selects this continuation.
+   owner=this.ports.ownerReturn?.();
+   const pending=await owner?.pendingReturn();
+   if(!op.current()){await owner?.cancel();return;}
+   if(!owner||!pending)throw new CodedError('invalid_return',unreadableServerResponse);
+   dispatchPorticoReturn(captured,pending);
+   this.ownerReturn=owner;
+   this.stopAuthorityWatch();
+   await this.admittedCompletion(await owner.finish(captured),op);
   }catch(error){if(op.current()){
    // The domain preserves a legitimate journal for malformed/mixed callbacks;
    // a valid owner's one-shot exchange is terminal on failure. Do not turn a
@@ -777,7 +751,7 @@ export class BrowserAccountEntry {
  serverIdentityFailure(chooseServer:()=>void,afterForget?:()=>void):AccountIdentityFailureBinding|undefined{
   return this.identityFailure?.isCurrent()?this.identityFailure.binding(chooseServer,afterForget):undefined;
  }
- private async restoreProfiles(expected?:Readonly<{pin:ServerPin;session:LocalSession;signIn?:SignInKind;initialSetup?:boolean}>){
+ private async restoreProfiles(expected?:Readonly<{pin:ServerPin;session:LocalSession;signIn?:SignInKind}>){
   this.cancel();const op=this.operation();this.publish({phase:'profiles',busy:true});
   let saved:AppServerSession|undefined,revision=0;
   try{
@@ -796,7 +770,7 @@ export class BrowserAccountEntry {
    if(!op.current())return;if(server.id!==entry.connection.pin.serverId||server.signIn!==entry.signIn)throw new Error('The server sign-in changed.');
    if(expected&&!matches(await this.ports.store.selected()))throw new CodedError('cancelled','The server selection changed.');
    if(!op.current())return;
-   this.publish({phase:snapshot.twoStepSetupRequired?'two-step-setup':'profiles',server,origin:restored.api.baseUrl,pin:entry.connection.pin,snapshot,busy:false,...(expected?.initialSetup?{setupPending:true as const}:{})});
+   this.publish({phase:snapshot.twoStepSetupRequired?'two-step-setup':'profiles',server,origin:restored.api.baseUrl,pin:entry.connection.pin,snapshot,busy:false});
    this.watchAuthority();
   }catch(error){if(op.current()){
    this.release();
@@ -864,4 +838,13 @@ export class BrowserAccountEntry {
 
  dispose(){this.cancel();this.disposed=true;this.probe.dispose();this.listeners.clear();this.retiredListeners.clear();}
 }
-export function createBrowserAccountEntry(options:Pick<EntryPorts,'invitationDestination'>={}){return new BrowserAccountEntry({store:browserAppSessions(),actions:browserAppSessionActions(),environment:browserConnectionEnvironment,restore:restoreBrowserConnection,inspect:inspectDirectServer,connect:connectPairedServer,remember:rememberNativeSession,observeSelection:observeBrowserSessionChanges,ownerReturn:createBrowserOwnerClaim,setupReturn:createBrowserSetupReturn,setupRequired:(origin)=>location.assign(new URL('/setup',origin).href),rememberName:(api,name)=>browserServerDisplay().remember(api,name),serverName:id=>browserServerDisplay().name(id),servedOrigin:currentServedServerOrigin,...options});}
+export function createBrowserAccountEntry(options:Pick<EntryPorts,'invitationDestination'>={}){
+ return new BrowserAccountEntry({
+  store:browserAppSessions(),actions:browserAppSessionActions(),environment:browserConnectionEnvironment,
+  restore:restoreBrowserConnection,inspect:inspectDirectServer,connect:connectPairedServer,remember:rememberNativeSession,
+  observeSelection:observeBrowserSessionChanges,ownerReturn:createBrowserOwnerClaim,
+  setupRequired:(origin)=>location.assign(new URL('/setup',origin).href),
+  rememberName:(api,name)=>browserServerDisplay().remember(api,name),
+  serverName:id=>browserServerDisplay().name(id),servedOrigin:currentServedServerOrigin,...options,
+ });
+}

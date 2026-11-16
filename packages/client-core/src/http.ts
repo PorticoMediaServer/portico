@@ -6,7 +6,6 @@ import {linkAbortSignals, throwIfAborted} from './abort-lifetime.ts';
 import {resendableRefusal, retryWriterCapacity} from './writer-capacity.ts';
 import {parseRetryAfter, retryAfterFrom} from './timer.ts';
 import type {MusicTechnicalFacts} from './music-facts.ts';
-import {routeBody} from "../../contracts/src/routes.ts";
 import {ReadingClient, type ReadingScope} from './reading.ts';
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath as hostedRoutePath} from "../../contracts/src/hosted/routes.ts";
@@ -25,8 +24,6 @@ import {normalizeTransportClass, transportClassHeader, deviceClassHeader, delive
 import {readConsoleJson, consoleUTF8Size} from './console-transport.ts';
 import {readLyricsResponse} from "./lyrics-http.ts";
 import {readBoundedJson} from './bounded-json.ts';
-import {parseLocalSession} from './local-session.ts';
-import {setupResultBody} from './setup-result.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {parseLibraryList} from './library-list.ts';
 import {installationHeaders, issuesCredentials, provesIdentity} from './installation.ts';
@@ -837,15 +834,6 @@ export class HttpLocalApi {
   }
   system() {
     return this.request<SystemInfo>(routePath("get_system"));
-  }
-  setup(setupToken: string, username: string, password: string, name: string) {
-    return this.request<RouteResponse<"setup_server">>(routePath("setup_server"), "POST", routeBody("setup_server", {
-      setupToken,
-      authMode: "local",
-      username,
-      password,
-      name,
-    })).then(value=>{const {tag,body}=setupResultBody(value);if(tag!=='session')throw new Error(unreadableServerResponse);return parseLocalSession(body,{authority:'local'});});
   }
   /** Signs this device out on the server (`DELETE /v1/auth/session`). Safe to repeat. */
   logout() {

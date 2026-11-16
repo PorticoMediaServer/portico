@@ -40,10 +40,3 @@ for (const transactionId of ['x'.repeat(129), 'with space', 'has/slash', 'line\n
     assert.throws(() => dispatchPorticoReturn(capture('#transaction=' + encodeURIComponent(transactionId)), {kind: 'owner', transactionId}), {code: 'invalid_return'});
   });
 }
-
-test('setup is a distinct protected kind and never inferred from callback fields',()=>{
- const value=capture('#transaction=actual-setup');
- assert.equal(dispatchPorticoReturn(value,{kind:'setup',transactionId:'actual-setup'}).kind,'setup');
- assert.throws(()=>dispatchPorticoReturn(value,{kind:'owner',transactionId:'other-owner'}),{code:'invalid_return'});
- assert.throws(()=>dispatchPorticoReturn(capture('#transaction=actual-setup&purpose=setup'),{kind:'setup',transactionId:'actual-setup'}),{code:'invalid_return'});
-});
