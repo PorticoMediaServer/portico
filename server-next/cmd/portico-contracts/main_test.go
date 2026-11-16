@@ -7,7 +7,8 @@ import (
 	"testing"
 )
 
-// The merge desk checks the generated files after regenerating a batch of API changes.
+// CI sets CONTRACTS_CHECK=1 (merge.yml, server_next): a change to a route or a shape fails unless
+// the generated files are committed with it. Locally the check runs only when asked.
 func TestContractsAreCurrent(t *testing.T) {
 	if os.Getenv("CONTRACTS_CHECK") != "1" {
 		t.Skip("set CONTRACTS_CHECK=1 to check generated contracts")
