@@ -16,25 +16,26 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
 const runtime = {text: {t}, reportError: (error: unknown) => {throw error;}, error: () => ({title: 'Error'})};
 const chrome = {'./NetworkInterfaceRow': {NativeNetworkInterfaceRow: 'NetworkInterfaceRow'}, 'react-native': {ScrollView: 'ScrollView', View: 'View', Text: 'Text'}, './RefusedAddresses': {NativeRefusedAddresses: 'NativeRefusedAddresses'}, './SecuritySummary': {NativeSecuritySummary: 'NativeSecuritySummary'}, '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'}, './page-layout': {settingsPageInset: () => ({}), settingsPageHeading: () => ({})}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/theme': {useTheme: () => theme}, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/controls': {Button: 'Button', Select: 'Select', Switch: 'Switch', TextField: 'TextField'}, './AdvancedSection': {NativeAdvancedSection: 'Advanced'}, './SettingControl': {NativeSettingControl: 'Setting'}, './settings-values': values};
 
-test('Storage custom limits open an exact-value editor and a rejected edit never changes the draft', async () => {
-  const fixture = await formsFixture({runtime: {analysisStorageGiB: 40, playHistoryDays: 0, jobDays: 7, diagnosticDays: 7}, maintenance: maintenance(), logs: {retention: []}}, {maintenance: {storageCategories: [], retentionMaxima: {}}}), host = hooks();
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/LimitsTab.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../../../../packages/i18n/src': {defaultI18n: i18n},
-    '../../../../kit/controls': {Button: 'Button', Select: 'Select', TextField: 'TextField'}, '../../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme}, '../SettingControl': {NativeSettingControl: 'Setting'}, '../settings-values': values, './space-source': {nativeStorageOwner: (context: any) => context.current()}, './forms': fixture.hooks,
+test('Storage keeping reads only notices and saves their revision, with Messages as its remaining link', async () => {
+  const storage = await import('../../../packages/client-core/src/server-admin/server-storage.ts'), host = lifecycleHooks(), reads: string[] = [], writes: any[] = [], opened: string[] = [];
+  const api = {request: async (path: string) => {reads.push(path);return {etag: '"4"', values: {keepDays: 30}};}, requestRaw: async (path: string, method: string, options: unknown) => {writes.push({path, method, options});return {status: 200, headers: {}, body: {}};}};
+  const lifetime = {current: () => true};
+  const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/KeepRows.tsx', import.meta.url), {
+    react: host.react, 'react-native': {Text: 'Text', View: 'View'},
+    '../../../../../../../packages/client-core/src/server-admin/server-storage': storage,
+    '../../../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (value: unknown) => value},
+    '../../../../../../../packages/client-core/src/presentation/settings-spec': specification,
+    '../../../../kit/controls': {Select: 'Select'}, '../../../../kit/shell': {SettingsRow: 'SettingsRow'},
+    '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme},
+    '../../lifetime': {screenScopeEnded: () => new Error('ended')}, '../../use-settings-request-scope': {useSettingsRequestScope: () => ({api, lifetime})},
   });
-  const opened: string[] = [];
-  const render = () => host.render(() => module.LimitsTab({group: fixture.group, t, onOpenPage: (page: string) => opened.push(page)})), find = (id: string) => nodes(render()).find((node: any) => node.props.testID === id);
-  assert.equal(find('storage.analysisSpace').props.value, 'custom');assert.ok(find('storage.analysisSpace').props.options.some((option: any) => option.value === 'custom-edit'));
-  find('storage.analysisSpace').props.onValueChange('custom-edit');
-  const field = () => nodes(render()).find((node: any) => node.type === 'TextField');field().props.onChangeText('0');
-  const save = () => nodes(find('server-storage-number').props.footer).find((node: any) => node.type === 'Button' && content(node) === 'action.save');
-  assert.equal(save().props.disabled, true);save().props.onPress();assert.equal(fixture.group.forms.runtime.getSnapshot().draft.analysisStorageGiB, 40);
-  field().props.onChangeText('48');assert.equal(save().props.disabled, false);save().props.onPress();assert.equal(fixture.group.forms.runtime.getSnapshot().draft.analysisStorageGiB, 48);
-  // Keep play history is gone (kept indefinitely, owner 16 Nov); the logs link remains.
-  const links = nodes(render()).filter((node: any) => node.type === 'Button' && content(node) === 'next.settingsSpec.server.storage.advanced.groups.0.rows.2.control.label');
-  assert.equal(links.length, 1); links.forEach((node: any) => node.props.onPress()); assert.deepEqual(opened, ['troubleshooting']);
-  assert.ok(!nodes(render()).some((node: any) => node.props.row?.id === 'troubleshooting.keepLogs'));
-  fixture.stop();
+  const render = () => host.render(() => module.StorageKeepRows({context: {api}, t, onOpenPage: (page: string) => opened.push(page)}));
+  render();host.flush();await settle();
+  const rows = nodes(render()).filter((node: any) => node.type === 'SettingsRow');
+  assert.equal(rows.length, 2); rows.find((node: any) => node.props.navigates).props.onPress();assert.deepEqual(opened, ['troubleshooting']);
+  rows.find((node: any) => node.props.control).props.control.props.onValueChange('90');await settle();
+  assert.deepEqual(writes.map(({path, method, options}) => [path, method, options.headers, options.body]), [['/v1/admin/settings/notices', 'PUT', {'If-Match': '"4"'}, {keepDays: 90}]]);
+  assert.ok(reads.length >= 1 && reads.every(path => path === '/v1/admin/settings/notices'));host.dispose();
 });
 
 // Storage › Backups on the rebuilt server (ServerBackupSource, as the web's Backups.tsx).

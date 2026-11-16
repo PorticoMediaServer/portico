@@ -8,8 +8,8 @@ const panelLogic = await screenModule(new URL('../../../packages/client-core/src
   react: {default: {}}, '../../../contracts/src/routes.ts': {routePath: (id: string) => id}, '../../../contracts/src/route-paths.ts': {routePath: (id: string) => id}, '../freshness-actions.ts': {ALREADY_DONE: Symbol('already-done')}, '../query/server-api.ts': serverApi,
 });
 const ownerGuard = await screenModule(new URL('../src-next/screens/settings-live/server/storage/space-source.ts', import.meta.url), {
-  react: {default: {}}, '../../../../../../../packages/contracts/src/decoders': {decodeGetAdminStorageUsageResponse: assert.fail, decodeGetDataStorageUsageResponse: assert.fail},
-  '../../../../../../../packages/contracts/src/routes': {routePath: assert.fail}, '../../lifetime': {NativeScreenLifetime: class {constructor() {assert.fail('unused source');}}, screenScopeEnded: assert.fail},
+  react: {default: {}}, '../../../../../../../packages/client-core/src/server-admin/server-storage': {readServerStorage: assert.fail},
+  '../../lifetime': {NativeScreenLifetime: class {constructor() {assert.fail('unused source');}}, screenScopeEnded: assert.fail},
 });
 const settle = () => new Promise(resolve => setImmediate(resolve));
 function deferred() {let resolve!: (value?: unknown) => void, reject!: (error: unknown) => void;const promise = new Promise((yes, no) => {resolve = yes;reject = no;});return {promise, resolve, reject};}
