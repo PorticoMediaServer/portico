@@ -1,30 +1,23 @@
 import {throwIfAborted} from './abort-lifetime.ts';
-import {routePath} from '../../contracts/src/route-paths.ts';
+import {serverPath} from './query/server-api.ts';
 import type {InboxApi} from './inbox.ts';
-import {parseNotificationBatchResult, parseNotificationInbox, parseNotificationSummary, parseNotificationVocabulary, type NotificationVocabulary} from './notifications.ts';
 import {consoleUTF8Size} from './console-transport.ts';
 
 export type NotificationScopeLifetime = Readonly<{
  serverId: string;
  signal: AbortSignal;
  isCurrent: () => boolean;
- /** Retires the original consumer on a changed envelope or lost authority. */
+ /** Retires the original consumer after a definite access refusal. */
  onRetired?: () => void;
 }>;
 export type ScopedNotifications = InboxApi & Readonly<{
- vocabulary(signal?: AbortSignal): Promise<NotificationVocabulary>;
  dispose(): void;
 }>;
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const invalid = () => Object.assign(new Error('Invalid notification document.'), {code: 'invalid_document'});
 const ended = () => Object.assign(new Error('Notification scope retired.'), {name: 'AbortError'});
-const audience = (value: unknown): value is string => value === 'profile' || value === 'account-admin' || value === 'all';
 
-/** One original API/server/viewer lifetime for the existing notification routes.
- * An envelope's viewer fence is checked for shape only and never compared with
- * another read's: a fence is the server's, and the server re-authorizes every
- * request (CLIENT-DATA-REVIEW §4.4). A refused credential or another server
- * retires the scope; who the viewer is, and their role, is the shell's to follow. */
+/** Keep notice requests inside the captured shell lifetime; the notice service decodes replies. */
 export function createNotificationScope(api: InboxApi, lifetime: NotificationScopeLifetime): ScopedNotifications {
  const serverId = lifetime.serverId, signal = lifetime.signal, current = lifetime.isCurrent, onRetired = lifetime.onRetired;
  if (typeof serverId !== 'string' || !serverId || serverId.length > 160 || /[\u0000-\u001f\u007f-\u009f]/u.test(serverId)) throw invalid();
@@ -52,27 +45,21 @@ export function createNotificationScope(api: InboxApi, lifetime: NotificationSco
   if (typeof path !== 'string' || path.length > 8192) throw invalid();
   const split = path.indexOf('?'), route = split < 0 ? path : path.slice(0, split);
   const query = new URLSearchParams(split < 0 ? '' : path.slice(split + 1));
-  const inbox = route === routePath('get_notifications_inbox'), unread = route === routePath('get_notifications_unread_count');
-  const vocabulary = route === routePath('get_notifications_capabilities'), action = route === routePath('post_notifications_inbox_actions');
-  if ((!inbox && !unread && !vocabulary && !action) || method !== (action ? 'POST' : 'GET') || path.includes('#')) throw invalid();
-  for (const [key] of query) {
-   if (query.getAll(key).length !== 1 || !(inbox ? ['audience', 'state', 'cursor', 'limit'] : unread ? ['audience'] : []).includes(key)) throw invalid();
-  }
-  let capturedBody: unknown, requestedAudience: string | undefined;
-  if (action) {
+  const inbox = route === serverPath('GET /v1/notifications');
+  const readAll = route === serverPath('POST /v1/notifications/read-all');
+  const prefix = serverPath('GET /v1/notifications') + '/';
+  const change = route.startsWith(prefix) && /^[A-Za-z0-9_-]+$/.test(route.slice(prefix.length)) && !readAll;
+  if (path.includes('#') || !(inbox && method === 'GET' || readAll && method === 'POST' || change && method === 'PATCH')) throw invalid();
+  for (const [key] of query) if (!inbox || !['view', 'cursor', 'limit'].includes(key) || query.getAll(key).length !== 1) throw invalid();
+  if (query.has('view') && !['unread', 'all', 'archived'].includes(query.get('view')!)) throw invalid();
+  let capturedBody: unknown;
+  if (change) {
    let encoded: string | undefined;
    try {encoded = JSON.stringify(body);} catch {throw invalid();}
    if (!encoded || consoleUTF8Size(encoded) > 65536) throw invalid();
-   capturedBody = JSON.parse(encoded) as unknown;
-   if (!object(capturedBody) || !audience(capturedBody.audience)) throw invalid();
-   requestedAudience = capturedBody.audience;
-  } else {
-   if (body !== undefined) throw invalid();
-   if (inbox || unread) {
-    requestedAudience = query.get('audience') ?? 'profile';
-    if (!audience(requestedAudience)) throw invalid();
-   }
-  }
+   capturedBody = JSON.parse(encoded);
+   if (!object(capturedBody) || !Object.keys(capturedBody).length || Object.entries(capturedBody).some(([key, value]) => !['read', 'archived'].includes(key) || typeof value !== 'boolean')) throw invalid();
+  } else if (body !== undefined) throw invalid();
   const owned = new AbortController(), abort = () => owned.abort();
   const signals = [signal, ...(callerSignal ? [callerSignal] : [])];
   for (const parent of signals) {parent.addEventListener('abort', abort, {once: true});if (parent.aborted) abort();}
@@ -86,40 +73,11 @@ export function createNotificationScope(api: InboxApi, lifetime: NotificationSco
     throw error;
    }
    check();throwIfAborted(owned.signal);
-   if (!object(raw) || !object(raw.scope) || !object(raw.data)) throw invalid();
-   const scope = raw.scope;
-   if (scope.serverId !== serverId) throw retire();
-   if (typeof scope.viewerFence !== 'string' || !/^[a-f0-9]{64}$/.test(scope.viewerFence)) throw invalid();
-   if (requestedAudience !== undefined && raw.data.audience !== requestedAudience) throw invalid();
-   // Keep each canonical parser's tolerant-item/strict-document policy, then
-   // return the original envelope for the service's normal adoption.
-   try {
-    if(inbox)parseNotificationInbox(raw.data);
-    else if(unread)parseNotificationSummary(raw.data);
-    else if(action)parseNotificationBatchResult(raw.data);
-    else parseNotificationVocabulary(raw.data);
-   } catch (error) {
-    check();throwIfAborted(owned.signal);
-    // Only the canonical parsers' shared validation refusal is a definite
-    // document error. Transport, authority, cancellation and programmer errors
-    // never acquire this classification or admit the envelope's fence.
-    if(error instanceof Error && error.constructor===Error && error.message==='Invalid notification response.') throw invalid();
-    throw error;
-   }
-   check();throwIfAborted(owned.signal);
    return raw as T;
   } finally {
    for (const parent of signals) parent.removeEventListener('abort', abort);
    requests.delete(owned);
   }
  };
- return Object.freeze({request, dispose,
-  vocabulary: async (callerSignal?: AbortSignal) => {
-   const raw = await request<unknown>(routePath('get_notifications_capabilities'), 'GET', undefined, callerSignal);
-   check();throwIfAborted(callerSignal);
-   if (!object(raw)) throw invalid();
-   const value = parseNotificationVocabulary(raw.data);
-   check();throwIfAborted(callerSignal);return value;
-  },
- });
+ return Object.freeze({request, dispose});
 }
