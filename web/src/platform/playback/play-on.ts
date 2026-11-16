@@ -111,6 +111,7 @@ export class PlayOnController {
   private state: PlayOnSnapshot;
   private serial = 0;
   private sequence = 0;
+  private receiverGeneration = 0;
   private attempt?: {id: string; serial: number; source: WebPlaybackPresentation; choices: CastChoices; handedOff: boolean};
   private expiry?: unknown;
   private terminalAt?: number;
@@ -139,8 +140,11 @@ export class PlayOnController {
     if (!this.current()) return;
     const r = this.options.receivers?.getSnapshot().remote, previous = this.state.remote;
     if (previous && previous.kind !== 'portico') return;
-    if (!r) {if (previous) {this.clearExpiry(); this.publish({remote: undefined});} return;}
-    const remote: CastRemoteView = Object.freeze({id: 'portico:' + r.sessionId, sequence: ++this.sequence, kind: 'portico' as const,
+    if (!r) {if (previous) {this.receiverGeneration++; this.clearExpiry(); this.publish({remote: undefined});} return;}
+    const id = 'portico:' + r.sessionId, phase = r.stopped ? 'stopped' as const : 'playing' as const;
+    const sameTarget = previous?.id === id && previous.itemId === r.itemId && previous.phase === phase;
+    if (!sameTarget) this.receiverGeneration++;
+    const remote: CastRemoteView = Object.freeze({id, sequence: ++this.sequence, kind: 'portico' as const,
       phase: r.stopped ? 'stopped' as const : 'playing' as const, confirmed: true, ...(r.itemId ? {itemId: r.itemId} : {}), ...(r.title ? {title: r.title} : {}),
       deviceName: r.deviceName, positionKnown: r.positionKnown, positionSeconds: r.positionSeconds, durationSeconds: r.durationSeconds, paused: r.paused,
       ...(r.next ? {next: r.next} : {}), ...(r.tracks ? {tracks: r.tracks} : {}), ...(r.problem ? {problem: r.problem} : {})});
@@ -344,13 +348,17 @@ export class PlayOnController {
   async playHere(token: CastRemoteToken): Promise<void> {
     const remote = this.requireRemote(token);
     if (!remote || !this.portico(remote) || remote.phase !== 'playing' || !remote.positionKnown || !remote.itemId) return;
-    const position = remote.positionSeconds, itemId = remote.itemId;
+    const position = remote.positionSeconds, itemId = remote.itemId, generation = this.receiverGeneration;
+    const current = () => this.current() && generation === this.receiverGeneration && this.state.remote?.kind === 'portico'
+      && this.state.remote.id === remote.id && this.state.remote.itemId === itemId && this.state.remote.phase === 'playing';
     this.publish({panel: null});
     await this.options.runtime.play(itemId, position);
-    if (!this.requireRemote(token)) return;
+    if (!current()) return;
     // The bar goes only once the device has stopped; a device that would not stop keeps its bar, saying why, so the
     // title never plays in two places with nothing left to stop it.
     if (await this.options.receivers?.handBack?.() === false) return;
+    // handBack normally removes this remote; never clear a replacement installed while stopping.
+    if (this.state.remote && !current()) return;
     this.clearExpiry(); this.publish({remote: undefined, panel: null});
   }
   async continueHere(token: CastRemoteToken): Promise<void> {
