@@ -221,8 +221,27 @@ test('phone Search draws the frame 8 results: counted type chips, the 178px top 
   }
   // The Shows row is omitted: its only result already leads the page as the Top result.
   assert.equal(find(props => props.entry === show && props.width === undefined), undefined);
-  for (const id of ['movies', 'episodes', 'songs', 'books'])
-    assert.ok(texts(tree).some(node => label(node) === defaultI18n.t(searchGroupLabel(id as any))), `${id} keeps its drawn section heading`);
+  for (const id of ['movies', 'episodes', 'songs', 'books']) {
+    const heading = find(props => props.title === defaultI18n.t(searchGroupLabel(id as any)));
+    assert.ok(heading, `${id} keeps its drawn section heading`);
+    assert.deepEqual([heading.props.detail, heading.props.action], [undefined, undefined], `${id} shows all it has`);
+  }
+});
+
+test('phone Search says a group shows three of more, and See all opens that group (W3 F19)', async () => {
+  const episodes = Array.from({length: 12}, (_, index) => ({...episode, id: `episode-${index}`, title: `Episode ${index}`}));
+  const groups = [group('movies', [movie]), {...group('episodes', episodes), totalCount: 104, hasMore: true, nextCursor: 'next'}];
+  const snapshot = {text: 'episode', group: 'all', search: {generation: 2, scope: {}, query: {q: 'episode'}, phase: 'ready', groups,
+    data: {scope: {}, revision: {catalog: 1, viewer: 1}, heading: {key: '', fallback: ''}, query: {q: 'episode', sort: 'relevance', direction: 'desc', group: '', groups: [], libraryIds: [], limit: 12, searchMode: 'normalized_prefix', recorded: false},
+      groups, capabilities, empty: undefined}, pagination: {cursor: null, canPrevious: false}, error: null},
+    groups, recent: [], clearing: false};
+  const {tree, calls, find} = await mount(snapshot, {phase: 'ready', genres: [], initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'});
+  assert.equal(nodes(tree).filter(node => typeof node.type === 'function' && node.props.group === 'episodes' && node.props.entry).length, 3);
+  const heading = find(props => props.title === defaultI18n.t(searchGroupLabel('episodes')))!;
+  assert.deepEqual([heading.props.detail, heading.props.action], ['3 of 104', defaultI18n.t('web.search.seeAll')]);
+  heading.props.onAction();
+  assert.deepEqual(calls, ['group:episodes']);
+  assert.equal(find(props => props.title === defaultI18n.t(searchGroupLabel('movies')))!.props.action, undefined, 'a group shown whole has no See all');
 });
 
 
