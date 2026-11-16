@@ -182,7 +182,7 @@ export function ReadBookScreen({controller, route, comic, owner, context, runtim
     </ScrollView>
     <Menu open={more} onOpenChange={setMore} title={title} items={menu}/>
     <ReadingItemMenu port={readingActions} runtime={runtime}/>
-    {edit ? <ReadOwnerEditSheet key={edit.key} context={context} lease={edit.lease} owner={edit.owner} itemId={controller.item.id} libraryId={route.libraryId} manifest={manifest} version={selectedVersion}
+    {edit ? <ReadOwnerEditSheet key={edit.key} context={context} lease={edit.lease} owner={edit.owner} itemId={controller.item.id} libraryId={route.libraryId} manifest={manifest}
       onClose={ticket => setEdit(current => current?.owner === ticket ? undefined : current)}/> : null}
     {collection ? <ReadCollectionSheet key={collection.key} context={context} lease={collection.lease} owner={collection.owner} itemId={controller.item.id} libraryId={route.libraryId} kind={collection.kind} title={title}
       onClose={ticket => setCollection(current => current?.owner === ticket ? undefined : current)}/> : null}

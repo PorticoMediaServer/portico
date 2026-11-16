@@ -10,7 +10,6 @@ export * from './file-info-session.ts';
 export {DATABASE_BUSY, WRITER_CAPACITY, WRITER_RETRY_BUDGET_MS, resendableRefusal, retryWriterCapacity, writerRetryDelayMs} from './writer-capacity.ts';
 export * from './reading-mark-all.ts';
 export {contentEntrySubject} from './presentation/content-entry-subject.ts';
-export * from './reading-reread.ts';
 export * from './reading-indexed-search.ts';
 export * from './reading-offline-refresh.ts';
 export * from './reading.ts';

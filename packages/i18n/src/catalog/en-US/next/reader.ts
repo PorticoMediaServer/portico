@@ -159,7 +159,6 @@ export const readerMessages = {
   'next.reader.directionRtl': 'Right to left',
   'next.reader.directionVertical': 'Vertical scroll',
   'next.reader.editDetails': 'Edit details',
-  'next.reader.readFileAgain': 'Read the file again',
   'next.reader.startOver': 'Start over',
   'next.reader.ownerOnly': 'Owner only',
   'next.reader.sourceFileMetadata': 'From the file’s metadata',
