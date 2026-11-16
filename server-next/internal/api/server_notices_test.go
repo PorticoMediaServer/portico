@@ -95,6 +95,10 @@ func TestServerNoticesAreSentOnceWhenACauseStarts(t *testing.T) {
 		t.Errorf("an administrator was told before the owner chose so: %v", got)
 	}
 
+	// Storage & backups offers keeping notices 7, 30, 90 or 180 days; the shortest is accepted.
+	if code := status(t, s, "PUT", "/v1/admin/settings/notices", owner, json.RawMessage(`{"keepDays":7}`)); code != 200 {
+		t.Fatalf("keeping notices 7 days answered %d", code)
+	}
 	// The owner chooses administrators too; the source recovers, then refuses its sign-in.
 	if code := status(t, s, "PUT", "/v1/admin/settings/notices", owner, json.RawMessage(`{"serverNoticesTo":"owner-and-admins","keepDays":180}`)); code != 200 {
 		t.Fatalf("choosing administrators answered %d", code)

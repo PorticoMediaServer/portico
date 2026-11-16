@@ -13,15 +13,12 @@ const configuration: SettingsConfiguration = {revision: 4, registryRevision: 'ac
 ]};
 const preferences: PreferenceSnapshot = {deviceClass: 'web', registry: {revision: 'test', fields: []}, documents: [], effective: {}, effectiveSource: {}, clampedFields: [], registryRevision: 'test'};
 
-function fixture(input: {owner?: boolean; readConfiguration?: SettingsControllerOptions['readConfiguration']; hold?: boolean; foreign?: boolean; missing?: string; engines?: boolean} = {}) {
+function fixture(input: {owner?: boolean; readConfiguration?: SettingsControllerOptions['readConfiguration']; engines?: boolean} = {}) {
   const calls: string[] = [], signals: AbortSignal[] = [];
-  let release!: () => void, current = true, configurationSignal: AbortSignal | undefined;
-  const gate = input.hold ? new Promise<void>(resolve => {release = resolve;}) : Promise.resolve();
+  let current = true;
   const api: SettingsControllerOptions['api'] = {request: async <T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal) => {
     calls.push(path);if (signal) signals.push(signal);
-    if (input.missing && path.startsWith(input.missing)) throw Object.assign(new Error('Not found.'), {status: 404, code: 'not_found'});
-    const scope = {serverId: input.foreign ? 'another-server' : serverId, viewerFence: fence};
-    if (path === '/v1/admin/settings/configuration') {configurationSignal = signal;await gate;return {scope, data: configuration} as T;}
+    const scope = {serverId, viewerFence: fence};
     const name = path.split('/').at(-1)!;
     return {scope, data: {name, observedAt: 1000, freshUntil: 31000, facts: {}}} as T;
   }};
@@ -32,20 +29,34 @@ function fixture(input: {owner?: boolean; readConfiguration?: SettingsController
     environment: {platform: 'web', os: 'browser'}, eligibility: {hasEngine: () => input.engines === true, library: () => undefined},
     reading: {read: () => {throw new Error('Unexpected Reading read');}, patch: () => {throw new Error('Unexpected Reading write');}},
   });
-  return {controller, calls, signals, configurationSignal: () => configurationSignal, release: () => release(), retire: () => {current = false;}, dispose: () => {controller.dispose();reader.dispose();}};
+  return {controller, calls, signals, retire: () => {current = false;}, dispose: () => {controller.dispose();reader.dispose();}};
 }
 
-test('Settings reads canonical configuration through its captured ConsoleClient, once per successful scope', async () => {
-  const f = fixture();
+test('a page reads the configuration through its own reader, once per successful scope', async () => {
+  let reads = 0;
+  const f = fixture({readConfiguration: async () => {reads++;return configuration;}});
   try {
-    assert.deepEqual(f.calls, []);
     await f.controller.load(section);
     const matches = f.controller.configurationMatches('integrations.max_webhooks');
     assert.equal(matches?.length, 1);
     assert.deepEqual(matches?.[0], {...configuration.fields[0], label: matches?.[0].label, path: configuration.path});
     assert.equal(f.controller.getSnapshot(section).loading, false);
     await f.controller.load(section);
-    assert.equal(f.calls.filter(path => path === '/v1/admin/settings/configuration').length, 1);
+    assert.equal(reads, 1);
+  } finally {f.dispose();}
+});
+
+// W2 F1 (16 Nov walk): the rebuilt server keeps no configuration document and no console settings; a page
+// with no reader of its own asks for neither, so it never answers 404 and its other rows still draw.
+test('a server page with no reader of its own asks the server for no old configuration or console settings', async () => {
+  const f = fixture({engines: true});
+  const history = settingsSpec.find(section => section.scope === 'server' && section.id === 'history')!;
+  try {
+    await f.controller.load(section);
+    await f.controller.load(history);
+    assert.equal(f.controller.getSnapshot(history).error, undefined);
+    for (const old of ['/v1/admin/settings/configuration', '/v1/admin/console/settings', '/v1/admin/maintenance/settings', '/v1/admin/connectivity/status', '/v1/admin/notifications/settings'])
+      assert.ok(!f.calls.some(path => path.startsWith(old)), `${old} was asked: ${f.calls.join(', ')}`);
   } finally {f.dispose();}
 });
 
@@ -54,33 +65,6 @@ test('a server with no configuration route opens the page with nothing configure
   try {await f.controller.load(section);assert.equal(f.controller.getSnapshot(section).error, undefined);assert.deepEqual(f.controller.configurationMatches('integrations.max_webhooks'), []);}
   finally {f.dispose();}
 });
-test('a page whose settings form is not on the server yet opens without that form\'s rows', async () => {
-  const f = fixture({readConfiguration: async () => configuration, missing: '/v1/admin/console/settings', engines: true});
-  const history = settingsSpec.find(section => section.scope === 'server' && section.id === 'history')!;
-  const find = (node: unknown): any => {if (!node || typeof node !== 'object') return undefined; if ((node as {id?: unknown}).id === 'history.keepHistory' && (node as {control?: unknown}).control) return node; for (const value of Object.values(node)) {const found = find(value); if (found) return found;} return undefined;};
-  const keep = find(history);
-  assert.ok(keep, 'the section has its Keep play history row');
-  try {
-    await f.controller.load(history);
-    assert.ok(f.calls.includes('/v1/admin/console/settings'), 'the form was asked');
-    assert.equal(f.controller.getSnapshot(history).error, undefined);
-    assert.equal(f.controller.rowState(keep).present, false, 'a setting the server does not act on is not shown');
-  } finally {f.dispose();}
-});
-test('foreign configuration fails the real section read and is never searchable', async () => {
-  const f = fixture({foreign: true});
-  try {await f.controller.load(section);assert.ok(f.controller.getSnapshot(section).error);assert.deepEqual(f.controller.configurationMatches('integrations.max_webhooks'), []);}
-  finally {f.dispose();}
-});
-
-test('disposal aborts the same console request and refuses a late configuration result', async () => {
-  const f = fixture({hold: true}), pending = f.controller.load(section);
-  await new Promise(resolve => setImmediate(resolve));
-  f.dispose();f.release();await pending;
-  assert.equal(f.configurationSignal()?.aborted, true);
-  assert.deepEqual(f.controller.configurationMatches('integrations.max_webhooks'), []);
-});
-
 test('denied members start no owner reads; an injected reader retains the same lifetime boundary', async () => {
   const denied = fixture({owner: false});
   try {await denied.controller.load(section);assert.deepEqual(denied.calls, []);} finally {denied.dispose();}

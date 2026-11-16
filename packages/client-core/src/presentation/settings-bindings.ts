@@ -11,8 +11,9 @@ import {canonicalQualityLadder,canonicalMusicQualityLadder} from '../../../contr
 import {validatePreferencePatch,type PreferenceSnapshot,type PreferenceScope,type PreferenceValue} from '../preferences.ts';
 import type {ReadingPreferences} from '../preference-effects.ts';
 
-/** `awayLimit`: the same connectivity value as `connectivity`, read optionally for a page that only shows it. */
-export type SettingsBindingForm='signInPolicy'|'runtime'|'connectivity'|'awayLimit'|'connectivityStatus'|'maintenance'|'alerts'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata'|'segments'|'backups';
+/** `awayLimit`: the Streaming document's away-from-home limit, read optionally for a page that only shows it.
+ * `notices`, `titleData` and `segments` are the rebuilt server's settings documents of those names. */
+export type SettingsBindingForm='signInPolicy'|'runtime'|'connectivity'|'awayLimit'|'connectivityStatus'|'maintenance'|'alerts'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata'|'segments'|'backups'|'notices'|'titleData';
 export type SettingsBinding=Readonly<{form:SettingsBindingForm;key:string;scope?:PreferenceScope;readOnly?:boolean;scale?:number;codec?:'insecure-connections'|'history-retention'|'number-choice'|'unlimited'|'domain'|'interface'|'remote-policy'|'away-quality'|'update-checks'|'window-mode'|'days'|'log-retention'|'still-watching'|'missing-rule'|'music-quality-choice'|'video-quality-choice'|'inherited-watched-threshold'|'surround'|'player-engine'|'tv-support'|'boolean'|'artwork-size'|'server-notices'|'notice-audience'|'hardware-selection'|'backup-schedule'|'backup-days';fields?:Readonly<Record<string,string>>;window?:'heavy'|'backup'}>;
 export type SettingsBindingSources=Readonly<{configuration?:SettingsConfiguration;preferences?:PreferenceSnapshot;forms?:Readonly<Partial<Record<SettingsBindingForm,Readonly<Record<string,unknown>>>>>;device?:Readonly<Record<string,unknown>>;deviceDefaults?:Readonly<Record<string,unknown>>}>;
 export type SettingsBindingValue=Readonly<{current:unknown;effective:unknown;default:unknown;source:string;configOnly:boolean;applicationMode?:string}>;
@@ -58,7 +59,7 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'people.maxStreamsEach':{form:'runtime',key:'perAccountCap',codec:'unlimited'},
  'people.communityActivity':{form:'runtime',key:'home.communityActivityEnabled'},
  'integrations.compatibility':{form:'runtime',key:'integrations.compatibilityEnabled',codec:'boolean'},
- 'metadata.titleDataset':{form:'runtime',key:'recommendations.titleDataset',codec:'boolean'},
+ 'metadata.titleDataset':{form:'titleData',key:'download',codec:'boolean'},
  'integrations.requestsPerMinute':{form:'runtime',key:'apiRequestsPerMinute'},
  'streaming.whenCantPlay':{form:'runtime',key:'planningPolicy'},
  'general.name':{form:'runtime',key:'name'},
@@ -75,7 +76,7 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'streaming.awayQuality':{form:'connectivity',key:'remoteBitrateLimitKbps',codec:'away-quality'},
  // ST-7: the owner sees that same server limit on their own Quality page; it is changed only on Streaming.
  // Its own optional read (`awayLimit`): a refusal leaves the row out and never fails the page.
- 'quality.awayLimit':{form:'awayLimit',key:'remoteBitrateLimitKbps',codec:'away-quality',readOnly:true},
+ 'quality.awayLimit':{form:'awayLimit',key:'awayVideoKbps',codec:'away-quality',readOnly:true},
  'streaming.awayExact':{form:'connectivity',key:'remoteBitrateLimitKbps',scale:1000},
  // The drawn Device selector needs the checked opaque device-ID producer.
  // hardwareBackend names a method and cannot represent this decision; the
@@ -128,7 +129,7 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'storage.analysisStage':{form:'runtime',key:'analysisStageStorageMiB',codec:'number-choice'},
  'storage.subtitleTracks':{form:'runtime',key:'subtitleTrackLimit',codec:'number-choice'},
  'storage.subtitleFile':{form:'runtime',key:'subtitleFileLimitMiB',codec:'number-choice'},
- 'storage.keepNotifications':{form:'runtime',key:'notificationDays',codec:'number-choice'},
+ 'storage.keepNotifications':{form:'notices',key:'keepDays',codec:'number-choice'},
  'storage.backupKeep':{form:'backups',key:'keep'},
  'storage.keepConversions':{form:'maintenance',key:'retention.conversions',codec:'number-choice'},
  'storage.keepPrepared':{form:'maintenance',key:'retention.prepared',codec:'number-choice'},

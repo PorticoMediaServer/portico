@@ -4,7 +4,8 @@ import {ApiError, HttpLocalApi} from '@core/index.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
 import type {PreferenceSnapshot} from '@core/preferences.ts';
 import {settingsRowIndex, settingsSpec} from '@core/presentation/settings-spec.ts';
-import {routePath} from '../../packages/contracts/src/route-paths.ts';
+// The Streaming settings document, where the rebuilt server keeps the away-from-home limit.
+const streaming = '/v1/admin/settings/streaming';
 import {SettingsController, type SettingsControllerOptions} from '../src/screens/settings/controller.ts';
 import {guardedSettingsRequest} from '../src/screens/settings/settings-request.ts';
 
@@ -19,7 +20,7 @@ for (const refusal of [new ApiError(403, 'profile_pin_manage', 'Enter this profi
   const calls: {path: string; options?: unknown}[] = [];
   const api: SettingsControllerOptions['api'] = {request: async <T>(path: string, _method?: string, _body?: unknown, _signal?: AbortSignal, options?: unknown) => {
     calls.push({path, options});
-    if (path === routePath('get_connectivity_status')) throw refusal;
+    if (path === streaming) throw refusal;
     return {scope: {serverId, viewerFence: 'a'.repeat(64)}, data: {}} as T;
   }};
   const reader = new PreferencesReader(api);
@@ -31,7 +32,7 @@ for (const refusal of [new ApiError(403, 'profile_pin_manage', 'Enter this profi
     await controller.load(section);
     assert.equal(controller.getSnapshot(section).error, undefined, 'the page loads');
     assert.equal(controller.getSnapshot(section).loading, false);
-    const reads = calls.filter(call => call.path === routePath('get_connectivity_status'));
+    const reads = calls.filter(call => call.path === streaming);
     assert.equal(reads.length, 1, 'one quiet read');
     assert.deepEqual(reads[0]!.options, {manageGate: false}, 'it never asks for the PIN');
     assert.equal(controller.rowState(settingsRowIndex.get('quality.awayLimit')!.row).present, false, 'the row is left out');
@@ -41,7 +42,7 @@ for (const refusal of [new ApiError(403, 'profile_pin_manage', 'Enter this profi
 // #595 r2: the same read through the real path Settings uses in production: the Settings build's
 // request wrapper (`guardedSettingsRequest`) over a real HttpLocalApi, whose manage gate asks for the PIN.
 test('through the Settings request wrapper and the real API, a refused away-limit read never asks for the PIN', async () => {
-  const fetcher: typeof fetch = async input => String(input).includes(routePath('get_connectivity_status'))
+  const fetcher: typeof fetch = async input => String(input).includes(streaming)
     ? new Response(JSON.stringify({error: {code: 'profile_pin_manage', message: 'Enter this profile\'s PIN to manage this account.'}}), {status: 403, headers: {'Content-Type': 'application/json'}})
     : new Response(JSON.stringify({}), {status: 200, headers: {'Content-Type': 'application/json'}});
   const http = new HttpLocalApi('http://127.0.0.1:19447', 'token-a', fetcher);
@@ -60,7 +61,7 @@ test('through the Settings request wrapper and the real API, a refused away-limi
     assert.equal(controller.rowState(settingsRowIndex.get('quality.awayLimit')!.row).present, false, 'the row is left out');
     assert.deepEqual(prompts, [], 'the PIN is never asked for');
     // An ordinary Settings request through the same wrapper still reaches the gate.
-    await api.request(routePath('get_connectivity_status')).catch(() => {});
+    await api.request(streaming).catch(() => {});
     assert.equal(prompts.length, 1);
   } finally {off(); controller.dispose(); reader.dispose(); life.abort();}
 });

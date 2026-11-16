@@ -17,7 +17,7 @@ type Settings struct {
 	// ServerNoticesTo is who gets server notices (a backup failed, storage is low, a source
 	// cannot be reached, a new version): "owner", or "owner-and-admins".
 	ServerNoticesTo string `json:"serverNoticesTo"`
-	// KeepDays is how long a notice is kept, 30 to 180 days.
+	// KeepDays is how long a notice is kept, 7 to 180 days (Storage & backups offers 7, 30, 90 and 180).
 	KeepDays int `json:"keepDays"`
 }
 
@@ -26,8 +26,8 @@ var Document = settings.Define("notices", Settings{ServerNoticesTo: "owner", Kee
 	if s.ServerNoticesTo != "owner" && s.ServerNoticesTo != "owner-and-admins" {
 		return &settings.Invalid{Field: "serverNoticesTo", Message: "Choose the owner, or the owner and administrators."}
 	}
-	if s.KeepDays < 30 || s.KeepDays > 180 {
-		return &settings.Invalid{Field: "keepDays", Message: "Keep notices for 30 to 180 days."}
+	if s.KeepDays < 7 || s.KeepDays > 180 {
+		return &settings.Invalid{Field: "keepDays", Message: "Keep notices for 7 to 180 days."}
 	}
 	return nil
 })
