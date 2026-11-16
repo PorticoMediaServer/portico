@@ -1,5 +1,4 @@
-import {deleteOwnerRecordingRule, readOwnerDvrDefaults, readOwnerRecordingGuide, readOwnerRecordingOwners, readOwnerRecordingPermissions, readOwnerRecordingRules, readOwnerTuners, writeOwnerDvrDefaults, writeOwnerRecordingPermission, ownerRecordingRuleChange, sendOwnerRecordingRuleCommand} from '../../../../../packages/client-core/src/owner-requests';
-import {setServerChannelHidden} from '../../../../../packages/client-core/src/server-channel-visibility';
+import {deleteOwnerRecordingRule, readOwnerRecordingGuide, readOwnerRecordingOwners, readOwnerRecordingPermissions, readOwnerRecordingRules, readOwnerTuners, writeOwnerRecordingPermission, ownerRecordingRuleChange, sendOwnerRecordingRuleCommand} from '../../../../../packages/client-core/src/owner-requests';
 import {clonePortableDto} from '../../../../../packages/client-core/src';
 import {parseEnvelope} from '../../../../../packages/client-core/src/administration';
 import {lanConfirmationRoots, remoteSourceDraft, withConfirmedLanRoots, type RemoteSourceDraft, type RemoteSourcePreview, type SourceKind} from '../../../../../packages/client-core/src/linear-api';
@@ -7,10 +6,11 @@ import type {LiveSourceInput} from '../../../../../packages/client-core/src/live
 import {NativeScreenLifetime, NativeScreenStore, screenScopeEnded} from './lifetime';
 import {importSourceLogos, readSourceChannels, readSourceChoices, readSourceSettings, saveSourceChannels, saveSourceSettings} from '../../../../../packages/client-core/src/server-admin/live-source-settings';
 import type {LiveSourceChannel} from '../../../../../packages/contracts/src/next/api';
+import {readOwnerDvrSettings, saveOwnerDvrSettings, type OwnerDvrDocument} from '../../../../../packages/client-core/src/server-admin/owner-dvr-settings';
 import {readLiveDefaultsDocument, saveLiveDefaultsDocument, type LiveDefaultsDocument} from '../../../../../packages/client-core/src/server-admin/live-defaults';
 import {changeOwnerSource, createOwnerSource, discoverLiveTuners, previewOwnerSource, readOwnerSources, remoteSourceSave, uploadSourceSave, type OwnerSource, type SourceSave} from '../../../../../packages/client-core/src/server-admin/live-sources';
 import {adminResult, liveDefaultsView, rebuiltLiveDefaults, liveSourceFromOwner, type UploadPreview, type ChannelMapEdit, type ChannelMapPage, type LiveDefaults, type LiveSource, type LiveSources, type LiveSourceSettings, type LogoImportOutcome, type TunerDiscovery} from './live-owner-model';
-import {needsRuleOwner, parseAdminRulePage, parseDVRDocument, parseRecordingPolicy, parseTunerView, type AdminRule, type DVRDefaults, type DVRDocument, type RecordingPolicy, type TunerView} from './recording-owner-model';
+import {dvrDocumentView, needsRuleOwner, parseAdminRulePage, parseRecordingPolicy, parseTunerView, type AdminRule, type DVRDefaults, type DVRDocument, type RecordingPolicy, type TunerView} from './recording-owner-model';
 import {recordingGuideRoute, recordingOwnerKey, recordingRulePayload, recordingSeries, type RecordingGrant, type RecordingOwner, type RecordingSeries} from '../../../../../packages/client-core/src/server-admin/recording-policy';
 import {parseChannelGuide} from '../../../../../packages/client-core/src/channel-guide';
 import {readRecordingRoot, saveRecordingRoot, type RecordingRootIntent} from '../../../../../packages/client-core/src/server-admin/recording-root';
@@ -75,10 +75,11 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
       return undefined;
     });
   }
+  /** Hides or shows one channel in everyone's guide: the channel's own `hidden` on the rebuilt source (PATCH .../channels). */
   channelHidden = async (sourceId: string, channelId: string, hidden: boolean, caller: NativeRecordingCommandLifetime, expected?: Readonly<{revision: number; hidden: boolean}>) => {
-    const current = () => this.current() && caller.isCurrent() && !caller.signal.aborted;
-    const api = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => this.lifetime.request(next => this.api.request<T>(path, method, body, next), signal)};
-    return setServerChannelHidden(api, this.lifetime.authority.serverId, sourceId, channelId, hidden, this.operationId, caller.signal, current, expected);
+    if (!this.current() || !caller.isCurrent() || caller.signal.aborted) throw screenScopeEnded();
+    await this.lifetime.request(signal => saveSourceChannels(this.rebuiltApi(), sourceId, [{id: channelId, hidden}], signal), caller.signal);
+    return {revision: 0, hidden, previousHidden: expected ? expected.hidden : !hidden};
   };
   nextId = (): string => this.operationId();
   /** The rebuilt sources, kept as read so a change is sent against the revision the row shows. */
@@ -240,8 +241,20 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
     return recordingSeries(guide, true);
   };
   createRule = (draft: Parameters<typeof recordingRulePayload>[0], grants: readonly RecordingGrant[], caller?: NativeRecordingCommandLifetime) => this.recordingMutation(draft, grants, caller);
-  dvrSettings = async (): Promise<DVRDocument> => parseDVRDocument(await readOwnerDvrDefaults({request: this.request}), this.lifetime.authority.serverId);
-  saveDvrSettings = async (revision: number, value: DVRDefaults) => parseDVRDocument(await writeOwnerDvrDefaults({request: this.request}, {expectedRevision: revision, operationId: this.operationId(), settings: value}), this.lifetime.authority.serverId);
+  /** The rebuilt `dvr` document as the guide's Record series sheet reads its defaults (padding and keep). Fields the
+   * rebuilt server does not have stay neutral. */
+  private dvrDocument?: OwnerDvrDocument;
+  dvrSettings = async (): Promise<DVRDocument> => {
+    const document = await this.lifetime.request(signal => readOwnerDvrSettings(this.rebuiltApi(), signal));
+    this.dvrDocument = document; return dvrDocumentView(document);
+  };
+  saveDvrSettings = async (_revision: number, value: DVRDefaults) => {
+    const current = this.dvrDocument; if (!current) throw new Error('missing_dvr_settings');
+    const policy = value.keepPolicy;
+    const next = await this.lifetime.request(signal => saveOwnerDvrSettings(this.rebuiltApi(), current, {beforeMs: value.prePaddingMs, afterMs: value.postPaddingMs,
+      keepNewest: policy.mode === 'keep-count' ? policy.keepCount : 0, keepDays: policy.mode === 'keep-days' ? policy.keepDays : 0}, signal));
+    this.dvrDocument = next; return dvrDocumentView(next);
+  };
   /** live-owner 10/16c: the recordings folder (a bare registered outcome, not the console envelope). */
   recordingRoot = (signal?: AbortSignal) => this.lifetime.request(next => readRecordingRoot(this.api, next), signal);
   saveRecordingRoot = (intent: RecordingRootIntent, signal?: AbortSignal) => this.lifetime.request(next => saveRecordingRoot(this.api, intent, next), signal);

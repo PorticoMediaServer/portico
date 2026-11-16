@@ -105,3 +105,13 @@ export const rulePaddingChoice = (value: number | null): string => value === nul
 export function keepPolicyFor(keep: KeepPolicy, mode: KeepPolicy['mode']): KeepPolicy {
   return Object.freeze({...keep, mode, keepCount: mode === 'keep-count' && keep.keepCount < 1 ? 5 : keep.keepCount, keepDays: mode === 'keep-days' && keep.keepDays < 1 ? 30 : keep.keepDays});
 }
+
+/** The rebuilt `dvr` settings document in the shape the recording sheets read (padding and keep); the old server's
+ * conversion, folder-template and sidecar choices do not exist on the rebuilt server and stay neutral. */
+export function dvrDocumentView(document: import('../../../../../packages/client-core/src/server-admin/owner-dvr-settings').OwnerDvrDocument): DVRDocument {
+  const v = document.value;
+  const keepPolicy: KeepPolicy = Object.freeze({mode: v.keepNewest > 0 ? 'keep-count' : v.keepDays > 0 ? 'keep-days' : 'keep-all', keepCount: v.keepNewest, keepDays: v.keepDays, keepUntilWatched: false});
+  return Object.freeze({revision: Number(document.status.etag.slice(1, -1)), folderTokens: [], enumerations: {}, settings: Object.freeze({prePaddingMs: v.beforeMs, postPaddingMs: v.afterMs, keepPolicy,
+    conversion: {mode: 'none', ladderId: '', deleteOriginal: false}, folderTemplate: '', movieFolderTemplate: '', recordingProfile: '', sidecars: {nfo: false, poster: false, fanart: false, thumbnail: false},
+    tunerPreference: '', liveTunerConflict: v.stopViewers ? 'stop' : 'keep'})});
+}

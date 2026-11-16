@@ -19,7 +19,7 @@ import {UploadSourceSheet} from './LiveOwnerUploadSheet';
 import {liveDocumentPicker} from './live-document-picker';
 import {ChannelMapSheet} from './LiveOwnerSettingsSheets';
 import {SourceSettingsSheet} from './LiveSourceSettingsSheet';
-import {NativeRecordingOwner} from './LiveOwnerRecording';
+import {NativeRecordingOwner} from './LiveRecordingOwner';
 import {NativeLibraryChannelsPanel} from './server/LibraryChannelsPanel';
 import {NativeAdvancedSection} from './server/AdvancedSection';
 import {StandardBackdrop} from '../../kit/artwork';
@@ -135,7 +135,7 @@ export function NativeLiveOwnerScreen({controller, recordings, ports, runtime, o
           <LiveDefaultsSection controller={controller} runtime={runtime}/>
         </View>
         : tab === 'channels' ? <NativeLibraryChannelsPanel ports={ports} runtime={runtime} initialChannelId={initialChannelId}/>
-        : <NativeRecordingOwner controller={controller} recordings={recordings} runtime={runtime} sources={sources}/>}
+        : <NativeRecordingOwner context={ports.context} runtime={runtime}/>}
     </FormScrollView>
     <Menu open={menu !== undefined} onOpenChange={value => {if (!value) setMenu(undefined);}} title={menu?.name} anchorRef={menuOpener} presentation="sheet" items={menuItems} testID="live-owner-menu"/>
     <Menu open={addMenu} onOpenChange={setAddMenu} title={t('web.liveTv.addSource')} anchorRef={addButton} presentation="sheet" testID="live-owner-add-menu" items={[
