@@ -7,6 +7,15 @@ sub init()
     m.global.addFields({api: m.task, origin: ""})
     m.task.observeField("signInEnded", "onSignInEnded")
     m.task.control = "run"
+    ' Roku's own dialogs (the keyboard) wear Portico's colours.
+    palette = createObject("roSGNode", "RSGPalette")
+    palette.colors = {
+        DialogBackgroundColor: "0x132634FF", DialogItemColor: "0xEDF5FAFF", DialogTextColor: "0xEDF5FAFF",
+        DialogFocusColor: "0xD8E6EEFF", DialogFocusItemColor: "0x03121CFF", DialogSecondaryTextColor: "0xBDCCD6FF",
+        DialogSecondaryItemColor: "0x409FD4FF", DialogInputFieldColor: "0x0C1A25FF", DialogKeyboardColor: "0x1D3848FF",
+        DialogFootprintColor: "0x1D3848FF"
+    }
+    m.top.palette = palette
     m.rail.observeField("chosen", "onRailChosen")
     m.rail.observeField("left", "onRailLeft")
     m.rail.observeField("isOpen", "onRailOpen")
