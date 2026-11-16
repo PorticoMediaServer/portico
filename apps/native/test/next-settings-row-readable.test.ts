@@ -6,9 +6,9 @@ const {react} = hooks();
 let television = true;
 // The fake React's useContext reads `value`: each targeting test sets it and puts it back.
 const targeting: {value: any} = {value: {}};
-const {SettingsRow} = await screenModule(new URL('../src-next/kit/shell/SettingsControls.tsx', import.meta.url), {
+const {SettingsRow, LanguageList} = await screenModule(new URL('../src-next/kit/shell/SettingsControls.tsx', import.meta.url), {
   react, 'react-native': {StyleSheet: {absoluteFill: {}}, Text: 'Text', View: 'View'},
-  '../../../../../packages/i18n/src/index': {defaultI18n: {t: (id: string) => id}},
+  '../../../../../packages/i18n/src/index': {defaultI18n: {t: (id: string) => id, number: (value: number) => String(value)}},
   '../controls/Focusable': {Focusable: 'Focusable'}, '../controls/Select': {Select: 'Select'}, '../controls/row-control': {RowControlContext: {Provider: 'RowControlProvider', value: false}}, '../overlays/Menu': {Menu: 'Menu'},
   '../artwork/Artwork': {Artwork: 'Artwork'}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => ({isTV: television, colors: new Proxy({}, {get: () => '#000'}), type: {}, textScale: 1})},
   '../focus/registry': {focusTestID: (a: string, b: string) => `${a}.${b}`}, './HighlightedText': {HighlightedText: 'HighlightedText'},
@@ -101,5 +101,23 @@ test('on a touch screen a row hands its control the inline value form without ca
     const provider = find(SettingsRow({label: 'Manage Portico Account', control: {type: 'Button', props: {}}}), 'RowControlProvider');
     assert.ok(provider && typeof provider.props.value === 'object', 'the row tells its control it sits in a row');
     assert.equal([provider.props.children].flat()[0].type, 'Button', 'the control is not wrapped in a capped box');
+  } finally {television = true;}
+});
+
+
+test('phone language names keep their natural width while reorder and remove controls wrap together', () => {
+  television = false;
+  try {
+    const row = LanguageList({label: 'Audio language', testID: 'audio', value: [{id: 'app', label: 'Portico’s language'}, {id: 'original', label: 'Original language'}], available: [], limit: 8, onChange() {}});
+    const chip = row.props.children[1][0];
+    assert.equal(chip.props.style.flexWrap, 'wrap');
+    const name = chip.props.children[1];
+    assert.equal(name.props.style.flex, undefined);
+    assert.equal(name.props.style.flexBasis, 'auto');
+    assert.equal(name.props.style.flexShrink, 1);
+    const actions = chip.props.children[2];
+    assert.equal(actions.type, 'View');
+    assert.equal(actions.props.style.marginLeft, 'auto');
+    assert.equal(actions.props.children.filter(Boolean).length, 2);
   } finally {television = true;}
 });
