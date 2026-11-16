@@ -32,12 +32,15 @@ const historyKept = 20
 // found them: what "Undo to before this" puts back. Labels are in it: they are the owner's
 // own and an undo of an edit to them puts them back too. Everyone's state is not.
 type snapshot struct {
-	Columns     map[string]any `json:"columns"`
-	ExternalIDs []ExternalID   `json:"externalIds,omitempty"`
-	Keys        []string       `json:"providerKeys,omitempty"`
-	Tags        []TagName      `json:"tags,omitempty"`
-	Credits     []snapCredit   `json:"credits,omitempty"`
-	Pictures    []int64        `json:"lockedPictures,omitempty"` // images rows locked as the role's choice
+	Columns map[string]any `json:"columns"`
+	// SortTitle is the sort title a person or an NFO file gave, as written (ownSortTitle),
+	// which goes back with sort_title.
+	SortTitle   string       `json:"sortTitle,omitempty"`
+	ExternalIDs []ExternalID `json:"externalIds,omitempty"`
+	Keys        []string     `json:"providerKeys,omitempty"`
+	Tags        []TagName    `json:"tags,omitempty"`
+	Credits     []snapCredit `json:"credits,omitempty"`
+	Pictures    []int64      `json:"lockedPictures,omitempty"` // images rows locked as the role's choice
 	// Uploads are the pictures a person uploaded for the title, so Undo can put back one
 	// removed since. Their files stay in the picture store while a History entry names them.
 	Uploads []snapUpload `json:"uploads,omitempty"`
@@ -102,6 +105,9 @@ func takeSnapshot(b *batchTx, itemID int64) (snapshot, error) {
 		if values[i] != nil { // an empty value is left out: a snapshot reads a missing one as empty
 			s.Columns[column] = values[i]
 		}
+	}
+	if err := b.queryRow(`SELECT ifnull(extra ->> '$.sortTitle', '') FROM items WHERE id = ?`, itemID).Scan(&s.SortTitle); err != nil {
+		return s, err
 	}
 	var err error
 	ctx := context.Background()
@@ -415,6 +421,11 @@ func restoreChild(b *batchTx, im *importer, library, id int64, s *snapshot, now 
 	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {
 		return err
 	}
+	if !skip["sort_title"] {
+		if err := b.ownSortTitle(id, s.SortTitle); err != nil {
+			return err
+		}
+	}
 	if !locks[FieldMatch] {
 		for _, step := range []string{`DELETE FROM item_external_ids WHERE item_id = ?`, `DELETE FROM item_keys WHERE item_id = ? AND kind = ` + strconv.Itoa(int(KeyProvider))} {
 			if _, err := b.exec(step, id); err != nil {
@@ -529,6 +540,11 @@ func restoreChanged(b *batchTx, im *importer, library, id int64, before, after, 
 		}
 		sets += ", " + column + " = ?"
 		args = append(args, before.Columns[column])
+	}
+	if before.SortTitle != after.SortTitle && current.SortTitle == after.SortTitle {
+		if err := b.ownSortTitle(id, before.SortTitle); err != nil {
+			return err
+		}
 	}
 	// Locks and sources field by field: what the change set goes, what it cleared comes back.
 	// A field whose value changed since keeps its lock and source, or the next refresh would

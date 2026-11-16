@@ -50,7 +50,7 @@ func (d *DB) MetadataDocument(ctx context.Context, publicID string) (MetadataDoc
 	var year sql.NullInt64
 	var provided string
 	var community sql.NullFloat64
-	err = tx.QueryRowContext(ctx, `SELECT id, publication, kind, revision, match_state, title, sort_title, original_title, summary, tagline, edition, year,
+	err = tx.QueryRowContext(ctx, `SELECT id, publication, kind, revision, match_state, title, ifnull(extra ->> '$.sortTitle', ''), original_title, summary, tagline, edition, year,
 		release_date, content_rating, community_rating, locked_fields, local_fields, ifnull(extra ->> '$.episodeOrder', ''),
 		ifnull(extra ->> '$.episodeOffset', 0), ifnull(extra -> '$.provider', '{}') FROM items WHERE public_id = ?`, publicID).Scan(
 		&id, &publication, &doc.Kind, &doc.Revision, &doc.Match, &title, &sortTitle, &original, &summary, &tagline, &edition, &year, &release, &rating,

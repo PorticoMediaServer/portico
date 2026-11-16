@@ -313,6 +313,9 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 			}
 			sets += ", sort_title = ?"
 			args = append(args, sorttext.Key(title, explicit, language.String))
+			if err := b.ownSortTitle(id, explicit); err != nil {
+				return err
+			}
 		}
 		if edit.PublicationType != nil {
 			locks[FieldPublicationType], sources[FieldPublicationType] = true, SourceEdit
