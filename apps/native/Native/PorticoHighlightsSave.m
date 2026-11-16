@@ -112,6 +112,29 @@ RCT_REMAP_METHOD(saveInvitationPicture, saveInvitationPicture:(NSString *)operat
     [presenter presentViewController:picker animated:YES completion:nil];
   }
 }
+// The support export: the rebuilt server's ZIP (it starts PK\3\4), at most 8 MB, exported as portico-support-<day>.zip.
+// It shares the diagnostics custody, so cancelDiagnostics ends it.
+RCT_REMAP_METHOD(saveSupportZip, saveSupportZip:(NSString *)operation zip:(NSString *)zip day:(NSString *)day resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  @synchronized(self) {
+    if(self.closed||self.operation) { reject(@"diagnostics_unavailable",@"Save unavailable",nil); return; }
+    if(![operation isKindOfClass:NSString.class]||operation.length!=32||[operation rangeOfString:@"^[A-Za-z0-9_-]{32}$" options:NSRegularExpressionSearch].location==NSNotFound||![day isKindOfClass:NSString.class]||day.length!=10||[day rangeOfString:@"^[0-9]{4}-[0-9]{2}-[0-9]{2}$" options:NSRegularExpressionSearch].location==NSNotFound||![zip isKindOfClass:NSString.class]||zip.length>11184812) { reject(@"invalid_diagnostics",@"Invalid diagnostics export",nil); return; }
+    NSData *bytes=[[NSData alloc] initWithBase64EncodedString:zip options:0];
+    static const unsigned char signature[4]={0x50,0x4B,0x03,0x04};
+    if(!bytes||bytes.length<22||bytes.length>8388608||memcmp(bytes.bytes,signature,4)!=0) { reject(@"invalid_diagnostics",@"Invalid diagnostics export",nil); return; }
+    UIViewController *presenter=RCTPresentedViewController();
+    if(!presenter) { reject(@"diagnostics_unavailable",@"Save unavailable",nil); return; }
+    NSURL *directory=[[NSURL fileURLWithPath:NSTemporaryDirectory() isDirectory:YES] URLByAppendingPathComponent:[@"portico-support-" stringByAppendingString:NSUUID.UUID.UUIDString] isDirectory:YES];
+    NSError *error=nil;
+    if(![[NSFileManager defaultManager] createDirectoryAtURL:directory withIntermediateDirectories:NO attributes:@{NSFileProtectionKey:NSFileProtectionComplete} error:&error]) { reject(@"diagnostics_save_failed",@"Could not prepare the export",nil); return; }
+    PorticoHighlightsOperation *original=[PorticoHighlightsOperation new];original.identifier=operation;original.kind=@"diagnostics";original.directory=directory;original.resolve=resolve;original.reject=reject;self.operation=original;
+    [directory setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:nil];
+    NSURL *file=[directory URLByAppendingPathComponent:[NSString stringWithFormat:@"portico-support-%@.zip",day] isDirectory:NO];
+    if(![bytes writeToURL:file options:NSDataWritingAtomic|NSDataWritingFileProtectionComplete error:&error]) { [self finish:original result:nil error:YES]; return; }
+    UIDocumentPickerViewController *picker=[[UIDocumentPickerViewController alloc] initForExportingURLs:@[file] asCopy:YES];picker.delegate=self;original.picker=picker;
+    if(self.closed||self.operation!=original||original.finished) { [self finish:original result:@"cancelled" error:NO]; return; }
+    [presenter presentViewController:picker animated:YES completion:nil];
+  }
+}
 RCT_REMAP_METHOD(cancelInvitationPicture, cancelInvitationPicture:(NSString *)identifier) {
   @synchronized(self) {
     PorticoHighlightsOperation *original=self.operation;

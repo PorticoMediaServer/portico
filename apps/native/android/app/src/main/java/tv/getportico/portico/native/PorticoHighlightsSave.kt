@@ -138,6 +138,29 @@ class PorticoHighlightsSave(private val context: ReactApplicationContext) : Reac
       }
     }
   }
+  /** The support export: the rebuilt server's ZIP (it starts PK\u0003\u0004), at most 8 MB, saved as portico-support-<day>.zip.
+   *  It shares the diagnostics custody, so cancelDiagnostics ends it. */
+  @ReactMethod fun saveSupportZip(id: String, zip: String, day: String, promise: Promise) {
+    if (!Regex("^[A-Za-z0-9_-]{32}$").matches(id) || !Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$").matches(day) || zip.length > 11184812) { promise.reject("invalid_diagnostics", "Invalid diagnostics export"); return }
+    val bytes = try { android.util.Base64.decode(zip, android.util.Base64.NO_WRAP) } catch (_: Exception) { null }
+    val signature = byteArrayOf(0x50, 0x4B, 0x03, 0x04)
+    if (bytes == null || bytes.size < 22 || bytes.size > 8388608 || !bytes.copyOfRange(0, 4).contentEquals(signature)) { bytes?.fill(0); promise.reject("invalid_diagnostics", "Invalid diagnostics export"); return }
+    synchronized(gate) {
+      if (closed || custody != null || nextCode > 65534 || diagnosticsIds.size >= 4096 || diagnosticsIds.contains(id)) { bytes.fill(0); promise.reject("diagnostics_busy", "Save unavailable"); return }
+      val activity = context.currentActivity
+      if (activity == null) { bytes.fill(0); promise.reject("diagnostics_busy", "Save unavailable"); return }
+      diagnosticsIds.add(id)
+      val original = Operation(id, nextCode++, activity, bytes, promise, "diagnostics", "application/zip")
+      operation = original; custody = original
+      activity.runOnUiThread {
+        synchronized(gate) {
+          if (!owns(original)) return@runOnUiThread
+          try { activity.startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(original.mime).putExtra(Intent.EXTRA_TITLE, "portico-support-$day.zip"), original.code) }
+          catch (_: Exception) { original.fail(); release(original) }
+        }
+      }
+    }
+  }
   /** The invitation card as a PNG, at most 4 MB, under one fixed name. */
   @ReactMethod fun saveInvitationPicture(id: String, png: String, promise: Promise) {
     if (!Regex("^[A-Za-z0-9_-]{32}$").matches(id) || png.length > 5600000) { promise.reject("invalid_invitation_picture", "Invalid invitation picture"); return }
