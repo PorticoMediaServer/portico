@@ -49,6 +49,10 @@ export type NativeWatchChromeProps = Readonly<{
   width: number;
   height: number;
   compact: boolean;
+  /** The picture's waiting ring replaces its centre transport, including before the line's delay. */
+  waiting?: boolean;
+  /** Measured picture footer, including its bottom inset, kept clear by the waiting column. */
+  onPictureControlsLayout?: (height: number) => void;
   /** Live, committed eligibility: the watch page only, never the book or tabletop pages that
    * `compact` also covers. A function so a retained chip handler re-checks the host at dispatch
    * instead of trusting this render's snapshot. */
@@ -444,6 +448,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
   // steps over an 80 centre and keeps the Episodes pill above the two rows.
   const stacked = tabletop === 'stacked';
   const side = tabletop ? 22 : undefined;
+  const pictureControlsBottom = compact ? 8 : 15;
   const big = theme.isTV ? 88 : bar ? 62 : tabletop ? (stacked ? 80 : 84) : compact ? (tablet ? 84 : 58) : 74;
   const small = theme.isTV ? 64 : bar ? 48 : tabletop ? 56 : compact ? 46 : 58;
   const channelStep = (direction: -1 | 1) => {
@@ -779,7 +784,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
           {!theme.isTV && icon('options', 'i-sliders', t('player.opt.menu'), () => panel('options'))}
           {!theme.isTV && liveButtons(compact ? 46 : 48)}
         </View>
-        {!theme.isTV && <View style={{position: 'absolute', left: 0, right: 0, top: height / 2 - big / 2, alignItems: 'center'}}>{transport}</View>}
+        {!theme.isTV && !props.waiting && <View style={{position: 'absolute', left: 0, right: 0, top: height / 2 - big / 2, alignItems: 'center'}}>{transport}</View>}
         {theme.isTV && <View style={{position: 'absolute', left: 96 + (props.edgeInsets?.left ?? 0), right: 96 + (props.edgeInsets?.right ?? 0), bottom: 80}}>
           <FocusRegion id="watch-seek-region" entry="watch-seek" stops={{left: true, right: true, up: !groupPillPresent && !(linear && liveOffer && props.liveActions)}} edges={{up: groupPillPresent ? 'watch-group' : linear && liveOffer && props.liveActions ? 'watch-live-actions' : undefined, down: liveEdgeAction ? 'watch-live-edge' : 'watch-transport'}}>
             <NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact={compact} enabled={controlsEnabled} tv focused={seekFocused} onPreview={setLanding} liveEdge={liveEdge} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
@@ -833,7 +838,8 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
             </FocusRegion>
           </View>
         </View>}
-        {!theme.isTV && <View style={{position: 'absolute', left: (side ?? (compact ? 14 : 60)) + (props.edgeInsets?.left ?? 0), right: (side ?? (compact ? 6 : 60)) + (props.edgeInsets?.right ?? 0), bottom: compact ? 8 : 15}}>
+        {!theme.isTV && <View testID="watch-picture-controls" onLayout={event => props.onPictureControlsLayout?.(event.nativeEvent.layout.height + pictureControlsBottom)}
+          style={{position: 'absolute', left: (side ?? (compact ? 14 : 60)) + (props.edgeInsets?.left ?? 0), right: (side ?? (compact ? 6 : 60)) + (props.edgeInsets?.right ?? 0), bottom: pictureControlsBottom}}>
           {!compact && <View style={{marginBottom: 8}}>
             <NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact={compact} enabled={controlsEnabled} liveEdge={liveEdge} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
           </View>}
