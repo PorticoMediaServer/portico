@@ -3,21 +3,22 @@ import test from 'node:test';
 import {authenticatedArtwork, memberProfileAvatarArtwork} from '../src/shell/artwork.ts';
 
 const identity = {serverId: 'server', viewerId: 'owner-profile', authorityKey: 'owner-authority'};
-const avatar = {profileId: 'movies', version: 2, updatedAt: '2026-10-28T12:00:00Z', sourceMime: 'image/png', url: '/v1/admin/access/members/person/profiles/movies/avatar?v=2'};
+// As the rebuilt profile answer names a member's picture for People (`profileAvatarFromProfile` with `member`).
+const avatar = {profileId: 'movies', url: '/v1/profiles/movies/avatar?v=2&member=person'};
 
 test('avatar admission preserves account, profile, version, rendition and viewer authority in the cache identity', () => {
-  const url = avatar.url + '&size=160';
+  const url = avatar.url + '&size=small';
   const selected = memberProfileAvatarArtwork(url, identity)!;
   assert.equal(selected.url, url);
-  for (const changed of [url.replace('/person/', '/another/'), url.replace('/movies/', '/another/'), url.replace('v=2', 'v=3'), url.replace('size=160', 'size=64')]) {
+  for (const changed of [url.replace('=person', '=another'), url.replace('/movies/', '/another/'), url.replace('v=2', 'v=3'), url.replace('size=small', 'size=large')]) {
     assert.notEqual(memberProfileAvatarArtwork(changed, identity)!.cacheKey, selected.cacheKey);
   }
   for (const changed of [{...identity, authorityKey: 'changed'}, {...identity, viewerId: 'admin'}, {...identity, serverId: 'other'}]) {
     assert.notEqual(memberProfileAvatarArtwork(url, changed)!.cacheKey, selected.cacheKey);
   }
-  for (const invalid of ['https://other.invalid' + url, '//other.invalid' + url, url + '\n', url + '#fragment', url + '&token=private', url + '&v=3', url.replace('v=2', 'v=0'),
-    url.replace('v=2', 'v=9007199254740992'), url.replace('size=160', 'size=128'), url.replace('/person/', '/../'), url.replace('/movies/', '/%00/'),
-    url.replace('/movies/', '/%ZZ/'), url.replace('/movies/', '/mo vies/'), url.replace('/movies/', '/mo\\vies/'), url.replace('/v1/admin/access/members/', '/v1/profiles/')]) {
+  for (const invalid of ['https://other.invalid' + url, '//other.invalid' + url, url + '\n', url + '#fragment', url + '&token=private', url + '&v=3',
+    url.replace('size=small', 'size=128'), url.replace('=person', '=../'), url.replace('/movies/', '/%00/'), url.replace('/movies/', '/../'),
+    url.replace('/movies/', '/mo vies/'), url.replace('/movies/', '/mo\\vies/'), url.replace('&member=person', ''), url.replace('/v1/profiles/', '/v1/admin/profiles/')]) {
     assert.equal(memberProfileAvatarArtwork(invalid, identity), undefined, invalid);
   }
 });
@@ -36,24 +37,24 @@ test('member pictures use the authenticated queue, fixed upload-made sizes and o
   });
   try {
     const small = runtime.memberProfileAvatar('person', avatar, 44)!;
-    const editor = runtime.memberProfileAvatar('person', avatar, 96)!;
-    const same = runtime.memberProfileAvatar('person', avatar, 160)!;
-    assert.equal(editor.key, same.key);
-    assert.notEqual(small.key, editor.key);
+    const editor = runtime.memberProfileAvatar('person', avatar, 160)!;
+    const large = runtime.memberProfileAvatar('person', avatar, 320)!;
+    assert.equal(small.key, editor.key, 'up to 160 pixels is the server\'s small size');
+    assert.notEqual(large.key, editor.key);
     assert.equal(runtime.memberProfileAvatar('another', avatar, 160), undefined);
-    assert.equal(runtime.memberProfileAvatar('person', {...avatar, url: '/v1/profiles/movies/avatar?v=2'}, 160), undefined);
+    assert.equal(runtime.memberProfileAvatar('person', {...avatar, url: '/v1/profiles/movies/avatar?v=2'}, 160), undefined, 'the caller\'s own picture route is never borrowed');
     assert.equal(runtime.memberProfileAvatar('person', {...avatar, url: 'https://other.invalid' + avatar.url}, 160), undefined);
     const image = await editor.scheduler.load(editor.key);
     assert.equal(recoveries, 1); assert.equal(image.bytes, 2);
     assert.equal(requests.length, 2);
-    assert.ok(requests.every(item => item.url === 'https://server.invalid' + avatar.url + '&size=160'));
+    assert.ok(requests.every(item => item.url === 'https://server.invalid' + avatar.url + '&size=small'));
     assert.equal(requests[0].init?.credentials, 'omit');
     assert.equal(requests[0].init?.redirect, 'error');
     assert.equal(requests[0].init?.referrerPolicy, 'no-referrer');
     assert.equal((requests[1].init?.headers as Record<string, string>).Authorization, 'Bearer renewed-test-token');
     current = false;
     assert.equal(runtime.memberProfileAvatar('person', avatar, 44), undefined);
-    await assert.rejects(small.scheduler.load(small.key));
+    await assert.rejects(large.scheduler.load(large.key));
     assert.equal(requests.length, 2);
   } finally {runtime.dispose(); globalThis.createImageBitmap = original;}
 });

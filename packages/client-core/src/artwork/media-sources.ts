@@ -1,4 +1,5 @@
-import {encodedRoutePath, routePattern} from '../../../contracts/src/routes.ts';
+import {routePattern} from '../../../contracts/src/routes.ts';
+import {serverPath} from '../query/server-api.ts';
 import {retryAfterSecondsFrom, type AuthRecovery, type HttpLocalApi} from '../index.ts';
 import {ambientArtworkSource, type AmbientArtworkIdentity} from './ambient.ts';
 import {artworkRenditionFor} from './renditions.ts';
@@ -26,18 +27,9 @@ export function foregroundArtwork(url: string | undefined, pixels: number, aspec
   const selected = artworkRenditionFor(url!, {width: pixels, height: pixels / ratio, dpr: 1}).url;
   return {url: selected, cacheKey: JSON.stringify([identity.serverId, identity.viewerId, identity.authorityKey, selected])};
 }
-const channelLogoPattern = new RegExp('^' + routePattern('get_library_channels_id_logo').replace('{id}', '[A-Za-z0-9_-]{1,128}') + '$');
-const memberProfileAvatarPattern = new RegExp('^' + routePattern('get_admin_access_members_id_profiles_profile_avatar').replace('{id}', '([^/?#]+)').replace('{profileId}', '([^/?#]+)') + '\\?v=([1-9]\\d{0,15})&size=(64|160|512)$');
-/** A logo is a separate foreground representation. Its revision is the checked
- * upload receipt's integer, never an ambient digest or a channel config revision. */
-export function channelLogoArtwork(url: string, identity: AmbientArtworkIdentity) {
-  if (url.length > 256 || /[\s\\#\x00-\x1f\x7f]/.test(url) || ![identity.serverId, identity.viewerId, identity.authorityKey].every(value => typeof value === 'string' && value.length > 0 && value.length <= 512 && !/[\x00-\x1f\x7f]/.test(value))) return undefined;
-  const parts = url.split('?');if (parts.length > 2 || !channelLogoPattern.test(parts[0]!)) return undefined;
-  if (parts.length === 2) {
-    const query = parts[1]!;if (!/^v=[1-9]\d{0,15}$/.test(query) || !Number.isSafeInteger(Number(query.slice(2)))) return undefined;
-  }
-  return {url, cacheKey: JSON.stringify([identity.serverId, identity.viewerId, identity.authorityKey, url])};
-}
+/** A member's profile picture, as the rebuilt profile answer names it for People (`?v=…&member=…`), at one of the
+ * server's two sizes. Read with the owner's or admin's sign-in. */
+const memberProfileAvatarPattern = /^\/v1\/profiles\/[A-Za-z0-9_-]{1,128}\/avatar\?v=[a-z0-9]{1,16}&member=[A-Za-z0-9_-]{1,128}&size=(?:small|large)$/;
 const trickplayTilePattern = new RegExp('^' + routePattern('get_v1_items_id_trickplay_set_tiles_tile_jpg').replace(/[.]/g, '\\.')
   .replace('{id}', '([^/?#]{1,512})').replace('{set}', '[a-f0-9]{64}').replace('{tile}', '(?:0|[1-9]\\d{0,4})') + '$');
 /** A video's preview sheet (W1-A2): the server's own sprite, unscaled. The route takes no query, so it is never
@@ -49,15 +41,10 @@ export function trickplayTileArtwork(url: string, identity: AmbientArtworkIdenti
   try {const id = decodeURIComponent(match[1]!); if (!id || id === '.' || id === '..' || /[\x00-\x1f\x7f]/.test(id)) return undefined;} catch {return undefined;}
   return {url, cacheKey: JSON.stringify([identity.serverId, identity.viewerId, identity.authorityKey, url, revision])};
 }
-/** People's pictures use their own authorized route and the upload receipt's
- * version. They enter the same foreground queue as other authenticated art. */
+/** People's pictures use their own authorized route and the picture's version. They enter
+ * the same foreground queue as other authenticated art. */
 export function memberProfileAvatarArtwork(url: string, identity: AmbientArtworkIdentity) {
-  if (url.length > 1024 || /[\s\\#\x00-\x1f\x7f]/.test(url) || ![identity.serverId, identity.viewerId, identity.authorityKey].every(value => typeof value === 'string' && value.length > 0 && value.length <= 512 && !/[\x00-\x1f\x7f]/.test(value))) return undefined;
-  const match = memberProfileAvatarPattern.exec(url);
-  if (!match || !Number.isSafeInteger(Number(match[3]))) return undefined;
-  try {
-    if (!match.slice(1, 3).every(value => {const id = decodeURIComponent(value!); return id.length > 0 && id.length <= 128 && id !== '.' && id !== '..' && !/[\x00-\x1f\x7f]/.test(id) && encodeURIComponent(id) === value;})) return undefined;
-  } catch {return undefined;}
+  if (url.length > 1024 || !memberProfileAvatarPattern.test(url) || ![identity.serverId, identity.viewerId, identity.authorityKey].every(value => typeof value === 'string' && value.length > 0 && value.length <= 512 && !/[\x00-\x1f\x7f]/.test(value))) return undefined;
   return {url, cacheKey: JSON.stringify([identity.serverId, identity.viewerId, identity.authorityKey, url])};
 }
 export function artworkFailure(error: unknown): ArtworkFailure {
@@ -98,7 +85,7 @@ export type AuthenticatedArtworkMedia = Readonly<{
 export async function readAuthenticatedArtworkBytes(options: AuthenticatedArtworkMedia,
   request: Readonly<{url: string; kind: 'foreground' | 'ambient'}>, signal: AbortSignal): Promise<Blob> {
   const {api, auth, identity, isCurrent} = options;
-  if (!isCurrent() || !(ambientArtworkSource(request.url, identity) || request.kind === 'foreground' && (sizedPicture.test(request.url) || channelLogoArtwork(request.url, identity) || memberProfileAvatarArtwork(request.url, identity) || trickplayTileArtwork(request.url, identity)))) throw Object.assign(new Error('Artwork authority changed.'), {status: 403});
+  if (!isCurrent() || !(ambientArtworkSource(request.url, identity) || request.kind === 'foreground' && (sizedPicture.test(request.url) || memberProfileAvatarArtwork(request.url, identity) || trickplayTileArtwork(request.url, identity)))) throw Object.assign(new Error('Artwork authority changed.'), {status: 403});
   const token = await auth.token(options.currentToken());
   throwIfAborted(signal);
   if (!isCurrent()) throw Object.assign(new Error('Artwork authority changed.'), {status: 403});
@@ -118,16 +105,8 @@ export async function readAuthenticatedArtworkBytes(options: AuthenticatedArtwor
   return imageBytes(response, request.kind === 'ambient' ? 20000 : 12 * 1024 * 1024, signal);
 }
 
-export function channelLogoArtworkSource(id: string, revision: number | undefined, identity: AmbientArtworkIdentity) {
-  if (!/^[A-Za-z0-9_-]{1,128}$/.test(id) || revision !== undefined && (!Number.isSafeInteger(revision) || revision < 1)) return undefined;
-  const url = encodedRoutePath('get_library_channels_id_logo', {id: encodeURIComponent(id)}) + (revision === undefined ? '' : '?v=' + revision);
-  return channelLogoArtwork(url, identity);
-}
-
 export function memberProfileAvatarArtworkSource(accountId: string, avatar: ProfileAvatar | undefined, pixels: number, identity: AmbientArtworkIdentity) {
-  if (!avatar || typeof avatar.version !== 'number' || !Number.isSafeInteger(avatar.version) || avatar.version < 1) return undefined;
-  const url = encodedRoutePath('get_admin_access_members_id_profiles_profile_avatar', {id: encodeURIComponent(accountId), profileId: encodeURIComponent(avatar.profileId)}) + '?v=' + avatar.version;
-  if (avatar.url !== url) return undefined;
-  const size = pixels <= 64 ? 64 : pixels <= 160 ? 160 : 512;
-  return memberProfileAvatarArtwork(url + '&size=' + size, identity);
+  // Only the picture of this person's own profile, with the management query the profile answer gave it.
+  if (!avatar || !avatar.url.startsWith(serverPath('GET /v1/profiles/{id}/avatar', {id: avatar.profileId}) + '?') || !avatar.url.endsWith('&member=' + encodeURIComponent(accountId))) return undefined;
+  return memberProfileAvatarArtwork(avatar.url + '&size=' + (pixels > 160 ? 'large' : 'small'), identity);
 }
