@@ -104,7 +104,8 @@ func (s *Server) invitationRoutes() {
 func invitationHash(typed string) string { return auth.Hash("invitation|" + auth.CodeKey(typed)) }
 
 func (s *Server) listInvitations(r *http.Request, _ None) (Page[Invitation], error) {
-	invitations, err := s.db.Invitations(r.Context(), s.now())
+	c := CallerFrom(r.Context())
+	invitations, err := s.db.ManageableInvitations(r.Context(), s.now(), c.Role, c.SessionID == 0)
 	out := Page[Invitation]{Items: make([]Invitation, 0, len(invitations))}
 	for _, i := range invitations {
 		out.Items = append(out.Items, s.invitationOut(i))
@@ -166,7 +167,7 @@ func (s *Server) editInvitation(r *http.Request, req InvitationEdit) (Invitation
 	if err := checkInvitation(req.Role, req.ExpiresInDays, req.Libraries, req.Note); err != nil {
 		return Invitation{}, err
 	}
-	e := db.InvitationEdit{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
+	e := db.InvitationEdit{ActorID: caller.UserID, ActorRole: caller.Role, MemberOnly: caller.SessionID == 0, PublicID: r.PathValue("id"),
 		Role: req.Role, AllLibraries: req.AllLibraries, Libraries: req.Libraries, Note: req.Note, Now: now}
 	if req.ExpiresInDays != nil {
 		expires := now.AddDate(0, 0, *req.ExpiresInDays)
@@ -180,7 +181,8 @@ func (s *Server) editInvitation(r *http.Request, req InvitationEdit) (Invitation
 }
 
 func (s *Server) revokeInvitation(r *http.Request, _ None) (None, error) {
-	return None{}, s.db.RevokeInvitation(r.Context(), CallerFrom(r.Context()).UserID, r.PathValue("id"), s.now())
+	c := CallerFrom(r.Context())
+	return None{}, memberError(s.db.RevokeInvitationAs(r.Context(), c.UserID, r.PathValue("id"), s.now(), c.SessionID == 0))
 }
 
 // openInvitation finds the invitation behind a typed code, counting a wrong one against the source.

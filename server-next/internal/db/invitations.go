@@ -143,6 +143,7 @@ func shareWithInvitation(tx *sql.Tx, id int64, libraries []int64) error {
 type InvitationEdit struct {
 	ActorID      int64
 	ActorRole    string
+	MemberOnly   bool
 	PublicID     string
 	Role         *string
 	AllLibraries *bool
@@ -165,10 +166,13 @@ func (d *DB) UpdateInvitation(ctx context.Context, e InvitationEdit) (Invitation
 		if i.State != "open" {
 			return ErrNotFound
 		}
+		if !Manages(e.ActorRole, i.Role) || e.MemberOnly && i.Role != "member" {
+			return ErrNotPermitted
+		}
 		if e.Role != nil {
 			i.Role = *e.Role
 		}
-		if !Manages(e.ActorRole, i.Role) {
+		if !Manages(e.ActorRole, i.Role) || e.MemberOnly && i.Role != "member" {
 			return ErrNotPermitted
 		}
 		if e.AllLibraries != nil {
@@ -205,7 +209,16 @@ func (d *DB) UpdateInvitation(ctx context.Context, e InvitationEdit) (Invitation
 // the rest, each newest first: an invitation that is waiting is never left out of the list
 // for used, revoked or run-out ones, however many of those a server has made.
 func (d *DB) Invitations(ctx context.Context, now time.Time) ([]Invitation, error) {
-	rows, err := d.read.QueryContext(ctx, `SELECT `+invitationColumns+` FROM invitations i
+	return d.ManageableInvitations(ctx, now, "owner", false)
+}
+
+// ManageableInvitations never returns a code for a role the caller cannot invite.
+func (d *DB) ManageableInvitations(ctx context.Context, now time.Time, role string, memberOnly bool) ([]Invitation, error) {
+	filter := ""
+	if role != "owner" || memberOnly {
+		filter = " WHERE i.role = 'member'"
+	}
+	rows, err := d.read.QueryContext(ctx, `SELECT `+invitationColumns+` FROM invitations i`+filter+`
 		ORDER BY i.state = 'open' AND i.expires_at > ? DESC, i.created_at DESC, i.id DESC LIMIT 500`, now.UnixMilli())
 	if err != nil {
 		return nil, err
@@ -224,7 +237,24 @@ func (d *DB) Invitations(ctx context.Context, now time.Time) ([]Invitation, erro
 
 // RevokeInvitation makes an open invitation unusable. Revoking one that is not open changes nothing.
 func (d *DB) RevokeInvitation(ctx context.Context, actorID int64, publicID string, now time.Time) error {
+	return d.RevokeInvitationAs(ctx, actorID, publicID, now, false)
+}
+
+// RevokeInvitationAs checks the stored target role before changing it. Keys are member-only.
+func (d *DB) RevokeInvitationAs(ctx context.Context, actorID int64, publicID string, now time.Time, memberOnly bool) error {
 	return d.write(ctx, User, func(tx *sql.Tx) error {
+		var actorRole, targetRole string
+		if err := tx.QueryRow(`SELECT role FROM users WHERE id = ?`, actorID).Scan(&actorRole); err != nil {
+			return err
+		}
+		if err := tx.QueryRow(`SELECT role FROM invitations WHERE public_id = ?`, publicID).Scan(&targetRole); errors.Is(err, sql.ErrNoRows) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		if !Manages(actorRole, targetRole) || memberOnly && targetRole != "member" {
+			return ErrNotPermitted
+		}
 		res, err := tx.Exec(`UPDATE invitations SET state = 'revoked' WHERE public_id = ? AND state = 'open'`, publicID)
 		if err != nil {
 			return err
