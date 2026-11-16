@@ -1,10 +1,10 @@
 import {readListeningSimilar, type ContentEntry, type LibraryContentApi} from './library-content.ts';
 import type {ListeningViewerScope} from './listening.ts';
 import type {HomeApi, HomeRow} from './home.ts';
+import {entriesFromItems, readRelatedItems} from './items.ts';
 
 /**
- * Relation rows: a title's or show's recommendation rows and related rows, which the rebuilt server
- * answers whole, and a listening title's similar row, which pages by cursor to its end.
+ * More like this on title, show and listening pages, read in server order to the final cursor.
  */
 
 const errorCode = (error: unknown): string => typeof (error as {code?: unknown})?.code === 'string' ? (error as {code: string}).code : 'request_failed';
@@ -29,7 +29,7 @@ export type RelationRowSnapshot = Readonly<{
  * call while a page is loading, or at the row's end, does nothing); a title already shown keeps
  * its first place. A failed page keeps the continuation for a later `more()`.
  *
- * A cursor the server refuses (`invalid_cursor`) means its scope, the viewer fence or profile, no
+ * A cursor the server refuses (`cursor_expired`, or the older `invalid_cursor`) means its scope, the viewer fence or profile, no
  * longer matches: access was decided again, not the row finished (relation_rows.go). The row is read
  * again once from its first page (`read('')`), whose entries and cursor replace what is shown, so
  * nothing allowed is hidden and nothing read under the old fence stays. A second refusal before any
@@ -75,7 +75,7 @@ export class RelationRowPager {
     } catch (error) {
       if (this.disposed || controller.signal.aborted) return;
       const code = errorCode(error);
-      if (code === 'invalid_cursor' && !this.reread) {
+      if ((code === 'invalid_cursor' || code === 'cursor_expired') && !this.reread) {
         this.reread = true;
         try {
           const first = await this.read('', controller.signal);
@@ -89,7 +89,7 @@ export class RelationRowPager {
           return;
         }
       }
-      const stale = code === 'stale_continuation' || code === 'invalid_cursor';
+      const stale = code === 'stale_continuation' || code === 'invalid_cursor' || code === 'cursor_expired';
       this.publish({entries: this.state.entries, ...(stale ? {} : {cursor}), loading: false, error: Object.freeze({code, stale})});
     } finally {
       if (this.controller === controller) this.controller = undefined;
@@ -113,10 +113,14 @@ export function completeRow(entries: readonly ContentEntry[]): RelationRowPager 
   return new RelationRowPager({entries}, () => Promise.reject(Object.assign(new Error('This row is complete.'), {code: 'row_complete'})));
 }
 
-/** A title's or show's recommendation row. The rebuilt server answers a title's related rows whole
- * (`GET /v1/items/{id}/related`, at most 15 titles a row), so the row has no later page. */
-export function recommendationRowPager(_api: HomeApi, _owner: RelationRowOwner, row: HomeRow, _limit?: number): RelationRowPager {
-  return completeRow(row.entries);
+/** More like this keeps its ranked continuation on the title's ordinary related route. */
+export function recommendationRowPager(api: HomeApi, owner: RelationRowOwner, row: HomeRow, limit = 15): RelationRowPager {
+  if (row.relation !== 'more_like') return completeRow(row.entries);
+  return new RelationRowPager({entries: row.entries, nextCursor: row.nextCursor}, async (cursor, signal) => {
+    const related = await readRelatedItems(api, owner.id, signal, {relation: 'more_like_this', cursor, limit});
+    const group = related.groups.find(group => group.relation === 'more_like_this');
+    return {entries: entriesFromItems(group?.items ?? []).filter(entry => entry.id !== owner.id), nextCursor: group?.nextCursor};
+  });
 }
 
 /** One page of a listening title's similar row (readListeningSimilar). */

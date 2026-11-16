@@ -143,7 +143,8 @@ export async function readAllItems(api: ServerRequester, query: ItemListQuery, s
 export const readItem = (api: ServerRequester, id: string, signal?: AbortSignal): Promise<Item> => callServer(api, 'GET /v1/items/{id}', {id, signal});
 export const readItemCredits = (api: ServerRequester, id: string, page: Readonly<{cursor?: string; limit?: number}> = {}, signal?: AbortSignal) =>
   callServer(api, 'GET /v1/items/{id}/credits', {id, query: page, signal});
-export const readRelatedItems = (api: ServerRequester, id: string, signal?: AbortSignal) => callServer(api, 'GET /v1/items/{id}/related', {id, signal});
+export const readRelatedItems = (api: ServerRequester, id: string, signal?: AbortSignal, page: Readonly<{relation?: 'more_like_this'; cursor?: string; limit?: number}> = {}) =>
+  callServer(api, 'GET /v1/items/{id}/related', {id, query: page, signal});
 export const readPersonFacts = (api: ServerRequester, id: string, signal?: AbortSignal) => callServer(api, 'GET /v1/people/{id}', {id, signal});
 /** The choices of one filter over a list, each with how many of the list's titles it would leave. */
 export const readFacet = (api: ServerRequester, facet: string, query: ItemListQuery, signal?: AbortSignal) => callServer(api, 'GET /v1/facets', {query: {...query, sort: undefined, order: undefined, facet}, signal});

@@ -96,7 +96,7 @@ export function TitleBody({binding, compact = false, artworkClaim}: {binding: De
     {snapshot.mutationError && <ScreenFailure retry={() => { void binding.service.retryMutation(); }} />}
     <div key={tab} id={tabPanelId} role="tabpanel" aria-labelledby={`${tabPanelId}-tab-${tab}`} tabIndex={0} className={tab === 'details' ? styles.tabPanel : `${styles.tabPanel} ${styles.rowsPanel}`}>{tab === 'details' ? <TitleDetails binding={binding} data={data} /> : tab === 'extras' ? data.extras?.map(extra => <TitleRow key={extra.type} heading={extra.label} entries={extra.items} binding={binding} />)
       : recommendations.data ? titleRecommendationRows(recommendations.data).map(row => <TitleRecommendationRow key={row.id} row={row} owner={{kind: 'item', id: data.item.id}} binding={binding} subtitleVisible={!compact} guard={() => binding.current(data)} />)
-        : similar?.data === data ? (similar.value.entries.length > 0 && <SimilarTitleRow first={similar.value} scope={similar.scope} heading={t('music.moreLikeThis')} subtitle={t(similar.value.bySound ? 'music.moreLikeThisBySound' : 'music.moreLikeThisHint')} binding={binding} guard={() => binding.current(data)} />)
+        : similar?.data === data ? (<SimilarTitleRow first={similar.value} scope={similar.scope} heading={t('music.moreLikeThis')} subtitle={t(similar.value.bySound ? 'music.moreLikeThisBySound' : 'music.moreLikeThisHint')} binding={binding} guard={() => binding.current(data)} />)
         : data.related?.rows.map(row => <RelatedTitleRow key={row.id} row={row} data={data} binding={binding} guard={() => binding.current(data)} />)}</div>
   </article>;
 }
@@ -443,6 +443,7 @@ function RelatedTitleRow({row, data, binding, guard}: {row: RelatedMovieRow; dat
 
 /** A listening title's More like this, read to its end on its first page's basis. */
 export function SimilarTitleRow({first, scope, heading, subtitle, binding, guard}: {first: ListeningSimilarRead; scope: ListeningViewerScope; heading: ReactNode; subtitle?: ReactNode; binding: Pick<DetailBindings, 'context'>; guard?: () => void}) {
+  if (!first.entries.length && !first.nextCursor) return null;
   return <PagedTitleRow heading={heading} subtitle={subtitle} entries={first.entries} binding={binding} guard={guard} first={first} pager={api => listeningSimilarPager(api, scope, first)} />;
 }
 
