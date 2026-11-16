@@ -23,7 +23,7 @@ func (im *importer) rereadLocal(id int64, it *ImportItem) error {
 	// person typed and the file does not give stays the person's.
 	sources := fieldSources(was)
 	for field, source := range sources {
-		if source == SourceFile {
+		if source == SourceFile && !keep[field] {
 			delete(sources, field)
 		}
 	}
@@ -47,6 +47,18 @@ func (im *importer) rereadLocal(id int64, it *ImportItem) error {
 		if err := im.ownSortTitle(id, it.SortTitle); err != nil {
 			return err
 		}
+	}
+	if it.Kind.Reading() && !keep[FieldPublicationType] {
+		sets += ", publication = ?"
+		args = append(args, it.Publication)
+	}
+	if it.WordCount != nil {
+		sets += ", word_count = ?"
+		args = append(args, *it.WordCount)
+	}
+	if it.OpeningLines != nil {
+		sets += ", extra = json_set(ifnull(extra, '{}'), '$.openingLines', ?)"
+		args = append(args, *it.OpeningLines)
 	}
 	set(FieldOriginalTitle, "original_title", it.OriginalTitle)
 	set(FieldSummary, "summary", it.Summary)
@@ -125,11 +137,37 @@ func (im *importer) rereadLocal(id int64, it *ImportItem) error {
 // of that file: a file that changed replaces its own picture.
 func (im *importer) localImages(itemID int64, images []ImportImage) error {
 	roles := map[ImageRole]bool{}
+	detached := map[ImageRole]bool{}
 	for position, image := range images {
+		var locked bool
+		if err := im.queryRow(`SELECT EXISTS (SELECT 1 FROM images WHERE item_id = ? AND role = ? AND locked = 1 AND selected = 1)`,
+			itemID, image.Role).Scan(&locked); err != nil {
+			return err
+		}
+		if locked {
+			continue
+		}
 		if image.File == nil {
-			if err := im.insertImage(itemID, position, image); err != nil {
-				return err
+			if detached[image.Role] {
+				continue
 			}
+			detached[image.Role] = true
+			var id int64
+			err := im.queryRow(`SELECT id FROM images WHERE item_id = ? AND role = ? AND source = ? AND locked = 0
+    ORDER BY selected DESC,position,id LIMIT 1`, itemID, image.Role, image.Source).Scan(&id)
+			switch {
+			case err == sql.ErrNoRows:
+				if err := im.insertImage(itemID, position, image); err != nil {
+					return err
+				}
+			case err != nil:
+				return err
+			default:
+				if _, err := im.exec(`UPDATE images SET file_hash = ?,width = ?,height = ? WHERE id = ?`, image.FileHash, nz(image.Width), nz(image.Height), id); err != nil {
+					return err
+				}
+			}
+			roles[image.Role] = true
 			continue
 		}
 		if err := checkCode("images.role", imageRoleNames, image.Role); err != nil {
