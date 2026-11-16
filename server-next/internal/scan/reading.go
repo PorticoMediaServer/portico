@@ -289,7 +289,9 @@ func (r *run) embedded(file *found, wantCover bool) (d details, images []db.Impo
 	d = details{}
 	ext := strings.ToLower(path.Ext(file.rel))
 	pdf := ext == ".pdf" && wantCover && r.s.Pictures != nil
-	if r.lib.Options.Depth == db.DepthFiles || ext != ".epub" && ext != ".cbz" && ext != ".cbr" && ext != ".cb7" && !pdf {
+	// A MOBI or AZW3 is read as the EPUB it is rebuilt into (reading.EPUBPackage and the rest).
+	ebook := ext == ".epub" || ext == ".mobi" || ext == ".azw3"
+	if r.lib.Options.Depth == db.DepthFiles || !ebook && ext != ".cbz" && ext != ".cbr" && ext != ".cb7" && !pdf {
 		return d, nil, true
 	}
 	// A CBR or CB7 is read whole to find anything in it, which on remote storage means
@@ -311,7 +313,7 @@ func (r *run) embedded(file *found, wantCover bool) (d details, images []db.Impo
 		return d, images, true
 	}
 	var more map[string]string
-	if ext == ".epub" {
+	if ebook {
 		raw, err := reading.EPUBPackage(f, f.Size())
 		if err != nil {
 			return d, nil, false
@@ -366,7 +368,7 @@ func (r *run) embeddedCover(file *found, raw []byte) []db.ImportImage {
 // edit has taken those details over.
 func (r *run) rereads(file *found) bool {
 	ext := strings.ToLower(path.Ext(file.rel))
-	return file.state == changed && r.lib.Options.Depth != db.DepthFiles && (ext == ".epub" || ext == ".cbz" || ext == ".cbr" || ext == ".cb7" || ext == ".pdf")
+	return file.state == changed && r.lib.Options.Depth != db.DepthFiles && (ext == ".epub" || ext == ".mobi" || ext == ".azw3" || ext == ".cbz" || ext == ".cbr" || ext == ".cb7" || ext == ".pdf")
 }
 
 // comicDetails puts what a comic's ComicInfo.xml said on its item, as the file's own.
