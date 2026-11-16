@@ -1,7 +1,3 @@
-import {decodeGetSetupStateResponse} from '../../contracts/src/decoders.ts';
-import {routePath} from '../../contracts/src/route-paths.ts';
-import type {HttpLocalApi} from './index.ts';
-
 /** The server's setup phases a caller with its own setup token can see (server setupflow). */
 export const setupPhases = ['started', 'awaiting_approval', 'expired', 'approved', 'finishing', 'exhausted', 'installed', 'installed_lapsed'] as const;
 export type SetupPhase = typeof setupPhases[number];
@@ -26,27 +22,3 @@ export type SetupState = Readonly<{
   retryAfterSeconds?: number;
   setup?: OwnSetup | 'unknown';
 }>;
-
-/** Reads GET /v1/setup/state. `api` carries the setup token as its bearer when the caller has one. */
-export async function readSetupState(api: Pick<HttpLocalApi, 'request'>, signal?: AbortSignal): Promise<SetupState> {
-  return parseSetupState(await api.request<unknown>(routePath('get_setup_state'), 'GET', undefined, signal));
-}
-
-export function parseSetupState(raw: unknown): SetupState {
-  const decoded = decodeGetSetupStateResponse(raw);
-  const status: SetupState['status'] = decoded.status === 'ready' || decoded.status === 'in_progress' || decoded.status === 'complete' ? decoded.status : 'unknown';
-  const out: {status: SetupState['status']; retryAfterSeconds?: number; setup?: OwnSetup | 'unknown'} = {status};
-  if (typeof decoded.retryAfterSeconds === 'number') out.retryAfterSeconds = decoded.retryAfterSeconds;
-  const setup = decoded.setup;
-  if (setup) {
-    if ('unknownVariant' in setup || !(setupPhases as readonly string[]).includes(setup.variant)) out.setup = 'unknown';
-    else out.setup = Object.freeze({phase: setup.variant as SetupPhase, requestId: setup.requestId, revision: setup.revision,
-      ...(setup.expiresAt ? {expiresAt: setup.expiresAt} : {}),
-      ...(setup.operation ? {operation: Object.freeze({operationId: setup.operation.operationId, localGeneration: setup.operation.localGeneration, revision: setup.operation.revision})} : {}),
-      ...(setup.delivery ? {delivery: Object.freeze({attempts: setup.delivery.attempts, slow: setup.delivery.slow,
-        ...(setup.delivery.since ? {since: setup.delivery.since} : {}), ...(setup.delivery.nextRetryAt ? {nextRetryAt: setup.delivery.nextRetryAt} : {})})} : {}),
-      ...(setup.outcome === 'denied' ? {outcome: 'denied' as const} : {}),
-      cancelling: setup.cancelling === true, renewable: setup.renewable === true});
-  }
-  return Object.freeze(out);
-}
