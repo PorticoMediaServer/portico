@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {defaultI18n} from '../../i18n/src/index.ts';
 import {homeRowHeading, isPersonalRowId, validateHomeRow} from '../src/home.ts';
 import {validateContentProjection as parseContentProjection} from '../src/library-content.ts';
-import {fetchItemRecommendations, fetchShowRecommendations, moreLikeThisRow, titleRecommendationRows, validateItemRecommendations} from '../src/recommendations.ts';
+import {itemRecommendationsFromRelated, fetchItemRecommendations, fetchShowRecommendations, moreLikeThisRow, titleRecommendationRows, validateItemRecommendations} from '../src/recommendations.ts';
 import {serverTextLabel} from '../src/presentation/server-text.ts';
 import {HomeRowPager} from '../src/home-row-page.ts';
 import {resetSkippedParts, skippedParts} from '../src/tolerant.ts';
@@ -92,10 +92,11 @@ test('a title page reads More like this from the server\'s related titles, for a
   // The title itself and a kind the app has no card for are left out; the server's order is kept.
   assert.deepEqual(titleRecommendationRows(recs).map(row => row.entries.map(entry => entry.id)), [['m2', 'm3']]);
   assert.deepEqual(moreLikeThisRow(recs, 'More like this')?.entries.map(entry => entry.id), ['m2', 'm3']);
-  assert.equal((await fetchItemRecommendations(api, 'm1', 1)).rows[0]!.entries.length, 1);
+  assert.equal((await fetchItemRecommendations(api, 'm1', 1)).rows[0]!.entries.length, 2, 'the client never discards entries before a server cursor');
+  assert.equal(paths.at(-1), '/v1/items/m1/related?limit=1');
   // A show's page reads the same route, by the show's id.
   const show = await fetchShowRecommendations(api, 's 1', 12);
-  assert.equal(paths.at(-1), '/v1/items/s%201/related');
+  assert.equal(paths.at(-1), '/v1/items/s%201/related?limit=12');
   assert.equal(show.showId, 's 1');
   assert.equal(show.rows[0]!.relation, 'more_like');
   // No group, or nothing left in it, is no row.
@@ -199,4 +200,10 @@ test('a quiet refresh reads every page scrolled into again, so a title removed d
   assert.equal(pager.getSnapshot().nextCursor, '');
   assert.equal(pager.getSnapshot().phase, 'ready');
   pager.dispose();
+});
+
+
+test('an empty visible first page keeps its ranked continuation', () => {
+  const read = itemRecommendationsFromRelated({groups: [{relation: 'more_like_this', items: [], nextCursor: 'next'}]}, 'seed');
+  assert.equal(titleRecommendationRows(read)[0]?.nextCursor, 'next');
 });

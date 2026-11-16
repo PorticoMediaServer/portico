@@ -794,21 +794,21 @@ export { entry as validateContentEntry };
 export { seeAll as parseContentSeeAll };
 
 /** A listening title's More like this comes from the same related read as films and shows.
- * The server returns the complete row and does not claim a sound-analysis basis or cursor. */
-export function listeningSimilarPath(itemId:string,_options:{limit?:number;by?:'sound';cursor?:string}={}){
- return serverPath('GET /v1/items/{id}/related',{id:itemId});
+ * The server keeps the ranking and its continuation; it does not claim a sound-analysis basis. */
+export function listeningSimilarPath(itemId:string,options:{limit?:number;by?:'sound';cursor?:string}={}){
+ return serverPath('GET /v1/items/{id}/related',{id:itemId,query:{relation:'more_like_this',cursor:options.cursor,limit:options.limit??24}});
 }
 export async function readListeningSimilar<S extends ListeningViewerScope>(api:LibraryContentApi,_scope:S,itemId:string,options:{limit?:number;by?:'sound';cursor?:string;signal?:AbortSignal}={}){
  const [source,related]=await Promise.all([
   callServer(api,'GET /v1/items/{id}',{id:itemId,signal:options.signal}),
-  callServer(api,'GET /v1/items/{id}/related',{id:itemId,signal:options.signal}),
+  api.request<import('../../contracts/src/next/api.ts').Related>(listeningSimilarPath(itemId,options),'GET',undefined,options.signal),
  ]);
  if(!record(source)||source.id!==itemId||!id(source.libraryId)||!record(related)||!Array.isArray(related.groups))invalid();
  const group=related.groups.find(value=>record(value)&&value.relation==='more_like_this');
  if(group&&!Array.isArray(group.items))invalid();
  const entries=entriesFromItems(group?.items??[]).filter(value=>value.id!==itemId&&['artist','album','song','book'].includes(value.kind));
  return Object.freeze({itemId,libraryId:source.libraryId,bySound:false,revision:Object.freeze({catalog:0,viewer:0}),
-  entries:Object.freeze(entries.slice(0,options.limit??24)),nextCursor:undefined as string|undefined});
+  entries:Object.freeze(entries),nextCursor:group?.nextCursor});
 }
 
 /** The saved position's own facts: the fraction read and, for paged formats, a zero-based page.

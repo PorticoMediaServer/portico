@@ -216,7 +216,7 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
         </>}
       </aside>}
     </section>
-    {similar?.page === projection && similarRead.current === similar.token && similar.value.entries.length > 0 && <SimilarTitleRow heading={t('music.similarArtists')} subtitle={t(similar.value.bySound ? 'music.moreLikeThisBySound' : 'music.moreLikeThisHint')}
+    {similar?.page === projection && similarRead.current === similar.token && <SimilarTitleRow heading={t('music.similarArtists')} subtitle={t(similar.value.bySound ? 'music.moreLikeThisBySound' : 'music.moreLikeThisHint')}
       first={similar.value} scope={similar.scope} binding={{context}} guard={() => {
         if (!witness() || similarRead.current !== similar.token) throw new DOMException('Artist related read changed', 'AbortError');
       }} />}

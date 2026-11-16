@@ -5,8 +5,7 @@ import {unreadableServerResponse} from './server-messages.ts';
 import {validateContentEntry, type ContentEntry} from './library-content.ts';
 import {validateHomeRow, type HomeApi, type HomeRevision, type HomeRow} from './home.ts';
 import {firstOfEach, keepReadable, noteSkipped} from './tolerant.ts';
-import {callServer} from './query/server-api.ts';
-import {entriesFromItems} from './items.ts';
+import {entriesFromItems, readRelatedItems} from './items.ts';
 import type {Related} from '../../contracts/src/next/api.ts';
 
 export type Suggestion = Readonly<{entry: ContentEntry; reason: string; source: string; score: number}>;
@@ -77,7 +76,7 @@ export function validateItemRecommendations(value: unknown, itemId: string): Ite
  * with its `titleText`.
  */
 export function titleRecommendationRows(recommendations: Readonly<{rows: readonly HomeRow[]}> | null | undefined): readonly HomeRow[] {
-  return (recommendations?.rows ?? []).filter(row => row.entries.length > 0);
+  return (recommendations?.rows ?? []).filter(row => row.entries.length > 0 || !!row.nextCursor);
 }
 
 /**
@@ -104,7 +103,7 @@ export function validateShowRecommendations(value: unknown, showId: string): Sho
 
 /** A show's page reads the same related groups as a film's: shows are titles on the server. */
 export async function fetchShowRecommendations(api: HomeApi, showId: string, limit?: number, signal?: AbortSignal): Promise<ShowRecommendations> {
-  const rows = relatedRows(await callServer(api, 'GET /v1/items/{id}/related', {id: showId, signal}), showId, limit);
+  const rows = relatedRows(await readRelatedItems(api, showId, signal, {limit}), showId, limit);
   return Object.freeze({showId, rows, revision: unversioned});
 }
 
@@ -114,7 +113,7 @@ export async function fetchSuggestions(api: HomeApi, limit?: number, signal?: Ab
 
 /** A title's More like this, cast, creator and genre rows from the server's related groups. */
 export async function fetchItemRecommendations(api: HomeApi, itemId: string, limit?: number, signal?: AbortSignal): Promise<ItemRecommendations> {
-  return itemRecommendationsFromRelated(await callServer(api, 'GET /v1/items/{id}/related', {id: itemId, signal}), itemId, limit);
+  return itemRecommendationsFromRelated(await readRelatedItems(api, itemId, signal, {limit}), itemId, limit);
 }
 
 /** The server's answer carries no revision; nothing compares one for these rows. */
@@ -143,11 +142,12 @@ function relatedRows(value: Related, self: string, limit?: number): readonly Hom
         id = 'genre:' + group.tag.value; title = group.tag.label; relation = 'genre';
       } else return;
       let entries = firstOfEach('recommendations', 'entries', entriesFromItems(group.items).filter(entry => entry.id !== self), entry => entry.id);
-      if (limit !== undefined && limit >= 0) entries = entries.slice(0, limit);
-      if (!entries.length) return;
+      if (group.relation !== 'more_like_this' && limit !== undefined && limit >= 0) entries = entries.slice(0, limit);
+      const nextCursor = group.relation === 'more_like_this' && typeof group.nextCursor === 'string' ? group.nextCursor : '';
+      if (!entries.length && !nextCursor) return;
       rows.push(Object.freeze({id, title, ...(titleText ? {titleText} : {}), kind: group.relation, relation, artworkShape: 'poster' as const,
-        endpoint: '', privacySensitivity: '', policyState: '', priority, required: false, hideable: false, reorderable: false, critical: false, cursorCapable: false,
-        entries: Object.freeze(entries), start: 0, limit: entries.length, hasMore: false, nextCursor: ''}));
+        endpoint: '', privacySensitivity: '', policyState: '', priority, required: false, hideable: false, reorderable: false, critical: false, cursorCapable: !!nextCursor,
+        entries: Object.freeze(entries), start: 0, limit: entries.length, hasMore: !!nextCursor, nextCursor}));
     } catch {
       if (group.relation !== 'more_like_this') noteSkipped('recommendations', 'rows');
     }
