@@ -1,11 +1,8 @@
-import {routeBody} from "../../contracts/src/routes.ts";
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {CodedError,unreadableServerResponse} from './server-messages.ts';
 import {callServer,serverPath} from './query/server-api.ts';
 /** Typed calls for the identity workstream on a direct server: profile limits and
  * devices, two-step sign-in. These functions add no state. */
-import {parseDevice,parseDevices,parseRememberedAccounts,type Device,type RememberedAccount} from './identity-devices.ts';
+import {parseDevice,parseDevices,type Device} from './identity-devices.ts';
 import {parseProfileAvatar,profileAvatarFromProfile,parseTwoFactorState,type ProfileAvatar,type TwoFactorState} from './identity-restrictions.ts';
 import {RATING_LIMITS,readRestrictions,saveRestrictions,tagChoices,type ProfileRestrictions,type RatingSystem,type RestrictionChanges,type TagChoice} from './profile-restrictions.ts';
 
@@ -15,7 +12,6 @@ export type DeviceDescription=Readonly<{installationId:string;name:string;platfo
 export type SignInRecord=Readonly<{id:string;deviceId:string;deviceName:string;profileId?:string;createdAt:string;lastUsedAt:string;expiresAt:string;endedAt?:string;endReason?:string;network?:'home'|'away';current:boolean}>;
 /** What an authenticator app is given. The recovery codes come when the first code is confirmed. */
 export type TwoFactorEnrolment=Readonly<{secret:string;uri:string}>;
-const id=(v:string)=>encodeURIComponent(v);
 
 export function parseTwoFactorEnrolment(raw:unknown):TwoFactorEnrolment{
  const v=raw as Record<string,unknown>|null;
@@ -91,11 +87,6 @@ export class IdentityClient{
  }
  /** Ends one of the account's sign-ins (`DELETE /v1/me/sessions/{id}`). */
  async endSession(sessionId:string,signal?:AbortSignal):Promise<void>{await callServer(this.api,'DELETE /v1/me/sessions/{id}',{id:sessionId,signal});}
- /** Who has used this installation. Asked before anyone is signed in; nothing in it is a credential. */
- /** The installation id goes in the body, never the address: addresses end up in proxy and access logs. */
- async rememberedAccounts(installationId:string,signal?:AbortSignal):Promise<readonly RememberedAccount[]>{return parseRememberedAccounts(await this.api.request<RouteResponse<"post_auth_remembered_accounts">>(routePath("post_auth_remembered_accounts"),'POST',routeBody("post_auth_remembered_accounts", {installationId}),signal));}
- async rememberAccount(installationId:string,automaticSignIn:boolean):Promise<readonly RememberedAccount[]>{return parseRememberedAccounts(await this.api.request<RouteResponse<"post_direct_remembered_accounts">>(routePath("post_direct_remembered_accounts"),'POST',routeBody("post_direct_remembered_accounts", {installationId,automaticSignIn})));}
- async forgetAccount(accountId:string,installationId:string):Promise<void>{await this.api.request(encodedRoutePath("delete_direct_remembered_account", {"accountId": id(accountId)}),'DELETE',routeBody("delete_direct_remembered_account", {installationId}));}
  /** Renames a device (`PATCH /v1/devices/{id}`). Remembering an account on a device is not on the new server yet. */
  async editDevice(deviceId:string,edit:{name?:string;rememberAccount?:boolean}):Promise<Device>{
   if(edit.name===undefined)throw new CodedError('not_available','This is not available on this server yet.');
