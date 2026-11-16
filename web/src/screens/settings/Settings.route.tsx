@@ -202,7 +202,7 @@ export function SettingsEntry() {
     const requestCertificate: typeof originalApi.requestCertificate = async <T,>(action: Parameters<typeof originalApi.requestCertificate>[0], body: unknown, input: AbortSignal): Promise<T> => {
       assert();const value = await originalApi.requestCertificate<T>(action, body, signal(input));assert();return value;
     };
-    const requestMetadataUpload: typeof originalApi.requestMetadataUpload = async <T,>(path: string, body: FormData, input?: AbortSignal): Promise<T> => {
+    const requestMetadataUpload: typeof originalApi.requestMetadataUpload = async <T,>(path: string, body: Blob, input?: AbortSignal): Promise<T> => {
       assert();const value = await originalApi.requestMetadataUpload<T>(path, body, signal(input));assert();return value;
     };
     const requestBounded: typeof originalApi.requestBounded = async <T,>(path: string, maxBytes: number, input: AbortSignal): Promise<T> => {

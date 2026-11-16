@@ -2,7 +2,6 @@ import {UnlockIcon} from '../../kit/UnlockIcon';
 import type {ReactNode} from 'react';
 import {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
-import {orderTakesOffset, readTmdbOrder, tmdbAbsoluteOrder} from '@core/screen-metadata.ts';
 import {attentionInProgress} from '@core/server-admin/attention-words.ts';
 import {MetadataRepairService, type RepairCaller, type RepairCommand, type RepairData, type RepairFieldSpec, type RepairTarget} from '@core/metadata-repair.ts';
 import {EditorHeader} from '../../kit/shell';
@@ -20,7 +19,8 @@ import {compactMetadataField, generalMetadataFields, metadataFieldMeter, metadat
 import {COMMON_LANGUAGES, languageName} from '@core/presentation/language-list.ts';
 
 const t = defaultI18n.t;
-type Api = Readonly<{request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<T>; requestMetadataUpload?: <T>(path: string, body: FormData, signal?: AbortSignal) => Promise<T>}>;
+type Api = Readonly<{request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<T>; requestMetadataUpload?: <T>(path: string, body: Blob, signal?: AbortSignal) => Promise<T>;
+  requestRaw?: (path: string, method: string, options: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>) => Promise<{status: number; body?: unknown}>}>;
 type Draft = Readonly<Record<string, MetadataFieldDraft>>;
 
 /** Only the tabs this type really has: no list fields means no Tags tab, no roles means no Artwork. */
@@ -134,15 +134,16 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
       {shown === 'people' ? <People data={data} target={target} busy={state.phase !== 'ready'} opening={openingLease} openingSignal={openingLease?.controller.signal} openingCurrent={openingCurrent}
         onCommit={(rows, caller) => run({action: 'edit_relationships', role: 'credit', confirm: true, relationships: rows, ...(data.snapshot.canEditProviderCredits === true ? {effectiveCredits: true as const} : {})}, caller)}
         onLock={(locked, caller) => run({action: 'relationship_lock', role: 'credit', locked, confirm: true}, caller)} /> : null}
-      {shown === 'matching' ? <Matching data={data} target={target} busy={state.phase !== 'ready'} onSearch={query => void run({action: 'search', query})}
+      {shown === 'matching' ? <Matching data={data} busy={state.phase !== 'ready'} onSearch={query => void run({action: 'search', query})}
         onRetry={() => void run({action: 'retry'})} onLock={locked => void run({action: 'relationship_lock', role: 'identity', locked, confirm: true})}
-        onUse={(provider, candidateId, order) => void run({action: 'identify', provider, candidateId, confirm: true, ...(order ? {order} : {})})} /> : null}
+        onKeep={() => void run({action: 'keep_as_is', confirm: true})}
+        onUse={(provider, candidateId, order, episodeOffset) => void run({action: 'identify', provider, candidateId, confirm: true, ...(order ? {order} : {}), ...(episodeOffset ? {episodeOffset} : {})})} /> : null}
       {shown === 'artwork' && data.artworkRoles.includes('cover') && api.requestMetadataUpload ? renderCoverPages?.(file => service.uploadArtwork('cover', file), state.phase !== 'ready') : null}
       {shown === 'artwork' ? <Artwork artwork={artwork} portraitCover={localArtworkOnly} data={data} busy={state.phase !== 'ready'} onUse={(role, candidateId) => void run({action: 'select_artwork', role, candidateId, confirm: true})}
         onRemove={removeUpload} isDataCurrent={currentRepairData} onMakeFromVideo={data.canMakeEpisodeThumbnail ? makeThumbnail : undefined} localOnly={target.kind === 'book'}
         onUpload={api.requestMetadataUpload ? (role, file) => service.uploadArtwork(role, file) : undefined}
         onLock={(role, subject, locked) => void run({action: 'artwork_lock', role, subject, locked})}
-        onFindMore={localArtworkOnly || target.kind === 'book' || data.onlineLookups === false ? undefined : role => void run({action: 'discover_artwork', role})} onRefetch={localArtworkOnly || target.kind === 'book' ? undefined : role => void run({action: 'repair_assets', role})} /> : null}
+        onFindMore={localArtworkOnly || target.kind === 'book' || data.onlineLookups === false ? undefined : role => void run({action: 'discover_artwork', role})} /> : null}
       {shown === 'lyrics' ? <SongLyricsEditor api={api} scope={scope} target={target} repairData={data} isCurrent={currentRepairGrant}/> : null}
       {shown === 'history' ? <History data={data} busy={state.phase !== 'ready'} onUndo={historyId => void run({action: 'undo', historyId, confirm: true})}
         onAll={locked => void run({action: locked ? 'lock_all' : 'unlock_all', confirm: true})} /> : null}
@@ -363,7 +364,7 @@ function Artwork({data, busy, portraitCover, onUse, onLock, onFindMore, onRefetc
 }
 
 
-function History({data, busy, onUndo, onAll}: {data: RepairData; busy: boolean; onUndo: (historyId: number) => void; onAll: (locked: boolean) => void}) {
+function History({data, busy, onUndo, onAll}: {data: RepairData; busy: boolean; onUndo: (historyId: number | string) => void; onAll: (locked: boolean) => void}) {
   return <div className={styles.fields}>
     <div className={styles.editorFooter}><Button size="small" disabled={busy} onClick={() => onAll(true)}>{t('web.metadata.lockEverything')}</Button>
       <Button size="small" disabled={busy} onClick={() => onAll(false)}>{t('web.metadata.unlockEverything')}</Button></div>
@@ -376,58 +377,56 @@ function History({data, busy, onUndo, onAll}: {data: RepairData; busy: boolean; 
 }
 
 
-/** Frame 10: current identity, its lock, and the server's own matching commands. */
-function Matching({data, target, busy, onSearch, onUse, onRetry, onLock}: {
-  data: RepairData; target: RepairTarget; busy: boolean; onSearch: (query: string) => void;
-  onUse: (provider: string, candidateId: string, order?: string) => void; onRetry: () => void; onLock: (locked: boolean) => void;
+const ORDERS = ['aired', 'dvd', 'absolute'] as const;
+/** The rebuilt server's cast and crew roles. */
+const CREDIT_ROLES = ['actor', 'director', 'writer', 'producer', 'composer', 'author', 'narrator', 'artist', 'guest', 'crew'] as const;
+/** Frame 10 and rules 13a to 17: what the title is matched to, its lock, a search or an ID, Look it up again, and Keep
+ * as is, which takes a wrong match off. A show's match carries the episode order and number offset its files use. */
+function Matching({data, busy, onSearch, onUse, onRetry, onLock, onKeep}: {
+  data: RepairData; busy: boolean; onSearch: (query: string) => void; onRetry: () => void; onLock: (locked: boolean) => void; onKeep: () => void;
+  onUse: (provider: string, candidateId: string, order?: string, offset?: number) => void;
 }) {
-  const [query, setQuery] = useState(''), [orders, setOrders] = useState<Readonly<Record<string, Readonly<{order: string; offset: string}>>>>({});
   const identity = data.snapshot.identity;
-  const statusKey = `web.metadata.matchStatus.${identity?.status.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase()) ?? 'unmatched'}`;
-  const status = identity?.status === 'needs_selection' ? t('web.metadata.moreThanOneMatch') : defaultI18n.has(statusKey) ? t(statusKey) : t('web.metadata.matchStatus.unknown');
-  const typeKey = `metadata.attention.kind.${identity?.type === 'movie' ? 'film' : identity?.type ?? ''}`;
-  const type = defaultI18n.has(typeKey) ? t(typeKey) : '';
-  const scannedMatch = target.kind === 'album';
-  const lookupBusy = busy || data.onlineLookups === false;
+  const [query, setQuery] = useState(() => data.snapshot.fields.title?.value ?? '');
+  const [order, setOrder] = useState(identity?.order || 'aired'), [offset, setOffset] = useState(String(identity?.offset ?? 0));
+  const [keeping, setKeeping] = useState(false);
+  const show = data.itemKind === 'show';
+  const matched = !!identity?.provider && !!identity.id;
+  const state = identity?.status ?? 'unmatched';
+  const status = t(state === 'matched' || state === 'chosen' ? 'web.metadata.matchStatus.matched' : state === 'kept' ? 'web.metadata.matchStatus.kept' : 'web.metadata.matchStatus.unmatched');
+  const validOffset = /^-?\d+$/.test(offset.trim()) && Math.abs(Number(offset)) <= 9999;
   return <div className={styles.fields}>
     <section className={styles.candidate}>
       <div><b>{t('web.metadata.currentMatch')}</b>
-        <small>{identity ? [providerName(identity.provider), type, identity.id, status].filter(Boolean).join(' · ') : t('web.metadata.matchStatus.unmatched')}</small></div>
+        <small>{matched ? [providerName(identity!.provider), identity!.id, status].join(' · ') : status}</small></div>
       <button type="button" className={styles.lock} disabled={busy} aria-pressed={identity?.locked === true}
         onClick={() => onLock(identity?.locked !== true)}>{t(identity?.locked ? 'web.metadata.identityLocked' : 'web.metadata.identityUnlocked')}</button>
     </section>
-    {data.onlineLookups === false ? <p className={styles.lockHelp}>{t('web.metadata.onlineLookupOff')}</p> : null}
-    <form className={styles.matchSearch} onSubmit={event => {event.preventDefault(); if (!scannedMatch && query.trim() && !lookupBusy) onSearch(query.trim());}}>
-      {scannedMatch ? <p>{t('web.metadata.searchProviderHelpAuto')}</p> : <>
-        <TextField label={t('web.metadata.searchProvider')} description={t('web.metadata.searchProviderHelp')} disabled={lookupBusy} value={query} onChange={event => setQuery(event.currentTarget.value)} />
-        <Button size="small" type="submit" disabled={lookupBusy || !query.trim()}>{t('web.search.title')}</Button>
-      </>}
-      <Button size="small" type="button" disabled={lookupBusy} onClick={onRetry}>{t('web.chooser.tryAgain')}</Button>
+    {matched ? <div className={styles.keepMatch}><p className={styles.lockHelp}>{t('web.metadata.keepAsIsHelp')}</p>
+      <Button size="small" disabled={busy} onClick={() => setKeeping(true)}>{t('metadata.attention.keepAsIs')}</Button></div> : null}
+    {show ? <div className={styles.matchOrder}>
+      <label className={styles.order}>{t('metadata.attention.episodeOrder')}
+        <select value={order} disabled={busy} onChange={event => setOrder(event.currentTarget.value)}>{ORDERS.map(item => <option key={item} value={item}>{t(`web.metadata.episodeOrderName.${item}`)}</option>)}</select></label>
+      <TextField label={t('web.metadata.numberOffset')} description={t('web.metadata.numberOffsetHelp')} inputMode="numeric" value={offset} disabled={busy}
+        onChange={event => setOffset(event.currentTarget.value)} error={validOffset ? undefined : t('web.metadata.numberRange', {label: t('web.metadata.numberOffset'), min: -9999, max: 9999})}/>
+    </div> : null}
+    <form className={styles.matchSearch} onSubmit={event => {event.preventDefault(); if (query.trim() && !busy) onSearch(query.trim());}}>
+      <TextField label={t('web.metadata.searchProvider')} description={t('web.metadata.searchProviderHelp')} disabled={busy} value={query} onChange={event => setQuery(event.currentTarget.value)} />
+      <Button size="small" type="submit" disabled={busy || !query.trim()}>{t('web.search.title')}</Button>
+      <Button size="small" type="button" disabled={busy} onClick={onRetry}>{t('server.attention.lookUpAgain')}</Button>
     </form>
     {data.candidates.map(candidate => {
-      const key = `${candidate.provider}:${candidate.id}`;
-      const candidateIdentity = candidate.identityId ?? (identity?.engine === 'screen' ? undefined : candidate.id);
-      const currentIdentity = identity?.provider === candidate.provider && identity.id === candidateIdentity
-        && (identity.engine !== 'screen' || candidate.identityType !== undefined && identity.type === candidate.identityType);
-      const stored = readTmdbOrder(identity?.order ?? ''), offered = candidate.orders ?? [];
-      const fallback = {order: currentIdentity && offered.some(item => item.id === stored.base) ? stored.base : offered[0]?.id ?? '', offset: String(currentIdentity ? stored.offset : 0)};
-      const draftOrder = orders[key];
-      const chosen = draftOrder && offered.some(item => item.id === draftOrder.order) ? draftOrder : fallback;
-      const takesOffset = target.kind === 'show' && candidate.provider === 'tmdb' && orderTakesOffset(chosen.order);
-      const validOffset = !takesOffset || /^-?\d+$/.test(chosen.offset) && Number.isSafeInteger(Number(chosen.offset)) && Math.abs(Number(chosen.offset)) <= 1000000;
-      const order = takesOffset && validOffset ? tmdbAbsoluteOrder(chosen.order, Number(chosen.offset)) : chosen.order;
-      const current = currentIdentity && validOffset && (!offered.length || order === identity?.order);
-      const setOrder = (patch: Partial<{order: string; offset: string}>) => setOrders(previous => ({...previous, [key]: {...chosen, ...patch}}));
-      return <div key={key} className={`${styles.candidate} ${styles.matchCandidate}`}>
-        {candidate.previewUrl ? <span className={styles.candidatePoster}><img src={candidate.previewUrl} alt="" loading="lazy"/></span> : null}
-        <div className={styles.matchDetails}><b>{candidate.title}{candidate.year ? ` (${candidate.year})` : ''}</b><small>{providerName(candidate.provider)}{candidate.subtitle ? ` · ${candidate.subtitle}` : ''}</small>
-          {candidate.orders && candidate.orders.length > 1 ? <label className={styles.order}>{t('metadata.attention.episodeOrder')}
-            <select value={chosen.order} disabled={busy} onChange={event => setOrder({order: event.currentTarget.value})}>{candidate.orders.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
-          {takesOffset ? <TextField label={t('web.metadata.numberOffset')} description={t('web.metadata.numberOffsetHelp')} type="number" inputMode="numeric" min={-1000000} max={1000000} step={1} value={chosen.offset} disabled={busy} onChange={event => setOrder({offset: event.currentTarget.value})} error={!validOffset ? t('web.metadata.numberRange', {label: t('web.metadata.numberOffset'), min: -1000000, max: 1000000}) : undefined}/> : null}</div>
-        {current ? <span className={styles.matchCurrent}>{t('web.metadata.currentMatch')}</span> : <Button size="small" disabled={lookupBusy || !validOffset || order.length > 160} onClick={() => onUse(candidate.provider, candidate.id, offered.length ? order : undefined)}>{t('web.liveSource.useThis')}</Button>}
+      const current = matched && identity!.provider === candidate.provider && identity!.id === candidate.id;
+      return <div key={`${candidate.provider}:${candidate.id}`} className={`${styles.candidate} ${styles.matchCandidate}`}>
+        <div className={styles.matchDetails}><b>{candidate.title}{candidate.year ? ` (${candidate.year})` : ''}</b><small>{providerName(candidate.provider)}{candidate.subtitle ? ` · ${candidate.subtitle}` : ''}</small></div>
+        {current ? <span className={styles.matchCurrent}>{t('web.metadata.currentMatch')}</span>
+          : <Button size="small" disabled={busy || show && !validOffset} onClick={() => onUse(candidate.provider, candidate.id, show ? order : undefined, show ? Number(offset) : undefined)}>{t('metadata.attention.useMatch')}</Button>}
       </div>;
     })}
     <p className={styles.lockHelp}>{t('web.metadata.chooseMatchHelp')}</p>
+    <Dialog footerDismisses width={480} open={keeping} onOpenChange={open => {if (!open) setKeeping(false);}} title={t('web.metadata.keepAsIsTitle')} description={t('web.metadata.keepAsIsBody')}
+      footer={<><Button size="small" onClick={() => setKeeping(false)}>{t('action.cancel')}</Button>
+        <Button size="small" variant="primary" disabled={busy} onClick={() => {setKeeping(false); onKeep();}}>{t('web.metadata.keepAsIsConfirm')}</Button></>}>{null}</Dialog>
   </div>;
 }
 
@@ -482,7 +481,7 @@ function People({data, target, busy, opening, openingSignal, openingCurrent, onC
   };
   const add = () => {
     if (busy || target.kind !== 'item' || rows.length >= 512) return;
-    setDraft([...rows, {kind: 'credit', provider: 'manual', targetKind: 'scoped_credit', targetId: '', label: '', role: '', department: '',
+    setDraft([...rows, {kind: 'credit', provider: 'manual', targetKind: 'person', targetId: '', label: '', role: '', department: 'actor',
       ordinal: rows.reduce((top, row) => Math.max(top, row.ordinal), 0) + 1, source: 'manual', locked: true}]);
   };
   const save = async () => {
@@ -501,9 +500,12 @@ function People({data, target, busy, opening, openingSignal, openingCurrent, onC
     </div>
     {rows.map((row, index) => <div key={`${row.recordId ?? 'new'}:${row.targetId}:${index}`} className={styles.creditRow} data-new={!row.recordId || undefined}>
       <TextField label={t('web.metadata.field.name')} value={row.label} disabled={busy || !editable(row)} maxLength={300} onChange={event => change(index, {label: event.currentTarget.value})}/>
-      <TextField label={t('web.metadata.field.department')} value={row.department ?? ''} disabled={busy || !editable(row)} maxLength={200} onChange={event => change(index, {department: event.currentTarget.value})}/>
-      <TextField label={t(row.department?.toLowerCase() === 'acting' ? 'web.metadata.creditCharacter' : 'web.metadata.creditRole')} value={row.role ?? ''} disabled={busy || !editable(row)} maxLength={500} onChange={event => change(index, {role: event.currentTarget.value})}/>
-      <Button size="small" disabled={busy || !editable(row)} onClick={() => remove(index)}>{t('web.metadata.removeLabel', {label: row.label})}</Button>
+      <label className={styles.picker}><span>{t('web.metadata.creditRole')}</span>
+        <select value={row.department ?? ''} disabled={busy || !editable(row)} onChange={event => change(index, {department: event.currentTarget.value})}>
+          {!CREDIT_ROLES.includes(row.department as typeof CREDIT_ROLES[number]) ? <option value={row.department ?? ''}>{row.department ?? ''}</option> : null}
+          {CREDIT_ROLES.map(role => <option key={role} value={role}>{t(`web.metadata.creditRoleName.${role}`)}</option>)}</select></label>
+      <TextField label={t(row.department === 'actor' || row.department === 'guest' ? 'web.metadata.creditCharacter' : 'web.metadata.field.role')} value={row.role ?? ''} disabled={busy || !editable(row)} maxLength={500} onChange={event => change(index, {role: event.currentTarget.value})}/>
+      <Button size="small" variant="icon" icon="i-trash" iconOnly aria-label={t('web.metadata.removeLabel', {label: row.label})} title={t('web.metadata.removeLabel', {label: row.label})} disabled={busy || !editable(row)} onClick={() => remove(index)}/>
       {row.sourceStatus === 'missing' || row.sourceStatus === 'replaced' ? <small className={styles.creditStatus}>{t(row.sourceStatus === 'missing' ? 'web.metadata.creditSourceMissing' : 'web.metadata.creditSourceReplaced')}</small> : null}
     </div>)}
     <footer className={styles.editorFooter}>

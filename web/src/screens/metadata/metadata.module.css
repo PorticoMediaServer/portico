@@ -74,6 +74,8 @@
 
 .matchSearch { display: flex; align-items: flex-end; gap: 10px; }
 .matchSearch > :first-child { flex: 1; }
+.keepMatch { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.matchOrder { display: grid; gap: 12px; }
 
 .creditNew { display: flex; flex-direction: column; gap: 8px; flex: 1; }
 
@@ -175,6 +177,7 @@
 .creditHeader .lock { margin-left: auto; }
 .creditRow { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 12px; padding: 12px; border-radius: 12px; background: color-mix(in srgb, var(--color-ink) 50%, transparent); }
 .creditStatus { grid-column: 1 / -1; color: var(--color-text-tertiary); }
+.creditRow .picker { margin-top: 0; }
 .creditRow[data-new] { box-shadow: inset 0 0 0 1px var(--color-accent); }
 @media (max-width: 600px) { .creditRow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .creditRow > :first-child { grid-column: 1 / -1; } }
 
