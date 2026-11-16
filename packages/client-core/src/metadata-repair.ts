@@ -135,7 +135,9 @@ export function rebuiltRepair(doc:MetadataDocument,pictures:Pictures,history:rea
  const source=(value:string)=>value==='edit'?'manual':value==='file'?'scanner':provider||'automatic';
  const schema:RepairFieldSpec[]=[],fields:Record<string,RepairField>={};
  for(const [name,field] of Object.entries(doc.fields??{})){const spec=FIELD_SPECS[name];if(!spec)continue;schema.push({field:name,bulk:false,...spec});
-  fields[name]={value:field.value===null||field.value===undefined||field.value===0&&name==='year'?'':String(field.value),automaticValue:'',locked:field.locked,source:source(field.source)};}
+  // The provider's value beside an edited, locked or file-given field (rule 23); "Use it" takes it now.
+  const provided=(field as {providerValue?:unknown}).providerValue;
+  fields[name]={value:field.value===null||field.value===undefined||field.value===0&&name==='year'?'':String(field.value),automaticValue:provided===null||provided===undefined?'':String(provided),locked:field.locked,source:source(field.source)};}
  for(const [name,values] of Object.entries(doc.lists??{})){const spec=FIELD_SPECS[name];if(!spec)continue;schema.push({field:name,bulk:false,...spec});
   fields[name]={value:(values.values??[]).join(', '),automaticValue:'',locked:values.locked,source:source(values.source),values:values.values??[]};}
  const credits=doc.credits,roles=ROLES_BY_KIND[doc.kind]??[];
@@ -155,14 +157,16 @@ export function rebuiltRepair(doc:MetadataDocument,pictures:Pictures,history:rea
 }
 /** An edit as the rebuilt server takes it: a field sent is set and locked; a lock alone is a lock or an unlock. */
 export function repairPatch(fields:NonNullable<RepairCommand['fields']>,data:RepairData):MetadataPatch{
- const patch:Record<string,unknown>={},lock:string[]=[],unlock:string[]=[];
+ const patch:Record<string,unknown>={},lock:string[]=[],unlock:string[]=[],useProvider:string[]=[];
  for(const [name,change] of Object.entries(fields)){
   const before=data.snapshot.fields[name],spec=data.schema.find(row=>row.field===name);if(!before||!spec)continue;
   const changed=spec.type==='list'?JSON.stringify(change.values??before.values??[])!==JSON.stringify(before.values??[]):(change.value??before.value)!==before.value;
+  // "Use it": the provider's own value, unlocked, is taken by name; the server sets it and its source.
+  if(changed&&spec.type!=='list'&&before.automaticValue&&change.value===before.automaticValue&&change.locked===false){useProvider.push(name);continue;}
   if(changed)patch[name]=spec.type==='list'?[...(change.values??[])]:spec.type==='integer'?Number(change.value||0):change.value??'';
   if(change.locked===false&&(changed||before.locked))unlock.push(name);else if(change.locked===true&&!changed&&!before.locked)lock.push(name);
  }
- return {...patch,...(lock.length?{lock}:{}),...(unlock.length?{unlock}:{})} as MetadataPatch;
+ return {...patch,...(lock.length?{lock}:{}),...(unlock.length?{unlock}:{}),...(useProvider.length?{useProvider}:{})} as MetadataPatch;
 }
 /** A typed search that is an id or an address goes to the provider as one (rule 14). */
 const isRef=(text:string)=>/^(https?:\/\/|tt\d+$|(tmdb|tvdb|anilist)[:=-]\d+$|\d+$)/i.test(text.trim());
