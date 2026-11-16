@@ -32,7 +32,7 @@ import type {PlaybackChoices} from '../../../../../packages/client-core/src/play
 import type {SegmentInput} from '../../../../../packages/client-core/src/playback-v1/queue';
 import {qualityOptionRequest, type QualityOption} from '../../../../../packages/client-core/src/playback-v1/quality';
 import {SubtitleService} from '../../../../../packages/client-core/src/subtitles';
-import {uploadPlaybackSubtitle} from '../../../../../packages/client-core/src/playback-v1/subtitle-upload';
+import {sessionSubtitlePlan} from '../../../../../packages/client-core/src/playback-v1/offers';
 import {forcedChoiceOf, parseSubtitleLines} from '../../../../../packages/client-core/src/subtitle-originals';
 import {forcedImageLinesPath} from './forced-image';
 import type {PlaybackSubject, CardSubject} from '../../../../../packages/client-core/src/presentation/kit-model';
@@ -53,7 +53,6 @@ import {NativeSubtitleStyleChoices} from './subtitle-style-choices';
 import {nativeStartSeconds} from './start-intent';
 import {NativeVideoPlaybackPolicy, nativeVideoPolicyMarkers, nativeVideoPolicyPostPlay, type NativeVideoPolicyFrame} from './video-policy';
 import {boundSubtitleControls, type NativePlaybackSubtitleControls} from './subtitle-controls';
-import {uploadPickedSubtitle} from './subtitle-file-upload';
 import {deviceDrawnTrack, engineSubtitleRender, externalSubtitlePreparation, fontsUrlOf, linesUrlOf, parseSubtitleFonts, type SubtitleFonts} from './engine-media';
 import {atNaturalEnd, classifyPlaybackFailure, playbackFailureReason} from './playback-failure';
 import {mediaRecovered, NativePlaybackRecovery} from './playback-recovery';
@@ -155,7 +154,6 @@ export class NativePlaybackRuntime {
   private sourceKey = '';
   private subtitleService?: SubtitleService;
   private subtitleOff?: () => void;
-  private subtitleFileController?: AbortController;
   private externalPresentationBinding?: NativeBinding | null;
   private externalController?: AbortController;
   private externalEpoch = 0;
@@ -1299,7 +1297,7 @@ export class NativePlaybackRuntime {
     // PB-5: a failed read keeps the options already shown and is tried once more after a moment.
     const readOptions = (retried: boolean): void => {
       void this.optionsClient.options(itemId, session?.versionId ? {versionId: session.versionId, ...(session.discTitle ? {discTitle: session.discTitle} : {})} : {}, controller.signal).then(value => {
-        if (!valid() || value.itemId !== itemId) return; this.options = value; this.applyOptions(); this.publish();
+        if (!valid() || value.itemId !== itemId) return; this.options = value; void this.subtitleService?.refresh(); this.applyOptions(); this.publish();
       }, () => {
         if (retried || !valid()) return;
         const setTimer = this.o.timers?.setTimer ?? ((run: () => void, ms: number) => setTimeout(run, ms));
@@ -1342,27 +1340,15 @@ export class NativePlaybackRuntime {
       void detail.select({itemId, libraryId: item.libraryId});
     }).catch(() => {});
     if (state.session && session?.kind === 'vod') {
-      const service = new SubtitleService({request: this.request, ...(typeof this.o.api.requestSubtitleUpload === 'function' ? {
-        requestSubtitleUpload: <T>(path: string, method: 'POST' | 'PUT', body: FormData, signal?: AbortSignal): Promise<T> =>
-          uploadPlaybackSubtitle<T>(this.http, this.o.api, path, method, body, signal),
-      } : {})}, {itemId, sessionId: state.session.id, generation: state.session.generation}, this.o.requestId,
-        {install: presentation => valid() && this.playback.installSubtitlePresentation(presentation)});
+      // The plan is the session's own, from it and this title's playback options (as web makes it); read when either changes.
+      const service = new SubtitleService({request: this.request}, itemId, () => {
+        const playing = this.currentSession(), version = this.options?.versions.find(value => value.id === playing?.versionId);
+        return playing && version && playing.id === state.session!.id ? sessionSubtitlePlan(playing, version) : null;
+      });
       this.subtitleService = service;
-      // RN-05: no catalogue polling. The same source retries once the app returns to the
-      // foreground or its route recovers; replacing or retiring the source unsubscribes.
-      let routeReady = (this.o.api.getRouteSnapshot()?.phase ?? 'ready') === 'ready';
-      // A failed refresh is published as the service's own error state.
-      const retry = () => {if (valid() && this.subtitleService === service) void service.refresh().catch(() => {});};
-      const offs = [
-        service.subscribe(() => { if (valid()) { this.applyOptions(); this.publish(); } }),
-        (() => {const off = AppState.addEventListener('change', state => {if (state === 'active') retry();}); return () => off.remove();})(),
-        this.o.api.subscribeRoute(() => {
-          const ready = (this.o.api.getRouteSnapshot()?.phase ?? 'ready') === 'ready', recovered = ready && !routeReady;
-          routeReady = ready; if (recovered) retry();
-        }),
-      ];
+      const offs = [service.subscribe(() => { if (valid()) { this.applyOptions(); this.publish(); } })];
       this.subtitleOff = () => {for (const off of offs) off();};
-      service.setPolling(false); service.start();
+      service.start();
     }
   }
 
@@ -1944,24 +1930,15 @@ export class NativePlaybackRuntime {
     if (!service || !plan || fence.kind !== 'queue' || !this.matches(fence) || plan.sessionId !== fence.sessionId || plan.generation !== fence.generation) return undefined;
     const current = () => this.matches(fence) && this.subtitleService === service && this.sourceEpoch === epoch && this.sourceKey === key
       && service.getSnapshot().plan?.sourceId === plan.sourceId;
-    const picker = this.o.subtitleFilePicker, sourceSignal = this.sourceController?.signal;
-    return boundSubtitleControls(service, current, picker && service.canUpload && sourceSignal ? async (metadata, caller) => {
-      if (!current()) return false;
-      this.subtitleFileController?.abort();
-      const controller = new AbortController(); this.subtitleFileController = controller;
-      const abort = () => controller.abort();
-      sourceSignal.addEventListener('abort', abort, {once: true});
-      if (sourceSignal.aborted) controller.abort();
-      try {
-        return await uploadPickedSubtitle(picker, async (input, lifetime) => {
-          await service.upload(input, undefined, lifetime);
-          if (service.getSnapshot().error) throw new Error(serviceText('player.subtitles.changeFailed'));
-        }, {signal: controller.signal, isCurrent: current}, caller, metadata);
-      } finally {
-        sourceSignal.removeEventListener('abort', abort); controller.abort();
-        if (this.subtitleFileController === controller) this.subtitleFileController = undefined;
-      }
-    } : undefined);
+    // A downloaded subtitle is a new track of this version: read the options again so it is offered, then turn it on.
+    return boundSubtitleControls(service, current, async trackId => {
+      const playing = this.currentSession();
+      if (!current() || !playing) return;
+      const options = await this.optionsClient.options(fence.itemId, playing.versionId ? {versionId: playing.versionId, ...(playing.discTitle ? {discTitle: playing.discTitle} : {})} : {}, this.sourceController?.signal);
+      if (!current() || options.itemId !== fence.itemId) return;
+      this.options = options; void service.refresh(); this.publish();
+      await this.change(fence, {subtitleTrackId: trackId});
+    });
   };
   cast = async (fence: PlaybackFence, anchorRef?: RefObject<View | null>): Promise<void> => { if (this.matches(fence) && this.o.openDestinations) await this.o.openDestinations(fence, anchorRef); };
 

@@ -205,7 +205,7 @@ export function NativeWatchPanels({context, options, playback, names, copy, repo
   if (state.panel === 'episodes') return <FocusRegion ref={first} id="watch-panel" hold orientation="vertical" entryRegion="watch-episodes" enabled={panelInteractive} style={{flex: 1}}>{episodes?.(context)}</FocusRegion>;
   const ready = choices.phase === 'ready' && sameFence(choices.fence, fence) ? choices.options : undefined;
   const onlineSubtitles = fence.kind === 'queue' ? source.subtitles : undefined;
-  const subtitlePlan = onlineSubtitles?.plan, subtitleProvider = onlineSubtitles?.catalog?.provider, subtitleCandidates = onlineSubtitles?.candidates ?? [];
+  const subtitlePlan = onlineSubtitles?.plan, subtitleProvider = onlineSubtitles?.provider, subtitleCandidates = onlineSubtitles?.candidates ?? [];
   const subtitleDiscovered = subtitlePlan ? subtitlePlan.discovered.filter(track => !subtitlePlan.resources.some(resource => resource.discoveryId === track.id && resource.enabled)) : [];
   const selected = nativeWatchTracks(source), localTracks = selected.local;
   const rows = ready || localTracks ? nativeWatchPanelRows(source, ready, names) : undefined;
@@ -397,7 +397,7 @@ export function NativeWatchPanels({context, options, playback, names, copy, repo
     {subtitleProvider?.enabled && subtitleSearching && <>
       {source.subtitles?.busy && !subtitleCandidates.length && <Text style={[theme.type.body, {marginHorizontal: theme.isTV ? 14 : 18, marginVertical: 10, color: theme.colors.textSecondary}]}>{t('player.opt.lookingForSubtitles')}</Text>}
       {subtitleCandidates.map(candidate => actionRow(`subtitle-candidate-${candidate.id}`, candidate.title, `${candidate.language.toUpperCase()} · ${candidate.attribution}`,
-        () => {void run(async () => {const controls = subtitleControls?.(fence); if (controls) {await controls.apply(candidate.id, 'personal', 'Downloaded by the viewer for personal viewing'); setSubtitleSearching(false);}});}))}
+        () => {void run(async () => {const controls = subtitleControls?.(fence); if (controls) {await controls.apply(candidate.id); setSubtitleSearching(false);}});}))}
       {!source.subtitles?.busy && !subtitleCandidates.length && !source.subtitles?.error && <Text style={[theme.type.body, {marginHorizontal: theme.isTV ? 14 : 18, marginVertical: 10, color: theme.colors.textTertiary}]}>{t('player.opt.noSubtitlesFound')}</Text>}
       {source.subtitles?.error && <View style={{marginHorizontal: theme.isTV ? 14 : 18, marginVertical: 10}}>
         <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{source.subtitles.error}</Text>
