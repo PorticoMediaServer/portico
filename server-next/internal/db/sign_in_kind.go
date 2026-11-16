@@ -583,6 +583,10 @@ func (d *DB) ChangeOwner(ctx context.Context, o OwnerChange) (int64, error) {
 			return errors.Join(ErrNotPermitted, err)
 		}
 		at := o.Now.UnixMilli()
+		// A code issued for the previous owner must never open the next owner's account.
+		if _, err := tx.Exec(`DELETE FROM auth_codes WHERE kind = 'owner_reset'`); err != nil {
+			return err
+		}
 		if o.New != nil {
 			var err error
 			if target, err = insertUser(tx, o.New.Username, o.New.PasswordHash, "owner", o.New.ProfileName, o.Now); err != nil {

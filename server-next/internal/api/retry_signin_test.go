@@ -30,6 +30,7 @@ func init() {
 		"POST /v1/auth/password-reset/confirm":       "uses up its code: a repeat is refused",
 		"POST /v1/auth/owner-reset":                  "writes no new code while one is live: a repeat changes nothing",
 		"POST /v1/auth/owner-reset/confirm":          "uses up its code: a repeat is refused",
+		"POST /v1/auth/owner-reset/session":          "uses up its code: a repeat is refused",
 		"POST /v1/auth/codes":                        "a lost answer leaves a TV code nobody holds, which expires",
 		"POST /v1/auth/codes/{id}/approve":           "sets the code's state",
 		"POST /v1/auth/codes/{id}/redeem":            "uses up its code: a repeat is refused",
