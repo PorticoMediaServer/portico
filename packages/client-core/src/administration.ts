@@ -33,10 +33,15 @@ export type LibraryAdminDocument=Readonly<{serverLibrary?:AdminLibrary;libraryId
 export type DeleteFile=Readonly<{assetId:string;path:string;bytes:number;present:boolean;shared:boolean}>;
 export type DeleteDependent=Readonly<{kind:string;count:number;description:string;networkTarget?:string;driveType?:string}>;
 export type DeleteTarget=Readonly<{itemId:string;title:string;kind:string;libraryId:string;libraryName:string;allowMediaDeletion:boolean;/** How many playable titles go with this item: 1 for a film, a show's episodes. */titles:number;bytes:number;files:readonly DeleteFile[];dependents:readonly DeleteDependent[]}>;
-export type DeletePreview=Readonly<{revision:number;confirmation:string;confirmationKind:'title'|'count';totalBytes:number;totalFiles:number;totalBytesText:string;blocked:readonly string[];targets:readonly DeleteTarget[]}>;
+export type DeletePreview=Readonly<{revision:number;confirmation:string;confirmationKind:'title'|'count';totalBytes:number;totalFiles:number;totalBytesText:string;blocked:readonly string[];targets:readonly DeleteTarget[];
+ /** From the rebuilt server: every title that goes, the selection's list entries and other profiles' saved places and marks
+  * that go with it, emptied holders and other titles played from the same files, and why it cannot be deleted at all. */
+ titlesTotal?:number;listEntries?:number;otherPeople?:number;alsoRemoves?:readonly Readonly<{id:string;title:string}>[];refusal?:string}>;
 /** One item's outcome. `code` says why an item was not removed: `file_changed` (the file at that path is no longer the one in the library) or `file_not_removed` (storage refused). */
 export type DeleteReceipt=Readonly<{itemId:string;title:string;removed:boolean;filesDeleted:number;filesKept:number;bytes:number;code:string}>;
-export type DeleteResult=Readonly<{revision:number;removed:number;failed:number;bytesDeleted:number;filesRetained:boolean;receipts:readonly DeleteReceipt[]}>;
+export type DeleteResult=Readonly<{revision:number;removed:number;failed:number;bytesDeleted:number;filesRetained:boolean;receipts:readonly DeleteReceipt[];
+ /** From the rebuilt server: each file it kept, by path, and why (definition 03 rule 68). */
+ kept?:readonly Readonly<{path:string;reason:string}>[]}>;
 export type FilesystemRoot=Readonly<{path:string;name:string;kind:string;description:string;classification?:'local'|'network'}>;
 /** `library`: the name of the library this folder already belongs to. `cannotBeChosen`: the server's sentence saying why no library
  * can have this folder (the whole disk, Portico's own data); it can still be opened to choose a folder inside it. */

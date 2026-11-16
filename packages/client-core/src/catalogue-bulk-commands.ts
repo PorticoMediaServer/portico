@@ -1,4 +1,3 @@
-import type {DeletePreview} from './administration.ts';
 import {bulkTargetLimit, type BulkEdit, type BulkTarget} from './metadata-bulk.ts';
 import type {RepairFieldSpec} from './metadata-repair.ts';
 
@@ -23,13 +22,6 @@ export function catalogueSelectionBulkEdit(base: CatalogueBulkBase, targets: rea
   return {operationId, targets: targets.slice(start, start + bulkTargetLimit).map(({kind, id, expectedRevision}) => ({kind, id, expectedRevision})), ...base};
 }
 
-/** Web deletion uses the captured selection order, which can differ from preview
- * order, and freezes both the ID array and its retained command. */
-export function catalogueSelectionDeletionCommand(targets: readonly Readonly<{itemId: string}>[], preview: Pick<DeletePreview, 'revision'>,
-  choice: Readonly<{confirmation: string; removeFiles: boolean}>, operationId: string) {
-  return Object.freeze({itemIds: Object.freeze(targets.map(item => item.itemId)), expectedRevision: preview.revision,
-    confirmation: choice.confirmation, deleteFiles: choice.removeFiles, operationId});
-}
 
 /** Build the captured change set before its owner mints any operation IDs. */
 export function catalogueBulkBase(schema: readonly RepairFieldSpec[], changes: CatalogueBulkChanges, lockEdited: boolean): CatalogueBulkBase | undefined {
@@ -51,12 +43,4 @@ export function catalogueBulkBase(schema: readonly RepairFieldSpec[], changes: C
  * Target projection happens after that captured owner's ID promise settles. */
 export function catalogueBulkEdit(base: CatalogueBulkBase, targets: readonly BulkTarget[], start: number, operationId: string): BulkEdit {
   return {...base, operationId, targets: targets.slice(start, start + bulkTargetLimit).map(({kind, id, expectedRevision}) => ({kind, id, expectedRevision}))};
-}
-
-/** One retained deletion command; the captured owner reuses it after an unknown
- * outcome rather than rebuilding it from a later confirmation or file choice. */
-export function catalogueDeletionCommand(preview: Pick<DeletePreview, 'targets' | 'revision'>,
-  choice: Readonly<{confirmation: string; removeFiles: boolean}>, operationId: string) {
-  return Object.freeze({itemIds: preview.targets.map(target => target.itemId), expectedRevision: preview.revision,
-    confirmation: choice.confirmation, deleteFiles: choice.removeFiles, operationId});
 }

@@ -1,6 +1,6 @@
-import {submitMetadataBulk, previewCatalogueDeletion, deleteCatalogueItems, type CatalogueActionsApi} from '../../../../../packages/client-core/src/query/catalogue-actions';
-import {catalogueBulkBase, catalogueBulkEdit, catalogueDeletionCommand} from '../../../../../packages/client-core/src/catalogue-bulk-commands';
-import {deletionAllowed, parseDeletePreview, parseDeleteResult, type DeletePreview, type DeleteResult} from '../../../../../packages/client-core/src/administration';
+import {submitMetadataBulk, readCatalogueDeletion, deleteCatalogueTitles, type CatalogueActionsApi} from '../../../../../packages/client-core/src/query/catalogue-actions';
+import {catalogueBulkBase, catalogueBulkEdit} from '../../../../../packages/client-core/src/catalogue-bulk-commands';
+import {deletionAllowed, type DeletePreview, type DeleteResult} from '../../../../../packages/client-core/src/administration';
 import {fetchBulkMetadataPreview, metadataPreviewTargets, type BulkMetadataPreview, type BulkMetadataPreviewTarget} from '../../../../../packages/client-core/src/home-selection/index';
 import type {HomeApi} from '../../../../../packages/client-core/src/home';
 import {bulkTargetLimit, validBulkEdit, validateBulkReceipt, type BulkEdit, type BulkReceipt} from '../../../../../packages/client-core/src/metadata-bulk';
@@ -44,18 +44,11 @@ const fieldValue = (preview: BulkMetadataPreview): Readonly<Record<string, BulkF
   if (!field) throw unavailable('invalid-metadata-preview');
   return [spec.field, field];
 }));
-const envelope = (raw: unknown, serverId: string): unknown => {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw unavailable('invalid-admin-envelope');
-  const value = raw as {protocolVersion?: unknown; serverId?: unknown; result?: unknown};
-  if (typeof value.protocolVersion !== 'string' || !/^\d+\.\d+$/.test(value.protocolVersion) || value.protocolVersion.length > 8) throw unavailable('invalid-admin-envelope');
-  if (value.serverId !== serverId) throw unavailable('admin-authority-changed');
-  return value.result;
-};
 
 export class NativeBulkMedia {
   private readonly options: CatalogueSelectionOptions;
   private readonly entries: readonly ContentEntry[];
-  private readonly captured: readonly Readonly<{kind: ContentEntry['kind']; id: string; libraryId: string}>[];
+  private readonly captured: readonly Readonly<{kind: ContentEntry['kind']; id: string; libraryId: string; title: string}>[];
   private readonly targets: readonly BulkMetadataPreviewTarget[];
   private readonly listeners = new Set<() => void>();
   private disposed = false;
@@ -65,7 +58,6 @@ export class NativeBulkMedia {
   private state: NativeBulkMediaSnapshot = Object.freeze({phase: 'idle', lockEdited: true, changes: {}, receipts: [], singleItemFields: [], values: {}});
   private edits: {body: BulkEdit; receipt?: BulkReceipt}[] = [];
   private baseEdit?: Omit<BulkEdit, 'operationId' | 'targets'>;
-  private deleteBody?: Readonly<Record<string, unknown>>;
   private deletePreviewIds?: readonly string[];
   /** The metadata domain's own fence, learned from this opening's first preview. */
   private previewFence?: string;
@@ -78,7 +70,7 @@ export class NativeBulkMedia {
     if (!entries.length || entries.length > 200 || new Set(entries.map(entry => entry.id)).size !== entries.length
       || entries.some(entry => !entry.libraryId || !(reading ? entry.kind === entries[0]!.kind && ['ebook', 'comic'].includes(entry.kind)
         : ['movie', 'episode', 'song', 'audiobook_file'].includes(entry.kind)))) throw unavailable();
-    this.captured = Object.freeze(entries.map(entry => Object.freeze({kind: entry.kind, id: entry.id, libraryId: entry.libraryId!})));
+    this.captured = Object.freeze(entries.map(entry => Object.freeze({kind: entry.kind, id: entry.id, libraryId: entry.libraryId!, title: entry.title})));
     this.targets = metadataPreviewTargets(entries.map(entry => ({kind: entry.kind, id: entry.id, libraryId: entry.libraryId!})));
   }
 
@@ -104,7 +96,7 @@ export class NativeBulkMedia {
     const epoch = ++this.epoch;
     this.controller?.abort();
     this.controller = new AbortController();
-    this.flight = false; this.edits = []; this.baseEdit = undefined; this.deleteBody = undefined; this.deletePreviewIds = undefined; this.previewFence = undefined;
+    this.flight = false; this.edits = []; this.baseEdit = undefined; this.deletePreviewIds = undefined; this.previewFence = undefined;
     this.publish(patch);
     return epoch;
   }
@@ -248,17 +240,17 @@ export class NativeBulkMedia {
   openDelete = async (): Promise<void> => {
     // Reading selections offer Edit details only; deleting publications is not drawn there.
     if (this.captured.some(entry => entry.kind === 'ebook' || entry.kind === 'comic')) throw unavailable();
-    const epoch = this.begin({phase: 'idle', deletion: {phase: 'loading', confirmation: '', removeFiles: false}});
-    if (!this.claim(epoch, {deletion: {phase: 'loading', confirmation: '', removeFiles: false}})) return;
+    const epoch = this.begin({phase: 'idle', deletion: {phase: 'loading', confirmation: '', removeFiles: true}});
+    if (!this.claim(epoch, {deletion: {phase: 'loading', confirmation: '', removeFiles: true}})) return;
     try {
-      const result = envelope(await previewCatalogueDeletion(this.commandApi(epoch), this.captured.map(entry => entry.id)), this.options.scope.serverId);
-      const preview = parseDeletePreview(result);
+      const preview = await readCatalogueDeletion(this.commandApi(epoch), this.deletionTargets());
       this.assertDeletePreview(preview);
       this.deletePreviewIds = preview.targets.map(target => target.itemId);
-      this.publishFor(epoch, {deletion: {phase: 'ready', preview, confirmation: '', removeFiles: false}});
-    } catch {this.publishFor(epoch, {deletion: {phase: 'error', confirmation: '', removeFiles: false, error: failure('delete')}});}
+      this.publishFor(epoch, {deletion: {phase: 'ready', preview, confirmation: '', removeFiles: true}});
+    } catch {this.publishFor(epoch, {deletion: {phase: 'error', confirmation: '', removeFiles: true, error: failure('delete')}});}
     finally {this.finish(epoch);}
   };
+  private deletionTargets() {return this.captured.map(entry => ({itemId: entry.id, libraryId: entry.libraryId, kind: entry.kind, title: entry.title}));}
   /** The preview must cover exactly the captured selection, once each. */
   private assertDeletePreview(preview: DeletePreview): void {
     const ids = preview.targets.map(target => target.itemId);
@@ -280,11 +272,7 @@ export class NativeBulkMedia {
     if (!this.claim(epoch, {deletion: {...deletion, phase: 'saving', error: undefined}})) return;
     try {
       this.assertDeletePreview(preview);
-      if (!this.deleteBody) {
-        const operationId = await this.nextId(epoch);
-        this.deleteBody = catalogueDeletionCommand(preview, deletion, operationId);
-      }
-      const result = parseDeleteResult(envelope(await deleteCatalogueItems(this.commandApi(epoch), this.deleteBody), this.options.scope.serverId));
+      const result = await deleteCatalogueTitles(this.commandApi(epoch), this.deletionTargets());
       // One receipt per previewed target, and none for a title that was not previewed.
       const ids = result.receipts.map(receipt => receipt.itemId);
       if (ids.length !== preview.targets.length || new Set(ids).size !== ids.length || ids.some(id => !this.deletePreviewIds?.includes(id))) throw unavailable('delete-result-mismatch');
@@ -296,7 +284,7 @@ export class NativeBulkMedia {
     this.epoch++;
     this.controller?.abort();
     this.controller = undefined;
-    this.flight = false; this.edits = []; this.baseEdit = undefined; this.deleteBody = undefined; this.deletePreviewIds = undefined; this.previewFence = undefined;
+    this.flight = false; this.edits = []; this.baseEdit = undefined; this.deletePreviewIds = undefined; this.previewFence = undefined;
     this.publish({phase: 'idle', deletion: undefined, error: undefined, receipts: [], changes: {}, preview: undefined, result: undefined, values: {}, singleItemFields: []});
   };
   dispose = (): void => {

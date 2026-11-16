@@ -5,44 +5,41 @@ import {entryActions} from '../src/shell/entry-actions.ts';
 
 const target = {libraryId: 'library', itemId: 'item', kind: 'movie' as const, title: 'Film'};
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
-const previewAnswer = (itemId = 'item', blocked: string[] = []) => ({protocolVersion: '1.0', serverId: 'server', result: {
-  revision: 1, confirmation: 'DELETE', confirmationKind: 'title', totalBytes: 0, totalFiles: 0, totalBytesText: '0 B', blocked,
-  targets: [{itemId, title: 'Film', kind: 'movie', libraryId: 'library', libraryName: 'Movies', allowMediaDeletion: true, titles: 1, bytes: 0, files: [], dependents: []}],
-}});
-const deleteAnswer = (itemId = 'item') => ({protocolVersion: '1.0', serverId: 'server', result: {
-  revision: 2, removed: 1, failed: 0, bytesDeleted: 0, filesRetained: false,
-  receipts: [{itemId, title: 'Film', removed: true, filesDeleted: 0, filesKept: 0, bytes: 0, code: ''}],
-}});
-type Call = {path: string; body?: unknown};
-function harness(options: {preview?: unknown; remove?: (attempt: number) => unknown; current?: () => boolean; requestId?: () => Promise<string>} = {}) {
+// The rebuilt server: one title's preview and delete are its own routes (definition 03 rules 63 to 69).
+const previewAnswer = (deleteRefusal?: string) => ({title: 'Film', titles: 1, files: 1, bytes: 2048, listEntries: 2, otherPeople: 1, alsoRemoves: [], ...(deleteRefusal ? {deleteRefusal} : {})});
+const deleteAnswer = () => ({removed: true, filesDeleted: 1, bytes: 2048, kept: [], alsoRemoved: []});
+type Call = {path: string; method?: string; body?: unknown};
+function harness(options: {preview?: unknown; remove?: (attempt: number) => unknown; current?: () => boolean} = {}) {
   const calls: Call[] = []; let deletes = 0;
   const ports = {
-    serverId: 'server', viewerId: 'viewer', isCurrent: options.current ?? (() => true),
-    requestId: options.requestId ?? (async () => 'op-1'),
-    api: {request: async (path: string, _method?: string, body?: unknown) => {
-      calls.push({path, body});
-      if (path.endsWith('/delete/preview')) return options.preview ?? previewAnswer();
-      if (path.endsWith('/delete')) return options.remove ? options.remove(deletes++) : deleteAnswer();
+    serverId: 'server', viewerId: 'viewer', isCurrent: options.current ?? (() => true), requestId: async () => 'op-1',
+    api: {request: async (path: string, method?: string, body?: unknown) => {
+      calls.push({path, method, body});
+      if (path === '/v1/admin/items/item/deletion') return options.preview ?? previewAnswer();
+      if (path === '/v1/admin/items/item' && method === 'DELETE') return options.remove ? options.remove(deletes++) : deleteAnswer();
       throw new Error('unexpected path ' + path);
     }},
   };
   const producer = new EntryDeleteProducer();
   return {calls, producer, ports, deletes: () => deletes};
 }
-const deleteCalls = (calls: Call[]) => calls.filter(call => call.path.endsWith('/delete'));
+const deleteCalls = (calls: Call[]) => calls.filter(call => call.method === 'DELETE');
 
-test('a retired dialog cannot delete while the operation id is pending', async () => {
-  let release!: (value: string) => void; const pending = new Promise<string>(resolve => {release = resolve;});
-  const h = harness({requestId: () => pending});
-  h.producer.open(target, h.ports); await tick(); h.producer.setConfirmation('DELETE');
-  const confirming = h.producer.confirm(); h.producer.close(); release('op-1'); await confirming;
-  assert.equal(deleteCalls(h.calls).length, 0);
+test('one title is previewed on its own route and confirmed by typing its name; files always go', async () => {
+  const h = harness();
+  h.producer.open(target, h.ports); await tick();
+  const {phase, preview} = h.producer.getSnapshot();
+  assert.equal(phase, 'ready');
+  assert.deepEqual([preview?.confirmation, preview?.confirmationKind, preview?.totalFiles, preview?.totalBytesText, preview?.listEntries, preview?.otherPeople], ['Film', 'title', 1, '2.0 KB', 2, 1]);
+  h.producer.setConfirmation('Film'); await h.producer.confirm();
+  assert.deepEqual(deleteCalls(h.calls).map(call => call.path), ['/v1/admin/items/item']);
+  assert.deepEqual([h.producer.getSnapshot().phase, h.producer.getSnapshot().result?.removed, h.producer.getSnapshot().result?.filesRetained], ['result', 1, false]);
 });
 
 test('a replaced dialog keeps its own state and a late answer is ignored', async () => {
   let finish!: () => void; const pending = new Promise<void>(resolve => {finish = resolve;});
   const h = harness({remove: () => pending.then(() => deleteAnswer())});
-  h.producer.open(target, h.ports); await tick(); h.producer.setConfirmation('DELETE');
+  h.producer.open(target, h.ports); await tick(); h.producer.setConfirmation('Film');
   const first = h.producer.confirm(); await tick();
   h.producer.open({...target, itemId: 'next'}, h.ports); await tick();
   finish(); await first;
@@ -51,32 +48,22 @@ test('a replaced dialog keeps its own state and a late answer is ignored', async
   assert.equal(state.result, undefined);
 });
 
-test('an uncertain delete retries with the same immutable body and operation id', async () => {
+test('an uncertain delete is tried again for the same title', async () => {
   const h = harness({remove: attempt => { if (attempt === 0) throw new Error('network'); return deleteAnswer(); }});
-  h.producer.open(target, h.ports); await tick(); h.producer.setConfirmation('DELETE');
+  h.producer.open(target, h.ports); await tick(); h.producer.setConfirmation('Film');
   await h.producer.confirm();
   assert.equal(h.producer.getSnapshot().phase, 'uncertain');
   await h.producer.retry();
-  const sent = deleteCalls(h.calls).map(call => call.body);
-  assert.equal(sent.length, 2);
-  assert.deepEqual(sent[0], sent[1]);
-  assert.equal((sent[0] as {operationId: string}).operationId, 'op-1');
+  assert.deepEqual(deleteCalls(h.calls).map(call => call.path), ['/v1/admin/items/item', '/v1/admin/items/item']);
   assert.equal(h.producer.getSnapshot().phase, 'result');
 });
 
-test('a receipt for another title is never applied', async () => {
-  const h = harness({remove: () => deleteAnswer('other')});
-  h.producer.open(target, h.ports); await tick(); h.producer.setConfirmation('DELETE');
-  await h.producer.confirm();
-  assert.equal(h.producer.getSnapshot().phase, 'uncertain');
-  assert.equal(h.producer.getSnapshot().result, undefined);
-});
-
-test('blocked and mismatched confirmations send no delete', async () => {
-  const blocked = harness({preview: previewAnswer('item', ['library'])});
+test('a title that cannot be deleted says why and sends no delete; a wrong name sends none either', async () => {
+  const blocked = harness({preview: previewAnswer('Portico can\'t delete files on remote storage')});
   blocked.producer.open(target, blocked.ports); await tick();
   assert.equal(blocked.producer.getSnapshot().phase, 'blocked');
-  blocked.producer.setConfirmation('DELETE'); await blocked.producer.confirm();
+  assert.equal(blocked.producer.getSnapshot().preview?.refusal, 'Portico can\'t delete files on remote storage');
+  blocked.producer.setConfirmation('Film'); await blocked.producer.confirm();
   assert.equal(deleteCalls(blocked.calls).length, 0);
   const mismatch = harness();
   mismatch.producer.open(target, mismatch.ports); await tick(); mismatch.producer.setConfirmation('WRONG');
@@ -85,23 +72,11 @@ test('blocked and mismatched confirmations send no delete', async () => {
   assert.equal(mismatch.producer.getSnapshot().errorCode, 'delete_not_ready');
 });
 
-test('a preview for another title is rejected without a ready dialog', async () => {
-  const h = harness({preview: previewAnswer('other')});
-  h.producer.open(target, h.ports); await tick();
-  assert.equal(h.producer.getSnapshot().phase, 'error');
-  assert.equal(h.producer.getSnapshot().preview, undefined);
-});
-
-test('two confirms while the operation id is pending allocate one body and send once', async () => {
-  let release!: (value: string) => void; const pending = new Promise<string>(resolve => {release = resolve;});
-  const h = harness({requestId: () => pending});
-  h.producer.open(target, h.ports); await tick(); h.producer.setConfirmation('DELETE');
-  const first = h.producer.confirm(), second = h.producer.confirm();
-  assert.equal(h.producer.getSnapshot().phase, 'confirming');
-  release('op-1'); await Promise.all([first, second]);
-  const sent = deleteCalls(h.calls);
-  assert.equal(sent.length, 1);
-  assert.equal((sent[0]!.body as {operationId: string}).operationId, 'op-1');
+test('two confirms send one delete', async () => {
+  const h = harness();
+  h.producer.open(target, h.ports); await tick(); h.producer.setConfirmation('Film');
+  await Promise.all([h.producer.confirm(), h.producer.confirm()]);
+  assert.equal(deleteCalls(h.calls).length, 1);
 });
 
 test('a retired scope opens no surface and sends no preview or delete', async () => {
