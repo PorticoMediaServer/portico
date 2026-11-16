@@ -289,6 +289,9 @@ def main():
     save_png(shade(8, 256, [(0, '#000000', 0), (0.45, '#03080c', 0.35), (1, '#03080c', 0.92)]), 'card-shade.png')
     save_png(shade(8, 256, [(0, INK, 0), (1, INK, 1)]), 'fade-down.png')
     save_png(shade(8, 256, [(0, INK, 1), (1, INK, 0)]), 'fade-up.png')
+    # the same fades in white, for tinting to whatever they lie on (the rail's panel)
+    save_png(shade(8, 64, [(0, '#ffffff', 1), (1, '#ffffff', 0)]), 'fade-white-up.png')
+    save_png(shade(8, 64, [(0, '#ffffff', 0), (1, '#ffffff', 1)]), 'fade-white-down.png')
 
     for i, (first, second) in enumerate(COVER_TINTS):
         generated_cover(first, second).convert('RGB').save(os.path.join(OUT, 'cover-%d.jpg' % i), quality=88)

@@ -26,9 +26,13 @@
     <Poster id="wordmark" uri="pkg:/images/wordmark.png" width="149" height="34" translation="[88,61]" visible="false"/>
     <Poster id="plate" uri="pkg:/images/round-14.9.png" blendColor="0x162C3AFF" width="344" height="72" visible="false"/>
     <Poster id="ring" uri="pkg:/images/focus-14.9.png" width="416" height="144" visible="false"/>
-    <Group id="window" translation="[0,158]">
+    <Group id="fixed"/>
+    <Group id="window" translation="[0,302]">
       <Group id="list"/>
     </Group>
+    <!-- more libraries above or below: the list's edge fades, as the season list's does -->
+    <Poster id="fadeTop" uri="pkg:/images/fade-white-up.png" width="440" height="40" visible="false"/>
+    <Poster id="fadeBottom" uri="pkg:/images/fade-white-down.png" width="440" height="40" visible="false"/>
     <Group id="foot" translation="[0,884]"/>
   </children>
 </component>

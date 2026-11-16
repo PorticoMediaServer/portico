@@ -1,5 +1,4 @@
-' Rows are 72 px apart. The middle list shows nine and scrolls when there are more;
-' Settings and the profile stay at the foot.
+' Rows are 72 px apart.
 sub init()
     m.dim = m.top.findNode("dim")
     m.panel = m.top.findNode("panel")
@@ -10,9 +9,14 @@ sub init()
     m.window = m.top.findNode("window")
     m.list = m.top.findNode("list")
     m.foot = m.top.findNode("foot")
-    m.window.clippingRect = [0, 0, 440, 648]
-    m.rows = []       ' every focus stop in order: the entries, then Settings, then the profile
-    m.count = 0       ' how many of them are in the middle list
+    m.fixed = m.top.findNode("fixed")
+    m.fadeTop = m.top.findNode("fadeTop")
+    m.fadeBottom = m.top.findNode("fadeBottom")
+    m.rows = []       ' every focus stop in order: Search, Home, the libraries, Live TV, Saved, Settings, the profile
+    m.count = 0       ' how many libraries there are
+    m.fits = 0        ' how many of them show at once
+    m.listFirst = 0   ' where the libraries start in m.rows
+    m.listTop = 302
     m.focus = 0
     m.open = false
     m.scroll = 0
@@ -57,27 +61,68 @@ function makeRow(parent as object, y as integer, entry as object) as object
     return {id: entry.id, node: row, bar: bar, icon: row.getChild(1), label: label}
 end function
 
+' Search and Home are pinned at the top, Live TV and Saved above Settings (they are destinations,
+' never something to scroll for); the libraries scroll between them when there are more than fit.
 sub onEntries()
     m.list.removeChildrenIndex(m.list.getChildCount(), 0)
     m.foot.removeChildrenIndex(m.foot.getChildCount(), 0)
-    m.rows = []
+    m.fixed.removeChildrenIndex(m.fixed.getChildCount(), 0)
     entries = m.top.entries
     if entries = invalid then entries = []
-    y = 0
+    tops = []
+    libraries = []
+    bottoms = []
     for each entry in entries
-        m.rows.push(makeRow(m.list, y, entry))
+        if entry.id = "search" or entry.id = "home"
+            tops.push(entry)
+        else if entry.id = "live" or entry.id = "saved"
+            bottoms.push(entry)
+        else
+            libraries.push(entry)
+        end if
+    end for
+    m.rows = []
+    y = 158
+    for each entry in tops
+        row = makeRow(m.fixed, y, entry)
+        row.y = y
+        m.rows.push(row)
         y = y + 72
     end for
-    m.count = m.rows.count()
-    m.rows.push(makeRow(m.foot, 0, {id: "settings", icon: "settings", label: "Settings"}))
-    m.rows.push(makeRow(m.foot, 72, {id: "profile", icon: "profile", label: ""}))
+    m.listTop = y
+    m.listFirst = m.rows.count()
+    m.count = libraries.count()
+    m.fits = int((868 - y - 72 * bottoms.count()) / 72)
+    if m.fits > m.count then m.fits = m.count
+    for i = 0 to libraries.count() - 1
+        row = makeRow(m.list, i * 72, libraries[i])
+        row.y = -1
+        m.rows.push(row)
+    end for
+    m.window.translation = [0, m.listTop]
+    m.window.clippingRect = [0, 0, 440, m.fits * 72]
+    y = m.listTop + m.fits * 72
+    for each entry in bottoms
+        row = makeRow(m.fixed, y, entry)
+        row.y = y
+        m.rows.push(row)
+        y = y + 72
+    end for
+    row = makeRow(m.foot, 0, {id: "settings", icon: "settings", label: "Settings"})
+    row.y = 884
+    m.rows.push(row)
+    row = makeRow(m.foot, 72, {id: "profile", icon: "profile", label: ""})
+    row.y = 956
+    m.rows.push(row)
     under = m.foot.createChild("Label")
     under.text = "Profile and server"
     under.translation = [141, 118]
     setType(under, "micro", colours().textTertiary)
     m.profileUnder = under
-    m.rows[m.rows.count() - 1].label.height = 56
-    m.rows[m.rows.count() - 1].label.translation = [141, 2]
+    row.label.height = 56
+    row.label.translation = [141, 2]
+    m.fadeTop.translation = [0, m.listTop]
+    m.fadeBottom.translation = [0, m.listTop + m.fits * 72 - 40]
     onProfile()
     onCurrent()
 end sub
@@ -120,12 +165,20 @@ sub paint()
     m.panel.visible = m.open
     m.wordmark.visible = m.open
     m.mark.visible = not m.open
-    ' keep the row in focus (the current page's, when closed) inside the nine shown
-    if m.focus < m.count
-        if m.focus < m.scroll then m.scroll = m.focus
-        if m.focus > m.scroll + 8 then m.scroll = m.focus - 8
+    ' keep the library in focus (the current page's, when closed) inside those shown
+    at = m.focus - m.listFirst
+    if at >= 0 and at < m.count
+        if at < m.scroll then m.scroll = at
+        if at > m.scroll + m.fits - 1 then m.scroll = at - m.fits + 1
     end if
+    if m.scroll > m.count - m.fits then m.scroll = m.count - m.fits
+    if m.scroll < 0 then m.scroll = 0
     m.list.translation = [0, -72 * m.scroll]
+    m.fadeTop.visible = (m.scroll > 0)
+    m.fadeBottom.visible = (m.scroll + m.fits < m.count)
+    if m.open then tone = "0x0B1822FF" else tone = "0x071018FF"
+    m.fadeTop.blendColor = tone
+    m.fadeBottom.blendColor = tone
     for i = 0 to m.rows.count() - 1
         row = m.rows[i]
         isCurrent = (row.id = m.top.current)
@@ -141,8 +194,8 @@ sub paint()
     m.plate.visible = m.open
     m.ring.visible = m.open
     if m.open
-        y = 884 + 72 * (m.focus - m.count)
-        if m.focus < m.count then y = 158 + 72 * (m.focus - m.scroll)
+        y = m.rows[m.focus].y
+        if y < 0 then y = m.listTop + 72 * (m.focus - m.listFirst - m.scroll)
         m.plate.translation = [60, y]
         m.ring.translation = [24, y - 36]
     end if

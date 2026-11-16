@@ -94,6 +94,15 @@ sub onContent()
     ' An episode card: the picture is 16:9 at the top and the words go under it.
     under = (item.under = true)
     if under then m.h = m.w * 9 / 16 else m.h = m.fullH
+    ' An audiobook or album with no cover gets a square generated one, as its real covers are square.
+    m.shiftY = 0
+    if item.art = "" and not item.overlay and m.fullH > m.w and (item.kind = "audiobook" or item.kind = "album" or item.kind = "track")
+        m.h = m.w
+        m.shiftY = (m.fullH - m.w) / 2
+    end if
+    m.under.translation = [0, m.shiftY]
+    m.over.translation = [0, m.shiftY]
+    m.madeGlyph.translation = [0, m.h - 128]
     m.art.height = m.h
     m.art.loadHeight = m.h
     m.plate.height = m.h
@@ -204,7 +213,9 @@ sub grow(s as float)
     m.over.scale = [s, s]
     w = m.w * s
     h = m.h * s
-    m.clip.translation = [(m.w - w) / 2, (m.h - h) / 2]
+    shiftY = 0
+    if m.shiftY <> invalid then shiftY = m.shiftY
+    m.clip.translation = [(m.w - w) / 2, (m.h - h) / 2 + shiftY]
     m.clip.maskSize = [w, h]
     m.art.width = w
     m.art.height = h
