@@ -182,12 +182,14 @@ func (d *DB) GuideStart(ctx context.Context, sourceID int64) (time.Time, error) 
 	return time.UnixMilli(start.Int64).UTC(), nil
 }
 
+const guideProgrammesQuery = `SELECT starts_at, ends_at, programme_key, ifnull(series_key, ''), title, ifnull(episode_title, ''),
+		season_number, episode_number, ifnull(summary, ''), ifnull(rating, ''), rating_age, ifnull(flags, 0), ifnull(image_url, ''), ifnull(item_id, 0)
+		FROM programmes WHERE source_id = ? AND guide_key = ? AND starts_at > ? AND starts_at < ? AND ends_at > ? ORDER BY starts_at LIMIT ?`
+
 // GuideProgrammes reads one channel's programmes that end after from and start before to.
 // It reads the channel's own key range, however large the guide.
 func (d *DB) GuideProgrammes(ctx context.Context, sourceID int64, guideKey string, from, to time.Time, limit int) ([]GuideProgramme, error) {
-	rows, err := d.guide.read.QueryContext(ctx, `SELECT starts_at, ends_at, programme_key, ifnull(series_key, ''), title, ifnull(episode_title, ''),
-		season_number, episode_number, ifnull(summary, ''), ifnull(rating, ''), rating_age, ifnull(flags, 0), ifnull(image_url, ''), ifnull(item_id, 0)
-		FROM programmes WHERE source_id = ? AND guide_key = ? AND starts_at > ? AND starts_at < ? AND ends_at > ? ORDER BY starts_at LIMIT ?`,
+	rows, err := d.guide.read.QueryContext(ctx, guideProgrammesQuery,
 		sourceID, guideKey, from.Add(-48*time.Hour).UnixMilli(), to.UnixMilli(), from.UnixMilli(), limit)
 	if err != nil {
 		return nil, err
