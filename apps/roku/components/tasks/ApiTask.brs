@@ -1,8 +1,8 @@
 sub init()
-    m.top.functionName = "run"
+    m.top.functionName = "serve"
 end sub
 
-sub run()
+sub serve()
     m.port = createObject("roMessagePort")
     m.top.observeField("request", m.port)
     m.pending = {}      ' transfer identity -> {xfer, req, retried}

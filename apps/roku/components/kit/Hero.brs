@@ -29,9 +29,6 @@ sub init()
     m.lockup = fontFor("lockup")
     m.lockupLong = fontFor("lockupLong")
     m.title.color = c.text
-    m.buttons = []
-    m.focused = 0
-    m.top.observeField("focusedChild", "paint")
 end sub
 
 sub onModel()
@@ -55,7 +52,7 @@ sub onModel()
         m.title.wrap = true
         m.title.width = 1100
         m.title.lineSpacing = -14
-        if m.title.boundingRect().height > 110 then titleHeight = 214 else titleHeight = 122
+        if m.title.boundingRect().height > 160 then titleHeight = 214 else titleHeight = 122
     else
         m.title.width = 1100
     end if
@@ -109,22 +106,6 @@ sub showOnly(node as object, show as boolean)
     end if
 end sub
 
-sub onButtons()
-    m.buttonRow.removeChildrenIndex(m.buttonRow.getChildCount(), 0)
-    m.buttons = []
-    x = 0
-    for each spec in m.top.buttons
-        b = m.buttonRow.createChild("Button")
-        b.icon = spec.icon
-        b.text = spec.text
-        b.translation = [x, 0]
-        x = x + b.buttonWidth + 18
-        m.buttons.push(b)
-    end for
-    if m.focused >= m.buttons.count() then m.focused = 0
-    paint()
-end sub
-
 sub onDots()
     m.dots.removeChildrenIndex(m.dots.getChildCount(), 0)
     if m.top.pages < 2 then return
@@ -146,31 +127,5 @@ sub onDots()
 end sub
 
 sub onActive()
-    if m.top.active then m.top.setFocus(true)
-    paint()
+    if m.top.active then m.buttonRow.active = true
 end sub
-
-sub paint()
-    has = m.top.hasFocus()
-    for i = 0 to m.buttons.count() - 1
-        m.buttons[i].on = (has and i = m.focused)
-    end for
-end sub
-
-function onKeyEvent(key as string, press as boolean) as boolean
-    if not press or m.top.mode <> "spotlight" then return false
-    if key = "right"
-        if m.focused < m.buttons.count() - 1 then m.focused = m.focused + 1
-        paint()
-        return true   ' the end of the row: nothing moves
-    else if key = "left"
-        if m.focused = 0 then return false   ' the page's left edge: the rail
-        m.focused = m.focused - 1
-        paint()
-        return true
-    else if key = "OK"
-        if m.buttons.count() > 0 then m.top.pressed = m.top.buttons[m.focused].id
-        return true
-    end if
-    return false
-end function

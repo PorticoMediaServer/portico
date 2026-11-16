@@ -20,7 +20,7 @@ end function
 ' The ten-foot type scale (packages/design typeScale.tenFoot): [weight, size, line height or 0].
 function typeRoles() as object
     return {
-        lockup: [800, 120, 0], lockupLong: [800, 84, 0], title: [800, 44, 0], heading: [600, 32, 0],
+        lockup: [800, 120, 0], lockupLong: [800, 84, 0], display: [800, 96, 0], lede: [400, 30, 42], title: [800, 44, 0], heading: [600, 32, 0],
         rowHeading: [700, 32, 0], rowSubtitle: [400, 20, 0], nav: [700, 24, 0],
         cardTitle: [600, 22, 0], cardSubtitle: [400, 20, 0], wideTitle: [700, 26, 0],
         meta: [400, 24, 0], metaStrong: [700, 24, 0], eyebrow: [600, 24, 0], synopsis: [400, 24, 35],

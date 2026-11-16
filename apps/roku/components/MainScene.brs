@@ -53,6 +53,7 @@ sub onLaunchArgs()
     m.task.session = {origin: origin, refreshToken: token, installationId: installationId()}
     api("GET", "/v1/libraries", invalid, "onLibraries")
     api("GET", "/v1/me", invalid, "onMe")
+    api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
     show("HomeScreen")
 end sub
 
@@ -73,20 +74,41 @@ function libraryIcon(kind as string) as string
     if kind = "movies" or kind = "movie" then return "film"
     if kind = "shows" or kind = "tv" or kind = "anime" then return "tv"
     if kind = "music" then return "music"
-    if kind = "audiobooks" or kind = "audiobook" or kind = "books" or kind = "comics" then return "book"
+    if kind = "audiobooks" or kind = "audiobook" then return "book"
     return "folder"
 end function
 
 sub onLibraries(event as object)
     result = event.getData()
+    m.libraries = invalid
     entries = [{id: "search", icon: "search", label: "Search"}, {id: "home", icon: "home", label: "Home"}]
     if result.ok and result.data.items <> invalid
         for each library in result.data.items
-            entries.push({id: library.id, icon: libraryIcon(library.kind), label: library.name})
+            ' Reading libraries are not on TV (definition, area 10).
+            if library.kind <> "books" and library.kind <> "comics"
+                entries.push({id: library.id, icon: libraryIcon(library.kind), label: library.name})
+            end if
         end for
     end if
-    entries.push({id: "live", icon: "live", label: "Live TV"})
+    if m.hasLive = true then entries.push({id: "live", icon: "live", label: "Live TV"})
     entries.push({id: "saved", icon: "bookmark", label: "Saved"})
+    m.libraries = result
+    m.rail.entries = entries
+    m.rail.current = "home"
+end sub
+
+' Live TV is in the rail only when this profile has channels to watch.
+sub onLive(event as object)
+    result = event.getData()
+    m.hasLive = result.ok and result.data.items <> invalid and result.data.items.count() > 0
+    if m.hasLive and m.libraries <> invalid then onLibrariesAgain()
+end sub
+
+sub onLibrariesAgain()
+    entries = m.rail.entries
+    last = entries.pop()
+    entries.push({id: "live", icon: "live", label: "Live TV"})
+    entries.push(last)
     m.rail.entries = entries
     m.rail.current = "home"
 end sub

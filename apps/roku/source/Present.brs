@@ -31,6 +31,21 @@ function timeLeftText(item as object) as string
     return durationText(item.durationMs - item.state.positionMs) + " left"
 end function
 
+' Reading (books, comics, magazines) is not on TV (definition, area 10: decision of 21 Oct), so a
+' title that is a publication is left out of rows on this app.
+function isReading(item as object) as boolean
+    return item.publicationType <> invalid or item.kind = "book" or item.kind = "comic"
+end function
+
+function withoutReading(items as dynamic) as object
+    out = []
+    if items = invalid then return out
+    for each item in items
+        if not isReading(item) then out.push(item)
+    end for
+    return out
+end function
+
 ' A book, comic, audiobook or album cover is always shown whole (ruling of 13 Nov).
 function isCover(kind as string) as boolean
     return kind = "book" or kind = "audiobook" or kind = "comic" or kind = "album" or kind = "series" or kind = "track" or kind = "magazine"

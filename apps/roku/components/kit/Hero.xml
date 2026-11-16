@@ -7,13 +7,13 @@
     <!-- From heroFor(): {eyebrow, title, year, facts, tag, progress, left, synopsis}. -->
     <field id="model" type="assocarray" onChange="onModel"/>
     <!-- Spotlight only: [{id, text, icon}] and how many pages the dots show. -->
-    <field id="buttons" type="array" onChange="onButtons"/>
+    <field id="buttons" type="array" alias="buttonRow.buttons"/>
     <field id="pages" type="integer" onChange="onDots"/>
     <field id="page" type="integer" onChange="onDots"/>
     <!-- Preview only: what OK does ("Resume", "Play", "Open"). -->
     <field id="okText" type="string" onChange="onModel"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
-    <field id="pressed" type="string" alwaysNotify="true"/>
+    <field id="pressed" type="string" alwaysNotify="true" alias="buttonRow.pressed"/>
   </interface>
   <script type="text/brightscript" uri="Hero.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
@@ -48,7 +48,7 @@
         </Group>
         <Label id="starText" text="More options"/>
       </LayoutGroup>
-      <Group id="buttonRow"/>
+      <ButtonRow id="buttonRow"/>
       <Group id="dots"/>
     </Group>
   </children>

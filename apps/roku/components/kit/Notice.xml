@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A whole-page message with its actions: nothing here yet, the server cannot be reached, and the like.
+     Focus is never on nothing: the first button has it. -->
+<component name="Notice" extends="Group">
+  <interface>
+    <field id="icon" type="string" onChange="onChange"/>
+    <field id="title" type="string" onChange="onChange"/>
+    <field id="body" type="string" onChange="onChange"/>
+    <field id="footnote" type="string" onChange="onChange"/>
+    <field id="buttons" type="array" alias="row.buttons"/>
+    <field id="pressed" type="string" alwaysNotify="true" alias="row.pressed"/>
+    <field id="active" type="boolean" alwaysNotify="true" alias="row.active"/>
+  </interface>
+  <script type="text/brightscript" uri="Notice.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Poster id="disc" uri="pkg:/images/round-36.9.png" blendColor="0x10212DFF" width="88" height="88" translation="[200,244]"/>
+    <Poster id="icon" width="32" height="32" translation="[228,272]" blendColor="0xE8BC6AFF"/>
+    <Label id="title" translation="[196,360]" width="1500"/>
+    <Label id="body" translation="[200,480]" width="900" wrap="true" maxLines="3"/>
+    <ButtonRow id="row" translation="[200,662]"/>
+    <Label id="footnote" translation="[200,774]" width="900" wrap="true" maxLines="3"/>
+  </children>
+</component>
