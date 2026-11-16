@@ -3,7 +3,7 @@ import test from 'node:test';
 import {readAuthenticatedArtworkBytes} from '../src/artwork/media-sources.ts';
 
 const identity = {serverId: 'server', viewerId: 'profile', authorityKey: 'original'};
-const foreground = {kind: 'foreground' as const, url: '/v1/admin/access/members/member/profiles/profile/avatar?v=2&size=160'};
+const foreground = {kind: 'foreground' as const, url: '/v1/profiles/profile/avatar?v=2&member=member&size=small'};
 const ambient = {kind: 'ambient' as const, url: '/v1/items/title/art/backdrop?size=ambient-v1&v=' + 'a'.repeat(64)};
 const status = (value: number) => (error: unknown) => (error as {status?: number})?.status === value;
 const options = (fetcher: typeof fetch) => ({identity, isCurrent: () => true, currentToken: () => 'original-token',
