@@ -7,7 +7,7 @@ export const drawnSubtitleMessages = {
   // ── Subtitles found online: the attribution OpenSubtitles asks for, and its refusals ──
   'player.opt.providedByOpenSubtitles': 'Subtitles provided by OpenSubtitles.com',
   'subtitles.error.providerNotConfigured': 'Subtitle search isn’t set up on this server. Ask the owner to add an OpenSubtitles key.',
-  'subtitles.error.providerKeyRejected': 'OpenSubtitles didn’t accept this server’s key. Ask the owner to check it.',
+  'subtitles.error.providerKeyRejected': 'OpenSubtitles refused this server’s API access. Ask the owner to check its key and application access.',
   'subtitles.error.providerSignInFailed': 'OpenSubtitles didn’t accept this server’s account. Ask the owner to check it.',
   'subtitles.error.providerSignInRequired': 'OpenSubtitles only lets signed-in accounts download. Ask the owner to add an account.',
   'subtitles.error.providerQuota': 'This server has used today’s OpenSubtitles downloads. They start again at {time}.',

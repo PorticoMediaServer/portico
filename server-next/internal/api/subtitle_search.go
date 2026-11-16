@@ -144,7 +144,7 @@ func subtitleError(err error) error {
 	case errors.Is(err, metadata.ErrNoSubtitleProvider):
 		return ErrConflict("subtitle_search_not_set_up", "Subtitle search isn't set up on this server. Ask the owner to set up OpenSubtitles.")
 	case errors.Is(err, opensubtitles.ErrKeyRefused):
-		return refusal(http.StatusBadGateway, "subtitle_key_refused", "OpenSubtitles refused this server's key. Ask the owner to check it.", false)
+		return refusal(http.StatusBadGateway, "subtitle_key_refused", "OpenSubtitles refused this server's API access. Ask the owner to check its key and application access.", false)
 	case errors.Is(err, opensubtitles.ErrSignInRefused):
 		return refusal(http.StatusBadGateway, "subtitle_sign_in_refused", "OpenSubtitles refused the server's account. Ask the owner to check it.", false)
 	case errors.As(err, &used):
@@ -158,7 +158,7 @@ func subtitleError(err error) error {
 	case err != nil && strings.HasPrefix(err.Error(), "the downloaded subtitle cannot be read"):
 		return refusal(http.StatusBadGateway, "subtitle_unreadable", "That subtitle could not be read. Try another.", true)
 	case err != nil:
-		return refusal(http.StatusBadGateway, "provider_unavailable", "OpenSubtitles did not answer. Try again later.", true)
+		return refusal(http.StatusBadGateway, "provider_unavailable", "OpenSubtitles is unavailable. Try again later.", true)
 	}
 	return nil
 }
