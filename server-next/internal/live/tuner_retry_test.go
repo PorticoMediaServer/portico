@@ -1,36 +1,55 @@
 package live
 
 import (
+	"bytes"
 	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
-// A source that drops now and then but connects again at once keeps the channel going: the
-// retry time counts from the latest drop, not from the first one an hour ago.
+type retryTransport func(*http.Request) (*http.Response, error)
+
+func (f retryTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// Every fourth connection sends data. The three intervening empty connections
+// fit inside the retry window; new data must restart that window each time.
 func TestASourceThatDropsAndComesBackKeepsTheChannel(t *testing.T) {
-	src := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for n := 0; n < 100 && r.Context().Err() == nil; n++ { // about 300 ms, then the connection drops
-			p := make([]byte, packet)
-			p[0] = 0x47
-			w.Write(p)
-			w.(http.Flusher).Flush()
-			time.Sleep(3 * time.Millisecond)
+	synctest.Test(t, func(t *testing.T) {
+		calls := 0
+		connected := make(chan int, 1)
+		client := &http.Client{Transport: retryTransport(func(r *http.Request) (*http.Response, error) {
+			calls++
+			var data []byte
+			if (calls-1)%4 == 0 {
+				data = bytes.Repeat([]byte{0x47}, packet*4)
+			}
+			connected <- calls
+			return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(data)), Request: r}, nil
+		})}
+		tuners := NewTuners(t.TempDir()+"/live", client, slog.New(slog.NewTextHandler(io.Discard, nil)), time.Now,
+			func() Tuning { return Tuning{Stretch: time.Minute, Retry: 4 * time.Second} })
+		in, err := tuners.Tune(1, 9, 1, "http://fixture/stream", &Use{Name: "Living room"})
+		if err != nil {
+			t.Fatal(err)
 		}
-	}))
-	t.Cleanup(src.Close)
-	tuners := NewTuners(t.TempDir()+"/live", src.Client(), slog.New(slog.NewTextHandler(io.Discard, nil)), time.Now,
-		func() Tuning { return Tuning{Stretch: time.Minute, Retry: 2 * time.Second} })
-	t.Cleanup(tuners.Close)
-	in, err := tuners.Tune(1, 9, 1, src.URL, &Use{Name: "Living room"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(5 * time.Second) // several drops, each followed by a good connection
-	if err := in.Stopped(); err != nil {
-		t.Fatalf("a source that came back after every drop was given up on: %v", err)
-	}
+		defer func() { tuners.Close(); <-in.done }()
+		for want := 1; want <= 10; want++ {
+			select {
+			case got := <-connected:
+				if got != want {
+					t.Fatalf("connection %d, want %d", got, want)
+				}
+			case <-in.done:
+				t.Fatal("the channel stopped before reconnecting", in.Stopped())
+			case <-time.After(30 * time.Second):
+				t.Fatal("the channel did not reconnect")
+			}
+		}
+		if err := in.Stopped(); err != nil {
+			t.Fatal("the channel gave up despite new data", err)
+		}
+	})
 }
