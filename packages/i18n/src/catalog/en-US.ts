@@ -963,6 +963,8 @@ export const enUS = {
   'device.noun.tablet': 'tablet',
   'device.noun.androidTV': 'Android TV',
   'device.noun.fireTV': 'Fire TV',
+  'device.noun.lgTV': 'LG TV',
+  'device.noun.samsungTV': 'Samsung TV',
 
   // ── Account (APL-SET-01, D-ID-4) ─────────────────────────────────
   'account.portico': 'Portico Account',

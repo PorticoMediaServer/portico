@@ -14,7 +14,7 @@
 import type {IconId} from '../../../design/src/icons.ts';
 import type {MessageId} from '../../../i18n/src/index.ts';
 
-export type DestinationPlatform = 'ios' | 'ipados' | 'android' | 'web' | 'tvos' | 'androidtv' | 'firetv' | 'vega';
+export type DestinationPlatform = 'ios' | 'ipados' | 'android' | 'web' | 'tvos' | 'androidtv' | 'firetv' | 'vega' | 'webos' | 'tizen';
 
 /** A signed-in Portico player found on the local network. */
 export type NearbyPlayer = Readonly<{id: string; name: string; kind: 'tv' | 'phone' | 'tablet' | 'computer'}>;
@@ -47,7 +47,7 @@ export type DestinationCapabilities = Readonly<{
 const playerGlyph: Record<NearbyPlayer['kind'], IconId> = {tv: 'tvDevice', phone: 'phone', tablet: 'tablet', computer: 'browser'};
 
 export function playOnDestinations(platform: DestinationPlatform, c: DestinationCapabilities = {}): Destinations {
-  if (platform === 'tvos' || platform === 'androidtv' || platform === 'firetv' || platform === 'vega') return Object.freeze({offered: false, rows: []});
+  if (platform === 'tvos' || platform === 'androidtv' || platform === 'firetv' || platform === 'vega' || platform === 'webos' || platform === 'tizen') return Object.freeze({offered: false, rows: []});
   const rows: DestinationRow[] = [];
   if (c.airplay) rows.push({kind: 'airplay', label: 'playOn.airplay', subtitle: 'playOn.airplaySubtitle', icon: 'airplay'});
   if (c.googleCast) rows.push({kind: 'googleCast', label: 'playOn.googleCast', icon: 'googleCast'});
