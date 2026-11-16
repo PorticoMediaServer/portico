@@ -1,5 +1,5 @@
 /**
- * APP-01, APP-02 and APP-09: downloads, deferred viewing and auto-next belong to
+ * APP-01, APP-02 and APP-09: downloads and deferred viewing belong to
  * the viewer that produced them.
  *
  * Every test drives the real `OfflineDownloads` against the native stub, so the
@@ -551,38 +551,33 @@ test('APP-02: an old bookkeeping document keeps only its settings and keys', asy
 
   const saved = JSON.parse(device.state);
   assert.equal(saved.version, 3);
-  assert.deepEqual(saved.settings, {wifiOnly: false, deleteWatched: true, autoNext: true, limitBytes: 1234}, 'settings are carried over');
+  assert.deepEqual(saved.settings, {wifiOnly: false, deleteWatched: true, limitBytes: 1234}, 'settings are carried over');
   assert.equal(saved.keys['key-1'], b64url(new Uint8Array(32)), 'the server’s keys are carried over');
   assert.deepEqual(saved.plays, {}, 'old plays are not adopted by whoever signs in');
   assert.deepEqual(saved.resume, {}, 'nor are old resume points');
   assert.deepEqual(saved.wanted, {}, 'nor old wants');
-  assert.deepEqual(saved.nextAfter, {}, 'nor old next-up intents');
+  assert.equal(saved.nextAfter, undefined, 'nor old next-up intents');
   assert.equal(s.sent('/v1/downloads/progress').length, 0, 'an unowned record is never posted');
 });
 
-test('APP-09: finishing a title with auto-next on queues the next one for transfer', async () => {
-  const {offlineDownloads} = await bridge();
-  const rA = receipt({id: 'r-a', viewer: A, itemId: 'item-1', preparationId: 'prep-a'});
-  device.seed({id: 'prep-a', itemId: 'item-1', meta: {receipt: rA, libraryId: 'lib'}});
-  const next = preparation('prep-next', 'item-2');
-  const service = downloadsService([next]);
-  service.nextBatch = {batchId: 'b', items: [next], rejected: [], accepted: 1, duplicate: false};
-  const s = server()
-    .route('/v1/downloads/receipt-keys', KEYS)
-    .route('/v1/downloads/receipts/revalidate', () => ({results: [{receiptId: 'r-a', outcome: 'renewed', receipt: rA, code: ''}]}))
-    .route('/v1/downloads/progress', APPLIED)
-    .route('/v1/downloads/receipts', () => ({results: []}));
-
-  offlineDownloads.connect(s.api as any, service as unknown as DownloadsService, A);
-  await settle();
-  await offlineDownloads.setSettings({autoNext: true});
-  observe(offlineDownloads, {id: 'prep-a', positionSeconds: 1000, durationSeconds: 1000, ended: true});
-  await settle();
-
-  assert.equal(service.requested.length, 1, 'the server is asked to prepare the next title');
-  assert.deepEqual(service.requested[0].target, {nextAfterMediaId: 'item-1'});
-  assert.deepEqual(device.started.map((r: {id: string}) => r.id), ['prep-next'], 'and the prepared next title is actually transferred');
-  assert.equal(JSON.parse(device.started[0]!.meta).owner, ownerKeyOf(A), 'under the watching viewer');
+test('legacy next-episode settings and retry intents retire without losing files or queued progress', async () => {
+  const {offlineDownloads} = await bridge(), owner = ownerKeyOf(A);
+  const stored = JSON.parse(storedWithKeys());
+  stored.settings = {wifiOnly: false, deleteWatched: true, autoNext: true, limitBytes: 1234};
+  stored.nextAfter = {[owner]: {'episode-1': {quality: 'original'}}};
+  stored.resume = {[owner]: {'episode-1': 90}};
+  stored.plays = {[owner]: {pending: {playId: 'pending', itemId: 'episode-1', positionSeconds: 90, observedAt: new Date().toISOString()}}};
+  device.state = JSON.stringify(stored);
+  device.seed({id: 'copy', itemId: 'episode-1', meta: {owner}});
+  offlineDownloads.adopt(A); await offlineDownloads.open();
+  const saved = JSON.parse(device.state);
+  assert.deepEqual(saved.settings, {wifiOnly: false, deleteWatched: true, limitBytes: 1234});
+  assert.equal(saved.nextAfter, undefined);
+  assert.deepEqual(saved.resume, stored.resume); assert.deepEqual(saved.plays, stored.plays);
+  assert.deepEqual(device.removed, []); assert.ok(device.entries.has('copy'));
+  const service = downloadsService();
+  offlineDownloads.connect(server().route('/v1/downloads/receipt-keys', KEYS).api, service as unknown as DownloadsService, A);
+  await settle(); assert.deepEqual(service.requested, [], 'only the current server Keep rule can choose another episode');
 });
 
 test('APP-01: a transfer takes its receipt, address and title before any byte moves', async () => {
@@ -746,52 +741,6 @@ test('APP-01: stale key discovery cannot publish keys after changing servers', a
   assert.equal(JSON.parse(device.state).keys['old-server-key'], undefined);
 });
 
-test('APP-09: offline completion survives restart and only its owner retries auto-next', async () => {
-  let {offlineDownloads} = await bridge();
-  const rA = receipt({id: 'r-a', viewer: A, itemId: 'episode-1', preparationId: 'prep-a'});
-  device.state = storedWithKeys();
-  device.seed({id: 'prep-a', itemId: 'episode-1', quality: 'original', meta: {receipt: rA, libraryId: 'lib'}});
-  offlineDownloads.adopt(A);
-  await offlineDownloads.open();
-  await offlineDownloads.setSettings({autoNext: true});
-  observe(offlineDownloads, {id: 'prep-a', positionSeconds: 100, durationSeconds: 100, ended: true});
-  await settle();
-  const saved = device.state;
-  assert.ok(JSON.parse(saved).nextAfter[ownerKeyOf(A)]['episode-1']);
-  offlineDownloads.dispose();
-  ({offlineDownloads} = await bridge());
-  device.state = saved;
-  const next = preparation('prep-next', 'episode-2');
-  const service = downloadsService([next]);
-  service.nextBatch = {batchId: 'b', items: [next], rejected: [], accepted: 1, duplicate: false};
-  const s = server().route('/v1/downloads/receipt-keys', KEYS).route('/v1/downloads/progress', APPLIED);
-  offlineDownloads.connect(s.api, service as unknown as DownloadsService, B);
-  await settle();
-  assert.deepEqual(service.requested, []);
-  offlineDownloads.connect(s.api, service as unknown as DownloadsService, A);
-  await settle();
-  assert.deepEqual(service.requested, [{target: {nextAfterMediaId: 'episode-1'}, quality: 'original'}]);
-  assert.equal(device.started.length, 1);
-  assert.equal(JSON.parse(device.started[0].meta).owner, ownerKeyOf(A));
-  assert.deepEqual(JSON.parse(device.state).nextAfter[ownerKeyOf(A)], {});
-});
-
-test('APP-09: a failed next-episode request is retained and retried on reconnect', async () => {
-  const {offlineDownloads} = await bridge();
-  device.state = JSON.stringify({...JSON.parse(storedWithKeys()), settings: {autoNext: true}, nextAfter: {[ownerKeyOf(A)]: {'episode-1': {quality: 'original'}}}});
-  const failing = downloadsService();
-  failing.request = async () => { throw new Error('offline'); };
-  const s = server().route('/v1/downloads/receipt-keys', KEYS);
-  offlineDownloads.connect(s.api, failing as unknown as DownloadsService, A);
-  await settle();
-  assert.ok(JSON.parse(device.state).nextAfter[ownerKeyOf(A)]['episode-1']);
-  const recovered = downloadsService();
-  offlineDownloads.connect(s.api, recovered as unknown as DownloadsService, A);
-  await settle();
-  assert.equal(recovered.requested.length, 1);
-  assert.deepEqual(JSON.parse(device.state).nextAfter[ownerKeyOf(A)], {});
-});
-
 test('APP-03: restoring the saved viewer loads the cold offline entry point without mounting a downloads screen', async () => {
   const {offlineDownloads} = await bridge();
   device.state = storedWithKeys();
@@ -892,15 +841,14 @@ test('a transfer grant renewal cannot patch an entry after its viewer changes', 
   assert.deepEqual(device.started, []);
 });
 
-test('network wake retries deferred progress and next-episode work without reconnecting', async () => {
+test('network wake retries deferred progress without reconnecting', async () => {
   const {offlineDownloads} = await bridge();
   const owner = ownerKeyOf(A), observedAt = new Date().toISOString();
   device.state = JSON.stringify({...JSON.parse(storedWithKeys()), settings: {autoNext: true},
     plays: {[owner]: {pending: {playId: 'pending', itemId: 'episode-1', positionSeconds: 10, observedAt}}},
     nextAfter: {[owner]: {'episode-1': {quality: 'original'}}}});
-  let offline = true, requestedOnline = 0;
+  let offline = true;
   const service = downloadsService();
-  service.request = async () => {if (offline) throw new Error('offline'); requestedOnline++; return service.nextBatch;};
   const s = server().route('/v1/downloads/receipt-keys', KEYS).route('/v1/downloads/progress', body => {if (offline) throw new Error('offline'); return APPLIED(body);});
   offlineDownloads.connect(s.api, service as unknown as DownloadsService, A);
   await settle();
@@ -908,8 +856,8 @@ test('network wake retries deferred progress and next-episode work without recon
   offlineDownloads.wake();
   await settle();
   assert.deepEqual(JSON.parse(device.state).plays[owner], {});
-  assert.deepEqual(JSON.parse(device.state).nextAfter[owner], {});
-  assert.equal(requestedOnline, 1, 'one wake retries the next-episode request once');
+  assert.equal(JSON.parse(device.state).nextAfter, undefined);
+  assert.deepEqual(service.requested, []);
 });
 
 test('a continuously connected viewer renews receipts on the next day, once per overlapping wake', async t => {
@@ -1143,18 +1091,18 @@ test('private cached title keeps typed duration and episode facts after native J
   assert.equal(entry.info?.groupNumber,2);assert.equal(entry.info?.number,3);
 });
 
-test('unfinished audiobook progress keeps its resume and file even with delete-watched and auto-next enabled', async () => {
+test('unfinished audiobook progress keeps its resume and file with delete-watched enabled', async () => {
   const {offlineDownloads} = await bridge(), owner = ownerKeyOf(A);
   device.seed({id: 'book-copy', itemId: 'book-part', meta: {owner, kind: 'audiobook_file'}});
   offlineDownloads.adopt(A); await offlineDownloads.open();
-  await offlineDownloads.setSettings({deleteWatched: true, autoNext: true});
+  await offlineDownloads.setSettings({deleteWatched: true});
   offlineDownloads.recordProgress({entryId: 'book-copy', itemId: 'book-part', playId: 'book-play', positionSeconds: 33480,
     durationSeconds: 36000, state: 'paused', ended: false});
   await settle();
   const saved = JSON.parse(device.state);
   assert.equal(saved.resume[owner]['book-part'], 33480);
   assert.equal(saved.plays[owner]['book-play'].ended, undefined);
-  assert.equal(saved.nextAfter[owner]?.['book-part'], undefined);
+  assert.equal(saved.nextAfter, undefined);
   assert.deepEqual(device.removed, []);
   assert.ok(device.entries.has('book-copy'));
 });

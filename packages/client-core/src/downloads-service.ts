@@ -11,7 +11,7 @@ import type {DownloadEpisodes, DownloadRequest, DownloadRequestKind} from './dow
 import {askForDownload, changeDownload, listDownloads, readDownload, readDownloadedItem, readDownloadOptions, readDownloadUsage, removeDownloadedTitle} from './device-downloads.ts';
 
 export type DownloadsApi = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
-export type DownloadTarget = Readonly<{versionId?: string; mediaId?: string; mediaIds?: readonly string[]; nextAfterMediaId?: string}>;
+export type DownloadTarget = Readonly<{versionId?: string; mediaId?: string; mediaIds?: readonly string[]}>;
 export type ContainerDownloadTarget = Readonly<{kind: DownloadRequestKind; id: string; title?: string}>;
 export type ContainerDownloadPolicy = Readonly<{episodes: DownloadEpisodes; keepNext?: number}>;
 export type TrackedDownloadRequest = Readonly<{request: DownloadRequest; title: string; error?: string}>;

@@ -10,7 +10,7 @@ test('both shells share the same authoritative device owner', () => {
 
 test('the screen port observes the same device store and routes play through its runtime callback', async () => {
   const entry: OfflineEntry = {id:'copy',itemId:'movie',owner:'viewer',title:'Movie',subtitle:'',quality:'original',artworkUrl:'file:///art',state:'ready',error:'',waiting:'',held:false,bytes:50,bytesDone:50,addedAt:1,onServer:true,changedOnServer:false};
-  let state: OfflineSnapshot = {supported:true,ready:true,entries:[entry],settings:{wifiOnly:true,deleteWatched:false,autoNext:false,limitBytes:100},freeBytes:1000,usedBytes:50,otherBytes:30,pendingProgress:0};
+  let state: OfflineSnapshot = {supported:true,ready:true,entries:[entry],settings:{wifiOnly:true,deleteWatched:false,limitBytes:100},freeBytes:1000,usedBytes:50,otherBytes:30,pendingProgress:0};
   const calls: unknown[] = [], listener = () => {};
   const device = {
     getSnapshot: () => state,
