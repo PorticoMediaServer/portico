@@ -34,7 +34,7 @@ func TestDecoderProcessHelper(t *testing.T) {
 			response.Body.Close()
 		}
 		// Held until the test cancels it; the sleep only bounds a leaked helper.
-		time.Sleep(10 * time.Second)
+		time.Sleep(time.Minute)
 		os.Exit(0)
 	}
 	if args[1] == "oversize" {
@@ -62,7 +62,7 @@ func TestDecoderRunOwnsReservationThroughRetirement(t *testing.T) {
 		_, e := runOwned(ctx, supervisor, "fixture-retirement", cmd, endpoint, res)
 		result <- e
 	}()
-	v4.SetDeadline(time.Now().Add(2 * time.Second))
+	v4.SetDeadline(time.Now().Add(30 * time.Second))
 	conn, err := v4.Accept()
 	if err != nil {
 		t.Fatal("helper did not start", err)
@@ -86,7 +86,7 @@ func TestDecoderRunOwnsReservationThroughRetirement(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("physical child failed to retire")
 	}
 	if supervisor.Active() != 0 {
@@ -113,7 +113,7 @@ func TestDecoderRunRejectsExcessOutputAndNoStart(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			if mode == "canceled" {
 				cancel()

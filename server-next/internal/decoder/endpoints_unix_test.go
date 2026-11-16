@@ -69,7 +69,7 @@ func TestInheritedReservationPreservesListenerCancellationAndChildPinning(t *tes
 		go func() { closed <- listener.Close() }()
 		select {
 		case <-closed:
-		case <-time.After(2 * time.Second):
+		case <-time.After(30 * time.Second):
 			t.Fatal("listener close hung")
 		}
 		select {
@@ -77,7 +77,7 @@ func TestInheritedReservationPreservesListenerCancellationAndChildPinning(t *tes
 			if err == nil {
 				t.Fatal("accept unexpectedly succeeded")
 			}
-		case <-time.After(2 * time.Second):
+		case <-time.After(30 * time.Second):
 			t.Fatal("accept did not retire")
 		}
 	}

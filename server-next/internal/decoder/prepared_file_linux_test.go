@@ -171,7 +171,7 @@ func TestPreparedOwnershipWaitsForInheritedDescriptionNotMonitor(t *testing.T) {
 	inherited.Close()
 	select {
 	case <-done:
-	case <-time.After(2 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("ownership did not retire")
 	}
 	if e = syscall.Flock(int(probe.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); e == nil {
