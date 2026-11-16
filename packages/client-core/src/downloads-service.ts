@@ -91,8 +91,13 @@ export class DownloadsService {
   followDevice(deviceId: string) {if (this.deviceId === deviceId) return; this.deviceId = deviceId; if (this.watching) void this.refresh();}
   private show(downloads: readonly Download[]) {
     this.downloads = new Map(downloads.map(d => [d.id, d]));
+    const previous = new Map(this.state.items.map(item => [item.id, item]));
+    const items = downloads.flatMap(d => (d.items ?? []).map(t => {
+      const next = downloadPreparation(d, t, this.profileId), held = previous.get(next.id);
+      return held && JSON.stringify(held) === JSON.stringify(next) ? held : next;
+    }));
     this.publish({phase: 'ready', error: undefined, failure: undefined, unavailable: false,
-      items: downloads.flatMap(d => (d.items ?? []).map(t => downloadPreparation(d, t, this.profileId))),
+      items,
       requests: downloads.filter(d => this.deviceId && d.deviceId === this.deviceId && (d.counts.titles > 1 || ['show', 'season', 'album', 'artist', 'playlist', 'book'].includes(d.target.kind))).map(d => ({title: d.target.title, request: requestFacts(d, this.profileId)}))});
   }
   refresh(): Promise<void> {

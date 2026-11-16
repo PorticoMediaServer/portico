@@ -98,3 +98,18 @@ test('converted cue ranges are not clipped a second time by the offline player',
   const grant = await service.grant({id: downloadCopyId('dl_one', 'itm_film')});
   assert.ok(grant.files?.every(file => file.startSeconds === undefined && file.endSeconds === undefined));
 });
+
+test('an unchanged ready file survives refresh while its Save grant is pending, but changed files retire it', async t => {
+ const s = server(), send = s.api.request.bind(s.api);let release!: () => void;
+ s.api.request = async <T>(path: string, method?: string, body?: unknown) => {
+  if (path === '/v1/downloads/dl_one/items/itm_film') await new Promise<void>(resolve => {release = resolve;});
+  return send<T>(path, method, body);
+ };
+ const service = new DownloadsService(s.api);t.after(() => service.dispose());
+ await service.refresh();const held = service.getSnapshot().items[0]!;
+ const grant = service.grant(held);
+ s.set([structuredClone(request())]);await service.refresh();release();await grant;
+ assert.equal(service.getSnapshot().items.includes(held), true, 'a recreated server page alone must not cancel Save file');
+ s.set([{...request(), quality: '720p-low'}]);await service.refresh();assert.equal(service.getSnapshot().items.includes(held), false);
+ s.set([]);await service.refresh();s.set([request()]);await service.refresh();assert.equal(service.getSnapshot().items.includes(held), false, 'removal and reappearance is a new lifetime');
+});
