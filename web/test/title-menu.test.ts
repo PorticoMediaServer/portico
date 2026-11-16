@@ -141,7 +141,7 @@ test('menu refresh writes exactly once for its captured title and retains the sc
     await h.host.choose(h.menuOf(), 'refreshMetadata');
     assert.equal(h.log.wire.length, 1);
     const request = h.log.wire[0];
-    assert.equal(request.path, '/v1/items/movie%20%2F%3F/metadata/refresh');
+    assert.equal(request.path, '/v1/admin/items/movie%20%2F%3F/metadata/refresh');
     assert.equal(request.method, 'POST'); assert.deepEqual(request.body, {});
     assert.equal(request.signal?.aborted, false);
     h.host.dispose(); assert.equal(request.signal?.aborted, true);
