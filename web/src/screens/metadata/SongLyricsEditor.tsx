@@ -1,49 +1,52 @@
-import {useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
-import {MetadataLyricsService} from '@core/metadata-lyrics.ts';
-import type {RepairData, RepairScope, RepairTarget} from '@core/metadata-repair.ts';
+import {fetchSongLyrics, pasteSongLyrics, readSongLyrics, type Lyrics} from '@core/metadata-lyrics.ts';
+import type {ServerRequester} from '@core/query/server-api.ts';
 import {Button, TextField} from '../../kit/controls';
 import {MetadataError} from './MetadataError';
 import styles from './metadata.module.css';
 
 const t = defaultI18n.t;
-export function SongLyricsEditor({api, scope, target, repairData, isCurrent}: {
-  api: ConstructorParameters<typeof MetadataLyricsService>[0]['api']; scope: RepairScope; target: RepairTarget;
-  repairData: RepairData; isCurrent: (data: RepairData) => boolean;
-}) {
-  const service = useMemo(() => new MetadataLyricsService({api, scope, target, current: () => isCurrent(repairData)}), [api, scope, target, repairData, isCurrent]);
-  const state = useSyncExternalStore(service.subscribe, service.getSnapshot);
-  const [text, setText] = useState(''), [language, setLanguage] = useState(() => repairData.snapshot.fields.metadataLanguage?.value || defaultI18n.region.formatLocale.split('-')[0]);
-  const [format, setFormat] = useState<'text' | 'lrc'>('text');
-  useLayoutEffect(() => {void service.load(); return () => service.dispose();}, [service]);
-  const data = state.data, busy = state.phase !== 'ready';
-  const choice = data?.librarySelection;
+const ORIGINS: Readonly<Record<string, 'web.metadata.lyricsFromPaste' | 'web.metadata.lyricsFromFile' | 'web.metadata.lyricsFromProvider'>> = {pasted: 'web.metadata.lyricsFromPaste', tags: 'web.metadata.lyricsFromFile', provider: 'web.metadata.lyricsFromProvider'};
+/** The song editor's Lyrics tab (area 4 rule 64): the lyrics everyone sees, Fetch lyrics, and lyrics the owner pastes. */
+export function SongLyricsEditor({api, songId}: {api: ServerRequester; songId: string}) {
+  const [lyrics, setLyrics] = useState<readonly Lyrics[]>(), [busy, setBusy] = useState(true), [error, setError] = useState<unknown>(), [notice, setNotice] = useState('');
+  const [text, setText] = useState(''), [language, setLanguage] = useState('');
+  // Only this song's newest answer lands; one for a song that is no longer open is dropped.
+  const generation = useRef(0);
+  const run = useCallback(async (work: () => Promise<readonly Lyrics[] | string>) => {
+    const mine = ++generation.current;
+    setBusy(true); setError(undefined); setNotice('');
+    try {
+      const answer = await work();
+      if (mine !== generation.current) return;
+      if (typeof answer === 'string') {setNotice(answer); setLyrics(await readSongLyrics(api, songId));} else setLyrics(answer);
+    } catch (value) {if (mine === generation.current) setError(value);}
+    finally {if (mine === generation.current) setBusy(false);}
+  }, [api, songId]);
+  useEffect(() => {
+    const reads = generation;
+    void run(() => readSongLyrics(api, songId));
+    return () => {reads.current++;};
+  }, [api, songId, run]);
+  const shown = lyrics?.[0];
+  const tooLong = new TextEncoder().encode(text).length > 262144, badLanguage = !!language.trim() && !/^[A-Za-z]{2,3}$/.test(language.trim());
   return <div className={styles.fields}>
     <p className={styles.lockHelp}>{t('web.metadata.lyricsHelp')}</p>
-    {state.error ? <MetadataError error={state.error}/> : null}
-    {state.phase === 'loading' || state.phase === 'saving' ? <p role="status">{t(state.phase === 'loading' ? 'web.metadata.loading' : 'web.metadata.applying')}</p> : null}
-    {state.phase === 'error' || state.phase === 'uncertain' ? <Button size="small" onClick={() => void service.load()}>{t('next.states.tryAgain')}</Button> : null}
-    {data && !data.source ? <p>{t('web.metadata.lyricsNoSource')}</p> : null}
-    {data?.source ? <>
-      <p>{t(choice ? choice.resource ? 'web.metadata.lyricsChosen' : 'web.metadata.lyricsNoneChosen' : 'web.metadata.lyricsAutomatic')}</p>
-      {choice?.resource?.document ? <pre className={styles.lyricPreview}>{choice.resource.document.text}</pre> : null}
-      {data.resources.filter(resource => resource.scope === 'library' && !resource.deleted).map(resource => {
-        const current = choice?.resource?.id === resource.id && choice.resource.revision === resource.revision;
-        return <div key={resource.id} className={styles.candidate}>
-          <div className={styles.matchDetails}><b>{resource.provenance.label || t('web.metadata.lyricsResource')}</b><small>{resource.language} · {resource.format.toUpperCase()}</small></div>
-          {current ? <span>{t('web.metadata.currentMatch')}</span> : <Button size="small" disabled={busy} onClick={() => void service.choose(resource, data)}>{t('web.metadata.lyricsUse')}</Button>}
-        </div>;
-      })}
-      <Button size="small" disabled={busy || Boolean(choice && !choice.resource)} onClick={() => void service.choose(null, data)}>{t('web.metadata.lyricsNone')}</Button>
-      <section className={styles.fields}>
-        <h3>{t('web.metadata.lyricsAdd')}</h3>
-        <TextField label={t('web.metadata.lyricsLanguage')} value={language} disabled={busy} maxLength={63} onChange={event => setLanguage(event.currentTarget.value)}/>
-        <label className={styles.picker}>{t('web.metadata.lyricsFormat')}<select value={format} disabled={busy} onChange={event => setFormat(event.currentTarget.value === 'lrc' ? 'lrc' : 'text')}>
-          <option value="text">{t('web.metadata.lyricsPlain')}</option><option value="lrc">{t('web.metadata.lyricsTimed')}</option>
-        </select></label>
-        <label className={styles.lyricText}>{t('web.metadata.tabLyrics')}<textarea value={text} disabled={busy} maxLength={262144} onChange={event => setText(event.currentTarget.value)}/></label>
-        <Button size="small" disabled={busy || !text.trim() || new TextEncoder().encode(text).length > 262144 || !/^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/.test(language)} onClick={() => void service.upload(text, language, format, data)}>{t('web.metadata.lyricsAdd')}</Button>
-      </section>
-    </> : null}
+    {error ? <MetadataError error={error}/> : null}
+    {notice ? <p role="status">{notice}</p> : null}
+    {lyrics && !shown ? <p>{t('web.metadata.lyricsNone')}</p> : null}
+    {shown ? <section className={styles.candidate}><div className={styles.matchDetails}>
+      <b>{t(ORIGINS[shown.origin] ?? 'web.metadata.lyricsFromFile')}</b>
+      <small>{[t(shown.format === 'lrc' ? 'web.metadata.lyricsTimed' : 'web.metadata.lyricsPlain'), shown.credit].filter(Boolean).join(' · ')}</small>
+      <pre className={styles.lyricPreview}>{shown.text}</pre></div></section> : null}
+    <div className={styles.editorFooter}><Button size="small" disabled={busy} onClick={() => void run(async () => t(await fetchSongLyrics(api, songId) ? 'web.metadata.lyricsFetched' : 'web.metadata.lyricsNotFound'))}>{t('web.metadata.lyricsFetch')}</Button></div>
+    <section className={styles.fields}>
+      <h3>{t('web.metadata.lyricsAdd')}</h3>
+      <TextField label={t('web.metadata.lyricsLanguage')} description={t('web.metadata.lyricsLanguageHelp')} value={language} disabled={busy} maxLength={3}
+        onChange={event => setLanguage(event.currentTarget.value)} error={badLanguage ? t('web.metadata.lyricsLanguageHelp') : undefined}/>
+      <label className={styles.lyricText}>{t('web.metadata.tabLyrics')}<textarea value={text} disabled={busy} placeholder={t('web.metadata.lyricsPasteHelp')} onChange={event => setText(event.currentTarget.value)}/></label>
+      <div className={styles.editorFooter}><Button size="small" variant="primary" disabled={busy || !text.trim() || tooLong || badLanguage} onClick={() => void run(async () => {const next = await pasteSongLyrics(api, songId, text, language); setText(''); return next;})}>{t('web.metadata.lyricsSave')}</Button></div>
+    </section>
   </div>;
 }
