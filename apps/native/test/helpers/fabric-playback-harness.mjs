@@ -71,7 +71,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
       React.useEffect(() => {const value = prepare(); reaction(value, previous.current); previous.current = value;});
     },
     cancelAnimation() {}, runOnJS: fn => fn, runOnUI: fn => fn, withDelay: (_ms, value) => value,
-    withTiming: (value, _config, finish) => {if (finish) callbacks.push(() => finish(true)); return value;},
+    withTiming: (value, _config, finish) => {if (finish) callbacks.push(() => finish(true)); return value;}, withRepeat: value => value,
     withSpring: (value, _config, finish) => {if (finish) callbacks.push(() => finish(true)); return value;}};
   const pan = () => new Proxy({}, {get: (_target, name) => name === 'then' ? undefined : () => pan()});
   const theme = {isTV: tv, layers: {player: 30, navigation: 20, menu: 40}, colors: {ink: '#000', shadow: '#000', dim: '#000'}, layout: {gutter: {tvRight: 96}}};

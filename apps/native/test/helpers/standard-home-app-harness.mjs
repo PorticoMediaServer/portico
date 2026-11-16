@@ -167,7 +167,7 @@ const animatedURL = data(`import React from ${JSON.stringify(
  export const useSharedValue=value=>React.useRef({value}).current,useAnimatedStyle=fn=>fn(),useAnimatedRef=()=>React.useRef(null),useAnimatedScrollHandler=fn=>fn,useDerivedValue=fn=>({value:fn()}),cancelAnimation=()=>{},scrollTo=(ref,x=0,y=0)=>{ref?.current?.scrollTo?.({x,y});},runOnJS=fn=>fn,runOnUI=fn=>fn;
  export const useAnimatedReaction=(prepare,reaction)=>{const prior=React.useRef(null);React.useEffect(()=>{const next=prepare();reaction(next,prior.current);prior.current=next;});};
  export const withDecay=()=>{throw Error('Unexpected Guide decay in Home fixture')};
- export const withTiming=(value,config,done)=>{if(done)setImmediate(()=>done(true));return value},withSpring=withTiming,withDelay=(_,value)=>value;
+ export const withTiming=(value,config,done)=>{if(done)setImmediate(()=>done(true));return value},withSpring=withTiming,withDelay=(_,value)=>value,withRepeat=value=>value;
  export const Easing={bezier:()=>x=>x,linear:x=>x},ReduceMotion={Never:'never'};export default{View,ScrollView,createAnimatedComponent:x=>x};`);
 const svgNames = [
   'SvgXml',

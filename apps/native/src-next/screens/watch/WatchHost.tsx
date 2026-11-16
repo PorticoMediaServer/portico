@@ -19,6 +19,8 @@ import {sameAuthority, type ShellAuthority} from '../../shell/model';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeWatchOutletPort} from '../../shell/watch-outlet';
 import {NativeWatchChrome, type NativeWatchChromeProps} from './WatchChrome';
+import {PlaybackWaiting} from '../../kit/states/PlaybackWaiting';
+import {playbackWaiting} from '../../../../../packages/client-core/src/presentation/playback-waiting';
 import {NativeWatchPicture} from './picture-slot';
 import {NativeHandheldMiniGuide} from './HandheldMiniGuide';
 import {emptyLiveGuide, noLiveGuideSubscription, type NativeTVLiveGuide} from './live-guide';
@@ -235,6 +237,11 @@ export function NativeWatchHost({authority, current, playback, outlet, runtime, 
   const content = <Animated.View testID="watch-panes" pointerEvents={initialPlayer && !initialPlayer.controlsAdmitted ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer && !initialPlayer.controlsAdmitted}
     importantForAccessibility={initialPlayer && !initialPlayer.controlsAdmitted ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, paneFadeStyle]}>
     {postPlay ? <View testID="watch-post-play-pane" style={{position: 'absolute', inset: 0}}>{postPlay}</View> : <>
+    {/* Over the picture, under the controls: "Getting ready" while the server converts the stream, or the connection
+        line while media stops arriving (definition 07, rule 3; the web player's same rule). */}
+    <View testID="watch-waiting-pane" pointerEvents="none" style={positioned(television ? {x: 0, y: 0, width: television.canvas.width, height: television.canvas.height} : layout.surface)}>
+      <PlaybackWaiting {...playbackWaiting(true, {playback: source.playback, problem: failed})}/>
+    </View>
     {layout.content && <View testID="watch-content-pane" style={pagePane(layout.content)} pointerEvents="box-none">{bindings.content?.(context)}</View>}
     {layout.details && <View testID="watch-details-pane" style={pagePane(layout.details)} pointerEvents="box-none">{bindings.details?.(context)}</View>}
     {layout.episodes && <View testID="watch-episodes-pane" style={pagePane(layout.episodes)} pointerEvents="box-none">{bindings.episodes?.(context)}</View>}
