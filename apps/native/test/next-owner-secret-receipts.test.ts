@@ -27,7 +27,7 @@ async function fixture(kind: 'key' | 'webhook') {
   const calls: unknown[] = [];
   let alive = true, sequence = 0;
   const state: any = {phase: 'ready', busy: false, options: {scopes: ['read']}, page: {items: [], nextCursor: ''}, list: {items: kind === 'webhook' ? [hook] : [], events: ['playback.started', 'playback.stopped', 'library.scanned'], maximum: 20}};
-  const issued = () => kind === 'key' ? {credential: {id: 'key', name: 'Fixture key'}, secret: `test-only-key-${++sequence}`} : {webhook: hook, secret: `test-only-webhook-${++sequence}`};
+  const issued = () => kind === 'key' ? {key: {id: 'key', name: 'Fixture key'}, secret: `test-only-key-${++sequence}`} : {webhook: hook, secret: `test-only-webhook-${++sequence}`};
   const source: any = {subscribe: () => () => {}, getSnapshot: () => state, load: async () => {}, create: async (value: unknown) => {calls.push(value); return issued();}, update: async (_: unknown, value: unknown) => {calls.push(value); return issued();}, test: async (target: unknown) => {calls.push({test: target});}, reviewStep: () => 'done', close() {}, select: async () => {calls.push({select: hook}); state.selected = hook; state.deliveries = {items: [], nextCursor: ''};}};
   const modules: any = {
     react: host.react,
@@ -47,9 +47,10 @@ async function fixture(kind: 'key' | 'webhook') {
       webhookTrouble: () => undefined, webhookAddressOk: (url: string) => url.startsWith('https://'), webhookEventLabel: (_: unknown, __: unknown, event: string) => event,
       webhookEventGroups, deliveryTone, deliveryProgress: () => '', deliveryProblem: () => '',
     },
-    '../../../../../../../packages/client-core/src/server-admin/api-keys-source': {SettingsApiKeysSource: class {}},
+    '../../../../../../../packages/client-core/src/server-admin/owner-api-keys': {OwnerApiKeysSource: class {}},
+    '../../../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api},
     '../../../../../../../packages/client-core/src/server-admin/webhooks-source': {SettingsWebhooksSource: class {}},
-    '../../../../../../../packages/client-core/src/api-access': {webhookEdits: (_: unknown, next: unknown) => next},
+    '../../../../../../../packages/client-core/src/api-access': {apiScopes: ['read'], webhookEdits: (_: unknown, next: unknown) => next},
     './webhook-form': {selectWebhookEventGroup, webhookSecretChange},
   };
   const module = await screenModule(new URL(`../src-next/screens/settings-live/server/integrations/${kind === 'key' ? 'ApiKeys' : 'Webhooks'}.tsx`, import.meta.url), modules);
