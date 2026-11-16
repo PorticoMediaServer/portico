@@ -2845,6 +2845,7 @@ export interface PlaybackStop {
 }
 
 export interface PlaybackSubtitle {
+  deliveries: SubtitleDelivery[];
   id: string;
   format: string;
   source: string;
@@ -4240,6 +4241,14 @@ export interface StreamingHardwareState {
   lastError?: StreamingHardwareFault;
 }
 
+export interface SubtitleDelivery {
+  format: string;
+  url?: string;
+  companionUrl?: string;
+  fontsUrl?: string;
+  linesUrl?: string;
+}
+
 export interface SubtitleDownload {
   versionId?: string;
   ref: string;
@@ -4249,7 +4258,9 @@ export interface SubtitleFile {
   trackId: string;
   format: string;
   url: string;
-  offsetMs?: number;
+  fontsUrl?: string;
+  timeDomain?: string;
+  offsetMs: number;
 }
 
 export interface SubtitleInForce {

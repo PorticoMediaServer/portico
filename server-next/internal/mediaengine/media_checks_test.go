@@ -246,6 +246,9 @@ func checkTimeline(f *finding, video, audio *probed, start, end float64) {
 func (m *matrix) checkText(f *finding, session *api.PlaybackSession, tracks map[string]string) {
 	served := map[string]string{}
 	for _, s := range session.Presentation.Subtitles {
+		if s.Format != "vtt" {
+			continue // Authored files are checked by the subtitle-original test.
+		}
 		code, _, body := m.on(f.t).media(s.URL)
 		f.check(code == 200 && strings.HasPrefix(string(body), "WEBVTT"), "subtitle %s answered %d: %.80q", s.TrackID, code, body)
 		served[s.TrackID] = string(body)

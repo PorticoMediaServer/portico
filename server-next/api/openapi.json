@@ -9486,6 +9486,12 @@
           "default": {
             "type": "boolean"
           },
+          "deliveries": {
+            "items": {
+              "$ref": "#/components/schemas/SubtitleDelivery"
+            },
+            "type": "array"
+          },
           "forced": {
             "type": "boolean"
           },
@@ -9509,6 +9515,7 @@
           }
         },
         "required": [
+          "deliveries",
           "id",
           "format",
           "source",
@@ -14183,6 +14190,29 @@
         ],
         "type": "object"
       },
+      "SubtitleDelivery": {
+        "properties": {
+          "companionUrl": {
+            "type": "string"
+          },
+          "fontsUrl": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "linesUrl": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "format"
+        ],
+        "type": "object"
+      },
       "SubtitleDownload": {
         "properties": {
           "ref": {
@@ -14199,11 +14229,17 @@
       },
       "SubtitleFile": {
         "properties": {
+          "fontsUrl": {
+            "type": "string"
+          },
           "format": {
             "type": "string"
           },
           "offsetMs": {
             "type": "integer"
+          },
+          "timeDomain": {
+            "type": "string"
           },
           "trackId": {
             "type": "string"
@@ -14215,7 +14251,8 @@
         "required": [
           "trackId",
           "format",
-          "url"
+          "url",
+          "offsetMs"
         ],
         "type": "object"
       },

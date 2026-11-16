@@ -53,6 +53,8 @@ type stream struct {
 	initialPosition float64
 	duration        float64
 	text            []TextRenditionPlan
+	originals       []TextRenditionPlan
+	fonts           subtitleFonts
 	burn            *BurnSubtitle
 	// burnLoad reads burn when it is first needed; burnReading lets one window
 	// read at a time.
