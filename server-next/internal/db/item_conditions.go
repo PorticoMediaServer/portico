@@ -480,3 +480,16 @@ func progressHolderIDs(acc access) string {
             WHERE hs.profile_id = @viewer_profile AND hs.item_id = h.id AND hs.played = 1)
         AND `, KindEpisode, KindShow, KindSeason) + acc.visible("e")
 }
+
+func boolSQL(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
+}
+
+// A version's resolution class goes by width or height, so a wide 1920x800 film is still 1080p.
+var resolutionClasses = map[string]int{"sd": 1, "720p": 2, "1080p": 3, "4k": 4}
+
+const resolutionSQL = `CASE WHEN m.width >= 3800 OR m.height >= 2000 THEN 4 WHEN m.width >= 1900 OR m.height >= 1000 THEN 3
+	WHEN m.width >= 1200 OR m.height >= 700 THEN 2 ELSE 1 END`

@@ -12,6 +12,8 @@ func (d *DB) HomeRowItems(ctx context.Context, v Viewer, row string, q ItemQuery
 	var continuing []Item
 	var mood *MoodRow
 	switch row {
+	case "popular":
+		return d.popularHomeItems(ctx, v, q)
 	case "recently_added":
 		q.homeRecent = true
 		if q.Sort == "" {
