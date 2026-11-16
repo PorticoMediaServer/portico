@@ -10,13 +10,16 @@
     <!-- Set true to open the rail and give it focus. -->
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="chosen" type="string" alwaysNotify="true"/>
+    <!-- True while the rail is open: the scene moves the page right by `pageShift` so nothing is covered. -->
+    <field id="isOpen" type="boolean"/>
     <!-- Set true when Right or Back leaves the rail without choosing. -->
     <field id="left" type="boolean" alwaysNotify="true"/>
   </interface>
   <script type="text/brightscript" uri="Rail.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
-    <Rectangle id="dim" width="1920" height="1080" color="0x071018FF" opacity="0.62" visible="false"/>
+    <Rectangle id="dim" width="1920" height="1080" color="0x071018FF" opacity="0.5" visible="false"/>
     <Poster id="edge" uri="pkg:/images/rail-scrim.png" width="200" height="1080"/>
     <Rectangle id="panel" width="440" height="1080" color="0x0B1822FF" visible="false"/>
     <Poster id="mark" uri="pkg:/images/mark.png" width="33" height="44" translation="[88,56]"/>

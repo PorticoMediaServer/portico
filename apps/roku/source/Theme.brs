@@ -14,7 +14,7 @@ end function
 ' Page geometry shared by every screen. `cardPad` is the headroom above and below a card inside its
 ' list cell: a list cuts off whatever leaves the cell, and the card in focus grows.
 function metrics() as object
-    return {safeLeft: 200, safeRight: 56, railWidth: 150, railOpenWidth: 440, cardGap: 28, cardPad: 16, focusScale: 1.08, focusSpread: 30}
+    return {safeLeft: 200, safeRight: 56, railWidth: 150, railOpenWidth: 440, pageShift: 270, cardGap: 28, cardPad: 16, focusScale: 1.08, focusSpread: 30}
 end function
 
 ' The ten-foot type scale (packages/design typeScale.tenFoot): [weight, size, line height or 0].
@@ -25,7 +25,7 @@ function typeRoles() as object
         cardTitle: [600, 22, 0], cardSubtitle: [400, 20, 0], wideTitle: [700, 26, 0],
         meta: [400, 24, 0], metaStrong: [700, 24, 0], eyebrow: [600, 24, 0], synopsis: [400, 24, 35],
         button: [700, 26, 0], tag: [600, 20, 0], badge: [800, 18, 0], body: [400, 24, 33], caption: [400, 20, 27],
-        keycap: [700, 18, 0], coverTitle: [800, 26, 29]
+        keycap: [700, 18, 0], micro: [500, 17, 0], episodeTitle: [700, 24, 30], seasonName: [700, 26, 0], personInitials: [700, 44, 0], section: [700, 26, 0], factLabel: [400, 22, 0], about: [400, 24, 35], padKey: [700, 44, 0], code: [800, 92, 0], welcome: [800, 88, 0], pageTitle: [800, 64, 0], faceInitial: [700, 84, 0], bodyStrong: [700, 24, 33], ledeStrong: [700, 30, 42], coverTitle: [800, 26, 29]
     }
 end function
 
@@ -51,5 +51,7 @@ function shelfMetrics(shape as string) as object
     card = [214, 320]
     if shape = "landscape" then card = [400, 225]
     if shape = "square" then card = [214, 214]
+    if shape = "episode" then card = [384, 340]    ' a 16:9 still with the episode's name and number under it
+    if shape = "person" then card = [190, 250]     ' a round face 150 across with a name and a part under it
     return {card: card, headingGap: 60, block: 60 + card[1] + 52}
 end function

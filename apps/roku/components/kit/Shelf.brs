@@ -20,25 +20,45 @@ sub onShape()
     m.list.itemSize = [1920, size[1] + k.cardPad * 2]
     m.list.rowItemSize = [[size[0], size[1] + k.cardPad * 2]]
     m.list.rowItemSpacing = [[k.cardGap, 0]]
-    m.list.focusXOffset = [k.safeLeft]
+    m.list.focusXOffset = [m.top.slotX]
+    if m.top.slotX > k.safeLeft
+        m.list.clippingRect = [m.top.slotX - 40, -40, 1920, size[1] + 120]
+    end if
     ' The ring goes round the grown card, its inner edge two pixels clear of the picture.
     grow = (k.focusScale - 1) / 2
     out = k.focusSpread + 6
-    m.ring.translation = [k.safeLeft - size[0] * grow - out, g.headingGap - size[1] * grow - out]
+    pictureHeight = size[1]
+    if m.top.shape = "episode" then pictureHeight = size[0] * 9 / 16     ' the ring goes round the still, not its caption
+    m.ring.translation = [m.top.slotX - size[0] * grow - out, g.headingGap - pictureHeight * grow - out]
     m.ring.width = size[0] * k.focusScale + out * 2
-    m.ring.height = size[1] * k.focusScale + out * 2
+    m.ring.height = pictureHeight * k.focusScale + out * 2
+    m.ring.uri = "pkg:/images/focus-14.9.png"
+    if m.top.shape = "person"
+        ' a round ring round the face, which sits centred at the top of its card
+        face = 150 * k.focusScale
+        across = face * 296 / 216
+        m.ring.uri = "pkg:/images/focus-disc.png"
+        m.ring.width = across
+        m.ring.height = across
+        m.ring.translation = [m.top.slotX + size[0] / 2 - across / 2, g.headingGap + 75 - across / 2]
+    end if
 end sub
 
 sub onHeading()
     m.heading.text = m.top.heading
     m.subheading.text = m.top.subheading
-    m.subheading.translation = [200 + m.heading.boundingRect().width + 18, 13]
+    m.heading.translation = [m.top.slotX, 0]
+    m.subheading.translation = [m.top.slotX + m.heading.boundingRect().width + 18, 13]
 end sub
 
 sub onCards()
     root = createObject("roSGNode", "ContentNode")
     root.appendChild(m.top.cards)
     m.list.content = root
+end sub
+
+sub onJump()
+    m.list.jumpToRowItem = [0, m.top.jumpTo]
 end sub
 
 sub onActive()

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Signing in on a television: the front door, the server's address, then a code approved on a
+     phone or computer (with a QR code), or a password typed with Roku's keyboard. -->
+<component name="SignInScreen" extends="Group">
+  <interface>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- Set when a sign-in succeeds: {origin, serverName, session, profiles}. -->
+    <field id="signedIn" type="assocarray"/>
+  </interface>
+  <script type="text/brightscript" uri="SignInScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Address.brs"/>
+  <children>
+    <Group id="door">
+      <Poster uri="pkg:/images/wordmark.png" width="176" height="40" translation="[200,72]"/>
+      <Label id="welcome" text="Welcome home." translation="[196,420]"/>
+      <ButtonRow id="doorButtons" translation="[200,576]"/>
+      <Label id="doorNote" translation="[200,690]" width="1000" wrap="true" maxLines="3"/>
+    </Group>
+    <Group id="code" visible="false">
+      <Poster uri="pkg:/images/wordmark.png" width="176" height="40" translation="[120,72]"/>
+      <Label id="eyebrow" text="Sign in to" translation="[120,354]"/>
+      <Label id="server" translation="[117,392]" width="860"/>
+      <MultiStyleLabel id="how" translation="[120,494]" width="800" wrap="true" maxLines="4" lineSpacing="6"/>
+      <ButtonRow id="codeButtons" translation="[120,656]"/>
+      <Label id="codeNote" translation="[120,760]" width="820" wrap="true" maxLines="2"/>
+      <LayoutGroup translation="[120,960]" layoutDirection="horiz" vertAlignment="center" itemSpacings="[10]">
+        <Label id="press" text="Press"/>
+        <Group>
+          <Poster uri="pkg:/images/line-10.9.png" blendColor="0x3B5668FF" width="62" height="36"/>
+          <Label id="backKey" text="Back" width="62" height="36" horizAlign="center" vertAlign="center"/>
+        </Group>
+        <Label id="pressRest" text="to change the server address."/>
+      </LayoutGroup>
+      <Poster uri="pkg:/images/round-20.9.png" blendColor="0x0C1A25F2" width="720" height="656" translation="[1060,212]"/>
+      <Poster uri="pkg:/images/line-20.9.png" blendColor="0x1C3341FF" width="720" height="656" translation="[1060,212]"/>
+      <QrCode id="qr" translation="[1270,264]"/>
+      <Label id="where" translation="[1060,600]" width="720" horizAlign="center"/>
+      <Label id="digits" translation="[1060,640]" width="720" horizAlign="center"/>
+      <Label id="keep" translation="[1120,762]" width="600" horizAlign="center" wrap="true" maxLines="2" text="This code refreshes by itself. Leave this screen open while you sign in."/>
+    </Group>
+    <Group id="factor" visible="false">
+      <Poster uri="pkg:/images/wordmark.png" width="176" height="40" translation="[120,72]"/>
+      <Label id="factorTitle" text="Enter your two-step code" translation="[120,420]" width="900"/>
+      <Label id="factorBody" text="Open your authenticator app and enter the six-digit code for this server." translation="[120,512]" width="820" wrap="true" maxLines="3"/>
+      <PinPad id="factorPad" digits="6" translation="[1176,220]" boxesAt="[-1056,420]"/>
+    </Group>
+    <Timer id="poll" duration="3"/>
+  </children>
+</component>

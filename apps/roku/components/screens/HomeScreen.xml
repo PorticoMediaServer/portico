@@ -6,11 +6,14 @@
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <!-- Path of the art for the backdrop ("" for none). The scene shows it. -->
     <field id="art" type="string"/>
+    <!-- Set true to go to the top of the page (the opening state). -->
+    <field id="toTop" type="boolean" alwaysNotify="true" onChange="onToTop"/>
     <!-- Asks the scene to open or play a title: {item, play}. -->
     <field id="open" type="assocarray" alwaysNotify="true"/>
   </interface>
   <script type="text/brightscript" uri="HomeScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <children>
