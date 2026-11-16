@@ -49,6 +49,7 @@ sub onLaunchArgs()
     args = m.top.launchArgs
     if createObject("roAppInfo").isDev() and args <> invalid
         ' Development builds only: scripts can hand the app a sign-in, or clear it.
+        if args.devOpen <> invalid then m.devOpen = args.devOpen
         if args.devSignOut <> invalid then storeWrite({origin: "", refreshToken: "", profileId: "", renewalId: ""})
         if args.devOrigin <> invalid and args.devRefresh <> invalid
             storeWrite({origin: args.devOrigin, refreshToken: args.devRefresh, installationId: args.devInstallation, profileId: args.devProfile, renewalId: ""})
@@ -72,6 +73,55 @@ sub show(component as string)
     m.rail.visible = false
     m.backdrop.art = ""
     m.backdrop.poster = ""
+end sub
+
+' Open a page over the one showing; Back returns to it exactly as it was left.
+function push(component as string) as object
+    m.screen.visible = false
+    m.screen = m.screens.createChild(component)
+    m.screen.observeField("art", "onArt")
+    m.screen.observeField("open", "onOpen")
+    if m.screen.hasField("quiet") then m.screen.observeField("quiet", "onQuiet")
+    m.backdrop.quiet = false
+    return m.screen
+end function
+
+sub pop()
+    count = m.screens.getChildCount()
+    if count < 2 then return
+    m.screens.removeChildIndex(count - 1)
+    m.screen = m.screens.getChild(count - 2)
+    m.screen.visible = true
+    setArt(m.screen.art)
+    m.backdrop.quiet = (m.screen.hasField("quiet") and m.screen.quiet = true)
+    m.screen.active = true
+end sub
+
+sub onPlayerClosed()
+    m.rail.visible = true
+    pop()
+end sub
+
+' A page asks for a title to be opened or played.
+sub onOpen(event as object)
+    ask = event.getData()
+    kind = ask.item.kind
+    if ask.play = true and (kind = "movie" or kind = "episode")
+        player = push("PlayerScreen")
+        player.observeField("closed", "onPlayerClosed")
+        player.item = ask.item
+        player.startOver = (ask.startOver = true)
+        m.rail.visible = false
+        player.active = true
+        return
+    end if
+    page = invalid
+    if kind = "movie" then page = push("TitleScreen")
+    if kind = "show" then page = push("ShowScreen")
+    if page <> invalid
+        page.item = ask.item
+        page.active = true
+    end if
 end sub
 
 sub showSignIn()
@@ -158,9 +208,27 @@ sub showHome()
     api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
     show("HomeScreen")
     m.screen.observeField("art", "onArt")
+    m.screen.observeField("open", "onOpen")
     m.rail.visible = true
     m.rail.current = "home"
     m.screen.active = true
+    if m.devOpen <> invalid
+        api("GET", "/v1/items/" + m.devOpen, invalid, "onDevOpen")
+        m.devOpen = invalid
+    end if
+end sub
+
+' Development builds only: a script asked for a title's page to be opened at start.
+sub onDevOpen(event as object)
+    result = event.getData()
+    if not result.ok then return
+    page = invalid
+    if result.data.kind = "movie" then page = push("TitleScreen")
+    if result.data.kind = "show" then page = push("ShowScreen")
+    if page <> invalid
+        page.item = result.data
+        page.active = true
+    end if
 end sub
 
 ' A page names its art as a picture path, or "poster|<path>" for a title with only a poster, or
@@ -168,6 +236,10 @@ end sub
 sub onArt(event as object)
     ' only the page on top sets the backdrop; one underneath keeps its art for when it comes back
     if m.screen <> invalid and event.getRoSGNode().isSameNode(m.screen) then setArt(event.getData())
+end sub
+
+sub onQuiet(event as object)
+    if event.getRoSGNode().isSameNode(m.screen) then m.backdrop.quiet = event.getData()
 end sub
 
 sub setArt(art as string)
@@ -253,6 +325,10 @@ function onKeyEvent(key as string, press as boolean) as boolean
     if key = "left" and m.screen <> invalid and m.rail.visible
         ' Left from a page's leftmost element opens the rail.
         m.rail.active = true
+        return true
+    end if
+    if key = "back" and m.screens.getChildCount() > 1
+        pop()
         return true
     end if
     return false
