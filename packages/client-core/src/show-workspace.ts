@@ -47,13 +47,25 @@ async function readShow(api:ServerRequester,r:ShowWorkspaceRoute,s:ContentScope,
  // A link to a season or an episode opens its show on that season.
  const opened=r.showId?undefined:await readItem(api,(r.episodeId??r.seasonId)!,signal);
  const showId=r.showId??opened?.rootId??opened?.parentId;if(!showId)invalid();
- const [show,seasonItems]=await Promise.all([readItem(api,showId,signal),readAllItems(api,childrenQuery(showId,'season'),signal)]);
+ const asked=r.selectedSeasonId??r.seasonId??(opened?.kind==='episode'?opened.parentId:opened?.kind==='season'?opened.id:undefined);
+ // With no season asked for, the episodes last played in the library name this show's last one played, if recent.
+ const [show,seasonItems,recent]=await Promise.all([readItem(api,showId,signal),readAllItems(api,childrenQuery(showId,'season'),signal),
+  asked?undefined:readItems(api,{library:r.libraryId,kind:'episode',sort:'lastPlayed',order:'desc'},{limit:50},signal).catch(()=>undefined)]);
  if(show.kind!=='show'||show.libraryId!==r.libraryId)throw new Failure('not_found','This show is not in this library.');
  const seasons=seasonItems.filter(season=>season.kind==='season').map(season=>Object.freeze(present({id:season.id,showId,number:season.index??0,title:season.title,episodeCount:season.counts?.leaves,
   watchedCount:season.counts?season.counts.leaves-season.counts.unwatchedLeaves:undefined,unwatchedCount:season.counts?.unwatchedLeaves}) as WorkspaceSeason));
  // Specials are their own season and are not where a show opens.
- const wanted=r.selectedSeasonId??r.seasonId??(opened?.kind==='episode'?opened.parentId:opened?.kind==='season'?opened.id:undefined);
- const selected=seasons.find(season=>season.id===wanted)??seasons.find(season=>season.number>0)??seasons[0];
+ const wanted=asked;
+ // With no season asked for, the page opens where the show continues (05-browse rule 23): the season of the
+ // episode in progress, else from the season last played (by the library's recent plays, else the last season
+ // with a watched episode) while it has more to watch, else the next season after it that has, else the first
+ // season with one unwatched, else the first season.
+ const pool=[...seasons.filter(season=>season.number>0)].sort((a,b)=>a.number-b.number),left=(season:WorkspaceSeason)=>(season.unwatchedCount??0)>0;
+ const last=recent?.items.find(item=>item.rootId===showId&&!!item.state?.lastPlayedAt);
+ const playing=last&&!last.state?.watched&&(last.state?.positionMs??0)>0?pool.find(season=>season.id===last.parentId):undefined;
+ const anchor=last?pool.findIndex(season=>season.id===last.parentId):pool.reduce((found,season,n)=>(season.watchedCount??0)>0?n:found,-1);
+ const continues=playing??(anchor<0?pool.find(left):left(pool[anchor]!)?pool[anchor]:pool.slice(anchor+1).find(left)??pool.find(left));
+ const selected=seasons.find(season=>season.id===wanted)??continues??pool[0]??seasons[0];
  const direction=r.episodeDirection??'asc';
  const page=selected?await readItems(api,{...childrenQuery(selected.id,'episode'),order:direction,...(r.playState==='played'?{watched:true}:r.playState==='unplayed'?{watched:false}:{})},{cursor:cursor??undefined,limit:pageSize,total:true},signal):{items:[]};
  let entries=entriesFromItems(page.items,r.libraryId).filter(entry=>entry.kind==='episode');
@@ -68,8 +80,10 @@ async function readShow(api:ServerRequester,r:ShowWorkspaceRoute,s:ContentScope,
  const parsedShow=Object.freeze(present({id:show.id,libraryId:r.libraryId,title:show.title,libraryKind:'tv' as const,providerMatchStatus:'',year:show.year,overview:show.summary,posterUrl:card?.posterUrl,backdropUrl:card?.backdropUrl,logoUrl:show.images?.logo,
   network:tag('network'),studio:tag('studio'),contentRating:show.contentRating,originalTitle:show.originalTitle,addedAt:show.addedAt,episodeCount:show.counts?.leaves,
   ...(genres.length?{genres:Object.freeze(genres)}:{}),...(credits.length?{credits:Object.freeze(credits)}:{})}) as WorkspaceShow);
- // The episode the main action plays: the one in progress, else the first not yet watched, in the show's order.
- const nextUp=entries.find(entry=>!!entry.progressSeconds&&!entry.watched)??entries.find(entry=>!entry.watched);
+ // The episode the main action plays: the one in progress, else the next not yet watched after the last one
+ // watched, in the show's order whatever order the list is in (rule 23), else the first not yet watched.
+ const ordered=direction==='desc'?[...entries].reverse():entries,lastSeen=ordered.reduce((found,entry,n)=>entry.watched?n:found,-1);
+ const nextUp=ordered.find(entry=>!!entry.progressSeconds&&!entry.watched)??ordered.slice(lastSeen+1).find(entry=>!entry.watched)??ordered.find(entry=>!entry.watched);
  return Object.freeze({scope:Object.freeze({serverId:s.serverId,libraryId:r.libraryId}),show:parsedShow,seasons:Object.freeze(seasons),seasonTotalCount:seasons.length,nextSeasonCursor:'',groups:Object.freeze([]),
   selected:Object.freeze({seasonId:selected?.id??null,...(r.episodeId?{episodeId:r.episodeId}:{})}),episodes,...(nextUp?{nextUp}:{}),settings:defaultShowSettings});
 }
