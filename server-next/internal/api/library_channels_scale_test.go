@@ -19,9 +19,31 @@ func TestAThousandChannelsOfFiftyBlocksStayBounded(t *testing.T) {
 		t.Skip("a thousand channels take about a minute")
 	}
 	s, owner, members := seededWith(t, 600, 3)
+	s.setClock(newRigClock(s.now()).Now)
+	// Keep allocation measurements separate from unrelated background jobs. All
+	// channels below are scheduled explicitly, as the background worker does.
+	stopServer(s)
 	ctx := context.Background()
 	films, shows := libraryOfKind(t, s, owner, "movies"), libraryOfKind(t, s, owner, "shows")
 	filmsOnly := members[1] // the seeder's second-to-last of three may see only the films and music libraries
+	stretch := "/v1/live/guide?limit=20&from=" + s.now().UTC().Format(time.RFC3339) + "&to=" + s.now().Add(3*time.Hour).UTC().Format(time.RFC3339)
+	viewers := []struct{ name, token string }{{"owner", owner}, {"films only", filmsOnly}}
+	baseline := map[string]float64{}
+	pageWork := func(token string) float64 {
+		return testing.AllocsPerRun(3, func() { get[LiveGuide](t, s, token, stretch) })
+	}
+	schedule := func() {
+		t.Helper()
+		ids, err := s.db.LibraryChannelsToSchedule(ctx, s.now().Add(6*24*time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range ids {
+			if err := s.channels.Schedule(ctx, id); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	days := []string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}
 	for n := range 1000 {
 		library, kind := films, "movie"
@@ -38,6 +60,12 @@ func TestAThousandChannelsOfFiftyBlocksStayBounded(t *testing.T) {
 		if w := call(t, s, "POST", "/v1/admin/library-channels", owner, LibraryChannelSave{Name: new(fmt.Sprint("Channel ", n)), Builder: &b}, &ch); w.Code != 201 {
 			t.Fatalf("channel %d answered %d: %s", n, w.Code, w.Body)
 		}
+		if n == 39 {
+			schedule()
+			for _, who := range viewers {
+				baseline[who.name] = pageWork(who.token)
+			}
+		}
 	}
 	if code := status(t, s, "POST", "/v1/admin/library-channels", owner, LibraryChannelSave{Name: new("One more"),
 		Builder: &librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"}}}}); code != 409 {
@@ -51,16 +79,7 @@ func TestAThousandChannelsOfFiftyBlocksStayBounded(t *testing.T) {
 		return m.HeapAlloc
 	}
 	before, started := heap(), time.Now()
-	// The background job has begun on them already; this does the rest, as it would.
-	ids, err := s.db.LibraryChannelsToSchedule(ctx, s.now().Add(6*24*time.Hour))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, id := range ids {
-		if err := s.channels.Schedule(ctx, id); err != nil {
-			t.Fatal(err)
-		}
-	}
+	schedule()
 	after := heap()
 	t.Logf("topping up 1,000 channels took %v; the heap went from %d to %d MB", time.Since(started).Round(time.Millisecond), before>>20, after>>20)
 	if after > before+32<<20 {
@@ -70,18 +89,17 @@ func TestAThousandChannelsOfFiftyBlocksStayBounded(t *testing.T) {
 		t.Fatalf("%d channels still need a schedule", len(left))
 	}
 
-	stretch := "/v1/live/guide?limit=20&from=" + s.now().UTC().Format(time.RFC3339) + "&to=" + s.now().Add(3*time.Hour).UTC().Format(time.RFC3339)
-	for _, who := range []struct{ name, token string }{{"owner", owner}, {"films only", filmsOnly}} {
-		var slowest time.Duration
-		var guide LiveGuide
-		for range 5 {
-			began := time.Now()
-			guide = get[LiveGuide](t, s, who.token, stretch)
-			slowest = max(slowest, time.Since(began))
+	for _, who := range viewers {
+		// The first page is the same at forty and a thousand channels. Loading
+		// every builder or guide would grow work with the extra 960 channels.
+		work := pageWork(who.token)
+		t.Logf("%s: guide-page allocations at 40 channels %.0f; at 1,000 %.0f", who.name, baseline[who.name], work)
+		if work > 2*baseline[who.name] {
+			t.Fatalf("%s: page work grew with the channel list: %.0f allocations, baseline %.0f", who.name, work, baseline[who.name])
 		}
-		t.Logf("%s: a page of the guide took at most %v", who.name, slowest.Round(time.Microsecond))
-		if len(guide.Items) != 20 || guide.NextCursor == "" || slowest > 250*time.Millisecond {
-			t.Fatalf("%s: %d channels in a page, next %q, %v", who.name, len(guide.Items), guide.NextCursor, slowest)
+		guide := get[LiveGuide](t, s, who.token, stretch)
+		if len(guide.Items) != 20 || guide.NextCursor == "" {
+			t.Fatalf("%s: %d channels in a page, next %q", who.name, len(guide.Items), guide.NextCursor)
 		}
 		for _, row := range guide.Items {
 			ch, err := s.db.LibraryChannel(ctx, row.Channel.ID, false)

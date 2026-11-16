@@ -220,10 +220,11 @@ func TestASeriesRuleBooksItsAirings(t *testing.T) {
 // stream ends and the recording takes the tuner.
 func TestAClashStopsAViewerAfterACountdownWhenTheOwnerChoseTo(t *testing.T) {
 	s, owner, _ := seededWith(t, 50, 0)
+	clock := newRigClock(s.now())
+	s.setClock(clock.Now)
 	folder := t.TempDir()
 	options := dvr.Defaults(folder)
-	// A one-second countdown on the real clock: the recorder's own loop may tick at any moment,
-	// and a countdown of nothing would let that tick stop the viewer before the warning is read.
+	// The warning stays present until the test advances the server clock.
 	options.Folder, options.Floor, options.Countdown, options.CountdownFloor = filepath.Join(folder, "Recorded TV"), 0, time.Second, time.Second
 	s.setDVROptions(options)
 	fake := fakeProvider(t, s.now())
@@ -250,7 +251,7 @@ func TestAClashStopsAViewerAfterACountdownWhenTheOwnerChoseTo(t *testing.T) {
 	if got.Countdown == nil || !strings.Contains(got.Countdown.Reason, "Morning News") {
 		t.Fatalf("with stop-and-record the viewer's session reads %+v", got)
 	}
-	time.Sleep(time.Until(got.Countdown.EndsAt))
+	clock.Set(got.Countdown.EndsAt.Add(time.Millisecond))
 	s.recorder.Tick(ctx) // the countdown is over: the viewer is stopped
 	s.recorder.Tick(ctx) // and the recording takes the tuner
 	if code := status(t, s, "GET", "/v1/playback/sessions/"+watching.ID, owner, nil); code != 404 {
