@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"slices"
@@ -30,57 +31,11 @@ func (s *Server) downloadRoutes() {
 		Handle(s, "DELETE /v1/downloads/{id}", WithProfile, s.deleteDownload),
 		Handle(s, "GET /v1/downloads/{id}/items/{itemId}", WithProfile, s.downloadedItem),
 		Handle(s, "DELETE /v1/downloads/{id}/items/{itemId}", WithProfile, s.dropDownloadTitle),
+		Handle(s, "POST /v1/downloads/{id}/items/{itemId}/received", WithProfile, s.receivedDownloadTitle),
 		Handle(s, "POST /v1/downloads/sync", WithProfile, s.syncDownloads),
 	} {
 		route.Scope = ScopeSession
 	}
-	Handle(s, "GET /v1/admin/downloads", Owner, s.downloadsByPerson)
-	Handle(s, "DELETE /v1/admin/members/{id}/downloads", Owner, s.removePersonDownloads)
-}
-
-// PersonDownloads is one person's downloads on the owner's Storage page.
-type PersonDownloads struct {
-	UserID      string `json:"userId"`
-	Username    string `json:"username"`
-	Titles      int    `json:"titles"`
-	CopiesBytes int64  `json:"copiesBytes"`
-}
-
-// DownloadsByPerson is the owner's view of downloads: by person, and the server's copies in
-// all, each counted once.
-type DownloadsByPerson struct {
-	Items       []PersonDownloads `json:"items"`
-	CopiesBytes int64             `json:"copiesBytes"`
-	RoomBytes   *int64            `json:"roomBytes,omitempty"`
-}
-
-func (s *Server) downloadsByPerson(r *http.Request, _ None) (DownloadsByPerson, error) {
-	people, err := s.db.DownloadsByPerson(r.Context())
-	if err != nil {
-		return DownloadsByPerson{}, err
-	}
-	out := DownloadsByPerson{Items: make([]PersonDownloads, 0, len(people))}
-	for _, p := range people {
-		out.Items = append(out.Items, PersonDownloads{UserID: p.UserPublicID, Username: p.Username, Titles: p.Titles, CopiesBytes: p.CopiesBytes})
-	}
-	if out.CopiesBytes, err = s.db.PreparedSpace(r.Context()); err != nil {
-		return out, err
-	}
-	out.RoomBytes, err = s.downloadRoom(r.Context())
-	return out, err
-}
-
-// removePersonDownloads frees the person's prepared server copies, preserving
-// requests and files already held on devices. Other people's shared copies stay.
-func (s *Server) removePersonDownloads(r *http.Request, _ None) (None, error) {
-	if _, err := s.db.Member(r.Context(), r.PathValue("id")); err != nil {
-		return None{}, refuse(err)
-	}
-	err := s.prepare.ExpirePersonDownloads(r.Context(), r.PathValue("id"))
-	if errors.Is(err, prepare.ErrReading) {
-		return None{}, ErrConflict("download_in_use", "A prepared download is being fetched. Try again when the transfer has finished.")
-	}
-	return None{}, refuse(err)
 }
 
 // DownloadAsk is the body of POST /v1/downloads.
@@ -188,15 +143,12 @@ type DownloadOptions struct {
 	Items  []DownloadChoice `json:"items"`
 	// Default is the quality this device saved for downloads ("ask" to ask each time).
 	Default string `json:"default"`
-	// RoomBytes is what is left of the owner's download space; absent when there is no limit.
-	RoomBytes *int64 `json:"roomBytes,omitempty"`
 }
 
 // DownloadUsage is the room the profile's downloads take on the server.
 type DownloadUsage struct {
 	// CopiesBytes is what the server's copies for this profile's requests take, each once.
-	CopiesBytes int64  `json:"copiesBytes"`
-	RoomBytes   *int64 `json:"roomBytes,omitempty"`
+	CopiesBytes int64 `json:"copiesBytes"`
 }
 
 // DownloadFile is one file to fetch, by range, from an address that carries its own
@@ -458,7 +410,6 @@ func (s *Server) titlesShape(ctx context.Context, v db.Viewer, list []db.Downloa
 	if err != nil {
 		return nil, err
 	}
-	keep := time.Duration(s.downloads.Owner().KeepDays) * 24 * time.Hour
 	out := make([]Download, 0, len(list))
 	for _, dl := range list {
 		if _, visible := places[dl.ItemID]; dl.ItemID != 0 && !visible {
@@ -471,12 +422,12 @@ func (s *Server) titlesShape(ctx context.Context, v db.Viewer, list []db.Downloa
 			if !visible || t.State == db.DownloadDropped {
 				continue
 			}
-			title := s.titleShape(dl, t, keep)
+			title := s.titleShape(dl, t)
 			title.ParentTitle, title.SeasonNumber, title.EpisodeNumber, title.Artist = place.ParentTitle, place.SeasonNumber, place.EpisodeNumber, place.Artist
 			shaped.Items = append(shaped.Items, title)
 			shaped.Counts.Titles++
 			switch title.State {
-			case "ready":
+			case "ready", "received":
 				shaped.Counts.Ready++
 			case "waiting", "preparing", "paused":
 				shaped.Counts.Waiting++
@@ -489,10 +440,12 @@ func (s *Server) titlesShape(ctx context.Context, v db.Viewer, list []db.Downloa
 	return out, nil
 }
 
-func (s *Server) titleShape(dl db.Download, t db.DownloadTitle, keep time.Duration) DownloadTitle {
+func (s *Server) titleShape(dl db.Download, t db.DownloadTitle) DownloadTitle {
 	out := DownloadTitle{ItemID: t.ItemPublicID, Kind: t.Kind.String(), Title: t.Title}
 	p := t.Prepared
 	switch {
+	case t.State == db.DownloadReceived:
+		out.State = "received"
 	case t.State != db.DownloadWanted:
 		out.State, out.Reason = "leftOut", t.Reason
 	case dl.Quality == downloads.Original:
@@ -500,7 +453,13 @@ func (s *Server) titleShape(dl db.Download, t db.DownloadTitle, keep time.Durati
 	case p == nil:
 		out.State = "expired"
 	case p.State == db.PreparedReady:
-		until := p.LastUsedAt.Add(keep).UTC()
+		// A copy is temporary: 48 hours from when it was ready, or an hour after a fetch that
+		// carried on past them (prepare.Tidy).
+		until := p.ReadyAt.Add(48 * time.Hour)
+		if fetched := p.LastUsedAt.Add(time.Hour); fetched.After(until) {
+			until = fetched
+		}
+		until = until.UTC()
 		out.State, out.SizeBytes, out.KeptUntil = "ready", p.Size, &until
 	case p.State == db.PreparedFailed:
 		out.State, out.Reason = "failed", p.Error
@@ -567,12 +526,20 @@ func (s *Server) dropDownloadTitle(r *http.Request, _ None) (None, error) {
 	return None{}, downloadError(s.downloads.Drop(r.Context(), v, r.PathValue("id"), r.PathValue("itemId")))
 }
 
-func (s *Server) downloadRoom(ctx context.Context) (*int64, error) {
-	room, limited, err := s.prepare.Room(ctx)
-	if !limited {
-		return nil, err
+// receivedDownloadTitle is the device saying it has a title's whole file: the copy the server
+// made for it goes once no other download waits for it (area 9 rule 24). Saying it again, or
+// for an original, is no change.
+func (s *Server) receivedDownloadTitle(r *http.Request, _ None) (None, error) {
+	v, device, err := s.downloadCaller(r)
+	if err != nil {
+		return None{}, err
 	}
-	return &room, err
+	// Only the device the download is for can say it has the file.
+	dl, title, err := s.db.DownloadedTitle(r.Context(), v.ProfileID, r.PathValue("id"), r.PathValue("itemId"))
+	if err != nil || dl.DeviceID != device.ID || title.State != db.DownloadWanted && title.State != db.DownloadReceived {
+		return None{}, ErrNotFound()
+	}
+	return None{}, s.downloads.Received(r.Context(), v, dl, title)
 }
 
 func (s *Server) downloadUsage(r *http.Request, _ None) (DownloadUsage, error) {
@@ -581,11 +548,7 @@ func (s *Server) downloadUsage(r *http.Request, _ None) (DownloadUsage, error) {
 		return DownloadUsage{}, err
 	}
 	used, err := s.db.ProfileCopiesSpace(r.Context(), v.ProfileID)
-	if err != nil {
-		return DownloadUsage{}, err
-	}
-	room, err := s.downloadRoom(r.Context())
-	return DownloadUsage{CopiesBytes: used, RoomBytes: room}, err
+	return DownloadUsage{CopiesBytes: used}, err
 }
 
 // downloadOptions answers the choices for a title, or for a holder with ?selection= and
@@ -610,11 +573,7 @@ func (s *Server) downloadOptions(r *http.Request, _ None) (DownloadOptions, erro
 		return DownloadOptions{}, downloadError(err)
 	}
 	owner := s.downloads.Owner()
-	room, err := s.downloadRoom(ctx)
-	if err != nil {
-		return DownloadOptions{}, err
-	}
-	out := DownloadOptions{ItemID: r.PathValue("id"), Kind: kind.String(), Titles: len(sources), Items: []DownloadChoice{}, RoomBytes: room}
+	out := DownloadOptions{ItemID: r.PathValue("id"), Kind: kind.String(), Titles: len(sources), Items: []DownloadChoice{}}
 	prefs, err := s.db.Preferences(ctx, v.ProfileID, device.ID)
 	if err != nil {
 		return out, err
@@ -683,8 +642,6 @@ func (s *Server) downloadOptions(r *http.Request, _ None) (DownloadOptions, erro
 			c.Available, c.Reason = false, "This server doesn't allow downloads at this quality."
 		case c.Prepared && !converts:
 			c.Available, c.Reason = false, "Converting is off on this server."
-		case c.Prepared && room != nil && c.SizeBytes > *room:
-			c.Available, c.Reason = false, "The server's download space is full."
 		}
 		out.Items = append(out.Items, *c)
 	}
@@ -720,7 +677,7 @@ func (s *Server) downloadedItem(r *http.Request, _ None) (DownloadedItem, error)
 	}
 	ctx := r.Context()
 	dl, title, err := s.db.DownloadedTitle(ctx, v.ProfileID, r.PathValue("id"), r.PathValue("itemId"))
-	if err != nil || title.State != db.DownloadWanted {
+	if err != nil || title.State != db.DownloadWanted && title.State != db.DownloadReceived {
 		return DownloadedItem{}, ErrNotFound()
 	}
 	detail, err := s.db.Item(ctx, v, title.ItemPublicID)
@@ -893,7 +850,47 @@ func (s *Server) serveDownload(w http.ResponseWriter, r *http.Request, grant, fi
 	}
 	// ServeContent reads the range itself and serves exactly what it read, so what is sent is
 	// what was asked for, If-Range against the ETag included.
-	http.ServeContent(w, r, "", f.Modified, f.ReadSeeker)
+	read, sent := &tailReader{ReadSeeker: f.ReadSeeker, size: f.Size}, &sentWriter{ResponseWriter: w}
+	http.ServeContent(sent, r, "", f.Modified, read)
+	if read.end && sent.err == nil {
+		f.Whole()
+	}
+}
+
+// tailReader notes whether a read reached the file's last byte.
+type tailReader struct {
+	io.ReadSeeker
+	size, at int64
+	end      bool
+}
+
+func (t *tailReader) Read(p []byte) (int, error) {
+	n, err := t.ReadSeeker.Read(p)
+	if t.at += int64(n); n > 0 && t.at >= t.size {
+		t.end = true
+	}
+	return n, err
+}
+
+func (t *tailReader) Seek(offset int64, whence int) (int64, error) {
+	at, err := t.ReadSeeker.Seek(offset, whence)
+	t.at = at
+	return at, err
+}
+
+// sentWriter notes whether writing the response failed: a browser that went away has not
+// got the file.
+type sentWriter struct {
+	http.ResponseWriter
+	err error
+}
+
+func (w *sentWriter) Write(p []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(p)
+	if err != nil && w.err == nil {
+		w.err = err
+	}
+	return n, err
 }
 
 // pathEscape writes a file name for Content-Disposition's filename* (RFC 5987).
