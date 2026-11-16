@@ -13,7 +13,8 @@ export function searchSettings(query: string, text: (id: MessageId) => string, v
     const corpus = [text(row.label), row.help && text(row.help), group.title && text(group.title), c.label && text(c.label), ...(c.options ?? []).filter(option => !preset || option.sets).map(option => text(option.label)), ...(keys ? [row.key, row.id] : [])].filter(Boolean).join(' ').toLocaleLowerCase();
     if (!words.every(word => corpus.includes(word))) continue;
     const panel = panelId ? section.panels?.[panelId] : undefined, tab = panel?.tabs?.find(tab => tab.id === tabId);
-    const context = [panel && (panel.searchName ? text(panel.searchName) : panel.title ? text(panel.title) : panelId), tab && text(tab.title)].filter((value): value is string => !!value);
+    // A panel with no name of its own adds nothing: its id is never shown as words.
+    const context = [panel && (panel.searchName ? text(panel.searchName) : panel.title ? text(panel.title) : undefined), tab && text(tab.title)].filter((value): value is string => !!value);
     hits.push({section, rowId: row.id, label: text(row.label), context, advanced, ...(panelId ? {panelId} : {}), ...(tabId ? {tabId} : {})});
   }
   return hits;
