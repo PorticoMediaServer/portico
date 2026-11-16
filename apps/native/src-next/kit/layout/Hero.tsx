@@ -7,6 +7,7 @@ import {useTheme} from '../theme';
 import {Focusable} from '../controls/Focusable';
 import {focusTestID} from '../focus/registry';
 import {useMotion} from '../useMotion';
+import {useOverlayOpen} from '../overlays/OverlayHost';
 import {Lockup} from './Lockup';
 import {createArtworkReadiness, createRotationClock} from './model';
 import type {ArtworkRenderContext, HeroCandidate, LayoutVariant, ThumbnailRenderContext} from './types';
@@ -241,8 +242,9 @@ export function Hero<T extends HeroCandidate>({candidates, activeIndex, onIndexC
   const rotationRun = useRef<object | undefined>(undefined);
   const change = useCallback((next: number) => {rotation.clock.reset(); progress.value = 0; if (activeIndex === undefined) setLocalIndex(next); onIndexChange?.(next);}, [activeIndex, rotation, onIndexChange, progress]);
   useEffect(() => {const subscription = AppState.addEventListener('change', next => setAppVisible(next === 'active')); return () => subscription.remove();}, []);
-  const [touching, setTouching] = useState(false);
-  const canRotate = candidates.length > 1 && active && visible && appVisible && !motion.reduce && motion.effects?.drift !== false && !reducedMotion && !hovered && !touching && (tv ? heroFocused : !controlFocused);
+  const [touching, setTouching] = useState(false), overlayOpen = useOverlayOpen();
+  // A menu opened from the hero (Hold OK) names the title it was opened on, so the hero holds still under it.
+  const canRotate = candidates.length > 1 && active && visible && appVisible && !overlayOpen && !motion.reduce && motion.effects?.drift !== false && !reducedMotion && !hovered && !touching && (tv ? heroFocused : !controlFocused);
   useEffect(() => {progress.value = 0;}, [rotation, progress]);
   useEffect(() => {
     if (!canRotate) return;

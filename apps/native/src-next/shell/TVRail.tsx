@@ -105,7 +105,8 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
         </View>
         {/* The list scrolls, so it clips: room on every side for the focused item's glow, so the glow fades out instead of ending
             at the list's edge. */}
-        <ScrollView style={{flex: 1, marginLeft: -24, marginRight: -tvRailGlow, marginVertical: -tvRailGlow}}
+        {/* No glow room below: the list would paint under Settings (a strip of the next entry showed through as dots). */}
+        <ScrollView style={{flex: 1, marginLeft: -24, marginRight: -tvRailGlow, marginTop: -tvRailGlow}}
           contentContainerStyle={{gap: spec.itemGap, paddingLeft: 24, paddingRight: tvRailGlow, paddingVertical: tvRailGlow}} showsVerticalScrollIndicator={false}>{entries.map(item)}</ScrollView>
         <View style={{gap: spec.itemGap, paddingTop: 8}}>
           {item({key: 'settings', label: defaultI18n.t('settings.title'), icon: 'i-settings', destination: {kind: 'settings'}})}

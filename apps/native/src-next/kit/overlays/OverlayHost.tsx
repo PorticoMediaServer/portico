@@ -1,4 +1,4 @@
-import React, {createContext, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import React, {createContext, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {Platform, StyleSheet, View, type GestureResponderEvent} from 'react-native';
 import {registerOverlayKeys} from '../../platform/overlay-keys';
 import {captureTVMenuKey} from '../../platform/tv-menu';
@@ -73,6 +73,9 @@ function retainOverlayKeys(): () => void {
     if (--keyUsers === 0) {unregisterKeys?.(); unregisterKeys = undefined;}
   };
 }
+/** Whether a menu, sheet or dialog is open over the page. On tvOS a native `Modal` leaves focus (and so no blur) on the
+ * control that opened it, so a page cannot learn this from its own focus. */
+export function useOverlayOpen(): boolean {return useSyncExternalStore(stack.subscribe, stack.isOpen, () => false);}
 /** Root's physical keyboard bridge can forward keys without making a non-modal surface modal. */
 export function dispatchOverlayKey(key: 'escape' | 'tab' | 'menu', _shift = false): boolean {
   if (key === 'escape' || key === 'menu') return stack.dismiss(key === 'menu' ? 'back' : 'escape');
