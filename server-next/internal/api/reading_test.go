@@ -17,6 +17,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
@@ -78,6 +79,17 @@ func epubFile(t *testing.T, path, chapter string) {
 	)
 }
 
+// mobiFile copies a book written by reading/testdata/mobi/generate.go.
+func mobiFile(t *testing.T, path, fixture string) {
+	raw, err := os.ReadFile(filepath.Join("..", "reading", "testdata", "mobi", fixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // bookShelf is a server with a books library and a comics library made of small real files,
 // scanned, and a token for a profile whose rating limit hides every book.
 type bookShelf struct {
@@ -93,9 +105,7 @@ func newBookShelf(t *testing.T) *bookShelf {
 	if err := os.WriteFile(filepath.Join(b.books, "Orwell", "Nineteen.pdf"), []byte("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(b.books, "Kindle Book.mobi"), []byte("BOOKMOBI and more"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	mobiFile(t, filepath.Join(b.books, "Kindle Book.mobi"), "older.mobi")
 	page := pngPicture(t, 64, 96)
 	zipFile(t, filepath.Join(b.comics, "Saga", "Saga 001.cbz"),
 		[2]string{"p10.png", page}, [2]string{"p2.png", page}, [2]string{"p1.png", page},
@@ -233,12 +243,24 @@ func TestOpeningBooks(t *testing.T) {
 		t.Fatalf("a PDF read by range answered %d (%+v)", r.StatusCode, pdf)
 	}
 
+	// A MOBI reads as the EPUB it is rebuilt into; saving it gives the MOBI itself.
 	mobi := get[BookAnswer](t, b.s, token, "/v1/items/"+b.find(db.KindBook, "Kindle Book")+"/book")
-	if mobi.Unreadable == nil || mobi.Unreadable.Message != "This server can't open this kind of book yet." || mobi.MediaURL != "" || mobi.SaveURL == "" {
+	if mobi.Unreadable != nil || mobi.Format != "epub" || len(mobi.Spine) != 2 || len(mobi.Contents) != 2 || mobi.SaveURL == "" {
 		t.Fatalf("a MOBI book: %+v", mobi)
 	}
-	if r := b.fetch(mobi.SaveURL); r.StatusCode != 200 || body(r) != "BOOKMOBI and more" {
+	if r := b.fetch(mobi.MediaURL + "/parts/" + mobi.Spine[1]); r.StatusCode != 200 || r.Header.Get("Content-Type") != "application/xhtml+xml" ||
+		!strings.Contains(body(r), "Chapter Two") {
+		t.Fatalf("a MOBI part answered %d %q", r.StatusCode, r.Header.Get("Content-Type"))
+	}
+	if r := b.fetch(mobi.SaveURL); r.StatusCode != 200 || !strings.HasPrefix(body(r)[60:], "BOOKMOBI") {
 		t.Fatalf("saving a MOBI book answered %d", r.StatusCode)
+	}
+	mobiFile(t, filepath.Join(b.books, "Locked Book.mobi"), "locked.mobi")
+	b.scan()
+	locked := get[BookAnswer](t, b.s, token, "/v1/items/"+b.find(db.KindBook, "Locked Book")+"/book")
+	if locked.Unreadable == nil || locked.Unreadable.Code != "format_not_supported" || locked.Unreadable.Message != reading.ErrLocked.Error() ||
+		locked.SaveURL == "" {
+		t.Fatalf("a locked MOBI book: %+v", locked)
 	}
 
 	comic := get[BookAnswer](t, b.s, token, "/v1/items/"+b.find(db.KindIssue, "Saga 001")+"/book")

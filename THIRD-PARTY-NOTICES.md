@@ -31,7 +31,7 @@ The licence names below are an inventory, not a substitute for the licence texts
 | go4.org | v0.0.0-20260112195520-a5071408f32f | Apache-2.0 |
 | golang.org/x/crypto | v0.56.0 | BSD-3-Clause |
 | golang.org/x/image | v0.46.0 | BSD-3-Clause |
-| golang.org/x/net | v0.57.0 | BSD-3-Clause |
+| golang.org/x/net | v0.58.0 | BSD-3-Clause |
 | golang.org/x/sys | v0.48.0 | BSD-3-Clause |
 | golang.org/x/text | v0.42.0 | BSD-3-Clause |
 | modernc.org/libc | v1.75.6 | BSD-3-Clause; ported code retains its source notices |

@@ -11,9 +11,10 @@ import (
 // to read its title, author and the rest from (10-reading rule 8: details come from the files).
 // They are read through the same guarded archive reader as the book itself.
 
-// EPUBPackage returns an EPUB's own package document: the one its container names.
+// EPUBPackage returns an EPUB's own package document: the one its container names. A MOBI or
+// AZW3 gives the one it is rebuilt with, from what its own header says.
 func EPUBPackage(r io.ReaderAt, size int64) ([]byte, error) {
-	a, err := openArchive(r, size)
+	a, err := ebookArchive(r, size)
 	if err != nil {
 		return nil, err
 	}
