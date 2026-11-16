@@ -110,6 +110,8 @@ const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)
   : /(^|\/)kit\/layout\/CoverHero$/.test(source) ? {CoverHero: 'CoverHero'}
   // The kit's one list edge fade draws as a named element; next-watch-tv-episodes tests it.
   : /(^|\/)kit\/layout\/ListEdgeFade$/.test(source) ? {ListEdgeFade: 'ListEdgeFade'}
+  // Every Settings page's one top (the standard backdrop) draws as a named element.
+  : /(^|\/)SettingsBackdrop$/.test(source) ? {SettingsBackdrop: 'SettingsBackdrop'}
   // Which ends of a list continue is plain arithmetic: the real module.
   : /(^|\/)kit\/layout\/list-edges$|^\.\/list-edges$/.test(source) ? listEdgesModule
   // The shell's one top-bar Play on button draws as a named element; next-play-on-top-bar tests it.
