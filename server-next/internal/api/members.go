@@ -14,8 +14,9 @@ import (
 // and members; an admin manages members; nobody manages the owner, or themselves here.
 // A member's profiles are managed through the profile routes with ?member=<account id>.
 
-// resetCodeLife is how long a password reset code can be used.
-const resetCodeLife = time.Hour
+// resetCodeLife is how long a password reset code can be used: 15 minutes, a fixed value with
+// no setting (definition area 1 rule 37, amended by the owner's ruling of 16 Nov 2026).
+const resetCodeLife = 15 * time.Minute
 
 // Member is an account as the owner and admins see it.
 type Member struct {

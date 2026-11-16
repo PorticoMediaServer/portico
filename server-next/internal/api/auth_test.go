@@ -1,15 +1,19 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
 func raceRuns() int {
@@ -757,5 +761,27 @@ func TestARestartSignsNobodyOut(t *testing.T) {
 	code, renewed := renew(t, s, chooser.RefreshToken, 1, "r")
 	if code != 200 || status(t, s, "GET", "/v1/me", renewed.AccessToken, nil) != 200 {
 		t.Fatalf("a live session could not renew after a restart (%d)", code)
+	}
+}
+
+// An ended sign-in stays in the list for 30 days, a fixed value (definition area 1 rule 44,
+// owner's ruling of 16 Nov 2026): it is listed 29 days after it ended and gone after 31.
+func TestAnEndedSignInIsListedForThirtyDays(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s))
+	tv := signIn(t, s, 1).Session
+	if code := status(t, s, "DELETE", "/v1/me/sessions/"+tv.SessionID, owner.AccessToken, nil); code != 204 {
+		t.Fatalf("ending the sign-in answered %d", code)
+	}
+	ended := time.Now()
+	for days, want := range map[int]bool{29: true, 31: false} {
+		sessions, err := s.db.Sessions(context.Background(), 1, ended.Add(time.Duration(days)*24*time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		listed := slices.ContainsFunc(sessions, func(v db.SessionInfo) bool { return v.PublicID == tv.SessionID })
+		if listed != want {
+			t.Errorf("%d days after it ended, the sign-in is listed: %v; want %v", days, listed, want)
+		}
 	}
 }

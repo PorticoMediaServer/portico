@@ -567,8 +567,9 @@ func (d *DB) RevokeOtherSessions(ctx context.Context, userID, keepSessionID int6
 	})
 }
 
-// endedSessionsKept is how long an ended session stays in the session list.
-const endedSessionsKept = 90 * 24 * time.Hour
+// endedSessionsKept is how long an ended session stays in the session list: 30 days, a fixed
+// value with no setting (definition area 1 rule 44, amended by the owner's ruling of 16 Nov 2026).
+const endedSessionsKept = 30 * 24 * time.Hour
 
 // SessionInfo is one row of a person's session list.
 type SessionInfo struct {
@@ -588,7 +589,7 @@ type SessionInfo struct {
 	RemoteAddr string
 }
 
-// Sessions lists a user's live sessions and those that ended in the last 90 days, newest use first.
+// Sessions lists a user's live sessions and those that ended in the last 30 days, newest use first.
 func (d *DB) Sessions(ctx context.Context, userID int64, now time.Time) ([]SessionInfo, error) {
 	rows, err := d.read.QueryContext(ctx, `
 		SELECT s.id, s.public_id, d.public_id, d.name, ifnull(p.public_id, ''), s.created_at, s.last_used_at, s.expires_at,
