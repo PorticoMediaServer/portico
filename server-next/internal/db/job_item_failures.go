@@ -66,6 +66,8 @@ func jobItemOutcome(tx *sql.Tx, jobID int64, itemID, code string) error {
 		message = "Music has play counts, not a watched state."
 	case "edit_too_old":
 		message = "This change is more than 35 days old. Make the change again."
+	case "too_many_titles":
+		message = "This title has too many playable titles to add at once. Add a smaller selection."
 	default:
 		return invalid("unknown job failure code")
 	}

@@ -422,7 +422,7 @@ type ListChange struct {
 // EditList renames or describes a list, or changes who sees a collection. Only its maker may. revision, when not 0, is the
 // revision the edit was made on; an older one is ErrStale.
 func (d *DB) EditList(ctx context.Context, v Viewer, publicID string, revision int64, c ListChange, now time.Time) (out List, err error) {
-	err = d.listWrite(ctx, v, publicID, revision, true, now, func(e *listEdit) error {
+	err = d.listWrite(ctx, User, v, publicID, revision, true, now, func(e *listEdit) error {
 		if c.Name != nil {
 			if _, err := e.tx.Exec(`UPDATE lists SET name = ?, sort_name = ? WHERE id = ?`, *c.Name, c.SortName, e.id); err != nil {
 				return err
@@ -513,7 +513,7 @@ type ListAdded struct {
 // end). The same key with the same request changes nothing more and answers the list.
 func (d *DB) AddToList(ctx context.Context, v Viewer, publicID string, revision int64, items []string, after int64, key, requestHash string,
 	now time.Time) (out ListAdded, err error) {
-	err = d.listWrite(ctx, v, publicID, revision, false, now, func(e *listEdit) error {
+	err = d.listWrite(ctx, User, v, publicID, revision, false, now, func(e *listEdit) error {
 		made, err := createdBefore(e.tx, v.UserID, key, requestHash)
 		if err != nil {
 			return err
@@ -534,7 +534,7 @@ func (d *DB) AddToList(ctx context.Context, v Viewer, publicID string, revision 
 
 // MoveInList moves an entry to just before the entry before, or just after the entry after.
 func (d *DB) MoveInList(ctx context.Context, v Viewer, publicID string, revision, entry, before, after int64, now time.Time) (out List, err error) {
-	err = d.listWrite(ctx, v, publicID, revision, false, now, func(e *listEdit) error {
+	err = d.listWrite(ctx, User, v, publicID, revision, false, now, func(e *listEdit) error {
 		if _, err := e.position(entry); err != nil {
 			return err
 		}
@@ -576,7 +576,7 @@ func (d *DB) MoveInList(ctx context.Context, v Viewer, publicID string, revision
 // is not found: a removal sent again after its reply was lost answers not found, and the app
 // takes that as done.
 func (d *DB) RemoveFromList(ctx context.Context, v Viewer, publicID string, revision, entry int64, now time.Time) (out List, err error) {
-	err = d.listWrite(ctx, v, publicID, revision, false, now, func(e *listEdit) error {
+	err = d.listWrite(ctx, User, v, publicID, revision, false, now, func(e *listEdit) error {
 		if _, err := e.position(entry); err != nil {
 			return err
 		}
@@ -605,9 +605,9 @@ type listEdit struct {
 // listWrite runs one change to a list the viewer may change: its entries when it may edit
 // them, or anything when it made the list and ownerOnly is set. The revision moves on and
 // readers are told, unless the change changed nothing. out is the list afterwards.
-func (d *DB) listWrite(ctx context.Context, v Viewer, publicID string, revision int64, ownerOnly bool, now time.Time,
+func (d *DB) listWrite(ctx context.Context, priority Priority, v Viewer, publicID string, revision int64, ownerOnly bool, now time.Time,
 	fn func(e *listEdit) error, out *List) error {
-	return d.write(ctx, User, func(tx *sql.Tx) error {
+	return d.write(ctx, priority, func(tx *sql.Tx) error {
 		acc, err := loadAccess(ctx, tx, v)
 		if err != nil {
 			return err
@@ -844,7 +844,7 @@ func (d *DB) SetListShares(ctx context.Context, v Viewer, publicID string, revis
 	if len(shares) > MaxListShares {
 		return out, invalid("A playlist is shared with at most %d people.", MaxListShares)
 	}
-	err = d.listWrite(ctx, v, publicID, revision, true, now, func(e *listEdit) error {
+	err = d.listWrite(ctx, User, v, publicID, revision, true, now, func(e *listEdit) error {
 		if e.kind != ListPlaylist {
 			return invalid("Only a playlist is shared with chosen people.")
 		}

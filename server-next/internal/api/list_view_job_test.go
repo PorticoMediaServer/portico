@@ -3,7 +3,10 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -76,5 +79,81 @@ func TestAddAWholeViewToAPlaylist(t *testing.T) {
 	start.Params = JSON(`{"list": "` + theirs.ID + `"}`)
 	if code := status(t, s, "POST", "/v1/jobs", limited, start); code < 400 {
 		t.Fatalf("adding to someone else's playlist answered %d", code)
+	}
+}
+
+// One overfull show must not keep other shows from being added, and a server restart after
+// that partial commit must neither duplicate their episodes nor lose the failed title.
+func TestListJobKeepsPartialResultsAcrossRestart(t *testing.T) {
+	s, owner, _ := seededWith(t, 60, 1)
+	ctx := context.Background()
+	var shows db.AdminLibrary
+	libraries, err := s.db.AdminLibraries(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, lib := range libraries {
+		if lib.Kind == db.LibraryShows {
+			shows = lib
+		}
+	}
+	key := db.ItemKey{Kind: db.KeyFolder, Key: "long-show"}
+	if _, err := s.db.Import(ctx, db.ImportBatch{LibraryID: shows.ID, PathID: shows.Folders[0].ID,
+		Items: []db.ImportItem{{Kind: db.KindShow, Title: "A very long show", Keys: []db.ItemKey{key}}}}); err != nil {
+		t.Fatal(err)
+	}
+	for first := 0; first <= db.QueueMax; first += 200 {
+		var items []db.ImportItem
+		for n := first; n < min(first+200, db.QueueMax+1); n++ {
+			name := fmt.Sprintf("episode-%05d", n)
+			items = append(items, db.ImportItem{Kind: db.KindEpisode, Title: name, Parent: &key, Keys: []db.ItemKey{{Kind: db.KeyFile, Key: name}}})
+		}
+		if _, err := s.db.Import(ctx, db.ImportBatch{LibraryID: shows.ID, PathID: shows.Folders[0].ID, Items: items}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var list List
+	call(t, s, "POST", "/v1/lists", owner, ListCreate{Kind: db.ListPlaylist, Name: "Shows"}, &list)
+	c := CallerOf(t, s, owner)
+	req := jobs.Request{Target: jobs.Target{Filter: "library=" + shows.PublicID + "&kind=show"},
+		Params: []byte(`{"list":"` + list.ID + `"}`), UserID: c.UserID, ProfileID: c.ProfileID}
+	payload, _ := json.Marshal(req)
+	job, err := s.db.StartJob(ctx, db.NewJob{Kind: listViewJobKind, Target: "partial-restart", Payload: string(payload), OwnerID: c.UserID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stop, cancel := context.WithCancel(ctx)
+	err = s.runListViewJob(stop, jobs.Work{Job: job, Request: req, Progress: func(int64, int64) { cancel() }})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("partial run: %v", err)
+	}
+	path := "/v1/jobs/" + job.PublicID + "/failures"
+	failures := get[Page[JobItemFailure]](t, s, owner, path)
+	if len(failures.Items) != 1 || failures.Items[0].Title != "A very long show" || failures.Items[0].Error.Code != "too_many_titles" {
+		t.Fatalf("partial failures: %+v", failures)
+	}
+	before := get[ItemPage](t, s, owner, "/v1/items?list="+list.ID+"&total=true&limit=200")
+	if *before.Total == 0 {
+		t.Fatal("the other shows were not added")
+	}
+	database := filepath.Join(s.dataDir, "main.db")
+	stopServer(s)
+	closeDB(s.db)
+	s = openTestServer(t, database)
+	owner = onMain(t, s, signIn(t, s, 4)).AccessToken
+	if ended := waitForJob(t, s, owner, job.PublicID); ended.State != db.JobFailed || ended.Error != selectionFailureSummary {
+		t.Fatalf("resumed job: %+v", ended)
+	}
+	after := get[ItemPage](t, s, owner, "/v1/items?list="+list.ID+"&total=true&limit=200")
+	if *after.Total != *before.Total {
+		t.Fatalf("restart duplicated entries: %d before, %d after", *before.Total, *after.Total)
+	}
+	for n, it := range before.Items {
+		if after.Items[n].ID != it.ID {
+			t.Fatalf("restart changed entry order at %d", n)
+		}
+	}
+	if kept := get[Page[JobItemFailure]](t, s, owner, path); len(kept.Items) != 1 || kept.Items[0].ItemID != failures.Items[0].ItemID {
+		t.Fatalf("restart lost the failure: %+v", kept)
 	}
 }
