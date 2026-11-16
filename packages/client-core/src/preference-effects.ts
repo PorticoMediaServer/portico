@@ -1,4 +1,4 @@
-import {preferenceValue, validatePreferencePatch, type PreferencePatch, type PreferenceSnapshot, type PreferenceValue} from './preferences.ts';
+import {preferenceValue, validatePreferencePatch, type PreferencePatch, type PreferenceScope, type PreferenceSnapshot, type PreferenceValue} from './preferences.ts';
 
 /** Registry values remain the sole defaults. These projections contain only
  * drawn controls; renderer support is reported by the actual platform. */
@@ -95,12 +95,18 @@ export function readingPreferencesPatch(snapshot: PreferenceSnapshot, change: Re
     if (value === undefined) throw new Error(`No value was supplied for the Reading preference ${property}.`);
     patch[readingPreferenceKeys[name]] = value;
   }
-  // Each setting is saved in the scope the server publishes for it: the old server kept them for
-  // the profile, the rebuilt one for each device.
   const out: Record<string, PreferenceValue | null> = {};
-  for (const [key, value] of Object.entries(patch)) {
-    const scopes = snapshot.registry.fields.find(field => field.key === key)?.scopes ?? [];
-    Object.assign(out, validatePreferencePatch(snapshot.registry, scopes.includes('profile-server') ? 'profile-server' : scopes[0] ?? 'profile-server', {[key]: value}));
-  }
+  for (const [key, value] of Object.entries(patch)) Object.assign(out, validatePreferencePatch(snapshot.registry, preferenceSaveScope(snapshot, key) ?? 'profile-server', {[key]: value}));
   return Object.freeze(out);
+}
+/** Where a setting is saved: the scope the server publishes for it. The old server kept the reading
+ * settings for the profile; the rebuilt one keeps them for each kind of device (10-reading rule 36). */
+export function preferenceSaveScope(snapshot: PreferenceSnapshot, key: string): PreferenceScope | undefined {
+  const scopes = snapshot.registry.fields.find(field => field.key === key)?.scopes ?? [];
+  return scopes.includes('profile-server') ? 'profile-server' : scopes[0];
+}
+/** Whether this server publishes every reading setting, each with the document it is saved in. */
+export function readingPreferencesAvailable(snapshot: PreferenceSnapshot): boolean {
+  if (Object.values(readingPreferenceKeys).some(key => {const scope = preferenceSaveScope(snapshot, key); return !scope || !snapshot.documents.some(document => document.scope === scope);})) return false;
+  try {readingPreferences(snapshot); return true;} catch {return false;}
 }

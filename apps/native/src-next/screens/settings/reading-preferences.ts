@@ -1,5 +1,5 @@
-import {readingPreferences, readingPreferencesPatch, type ReadingPreferences, type ReadingPreferencesChange} from '../../../../../packages/client-core/src/preference-effects';
-import type {PreferenceSnapshot, PreferenceValue} from '../../../../../packages/client-core/src/preferences';
+import {preferenceSaveScope, readingPreferences, readingPreferencesAvailable, readingPreferencesPatch, type ReadingPreferences, type ReadingPreferencesChange} from '../../../../../packages/client-core/src/preference-effects';
+import type {PreferencePatch, PreferenceScope, PreferenceSnapshot, PreferenceValue} from '../../../../../packages/client-core/src/preferences';
 import {readingSettingsProperty} from '../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsSpec, type SettingsRow} from '../../../../../packages/client-core/src/presentation/settings-spec';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
@@ -12,11 +12,10 @@ type Owner = Pick<NativeShellBootstrapContext, 'api' | 'authority' | 'current' |
 const sources = new WeakMap<Owner, NativeReadingSettingsPreferences>();
 const unavailable = () => Object.assign(new Error('native_reading_preferences_unavailable'), {code: 'unsupported'});
 
-/** Eligibility uses the selected server's actual registry/documents, never spec defaults. */
+/** Eligibility uses the selected server's actual registry/documents, never spec defaults: each
+ * setting is read and saved where that server keeps it. */
 export function nativeReadingPreferencesAvailable(snapshot: PreferenceSnapshot): boolean {
-  if (snapshot.deviceClass === 'television' || !snapshot.documents.some(document => document.scope === 'profile-server')) return false;
-  if (rows.some(row => !snapshot.registry.fields.some(field => field.key === row.key && field.scopes.includes('profile-server')))) return false;
-  try {readingPreferences(snapshot); return true;} catch {return false;}
+  return snapshot.deviceClass !== 'television' && readingPreferencesAvailable(snapshot);
 }
 
 /** Read and Settings borrow this one canonical preference reader for the authority.
@@ -48,10 +47,15 @@ export class NativeReadingSettingsPreferences {
   refresh = (): Promise<void> => {this.lifetime.assert(); return this.controller.refresh();};
   patch = async (changes: ReadingPreferencesChange): Promise<ReadingPreferences> => {
     this.lifetime.assert();
-    const patch = readingPreferencesPatch(this.getState().preferences, changes);
-    const accepted = await this.controller.apply('profile-server', patch);
-    this.lifetime.assert();
-    if (!accepted) throw this.getState().error ?? Object.assign(new Error('native_reading_preferences_busy'), {code: 'cancelled'});
+    const preferences = this.getState().preferences, patch = readingPreferencesPatch(preferences, changes);
+    // Saved where the server keeps each one: one document on every server today.
+    const byScope = new Map<PreferenceScope, Record<string, PreferencePatch[string]>>();
+    for (const [key, value] of Object.entries(patch)) {const scope = preferenceSaveScope(preferences, key) ?? 'profile-server'; byScope.set(scope, {...byScope.get(scope), [key]: value});}
+    for (const [scope, values] of byScope) {
+      const accepted = await this.controller.apply(scope, values);
+      this.lifetime.assert();
+      if (!accepted) throw this.getState().error ?? Object.assign(new Error('native_reading_preferences_busy'), {code: 'cancelled'});
+    }
     return this.getSnapshot();
   };
   rowEnabled = (row: SettingsRow): boolean => {
