@@ -1651,6 +1651,7 @@ export interface LibraryOptions {
   groupSeries?: boolean;
   lyrics?: string;
   soundAnalysis?: boolean;
+  episodeThumbnails?: string;
 }
 
 export interface LibraryOrder {

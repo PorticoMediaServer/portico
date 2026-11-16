@@ -34,7 +34,7 @@ export async function saveOwnerLibrarySettings(api:LibraryContentApi,current:Lib
  if(!operationId||operationId.length>128)throw new Error('Invalid library operation identity.');
  const original=current.serverLibrary;if(!original)throw new Error(unreadableServerResponse);
  const options={...original.options},body:LibraryEdit={};let changedOptions=false;
- const fields={scanDepth:'depth',groupCollections:'groupSeries',allowMediaDeletion:'allowDelete',monitorChanges:'watch',lyricsSource:'lyrics',segmentDetection:'segmentDetection'} as const;
+ const fields={scanDepth:'depth',groupCollections:'groupSeries',allowMediaDeletion:'allowDelete',monitorChanges:'watch',lyricsSource:'lyrics',segmentDetection:'segmentDetection',episodeThumbnails:'episodeThumbnails'} as const;
  for(const key of Object.keys(settings) as (keyof LibrarySettings)[]){
   if(JSON.stringify(settings[key])===JSON.stringify(current.settings[key]))continue;
   if(key==='providers'){

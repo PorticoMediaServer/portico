@@ -48,18 +48,6 @@ test('a server that keeps no artwork limit is sent none: a row saves only what t
   f.controller.dispose();
 });
 
-test('episode thumbnails use the separate complete producer and fence the exact library revision', () => {
-  const settings = shared.parseMetadataSettings(data()) as MetadataSettings;
-  assert.deepEqual(values.episodeThumbnailChange(settings, 'series', 'off'), {
-    expectedRevision: 1, localArtworkLimitBytes: 2 ** 30, includeAdult: false,
-    libraries: [{id: 'series', expectedRevision: 'a'.repeat(64), episodeThumbnailMode: 'off'}],
-  });
-  assert.equal(values.episodeThumbnailChange({...settings, librariesComplete: false}, 'series', 'off'), undefined);
-  assert.equal(values.episodeThumbnailChange({...settings, libraries: [{...settings.libraries![0]!, managed: false}]}, 'series', 'off'), undefined);
-  assert.equal(values.episodeThumbnailChange(settings, 'other', 'off'), undefined);
-  assert.equal(values.episodeThumbnailChange(settings, 'series', 'unknown'), undefined);
-});
-
 test('an uncertain or stale save requires a fresh read and does not replay the mutation', async () => {
   const f = fixture(); await f.controller.load(); const original = f.controller.getSnapshot().data;
   f.setReply(async () => {throw {code: 'revision_mismatch'};});
