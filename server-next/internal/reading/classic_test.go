@@ -20,10 +20,11 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// These are original stored RAR5, stored/compressed/solid RAR4 and plain-header
-// 7z publications. Exercise the real limited subprocess, not just the libraries.
+// These are original stored RAR5, stored/compressed/solid RAR4, plain-header 7z
+// and default 7-Zip (compressed header) publications. Exercise the real limited
+// subprocess, not just the libraries.
 func TestClassicComicsReadThroughTheBoundedWorker(t *testing.T) {
-	for _, name := range []string{"rar5.cbr", "rar4.cbr", "compressed.cbr", "solid.cbr", "comic.cb7"} {
+	for _, name := range []string{"rar5.cbr", "rar4.cbr", "compressed.cbr", "solid.cbr", "comic.cb7", "encoded.cb7"} {
 		t.Run(name, func(t *testing.T) {
 			raw, err := os.ReadFile(filepath.Join("testdata", "classic", name))
 			if err != nil {
