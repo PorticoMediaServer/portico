@@ -4629,6 +4629,7 @@ export interface Routes {
   'POST /v1/queues/{id}/prepare-next': {access: 'withProfile'; request: QueuePrepare; response: PreparedNext};
   'POST /v1/queues/{id}/commit-next': {access: 'withProfile'; request: QueueCommit; response: QueueCommitted};
   'POST /v1/queues/{id}/playlist': {access: 'withProfile'; request: QueueSave; response: SavedPlaylist};
+  'GET /v1/subtitle-fonts/cjk': {access: 'public'; request: undefined; response: undefined};
   'GET /v1/items/{id}/subtitles': {access: 'withProfile'; request: undefined; response: ItemSubtitles};
   'PUT /v1/items/{id}/subtitles/offset': {access: 'withProfile'; request: SubtitleOffset; response: SubtitleOffset};
   'GET /v1/items/{id}/lyrics': {access: 'withProfile'; request: undefined; response: LyricsPage};
