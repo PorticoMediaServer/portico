@@ -90,3 +90,35 @@ test('multipart files transfer as one title and keep usable captions for the lat
   const cached = extras.get('bundle.json')!;
   assert.equal(cached.includes('https://server.invalid'), false, 'finished metadata keeps local cache paths');
 });
+
+test('cancelling a server preparation with no local file persists removal and cannot be fetched again', async t => {
+ const f = await offlineFixture();t.after(() => f.offline.dispose());
+ const d = request(), p = downloadPreparation(d, {...d.items![0]!, state: 'preparing'}), ref = {downloadId: d.id, itemId: p.itemId};
+ let deleted = false;
+ const service = Object.assign(f.service, {downloaded: async () => downloaded});f.snapshot.items = [p];
+ f.handlers.set('/v1/downloads/sync', () => ({playableUntil: new Date(Date.now() + 86400000).toISOString(), playableForMs: 86400000, fetch: deleted ? [] : [ref], remove: []}));
+ f.handlers.set('/v1/downloads/dl_one', () => ({...d, items: [{...d.items![0]!, state: 'preparing'}]}));
+ f.handlers.set('/v1/downloads/dl_one/items/itm_film', () => {deleted = true;});
+ await f.offline.open();f.offline.connect(f.api, service as any, viewer);await settle();
+ await f.offline.want([p]);await settle();assert.equal(f.started.length, 0);
+ f.offline.disconnect();await f.offline.cancelPending(p.id);
+ assert.deepEqual(JSON.parse(f.disk.state).removed[owner][p.id], ref);
+ f.snapshot.items = [downloadPreparation(d, d.items![0]!)];
+ f.offline.connect(f.api, service as any, viewer);await settle();
+ assert.equal(deleted, true);assert.equal(f.started.length, 0);assert.deepEqual(f.offline.getSnapshot().pendingDownloads, []);
+});
+
+test('a ready-title read already in flight cannot restore a cancelled preparation', async t => {
+ const f = await offlineFixture();t.after(() => f.offline.dispose());
+ const d = request(), p = downloadPreparation(d, {...d.items![0]!, state: 'preparing'});
+ let fetchReady = false, entered!: () => void, release!: (value: unknown) => void;
+ const reading = new Promise<void>(resolve => {entered = resolve;});
+ const service = Object.assign(f.service, {downloaded: async () => downloaded});f.snapshot.items = [p];
+ f.handlers.set('/v1/downloads/sync', () => ({playableUntil: new Date(Date.now() + 86400000).toISOString(), playableForMs: 86400000,
+  fetch: fetchReady ? [{downloadId: d.id, itemId: p.itemId}] : [], remove: []}));
+ f.handlers.set('/v1/downloads/dl_one', () => {entered();return new Promise(resolve => {release = resolve;});});
+ await f.offline.open();f.offline.connect(f.api, service as any, viewer);await settle();await f.offline.want([p]);await settle();
+ f.offline.disconnect();fetchReady = true;f.offline.connect(f.api, service as any, viewer);await reading;
+ await f.offline.cancelPending(p.id);release(d);await settle();
+ assert.equal(JSON.parse(f.disk.state).wanted[owner]?.[p.id], undefined);assert.equal(f.started.length, 0);
+});
