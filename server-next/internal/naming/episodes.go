@@ -120,6 +120,14 @@ func readEpisode(r *Reading, name, p, kind string, folderSeason int, hasFolder b
 		}
 		r.Seasons = append([]Evidence[int]{ev(season, FileName, p, .99)}, r.Seasons...)
 		r.Episodes = append(r.Episodes, ev(values, FileName, p, .99))
+		// What follows the numbers, up to the first release word, is the episode's own name:
+		// "Show - S01E05 - The Paradox WEBDL-1080p.mkv", as Sonarr names files.
+		if loc := technicalToken.FindStringIndex(remainder); loc != nil {
+			remainder = remainder[:loc[0]]
+		}
+		if name := clean(hashToken.ReplaceAllString(remainder, " ")); name != "" && !bracketYear.MatchString(name) {
+			r.EpisodeTitles = append(r.EpisodeTitles, ev(name, FileName, p, .8))
+		}
 		title := s[:first[0]]
 		// Remove only tags from the series prefix, not the title around them.
 		if loc := technicalToken.FindStringIndex(title); loc != nil {

@@ -1613,6 +1613,7 @@
   {
     "group": "sonarr",
     "path": "Severance (2022)/Season 1/Severance - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Severance",
     "year": 2022,
@@ -1781,6 +1782,7 @@
   {
     "group": "sonarr",
     "path": "Doctor Who (2005)/Season 1/Doctor Who - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Doctor Who",
     "year": 2005,
@@ -1949,6 +1951,7 @@
   {
     "group": "sonarr",
     "path": "Breaking Bad (2008)/Season 1/Breaking Bad - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Breaking Bad",
     "year": 2008,
@@ -2117,6 +2120,7 @@
   {
     "group": "sonarr",
     "path": "The Office US (2005)/Season 1/The Office US - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "The Office US",
     "year": 2005,
@@ -2285,6 +2289,7 @@
   {
     "group": "sonarr",
     "path": "Mr Robot (2015)/Season 1/Mr Robot - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Mr Robot",
     "year": 2015,
@@ -2453,6 +2458,7 @@
   {
     "group": "sonarr",
     "path": "Blakes 7 (1978)/Season 1/Blakes 7 - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Blakes 7",
     "year": 1978,
@@ -2621,6 +2627,7 @@
   {
     "group": "sonarr",
     "path": "Space 1999 (1975)/Season 1/Space 1999 - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Space 1999",
     "year": 1975,
@@ -2789,6 +2796,7 @@
   {
     "group": "sonarr",
     "path": "Cyberpunk 2077 Edgerunners (2022)/Season 1/Cyberpunk 2077 Edgerunners - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Cyberpunk 2077 Edgerunners",
     "year": 2022,
@@ -2957,6 +2965,7 @@
   {
     "group": "sonarr",
     "path": "Café (2019)/Season 1/Café - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Café",
     "year": 2019,
@@ -3125,6 +3134,7 @@
   {
     "group": "sonarr",
     "path": "Jeopardy (1984)/Season 1/Jeopardy - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Jeopardy",
     "year": 1984,
@@ -3293,6 +3303,7 @@
   {
     "group": "sonarr",
     "path": "Extras (2005)/Season 1/Extras - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Extras",
     "year": 2005,
@@ -3461,6 +3472,7 @@
   {
     "group": "sonarr",
     "path": "The Simpsons (1989)/Season 1/The Simpsons - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "The Simpsons",
     "year": 1989,
@@ -3629,6 +3641,7 @@
   {
     "group": "sonarr",
     "path": "1923 (2022)/Season 1/1923 - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "1923",
     "year": 2022,
@@ -3797,6 +3810,7 @@
   {
     "group": "sonarr",
     "path": "1883 (2021)/Season 1/1883 - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "1883",
     "year": 2021,
@@ -3965,6 +3979,7 @@
   {
     "group": "sonarr",
     "path": "Lost (2004)/Season 1/Lost - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Lost",
     "year": 2004,
@@ -4133,6 +4148,7 @@
   {
     "group": "sonarr",
     "path": "Twin Peaks (1990)/Season 1/Twin Peaks - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Twin Peaks",
     "year": 1990,
@@ -4301,6 +4317,7 @@
   {
     "group": "sonarr",
     "path": "Star Trek (1966)/Season 1/Star Trek - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Star Trek",
     "year": 1966,
@@ -4469,6 +4486,7 @@
   {
     "group": "sonarr",
     "path": "Futurama (1999)/Season 1/Futurama - S01E02 - Episode Title [WEBDL-1080p][AAC 2.0][x265]-GROUP.mkv",
+    "episodeTitle": "Episode Title",
     "kind": "tv",
     "title": "Futurama",
     "year": 1999,
@@ -5574,6 +5592,7 @@
   {
     "group": "episode-edge-cases",
     "path": "Cowboy Bebop/Season 1/Cowboy Bebop - S01E12 - Jupiter Jazz (Part 1).mkv",
+    "episodeTitle": "Jupiter Jazz (Part 1)",
     "kind": "tv",
     "title": "Cowboy Bebop",
     "year": 0,
@@ -5585,6 +5604,7 @@
   {
     "group": "episode-edge-cases",
     "path": "Show/Season 1/Show - S01E19 - The Siege of the North, Part 1.mkv",
+    "episodeTitle": "The Siege of the North, Part 1",
     "kind": "tv",
     "title": "Show",
     "year": 0,
@@ -5596,6 +5616,7 @@
   {
     "group": "episode-edge-cases",
     "path": "Show/Season 1/Show S01E01 - The S01E02 Paradox.mkv",
+    "episodeTitle": "The S01E02 Paradox",
     "kind": "tv",
     "title": "Show",
     "year": 0,
@@ -5607,6 +5628,7 @@
   {
     "group": "episode-edge-cases",
     "path": "Show/Season 1/Show S01E01 - 2x4 Lumber.mkv",
+    "episodeTitle": "2x4 Lumber",
     "kind": "tv",
     "title": "Show",
     "year": 0,

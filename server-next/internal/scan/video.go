@@ -408,6 +408,12 @@ func (r *run) episodeItems(f *folder, v *version, ep episode) []db.ImportItem {
 		if ep.date != "" {
 			name = ep.date
 		}
+		// The name in the file's own name, until a provider gives one (definition area 3,
+		// rule 31; area 4, rule 6): in a library on AniList, which names no episodes, or
+		// local only, it is the only name there is.
+		if titles := lead.reading.EpisodeTitles; len(ep.numbers) == 1 && len(titles) > 0 {
+			name = titles[0].Value
+		}
 		item := db.ImportItem{Kind: db.KindEpisode, Title: name, IndexNumber: &number, ParentIndex: &ep.season,
 			ReleaseDate: ep.date, ParentRow: 2, ChildKey: fmt.Sprintf("e%d", number), Keys: keys, Versions: []db.ImportVersion{stored}}
 		if len(ep.numbers) == 1 {
