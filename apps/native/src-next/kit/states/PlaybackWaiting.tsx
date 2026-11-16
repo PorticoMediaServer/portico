@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {Text, View} from 'react-native';
 import Svg, {Circle} from 'react-native-svg';
-import Animated, {cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming} from 'react-native-reanimated';
+import Animated, {cancelAnimation, useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {playbackWaitingDelayMs} from '../../../../../packages/client-core/src/presentation/playback-waiting';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {useTheme} from '../theme';
@@ -12,6 +12,8 @@ import {colorAlpha} from '../controls/control-model';
  * has lasted three seconds. "Getting ready" while the server converts the stream (definition 07, rule 3), the
  * connection line otherwise. It observes the playback service's waiting facts and owns no retry, clock or transport;
  * it never takes a touch or focus. */
+const ringTurnMs = 900;
+const linear = (value: number) => {'worklet'; return value;};
 export function PlaybackWaiting({waiting, preparing = false}: {waiting: boolean; preparing?: boolean}) {
   const theme = useTheme(), motion = useMotion(), turn = useSharedValue(0), [shown, setShown] = useState(false);
   useEffect(() => {
@@ -21,10 +23,12 @@ export function PlaybackWaiting({waiting, preparing = false}: {waiting: boolean;
     return () => clearTimeout(timer);
   }, [waiting]);
   const turning = shown && !motion.reduce;
+  // One turn every 0.9 s, at an even speed, restarted each turn (the same few animation pieces the kit's other states use).
   useEffect(() => {
     if (!turning) {cancelAnimation(turn); turn.value = 0; return;}
-    turn.value = withRepeat(withTiming(1, {duration: 900, easing: Easing.linear}), -1, false);
-    return () => cancelAnimation(turn);
+    const spin = () => {turn.value = 0; turn.value = withTiming(1, {duration: ringTurnMs, easing: linear});};
+    spin(); const timer = setInterval(spin, ringTurnMs);
+    return () => {clearInterval(timer); cancelAnimation(turn);};
   }, [turning, turn]);
   const ring = useAnimatedStyle(() => ({transform: [{rotate: `${-90 + turn.value * 360}deg`}]}));
   if (!waiting || !shown) return null;
