@@ -247,6 +247,8 @@ export const settingsMessages = {
   'next.settings.ownerSwitch.newTabSwitch': 'A new tab opens there. The switch happens when you approve.',
   'next.settings.ownerSwitch.newTabStartOver': 'A new tab opens there. Nothing is removed until you approve.',
   'next.settings.ownerSwitch.approvalUnavailable': 'Portico Services can’t be reached right now. Try again in a few minutes.',
+  'next.settings.ownerSwitch.continueToApprove': 'Continue to web.getportico.tv',
+  'next.settings.ownerSwitch.approvingOwner': 'The new owner approves in the new tab with their Portico Account. This page carries on by itself.',
   'next.settings.hardware.format.hevc8': 'HEVC 8-bit',
   'next.settings.hardware.format.hevc10': 'HEVC 10-bit',
   'next.settings.hardware.format.mpeg2': 'MPEG-2',
@@ -270,6 +272,6 @@ export const settingsMessages = {
   'next.settings.librarySonic.complete': 'All {total} songs analyzed',
   'next.settings.librarySonic.unavailable': 'Can’t run on this server: the analysis engine didn’t load.',
   'next.settings.librarySonic.retryUnavailable': 'Still can’t load. The log in Troubleshooting has the reason.',
-  'next.settings.changeOwnerLocalBody': 'Another server account becomes the owner. You become a member.',
+  'next.settings.changeOwnerLocalBody': 'Another server account becomes the owner. You become an administrator unless you choose otherwise.',
   'next.settings.streaming.memoryUnavailable': 'Memory is unavailable on this server.',
 } as const;

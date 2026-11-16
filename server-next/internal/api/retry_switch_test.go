@@ -8,6 +8,7 @@ func init() {
 		"POST /v1/admin/sign-in/finish":         "sets the state: a repeat finds nobody waiting",
 		"POST /v1/admin/members/{id}/move-code": "replaces the person's code; the answer is the only copy either way",
 		"POST /v1/admin/sign-in/move-codes":     "replaces everyone's codes; the answer is the only copy either way",
+		"POST /v1/admin/owner/approval":         "starts another approval, but changes no owner until it is approved and submitted",
 		"POST /v1/admin/owner":                  "happens once: a repeat is refused, the caller is no longer the owner",
 		"POST /v1/auth/move/check":              "an old password makes a ticket: a repeat makes another, each working once and for minutes",
 		"POST /v1/auth/move/ticket":             "changes nothing: it reads which account a ticket is for, without using it",

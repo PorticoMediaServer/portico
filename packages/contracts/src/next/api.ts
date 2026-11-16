@@ -2547,6 +2547,16 @@ export interface OwnCertificateStatus {
   expiresSoon?: boolean;
 }
 
+export interface OwnerApproval {
+  approvalUrl?: string;
+  approval?: PorticoApproval;
+  porticoUnavailable?: boolean;
+}
+
+export interface OwnerApprovalRequest {
+  returnUrl: string;
+}
+
 export interface OwnerChangeRequest {
   password?: string;
   code?: string;
@@ -4741,6 +4751,7 @@ export interface Routes {
   'POST /v1/admin/sign-in/finish': {access: 'owner'; request: undefined; response: FinishedMove};
   'POST /v1/admin/members/{id}/move-code': {access: 'admin'; request: undefined; response: MoveCodeOut};
   'POST /v1/admin/sign-in/move-codes': {access: 'admin'; request: undefined; response: MoveCodeOutPage};
+  'POST /v1/admin/owner/approval': {access: 'owner'; request: OwnerApprovalRequest; response: OwnerApproval};
   'POST /v1/admin/owner': {access: 'owner'; request: OwnerChangeRequest; response: undefined};
   'POST /v1/auth/move/check': {access: 'public'; request: MoveCheckRequest; response: MoveCheck};
   'POST /v1/auth/move/complete': {access: 'public'; request: MoveCompleteRequest; response: SignInResponse};

@@ -177,11 +177,30 @@ type OwnerChangeRequest struct {
 	// Password (and Code, with two-step sign-in) prove the owner on a local server.
 	Password string `json:"password,omitempty"`
 	Code     string `json:"code,omitempty"`
-	// AccountID is an existing account to make the owner, or NewAccount one to make.
+	// AccountID is an existing account to make the owner, or NewAccount one to make, on a
+	// local server; on a Portico Accounts server the approval names the new owner.
 	AccountID  string        `json:"accountId,omitempty"`
 	NewAccount *MemberCreate `json:"newAccount,omitempty"`
-	Approval   string        `json:"approval,omitempty"`
-	Previous   string        `json:"previousOwner"`
+	// Approval, on a Portico Accounts server, is the new owner's approval as it came back.
+	Approval string `json:"approval,omitempty"`
+	Previous string `json:"previousOwner"`
+}
+
+// OwnerApprovalRequest starts a change of owner on a Portico Accounts server.
+type OwnerApprovalRequest struct {
+	// ReturnURL is the page the approval comes back to.
+	ReturnURL string `json:"returnUrl"`
+}
+
+// OwnerApproval is where the new owner approves with their Portico Account.
+type OwnerApproval struct {
+	// ApprovalURL is the page to approve on; Approval the same approval in full: its id, the
+	// code to match when approving on another device, and the token for asking whether it has
+	// been given.
+	ApprovalURL string           `json:"approvalUrl,omitempty"`
+	Approval    *PorticoApproval `json:"approval,omitempty"`
+	// PorticoUnavailable says Portico Services could not be reached for the approval.
+	PorticoUnavailable bool `json:"porticoUnavailable,omitempty"`
 }
 
 // LeaveRequest is a member leaving a Portico Accounts server.
@@ -215,6 +234,7 @@ func (s *Server) signInKindRoutes() {
 	Handle(s, "POST /v1/admin/sign-in/finish", Owner, s.finishMove).Scope = ScopeSession
 	Handle(s, "POST /v1/admin/members/{id}/move-code", Admin, s.moveCode).Scope = ScopeSession
 	Handle(s, "POST /v1/admin/sign-in/move-codes", Admin, s.moveCodes).Scope = ScopeSession
+	Handle(s, "POST /v1/admin/owner/approval", Owner, s.ownerApproval).Scope = ScopeSession
 	Handle(s, "POST /v1/admin/owner", Owner, s.changeOwner).Scope = ScopeSession
 	Handle(s, "POST /v1/auth/move/check", Public, s.moveCheck)
 	Handle(s, "POST /v1/auth/move/complete", Public, s.moveComplete)
@@ -288,20 +308,41 @@ func (s *Server) signInPreview(r *http.Request, req SignInPreviewRequest) (SignI
 		out.SignInAgain, out.ProfilesKept, out.KeysPaused = c.People, c.Profiles, c.Keys
 	}
 	if req.To == "portico" && req.ReturnURL != "" {
-		if u, err := url.Parse(req.ReturnURL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
-			return SignInPreview{}, ErrField("returnUrl", "Send the full address of the page to come back to.")
-		}
-		name := s.serverName()
-		approval, err := s.hosted.StartApproval(r.Context(), hosted.ApprovalRequest{ServerID: s.id, ServerName: name,
-			Purpose: hosted.PurposeSwitch, ReturnURL: req.ReturnURL})
+		started, err := s.startApproval(r, hosted.PurposeSwitch, req.ReturnURL)
 		if err != nil {
-			out.PorticoUnavailable = true
-		} else {
-			answer := approvalOut(approval)
-			out.ApprovalURL, out.Approval = approval.URL, &answer
+			return SignInPreview{}, err
 		}
+		out.ApprovalURL, out.Approval, out.PorticoUnavailable = started.ApprovalURL, started.Approval, started.PorticoUnavailable
 	}
 	return out, nil
+}
+
+// startApproval asks Portico Services for an approval for purpose that comes back to returnURL.
+// Portico Services not answering is said in the answer, not refused.
+func (s *Server) startApproval(r *http.Request, purpose hosted.Purpose, returnURL string) (OwnerApproval, error) {
+	if u, err := url.Parse(returnURL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		return OwnerApproval{}, ErrField("returnUrl", "Send the full address of the page to come back to.")
+	}
+	approval, err := s.hosted.StartApproval(r.Context(), hosted.ApprovalRequest{ServerID: s.id, ServerName: s.serverName(),
+		Purpose: purpose, ReturnURL: returnURL})
+	if err != nil {
+		return OwnerApproval{PorticoUnavailable: true}, nil
+	}
+	answer := approvalOut(approval)
+	return OwnerApproval{ApprovalURL: approval.URL, Approval: &answer}, nil
+}
+
+// ownerApproval starts the approval a change of owner on a Portico Accounts server needs: the
+// new owner gives it with their Portico Account (definition area 2 rule 32).
+func (s *Server) ownerApproval(r *http.Request, req OwnerApprovalRequest) (OwnerApproval, error) {
+	kind, err := s.signInKind(r.Context())
+	if err != nil {
+		return OwnerApproval{}, err
+	}
+	if kind != "portico" {
+		return OwnerApproval{}, ErrConflict("not_portico_accounts", "This server uses local sign-in: choose the new owner here, with your password.")
+	}
+	return s.startApproval(r, hosted.PurposeChangeOwner, req.ReturnURL)
 }
 
 // approved checks a Portico approval brought back for purpose, through Portico Services.
@@ -695,12 +736,13 @@ func (s *Server) changeOwner(r *http.Request, req OwnerChangeRequest) (None, err
 	if req.Previous != "admin" && req.Previous != "member" && req.Previous != "removed" {
 		return None{}, ErrField("previousOwner", "Choose admin, member or removed.")
 	}
-	if (req.AccountID == "") == (req.NewAccount == nil) {
-		return None{}, ErrField("accountId", "Choose an existing account or make a new one, not both.")
-	}
 	kind, err := s.signInKind(ctx)
 	if err != nil {
 		return None{}, err
+	}
+	// On a Portico Accounts server the approval names the new owner; on a local one the owner does.
+	if kind != "portico" && (req.AccountID == "") == (req.NewAccount == nil) {
+		return None{}, ErrField("accountId", "Choose an existing account or make a new one, not both.")
 	}
 	change := db.OwnerChange{OwnerID: caller.UserID, Previous: req.Previous, Now: now}
 	if kind == "portico" {

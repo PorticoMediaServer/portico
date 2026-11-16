@@ -492,3 +492,42 @@ func TestTheLinkFollowsAChangeOfOwner(t *testing.T) {
 		t.Fatalf("after a change of owner the link is %+v, was %+v", after, before)
 	}
 }
+
+// On a Portico Accounts server the owner starts the change of owner by asking Portico Services
+// for an approval the new owner gives; that approval alone names the new owner. A local server
+// never asks Portico Services and still needs the account chosen there (definition area 2 rule 32).
+func TestChangeOwnerStartsAnApprovalOnPorticoAccounts(t *testing.T) {
+	s, owner, _ := porticoServer(t)
+	fake := s.hosted.(*fakeHosted)
+	if code := status(t, s, "POST", "/v1/admin/owner/approval", owner, OwnerApprovalRequest{ReturnURL: "not an address"}); code != 400 {
+		t.Fatalf("an approval with no page to come back to answered %d, want 400", code)
+	}
+	var started OwnerApproval
+	if w := call(t, s, "POST", "/v1/admin/owner/approval", owner, OwnerApprovalRequest{ReturnURL: "https://den.example/settings"}, &started); w.Code != 200 {
+		t.Fatalf("starting a change of owner answered %d: %s", w.Code, w.Body)
+	}
+	last := fake.started[len(fake.started)-1]
+	if started.ApprovalURL == "" || started.Approval == nil || last.Purpose != hosted.PurposeChangeOwner || last.ReturnURL != "https://den.example/settings" {
+		t.Fatalf("the change of owner started %+v and answered %+v", last, started)
+	}
+	// An approval given for a switch does not hand the server over.
+	fake.decision = hosted.Decision{Purpose: hosted.PurposeSwitch, Account: hosted.Account{ID: "pa_8", Username: "robin"}}
+	change := OwnerChangeRequest{Approval: "approved-for-" + s.id, Previous: "member"}
+	if code := status(t, s, "POST", "/v1/admin/owner", owner, change); code < 400 {
+		t.Fatalf("an approval for a switch changed the owner (%d)", code)
+	}
+	fake.decision = hosted.Decision{Purpose: hosted.PurposeChangeOwner, Account: hosted.Account{ID: "pa_8", Username: "robin"}}
+	if w := call(t, s, "POST", "/v1/admin/owner", owner, change, nil); w.Code != 204 {
+		t.Fatalf("changing owner with the approval alone answered %d: %s", w.Code, w.Body)
+	}
+
+	local := newTestServer(t)
+	local.hosted = &fakeHosted{t: t, fail: true}
+	localOwner := onMain(t, local, setup(t, local)).AccessToken
+	if code := status(t, local, "POST", "/v1/admin/owner/approval", localOwner, OwnerApprovalRequest{ReturnURL: "https://den.example/settings"}); code != 409 {
+		t.Fatalf("a local server started a change-of-owner approval (%d)", code)
+	}
+	if code := status(t, local, "POST", "/v1/admin/owner", localOwner, OwnerChangeRequest{Password: testPassword, Previous: "admin"}); code != 400 {
+		t.Fatalf("a local change of owner with nobody chosen answered %d, want 400", code)
+	}
+}

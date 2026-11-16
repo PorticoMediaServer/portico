@@ -160,3 +160,24 @@ test('a switch to local sign-in sends the new owner credentials and answers the 
  }finally{setInstallationIdentity(undefined);}
 });
 
+
+// Change owner on a Portico Accounts server (definition 02 rules 32 and 33): the server asks Portico Services for the
+// approval the new owner gives; the approval alone then names the new owner, with what the previous owner becomes.
+test('a change of owner asks for an approval that comes back here, then sends only the approval and the previous owner\'s choice',async()=>{
+ const approval={approvalId:'apr_1',approvalUrl:'https://web.example/approve/apr_1',pollToken:'poll',expiresAt:until,pollAfterMs:5};
+ const f=fixture({approvalUrl:approval.approvalUrl,approval});
+ const client=new AccountMoveClient(f.api,f.options);
+ const started=await client.ownerApproval('https://server.example/settings');
+ assert.deepEqual(f.calls.at(-1),{path:'/v1/admin/owner/approval',method:'POST',body:{returnUrl:'https://server.example/settings'}});
+ assert.equal(started.approval?.approvalUrl,approval.approvalUrl);assert.equal(started.porticoUnavailable,undefined);
+ f.set({porticoUnavailable:true});
+ assert.deepEqual(await client.ownerApproval('https://server.example/settings'),{porticoUnavailable:true});
+ f.set(undefined);
+ await client.changeOwner('signed-approval','removed');
+ assert.deepEqual(f.calls.at(-1),{path:'/v1/admin/owner',method:'POST',body:{approval:'signed-approval',previousOwner:'removed'}});
+ const before=f.calls.length;
+ assert.throws(()=>client.changeOwner('','admin'),{code:'invalid_account_move'});
+ assert.throws(()=>client.changeOwner('signed-approval','owner' as never),{code:'invalid_account_move'});
+ assert.equal(f.calls.length,before,'nothing sent for a bad request');
+ client.dispose();
+});
