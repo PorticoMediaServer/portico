@@ -42,15 +42,15 @@ export async function emptyServerCache(api: ServerRequester, signal?: AbortSigna
   return (await callServer(api, 'POST /v1/admin/storage/cache/empty', {signal})).bytes;
 }
 
-/** Keep generated files: a preset that writes the one prepared-downloads time, or that time itself (#3208). */
+/** Keep generated files: Balanced, Shorter or Longer (#3208). The server keeps a download copy only until the device
+ * has the file (owner, 16 Nov), so no prepared-downloads time is read or sent; a server that still sends one is fine. */
 export const KEEPING_PRESETS = ['balanced', 'short', 'long'] as const;
-export const PREPARED_DOWNLOAD_DAYS = [7, 14, 30, 90, 365] as const;
-export type StorageKeeping = Readonly<{preset: (typeof KEEPING_PRESETS)[number] | 'custom'; preparedDownloadsDays: number}>;
-const keeping = (raw: {preset: string; preparedDownloadsDays: number}): StorageKeeping =>
-  ({preset: (KEEPING_PRESETS as readonly string[]).includes(raw.preset) ? raw.preset as StorageKeeping['preset'] : 'custom', preparedDownloadsDays: raw.preparedDownloadsDays});
+export type StorageKeeping = Readonly<{preset: (typeof KEEPING_PRESETS)[number] | 'custom'}>;
+const keeping = (raw: {preset: string}): StorageKeeping =>
+  ({preset: (KEEPING_PRESETS as readonly string[]).includes(raw.preset) ? raw.preset as StorageKeeping['preset'] : 'custom'});
 export async function readKeeping(api: ServerRequester, signal?: AbortSignal): Promise<StorageKeeping> {
   return keeping(await callServer(api, 'GET /v1/admin/storage/keeping', {signal}));
 }
-export async function saveKeeping(api: ServerRequester, edit: Readonly<{preset: (typeof KEEPING_PRESETS)[number]} | {preparedDownloadsDays: number}>, signal?: AbortSignal): Promise<StorageKeeping> {
+export async function saveKeeping(api: ServerRequester, edit: Readonly<{preset: (typeof KEEPING_PRESETS)[number]}>, signal?: AbortSignal): Promise<StorageKeeping> {
   return keeping(await callServer(api, 'PUT /v1/admin/storage/keeping', {body: edit, signal}));
 }
