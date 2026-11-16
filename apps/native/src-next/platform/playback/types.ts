@@ -27,7 +27,6 @@ import type {SegmentInput} from '../../../../../packages/client-core/src/playbac
 import type {QueueHeader} from '../../../../../packages/client-core/src/playback-v1/types';
 import type {QualityOption} from '../../../../../packages/client-core/src/playback-v1/quality';
 import type {NativePlaybackSubtitleControls} from './subtitle-controls';
-import type {NativeSubtitleFilePicker} from './subtitle-file-upload';
 import type {SubtitlePreferences} from '../../../../../packages/client-core/src/preference-effects';
 import type {NativePlaybackStartFailure} from './start-failure';
 import type {NativePlaybackCapacityWait} from './capacity-retry';
@@ -216,7 +215,6 @@ export type NativePlaybackRuntimeOptions = Readonly<{
   /** Optional actual destination binding. Its absence removes Cast from capabilities and API. */
   openDestinations?: (fence: PlaybackFence, anchorRef?: RefObject<View | null>) => Promise<void>;
   /** Platform-owned picker only; upload stays in the one current-source SubtitleService. */
-  subtitleFilePicker?: NativeSubtitleFilePicker;
   /** The platform factory actually wires the retained view's existing request props. */
   pictureInPictureControls?: true;
 }>;
