@@ -32,6 +32,7 @@ export const accountMessages = {
   'accounts.setup.waiting': 'Approve this server in your browser, then return here to continue.',
   'accounts.setup.elsewhere': 'Set up this server from a phone or a browser.',
   'accounts.move.sheetTitle': 'Codes for everyone waiting',
+  'accounts.move.sheetTitleOne': 'Sign-in code for {username}',
   'accounts.move.makeCodes': 'Make codes for everyone waiting',
   'accounts.move.nobodyWaiting': 'Nobody is waiting for a code right now.',
   'accounts.move.waitingHelp': 'The people who still need a code to reach this server.',
