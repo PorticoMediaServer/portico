@@ -60,8 +60,10 @@ go_fallback() {
     mkdir -p -- "$GOBIN"
     cd -- "$scratch"
     if ! metadata=$(go mod download -json github.com/zricethezav/gitleaks/v8@v8.30.1); then
-      echo 'gitleaks module download failed' >&2
-      exit 1
+      metadata=$(go mod download -json github.com/zricethezav/gitleaks/v8@v8.30.1) || {
+        echo 'gitleaks module download failed' >&2
+        exit 1
+      }
     fi
     module_version=$(printf '%s' "$metadata" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("Version", ""))') || {
       echo 'gitleaks module metadata was not valid JSON' >&2
@@ -77,7 +79,8 @@ go_fallback() {
       echo 'gitleaks module is not the expected sumdb-verified v8.30.1 release' >&2
       exit 1
     fi
-    go install github.com/zricethezav/gitleaks/v8@v8.30.1
+    go install github.com/zricethezav/gitleaks/v8@v8.30.1 ||
+      go install github.com/zricethezav/gitleaks/v8@v8.30.1
     installed=$("$scratch/gobin/gitleaks" version)
     echo "gitleaks fallback binary version: $installed" >&2
     if ! grep -Eq '(^|[^0-9.])v?8\.30\.1([^0-9.]|$)' <<<"$installed"; then
