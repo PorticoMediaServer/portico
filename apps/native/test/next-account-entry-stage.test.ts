@@ -79,7 +79,7 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
     '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {FormError, Button: 'Button', TextField: 'Field'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
     '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}}, '../../platform/server-sign-in': {NativeServerSignIn: SignIn}, '../../platform/portico-sign-in': {NativePorticoSignIn: Portico},
     '../../platform/server-connections': {browseNearby: async () => {events.push('discovery'); return [];}}, '../../platform/tv-sign-in': {}, '../../platform/account-authority': {},
-    '../../tv/auth': {}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'PhoneFrontDoor'}, 'react-native-qrcode-svg': {default: 'QR'},
+    '../../tv/auth': {TVFrontDoor: 'TVFrontDoor'}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'PhoneFrontDoor'}, 'react-native-qrcode-svg': {default: 'QR'},
   });
   const onStageChange = (...args: NativeAccountEntryStage[]) => {
     assert.equal(phase, 'layout'); assert.equal(args.length, 1, 'the observer receives only the stage, never fields or authority');
@@ -206,7 +206,7 @@ test('a TV that reaches a server nobody has set up says where setup happens and 
     await act(() => providerFields(f.tree())[0]!.props.onChangeText('https://public.example'));
     await act(() => f.tree().props.primaryAction.onPress());
     assert.deepEqual(f.stages, ['address'], 'the address screen stays; nothing navigates away with the focus');
-    assert.equal(f.tree().type, 'Layout', 'the same layout and its actions are still drawn');
+    assert.equal(f.tree().type, 'TVAuthLayout', 'the same shared TV account layout and its actions are still drawn');
     assert.equal(f.tree().props.primaryAction.id, 'inspect');
     assert.equal(f.tree().props.secondaryAction.id, 'back');
     const before = nodes(f.tree().props.beforeActions);
@@ -231,5 +231,21 @@ test('a refused Portico sign-in is said there, and not carried to Use a local se
     assert.equal(f.stages.at(-1), 'address');
     const alerts = nodes(f.tree().props.beforeActions).filter((node: any) => node.type === FormError || node.props?.accessibilityRole === 'alert');
     assert.deepEqual(alerts, [], 'Use a local server starts clean');
+  } finally {await f.host.unmount();}
+});
+
+
+test('a fresh TV local-server opening from Welcome empties the previous draft', async () => {
+  const f = await fixture('welcome', {tv: true});
+  try {
+    await act(() => f.tree().props.onLocal());
+    await act(() => providerFields(f.tree())[0]!.props.onChangeText('https://previous.example'));
+    assert.equal(providerFields(f.tree())[0]!.props.value, 'https://previous.example');
+    await act(() => f.tree().props.secondaryAction.onPress());
+    assert.equal(f.tree().type, 'TVFrontDoor');
+    await act(() => f.tree().props.onLocal());
+    assert.equal(providerFields(f.tree())[0]!.props.value, '');
+    assert.equal(f.tree().props.primaryAction.disabled, true);
+    assert.deepEqual(f.inspected, [], 'opening a new draft never sends the old address');
   } finally {await f.host.unmount();}
 });
