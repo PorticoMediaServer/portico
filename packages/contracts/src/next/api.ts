@@ -1236,6 +1236,7 @@ export interface Item {
   libraryId: string;
   chapter?: ItemChapter;
   entryId?: string;
+  nextEpisode?: Item;
   originalTitle?: string;
   summary?: string;
   tagline?: string;

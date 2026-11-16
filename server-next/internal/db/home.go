@@ -103,19 +103,35 @@ func (d *DB) continueRow(ctx context.Context, v Viewer, kinds []ItemKind, librar
 // watched episodes, without an expiry: a season may arrive years after the last play.
 // Each next episode is one seek in that show's episode order.
 func continueNext(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library string, items []Item) ([]Item, error) {
+	return continueNextInShow(ctx, tx, v, acc, library, items, 0)
+}
+
+// continueNextInShow uses the same next-up order for one show's page. A page's play target
+// is independent of dismissing Continue Watching, which only hides that Home row.
+func continueNextInShow(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library string, items []Item, show int64) ([]Item, error) {
+	scope := ` AND p.last_played_at > ifnull(p.continue_dismissed_at, 0)`
+	whole := ` AND NOT EXISTS (SELECT 1 FROM user_item_state done WHERE done.profile_id = @viewer_profile AND done.item_id = e.root_id AND done.played = 1)`
+	dismissed := `@at > ifnull(s.continue_dismissed_at, 0)`
+	from := `user_item_state p CROSS JOIN items e ON e.id = p.item_id`
+	if show != 0 {
+		scope = fmt.Sprintf(" AND e.root_id = %d", show)
+		from = `items e CROSS JOIN user_item_state p ON p.item_id=e.id`
+		whole = ""
+		dismissed = "1"
+	}
+
 	type recentEpisode struct{ root, last, season, number, at int64 }
 	recent, err := queryAll(ctx, tx, `SELECT root, last, season, number, at FROM (
 		SELECT e.root_id AS root, e.id AS last, ifnull(e.parent_index, 0) AS season,
 			ifnull(e.index_number, 0) AS number, p.last_played_at AS at,
 			row_number() OVER (PARTITION BY e.root_id ORDER BY p.last_played_at DESC,
 				e.parent_index DESC, e.index_number DESC, e.id DESC) AS chosen
-		FROM user_item_state p CROSS JOIN items e ON e.id = p.item_id
+		FROM `+from+`
 		WHERE p.profile_id = @viewer_profile AND p.played = 1 AND p.last_played_at IS NOT NULL
-			AND p.last_played_at > ifnull(p.continue_dismissed_at, 0)
+			`+scope+`
 			AND e.kind = @episode AND e.root_id IS NOT NULL AND `+acc.visible("e")+`
 			AND (@library = '' OR e.library_id = (SELECT id FROM libraries WHERE public_id = @library))
-			AND NOT EXISTS (SELECT 1 FROM user_item_state done
-				WHERE done.profile_id = @viewer_profile AND done.item_id = e.root_id AND done.played = 1)
+			`+whole+`
 		) WHERE chosen = 1 ORDER BY at DESC`,
 		append(v.args(), sql.Named("episode", KindEpisode), sql.Named("library", library)),
 		func(e *recentEpisode) []any { return []any{&e.root, &e.last, &e.season, &e.number, &e.at} })
@@ -132,7 +148,7 @@ func continueNext(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library
 	if len(recent) == 0 {
 		return items, nil
 	}
-	nextEpisode, err := tx.PrepareContext(ctx, `SELECT `+itemColumns(acc)+`, @at > ifnull(s.continue_dismissed_at, 0)`+itemFrom+`
+	nextEpisode, err := tx.PrepareContext(ctx, `SELECT `+itemColumns(acc)+`, `+dismissed+itemFrom+`
             i.root_id = @root AND i.kind = @episode
 			AND (ifnull(i.parent_index, 0), ifnull(i.index_number, 0), i.id) > (@season, @number, @last)
 			AND (@season = 0 OR ifnull(i.parent_index, 0) > 0) AND `+acc.visible("i")+`
