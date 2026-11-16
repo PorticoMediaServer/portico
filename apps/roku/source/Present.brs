@@ -118,8 +118,9 @@ end function
 ' Which of the eight generated-cover tints a title gets (0 to 7): the same rule as every other
 ' Portico app (packages/design generated-cover.ts), FNV-1a over the title's UTF-16 code units.
 function coverTint(title as string) as integer
-    hash = &h811C9DC5&
-    mask = &hFFFFFFFF&
+    ' the 32-bit hash is kept as two 16-bit halves, so no step leaves whole-number range
+    hi = &h811C
+    lo = &h9DC5
     for i = 1 to len(title)
         code = asc(mid(title, i, 1))
         units = [code]
@@ -128,10 +129,14 @@ function coverTint(title as string) as integer
             units = [55296 + int(code / 1024), 56320 + (code mod 1024)]
         end if
         for each unit in units
-            u& = unit
-            x& = (hash or u&) - (hash and u&)   ' exclusive or
-            hash = (x& * 16777619&) and mask
+            lo = (lo or unit) - (lo and unit)          ' exclusive or with the code unit
+            ' times the FNV prime 16777619 = 256 * 65536 + 403, modulo 2^32
+            low = lo * 403
+            high = hi * 403 + lo * 256 + int(low / 65536)
+            lo = low mod 65536
+            hi = high mod 65536
         end for
     end for
-    return hash mod 8
+    ' (hi * 65536 + lo) mod 8 is lo mod 8
+    return lo mod 8
 end function

@@ -13,6 +13,6 @@ contract are the reference, since none of that code can run on a Roku.
 - `images/` is generated: `python3 apps/roku/tools/make-assets.py` draws the backdrop, scrims, focus
   ring, masks, generated covers and icons from the shared design tokens. Roku cannot blur, draw a
   gradient or round a picture's corners, so those are pictures.
-- `tools/` also holds the compile check that runs on every change: `npm ci && npm run check`.
+- `tools/` also holds the compile check that runs on every change: `apps/roku/tools/check.sh`.
 
 There is no Roku simulator. What the app looks like and how focus moves is checked on a television.
