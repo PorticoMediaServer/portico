@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -34,15 +35,23 @@ func TestMetadataLanguageIsUsedAndCanBeUndone(t *testing.T) {
 	sh.s.UseProvider(provider)
 	films := get[ItemPage](t, sh.s, sh.owner, "/v1/items?library="+sh.library+"&kind=movie")
 	ids := []string{films.Items[0].ID, films.Items[1].ID}
-	if job := sh.startJob(JobStart{Kind: jobEditItems, Target: JobTarget{Items: ids}, Params: JSON(`{"language":"fr"}`)}); job.State != "done" {
+	if job := sh.startJob(JobStart{Kind: jobEditItems, Target: JobTarget{Items: ids}, Params: JSON(`{"metadataLanguage":"fr"}`)}); job.State != "done" {
 		t.Fatalf("bulk language: %+v", job)
 	}
 	read := func(id string) MetadataDocument {
 		t.Helper()
-		return get[MetadataDocument](t, sh.s, sh.owner, "/v1/admin/items/"+id+"/metadata")
+		doc := get[MetadataDocument](t, sh.s, sh.owner, "/v1/admin/items/"+id+"/metadata")
+		if _, duplicate := doc.Fields["language"]; duplicate {
+			t.Fatal("the metadata language appears twice")
+		}
+		stored, err := sh.s.db.MetadataDocument(context.Background(), id)
+		if err != nil || slices.Contains(stored.Locked, "language") {
+			t.Fatalf("a language choice was locked: %+v %v", stored.Locked, err)
+		}
+		return doc
 	}
 	for _, id := range ids {
-		if f := read(id).Fields["language"]; f.Value != "fr" || f.Source != "edit" || !f.Locked {
+		if f := read(id).Fields["metadataLanguage"]; f.Value != "fr" || f.Source != "edit" || f.Locked {
 			t.Fatalf("stored choice: %+v", f)
 		}
 	}
@@ -52,16 +61,24 @@ func TestMetadataLanguageIsUsedAndCanBeUndone(t *testing.T) {
 	// Undo the bulk edit on one film, as its own History entry promises.
 	history := get[Page[MetadataHistoryEntry]](t, sh.s, sh.owner, "/v1/admin/items/"+ids[0]+"/metadata/history")
 	sh.do("POST", "/v1/admin/items/"+ids[0]+"/metadata/history/"+history.Items[0].ID+"/undo", nil, nil, 200)
-	if f := read(ids[0]).Fields["language"]; f.Value != nil || f.Locked {
+	if f := read(ids[0]).Fields["metadataLanguage"]; f.Value != nil || f.Locked {
 		t.Fatalf("Undo did not restore inheritance: %+v", f)
 	}
 	doc := read(ids[1])
-	sh.patch(ids[1], doc.Revision, MetadataPatch{Language: new("not-a-language")}, nil, 422)
-	sh.patch(ids[1], doc.Revision, MetadataPatch{Language: new("")}, nil, 200)
+	sh.patch(ids[1], doc.Revision, MetadataPatch{MetadataLanguage: new("not-a-language")}, nil, 422)
+	sh.patch(ids[1], doc.Revision, MetadataPatch{MetadataLanguage: new("")}, nil, 200)
 	for _, id := range ids {
 		sh.do("POST", "/v1/admin/items/"+id+"/metadata/refresh", nil, nil, 200)
 	}
 	if provider.english.Load() != 2 {
 		t.Fatalf("inherited language was not used after Undo/clear: English %d", provider.english.Load())
+	}
+	if job := sh.startJob(JobStart{Kind: jobEditItems, Target: JobTarget{Items: ids}, Params: JSON(`{"metadataLanguage":"de","lock":true}`)}); job.State != "done" {
+		t.Fatalf("bulk German after clearing French: %+v", job)
+	}
+	for _, id := range ids {
+		if f := read(id).Fields["metadataLanguage"]; f.Value != "de" || f.Locked {
+			t.Fatalf("bulk German did not reach the cleared film: %+v", f)
+		}
 	}
 }

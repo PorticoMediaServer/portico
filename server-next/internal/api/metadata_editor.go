@@ -78,14 +78,14 @@ type MetadataDocument struct {
 func (d MetadataDocument) reply(h http.Header) int { etag(h, d.Revision); return 0 }
 
 // MetadataPatch edits a title. A field left out is left alone; a field or list sent is locked.
-// A list sent replaces the whole list. Lock and Unlock name fields to lock or unlock without
-// changing them; LockAll and UnlockAll do every field, list and the match.
+// MetadataLanguage is never locked. A list sent replaces the whole list. Lock and Unlock name
+// fields to lock or unlock without changing them; LockAll and UnlockAll do every lockable
+// field, list and the match.
 type MetadataPatch struct {
 	Title           *string           `json:"title,omitempty"`
 	SortTitle       *string           `json:"sortTitle,omitempty"`
 	OriginalTitle   *string           `json:"originalTitle,omitempty"`
 	PublicationType *string           `json:"publicationType,omitempty"`
-	Language        *string           `json:"language,omitempty"`
 	Edition         *string           `json:"edition,omitempty"`
 	Tagline         *string           `json:"tagline,omitempty"`
 	Summary         *string           `json:"summary,omitempty"`
@@ -125,7 +125,7 @@ var editorFields = map[db.ItemKind]struct {
 	credits       bool
 }{
 	db.KindMovie: {[]string{db.FieldTitle, db.FieldSortTitle, db.FieldOriginalTitle, db.FieldEdition, db.FieldTagline, db.FieldSummary,
-		db.FieldYear, db.FieldReleaseDate, db.FieldContentRating, db.FieldRating, db.FieldLanguage}, []string{db.FieldGenres, db.FieldStudios, db.FieldCountries, "labels"}, true},
+		db.FieldYear, db.FieldReleaseDate, db.FieldContentRating, db.FieldRating}, []string{db.FieldGenres, db.FieldStudios, db.FieldCountries, "labels"}, true},
 	db.KindShow: {[]string{db.FieldTitle, db.FieldSortTitle, db.FieldOriginalTitle, db.FieldTagline, db.FieldSummary, db.FieldYear,
 		db.FieldReleaseDate, db.FieldContentRating, db.FieldRating}, []string{db.FieldGenres, db.FieldStudios, db.FieldNetworks, db.FieldCountries, "labels"}, true},
 	db.KindSeason: {[]string{db.FieldTitle, db.FieldSortTitle, db.FieldSummary}, []string{"labels"}, false},
@@ -259,9 +259,6 @@ func (s *Server) editMetadata(r *http.Request, req MetadataPatch) (MetadataDocum
 		Summary: req.Summary, Year: req.Year, ReleaseDate: req.ReleaseDate, ContentRating: req.ContentRating, Genres: req.Genres, Studios: req.Studios,
 		Networks: req.Networks, Countries: req.Countries, Labels: req.Labels, Lock: req.Lock, Unlock: req.Unlock, LockAll: req.LockAll, UnlockAll: req.UnlockAll,
 		Language: req.MetadataLanguage}
-	if req.Language != nil {
-		edit.Language = req.Language
-	}
 	if err := s.useProvider(r, id, req.UseProvider, &edit); err != nil {
 		return MetadataDocument{}, err
 	}
@@ -272,9 +269,7 @@ func (s *Server) editMetadata(r *http.Request, req MetadataPatch) (MetadataDocum
 		}
 		edit.Credits = &credits
 	}
-	if err = s.itemMetadataLanguage(r.Context(), id, req.Language); err == nil {
-		_, err = s.db.EditMetadata(r.Context(), id, revision, edit)
-	}
+	_, err = s.db.EditMetadata(r.Context(), id, revision, edit)
 	switch {
 	case errors.Is(err, db.ErrStale):
 		return MetadataDocument{}, refusal(http.StatusPreconditionFailed, "stale", "This title changed. Reload and try again.", false)
@@ -329,7 +324,7 @@ func (s *Server) useProvider(r *http.Request, id string, fields []string, edit *
 	return nil
 }
 
-// itemMetadataLanguage validates the film's choice against its library provider's languages.
+// itemMetadataLanguage validates a bulk film choice against its library provider's languages.
 func (s *Server) itemMetadataLanguage(ctx context.Context, id string, language *string) error {
 	if language == nil {
 		return nil
@@ -339,7 +334,7 @@ func (s *Server) itemMetadataLanguage(ctx context.Context, id string, language *
 		return err
 	}
 	if target.Kind != db.KindMovie {
-		return fmt.Errorf("%w: language: Metadata language is edited on films.", db.ErrInvalid)
+		return fmt.Errorf("%w: metadataLanguage: Metadata language is edited on films.", db.ErrInvalid)
 	}
 	if *language == "" {
 		return nil // inherit, including in a local-metadata-only library
@@ -349,7 +344,7 @@ func (s *Server) itemMetadataLanguage(ctx context.Context, id string, language *
 		return err
 	}
 	if _, err = s.libraryLanguage(source.Kind, source.Provider, *language); err != nil {
-		return fmt.Errorf("%w: language: Choose a language offered by this metadata provider.", db.ErrInvalid)
+		return fmt.Errorf("%w: metadataLanguage: Choose a language offered by this metadata provider.", db.ErrInvalid)
 	}
 	return nil
 }
