@@ -12,6 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/fetch"
@@ -121,6 +124,9 @@ func (w work) candidate(c *Client, kind string, locale metadata.Locale, exact bo
 	if year == 0 {
 		year = w.SeasonYear
 	}
+	// AniList tells remakes apart by their year in the title, "Hunter x Hunter (2011)"; the
+	// year is shown, and compared, on its own.
+	title = strings.TrimSuffix(title, fmt.Sprintf(" (%d)", year))
 	poster := w.CoverImage.ExtraLarge
 	if poster == "" {
 		poster = w.CoverImage.Large
@@ -144,7 +150,8 @@ func (c *Client) Search(ctx context.Context, q metadata.Query) ([]metadata.Candi
 	}
 	var answer struct{ Page struct{ Media []work } }
 	query := `query($search:String!,$adult:Boolean){Page(page:1,perPage:10){media(type:ANIME,search:$search,isAdult:$adult,sort:SEARCH_MATCH){` + summaryFields + `}}}`
-	if err := c.query(ctx, query, map[string]any{"search": q.Title, "adult": adult}, &answer); err != nil {
+	// AniList's search finds no show for "Naruto Shippūden" but finds it for "Naruto Shippuden".
+	if err := c.query(ctx, query, map[string]any{"search": withoutAccents(q.Title), "adult": adult}, &answer); err != nil {
 		return nil, err
 	}
 	var out []metadata.Candidate
@@ -216,4 +223,14 @@ func (*Client) Children(_ context.Context, parent metadata.Ref, _ int, _ metadat
 		return nil, metadata.ErrNoOrder
 	}
 	return nil, metadata.ErrNotFound
+}
+
+// withoutAccents is the text with its accents and macrons taken off the letters.
+func withoutAccents(s string) string {
+	return norm.NFC.String(strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Mn, r) {
+			return -1
+		}
+		return r
+	}, norm.NFD.String(s)))
 }

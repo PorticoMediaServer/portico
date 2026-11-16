@@ -42,10 +42,12 @@ type ProviderID struct{ Provider, ID string }
 type Extra struct{ Kind, ParentPath string }
 type Disc struct{ Format, ParentPath string }
 type Reading struct {
-	Titles          []Evidence[string]
-	Years           []Evidence[int]
-	Seasons         []Evidence[int]
-	Episodes        []Evidence[[]int]
+	Titles   []Evidence[string]
+	Years    []Evidence[int]
+	Seasons  []Evidence[int]
+	Episodes []Evidence[[]int]
+	// EpisodeTitles is an episode's own name, from the words after its numbers.
+	EpisodeTitles   []Evidence[string]
 	AbsoluteNumbers []Evidence[int]
 	AirDates        []Evidence[string]
 	Parts           []Evidence[int]

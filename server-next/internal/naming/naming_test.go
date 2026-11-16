@@ -19,6 +19,7 @@ type corpusCase struct {
 	Part                     int
 	Edition, Disc            string
 	Track, DiscNumber        int
+	EpisodeTitle             string
 }
 
 func TestRealWorldCorpus(t *testing.T) {
@@ -48,6 +49,14 @@ func TestRealWorldCorpus(t *testing.T) {
 			}
 			if c.Episodes != nil && (len(r.Episodes) == 0 || !reflect.DeepEqual(r.Episodes[0].Value, c.Episodes)) {
 				t.Errorf("episodes: %+v; want %v", r.Episodes, c.Episodes)
+			}
+			if got := ""; len(r.EpisodeTitles) > 0 {
+				got = r.EpisodeTitles[0].Value
+				if c.Kind != "movie" && got != c.EpisodeTitle {
+					t.Errorf("episode title: %q; want %q", got, c.EpisodeTitle)
+				}
+			} else if c.EpisodeTitle != "" {
+				t.Errorf("no episode title; want %q", c.EpisodeTitle)
 			}
 			if c.Absolute != 0 && (len(r.AbsoluteNumbers) == 0 || r.AbsoluteNumbers[0].Value != c.Absolute) {
 				t.Errorf("absolute: %+v", r.AbsoluteNumbers)
