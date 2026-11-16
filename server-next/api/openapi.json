@@ -8562,6 +8562,21 @@
         ],
         "type": "object"
       },
+      "OwnerResetSessionRequest": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          }
+        },
+        "required": [
+          "code",
+          "device"
+        ],
+        "type": "object"
+      },
       "OwnerResetStart": {
         "properties": {
           "username": {
@@ -22849,6 +22864,50 @@
         "responses": {
           "204": {
             "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
+      }
+    },
+    "/v1/auth/owner-reset/session": {
+      "post": {
+        "operationId": "post_v1_auth_owner_reset_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerResetSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            },
+            "description": "OK"
           },
           "default": {
             "content": {

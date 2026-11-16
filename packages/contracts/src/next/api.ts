@@ -2554,6 +2554,11 @@ export interface OwnerResetFinish {
   turnOffTwoStep?: boolean;
 }
 
+export interface OwnerResetSessionRequest {
+  code: string;
+  device: DeviceInfo;
+}
+
 export interface OwnerResetStart {
   username?: string;
 }
@@ -4503,6 +4508,7 @@ export interface Routes {
   'POST /v1/auth/password-reset/confirm': {access: 'public'; request: PasswordResetRequest; response: undefined};
   'POST /v1/auth/owner-reset': {access: 'public'; request: OwnerResetStart; response: OwnerResetStarted};
   'POST /v1/auth/owner-reset/confirm': {access: 'public'; request: OwnerResetFinish; response: undefined};
+  'POST /v1/auth/owner-reset/session': {access: 'public'; request: OwnerResetSessionRequest; response: SignInResponse};
   'POST /v1/auth/two-factor': {access: 'public'; request: TwoFactorFinish; response: SignInResponse};
   'GET /v1/me/two-factor': {access: 'signedIn'; request: undefined; response: TwoFactorState};
   'POST /v1/me/two-factor': {access: 'signedIn'; request: TwoFactorEnrol; response: TwoFactorSetup};
