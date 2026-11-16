@@ -1,4 +1,4 @@
-import {readWebPlaybackCapabilities} from '@core/query/playback.ts';
+import {readWebPlaybackCapabilities, scrubPreviewsEnabled} from '@core/query/playback.ts';
 import {readPlaybackItem, type PlaybackItem} from '@core/playback-v1/item.ts';
 import {readPlaybackItemBounded} from '@core/query/playback-item.ts';
 import {playbackFailurePermanent} from '@core/playback-messages.ts';
@@ -194,6 +194,8 @@ export class WebShellPlaybackRuntime {
   private disposed = false;
   /** The server offers §18 queue transitions (gapless and crossfade joins), read once (MU-5). */
   private queueTransitions = false;
+  /** Scrub previews are asked for only once the server says it makes them. */
+  private scrubPreviews = false;
   private replacing = false;
   private syncing = false;
   private again = false;
@@ -241,7 +243,7 @@ export class WebShellPlaybackRuntime {
     this.activate(this.stack);
     this.sync();
     // Read once for this runtime; a queue made before the answer follows it once it arrives.
-    void readServerCapabilities(source.api, this.life.signal).then(capabilities => {if (!this.disposed) this.queueTransitions = serverSupportsQueueTransitions(capabilities);}).catch(() => {});
+    void readServerCapabilities(source.api, this.life.signal).then(capabilities => {if (!this.disposed) {this.queueTransitions = serverSupportsQueueTransitions(capabilities); this.scrubPreviews = scrubPreviewsEnabled(capabilities);}}).catch(() => {});
     const page = environment.page ?? (typeof document === 'undefined' ? undefined : document);
     const browser = environment.browser ?? (typeof window === 'undefined' ? undefined : window);
     if (page) {
@@ -2086,7 +2088,7 @@ export class WebShellPlaybackRuntime {
    * The selection rechecks this exact session, source and viewer before every use. */
   trickplay(fence: PlaybackFence, signal: AbortSignal): Promise<PlaybackTrickplaySelection | null> {
     const scope = this.snapshot.offers?.scope;
-    if (fence.kind !== 'queue' || !this.matches(fence) || this.stack.mode !== 'server' || !scope) return Promise.resolve(null);
+    if (!this.scrubPreviews || fence.kind !== 'queue' || !this.matches(fence) || this.stack.mode !== 'server' || !scope) return Promise.resolve(null);
     return readPlaybackTrickplay({api: this.source.api, authority: this.authority, contentScope: this.source.contentScope,
       isCurrent: () => !this.disposed && this.matches(fence), getSnapshot: this.getSnapshot}, fence, {libraryId: scope.libraryId, itemId: scope.itemId}, signal);
   }
