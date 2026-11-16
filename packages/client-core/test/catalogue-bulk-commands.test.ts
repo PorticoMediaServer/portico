@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {catalogueBulkBase, catalogueBulkEdit, catalogueDeletionCommand} from '../src/catalogue-bulk-commands.ts';
+import {catalogueBulkBase, catalogueBulkEdit} from '../src/catalogue-bulk-commands.ts';
 import {bulkTargetLimit, validBulkEdit} from '../src/metadata-bulk.ts';
 import type {RepairFieldSpec} from '../src/metadata-repair.ts';
 
@@ -26,9 +26,3 @@ test('metadata commands preserve scalar/list/genre values, locks, target order a
   assert.equal(catalogueBulkBase(schema, {unknown: {value: 'ignored'}}, true), undefined);
 });
 
-test('deletion command preserves the preview revision, raw confirmation, file choice and stable identity', () => {
-  const command = catalogueDeletionCommand({revision: 7, targets: [{itemId: 'second'}, {itemId: 'first'}]} as never,
-    {confirmation: ' 2 ', removeFiles: false}, 'delete-1');
-  assert.equal(JSON.stringify(command), JSON.stringify({itemIds: ['second', 'first'], expectedRevision: 7, confirmation: ' 2 ', deleteFiles: false, operationId: 'delete-1'}));
-  assert.equal(Object.isFrozen(command), true);
-});

@@ -358,7 +358,7 @@ test('TV Delete keeps the owner, preview, exact confirmation and restriction gat
     assert.equal(surface.props.initialFocusRef, ofType(surface.props.footer, Button)[0]!.props.ref);
     assert.equal(await nativeControlID(ofType(surface.props.footer, Button)[0]!), controlID(props.testID, 'dismiss'));
     assert.equal(ofType(surface, TextField)[0]!.props.testID, controlID(props.testID, 'confirmation'));
-    assert.equal(ofType(surface, Switch)[0]!.props.testID, controlID(props.testID, 'remove-files'));
+    assert.equal(ofType(surface, Switch).length, 0, 'Delete always deletes the files: there is no switch (definition 03, decision O03)');
     let remove = ofType(surface.props.footer, Button)[1]!; assert.equal(remove.props.disabled, true); remove.props.onPress(); assert.deepEqual(calls, []);
     await dialog.update({...props, confirmation: '1'}); surface = dialog.tree as Element;
     remove = ofType(surface.props.footer, Button)[1]!; assert.equal(remove.props.disabled, false); remove.props.onPress(); assert.deepEqual(calls, [[preview, '1', true]]);
@@ -1128,36 +1128,22 @@ test('phone receipt rows stay contiguous while retaining every outcome and the f
   } finally {state.theme = previous;}
 });
 
-test('phone Delete separates full-width helper copy while preserving the real switch and confirmation gate', async () => {
+test('phone Delete says the files go for good, with no switch to keep them, and keeps the confirmation gate', async () => {
   const previous = state.theme; state.theme = createTheme({isTV: false, width: 390});
   const calls: unknown[] = [];
   const preview = {revision: 7, confirmation: 'Actual title', confirmationKind: 'title' as const, totalBytes: 0, totalFiles: 1, totalBytesText: '0 B', blocked: [], targets: [{itemId: 'a', title: 'Actual title', kind: 'movie', libraryId: 'one', libraryName: 'Actual library', allowMediaDeletion: true, titles: 1, bytes: 0, files: [], dependents: []}]};
   const props: DeleteMediaDialogProps = {testID: 'phone.delete.helper', open: true, onOpenChange() {}, ownerHeader: null, owner: true, selectionCount: 1, preview, confirmation: '', onConfirmationChange() {}, removeFiles: true, onRemoveFilesChange: value => calls.push(value), onDelete: (...args) => calls.push(args)};
   const dialog = await mount(DeleteMediaDialog, props);
   try {
-    const toggle = ofType(dialog.tree, Switch)[0]!;
-    assert.equal(toggle.props.description, undefined);
-    const help = ofType(dialog.tree, SelectionText).find(node => node.props.size === 12 && text(node) === toggle.props.accessibilityHint)!;
-    assert.ok(help, 'helper remains outside the switch copy column');
-    assert.equal(toggle.props.accessibilityLabel, text(toggle.props.children));
-    assert.equal(toggle.props.style.minHeight, 26); assert.equal(toggle.props.style.paddingVertical, 0);
+    assert.equal(ofType(dialog.tree, Switch).length, 0);
+    const help = ofType(dialog.tree, SelectionText).find(node => node.props.size === 12 && /The files are deleted from disk at once/.test(text(node)));
+    assert.ok(help, 'the consequence is said on its own full-width line');
     assert.equal(flattenStyle((dialog.tree as Element).props.footer.props.style).paddingHorizontal, 4);
-    const control = await mount(Switch, toggle.props);
-    try {await withNativeControl(control.tree as Element, host => {
-      assert.equal(host.props.testID, controlID(props.testID, 'remove-files'));
-      assert.equal(host.props.accessibilityRole, 'switch');
-      assert.equal(host.props.accessibilityState.checked, true);
-      assert.equal(host.props.accessibilityHint, text(help));
-      host.props.onPress({});
-    });} finally {await control.host.unmount();}
-    assert.deepEqual(calls, [false]);
     let remove = ofType((dialog.tree as Element).props.footer, Button).at(-1)!;
-    assert.equal(remove.props.disabled, true); remove.props.onPress(); assert.deepEqual(calls, [false]);
-    await dialog.update({...props, confirmation: preview.confirmation, removeFiles: false});
-    assert.match(text(dialog.tree), /The next scan finds the files again/);
+    assert.equal(remove.props.disabled, true); remove.props.onPress(); assert.deepEqual(calls, []);
+    await dialog.update({...props, confirmation: preview.confirmation});
     remove = ofType((dialog.tree as Element).props.footer, Button).at(-1)!;
-    assert.equal(remove.props.disabled, false); remove.props.onPress(); assert.deepEqual(calls, [false, [preview, preview.confirmation, false]]);
-    await dialog.update({...props, pending: true}); assert.equal(ofType(dialog.tree, Switch)[0]!.props.disabled, true);
+    assert.equal(remove.props.disabled, false); remove.props.onPress(); assert.deepEqual(calls, [[preview, preview.confirmation, true]]);
     await dialog.update({...props, owner: false}); assert.equal(dialog.tree, null);
   } finally {await dialog.host.unmount(); state.theme = previous;}
 });
@@ -1179,9 +1165,8 @@ test('phone multi-delete shows the drawn aggregate while retaining the complete 
           assert.match(content, /Playlist and collection entries and saved places go too\./);
           assert.doesNotMatch(content, /Actual target|Artwork actual-|12 playlists/);
           assert.equal(ofType(dialog.tree, TextField)[0]!.props.keyboardType, 'default', 'the drawn phone count confirmation uses the native text keyboard');
-          const toggle = ofType(dialog.tree, Switch)[0]!;
-          assert.ok(toggle.props.accessibilityHint, 'the real removal consequence remains available to accessibility');
-          assert.equal(ofType(dialog.tree, SelectionText).some(node => text(node) === toggle.props.accessibilityHint), false, 'the compact bulk frame omits the separate removal helper');
+          assert.equal(ofType(dialog.tree, Switch).length, 0);
+          assert.equal(ofType(dialog.tree, SelectionText).some(node => /The files are deleted from disk at once/.test(text(node))), false, 'the compact bulk frame omits the separate removal helper');
         } else {
           assert.equal(ofType(dialog.tree, TextField)[0]!.props.keyboardType, 'number-pad');
           assert.match(content, /Actual target 0/);
@@ -1201,8 +1186,7 @@ test('phone multi-delete shows the drawn aggregate while retaining the complete 
           await dialog.update({...props, preview: other});
           assert.match(text(dialog.tree), /2 scheduled library channel slots/);
           assert.doesNotMatch(text(dialog.tree), /Playlist and collection entries and saved places go too/);
-          const toggle = ofType(dialog.tree, Switch)[0]!;
-          assert.ok(ofType(dialog.tree, SelectionText).some(node => text(node) === toggle.props.accessibilityHint), 'other dependency previews retain the existing helper');
+          assert.ok(ofType(dialog.tree, SelectionText).some(node => /The files are deleted from disk at once/.test(text(node))), 'other dependency previews retain the existing helper');
         }
       } finally {await dialog.host.unmount();}
     }

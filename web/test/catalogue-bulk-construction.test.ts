@@ -84,48 +84,44 @@ test('web bulk retirement during ID allocation sends no body', async () => {
   assert.equal(f.ids(), 2); assert.equal(f.writes.length, 0);
 });
 
-function deletion(requestId?: () => Promise<string>) {
-  const targets = ['first', 'second'].map(itemId => ({itemId, libraryId: 'library', kind: 'movie' as const}));
-  const writes: any[] = []; let ids = 0;
+// Several titles: the rebuilt server's selection routes (definition 03 rules 63 to 69).
+function deletion(options: {removed?: number} = {}) {
+  const targets = ['first', 'second'].map(itemId => ({itemId, libraryId: 'library', kind: 'movie' as const, title: itemId === 'first' ? 'First' : 'Second'}));
+  const writes: any[] = [], reads: string[] = [];
   const producer = new LibraryDeleteProducer();
-  const ports = {serverId: 'server', viewerId: 'viewer', isCurrent: () => true,
-    requestId: async () => {ids++; return requestId ? requestId() : 'delete-1';},
+  const ports = {serverId: 'server', viewerId: 'viewer', isCurrent: () => true, requestId: async () => 'unused',
     api: {async request(path: string, method?: string, body?: any) {
-      assert.equal(method, 'POST');
-      if (path.endsWith('/preview')) return {protocolVersion: '1.0', serverId: 'server', result: {
-        revision: 17, confirmation: '2', confirmationKind: 'count', totalBytes: 0, totalFiles: 0, totalBytesText: '0 B', blocked: [],
-        targets: [...targets].reverse().map(target => ({...target, title: target.itemId, libraryName: 'Movies', allowMediaDeletion: true, titles: 1, bytes: 0, files: [], dependents: []})),
-      }};
-      assert.equal(path, '/v1/admin/media/delete'); writes.push(body);
+      if (path === '/v1/admin/items/deletion') return {count: 2, titles: 2, files: 2, bytes: 4096, listEntries: 3, otherPeople: 0, alsoRemoves: []};
+      if (method === 'GET') {reads.push(path); if (path.endsWith('/first')) throw Object.assign(new Error('gone'), {code: 'not_found'}); return {};}
+      assert.equal(path, '/v1/admin/items/delete'); writes.push(body);
       if (writes.length === 1) throw new Error('unknown deletion outcome');
-      return {protocolVersion: '1.0', serverId: 'server', result: {revision: 18, removed: 2, failed: 0, bytesDeleted: 0, filesRetained: true,
-        receipts: targets.map(target => ({itemId: target.itemId, title: target.itemId, removed: true, filesDeleted: 0, filesKept: 0, bytes: 0}))}};
+      return {removed: options.removed ?? 2, filesDeleted: 2, bytes: 4096, kept: options.removed === 1 ? [{path: '/films/Second.mkv', reason: 'The file changed since Portico last read it.'}] : [], alsoRemoved: []};
     }}};
   producer.open(targets, ports as never);
-  return {producer, writes, ids: () => ids};
+  return {producer, writes, reads};
 }
 
-test('web deletion keeps selected order, frozen body and original ID after a lost response', async () => {
+test('several titles are confirmed by typing the count; a lost answer is tried again for the same titles', async () => {
   const f = deletion();
   try {
     await tick(); assert.equal(f.producer.getSnapshot().phase, 'ready');
-    f.producer.setConfirmation(' 2 '); await f.producer.confirm(); assert.equal(f.writes.length, 0); assert.equal(f.ids(), 0);
-    f.producer.setConfirmation('2'); f.producer.setRemoveFiles(false); await f.producer.confirm();
-    assert.equal(f.producer.getSnapshot().phase, 'uncertain'); assert.equal(f.writes.length, 1);
-    assert.equal(JSON.stringify(f.writes[0]), JSON.stringify({itemIds: ['first', 'second'], expectedRevision: 17, confirmation: '2', deleteFiles: false, operationId: 'delete-1'}));
-    assert.equal(Object.isFrozen(f.writes[0]), true); assert.equal(Object.isFrozen(f.writes[0].itemIds), true);
+    assert.deepEqual([f.producer.getSnapshot().preview?.confirmation, f.producer.getSnapshot().preview?.listEntries], ['2', 3]);
+    f.producer.setConfirmation(' 2 '); await f.producer.confirm(); assert.equal(f.writes.length, 0);
+    f.producer.setConfirmation('2'); await f.producer.confirm();
+    assert.equal(f.producer.getSnapshot().phase, 'uncertain'); assert.deepEqual(f.writes, [{ids: ['first', 'second']}]);
     await f.producer.retry(); assert.equal(f.producer.getSnapshot().phase, 'result');
-    assert.equal(f.ids(), 1); assert.equal(f.writes.length, 2); assert.equal(f.writes[0], f.writes[1]);
+    assert.deepEqual(f.writes, [{ids: ['first', 'second']}, {ids: ['first', 'second']}]);
   } finally {f.producer.close();}
 });
 
-test('web deletion double confirm mints once and retirement while minting dispatches nothing', async () => {
-  let release!: (id: string) => void;
-  const pending = new Promise<string>(resolve => {release = resolve;}), f = deletion(() => pending);
+test('when the server kept a title, each is looked for: the one still there is named as kept, with the file and why (rule 68)', async () => {
+  const f = deletion({removed: 1});
   try {
-    await tick(); f.producer.setConfirmation('2');
-    const first = f.producer.confirm(), second = f.producer.confirm();
-    assert.equal(f.ids(), 1); f.producer.close(); release('delete-1'); await Promise.all([first, second]);
-    assert.equal(f.writes.length, 0); assert.equal(f.producer.getSnapshot().phase, 'idle');
+    await tick(); f.producer.setConfirmation('2'); await f.producer.confirm(); await f.producer.retry();
+    const result = f.producer.getSnapshot().result!;
+    assert.deepEqual([result.removed, result.failed], [1, 1]);
+    assert.deepEqual(result.receipts.map(receipt => [receipt.title, receipt.removed]), [['First', true], ['Second', false]]);
+    assert.deepEqual(result.kept, [{path: '/films/Second.mkv', reason: 'The file changed since Portico last read it.'}]);
+    assert.deepEqual(f.reads, ['/v1/items/first', '/v1/items/second']);
   } finally {f.producer.close();}
 });

@@ -28,21 +28,17 @@ function fixture(options: {failMetadataOnce?: boolean; partialMetadataOnce?: boo
         : {kind: target.kind, id: target.id, ok: true, revision: 'c'.repeat(64)});
       return {operationId: body.operationId, results, updated: results.filter((row: any) => row.ok).length, failed: results.filter((row: any) => !row.ok).length} as T;
     }
-    if (path === '/v1/admin/media/delete/preview') return {protocolVersion: '1.0', serverId: 'server', result: {
-      revision: 7, confirmation: '2', confirmationKind: 'count', totalBytes: 0, totalFiles: 0, totalBytesText: '0 B', blocked: [],
-      targets: entries.map(entry => ({itemId: entry.id, title: entry.title, kind: entry.kind, libraryId: entry.libraryId, libraryName: 'Library',
-        allowMediaDeletion: true, titles: 1, bytes: 0, files: [], dependents: []}))}} as T;
-    if (path === '/v1/admin/media/delete') {
+    if (path === '/v1/admin/items/deletion') return {count: 2, titles: 2, files: 2, bytes: 0, listEntries: 0, otherPeople: 0, alsoRemoves: []} as T;
+    if (path === '/v1/admin/items/delete') {
       deleteWrites++;
       if (options.failDeleteOnce && deleteWrites === 1) throw new Error('unknown delete outcome');
-      return {protocolVersion: '1.0', serverId: 'server', result: {revision: 8, removed: 2, failed: 0, bytesDeleted: 0, filesRetained: true,
-        receipts: entries.map(entry => ({itemId: entry.id, title: entry.title, removed: true, filesDeleted: 0, filesKept: 0, bytes: 0}))}} as T;
+      return {removed: 2, filesDeleted: 2, bytes: 0, kept: [], alsoRemoved: []} as T;
     }
     throw new Error(`unexpected ${method} ${path}`);
   }};
   bulk = new NativeBulkMedia({api, scope: {serverId: 'server', viewerId: 'owner'}, signal: life.signal, isCurrent: () => true,
     requestId: async () => {ids++; if (options.retireDuringId) bulk.close(); return `operation-${ids}`;}} as unknown as CatalogueSelectionOptions, entries);
-  return {bulk, calls, ids: () => ids, writes: () => calls.filter(call => call.path === '/v1/metadata/bulk'), deletions: () => calls.filter(call => call.path === '/v1/admin/media/delete')};
+  return {bulk, calls, ids: () => ids, writes: () => calls.filter(call => call.path === '/v1/metadata/bulk'), deletions: () => calls.filter(call => call.path === '/v1/admin/items/delete')};
 }
 
 test('native metadata retains the exact core-built body and operation ID after an unknown outcome', async () => {
@@ -76,17 +72,16 @@ test('native failed-leaf retry refreshes only failed revisions and preserves its
   } finally {f.bulk.dispose();}
 });
 
-test('native deletion retains its original confirmation, file choice, revision and ID across uncertainty', async () => {
+test('native deletion of several is confirmed by the count, always deletes the files, and an uncertain answer is tried again for the same titles', async () => {
   const f = fixture({failDeleteOnce: true});
   try {
-    await f.bulk.openDelete(); f.bulk.setDeletion({confirmation: ' 2 ', removeFiles: false});
+    await f.bulk.openDelete();
+    assert.equal(f.bulk.getSnapshot().deletion?.removeFiles, true, 'Delete always deletes the files (definition 03, decision O03)');
+    f.bulk.setDeletion({confirmation: ' 2 '});
     await f.bulk.deleteNow(); assert.equal(f.bulk.getSnapshot().deletion?.phase, 'uncertain');
-    f.bulk.setDeletion({confirmation: '2', removeFiles: true});
     await f.bulk.deleteNow(); assert.equal(f.bulk.getSnapshot().deletion?.phase, 'result');
-    const writes = f.deletions(); assert.equal(writes.length, 2); assert.equal(f.ids(), 1);
-    assert.equal(writes[0].body, writes[1].body); assert.equal(Object.isFrozen(writes[0].body), true);
-    assert.deepEqual(writes[0].body, {itemIds: ['a', 'b'], expectedRevision: 7, confirmation: ' 2 ', deleteFiles: false, operationId: 'operation-1'});
-    assert.deepEqual(f.calls.find(call => call.path.endsWith('/delete/preview'))!.body, {itemIds: ['a', 'b']});
+    assert.deepEqual(f.deletions().map(call => call.body), [{ids: ['a', 'b']}, {ids: ['a', 'b']}]);
+    assert.deepEqual(f.calls.find(call => call.path === '/v1/admin/items/deletion')!.body, {ids: ['a', 'b']});
   } finally {f.bulk.dispose();}
 });
 

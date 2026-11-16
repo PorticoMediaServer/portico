@@ -2,7 +2,6 @@ import React, {useRef} from 'react';
 import {StyleSheet, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Button} from '../controls/Button';
-import {Switch} from '../controls/Switch';
 import {TextField} from '../controls/TextField';
 import {Icon} from '../Icon';
 import {useTheme} from '../theme';
@@ -33,8 +32,12 @@ export function DeleteMediaDialog(props: DeleteMediaDialogProps | QueryDeletePro
   const dependencies = [...totals].filter(([kind]) => kind !== 'progress').map(([kind, count]) => selectionText(kind === 'playlist' ? 'next.selection.native.dependent.playlist' : kind === 'collection' ? 'next.selection.native.dependent.collection' : kind === 'progress' ? 'next.selection.native.dependent.progress' : kind === 'saved' ? 'next.selection.native.dependent.saved' : kind === 'library-channel' ? 'next.selection.native.dependent.channel' : 'next.selection.native.dependent.recording', {count}));
   const phoneSummary = phone && (preview?.targets.length ?? 0) > 1 && [...totals.keys()].every(kind => kind === 'playlist' || kind === 'collection' || kind === 'progress');
   const kept = result?.receipts.filter(receipt => !receipt.removed) ?? [];
-  const removeFilesLabel = selectionText('next.selection.native.removeFiles');
-  const removeFilesHelp = selectionText(props.removeFiles ? 'next.selection.native.irrecoverable' : 'next.selection.native.filesStay');
+  // The rebuilt server counts what goes with the titles across the whole selection (definition 03 rule 65).
+  const goesWith = preview?.listEntries === undefined ? [] : [
+    ...(preview.listEntries > 0 ? [defaultI18n.t('next.selection.listEntriesGo', {count: preview.listEntries})] : []),
+    ...(preview.otherPeople ? [defaultI18n.t('next.selection.othersSavedGo', {count: preview.otherPeople})] : []),
+    ...(preview.alsoRemoves?.length ? [defaultI18n.t('next.selection.alsoRemoves', {titles: defaultI18n.list(preview.alsoRemoves.map(ref => ref.title))})] : [])];
+  const descendants = preview ? preview.targets.length > 1 && preview.titlesTotal !== undefined ? preview.titlesTotal : preview.targets.reduce((sum, target) => sum + target.titles, 0) : 0;
   const footer = <View style={[styles.buttons, phone ? {paddingHorizontal: 4} : undefined, isTV ? {flexDirection: 'column', gap: 12} : undefined]}>
     <Button {...footerButton} testID={controlID(props.testID, 'dismiss')} ref={cancelRef} size="compact" variant={result ? 'primary' : 'glass'} style={[footerButton.style, {flex: isTV ? undefined : 1, alignSelf: 'stretch'}]} onPress={close}>{selectionText(result || restricted ? 'next.selection.native.close' : 'next.selection.native.cancel')}</Button>
     {!result ? <Button {...footerButton} testID={controlID(props.testID, 'delete')} size="compact" variant="text" disabled={!gate.allowed || !!props.error} loading={props.pending} style={[footerButton.style, {flex: isTV ? undefined : 1, alignSelf: 'stretch', backgroundColor: colors.record}]} textStyle={[footerButton.textStyle, {color: '#2a0808'}]} onPress={() => {if (preview && gate.allowed && !props.error) props.onDelete(preview, props.confirmation, props.removeFiles);}}>{props.selectionCount === 1 || restricted ? selectionText('next.selection.native.delete') : selectionText('next.selection.native.deleteCount', {count: props.selectionCount})}</Button> : null}
@@ -48,10 +51,14 @@ export function DeleteMediaDialog(props: DeleteMediaDialogProps | QueryDeletePro
           <View style={{flex: 1, gap: phone ? 0 : 3}}><SelectionText weight={700} style={phone ? {lineHeight: 20.3 * theme.textScale, includeFontPadding: false} : undefined}>{receipt.title}</SelectionText><SelectionText size={isTV ? 20 : 13.5} weight={phone ? 400 : undefined} secondary style={{lineHeight: isTV ? 29 : phone ? 19.575 * theme.textScale : 19.575, ...(phone ? {color: colors.textSecondary, includeFontPadding: false} : {})}}>{selectionText(receipt.code === 'file_changed' ? 'next.selection.native.fileChanged' : 'next.selection.native.fileNotRemoved')}</SelectionText></View>
         </View>)}
         {kept.length > 5 ? <SelectionText secondary>{selectionText('next.selection.native.andMore', {count: kept.length - 5})}</SelectionText> : null}
-      </> : restricted ? <View style={styles.warning} accessibilityLiveRegion="polite"><Icon name="i-warn" size={isTV ? 28 : 18} color={gate.reason === 'limit' ? colors.record : colors.amber} /><SelectionText size={isTV ? 22 : 13.5} style={{flex: 1}}>{selectionText(gate.reason === 'limit' ? 'next.selection.native.deleteLimit' : gate.reason === 'libraries' ? 'next.selection.native.deleteLibraries' : 'next.selection.native.deleteBlocked', {library: preview?.targets.find(target => !target.allowMediaDeletion)?.libraryName ?? preview?.blocked[0] ?? ''})}</SelectionText></View>
+        {result.kept?.length ? <View style={styles.warning}><Icon name="i-warn" size={isTV ? 28 : 18} color={colors.amber} /><View style={{flex: 1, gap: 3}}>
+          <SelectionText weight={700}>{defaultI18n.t('next.selection.keptFiles', {count: result.kept.length})}</SelectionText>
+          {result.kept.slice(0, 5).map(file => <SelectionText key={file.path} size={isTV ? 20 : 13} secondary>{file.path}: {file.reason}</SelectionText>)}
+        </View></View> : null}
+      </> : restricted ? <View style={styles.warning} accessibilityLiveRegion="polite"><Icon name="i-warn" size={isTV ? 28 : 18} color={gate.reason === 'limit' ? colors.record : colors.amber} /><SelectionText size={isTV ? 22 : 13.5} style={{flex: 1}}>{gate.reason === 'blocked' && preview?.refusal ? preview.refusal : selectionText(gate.reason === 'limit' ? 'next.selection.native.deleteLimit' : gate.reason === 'libraries' ? 'next.selection.native.deleteLibraries' : 'next.selection.native.deleteBlocked', {library: preview?.targets.find(target => !target.allowMediaDeletion)?.libraryName ?? preview?.blocked[0] ?? ''})}</SelectionText></View>
         : !preview && props.error ? null : props.loading || !preview ? <SelectionText secondary>{selectionText('next.selection.native.checking')}</SelectionText> : <>
-          {preview.targets.some(target => target.titles > 1) ? <>
-            <SelectionText weight={700}>{selectionText('next.selection.native.descendants', {count: preview.targets.reduce((sum, target) => sum + target.titles, 0)})}</SelectionText>
+          {descendants > preview.targets.length ? <>
+            <SelectionText weight={700}>{selectionText('next.selection.native.descendants', {count: descendants})}</SelectionText>
             <SelectionText secondary>{selectionText('next.selection.native.everythingBeneath')}</SelectionText>
           </> : null}
           {!phone && preview.targets.length > 1 ? <View style={{gap: 8}}>{preview.targets.slice(0, 5).map(target => <View key={target.itemId} style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
@@ -59,12 +66,9 @@ export function DeleteMediaDialog(props: DeleteMediaDialogProps | QueryDeletePro
             <View style={{flex: 1}}><SelectionText size={isTV ? 24 : 13.5} weight={700}>{target.title}</SelectionText><SelectionText size={isTV ? 20 : 12} secondary>{selectionText('next.selection.native.fileFacts', {count: target.files.length, size: defaultI18n.bytes(target.bytes)})}</SelectionText></View>
           </View>)}{preview.targets.length > 5 ? <SelectionText size={isTV ? 22 : 13.5} secondary>{selectionText('next.selection.native.andMore', {count: preview.targets.length - 5})}</SelectionText> : null}</View> : null}
           <SelectionText size={isTV ? undefined : 14} weight={phone ? 400 : undefined} secondary style={{lineHeight: isTV ? undefined : phone ? 21 * theme.textScale : 21, ...(phone ? {color: colors.textSecondary, includeFontPadding: false} : {})}}><SelectionText weight={700}>{selectionText('next.selection.native.fileFacts', {count: preview.totalFiles, size: preview.totalBytesText})}</SelectionText>{phoneSummary ? totals.size ? ` ${defaultI18n.t('next.selection.dependentsMany')}` : '' : <>{dependencies.length ? selectionText('next.selection.native.dependencies', {dependencies: defaultI18n.list(dependencies)}) : ''}{totals.get('progress') ? selectionText('next.selection.native.savedPlaces', {count: totals.get('progress')!}) : ''}</>}</SelectionText>
-          <Switch testID={controlID(props.testID, 'remove-files')} variant="selection" checked={props.removeFiles} onCheckedChange={props.onRemoveFilesChange} disabled={props.pending}
-            accessibilityLabel={phone ? removeFilesLabel : undefined} accessibilityHint={phone ? removeFilesHelp : undefined}
-            style={phone ? {minHeight: 26, paddingVertical: 0, gap: 14} : undefined} description={phone ? undefined : removeFilesHelp}>
-            {phone ? <SelectionText size={14.5} weight={700}>{removeFilesLabel}</SelectionText> : removeFilesLabel}
-          </Switch>
-          {phone && !phoneSummary ? <SelectionText size={12} weight={400} secondary style={{lineHeight: 18 * theme.textScale, includeFontPadding: false}}>{removeFilesHelp}</SelectionText> : null}
+          {goesWith.length ? <SelectionText size={isTV ? undefined : 14} secondary>{goesWith.join(' ')}</SelectionText> : null}
+          {/* Delete always deletes the files (definition 03, decision O03): there is no "only Portico's record". */}
+          {phone && phoneSummary ? null : <SelectionText size={isTV ? 20 : 12} weight={phone ? 400 : undefined} secondary style={phone ? {lineHeight: 18 * theme.textScale, includeFontPadding: false} : undefined}>{selectionText('next.selection.native.irrecoverable')}</SelectionText>}
           <TextField appearance="selection" testID={controlID(props.testID, 'confirmation')} value={props.confirmation} onChangeText={props.onConfirmationChange} editable={!props.pending} fieldStyle={phone ? {height: 46} : undefined} style={phone ? {fontSize: 16 * theme.textScale} : undefined}
             label={preview.confirmationKind === 'title' ? selectionText('next.selection.native.typeTitle') : selectionText('next.selection.native.typeCount', {count: preview.confirmation})}
             accessibilityLabel={preview.confirmationKind === 'title' ? selectionText('next.selection.native.typeTitle') : selectionText('next.selection.native.typeCount', {count: preview.confirmation})}
