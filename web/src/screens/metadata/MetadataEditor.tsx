@@ -209,7 +209,7 @@ function input(spec: RepairFieldSpec, value: string, set: (value: string) => voi
   // Frame 6: the language is chosen by name. The server takes any valid language tag,
   // so a value set elsewhere stays one of the choices.
   if (spec.field === 'metadataLanguage') return <select {...accessibility} value={value} data-empty={!value || undefined} onChange={event => set(event.currentTarget.value)}>
-    <option value="">{t('web.metadata.notSet')}</option>
+    <option value="">{t('web.metadata.fromLibrary')}</option>
     {[...new Set([...(value ? [value] : []), ...COMMON_LANGUAGES])].map(code => <option key={code} value={code}>{languageName(code, key => defaultI18n.has(key) ? t(key) : undefined, defaultI18n.locale)}</option>)}</select>;
   if (spec.type === 'multiline') return <textarea {...accessibility} rows={4} value={value} placeholder={t('web.metadata.notSet')} onChange={event => set(event.currentTarget.value)} />;
   return <input {...accessibility} type={spec.type === 'date' ? 'date' : 'text'} inputMode={spec.type === 'integer' || spec.type === 'number' ? 'numeric' : undefined} value={value} placeholder={t('web.metadata.notSet')} onChange={event => set(event.currentTarget.value)} />;
@@ -239,8 +239,8 @@ function Field({spec, field, draft, set, requiredTitle = false}: {requiredTitle?
     <span id={id + '-label'} className={styles.fieldLabel}>{label}
       {changed ? <em>{t('web.metadata.editorChanged')}</em> : null}
     </span>
-    <span className={styles.fieldControl} data-invalid={!!error || undefined}>{input(spec, value, next => set({value: next}), {'aria-labelledby': id + '-label', 'aria-describedby': id + '-hint' + (error ? ' ' + id + '-error' : ''), 'aria-invalid': Boolean(error)})}
-      <button type="button" className={styles.lock} aria-pressed={locked} title={t(locked ? 'web.metadata.lockedTip' : 'web.metadata.unlockedTip')} aria-label={t(locked ? 'web.metadata.unlockField' : 'web.metadata.lockField', {label})} onClick={() => set({locked: !locked})}>{locked ? <Icon name="i-lock" size={16}/> : <UnlockIcon size={16}/>}</button>
+    <span className={styles.fieldControl} data-invalid={!!error || undefined}>{input(spec, value, next => set({value: next, ...(spec.field === 'metadataLanguage' ? {locked: false} : {})}), {'aria-labelledby': id + '-label', 'aria-describedby': id + '-hint' + (error ? ' ' + id + '-error' : ''), 'aria-invalid': Boolean(error)})}
+      {spec.field !== 'metadataLanguage' ? <button type="button" className={styles.lock} aria-pressed={locked} title={t(locked ? 'web.metadata.lockedTip' : 'web.metadata.unlockedTip')} aria-label={t(locked ? 'web.metadata.unlockField' : 'web.metadata.lockField', {label})} onClick={() => set({locked: !locked})}>{locked ? <Icon name="i-lock" size={16}/> : <UnlockIcon size={16}/>}</button> : null}
     </span>
     {error ? <small id={id + '-error'} className={styles.fieldError} role="alert"><Icon name="i-warn" size={16}/>{error}</small> : null}
     <small id={id + '-hint'}>{said}{hint ? <span className={styles.fieldBounds}>{hint}</span> : null}</small>
