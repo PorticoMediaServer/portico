@@ -16,7 +16,8 @@ type BookAnswer struct {
 	Version  string        `json:"version"`
 	Versions []BookVersion `json:"versions"`
 	// Format is epub, pdf, cbz or images (a comic made of a folder of pictures) for a book this
-	// server opens; any other is one it cannot yet.
+	// server opens, a MOBI or AZW3 being read as the EPUB it is rebuilt into; any other is one
+	// it cannot yet.
 	Format string `json:"format"`
 	// Fingerprint names this exact file. A place or a highlight made on another fingerprint was
 	// made on another copy of the book, and is placed by how far through the book it was.
@@ -141,7 +142,7 @@ func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
 
 func bookProblemCode(err error) string {
 	switch err {
-	case reading.ErrFormatLater:
+	case reading.ErrFormatLater, reading.ErrLocked:
 		return "format_not_supported"
 	case reading.ErrRemote:
 		return "remote_storage"

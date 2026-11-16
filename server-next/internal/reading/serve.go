@@ -112,9 +112,9 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 		}
 		defer whole.Close()
 		http.ServeContent(w, r, "", f.modified, whole)
-	case strings.HasPrefix(file, "parts/") && format == FormatEPUB:
+	case strings.HasPrefix(file, "parts/") && (format == FormatEPUB || mobiFormat(format)):
 		deadline(w)
-		a, err := openArchive(f.at, f.size)
+		a, err := s.bookArchive(ctx, version, f, format)
 		if err != nil {
 			damaged(w, f, "book_damaged", err.Error())
 			return
