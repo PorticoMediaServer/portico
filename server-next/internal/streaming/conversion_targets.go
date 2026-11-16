@@ -79,11 +79,13 @@ func keptRange(v *SourceVideo, client ClientProfile, codec *ClientVideoCodec) st
 // capability, software otherwise, and whether the processor keeps up is not the server's to
 // decide). The source's HDR is kept wherever the device shows it and a 10-bit output carries
 // it. Otherwise, in standard range, the source's bit depth comes first, without promoting an
-// 8-bit source. Then, among outputs of the same bit depth and range, the one that makes the
-// larger picture for this device (a device may take HEVC larger than H.264); among those
-// that make the same picture, the chip's own; and last HEVC, H.264, AV1. So a chip only ever
-// makes a picture software would have made, in its own codec.
-func chooseVideoOutput(v *SourceVideo, client ClientProfile, transports []ClientTransport, allowHDR bool, outputs ConversionOutputs, audio *SourceAudio, target QualityTarget) (videoOutput, bool) {
+// 8-bit source; but a tone-mapped picture is 8-bit standard range, as Plex makes it (owner,
+// 16 Nov 2026), so toneMapped tries only 8-bit outputs. Then, among outputs of the same bit
+// depth and range, the one that makes the larger picture for this device (a device may take
+// HEVC larger than H.264); among those that make the same picture, the chip's own; and last
+// HEVC, H.264, AV1. So a chip only ever makes a picture software would have made, in its own
+// codec.
+func chooseVideoOutput(v *SourceVideo, client ClientProfile, transports []ClientTransport, allowHDR, toneMapped bool, outputs ConversionOutputs, audio *SourceAudio, target QualityTarget) (videoOutput, bool) {
 	preferredDepth := 8
 	if v != nil && v.BitDepth >= 10 {
 		preferredDepth = 10
@@ -119,6 +121,9 @@ func chooseVideoOutput(v *SourceVideo, client ClientProfile, transports []Client
 		}
 	}
 	for _, o := range ordered {
+		if toneMapped && o.BitDepth != 8 {
+			continue
+		}
 		if chosen, ok := tryVideoOutput(o, mediafacts.RangeSDR, client, transports, outputs, audio, target); ok {
 			return chosen, true
 		}
