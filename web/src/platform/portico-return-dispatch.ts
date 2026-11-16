@@ -1,6 +1,6 @@
 import {CodedError} from '@core/server-messages.ts';
 
-export type PorticoReturnPending = Readonly<{kind: 'owner' | 'setup'; transactionId: string}>;
+export type PorticoReturnPending = Readonly<{kind: 'owner'; transactionId: string}>;
 export type CapturedPorticoReturn = Readonly<{href: string; fragment: string}>;
 /** Run in the callback's first synchronous render, before storage or network.
  * The captured value stays in memory; refresh cannot replay the URL fragment. */
@@ -19,7 +19,7 @@ export function dispatchPorticoReturn(captured: CapturedPorticoReturn, pending: 
   const keys = [...values.keys()].sort().join(',');
   if (url.pathname !== '/auth/portico-return' || url.search || url.hash || url.username || url.password ||
       captured.fragment.length > 2048 || !captured.fragment.startsWith('#')) throw invalid();
-  if (pending.kind === 'owner' || pending.kind === 'setup') {
+  if (pending.kind === 'owner') {
     // The protected continuation producer's opaque id is captured in protected storage. Do not
     // invent a prefix or reinterpret an ordinary return id as an owner id.
     if (keys !== 'transaction' || values.getAll('transaction').length !== 1 || !/^[A-Za-z0-9_-]{1,128}$/.test(pending.transactionId) || values.get('transaction') !== pending.transactionId) throw invalid();

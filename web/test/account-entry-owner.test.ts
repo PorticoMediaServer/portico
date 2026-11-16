@@ -18,7 +18,7 @@ const session = (family: string, role = 'account'): LocalSession => ({accessToke
   sessionFamilyId: family, tokenGeneration: '1', installationId: 'i'.repeat(43), expiresAt: '2099-01-01T00:00:00Z', authorizationHorizon: '2099-02-01T00:00:00Z',
   viewer: {serverId, authority: 'local', accountId: 'owner-account', profileId: 'main', role}});
 
-async function fixture(kind:'owner'|'setup'|'ambiguous'='owner', admittedSetupOwner=false, observeFails=false) {
+async function fixture() {
   let raw: AppSessionRecord | undefined, portico = false, pending = true, remembers = 0, ownerFinishes = 0, cancels = 0;
   let gate: Promise<void> | undefined, release: (() => void) | undefined, pendingGate: Promise<void> | undefined, releasePending: (() => void) | undefined;
   let successor = false, mismatch = false, required = false, exchangeFailure = false, capturedAttempt = false;
@@ -34,7 +34,7 @@ async function fixture(kind:'owner'|'setup'|'ambiguous'='owner', admittedSetupOw
     capabilities: {manageAccount: false, managePeople: false, manageServer: false, manageSignIn: false},
     account: {id: 'owner-account', username: 'actual_owner', primaryProfileId: 'main', role: 'owner', revision: 1, disabled: false, allowedLibraries: [], ...(portico ? {hostedAccountId: hosted.accountId} : {})},
     profiles: [{id: 'main', name: 'Main', primary: true, position: 0, art: 'mint', revision: 1, pinRevision: 1, pinRequired: false},
-      ...(!admittedSetupOwner ? [{id: 'second', name: 'Second', primary: false, position: 1, art: 'blue', revision: 1, pinRevision: 1, pinRequired: false}] : [])],
+      {id: 'second', name: 'Second', primary: false, position: 1, art: 'blue', revision: 1, pinRevision: 1, pinRequired: false}],
     ...(live && required ? {twoStepSetupRequired: true} : {})});
   const api = new HttpLocalApi(origin, '');api.getRouteConnection = () => ({pin, getSnapshot: () => ({phase: 'ready'}), dispose() {}}) as never;
   api.request = (async path => {
@@ -44,8 +44,8 @@ async function fixture(kind:'owner'|'setup'|'ambiguous'='owner', admittedSetupOw
     throw new Error('Entry must not exchange, probe me, or admit again: ' + path);
   }) as HttpLocalApi['request'];
   const complete = async () => {
-    portico = true;await save(session('returned-owner', admittedSetupOwner ? 'owner' : 'account'));
-    const result = {kind: 'signed-in' as const, snapshot: snapshot(), session: session('returned-owner', admittedSetupOwner ? 'owner' : 'account'), accountScoped: !admittedSetupOwner, passwordChangeRequired: false};
+    portico = true;await save(session('returned-owner', 'account'));
+    const result = {kind: 'signed-in' as const, snapshot: snapshot(), session: session('returned-owner', 'account'), accountScoped: true, passwordChangeRequired: false};
     if (mismatch) result.session = {...result.session, viewer: {...result.session.viewer, profileId: 'different-profile'}};
     if (successor) await save(session('successor'));
     returnedRevision = (await store.read()).revision;returnedNotifications = notifications;
@@ -65,10 +65,8 @@ async function fixture(kind:'owner'|'setup'|'ambiguous'='owner', admittedSetupOw
     environment: () => ({storage: store.connectionStorage(serverId)}),
     restore: async captured => {events.push('restore');return {api, session: captured!};},
     inspect: async () => pin, connect: (async () => ({api, connection: api.getRouteConnection()})) as never,
-    remember: async () => {remembers++;}, ownerReturn: kind==='setup'?undefined:()=>owner,
-    setupReturn: kind==='setup'?()=>({...owner,pendingReturn:async()=>{const p=await owner.pendingReturn();return p?{...p,kind:'setup' as const}:undefined;}}):kind==='ambiguous'?()=>({pendingReturn:async()=>({kind:'setup' as const,transactionId:'actual-setup-transaction'}),finish:async()=>{throw new Error('ambiguous setup must not finish');},cancel:async()=>{throw new Error('ambiguous setup must not cancel');}}):undefined,
-    // Fails only once a setup Return's pending profiles state is up: the step right after it, inside admission.
-    observeSelection: hint => {if (observeFails && entry.getSnapshot().setupPending) throw new Error('selection watch unavailable'); hints.add(hint);return () => {hints.delete(hint);};},
+    remember: async () => {remembers++;}, ownerReturn: ()=>owner,
+    observeSelection: hint => {hints.add(hint);return () => {hints.delete(hint);};},
     retire: async (_api, value) => {retired.push(value.sessionFamilyId);},
   });
   return {entry, store, events, retired, hints, get remembers() {return remembers;}, get ownerFinishes() {return ownerFinishes;},
@@ -93,7 +91,7 @@ test('an old entry observer retires before the owner controller publishes its ow
   f.events.length = 0;await f.entry.finishPorticoReturn(callback);
   assert.deepEqual(f.events.slice(0, 2), ['owner:pending', 'owner:finish']);assert.equal(f.entry.getSnapshot().phase, 'profiles');f.entry.dispose();
 });
-test('a return without a protected owner or setup pending is refused', async () => {
+test('a return without a protected owner pending is refused', async () => {
   const f = await fixture();f.noOwner();await f.entry.finishPorticoReturn(normalCallback);
   assert.equal(f.ownerFinishes, 0);assert.equal(f.entry.getSnapshot().phase, 'welcome');
   assert.equal((f.entry.getSnapshot().error as {code: string}).code, 'invalid_return');assert.equal(f.remembers, 0);f.entry.dispose();
@@ -138,39 +136,4 @@ test('a terminal owner exchange failure does not fall back to member admission',
   const f = await fixture();f.failExchange();await f.entry.finishPorticoReturn(callback);
   assert.equal(f.ownerFinishes, 1);assert.equal(f.remembers, 0);assert.equal(f.entry.getSnapshot().phase, 'welcome');
   assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'original-owner');f.entry.dispose();
-});
-
-test('protected setup kind uses the setup controller without a Local owner continuation',async()=>{
- const f=await fixture('setup');await f.entry.finishPorticoReturn(callback);
- assert.equal(f.ownerFinishes,1);assert.equal(f.entry.getSnapshot().phase,'profiles');f.entry.dispose();
-});
-test('two protected continuation kinds refuse without URL selection or consuming either journal',async()=>{
- const f=await fixture('ambiguous');await f.entry.finishPorticoReturn(callback);
- assert.equal(f.ownerFinishes,0);assert.equal(f.cancels,0);assert.equal(f.pending,true);assert.equal(f.entry.getSnapshot().phase,'welcome');f.entry.dispose();
-});
-
-
-test('only protected setup with the real admitted sole owner can resume the first-library screen',async()=>{
- for(const kind of ['setup','owner'] as const){
-  const f=await fixture(kind,true),seen:ReturnType<typeof f.entry.getSnapshot>[]=[];
-  const off=f.entry.subscribe(()=>{seen.push(f.entry.getSnapshot());});
-  await f.entry.finishPorticoReturn(callback);off();
-  const state=f.entry.getSnapshot();
-  // A setup Return never shows a settled profile choice before admission decides: the page would leave for /profiles.
-  if(kind==='setup')assert.ok(!seen.some(value=>value.phase==='profiles'&&!value.busy&&!value.setupPending),'no settled profiles state during a setup Return');
-  assert.equal(state.setupPending,undefined);
-  assert.equal((await f.store.selected())?.connection.session.viewer.role,'owner');
-  assert.equal(state.phase,kind==='setup'?'ready':'profiles');
-  assert.equal(state.setupCompleted,kind==='setup'?true:undefined);
-  assert.equal(f.remembers,0);f.entry.dispose();
- }
-});
-test('a setup Return whose admission fails after the pending profiles state still leaves the page free to move on',async()=>{
- const f=await fixture('setup',true,true);let pending=false;f.entry.subscribe(()=>{if(f.entry.getSnapshot().setupPending)pending=true;});
- await f.entry.finishPorticoReturn(callback).catch(()=>{});
- const state=f.entry.getSnapshot();
- assert.equal(state.setupPending,undefined,'the page never waits on a setup decision that will not come');
- assert.ok(pending,'the failure came after the pending profiles state');
- assert.ok(state.error instanceof Error,'it shows the error');assert.notEqual(state.phase,'ready');assert.equal(state.setupCompleted,undefined);
- f.entry.dispose();
 });
