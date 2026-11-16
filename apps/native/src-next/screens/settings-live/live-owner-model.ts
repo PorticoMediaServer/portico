@@ -159,3 +159,20 @@ export function liveSourceFromOwner(source: import('../../../../../packages/clie
     diagnostics: {skippedChannels: report?.skippedChannels ?? 0, skippedProgrammes: report?.skippedProgrammes ?? 0, adjustedProgrammes: 0, examples: report?.examples ?? []},
   });
 }
+
+/** The source settings sheet's editable copy of a rebuilt source (GET /v1/admin/live/sources/{id}). */
+export type SourceSettingsDraft = Readonly<{name: string; audience: string; paused: boolean; tunerCount: number; config: import('../../../../../packages/contracts/src/next/api').LiveSourceConfig;
+  username: string; password: string; playlist?: string; guide?: string}>;
+type SourceSettingsDocument = import('../../../../../packages/client-core/src/server-admin/live-source-settings').SourceSettingsDocument;
+export const sourceSettingsDraft = (document: SourceSettingsDocument): SourceSettingsDraft => ({name: document.source.name, audience: document.source.audience, paused: document.source.paused,
+  tunerCount: document.source.tunerCount, config: {...document.source.config}, username: '', password: ''});
+/** Only what the owner changed is sent; a new sign-in or a replaced file is sent whole. */
+export function sourceSettingsChange(document: SourceSettingsDocument, draft: SourceSettingsDraft): import('../../../../../packages/contracts/src/next/api').LiveSourceSave {
+  const body: import('../../../../../packages/contracts/src/next/api').LiveSourceSave = {}, base = sourceSettingsDraft(document);
+  for (const key of ['name', 'audience', 'paused', 'tunerCount', 'config'] as const) if (JSON.stringify(draft[key]) !== JSON.stringify(base[key])) Object.assign(body, {[key]: draft[key]});
+  if (draft.username || draft.password) body.signIn = {username: draft.username, password: draft.password};
+  if (draft.playlist) body.playlist = draft.playlist;
+  if (draft.guide) body.guide = draft.guide;
+  return body;
+}
+

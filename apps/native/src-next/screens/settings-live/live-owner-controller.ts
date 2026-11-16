@@ -1,16 +1,14 @@
-import {deleteOwnerRecordingRule, discoverOwnerTuners, importOwnerSourceLogos, readOwnerChannelMap, readOwnerDvrDefaults, readOwnerLiveDefaults, readOwnerRecordingGuide, readOwnerRecordingOwners, readOwnerRecordingPermissions, readOwnerRecordingRules, readOwnerSourceConfiguration, readOwnerTuners, writeOwnerChannelMap, writeOwnerDvrDefaults, writeOwnerLiveDefaults, writeOwnerRecordingPermission, ownerRecordingRuleChange, sendOwnerRecordingRuleCommand, writeOwnerSourceConfiguration} from '../../../../../packages/client-core/src/owner-requests';
+import {deleteOwnerRecordingRule, discoverOwnerTuners, readOwnerDvrDefaults, readOwnerLiveDefaults, readOwnerRecordingGuide, readOwnerRecordingOwners, readOwnerRecordingPermissions, readOwnerRecordingRules, readOwnerTuners, writeOwnerDvrDefaults, writeOwnerLiveDefaults, writeOwnerRecordingPermission, ownerRecordingRuleChange, sendOwnerRecordingRuleCommand} from '../../../../../packages/client-core/src/owner-requests';
 import {setServerChannelHidden} from '../../../../../packages/client-core/src/server-channel-visibility';
 import {clonePortableDto} from '../../../../../packages/client-core/src';
-import {liveSourceChoicesService, parseEnvelope, type LiveSourceChoicePage} from '../../../../../packages/client-core/src/administration';
-import {rebaseDraft} from '../../../../../packages/client-core/src/freshness-actions';
+import {parseEnvelope} from '../../../../../packages/client-core/src/administration';
 import {lanConfirmationRoots, remoteSourceDraft, withConfirmedLanRoots, type RemoteSourceDraft, type RemoteSourcePreview, type SourceKind} from '../../../../../packages/client-core/src/linear-api';
 import type {LiveSourceInput} from '../../../../../packages/client-core/src/live-source-draft';
 import {NativeScreenLifetime, NativeScreenStore, screenScopeEnded} from './lifetime';
+import {importSourceLogos, readSourceChannels, readSourceChoices, readSourceSettings, saveSourceChannels, saveSourceSettings} from '../../../../../packages/client-core/src/server-admin/live-source-settings';
+import type {LiveSourceChannel} from '../../../../../packages/contracts/src/next/api';
 import {changeOwnerSource, createOwnerSource, previewOwnerSource, readOwnerSources, remoteSourceSave, uploadSourceSave, type OwnerSource, type SourceSave} from '../../../../../packages/client-core/src/server-admin/live-sources';
-import {
-  adminResult, liveSourceFromOwner, parseChannelMapPage, parseLiveDefaults, parseLogoImport, parseSourceDocument, parseTunerDiscovery, type UploadPreview,
-  type ChannelMapEdit, type ChannelMapPage, type LiveDefaults, type LiveSource, type LiveSources, type LiveSourceSettings, type LogoImportOutcome, type TunerDiscovery,
-} from './live-owner-model';
+import {adminResult, liveSourceFromOwner, parseLiveDefaults, parseTunerDiscovery, type UploadPreview, type ChannelMapEdit, type ChannelMapPage, type LiveDefaults, type LiveSource, type LiveSources, type LiveSourceSettings, type LogoImportOutcome, type TunerDiscovery} from './live-owner-model';
 import {needsRuleOwner, parseAdminRulePage, parseDVRDocument, parseRecordingPolicy, parseTunerView, type AdminRule, type DVRDefaults, type DVRDocument, type RecordingPolicy, type TunerView} from './recording-owner-model';
 import {recordingGuideRoute, recordingOwnerKey, recordingRulePayload, recordingSeries, type RecordingGrant, type RecordingOwner, type RecordingSeries} from '../../../../../packages/client-core/src/server-admin/recording-policy';
 import {parseChannelGuide} from '../../../../../packages/client-core/src/channel-guide';
@@ -99,47 +97,27 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
   /** Pausing and resuming is one switch on the rebuilt server; a source already as asked is left alone. */
   setEnabled = (id: string, enabled: boolean) => {const source = this.owned.get(id); return source && source.paused === enabled ? this.change(id, 'toggle') : Promise.resolve(undefined);};
   removeSource = (id: string) => this.change(id, 'remove');
-  importLogos = (id: string) => this.act(async () => parseLogoImport(await importOwnerSourceLogos({request: this.request}, id, {operationId: this.operationId()}), this.lifetime.authority.serverId), () => undefined);
-  document = async (id: string) => parseSourceDocument(await readOwnerSourceConfiguration({request: this.request}, id), this.lifetime.authority.serverId);
-  saveDocument = async (mark: Readonly<{sourceId: string; revision: number; settings: LiveSourceSettings}>, draft: LiveSourceSettings) => this.act(async () => {
-    const put = (revision: number, value: LiveSourceSettings) => writeOwnerSourceConfiguration({request: this.request}, mark.sourceId, {expectedRevision: revision, operationId: this.operationId(), settings: value});
-    let current = mark;
-    try { await put(current.revision, draft); }
-    catch (error) {
-      if(JSON.stringify(current.settings.remote)!==JSON.stringify(draft.remote))throw error;
-      const fresh = await this.document(current.sourceId).catch(() => {throw error;});
-      const rebased = rebaseDraft(current.settings, draft, fresh.settings);
-      if (rebased.conflict) throw error;
-      await put(fresh.revision, rebased.merged);
-      current = {sourceId: fresh.sourceId, revision: fresh.revision, settings: fresh.settings};
-    }
-    await this.load(true);
-    return current;
-  }, () => undefined);
-  channelMap = async (id: string, cursor = '') => parseChannelMapPage(await readOwnerChannelMap({request: this.request}, id, `?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`), this.lifetime.authority.serverId);
-  saveChannelMap = async (id: string, revision: number, edits: readonly Readonly<{channelId: string; override: ChannelMapEdit}>[]) => this.act(async () => {
-    const batches: typeof edits[number][][] = [];
-    for (let index = 0; index < edits.length; index += 200) batches.push(edits.slice(index, index + 200));
-    let current = revision, saved = 0;
-    for (const batch of batches) {
-      try {
-        const page = await writeOwnerChannelMap({request: this.request}, id, {expectedRevision: current, operationId: this.operationId(), overrides: batch.map(value => ({channelId: value.channelId, number: value.override.number.trim(), guideChannelId: value.override.guideChannelId.trim(), hidden: value.override.hidden}))});
-        parseChannelMapPage(page, this.lifetime.authority.serverId);
-        saved += batch.length; current += 1;
-      } catch (error) {
-        const partial = Object.assign(new Error('channel_map_partial'), {saved, total: edits.length, cause: error});
-        throw partial;
-      }
-    }
+  /** The rebuilt source's channels (GET /v1/admin/live/sources/{id}/channels) as the rows the channel map draws; kept by
+   * id so a save sends only what the owner changed. */
+  private channelRows = new Map<string, LiveSourceChannel>();
+  channelMap = async (id: string, cursor = ''): Promise<ChannelMapPage> => {
+    const page = await this.lifetime.request(signal => readSourceChannels(this.rebuiltApi(), id, '', cursor || undefined, signal));
+    for (const row of page.items) this.channelRows.set(row.id, row);
+    return Object.freeze({sourceId: id, generation: '', nextCursor: page.nextCursor ?? '', items: Object.freeze(page.items.map((row, position) => Object.freeze({
+      channelId: row.id, name: row.name, sourceNumber: row.sourceNumber ?? '', number: row.number, group: row.group ?? '', guideChannelId: row.guideKey ?? '', hidden: row.hidden,
+      position, overridden: (row.edited?.length ?? 0) > 0})))});
+  };
+  saveChannelMap = async (id: string, edits: readonly Readonly<{channelId: string; override: ChannelMapEdit}>[]) => this.act(async () => {
+    const changes = edits.map(({channelId, override}) => {
+      const row = this.channelRows.get(channelId); if (!row) throw new Error('missing_channel');
+      const number = override.number.trim();
+      return {id: channelId, ...(number !== row.number ? {number} : {}), ...(override.hidden !== row.hidden ? {hidden: override.hidden} : {}),
+        ...(override.guideChannelId !== (row.guideKey ?? '') ? {guideKey: override.guideChannelId} : {})};
+    });
+    const saved = await this.lifetime.request(signal => saveSourceChannels(this.rebuiltApi(), id, changes, signal));
     await this.load(true);
     return saved;
   }, () => undefined);
-  choices = async (id: string, kind: 'groups' | 'channels', cursor = '', query = ''): Promise<LiveSourceChoicePage> => {
-    this.lifetime.assert();
-    const value = await liveSourceChoicesService(<T,>(path: string, method?: string, body?: unknown) => this.request<T>(path, method, body), id).list(kind, cursor, 50, query);
-    this.lifetime.assert();
-    return value;
-  };
   discover = async (): Promise<TunerDiscovery> => parseTunerDiscovery(await discoverOwnerTuners({request: this.request}, {windowMs: 5000}), this.lifetime.authority.serverId);
   liveDefaults = async () => parseLiveDefaults(await readOwnerLiveDefaults({request: this.request}), this.lifetime.authority.serverId);
   saveLiveDefaults = async (revision: number, value: LiveDefaults) => parseLiveDefaults(await writeOwnerLiveDefaults({request: this.request}, {expectedRevision: revision, operationId: this.operationId(), settings: value}), this.lifetime.authority.serverId);
@@ -176,6 +154,15 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
       if (caller && (!caller.isCurrent() || caller.signal?.aborted === true)) throw new Error('cancelled');
       return liveSourceFromOwner(source);
     }, () => undefined, caller);
+  /** A source's own settings as the rebuilt server stores them, with the revision (ETag) a save must carry. */
+  sourceSettings = (id: string) => this.lifetime.request(signal => readSourceSettings(this.rebuiltApi(), id, signal));
+  saveSourceSettings = async (id: string, body: SourceSave, etag: string) => {
+    const saved = await this.lifetime.request(signal => saveSourceSettings(this.rebuiltApi(), id, body, etag, signal));
+    void this.load(true);
+    return saved;
+  };
+  importSourceLogos = (id: string, replaceExisting: boolean) => this.lifetime.request(signal => importSourceLogos(this.rebuiltApi(), id, replaceExisting, signal));
+  sourceChoices = (id: string, kind: 'groups' | 'channels', query: string, cursor?: string) => this.lifetime.request(signal => readSourceChoices(this.rebuiltApi(), id, kind, query, cursor, signal));
   tuners = async (): Promise<TunerView> => parseTunerView(await readOwnerTuners({request: this.request}), this.lifetime.authority.serverId);
   policy = async (cursor = ''): Promise<RecordingPolicy> => {
     const [owners, grants] = await Promise.all([readOwnerRecordingOwners({request: this.request}, '?' + new URLSearchParams({limit: '200', cursor})), readOwnerRecordingPermissions({request: this.request})]);

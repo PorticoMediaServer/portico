@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {NativeScreenLifetime} from '../src-next/screens/settings-live/lifetime';
 import {NativeLiveOwnerController} from '../src-next/screens/settings-live/live-owner-controller';
 import {remoteSourceDraft} from '../../../packages/client-core/src/linear-api';
-import {parseChannelMapPage, parseLiveDefaults, parseLiveSources, parseSourceDocument, parseTunerDiscovery, millisOf, secondsOf, listOf} from '../src-next/screens/settings-live/live-owner-model';
+import {sourceSettingsChange, parseChannelMapPage, parseLiveDefaults, parseLiveSources, parseSourceDocument, parseTunerDiscovery, millisOf, secondsOf, listOf} from '../src-next/screens/settings-live/live-owner-model';
 import {appendRecordingPage, needsRuleOwner, rulePaddingChoice, rulePaddingFromChoice, parseAdminRulePage, parseAdminRules, parseDVRDocument, parseTunerView} from '../src-next/screens/settings-live/recording-owner-model';
 import type {ShellAuthority} from '../src-next/shell/model';
 
@@ -265,17 +265,6 @@ test('native DVR defaults refuse deleting the only original and unknown conversi
 });
 
 
-test('native source editor reads persisted rows and sends write-only changes with one revision',async()=>{
- const owner=authority(),calls:any[]=[];
- const remote={kind:'xtream',guideUrl:'https://guide.example/guide.xml',guideUrlRedacted:false,refreshMs:21600000,ownerLimit:2,useDiscoveredCapacity:false};
- const stored={sourceId:'s1',sourceName:'Source',revision:7,digest:'digest',tunerCount:2,effectiveLogoImport:{enabled:true,overwriteExisting:false},availableKinds:['playlist'],settings:{...settings,enabled:true,viewerAccess:'server-members',remote},effective:defaults};
- const api={async request<T>(path:string,method='GET',body?:any){calls.push({path,method,body});if(path==='/v1/admin/live-sources')return {serverId:'server',sources:[source],refresh:[]} as T;return {serverId:'server',result:stored} as T;}};
- const controller=new NativeLiveOwnerController(new NativeScreenLifetime(owner),api,()=> 'operation');
- const doc=await controller.document('s1');assert.equal(doc.settings.viewerAccess,'server-members');assert.equal(doc.settings.remote?.ownerLimit,2);assert.equal(doc.settings.remote?.password,undefined);
- await controller.saveDocument(doc,{...doc.settings,enabled:false,viewerAccess:'owner-only',remote:{...doc.settings.remote!,refreshMs:43200000,ownerLimit:4,password:'replacement',username:''}});
- const put=calls.find(value=>value.method==='PUT');assert.equal(put.body.expectedRevision,7);assert.equal(put.body.settings.enabled,false);assert.equal(put.body.settings.remote.password,'replacement');assert.equal(put.body.settings.remote.username,'');assert.equal(put.body.settings.remote.refreshMs,43200000);controller.dispose();
-});
-
 test('adding a playlist source previews it, then creates it from the same body with one operation id', async () => {
   const owner = authority(), sent: {path: string; method: string; key?: string; body?: any}[] = [];
   const lifetime = new NativeScreenLifetime(owner);
@@ -304,4 +293,11 @@ test('adding a playlist source previews it, then creates it from the same body w
   assert.deepEqual(create.body, {kind: 'playlist', name: 'Cable', audience: 'owner', tunerCount: 2, config: {refreshHours: 6, playlistUrl: 'http://tv.example/c.m3u'}});
   assert.equal(create.key, preview.previewId);
   lifetime.dispose(); controller.dispose();
+});
+
+test('a source settings save sends only what the owner changed, and a new sign-in whole', async () => {
+  const document = {etag: '"3"', imagesEnabled: true, source: {id: 's1', name: 'Cable', kind: 'xtream', state: 'up_to_date', revision: '3', paused: false, tunerCount: 2, audience: 'everyone', hasSignIn: true, config: {serverUrl: 'http://x', refreshHours: 6}}};
+  const draft = {name: 'Cable', audience: 'everyone', paused: false, tunerCount: 2, config: {serverUrl: 'http://x', refreshHours: 12}, username: '', password: ''};
+  assert.deepEqual(sourceSettingsChange(document, draft), {config: {serverUrl: 'http://x', refreshHours: 12}});
+  assert.deepEqual(sourceSettingsChange(document, {...draft, config: document.source.config, username: 'u', password: 'p'}), {signIn: {username: 'u', password: 'p'}});
 });
