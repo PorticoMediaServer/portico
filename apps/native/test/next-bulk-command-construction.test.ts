@@ -17,7 +17,7 @@ function fixture(options: {failMetadataOnce?: boolean; partialMetadataOnce?: boo
     if (fake.jobs.length && path === '/v1/jobs') failures.length = 0;
     const answer = fake.answer(path, method, body); if (answer !== undefined) return answer as T;
     if (path === '/v1/admin/items/deletion') return {count: 2, titles: 2, files: 2, bytes: 0, listEntries: 0, otherPeople: 0, alsoRemoves: []} as T;
-    if (path === '/v1/admin/items/delete') {
+    if (path === '/v1/admin/items/delete?confirm=2') {
       deleteWrites++;
       if (options.failDeleteOnce && deleteWrites === 1) throw new Error('unknown delete outcome');
       return {removed: 2, filesDeleted: 2, bytes: 0, kept: [], alsoRemoved: []} as T;
@@ -26,7 +26,7 @@ function fixture(options: {failMetadataOnce?: boolean; partialMetadataOnce?: boo
   }};
   bulk = new NativeBulkMedia({api, scope: {serverId: 'server', viewerId: 'owner'}, signal: life.signal, isCurrent: () => true,
     requestId: async () => {ids++; if (options.retireDuringId) bulk.close(); return `operation-${ids}`;}} as unknown as CatalogueSelectionOptions, entries);
-  return {bulk, calls, ids: () => ids, writes: () => calls.filter(call => call.path === '/v1/jobs'), deletions: () => calls.filter(call => call.path === '/v1/admin/items/delete')};
+  return {bulk, calls, ids: () => ids, writes: () => calls.filter(call => call.path === '/v1/jobs'), deletions: () => calls.filter(call => call.path === '/v1/admin/items/delete?confirm=2')};
 }
 
 test('native metadata retains the exact core-built body and operation ID after an unknown outcome', async () => {

@@ -33,3 +33,14 @@ test('catalogue operations retain transport promise identity and error settlemen
     assert.equal(result, pending);
   }
 });
+
+test('confirmed deletion carries the title or selection count to the server', async () => {
+ const paths: string[] = [], signal = new AbortController().signal;
+ const api = {request: async (path: string, _method?: string, _body?: unknown, sentSignal?: AbortSignal) => {
+  paths.push(path);assert.equal(sentSignal, signal);return {removed: paths.length === 1 ? true : 2, kept: [], alsoRemoved: []};
+ }};
+ const a = {itemId: 'a', libraryId: 'l', kind: 'movie', title: 'Film & Part 2?'};
+ await deleteCatalogueTitles(api, [a], signal);
+ await deleteCatalogueTitles(api, [a, {...a, itemId: 'b'}], signal);
+ assert.deepEqual(paths, ['/v1/admin/items/a?confirm=Film+%26+Part+2%3F', '/v1/admin/items/delete?confirm=2']);
+});

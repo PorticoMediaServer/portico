@@ -16,7 +16,7 @@ function harness(options: {preview?: unknown; remove?: (attempt: number) => unkn
     api: {request: async (path: string, method?: string, body?: unknown) => {
       calls.push({path, method, body});
       if (path === '/v1/admin/items/item/deletion') return options.preview ?? previewAnswer();
-      if (path === '/v1/admin/items/item' && method === 'DELETE') return options.remove ? options.remove(deletes++) : deleteAnswer();
+      if (path === '/v1/admin/items/item?confirm=Film' && method === 'DELETE') return options.remove ? options.remove(deletes++) : deleteAnswer();
       throw new Error('unexpected path ' + path);
     }},
   };
@@ -32,7 +32,7 @@ test('one title is previewed on its own route and confirmed by typing its name; 
   assert.equal(phase, 'ready');
   assert.deepEqual([preview?.confirmation, preview?.confirmationKind, preview?.totalFiles, preview?.totalBytesText, preview?.listEntries, preview?.otherPeople], ['Film', 'title', 1, '2.0 KB', 2, 1]);
   h.producer.setConfirmation('Film'); await h.producer.confirm();
-  assert.deepEqual(deleteCalls(h.calls).map(call => call.path), ['/v1/admin/items/item']);
+  assert.deepEqual(deleteCalls(h.calls).map(call => call.path), ['/v1/admin/items/item?confirm=Film']);
   assert.deepEqual([h.producer.getSnapshot().phase, h.producer.getSnapshot().result?.removed, h.producer.getSnapshot().result?.filesRetained], ['result', 1, false]);
 });
 
@@ -54,7 +54,7 @@ test('an uncertain delete is tried again for the same title', async () => {
   await h.producer.confirm();
   assert.equal(h.producer.getSnapshot().phase, 'uncertain');
   await h.producer.retry();
-  assert.deepEqual(deleteCalls(h.calls).map(call => call.path), ['/v1/admin/items/item', '/v1/admin/items/item']);
+  assert.deepEqual(deleteCalls(h.calls).map(call => call.path), ['/v1/admin/items/item?confirm=Film', '/v1/admin/items/item?confirm=Film']);
   assert.equal(h.producer.getSnapshot().phase, 'result');
 });
 
