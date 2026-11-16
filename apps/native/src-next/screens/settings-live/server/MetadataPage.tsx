@@ -46,7 +46,6 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
   const theme = useTheme(), t = runtime.text.t as typeof defaultI18n.t;
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), settings = state.data;
   const [editing, setEditing] = useState<{row: SpecRow; original: MetadataSettings; key: CredentialKey}>(), [text, setText] = useState('');
-  const [confirmRefresh, setConfirmRefresh] = useState(false);
   const disabled = state.busy || state.needsReload;
   const save = (patch: MetadataPatch) => {if (settings && current()) void controller.save(settings, patch);};
   const row = (id: string) => settingsRowIndex.get(id)!.row;
@@ -115,7 +114,7 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
       <NativeTitleDatasetGroup ports={ports} runtime={runtime}/>
       {/* Each Advanced row is offered only when the server sends its field, and a group only when it has a row. */}
       {(() => {
-        const refreshing = advanced?.refreshPolicy !== undefined || advanced?.refreshAll !== undefined;
+        const refreshing = advanced?.refreshPolicy !== undefined;
         const languages = advanced?.fallbackLanguage !== undefined || advanced?.animeTitles !== undefined;
         const artwork = settings.localArtworkLimitBytes !== undefined || settings.artworkMaxEdge !== undefined || advanced?.castPhotos !== undefined;
         const music = advanced?.acoustidKeyConfigured !== undefined;
@@ -125,8 +124,6 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
         return <NativeAdvancedSection testID="server-metadata-advanced" summary={summary}>
           {refreshing && <><SectionTitle>{advancedTitle(0)}</SectionTitle><SettingsGroup>
             {select('metadata.refresh', advanced?.refreshPolicy, value => ({refreshPolicy: value as MetadataRefreshPolicy}), true)}
-            {advanced?.refreshAll && <SettingsRow first={advanced.refreshPolicy === undefined} label={t(row('metadata.refreshAll').label)} description={advanced.refreshAll.running ? t('server.metadata.refreshAllRunning') : row('metadata.refreshAll').help ? t(row('metadata.refreshAll').help!) : undefined}
-              control={<Button testID="metadata.refreshAll" variant="glass" size="xs" disabled={disabled} onPress={() => {if (current()) setConfirmRefresh(true);}}>{t(row('metadata.refreshAll').control.label!)}</Button>}/>}
           </SettingsGroup></>}
           {languages && <><SectionTitle>{advancedTitle(1)}</SectionTitle><SettingsGroup>
             {select('metadata.fallbackLanguage', advanced?.fallbackLanguage, value => ({fallbackLanguage: value as MetadataFallbackLanguage}), true)}
@@ -155,14 +152,6 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
         description={editing?.row.help ? t(editing.row.help) : undefined}/>
       <Text style={[theme.type.caption, {color: theme.colors.textSecondary, marginTop: 8}]}>{t('server.metadata.clearValueHelp')}</Text>
       {state.error !== undefined && <StateView variant="inline" {...runtime.error(state.error, () => {setEditing(undefined); setText(''); void controller.load();}, 'server-console')}/>}
-    </BottomSheet>
-    <BottomSheet open={confirmRefresh} onOpenChange={open => {if (!open && !state.busy) setConfirmRefresh(false);}} title={t(row('metadata.refreshAll').label)}
-      footer={<View style={{flexDirection: 'row', gap: 10}}><Button variant="glass" disabled={state.busy} onPress={() => setConfirmRefresh(false)}>{t('action.cancel')}</Button>
-        <Button testID="metadata.refreshAll.confirm" disabled={disabled} loading={state.busy} onPress={() => {
-          if (!settings || !current()) return;
-          void controller.refreshAll(settings).then(done => {if (done && current()) setConfirmRefresh(false);});
-        }}>{t(row('metadata.refreshAll').control.label!)}</Button></View>}>
-      <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t(row('metadata.refreshAll').control.confirm!)}</Text>
     </BottomSheet>
   </View>;
 }

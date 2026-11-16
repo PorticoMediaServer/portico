@@ -83,19 +83,13 @@ test('credential drafts never enter the metadata snapshot and subtitle tests use
   assert.equal(f.controller.getSnapshot().data.openSubtitles.account, 'signed_in'); assert.equal(f.controller.getSnapshot().data.revision, 2); f.controller.dispose();
 });
 
-test('Refresh all posts once from the current document, and Advanced choices save as one revisioned change', async () => {
+test('Advanced choices save as one revisioned change', async () => {
   const advanced = {refreshPolicy: 'regular', fallbackLanguage: 'en', animeTitles: 'language', castPhotos: true, acoustidKeyConfigured: false, acoustidKeySource: 'none', refreshAll: {running: false}};
   const f = fixture(); f.setReply(async () => ({...data(), ...advanced})); await f.controller.load();
   const original = f.controller.getSnapshot().data as MetadataSettings;
   assert.equal(original.advanced?.refreshPolicy, 'regular');
-  f.setReply(async () => ({...data(), ...advanced, refreshAll: {running: true, requestedAt: '2026-10-28T10:00:00Z'}}));
-  assert.equal(await f.controller.refreshAll(original), true);
-  assert.deepEqual([f.calls[1]!.path, f.calls[1]!.method], ['refresh_all_metadata', 'POST']);
-  const after = f.controller.getSnapshot().data as MetadataSettings;
-  assert.equal(after.advanced?.refreshAll?.running, true);
-  assert.equal(await f.controller.refreshAll(original), false, 'a retained old document cannot dispatch');
   f.setReply(async () => ({...data(2), ...advanced, castPhotos: false}));
-  assert.equal(await f.controller.save(after, {castPhotos: false, acoustidKey: 'owner-key'}), true);
+  assert.equal(await f.controller.save(original, {castPhotos: false, acoustidKey: 'owner-key'}), true);
   assert.deepEqual(f.calls.at(-1)!.body, {expectedRevision: 1, localArtworkLimitBytes: 2 ** 30, includeAdult: false, castPhotos: false, acoustidKey: 'owner-key'});
   assert.equal(JSON.stringify(f.controller.getSnapshot()).includes('owner-key'), false, 'the key is never kept');
   f.controller.dispose();

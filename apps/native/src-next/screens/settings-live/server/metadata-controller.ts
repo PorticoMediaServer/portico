@@ -44,14 +44,6 @@ export class NativeMetadataController {
     catch (error) {this.publish({error, needsReload: true}); return false;}
     finally {this.publish({busy: false});}
   }
-  /** Refresh all: the server marks every title for a paced refresh within its allowance. */
-  async refreshAll(original: MetadataSettings): Promise<boolean> {
-    if (!this.current() || this.state.busy || this.state.needsReload || this.state.data !== original) return false;
-    this.publish({busy: true, error: undefined});
-    try {const data = await this.service.refreshAll(); if (!this.current()) return false; this.publish({data}); return true;}
-    catch (error) {this.publish({error}); return false;}
-    finally {this.publish({busy: false});}
-  }
   async checkOpenSubtitles(original: MetadataSettings): Promise<void> {
     if (!this.current() || this.state.busy || this.state.needsReload || this.state.data !== original) return;
     this.publish({busy: true, error: undefined});
