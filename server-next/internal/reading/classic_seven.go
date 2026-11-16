@@ -23,8 +23,9 @@ func sevenMembers(r io.ReaderAt, size int64, wanted string, out io.Writer) ([]co
 	if offset > uint64(size)-32 || n == 0 || n > 16<<20 || n > uint64(size)-32-offset {
 		return nil, errDamaged
 	}
+	// 1 is a plain header; 0x17 is the compressed header 7-Zip writes by default.
 	var marker [1]byte
-	if _, err := r.ReadAt(marker[:], int64(offset)+32); err != nil || marker[0] != 1 {
+	if _, err := r.ReadAt(marker[:], int64(offset)+32); err != nil || marker[0] != 1 && marker[0] != 0x17 {
 		return nil, errDamaged
 	}
 	reader, err := sevenzip.NewReader(r, size)
