@@ -114,6 +114,8 @@ const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)
   : /^\.\/playback$/.test(source) ? shellPlayback
   // A card title's line is plain arithmetic on the theme: the real module.
   : /(^|\/)kit\/cards\/caption-metrics$/.test(source) ? captionMetrics
+  // Every Settings page's one top (the standard backdrop) draws as a named element.
+  : /(^|\/)SettingsBackdrop$/.test(source) ? {SettingsBackdrop: 'SettingsBackdrop'}
   // Which ends of a list continue is plain arithmetic: the real module.
   : /(^|\/)kit\/layout\/list-edges$|^\.\/list-edges$/.test(source) ? listEdgesModule
   // The shell's one top-bar Play on button draws as a named element; next-play-on-top-bar tests it.

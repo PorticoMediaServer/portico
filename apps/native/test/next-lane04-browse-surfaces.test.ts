@@ -99,13 +99,13 @@ test('phone See all composes the drawn header, separate controls and three-colum
   assert.equal(skeletonGrid.props.gap, grid.props.gap);
 });
 
-test('phone Notifications uses the shared transparent sheet while tablet retains its route surface', async () => {
+test('Notifications takes its top from the shared Settings pieces: the Settings sheet and its backdrop on phone, the backdrop on tablet (W4 F14)', async () => {
   const h = host(); let phone = true;
   const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'./OwnFeedbackReport': {OwnFeedbackReport: 'OwnFeedbackReport'}, './notification-route': await import('../src-next/screens/notifications/notification-route.ts'), 
     react: h.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34})}, '../../../../../packages/i18n/src': {defaultI18n: {}},
     '../../../../../packages/client-core/src/notifications': {}, '../../kit/controls': {Button: 'Button', Tabs: 'Tabs'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../kit/shell': {NotificationItem: 'NotificationItem'}, '../../kit/states': {StateView: 'StateView'},
+    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../../kit/overlays': {Menu: 'Menu'}, '../../kit/shell': {NotificationItem: 'NotificationItem', SettingsSheet: 'SettingsSheet'}, '../../kit/states': {StateView: 'StateView'},
     '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => ({...theme, platform: phone ? 'phone' : 'tablet'})},
     '../../shell/account': {}, '../../shell/model': {sameAuthority: (a: any, b: any) => a === b},
     '../../platform/event-resync': {recoverEventState: () => () => {}},
@@ -113,13 +113,15 @@ test('phone Notifications uses the shared transparent sheet while tablet retains
   const feed = {subscribe: () => () => {}, getSnapshot: () => ({})};
   const pending = h.render(() => NativeNotificationsScreen({context: {}, route: {kind: 'notifications'}, runtime: {text: {t}}, profileService: feed, retirement: {subscribe: () => () => {}, getSnapshot: () => undefined}}));
   const sheet = h.render(() => pending.type(pending.props));
-  assert.equal(sheet.type, 'BottomSheet'); assert.equal(sheet.props.open, true);
+  assert.equal(sheet.type, 'SettingsSheet'); assert.equal(sheet.props.open, true);
+  assert.equal(sheet.props.surfaceBackground.type, 'SettingsBackdrop', 'the Settings sheet carries the shared Settings top (the teal wash), never a flat ink one');
+  assert.equal(sheet.props.style.backgroundColor, undefined);
   assert.deepEqual(sheet.props.detents, [782]);
-  assert.equal(sheet.props.style.borderTopLeftRadius, 16); assert.equal(sheet.props.style.borderTopRightRadius, 16);
   assert.equal(sheet.props.style.paddingTop, 0); assert.equal(sheet.props.showGrabber, false);
   assert.equal(sheet.props.headerContent.props.style.height, 56);
   phone = false; const tablet = h.render(() => pending.type(pending.props));
   assert.equal(tablet.type, 'View'); assert.equal(tablet.props.style.paddingTop, 61);
+  assert.equal(tablet.props.children[0].type, 'SettingsBackdrop', 'a tablet Notifications page draws the shared Settings top');
 });
 
 test('the shared touch entry menu composes offered Play, My List, playlist and recommendation actions', async () => {
