@@ -99,7 +99,7 @@ export async function readSubtitleDocument(response:Response,signal:AbortSignal)
  try{while(!signal.aborted){const {done,value}=await reader.read();if(done)break;total+=value.length;if(total>max)invalid();chunks.push(value);}if(signal.aborted)throw new Error('Subtitle request cancelled.');const bytes=new Uint8Array(total);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}const decoded=new TextDecoder('utf-8',{fatal:true}).decode(bytes);return vtt?parseWebVtt(decoded):validateSubtitleDocument(JSON.parse(decoded));}
  finally{signal.removeEventListener('abort',abort);void reader.cancel().catch(()=>{});reader.releaseLock();}
 }
-const providerMessages:Readonly<Record<string,MessageId>>={subtitle_search_not_set_up:'subtitles.error.providerNotConfigured',subtitle_key_refused:'subtitles.error.providerKeyRejected',subtitle_sign_in_refused:'subtitles.error.providerSignInFailed',provider_paused:'subtitles.error.providerBusy',subtitle_provider_not_configured:'subtitles.error.providerNotConfigured',subtitle_provider_key_rejected:'subtitles.error.providerKeyRejected',subtitle_provider_sign_in_failed:'subtitles.error.providerSignInFailed',subtitle_provider_sign_in_required:'subtitles.error.providerSignInRequired',subtitle_provider_busy:'subtitles.error.providerBusy'};
+const providerMessages:Readonly<Record<string,MessageId>>={subtitle_search_not_set_up:'subtitles.error.providerNotConfigured',subtitle_account_not_set_up:'subtitles.error.providerAccountRequired',subtitle_key_not_set_up:'subtitles.error.providerKeyRequired',subtitle_key_refused:'subtitles.error.providerKeyRejected',subtitle_sign_in_refused:'subtitles.error.providerSignInFailed',provider_paused:'subtitles.error.providerBusy',subtitle_provider_not_configured:'subtitles.error.providerNotConfigured',subtitle_provider_key_rejected:'subtitles.error.providerKeyRejected',subtitle_provider_sign_in_failed:'subtitles.error.providerSignInFailed',subtitle_provider_sign_in_required:'subtitles.error.providerSignInRequired',subtitle_provider_busy:'subtitles.error.providerBusy'};
 /** OpenSubtitles' refusals, by the server's code: who can fix it, and for a used-up quota, when it resets.
  * Only a pause OpenSubtitles asked for is worth retrying from the player. */
 export function providerProblem(e:unknown,now=serverNow()):Readonly<{text:string;canRetry:boolean}>|undefined{
@@ -113,8 +113,12 @@ export function providerProblem(e:unknown,now=serverNow()):Readonly<{text:string
  const id=providerMessages[code];
  return id?Object.freeze({text:serviceText(id),canRetry:code==='subtitle_provider_busy'||code==='provider_paused'}):undefined;
 }
+/** The setup prerequisite the server found missing; shared by the web player and SubtitleService. */
+export function subtitleSetupReason(code:unknown):string|undefined{
+ return code==='subtitle_search_not_set_up'?'provider_not_configured':code==='subtitle_account_not_set_up'?'provider_account_not_configured':code==='subtitle_key_not_set_up'?'provider_key_not_configured':undefined;
+}
 export function subtitleReason(reason?:string,translate:(id:MessageId)=>string=id=>enUS[id]):string{
- const key:Record<string,MessageId>={provider_not_configured:'player.subtitleReason.provider',provider_sign_in_failed:'player.subtitleReason.signIn',unsupported_format:'player.subtitleReason.format',unsupported_text_features:'player.subtitleReason.text',extraction_unavailable:'player.subtitleReason.extraction',source_changed:'player.subtitleReason.changed',source_unavailable:'player.subtitleReason.source',ambiguous_association:'player.subtitleReason.association',unsupported_timing:'player.subtitleReason.timing',capacity:'player.subtitleReason.capacity'};
+ const key:Record<string,MessageId>={provider_not_configured:'player.subtitleReason.provider',provider_account_not_configured:'subtitles.error.providerAccountRequired',provider_key_not_configured:'subtitles.error.providerKeyRequired',provider_sign_in_failed:'player.subtitleReason.signIn',unsupported_format:'player.subtitleReason.format',unsupported_text_features:'player.subtitleReason.text',extraction_unavailable:'player.subtitleReason.extraction',source_changed:'player.subtitleReason.changed',source_unavailable:'player.subtitleReason.source',ambiguous_association:'player.subtitleReason.association',unsupported_timing:'player.subtitleReason.timing',capacity:'player.subtitleReason.capacity'};
  return translate(key[reason??'']??'player.subtitleReason.unavailable');
 }
 
@@ -155,9 +159,9 @@ export class SubtitleService {
   try{const out=await task(c.signal);if(this.active){this.last=undefined;this.publish({busy:false});}return out;}
   catch(e){
    if(!this.active)return undefined;
-   const code=(e as {code?:unknown})?.code,problem=providerProblem(e);
+   const code=(e as {code?:unknown})?.code,problem=providerProblem(e),setup=subtitleSetupReason(code);
    this.publish({busy:false,error:problem?.text??serviceText('subtitles.error.failed'),canRetry:problem?problem.canRetry:(e as {retryable?:unknown})?.retryable!==false,
-    ...(code==='subtitle_search_not_set_up'?{provider:Object.freeze({enabled:false,reason:'provider_not_configured'}),candidates:[]}:{})});
+    ...(setup?{provider:Object.freeze({enabled:false,reason:setup}),candidates:[]}:{})});
    return undefined;
   }finally{clearTimeout(timer);this.controllers.delete(c);}
  }
