@@ -5540,6 +5540,9 @@
           "soundAnalysis": {
             "type": "boolean"
           },
+          "strm": {
+            "type": "boolean"
+          },
           "trash": {
             "$ref": "#/components/schemas/TrashRule"
           },
@@ -5551,6 +5554,7 @@
           "depth",
           "trash",
           "allowDelete",
+          "strm",
           "rescanMinutes"
         ],
         "type": "object"

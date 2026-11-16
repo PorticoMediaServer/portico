@@ -118,8 +118,9 @@ func storeProbe(b *batchTx, p *Probe, now int64) error {
 		if err := checkCode("files.problem", fileProblemNames, p.Problem); err != nil {
 			return err
 		}
-		_, err := b.exec(`UPDATE files SET problem = ? WHERE id = ? AND size = ? AND modified_ns = ? AND problem IS NOT ?`,
-			p.Problem, p.FileID, p.Size, p.ModifiedNS, p.Problem)
+		_, err := b.exec(`UPDATE files SET problem = ?,
+ probed_at = CASE WHEN lower(substr(name,-5)) = '.strm' THEN ? ELSE probed_at END WHERE id = ? AND size = ? AND modified_ns = ? AND problem IS NOT ?`,
+			p.Problem, now, p.FileID, p.Size, p.ModifiedNS, p.Problem)
 		return err
 	}
 	res, err := b.exec(`UPDATE files SET probed_at = ?, container = ?, duration_ms = ?, bitrate = ?, audio_exact = NULL, problem = NULL,
@@ -341,7 +342,7 @@ func (d *DB) RereadFolderAudioWithoutPackets(ctx context.Context, libraryID, pat
 	args = append(args, StreamAudio, StreamVideo)
 	return d.write(ctx, Background, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `UPDATE files SET probed_at = NULL WHERE probed_at IS NOT NULL
-   AND json_extract(extra, '$.packets') IS NULL AND missing_since_at IS NULL AND role = 1
+   AND json_extract(extra, '$.packets') IS NULL AND missing_since_at IS NULL AND role = 1 AND lower(substr(name,-5)) != '.strm'
    AND directory_id IN (SELECT d.id FROM directories d JOIN library_paths p ON p.id = d.library_path_id WHERE p.library_id = ? AND p.remote_source_id IS NULL`+folder+`)
    AND EXISTS (SELECT 1 FROM media_streams s WHERE s.file_id = files.id AND s.kind = ?)
    AND NOT EXISTS (SELECT 1 FROM media_streams s WHERE s.file_id = files.id AND s.kind = ?)`, args...)
