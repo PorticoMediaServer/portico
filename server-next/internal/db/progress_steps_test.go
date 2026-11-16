@@ -2,6 +2,7 @@ package db_test
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,19 +24,35 @@ func TestATapGoesBetweenTheStepsOfAPositionSave(t *testing.T) {
 		batch = append(batch, db.Progress{Viewer: l.viewers[n%7], ItemID: film.PublicID, PlayID: fmt.Sprint("play-", n),
 			PositionMS: film.DurationMS / 2, At: time.Now(), WatchedMS: 1000})
 	}
-	saved := make(chan time.Time, 1)
-	go func() {
-		if _, err := l.d.SaveProgress(ctx, db.Background, batch); err != nil {
-			t.Error(err)
-		}
-		saved <- time.Now()
-	}()
-	time.Sleep(20 * time.Millisecond)
+	holding, release := make(chan struct{}), make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(release) })
+	defer unblock()
+	saved := make(chan error, 1)
+	go func() { saved <- db.SaveProgressBetweenSteps(ctx, l.d, batch, holding, release) }()
+	select {
+	case <-holding:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the first position-save step did not commit")
+	}
+	// A real position was saved, but the rest of the batch must still be pending.
+	first, err := l.d.Item(ctx, batch[0].Viewer, batch[0].ItemID)
+	if err != nil || first.State.PositionMS != batch[0].PositionMS {
+		t.Fatal("the first step did not save its position", err)
+	}
+	later, err := l.d.Item(ctx, batch[8].Viewer, batch[8].ItemID)
+	if err != nil || later.State.PositionMS != 0 {
+		t.Fatal("the whole position save ran before a tap could go between steps", err)
+	}
 	yes := true
 	state(t, l.d, l.all, films[0].PublicID, db.StateEdit{Favorite: &yes})
-	tapped := time.Now()
-	if done := <-saved; !tapped.Before(done) {
-		t.Fatalf("the tap was written %s after the whole position save had finished", tapped.Sub(done))
+	unblock()
+	select {
+	case err := <-saved:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("the remaining position-save steps did not finish")
 	}
 	for n := range 7 {
 		film := films[n]
