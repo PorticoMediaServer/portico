@@ -3,7 +3,6 @@ import * as catalogueActions from '../../../../packages/client-core/src/query/ca
 import * as catalogueReads from '../../../../packages/client-core/src/query/catalogue-reads.ts';
 import * as playbackQueries from '../../../../packages/client-core/src/query/playback.ts';
 import * as preparingCleanup from '../../../../packages/client-core/src/playback-v1/preparing-cleanup.ts';
-import * as subtitleUploads from '../../../../packages/client-core/src/playback-v1/subtitle-upload.ts';
 import * as ownerSettingsPolicy from '../../../../packages/client-core/src/owner-settings-policy.ts';
 import * as ownerRequests from '../../../../packages/client-core/src/owner-requests.ts';
 import * as serverUpdates from '../../../../packages/client-core/src/server-admin/server-updates.ts';
@@ -83,7 +82,6 @@ const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)
   : /client-core\/src\/query\/catalogue-actions(?:\.ts)?$/.test(source) ? catalogueActions
   : /client-core\/src\/query\/catalogue-reads(?:\.ts)?$/.test(source) ? catalogueReads
   : /client-core\/src\/playback-v1\/preparing-cleanup(\.ts)?$/.test(source) ? preparingCleanup
-  : /client-core\/src\/playback-v1\/subtitle-upload(\.ts)?$/.test(source) ? subtitleUploads
   : /client-core\/src\/query\/receiver(\.ts)?$/.test(source) ? receiverQueries
   : /\/query\/user-mutation-clock(?:\.ts)?$/.test(source) ? userMutationClock
   : /(^|\/)native-stop-scope$/.test(source) ? nativeStopScope

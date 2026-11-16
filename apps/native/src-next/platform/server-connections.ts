@@ -45,36 +45,12 @@ import { loadConnectionPreference, nativeConnectionPolicy } from './connection-p
 import { isAccountAuthority } from './account-authority';
 import {homeActionDiagnostics} from './home-action-diagnostics';
 import { certificateOrigin, parseSavedCertificates, savedCertificateOrigin, settleCertificate, pendingCertificate, type CertificateContext, type CertificatePlatform, type SavedCertificate } from './certificate-trust';
-type SubtitleUploadFile = {uri: string; name: string; type: string};
-/** RN's FormData exposes descriptors, never file bytes. No other object body is bridged. */
-function subtitleUploadParts(body: unknown): {metadata: string; file: SubtitleUploadFile; companion?: SubtitleUploadFile} | undefined {
-  try {
-    if (typeof FormData !== 'function' || !(body instanceof FormData)) return;
-    const getParts = (FormData.prototype as FormData & {getParts?: () => unknown}).getParts;
-    if (typeof getParts !== 'function') return;
-    const parts: unknown = getParts.call(body);
-    if (!Array.isArray(parts) || (parts.length !== 2 && parts.length !== 3)) return;
-    const metadata = parts[0];
-    if (!metadata || typeof metadata !== 'object' || metadata.fieldName !== 'metadata' || typeof metadata.string !== 'string' ||
-        Object.keys(metadata).some(key => !['fieldName', 'string', 'headers'].includes(key))) return;
-    const filePart = (part: unknown, fieldName: string): part is SubtitleUploadFile => {
-      if (!part || typeof part !== 'object') return false;
-      const value = part as Record<string, unknown>;
-      return value.fieldName === fieldName && typeof value.uri === 'string' && value.uri.startsWith('file://') &&
-        typeof value.name === 'string' && value.name.length > 0 && value.type === 'application/octet-stream' &&
-        Object.keys(value).every(key => ['fieldName', 'uri', 'name', 'type', 'headers'].includes(key));
-    };
-    if (!filePart(parts[1], 'file') || (parts.length === 3 && !filePart(parts[2], 'companion'))) return;
-    return {metadata: metadata.string, file: parts[1], companion: parts[2]};
-  } catch {return undefined;}
-}
 /** One request through the native transport, as it is. */
 const nativeRequest: typeof fetch = async (input, options = {}) => {
-  const upload = options.body != null && typeof options.body !== 'string' ? subtitleUploadParts(options.body) : undefined;
   if (
     typeof input !== 'string' ||
     options.signal?.aborted ||
-    (options.body != null && typeof options.body !== 'string' && !upload)
+    (options.body != null && typeof options.body !== 'string')
   )
     throw new RouteError('cancelled', 'Connection request cancelled.');
   const id = NativeModules.PorticoRuntime.playbackRequestId(),
@@ -87,10 +63,7 @@ const nativeRequest: typeof fetch = async (input, options = {}) => {
     let raw: {status: number; headers: Record<string, string>; body?: string; bodyBase64?: string};
     const diagnostic = homeActionDiagnostics.request(options.method ?? 'GET', input);
     try {
-      raw = upload
-        ? await NativeModules.PorticoRuntime.networkUploadRequest(id, input, options.method ?? 'GET', headers,
-          upload.metadata, upload.file.uri, upload.file.name, upload.companion?.uri ?? null, upload.companion?.name ?? null)
-        : reading?.sequential
+      raw = reading?.sequential
         ? await NativeModules.PorticoRuntime.networkStreamOpen(id, input, headers)
         : reading?.binaryLimit !== undefined
         ? await NativeModules.PorticoRuntime.networkBytesRequest(id, input, options.method ?? 'GET', headers, reading.binaryLimit)

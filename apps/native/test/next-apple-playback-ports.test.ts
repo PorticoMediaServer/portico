@@ -87,7 +87,6 @@ const modules = {
   './NativeListeningAdapter': {NativeListeningV1Adapter: class {}},
   './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: FakeRuntime},
   './scope-http': {PlaybackScopeHttp: class {constructor() {}}},
-  './subtitle-file-picker.ios': {appleSubtitleFilePicker: () => {}},
   '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported: false})}},
   '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
   './types': {},

@@ -33,7 +33,6 @@ test('Apple retained view receives only the runtime request counter and exact bi
     './NativeListeningAdapter': {},
     './native-surface': {nativePlaybackView: (name: string) => {hosts.push(name);return name;}}, './runtime': {NativePlaybackRuntime: class {constructor(options: unknown) {captured = options;return runtime;}}},
     './scope-http': {PlaybackScopeHttp: class {dispose() {}}},
-    './subtitle-file-picker.ios': {appleSubtitleFilePicker: undefined},
     '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported: false})}},
     '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
   });
