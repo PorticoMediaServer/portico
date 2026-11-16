@@ -123,6 +123,9 @@ func (req ItemQueryRequest) query() (db.ItemQuery, error) {
 	return q, nil
 }
 
+// FilmCollection is a visible library collection containing this film.
+type FilmCollection = db.FilmCollection
+
 // Item is anything a person can browse. Credits are the first of the cast and crew on
 // GET /v1/items/{id}, and on a list of one person's titles (GET /v1/items?person=) that
 // person's credits on the title: every role they have on it, in billing order.
@@ -155,6 +158,7 @@ type Item struct {
 
 	// On GET /v1/items/{id} only.
 	// NextEpisode is a show's play target for this profile; its parentId names the season to open.
+	Collections   []FilmCollection   `json:"collections,omitempty"`
 	NextEpisode   *Item              `json:"nextEpisode,omitempty"`
 	OriginalTitle string             `json:"originalTitle,omitempty"`
 	Summary       string             `json:"summary,omitempty"`
@@ -585,6 +589,7 @@ func itemShapes(items []db.Item) []Item {
 
 func detailShape(d db.ItemDetail) Item {
 	out := itemShape(d.Item)
+	out.Collections = d.Collections
 	out.OriginalTitle, out.Summary, out.Tagline, out.Edition = d.OriginalTitle, d.Summary, d.Tagline, d.Edition
 	out.Available, out.CreditTotal = &d.Available, &d.CreditTotal
 	if d.NextEpisode != nil {

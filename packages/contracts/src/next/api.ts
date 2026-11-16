@@ -951,6 +951,13 @@ export interface Field {
   message: string;
 }
 
+export interface FilmCollection {
+  id: string;
+  name: string;
+  memberCount: number;
+  position: number;
+}
+
 export interface Filter {
   id: string;
   type: string;
@@ -1229,6 +1236,7 @@ export interface Item {
   libraryId: string;
   chapter?: ItemChapter;
   entryId?: string;
+  collections?: FilmCollection[];
   nextEpisode?: Item;
   originalTitle?: string;
   summary?: string;

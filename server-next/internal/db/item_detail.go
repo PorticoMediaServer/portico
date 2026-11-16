@@ -10,6 +10,7 @@ import (
 // ItemDetail is everything the detail page of one item shows.
 type ItemDetail struct {
 	NextEpisode *Item
+	Collections []FilmCollection
 	Item
 	OriginalTitle string
 	Summary       string
@@ -246,6 +247,9 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 	}
 	if err == nil && out.Kind == KindShow {
 		out.NextEpisode, err = showNextEpisode(ctx, tx, v, acc, out.ID)
+	}
+	if err == nil && out.Kind == KindMovie {
+		out.Collections, err = filmCollections(ctx, tx, v, acc, out.ID)
 	}
 	return out, err
 }
