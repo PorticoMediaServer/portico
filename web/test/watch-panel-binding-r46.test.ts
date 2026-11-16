@@ -132,3 +132,20 @@ test('screen state resets on a settled runtime or playback run, never a blank fr
  assert.equal(settledPlaybackChanged(settled,runtime,{scope:'s',run:2}),true,'a new playback run resets even for the same title');
  assert.equal(settledPlaybackChanged(settled,{}, {scope:'s',run:1}),true,'a new runtime resets even for the same item and run');
 });
+
+test('Search for subtitles lists what the server found, downloads the chosen one, and says why when it cannot run', async () => {
+ const f=fixture(),calls:unknown[][]=[];
+ let search={itemId:'movie',busy:false,searched:true,candidates:[{id:'os-1',language:'en',title:'The.Movie.2024.1080p.WEB-DL.x264-GROUP',attribution:'OpenSubtitles'}]};
+ let provider:{enabled:boolean;reason?:string}={enabled:true};
+ Object.assign(f.runtime,{subtitleProvider:()=>provider,subtitleSearch:()=>search,
+  searchSubtitles:async(...args:unknown[])=>{calls.push(['search',...args]);},downloadSubtitle:async(...args:unknown[])=>{calls.push(['download',...args]);}});
+ const model=f.model()!.subtitleSearch!;
+ assert.deepEqual(model.results,[{id:'os-1',primary:'The.Movie.2024.1080p.WEB-DL.x264-GROUP',secondary:'EN'}]);
+ assert.equal(model.credit,defaultI18n.t('player.opt.providedByOpenSubtitles'));
+ await model.search();await model.choose('os-1');
+ await assert.rejects(model.choose('not-found'),/unavailable/);
+ assert.deepEqual(calls.map(call=>[call[0],call[2]]),[['search','en'],['download','os-1']]);
+ // No OpenSubtitles key on this server: the row stays, off, with the reason (rule 67; frame 3).
+ provider={enabled:false,reason:'provider_not_configured'};search={...search,searched:false,candidates:[]};
+ assert.ok(f.model()!.subtitleSearch!.reason);
+});

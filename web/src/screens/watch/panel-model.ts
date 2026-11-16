@@ -15,8 +15,9 @@ export type WatchPanelModel=Readonly<{
  quality:readonly WatchRadioChoice[];speed:readonly WatchRadioChoice[];
  qualityLabel?:string;qualityAccessibleLabel?:string;qualityNotes:readonly string[];audioNotes:readonly string[];/** The one route line the retained panel binding still reads. */qualityNote?:string;automatic:boolean;audioLabel?:string;subtitleLabel?:string;
  subtitleTiming?:Readonly<{offsetSeconds:number;shift(deltaMs:number):Promise<void>}>;
- /** Draws the search row only when the server says why it cannot be used. */
- subtitleSearch?:Readonly<{reason:string}>;
+ /** desktop-player f3: Search for subtitles (07 rules 65 to 68). `reason` when it cannot run here; otherwise results with
+  * Download, each under the provider's credit. Choosing one downloads it and turns it on. */
+ subtitleSearch?:Readonly<{reason?:string;busy:boolean;searched:boolean;error?:string;canRetry:boolean;results:readonly Readonly<{id:string;primary:string;secondary:string}>[];credit:string;search():Promise<void>;choose(id:string):Promise<void>}>;
  /** The style this playback draws with; a change lasts until it stops. */
  subtitleStyle?:Readonly<{size:SubtitlePreferences['size'];background:SubtitlePreferences['background'];set(patch:Readonly<{size?:SubtitlePreferences['size'];background?:SubtitlePreferences['background']}>):void}>;
  sleepTimer?:Readonly<{minutes:number;set(minutes:number):void}>;
@@ -116,6 +117,7 @@ export function watchPanelModel(runtime:WebShellPlaybackRuntime,snapshot:WebPlay
    if(!Number.isSafeInteger(next)||Math.abs(next)>600000)throw new Error('playback_subtitle_unavailable');
    await writeTiming(fence,next);}}):undefined;
  const readProvider=typeof runtime.subtitleProvider==='function'?runtime.subtitleProvider.bind(runtime):undefined;
+ const readSearch=typeof runtime.subtitleSearch==='function'?runtime.subtitleSearch.bind(runtime):undefined;
  // desktop-player f3: a search that cannot run stays visible with the server's own reason.
  const style=matched?readStyle?.(fence):undefined;
  const sleep=matched?readSleep?.(fence):undefined;
@@ -124,7 +126,12 @@ export function watchPanelModel(runtime:WebShellPlaybackRuntime,snapshot:WebPlay
  const forced=matched?readForced?.(fence):undefined;
  const subtitleForced=forced&&writeForced?Object.freeze({only:forced.only,set:(on:boolean)=>{check();writeForced(fence,on);}}):undefined;
  const provider=matched?readProvider?.(fence):undefined;
- const subtitleSearch=provider&&!provider.enabled?Object.freeze({reason:subtitleReason(provider.reason,t)}):undefined;
+ const search=matched&&provider?readSearch?.(fence):undefined,language=i18n.locale.split('-')[0]||'en';
+ const subtitleSearch=search&&provider?Object.freeze({...(!provider.enabled?{reason:subtitleReason(provider.reason,t)}:{}),busy:search.busy,searched:search.searched,canRetry:search.canRetry!==false,
+  ...(search.error?{error:search.error}:{}),credit:t('player.opt.providedByOpenSubtitles'),
+  results:Object.freeze(search.candidates.map(c=>Object.freeze({id:c.id,primary:c.title,secondary:c.language.toUpperCase()}))),
+  search:async()=>{check();await runtime.searchSubtitles(fence,language);},
+  choose:async(id:string)=>{check();if(!search.candidates.some(c=>c.id===id))throw new Error('playback_subtitle_unavailable');await runtime.downloadSubtitle(fence,id);}}):undefined;
  let speeds:readonly number[]=[];try{speeds=runtime.speedChoices(fence);}catch{/* source changed */}
  const speed=Object.freeze(speeds.map(rate=>Object.freeze({id:String(rate),label:rate===1?t('player.opt.normalSpeed'):t('next.dock.rate',{rate}),selected:snapshot.presentation?.rate===rate,enabled:true})));
  return Object.freeze({fence,audio,subtitles:Object.freeze(subtitleRows),subtitleAdditions:Object.freeze(subtitleAdditions),quality:Object.freeze(qualityRows),speed,automatic:selected==='automatic',qualityLabel,qualityNotes,audioNotes,qualityNote:routeNote,...(subtitleTiming?{subtitleTiming}:{}),...(subtitleSearch?{subtitleSearch}:{}),...(subtitleStyle?{subtitleStyle}:{}),...(sleepTimer?{sleepTimer}:{}),...(subtitleForced?{subtitleForced}:{}),
