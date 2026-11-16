@@ -34,5 +34,5 @@ export function parseLocalSession(raw:unknown,expected:Partial<Viewer>={},option
  if(raw.installationId!==undefined&&!text(raw.installationId,256))invalid();
  if(raw.refreshToken!==undefined&&(typeof raw.refreshToken!=='string'||!/^[-_A-Za-z0-9]{16,512}$/.test(raw.refreshToken)))invalid();
  return Object.freeze({...(typeof raw.deviceId==='string'?{deviceId:raw.deviceId}:{}),...(typeof raw.installationId==='string'?{installationId:raw.installationId}:{}),...(typeof raw.refreshToken==='string'?{refreshToken:raw.refreshToken}:{}),accessToken:raw.accessToken,expiresAt:raw.expiresAt,sessionFamilyId:family,tokenGeneration:raw.tokenGeneration,authorizationHorizon:horizon,
-  viewer:Object.freeze(viewer)});
+  ...(raw.twoStepSetupRequired===true?{twoStepSetupRequired:true as const}:{}),viewer:Object.freeze(viewer)});
 }
