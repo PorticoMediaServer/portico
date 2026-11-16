@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The side sheet: a title's menu, or the choices of one setting. It is opaque, holds focus until it
+     closes, enters on the current choice (or the first row), and Back closes it. -->
+<component name="Sheet" extends="Group">
+  <interface>
+    <!-- {eyebrow, title, status, rows: [{id, text, icon, current, gapBefore}]} -->
+    <field id="model" type="assocarray" onChange="onModel"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- The row chosen with OK. -->
+    <field id="chosen" type="string" alwaysNotify="true"/>
+    <!-- Set true when Back closes the sheet without a choice. -->
+    <field id="dismissed" type="boolean" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="Sheet.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Rectangle width="1920" height="1080" color="0x071018FF" opacity="0.5"/>
+    <Rectangle translation="[1280,0]" width="640" height="1080" color="0x132634FF"/>
+    <Label id="eyebrow" translation="[1336,64]" width="528"/>
+    <Label id="title" translation="[1334,102]" width="528" wrap="true" maxLines="2"/>
+    <Label id="status" width="528"/>
+    <Group id="window">
+      <Poster id="plate" uri="pkg:/images/round-14.9.png" blendColor="0xD8E6EEFF" width="528" height="64"/>
+      <Group id="rows"/>
+    </Group>
+    <Poster id="ring" uri="pkg:/images/focus-14.9.png" width="600" height="136"/>
+  </children>
+</component>

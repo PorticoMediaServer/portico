@@ -94,6 +94,18 @@ sub onContent()
     ' An episode card: the picture is 16:9 at the top and the words go under it.
     under = (item.under = true)
     if under then m.h = m.w * 9 / 16 else m.h = m.fullH
+    if under and item.artHeight <> invalid and item.artHeight > 0 then m.h = item.artHeight
+    ' An audiobook or album with no cover gets a square generated one, as its real covers are square.
+    m.shiftY = 0
+    if item.art = "" and not item.overlay and m.fullH > m.w and (item.kind = "audiobook" or item.kind = "album" or item.kind = "track")
+        m.h = m.w
+        m.shiftY = (m.fullH - m.w) / 2
+    end if
+    m.under.scaleRotateCenter = [m.w / 2, m.h / 2]
+    m.over.scaleRotateCenter = [m.w / 2, m.h / 2]
+    m.under.translation = [0, m.shiftY]
+    m.over.translation = [0, m.shiftY]
+    m.madeGlyph.translation = [0, m.h - 128]
     m.art.height = m.h
     m.art.loadHeight = m.h
     m.plate.height = m.h
@@ -147,7 +159,7 @@ sub onContent()
         m.title.wrap = true
         m.title.maxLines = 2
         setType(m.title, "episodeTitle", c.text)
-        m.title.translation = [0, m.h + 22]
+        m.title.translation = [0, m.h + 26]
         if m.title.boundingRect().height > 44 then m.sub.translation = [0, m.h + 88] else m.sub.translation = [0, m.h + 58]
     end if
     m.track.translation = [20, m.h - 24]
@@ -193,7 +205,20 @@ end sub
 sub onFocus()
     p = m.top.focusPercent
     if not (m.top.rowListHasFocus or m.top.gridHasFocus) then p = 0
-    grow(1 + (metrics().focusScale - 1) * p)
+    k = metrics()
+    grow(1 + (k.focusScale - 1) * p)
+    ring = m.top.findNode("ownRing")
+    inGrid = (m.top.gridHasFocus and p > 0)
+    ring.visible = inGrid
+    if inGrid
+        out = k.focusSpread + 6
+        w = m.w * k.focusScale
+        h = m.h * k.focusScale
+        ring.opacity = p
+        ring.translation = [(m.w - w) / 2 - out, (m.h - h) / 2 - out]
+        ring.width = w + out * 2
+        ring.height = h + out * 2
+    end if
 end sub
 
 sub grow(s as float)
@@ -204,7 +229,16 @@ sub grow(s as float)
     m.over.scale = [s, s]
     w = m.w * s
     h = m.h * s
-    m.clip.translation = [(m.w - w) / 2, (m.h - h) / 2]
+    if item <> invalid and item.under = true
+        ' words under a picture stay their size and place (grown, they would slide under the rail or
+        ' the next card); only the picture grows, and its progress line with it
+        m.over.scale = [1, 1]
+        m.bar.translation = [(m.w - w) / 2, (m.h + h) / 2 - 6]
+        if item.progress >= 0 then m.bar.width = w * item.progress
+    end if
+    shiftY = 0
+    if m.shiftY <> invalid then shiftY = m.shiftY
+    m.clip.translation = [(m.w - w) / 2, (m.h - h) / 2 + shiftY]
     m.clip.maskSize = [w, h]
     m.art.width = w
     m.art.height = h

@@ -12,6 +12,7 @@
     <Backdrop id="backdrop"/>
     <Group id="screens"/>
     <Rail id="rail" visible="false"/>
+    <Sheet id="sheet" visible="false"/>
     <!-- Development builds only: counts drawn frames, for judging smoothness without eyes on the screen. -->
     <Rectangle id="frameProbe" width="1" height="1" opacity="0"/>
     <Animation id="frameClock" duration="1" repeat="true" easeFunction="linear">

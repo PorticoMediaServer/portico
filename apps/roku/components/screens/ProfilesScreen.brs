@@ -83,7 +83,7 @@ sub onActive()
 end sub
 
 sub paint()
-    m.ring.visible = (m.stage = "faces" and m.top.hasFocus())
+    m.ring.visible = (m.stage = "faces" and m.top.isInFocusChain())
     if m.left0 <> invalid then m.ring.translation = [m.left0 + m.focus * 296 - 40, 430]
 end sub
 

@@ -29,9 +29,18 @@ sub init()
     m.tick.observeField("fire", "paint")
     m.settle.observeField("fire", "applySeek")
     m.again.observeField("fire", "start")
+    m.retry = m.top.findNode("retry")
+    m.retry.observeField("fire", "reload")
+    m.wait = m.top.findNode("wait")
+    m.top.findNode("spinner").scaleRotateCenter = [32, 32]
+    setType(m.top.findNode("waitTitle"), "heading", c.text)
+    setType(m.top.findNode("waitText"), "body", c.textSecondary)
+    m.tries = 0          ' reloads since the picture last ran
+    m.last = 0           ' the last place the picture was seen at, in seconds
     m.notice.observeField("pressed", "onNotice")
     m.session = invalid
-    m.focus = 1          ' 0 back ten, 1 play/pause, 2 forward thirty; 3 is the seek bar
+    m.focus = 1          ' 0 back ten, 1 play/pause, 2 forward thirty, 3 Subtitles, 4 Audio, 5 Quality; 6 is the seek bar
+    m.options = invalid  ' the title's versions, tracks and qualities (playback-options)
     m.pending = -1       ' where a scrub will land, in seconds; -1 when none
     m.duration = 0
     m.ended = false
@@ -39,7 +48,7 @@ sub init()
 end sub
 
 sub makeButtons()
-    specs = [{icon: "back10-36", size: 72, x: 830}, {icon: "pause-40", size: 100, x: 910}, {icon: "forward10-36", size: 72, x: 1018}]
+    specs = [{icon: "skip-back-44", size: 72, x: 830, seconds: "10"}, {icon: "pause-40", size: 100, x: 910}, {icon: "skip-forward-44", size: 72, x: 1018, seconds: "30"}]
     m.spots = []
     for each spec in specs
         plate = m.buttons.createChild("Poster")
@@ -49,11 +58,45 @@ sub makeButtons()
         plate.translation = [spec.x, (100 - spec.size) / 2]
         icon = m.buttons.createChild("Poster")
         icon.uri = "pkg:/images/i-" + spec.icon + ".png"
-        iconSize = spec.icon.split("-")[1].toInt()
+        parts = spec.icon.split("-")
+        iconSize = parts[parts.count() - 1].toInt()
         icon.width = iconSize
         icon.height = iconSize
         icon.translation = [spec.x + (spec.size - iconSize) / 2, (100 - iconSize) / 2]
-        m.spots.push({plate: plate, icon: icon, x: spec.x, size: spec.size})
+        number = invalid
+        if spec.seconds <> invalid
+            ' how far the arrow skips, drawn inside it
+            number = m.buttons.createChild("Label")
+            number.text = spec.seconds
+            number.width = spec.size
+            number.height = spec.size
+            number.horizAlign = "center"
+            number.vertAlign = "center"
+            number.translation = [spec.x, (100 - spec.size) / 2 + 2]
+            setType(number, "skipSeconds")
+        end if
+        m.spots.push({plate: plate, icon: icon, number: number, x: spec.x, size: spec.size})
+    end for
+    ' Subtitles, Audio and Quality: each says its current choice and opens the side sheet
+    c = colours()
+    m.pills = []
+    x = 1262
+    for each name in ["Subtitles", "Audio", "Quality"]
+        plate = m.buttons.createChild("Poster")
+        plate.uri = "pkg:/images/round-14.9.png"
+        plate.height = 72
+        plate.width = 180
+        plate.translation = [x, 14]
+        head = m.buttons.createChild("Label")
+        head.text = name
+        head.translation = [x + 18, 22]
+        setType(head, "tag", c.textSecondary)
+        value = m.buttons.createChild("Label")
+        value.translation = [x + 18, 49]
+        value.width = 144
+        setType(value, "caption", c.textTertiary)
+        m.pills.push({plate: plate, head: head, value: value, x: x, name: name})
+        x = x + 192
     end for
 end sub
 
@@ -75,10 +118,168 @@ sub start()
     end if
     m.top.findNode("title").text = title
     m.top.findNode("sub").text = sub_
+    m.top.findNode("waitTitle").text = title
+    busy("Getting ready…")
     body = {itemId: item.id}
     if m.top.startOver then body.startPositionMs = 0
     if m.resumeAt <> invalid then body.startPositionMs = m.resumeAt
-    api("POST", "/v1/playback/sessions", body, "onSession")
+    ' one start is one request however often it is asked again while the stream gets ready (202)
+    if m.startKey = invalid then m.startKey = createObject("roDeviceInfo").getRandomUUID()
+    api("POST", "/v1/playback/sessions", body, "onSession", invalid, false, m.startKey)
+    if m.options = invalid then api("GET", "/v1/items/" + item.id + "/playback-options", invalid, "onOptions")
+end sub
+
+sub onOptions(event as object)
+    result = event.getData()
+    if result.ok then m.options = result.data
+    paint()
+end sub
+
+' --- Subtitles, Audio, Quality --------------------------------------------------------------
+
+function languageName(code as dynamic) as string
+    if code = invalid or code = "" or code = "und" then return "Unknown"
+    names = {en: "English", eng: "English", fr: "French", fre: "French", fra: "French", es: "Spanish", spa: "Spanish", de: "German", ger: "German", deu: "German", it: "Italian", ita: "Italian", pt: "Portuguese", por: "Portuguese", ja: "Japanese", jpn: "Japanese", ko: "Korean", kor: "Korean", zh: "Chinese", chi: "Chinese", zho: "Chinese", nl: "Dutch", nld: "Dutch", dut: "Dutch", sv: "Swedish", swe: "Swedish", da: "Danish", dan: "Danish", no: "Norwegian", nor: "Norwegian", fi: "Finnish", fin: "Finnish", pl: "Polish", pol: "Polish", ru: "Russian", rus: "Russian", ar: "Arabic", ara: "Arabic", hi: "Hindi", hin: "Hindi", tr: "Turkish", tur: "Turkish"}
+    if names[lcase(code)] <> invalid then return names[lcase(code)]
+    return ucase(code)
+end function
+
+function currentVersion() as dynamic
+    if m.options = invalid or m.session = invalid then return invalid
+    for each version in m.options.versions
+        if version.id = m.session.versionId then return version
+    end for
+    if m.options.versions.count() > 0 then return m.options.versions[0]
+    return invalid
+end function
+
+function subtitleLabel(track as object) as string
+    text = languageName(track.language)
+    if track.sdh = true then text = text + " (SDH)"
+    if track.forced = true then text = text + " (forced)"
+    return text
+end function
+
+function audioLabel(track as object) as string
+    text = languageName(track.language)
+    if track.channels <> invalid
+        if track.channels = 1 then text = text + ", mono" else if track.channels = 2 then text = text + ", stereo" else if track.channels = 6 then text = text + ", 5.1" else if track.channels = 8 then text = text + ", 7.1" else text = text + ", " + track.channels.toStr() + " channels"
+    end if
+    if track.commentary = true then text = text + " (commentary)"
+    return text
+end function
+
+function qualityLabel(q as object) as string
+    if q.mode = "original" then return "Original"
+    if q.mode = "automatic" then return "Automatic"
+    text = ""
+    if q.id <> invalid then text = q.id
+    if q.maxVideoBitrateKbps <> invalid
+        mbps = q.maxVideoBitrateKbps / 1000
+        if mbps >= 1 then text = text + ", " + str(int(mbps * 10) / 10).trim() + " Mbps" else text = text + ", " + q.maxVideoBitrateKbps.toStr() + " kbps"
+    end if
+    return text
+end function
+
+' What each of the three says now: [subtitles, audio, quality].
+function currentChoices() as object
+    out = ["Off", "", ""]
+    p = m.presentation
+    version = currentVersion()
+    if p = invalid or version = invalid then return out
+    if p.subtitle <> invalid
+        for each track in version.subtitles
+            if track.id = p.subtitle.trackId then out[0] = subtitleLabel(track)
+        end for
+    end if
+    for each track in version.audio
+        if p.audioTrackId <> invalid and track.id = p.audioTrackId then out[1] = audioLabel(track)
+    end for
+    if p.quality <> invalid then out[2] = qualityLabel(p.quality)
+    return out
+end function
+
+sub openOptions(which as integer)
+    version = currentVersion()
+    p = m.presentation
+    if version = invalid or p = invalid then return
+    rows = []
+    if which = 0
+        rows.push({id: "sub:", text: "Off", current: p.subtitle = invalid})
+        for each track in version.subtitles
+            rows.push({id: "sub:" + track.id, text: subtitleLabel(track), current: p.subtitle <> invalid and p.subtitle.trackId = track.id})
+        end for
+    else if which = 1
+        for each track in version.audio
+            rows.push({id: "aud:" + track.id, text: audioLabel(track), current: p.audioTrackId <> invalid and p.audioTrackId = track.id})
+        end for
+    else
+        for i = 0 to m.options.qualities.count() - 1
+            q = m.options.qualities[i]
+            same = (p.quality <> invalid and p.quality.mode = q.mode and (q.mode <> "fixed" or p.quality.id = q.id))
+            rows.push({id: "qua:" + i.toStr(), text: qualityLabel(q), current: same})
+        end for
+    end if
+    if rows.count() = 0 then return
+    m.hide.control = "stop"
+    m.top.menu = {eyebrow: m.top.findNode("title").text, title: ["Subtitles", "Audio", "Quality"][which], status: "", rows: rows}
+end sub
+
+sub onMenuChosen(event as object)
+    if m.session = invalid then return
+    id = event.getData()
+    kind = left(id, 4)
+    value = mid(id, 5)
+    change = {}
+    if kind = "sub:"
+        if value = "" then change.subtitles = {trackId: invalid} else change.subtitles = {trackId: value}
+    else if kind = "aud:"
+        change.audio = {trackId: value}
+    else if kind = "qua:"
+        q = m.options.qualities[value.toInt()]
+        change.quality = {mode: q.mode}
+        if q.id <> invalid then change.quality.id = q.id
+    end if
+    change.positionMs = int(m.video.position * 1000)
+    api("PATCH", "/v1/playback/sessions/" + m.session.id, change, "onChanged", {at: m.video.position})
+end sub
+
+' The server answers a change with how the title reaches this TV now: a new stream is loaded where
+' the picture was; the same stream only changes which subtitle is drawn.
+sub onChanged(event as object)
+    result = event.getData()
+    if m.session = invalid then return
+    if not result.ok
+        raise()
+        return
+    end if
+    before = m.presentation
+    m.session = result.data
+    p = m.session.presentation
+    if p.url <> before.url
+        if p.startPositionMs = invalid or p.startPositionMs = 0 then p.startPositionMs = int(event.getRoSGNode().ctx.at * 1000)
+        load(p)
+    else
+        m.presentation = p
+        drawSubtitle(p)
+    end if
+    raise()
+end sub
+
+' Roku draws a text subtitle from its file beside the stream; one burned into the picture needs nothing here.
+sub drawSubtitle(p as object)
+    chosen = ""
+    if p.subtitle <> invalid and p.subtitles <> invalid
+        for each file in p.subtitles
+            if file.trackId = p.subtitle.trackId then chosen = m.global.origin + file.url
+        end for
+    end if
+    if chosen <> ""
+        m.video.subtitleTrack = chosen
+        m.video.globalCaptionMode = "On"
+    else
+        m.video.globalCaptionMode = "Off"
+    end if
 end sub
 
 sub onSession(event as object)
@@ -97,6 +298,7 @@ sub onSession(event as object)
         return
     end if
     m.session = result.data
+    m.startKey = invalid
     load(m.session.presentation)
     if m.session.lease <> invalid and m.session.lease.reportEveryMs <> invalid then m.report.duration = m.session.lease.reportEveryMs / 1000
     m.report.control = "start"
@@ -112,12 +314,73 @@ function streamFormat(p as object) as string
     return "mp4"
 end function
 
+' The waiting state: shown from the moment Play is pressed until the picture runs, and again
+' whenever the stream has to catch up.
+sub busy(text as dynamic)
+    showing = (text <> invalid)
+    m.wait.visible = showing
+    if showing
+        m.top.findNode("waitText").text = text
+        m.top.findNode("spin").control = "start"
+    else
+        m.top.findNode("spin").control = "stop"
+    end if
+end sub
+
+' A stream the server is still making can answer "not there yet" for a moment, and Roku's player
+' gives up at once. So a stop that is not the end of the title is tried again from where the
+' picture was, a few times, before it is called a failure.
+sub again()
+    if m.session = invalid or m.ended then return
+    if m.tries >= 6
+        fail("This title could not be played on this TV.")
+        return
+    end if
+    m.tries = m.tries + 1
+    m.video.control = "stop"
+    busy("Getting ready…")
+    ' The server is told the player could not play this. It may answer with another way for the
+    ' title to reach this TV, which is then what is played.
+    detail = ""
+    if m.video.errorMsg <> invalid then detail = m.video.errorMsg
+    api("PATCH", "/v1/playback/sessions/" + m.session.id, {failure: {code: "player_error", detail: detail}, positionMs: int(m.last * 1000)}, "onFailureAnswer", {id: m.session.id})
+end sub
+
+sub onFailureAnswer(event as object)
+    result = event.getData()
+    if m.session = invalid or m.ended or event.getRoSGNode().ctx.id <> m.session.id then return
+    if result.ok and result.data <> invalid and result.data.presentation <> invalid
+        replaced = (result.data.presentation.url <> m.presentation.url)
+        m.session = result.data
+        m.presentation = result.data.presentation
+        if replaced
+            reload()          ' a replacement stream: play it now
+            return
+        end if
+    else if result.status = 404 or result.status = 410
+        fail("This title could not be played on this TV.")
+        return
+    end if
+    m.retry.duration = 2 + m.tries
+    m.retry.control = "start"
+end sub
+
+sub reload()
+    if m.session = invalid or m.ended then return
+    p = m.presentation
+    p.startPositionMs = int(m.last * 1000)
+    load(p)
+end sub
+
 sub load(p as object)
     content = createObject("roSGNode", "ContentNode")
     content.url = m.global.origin + p.url
     content.streamFormat = streamFormat(p)
     content.title = m.top.findNode("title").text
-    if p.startPositionMs <> invalid and p.startPositionMs > 0 then content.playStart = p.startPositionMs / 1000
+    if p.startPositionMs <> invalid and p.startPositionMs > 0
+        content.playStart = p.startPositionMs / 1000
+        m.last = p.startPositionMs / 1000
+    end if
     tracks = []
     if p.subtitles <> invalid
         for each file in p.subtitles
@@ -128,6 +391,7 @@ sub load(p as object)
     m.presentation = p
     m.video.content = content
     m.video.control = "play"
+    drawSubtitle(p)
 end sub
 
 sub sendProgress()
@@ -157,10 +421,12 @@ end sub
 sub leave(tell as boolean)
     if m.ended then return
     m.ended = true
-    for each timer in [m.report, m.tick, m.hide, m.settle, m.again]
+    for each timer in [m.report, m.tick, m.hide, m.settle, m.again, m.retry]
         timer.control = "stop"
     end for
+    busy(invalid)
     at = int(m.video.position * 1000)
+    if at = 0 and m.last > 0 then at = int(m.last * 1000)
     m.video.control = "stop"
     if tell and m.session <> invalid then api("DELETE", "/v1/playback/sessions/" + m.session.id, {positionMs: at}, "onStopped")
     m.session = invalid
@@ -173,12 +439,16 @@ end sub
 sub onVideoState()
     state = m.video.state
     if state = "finished"
-        leave(true)
+        ' the end of the title, or a stream that stopped short of it
+        if m.duration <= 0 or m.last >= m.duration - 5 then leave(true) else again()
     else if state = "error"
-        if m.session <> invalid then api("PATCH", "/v1/playback/sessions/" + m.session.id, {failure: {code: "player_error", detail: m.video.errorMsg}}, "onStopped")
-        fail("This title could not be played on this TV.")
+        again()
     else if state = "playing"
         if m.video.duration > 0 then m.duration = m.video.duration
+        busy(invalid)
+        paint()
+    else if state = "buffering"
+        busy("Catching up…")
         paint()
     else
         paint()
@@ -186,7 +456,8 @@ sub onVideoState()
 end sub
 
 sub fail(message as string)
-    for each timer in [m.report, m.tick, m.hide]
+    busy(invalid)
+    for each timer in [m.report, m.tick, m.hide, m.retry]
         timer.control = "stop"
     end for
     m.video.control = "stop"
@@ -257,6 +528,12 @@ function timeOfDay(offsetSeconds as integer) as string
 end function
 
 sub onPosition()
+    at = m.video.position
+    if at > 0
+        ' the picture has run on from where it was last started: it is healthy again
+        if at > m.last + 8 then m.tries = 0
+        if m.pending < 0 then m.last = at
+    end if
     if m.controls.visible then paint()
 end sub
 
@@ -273,7 +550,7 @@ sub paint()
     m.played.width = 1728 * fraction
     m.knob.translation = [96 + 1728 * fraction - 11, 820]
     m.knobRing.translation = [96 + 1728 * fraction - 30, 801]
-    m.knobRing.visible = (m.focus = 3)
+    m.knobRing.visible = (m.focus = 6)
     m.top.findNode("at").text = clockText(position)
     m.top.findNode("left").text = "-" + clockText(duration - position)
     m.top.findNode("clock").text = timeOfDay(0)
@@ -282,6 +559,9 @@ sub paint()
     if paused then m.spots[1].icon.uri = "pkg:/images/i-play-40.png" else m.spots[1].icon.uri = "pkg:/images/i-pause-40.png"
     for i = 0 to 2
         spot = m.spots[i]
+        if spot.number <> invalid
+            if i = m.focus then spot.number.color = c.actionInk else spot.number.color = c.text
+        end if
         if i = m.focus
             spot.plate.blendColor = "0xD8E6EEFF"
             spot.icon.blendColor = c.actionInk
@@ -295,6 +575,28 @@ sub paint()
         end if
     end for
     m.ring.visible = (m.focus < 3)
+    ' the three choices
+    values = currentChoices()
+    pillRing = m.top.findNode("pillRing")
+    pillRing.visible = (m.focus >= 3 and m.focus <= 5)
+    for i = 0 to 2
+        pill = m.pills[i]
+        pill.value.text = values[i]
+        on = (m.focus = i + 3)
+        if on
+            pill.plate.blendColor = "0xD8E6EEFF"
+            pill.head.color = c.actionInk
+            pill.value.color = c.actionInk
+            out = metrics().focusSpread + 6
+            pillRing.translation = [pill.x - out, 906 + 14 - out]
+            pillRing.width = 180 + out * 2
+            pillRing.height = 72 + out * 2
+        else
+            pill.plate.blendColor = "0x1D3848E6"
+            pill.head.color = c.textSecondary
+            pill.value.color = c.textTertiary
+        end if
+    end for
 end sub
 
 sub togglePause()
@@ -324,6 +626,7 @@ sub applySeek()
     if m.pending < 0 or m.session = invalid then return
     target = m.pending
     m.pending = -1
+    m.last = target
     if m.presentation.mode = "direct"
         m.video.seek = target
     else
@@ -382,20 +685,23 @@ function onKeyEvent(key as string, press as boolean) as boolean
             togglePause()
         else if m.focus = 2
             nudge(30)
+        else if m.focus <= 5
+            openOptions(m.focus - 3)
+            return true
         else
             applySeek()
         end if
     else if key = "left"
-        if m.focus = 3 then nudge(-10) else if m.focus > 0 then m.focus = m.focus - 1
+        if m.focus = 6 then nudge(-10) else if m.focus > 0 then m.focus = m.focus - 1
     else if key = "right"
-        if m.focus = 3 then nudge(10) else if m.focus < 2 then m.focus = m.focus + 1
+        if m.focus = 6 then nudge(10) else if m.focus < 5 then m.focus = m.focus + 1
     else if key = "up"
-        if m.focus < 3
+        if m.focus < 6
             m.row = m.focus
-            m.focus = 3
+            m.focus = 6
         end if
     else if key = "down"
-        if m.focus = 3
+        if m.focus = 6
             m.focus = 1
             if m.row <> invalid then m.focus = m.row
         end if

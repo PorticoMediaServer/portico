@@ -75,7 +75,9 @@ sub send(req as object, retried as boolean)
         started = x.asyncGetToString()
     else
         if method = "POST"
-            x.addHeader("Idempotency-Key", createObject("roDeviceInfo").getRandomUUID())
+            key = req.key
+            if key = invalid or key = "" then key = createObject("roDeviceInfo").getRandomUUID()
+            x.addHeader("Idempotency-Key", key)
         else
             x.setRequest(method)
         end if

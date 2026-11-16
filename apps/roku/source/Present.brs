@@ -158,6 +158,47 @@ function coverTint(title as string) as integer
     return lo mod 8
 end function
 
+' The side sheet for a title: {eyebrow, title, status, rows}. `inContinue` adds the Continue
+' Watching row's own action.
+function titleMenu(item as object, inContinue as boolean) as object
+    title = item.title
+    eyebrow = ""
+    if item.kind = "episode"
+        if item.rootTitle <> invalid then title = item.rootTitle
+        eyebrow = episodeCode(item)
+    end if
+    status = ""
+    if progressOf(item) >= 0 then status = "In progress      " + timeLeftText(item)
+    rows = []
+    playable = (item.kind = "movie" or item.kind = "episode")
+    if playable
+        if progressOf(item) >= 0 then rows.push({id: "play", text: "Resume", icon: "play"}) else rows.push({id: "play", text: "Play", icon: "play"})
+    end if
+    if item.state <> invalid and item.state.watched = true
+        rows.push({id: "unplayed", text: "Mark as unplayed", icon: "refresh"})
+    else
+        rows.push({id: "played", text: "Mark as played", icon: "check"})
+    end if
+    if inContinue then rows.push({id: "dismiss", text: "Remove from Continue Watching", icon: "close"})
+    if item.state <> invalid and item.state.inList = true
+        rows.push({id: "unlist", text: "Remove from My List", icon: "close"})
+    else
+        rows.push({id: "list", text: "Add to My List", icon: "plus"})
+    end if
+    rows.push({id: "details", text: "Details", icon: "info", gapBefore: true})
+    return {eyebrow: eyebrow, title: title, status: status, rows: rows}
+end function
+
+' The state change a menu row stands for, or invalid when the row is not a state change.
+function titleMenuChange(item as object, which as string) as dynamic
+    if which = "played" then return {watched: true}
+    if which = "unplayed" then return {watched: false}
+    if which = "list" then return {inList: true}
+    if which = "unlist" then return {inList: false}
+    if which = "dismiss" then return {continueDismissed: true}
+    return invalid
+end function
+
 ' "TC" for Timothée Chalamet: the first letters of the first and last names.
 function initialsOf(name as string) as string
     parts = name.trim().split(" ")
@@ -203,6 +244,34 @@ function dateText(iso as dynamic) as string
     return months[month - 1] + " " + mid(iso, 9, 2).toInt().toStr() + ", " + left(iso, 4)
 end function
 
+' A title in a library's grid: its picture with its name and year under it.
+function gridCard(item as object) as object
+    card = cardFor(item, "poster")
+    card.under = true
+    card.artHeight = 300
+    if item.kind = "collection" and item.counts <> invalid then card.sub = countText(item.counts.children, "title", "titles")
+    return card
+end function
+
+' A library's views, sorts and counts, in words.
+function viewName(kind as string) as string
+    names = {movie: "Movies", show: "Shows", collection: "Collections", artist: "Artists", album: "Albums", track: "Songs", audiobook: "Audiobooks", season: "Seasons", episode: "Episodes", playlist: "Playlists"}
+    if names[kind] <> invalid then return names[kind]
+    return ucase(left(kind, 1)) + mid(kind, 2)
+end function
+
+function sortName(id as string) as string
+    names = {title: "Title A–Z", added: "Recently added", year: "Year", release: "Release date", duration: "Duration", communityRating: "Rating", criticRating: "Critics' rating", plays: "Most played", artist: "Artist", random: "Random"}
+    if names[id] <> invalid then return names[id]
+    return ucase(left(id, 1)) + mid(id, 2)
+end function
+
+function kindCount(n as integer, kind as string) as string
+    one = {movie: "movie", show: "show", collection: "collection", artist: "artist", album: "album", track: "song", audiobook: "audiobook"}
+    if one[kind] = invalid then return countText(n, "title", "titles")
+    return countText(n, one[kind], one[kind] + "s")
+end function
+
 ' An episode in its season's row: {.., under: true (words under the still), corner (its length), played}.
 function episodeCard(item as object, upNext as boolean) as object
     card = cardFor(item, "landscape")
@@ -211,6 +280,7 @@ function episodeCard(item as object, upNext as boolean) as object
     card.title = item.title
     card.sub = "Episode"
     if item.index <> invalid then card.sub = "Episode " + item.index.toStr()
+    if card.sub = card.title then card.sub = ""       ' an episode named only by its number says it once
     card.corner = durationText(item.durationMs)
     card.played = (item.state <> invalid and item.state.watched = true)
     if upNext then card.badge = "Up next"

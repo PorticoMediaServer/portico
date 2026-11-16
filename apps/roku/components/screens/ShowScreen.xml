@@ -15,7 +15,12 @@
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <children>
-    <Label id="title" translation="[197,58]" width="1500"/>
+    <Group id="top">
+      <Hero id="hero" mode="title"/>
+      <ButtonRow id="buttons" translation="[200,484]"/>
+    </Group>
+    <Label id="title" translation="[197,58]" width="1500" visible="false"/>
+    <Group id="lower" translation="[0,536]">
     <TitleSections id="sections" translation="[0,164]" lead="Episodes" section="lead"/>
     <Group id="episodesPart">
       <SeasonList id="seasons" translation="[200,262]"/>
@@ -23,6 +28,7 @@
       <Label id="bandHead" translation="[600,640]"/>
       <Label id="bandFacts" translation="[600,640]"/>
       <Label id="bandText" translation="[600,682]" width="1100" wrap="true" maxLines="2"/>
+    </Group>
     </Group>
     <Timer id="rest" duration="0.15"/>
   </children>

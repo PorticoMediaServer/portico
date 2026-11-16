@@ -22,13 +22,14 @@ sub onShape()
     m.list.rowItemSpacing = [[k.cardGap, 0]]
     m.list.focusXOffset = [m.top.slotX]
     if m.top.slotX > k.safeLeft
-        m.list.clippingRect = [m.top.slotX - 40, -40, 1920, size[1] + 120]
+        m.list.clippingRect = [m.top.slotX - 26, -40, 1920, size[1] + 120]
     end if
     ' The ring goes round the grown card, its inner edge two pixels clear of the picture.
     grow = (k.focusScale - 1) / 2
     out = k.focusSpread + 6
     pictureHeight = size[1]
     if m.top.shape = "episode" then pictureHeight = size[0] * 9 / 16     ' the ring goes round the still, not its caption
+    if m.top.shape = "gridPoster" then pictureHeight = 300
     m.ring.translation = [m.top.slotX - size[0] * grow - out, g.headingGap - pictureHeight * grow - out]
     m.ring.width = size[0] * k.focusScale + out * 2
     m.ring.height = pictureHeight * k.focusScale + out * 2
