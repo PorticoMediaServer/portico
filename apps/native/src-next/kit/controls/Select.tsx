@@ -101,7 +101,7 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
       placement={theme.isTV ? 'side' : undefined} width={theme.isTV ? 640 : undefined}
       titleTextStyle={theme.isTV ? {...nativeType({size: 46, weight: 800, tracking: -.035, lineHeight: 47.84}, theme.textScale), marginTop: pickerContext == null ? 0 : -4} : undefined}
       descriptionTextStyle={theme.isTV ? {...nativeType({size: 22, weight: 400, tracking: 0, lineHeight: 31.9}, theme.textScale), marginTop: 12} : undefined}
-      contentStyle={{paddingTop: theme.isTV ? pickerDescription == null ? 32 : 26 : 0}}
+      contentStyle={{paddingTop: theme.isTV ? pickerDescription == null ? 32 : 26 : 0, paddingHorizontal: 0}}
       initialFocusRef={!blocked && initialIndex >= 0 ? selectedRow : undefined} returnFocusRef={trigger} testID={testID ? `${testID}-picker` : undefined}>
       <FlatList ref={list} data={options} keyExtractor={option => option.value} accessibilityRole="radiogroup"
         initialScrollIndex={initialIndex >= 0 ? initialIndex : undefined}

@@ -113,7 +113,7 @@ function ManageSurface({value, presenters, common}: {value: NativeWatchOverlay; 
         : value.phase === 'merge' && value.other ? <Button focusId="watch-merge-confirm" testID="watch-merge-confirm" disabled={value.busy} onPress={() => {void presenters.merge();}}>{t('web.selection.merge')}</Button> : null}
   </View>;
   return <RetainedOverlay key={overlayPaintKey(value.capture)} permit={watchPaintPermit(value, presenters)} allowedTypes={paintTypes}><Dialog open title={heading} description={named(entry)} onOpenChange={open => {if (!open) presenters.close();}} footer={footer} dismissOnBack={!value.busy} dismissOnOutsidePress={!value.busy} showClose={false} testID="watch-file-manage">
-    <ScrollView contentContainerStyle={{paddingHorizontal: theme.isTV ? 0 : 20, paddingVertical: 16}}>{body}</ScrollView>
+    <ScrollView contentContainerStyle={{paddingVertical: 16}}>{body}</ScrollView>
   </Dialog></RetainedOverlay>;
 }
 

@@ -156,10 +156,13 @@ test('Dialog provides bounded scrolling by default and honors a body-owned list 
       '../Icon': {Icon: 'Icon'}, './BottomSheet': {BottomSheet: 'BottomSheet'},
       './OverlayHost': {useOverlayLifecycle() {}, OverlayPortal: 'OverlayPortal'}, './native-dismissal': {useNativeModalPresence: (present: boolean, shown = present) => ({mounted: present, visible: shown && present, onDismiss() {}})},
     });
-    const props = {open: true, title: 'Choices', onOpenChange() {}, children: 'Long body', footer: 'Footer', scrollable};
+    const props = {open: true, title: 'Choices', onOpenChange() {}, children: 'Long body', footer: 'Footer', scrollable, headerContext: 'Context'};
     const outer = f.host.render(() => surface.Dialog(props));
     if (width === 390) {
       assert.equal(outer.type, 'BottomSheet'); assert.equal(outer.props.fitContent, true);
+      // W3 F17: as a sheet, a dialog keeps its title's gutter for its header line and body; it never runs to the edge.
+      assert.equal(flatten(outer.props.contentStyle).paddingHorizontal, 20);
+      assert.equal(outer.props.headerContext.props.style.paddingHorizontal, 20); assert.equal(outer.props.headerContext.props.children, 'Context');
       assert.equal(outer.props.scrollable, scrollable !== false);
       assert.equal(outer.props.keyboardAvoiding, undefined, "forms keep their own keyboard padding");
     } else {
