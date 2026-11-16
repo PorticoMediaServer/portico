@@ -709,22 +709,6 @@ export class HttpLocalApi {
       return value as T;
     });
   }
-  /** One multipart subtitle save (IM04) under the captured selected-server session. Never refresh/replay a lost write. */
-  async requestSubtitleUpload<T>(path: string, method: 'POST' | 'PUT', body: FormData, input?: AbortSignal): Promise<T> {
-    if (!/^\/v1\/items\/[A-Za-z0-9_-]+\/subtitles(?:\/[A-Za-z0-9_-]+)?$/.test(path) || (method === 'PUT') !== /\/subtitles\/[A-Za-z0-9_-]+$/.test(path)) throw new Error('Invalid subtitle upload path.');
-    const token = this.token, epoch = this.certificateSessionEpoch;
-    const current = () => {if (this.token !== token || this.certificateSessionEpoch !== epoch) throw new Error('The subtitle upload belongs to an old session.');};
-    return withinDeadline(110000, input, async signal => {
-      current(); throwIfAborted(signal);
-      const response = await this.fetcher(this.baseUrl + path, {method, body, signal, redirect: 'error', credentials: 'omit', referrerPolicy: 'no-referrer',
-        headers: {Accept: 'application/json', ...(token ? {Authorization: `Bearer ${token}`} : {}), ...this.deliveryHeaders()}});
-      current(); throwIfAborted(signal);
-      const value = await response.json().catch(() => undefined);
-      current(); throwIfAborted(signal);
-      if (!response.ok) throw new ApiError(response.status, value?.error?.code ?? value?.code ?? 'request_failed', value?.error?.message ?? 'Subtitle upload failed.', value?.error?.retryable === true);
-      return value as T;
-    });
-  }
   /** A consented app log is plain text, read through the same authenticated exchange as JSON. */
   async readReportLog(id: string, input?: AbortSignal): Promise<string> {
     const path = serverPath('GET /v1/admin/reports/{id}/log', {id});

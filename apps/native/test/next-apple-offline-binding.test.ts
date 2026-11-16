@@ -40,7 +40,6 @@ async function factory({tv = false, supported = true, bridge = {localFile() {}},
     './NativeListeningAdapter': {},
     './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: class {constructor(options: unknown) {captured = options;return runtime;}}},
     './scope-http': {PlaybackScopeHttp: class {dispose() {}}},
-    './subtitle-file-picker.ios': {appleSubtitleFilePicker: undefined},
     '../../../platform/offline-downloads': {offlineDownloads: device},
     '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
   });
