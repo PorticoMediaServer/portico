@@ -357,6 +357,7 @@ test('the real rail declares current-page entry and semantic Right return; nativ
     '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: ({children}: any) => children, FocusRegion: 'FocusRegion', useFocusRegistry: () => registry, focusTestID: (await import('../src-next/kit/focus/registry')).focusTestID}, './tv-focus': focusModel,
     '../kit/artwork': {ProfileFace: 'ProfileFace'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme},
     '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './model': shellModel,
+    '../kit/layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade', useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}})},
   });
   const render = () => h.render(() => TVRail({authority, libraries: [], hasLiveTV: false, destination: {kind: 'home'}, profile: {id: 'p', name: 'Actual'},
     onNavigate: (next: unknown) => navigations.push(next), onProfile() {}, profileRef: {current: null}, onExpandedChange: (open: boolean) => changes.push(open),
@@ -417,4 +418,37 @@ test('the real rail declares current-page entry and semantic Right return; nativ
   assert.deepEqual(changes, [true]); assert.deepEqual(navigations, []);
   assert.equal(search.props.onFocus, undefined, 'Up/Down has no application navigation handler');
   search.props.onPress(); assert.deepEqual(navigations, [{kind: 'search'}]);
+});
+
+test('the rail pins Search and Home above and Live TV and Saved over Settings; only libraries scroll, fading where they continue', async () => {
+  const {hooks} = await import('./helpers/screen-harness.mjs');
+  const {motionRules} = await import('../../../packages/design/src/index');
+  const {defaultI18n} = await import('../../../packages/i18n/src');
+  const h = hooks(), registry = createFocusRegistry(), theme = createTheme({isTV: true, width: 1920}), ids = focusModel.tvFocusIds(authority);
+  let edges = {top: false, bottom: true};
+  const {TVRail} = await screenModule(new URL('../src-next/shell/TVRail.tsx', import.meta.url), {
+    react: h.react, '@portico/design': {motionRules}, 'react-native': {Image: 'Image', Platform: {OS: 'android'}, ScrollView: 'ScrollView', Text: 'Text', View: 'View', findNodeHandle: () => null},
+    'react-native-svg': {default: 'Svg', Path: 'Path'},
+    'react-native-reanimated': {default: {View: 'AnimatedView', Text: 'AnimatedText'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: (value: number) => ({value}), withTiming: (value: unknown) => value, withDelay: (_delay: unknown, value: unknown) => value},
+    '../../../../packages/i18n/src': {defaultI18n}, '../kit/controls': {Focusable: 'Focusable'},
+    '../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry, focusTestID: (await import('../src-next/kit/focus/registry')).focusTestID}, './tv-focus': focusModel,
+    '../kit/artwork': {ProfileFace: 'ProfileFace'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme},
+    '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './model': shellModel,
+    '../kit/layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade', useListEdges: () => ({edges, scroll: {}})},
+  });
+  const libraries = Array.from({length: 10}, (_, index) => ({id: `lib${index}`, name: `Library ${index}`, kind: 'movies'}));
+  const render = (live: boolean) => nodes(h.render(() => TVRail({authority, libraries, hasLiveTV: live, destination: {kind: 'home'}, profile: {id: 'p', name: 'Actual'},
+    onNavigate() {}, onProfile() {}, profileRef: {current: null}, onExpandedChange() {}})));
+  const tree = render(true), focusIds = (list: any[]) => list.filter(node => node.type === 'Focusable').map(node => node.props.focusId);
+  const libraryKeys = libraries.map(library => 'library:' + library.id);
+  const scroller = tree.find(node => node.type === 'ScrollView');
+  assert.deepEqual(focusIds(nodes(scroller)), libraryKeys, 'only the libraries scroll');
+  assert.deepEqual(focusIds(tree), ['search', 'home', ...libraryKeys, 'live', 'saved', 'settings', ids.profile], 'drawn top to bottom in three groups');
+  const at = (focusId: string) => tree.findIndex(node => node.props?.focusId === focusId), list = tree.indexOf(scroller);
+  assert.ok(at('home') < list && at('live') > list + libraryKeys.length && at('saved') > at('live'), 'Search and Home above the list; Live TV and Saved below it');
+  assert.deepEqual(tree.find(node => node.type === 'FocusRegion').props.order, ['search', 'home', ...libraryKeys, 'live', 'saved', 'settings', ids.profile], 'focus order runs top to bottom through all three groups');
+  assert.deepEqual(tree.filter(node => node.type === 'ListEdgeFade').map(node => node.props.edge), ['bottom'], 'at the top of a list that continues: the bottom fades');
+  edges = {top: true, bottom: false};
+  assert.deepEqual(render(true).filter(node => node.type === 'ListEdgeFade').map(node => node.props.edge), ['top'], 'scrolled to its end: the top fades');
+  assert.deepEqual(focusIds(render(false)).slice(-3), ['saved', 'settings', ids.profile], 'without Live TV, Saved sits over Settings');
 });
