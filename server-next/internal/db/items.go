@@ -126,9 +126,9 @@ type ItemQuery struct {
 	Limit     int
 	WithTotal bool
 
-	homeIDs      []int64 // a Continue row, in its own order; nil for other lists
-	homeRecent   bool
-	homeUnplayed bool
+	homeIDs                  []int64 // a Continue row, in its own order; nil for other lists
+	homeRecent, homeReleased bool
+	homeUnplayed             bool
 
 	entries bool // the rows are a list's entries, already narrowed to a list the viewer may read
 }
@@ -634,8 +634,7 @@ func cursorAt(ctx context.Context, tx *sql.Tx, v Viewer, q ItemQuery, item int64
 // skips what does not match. Each is fast where the other is slow.
 var rareTag = 2000
 
-// filters writes the condition for everything but the page position: what the viewer may see,
-// and what was asked for. It reports false when a named tag does not exist, so nothing matches.
+// filters applies visibility and requested filters; a nonexistent named tag reports false.
 func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access) (bool, error) {
 	w.add("(", acc.libraryVisible("i.library_id"), acc.rated("i", "{rated}"), "){labels}{holders}")
 	w.labels = acc.unblocked("i")
@@ -651,6 +650,9 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	if q.homeUnplayed {
 		w.add(" AND ifnull(", ownState("played"), ", 0) = 0 AND ifnull(", ownState("favorite"), ", 0) = 0 AND ifnull(", ownState("hidden"), ", 0) = 0")
 	}
+	if q.homeReleased {
+		w.add(" AND i.release_date > '' AND i.release_date <= ", w.arg(time.Now().UTC().Format(time.DateOnly)))
+	}
 	if q.homeRecent {
 		w.add(fmt.Sprintf(` AND (i.kind IN (%d,%d,%d,%d,%d,%d) OR
 			(i.kind IN (%d,%d,%d) AND i.parent_id IS NULL) OR
@@ -658,7 +660,6 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 			KindMovie, KindShow, KindAlbum, KindBook, KindAudiobook, KindComic, KindEpisode, KindTrack, KindIssue, KindSeries, KindIssue))
 		scoped = true
 	}
-
 	var library int64
 	var kindList string
 	// A library, title or person the list is of is looked up first. One the viewer may not see

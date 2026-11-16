@@ -86,9 +86,10 @@ func (s *Server) catalogueRoutes() {
 		rows := []HomeRow{
 			{ID: "continue", Title: title, Shape: shape},
 			{ID: "recently_added", Title: "Recently Added", Shape: "poster"},
+			{ID: "recently_released", Title: "Recently Released", Shape: "poster"},
 			s.newIssuesRow(r, l),
 		}
-		if _, err := s.pageHomeRows(r, rows[:2], l.PublicID); err != nil {
+		if _, err := s.pageHomeRows(r, rows[:3], l.PublicID); err != nil {
 			return Home{}, err
 		}
 		return Home{Rows: shownRows(rows)}, nil
@@ -282,6 +283,7 @@ func (s *Server) catalogueRoutes() {
 			{ID: "continue_listening", Title: "Continue Listening", Shape: "poster", Items: []Item{}},
 			{ID: "continue_books", Title: "Continue your books", Shape: "poster", Items: []Item{}},
 			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: []Item{}},
+			{ID: "recently_released", Title: "Recently Released", Shape: "poster", Items: []Item{}},
 		}
 		continuing, err := s.pageHomeRows(r, home, "")
 		if err != nil {

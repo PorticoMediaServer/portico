@@ -29,22 +29,22 @@ func TestHomeFollowsTheSavedLayout(t *testing.T) {
 			t.Fatalf("saving the layout answered %d: %s", w.Code, w.Body)
 		}
 	}
-	usual := []string{"continue", "recently_added"}
+	usual := []string{"continue", "recently_added", "recently_released"}
 	if got := rows(token); !slices.Equal(got, usual) {
 		t.Fatalf("Home before any layout: %v", got)
 	}
 	save(map[string]any{"home.rowOrder": []string{"recently_added", "row_gone"}})
-	if got := rows(token); !slices.Equal(got, []string{"recently_added", "continue"}) {
+	if got := rows(token); !slices.Equal(got, []string{"recently_added", "continue", "recently_released"}) {
 		t.Fatalf("Home after moving a row first: %v", got)
 	}
 	save(map[string]any{"home.hiddenRowIds": []string{"recently_added", "continue"}})
-	if got := rows(token); !slices.Equal(got, []string{"continue"}) {
+	if got := rows(token); !slices.Equal(got, []string{"continue", "recently_released"}) {
 		t.Fatalf("Home after hiding both rows: %v", got)
 	}
 	// The Customize Home editor asks for the hidden rows too, by name, in their place, without
 	// items; the always-on row it could not hide is sent as usual.
 	editor := get[Home](t, s, token, "/v1/home?hidden=include").Rows
-	if len(editor) != 2 || editor[0].ID != "recently_added" || !editor[0].Hidden || editor[0].Title != "Recently Added" ||
+	if len(editor) != 3 || editor[0].ID != "recently_added" || !editor[0].Hidden || editor[0].Title != "Recently Added" ||
 		len(editor[0].Items) != 0 || editor[1].ID != "continue" || editor[1].Hidden || len(editor[1].Items) == 0 {
 		t.Fatalf("Home for the editor: %+v", editor)
 	}

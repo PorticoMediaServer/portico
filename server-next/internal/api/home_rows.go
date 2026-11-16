@@ -22,6 +22,8 @@ func (s *Server) homeRow(r *http.Request, _ None) (HomeRow, error) {
 		row.Title = "Continue Listening"
 	case "continue_books":
 		row.Title = "Continue your books"
+	case "recently_released":
+		row.Title = "Recently Released"
 	case "recently_added":
 		row.Title = "Recently Added"
 	default:

@@ -158,7 +158,7 @@ func TestBrowse(t *testing.T) {
 	if own := get[Facets](t, s, token, "/v1/facets?facet=genre&tag="+facets.Values[0].Value); len(own.Values) == 0 {
 		t.Fatal("a genre's own page has no genre choices")
 	}
-	if home := get[Home](t, s, token, "/v1/home"); len(home.Rows) != 1 || home.Rows[0].ID != "recently_added" || len(home.Rows[0].Items) == 0 {
+	if home := get[Home](t, s, token, "/v1/home"); len(home.Rows) != 2 || home.Rows[0].ID != "recently_added" || home.Rows[1].ID != "recently_released" || len(home.Rows[0].Items) == 0 {
 		t.Fatalf("Home before anything is played: %+v", home.Rows)
 	}
 	// A card says which library it is from, in a list and on Home, so an app can open its page.

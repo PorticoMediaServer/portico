@@ -65,12 +65,12 @@ func TestSavedViewsOnHome(t *testing.T) {
 	// View 0 first, as ordered; then the usual rows; then the others in the order put on Home.
 	// The first four view rows are read: View 0, the empty one (left out), Gone genre and
 	// View 1. The rest are deferred.
-	want := []string{"view:" + named[0], "recently_added", "view:" + dropped, "view:" + named[1], "view:" + named[2], "view:" + named[3], "view:" + named[4]}
+	want := []string{"view:" + named[0], "recently_added", "recently_released", "view:" + dropped, "view:" + named[1], "view:" + named[2], "view:" + named[3], "view:" + named[4]}
 	if !slices.Equal(got, want) {
 		t.Fatalf("Home rows %v, want %v", got, want)
 	}
 	for n, row := range home.Rows {
-		filled := n < 4
+		filled := n < 5
 		if !strings.HasPrefix(row.ID, "view:") {
 			continue
 		}
@@ -90,7 +90,7 @@ func TestSavedViewsOnHome(t *testing.T) {
 	if editor[0].ID != "view:"+named[0] || !editor[0].Hidden || editor[0].Deferred || len(editor[0].Items) != 0 {
 		t.Fatalf("the hidden view row for the editor: %+v", editor[0])
 	}
-	if rows := get[Home](t, s, other, "/v1/home").Rows; len(rows) != 1 {
+	if rows := get[Home](t, s, other, "/v1/home").Rows; len(rows) != 2 {
 		t.Fatalf("another profile's Home has %d rows", len(rows))
 	}
 
@@ -106,7 +106,7 @@ func TestSavedViewsOnHome(t *testing.T) {
 			t.Fatalf("a view row read with no time left: %+v", row)
 		}
 	}
-	if len(late) != 8 { // the empty view is not read, so it is sent deferred too
+	if len(late) != 9 { // the empty view is not read, so it is sent deferred too
 		t.Fatalf("Home out of time has %d rows", len(late))
 	}
 
