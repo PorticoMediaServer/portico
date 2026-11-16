@@ -207,7 +207,8 @@ export class EventsClient {
 
   private async loop(signal: AbortSignal): Promise<void> {
     let failures = 0;
-    const pollOnly = () => !this.o.openStream || this.streamFailures >= (this.o.streamFailuresBeforePoll ?? 3);
+    // The rebuilt server serves SSE only: a broken connection must retry that same protocol.
+    const pollOnly = () => !this.o.openStream;
     while (this.running && !signal.aborted) {
       const streaming = !pollOnly();
       this.setStatus({mode: streaming ? 'stream' : 'poll'});

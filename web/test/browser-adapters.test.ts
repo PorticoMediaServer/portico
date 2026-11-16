@@ -31,7 +31,7 @@ test('event stream reads the current bearer for each opening, resumes and closes
 });
 test('event sharing falls back when broadcast/storage is unavailable; visibility listener detaches', t => {
   replace(t, 'window', {isSecureContext: false, get localStorage() { throw new Error('refused'); }});
-  assert.equal(browserEventStream({} as HttpLocalApi, 'viewer', () => ''), undefined);
+  assert.equal(typeof browserEventStream({} as HttpLocalApi, 'viewer', () => ''), 'function');
   const page = new EventTarget() as EventTarget & {visibilityState: string}; page.visibilityState = 'visible'; replace(t, 'document', page);
   const env = browserFeedEnvironment(() => false, () => () => {}); let heard = 0;
   const stop = env.onVisibility(() => heard++); page.dispatchEvent(new Event('visibilitychange')); stop(); page.dispatchEvent(new Event('visibilitychange'));

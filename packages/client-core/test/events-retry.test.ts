@@ -25,13 +25,13 @@ test('event retries jitter their backoff deterministically without shortening a 
  }
 });
 
-test('quiet clean SSE closures back off before falling back to long poll, retaining the long-poll wait',async()=>{
+test('quiet clean SSE closures keep reconnecting with backoff',async()=>{
  const c=timers();let streams=0,polls=0;
  const events=new EventsClient({http:{send:r=>{polls++;assert.match(r.path,/waitMs=25000/);return held();}},openStream:async()=>{streams++;},waitMs:55000,random:()=>0.5,setTimer:c.setTimer,clearTimer:c.clearTimer});
  events.start();await settle();assert.equal(streams,1);assert.equal(polls,0);
  assert.equal([...c.pending.values()][0].ms,1000);
  c.fire();await settle();assert.equal(streams,2);assert.equal([...c.pending.values()][0].ms,2000);
- c.fire();await settle();assert.equal(streams,3);assert.equal(polls,1);assert.equal(events.getStatus().mode,'poll');events.stop();
+ c.fire();await settle();assert.equal(streams,3);assert.equal(polls,0);assert.equal(events.getStatus().mode,'stream');events.stop();
 });
 
 test('SSE greetings, control and invalid frames do not forgive repeated stream failures',async()=>{
@@ -41,17 +41,17 @@ test('SSE greetings, control and invalid frames do not forgive repeated stream f
   try{
    events.start();await settle();assert.equal(streams,1);
    c.fire();await settle();assert.equal(streams,2);
-   c.fire();await settle();assert.equal(streams,3);assert.equal(polls,1);assert.equal(events.getStatus().mode,'poll');
+   c.fire();await settle();assert.equal(streams,3);assert.equal(polls,0);assert.equal(events.getStatus().mode,'stream');
   }finally{events.stop();}
  }
 });
 
-test('stream errors retain Retry-After even when the next request switches to long poll',async()=>{
+test('stream errors retain Retry-After before another SSE attempt',async()=>{
  const c=timers();let polls=0;
  const events=new EventsClient({http:{send:()=>{polls++;return held();}},openStream:async()=>{throw {status:503,retryAfterMs:60_000};},streamFailuresBeforePoll:1,random:()=>0.5,setTimer:c.setTimer,clearTimer:c.clearTimer});
  // The server's minute is a floor; each client waits a little longer, at random, so they do not all come back together.
  events.start();await settle();assert.equal(polls,0);assert.equal([...c.pending.values()][0].ms,67_500);
- c.fire();await settle();assert.equal(polls,1);events.stop();
+ c.fire();await settle();assert.equal(polls,0);assert.equal(events.getStatus().mode,'stream');events.stop();
 });
 
 test('a late poll response from a stopped run cannot publish events or cursors into a restarted run',async()=>{

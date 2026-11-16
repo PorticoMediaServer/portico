@@ -42,12 +42,11 @@ function sharing(): SharedStreamEnvironment | undefined {
   return leases ? {lock: leaseLock(leases), channel} : undefined;
 }
 
-/** The stream opener for this tab, or undefined where only the long poll can be used. `viewer` names who is signed in, never the token. */
-export function browserEventStream(api: HttpLocalApi, viewer: string, token: () => string): StreamOpener | undefined {
+/** Share a stream when supported; otherwise this tab opens its own SSE connection. */
+export function browserEventStream(api: HttpLocalApi, viewer: string, token: () => string): StreamOpener {
   const shared = sharing();
-  if (!shared) return undefined;
   const open = eventStreamOpener((headers, signal) => openBrowserEventFeed(api, token, headers, signal));
-  return sharedStreamOpener('portico.events.' + viewer, open, shared);
+  return shared ? sharedStreamOpener('portico.events.' + viewer, open, shared) : open;
 }
 
 /** The feed follows foreground, playing intent and optional real media custody. */
