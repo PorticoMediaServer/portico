@@ -2,6 +2,9 @@ package scan_test
 
 import (
 	"bytes"
+	"fmt"
+	"image"
+	"image/jpeg"
 	"strings"
 	"testing"
 
@@ -56,6 +59,7 @@ func TestBookCoversPreferSidecarsToBoundedEPUBArtwork(t *testing.T) {
 		[2]string{"OEBPS/book.opf", legacy}, [2]string{"OEBPS/images/cover.png", string(inside)}))
 	f.put("PDF/edition.pdf", []byte("%PDF-1.4"))
 	f.put("PDF/cover.jpg", picture(t, 25))
+	f.put("Scan/scanned.pdf", scannedPDF(t, 140))
 	f.scan()
 	before := f.titles(db.KindBook)["Harbour"]
 	f.s.Pictures, f.s.AllFiles = pictures{}, true
@@ -73,6 +77,10 @@ func TestBookCoversPreferSidecarsToBoundedEPUBArtwork(t *testing.T) {
 	}
 	if image := shown(books["edition"], db.ImageCover); image == nil || image.Width != 25 {
 		t.Fatalf("PDF local cover: %+v", books["edition"].Images)
+	}
+	// A PDF without a picture beside it shows its first page, drawn.
+	if image := shown(books["scanned"], db.ImageCover); image == nil || image.Width != 1000 || image.Height <= image.Width {
+		t.Fatalf("PDF first-page cover: %+v", books["scanned"].Images)
 	}
 	f.s.AllFiles = false
 	f.put("Harbour/cover.jpg", picture(t, 35))
@@ -210,4 +218,32 @@ func TestReviewSeriesCoverStaysIssueOneAfterLaterIssueArrives(t *testing.T) {
 	if err != nil || len(candidates) != 1 || candidates[0].Width != 31 {
 		t.Fatalf("Scan all files added later issue covers: %+v, %v", candidates, err)
 	}
+}
+
+// scannedPDF is a one-page PDF whose page is one JPEG picture w pixels wide, as a scanner writes.
+// Its page is drawn at most 1000 by 1500 for its cover.
+func scannedPDF(t *testing.T, w int) []byte {
+	var page bytes.Buffer
+	if err := jpeg.Encode(&page, image.NewGray(image.Rect(0, 0, w, w*4/3)), nil); err != nil {
+		t.Fatal(err)
+	}
+	objects := []string{"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+		fmt.Sprintf("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] /Contents 5 0 R /Resources << /XObject << /Im1 4 0 R >> >> >>", w, w*4/3),
+		fmt.Sprintf("<< /Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /DCTDecode /Length %d >>\nstream\n%s\nendstream",
+			w, w*4/3, page.Len(), page.String()),
+		fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(fmt.Sprintf("q %d 0 0 %d 0 0 cm /Im1 Do Q", w, w*4/3)), fmt.Sprintf("q %d 0 0 %d 0 0 cm /Im1 Do Q", w, w*4/3))}
+	var b bytes.Buffer
+	b.WriteString("%PDF-1.4\n")
+	var offsets []int
+	for i, object := range objects {
+		offsets = append(offsets, b.Len())
+		fmt.Fprintf(&b, "%d 0 obj\n%s\nendobj\n", i+1, object)
+	}
+	xref := b.Len()
+	fmt.Fprintf(&b, "xref\n0 %d\n0000000000 65535 f \n", len(objects)+1)
+	for _, offset := range offsets {
+		fmt.Fprintf(&b, "%010d 00000 n \n", offset)
+	}
+	fmt.Fprintf(&b, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objects)+1, xref)
+	return b.Bytes()
 }

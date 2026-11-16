@@ -107,6 +107,8 @@ func run(log *slog.Logger) (err error) {
 	if _, err := mediaexec.Configure(mediaexec.Options{DataFolder: *data}); err != nil {
 		return err
 	}
+	// PDF covers are drawn by PDFium in WebAssembly, compiled once and kept here.
+	reading.UsePDFCache(filepath.Join(*data, "pdf-renderer"))
 	// The database, after a restore the owner staged, if there is one: see backup.OpenData.
 	// Every sign-in a restore brought back is ended before anything is served.
 	d, err := backup.OpenData(ctx, *data, log, time.Now)

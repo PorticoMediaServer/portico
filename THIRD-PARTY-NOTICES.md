@@ -17,7 +17,9 @@ The licence names below are an inventory, not a substitute for the licence texts
 | github.com/dustin/go-humanize | v1.0.1 | MIT |
 | github.com/google/uuid | v1.6.0 | BSD-3-Clause |
 | github.com/hashicorp/golang-lru/v2 | v2.0.7 | MPL-2.0 |
+| github.com/jolestar/go-commons-pool/v2 | v2.1.2 | Apache-2.0 |
 | github.com/klauspost/compress | v1.19.0 | BSD-3-Clause; some packages Apache-2.0 |
+| github.com/klippa-app/go-pdfium | v1.21.4 | MIT; embeds PDFium as WebAssembly (below) |
 | github.com/mattn/go-isatty | v0.0.24 | MIT |
 | github.com/ncruces/go-strftime | v1.0.0 | MIT |
 | github.com/nwaples/rardecode/v2 | v2.4.5 | BSD-2-Clause |
@@ -27,19 +29,22 @@ The licence names below are an inventory, not a substitute for the licence texts
 | github.com/srwiley/oksvg | v0.0.0-20221011165216-be6e8873101c | BSD-3-Clause |
 | github.com/srwiley/rasterx | v0.0.0-20220730225603-2ab79fcdd4ef | BSD-3-Clause |
 | github.com/stangelandcl/ppmd | v0.1.1 | MIT |
+| github.com/tetratelabs/wazero | v1.12.0 | Apache-2.0 |
 | github.com/ulikunitz/xz | v0.5.15 | BSD-3-Clause |
 | go4.org | v0.0.0-20260112195520-a5071408f32f | Apache-2.0 |
-| golang.org/x/crypto | v0.56.0 | BSD-3-Clause |
+| golang.org/x/crypto | v0.57.0 | BSD-3-Clause |
 | golang.org/x/image | v0.46.0 | BSD-3-Clause |
-| golang.org/x/net | v0.57.0 | BSD-3-Clause |
+| golang.org/x/net | v0.59.0 | BSD-3-Clause |
 | golang.org/x/sys | v0.48.0 | BSD-3-Clause |
-| golang.org/x/text | v0.42.0 | BSD-3-Clause |
+| golang.org/x/text | v0.43.0 | BSD-3-Clause |
 | modernc.org/libc | v1.75.6 | BSD-3-Clause; ported code retains its source notices |
 | modernc.org/mathutil | v1.7.1 | BSD-3-Clause |
 | modernc.org/memory | v1.12.1 | BSD-3-Clause |
 | modernc.org/sqlite | v1.58.0 | BSD-3-Clause; SQLite is public domain |
 
 The archive readers power the comic reader: `rardecode` for CBR files and `sevenzip` for CB7 files. Both are direct requirements in `server-next/go.mod`, selected by the official `portico_rar7z` and `portico_cb7` tags. They run in a separate bounded invocation of the server executable, before normal startup. Their full upstream notices and those of their decoder dependencies are in the generated inventory.
+
+A PDF's cover is its first page, drawn by PDFium (chromium/8111) compiled to WebAssembly. The module ships inside `go-pdfium` and runs in the server under `wazero`; there is no cgo and no outside tool. PDFium is BSD-3-Clause. Its WebAssembly build also carries Abseil, Highway and Dragonbox (Apache-2.0; Dragonbox also Boost), Anti-Grain Geometry 2.3, fast_float, HarfBuzz, simdutf (MIT-style), FreeType (under the FreeType License: portions of this software are copyright © The FreeType Project, www.freetype.org; all rights reserved), ICU (Unicode License v3), Little CMS (MIT), libjpeg-turbo (IJG and BSD-style; this software is based in part on the work of the Independent JPEG Group), OpenJPEG (BSD-2-Clause), libpng, zlib, and Emscripten's C and C++ runtime (MIT and University of Illinois/NCSA). Their texts and where they came from are in [`third_party/pdfium-wasm/`](third_party/pdfium-wasm/provenance.json) and in the generated inventory.
 
 SQLite is the upstream modernc module; the released server no longer carries the old adapted driver or copied image scaler.
 
