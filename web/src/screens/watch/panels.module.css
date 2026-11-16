@@ -66,6 +66,11 @@
 .searchRow { margin: 10px 12px 2px; color: var(--color-text-tertiary); }
 .searchLabel { display: flex; align-items: center; gap: 10px; font-size: var(--type-body-size); font-weight: var(--type-body-strong-weight); }
 .searchWhy { margin: 4px 0 0 28px; font-size: var(--type-chip-size); line-height: calc(var(--type-chip-size) * 1.45); }
+.searchResults { margin-top: 10px; }
+.searchResults .searchWhy { margin: 6px 12px 2px 40px; color: var(--color-text-tertiary); }
+/* A release name has no spaces to wrap at; it wraps anywhere rather than being cut. */
+.result { overflow-wrap: anywhere; }
+.row > .resultIcon { flex: none; display: inline-flex; color: var(--color-text-tertiary); }
 
 .phoneGroup { margin:20px 20px 6px; color:var(--color-text-tertiary); font-size:var(--type-caption-size); font-weight:var(--type-body-strong-weight); }
 
