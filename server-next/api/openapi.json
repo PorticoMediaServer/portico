@@ -7686,6 +7686,9 @@
             },
             "type": "array"
           },
+          "language": {
+            "type": "string"
+          },
           "lock": {
             "items": {
               "type": "string"

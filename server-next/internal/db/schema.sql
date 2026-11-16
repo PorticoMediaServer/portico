@@ -229,6 +229,7 @@ CREATE TABLE items (
   summary          TEXT,
   tagline          TEXT,
   edition          TEXT,
+  metadata_language TEXT, -- NULL inherits the library; only a person changes this override
   match_state      INTEGER NOT NULL DEFAULT 0,
   locked_fields    TEXT,
   local_fields     TEXT,

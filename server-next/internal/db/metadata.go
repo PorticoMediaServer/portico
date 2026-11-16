@@ -828,3 +828,13 @@ func keepProviderValues(b *batchTx, itemID int64, d *ItemDetails, keep map[strin
 	_, err := b.exec(`UPDATE items SET extra = nullif(`+expr+`, '{}') WHERE id = ?`, append(args, itemID)...)
 	return err
 }
+
+// MetadataLanguage is the title's override, or empty to inherit the library's language.
+func (d *DB) MetadataLanguage(ctx context.Context, itemID int64) (string, error) {
+	var language string
+	err := d.read.QueryRowContext(ctx, `SELECT ifnull(metadata_language, '') FROM items WHERE id = ?`, itemID).Scan(&language)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = ErrNotFound
+	}
+	return language, err
+}

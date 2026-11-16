@@ -46,15 +46,15 @@ func (d *DB) MetadataDocument(ctx context.Context, publicID string) (MetadataDoc
 	var id int64
 	var publication int
 	var title, sortTitle string
-	var original, summary, tagline, edition, release, rating, locked, local sql.NullString
+	var original, summary, tagline, edition, release, rating, locked, local, language sql.NullString
 	var year sql.NullInt64
 	var provided string
 	var community sql.NullFloat64
 	err = tx.QueryRowContext(ctx, `SELECT id, publication, kind, revision, match_state, title, sort_title, original_title, summary, tagline, edition, year,
 		release_date, content_rating, community_rating, locked_fields, local_fields, ifnull(extra ->> '$.episodeOrder', ''),
-		ifnull(extra ->> '$.episodeOffset', 0), ifnull(extra -> '$.provider', '{}') FROM items WHERE public_id = ?`, publicID).Scan(
+		ifnull(extra ->> '$.episodeOffset', 0), ifnull(extra -> '$.provider', '{}'), metadata_language FROM items WHERE public_id = ?`, publicID).Scan(
 		&id, &publication, &doc.Kind, &doc.Revision, &doc.Match, &title, &sortTitle, &original, &summary, &tagline, &edition, &year, &release, &rating,
-		&community, &locked, &local, &doc.Numbering.Order, &doc.Numbering.Offset, &provided)
+		&community, &locked, &local, &doc.Numbering.Order, &doc.Numbering.Offset, &provided, &language)
 	if errors.Is(err, sql.ErrNoRows) {
 		return doc, ErrNotFound
 	}
@@ -69,7 +69,7 @@ func (d *DB) MetadataDocument(ctx context.Context, publicID string) (MetadataDoc
 	}
 	doc.Fields = map[string]any{FieldPublicationType: PublicationName(publication), FieldTitle: title, FieldSortTitle: sortTitle, FieldOriginalTitle: text(original), FieldSummary: text(summary),
 		FieldTagline: text(tagline), FieldEdition: text(edition), FieldReleaseDate: text(release), FieldContentRating: text(rating),
-		FieldYear: nil, FieldRating: nil}
+		FieldYear: nil, FieldRating: nil, FieldLanguage: text(language)}
 	if year.Valid {
 		doc.Fields[FieldYear] = year.Int64
 	}

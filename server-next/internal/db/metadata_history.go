@@ -70,7 +70,7 @@ type snapUpload struct {
 
 // snapshotColumns are the items columns a person's change can alter.
 var snapshotColumns = []string{"publication", "title", "sort_title", "original_title", "summary", "tagline", "edition", "year", "release_date",
-	"content_rating", "rating_age", "community_rating", "locked_fields", "local_fields", "match_state"}
+	"content_rating", "rating_age", "community_rating", "locked_fields", "local_fields", "match_state", "metadata_language"}
 
 // snapshotTags are the tag kinds a snapshot keeps: everything but moods, which no person edits.
 var snapshotTags = []string{TagGenre, TagStudio, TagNetwork, TagCountry, TagLabel}
@@ -488,7 +488,7 @@ func afterEntry(b *batchTx, entry int64) (snapshot, error) {
 var (
 	fieldColumns = map[string][]string{FieldPublicationType: {"publication"}, FieldTitle: {"title"}, FieldSortTitle: {"sort_title"}, FieldOriginalTitle: {"original_title"},
 		FieldSummary: {"summary"}, FieldTagline: {"tagline"}, FieldYear: {"year"}, FieldReleaseDate: {"release_date"},
-		FieldContentRating: {"content_rating", "rating_age"}, FieldRating: {"community_rating"}, FieldEdition: {"edition"}}
+		FieldContentRating: {"content_rating", "rating_age"}, FieldRating: {"community_rating"}, FieldEdition: {"edition"}, FieldLanguage: {"metadata_language"}}
 	fieldTags = map[string]string{FieldGenres: TagGenre, FieldStudios: TagStudio, FieldNetworks: TagNetwork, FieldCountries: TagCountry}
 )
 

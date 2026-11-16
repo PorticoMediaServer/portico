@@ -23,6 +23,10 @@ func ownID(p Provider, ids []db.ExternalID) string {
 // no longer gives keeps its value: the database write decides that, not this code. A provider
 // that cannot be asked changes nothing, and the title stays due.
 func (s *Service) refresh(ctx context.Context, p Provider, locale Locale, item db.RefreshItem, priority db.Priority) error {
+	locale, err := s.itemLocale(ctx, item.ID, locale)
+	if err != nil {
+		return err
+	}
 	ref := Ref{Provider: p.Name(), Kind: providerKinds[item.Kind], ID: ownID(p, item.ExternalIDs)}
 	if ref.ID == "" || ref.Kind == "" {
 		return s.DB.MarkRefreshed(ctx, priority, item.ID)
@@ -128,4 +132,13 @@ func (s *Service) RefreshLibrary(ctx context.Context, libraryID int64, now time.
 		}
 	}
 	return done, f.end(ctx)
+}
+
+// itemLocale applies a person's per-title language to lookup, match and refresh alike.
+func (s *Service) itemLocale(ctx context.Context, itemID int64, locale Locale) (Locale, error) {
+	language, err := s.DB.MetadataLanguage(ctx, itemID)
+	if language != "" {
+		locale.Language = language
+	}
+	return locale, err
 }

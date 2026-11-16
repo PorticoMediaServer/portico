@@ -210,6 +210,10 @@ func (s *Service) match(ctx context.Context, p Provider, locale Locale, libraryK
 	if err != nil {
 		return false, err
 	}
+	locale, err = s.itemLocale(ctx, item.ID, locale)
+	if err != nil {
+		return false, err
+	}
 	q := Query{Kind: providerKinds[item.Kind], Title: title, Year: year, Locale: locale, IncludeAdult: s.setting().IncludeAdult}
 	if item.Kind == db.KindAlbum {
 		q.Creator, q.Layout = item.ParentTitle, item.Layout
@@ -424,7 +428,8 @@ func (s *Service) target(ctx context.Context, itemID string) (db.MatchTarget, Pr
 	if p == nil || providerKinds[t.Kind] == "" {
 		return t, nil, Locale{}, ErrNoProvider
 	}
-	return t, p, Locale{Language: src.Language, Region: src.Region}, nil
+	locale, err := s.itemLocale(ctx, t.ID, Locale{Language: src.Language, Region: src.Region})
+	return t, p, locale, err
 }
 
 // ErrNotAShow is the answer to an episode order or offset given with the match of a title
