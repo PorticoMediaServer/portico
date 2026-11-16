@@ -11,3 +11,12 @@ test('E-tv-38: viewable guide rows are a half-open range', () => {
   const rows = visibleGuideRows([3, 4, 5, 6])!, bottom = 6;
   assert.equal(bottom < rows.first || bottom >= rows.last, false, 'the bottom visible row is on screen');
 });
+
+test('a guide title takes two lines only where the part on screen fits a whole word per line; a sliver is one line cut at its end (W3 F16)', async () => {
+  const {nativeGuideTitleLines} = await import('../src-next/screens/settings-live/guide-pan-model.ts');
+  assert.equal(nativeGuideTitleLines('full', 0, 220, 330, false, false), 2, 'a whole wide programme wraps to two lines');
+  assert.equal(nativeGuideTitleLines('full', -190, 220, 330, false, false), 1, 'a wide programme that began before the first column shows 30 points: one line');
+  assert.equal(nativeGuideTitleLines('title2', 290, 120, 330, false, false), 1, 'a programme running off the right edge shows 40 points: one line');
+  assert.equal(nativeGuideTitleLines('title', 0, 220, 330, true, false), 1, 'the compact tiers keep their own one line');
+  assert.equal(nativeGuideTitleLines('title2', -190, 220, 330, false, true), 2, 'TV keeps its tiers');
+});

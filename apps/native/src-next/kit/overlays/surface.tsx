@@ -112,9 +112,16 @@ function CenteredDialog({open, onOpenChange, title, headerContext, description, 
     </View></TVDesignCanvas>
   </Modal></OverlayPaintDescendants>;
 }
+/** A phone dialog is a bottom sheet. It keeps the side gutter its title has (and that CenteredDialog gives its content),
+ * so a dialog's header line and body never run to the screen edge (W3 F17). Content that draws its own full-width rows
+ * sets `contentStyle.paddingHorizontal` itself. */
+export const dialogSheetGutter = 20;
 export function Dialog(props: DialogProps) {
   const theme = useTheme();
-  return theme.platform === 'phone' || props.placement === 'side' ? <BottomSheet {...props} fitContent scrollable={props.scrollable ?? true} /> : <CenteredDialog {...props}/>;
+  if (props.placement === 'side') return <BottomSheet {...props} fitContent scrollable={props.scrollable ?? true} />;
+  if (theme.platform !== 'phone') return <CenteredDialog {...props}/>;
+  const headerContext = props.headerContext == null ? props.headerContext : <View style={{paddingHorizontal: dialogSheetGutter}}>{props.headerContext}</View>;
+  return <BottomSheet {...props} headerContext={headerContext} contentStyle={[{paddingHorizontal: dialogSheetGutter}, props.contentStyle]} fitContent scrollable={props.scrollable ?? true} />;
 }
 function useScrimStyle(progress: {value: number}) {
   return useAnimatedStyle(() => ({opacity: progress.value}));

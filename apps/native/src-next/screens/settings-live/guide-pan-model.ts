@@ -40,3 +40,13 @@ export function visibleGuideRows(indices: readonly number[]): Readonly<{first: n
   if (!indices.length) return undefined;
   return {first: Math.min(...indices), last: Math.max(...indices) + 1};
 }
+
+/** How many lines a guide cell's title may take on a phone or tablet. A title wraps to a second line only where the part
+ * of the cell on screen is wide enough for a whole word on each line; narrower, it is one line cut at its end. The width is
+ * what is on screen, not the programme's: one that began before the guide's first column shows a sliver, and two lines
+ * there broke words in half ("Ma / rk", W3 F16). TV keeps its tiers. */
+export function nativeGuideTitleLines(tier: string, left: number, cellWidth: number, laneWidth: number, compact: boolean, isTV: boolean): 1 | 2 {
+  if (compact && (tier === 'title' || tier === 'sliver')) return 1;
+  if (isTV) return 2;
+  return nativeGuideCellWindow(left, cellWidth, laneWidth, 0).width - (compact ? 14 : 16) < 96 ? 1 : 2;
+}
