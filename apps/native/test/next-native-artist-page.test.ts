@@ -48,12 +48,13 @@ test('an artist opens with its newest albums and its most played songs from the 
   f.close();
 });
 
-test('an artist nobody has played still opens, with no popular songs', async () => {
+test('an artist nobody has played still lists Top songs: its own songs, so the section is never empty (W3 F9)', async () => {
   const f = await artist({popular: {items: [], total: 0}});
   await f.controller.load();
   const state = f.controller.getSnapshot();
   assert.equal(state.phase, 'ready');
-  assert.deepEqual(state.songs, []);
+  assert.ok(f.seen.includes('GET /v1/items?artist=art_1&kind=track&sort=title&order=asc&limit=10&total=true'), f.seen.join(' | '));
+  assert.deepEqual(state.songs.map(song => song.id), ['itm_t1', 'itm_t2']);
   assert.equal(state.albums.length, 2);
   f.close();
 });

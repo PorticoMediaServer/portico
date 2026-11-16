@@ -12,7 +12,6 @@ import {MusicScrollView, MusicWindow} from '../music/MusicWindow';
 import {Icon} from '../../../kit/Icon';
 import {StateView} from '../../../kit/states';
 import {alpha, browseType} from '../../../kit/browse/presentation';
-import {serverTextLabel} from '../../../../../../packages/client-core/src/presentation/server-text';
 import {useTheme} from '../../../kit/theme';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeEntryActions} from '../entry-actions';
@@ -220,7 +219,7 @@ export function BookScreen({controller, entry, runtime, actions, openEntry, onBa
       {snapshot.continuation && snapshot.continuation.phase !== 'loading' ? <AudiobookErrorState refresh={snapshot.continuation.phase === 'refresh-required'} error={snapshot.continuation.error} actionId={`${regionId}.continuation`} retry={() => {void controller.recover();}}/> : null}
       {rows.length ? <View style={{marginTop: tv ? 0 : 18}}>
         <View style={{flexDirection: 'row', alignItems: 'baseline', gap: tv ? 16 : 12, marginBottom: tv ? 12 : 0}}>
-          <Text style={[browseType(theme, tv ? 32 : 20, 700), {color: theme.colors.text}]}>{chapters.length ? t('next.browse.chapters') : serverTextLabel(defaultI18n, rowsSection?.heading)}</Text>
+          <Text style={[browseType(theme, tv ? 32 : 20, 700), {color: theme.colors.text}]}>{t('next.browse.chapters')}</Text>
           <Text style={[browseType(theme, tv ? 20 : 14, 600), {color: theme.colors.textTertiary}]}>{rowsSection?.totalCount ?? rows.length}</Text>
         </View>
         <ChapterRows controller={controller} entries={rows} currentId={currentId} fraction={placeFraction} runtime={runtime} tv={tv} focusPrefix={chapterFocus} onTail={tail}/>
