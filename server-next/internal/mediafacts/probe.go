@@ -309,6 +309,10 @@ func decodeMediaProbe(data []byte) (Facts, error) {
 				}
 				seenStreams[*s.Index] = true
 				factDetail := streamDetail(s.Type, s.Codec, s.Width, s.Height, detail.Streams[position])
+				// Only MP4/MOV tags are sample entries a player can restrict.
+				if f.Container != "mov" && f.Container != "mp4" {
+					factDetail.CodecTag = ""
+				}
 				factDetail.AudioDescription = s.Disposition.VisualImpaired != 0
 				f.Streams = append(f.Streams, Stream{Index: *s.Index, Type: s.Type, Codec: streamText(s.Codec, 64), Language: streamText(s.Tags["language"], 32), Title: streamText(s.Tags["title"], 200),
 					Channels: s.Channels, ChannelLayout: streamText(s.ChannelLayout, 64), Default: s.Disposition.Default != 0, Forced: s.Disposition.Forced != 0, ColorTransfer: streamText(s.ColorTransfer,
