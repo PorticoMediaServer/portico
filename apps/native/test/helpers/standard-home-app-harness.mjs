@@ -132,7 +132,13 @@ const nativeURL = data(`import React from ${JSON.stringify(reactURL)};
    // The scroll view's live native offset, not a prop the app set: native answers
    // with where the app's own scrollTo actually left the surface. Delivering the
    // resulting scroll event stays the test's controlled input.
-   const value=own.current; React.useLayoutEffect(()=>{if(name==='ScrollView'&&!('contentOffset' in props))Object.defineProperty(props,'contentOffset',{configurable:true,get:()=>value.contentOffset});S.hosts.set(value.tag,{name,props,children,host:value});});
+   const value=own.current;
+   if(name==='TextInput')Object.assign(value,{
+    focus(){if(this.inputFocused)return;this.inputFocused=true;S.hosts.get(this.tag)?.props.onFocus?.({nativeEvent:{}});},
+    blur(){if(!this.inputFocused)return;this.inputFocused=false;S.hosts.get(this.tag)?.props.onBlur?.({nativeEvent:{}});},
+    clear(){this.inputText='';},isFocused(){return !!this.inputFocused;},
+   });
+   React.useLayoutEffect(()=>{if(name==='ScrollView'&&!('contentOffset' in props))Object.defineProperty(props,'contentOffset',{configurable:true,get:()=>value.contentOffset});S.hosts.set(value.tag,{name,props,children,host:value});});
    React.useLayoutEffect(()=>{const release=typeof ref==='function'?ref(value):undefined;if(ref&&typeof ref!=='function')ref.current=value;return()=>{if(typeof release==='function')release();else if(typeof ref==='function')ref(null);else if(ref)ref.current=null;S.hosts.delete(value.tag);};},[ref,value]);
    const delivered=React.useRef(false);React.useLayoutEffect(()=>{if(delivered.current||!props.onLayout)return;delivered.current=true;const style=flat(typeof props.style==='function'?props.style({pressed:false}):props.style);props.onLayout({nativeEvent:{layout:{x:0,y:588,width:typeof style.width==='number'?style.width:390,height:typeof style.height==='number'?style.height:220}}});},[props.onLayout,props.style]);
    // FlatList draws its data through renderItem; this boundary draws every row rather

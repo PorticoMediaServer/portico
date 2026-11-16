@@ -120,6 +120,7 @@ const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)
   : /(^|\/)kit\/layout\/list-edges$|^\.\/list-edges$/.test(source) ? listEdgesModule
   // The shell's one top-bar Play on button draws as a named element; next-play-on-top-bar tests it.
   : /(^|\/)PlayOnButton$/.test(source) ? {PlayOnButton: 'PlayOnButton'}
+  : /(^|\/)TVTextField$/.test(source) ? {TVTextField: 'TVTextField'}
   // The one page title (kit/layout/Lockup) draws as a named element.
   : /(^|\/)kit\/layout\/Lockup$/.test(source) ? {Lockup: 'Lockup', pageTitleLines: 3, lockupStep: () => 'lockup'}
   : /(^|\/)server\/PhoneServerPageHeader$/.test(source) ? {PhoneServerPageHeader: 'PhoneServerPageHeader'}

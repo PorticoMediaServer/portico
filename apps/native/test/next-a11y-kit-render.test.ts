@@ -117,7 +117,8 @@ test('single-line fields keep text scaling enabled and release the fixed parent 
       ...f.common, '@portico/design': {fieldSpec}, './control-model': controlModel, '../Icon': {Icon: 'Icon'},
       '../overlays/OverlayPaintContext': liveOverlayPaint, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})},
     });
-    const tree = f.host.render(() => TextField({value: 'Editable text', fieldStyle: {height: 28, minHeight: 35}}));
+    const outer = f.host.render(() => TextField({value: 'Editable text', fieldStyle: {height: 28, minHeight: 35}}));
+    const tree = f.host.render(() => outer.type(outer.props));
     const field = nodes(tree).find(node => node.type === 'View' && flatten(node.props.style).borderRadius !== undefined);
     const input = nodes(tree).find(node => node.type === 'TextInput');
     assert.equal(flatten(field.props.style).height, scale === 1 ? 28 : undefined);
