@@ -3,7 +3,7 @@ import {NativeModules, Platform} from 'react-native';
 import {decodeGetReadingSessionsSessionIdProgressResponse} from '../../../packages/contracts/src';
 import type {ReadingManifest, ReadingLocation, ReadingProgress, ReadingSavedProgress} from '../../../packages/client-core/src/reading';
 import type {ReadingHostSession} from '../../../packages/client-core/src/reading-host';
-import {ReadingError, parseReadingManifest} from '../../../packages/client-core/src/reading';
+import {ReadingError, parseReadingManifest, validateReadingLocation} from '../../../packages/client-core/src/reading';
 import {nativeRouteCrypto} from '../src-next/platform/server-connections';
 
 export type PublicationBinding = Readonly<{sourceId: string; revision: string; format: 'epub' | 'pdf' | 'cbz'; documentSha256: string}>;
@@ -123,6 +123,49 @@ export async function openOfflineReadingSession(options: Readonly<{
       progress: async signal => {check(signal); return progress;},
       saveProgress: (request, signal) => task(signal, async () => {if (!integer(request.expectedRevision, 0, Number.MAX_SAFE_INTEGER) || request.expectedRevision !== (progress.progress?.revision ?? 0)) fail('reading_conflict');
         const location = validateOfflineLocation(request.location, doc.manifest); const saved = await options.save({expectedRevision: request.expectedRevision, location}, progress, startedAt, () => {try {check(signal); return true;} catch {return false;}}); check(signal); progress = {progress: saved.progress}; return saved;}),
+    };
+    return Object.freeze(session);
+  } catch (error) {await close(); throw error;}
+}
+
+/** A book downloaded from the rebuilt server, read from this device with no server. The reader
+ * reads the file itself by range (`wholeFile`); the file is the one the device checked as it
+ * arrived (`digest`, its SHA-256 then). `revision` is the server's fingerprint of the book, the
+ * one places are made on online, so a place carries between the two. */
+export async function openDownloadedBook(options: Readonly<{
+  id: string; owner: string; digest: string; bytes: number; itemId: string; versionId: string; revision: string; format: 'epub' | 'pdf' | 'cbz'; title: string;
+  current: () => boolean; signal: AbortSignal; onClose: () => void;
+  progress: (manifest: ReadingManifest) => Promise<ReadingProgress>;
+  save: (request: Readonly<{expectedRevision: number; location: ReadingLocation}>, manifest: ReadingManifest) => Promise<ReadingSavedProgress>;
+}>): Promise<OfflineReadingSession> {
+  if (!nativePublicationReadsAvailable() || !native || !digest(options.digest) || !integer(options.bytes, 1, 2 ** 31)) return fail();
+  const handle = 'pub_' + Array.from(nativeRouteCrypto.random(20), byte => byte.toString(16).padStart(2, '0')).join('');
+  const life = new AbortController(); let closed = false, operation = 1, serial: Promise<unknown> = Promise.resolve();
+  const close = async () => {if (closed) return; closed = true; life.abort(); native.publicationClose(handle); options.signal.removeEventListener('abort', retire); options.onClose();};
+  const retire = () => {void close();}; options.signal.addEventListener('abort', retire, {once: true});
+  const check = (signal?: AbortSignal) => {if (closed || life.signal.aborted || options.signal.aborted || signal?.aborted || !options.current()) fail('cancelled');};
+  const task = <T,>(signal: AbortSignal | undefined, work: (operation: number) => Promise<T>): Promise<T> => {
+    const own = ++operation;
+    const run = async () => {check(signal); const cancel = () => native.publicationCancel(handle, own); signal?.addEventListener('abort', cancel, {once: true});
+      try {const result = await work(own); check(signal); return result;} finally {signal?.removeEventListener('abort', cancel);}};
+    const result = serial.then(run); serial = result.catch(() => {}); return result;
+  };
+  try {
+    const manifest = parseReadingManifest({sessionId: handle, itemId: options.itemId, sourceId: options.versionId, revision: options.revision, format: options.format,
+      size: options.bytes, metadata: {title: options.title}, wholeFile: true});
+    check(); if (await native.publicationOpen(handle, options.id, options.owner, options.digest) !== options.bytes) fail(); check();
+    const session: OfflineReadingSession = {manifest, signal: life.signal, close,
+      headPDF: async signal => {check(signal); if (manifest.format !== 'pdf') fail('invalid_format');},
+      readRange: (range, signal) => task(signal, async own => {
+        if (!integer(range.start, 0, options.bytes - 1) || !integer(range.endExclusive, range.start + 1, options.bytes) || range.endExclusive - range.start > 65536) fail('invalid_range');
+        const out = new Uint8Array(range.endExclusive - range.start);
+        for (let offset = 0; offset < out.length; offset += 49152) {check(signal); const length = Math.min(49152, out.length - offset); out.set(decodeChunk(await native.publicationRead(handle, own, range.start + offset, length), length), offset);}
+        return out;
+      }),
+      readAsset: async () => fail('invalid_format'),
+      page: async () => fail('invalid_format'),
+      progress: async signal => {check(signal); const value = await options.progress(manifest); check(signal); return value;},
+      saveProgress: async (request, signal) => {check(signal); validateReadingLocation(request.location, manifest); const saved = await options.save(request, manifest); check(signal); return saved;},
     };
     return Object.freeze(session);
   } catch (error) {await close(); throw error;}
