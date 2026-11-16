@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -315,5 +317,34 @@ func TestPeriodicalDatesAndGroupsFromNamesKeepOwnerLocks(t *testing.T) {
 	after := f.detail(kept.PublicID)
 	if after.Publication != db.PublicationBook || after.ReleaseDate != date {
 		t.Fatalf("scan overwrote owner locks: publication %d, date %q", after.Publication, after.ReleaseDate)
+	}
+}
+
+// A MOBI and an AZW3 are read as the EPUB each is rebuilt into: their title, author, cover
+// and length come from inside the file, as an EPUB's do. The books are written by
+// reading/testdata/mobi/generate.go.
+func TestAMOBIAndAnAZW3AreReadFromTheirOwnFiles(t *testing.T) {
+	f := newFixture(t, db.LibraryBooks)
+	f.s.Pictures = pictures{}
+	for name, fixture := range map[string]string{"kindle/one.mobi": "older.mobi", "kindle/two.azw3": "kf8.azw3"} {
+		raw, err := os.ReadFile(filepath.Join("..", "reading", "testdata", "mobi", fixture))
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.put(name, raw)
+	}
+	f.scan()
+	books := f.titles(db.KindBook)
+	for title, author := range map[string]string{"A Tiny Older Book": "Ann Example", "A Tiny KF8 Book": "Bo Example"} {
+		book := books[title]
+		if book.PublicID == "" {
+			t.Fatalf("no %q among %v", title, keys(books))
+		}
+		if names := creditNames(f.detail(book.PublicID)); len(names) != 1 || names[0] != author {
+			t.Errorf("%s: authors %v", title, names)
+		}
+		if book.WordCount == nil || *book.WordCount == 0 || shown(book, db.ImageCover) == nil {
+			t.Errorf("%s: words %v, cover %+v", title, book.WordCount, book.Images)
+		}
 	}
 }

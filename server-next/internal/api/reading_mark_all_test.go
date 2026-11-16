@@ -19,7 +19,7 @@ func TestMarkAllReadMarksOnlyTheUnreadAndKeepsAReadBooksPlace(t *testing.T) {
 			books = lib.ID
 		}
 	}
-	nineteen, kindle := b.find(db.KindBook, "Nineteen"), b.find(db.KindBook, "Kindle Book")
+	nineteen, kindle := b.find(db.KindBook, "Nineteen"), b.find(db.KindBook, "A Tiny Older Book")
 	place := `{"format":"epub","progression":0.4,"cfi":"epubcfi(/6/2!/4/2/1:0)","fingerprint":"0123456789abcdef"}`
 	status(t, b.s, "PUT", "/v1/items/"+nineteen+"/state", token, map[string]any{"watched": true})
 	status(t, b.s, "PUT", "/v1/items/"+nineteen+"/state", token, map[string]any{"position": place})

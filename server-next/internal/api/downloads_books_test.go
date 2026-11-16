@@ -37,7 +37,7 @@ func TestABookDownloadsInTheFormTheAppReads(t *testing.T) {
 		title, container string
 		copied           bool
 		members          []string
-	}{{db.KindBook, "Kindle Book", "epub", true, nil}, {db.KindBook, "Nineteen", "epub", false, nil},
+	}{{db.KindBook, "A Tiny Older Book", "epub", true, nil}, {db.KindBook, "Nineteen", "epub", false, nil},
 		{db.KindIssue, "Nemo 001", "cbz", true, []string{"00001.png", "00002.png"}}} {
 		id := b.find(c.kind, c.title)
 		book := get[BookAnswer](t, b.s, token, "/v1/items/"+id+"/book")
