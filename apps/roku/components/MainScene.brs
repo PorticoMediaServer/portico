@@ -18,6 +18,9 @@ sub init()
     m.top.palette = palette
     m.rail.observeField("chosen", "onRailChosen")
     m.rail.observeField("left", "onRailLeft")
+    m.sheet = m.top.findNode("sheet")
+    m.sheet.observeField("chosen", "onSheetChosen")
+    m.sheet.observeField("dismissed", "onSheetClosed")
     m.rail.observeField("isOpen", "onRailOpen")
     if createObject("roAppInfo").isDev()
         m.frames = 0
@@ -82,6 +85,7 @@ function push(component as string) as object
     m.screen.observeField("art", "onArt")
     m.screen.observeField("open", "onOpen")
     if m.screen.hasField("quiet") then m.screen.observeField("quiet", "onQuiet")
+    if m.screen.hasField("menu") then m.screen.observeField("menu", "onMenu")
     m.backdrop.quiet = false
     return m.screen
 end function
@@ -95,6 +99,30 @@ sub pop()
     setArt(m.screen.art)
     m.backdrop.quiet = (m.screen.hasField("quiet") and m.screen.quiet = true)
     m.screen.active = true
+end sub
+
+' A page asks for the side sheet by setting its `menu` field; the choice comes back in `menuChosen`.
+sub onMenu(event as object)
+    page = event.getRoSGNode()
+    if not page.isSameNode(m.screen) then return
+    m.sheet.model = event.getData()
+    m.sheet.visible = true
+    m.sheet.active = true
+end sub
+
+sub onSheetChosen(event as object)
+    closeSheet()
+    if m.screen <> invalid and m.screen.hasField("menuChosen") then m.screen.menuChosen = event.getData()
+end sub
+
+sub onSheetClosed()
+    closeSheet()
+end sub
+
+' Focus returns to what opened the sheet.
+sub closeSheet()
+    m.sheet.visible = false
+    if m.screen <> invalid then m.screen.active = true
 end sub
 
 sub onPlayerClosed()
@@ -207,6 +235,7 @@ sub showHome()
     api("GET", "/v1/libraries", invalid, "onLibraries")
     api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
     show("HomeScreen")
+    m.screen.observeField("menu", "onMenu")
     m.screen.observeField("art", "onArt")
     m.screen.observeField("open", "onOpen")
     m.rail.visible = true

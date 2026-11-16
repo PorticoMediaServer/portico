@@ -10,6 +10,9 @@
     <field id="toTop" type="boolean" alwaysNotify="true" onChange="onToTop"/>
     <!-- Asks the scene to open or play a title: {item, play}. -->
     <field id="open" type="assocarray" alwaysNotify="true"/>
+    <!-- Asks the scene for the side sheet; the choice comes back in menuChosen. -->
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
   </interface>
   <script type="text/brightscript" uri="HomeScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>

@@ -100,6 +100,8 @@ sub onContent()
         m.h = m.w
         m.shiftY = (m.fullH - m.w) / 2
     end if
+    m.under.scaleRotateCenter = [m.w / 2, m.h / 2]
+    m.over.scaleRotateCenter = [m.w / 2, m.h / 2]
     m.under.translation = [0, m.shiftY]
     m.over.translation = [0, m.shiftY]
     m.madeGlyph.translation = [0, m.h - 128]

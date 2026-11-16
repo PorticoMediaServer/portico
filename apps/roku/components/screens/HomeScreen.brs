@@ -313,6 +313,44 @@ function onKeyEvent(key as string, press as boolean) as boolean
     return pressKey(key)
 end function
 
+' The title the * menu is about: the card in focus, or the spotlight's title.
+function menuItem() as dynamic
+    if m.focus = -1 then return m.spots[m.spot].entry
+    return focusedItem()
+end function
+
+sub openMenu()
+    item = menuItem()
+    if item = invalid then return
+    m.menuFor = item
+    inContinue = (m.focus >= 0 and m.rows[m.focus].row.id = "continue")
+    m.top.menu = titleMenu(item, inContinue)
+end sub
+
+sub onMenuChosen(event as object)
+    item = m.menuFor
+    which = event.getData()
+    if item = invalid then return
+    if which = "play"
+        target = item
+        if m.focus = -1 and m.spots[m.spot].resumeTarget <> invalid then target = m.spots[m.spot].resumeTarget
+        m.top.open = {item: target, play: true}
+    else if which = "details"
+        m.top.open = {item: item, play: false}
+    else
+        change = titleMenuChange(item, which)
+        if change <> invalid
+            change.madeAgoMs = 0
+            api("PUT", "/v1/items/" + item.id + "/state", change, "onMenuSaved")
+        end if
+    end if
+end sub
+
+' Home is read again after a change made from a menu, once focus has left the row it was made in.
+sub onMenuSaved(event as object)
+    if event.getData().ok then m.stale = true
+end sub
+
 function pressKey(key as string) as boolean
     if m.focus = -2 then return false
     if key = "down"
