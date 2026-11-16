@@ -1,0 +1,93 @@
+name: TV web
+
+# The LG and Samsung app in real browsers: the written focus tests for Home and the rail
+# (design/ui-v1/tv-focus.html frames 1 to 9) in Chromium 85 and 87, the engines of 2022 Samsung and
+# LG sets; the time a focus move takes with the CPU slowed (reported, not judged); and the test film
+# playing in Chrome. Against a fresh server-next with a seeded library, on GitHub's runners only.
+on:
+  pull_request:
+    paths:
+      - 'apps/tv-web/**'
+      - 'apps/native/src-next/**'
+      - 'apps/native/App.tsx'
+      - 'apps/vega/src/**'
+      - 'packages/**'
+      - '.github/workflows/tv-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tv-web-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browsers:
+    name: browsers (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        # Chromium 85.0.4182.0 (r782078): Samsung 2022 (Tizen 6.5) is 85. Chromium 87.0.4272.0 (r809590):
+        # LG 2022 (webOS 22) is 87. Chrome, the runner's own, plays the test film (H.264).
+        browser: [chromium85, chromium87, chrome]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: apps/tv-web/package-lock.json
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server-next/go.mod
+          cache: false
+      - name: Install ffmpeg (the test film is made here)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+      - name: Build the app
+        working-directory: apps/tv-web
+        run: npm ci --legacy-peer-deps --workspaces=false --no-audit --no-fund && npm run build
+      - name: Build the server and the seeder
+        working-directory: server-next
+        run: |
+          go build -o "$RUNNER_TEMP/portico-server" ./cmd/portico-server
+          go build -o "$RUNNER_TEMP/portico-seed" ./cmd/portico-seed
+      - name: Old Chromium builds (85 and 87)
+        id: chromium
+        if: matrix.browser != 'chrome'
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/chromium
+          key: chromium-snapshots-782078-809590-v1
+      - name: Download Chromium 85 and 87
+        if: matrix.browser != 'chrome' && steps.chromium.outputs.cache-hit != 'true'
+        run: |
+          # Chromium 85.0.4182.0 (r782078) and 87.0.4272.0 (r809590), the builds Puppeteer pinned.
+          for revision in 782078 809590; do
+            mkdir -p "$RUNNER_TEMP/chromium/$revision"
+            curl -sSfL "https://storage.googleapis.com/chromium-browser-snapshots/Linux_x64/$revision/chrome-linux.zip" -o "$RUNNER_TEMP/chromium/$revision.zip"
+            unzip -q "$RUNNER_TEMP/chromium/$revision.zip" -d "$RUNNER_TEMP/chromium/$revision"
+            rm "$RUNNER_TEMP/chromium/$revision.zip"
+          done
+      - name: Focus tests, timing and playback
+        working-directory: apps/tv-web
+        env:
+          PORTICO_SERVER_NEXT_BIN: ${{ runner.temp }}/portico-server
+          PORTICO_SEED_BIN: ${{ runner.temp }}/portico-seed
+          TVWEB_REPORT: ${{ runner.temp }}/tv-web-report.json
+          BROWSER: ${{ matrix.browser }}
+        run: |
+          case "$BROWSER" in
+            chromium85) export TVWEB_BROWSERS="chromium85=$RUNNER_TEMP/chromium/782078/chrome-linux/chrome" ;;
+            chromium87) export TVWEB_BROWSERS="chromium87=$RUNNER_TEMP/chromium/809590/chrome-linux/chrome" ;;
+            chrome) export TVWEB_BROWSERS="chrome=/usr/bin/google-chrome" ;;
+          esac
+          node test/browser/run.mjs focus timing playback
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: ${{ !cancelled() }}
+        with:
+          name: tv-web-report-${{ matrix.browser }}
+          path: ${{ runner.temp }}/tv-web-report.json
+          retention-days: 14

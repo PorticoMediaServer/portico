@@ -1,0 +1,8 @@
+{
+  // What Vite's transform reads for every file it compiles, the shared sources included (their own
+  // tsconfig extends a package this build does not install). Type checking uses tsconfig.json.
+  "compilerOptions": {
+    "target": "es2020",
+    "jsx": "react-jsx"
+  }
+}

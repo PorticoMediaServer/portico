@@ -22,8 +22,13 @@ DEPENDENCY_FIELDS=('dependencies','devDependencies','peerDependencies','optional
 _ACTIVE=ContextVar('portico_ratchet_runtime',default=None)
 
 
+# Apps no typed program ever reads (outside client_api_census.SOURCE_ROOTS and imported by nothing
+# there): their own manifests and lockfiles cannot change a typed result, so they are not inputs.
+UNTYPED_APPS=('apps/tv-web/',)
+
+
 def dependency_input(path):
-    return Path(path).name in {'package.json','package-lock.json','npm-shrinkwrap.json','yarn.lock','pnpm-lock.yaml','.npmrc'}
+    return Path(path).name in {'package.json','package-lock.json','npm-shrinkwrap.json','yarn.lock','pnpm-lock.yaml','.npmrc'} and not path.startswith(UNTYPED_APPS)
 
 
 def dependency_environment(records):

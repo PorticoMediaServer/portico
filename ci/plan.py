@@ -11,7 +11,7 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPONENTS = ['web', 'packages', 'apps/native', 'apps/vega', 'apps/desktop', 'website']
+COMPONENTS = ['web', 'packages', 'apps/native', 'apps/vega', 'apps/desktop', 'apps/tv-web', 'website']
 # Full (merge/nightly) Go shards are planned from measured parent weights so no
 # single `go test` batch approaches its -timeout. A shard runs one complete-package
 # command (-p=GO_PACKAGE_WORKERS) and then its split packages in a worker pool.
@@ -304,6 +304,8 @@ def components(paths, full=False):
             chosen.update(COMPONENTS[:-1])
         elif any(path.startswith(c+'/') for c in COMPONENTS):
             chosen.update(c for c in COMPONENTS if path.startswith(c+'/'))
+            # The LG and Samsung app builds the shared TV screens and the Fire TV bridge in place.
+            if path.startswith(('apps/native/src-next/', 'apps/native/App.tsx', 'apps/native/assets/', 'apps/vega/src/')): chosen.add('apps/tv-web')
         else: chosen.update(COMPONENTS); go=True
     if 'web' in chosen: chosen.add('packages')
     return sorted(chosen), go

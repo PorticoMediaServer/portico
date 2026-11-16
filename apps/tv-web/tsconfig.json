@@ -1,0 +1,31 @@
+{
+  // The shared screens are typed against the same React Native TV types the native app builds
+  // with: CI installs apps/native's lockfile beside this app's for the type check (its packages
+  // are what the shared sources import). At runtime Vite resolves them to this app's shims and
+  // packages instead (vite.config.ts).
+  "extends": "../native/node_modules/@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": {
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": ["react"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "paths": {
+      "react": ["../native/node_modules/@types/react"],
+      "react/jsx-runtime": ["../native/node_modules/@types/react/jsx-runtime"],
+      "react-native": ["../native/node_modules/react-native"],
+      "@portico/design": ["../../packages/design/src/index.ts"],
+      "@/*": ["../native/src-next/*"],
+      "@noble/*": ["./node_modules/@noble/*"],
+      "@amazon-devices/react-native-kepler": ["./src/sdk/kepler.ts"],
+      "@amazon-devices/react-native-w3cmedia": ["./src/sdk/w3cmedia.tsx"],
+      "@amazon-devices/keplerscript-netmgr-lib": ["./src/sdk/netmgr.ts"],
+      "@amazon-devices/keplercrypto": ["./src/sdk/crypto.ts"],
+      "@amazon-devices/kepler-file-system": ["./src/sdk/file-system.ts"],
+      "@amazon-devices/react-native-device-info": ["./src/sdk/device-info.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}
