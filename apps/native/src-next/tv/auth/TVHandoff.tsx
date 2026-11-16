@@ -75,7 +75,7 @@ function MoveHandoff(props: Readonly<{serverName: string; url: string; onBack: (
   useHandoffBack(props.onBack);
   useDestinationEntryFocus({visible: true, intent: 'enter', revision: 0}, {regionId: id, childId: 'back'});
   return <TVAuthLayout testID="tv-move-handoff" portico={false} eyebrow={props.serverName}
-    heading={defaultI18n.t('next.auth.tv.moveOnPhone')} body={defaultI18n.t('next.auth.tv.moveBody', {server: props.serverName})}
+    title={defaultI18n.t('next.auth.tv.moveOnPhone')} body={defaultI18n.t('next.auth.tv.moveBody', {server: props.serverName})}
     aside={handoffCodeCard(theme, address, 'next.auth.tv.handoffHint', material.nativeBlur, 'tv-move-card')}>
     <FocusRegion id={id} entry="back" order={['back']} style={{flexDirection: 'row'}}>
       <Button focusId="back" onPress={props.onBack} style={{height: 72, paddingHorizontal: 38, borderRadius: 14}}>{defaultI18n.t('action.back')}</Button>
@@ -105,7 +105,7 @@ function RequiredSetupHandoff(props: TVRequiredSetupHandoffProps) {
   const aside = handoffCodeCard(theme, address, props.copy.reference, material.nativeBlur, 'tv-required-setup-card');
   const name = portico ? t('account.portico') : props.serverName;
   return <TVAuthLayout testID="tv-required-setup" portico={portico} eyebrow={name} aside={aside}
-    heading={t(props.requirement === 'password' ? 'web.direct.newPasswordTitle' : 'web.twoStep.turnOnTitle')}
+    title={t(props.requirement === 'password' ? 'web.direct.newPasswordTitle' : 'web.twoStep.turnOnTitle')}
     body={t(props.copy.body, {server: name})}>
     <FocusRegion id={id} entry="sign-in-again" order={['sign-in-again', 'back']} enabled={!props.busy} style={{flexDirection: 'row', gap: 20}}>
       <Button focusId="sign-in-again" disabled={props.busy} onPress={() => {if (!props.busy) props.onSignInAgain();}} style={{height: 72, paddingHorizontal: 38, borderRadius: 14}}>{t('web.hostedAccount.signInAgain')}</Button>
@@ -134,7 +134,7 @@ function ForgotPINHandoff(props: TVForgotPINHandoffProps) {
   useHandoffBack(props.onBack);
   useDestinationEntryFocus({visible: true, intent: 'enter', revision: 0}, {regionId: id, childId: 'back'});
   return <TVAuthLayout testID="tv-forgot-pin-handoff" portico={false} eyebrow={props.profileName}
-    heading={defaultI18n.t('pin.forgot')} body={defaultI18n.t(target.body)}
+    title={defaultI18n.t('pin.forgot')} body={defaultI18n.t(target.body)}
     aside={handoffCodeCard(theme, address, props.reference ?? 'next.auth.tv.handoffHint', material.nativeBlur, 'tv-forgot-pin-card')}>
     <FocusRegion id={id} entry="back" order={['back']} style={{flexDirection: 'row'}}>
       <Button focusId="back" onPress={props.onBack} style={{height: 72, paddingHorizontal: 38, borderRadius: 14}}>{defaultI18n.t('action.back')}</Button>

@@ -22,7 +22,7 @@ async function button(os: 'android' | 'ios', isTV: boolean, fontScale = 1) {
     '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => glassRecipe(os, isTV)},
     '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': {useTheme: () => theme}, '../Icon': {Icon: 'Icon'},
   });
-  function host(variant: 'glass' | 'icon' | 'primary' | 'text', extra: Record<string, any> = {}, ref: any = null, resume = false) {
+  function host(variant: 'glass' | 'icon' | 'primary' | 'text' | 'link', extra: Record<string, any> = {}, ref: any = null, resume = false) {
     const onPress = () => {};
     const component = resume ? ResumeButton : Button;
     const content: Element = component.render({variant, children: 'Action', onPress, accessibilityLabel: 'Action', nextFocusDown: 17, ...extra}, ref);
@@ -31,7 +31,7 @@ async function button(os: 'android' | 'ios', isTV: boolean, fontScale = 1) {
     assert.equal(focus.props.ref, ref);
     return focus;
   }
-  return {theme, host, render(variant: 'glass' | 'icon' | 'primary' | 'text', state: {focused: boolean; hovered: boolean; pressed: boolean}) {
+  return {theme, host, render(variant: 'glass' | 'icon' | 'primary' | 'text' | 'link', state: {focused: boolean; hovered: boolean; pressed: boolean}) {
     return elements(host(variant).props.children(state));
   }};
 }
@@ -146,5 +146,26 @@ test('a two-line glass chip at normal text keeps its glass the full height of th
   for (const node of [face, blur, layout]) {
     assert.equal(flatten(node.props.style).flexGrow, 0, 'sized to its content');
     assert.equal(flatten(node.props.style).minHeight, 42, 'but never shorter than the 42 pt chip');
+  }
+});
+
+
+test('TV buttons centre idle labels, draw the disabled primary token and align link ink with the column', async () => {
+  const state = {focused: false, hovered: false, pressed: false};
+  for (const os of ['ios', 'android'] as const) {
+    const actual = await button(os, true);
+    for (const loading of [undefined, false, true]) {
+      const focus = actual.host('primary', {loading});
+      const content = elements(focus.props.children(state)).find(node => flatten(node.props.style).justifyContent === 'center')!;
+      assert.deepEqual(elements(content).filter(node => node.type === 'View' && flatten(node.props.style).width).length, loading ? 1 : 0,
+        'a false loading state does not leave an empty leading slot');
+    }
+    const disabled = actual.host('primary', {disabled: true});
+    assert.equal(flatten(disabled.props.style(state)).opacity, 1, 'the disabled fill supplies its own alpha');
+    const drawn = elements(disabled.props.children(state));
+    assert.equal(flatten(drawn.find(node => node.type === 'Text')!.props.style).color, actual.theme.colors.textTertiary);
+    assert.ok(drawn.some(node => flatten(node.props.style).backgroundColor === controlModel.colorAlpha(actual.theme.colors.text, .16)));
+    const link = flatten(actual.host('link').props.style(state));
+    assert.equal(link.marginHorizontal, -link.paddingHorizontal, 'padding extends the focus target outside the content column');
   }
 });

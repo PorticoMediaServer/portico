@@ -5,7 +5,7 @@ export type ControlPlatform = 'phone' | 'tablet' | 'web' | 'tv';
  * stays the padded text action that footers and toolbars size themselves. */
 export type ButtonVariant = 'primary' | 'glass' | 'text' | 'link' | 'icon' | 'danger';
 export type ButtonSize = 'hero' | 'compact' | 'small' | 'xs' | 'episode' | 'dock';
-export type FocusKind = 'button' | 'row' | 'chip' | 'card';
+export type FocusKind = 'button' | 'row' | 'chip' | 'card' | 'field';
 export type ChipVariant = 'default' | 'quick' | 'facet' | 'applied' | 'pill';
 
 export function progressFraction(value: number): number {

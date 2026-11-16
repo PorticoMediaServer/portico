@@ -1,5 +1,5 @@
 import React, {useEffect, useState, type ComponentType} from 'react';
-import {Linking, Pressable, ScrollView, Text, View} from 'react-native';
+import {Dimensions, Linking, LogBox, Platform, Pressable, ScrollView, Settings, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../packages/i18n/src/index';
 import {Icon} from '../kit/Icon';
@@ -11,23 +11,40 @@ import {AccountProofHost} from './AccountProofHost';
 
 const galleries = discoverGalleries();
 
+/** Apple capture runs launch the gallery app with `-PorticoKitGallery <id>` (a launch argument reaches
+ * NSUserDefaults), so each case opens full-window with no link prompt and no development toast over it. */
+function launchedGallery(): {gallery: string; window: true} | undefined {
+  if (Platform.OS !== 'ios') return;
+  const value: unknown = Settings.get('PorticoKitGallery');
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) return;
+  LogBox.ignoreAllLogs();
+  // `-PorticoKitGallery list` publishes this platform's gallery ids for the capture script to read back.
+  if (value === 'list') {
+    const {width, height} = Dimensions.get('window'), short = Math.min(width, height);
+    Settings.set({PorticoKitGalleryIds: galleriesForPlatform(galleries, Platform.isTV ? 'tv' : short < 600 ? 'phone' : 'tablet').map(gallery => gallery.id).join(',')});
+  }
+  return {gallery: value, window: true};
+}
+
 /** This module, including URL handling, is reachable only through App's __DEV__ branch. */
 export function KitHost({shell: Shell}: {shell?: ComponentType}) {
-  const [selection, setSelection] = useState<{gallery?: string; window?: boolean} | {serverAddress: string}>();
+  const [launched] = useState(launchedGallery);
+  const [selection, setSelection] = useState<{gallery?: string; window?: boolean} | {serverAddress: string} | undefined>(launched);
   useEffect(() => {
     let live = true;
-    let changed = false;
+    let changed = !!launched;
     const read = (url: string | null) => accountProofFromURL(url) ?? kitSelectionFromURL(url);
     const subscription = Linking.addEventListener('url', event => {changed = true; setSelection(read(event.url));});
     void Linking.getInitialURL().then(url => {if (live && !changed) setSelection(read(url));}, () => {});
     return () => {live = false; subscription.remove();};
-  }, []);
+  }, [launched]);
   if (selection && 'serverAddress' in selection) return <AccountProofHost key={selection.serverAddress} serverAddress={selection.serverAddress}/>;
-  return selection || !Shell ? <Kit key={selection?.gallery ?? ''} initialGallery={selection?.gallery} presentation={selection?.window ? 'window' : 'catalogue'} /> : <Shell />;
+  return selection || !Shell ? <Kit key={selection?.gallery ?? ''} initialGallery={selection?.gallery} presentation={selection?.window ? 'window' : 'catalogue'} captured={!!launched && selection === launched} /> : <Shell />;
 }
 
 /** Dev-only host. Families render in the same theme, gesture root and safe-area providers. */
-export function Kit({initialGallery, presentation = 'catalogue'}: {initialGallery?: string; presentation?: 'catalogue' | 'window'}) {
+/** `captured`: a launched capture; its page keeps clear of the phone's status bar (measurement windows stay edge to edge). */
+export function Kit({initialGallery, presentation = 'catalogue', captured = false}: {initialGallery?: string; presentation?: 'catalogue' | 'window'; captured?: boolean}) {
   const theme = useTheme();
   const [selected, setSelected] = useState<string | undefined>(initialGallery);
   const [focused, setFocused] = useState<string>();
@@ -38,7 +55,7 @@ export function Kit({initialGallery, presentation = 'catalogue'}: {initialGaller
   // The private compiled evidence entry injects this Kit through App's normal
   // KitHost shell slot. Families keep the catalogue gutter they were authored in;
   // Canvas's negative gutter therefore cancels exactly once, at the window edge.
-  if (presentation === 'window' && Screen) return <SafeAreaView testID="native-kit-window" edges={[]} style={{flex: 1}}><View style={{flex: 1, paddingHorizontal: theme.gutter}}><Screen /></View></SafeAreaView>;
+  if (presentation === 'window' && Screen) return <SafeAreaView testID="native-kit-window" edges={captured && !theme.isTV ? ['top'] : []} style={{flex: 1}}><View style={{flex: 1, paddingHorizontal: theme.gutter}}><Screen /></View></SafeAreaView>;
   return <SafeAreaView testID="native-kit" style={{flex: 1}}>
     <ScrollView contentContainerStyle={{padding: theme.gutter, gap: theme.space.md}}>
       <Text accessibilityRole="header" style={[theme.type.heading, {color: theme.colors.text}]}>{t('next.platform.kitTitle')}</Text>

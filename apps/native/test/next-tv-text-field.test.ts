@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
-import {fieldSpec} from '@portico/design';
+import {fieldSpec, typography} from '@portico/design';
 import {createTheme} from '../src-next/kit/theme.ts';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
@@ -20,7 +20,7 @@ test('TV text entry draws one box, opens the keyboard only on Select, and edits 
     './Focusable': {Focusable: 'Focusable'}, './FormError': {FormError: 'FormError'}, '../Icon': {Icon: 'Icon'},
     '../theme': {useTheme: () => theme}, '../overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({interactive: true})},
   });
-  let tree: Element, value = 'https://demo.getportico.tv', focused = 0, returned = 0, submitted = 0, secure = false, cleared = 0;
+  let tree!: Element, value = 'https://demo.getportico.tv', focused = 0, returned = 0, submitted = 0, secure = false, cleared = 0;
   const forwarded = {current: null as any};
   const host = createFabricHookHost(() => {tree = TVTextField.render({label: 'Server address', value, secureTextEntry: secure,
     nativeID: 'server-address-editor', onChangeText: (next: string) => {value = next;}, onSubmitEditing: () => {submitted++;}}, forwarded);});
@@ -30,6 +30,19 @@ test('TV text entry draws one box, opens the keyboard only on Select, and edits 
     await host.mount();
     keyboard().props.ref.current = new class {focus() {focused++;} blur() {} clear() {cleared++;} isFocused() {return true;}}();
     field().props.ref.current = {requestTVFocus() {returned++;}};
+    const label = nodes(tree).find(node => node.type === 'Text' && node.props.children === 'Server address')!;
+    assert.equal(label.props.style[0].fontSize, 22);
+    assert.equal(label.props.style[1].color, theme.colors.textTertiary);
+    assert.equal(field().props.focusKind, 'field');
+    const paint = (focused: boolean) => Object.assign({}, ...field().props.style({focused}).flat());
+    assert.equal(paint(false).minHeight, 84);
+    assert.equal(paint(false).borderRadius, 16);
+    assert.equal(paint(false).paddingHorizontal, 28);
+    assert.equal(paint(false).backgroundColor, '#0710189e');
+    assert.equal(paint(true).backgroundColor, theme.colors.raisedHigh);
+    assert.equal(paint(true).borderColor, theme.colors.accent);
+    const valueStyle = Object.assign({}, ...nodes(field()).find(node => node.type === 'Text')!.props.style.flat(2));
+    assert.equal(valueStyle.fontSize, 32); assert.equal(valueStyle.fontFamily, typography.semibold);
     assert.equal(focused, 0);
     assert.equal(keyboard().props.focusable, false);
     assert.equal(keyboard().props.nativeID, 'server-address-editor');
