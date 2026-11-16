@@ -2294,6 +2294,7 @@ export interface MetadataPatch {
   unlock?: string[];
   lockAll?: boolean;
   unlockAll?: boolean;
+  metadataLanguage?: string;
 }
 
 export interface MetadataRefreshed {

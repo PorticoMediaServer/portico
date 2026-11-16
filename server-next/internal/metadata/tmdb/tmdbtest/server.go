@@ -42,6 +42,8 @@ type Server struct {
 	PicturesHang    atomic.Bool
 	// Token is the read access token the last request to the API was signed with.
 	Token atomic.Pointer[string]
+	// Language is the language the last request to the API asked for.
+	Language atomic.Pointer[string]
 	// RefusesKeys makes it refuse every token, as TMDB refuses a key it does not know.
 	RefusesKeys atomic.Bool
 }
@@ -98,6 +100,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	if token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
 		s.Token.Store(&token)
 	}
+	language := r.URL.Query().Get("language")
+	s.Language.Store(&language)
 	switch {
 	case s.Down.Load():
 		w.WriteHeader(http.StatusServiceUnavailable)

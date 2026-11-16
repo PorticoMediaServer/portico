@@ -21,6 +21,7 @@ type MetadataDocument struct {
 	Sources     map[string]string
 	ExternalIDs []ExternalID
 	Numbering   EpisodeNumbering // a show's episode order and number offset
+	Language    string           // the title's own metadata language; "" for its library's
 }
 
 // DocumentCredit is one line of Cast & crew.
@@ -47,9 +48,9 @@ func (d *DB) MetadataDocument(ctx context.Context, publicID string) (MetadataDoc
 	var community sql.NullFloat64
 	err = tx.QueryRowContext(ctx, `SELECT id, publication, kind, revision, match_state, title, sort_title, original_title, summary, tagline, edition, year,
 		release_date, content_rating, community_rating, locked_fields, local_fields, ifnull(extra ->> '$.episodeOrder', ''),
-		ifnull(extra ->> '$.episodeOffset', 0) FROM items WHERE public_id = ?`, publicID).Scan(
+		ifnull(extra ->> '$.episodeOffset', 0), ifnull(extra ->> '$.language', '') FROM items WHERE public_id = ?`, publicID).Scan(
 		&id, &publication, &doc.Kind, &doc.Revision, &doc.Match, &title, &sortTitle, &original, &summary, &tagline, &edition, &year, &release, &rating,
-		&community, &locked, &local, &doc.Numbering.Order, &doc.Numbering.Offset)
+		&community, &locked, &local, &doc.Numbering.Order, &doc.Numbering.Offset, &doc.Language)
 	if errors.Is(err, sql.ErrNoRows) {
 		return doc, ErrNotFound
 	}

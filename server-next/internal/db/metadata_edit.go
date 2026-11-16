@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -49,6 +50,10 @@ type MetadataEdit struct {
 	Unlock  []string
 	// LockAll and UnlockAll lock or unlock every field, list and the match.
 	LockAll, UnlockAll bool
+	// Language is a film's or show's own metadata language ("fr", "pt-BR"), which its details
+	// are fetched in instead of its library's; "" goes back to the library's. Setting it makes
+	// the title due a refresh at once (definition area 4, rule 19).
+	Language *string
 }
 
 // CreditEdit is one line of Cast & crew. Person is a person's public id; without one the name
@@ -167,6 +172,9 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 	}
 	if !publicationOK {
 		return 0, invalid("publicationType: book, magazine or newspaper")
+	}
+	if edit.Language != nil && *edit.Language != "" && !titleLanguage.MatchString(*edit.Language) {
+		return 0, invalid("metadataLanguage: a language code, as fr or pt-BR")
 	}
 	if edit.Year != nil && (*edit.Year < 0 || *edit.Year > 9999) {
 		return 0, invalid("%s: 0 to 9999", FieldYear)
@@ -336,6 +344,20 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 		if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {
 			return err
 		}
+		if edit.Language != nil {
+			var kind ItemKind
+			if err := b.queryRow(`SELECT kind FROM items WHERE id = ?`, id).Scan(&kind); err != nil {
+				return err
+			}
+			if kind != KindMovie && kind != KindShow {
+				return invalid("metadataLanguage: only a film or a show has its own metadata language")
+			}
+			// Due at once, so the title's details come in its own language without waiting.
+			if _, err := b.exec(`UPDATE items SET extra = CASE WHEN ?1 = '' THEN json_remove(ifnull(extra, '{}'), '$.language')
+				ELSE json_set(ifnull(extra, '{}'), '$.language', ?1) END, refresh_due = 0 WHERE id = ?2`, *edit.Language, id); err != nil {
+				return err
+			}
+		}
 		if edit.ContentRating != nil && !root.Valid {
 			if _, err := b.exec(`UPDATE items SET rating_age = ? WHERE root_id = ? AND content_rating IS NULL`, age, id); err != nil {
 				return err
@@ -417,6 +439,7 @@ type RefreshItem struct {
 	Continuing  bool         // a show that has not ended
 	Due         int64        // when it is due a refresh: DueForRefresh's order
 	ExternalIDs []ExternalID // filled by RefreshTarget; ToRefresh leaves it for ExternalIDs to answer
+	Language    string       // the title's own metadata language; "" for its library's
 }
 
 // ToRefresh lists a library's matched top-level titles that were last refreshed at or before the
@@ -433,9 +456,11 @@ func (d *DB) ToRefresh(ctx context.Context, libraryID, before int64, after *Refr
 		where += ` AND (refreshed_at, id) > (?, ?)`
 		args = append(args, after.RefreshedAt, after.ID)
 	}
-	items, err := queryAll(ctx, tx, `SELECT id, kind, refreshed_at, added_at, ifnull(extra ->> '$.continuing', 0) FROM items WHERE `+where+`
+	items, err := queryAll(ctx, tx, `SELECT id, kind, refreshed_at, added_at, ifnull(extra ->> '$.continuing', 0), ifnull(extra ->> '$.language', '') FROM items WHERE `+where+`
 		ORDER BY refreshed_at, id LIMIT ?`, append(args, limit),
-		func(r *RefreshItem) []any { return []any{&r.ID, &r.Kind, &r.RefreshedAt, &r.AddedAt, &r.Continuing} })
+		func(r *RefreshItem) []any {
+			return []any{&r.ID, &r.Kind, &r.RefreshedAt, &r.AddedAt, &r.Continuing, &r.Language}
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -451,8 +476,8 @@ func (d *DB) RefreshTarget(ctx context.Context, publicID string) (RefreshItem, i
 	defer tx.Rollback()
 	var r RefreshItem
 	var library int64
-	err = tx.QueryRowContext(ctx, `SELECT id, kind, ifnull(refreshed_at, 0), added_at, library_id FROM items WHERE public_id = ?`, publicID).
-		Scan(&r.ID, &r.Kind, &r.RefreshedAt, &r.AddedAt, &library)
+	err = tx.QueryRowContext(ctx, `SELECT id, kind, ifnull(refreshed_at, 0), added_at, library_id, ifnull(extra ->> '$.language', '') FROM items
+		WHERE public_id = ?`, publicID).Scan(&r.ID, &r.Kind, &r.RefreshedAt, &r.AddedAt, &library, &r.Language)
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, 0, ErrNotFound
 	}
@@ -497,3 +522,6 @@ var creditRoleByName = func() map[string]CreditRole {
 	}
 	return out
 }()
+
+// titleLanguage is a metadata language a title can have: a language code, with a region.
+var titleLanguage = regexp.MustCompile(`^[a-z]{2,3}(-[A-Z]{2})?$`)
