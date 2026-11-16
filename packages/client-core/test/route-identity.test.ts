@@ -42,3 +42,14 @@ test('explicit HTTP origins work on public, overlay and IPv6 addresses',()=>{
  for(const origin of ['http://media.example:32500','http://100.64.1.2:32500','http://203.0.113.9:32500','http://[2001:db8::9]:32500']) assert.equal(routeOrigin(origin),origin);
  for(const origin of ['http://user:secret@media.example','http://media.example/path','http://media.example?secret=x']) assert.throws(()=>routeOrigin(origin));
 });
+test('the rebuilt server binds its own certificates in a signed version-1 proof',async()=>{
+ const {probeRoute}=await import('../src/route-identity.ts');
+ const certificate=Buffer.alloc(32,3).toString('base64url');
+ const fetcher=proofServer(()=>0,keys.privateKey,{certificates:[certificate]});
+ assert.deepEqual((await probeRoute('http://server.example',undefined,{fetcher})).tlsCertificateFingerprints,[certificate]);
+ for(const certificates of [[],[certificate,certificate],['invalid'],null]){
+  await assert.rejects(probeRoute('http://server.example',undefined,{fetcher:proofServer(()=>0,keys.privateKey,{certificates})}));
+ }
+ const impostor=generateKeyPairSync('ed25519').privateKey;
+ await assert.rejects(probeRoute('http://server.example',pin,{fetcher:proofServer(()=>0,impostor,{certificates:[certificate]})}),{code:'identity_mismatch'});
+});
