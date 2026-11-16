@@ -4,6 +4,7 @@ import {useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 
 import {Tabs as TabsPrimitive} from 'radix-ui';
 import {defaultI18n, type MessageId} from '@i18n';
 import type {ReportTransport} from '@core/client-reports.ts';
+import type {HttpLocalApi} from '@core/index.ts';
 import {settingsRowIndex} from '@core/presentation/settings-spec.ts';
 import {Button, Select} from '../../../../kit/controls';
 import {SettingsGroup} from '../../../../kit/settings';
@@ -27,7 +28,8 @@ const t = defaultI18n.t;
 export type TroubleshootingSurfacesOptions = Readonly<{
   /** The viewer's server tier: its parts are the ones whose calls that tier may make (parts.ts). */
   tier: ServerTier;
-  transport: ReportTransport;
+  /** The Settings build's fenced API; the support export downloads through it. */
+  transport: ReportTransport & Pick<HttpLocalApi, 'downloadSupportExport'>;
   messageConnection?: MessageConnection;
   serverId: string;
   /** The captured viewer fence, the same one the Settings controller uses. */
@@ -142,7 +144,7 @@ export function createTroubleshootingSurfaces(options: TroubleshootingSurfacesOp
   const reports = new SettingsReportsSource(options.transport, options.serverId, options.viewerId, options.isCurrent, ownError,
     {reports: parts.has('reports'), stuckFiles: parts.has('stuckFiles')});
   const feedback = new SettingsFeedbackSource(options.transport, options.serverId, options.viewerId, options.isCurrent, ownError);
-  const support = new SettingsSupportSource(options.transport, options.serverId, options.viewerId, options.isCurrent, ownError);
+  const support = new SettingsSupportSource(options.transport, options.isCurrent, ownError);
   const subscribe = (listener: () => void) => {
     const offs = [options.subscribe(listener), messages.subscribe(listener), reports.subscribe(listener), feedback.subscribe(listener), support.subscribe(listener)];
     return () => {for (const off of offs) off();};
