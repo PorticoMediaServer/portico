@@ -3,8 +3,8 @@ import {Text, View} from 'react-native';
 import type {RuntimeSettings} from '../../../../../../../packages/client-core/src/console';
 import type {LogSettings} from '../../../../../../../packages/client-core/src/server-administration';
 import type {LogsDraft, MaintenanceDocument, MaintenanceSettings} from '../../../../../../../packages/client-core/src/server-admin/server-forms';
-import {applySettingsBindingPatch, exactPresetValue, presetPatch, readSettingsBinding, settingsBinding, settingsBindingPatch} from '../../../../../../../packages/client-core/src/presentation/settings-bindings';
-import {settingsRowIndex, settingsSpec, type SettingsRow as SpecRow} from '../../../../../../../packages/client-core/src/presentation/settings-spec';
+import {applySettingsBindingPatch, readSettingsBinding, settingsBinding, settingsBindingPatch} from '../../../../../../../packages/client-core/src/presentation/settings-bindings';
+import {settingsSpec, type SettingsRow as SpecRow} from '../../../../../../../packages/client-core/src/presentation/settings-spec';
 import {defaultI18n, type MessageId} from '../../../../../../../packages/i18n/src';
 import {Button, Select, TextField} from '../../../../kit/controls';
 import {BottomSheet} from '../../../../kit/overlays';
@@ -28,7 +28,7 @@ export function LimitsTab({group, t, onOpenPage}: {group: StorageForms; t: Trans
   const runtimeState = useFormState<RuntimeSettings, unknown>(forms.runtime);
   const maintenanceState = useFormState<MaintenanceSettings, MaintenanceDocument>(forms.maintenance);
   const logsState = useFormState<LogsDraft, LogSettings>(forms.logs);
-  const [editing, setEditing] = useState<NumberEditor>(), [value, setValue] = useState(''), [customFiles, setCustomFiles] = useState(false);
+  const [editing, setEditing] = useState<NumberEditor>(), [value, setValue] = useState('');
   const runtimeDraft = runtimeState.draft, maintenanceDraft = maintenanceState.draft, logsDraft = logsState.draft;
   const sources = {forms: {runtime: runtimeDraft, maintenance: maintenanceDraft}};
   const read = (id: string) => {const binding = settingsBinding(id); return binding ? readSettingsBinding(binding, sources, id)?.current : undefined;};
@@ -42,21 +42,8 @@ export function LimitsTab({group, t, onOpenPage}: {group: StorageForms; t: Trans
     if (state.saving || !nativeStorageOwner(group.context)) return;
     setEditing({label, value: String(current), min, max, done}); setValue(String(current));
   };
-  const filesRow = settingsRowIndex.get('storage.keepFiles')!.row;
-  const fileOptions = filesRow.control.options ?? [];
-  const filePreset = exactPresetValue(fileOptions, read), showFileChildren = customFiles || filePreset === 'custom';
   const renderRow = (row: SpecRow): React.ReactNode => {
     if (row.id === 'storage.keepHistory' || row.id === 'storage.keepLogsLink') return <Button key={row.id} variant="text" onPress={() => {if (group.context.current()) onOpenPage(row.id === 'storage.keepHistory' ? 'history' : 'troubleshooting');}}>{t(row.control.label ?? row.label)}</Button>;
-    if (row.id === 'storage.keepFiles') {
-      if (!maintenanceDraft || !fileOptions.some(option => option.sets && Object.keys(option.sets).every(id => read(id) !== undefined))) return null;
-      return <View key={row.id} style={{gap: 10}}><NativeSettingControl row={row} value={customFiles ? 'custom' : filePreset} t={t} disabled={state.saving} onCustom={() => setCustomFiles(true)}
-        onChange={choice => {
-          if (state.saving || !nativeStorageOwner(group.context)) return;
-          const values = presetPatch(fileOptions, choice, read);
-          forms.maintenance.set((draft: MaintenanceSettings) => Object.entries(values).reduce((current, [id, next]) => applySettingsBindingPatch(current, settingsBindingPatch(settingsBinding(id)!, next, {forms: {maintenance: current}})), draft));
-          setCustomFiles(false);
-        }}/>{showFileChildren && row.children?.map(renderRow)}</View>;
-    }
     const binding = settingsBinding(row.id), current = read(row.id);
     if (!binding || current === undefined || !['runtime', 'maintenance'].includes(binding.form)) return null;
     if (row.id === 'storage.backupDays' || row.id === 'storage.backupWindowLength') return null;

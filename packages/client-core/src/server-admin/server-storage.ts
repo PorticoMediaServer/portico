@@ -41,16 +41,3 @@ export async function readCachePreview(api: ServerRequester, signal?: AbortSigna
 export async function emptyServerCache(api: ServerRequester, signal?: AbortSignal): Promise<number> {
   return (await callServer(api, 'POST /v1/admin/storage/cache/empty', {signal})).bytes;
 }
-
-/** Keep generated files: Balanced, Shorter or Longer (#3208). The server keeps a download copy only until the device
- * has the file (owner, 16 Nov), so no prepared-downloads time is read or sent; a server that still sends one is fine. */
-export const KEEPING_PRESETS = ['balanced', 'short', 'long'] as const;
-export type StorageKeeping = Readonly<{preset: (typeof KEEPING_PRESETS)[number] | 'custom'}>;
-const keeping = (raw: {preset: string}): StorageKeeping =>
-  ({preset: (KEEPING_PRESETS as readonly string[]).includes(raw.preset) ? raw.preset as StorageKeeping['preset'] : 'custom'});
-export async function readKeeping(api: ServerRequester, signal?: AbortSignal): Promise<StorageKeeping> {
-  return keeping(await callServer(api, 'GET /v1/admin/storage/keeping', {signal}));
-}
-export async function saveKeeping(api: ServerRequester, edit: Readonly<{preset: (typeof KEEPING_PRESETS)[number]}>, signal?: AbortSignal): Promise<StorageKeeping> {
-  return keeping(await callServer(api, 'PUT /v1/admin/storage/keeping', {body: edit, signal}));
-}

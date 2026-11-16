@@ -18,23 +18,13 @@ test('what uses space lists the data folder\'s parts, then places outside it, ne
   assert.equal(dvr.bytes, undefined); assert.equal(dvr.problem, 'The folder cannot be read.');
 });
 
-// The server may still send a prepared-downloads time (before Builder R's removal) or not at all (after): both read the
-// same, and only the preset is ever sent (owner, 16 Nov: a download copy is kept only until the device has the file).
-test('one load serves every Storage row, and a keeping change sends only the preset and takes the server\'s answer', async () => {
-  const paths: string[] = [], sent: unknown[] = [];
-  let keeping: Record<string, unknown> = {preset: 'balanced', preparedDownloadsDays: 30};
-  const api = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
-    paths.push(`${method ?? 'GET'} ${path}`);
-    if (path === '/v1/admin/storage') return storage as T;
-    if (method === 'PUT') {sent.push(body); keeping = {preset: (body as {preset: string}).preset};}
-    return keeping as T;
-  }};
+// Keep generated files is cut (owner, 16 Nov): the page reads only what uses space, never the keeping route.
+test('one load serves every Storage row from the storage read alone', async () => {
+  const paths: string[] = [];
+  const api = {request: async <T>(path: string, method?: string): Promise<T> => {paths.push(`${method ?? 'GET'} ${path}`); return storage as T;}};
   const source = new SettingsStorageSource(api, () => true);
   await Promise.all([source.load(), source.load()]);
-  assert.deepEqual(paths, ['GET /v1/admin/storage', 'GET /v1/admin/storage/keeping']);
-  assert.deepEqual(source.getSnapshot().keeping, {preset: 'balanced'});
-  await source.saveKeeping({preset: 'long'});
-  assert.deepEqual(sent, [{preset: 'long'}]);
-  assert.deepEqual(source.getSnapshot().keeping, {preset: 'long'});
+  assert.deepEqual(paths, ['GET /v1/admin/storage']);
+  assert.equal(source.getSnapshot().storage?.dataFolder, '/srv/portico');
   source.dispose();
 });

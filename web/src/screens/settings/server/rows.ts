@@ -22,10 +22,7 @@ export const backupRows: ReadonlySet<string> = new Set(['storage.backupFolder', 
 export const fileRestoreRows: ReadonlySet<string> = new Set(['storage.restoreFile']);
 
 /** What the page has actually learned: the selected session is live and the backup document arrived. */
-export type StorageRowFacts = Readonly<{live: boolean; backups: boolean; backupsReadable?: boolean; dataDirectoryOnNetwork?: boolean; keeping?: boolean}>;
-/** Keep generated files, from the server's keeping read (#3208); its children have no time of their own on the server. */
-const keepingRows: ReadonlySet<string> = new Set(['storage.keepFiles']);
-const keepingChildrenNotYet: ReadonlySet<string> = new Set(['storage.keepConversions', 'storage.keepPrepared', 'storage.keepSubtitles', 'storage.keepTrickplay']);
+export type StorageRowFacts = Readonly<{live: boolean; backups: boolean; backupsReadable?: boolean; dataDirectoryOnNetwork?: boolean}>;
 
 /**
  * A drawn link's `to` is `server/<section>[/<row>]` for a page inside Settings.
@@ -43,8 +40,6 @@ export function sectionTarget(to: string | undefined): SettingsTarget | undefine
 export function storageRowState(row: SettingsRow, facts: StorageRowFacts): Readonly<{present: boolean}> | undefined {
   if (row.id === 'storage.backupKeysNote') return {present: facts.live && facts.backupsReadable === true};
   if (row.id === 'storage.networkNotice') return {present: facts.live && facts.dataDirectoryOnNetwork === true};
-  if (keepingRows.has(row.id)) return {present: facts.live && facts.keeping === true};
-  if (keepingChildrenNotYet.has(row.id)) return {present: false};
   if (pendingServerRows.has(row.id)) return {present: false};
   if (factRows.has(row.id) || fileRestoreRows.has(row.id)) return {present: facts.live};
   if (backupRows.has(row.id)) return {present: facts.backups};

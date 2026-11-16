@@ -68,18 +68,6 @@ test('backup chosen days, whole hour and keep count form one draft for the rebui
   assert.equal(nodes(render()).some((node: any) => node.props.row?.id === 'storage.backupWindowLength'), false);
 });
 
-test('generated-file presets change exactly their canonical fields and preserve exact custom values', () => {
-  const draft = maintenance(), sources = {forms: {maintenance: draft}};
-  const requiredBinding = (id: string) => {const value = bindings.settingsBinding(id); assert.ok(value); return value;};
-  const read = (id: string) => {const value = bindings.readSettingsBinding(requiredBinding(id), sources); assert.ok(value); return value.current;};
-  const options = row('storage.keepFiles').control.options!;assert.equal(bindings.exactPresetValue(options, read), 'balanced');
-  const patch = bindings.presetPatch(options, 'short', read);
-  const changed = Object.entries(patch).reduce((current: any, [id, value]) => bindings.applySettingsBindingPatch(current, bindings.settingsBindingPatch(requiredBinding(id), value, {forms: {maintenance: current}})), draft);
-  // Prepared downloads has no time of its own any more (owner, 16 Nov): a preset leaves it as it was.
-  assert.deepEqual(changed.retention, {conversions: 1, prepared: 30, downloads: draft.retention.downloads, subtitles: 90, trickplay: 90});assert.deepEqual(changed.windows, draft.windows);
-  assert.equal(bindings.exactPresetValue(options, id => id === 'storage.keepConversions' ? '12' : read(id)), 'custom');
-});
-
 test('hardware view uses only supplied devices/formats and invokes its test callback on demand', async () => {
   let tests = 0;const host = hooks(), module = await screenModule(new URL('../src-next/screens/settings-live/server/StreamingHardware.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../../packages/client-core/src/server-admin/console-words': {when: (value: number) => String(value)},

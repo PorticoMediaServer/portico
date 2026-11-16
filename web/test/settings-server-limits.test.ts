@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {settingsRowIndex} from '@core/presentation/settings-spec.ts';
 import type {SettingsConfiguration} from '@core/settings-configuration.ts';
-import {exactPresetValue, presetPatch, readSettingsBinding, settingsBinding} from '@core/presentation/settings-bindings.ts';
+import {readSettingsBinding, settingsBinding} from '@core/presentation/settings-bindings.ts';
 import {presetEnginesAvailable} from '../src/screens/settings/server/engines.ts';
 import {pendingServerRows, sectionLinkRows, sectionTarget, storageRowState, backupRows, factRows, fileRestoreRows} from '../src/screens/settings/server/rows.ts';
 
@@ -11,9 +11,6 @@ type Forms = Record<string, Readonly<Record<string, unknown>>>;
 /** The runtime document the server writes; these are its own field names. */
 const runtime = {analysisStorageGiB: 64, analysisStageStorageMiB: 256, subtitleTrackLimit: 512, subtitleFileLimitMiB: 128, notificationDays: 30, playHistoryDays: 90,
   diagnosticDays: 7, jobDays: 30, logRetention: [{category: 'server', days: 14}]};
-/** The maintenance document: the five generated-file retention values. */
-const retention = {conversions: 7, prepared: 90, downloads: 30, subtitles: 365, trickplay: 365};
-const maintenance = {retention, backupKeepCount: 14};
 /** The same path the Settings reader takes: no binding means no value, never a guessed one. */
 const read = (id: string, forms: Forms = {runtime}) => {
   const binding = settingsBinding(id);
@@ -46,20 +43,7 @@ test('defaults and config-file state come from the server configuration registry
   assert.equal(readSettingsBinding(settingsBinding('storage.subtitleTracks')!, {configuration, forms: {runtime}}, 'storage.subtitleTracks')?.configOnly, true);
 });
 
-test('Keep generated files resolves from the five real retention values and writes exactly them', () => {
-  const options = row('storage.keepFiles').control.options!;
-  const readRetention = (id: string) => read(id, {maintenance})?.current;
-  assert.equal(exactPresetValue(options, readRetention), 'balanced');
-  assert.deepEqual(presetPatch(options, 'short'), {'storage.keepConversions': '1', 'storage.keepPrepared': '30', 'storage.keepSubtitles': '90', 'storage.keepTrickplay': '90'});
-  // A value that is nobody's preset is shown as Custom, never as a preset it is not.
-  assert.equal(exactPresetValue(options, id => id === 'storage.keepPrepared' ? '180' : readRetention(id)), 'custom');
-});
-
 test('a preset is offered only when every row it sets has a real engine', () => {
-  const keepFiles = row('storage.keepFiles');
-  assert.equal(presetEnginesAvailable(keepFiles, () => true), true);
-  assert.equal(presetEnginesAvailable(keepFiles, () => false), false);
-  // The account presets still answer to the same engines as before.
   assert.equal(presetEnginesAvailable(row('quality.safeMode'), () => false), false);
   assert.equal(presetEnginesAvailable(row('storage.analysisSpace'), () => true), undefined);
 });
@@ -94,9 +78,6 @@ test('Storage answers for its own rows and leaves every other row to the shared 
   }
   for (const id of pendingServerRows) assert.deepEqual(storageRowState(row(id), live), {present: false}, `${id} has no drawn control yet`);
   for (const id of ['storage.analysisSpace', 'storage.keepNotifications']) assert.equal(storageRowState(row(id), live), undefined, id);
-  // Keep generated files draws once the keeping read answers (#3208); its children have no time of their own on the server.
-  for (const id of ['storage.keepFiles']) {assert.deepEqual(storageRowState(row(id), live), {present: false}, id); assert.deepEqual(storageRowState(row(id), {...live, keeping: true}), {present: true}, id);}
-  for (const id of ['storage.keepConversions', 'storage.keepPrepared', 'storage.keepSubtitles', 'storage.keepTrickplay']) assert.deepEqual(storageRowState(row(id), {...live, keeping: true}), {present: false}, id);
   // A link whose drawn target is a mock page would be a dead control, so it stays absent.
   const keepHistory = row('storage.keepHistory');
   assert.deepEqual(storageRowState({...keepHistory, control: {...keepHistory.control, to: 'owner-server.html#f9'}}, live), {present: false});

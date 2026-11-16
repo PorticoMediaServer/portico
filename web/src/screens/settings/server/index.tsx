@@ -8,7 +8,6 @@ import type {ServerBackupSource} from '../backup-source';
 import {StorageBackupFolder, StorageBackupNow, StorageBackupPassphrase, StorageBackups, StorageRestoreFile, type BackupSurfaceProps} from './Backups';
 import {EmptyCache} from './EmptyCache';
 import {StorageDataFolder, StorageUsage} from './StorageUsage';
-import {KeepingSelect} from './Keeping';
 import {SettingsStorageSource, type StorageTransport} from './storage-source';
 import {sectionLinkRows, sectionTarget, storageRowState, type SettingsTarget, type StorageRowFacts} from './rows';
 import styles from './server.module.css';
@@ -38,7 +37,7 @@ export function createServerSettingsSurfaces(options: SettingsServerOptions): Se
   const backups: BackupSurfaceProps = {source: options.backups, subscribe: options.subscribe, isCurrent: options.isCurrent, scopeKey: options.scopeKey, reportError: options.reportError};
   const facts = (): StorageRowFacts => {
     const snapshot = options.backups.getSnapshot();
-    return {live: options.isCurrent(), backups: !!snapshot.backups, dataDirectoryOnNetwork: storage.getSnapshot().storage?.sharedDrive, keeping: !!storage.getSnapshot().keeping, backupsReadable: snapshot.backups?.readable};
+    return {live: options.isCurrent(), backups: !!snapshot.backups, dataDirectoryOnNetwork: storage.getSnapshot().storage?.sharedDrive, backupsReadable: snapshot.backups?.readable};
   };
   let cachedPage: {base: SettingsPageSnapshot; facts: ReturnType<typeof storage.getSnapshot>; value: SettingsPageSnapshot} | undefined;
   const pageSnapshot = (base: SettingsPageSnapshot): SettingsPageSnapshot => {
@@ -57,7 +56,6 @@ export function createServerSettingsSurfaces(options: SettingsServerOptions): Se
       const label = state.label ?? t(row.label);
       return row.id === 'storage.networkNotice' ? <span className={styles.storageWarning} role="status">{t('next.settings.storage.sharedDrive')}</span>
         : row.id === 'storage.emptyCache' ? <EmptyCache source={storage}/>
-        : row.id === 'storage.keepFiles' ? <KeepingSelect source={storage} row={row} label={label} />
         : row.id === 'storage.dataFolder' ? <StorageDataFolder source={storage} label={label} />
         : row.id === 'storage.usage' ? <StorageUsage source={storage} label={label} />
         : row.id === 'storage.backupKeysNote' ? <span className={styles.storageNote}>{t('next.settings.backup.keysNotice')}</span>
