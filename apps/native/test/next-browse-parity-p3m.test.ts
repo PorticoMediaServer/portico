@@ -150,7 +150,7 @@ const {TVPerson} = await screenModule(new URL('../src-next/screens/people/Person
   'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', VirtualizedList: 'VirtualizedList', useWindowDimensions: () => ({width: 1920, height: 1080})},
   'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
   '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', PersonCircle: 'PersonCircle', AmbientArt: 'AmbientArt', Artwork: 'Artwork'},
-  '../../kit/cards': {PosterCard: 'PosterCard'}, '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable'},
+  '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/cards': {PosterCard: 'PosterCard'}, '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable'},
   '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {StateView: 'StateView'},
   '../../kit/browse/presentation': {browseType: (_theme: unknown, size: number, weight: number, tracking = 0) => ({fontSize: size, fontWeight: weight, tracking})},
   '../../kit/theme': themed, '../../kit/overlays': {Menu: 'Menu', MenuEntry: {}},
@@ -198,7 +198,7 @@ test('TV person credits are one row per department, each its own focus region, i
     assert.deepEqual(shelves.map(shelf => shelf.props.focus.id), ['person:p.credits.department:Directing', 'person:p.credits.department:Production'], 'stable region ids');
     assert.equal(shelves[0].props.focus.edges.down, 'person:p.credits.department:Production', 'Down from the first row enters the next');
     assert.equal(shelves[1].props.focus.edges.up, 'person:p.credits.department:Directing', 'Up from the second row returns');
-    assert.equal(shelves[0].props.focus.edges.up, undefined);
+    assert.equal(shelves[0].props.focus.edges.up, 'person:p.header', 'Up from the first credits row returns to the header when there is no Known for');
     assert.equal(shelves[1].props.focus.stops.down, true, 'the last row stops Down');
     assert.equal(shelves[0].props.focus.stops.down, false);
     assert.deepEqual(shelves[0].props.items, [0, 1]);
@@ -206,8 +206,8 @@ test('TV person credits are one row per department, each its own focus region, i
     const card = shelves[1].props.renderItem(0, {index: 0, focusId: '0', onFocus: () => {}, onBlur: () => {}});
     assert.equal(card.props.testID, 'person-credit-department:Production-0');
     assert.equal(card.props.focusId, '0', 'the card carries the row slot focus id the region addresses');
-    assert.equal(shelves[0].props.renderItem(0, {index: 0, focusId: '0', onFocus: () => {}, onBlur: () => {}}).props.preferredFocus, true, 'the page still enters on the first credit');
-    assert.equal(card.props.preferredFocus, false);
+    assert.equal(shelves[0].props.renderItem(0, {index: 0, focusId: '0', onFocus: () => {}, onBlur: () => {}}).props.preferredFocus, undefined, 'credits do not override header entry');
+    assert.equal(card.props.preferredFocus, undefined);
     assert.equal(descendants(page.tree()).filter(node => node.type === 'TVShelf').length, 0, 'no flat credits row beside the department rows');
   } finally {await page.host.unmount();}
 });

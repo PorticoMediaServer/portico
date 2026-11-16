@@ -353,7 +353,7 @@ for (const kind of ['person', 'collection'] as const) test(`${kind} actual entit
     '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../../../../packages/client-core/src/presentation/kit-model': kitModel, '../saved/presentation': {savedDuration: (value: number) => String(value)}, '../../kit/controls': {Button: o.Button, Chip: 'Chip', Focusable: b.Focusable},
     '../../kit/overlays': o.menu, '../../tv/layout/TVShelf': {TVShelf: 'Shelf'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/states': {StateView: 'State'}, '../../kit/browse/presentation': presentation, '../../kit/theme': {useTheme: () => b.theme},
-    '../../kit/layout': {WindowedGrid: 'WindowedGrid', WindowedRow: 'WindowedRow'},
+    '../../kit/focus': b.focus, '../../kit/layout': {WindowedGrid: 'WindowedGrid', WindowedRow: 'WindowedRow'},
     './credit-refocus': await screenModule(new URL('../src-next/screens/people/credit-refocus.ts', import.meta.url), {react: b.react})};
   const mod = await screenModule(new URL(kind === 'person' ? '../src-next/screens/people/PersonScreen.tsx' : '../src-next/screens/collections/CollectionScreen.tsx', import.meta.url), modules);
   const component = kind === 'person' ? mod.TVPerson : mod.NativeCollectionScreen;

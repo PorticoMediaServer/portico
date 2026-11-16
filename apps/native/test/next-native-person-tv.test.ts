@@ -14,7 +14,7 @@ const {TVPerson} = await screenModule(new URL('../src-next/screens/people/Person
   'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
   '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', PersonCircle: 'PersonCircle', AmbientArt: 'AmbientArt', Artwork: 'Artwork'},
   '../../kit/cards': {PosterCard: 'PosterCard'}, '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable'},
-  '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {StateView: 'StateView'},
+  '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {StateView: 'StateView'},
   '../../kit/browse/presentation': {browseType: (_theme: unknown, size: number, weight: number, tracking = 0) => ({fontSize: size, fontWeight: weight, tracking})},
   '../../kit/theme': themed, '../../kit/overlays': {Menu: 'Menu', MenuEntry: {}},
   '../../tv/layout/TVShelf': {TVShelf: 'TVShelf'},
@@ -27,7 +27,7 @@ const credits = [
   {media: {id: 'second', kind: 'movie', title: 'Jurassic Park', year: 1993, posterUrl: '/p2'}, creditKind: 'crew', role: 'Director'},
 ];
 const page = {person: {id: 'spielberg', name: 'Steven Spielberg', roles: ['Directing', 'Production'], birthDate: '1946-12-18',
-  biography: 'Steven Allan Spielberg is an American filmmaker.', knownFor: []}, pageInfo: {total: 2}} as any;
+  biography: 'Steven Allan Spielberg is an American filmmaker.', knownFor: []}, credits, pageInfo: {total: 2}} as any;
 const collection = {pageSize: 60, pageOf: () => 0, subscribe: () => () => {}, subscribePage: () => () => {},
   getSnapshot: () => ({generation: 1, total: 2, status: 'ready', refreshing: false, totalIsLowerBound: false}),
   getPageVersion: () => 'v1', itemAt: (index: number) => credits[index], ensureRange: () => {}, retry: () => {}} as any;
@@ -36,8 +36,8 @@ const runtime = {artwork: () => undefined, ambient: () => undefined, text: {loca
 
 test('TV person draws the ten-foot composition from the real person page', async () => {
   const opened: any[] = [], roles: string[] = [], backs: number[] = [];
-  let tree: any;
-  const host = createFabricHookHost(() => {tree = TVPerson({focusScope: 'person:spielberg', page, role: 'all', collection, runtime, actions: {open: (entry: unknown) => opened.push(entry), menuState: {subscribe: () => () => {}, getSnapshot: () => 0}, isMenuOpen: () => false} as any,
+  let tree: any, shownPage = page;
+  const host = createFabricHookHost(() => {tree = TVPerson({focusScope: 'person:spielberg', page: shownPage, role: 'all', collection, runtime, actions: {open: (entry: unknown) => opened.push(entry), menuState: {subscribe: () => () => {}, getSnapshot: () => 0}, isMenuOpen: () => false} as any,
     onRole: (role: any) => roles.push(role), onBack: () => {backs.push(1);}});});
   await host.mount();
   try {
@@ -49,6 +49,10 @@ test('TV person draws the ten-foot composition from the real person page', async
     assert.ok(born);
     assert.ok(nodes.some(node => node.type === 'Text' && node.props.children === defaultI18n.t('web.person.titlesOnServer', {count: 2})));
     const bio = nodes.find(node => node.props.testID === 'person-biography');
+    const header = nodes.find(node => node.props.id === 'person:spielberg.header');
+    assert.equal(header.props.edges.down, 'person:spielberg.credits');
+    assert.equal(bio.props.preferredFocus, true, 'F-TITLE-52 enters on the biography, keeping the header visible');
+    assert.equal(nodes.find(node => node.props.testID === 'person-header').props.focusable, false, 'the name is not an extra stop beside the biography');
     assert.ok(descendants(bio).some(node => node.type === 'Text' && node.props.children === 'Steven Allan Spielberg is an American filmmaker.'));
     bio.props.onPress(); await host.rerender();
     const expanded = descendants(tree).find(node => node.props.testID === 'person-biography');
@@ -64,10 +68,18 @@ test('TV person draws the ten-foot composition from the real person page', async
     assert.equal(shelf.props.isFocusable(7), false, 'an unloaded slot is only a placeholder');
     const card = shelf.props.renderItem(0, {index: 0, id: '0', onFocus: () => {}, onBlur: () => {}});
     assert.equal(card.props.testID, 'person-credit-0');
-    assert.equal(card.props.preferredFocus, true, 'the first real credit is the page focus target');
+    assert.equal(card.props.preferredFocus, undefined, 'a credit never overrides the header entry');
     let poster: any; const cardHost = createFabricHookHost(() => {poster = card.type(card.props);}); await cardHost.mount();
     try {poster.props.onNavigate(); assert.deepEqual(opened, [credits[0]!.media]);} finally {await cardHost.unmount();}
     assert.equal(backHandler?.(), true);
     assert.deepEqual(backs, [1]);
+    shownPage = {...page, person: {...page.person, biography: undefined}}; await host.rerender();
+    const heading = descendants(tree).find(node => node.props.testID === 'person-header');
+    assert.equal(heading.props.focusable, true); assert.equal(heading.props.preferredFocus, true, 'without a biography, the name is the header entry');
+    shownPage = {...shownPage, person: {...shownPage.person, knownFor: [credits[0]!.media]}}; await host.rerender();
+    const withKnown = descendants(tree);
+    assert.equal(withKnown.find(node => node.props.id === 'person:spielberg.header').props.edges.down, 'person:spielberg.known');
+    const knownShelf = withKnown.find(node => node.type === 'TVShelf' && node.props.focus?.id === 'person:spielberg.known');
+    assert.deepEqual(knownShelf.props.focus.edges, {up: 'person:spielberg.header', down: 'person:spielberg.credits'});
   } finally {await host.unmount();}
 });
