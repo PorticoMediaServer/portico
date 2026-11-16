@@ -146,6 +146,7 @@ func run(log *slog.Logger) (err error) {
 		return err
 	}
 	handler.Playback().SetEngine(engine, engine)
+	handler.StartScrubPreviews(ctx)
 	handler.ServeMediaWith(engine.ServeMedia)
 	handler.LiveHLSWith(engine)
 	// The web app is served by this same server, at every address that is not the API's, so

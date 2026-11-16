@@ -529,3 +529,23 @@ CREATE TABLE segment_analysis (
   revision INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL
 );
+
+-- Scrub previews belong to a playable version and its exact source. Empty geometry records
+-- a source that could not be decoded; a changed file is tried again. Sheets are picture-store files.
+CREATE TABLE scrub_previews (
+  media_id INTEGER PRIMARY KEY REFERENCES media(id) ON DELETE CASCADE,
+  source_key TEXT NOT NULL,
+  duration_ms INTEGER NOT NULL,
+  interval_us INTEGER NOT NULL,
+  frame_width INTEGER NOT NULL,
+  frame_height INTEGER NOT NULL,
+  columns INTEGER NOT NULL,
+  rows INTEGER NOT NULL,
+  frame_count INTEGER NOT NULL
+) STRICT;
+CREATE TABLE scrub_preview_sheets (
+  media_id INTEGER NOT NULL REFERENCES scrub_previews(media_id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  file_hash TEXT NOT NULL,
+  PRIMARY KEY (media_id, position)
+) STRICT, WITHOUT ROWID;
