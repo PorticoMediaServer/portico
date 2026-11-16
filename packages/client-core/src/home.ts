@@ -1,10 +1,8 @@
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 /** Server-composed home rows. Clients render membership, order and policy as published; they never rank, hide or page a row themselves. */
 import {validateContentEntry, type ContentEntry} from './library-content.ts';
 import type {Home} from '../../contracts/src/next/api.ts';
-import {entryFromItem, entriesFromItems, readHomeRows} from './items.ts';
+import {entryFromItem, readHomeRows} from './items.ts';
 import {parseBrowseNode, type BrowseNode, type BrowseSortSelection} from './browse.ts';
 import {firstOfEach, keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
 import {callServer} from './query/server-api.ts';
@@ -363,51 +361,61 @@ export async function readHomeViewRow(api: HomeApi, read: HomeViewRead, signal?:
   const query = {...Object.fromEntries(new URLSearchParams(read.query)), library: read.library, limit: HOME_VIEW_ROW_LENGTH};
   const page = await callServer(api, 'GET /v1/items', {query, signal});
   if (!page || !Array.isArray(page.items)) invalid();
-  return Object.freeze(firstOfEach('home', 'entries', entriesFromItems(page.items as never), entry => entry.id));
+  return Object.freeze(firstOfEach('home', 'entries', homeEntriesOf(page.items as never, ''), entry => entry.id));
+}
+
+/** What a Home card offers on the rebuilt server, which sends no per-card grants: the same as a title's page
+ * (detail.ts) for any profile, its own My List, Favorite, rating and lists, Watched where the title is watched, Play
+ * where it names something to play, and Remove from Continue Watching on a Continue row. Edit, refresh and delete
+ * are the owner's, from the title's page; downloads from the title's page too. */
+function homeActionsOf(item: Home['rows'][number]['items'][number], entry: ContentEntry, rowId?: string): HomeActions {
+  const play = !!entry.playback, watched = !['track', 'album', 'artist', 'collection', 'playlist'].includes(item.kind);
+  const state = item.state;
+  return Object.freeze({play, queue: play, playlist: true, collection: true, myList: true, favorite: true, watched, played: false, rating: true,
+    editMetadata: false, refreshMetadata: false, delete: false, download: false, details: true, ...(rowId?.startsWith('continue') ? {removeFromContinue: true} : {}),
+    state: Object.freeze({watchlisted: state.inList, favorite: state.favorite, watched: entry.watched ?? state.watched, rating: state.rating ?? null,
+      personalRevision: state.updatedAt ? Date.parse(state.updatedAt) : 0, containerRevision: 0}),
+    selection: Object.freeze({play, queue: play, playlist: true, collection: true, myList: true, favorite: true, watched, download: false, edit: false, refresh: false, delete: false})});
+}
+const homeEntriesOf = (items: Home['rows'][number]['items'], rowId: string) =>
+  keepReadable('home', 'entries', [...items], raw => {
+    const item = raw as Home['rows'][number]['items'][number], entry = entryFromItem(item);
+    return entry ? Object.freeze({...entry, homeActions: homeActionsOf(item, entry, rowId)}) as HomeEntry : undefined;
+  });
+
+/** One Home row as the server sends it, on Home or on its own (`GET /v1/home/rows/{id}`): its titles, how to read on
+ * (`nextCursor`, empty at the end), its length when asked for, the line saying why, and its See all page. A row with
+ * nothing in it is not kept, except a saved view's row the server deferred: it is kept, empty, with how to read it. */
+function homeRowOf(row: Home['rows'][number], keepEmpty = false): HomeRow | undefined {
+  if (!id(row.id)) return undefined;
+  const entries = Object.freeze(firstOfEach('home', 'entries', homeEntriesOf(row.items ?? [], row.id), entry => entry.id));
+  const viewRead = typeof row.library === 'string' && row.library && typeof row.query === 'string' ? Object.freeze({library: row.library, query: row.query}) : undefined;
+  const deferred = !entries.length && row.deferred === true && !!viewRead;
+  if (!entries.length && !deferred && !keepEmpty) return undefined;
+  const always = row.id.startsWith('continue'), nextCursor = typeof row.nextCursor === 'string' ? row.nextCursor : '';
+  const reason = typeof row.reason === 'string' && row.reason.trim() ? Object.freeze({kind: 'server', text: Object.freeze({code: '', fallback: words(row.reason, 1024)})}) : undefined;
+  return Object.freeze({id: row.id, title: words(row.title, 1024), kind: row.id, artworkShape: oneOfOr('home', 'row.artworkShape', row.shape, shapes, 'poster'),
+    endpoint: '', privacySensitivity: '', policyState: '', priority: 0, required: always, hideable: !always, reorderable: true, critical: false, cursorCapable: true,
+    entries, start: 0, limit: entries.length, hasMore: !!nextCursor, nextCursor, ...(typeof row.total === 'number' ? {total: row.total} : {}),
+    ...(reason ? {reason} : {}), ...(deferred ? {} : {seeAll: Object.freeze({type: 'row' as const, rowId: row.id})}),
+    ...(viewRead ? {viewRead} : {}), ...(deferred ? {deferred: true} : {})}) as HomeRow;
 }
 
 /** Home as the server composes it for this profile: the rows it sends, in its order. A row with nothing in it is not
  * sent, except a saved view's row the server deferred: it is kept, empty, with how to read its titles. */
 export function homeDocument(home: Home): HomeDocument {
-  const rows = firstOfEach('home', 'rows', keepReadable('home', 'rows', home.rows, raw => {
-    const row = raw as Home['rows'][number];
-    if (!id(row.id)) return undefined;
-    const entries = Object.freeze(firstOfEach('home', 'entries', entriesFromItems(row.items), entry => entry.id));
-    const viewRead = typeof row.library === 'string' && row.library && typeof row.query === 'string' ? Object.freeze({library: row.library, query: row.query}) : undefined;
-    const deferred = !entries.length && row.deferred === true && !!viewRead;
-    if (!entries.length && !deferred) return undefined;
-    const always = row.id.startsWith('continue');
-    return Object.freeze({id: row.id, title: words(row.title, 1024), kind: row.id, artworkShape: oneOfOr('home', 'row.artworkShape', row.shape, shapes, 'poster'),
-      endpoint: '', privacySensitivity: '', policyState: '', priority: 0, required: always, hideable: !always, reorderable: true, critical: false, cursorCapable: false,
-      entries, start: 0, limit: entries.length, hasMore: false, nextCursor: '', ...(viewRead ? {viewRead} : {}), ...(deferred ? {deferred: true} : {})}) as HomeRow;
-  }), row => row.id);
+  const rows = firstOfEach('home', 'rows', keepReadable('home', 'rows', home.rows, raw => homeRowOf(raw as Home['rows'][number])), row => row.id);
   const spotlight = firstOfEach('home', 'spotlight', keepReadable('home', 'spotlight', home.spotlight ?? [], raw => {
     const slide = raw as NonNullable<Home['spotlight']>[number];
     const card = entryFromItem(slide.entry), target = slide.resumeTarget ? entryFromItem(slide.resumeTarget) : undefined;
     const reason = parseServerText(slide.reason?.text);
     if (!card || !reason || slide.resumeTarget && !target) return undefined;
-    const play = slide.play === true, myList = slide.myList === true;
-    const homeActions: HomeActions = Object.freeze({play, myList, details: true, queue: false, playlist: false, collection: false, favorite: false,
-      watched: false, played: false, rating: false, editMetadata: false, refreshMetadata: false, delete: false, download: false,
-      state: Object.freeze({watchlisted: slide.entry.state.inList, favorite: slide.entry.state.favorite, watched: slide.entry.state.watched,
-        rating: slide.entry.state.rating ?? null, personalRevision: slide.entry.state.updatedAt ? Date.parse(slide.entry.state.updatedAt) : 0, containerRevision: 0}),
-      selection: Object.freeze({play, myList, queue: false, playlist: false, collection: false, favorite: false, watched: false, download: false, edit: false, refresh: false, delete: false})});
+    // The spotlight says itself whether its title plays and may go on My List; the rest is as on any Home card.
+    const play = slide.play === true, myList = slide.myList === true, base = homeActionsOf(slide.entry, card);
+    const homeActions: HomeActions = Object.freeze({...base, play, queue: base.queue && play, myList, selection: Object.freeze({...base.selection, play, queue: base.selection.queue && play, myList})});
     return Object.freeze({entry: Object.freeze({...card, homeActions}), reason: Object.freeze({kind: slide.reason.kind, text: reason}), ...(target ? {resumeTarget: target} : {})});
   }), slide => slide.entry.id).map(slide => oneSelectionIdentity(slide, rows));
   return Object.freeze({rows: Object.freeze(rows), spotlight: Object.freeze(spotlight), layout: Object.freeze({revision: 0, rowOrder: Object.freeze(rows.map(row => row.id)), hiddenRowIds: Object.freeze([])})});
-}
-
-function pageQuery(page: HomeRowPage): string {
-  const query = new URLSearchParams();
-  if (page.limit !== undefined) query.set('limit', String(page.limit));
-  if (page.cursor) query.set('cursor', page.cursor);
-  if (page.start !== undefined) query.set('start', String(page.start));
-  if (page.revision) query.set('revision', page.revision);
-  if (page.anchorId) query.set('anchorId', page.anchorId);
-  if (page.group) query.set('group',page.group);
-  if (page.sourceId) query.set('sourceId',page.sourceId);
-  const text = query.toString();
-  return text ? '?' + text : '';
 }
 
 export async function fetchHome(api: HomeApi, signal?: AbortSignal): Promise<HomeDocument> {
@@ -453,9 +461,10 @@ export function appendHomeRowPage(row: HomeRow, page: HomeRow): HomeRow {
 }
 
 export async function fetchHomeRow(api: HomeApi, rowId: string, page: HomeRowPage = {}, signal?: AbortSignal): Promise<HomeRow> {
-  if (page.cursor && (page.start !== undefined || page.anchorId)) throw new Error('A home row pages by cursor or by anchored range, not both.');
-  const row = validateHomeRow(await api.request<RouteResponse<"get_home_row">>(encodedRoutePath("get_home_row", {"id": encodeURIComponent(rowId)}) + (pageQuery(page)), 'GET', undefined, signal));
-  if (row.id !== rowId) invalid();
+  // A row's first page also says how long the row is; a later page follows its cursor.
+  const raw = await callServer(api, 'GET /v1/home/rows/{id}', {id: rowId, query: {limit: page.limit, ...(page.cursor ? {cursor: page.cursor} : {total: true})}, signal});
+  const row = homeRowOf(raw, true);
+  if (!row || row.id !== rowId) invalid();
   return row;
 }
 

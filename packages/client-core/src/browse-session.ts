@@ -3,7 +3,7 @@ import type {FetchPage} from './collections/windowed.ts';
 import type {ContentEntry} from './library-content.ts';
 import {countItems, entriesFromItems, entryFromPerson, readFacet, readItems} from './items.ts';
 import {callServer} from './query/server-api.ts';
-import {genreEntry, libraryItemQuery} from './library-browse.ts';
+import {genreEntry, homeRowPivot, homeRowQuery, libraryItemQuery} from './library-browse.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
 import {rememberFilterNames} from './filter-value-names.ts';
 import {isStaleAnswer} from './freshness-actions.ts';
@@ -127,6 +127,11 @@ export class BrowseSession<T> {
       catch (error) {if (!this.retired && this.options.current() && !signal.aborted && ended(error)) this.end(error); throw error;}
       finally {lifetime.dispose();}
     }
+    if (this.query.pivot === homeRowPivot) {
+      try {return await this.readHomeRow(api, start, count, signal, active);}
+      catch (error) {if (!this.retired && this.options.current() && !signal.aborted && ended(error)) this.end(error); throw error;}
+      finally {lifetime.dispose();}
+    }
     const list = libraryItemQuery({id: this.query.libraryId, kind: this.query.capabilities?.library?.kind}, this.query.pivot, this.query.nodes, this.query.sorts);
     try {
       // The count is its own request and no page waits for it; until it answers the list is "at least this long".
@@ -172,6 +177,24 @@ export class BrowseSession<T> {
     rememberFilterNames(entries.map(entry => ({value: entry.id, label: entry.title})));
     if (this.retired || !this.options.current() || signal.aborted) throw browseSessionClosed();
     return this.answer(entries, start, start + people.length, page.nextCursor, signal);
+  }
+  /** A Home row's See all: the row's titles from `GET /v1/home/rows/{id}`, with the list's filters and order. It pages
+   * by cursor only, so a position past the pages read is reached by reading on to it. */
+  private async readHomeRow(api: Parameters<typeof readItems>[0], start: number, count: number, signal: AbortSignal, active: AbortSignal) {
+    const {rowId, query} = homeRowQuery(this.query.nodes, this.query.sorts);
+    const read = (cursor: string) => callServer(api, 'GET /v1/home/rows/{id}', {id: rowId, query: {...query, limit: count,
+      ...(cursor ? {cursor} : {}), ...(this.total === undefined ? {total: true} : {})}, signal: active});
+    let at = Math.max(...[...this.cursors.keys()].filter(position => position <= start));
+    let page = await read(this.cursors.get(at) ?? '');
+    for (let walked = 0; at + page.items.length <= start && page.nextCursor && page.items.length && walked < 100; walked++) {
+      at += page.items.length;
+      this.cursors.set(at, page.nextCursor);
+      page = await read(page.nextCursor);
+    }
+    if (typeof page.total === 'number') {this.total = page.total; if (this.live()) this.options.onFacts?.({total: page.total});}
+    const items = page.items.slice(Math.max(0, start - at));
+    if (this.retired || !this.options.current() || signal.aborted) throw browseSessionClosed();
+    return this.answer(entriesFromItems(items), start, start + items.length, page.nextCursor || undefined, signal);
   }
   /** A music library's Genres tab: every genre of the library the profile may see, by name, read whole
    * (the server lists at most 200) and handed out a page at a time. */

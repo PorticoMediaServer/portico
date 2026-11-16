@@ -10,7 +10,8 @@
  * title. Edits to the entries carry the queue's revision in `If-Match`; a stale one is 412.
  */
 import {createWindowedCollection, type WindowedCollection} from '../collections/windowed.ts';
-import {libraryItemQuery} from '../library-browse.ts';
+import {homeRowPivot, homeRowQuery, libraryItemQuery} from '../library-browse.ts';
+import {serverPath} from '../query/server-api.ts';
 import {PlaybackApiError, call, idempotencyKey, type V1Http} from './http.ts';
 import {playbackPath} from './routes.ts';
 import {ContractError, parseEntry, parsePreparedNext, parseQueue, parseQueueEntries, parseSession, obj, type PreparedNext, type QueueEntry, type QueueHeader, type Selector, type Session} from './types.ts';
@@ -52,6 +53,27 @@ export function queueSource(source: Selector): Record<string, unknown> {
   throw new PlaybackApiError(422, 'unsupported_selector', 'never');
 }
 
+/** The most titles a Home row's page plays: the server has no Home row source for a queue yet, so the row's titles are
+ * read here, in its order and with its filters, and played as titles named one by one. */
+export const HOME_ROW_QUEUE_MAX = 1000;
+/** A Home row's See all is played as its titles; every other source goes to the server as it is. */
+async function resolveSource(http: V1Http, source: Selector, signal?: AbortSignal): Promise<Selector> {
+  if (!('query' in source) || source.query.pivot !== homeRowPivot) return source;
+  const {rowId, query} = homeRowQuery(source.query.query ? [source.query.query] : [], source.query.sort ?? []);
+  const ids: string[] = [];
+  for (let cursor = '', pages = 0; ids.length < HOME_ROW_QUEUE_MAX && pages < 10; pages++) {
+    const r = await call(http, {method: 'GET', path: serverPath('GET /v1/home/rows/{id}', {id: rowId, query: {...query, limit: 200, ...(cursor ? {cursor} : {})} as never}), signal});
+    const page = r.body as {items?: readonly {id?: unknown}[]; nextCursor?: unknown};
+    for (const item of page.items ?? []) if (typeof item.id === 'string' && ids.length < HOME_ROW_QUEUE_MAX) ids.push(item.id);
+    cursor = typeof page.nextCursor === 'string' ? page.nextCursor : '';
+    if (!cursor) break;
+  }
+  if (!ids.length) throw new PlaybackApiError(422, 'empty_selection', 'never');
+  return Object.freeze({items: Object.freeze({ids: Object.freeze(ids)})});
+}
+const resolveSegments = (http: V1Http, segments: readonly SegmentInput[], signal?: AbortSignal) =>
+  Promise.all(segments.map(async segment => ({...segment, source: await resolveSource(http, segment.source, signal)})));
+
 /** A play's one source: segments of titles named one by one become one list of titles. */
 function createBody(segments: readonly SegmentInput[]): Record<string, unknown> {
   if (!segments.length) throw new ContractError('queue source');
@@ -90,13 +112,14 @@ export class QueueClient {
 
   /** Add a list or a whole selection at the end or next. */
   async batch(id: string, revision: string, source: Selector, placement: 'next' | 'end', signal?: AbortSignal): Promise<CreateResult> {
-    const r = await this.command(id, revision, 'POST', playbackPath('POST /v1/queues/{id}/entries', {id}), {source: queueSource(source), placement}, signal);
+    const r = await this.command(id, revision, 'POST', playbackPath('POST /v1/queues/{id}/entries', {id}), {source: queueSource(await resolveSource(this.http, source, signal)), placement}, signal);
     return Object.freeze({queue: r.queue, window: await this.window(id, 20, 50, signal)});
   }
 
   /** Play (or Shuffle, or Resume a show): this device's queue for that medium becomes this one. */
   async create(segments: readonly SegmentInput[], options: QueueCreateOptions = {}): Promise<CreateResult> {
-    const r = await call(this.http, {method: 'POST', path: playbackPath('POST /v1/queues'), headers: {'Idempotency-Key': this.key()}, body: createBody(segments), signal: options.signal});
+    const body = createBody(await resolveSegments(this.http, segments, options.signal));
+    const r = await call(this.http, {method: 'POST', path: playbackPath('POST /v1/queues'), headers: {'Idempotency-Key': this.key()}, body, signal: options.signal});
     const b = r.body as {queue?: unknown; window?: unknown};
     const queue = parseObservedQueue(b.queue);
     const window = bindWindow(queue.id, queue.revision, Object.freeze(Array.isArray(b.window) ? b.window.map(parseEntry) : []));
@@ -141,9 +164,9 @@ export class QueueClient {
   }
 
   /** Play next / Add to queue / insert after an entry. */
-  addSegment(id: string, revision: string, placement: Placement, segment: SegmentInput) {
+  async addSegment(id: string, revision: string, placement: Placement, segment: SegmentInput) {
     return this.command(id, revision, 'POST', playbackPath('POST /v1/queues/{id}/entries', {id}),
-      {source: queueSource(segment.source), ...(typeof placement === 'string' ? {placement} : {after: placement.after})});
+      {source: queueSource(await resolveSource(this.http, segment.source)), ...(typeof placement === 'string' ? {placement} : {after: placement.after})});
   }
   /** Removes an entry. A removal sent again after its answer was lost finds the entry gone (404):
    * that is the removal done, and the queue is read as it now stands. */

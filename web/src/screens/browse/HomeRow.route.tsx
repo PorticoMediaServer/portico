@@ -4,7 +4,8 @@ import {useLocation, useParams, useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {fetchHomeRow, type HomeRow} from '@core/home.ts';
 import type {BrowseSortSelection} from '@core/browse.ts';
-import {acrossCondition, acrossPivot, groupOrderSort} from '@core/presentation/browse-groups.ts';
+import {acrossCondition, groupOrderSort} from '@core/presentation/browse-groups.ts';
+import {homeRowPivot} from '@core/library-browse.ts';
 import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
@@ -43,7 +44,7 @@ function LoadedHomeRow({captured, context, row}: {captured: ProtectedLibraryScre
   const pathname = useLocation({select: location => location.pathname}), runtime = captured.binding.playback?.runtime;
   const owner = useBrowseLease(context, pathname, () => router.state.location.pathname === pathname, runtime);
   const build = addressedQuery(routed, bestMatch);
-  const gridSource: BrowseSource = {libraryId: '*', pivot: acrossPivot('homeRow'), homeRowId: row.id, base: [acrossCondition('homeRow', row.id)],
+  const gridSource: BrowseSource = {libraryId: '*', pivot: homeRowPivot, homeRowId: row.id, base: [acrossCondition('homeRow', row.id)],
     ...(build.predicates.length ? {predicates: build.predicates} : {}), sorts: build.sorts};
   // A test's or a guarded screen's API may have no raw reader; the grid then reads without one.
   const raw = useMemo(() => (context.api.requestRaw as typeof context.api.requestRaw | undefined)?.bind(context.api), [context]);

@@ -1,9 +1,9 @@
 import {entriesFromItems, readFacet, readItem, readItems, readLibrary, readPersonFacts, type ItemListQuery} from '../items.ts';
 import {rememberFilterNames} from '../filter-value-names.ts';
-import {childrenQuery, genreTitlesCapabilities, genreTitlesPivot, libraryBrowseCapabilities, libraryItemQuery} from '../library-browse.ts';
+import {childrenQuery, genreTitlesCapabilities, genreTitlesPivot, homeRowCapabilities, homeRowPivot, homeRowQuery, libraryBrowseCapabilities, libraryItemQuery} from '../library-browse.ts';
 import type {ContentEntry} from '../library-content.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
-import type {ServerRequester} from './server-api.ts';
+import {callServer, type ServerRequester} from './server-api.ts';
 import {readRebuiltReadingFacet} from './reading-facets-rebuilt.ts';
 import {routePath} from '../../../contracts/src/routes.ts';
 import type {GuideRoute} from '../channel-guide.ts';
@@ -17,6 +17,8 @@ export interface BrowseReadApi {
 export async function readBrowseCapabilitiesResponse(api: BrowseReadApi, libraryId: string, pivot: string, signal?: AbortSignal) {
   // A genre's titles across every library: one list of films and shows, sorted by title, date added or year.
   if (libraryId === acrossLibraries && pivot === genreTitlesPivot) return genreTitlesCapabilities();
+  // A Home row's See all: its own order, title, date added or year; played or not.
+  if (libraryId === acrossLibraries && pivot === homeRowPivot) return homeRowCapabilities();
   if (libraryId === acrossLibraries) return api.request(browseCapabilitiesPath(libraryId, pivot), 'GET', undefined, signal);
   return libraryBrowseCapabilities(await readLibrary(api as ServerRequester, libraryId, signal), pivot);
 }
@@ -27,6 +29,11 @@ const conditions = (query: BrowseNode | null | undefined): readonly BrowseNode[]
 /** How many titles each of a few candidate filters would leave: the empty state's "loosen one filter" choices. */
 export async function readBrowseCountsResponse(api: BrowseReadApi, libraryId: string, pivot: string,
   queries: readonly Readonly<{id: string; query: BrowseNode | null}>[], signal?: AbortSignal) {
+  if (libraryId === acrossLibraries && pivot === homeRowPivot) return {counts: await Promise.all(queries.map(async each => {
+    const {rowId, query} = homeRowQuery(conditions(each.query), []);
+    const page = await callServer(api as ServerRequester, 'GET /v1/home/rows/{id}', {id: rowId, query: {...query, limit: 1, total: true}, signal});
+    return {id: each.id, total: page.total ?? page.items.length, totalIsLowerBound: false, revision: 'counted'};
+  }))};
   if (libraryId === acrossLibraries) return api.request(browseCountsPath(libraryId), 'POST', browseCountsRequest(pivot, queries), signal);
   const counts = await Promise.all(queries.map(async each => {
     const page = await readItems(api as ServerRequester, libraryItemQuery({id: libraryId}, pivot, conditions(each.query), []), {limit: 1, total: true}, signal);

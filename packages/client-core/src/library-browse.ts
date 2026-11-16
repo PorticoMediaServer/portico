@@ -136,6 +136,54 @@ function genreTitlesQuery(nodes: readonly BrowseNode[], sorts: readonly BrowseSo
   return query as ItemListQuery;
 }
 
+/** A Home row's own page, See all (05-browse): the row's titles across the libraries, in the row's own order or by
+ * title, date added or year, played or not. The server reads it as `GET /v1/home/rows/{id}` with the list's own
+ * parameters, so the row is named by its condition (`homeRow`) and the rest is an ordinary list query. */
+export const homeRowPivot = 'home-row-titles';
+const homeRowSorts = ['title', 'added', 'year'] as const;
+export function homeRowCapabilities(): unknown {
+  const sorts = [{id: 'groupOrder', labelKey: 'sort.groupOrder', directions: ['asc'], defaultDirection: 'asc', applicableKinds: []},
+    ...homeRowSorts.map(id => ({id: sortIds[id]!, labelKey: 'sort.' + sortIds[id], directions: ['asc', 'desc'], defaultDirection: id === 'title' ? 'asc' : 'desc', applicableKinds: []}))];
+  const pivot = {id: homeRowPivot, labelKey: 'next.browse.bestMatch', entityKinds: [], supportedViews: ['grid', 'list'], browsable: true,
+    defaultSort: [{field: 'groupOrder', direction: 'asc'}], sorts: sorts.map(sort => sort.id), filters: ['playState', 'homeRow', 'library'], paging: 'keyset'};
+  return {library: {id: acrossLibraries, name: '', kind: 'mixed', defaultView: ''}, pivots: [pivot], resolvedPivot: pivot,
+    // The row itself and a library's chip are conditions the page sends, not filters the person opens.
+    fields: [{...fields.watched!, cost: 'indexed', applicableKinds: []},
+      {id: 'homeRow', labelKey: 'next.browse.bestMatch', type: 'string', operators: ['equals'], controlHint: 'text', complexity: 'advanced', cost: 'indexed', applicableKinds: []},
+      {id: 'library', labelKey: 'filter.field.library', type: 'identity-set', operators: ['in', 'equals'], controlHint: 'select', complexity: 'advanced', cost: 'indexed', applicableKinds: []}], sorts,
+    quickFilters: [{id: 'unwatched', labelKey: 'filter.unwatched', field: 'playState', value: 'unplayed'}], queryLimits: limits};
+}
+/** The row a Home row page reads and the list parameters its filters and order send. */
+export function homeRowQuery(nodes: readonly BrowseNode[], sorts: readonly BrowseSortSelection[]): Readonly<{rowId: string; query: Record<string, unknown>}> {
+  let rowId = '';
+  const query: Record<string, unknown> = {};
+  const add = (node: BrowseNode): void => {
+    if ('all' in node) { node.all.forEach(add); return; }
+    if (!('field' in node)) { unsupported(); return; }
+    if (node.field === 'homeRow' && node.operator === 'equals' && typeof node.value === 'string' && !rowId) rowId = node.value;
+    else if (node.field === 'playState' && node.operator === 'equals' && (node.value === 'played' || node.value === 'unplayed')) query.watched = node.value === 'played';
+    else if (node.field === 'playState' && node.operator === 'equals' && node.value === 'in-progress') query.inProgress = true;
+    // A library's chip: the row's list reads one library at a time.
+    else if (node.field === 'library' && ['in', 'equals'].includes(node.operator) && query.library === undefined) {
+      const ids = Array.isArray(node.value) ? node.value : [node.value];
+      if (ids.length !== 1 || typeof ids[0] !== 'string') throw new BrowseQueryError('query', 'Choose one library.');
+      query.library = ids[0];
+    }
+    else unsupported();
+  };
+  nodes.forEach(add);
+  if (!rowId) throw new BrowseQueryError('query', 'Choose a Home row.');
+  const sort = sorts[0];
+  if (sorts.length > 1) throw new BrowseQueryError('sort', 'That sort is not available here.');
+  // The row's own order is its default: no sort is sent for it.
+  if (sort && sort.field !== 'groupOrder') {
+    const name = wireSort(sort.field);
+    if (!name) throw new BrowseQueryError('sort', 'That sort is not available here.');
+    query.sort = name; query.order = sort.direction;
+  }
+  return Object.freeze({rowId, query: Object.freeze(query)});
+}
+
 /** One or several authors' ids as the list's author condition: any of them, or (contains-all) all of them. */
 const authors = (operator: string, value: unknown): string => {
   const ids = Array.isArray(value) ? value : [value];
