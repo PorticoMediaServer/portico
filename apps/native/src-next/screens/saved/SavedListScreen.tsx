@@ -6,6 +6,7 @@ import type {ContentEntry} from '../../../../../packages/client-core/src/library
 import type {SavedListFilter} from '../../../../../packages/client-core/src/saved';
 import {Chip, Focusable} from '../../kit/controls';
 import {PosterCard, SquareCard, type CardSelection} from '../../kit/cards';
+import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import {Icon} from '../../kit/Icon';
 import {StateView} from '../../kit/states';
 import {browseType, alpha} from '../../kit/browse/presentation';
@@ -84,7 +85,7 @@ export function SavedListScreen({route, destination, activation, runtime, action
   const hasMore = route.view === 'history' ? !!personal?.nextCursor : projection?.sections.some(section => section.nextCursor) === true;
   const next = () => {
     if (!hasMore || !activation.getSnapshot().visible || destination.getSnapshot().phase !== 'ready') return;
-    if (savedNearEnd(viewport.current.offset, viewport.current.height, viewport.current.extent, width * 1.5 + 58, columns)) {
+    if (savedNearEnd(viewport.current.offset, viewport.current.height, viewport.current.extent, width * 1.5 + 58 + (theme.isTV ? 0 : cardTitleLine(theme)), columns)) {
       void destination.next(projection?.sections.find(section => section.nextCursor)?.id).catch(runtime.reportError);
     }
   };

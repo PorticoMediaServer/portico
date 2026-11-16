@@ -118,7 +118,8 @@ test('same-width height and crease changes invalidate measured offscreen row spa
     assert.equal(nodes(spacer(fixture.render()))[1].props.style.height, 888);
     if (change === 'height') fixture.setSize(834, 800); else fixture.setCrease();
     const nextHeight = nodes(spacer(fixture.render()))[1].props.style.height;
-    assert.equal(nextHeight, 27 + 12 + 140 * 1.5 + 48 + 6 + 8, `${change} must replace the old cached height`);
+    // A phone/tablet poster caption holds two title lines (W3 F1): 48 plus one 18-point title line.
+    assert.equal(nextHeight, 27 + 12 + 140 * 1.5 + 48 + 18 + 6 + 8, `${change} must replace the old cached height`);
   }
 });
 

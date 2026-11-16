@@ -1,4 +1,4 @@
-import React, {type ReactNode} from 'react';
+import React, {useState, type ReactNode} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
@@ -63,21 +63,27 @@ export function TopBar({back, overArtwork = false, title, leadingTitle, center, 
   back?: TopBarBack; overArtwork?: boolean; title?: string; leadingTitle?: string; center?: ReactNode; trailing?: ReactNode;
   surface?: boolean; safeArea?: boolean; children?: ReactNode; testID?: string;
 }) {
-  const theme = useTheme(), insets = useSafeAreaInsets();
+  const theme = useTheme(), insets = useSafeAreaInsets(), [rowWidth, setRowWidth] = useState(0), [centreWidth, setCentreWidth] = useState(0);
+  // A centred title or switcher is never cut while the back button's words could give way (the owner's rule: the row
+  // gives way first). The centre is measured at its own width; when it would reach the labelled back button, the back
+  // button keeps only its arrow and the title takes the room (W3 F3 to F5: "Public Domain Boo…").
+  const centred = !!(title || center), backOnlyArrow = centred && rowWidth > 0 && centreWidth > rowWidth - 2 * backRoom;
   return <View testID={testID} pointerEvents="box-none" style={{paddingTop: safeArea ? insets.top : 0, zIndex: theme.layers.sticky}}>
     {surface && <BarSurface/>}
-    <View pointerEvents="box-none" style={styles.row}>
+    <View pointerEvents="box-none" style={styles.row} onLayout={event => setRowWidth(event.nativeEvent.layout.width)}>
       {back && (overArtwork
         ? <RoundBarButton testID={back.testID} icon="i-left" label={back.label} disabled={back.disabled} onPress={back.onPress}/>
         : <Focusable testID={back.testID} accessibilityRole="button" accessibilityLabel={back.label} disabled={back.disabled} onPress={back.onPress} hitSlop={{top: 3, bottom: 3}} style={styles.back}>
           <View style={styles.backContent}>
             <Icon name="i-left" size={22} color={theme.colors.textSecondary}/>
-            <Text numberOfLines={1} style={[shellType(16, 600), {color: theme.colors.textSecondary, flexShrink: 1}]}>{back.label}</Text>
+            {backOnlyArrow ? null : <Text numberOfLines={1} style={[shellType(16, 600), {color: theme.colors.textSecondary, flexShrink: 1}]}>{back.label}</Text>}
           </View>
         </Focusable>)}
       {leadingTitle !== undefined && <Text accessibilityRole="header" numberOfLines={1} style={[shellType(17, 700), {flex: 1, marginLeft: 8, color: theme.colors.text}]}>{leadingTitle}</Text>}
-      {(title || center) && <View pointerEvents="box-none" style={styles.centre}>
-        {center ?? <Text accessibilityRole="header" numberOfLines={1} style={[shellType(17, 700), {color: theme.colors.text}]}>{title}</Text>}
+      {centred && <View pointerEvents="box-none" style={styles.centre}>
+        <View pointerEvents="box-none" style={{maxWidth: '100%'}} onLayout={event => setCentreWidth(event.nativeEvent.layout.width)}>
+          {center ?? <Text accessibilityRole="header" numberOfLines={1} style={[shellType(17, 700), {color: theme.colors.text}]}>{title}</Text>}
+        </View>
       </View>}
       {trailing && <View style={styles.trailing}>{trailing}</View>}
     </View>
@@ -85,11 +91,14 @@ export function TopBar({back, overArtwork = false, title, leadingTitle, center, 
   </View>;
 }
 
+/** The widest the labelled back button draws (styles.back maxWidth). */
+const backRoom = 118;
 const styles = StyleSheet.create({
   row: {height: 44, paddingLeft: 12, paddingRight: 10, flexDirection: 'row', alignItems: 'center'},
   back: {height: 38, maxWidth: 118, marginLeft: -4, paddingRight: 6, justifyContent: 'center'},
   backContent: {flexDirection: 'row', alignItems: 'center'},
   round: {width: 38, height: 38, borderRadius: 19},
-  centre: {position: 'absolute', left: 118, right: 118, top: 0, height: 44, alignItems: 'center', justifyContent: 'center'},
+  // Symmetric, so the title stays centred on the screen: clear of the arrow and the trailing actions on both sides.
+  centre: {position: 'absolute', left: 56, right: 56, top: 0, height: 44, alignItems: 'center', justifyContent: 'center'},
   trailing: {marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 6},
 });
