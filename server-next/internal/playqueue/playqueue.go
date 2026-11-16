@@ -77,10 +77,17 @@ func (v QueueView) query() (db.ItemQuery, error) {
 		YearTo: v.YearTo, Watched: v.Watched, Favorite: v.Favorite, InList: v.InList, Resolution: v.Resolution, Sort: v.Sort, Desc: v.Desc}
 	for _, name := range v.Kinds {
 		kind, ok := db.ParseItemKind(name)
-		if !ok || !kind.Playable() {
+		if !ok || !kind.Playable() && kind != db.KindShow && kind != db.KindSeason && kind != db.KindAlbum && kind != db.KindArtist {
 			return q, ErrUnsupported
 		}
 		q.Kinds = append(q.Kinds, kind)
+	}
+	if len(q.Kinds) > 1 {
+		for _, kind := range q.Kinds {
+			if !kind.Playable() {
+				return q, ErrUnsupported
+			}
+		}
 	}
 	for _, c := range v.Filter {
 		q.Conditions = append(q.Conditions, db.Condition{Field: c.Field, Mode: c.Mode, Values: c.Values})
@@ -419,13 +426,11 @@ func (s *Service) fromView(ctx context.Context, v db.Viewer, view QueueView, shu
 	if more == "" {
 		return whole, nil, nil
 	}
-	count := q
-	count.WithTotal, count.Limit = true, 1
-	page, err := s.db.Items(ctx, v, count)
+	count, err := s.db.ViewPlayableCount(ctx, v, q)
 	if err != nil {
 		return nil, nil, err
 	}
-	if page.Total <= db.QueueMax {
+	if count <= db.QueueMax {
 		q.Cursor = more
 		rest, _, err := s.db.ViewItems(ctx, v, q, db.QueueMax-len(whole))
 		return append(whole, rest...), nil, err

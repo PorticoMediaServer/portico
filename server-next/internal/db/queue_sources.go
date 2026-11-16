@@ -144,6 +144,9 @@ func (d *DB) ListItems(ctx context.Context, v Viewer, listPublicID string, after
 // ViewItems returns the next titles of a view (a library with its filters and sort) after
 // the cursor, and the cursor to go on from, which is empty at the end.
 func (d *DB) ViewItems(ctx context.Context, v Viewer, q ItemQuery, limit int) (items []int64, next string, err error) {
+	if containerView(q) {
+		return d.containerViewItems(ctx, v, q, limit)
+	}
 	q.WithTotal = false
 	for len(items) < limit {
 		q.Limit = min(limit-len(items), maxPageSize)
@@ -178,7 +181,11 @@ func (d *DB) ViewCursorAt(ctx context.Context, v Viewer, q ItemQuery, itemPublic
 		return "", 0, err
 	}
 	defer tx.Rollback()
-	cursor, err = cursorAt(ctx, tx, v, q, detail.ID)
+	if containerView(q) {
+		cursor, err = d.containerViewCursorAt(ctx, tx, v, q, detail.Item)
+	} else {
+		cursor, err = cursorAt(ctx, tx, v, q, detail.ID)
+	}
 	return cursor, detail.ID, err
 }
 
@@ -205,7 +212,12 @@ func (d *DB) ShuffledItems(ctx context.Context, v Viewer, q ItemQuery, seed, aft
 	if len(q.Kinds) == 0 {
 		q.Kinds = []ItemKind{KindMovie, KindEpisode, KindTrack, KindAudiobook}
 	}
-	if found, err := q.filters(ctx, tx, where, acc); err != nil || !found {
+	if containerView(q) {
+		where, err = queueLeaves(ctx, tx, v, q, acc)
+		if err != nil {
+			return nil, after, err
+		}
+	} else if found, err := q.filters(ctx, tx, where, acc); err != nil || !found {
 		return nil, after, err
 	}
 	key := shuffleKey(seed)
