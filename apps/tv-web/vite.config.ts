@@ -1,5 +1,6 @@
 import {defineConfig, transformWithOxc, type Plugin} from 'vite';
 import react from '@vitejs/plugin-react';
+import legacy from '@vitejs/plugin-legacy';
 import path from 'node:path';
 import fs from 'node:fs';
 import {createRequire} from 'node:module';
@@ -101,7 +102,11 @@ export default defineConfig(({mode}) => ({
     // at build time, so an unchanged card is skipped; nothing in the shared sources changes.
     ['babel-plugin-react-compiler', {target: '19'}],
     'react-native-worklets/plugin',
-  ]}})],
+  ]}}),
+  // The oldest supported sets (2022) run Chromium 85 (Samsung) and 87 (LG): syntax is compiled down
+  // to them (build.target) and the built-in functions they lack (Array.prototype.at,
+  // structuredClone…) are added, only those the bundle uses.
+  legacy({renderLegacyChunks: false, modernPolyfills: true, modernTargets: ['chrome >= 85']})],
   resolve: {
     extensions: ['.web.tsx', '.web.ts', '.web.js', '.tsx', '.ts', '.mjs', '.js', '.jsx', '.json'],
     dedupe: ['react', 'react-dom', 'react-native-web'],
