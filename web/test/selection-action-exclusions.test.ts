@@ -60,15 +60,15 @@ test('actual desktop and phone controls show unavailable Play/Playlist/Edit and 
     assert.equal(calls, 0);
   } finally {host.dispose();}
 });
-test('metadata preview refuses whole views before requests until the server route is merged', async () => {
+test('metadata preview exclusions refuse before I/O, and an admitted view reads only one title for its fields', async () => {
   const descriptorQuery = wholeViewQuery(descriptor as never);
   const target = {mode: 'query', selector: descriptorQuery.selector, total: count, sourceTotal: count, summary: {count, types: [{kind: 'movie', count}], every, library: {kind: 'single', libraryId: 'lib'}, unavailableActions}, refinement: {kind: null, excludedItems: []}, expected: {catalogRevision: revision}};
   const requests: any[] = [];const stop = new Error('captured-preview-query');
   const producer = createQuerySelectionEditor({api: {request: async (...args: any[]) => {requests.push(args);throw stop;}}, serverId: 's', requestId: async () => 'request', isCurrent: () => true} as never);
   await assert.rejects(producer.preview({target} as never), /query-editor-unavailable/);assert.equal(requests.length, 0);
   const small = {...target, total: 200, sourceTotal: 200, summary: {...target.summary, count: 200, types: [{kind: 'movie', count: 200}], unavailableActions: undefined}};
-  await assert.rejects(producer.preview({target: small} as never), {code: 'metadata-whole-view-unavailable'});
-  assert.equal(requests.length, 0);
+  await assert.rejects(producer.preview({target: small} as never), error => error === stop);
+  assert.equal(requests.length, 1);assert.equal(requests[0][1], 'GET');
 });
 test('direct and retained Playlist picker callbacks refuse the excluded query before requests', async () => {
   const {LibraryPickerProducer} = await import('../src/screens/browse/selection-picker');
@@ -107,6 +107,6 @@ test('Delete exclusion disables only an offered bounded action and refuses retai
   const retained = () => resolveQueryDelete(target as never, ports as never, new AbortController().signal);
   await assert.rejects(retained, /query-delete-unavailable/);assert.equal(calls, 0);
   const legacy = {...target, summary: {...target.summary, unavailableActions: undefined}};
-  await assert.rejects(resolveQueryDelete(legacy as never, ports as never, new AbortController().signal), error => error === stop);
-  assert.equal(calls, 1);assert.equal(captured[0][2].selectionBasis, basis);
+  await assert.rejects(resolveQueryDelete(legacy as never, ports as never, new AbortController().signal), /query-delete-unavailable/);
+  assert.equal(calls, 0);
 });

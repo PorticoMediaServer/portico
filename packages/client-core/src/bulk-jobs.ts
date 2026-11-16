@@ -1,3 +1,5 @@
+import {bulkMetadataParams} from './metadata-bulk-rebuilt.ts';
+import type {BulkEdit} from './metadata-bulk.ts';
 import {validSelectionBasis} from './selection-basis.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {noteSkipped,oneOf} from './tolerant.ts';
@@ -181,7 +183,7 @@ function failureCode(e:unknown,fallback:string):string{
  * time with the title's own route (`PUT /v1/items/{id}/state`, `POST /v1/lists/{id}/entries`), so the answer says
  * what failed title by title and the rest is done; Refresh metadata on them is the owner's `refresh_items` job.
  */
-const serverKinds:Readonly<Partial<Record<JobCommand,string>>>={'personal-state':'set_state','playlist-add':'add_view_to_list','collection-add':'add_view_to_list',refresh:'refresh_items'};
+const serverKinds:Readonly<Partial<Record<JobCommand,string>>>={'personal-state':'set_state','playlist-add':'add_view_to_list','collection-add':'add_view_to_list',refresh:'refresh_items','metadata-edit':'edit_items'};
 const commandOfKind:Readonly<Record<string,JobCommand>>={set_state:'personal-state',add_view_to_list:'playlist-add',refresh_items:'refresh',edit_items:'metadata-edit'};
 const unavailable=()=>Object.assign(new Error('This action is not available on this server for this selection.'),{code:'job_kind_unavailable'});
 /** A job this app ran title by title: its id is local, and it never needs reading again. */
@@ -203,11 +205,12 @@ function serverStart(body:ReturnType<typeof jobRequestBody>):JobStart{
  const kind=serverKinds[body.command];
  if(!kind)throw unavailable();
  if(body.command==='refresh'){
+  if('query' in body.selector)return {kind,target:{filter:jobViewFilter(body.selector.query)}};
   if(!('items' in body.selector||'container' in body.selector))throw unavailable();
   return {kind,target:{items:'items' in body.selector?[...body.selector.items.ids]:[body.selector.container.id]}};
  }
  if(!('query' in body.selector))throw unavailable();
- return {kind,target:{filter:jobViewFilter(body.selector.query)},params:body.command==='personal-state'?stateParams(body.args):{list:listOf(body.args)}};
+ return {kind,target:{filter:jobViewFilter(body.selector.query)},params:body.command==='personal-state'?stateParams(body.args):body.command==='metadata-edit'?bulkMetadataParams({...body.args,operationId:body.operationId,targets:[]} as BulkEdit):{list:listOf(body.args)}};
 }
 /** The rebuilt server's job in this app's terms. It counts what it has done; a job that failed says so as a whole. */
 function serverJob(raw:ServerJob,fallback:JobCommand):Job{
@@ -242,7 +245,14 @@ export async function createJob(api:BulkJobsApi,request:JobRequest,signal?:Abort
  const perTitle=(body.command==='personal-state'||body.command==='playlist-add'||body.command==='collection-add')&&!('query' in body.selector);
  if(perTitle)return titleByTitle(api,body,signal);
  try{
-  return serverJob(await api.request<ServerJob>(serverPath('POST /v1/jobs'),'POST',serverStart(body),signal),body.command);
+  const start=serverStart(body);
+  if(body.command==='metadata-edit'&&'query' in body.selector&&body.selector.query.pivot==='books'){
+   const library=await api.request<import('../../contracts/src/next/api.ts').Library>(serverPath('GET /v1/libraries/{id}',{id:body.selector.query.libraryId}),'GET',undefined,signal);
+   const filter=new URLSearchParams(start.target.filter);
+   const list=libraryItemQuery(library,body.selector.query.pivot,[],[]);filter.set('kind',String(list.kind));
+   start.target.filter=filter.toString();
+  }
+  return serverJob(await api.request<ServerJob>(serverPath('POST /v1/jobs'),'POST',start,signal),body.command);
  }catch(e){
   if((e as {code?:unknown})?.code==='job_kind_unavailable')throw e;
   throw Object.assign(new Error(e instanceof Error?e.message:'The bulk action could not start.'),{code:failureCode(e,'job_not_created')});

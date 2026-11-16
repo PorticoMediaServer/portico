@@ -79,7 +79,7 @@ export type LibrarySelection = Readonly<{
   entry: (member: Pick<BrowseMember, 'entry'>, index: number) => CardSelection | undefined;
   registerWindow: (first: number, last: number) => void;
   /** The one path the bar's personal buttons use; also the test seam. */
-  personal: (action: PersonalSelectionAction) => Promise<void>;
+  personal: (action: PersonalSelectionAction | 'refresh') => Promise<void>;
   /** Queue retains real explicit identities; destination pickers currently use leaves. */
   queue: (placement: 'next' | 'end') => Promise<void>;
   addToPlaylist: (anchor: HTMLElement) => Promise<void>;
@@ -152,7 +152,7 @@ type ProgressStore = Readonly<{subscribe: (listener: () => void) => () => void; 
 const noUnavailable = () => undefined;
 const noUnavailableSubscription = (_listener: () => void) => () => {};
 
-function LibrarySelectionToolbar(props: LibrarySelectionOptions & {visible: VisibleStore; openDelete: () => void; openDownload: () => void; openEditor: (anchor: HTMLElement) => void; progress: ProgressStore; personal: (action: PersonalSelectionAction) => Promise<void>; queue: (placement: 'next' | 'end') => Promise<void>; addToPlaylist: (anchor: HTMLElement) => Promise<void>; addToCollection: (anchor: HTMLElement) => Promise<void>}) {
+function LibrarySelectionToolbar(props: LibrarySelectionOptions & {visible: VisibleStore; openDelete: () => void; openDownload: () => void; openEditor: (anchor: HTMLElement) => void; progress: ProgressStore; personal: (action: PersonalSelectionAction | 'refresh') => Promise<void>; queue: (placement: 'next' | 'end') => Promise<void>; addToPlaylist: (anchor: HTMLElement) => Promise<void>; addToCollection: (anchor: HTMLElement) => Promise<void>}) {
   const {playSelection, descriptor, actions, enqueue, destinations, personal, queue, addToPlaylist, addToCollection, reportError} = props;
   const visible = useSyncExternalStore(props.visible.subscribe, props.visible.getSnapshot, props.visible.getSnapshot);
   const progress = useSyncExternalStore(props.progress.subscribe, props.progress.getSnapshot, props.progress.getSnapshot);
@@ -207,8 +207,9 @@ function LibrarySelectionToolbar(props: LibrarySelectionOptions & {visible: Visi
       ...(target?.mode === 'query' && queueLease && props.queryActions?.offered(target, 'delete') ? {onDelete: () => {try {props.openDelete();} catch (error) {reportError(error);}}} : {}),
       ...((target?.mode === 'explicit' || !props.queryActions) && props.deletion && summary.library.kind === 'single' && summary.count <= 200 && summary.every.delete && (current.selection.target?.mode === 'explicit' || current.selection.target?.mode === 'query' && queryDeleteTarget(current.selection.target)) && queueLease ? {onDelete: () => {try {props.openDelete();} catch (error) {reportError(error);}}} : {}),
 ...(props.owner && props.deletion && summary.library.kind !== 'single' ? {deleteDisabledReason: defaultI18n.t('next.selection.oneLibrary')} : {}),
-      ...(props.owner && props.deletion && summary.library.kind === 'single' && summary.count > 200 && queueLease && (!queryHeld || !props.queryActions) ? queryHeld ? {deleteDisabledReason: defaultI18n.t('next.selection.tooMany')} : {onDelete: () => {try {props.openDelete();} catch (error) {reportError(error);}}, deleteExplanation: defaultI18n.t('next.selection.tooMany')} : {}),
+      ...(props.owner && props.deletion && summary.library.kind === 'single' && summary.count > 200 && queueLease && !queryHeld ? {onDelete: () => {try {props.openDelete();} catch (error) {reportError(error);}}, deleteExplanation: defaultI18n.t('next.selection.tooMany')} : {}),
       ...(props.editor && summary.every.edit && (summary.types.length === 1 || !!playSelection.keepOnly) && (current.selection.target?.mode === 'explicit' || summary.types.length > 1 && !!playSelection.keepOnly || current.selection.target?.mode === 'query' && selectionQuerySelector(current.selection.target).ok) && queueLease ? {onEdit: (anchor: HTMLElement) => {try {props.openEditor(anchor);} catch (error) {reportError(error);}}, editMode: summary.types.length > 1 ? 'mixed' as const : 'editable' as const} : {}),
+      ...(props.editor && target?.mode === 'query' && summary.every.refresh && queueLease ? {onRefresh: () => {void personal('refresh').catch(reportError);}} : {}),
       ...(canPlay ? {onPlay: () => { void playSelection.play().catch(reportError); }} : {}),
       ...(offers.watched ? {onWatchedChange: (watched: boolean) => { void personal({watched}).catch(reportError); }} : {}),
       ...(offers.myList ? {onMyList: () => { void personal({watchlist: true}).catch(reportError); }, onRemoveFromMyList: () => { void personal({watchlist: false}).catch(reportError); }} : {}),
@@ -330,20 +331,23 @@ export function createLibrarySelection({playSelection, owner, descriptor, wholeS
     for (const listener of progressListeners) listener();
     actions.progress?.(operation, value, jobs);
   }}) : undefined;
-  const personal = async (action: PersonalSelectionAction) => {
+  const personal = async (action: PersonalSelectionAction | 'refresh') => {
     if (!actions || !playSelection.captureOperation || !playSelection.isOperationCurrent) throw new Error('selection-actions-unavailable');
     const selection = playSelection.getSnapshot().selection, target = selection?.target;
     if (!target) throw new Error('selection-target-required');
-    const chosen = [action.watched, action.favorite, action.watchlist].filter(value => value !== undefined).length;
-    const fact = action.watched !== undefined ? 'watched' : action.favorite !== undefined ? 'favorite' : action.watchlist !== undefined ? 'myList' : undefined;
+    const chosen = action === 'refresh' ? 1 : [action.watched, action.favorite, action.watchlist].filter(value => value !== undefined).length;
+    const fact = action === 'refresh' ? 'refresh' : action.watched !== undefined ? 'watched' : action.favorite !== undefined ? 'favorite' : action.watchlist !== undefined ? 'myList' : undefined;
     if (chosen !== 1 || !fact) throw new Error('mixed-personal-command');
     // The producer rechecks the chosen action's own grant on the exact target,
     // not just the toolbar's earlier visibility decision.
     if (selection!.summary.every[fact] !== true) throw new Error('selection-grant-unavailable');
     const operation = playSelection.captureOperation?.() ?? null;
     if (!operation || operation.target !== target) throw new Error('selection-operation-required');
-    try {await personalRunner!.personal(operation, action, actions.signal,
-      () => playSelection.isOperationCurrent?.(operation) === true);}
+    try {
+      const current = () => playSelection.isOperationCurrent?.(operation) === true;
+      if (action === 'refresh') {if (!editor || target.mode !== 'query') throw new Error('selection-refresh-unavailable');await personalRunner!.refresh(operation, actions.signal, current);}
+      else await personalRunner!.personal(operation, action, actions.signal, current);
+    }
     finally {if (progressValue?.operation === operation) {progressValue = undefined; for (const listener of progressListeners) listener();}}
   };
   const snapshot = () => playSelection.getSnapshot(), rowFor = (member: Pick<BrowseMember, 'entry'>, index: number) => {

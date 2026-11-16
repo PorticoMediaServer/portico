@@ -49,16 +49,6 @@ test('a whole view\'s Watched, Favourite and My List are one set_state job over 
   } finally {held.model.dispose();}
 });
 
-test('whole-view metadata preview refuses before I/O until its server path is available', async () => {
-  const held = selected(); let calls = 0;
-  const editor = createQuerySelectionEditor({api: {request: async <T>(): Promise<T> => {calls++; throw Error('unexpected request');}},
-    serverId: 'server', viewerId: 'viewer', events: {on: () => () => {}}, requestId: async () => 'operation', isCurrent: () => true});
-  try {
-    await assert.rejects(editor.preview(held.operation), {code: 'metadata-whole-view-unavailable'});
-    assert.equal(calls, 0);
-  } finally {held.model.dispose();}
-});
-
 test('queue-source capture validates and preserves the supplied proof losslessly', () => {
   const input = {query: {libraryId: 'lib', pivot: 'movies', selectionBasis: proof, selectionRevision: revision, sort}};
   const captured = captureQueueSource(input); input.query.selectionBasis = otherProof;
@@ -74,7 +64,7 @@ test('larger query Delete fails before I/O while its capability facts remain tru
     assert.equal(queryDeleteTarget(held.target), false);
     await assert.rejects(resolveQueryDelete(held.target, ports, new AbortController().signal), /query-delete-unavailable/); assert.equal(calls, 0);
     assert.equal(held.target.summary.every.delete, true);
-    const legacy = {...held.target, total: 2, sourceTotal: 2, selector: {query: {libraryId: 'lib', pivot: 'movies', sort}}}; assert.equal(queryDeleteTarget(legacy), true);
+    const legacy = {...held.target, total: 2, sourceTotal: 2, selector: {query: {libraryId: 'lib', pivot: 'movies', sort}}}; assert.equal(queryDeleteTarget(legacy), false);
   } finally {held.model.dispose();}
 });
 
@@ -186,12 +176,11 @@ test('the real web toolbar tells the truth about bounded query actions instead o
       const fallback = render(withoutHost);
       assert.equal(fallback.type, 'SelectionBars'); assert.equal(fallback.props.selection.count, size);
       assert.equal(fallback.props.actions.downloadDisabledReason, undefined); assert.equal(fallback.props.actions.onDownload, undefined);
-      if (size > 200) {assert.equal(fallback.props.actions.deleteDisabledReason, defaultI18n.t('next.selection.tooMany')); assert.equal(fallback.props.actions.onDelete, undefined); assert.equal(queryDeleteTarget(held.target), false);}
-      else {assert.equal(fallback.props.actions.deleteDisabledReason, undefined); assert.equal(typeof fallback.props.actions.onDelete, 'function');}
-      assert.equal(queryActions.offered(held.target, 'download'), true); assert.equal(queryActions.offered(held.target, 'delete'), true);
+      assert.equal(fallback.props.actions.deleteDisabledReason, undefined); assert.equal(fallback.props.actions.onDelete, undefined);
+      assert.equal(queryActions.offered(held.target, 'download'), false); assert.equal(queryActions.offered(held.target, 'delete'), false);
       const composed = render(withHost);
       assert.equal(composed.props.selection.count, size);
-      assert.equal(typeof composed.props.actions.onDownload, 'function'); assert.equal(typeof composed.props.actions.onDelete, 'function');
+      assert.equal(composed.props.actions.onDownload, undefined); assert.equal(composed.props.actions.onDelete, undefined);
       assert.equal(composed.props.actions.downloadDisabledReason, undefined); assert.equal(composed.props.actions.deleteDisabledReason, undefined);
       assert.equal(held.target.summary.every.delete, true); assert.equal(held.target.summary.every.download, true);
     } finally {withoutHost.dispose?.(); withHost.dispose?.(); queryActions.dispose(); held.model.dispose();}
