@@ -2202,14 +2202,14 @@ export class OfflineDownloads {
     return Object.freeze({bundle, subtitles: Object.freeze(subtitles), backdropUrl: saved.has('backdrop') && dir ? dir + 'extras/backdrop' : '', trickplayTiles: Object.freeze(trickplayTiles), chapterImages: Object.freeze(chapterImages)});
   }
   private lastLocalWrite = new Map<string, number>();
-  private localPlayTime = new Map<string, {at: number; playing: boolean; playedMs: number}>();
+  private localPlayTime = new Map<string, {entryId: string; at: number; playing: boolean; playedMs: number}>();
   /** Progress from Portico's player for a downloaded title. A playing position is written at most
    * every 10 seconds; pauses, stops and the end always are. */
   recordProgress(progress: LocalProgress): void {
     const now = Date.now(), last = this.lastLocalWrite.get(progress.entryId) ?? 0;
     const previous = this.localPlayTime.get(progress.playId);
     const playedMs = (previous?.playedMs ?? 0) + (previous?.playing ? Math.max(0, Math.min(30_000, now - previous.at)) : 0);
-    this.localPlayTime.set(progress.playId, {at: now, playing: progress.state === 'playing', playedMs});
+    this.localPlayTime.set(progress.playId, {entryId: progress.entryId, at: now, playing: progress.state === 'playing', playedMs});
     if (this.localPlayTime.size > MAX_PLAYS) this.localPlayTime.delete(this.localPlayTime.keys().next().value!);
     if (progress.state === 'playing' && now - last < 10000) return;
     this.lastLocalWrite.set(progress.entryId, now);
@@ -2252,7 +2252,6 @@ export class OfflineDownloads {
     if (!completion.finished) return;
     this.playing.delete(entry.id);
     if (this.stored.settings.autoNext) void this.autoNext(entry);
-    if (this.stored.settings.deleteWatched) void this.remove(entry);
   }
   /** Sends plays made offline, for the connected viewer only. The server records each one and
    * keeps whichever state is newer. A play made by a different viewer stays queued until that
@@ -2264,6 +2263,14 @@ export class OfflineDownloads {
     void task.finally(() => { if (this.progressSync?.task === task) this.progressSync = undefined; }).catch(() => {});
     return task;
   }
+  private async removeConfirmedFinished(itemId: string, owner: string) {
+    if (!this.stored.settings.deleteWatched || owner !== this.ownerKey() || Object.values(this.stored.plays[owner] ?? {}).some(play => play.itemId === itemId)) return;
+    for (const entry of this.ownedEntries(owner).filter(entry => entry.itemId === itemId)) {
+      if (owner !== this.ownerKey()) return;
+      if ([...this.localPlayTime.values()].some(play => play.entryId === entry.id && play.playing)) continue;
+      await this.remove(entry);
+    }
+  }
   private async drainProgress(generation: number) {
     const api = this.api, owner = this.ownerKey();
     if (generation !== this.generation || !api || !owner) return;
@@ -2273,9 +2280,13 @@ export class OfflineDownloads {
       try {
         const modern = entries.filter(e => e.downloadId);
         for (const play of modern) {
-          await reportDownloadPlay(api, {itemId: play.itemId, playId: play.playId, positionMs: Math.round(play.positionSeconds * 1000), playedMs: play.playedMs ?? 0, madeAgoMs: Math.max(0, Date.now() - Date.parse(play.observedAt))});
+          const receipt = await reportDownloadPlay(api, {itemId: play.itemId, playId: play.playId, positionMs: Math.round(play.positionSeconds * 1000), playedMs: play.playedMs ?? 0, madeAgoMs: Math.max(0, Date.now() - Date.parse(play.observedAt))});
           if (this.generation !== generation) return;
-          if (this.stored.plays[owner]?.[play.playId] === play) delete this.stored.plays[owner][play.playId];
+          const result = receipt?.plays?.find(result => result.itemId === play.itemId && result.playId === play.playId);
+          if (!result) return;
+          if (this.stored.plays[owner]?.[play.playId] !== play) continue;
+          delete this.stored.plays[owner][play.playId];
+          if (!result.error && result.finished) await this.removeConfirmedFinished(play.itemId, owner);
         }
         if (modern.length) {await this.persist(); continue;}
         const receipt = parseDeferredProgressReceipt(await syncOfflineDownloadPlaysResponse(api, operationId(), entries));
@@ -2293,6 +2304,7 @@ export class OfflineDownloads {
           if (!result.itemId || result.outcome === 'item_deleted' || result.outcome === 'invalid_entry' || result.outcome === 'observation_in_future' || result.outcome === 'history_paused') continue;
           if (Object.values(mine ?? {}).some(p => p.itemId === result.itemId)) continue;
           resume[result.itemId] = result.watched ? 0 : result.positionSeconds;
+          if (result.watched) await this.removeConfirmedFinished(result.itemId, owner);
         }
         await this.persist();
         if (acknowledged.length !== entries.length) return;

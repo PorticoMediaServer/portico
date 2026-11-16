@@ -17,11 +17,11 @@ test('audio completion uses the smaller of 30 seconds and 5% of its duration', (
   }
 });
 
-test('video, and any kind that is not audio, keeps the 92% completion rule without resetting an unfinished resume point', () => {
+test('video never guesses completion from its position', () => {
   for (const kind of ['movie', 'episode', 'extra', 'disc', undefined]) {
     assert.deepEqual(offlineCompletion(kind, 919, 1000, false), {finished: false, resumeSeconds: 919});
-    assert.deepEqual(offlineCompletion(kind, 920, 1000, false), {finished: true, resumeSeconds: 920});
-    assert.deepEqual(offlineCompletion(kind, 1000, 1000, false), {finished: true, resumeSeconds: 1000});
+    assert.deepEqual(offlineCompletion(kind, 920, 1000, false), {finished: false, resumeSeconds: 920});
+    assert.deepEqual(offlineCompletion(kind, 1000, 1000, false), {finished: false, resumeSeconds: 1000});
   }
 });
 
