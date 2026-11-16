@@ -1974,12 +1974,12 @@
    ]
   },
   {
-   "id": "go:golang.org/x/net@v0.57.0",
+   "id": "go:golang.org/x/net@v0.58.0",
    "name": "golang.org/x/net",
-   "version": "v0.57.0",
+   "version": "v0.58.0",
    "licence": "BSD-3-Clause",
    "group": "server",
-   "url": "https://pkg.go.dev/golang.org/x/net@v0.57.0",
+   "url": "https://pkg.go.dev/golang.org/x/net@v0.58.0",
    "text": 41,
    "copyright": [
     "Copyright 2009 The Go Authors."
@@ -2144,8 +2144,8 @@
   "package-lock.json": "f615a586d00abf47fbbf0fbf428c9be480faf05939389a05c40e1b1506086bef",
   "packages/design/LICENSE-LUCIDE": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
   "scripts/release-build-tags.py": "65546184284984e19f84b6cd2f7e2832de2a62fa588481a8e63e4c567e4f73ed",
-  "server-next/go.mod": "91d842f073f96275e22fb44821bbe5c8f21f0e248a82b7444baf33921b49c5d8",
-  "server-next/go.sum": "31e16d3047329179e4021e64e7e5e3cc6a8b28c6583bd763962173d89bc4a9c6",
+  "server-next/go.mod": "027b8a0d2528e785620a42c2872feb830ce4e136abe0e9037d11a938ac88b748",
+  "server-next/go.sum": "8bd46d28683f14d56da302fa9a92f821d74828fd145c724fdb8e4b3bd396522a",
   "server-next/internal/mediaexec/fonts/LICENSE": "d75938dec098f06f0ac3c00853065d94f020be1c3c62ef1dc2975ba15b4d9b0e",
   "server-next/internal/mediaexec/fonts/NotoCJK-LICENSE": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
   "server-next/internal/mediaexec/fonts/NotoSansDevanagari-LICENSE": "a216f6f8d85c7228093e0ee5e258d9d377e6671f68acb4db1930b29583d0f331",

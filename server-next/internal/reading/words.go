@@ -16,7 +16,7 @@ func EPUBWords(r io.ReaderAt, size int64) (int, error) {
 
 // EPUBText reads scan-time facts from the same bounded spine bytes: a word count and opening prose.
 func EPUBText(r io.ReaderAt, size int64) (int, string, error) {
-	a, err := openArchive(r, size)
+	a, err := ebookArchive(r, size)
 	if err != nil {
 		return 0, "", err
 	}
