@@ -36,6 +36,8 @@ test('a change to a title kept while the server was out of reach is sent with ho
   assert.deepEqual(outboxBody(kept, 61_000), {favorite: true, madeAgoMs: 60_000});
   // A clock that went backwards never says the change is in the future.
   assert.deepEqual(outboxBody(kept, 500), {favorite: true, madeAgoMs: 0});
+  // A place in a book read with no server was made before it reached the outbox, and says so itself.
+  assert.deepEqual(outboxBody({...kept, body: {position: '{}', madeAgoMs: 5_000}}, 61_000), {position: '{}', madeAgoMs: 65_000});
   // Other kept edits are sent as they were made.
   assert.deepEqual(outboxBody({path: '/v1/lists/lst_1/items', method: 'POST', body: {itemId: 'itm_film'}, createdAt: 1_000}, 61_000), {itemId: 'itm_film'});
 });

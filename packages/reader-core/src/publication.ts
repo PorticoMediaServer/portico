@@ -94,7 +94,11 @@ export async function createReadingPublication(session:ReaderSessionInput,caller
     // A comic's pages are the server's enumerated names. Without them there is
     // nothing to draw, and a forced read would throw a TypeError instead of the
     // reader's own refusal on a perfectly valid session answer.
-    if(comic&&(!Array.isArray(manifest.pageNames)||manifest.pageNames.length===0))throw new ReaderError('invalid_source');
+    // A book read from its own file (a download on this device) lists no pages or parts: the
+    // reader finds them in the file. Only a ZIP comic can be read that way here.
+    const wholeFile=manifest.wholeFile===true;
+    if(wholeFile&&comic&&format!=='cbz')throw new ReaderError('unsupported_format');
+    if(comic&&!wholeFile&&(!Array.isArray(manifest.pageNames)||manifest.pageNames.length===0))throw new ReaderError('invalid_source');
     const pageNames=Object.freeze([...(manifest.pageNames??[])]);
     if(sequential===true&&(format!=='pdf'||typeof session.openSequential!=='function'))throw new ReaderError('invalid_source');
     if(!id||!revision||!Number.isSafeInteger(size)||size<1)throw new ReaderError('invalid_source');
@@ -102,9 +106,27 @@ export async function createReadingPublication(session:ReaderSessionInput,caller
     if(direction!==undefined&&direction!=='ltr'&&direction!=='rtl'&&direction!=='vertical')throw new ReaderError('invalid_source');
     const {direction:_fileDirection,...identity}=manifest.metadata;
     const metadata:ReaderMetadata=Object.freeze({...identity,...direction===undefined?{}:{direction},
-      ...comic?{pageCount:manifest.pageNames!.length}:{}});
+      ...comic&&!wholeFile?{pageCount:manifest.pageNames!.length}:{}});
     let source:ReaderSource;
-    if(format==='pdf') {
+    if(wholeFile&&format!=='pdf') {
+      // The archive code asks for what it needs, up to 16 MiB at once; the bridge carries one read of
+      // 64 KiB at a time, so reads wait their turn.
+      let tail:Promise<unknown>=Promise.resolve();
+      source=Object.freeze({id,revision,size,async read(range:ReaderRange,taskSignal:AbortSignal) {
+        const length=range.endExclusive-range.start;
+        if(!Number.isSafeInteger(range.start)||!Number.isSafeInteger(range.endExclusive)||range.start<0||length<0||range.endExclusive>size)throw new ReaderError('invalid_source');
+        const turn=tail.catch(()=>{}).then(()=>run(taskSignal,async active=>{
+          const out=new Uint8Array(length);
+          for(let at=0;at<length;at+=65536){
+            const end=Math.min(length,at+65536),bytes=await session.readRange({start:range.start+at,endExclusive:range.start+end},active);
+            if(!(bytes instanceof Uint8Array)||bytes.length!==end-at)throw new ReaderError('invalid_source');
+            out.set(bytes,at);throwIfAborted(active);
+          }
+          return out;
+        }));
+        tail=turn;return turn;
+      }});
+    } else if(format==='pdf') {
       await session.headPDF(signal);current();
       source=sequential===true?Object.freeze({id,revision,size,sequential:Object.freeze({open:openSequential})}):Object.freeze({id,revision,size,async read(range:ReaderRange,taskSignal:AbortSignal) {
         const length=range.endExclusive-range.start;
@@ -150,9 +172,9 @@ export async function createReadingPublication(session:ReaderSessionInput,caller
         if(progress.sourceId!==id)throw new ReaderError('invalid_source');
         if(progress.stale||progress.sourceRevision!==revision)return null;
         const location=readerLocationFromReading(progress.location);validateLocation(location,format);
-        if(location.format!=='epub'&&location.format!=='pdf'&&location.page>=pageNames.length)throw new ReaderError('invalid_location');return location;
+        if(location.format!=='epub'&&location.format!=='pdf'&&!wholeFile&&location.page>=pageNames.length)throw new ReaderError('invalid_location');return location;
       },
-      ...comic?{async comicPages(candidate:ReaderSource,parent:AbortSignal):Promise<ComicPageProvider> {
+      ...comic&&!wholeFile?{async comicPages(candidate:ReaderSource,parent:AbortSignal):Promise<ComicPageProvider> {
         current();throwIfAborted(parent);if(candidate!==source)throw new ReaderError('invalid_source');
         const providerLife=new AbortController(),providerScope=abortScope([signal,parent,providerLife.signal]);
         const provider:ComicPageProvider={id,revision,pageCount:pageNames.length,metadata,

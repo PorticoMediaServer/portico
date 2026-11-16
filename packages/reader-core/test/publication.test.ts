@@ -161,3 +161,27 @@ for(const format of ['cbr','cb7'] as const)test(`${format.toUpperCase()} publica
     assert.deepEqual(f.calls,['page']);provider.dispose();
   }finally{publication.dispose();}
 });
+
+test('a book downloaded to the device opens from its own file: EPUB and CBZ are found in its bytes, read in bridge-sized pieces',async()=>{
+  const {ZipWriter,Uint8ArrayWriter,Uint8ArrayReader,TextReader}=await import('@zip.js/zip.js');
+  const {openEpubArchive}=await import('../src/epub/archive.ts');
+  const {openComicArchive}=await import('../src/comic/archive.ts');
+  const filler=new Uint8Array(150000).map((_,i)=>i*7);
+  const zip=async(entries:[string,Uint8Array|string][])=>{const writer=new ZipWriter(new Uint8ArrayWriter(),{useWebWorkers:false,level:0});
+    for(const [name,value] of entries)await writer.add(name,typeof value==='string'?new TextReader(value):new Uint8ArrayReader(value));return writer.close();};
+  const open=async(format:'epub'|'cbz',file:Uint8Array)=>{const reads:number[]=[];
+    const manifest=Object.freeze({sessionId:'pub_local',itemId:'item',sourceId:'version',revision:'0123456789abcdef',format,size:file.length,metadata:Object.freeze({title:'Downloaded'}),wholeFile:true}) as unknown as ReadingManifest;
+    const session:ReaderSessionInput={manifest,signal:new AbortController().signal,async headPDF(){},async readRange(range){reads.push(range.endExclusive-range.start);return file.slice(range.start,range.endExclusive);},
+      async readAsset(){throw new Error('no parts');},async page(){throw new Error('no pages');}};
+    return {publication:await createReadingPublication(session),reads};};
+  const epub=await zip([['mimetype','application/epub+zip'],['META-INF/container.xml','<container/>'],['images/big.bin',filler]]);
+  const book=await open('epub',epub),assets=await openEpubArchive(book.publication.source,active());
+  assert.deepEqual(assets.entries.map(e=>e.path).sort(),['META-INF/container.xml','images/big.bin','mimetype']);
+  assert.deepEqual(await assets.read('images/big.bin',active()),filler);
+  assert.ok(book.reads.length>2&&book.reads.every(n=>n<=65536));
+  const comic=await open('cbz',await zip([['01.png',png],['02.bin',filler]]));
+  assert.equal(comic.publication.comicPages,undefined);assert.equal(comic.publication.metadata.pageCount,undefined);
+  const pages=await openComicArchive(comic.publication.source,active());
+  assert.equal(pages.pageCount,1);assert.deepEqual((await pages.page(0,{width:300,signal:active()})).bytes,png);
+  assert.equal(comic.publication.resumeLocation({progress:{location:{format:'cbz',pageIndex:0,progression:0},observedAt:1,revision:1,sourceId:'version',sourceRevision:'0123456789abcdef',stale:false}})?.page,0);
+});
