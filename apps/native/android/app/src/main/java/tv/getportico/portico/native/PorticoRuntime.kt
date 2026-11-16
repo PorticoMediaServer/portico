@@ -221,7 +221,8 @@ class PorticoRuntime(context: ReactApplicationContext) : ReactContextBaseJavaMod
 
   // Core selects the avatar payload; native only validates and decodes its bytes.
   private fun avatarUploadPath(path: String, method: String?) =
-      method == "PUT" && Regex("^/v1/profiles/[A-Za-z0-9_-]{1,128}/avatar$").matches(path)
+      method == "PUT" && (Regex("^/v1/profiles/[A-Za-z0-9_-]{1,128}/avatar$").matches(path) ||
+          Regex("^/v1/admin/library-channels/[A-Za-z0-9_-]{1,128}/logo$").matches(path))
 
   private fun avatarUploadBody(body: String?): ByteArray? {
     if (body == null || body.length > 5592448) return null
