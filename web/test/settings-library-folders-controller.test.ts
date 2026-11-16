@@ -31,7 +31,8 @@ test('the controller selects and clears its one folder source with the library p
   const f = fixture(async <T>(path: string) => document(path.endsWith('/other') ? 'other' : 'selected') as T);
   try {
     await f.controller.loadContext(selected);
-    assert.deepEqual(f.calls, ['/v1/admin/libraries/selected', '/v1/admin/libraries/selected']);
+    // The library, every account for Who can see it, and the library's folders.
+    assert.deepEqual(f.calls, ['/v1/admin/libraries/selected', '/v1/admin/members', '/v1/admin/libraries/selected']);
     assert.equal(f.controller.folders.getSnapshot().libraryId, 'selected');
     assert.equal(f.controller.folders.getSnapshot().config?.revision, 41);
     assert.equal(f.controller.folders.getSnapshot().config?.sources[0].path, '/media');
@@ -41,7 +42,7 @@ test('the controller selects and clears its one folder source with the library p
     await f.controller.loadContext({section});
     assert.deepEqual(f.controller.folders.getSnapshot(), {loading: false, mutation: 'idle'});
     assert.deepEqual(f.controller.folders.getSnapshot().config, undefined);
-    assert.deepEqual(f.calls.length, 4);
+    assert.deepEqual(f.calls.length, 6);
   } finally {f.controller.dispose();f.reader.dispose();}
 });
 

@@ -87,7 +87,10 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false}: 
     opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setPanel({id, recordId, tab: section.panels[id].tabs?.[0]?.id});
   };
-  const matches = searchSettings(query, t, (row, owner) => sectionVisible(owner) && rowState(row, rowContext(row, owner)).present);
+  // A row of a library's own panel is found while no library is open (W2 F4: "missing" found nothing): the hit names
+  // the panel and tab and opens Libraries, where each library has it.
+  const libraryPanelRow = (row: SettingsRow, owner: SettingsSection) => owner.scope === 'server' && owner.id === 'libraries' && settingsRowIndex.get(row.id)?.panelId === 'library';
+  const matches = searchSettings(query, t, (row, owner) => sectionVisible(owner) && (rowState(row, rowContext(row, owner)).present || libraryPanelRow(row, owner)));
   const configuration = (bindings.configurationMatches?.(query) ?? []).filter(field => configurationFieldEligible(field, (row, context) => settingsRowVisible(row, environment) && bindings.eligible(row, rowContext(row, context.section))));
   const groups: SettingsSearchGroup[] = settingsSpec.filter(sectionVisible).map(section => ({id: `${section.scope}/${section.id}`, label: t(section.title), icon: settingsIconName(section.icon), area: section.scope,
     rows: [...matches.filter(hit => hit.section === section).map(hit => ({id: hit.rowId, label: hit.label, description: hit.context.join(' · ')})),

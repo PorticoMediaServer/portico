@@ -1,4 +1,4 @@
-import type {AdminLibrary} from '../../../contracts/src/next/api.ts';
+import type {AdminLibrary, Member} from '../../../contracts/src/next/api.ts';
 import {episodeThumbnailChoices, type EpisodeThumbnailChoice, type LibraryAdminDocument, type LibrarySettings, type MetadataProviderId} from '../administration.ts';
 import type {ContentScope} from '../library-content.ts';
 import type {InventoryConfig, InventorySource, ScanTier} from '../library-inventory.ts';
@@ -16,8 +16,16 @@ export function ownerLibrary(raw: unknown, id: string): AdminLibrary {
   return raw as unknown as AdminLibrary;
 }
 
+/** Who can see a library (definition 03, section 3): the accounts that can use the server and see every library or
+ * this one; the owner sees everything. `everyone` when that is every such account. */
+export function libraryAudience(members: readonly Member[], libraryId: string): NonNullable<LibraryAdminDocument['audience']> {
+  const active = members.filter(m => !m.disabled && m.state !== 'left' && m.state !== 'not_moved');
+  const accounts = active.filter(m => m.role === 'owner' || m.allLibraries || m.libraries?.includes(libraryId)).length;
+  return Object.freeze({everyone: accounts === active.length, accounts});
+}
+
 /** Only settings the rebuilt read actually supplies enter the existing row model. */
-export function libraryDocument(library: AdminLibrary): LibraryAdminDocument {
+export function libraryDocument(library: AdminLibrary, audience?: LibraryAdminDocument['audience']): LibraryAdminDocument {
   const metadata = parseMetadataAgent(library), options = library.options;
   const settings: {-readonly [K in keyof LibrarySettings]?: LibrarySettings[K]} = {}, eligible = ['libraries.name', 'libraries.type'];
   if (['files', 'basic', 'complete'].includes(options.depth)) {
@@ -43,7 +51,8 @@ export function libraryDocument(library: AdminLibrary): LibraryAdminDocument {
   eligible.push('libraries.titlesFrom');
   if (typeof library.language === 'string') eligible.push('libraries.language');
   if (typeof library.region === 'string') eligible.push('libraries.region');
-  return Object.freeze({serverLibrary: library, libraryId: library.id, libraryName: library.name, libraryKind: metadata.libraryKind,
+  if (audience) eligible.push('libraries.access');
+  return Object.freeze({serverLibrary: library, libraryId: library.id, libraryName: library.name, libraryKind: metadata.libraryKind, ...(audience ? {audience} : {}),
     revision: metadata.revision, digest: library.revision, eligibleControls: Object.freeze(eligible), actions: ['rename', 'scan', 'remove'] as const,
     // Legacy controls require LibrarySettings; eligibility gates every omitted field. No invented defaults or inert values.
     settings: Object.freeze(settings) as LibrarySettings, analysisMatrix: {costClasses: [], operations: []}, sources: libraryFolders(library, {serverId: '', viewerId: ''}).sources, enumerations: {},
