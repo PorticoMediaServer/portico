@@ -18,6 +18,7 @@ import * as receiverQueries from '../../../../packages/client-core/src/query/rec
 import * as serverClock from '../../../../packages/client-core/src/server-clock.ts';
 import * as userMutationClock from '../../../../packages/client-core/src/query/user-mutation-clock.ts';
 import * as nativeStopScope from '../../src-next/platform/native-stop-scope.ts';
+import * as captionMetrics from '../../src-next/kit/cards/caption-metrics.ts';
 import * as listEdgesModule from '../../src-next/kit/layout/list-edges.ts';
 import * as personalHistoryActions from '../../../../packages/client-core/src/personal-history-actions.ts';
 import * as failureWords from '../../src-next/screens/watch/failure-words.ts';
@@ -110,6 +111,8 @@ const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)
   : /(^|\/)kit\/layout\/CoverHero$/.test(source) ? {CoverHero: 'CoverHero'}
   // The kit's one list edge fade draws as a named element; next-watch-tv-episodes tests it.
   : /(^|\/)kit\/layout\/ListEdgeFade$/.test(source) ? {ListEdgeFade: 'ListEdgeFade'}
+  // A card title's line is plain arithmetic on the theme: the real module.
+  : /(^|\/)kit\/cards\/caption-metrics$/.test(source) ? captionMetrics
   // Which ends of a list continue is plain arithmetic: the real module.
   : /(^|\/)kit\/layout\/list-edges$|^\.\/list-edges$/.test(source) ? listEdgesModule
   // The shell's one top-bar Play on button draws as a named element; next-play-on-top-bar tests it.

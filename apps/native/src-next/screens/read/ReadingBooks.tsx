@@ -12,6 +12,7 @@ import {BrowseToolbar, FilteredEmpty} from '../../kit/browse';
 import {Button, Chip, Focusable} from '../../kit/controls';
 import {MediaArt} from '../../kit/artwork';
 import {CircleCard, PosterCard} from '../../kit/cards';
+import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import {Parts} from '../../kit/cards/primitives';
 import {cardAccessibilityLabel} from '../../kit/cards/model';
 import {AlphabetRail, WindowedGrid, type WindowedGridHandle} from '../../kit/layout';
@@ -184,7 +185,7 @@ export function NativeReadingBooks({context, runtime, library, tab, owner, label
   const room = Math.max(0, width - left - right - pane);
   const columns = Math.max(1, Math.min(phone ? 3 : 7, Math.floor((room + gap) / (minimum + gap))));
   const cardWidth = Math.max(1, tightGrid ? (room - gap * (columns - 1)) / columns : Math.floor((room - gap * (columns - 1)) / columns));
-  const cardHeight = cardWidth * 1.5 + 48;
+  const cardHeight = cardWidth * 1.5 + 48 + (theme.isTV ? 0 : cardTitleLine(theme));
   // The drawn grid/list pair: the same bounded collection, the same query and
   // the same open action; only the row height and cover change.
   const list = view === 'list', rowWidth = Math.max(1, room);
@@ -215,7 +216,7 @@ export function NativeReadingBooks({context, runtime, library, tab, owner, label
           : <StateView testID="reading-books-empty" variant="inline" title={defaultI18n.t('library.emptyLibrary')} body={defaultI18n.t('library.emptyLibraryBody')} style={{flex: 1}}/>)
           : <View style={{flex: 1}}>
             <WindowedGrid ref={grid} testID={list ? 'reading-books-list' : 'reading-books-grid'} collection={collection} getKey={nativeLibraryEntryKey}
-              itemWidth={list ? rowWidth : cardWidth} itemHeight={list ? 70 : cardHeight} captionHeight={list ? 70 : 48}
+              itemWidth={list ? rowWidth : cardWidth} itemHeight={list ? 70 : cardHeight} captionHeight={list ? 70 : 48 + (theme.isTV ? 0 : cardTitleLine(theme))}
               gap={list ? 0 : gap} rowGap={list ? 0 : rowGap} gutter={left} rightGutter={right} style={{flex: 1}} initialIndex={state.memory.firstVisibleIndex}
               onVisibleRange={changedRange}
               renderPlaceholder={() => list ? <View style={{width: rowWidth, height: 70, backgroundColor: theme.colors.raised}}/>

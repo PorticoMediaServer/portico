@@ -31,11 +31,28 @@ test('the shared top bar is the drawn 44 pt row under the safe area: "‹ Label"
   assert.deepEqual([flat(back.props.style).height, flat(back.props.style).marginLeft], [38, -4]);
   const label = all.find(node => node.type === 'Text' && node.props.children.includes('Saved'));
   assert.deepEqual([flat(label.props.style).fontSize, flat(label.props.style).fontWeight, flat(label.props.style).color], [16, 600, theme.colors.textSecondary]);
-  const centre = all.find(node => flat(node.props.style).left === 118 && flat(node.props.style).right === 118);
+  const centre = all.find(node => flat(node.props.style).left === 56 && flat(node.props.style).right === 56);
   const title = nodes(centre).find(node => node.type === 'Text');
   assert.deepEqual([flat(title.props.style).fontSize, flat(title.props.style).fontWeight, title.props.children], [17, 700, ['Favorites']]);
   assert.ok(all.some(node => node.props?.children?.includes?.('PLUS')), 'trailing actions sit at the end of the row');
   assert.equal(all.some(node => node.type === 'BlurView'), false, 'no surface unless the page scrolls under the bar');
+});
+
+test('a centred title that would reach the back button\'s words keeps its whole name: the back button keeps only its arrow (W3 F3 to F5)', async () => {
+  const {module, render} = await topBar();
+  const props = {back: {label: 'Libraries', onPress() {}}, title: 'Public Domain Books', trailing: 'MORE'};
+  const draw = () => nodes(render(() => module.TopBar(props)));
+  let all = draw();
+  const label = () => all.some(node => node.type === 'Text' && node.props.children?.includes?.('Libraries'));
+  assert.ok(label(), 'before anything is measured the back button has its words');
+  const measure = (row: number, centre: number) => {
+    all.find(node => flat(node.props.style).height === 44).props.onLayout({nativeEvent: {layout: {width: row}}});
+    all.find(node => node.props.onLayout && flat(node.props.style).maxWidth === '100%').props.onLayout({nativeEvent: {layout: {width: centre}}});
+    all = draw();
+  };
+  measure(390, 190); assert.equal(label(), false, 'a 190-wide title on a 390 phone takes the room of the back button\'s words');
+  assert.equal(all.find(node => node.type === 'Focusable').props.accessibilityLabel, 'Libraries', 'the back button still says where it goes');
+  measure(390, 140); assert.ok(label(), 'a title that fits between the labelled back button and the actions leaves the words');
 });
 
 test('the bar surface draws the blur first and the .82 ink tint above it, with one hairline', async () => {

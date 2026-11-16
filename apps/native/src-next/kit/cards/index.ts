@@ -6,3 +6,4 @@ export {ResumeCard, ReadResumeCard, QuickTile, SessionCard} from './ListeningCar
 export type {ResumeCardProps, ReadResumeCardProps, QuickTileProps, SessionCardProps} from './ListeningCards';
 export type {CardProps, CardNativeProps} from './primitives';
 export type {CardActions, CardSelection} from './model';
+export {cardTitleLine} from './caption-metrics';

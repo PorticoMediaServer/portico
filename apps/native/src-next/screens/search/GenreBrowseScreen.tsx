@@ -23,6 +23,7 @@ import type {NativeLibraryFilterDraft} from '../library/filters';
 import {nativeLibraryEntryKey} from '../library/model';
 import {homeCardText} from '../home/model';
 import {PosterCard} from '../../kit/cards';
+import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import type {NativeGenreBrowseDestination} from './genre-browse';
 import {GenreFilters} from './GenreFilters';
 import {StandardBackdrop} from '../../kit/artwork';
@@ -103,7 +104,7 @@ function GenreGrid({focusScope, destination, runtime, actions, owner, labels, op
       {state.total === undefined ? null : t(state.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: state.total, pivot: searchGenreBrowsePivot})}
     </Text>
     {state.status === 'error' && <StateView {...runtime.error(state.error, destination.retry)}/>}
-    <WindowedGrid ref={grid} style={{flex: 1}} collection={collection} getKey={nativeLibraryEntryKey} itemWidth={width} itemHeight={width * 1.5 + 44} captionHeight={44} gap={10} rowGap={16} gutter={16} rightGutter={30}
+    <WindowedGrid ref={grid} style={{flex: 1}} collection={collection} getKey={nativeLibraryEntryKey} itemWidth={width} itemHeight={width * 1.5 + 44 + (theme.isTV ? 0 : cardTitleLine(theme))} captionHeight={44 + (theme.isTV ? 0 : cardTitleLine(theme))} gap={10} rowGap={16} gutter={16} rightGutter={30}
       paddingTop={12} paddingBottom={24} initialIndex={destination.getMemory().firstVisibleIndex}
       onVisibleRange={start => {setFirst(start); destination.remember(start, offset.current);}}
       onScrollOffset={value => {offset.current = value; destination.remember(first, value);}}
