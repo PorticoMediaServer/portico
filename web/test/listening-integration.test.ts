@@ -346,19 +346,17 @@ test('actual persistent host mounts an audiobook and collapses to its retained d
 
 
 
-// The owner's library document, as GET /v1/admin/libraries/{id}/settings returns it.
+// The owner's library, as GET /v1/admin/libraries/{id} returns it: no lyrics option means song files only.
 function libraryDocument(lyricsSource:'files'|'lrclib'){
-  const settings={scanDepth:'basic',groupCollections:true,localTags:'prefer',lyricsSource,titleSource:'tags',episodeNumbering:'season',findExtras:true,sortIgnoreArticles:true,refreshMode:'replace_unlocked',acoustidEnabled:false,
-    continueWatching:{weeks:16,maximumItems:40,includeSeasonPremieres:true,videoPlayedThreshold:95,videoCompletion:'earliest'},allowMediaDeletion:false,monitorChanges:true,providers:[],analysis:['probe'],
-    navigation:{trickplayIntervalMs:10000,trickplayTileWidth:320,trickplayMaxTiles:1080,chapterThumbnailMode:'embedded',videoPreviewEnabled:false,videoPreviewMs:30000},segmentDetection:'server'};
-  return {libraryId:'library',libraryName:'Music',libraryKind:'music',revision:7,digest:'document',eligibleControls:[],audience:{everyone:true,accounts:0},actions:['scan'],settings,defaults:settings,analysisMatrix:{costClasses:[],operations:[]},availableProviders:[],enumerations:{},sources:[]};
+  return {id:'library',name:'Music',kind:'music',libraryCoverUrls:[],metadataProvider:'musicbrainz',metadataProviders:[{id:'musicbrainz',available:true}],folders:[],scanning:false,revision:'7',
+    options:{depth:'basic',watch:true,...(lyricsSource==='lrclib'?{lyrics:'lrclib'}:{})}};
 }
 const lyricsNote=(ui:any[])=>all(ui,'span').some((node:any)=>JSON.stringify(node.props.children??'').includes(defaultI18n.t('player.lyricsNotFetched')));
 test('the owner of a library that only reads lyrics from the song files is told so beside Library settings, read once for the tab',async()=>{
   const h=await mountedPlayback('music',{lyrics:'404',lyricsSource:'files'});try{
     let ui=await openEmptyHost(h);await tick();ui=h.show();
     assert.ok(librarySettingsButton(ui)); assert.equal(lyricsNote(ui),true,'Owner: This library doesn’t fetch missing lyrics.');
-    assert.deepEqual(h.settingsReads,['GET /v1/admin/libraries/library/settings']);
+    assert.deepEqual(h.settingsReads,['GET /v1/admin/libraries/library']);
     for(let i=0;i<3;i++){h.show();await tick();} assert.equal(h.settingsReads.length,1,'cached for the tab’s life');
   }finally{h.close();}
 });

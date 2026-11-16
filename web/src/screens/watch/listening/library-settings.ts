@@ -1,4 +1,4 @@
-import {readLibrarySettings} from '@core/server-admin/libraries.ts';
+import {readOwnerLibrarySettings} from '@core/server-admin/libraries.ts';
 import type {WebPlaybackAuthority, WebListeningLifetime} from '../../../platform/playback';
 import type {WatchPlaybackContext} from '../play-on-binding';
 
@@ -60,7 +60,7 @@ export function captureLibrarySettings(input: ListeningSettingsInput | undefined
     let source: Promise<'files' | 'lrclib' | undefined> | undefined;
     const lyricsSource = () => source ??= (async () => {
       if (!current()) return undefined;
-      try {const doc = await readLibrarySettings(context.api, libraryId, hostSignal); return current() ? doc.settings.lyricsSource : undefined;}
+      try {const doc = await readOwnerLibrarySettings(context.api, libraryId, hostSignal); return current() ? doc.settings.lyricsSource : undefined;}
       catch {return undefined;}
     })();
     return Object.freeze({libraryId, isCurrent:current, lyricsSource, open: async (command: ListeningSettingsCommand) => {
