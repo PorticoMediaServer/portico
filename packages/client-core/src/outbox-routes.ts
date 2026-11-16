@@ -42,6 +42,8 @@ export function outboxKind(path: string, method: string): OutboxKind | undefined
 /** Whether a write to this path goes through the outbox. */
 export const isOutboxRoute = (path: string, method: string): boolean => outboxKind(path, method) !== undefined;
 
+/** The oldest edit the server orders (35 days); an older one counts as of then. */
+const maxEditAgeMs = 35 * 24 * 60 * 60 * 1000;
 /**
  * What is sent for a kept edit. A change to a title's state or to the profile's settings says how
  * long ago the person made it (`madeAgoMs`), so the server can order it against changes from other
@@ -57,5 +59,7 @@ export function outboxBody(entry: Readonly<{path: string; method: string; body?:
   const ordered = [itemState, settings].some(route => entry.method === route.method && segments.length === route.parts.length
     && route.parts.every((part, i) => part.startsWith('{') ? !!segments[i] : part === segments[i]));
   if (!ordered || typeof entry.body !== 'object' || entry.body === null) return entry.body;
-  return {...entry.body, madeAgoMs: Math.max(0, Math.round(now - entry.createdAt))};
+  // An edit made earlier still, while nothing could take it (a place in a book read offline), says so itself.
+  const before = Math.max(0, Number((entry.body as {madeAgoMs?: unknown}).madeAgoMs) || 0);
+  return {...entry.body, madeAgoMs: Math.min(maxEditAgeMs, before + Math.max(0, Math.round(now - entry.createdAt)))};
 }

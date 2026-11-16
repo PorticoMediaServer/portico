@@ -5,10 +5,11 @@ import {readOfflineDownloadBundleResponse, readDownloadReceiptKeysResponse, issu
 import {stepNativeSelectionActionDownloads, type NativeSelectionActionDownloadIntent} from '../src-next/screens/library/selection-action-downloads';
 import type {NativeOfflinePublicationLease} from './offline-reading-authority';
 import {serverNow} from '../../../packages/client-core/src/server-clock';
-import {publicationUTF8, openOfflineReadingSession, publicationBinding, nativePublicationReadsAvailable, type OfflineReadingSession, type PublicationBinding} from './offline-reading';
+import {publicationUTF8, openOfflineReadingSession, openDownloadedBook, publicationBinding, nativePublicationReadsAvailable, type OfflineReadingSession, type PublicationBinding} from './offline-reading';
 import {decodeGetReadingSessionsSessionIdProgressResponse, decodePutReadingSessionsSessionIdProgressResponse} from '../../../packages/contracts/src';
 import {parseReadingOfflineRefresh, readingOfflineRefreshLimit} from '../../../packages/client-core/src/reading-offline-refresh';
-import type {ReadingLocation, ReadingProgress, ReadingSavedProgress} from '../../../packages/client-core/src/reading';
+import {readingPlacePosition, readingPlaceProgress, type ReadingLocation, type ReadingManifest, type ReadingProgress, type ReadingSavedProgress} from '../../../packages/client-core/src/reading';
+import {callServer} from '../../../packages/client-core/src/query/server-api';
 import {storedSubtitle, subtitleExtraFiles, subtitleExtraName, joinDownloadedVtt, type StoredSubtitle} from './offline-subtitle-files';
 import {receiptTime, serverReceiptFloor} from './receipt-clock';
 import {NativeEventEmitter, NativeModules, Platform} from 'react-native';
@@ -140,7 +141,18 @@ const chapterImageName = (index: number) => `chapter-${index}`;
 type Meta = {
   downloadId?: string; libraryId?: string; kind?: string; owner?: string; receipt?: DownloadReceipt; title?: DownloadTitle;
   onServer?: boolean; changed?: boolean; claim?: string; token?: string; extras?: string[]; bundle?: number; publication?: boolean; viewingSynced?: boolean;
+  /** A book from the rebuilt server: the reader its file opens in (from the download's container),
+   * the version, and the server's fingerprint of it, which places are made on. */
+  book?: DownloadedBook;
 };
+type DownloadedBook = Readonly<{format: 'epub' | 'pdf' | 'cbz'; versionId: string; revision: string}>;
+/** The containers a downloaded book can be read from on this device; the download sheet offers
+ * no other. */
+const offlineBookFormat = (container: string | undefined): DownloadedBook['format'] | undefined =>
+  container === 'epub' || container === 'pdf' || container === 'cbz' ? container : undefined;
+/** A place in a downloaded book this profile made with no server, by item: the state's position,
+ * when it was made, and whether it has been handed to the server (or its outbox) yet. */
+type BookPlace = Readonly<{position: string; madeAt: number; sent?: true}>;
 
 /** Deferred work is filed under the viewer that produced it, never under whoever is signed in
  * when it is finally sent. */
@@ -172,6 +184,7 @@ type Stored = {
   clockFloor: number;
   permissions: Record<string, number>;
   removed: Owned<{downloadId: string; itemId: string}>;
+  places: Owned<BookPlace>;
 };
 
 const native = NativeModules.PorticoDownloads as undefined | {
@@ -240,7 +253,7 @@ function storedReading(raw: unknown): Owned<ReadingRecord> {
 }
 /** Marks a document read from an earlier layout, so open() rewrites it once. */
 const upgradedLayout = Symbol('upgradedLayout');
-const emptyStored = (): Stored => ({version: 3, reading: {}, settings: defaults, plays: {}, resume: {}, keys: {}, wanted: {}, selectionActions: {}, wantedPublications: {}, enrolledMembers: {}, nextAfter: {}, renewed: {}, clockFloor: 0, permissions: {}, removed: {}});
+const emptyStored = (): Stored => ({version: 3, reading: {}, settings: defaults, plays: {}, resume: {}, keys: {}, wanted: {}, selectionActions: {}, wantedPublications: {}, enrolledMembers: {}, nextAfter: {}, renewed: {}, clockFloor: 0, permissions: {}, removed: {}, places: {}});
 
 /** A present document must be readable in full. An unsupported or damaged record
  * is never replaced with an empty outbox on the next settings/progress write. */
@@ -305,6 +318,8 @@ function readStored(parsed: any): Stored {
   if (parsed.clockFloor !== undefined && !safeInteger(parsed.clockFloor)) invalid();
   out.removed = owned(parsed.removed ?? {});
   for (const values of Object.values(out.removed)) for (const value of Object.values(values)) if (!object(value) || typeof value.downloadId !== 'string' || typeof value.itemId !== 'string') invalid();
+  out.places = owned(parsed.places ?? {});
+  for (const values of Object.values(out.places)) for (const value of Object.values(values)) if (!object(value) || typeof value.position !== 'string' || !safeInteger(value.madeAt, 1) || value.sent !== undefined && value.sent !== true) invalid();
   out.permissions = record(parsed.permissions ?? {});
   if (Object.values(out.permissions).some(value => !safeInteger(value, 1))) invalid();
   out.clockFloor = typeof parsed.clockFloor === 'number' ? parsed.clockFloor : 0;
@@ -552,6 +567,7 @@ export class OfflineDownloads {
       if (!service.downloaded || this.ownedEntries(owner).some(e => e.receipt)) await this.refreshKeys(generation, api);
       await this.syncDownloads(generation);
       if (this.generation !== generation) return;
+      void this.sendBookPlaces();
       this.publishEntries();
       this.publish({pendingProgress: this.pendingCount()});
       void this.renewReceipts(generation, api, owner, false);
@@ -1183,7 +1199,26 @@ export class OfflineDownloads {
         } else if (outcome !== 'missing') complete = false;
       }
     }
-    await this.patch(id, {title: bundle.title, kind: bundle.title.kind, extras: [...saved], bundle: complete ? BUNDLE_COMPLETE : 1});
+    // A book also keeps what reading it with no server needs: which reader opens its file and the
+    // server's fingerprint of it, and the profile's place as the server had it.
+    let book: DownloadedBook | undefined, reading: Partial<Meta> = {};
+    if (bundle.title.kind === 'ebook' || bundle.title.kind === 'comic') {
+      const format = offlineBookFormat(described.files[0]?.container), owner = this.metas.get(id)?.owner;
+      if (format && described.files.length === 1) {
+        const answer = await callServer(api, 'GET /v1/items/{id}/book', {id: described.item.id, query: {version: described.versionId}});
+        if (generation !== this.generation || !this.all.some(e => e.id === id)) return;
+        if (answer.version !== described.versionId || !/^[0-9a-f]{16}$/.test(answer.fingerprint)) throw new Error('reading_unavailable');
+        book = {format, versionId: described.versionId, revision: answer.fingerprint};
+        const position = described.item.state?.position;
+        if (owner && typeof position === 'string' && position && !this.stored.places[owner]?.[described.item.id]) {
+          bucket(this.stored.places, owner)[described.item.id] = {position, madeAt: Date.parse(described.item.state?.updatedAt ?? '') || Date.now(), sent: true};
+          await this.persist();
+        }
+      }
+      // Checked either way: a file this device cannot read is not asked about again.
+      reading = {publication: true, ...(book ? {book} : {})};
+    }
+    await this.patch(id, {title: bundle.title, kind: bundle.title.kind, extras: [...saved], bundle: complete ? BUNDLE_COMPLETE : 1, ...reading});
   }
   private async startTransfer(target: {id: string; itemId: string; quality: string}, meta: Meta, grant: Awaited<ReturnType<DownloadsService['grant']>>, api: Api, continuing?: OfflineEntry, current: () => boolean = () => true): Promise<StartedTransfer | undefined> {
     if (!native) return;
@@ -1750,7 +1785,73 @@ export class OfflineDownloads {
   publicationSource(entry: OfflineEntry): Readonly<{sourceId: string; revision: string}> {
     const current = this.localRead(entry), live = current();
     if (!nativePublicationReadsAvailable() || this.playabilityReason(live)) throw new Error('reading_unavailable');
+    if (live.downloadId) {const book = this.downloadedBook(live); return {sourceId: book.versionId, revision: book.revision};}
     return this.publicationBinding(live.receipt);
+  }
+  /** A book downloaded from the rebuilt server, once what reading it needs is kept beside it. */
+  private downloadedBook(entry: OfflineEntry): DownloadedBook {
+    const book = this.metas.get(entry.id)?.book;
+    if (!book || !entry.artifact) throw new Error('reading_unavailable');
+    return book;
+  }
+  /** The profile's place in a downloaded book, as this device last knew it. */
+  private bookProgress(owner: string, itemId: string, book: DownloadedBook): ReadingProgress {
+    const place = this.stored.places[owner]?.[itemId], manifest = {itemId, sourceId: book.versionId, revision: book.revision, format: book.format, wholeFile: true} as unknown as ReadingManifest;
+    return place ? readingPlaceProgress(place.position, new Date(place.madeAt).toISOString(), manifest) : {progress: null};
+  }
+  /** Opens a book downloaded from the rebuilt server, with no server. Its place is kept on this
+   * device with when it was made, and sent when the reader closes or the server is next reached
+   * (sendBookPlaces); with history paused nothing is kept (10-reading rules 15, 16, 46). */
+  private async downloadedBookSession(entry: OfflineEntry, scope: Readonly<{signal: AbortSignal; current: () => boolean; paused: () => boolean}>): Promise<OfflineReadingSession> {
+    const read = this.localRead(entry), owner = this.ownerKey(), live = read(), api = this.api, itemId = live.itemId;
+    if (!native || !owner || this.playabilityReason(live)) throw new Error('reading_unavailable');
+    const book = this.downloadedBook(live), artifact = live.artifact!;
+    const current = () => {try {return scope.current() && !this.playabilityReason(read());} catch {return false;}};
+    return openDownloadedBook({id: live.id, owner, digest: artifact.sha256, bytes: artifact.bytes, itemId, versionId: book.versionId, revision: book.revision, format: book.format,
+      title: live.info?.title || live.title, current, signal: scope.signal, onClose: () => {void this.sendBookPlaces();},
+      progress: async () => {
+        // A place this device has not sent yet is the newest it knows. Otherwise the server is asked,
+        // briefly, for one made on another device.
+        const known = this.stored.places[owner]?.[itemId];
+        if (api && (!known || known.sent)) {
+          const ask = new AbortController(), timer = setTimeout(() => ask.abort(), 1500);
+          try {
+            const state = (await callServer(api, 'GET /v1/items/{id}', {id: itemId, signal: ask.signal})).state;
+            const before = this.stored.places[owner]?.[itemId];
+            if (typeof state?.position === 'string' && state.position && (!before || before.sent) && current()) {
+              bucket(this.stored.places, owner)[itemId] = {position: state.position, madeAt: Date.parse(state.updatedAt ?? '') || Date.now(), sent: true};
+              await this.persist();
+            }
+          } catch { /* Out of reach: the place this device knows stands. */ } finally {clearTimeout(timer);}
+        }
+        return this.bookProgress(owner, itemId, book);
+      },
+      save: async (request, manifest) => {
+        if (!current()) throw new Error('reading_retired');
+        if (scope.paused()) return {saved: false, progress: null};
+        const madeAt = Date.now(), previous = this.stored.places[owner]?.[itemId];
+        bucket(this.stored.places, owner)[itemId] = {position: readingPlacePosition(request.location, manifest), madeAt};
+        if (!await this.persist()) {if (previous) bucket(this.stored.places, owner)[itemId] = previous; else delete this.stored.places[owner]?.[itemId]; throw new Error('reading_progress_not_saved');}
+        return {saved: true, progress: {location: request.location, observedAt: madeAt, revision: request.expectedRevision + 1, sourceId: book.versionId, sourceRevision: book.revision, stale: false}};
+      },
+    });
+  }
+  /** Hands this profile's places made with no server to the server. One it cannot reach yet is kept
+   * by the outbox, which says how long ago it was made, so the later place wins wherever it came from. */
+  private async sendBookPlaces() {
+    const api = this.api, owner = this.ownerKey(), places = owner ? this.stored.places[owner] : undefined;
+    if (!api || !owner || !places) return;
+    for (const [itemId, place] of Object.entries(places)) {
+      if (place.sent) continue;
+      try {await callServer(api, 'PUT /v1/items/{id}/state', {id: itemId, body: {position: place.position, madeAgoMs: Math.max(0, Date.now() - place.madeAt)}});}
+      catch (error) {
+        // Kept by the outbox, or refused for good (the book is gone): either way this device is done with it.
+        const failure = error as {code?: unknown; status?: unknown} | null, status = Number(failure?.status);
+        if (failure?.code !== 'sync_pending' && !(status >= 400 && status < 500 && ![401, 408, 429].includes(status))) return;
+      }
+      if (this.api !== api || this.ownerKey() !== owner) return;
+      if (places[itemId] === place) {places[itemId] = {...place, sent: true}; await this.persist();}
+    }
   }
   /** Display facts for a downloaded publication under the same viewer, receipt and
    * lifetime guards as opening it. The signed descriptor may contribute its real page
@@ -1758,6 +1859,10 @@ export class OfflineDownloads {
   async readingFacts(entry: OfflineEntry): Promise<OfflineReadingFacts> {
     const read = this.localRead(entry), owner = this.ownerKey(), live = read();
     if (!native || !owner || !nativePublicationReadsAvailable() || this.playabilityReason(live)) throw new Error('reading_unavailable');
+    if (live.downloadId) {
+      const book = this.downloadedBook(live), progress = this.bookProgress(owner, live.itemId, book).progress;
+      return Object.freeze({format: book.format, ...(progress && !progress.stale ? {location: Object.freeze({...progress.location})} : {})});
+    }
     const binding = this.publicationBinding(live.receipt), receipt = live.receipt!;
     let pageCount: number | undefined;
     try {
@@ -1836,6 +1941,7 @@ export class OfflineDownloads {
     return Object.freeze(lease);
   }
   async readingSession(entry: OfflineEntry, scope: Readonly<{signal: AbortSignal; current: () => boolean; paused: () => boolean}>): Promise<OfflineReadingSession> {
+    if (entry.downloadId) return this.downloadedBookSession(entry, scope);
     // OFF-10: when online, pick up a newer position saved elsewhere first, but
     // never hold the book closed for long on a slow connection.
     if (this.api) await Promise.race([this.refreshReadingProgress(this.generation, [entry.id]).catch(() => {}), new Promise(done => setTimeout(done, 1500))]);
