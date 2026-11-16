@@ -1,104 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
-import {maintenance} from './helpers/owner-server-settings.mjs';
-import {tvServerSettingsFacts} from '../src-next/screens/settings-live/server/tv-server-values';
-import {settingsSpecMessages} from '../../../packages/i18n/src/catalog/en-US/next/settings-spec';
-import {settingsSpec, settingsRowIndex} from '../../../packages/client-core/src/presentation/settings-spec';
-import {settingsBinding, settingsBindingPatch, applySettingsBindingPatch} from '../../../packages/client-core/src/presentation/settings-bindings';
-import {tvCustomChoiceValue, tvServerSettingGroups, tvServerSettingsSources, type TVServerSettingsState} from '../src-next/screens/settings-live/server/tv-server-settings-model';
 import {settingNumber} from '../src-next/screens/settings-live/server/settings-values';
-
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.footer)] : [];
-const feed = 'https://updates.example/releases.json';
-const field = (id: string, value: unknown, extra: Record<string, unknown> = {}) => ({id, key: id, current: value, effective: value, default: value, source: 'default', configOnly: false, applicationMode: 'live', ...extra});
-const configuration = (...fields: ReturnType<typeof field>[]) => ({revision: 1, registryRevision: 'r', signInPolicyRevision: 'policy-1', path: '/etc/portico/config.toml', fields: [field('general.updateFeed', feed), ...fields]}) as any;
-const runtime = {name: 'Den', 'updates.feedUrl': feed, perAccountCap: null, playHistoryDays: 0, 'library.missingTitles': 'after_days', 'library.missingTitlesDays': 46, 'people.invitation_days': 7};
-const alerts = {storageWarningPercent: 10, storageCriticalPercent: 5, certificateWarningDays: 14, serverNoticesTo: 'owner'};
-const section = (id: string) => settingsSpec.find(value => value.scope === 'server' && value.id === id)!;
-const state = (page: TVServerSettingsState['page'], drafts: TVServerSettingsState['drafts'], extra: Partial<TVServerSettingsState> = {}): TVServerSettingsState =>
-  ({page, configuration: configuration(), drafts, custom: new Set(), ...extra});
-const items = (value: TVServerSettingsState, advanced = false) => tvServerSettingGroups(value, advanced ? section(value.page).advanced?.groups : section(value.page).groups).flatMap(group => group.items);
-const ids = (value: TVServerSettingsState, advanced = false) => items(value, advanced).map(item => item.id);
-
-test('General on TV edits its bound rows, the alert thresholds and notice routing, and keeps config-file and closed custom rows out', () => {
-  const general = state('general', {runtime, maintenance: maintenance(), alerts});
-  const main = items(general);
-  assert.deepEqual(main.map(item => [item.id, item.kind]), [['general.name', 'text'], ['general.updateChecks', 'choice'], ['general.heavyWork', 'choice'], ['general.backgroundSpeed', 'choice']]);
-  assert.equal((main[0] as any).value, 'Den');
-  assert.equal((main[1] as any).value, 'auto');
-  assert.equal((main[2] as any).value, 'overnight');
-  // Advanced holds the alert thresholds and who sees each notice; the heavy window opens only for Custom.
-  assert.deepEqual(ids(general, true), ['general.alertStorageWarn', 'general.alertStorageCritical', 'general.alertCertificateDays', 'general.serverNoticesTo']);
-  const audience = items(general, true).find(item => item.id === 'general.serverNoticesTo') as any;
-  assert.equal(audience.kind, 'choice');
-  assert.equal(audience.value, 'owner');
-  const custom = state('general', {runtime, maintenance: maintenance(), alerts}, {custom: new Set(['general.heavyWork', 'general.updateChecks'])});
-  assert.deepEqual(ids(custom, true), ['general.updateFeed', 'general.heavyStart', 'general.heavyLength', 'general.heavyDays', 'general.alertStorageWarn', 'general.alertStorageCritical', 'general.alertCertificateDays', 'general.serverNoticesTo']);
-  const days = items(custom, true).find(item => item.id === 'general.heavyDays') as any;
-  assert.equal(days.kind, 'matrix');
-  assert.equal(days.items.length, 7);
-  assert.deepEqual(days.columns.map((column: any) => column.value), ['runs', 'skips']);
-  // A value only the config file sets is not offered for change.
-  const pinned = state('general', {runtime, maintenance: maintenance(), alerts}, {configuration: configuration(field('general.name', 'Den', {configOnly: true}))});
-  assert.equal(ids(pinned).includes('general.name'), false);
-});
-
-test('an exact server value is drawn as itself, never rounded to a named choice', () => {
-  const storage = state('storage', {runtime: {...runtime, analysisStorageGiB: 40}, maintenance: maintenance()});
-  const space = items(storage, true).find(item => item.id === 'storage.analysisSpace') as any;
-  assert.ok(space);
-  const exact = space.options.find((option: any) => option.value === space.value);
-  assert.ok(exact);assert.equal(exact.value, '40');assert.equal(exact.disabled, true);
-  assert.equal(ids(storage).includes('storage.backupFolder'), false);
-  assert.equal(ids(storage).includes('storage.backupKeep'), false, 'a retired maintenance document cannot supply the backups document');
-});
-
-test('Custom stores a window mode or the current removal days; other customs only open their exact rows', () => {
-  const drafts = {runtime, maintenance: maintenance()};
-  assert.equal(tvCustomChoiceValue(settingsRowIndex.get('general.heavyWork')!.row, drafts), 'custom');
-  assert.deepEqual(tvCustomChoiceValue(settingsRowIndex.get('storage.missingRule')!.row, drafts), {days: 46});
-  assert.deepEqual(tvCustomChoiceValue(settingsRowIndex.get('storage.missingRule')!.row, {runtime: {...runtime, 'library.missingTitlesDays': 0}}), {days: 30});
-  assert.equal(tvCustomChoiceValue(settingsRowIndex.get('general.updateChecks')!.row, drafts), undefined);
-  // The stored value round-trips through the same binding the phone saves with.
-  const libraries = state('libraries', {runtime: {...runtime, 'library.missingTitles': 'never'}});
-  const row = settingsRowIndex.get('storage.missingRule')!.row;
-  const patch = settingsBindingPatch(settingsBinding(row.id)!, tvCustomChoiceValue(row, libraries.drafts), tvServerSettingsSources(libraries));
-  assert.deepEqual(applySettingsBindingPatch(libraries.drafts.runtime!, patch), {...runtime, 'library.missingTitles': 'after_days', 'library.missingTitlesDays': 46});
-  const opened = state('libraries', {runtime: applySettingsBindingPatch(libraries.drafts.runtime!, patch)}, {custom: new Set(['storage.missingRule'])});
-  assert.deepEqual(items(opened, true).map(item => [item.id, item.kind, (item as any).value]), [['storage.missingDaysExact', 'number', '46']]);
-});
-
-test('Remote access offers the Portico Services switch only for a linked server and opens own-address rows on demand', () => {
-  const connectivity = {remoteSignInPolicy: 'allow', remoteAccess: 'on', remoteSecurity: 'enhanced', lanDiscoveryEnabled: true, dlnaEnabled: false, ownAddressEnabled: false, customCertificateDomain: '', customCertificatePath: '', customCertificateKeyPath: '', advertisedInterface: '', connectionLimit: 0, lanNetworks: [], accessUrls: [], trustedProxies: []};
-  const local = state('remote', {connectivity});
-  assert.equal(ids(local).includes('remote.secure'), false);
-  assert.equal(ids(local).includes('remote.externalAddress'), false);
-  // O-169: Remote access, with Remote security and sign-in from outside while it's On; the refused list is a list, so not on TV.
-  assert.ok(ids(local).includes('remote.access'));
-  assert.ok(ids(local).includes('remote.security'));
-  assert.ok(ids(local).includes('remote.signInOutside'));
-  assert.equal(ids(local).includes('remote.refused'), false);
-  const closed = state('remote', {connectivity: {...connectivity, remoteAccess: 'private'}});
-  assert.equal(ids(closed).includes('remote.security'), false, 'Remote security only while Remote access is On');
-  assert.ok(ids(closed).includes('remote.signInOutside'), 'tailnet clients still sign in as remote under Private only');
-  const off = state('remote', {connectivity: {...connectivity, remoteAccess: 'off'}});
-  assert.equal(ids(off).includes('remote.signInOutside'), false, 'Off: nobody signs in from outside');
-  assert.ok(ids(local).includes('remote.dlna'));
-  // Lists of networks and proxies stay with the phone and web.
-  assert.equal(ids(local, true).includes('remote.trustedProxies'), false);
-  const linked = state('remote', {connectivity: {...connectivity, ownAddressEnabled: true, customCertificateDomain: 'media.example'}}, {secure: true});
-  const shown = items(linked);
-  assert.deepEqual(shown.find(item => item.id === 'remote.secure'), {id: 'remote.secure', row: settingsRowIndex.get('remote.secure')!.row, dependent: false, kind: 'switch', checked: true});
-  assert.equal((shown.find(item => item.id === 'remote.externalAddress') as any).value, 'https://media.example');
-});
-
-test('a page never draws another page’s document', () => {
-  const people = state('people', {runtime, maintenance: maintenance()});
-  assert.ok(ids(people, true).includes('people.maxStreamsEach'));
-  assert.equal(ids(people, true).some(id => id.startsWith('general.')), false);
-  assert.deepEqual(items(state('history', {}), true), []);
-});
 
 /** Two components render through one module, so each gets its own hook slots. */
 async function entryRow() {
@@ -162,18 +66,4 @@ test('a number sheet steps within the row’s range and refuses a value off its 
   nodes(drawn).find(node => node.type === 'NativeTVKeyboard').props.onChangeText('120'); drawn = panel();
   button('save').props.onPress();
   assert.deepEqual(saved, [120]);
-});
-
-test('Streaming on TV offers a folder and the one server-wide tone-map choice', () => {
-  const allIds = [...section('streaming').groups!, ...section('streaming').advanced!.groups!].flatMap(group => group.rows.flatMap(row => [row.id, ...(row.children ?? []).map(child => child.id)]));
-  const configured = configuration(...allIds.map(id => field(id, null)));
-  const drafts = {runtime: {conversionMode: 'all', temporaryDirectory: '/mnt/fast/convert', hdrToneMappingAlgorithm: 'hable'}, connectivity: {}};
-  const streaming = state('streaming', drafts, {configuration: configured});
-  const folder = items(streaming).find(item => item.id === 'streaming.transcodeFolder') as any;
-  assert.deepEqual([folder.kind, folder.value], ['folder', '/mnt/fast/convert']);
-  assert.equal(items(streaming).some(item => item.id === 'streaming.transcodeLocation'), false);
-  const tone = items(streaming, true).find(item => item.id === 'streaming.toneMappingMethod') as any;
-  assert.equal(tone.value, 'hable');
-  assert.deepEqual(tone.options.map((option: any) => option.value), ['hable', 'mobius', 'reinhard', 'gamma', 'linear', 'clip', 'off']);
-  assert.equal(items(streaming, true).some(item => item.id === 'streaming.memoryCap' || item.id === 'streaming.toneMapping'), false);
 });

@@ -290,18 +290,22 @@ export function withListEntry(list: readonly string[], typed: string): readonly 
 }
 
 /** A rebuilt settings document: carry its revision and send only the edited fields. */
+function namedSettingsLoaded(raw: unknown): Loaded<Record<string, unknown>, {etag: string}> {
+  const document = raw as {values?: unknown; etag?: unknown} | null;
+  if (!document || typeof document.etag !== 'string' || !/^"[0-9]+"$/.test(document.etag) ||
+    typeof document.values !== 'object' || document.values === null || Array.isArray(document.values)) throw Object.assign(new Error('invalid_settings_document'), {code: 'invalid_settings_document'});
+  return {value: {...document.values as Record<string, unknown>}, status: {etag: document.etag}};
+}
+/** The same validated document for a view that offers no editor. */
+export async function readNamedSettings(api: SettingsDocumentAPI, name: string, signal?: AbortSignal) {
+  return namedSettingsLoaded(await callServer(api, 'GET /v1/admin/settings/{name}', {id: name, signal}));
+}
 export function namedSettingsForm(deps: ServerFormDeps, name: string): DraftForm<Record<string, unknown>, Record<string, unknown>> {
-  const loaded = (raw: unknown): Loaded<Record<string, unknown>, {etag: string}> => {
-    const document = raw as {values?: unknown; etag?: unknown} | null;
-    if (!document || typeof document.etag !== 'string' || !/^"[0-9]+"$/.test(document.etag) ||
-      typeof document.values !== 'object' || document.values === null || Array.isArray(document.values)) throw Object.assign(new Error('invalid_settings_document'), {code: 'invalid_settings_document'});
-    return {value: {...document.values as Record<string, unknown>}, status: {etag: document.etag}};
-  };
   return new DraftForm<Record<string, unknown>, Record<string, unknown>>({
-    load: signal => orAbsent(callServer(deps.api, 'GET /v1/admin/settings/{name}', {id: name, signal}).then(loaded)),
+    load: signal => orAbsent(readNamedSettings(deps.api, name, signal)),
     save: async (draft, saved, status) => {
       const change = Object.fromEntries(Object.entries(draft).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(saved[key])));
-      return loaded(await putSettingsDocument(deps.api, name, typeof status?.etag === 'string' ? status.etag : '', change));
+      return namedSettingsLoaded(await putSettingsDocument(deps.api, name, typeof status?.etag === 'string' ? status.etag : '', change));
     },
   });
 }

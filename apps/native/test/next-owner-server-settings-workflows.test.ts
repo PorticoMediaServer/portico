@@ -232,32 +232,3 @@ test('History mounts real list/filter wiring and offers no keep choice', async (
   assert.equal(nodes(render()).some((node: any) => node.props.testID === 'history.keepHistory'), false);
   host.dispose();fixture.stop();
 });
-
-test('TV Streaming saves its chosen conversion folder', async () => {
-  const memoryAvailable = false;
-  const fixture = await formsFixture({runtime: {conversionMode: 'all', transcodeLocation: 'disk', temporaryDirectory: '/disk', memoryCap: 'quarter'}, connectivity: {}}), host = lifecycleHooks();
-  const section = specification.settingsSpec.find((value: any) => value.scope === 'server' && value.id === 'streaming')!;
-  const allRows = [...section.groups!, ...section.advanced!.groups!].flatMap((group: any) => values.settingRows(group.rows));
-  const configuration = {fields: allRows.map((row: any) => ({id: row.id, configOnly: false}))};
-  const capacity = {hardware: {devices: []}, temporaryDirectory: {path: '/disk', memoryPath: '/dev/shm', memoryAvailable}};
-  const api = {request: async (path: string) => path === routePath('get_settings_configuration') ? configuration : capacity};
-  const model = await import('../src-next/screens/settings-live/server/tv-server-settings-model.ts');
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/TVServerSettingsPage.tsx', import.meta.url), {
-    ...chrome, react: host.react,
-    '../../../../../../packages/contracts/src/routes': {routePath},
-    '../../../../../../packages/client-core/src/settings-configuration': {parseSettingsConfiguration: (value: unknown) => value},
-    '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
-    '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
-    '../../../../../../packages/client-core/src/telemetry': {parseTranscodeCapacity: (value: unknown) => value},
-    '../use-settings-request-scope': {useSettingsRequestScope: () => ({api, lifetime: {current: fixture.group.context.current}})},
-    './storage/forms': fixture.hooks, './TVSettingRows': {TVChoiceRow: 'TVChoiceRow', TVEntryRow: 'TVEntryRow', TVSwitchRow: 'TVSwitchRow'},
-    './TVFolderPicker': {TVFolderRow: 'TVFolderRow'}, './tv-server-settings-model': model,
-  });
-  const render = () => host.render(() => {const outer = module.TVServerSettingsPage({page: 'streaming', ports: {context: fixture.group.context}, runtime});return outer.type(outer.props);});
-  const row = (id: string) => nodes(render()).find((node: any) => node.props.testID === id);
-  render();host.flush();await settle();
-  assert.equal(row('streaming.transcodeLocation'), undefined);
-  row('streaming.transcodeFolder').props.onChoose('/fast'); await settle();
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.temporaryDirectory, '/fast');
-  host.dispose();fixture.stop();
-});

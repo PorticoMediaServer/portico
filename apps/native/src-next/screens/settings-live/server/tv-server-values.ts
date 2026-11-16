@@ -3,13 +3,18 @@ import type {MessageId} from '../../../../../../packages/i18n/src';
 
 export type TVServerFact = Readonly<{id: string; label: string; value: string; detail?: string}>;
 
-/** The credential list reports its exact server-scoped total, so one page is enough. */
-export async function tvServerCredentialCount(read: (cursor: string) => Promise<Readonly<{total: number}>>, current: () => boolean): Promise<number> {
-  if (!current()) throw new Error('native_tv_server_read_ended');
-  const page = await read('');
-  if (!current()) throw new Error('native_tv_server_read_ended');
-  if (!Number.isSafeInteger(page.total) || page.total < 0) throw new Error('invalid_api_key_total');
-  return page.total;
+/** The rebuilt credential list is paged; only its count survives into the TV view. */
+export async function tvServerCredentialCount(read: (cursor: string) => Promise<Readonly<{items: readonly unknown[]; nextCursor?: string}>>, current: () => boolean): Promise<number> {
+  let cursor = '', count = 0; const seen = new Set<string>();
+  do {
+    if (!current()) throw new Error('native_tv_server_read_ended');
+    const page = await read(cursor);
+    if (!current()) throw new Error('native_tv_server_read_ended');
+    count += page.items.length; cursor = page.nextCursor || '';
+    if (cursor && seen.has(cursor)) throw new Error('invalid_api_key_continuation');
+    if (cursor) seen.add(cursor);
+  } while (cursor);
+  return count;
 }
 
 /** Shared televisions display reviewed scalar values, never raw configuration

@@ -91,3 +91,16 @@ test('G35 keeps server logs and coded troubleshooting events off TV for every ro
     lifetime.dispose();
   }
 });
+
+test('ETag reads remain GET-only and recheck authority before exposing raw response bodies', async () => {
+  const lifetime = scope(); let calls = 0, finish!: (value: any) => void;
+  const reader = createTVServerReader({account, api: {request: assert.fail,
+    requestRaw: () => {calls++;return new Promise(resolve => {finish = resolve;});}}}, lifetime);
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) await assert.rejects(reader.requestRaw('/v1/admin/settings/general', method));
+  await assert.rejects(reader.requestRaw('/v1/admin/settings/general', 'GET', {body: {}}));
+  await assert.rejects(reader.requestRaw(routePath('get_admin_logs'), 'GET'));
+  assert.equal(calls, 0);
+  const pending = reader.requestRaw('/v1/admin/settings/general', 'GET');assert.equal(calls, 1);
+  lifetime.dispose();finish({status: 200, headers: {etag: '"1"'}, body: {name: 'retired'}});
+  await assert.rejects(pending, /native_tv_server_read_denied/);assert.equal(calls, 1);
+});
