@@ -40,6 +40,7 @@ import {clockText, durationText} from '@core/presentation/kit-model/text.ts';
 import {defaultI18n} from '@i18n';
 import {formatSignalText, musicFormatBadges} from '@core/music-signal.ts';
 import {AllResultsRow} from './AllResultsRow';
+import {entryPlayable} from '@core/library-content.ts';
 
 type ChipId = SearchGroup | 'all';
 const keyOf = (entry: SearchEntry) => JSON.stringify(['libraryId' in entry ? entry.libraryId : '', entry.kind, entry.id]);
@@ -253,7 +254,7 @@ export function SearchResult({entry, binding, selection, selectionVisible = true
   }
   if (!('libraryId' in entry)) return <CircleCard context="search" model={{title: entry.title, caption: entry.subtitle ? [{id: 'caption', text: entry.subtitle, role: 'context'}] : []}} covers={art ? [art] : []}
     initials={nameInitials(entry.title)} onNavigate={open} />;
-  const model = entryCard(entry, {t, locale: locale()}, 'search'), playable = entry.available === true && !!entry.playback;
+  const model = entryCard(entry, {t, locale: locale()}, 'search'), playable = entryPlayable(entry);
   const props = {model, selection: picked, context: 'search' as const, watched: entry.watched, isNew: entry.new, onNavigate: open, onMore: more,
     onPlay: playable ? () => { void binding.play(entry).then(onCommit).catch(context.effects.reportError); } : undefined};
   if (entry.kind === 'song') return <div ref={interactionRoot} className={styles.songSelection} data-selected={picked?.checked || undefined} data-preview={picked?.preview || undefined} {...range}>{picked && <SelectionCircle variant="row" selected={picked.checked} selecting={picked.active} accessibilityLabel={t('next.selection.select')} onClick={event => {event.preventDefault(); picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'});}}/>}<button className={styles.song} type="button" onClick={event => {if (picked?.active) picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'}); else if (playable) void binding.play(entry).then(onCommit).catch(context.effects.reportError); else open();}}><Artwork source={context.artwork.foreground(entry.posterUrl, 88, 1)} alt="" /><span><b>{entry.displayTitle ?? entry.title}</b><small>{entry.artist?.name}{entry.album?.name && <span>{entry.album.name}</span>}</small></span><span>{clockText(entry.duration)}</span></button>{more && <Button className={styles.songMore} variant="icon" size="small" icon="i-more" iconOnly aria-haspopup="menu" aria-label={t('next.browse.moreFor', {title: entry.displayTitle ?? entry.title})} onClick={event => more(event.currentTarget)} />}</div>;
@@ -279,7 +280,7 @@ function useResultMore(binding: SearchBindings, entry: SearchEntry, picked: Card
   const {context} = binding;
   const more = useCallback((anchor: HTMLElement) => {
     if (!openMenu || !('libraryId' in entry)) return;
-    const playable = entry.available === true && !!entry.playback;
+    const playable = entryPlayable(entry);
     openMenu(anchor, {entry, title: entry.displayTitle ?? entry.title, current: () => binding.showing(entry),
       ...(playable ? {onPlay: () => { void binding.play(entry).then(onCommit).catch(context.effects.reportError); }} : {}),
       ...(picked ? {select: () => picked.onToggle({range: false, source: 'pointer'})} : {})});
@@ -307,7 +308,7 @@ export function SongTableRow({entry, binding, selection, position = 0, onCommit}
   const hold = useCardHold({selection: holdSelection, row: song});
   if (!song) return null;
   const {context} = binding, open = () => runScreenCommand(context, () => { binding.open(song); onCommit(); });
-  const playable = song.available === true && !!song.playback, title = song.displayTitle ?? song.title;
+  const playable = entryPlayable(song), title = song.displayTitle ?? song.title;
   const activate = (event: ReactMouseEvent) => {
     if (picked?.active) picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'});
     else if (playable) void binding.play(song).then(onCommit).catch(context.effects.reportError);

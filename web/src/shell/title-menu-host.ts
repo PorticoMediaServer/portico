@@ -11,6 +11,7 @@ import {detailMenuCapabilities, isAggregateKind, isLeafKind, limitMenuCapabiliti
 import {entryStartDisplay} from '../platform/playback/subject';
 import {screenLifetime, type ScreenContext} from '../screens/detail/context';
 import type {EntryActionTarget} from './entry-actions';
+import {entryPlayable} from '@core/library-content.ts';
 
 /** What a screen tells the menu about the exact card it opened for. */
 export type TitleMenuSubject = Readonly<{
@@ -199,7 +200,7 @@ export class TitleMenuHost {
    * artist's through the screen's effects, or nothing where this screen has no way to play it. */
   play = (entry: ContentEntry, isCurrent: () => boolean): (() => void) | undefined => {
     const effects = this.context.effects, playback = entry.playback;
-    if (entry.libraryId && playback && entry.available === true) {
+    if (entry.libraryId && playback && entryPlayable(entry)) {
       const libraryId = entry.libraryId;
       return () => { void effects.play({libraryId, itemId: playback.itemId, startSeconds: playback.startSeconds ?? 0, display: entryStartDisplay(entry)}, this.life().signal(), isCurrent).catch(this.reportError); };
     }
