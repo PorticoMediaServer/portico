@@ -19,7 +19,7 @@ test('catalogue commands preserve the original body, operation identity and tran
     ['/v1/admin/media/delete/preview', 'POST', {itemIds: deletion.itemIds}, signal],
     ['/v1/admin/media/delete', 'POST', deletion, signal],
     ['/v1/admin/libraries/lib%20%2F%3F', 'GET', undefined, signal],
-    ['/v1/items/a%20%2F%3F/metadata/refresh', 'POST', {}, signal],
+    ['/v1/admin/items/a%20%2F%3F/metadata/refresh', 'POST', {}, signal],
   ]);
   assert.equal(calls[1][2], edit);assert.equal(calls[3][2], deletion);
 });
