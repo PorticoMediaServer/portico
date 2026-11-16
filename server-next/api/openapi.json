@@ -3237,6 +3237,29 @@
         ],
         "type": "object"
       },
+      "FilmCollection": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "memberCount": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "memberCount",
+          "position"
+        ],
+        "type": "object"
+      },
       "Filter": {
         "properties": {
           "id": {
@@ -4056,6 +4079,12 @@
           },
           "chapter": {
             "$ref": "#/components/schemas/ItemChapter"
+          },
+          "collections": {
+            "items": {
+              "$ref": "#/components/schemas/FilmCollection"
+            },
+            "type": "array"
           },
           "contentRating": {
             "type": "string"
