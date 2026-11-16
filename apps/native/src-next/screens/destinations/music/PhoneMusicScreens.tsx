@@ -139,7 +139,8 @@ function SongLine({song, index, digits, runtime, controller, actions, playingId,
       paddingRight: phoneMusicGeometry.trackPaddingRight, flexDirection: 'row', alignItems: 'center', gap: phoneMusicGeometry.trackGap}}>
     {picked?.active ? <SelectionCircle selected={picked.selected} selecting interactive={false} variant="row" size={24} accessibilityLabel={t('card.select', {title})}/> : null}
     <TrackNumber number={song.trackNumber ?? index + 1} digits={digits} playing={playing} width={phoneMusicGeometry.trackNumberWidth} size={phoneMusicGeometry.trackNumber}/>
-    <Text numberOfLines={1} style={[browseType(theme, phoneMusicGeometry.trackTitle, 600, 0), {flex: 1, color: playing ? theme.colors.accentStrong : theme.colors.text}]}>{title}</Text>
+    {/* A track title wraps to a second line before it is cut; two lines fit the fixed 54-point row (W4 F7). */}
+    <Text numberOfLines={2} style={[browseType(theme, phoneMusicGeometry.trackTitle, 600, 0), {flex: 1, color: playing ? theme.colors.accentStrong : theme.colors.text}]}>{title}</Text>
     {duration ? <Text style={[browseType(theme, phoneMusicGeometry.trackDuration, 400), {color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{duration}</Text> : null}
     <Focusable accessibilityRole="button" accessibilityLabel={t('next.browse.native.moreFor', {title})} onPress={() => actions.menu(song, anchor, picked?.onEnter)} focusRadius={17}
       style={{width: phoneMusicGeometry.trackMoreWidth, height: phoneMusicGeometry.trackMoreWidth, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-more" size={20} color={theme.colors.textTertiary}/></Focusable>
@@ -330,7 +331,7 @@ function TabletSongLine({song, index, digits, columns = {plays: true, duration: 
     style={{height: 60, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', borderRadius: 10, backgroundColor: playing ? alpha(theme.colors.text, .08) : undefined}}>
     {picked?.active ? <SelectionCircle selected={picked.selected} selecting interactive={false} variant="row" size={24} accessibilityLabel={t('card.select', {title})}/> : null}
     <TrackNumber number={song.trackNumber ?? index + 1} digits={digits} playing={playing} width={36 * scale} size={14}/>
-    <Text numberOfLines={1} style={[browseType(theme, 16, 600), {flex: 1, color: playing ? theme.colors.accentStrong : theme.colors.text}]}>{title}</Text>
+    <Text numberOfLines={2} style={[browseType(theme, 16, 600), {flex: 1, color: playing ? theme.colors.accentStrong : theme.colors.text}]}>{title}</Text>
     {columns.plays ? song.plays !== undefined ? <Text numberOfLines={1} style={[browseType(theme, 14, 400), {width: 62 * scale, textAlign: 'right', color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{defaultI18n.number(song.plays)}</Text> : <View style={{width: 62 * scale}}/> : null}
     {columns.duration ? duration ? <Text numberOfLines={1} style={[browseType(theme, 14, 400), {width: 70 * scale, textAlign: 'right', color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{duration}</Text> : <View style={{width: 70 * scale}}/> : null}
     <Button variant="text" iconOnly icon={controller.songFavorite(song) ? 'i-heart-f' : 'i-heart'} iconColor={controller.songFavorite(song) ? theme.colors.accentStrong : theme.colors.textTertiary} iconSize={20}

@@ -148,3 +148,20 @@ test('a two-line glass chip at normal text keeps its glass the full height of th
     assert.equal(flatten(node.props.style).minHeight, 42, 'but never shorter than the 42 pt chip');
   }
 });
+
+
+test('one-line action labels shrink before cutting; multiline actions keep their authored wrapping', async () => {
+  for (const os of ['android', 'ios'] as const) {
+    const actual = await button(os, false);
+    const focus = actual.host('primary', {children: 'Continue reading'});
+    const label = elements(focus.props.children({focused: false, hovered: false, pressed: false})).find(node => node.type === 'Text');
+    assert.ok(label);
+    assert.equal(label.props.numberOfLines, 1);
+    assert.equal(label.props.adjustsFontSizeToFit, true);
+    assert.equal(label.props.minimumFontScale, .8);
+    const wrapped = actual.host('primary', {children: 'Continue reading', labelLines: 2});
+    const wrappedLabel = elements(wrapped.props.children({focused: false, hovered: false, pressed: false})).find(node => node.type === 'Text');
+    assert.equal(wrappedLabel!.props.numberOfLines, 2);
+    assert.equal(wrappedLabel!.props.adjustsFontSizeToFit, undefined);
+  }
+});

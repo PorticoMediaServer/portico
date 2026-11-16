@@ -82,7 +82,8 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
         {icon || loading !== undefined ? <View style={{width: glyphSize, height: glyphSize, alignItems: 'center', justifyContent: 'center'}}>
           {loading ? <ActivityIndicator size={glyphSize} color={glyphColor} /> : icon ? <Icon name={icon} size={glyphSize} color={glyphColor} /> : null}
         </View> : null}
-        {!iconOnly ? <Text {...labelObservation.textProps} numberOfLines={grow ? undefined : labelLines} ellipsizeMode="tail" style={labelStyle}>{children}</Text> : null}
+        {/* A control's label is never cut (owner's rule): a one-line label that does not fit shrinks a little first ("Continue readi…", W4 F11). */}
+        {!iconOnly ? <Text {...labelObservation.textProps} numberOfLines={grow ? undefined : labelLines} ellipsizeMode="tail" {...(!grow && labelLines === 1 ? {adjustsFontSizeToFit: true, minimumFontScale: .8} : {})} style={labelStyle}>{children}</Text> : null}
         {inline && fraction !== undefined && !iconOnly ? <View style={[styles.inlineTrack, {backgroundColor: colorAlpha(white ? theme.colors.ink : theme.colors.text, .16)}]}><View style={[styles.fill, {width: `${fraction * 100}%`, backgroundColor: white ? theme.colors.accent : theme.colors.accentStrong}]} /></View> : null}
         {remaining !== undefined && !iconOnly ? <>
           <Text numberOfLines={grow ? undefined : 1} style={[theme.type.button, {fontSize: (theme.isTV ? 22 : geometry.fontSize) * theme.textScale, color: white ? colorAlpha(theme.colors.ink, .66) : theme.colors.textTertiary, flexShrink: grow ? 1 : undefined}, textStyle]}>{remaining}</Text>
