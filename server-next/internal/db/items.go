@@ -189,6 +189,10 @@ func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {
 		}
 		return sortSpec{columns: []string{order + " ELSE -1 END"}}, true
 	}
+	if q.Sort == SortOrder && q.Collection != "" {
+		return sortSpec{columns: []string{`(SELECT r.position FROM item_relations r WHERE r.item_id =
+			(SELECT id FROM items WHERE public_id = @order_collection) AND r.kind = 1 AND r.related_item_id = i.id)`}}, true
+	}
 	if q.Sort == SortOrder && q.Series != "" {
 		return seriesOrder, true
 	}
@@ -318,7 +322,7 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	if cursor != nil && !cursor.fits(spec) {
 		return page, ErrCursorExpired
 	}
-	if q.Sort == SortOrder && q.Parent == "" && q.Series == "" && q.homeIDs == nil {
+	if q.Sort == SortOrder && q.Parent == "" && q.Series == "" && q.Collection == "" && q.homeIDs == nil {
 		// Season and episode numbers order one show's items. Over a whole library they have
 		// no index and mean nothing, so the list would be sorted afresh for every page.
 		return page, invalid("Only the titles inside a show, season, artist, album or series can be sorted in their own order.")
@@ -598,7 +602,7 @@ func cursorAt(ctx context.Context, tx *sql.Tx, v Viewer, q ItemQuery, item int64
 		dest[n] = &values[n]
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT `+strings.Join(spec.columns, ", ")+` FROM items i WHERE i.id = @item`,
-		append(v.args(), sql.Named("item", item))...).Scan(dest...); err != nil {
+		append(v.args(), sql.Named("item", item), sql.Named("order_collection", q.Collection))...).Scan(dest...); err != nil {
 		return "", err
 	}
 	for n, value := range values {
@@ -759,6 +763,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		members := `SELECT related_item_id FROM item_relations WHERE kind = ` + itoa(int64(RelationCollectionMember)) + ` AND item_id = ` + itoa(collection)
 		w.add(` AND i.id IN (`, members, `)`)
 		w.scope = members
+		w.args = append(w.args, sql.Named("order_collection", q.Collection))
 		scoped = true
 	}
 	if q.Series != "" {

@@ -11,6 +11,7 @@ import (
 type ItemDetail struct {
 	NextEpisode    *Item
 	EpisodeDisplay *EpisodeDisplay
+	Collections    []FilmCollection
 	Item
 	OriginalTitle string
 	Summary       string
@@ -255,6 +256,9 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 			out.EpisodeDisplay = &display
 		}
 
+	}
+	if err == nil && out.Kind == KindMovie {
+		out.Collections, err = filmCollections(ctx, tx, v, acc, out.ID)
 	}
 	return out, err
 }
