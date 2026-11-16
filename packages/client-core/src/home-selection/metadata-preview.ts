@@ -3,7 +3,7 @@ import type {JobSelector} from '../bulk-jobs.ts';
 import type {RepairFieldSpec} from '../metadata-repair.ts';
 import type {SelectionIdentity} from '../selection-model/index.ts';
 import {selectionExecutionError} from './execution.ts';
-import {readMetadataPreview, type MetadataPreviewLifetime} from './metadata-preview-preparation.ts';
+import {readBulkMetadataPreview} from '../metadata-bulk-rebuilt.ts';
 
 export type BulkMetadataPreviewTarget = Readonly<{kind: 'item' | 'show' | 'season' | 'album' | 'artist' | 'book'; contentKind: string; id: string; libraryId: string}>;
 export type BulkMetadataPreviewRequest = Readonly<{targets: readonly BulkMetadataPreviewTarget[]; selector?: never; expected?: never} | {targets?: never; selector: JobSelector; expected: {catalogRevision: string}}>;
@@ -93,7 +93,10 @@ export function parseBulkMetadataPreview(raw: unknown, request: BulkMetadataPrev
   });
   return Object.freeze({serverId, viewerFence: raw.viewerFence, contentKind: raw.contentKind, kind: raw.kind as BulkMetadataPreviewTarget['kind'], total: raw.total, ...(typeof raw.selectionRevision === 'string' ? {selectionRevision: raw.selectionRevision} : {}), ...(Array.isArray(raw.tabs)?{tabs:Object.freeze(raw.tabs.filter((tab):tab is string=>typeof tab==='string'&&['general','numbers','text','identity'].includes(tab)))}:{}),schema, singleItemFields, excludedFields, fields: Object.freeze(fields), targets: Object.freeze(targets)});
 }
-export async function fetchBulkMetadataPreview(api: HomeApi, request: BulkMetadataPreviewRequest, serverId: string, signal?: AbortSignal, lifetime: Omit<MetadataPreviewLifetime, 'signal'> = {}): Promise<BulkMetadataPreview> {
-  if (request.targets && (!request.targets.length || request.targets.length > 2048)) throw selectionExecutionError('metadata-preview-limit');
-  return readMetadataPreview(api, request, (raw, captured) => parseBulkMetadataPreview(raw, captured, serverId), {...lifetime, signal});
+/** The bulk editor's preview, read from the rebuilt server title by title (`metadata-bulk-rebuilt.ts`). A whole view
+ * cannot be edited there yet: its `edit_items` takes listed titles only. */
+export async function fetchBulkMetadataPreview(api: HomeApi, request: BulkMetadataPreviewRequest, serverId: string, signal?: AbortSignal, lifetime: Readonly<{isCurrent?(): boolean}> = {}): Promise<BulkMetadataPreview> {
+  if (!request.targets) throw selectionExecutionError('metadata-whole-view-unavailable');
+  if (!request.targets.length || request.targets.length > 1000) throw selectionExecutionError('metadata-preview-limit');
+  return readBulkMetadataPreview(api, request.targets, serverId, signal, lifetime.isCurrent);
 }

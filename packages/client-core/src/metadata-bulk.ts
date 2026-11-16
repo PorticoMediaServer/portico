@@ -13,7 +13,7 @@ export type BulkEdit = Readonly<{
   operationId: string;
   targets: readonly BulkTarget[];
   fields?: Readonly<Record<string, BulkFieldEdit>>;
-  lists?: Readonly<{tags?: BulkListEdit; labels?: BulkListEdit}>;
+  lists?: Readonly<Record<string, BulkListEdit>>;
   genres?: BulkListEdit;
   lockEdited?: boolean;
 }>;
@@ -24,7 +24,8 @@ export const bulkTargetLimit = 200;
 
 const obj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max && !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(v);
-const hash = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
+/** A title's revision: the old server's 64-character hash, or the rebuilt server's revision number. */
+const hash = (v: unknown): v is string => typeof v === 'string' && (/^[a-f0-9]{64}$/.test(v) || /^\d{1,19}$/.test(v));
 const count = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 const kinds = ['item', 'show', 'season', 'album', 'artist', 'book'];
 
