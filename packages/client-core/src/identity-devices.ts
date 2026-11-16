@@ -1,5 +1,5 @@
 import {unreadableServerResponse} from './server-messages.ts';
-/** Device records, remembered browser accounts and the tvOS Top Shelf token. (The feed itself is read and
+/** Device records and the tvOS Top Shelf token. (The feed itself is read and
  * checked by the tvOS extension and the Android TV module, natively; nothing in JS parses it.)
  *
  * An installation id is generated once per install and kept. It is not a
@@ -11,13 +11,10 @@ import {unreadableServerResponse} from './server-messages.ts';
  * The tokens themselves stay in the client. The server keeps only the account
  * descriptors and which one was used last. */
 export type Device=Readonly<{id:string;installationId:string;name:string;platform:string;app:string;appVersion:string;ip:string;firstSeen:string;lastSeen:string;lastProfileId:string;rememberAccount:boolean;current:boolean;sessions:number;network?:'home'|'away'}>;
-export type RememberedAccount=Readonly<{accountId:string;username:string;displayName:string;avatarVersion:number;automaticSignIn:boolean;lastUsed:string}>;
 
 const obj=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const text=(v:unknown,max=256):v is string=>typeof v==='string'&&v.length<=max&&!/[\x00-\x1f\x7f]/.test(v);
 const id=(v:unknown):v is string=>typeof v==='string'&&v.length>0&&v.length<=128&&/^[A-Za-z0-9_-]+$/.test(v);
-const bool=(v:unknown):v is boolean=>typeof v==='boolean';
-const count=(v:unknown,min=0,max=1e6):v is number=>typeof v==='number'&&Number.isInteger(v)&&v>=min&&v<=max;
 const instant=(v:unknown):v is string=>typeof v==='string'&&v.length<=40&&!Number.isNaN(Date.parse(v));
 const only=(v:Record<string,unknown>,keys:readonly string[]):void=>{if(Object.keys(v).some(k=>!keys.includes(k)))fail('unexpected field');};
 function fail(reason:string):never{throw Object.assign(new Error(unreadableServerResponse),{code:'invalid_device_document',detail:reason,retryable:false});}
@@ -58,23 +55,6 @@ export function parseDevices(raw:unknown):readonly Device[]{
  if(devices.filter(d=>d.current).length>1)fail('more than one current device');
  return Object.freeze(devices);
 }
-
-export function parseRememberedAccounts(raw:unknown):readonly RememberedAccount[]{
- if(!obj(raw)||!Array.isArray(raw.items)||raw.items.length>10)fail('remembered accounts');
- only(raw,['items']);
- const accounts=raw.items.map(entry=>{
-  if(!obj(entry))fail('remembered account');only(entry,['accountId','username','displayName','avatarVersion','avatarUrl','automaticSignIn','lastUsed']);
-  if(!id(entry.accountId)||!text(entry.username,64)||entry.username===''||!text(entry.displayName,120))fail('remembered account fields');
-  if(!count(entry.avatarVersion,0)||!bool(entry.automaticSignIn)||!instant(entry.lastUsed))fail('remembered account state');
-  return Object.freeze({accountId:entry.accountId as string,username:entry.username as string,displayName:entry.displayName as string,avatarVersion:entry.avatarVersion as number,automaticSignIn:entry.automaticSignIn as boolean,lastUsed:entry.lastUsed as string});
- });
- if(new Set(accounts.map(a=>a.accountId)).size!==accounts.length)fail('duplicate remembered accounts');
- // Exactly one account per installation may sign in automatically; two would
- // make which one signs in a race.
- if(accounts.filter(a=>a.automaticSignIn).length>1)fail('more than one automatic sign-in');
- return Object.freeze(accounts);
-}
-
 
 /** What `POST /v1/topshelf/token` returns to the signed-in tvOS app: the feed
  * token it hands the shelf extension, valid for thirty days (the app renews it
