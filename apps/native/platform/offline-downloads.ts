@@ -1,4 +1,4 @@
-import {downloadPreparation, downloadedBundle} from '../../../packages/client-core/src/downloads-service';
+import {downloadCopyReference, downloadPreparation, downloadedBundle} from '../../../packages/client-core/src/downloads-service';
 import {downloadedSubtitleText, keepDownloadsInStep, readDownload, removeDownloadedTitle, reportDownloadPlay} from '../../../packages/client-core/src/device-downloads';
 import {refreshOfflineReadingProgressResponse, syncOfflineReadingObservationResponse} from '../../../packages/client-core/src/reading-offline-coordination';
 import {readOfflineDownloadBundleResponse, readDownloadReceiptKeysResponse, issueDownloadReceiptsResponse, revalidateDownloadReceiptsResponse, revokeRemovedDownloadReceipt, syncOfflineDownloadPlaysResponse} from '../../../packages/client-core/src/download-coordination';
@@ -820,7 +820,7 @@ export class OfflineDownloads {
     }));
     if (JSON.stringify(pending) !== JSON.stringify(this.state.pendingDownloads ?? [])) this.publish({pendingDownloads: Object.freeze(pending)});
   }
-  /** Cancels only this viewer's local intent; the server's copy can serve other devices. */
+  /** Cancels this viewer's device request; the server's shared copy can still serve others. */
   async cancelPending(id: string) {
     const owner = this.ownerKey(); if (!owner) return;
     if (id.startsWith('selection-action:')) {
@@ -836,12 +836,16 @@ export class OfflineDownloads {
     const starting = this.starts.get(id);
     const entry = this.all.find(value => value.id === id && this.entryOwner(value) === owner);
     if (entry) {await this.remove(entry); return;}
+    const previousRemoval = this.stored.removed[owner]?.[id];
+    try {bucket(this.stored.removed, owner)[id] = downloadCopyReference(id);} catch { /* Older preparations have no rebuilt request reference. */ }
     delete this.stored.wanted[owner]?.[id]; delete this.stored.wantedPublications[owner]?.[id];
     if (!await this.persist()) {
+      if (previousRemoval) bucket(this.stored.removed, owner)[id] = previousRemoval; else delete this.stored.removed[owner]?.[id];
       if (wanted) bucket(this.stored.wanted, owner)[id] = wanted;
       if (publication) bucket(this.stored.wantedPublications, owner)[id] = publication;
       this.publishPending(); throw new Error(serviceText('downloads.deviceUnwritable'));
     }
+    void this.syncDownloads();
     if (starting) {
       const started = await starting;
       if (started && started.owner === owner) {
@@ -1145,8 +1149,9 @@ export class OfflineDownloads {
       held: async () => this.ownedEntries(owner).flatMap(e => e.downloadId ? [{downloadId: e.downloadId, itemId: e.itemId}] : []),
       remove: async ref => {if (!current()) return; for (const entry of this.ownedEntries(owner).filter(e => e.downloadId === ref.downloadId && e.itemId === ref.itemId)) await this.remove(entry, true);},
       fetch: async ref => {
-        if (!current() || Object.values(this.stored.removed[owner] ?? {}).some(r => r.downloadId === ref.downloadId && r.itemId === ref.itemId) || this.all.some(e => this.entryOwner(e) === owner && e.downloadId === ref.downloadId && e.itemId === ref.itemId)) return;
-        const request = await readDownload(api, ref.downloadId); if (!current()) return;
+        const removed = () => Object.values(this.stored.removed[owner] ?? {}).some(r => r.downloadId === ref.downloadId && r.itemId === ref.itemId);
+        if (!current() || removed() || this.all.some(e => this.entryOwner(e) === owner && e.downloadId === ref.downloadId && e.itemId === ref.itemId)) return;
+        const request = await readDownload(api, ref.downloadId); if (!current() || removed()) return;
         const title = request.items?.find(t => t.itemId === ref.itemId);
         if (title) await this.want([downloadPreparation(request, title)], undefined, service);
       },
