@@ -1,4 +1,5 @@
 export const settingsMessages = {
+  'next.settings.general.messageTooLong': 'A message can be at most 2,000 characters; this one has {count}.',
   'next.settings.appLog.empty': 'No recent app log entries to send.',
   'next.settings.appLog.recipient': 'Recipient: {owner}',
   'next.settings.appLog.sent': 'The app log was sent to {owner}.',

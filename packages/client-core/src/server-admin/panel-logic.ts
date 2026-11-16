@@ -1,4 +1,5 @@
 import {routePath} from "../../../contracts/src/route-paths.ts";
+import {callServer, type ServerRequester} from '../query/server-api.ts';
 /**
  * The rules behind the Server pages' panels that are not a settings document: what a broadcast
  * may carry, how a WebDAV dialog maps onto the server's credential rules, when "remove what's
@@ -26,6 +27,16 @@ export const clockText = (minute: number) => `${String(Math.floor(minute / 60)).
 export const clockMinutes = (value: string) => { const [h, m] = value.split(':').map(Number); return Math.min(1439, Math.max(0, (h || 0) * 60 + (m || 0))); };
 
 // ── A message to everyone ───────────────────────────────────────────────────────────────────
+
+/** Rule 80: "Message everyone" puts the owner's words in every person's notifications; "Administrators only"
+ * sends them to the owner and administrators. The rebuilt server keeps the words alone, up to 2,000 characters. */
+export type ServerMessageAudience = 'everyone' | 'admins';
+export const serverMessageCharacters = 2000;
+/** The server counts characters (code points) of the trimmed message. */
+export const serverMessageLength = (message: string): number => [...message.trim()].length;
+export function sendServerMessage(api: ServerRequester, audience: ServerMessageAudience, message: string, signal?: AbortSignal) {
+  return callServer(api, 'POST /v1/admin/notifications', {body: {audience, message: message.trim()}, signal});
+}
 
 /** CD-11: one operation id per broadcast; retries reuse it and the dedupe key derived from it. */
 export function broadcastBody(operationId: string, input: {audience: string; severity: string; title: string; body: string}) {
