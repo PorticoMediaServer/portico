@@ -4260,6 +4260,8 @@ export interface SubtitleFile {
   format: string;
   url: string;
   fontsUrl?: string;
+  companionUrl?: string;
+  linesUrl?: string;
   timeDomain?: string;
   offsetMs: number;
 }

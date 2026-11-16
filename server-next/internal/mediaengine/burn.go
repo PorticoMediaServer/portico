@@ -2,8 +2,7 @@ package mediaengine
 
 import (
 	"context"
-	"path/filepath"
-	"strings"
+	"errors"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -75,8 +74,11 @@ func burning(r playback.PlanRequest, facts mediafacts.Facts) (*burnTrack, error)
 }
 
 // burnLoader reads a plan's burned subtitle when the converter first needs it.
-func (e *Engine) burnLoader(p *planned) func(context.Context) (*streaming.BurnSubtitle, error) {
+func (e *Engine) burnLoader(p *planned, source streaming.Source) func(context.Context) (*streaming.BurnSubtitle, error) {
 	b := p.burn
+	if source == nil {
+		source = e.place("").streams.LibrarySource(p.path, p.place.Size, time.Unix(0, p.place.ModifiedNS))
+	}
 	return func(ctx context.Context) (*streaming.BurnSubtitle, error) {
 		// Taking a track out of a large film reads all of it once. Ten minutes covers a
 		// slow disk; the stream stopping ends it sooner.
@@ -85,23 +87,50 @@ func (e *Engine) burnLoader(p *planned) func(context.Context) (*streaming.BurnSu
 		out := &streaming.BurnSubtitle{Format: b.format, OffsetUS: b.nudgeMs * 1000}
 		var err error
 		if !b.track.Sidecar {
-			out.Data, err = e.place("").streams.SubtitleTrack(ctx, p.path, p.place.Size, time.Unix(0, p.place.ModifiedNS), b.index, !b.picture)
+			out.Data, err = e.place("").streams.SubtitleTrack(ctx, source, b.index, !b.picture)
 			return out, err
 		}
-		beside, err := e.db.FileOnDisk(ctx, b.track.FileID)
+		_, source, err := e.subtitleFile(ctx, b.track.FileID)
 		if err != nil {
 			return nil, err
 		}
-		if out.Data, err = e.place("").streams.SubtitleFile(ctx, beside.Path, beside.Size, time.Unix(0, beside.ModifiedNS)); err != nil {
+		if out.Data, err = e.place("").streams.SubtitleFile(ctx, source); err != nil {
 			return nil, err
 		}
 		switch {
 		case b.kind == "vobsub":
-			// The pictures are in the .sub file of the same name, which the scanner does not record.
-			out.Companion, err = e.place("").streams.SubtitleFile(ctx, strings.TrimSuffix(beside.Path, filepath.Ext(beside.Path))+".sub", 0, time.Time{})
+			id, findErr := e.db.SubtitleCompanion(ctx, b.track.FileID)
+			if findErr != nil {
+				return nil, findErr
+			}
+			_, source, err = e.subtitleFile(ctx, id)
+			if err == nil {
+				out.Companion, err = e.place("").streams.SubtitleFile(ctx, source)
+			}
 		case b.kind == "text":
 			out.Data, err = subtitles.TextAsASS(out.Data, subtitleFormat(b.track), 0)
 		}
 		return out, err
 	}
+}
+
+// subtitleFile uses the recorded local file or configured remote source for both
+// original delivery and burn-in. Neither path comes from the player's request.
+func (e *Engine) subtitleFile(ctx context.Context, id int64) (db.FileOnDisk, streaming.Source, error) {
+	file, err := e.db.FileOnDisk(ctx, id)
+	if errors.Is(err, db.ErrNotFound) && e.remote != nil {
+		var sourceID int64
+		sourceID, file, err = e.db.RemoteFileOf(ctx, id)
+		if err == nil {
+			storage, _, err := e.remote(ctx, sourceID)
+			if err != nil {
+				return file, nil, err
+			}
+			return file, streaming.RemoteFile(storage, file.Path, file.Size, time.Unix(0, file.ModifiedNS)), nil
+		}
+	}
+	if err != nil {
+		return file, nil, err
+	}
+	return file, e.place("").streams.LibrarySource(file.Path, file.Size, time.Unix(0, file.ModifiedNS)), nil
 }

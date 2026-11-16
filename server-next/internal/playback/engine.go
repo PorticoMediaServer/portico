@@ -233,9 +233,11 @@ type SubtitleFile struct {
 	Format  string `json:"format"`
 	URL     string `json:"url"`
 	// Original files retain source timestamps; the app applies OffsetMs.
-	FontsURL   string `json:"fontsUrl,omitempty"`
-	TimeDomain string `json:"timeDomain,omitempty"`
-	OffsetMs   int64  `json:"offsetMs"`
+	FontsURL     string `json:"fontsUrl,omitempty"`
+	CompanionURL string `json:"companionUrl,omitempty"`
+	LinesURL     string `json:"linesUrl,omitempty"`
+	TimeDomain   string `json:"timeDomain,omitempty"`
+	OffsetMs     int64  `json:"offsetMs"`
 }
 
 // Stream is a running stream. Its address carries its own permission, the grant, which dies

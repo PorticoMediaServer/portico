@@ -16,19 +16,21 @@ type TextRenditionPlan struct {
 	Revision                          int64
 	Language, Label, Grant            string
 	Selected, Forced, HearingImpaired bool
-	// Format is what the track is written in: srt, vtt, ass, ssa, smi or ttml.
+	// Format names text or original picture packets: srt, ass, pgs, vobsub, dvb, etc.
 	// Path, with the size and modified time the scanner recorded, is a subtitle
 	// file beside the video, inside a library folder; with no Path the track is
 	// track number Track of the stream's own file. OffsetUS is the viewer's
 	// timing nudge, moved into every cue the server sends: later when positive.
-	// Source is a subtitle on the same configured remote storage as its video.
-	Source   Source
-	Format   string
-	Path     string
-	Size     int64
-	Modified time.Time
-	Track    int
-	OffsetUS int64
+	// Source opens an inventoried local or configured remote sidecar.
+	Source Source
+	// Companion is the inventoried packet file of a VobSub index.
+	Companion Source
+	Format    string
+	Path      string
+	Size      int64
+	Modified  time.Time
+	Track     int
+	OffsetUS  int64
 }
 
 func publishTextManifests(dir string, p *DeliveryPlan) error {

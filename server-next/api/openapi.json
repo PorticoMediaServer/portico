@@ -14232,10 +14232,16 @@
       },
       "SubtitleFile": {
         "properties": {
+          "companionUrl": {
+            "type": "string"
+          },
           "fontsUrl": {
             "type": "string"
           },
           "format": {
+            "type": "string"
+          },
+          "linesUrl": {
             "type": "string"
           },
           "offsetMs": {

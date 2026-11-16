@@ -374,9 +374,11 @@ func sessionOut(v playback.Session) PlaybackSession {
 	out := PlaybackSession{ID: v.ID, Kind: sessionKind(v.Item.Kind), State: v.State, ItemID: v.Item.PublicID, VersionID: v.VersionID,
 		Queue: v.Queue, Channel: v.Channel, Lease: PlaybackLease{ExpiresAt: v.LeaseUntil.UTC(), ReportEveryMs: v.ReportEvery().Milliseconds()},
 		PlaybackInfo: v.Plan.PlaybackInfo, Command: v.Command}
-	subtitles := v.Stream.Subtitles
-	if subtitles == nil {
-		subtitles = []playback.SubtitleFile{}
+	subtitles := append([]playback.SubtitleFile{}, v.Stream.Subtitles...)
+	for i := range subtitles {
+		if subtitles[i].TimeDomain == "source-relative" {
+			subtitles[i].OffsetMs = v.Choice.SubtitleOffsetMs
+		}
 	}
 	out.Presentation = Presentation{Generation: v.Generation, Mode: v.Plan.Mode, URL: v.Stream.URL, StartPositionMs: v.StartPositionMs,
 		SeekID: v.SeekID, Engine: v.Plan.Player, Route: v.Plan.Route, Container: v.Plan.Container, BitrateKbps: v.Plan.BitrateKbps,

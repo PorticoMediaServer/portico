@@ -218,8 +218,8 @@ type planned struct {
 	strmFileID int64
 	// parts are an audiobook's files in order when it is in several, played as one book.
 	parts []streaming.JoinedPart
-	// text is the version's text subtitles, which are served beside the stream.
-	text []textTrack
+	// subtitles are served as WebVTT or original packets beside the stream.
+	subtitles []subtitleTrack
 	// nudgeMs is the viewer's subtitle timing nudge. sent says the server moves it into the
 	// subtitles it sends; otherwise the app is told it and applies it.
 	nudgeMs int64
@@ -232,9 +232,9 @@ type planned struct {
 	index *audiofacts.SeekIndex
 }
 
-// textTrack is one text subtitle: in a file beside the video, or track number index of
+// subtitleTrack is one subtitle: in a file beside the video, or track number index of
 // the video file itself.
-type textTrack struct {
+type subtitleTrack struct {
 	track    db.Track
 	format   string
 	index    int
@@ -574,12 +574,12 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	}
 	if burn != nil {
 		// The planner is told what the chosen subtitle is, so that it prefers a player that
-		// draws it. Words (plain or styled) can also be sent beside a stream as text, so they
-		// never call for burning by themselves; pictures cannot.
+		// draws it. Original packets can reach that player beside a stream; plain
+		// text remains available as WebVTT for players without a styled renderer.
 		if burn.kind != "text" {
 			choice.SubtitleKind = burn.kind
 		}
-		choice.SubtitleBesideStream = !burn.picture
+		choice.SubtitleBesideStream = true
 		if r.Choice.SubtitleDelivery == "burn" {
 			request.BurnIn = &streaming.BurnInSpec{ResourceID: r.Choice.SubtitleTrackID, Revision: 1, Format: burn.format}
 		}
@@ -611,13 +611,13 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 
 	if burn != nil && request.BurnIn == nil {
 		// Nobody asked for burning. A subtitle made of pictures is burned all the same when
-		// the player this plan chose does not draw that kind, or would be handed a stream
-		// (a picture subtitle cannot be sent beside one). Text never is: it is sent beside.
+		// the player this plan chose does not draw that kind. A capable player fetches
+		// the original packets beside the stream. Text still has its WebVTT fallback.
 		device := streaming.BaselineCapabilityDocument()
 		if request.Device != nil {
 			device = *request.Device
 		}
-		if burn.picture && streaming.SubtitleNeedsBurnIn(device.Profile(plan.Engine), burn.kind, plan.Mode, false) {
+		if burn.picture && streaming.SubtitleNeedsBurnIn(device.Profile(plan.Engine), burn.kind, plan.Mode, true) {
 			request.BurnIn = &streaming.BurnInSpec{ResourceID: r.Choice.SubtitleTrackID, Revision: 1, Format: burn.format}
 			if plan, err = streaming.Plan(request); err != nil {
 				return playback.Plan{}, playback.ErrUnsupported
@@ -651,7 +651,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	// Every text subtitle of the version is served beside the stream as WebVTT, whichever
 	// way the title plays, so changing subtitles never interrupts it. The chosen one is in
 	// force: drawn by the player itself from a file it plays directly, or fetched beside the
-	// stream. A subtitle made of pictures on a converted stream waits on burning in.
+	// stream. Picture subtitles need burning only without a declared renderer.
 	detail := out.Detail.(*planned)
 	if detail.burn = burn; burn != nil {
 		out.Subtitle = &playback.SubtitleInForce{TrackID: r.Choice.SubtitleTrackID, Kind: burn.kind, Delivery: "burn"}
@@ -663,16 +663,19 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		}
 		id := playback.TrackID(track)
 		chosen := id == r.Choice.SubtitleTrackID && !r.Choice.SubtitlesOff
-		text := textTrack{track: track, format: format, selected: chosen}
-		served := subtitleoffer.TextFormat(format)
+		text := subtitleTrack{track: track, format: format, selected: chosen}
+		kind := subtitles.RenderingFormat(format)
+		served := subtitleoffer.TextFormat(format) || kind != "text"
 		if served && !track.Sidecar {
 			text.index, served = fileTrack(r.Version, facts, db.StreamSubtitle, "subtitle", id)
 		}
 		if served {
-			detail.text = append(detail.text, text)
+			detail.subtitles = append(detail.subtitles, text)
 		}
 		switch {
 		case !chosen || burn != nil:
+		case served && kind != "text" && request.Device != nil && request.Device.Profile(plan.Engine).RendersSubtitle(kind):
+			out.Subtitle = &playback.SubtitleInForce{TrackID: id, Kind: kind, Delivery: "device"}
 		case out.Mode == "direct" && !track.Sidecar:
 			out.Subtitle = &playback.SubtitleInForce{TrackID: id, Kind: track.Codec, Delivery: "device"}
 		case served:
@@ -716,7 +719,7 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 	if p.audio != nil {
 		start.Request, start.Audio, start.SeekIndex = nil, p.audio, p.index
 	}
-	for _, text := range p.text {
+	for _, text := range p.subtitles {
 		track := text.track
 		rendition := streaming.TextRenditionPlan{Resource: playback.TrackID(track), Revision: 1, Language: track.Language, Label: track.Title,
 			Selected: text.selected, Forced: track.Forced, HearingImpaired: track.HearingImpaired, Format: text.format, Track: text.index}
@@ -725,35 +728,33 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 		}
 		if track.Sidecar {
 			// A subtitle no longer present is left out; the film still plays.
-			beside, err := e.db.FileOnDisk(ctx, track.FileID)
-			if err != nil && p.remoteID != 0 {
-				var sourceID int64
-				sourceID, beside, err = e.db.RemoteFileOf(ctx, track.FileID)
-				if err == nil {
-					storage, _, openErr := e.remote(ctx, sourceID)
-					err = openErr
-					if err == nil {
-						rendition.Source = streaming.RemoteFile(storage, beside.Path, beside.Size, time.Unix(0, beside.ModifiedNS))
-					}
-				}
-			}
+			beside, source, err := e.subtitleFile(ctx, track.FileID)
 			if err != nil {
 				continue
 			}
-			rendition.Path, rendition.Size, rendition.Modified = beside.Path, beside.Size, time.Unix(0, beside.ModifiedNS)
+			rendition.Path, rendition.Source = beside.Path, source
+			if subtitles.RenderingFormat(text.format) == "vobsub" {
+				id, err := e.db.SubtitleCompanion(ctx, track.FileID)
+				if err != nil {
+					continue
+				}
+				_, rendition.Companion, err = e.subtitleFile(ctx, id)
+				if err != nil {
+					continue
+				}
+			}
 		}
-		if text.format == "ass" || text.format == "ssa" {
+		if subtitles.RenderingFormat(text.format) != "text" {
 			start.OriginalSubtitles = append(start.OriginalSubtitles, rendition)
+		}
+		if !subtitleoffer.TextFormat(text.format) {
+			continue
 		}
 		if text.selected {
 			start.Subtitles = append([]streaming.TextRenditionPlan{rendition}, start.Subtitles...)
 		} else {
 			start.Subtitles = append(start.Subtitles, rendition)
 		}
-	}
-	if p.burn != nil {
-		// Read when the converter first needs it, beside the start: see StartRequest.BurnLoad.
-		start.BurnLoad = e.burnLoader(p)
 	}
 	// stream adds the addresses of the subtitles to what the session is told.
 	stream := func(s streaming.Stream) playback.Stream {
@@ -767,9 +768,19 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 		}
 		for _, original := range start.OriginalSubtitles {
 			base := subtitles.MediaBaseURL(s.Grant, original.Resource, original.Revision)
-			out.Subtitles = append(out.Subtitles, playback.SubtitleFile{TrackID: original.Resource,
-				Format: original.Format, URL: base + "/original." + original.Format, FontsURL: base + "/fonts",
-				TimeDomain: "source-relative", OffsetMs: p.nudgeMs})
+			for _, delivery := range subtitles.Deliveries(base, original.Format) {
+				if delivery.Format == "text" {
+					continue
+				}
+				format := delivery.Format
+				if original.Format == "ssa" {
+					format = "ssa"
+				}
+				out.Subtitles = append(out.Subtitles, playback.SubtitleFile{TrackID: original.Resource,
+					Format: format, URL: delivery.URL, FontsURL: delivery.FontsURL,
+					CompanionURL: delivery.CompanionURL, LinesURL: delivery.LinesURL,
+					TimeDomain: "source-relative", OffsetMs: p.nudgeMs})
+			}
 		}
 		return out
 	}
@@ -793,6 +804,10 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 			return playback.Stream{}, playback.ErrSourceUnavailable
 		}
 		start.Path, start.Source = "", streaming.RemoteFile(storage, p.path, p.place.Size, start.Modified)
+	}
+	if p.burn != nil {
+		// Read when the converter first needs it, after the source is confined.
+		start.BurnLoad = e.burnLoader(p, start.Source)
 	}
 	if r.Replaced != nil {
 		start.Replaced = func(s streaming.Stream) { r.Replaced(stream(s)) }

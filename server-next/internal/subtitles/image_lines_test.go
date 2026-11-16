@@ -30,14 +30,14 @@ func TestPGSLinesCountForcedCompositions(t *testing.T) {
 	b = append(b, pgsComposition(0x00)...)            // ordinary
 	b = append(b, pgsComposition(0x40|0x80, 0x40)...) // forced, cropped
 	b = append(b, pgsComposition(0x40, 0x00)...)      // one ordinary object: not forced
-	got := imageLines("pgs", b, nil)
+	got := ImageLines("pgs", b, nil)
 	if got != (Lines{Forced: 2, Total: 4}) || !got.Mixed() {
 		t.Fatalf("lines %+v", got)
 	}
-	if all := imageLines("pgs", pgsComposition(0x40), nil); all.Mixed() || all.Total != 1 {
+	if all := ImageLines("pgs", pgsComposition(0x40), nil); all.Mixed() || all.Total != 1 {
 		t.Fatalf("an all-forced track is not mixed: %+v", all)
 	}
-	if none := imageLines("pgs", []byte("not a sup"), nil); none.Total != 0 {
+	if none := ImageLines("pgs", []byte("not a sup"), nil); none.Total != 0 {
 		t.Fatalf("garbage %+v", none)
 	}
 }
@@ -71,7 +71,7 @@ func TestVobSubLinesCountForcedSubpictures(t *testing.T) {
 	b = append(b, vobsubPack(vobsubSPU(true))...)
 	b = append(b, vobsubPack(vobsubSPU(false))...)
 	b = append(b, vobsubPack(vobsubSPU(false))...)
-	got := imageLines("vobsub", []byte("idx"), b)
+	got := ImageLines("vobsub", []byte("idx"), b)
 	if got != (Lines{Forced: 1, Total: 3}) {
 		t.Fatalf("lines %+v", got)
 	}

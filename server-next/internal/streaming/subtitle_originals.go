@@ -38,15 +38,24 @@ func (s *Streams) serveSubtitleOriginal(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	var track *TextRenditionPlan
+	var ordinal int
 	for i := range st.originals {
 		candidate := &st.originals[i]
 		if candidate.Resource == parts[1] && strconv.FormatInt(candidate.Revision, 10) == parts[2] {
-			track = candidate
+			track, ordinal = candidate, i
 			break
 		}
 	}
-	if track == nil || track.Format != "ass" && track.Format != "ssa" {
+	if track == nil {
 		mediaError(w, ErrHLSArtifactNotFound)
+		return
+	}
+	if kind := subtitles.RenderingFormat(track.Format); kind == "pgs" || kind == "vobsub" || kind == "dvb" {
+		if len(parts) != 4 {
+			mediaError(w, ErrHLSArtifactNotFound)
+			return
+		}
+		s.servePictureOriginal(w, r, st, *track, ordinal, parts[3])
 		return
 	}
 	original := len(parts) == 4 && parts[3] == "original."+track.Format
