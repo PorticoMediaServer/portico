@@ -14,6 +14,28 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/live"
 )
 
+// Cancel an unbounded live response once the test has the packets it needs.
+type livePacketRecorder struct {
+	*httptest.ResponseRecorder
+	cancel context.CancelFunc
+}
+
+func (w *livePacketRecorder) Write(p []byte) (int, error) {
+	n, err := w.ResponseRecorder.Write(p)
+	if w.Body.Len() >= 188*4 {
+		w.cancel()
+	}
+	return n, err
+}
+func readLivePackets(t *testing.T, s *Server, address string) *httptest.ResponseRecorder {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	w := &livePacketRecorder{ResponseRecorder: httptest.NewRecorder(), cancel: cancel}
+	s.ServeHTTP(w, newRequest("GET", address, "", nil).WithContext(ctx))
+	return w.ResponseRecorder
+}
+
 // fakeProvider answers like a playlist host, an XMLTV guide, an Xtream provider and an
 // HDHomeRun tuner, all in this process. Nothing outside it is ever contacted.
 func fakeProvider(t *testing.T, now time.Time) *httptest.Server {
@@ -296,16 +318,12 @@ func TestWatchingASourcesChannelSharesItsTuner(t *testing.T) {
 	}
 
 	read := func(address string) int {
-		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-		defer cancel()
-		r := newRequest("GET", address, "", nil).WithContext(ctx)
-		w := serve(s, r)
+		w := readLivePackets(t, s, address)
 		if w.Code != 200 {
 			t.Logf("%s answered %d: %s", address, w.Code, w.Body)
 		}
 		return w.Body.Len()
 	}
-	time.Sleep(200 * time.Millisecond)
 	if n := read(first.Presentation.URL); n < 188*4 || n%188 != 0 {
 		t.Fatalf("reading live sent %d bytes", n)
 	}
@@ -339,10 +357,7 @@ func TestAnXtreamChannelPlaysWithItsSealedSignIn(t *testing.T) {
 		strings.Contains(w.Body.String(), "s3cret-word") {
 		t.Fatalf("watching answered %d: %s", w.Code, w.Body)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	time.Sleep(100 * time.Millisecond)
-	if w := serve(s, newRequest("GET", session.Presentation.URL, "", nil).WithContext(ctx)); w.Body.Len() < 188*4 {
+	if w := readLivePackets(t, s, session.Presentation.URL); w.Code != 200 || w.Body.Len() < 188*4 {
 		t.Fatalf("the stream sent %d bytes", w.Body.Len())
 	}
 }

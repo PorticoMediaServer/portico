@@ -237,6 +237,7 @@ func TestABlockThatCutsOffEndsOnTime(t *testing.T) {
 // The preview plays the same titles in the same order as the schedule saving makes.
 func TestThePreviewIsTheScheduleSavingMakes(t *testing.T) {
 	s, owner, _ := seededWith(t, 600, 0)
+	s.setClock(newRigClock(s.now()).Now)
 	films := libraryOfKind(t, s, owner, "movies")
 	b := librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"}}}
 	var preview LibraryChannelPreview
@@ -244,7 +245,7 @@ func TestThePreviewIsTheScheduleSavingMakes(t *testing.T) {
 		t.Fatalf("preview answered %d: %s", w.Code, w.Body)
 	}
 	ch := makeChannel(t, s, owner, "Same", b)
-	rows := programmes(t, s, ch.ID, time.Now().Add(-time.Minute), time.Now().Add(24*time.Hour))
+	rows := programmes(t, s, ch.ID, s.now().Add(-time.Minute), s.now().Add(24*time.Hour))
 	for n := 0; n < 5 && n < len(preview.Today) && n < len(rows); n++ {
 		got, _ := s.db.ProgrammeTitles(context.Background(), []int64{rows[n].ItemID})
 		if preview.Today[n].Title == nil || got[rows[n].ItemID].PublicID != preview.Today[n].Title.ID {
