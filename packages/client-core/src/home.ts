@@ -4,7 +4,7 @@ import {unreadableServerResponse} from './server-messages.ts';
 /** Server-composed home rows. Clients render membership, order and policy as published; they never rank, hide or page a row themselves. */
 import {validateContentEntry, type ContentEntry} from './library-content.ts';
 import type {Home} from '../../contracts/src/next/api.ts';
-import {entryFromItem, entriesFromItems, readHomeRows} from './items.ts';
+import {entryFromItem, readHomeRows} from './items.ts';
 import {parseBrowseNode, type BrowseNode, type BrowseSortSelection} from './browse.ts';
 import {firstOfEach, keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
 import {callServer} from './query/server-api.ts';
@@ -363,8 +363,24 @@ export async function readHomeViewRow(api: HomeApi, read: HomeViewRead, signal?:
   const query = {...Object.fromEntries(new URLSearchParams(read.query)), library: read.library, limit: HOME_VIEW_ROW_LENGTH};
   const page = await callServer(api, 'GET /v1/items', {query, signal});
   if (!page || !Array.isArray(page.items)) invalid();
-  return Object.freeze(firstOfEach('home', 'entries', entriesFromItems(page.items as never), entry => entry.id));
+  return Object.freeze(firstOfEach('home', 'entries', homeEntriesOf(page.items as never, ''), entry => entry.id));
 }
+
+/** What a Home card offers on the rebuilt server, which sends no per-card grants: the same as a title's page
+ * (detail.ts) for any profile, its own My List, Favorite, rating and lists, Watched where the title is watched, Play
+ * where it names something to play, and Remove from Continue Watching on a Continue row. Edit, refresh and delete
+ * are the owner's, from the title's page; downloads from the title's page too. */
+function homeActionsOf(item: Home['rows'][number]['items'][number], entry: ContentEntry, rowId?: string): HomeActions {
+  const play = !!entry.playback, watched = !['track', 'album', 'artist', 'collection', 'playlist'].includes(item.kind);
+  const state = item.state;
+  return Object.freeze({play, queue: play, playlist: true, collection: true, myList: true, favorite: true, watched, played: false, rating: true,
+    editMetadata: false, refreshMetadata: false, delete: false, download: false, details: true, ...(rowId?.startsWith('continue') ? {removeFromContinue: true} : {}),
+    state: Object.freeze({watchlisted: state.inList, favorite: state.favorite, watched: entry.watched ?? state.watched, rating: state.rating ?? null,
+      personalRevision: state.updatedAt ? Date.parse(state.updatedAt) : 0, containerRevision: 0}),
+    selection: Object.freeze({play, queue: play, playlist: true, collection: true, myList: true, favorite: true, watched, download: false, edit: false, refresh: false, delete: false})});
+}
+const homeEntriesOf = (items: Home['rows'][number]['items'], rowId: string) =>
+  keepReadable('home', 'entries', [...items], item => {const entry = entryFromItem(item); return entry ? Object.freeze({...entry, homeActions: homeActionsOf(item, entry, rowId)}) as HomeEntry : undefined;});
 
 /** Home as the server composes it for this profile: the rows it sends, in its order. A row with nothing in it is not
  * sent, except a saved view's row the server deferred: it is kept, empty, with how to read its titles. */
@@ -372,7 +388,7 @@ export function homeDocument(home: Home): HomeDocument {
   const rows = firstOfEach('home', 'rows', keepReadable('home', 'rows', home.rows, raw => {
     const row = raw as Home['rows'][number];
     if (!id(row.id)) return undefined;
-    const entries = Object.freeze(firstOfEach('home', 'entries', entriesFromItems(row.items), entry => entry.id));
+    const entries = Object.freeze(firstOfEach('home', 'entries', homeEntriesOf(row.items, row.id), entry => entry.id));
     const viewRead = typeof row.library === 'string' && row.library && typeof row.query === 'string' ? Object.freeze({library: row.library, query: row.query}) : undefined;
     const deferred = !entries.length && row.deferred === true && !!viewRead;
     if (!entries.length && !deferred) return undefined;
@@ -386,12 +402,9 @@ export function homeDocument(home: Home): HomeDocument {
     const card = entryFromItem(slide.entry), target = slide.resumeTarget ? entryFromItem(slide.resumeTarget) : undefined;
     const reason = parseServerText(slide.reason?.text);
     if (!card || !reason || slide.resumeTarget && !target) return undefined;
-    const play = slide.play === true, myList = slide.myList === true;
-    const homeActions: HomeActions = Object.freeze({play, myList, details: true, queue: false, playlist: false, collection: false, favorite: false,
-      watched: false, played: false, rating: false, editMetadata: false, refreshMetadata: false, delete: false, download: false,
-      state: Object.freeze({watchlisted: slide.entry.state.inList, favorite: slide.entry.state.favorite, watched: slide.entry.state.watched,
-        rating: slide.entry.state.rating ?? null, personalRevision: slide.entry.state.updatedAt ? Date.parse(slide.entry.state.updatedAt) : 0, containerRevision: 0}),
-      selection: Object.freeze({play, myList, queue: false, playlist: false, collection: false, favorite: false, watched: false, download: false, edit: false, refresh: false, delete: false})});
+    // The spotlight says itself whether its title plays and may go on My List; the rest is as on any Home card.
+    const play = slide.play === true, myList = slide.myList === true, base = homeActionsOf(slide.entry, card);
+    const homeActions: HomeActions = Object.freeze({...base, play, queue: base.queue && play, myList, selection: Object.freeze({...base.selection, play, queue: base.selection.queue && play, myList})});
     return Object.freeze({entry: Object.freeze({...card, homeActions}), reason: Object.freeze({kind: slide.reason.kind, text: reason}), ...(target ? {resumeTarget: target} : {})});
   }), slide => slide.entry.id).map(slide => oneSelectionIdentity(slide, rows));
   return Object.freeze({rows: Object.freeze(rows), spotlight: Object.freeze(spotlight), layout: Object.freeze({revision: 0, rowOrder: Object.freeze(rows.map(row => row.id)), hiddenRowIds: Object.freeze([])})});
