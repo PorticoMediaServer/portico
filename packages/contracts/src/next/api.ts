@@ -66,9 +66,6 @@ export interface ActivitySummary {
   lastScanAt?: string;
 }
 
-export interface Addr {
-}
-
 export interface AdminJob {
   id: string;
   kind: string;
@@ -1113,6 +1110,15 @@ export interface HomeRow {
   query?: string;
   nextCursor?: string;
   deferred?: boolean;
+}
+
+export interface HomeRowSource {
+  id: string;
+  library?: string;
+  sort?: string;
+  order?: string;
+  watched?: boolean;
+  inProgress?: boolean;
 }
 
 export interface HomeSpotlight {
@@ -3236,6 +3242,7 @@ export interface QueueSource {
   items?: string[];
   list?: string;
   view?: QueueView;
+  homeRow?: HomeRowSource;
   radio?: string;
   queue?: string;
   mix?: string;
@@ -4512,15 +4519,6 @@ export interface WebhookTest {
   delivered: boolean;
   status?: number;
   error?: string;
-}
-
-export interface addrDetail {
-}
-
-export interface addrDetailHandle {
-}
-
-export interface uint128 {
 }
 
 /** The body of every refusal. */

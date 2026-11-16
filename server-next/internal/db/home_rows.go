@@ -9,45 +9,9 @@ import (
 // sorts, filters, exact totals and cursors. Continue sources read only this profile's activity,
 // not its whole libraries; the query rechecks visibility before returning or counting anything.
 func (d *DB) HomeRowItems(ctx context.Context, v Viewer, row string, q ItemQuery) (ItemPage, error) {
-	var continuing []Item
-	var mood *MoodRow
-	switch row {
-	case "recently_added":
-		q.homeRecent = true
-		if q.Sort == "" {
-			q.Sort, q.Desc = SortAdded, true
-		}
-	case "continue", "continue_listening", "continue_books":
-		kinds := watchingKinds
-		if q.Library != "" {
-			kinds = nil
-		} else if row == "continue_listening" {
-			kinds = listeningKinds
-		} else if row == "continue_books" {
-			kinds = bookKinds
-		}
-		var err error
-		continuing, err = d.continueItems(ctx, v, kinds, q.Library, -1)
-		if err != nil {
-			return ItemPage{}, err
-		}
-		q.homeIDs = make([]int64, 0, len(continuing))
-		for _, item := range continuing {
-			q.homeIDs = append(q.homeIDs, item.ID)
-		}
-		if q.Sort == "" {
-			q.Sort, q.Desc = SortOrder, false
-		}
-	default:
-		choice, err := d.MoodRow(ctx, v, row)
-		if err != nil {
-			return ItemPage{}, err
-		}
-		mood = &choice
-		q.homeIDs, q.homeUnplayed = choice.Source, true
-		if q.Sort == "" {
-			q.Sort, q.Desc = SortOrder, false
-		}
+	q, continuing, mood, err := d.homeRowQuery(ctx, v, row, q)
+	if err != nil {
+		return ItemPage{}, err
 	}
 
 	if mood != nil && q.Sort == SortOrder {
@@ -125,4 +89,50 @@ func (d *DB) HomeRowItems(ctx context.Context, v Viewer, row string, q ItemQuery
 		}
 	}
 	return page, nil
+}
+
+// homeRowQuery keeps See all and Play on the same source and default order.
+func (d *DB) homeRowQuery(ctx context.Context, v Viewer, row string, q ItemQuery) (ItemQuery, []Item, *MoodRow, error) {
+	var continuing []Item
+	var mood *MoodRow
+	switch row {
+	case "recently_added":
+		q.homeRecent = true
+		if q.Sort == "" {
+			q.Sort, q.Desc = SortAdded, true
+		}
+	case "continue", "continue_listening", "continue_books":
+		kinds := watchingKinds
+		if q.Library != "" {
+			kinds = nil
+		} else if row == "continue_listening" {
+			kinds = listeningKinds
+		} else if row == "continue_books" {
+			kinds = bookKinds
+		}
+		var err error
+		continuing, err = d.continueItems(ctx, v, kinds, q.Library, -1)
+		if err != nil {
+			return q, nil, nil, err
+		}
+		q.homeIDs = make([]int64, 0, len(continuing))
+		for _, item := range continuing {
+			q.homeIDs = append(q.homeIDs, item.ID)
+		}
+		if q.Sort == "" {
+			q.Sort, q.Desc = SortOrder, false
+		}
+	default:
+		choice, err := d.MoodRow(ctx, v, row)
+		if err != nil {
+			return q, nil, nil, err
+		}
+		mood = &choice
+		q.homeIDs, q.homeUnplayed = choice.Source, true
+		if q.Sort == "" {
+			q.Sort, q.Desc = SortOrder, false
+		}
+	}
+
+	return q, continuing, mood, nil
 }
