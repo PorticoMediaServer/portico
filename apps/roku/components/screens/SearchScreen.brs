@@ -68,7 +68,9 @@ sub show(groups as object)
         items = []
         if group.kind = "person" and group.people <> invalid
             for each person in group.people
-                items.push({id: person.id, kind: "person", name: person.name, image: person.image})
+                face = pick(person.images, ["portrait", "photo", "profile", "poster"])
+                if face = "" then face = invalid
+                items.push({id: person.id, kind: "person", name: person.name, image: face})
             end for
         else if group.items <> invalid
             items = withoutReading(group.items)
