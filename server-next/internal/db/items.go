@@ -661,6 +661,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 
 	var library int64
 	var kindList string
+	libraryWide := q.List == "" && q.Collection == "" && q.Series == "" && q.Publication == nil
 	// A library, title or person the list is of is looked up first. One the viewer may not see
 	// is not found, exactly like one that does not exist, as it is when opened on its own.
 	if q.Library != "" {
@@ -828,7 +829,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		// With nothing asked for but a library, kinds and the tag, the total reads no row of
 		// items: item_tags knows each tagged item's library, kind and rating, and what is
 		// under a tagged title is counted from an index that holds each one's rating too.
-		if library != 0 && under != "" && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
+		if libraryWide && library != 0 && under != "" && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
 			q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" && len(q.Conditions) == 0 {
 			// When nothing of these kinds carries the tag itself, as with episodes, nothing can
 			// be counted twice, and each tagged title's run of descendants is simply counted.
@@ -893,7 +894,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		}
 		w.add(` AND EXISTS (SELECT 1 FROM media m WHERE m.item_id = i.id AND m.width IS NOT NULL AND `, resolutionSQL, ` = `, fmt.Sprint(class), `)`)
 	}
-	if q.homeIDs == nil && !q.homeRecent && library != 0 && kindList != "" && q.Parent == "" && q.Person == "" && q.Tag == "" && q.Genre == "" &&
+	if libraryWide && q.homeIDs == nil && !q.homeRecent && library != 0 && kindList != "" && q.Parent == "" && q.Person == "" && q.Tag == "" && q.Genre == "" &&
 		q.YearFrom == 0 && q.YearTo == 0 && q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" && len(q.Conditions) == 0 {
 		w.whole = true
 		if acc.maxAge == nil {
