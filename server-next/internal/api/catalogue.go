@@ -73,12 +73,8 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return Home{}, refuse(err)
 		}
-		// A reading library's row is what is being read; Continue Watching leaves reading out.
-		continueRow := s.db.ContinueWatchingIn
-		if l.Kind == db.LibraryBooks || l.Kind == db.LibraryComics {
-			continueRow = s.db.ContinueReadingIn
-		}
-		continuing, err := continueRow(r.Context(), viewer(r), l.PublicID)
+		// What is in progress in this library, whatever its kind.
+		continuing, err := s.db.ContinueIn(r.Context(), viewer(r), l.PublicID)
 		if err != nil {
 			return Home{}, err
 		}
@@ -270,6 +266,10 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return Home{}, err
 		}
+		listening, err := s.db.ContinueListening(r.Context(), viewer(r))
+		if err != nil {
+			return Home{}, err
+		}
 		reading, err := s.db.ContinueReading(r.Context(), viewer(r))
 		if err != nil {
 			return Home{}, err
@@ -284,6 +284,7 @@ func (s *Server) catalogueRoutes() {
 		}
 		home := []HomeRow{
 			{ID: "continue", Title: "Continue Watching", Shape: "landscape", Items: itemShapes(continuing)},
+			{ID: "continue_listening", Title: "Continue Listening", Shape: "poster", Items: itemShapes(listening)},
 			{ID: "continue_reading", Title: "Continue your books", Shape: "poster", Items: itemShapes(reading)},
 			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: itemShapes(recent)},
 		}

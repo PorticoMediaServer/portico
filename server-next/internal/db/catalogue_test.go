@@ -668,7 +668,7 @@ func TestHomeRowsAndEvents(t *testing.T) {
 	// no other, and nothing from a library the profile may not open.
 	byLibrary := l.viewers[8]
 	for _, lib := range l.libs {
-		if row, _ := l.d.ContinueWatchingIn(ctx, v, lib.PublicID); (lib.PublicID == l.libs[0].PublicID) != (len(row) == 1) {
+		if row, _ := l.d.ContinueIn(ctx, v, lib.PublicID); (lib.PublicID == l.libs[0].PublicID) != (len(row) == 1) {
 			t.Fatalf("continue watching of %s has %d titles; only the films library has the unfinished film", lib.Kind, len(row))
 		}
 		for _, who := range []db.Viewer{v, limited, byLibrary} {
