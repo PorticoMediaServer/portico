@@ -91,8 +91,15 @@ func (s *Server) job(r *http.Request) (db.Job, error) {
 		return job, libraryError(err)
 	}
 	c := CallerFrom(r.Context())
+	profile := jobs.ProfileOf(job)
+	if profile == 0 {
+		kind, known := s.jobs.Kind(job.Kind)
+		if c.Role != "owner" && c.Role != "admin" || known && kind.Access == jobs.Owner && c.Role != "owner" {
+			return job, ErrNotFound()
+		}
+	}
 	mine := job.OwnerID == c.UserID
-	if profile := jobs.ProfileOf(job); profile != 0 {
+	if profile != 0 {
 		mine = profile == c.ProfileID
 	}
 	if !mine && c.Role != "owner" && c.Role != "admin" {
