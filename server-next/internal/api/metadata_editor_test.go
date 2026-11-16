@@ -115,6 +115,37 @@ func TestUndoOfAnOlderChangeKeepsWhatCameAfter(t *testing.T) {
 	}
 }
 
+// The editor shows the sort title a person set, as they typed it, and empty when none was set:
+// never the server's sort key (Builder X, 16 Nov: the demo showed "portico hdr00000000002:10; …").
+func TestTheEditorShowsTheSortTitleAsTyped(t *testing.T) {
+	sh := newShelf(t, "Heat (1995).mkv")
+	var items ItemPage
+	sh.do("GET", "/v1/items?kind=movie&library="+sh.library, nil, &items, 200)
+	heat := items.Items[0].ID
+	var doc MetadataDocument
+	sh.do("GET", "/v1/admin/items/"+heat+"/metadata", nil, &doc, 200)
+	if v := doc.Fields["sortTitle"].Value; v != "" {
+		t.Fatalf("a sort title nobody set reads %q; want empty", v)
+	}
+	mine := "Heat 2: The Long Version"
+	sh.patch(heat, doc.Revision, MetadataPatch{SortTitle: &mine}, &doc, 200)
+	if f := doc.Fields["sortTitle"]; f.Value != mine || f.Source != "edit" || !f.Locked {
+		t.Fatalf("after setting it: %+v; want it as typed", f)
+	}
+	again := "Heat"
+	sh.patch(heat, doc.Revision, MetadataPatch{Title: &again}, &doc, 200)
+	if v := doc.Fields["sortTitle"].Value; v != mine {
+		t.Fatalf("after a title edit the sort title reads %q; want %q kept", v, mine)
+	}
+	// Undo of the edit that set it puts back no sort title of the person's own.
+	var history Page[MetadataHistoryEntry]
+	sh.do("GET", "/v1/admin/items/"+heat+"/metadata/history", nil, &history, 200)
+	sh.do("POST", "/v1/admin/items/"+heat+"/metadata/history/"+history.Items[len(history.Items)-1].ID+"/undo", nil, &doc, 200)
+	if v := doc.Fields["sortTitle"].Value; v != "" {
+		t.Fatalf("after undoing the edits the sort title reads %q; want empty", v)
+	}
+}
+
 // "Use it" (definition area 4, rule 23): beside a field a person edited, the editor offers the
 // provider's value, kept through a refresh, and taking it puts the provider's value back now,
 // unlocked and the provider's again.

@@ -44,6 +44,9 @@ func (im *importer) rereadLocal(id int64, it *ImportItem) error {
 	if local[FieldSortTitle] || local[FieldTitle] && !keep[FieldSortTitle] {
 		sets += ", sort_title = ?"
 		args = append(args, sorttext.Key(it.Title, it.SortTitle, language.String))
+		if err := im.ownSortTitle(id, it.SortTitle); err != nil {
+			return err
+		}
 	}
 	set(FieldOriginalTitle, "original_title", it.OriginalTitle)
 	set(FieldSummary, "summary", it.Summary)
