@@ -1,7 +1,7 @@
 import type {HttpLocalApi, LocalSession} from './index.ts';
 import type {DirectSnapshot} from './profile-management.ts';
 import {IdentityClient} from './identity-client.ts';
-import type {porticoSignIn, HostedRequestApi} from './portico-servers.ts';
+import type {HostedRequestApi} from './portico-servers.ts';
 import type {SignInKind} from './app-sessions.ts';
 import {CodedError} from './server-messages.ts';
 import {callServer} from './query/server-api.ts';
@@ -31,7 +31,6 @@ export type ProfileRecoveryPorts = Readonly<{
   temporary?: (session: LocalSession) => HttpLocalApi;
   portico?: PorticoProofSource;
   porticoPIN?: PorticoPINProofSource;
-  signIn?: typeof porticoSignIn;
 }>;
 
 const refused = (error: unknown, code: string) => (error as {code?: unknown} | null)?.code === code;
