@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
 func (sh *shelf) posters(id string) []ArtworkPicture {
@@ -225,5 +227,50 @@ func TestPicturesFillInAfterTheDetails(t *testing.T) {
 	}
 	if item.Images["poster"] == "" || item.Images["backdrop"] == "" || item.Images["logo"] == "" {
 		t.Fatalf("the picture pass did not fill in the film's pictures: %v", item.Images)
+	}
+}
+
+// Re-fetch chosen downloads the provider's picture in use again, keeping it chosen; a picture
+// that is not the provider's has nothing to fetch again (definition area 4, section 3).
+func TestRefetchChosenDownloadsTheProvidersPictureAgain(t *testing.T) {
+	sh := newShelf(t, "Heat (1995).mkv")
+	var films ItemPage
+	sh.do("GET", "/v1/items?kind=movie&library="+sh.library, nil, &films, 200)
+	heat := films.Items[0].ID
+	library, err := sh.s.db.LibraryID(context.Background(), sh.library)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sh.s.metadata.FetchPictures(context.Background(), library, 100); err != nil {
+		t.Fatal(err)
+	}
+	asked := sh.tmdb.PictureRequests.Load()
+	var page Page[ArtworkPicture]
+	sh.do("POST", "/v1/admin/items/"+heat+"/artwork/refetch?role=poster", nil, &page, 200)
+	if sh.tmdb.PictureRequests.Load() != asked+1 || len(page.Items) != 1 || !page.Items[0].Selected || page.Items[0].Source != "provider" {
+		t.Fatalf("Re-fetch asked the provider %d times; posters %+v", sh.tmdb.PictureRequests.Load()-asked, page.Items)
+	}
+	sh.tmdb.PicturesDown.Store(true)
+	sh.do("POST", "/v1/admin/items/"+heat+"/artwork/refetch?role=poster", nil, nil, 502)
+	sh.tmdb.PicturesDown.Store(false)
+	var picture bytes.Buffer
+	png.Encode(&picture, image.NewRGBA(image.Rect(0, 0, 30, 45)))
+	if w := sh.uploadPoster(sh.owner, heat, picture.Bytes()); w.Code != 201 {
+		t.Fatalf("upload answered %d", w.Code)
+	}
+	sh.do("POST", "/v1/admin/items/"+heat+"/artwork/refetch?role=poster", nil, nil, 409)
+}
+
+// Make from the video is for an episode only, and says so plainly when the server cannot read
+// video (the frame itself is mediaanalysis.MakeEpisodeThumbnail's, tested there).
+func TestMakeFromTheVideoIsForAnEpisode(t *testing.T) {
+	sh := shelfOf(t, db.LibraryShows, "Breaking Bad/Season 01/Breaking Bad - S01E01.mkv")
+	var episodes ItemPage
+	sh.do("GET", "/v1/items?kind=episode&library="+sh.library, nil, &episodes, 200)
+	var shows ItemPage
+	sh.do("GET", "/v1/items?kind=show&library="+sh.library, nil, &shows, 200)
+	sh.do("POST", "/v1/admin/items/"+shows.Items[0].ID+"/artwork/make", nil, nil, 409)
+	if w := call(t, sh.s, "POST", "/v1/admin/items/"+episodes.Items[0].ID+"/artwork/make", sh.owner, nil, nil); w.Code != 503 || refusalCode(w) != "no_decoder" {
+		t.Fatalf("Make from the video on a server with no decoder answered %d %s", w.Code, w.Body)
 	}
 }

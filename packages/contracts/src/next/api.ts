@@ -4870,6 +4870,8 @@ export interface Routes {
   'PUT /v1/admin/items/{id}/artwork/{role}': {access: 'admin'; request: ArtworkChoice; response: ArtworkPicturePage};
   'DELETE /v1/admin/items/{id}/artwork/{imageId}': {access: 'admin'; request: undefined; response: undefined};
   'POST /v1/admin/items/{id}/artwork/find': {access: 'admin'; request: undefined; response: ArtworkPicturePage};
+  'POST /v1/admin/items/{id}/artwork/refetch': {access: 'admin'; request: undefined; response: ArtworkPicturePage};
+  'POST /v1/admin/items/{id}/artwork/make': {access: 'admin'; request: undefined; response: ArtworkPicturePage};
   'POST /v1/admin/items/{id}/artwork': {access: 'admin'; request: undefined; response: ArtworkPicture};
   'GET /v1/admin/segments': {access: 'owner'; request: undefined; response: SegmentDetectionStatus};
   'GET /v1/admin/segments/titles': {access: 'owner'; request: undefined; response: SegmentTitlePage};
