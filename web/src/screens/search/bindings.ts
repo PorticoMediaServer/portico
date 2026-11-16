@@ -18,6 +18,7 @@ import type {SearchData, SearchGroupResult, SearchHistoryPage} from '@core/searc
 import {SearchGenresController} from './genres';
 import {SearchOnNowController} from './on-now';
 import {createSearchRows} from './rows';
+import {entryPlayable} from '@core/library-content.ts';
 
 /** Group narrowing shares counts only within the same actual base query.
  * Page size and recording do not change membership; library scope/order do. */
@@ -181,7 +182,7 @@ export function createSearchBindings(context: ScreenContext, queries: ViewerQuer
     },
     async play(entry: SearchEntry) {
       life.assert();
-      if (results.getSnapshot().phase !== 'ready' || !visible.has(entry) || !('libraryId' in entry) || !entry.libraryId || !entry.playback || entry.available !== true) throw new DOMException('Search playback changed', 'AbortError');
+      if (results.getSnapshot().phase !== 'ready' || !visible.has(entry) || !('libraryId' in entry) || !entry.libraryId || !entry.playback || !entryPlayable(entry)) throw new DOMException('Search playback changed', 'AbortError');
       await commandContext.effects.play({libraryId: entry.libraryId, itemId: entry.playback.itemId, startSeconds: entry.playback.startSeconds ?? 0, display: entryStartDisplay(entry)}, life.signal(), () => visible.has(entry));
     },
     canPlayArtist(entry: SearchEntry) {

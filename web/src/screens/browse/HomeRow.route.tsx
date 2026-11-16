@@ -24,6 +24,7 @@ import {addressCacheKey, addressedQuery, addressedQueryKey, addressedSearch, app
 import type {BrowseController, BrowseSource} from './controller';
 import {useBrowseController} from './browse-cache';
 import {queryKeys} from '@core/query/keys.ts';
+import {entryPlayable} from '@core/library-content.ts';
 
 /** Best match is the row's own server order; the frame draws no other default. */
 const bestMatch: readonly BrowseSortSelection[] = [{field: groupOrderSort, direction: 'asc'}];
@@ -116,7 +117,7 @@ function CommittedHomeRow({captured, context, row, owner, controller, routed, pr
       const current = () => openingCurrent() && controllerKey === routeKey && controller.getSnapshot().queryRevision === queryRevision
         && controller.getSnapshot().revision === revision && controller.contains(member.entry);
       return {onOpen: () => {if (current()) context.effects.openEntry(member.entry);},
-        onPlay: member.entry.playback && member.entry.libraryId && member.entry.available !== false && !member.entry.missing ? () => {
+        onPlay: member.entry.libraryId && entryPlayable(member.entry) ? () => {
           if (!current()) return;
           const entry = member.entry;
           void context.effects.play({libraryId: entry.libraryId!, itemId: entry.playback!.itemId, startSeconds: entry.playback!.startSeconds ?? 0, display: entryStartDisplay(entry)}, owner.life.signal(), current).catch(context.effects.reportError);

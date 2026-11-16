@@ -37,6 +37,12 @@ export type ContentHeading = Readonly<{ key: string; fallback: string; params?: 
 /** Explicit display fact on an already admitted Reading leaf. Commands still
  * obtain their own viewer-fenced mark response; progress never supplies this. */
 export type ReadingEntryMark = Readonly<{itemId: string; read: boolean; revision: number}>;
+/** Whether a card may offer Play: it names what it plays and is not known to be unavailable. A list row
+ * (a library page, Search, a row on a title's page) never says it is available, only an item's own read
+ * does, and every start reads the item again and refuses one that cannot play. */
+export function entryPlayable(entry: Readonly<{playback?: unknown; available?: boolean; missing?: boolean}>): boolean {
+  return !!entry.playback && entry.available !== false && entry.missing !== true;
+}
 export type ContentEntry = Readonly<{
   /** A displayed container's aggregate selection offers on Browse and content pages (MOB-030). An offer grants nothing by itself. */
   homeActions?: HomeActions;

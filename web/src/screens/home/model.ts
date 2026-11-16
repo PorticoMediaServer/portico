@@ -5,10 +5,11 @@ import {contentEntrySubject} from '@core/presentation/content-entry-subject.ts';
 import {cardText, type CardSubject, type TextEnvironment} from '@portico/client-core/kit-model';
 import {homeEntryCapabilities, homeEntrySelection} from '@core/home-selection.ts';
 import type {HomeSelectionPlaybackItem} from '@core/home-selection/index.ts';
+import {entryPlayable} from '@core/library-content.ts';
 
 /** A playback DTO alone is not a grant; resume keeps the actual separately selected child. */
 export function homePlaybackTarget(entry: ContentEntry, target: ContentEntry = entry) {
-  return homeEntryCapabilities(entry, {platform: 'web', playbackAvailable: true, queueAvailable: true}).playable && target.available !== false && !target.missing ? target.playback : undefined;
+  return homeEntryCapabilities(entry, {platform: 'web', playbackAvailable: true, queueAvailable: true}).playable && entryPlayable(target) ? target.playback : undefined;
 }
 
 /** A stale render cannot dispatch an entry/target pair absent from the current bounded Home document. */
