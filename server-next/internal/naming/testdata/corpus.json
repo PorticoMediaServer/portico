@@ -5428,6 +5428,20 @@
   },
   {
     "group": "year-edge-cases",
+    "path": "Portico HDR10 Test Pattern (2026)/Portico HDR10 Test Pattern (2026).mkv",
+    "kind": "movie",
+    "title": "Portico HDR10 Test Pattern",
+    "year": 2026
+  },
+  {
+    "group": "year-edge-cases",
+    "path": "The Proper Way (2019).mkv",
+    "kind": "movie",
+    "title": "The Proper Way",
+    "year": 2019
+  },
+  {
+    "group": "year-edge-cases",
     "path": "Movie.2019.1080p.[2020].mkv",
     "kind": "movie",
     "title": "Movie",
