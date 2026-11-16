@@ -180,6 +180,10 @@ func objectAudio(codec, profile string) string {
 
 func streamDetail(kind, codec string, width, height int, s probeStreamDetail) StreamDetail {
 	d := StreamDetail{Profile: streamText(s.Profile, 64), CodecTag: streamText(strings.Trim(s.CodecTag, "[]"), 16)}
+	// ffprobe uses a zero fourcc when this container has no sample entry.
+	if s.CodecTag == "[0][0][0][0]" {
+		d.CodecTag = ""
+	}
 	if s.Level > 0 && s.Level < 1000 {
 		d.Level = s.Level
 	}

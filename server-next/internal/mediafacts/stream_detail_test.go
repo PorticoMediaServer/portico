@@ -94,3 +94,18 @@ func TestInspectRecordsDetailForRealMedia(t *testing.T) {
 		t.Fatalf("detail did not survive storage: %+v", restored.Detail)
 	}
 }
+
+// Matroska has no MP4 sample entry. ffprobe's zero tag must not make an
+// otherwise playable HEVC film look incompatible with hvc1-only players.
+func TestAbsentCodecTagIsNotASampleEntry(t *testing.T) {
+	for _, tag := range []string{"", "[0][0][0][0]"} {
+		if got := streamDetail("video", "hevc", 1280, 720, probeStreamDetail{CodecTag: tag}).CodecTag; got != "" {
+			t.Fatalf("absent tag %q became sample entry %q", tag, got)
+		}
+	}
+	for _, tag := range []string{"hvc1", "hev1", "dvh1", "dvhe"} {
+		if got := streamDetail("video", "hevc", 1280, 720, probeStreamDetail{CodecTag: tag}).CodecTag; got != tag {
+			t.Fatalf("sample entry %q became %q", tag, got)
+		}
+	}
+}
