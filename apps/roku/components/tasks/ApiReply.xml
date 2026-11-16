@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="ApiReply" extends="Node">
+  <interface>
+    <field id="result" type="assocarray"/>
+    <field id="ctx" type="assocarray"/>
+  </interface>
+</component>

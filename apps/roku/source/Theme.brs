@@ -1,0 +1,55 @@
+' Shared look: colours, type and sizes from packages/design, for a 1920x1080 screen.
+' Every component reads these; a screen never carries its own colour or size.
+
+function colours() as object
+    return {
+        ink: "0x071018FF", raised: "0x10212DFF", raisedHigh: "0x162C3AFF", raisedBright: "0x1D3848FF",
+        overlay: "0x132634FF", line: "0x28404FFF", lineStrong: "0x3B5668FF", track: "0x35505FFF",
+        text: "0xEDF5FAFF", textSecondary: "0xBDCCD6FF", textTertiary: "0x96A9B5FF",
+        accent: "0x409FD4FF", accentStrong: "0x5CB3E2FF", focus: "0xD5EFFFFF", actionInk: "0x03121CFF",
+        white: "0xFFFFFFFF", danger: "0xF38B88FF"
+    }
+end function
+
+' Page geometry shared by every screen. `cardPad` is the headroom above and below a card inside its
+' list cell: a list cuts off whatever leaves the cell, and the card in focus grows.
+function metrics() as object
+    return {safeLeft: 200, safeRight: 56, railWidth: 150, railOpenWidth: 440, cardGap: 28, cardPad: 16, focusScale: 1.08, focusSpread: 30}
+end function
+
+' The ten-foot type scale (packages/design typeScale.tenFoot): [weight, size, line height or 0].
+function typeRoles() as object
+    return {
+        lockup: [800, 120, 0], lockupLong: [800, 84, 0], display: [800, 96, 0], lede: [400, 30, 42], title: [800, 44, 0], heading: [600, 32, 0],
+        rowHeading: [700, 32, 0], rowSubtitle: [400, 20, 0], nav: [700, 24, 0],
+        cardTitle: [600, 22, 0], cardSubtitle: [400, 20, 0], wideTitle: [700, 26, 0],
+        meta: [400, 24, 0], metaStrong: [700, 24, 0], eyebrow: [600, 24, 0], synopsis: [400, 24, 35],
+        button: [700, 26, 0], tag: [600, 20, 0], badge: [800, 18, 0], body: [400, 24, 33], caption: [400, 20, 27],
+        keycap: [700, 18, 0], coverTitle: [800, 26, 29]
+    }
+end function
+
+function fontFor(role as string) as object
+    r = typeRoles()[role]
+    f = createObject("roSGNode", "Font")
+    f.uri = "pkg:/fonts/manrope-" + r[0].toStr() + ".ttf"
+    f.size = r[1]
+    return f
+end function
+
+' Give a Label its role's font (and line spacing where the role sets a line height).
+sub setType(label as object, role as string, colour = "" as string)
+    r = typeRoles()[role]
+    label.font = fontFor(role)
+    if r[2] > 0 then label.lineSpacing = r[2] - r[1] * 1.25
+    if colour <> "" then label.color = colour
+end sub
+
+' A shelf's geometry for a card shape: {card: [w, h], headingGap, block}.
+' `block` is the height from one shelf's heading to the next.
+function shelfMetrics(shape as string) as object
+    card = [214, 320]
+    if shape = "landscape" then card = [400, 225]
+    if shape = "square" then card = [214, 214]
+    return {card: card, headingGap: 60, block: 60 + card[1] + 52}
+end function

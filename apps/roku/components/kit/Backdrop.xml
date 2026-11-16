@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The one page backdrop: the standard blue and green picture, and over its right-hand side the
+     art of whatever has focus, melted in by a scrim that is the backdrop itself fading out.
+     Roku cannot blur or mask, so both are pictures (tools/make-assets.py). -->
+<component name="Backdrop" extends="Group">
+  <interface>
+    <!-- Address of the art to show, or "" for none. Changes are shown once focus has rested. -->
+    <field id="art" type="string" onChange="onArt"/>
+  </interface>
+  <script type="text/brightscript" uri="Backdrop.brs"/>
+  <children>
+    <Poster id="base" uri="pkg:/images/backdrop.jpg" width="1920" height="1080"/>
+    <Poster id="artA" translation="[576,0]" width="1344" height="756" loadWidth="1344" loadHeight="756" loadDisplayMode="scaleToZoom" opacity="0"/>
+    <Poster id="artB" translation="[576,0]" width="1344" height="756" loadWidth="1344" loadHeight="756" loadDisplayMode="scaleToZoom" opacity="0"/>
+    <Poster id="scrim" uri="pkg:/images/art-scrim.png" translation="[576,0]" width="1344" height="756" visible="false"/>
+    <Timer id="rest" duration="0.3"/>
+    <Animation id="fade" duration="0.35" easeFunction="linear">
+      <FloatFieldInterpolator id="fadeIn" key="[0.0, 1.0]" keyValue="[0.0, 1.0]"/>
+      <FloatFieldInterpolator id="fadeOut" key="[0.0, 1.0]" keyValue="[1.0, 0.0]"/>
+    </Animation>
+  </children>
+</component>

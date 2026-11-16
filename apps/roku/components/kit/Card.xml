@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One card, for every row and grid. Its content node says what to draw:
+     art (address), title, sub, progress (0 to 1, below 0 for none), badge, overlay (text over the art, as on wide cards). -->
+<component name="Card" extends="Group">
+  <interface>
+    <field id="itemContent" type="node" onChange="onContent"/>
+    <field id="width" type="float" onChange="onLayout"/>
+    <field id="height" type="float" onChange="onLayout"/>
+    <field id="focusPercent" type="float" onChange="onFocus"/>
+    <field id="rowListHasFocus" type="boolean" onChange="onFocus"/>
+    <field id="gridHasFocus" type="boolean" onChange="onFocus"/>
+  </interface>
+  <script type="text/brightscript" uri="Card.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <children>
+    <!-- Roku rounds a picture's corners only through a mask, and a masked group ignores scale. So the
+         card in focus grows in two ways at once: the plate and the words by scale, the masked
+         picture by being drawn larger. -->
+    <Group id="frame">
+    <Group id="under">
+      <Poster id="plate" uri="pkg:/images/round-14.9.png" blendColor="0x10212DFF"/>
+    </Group>
+    <MaskGroup id="clip">
+      <Poster id="art" loadDisplayMode="scaleToZoom"/>
+      <Poster id="shade" uri="pkg:/images/card-shade.png" visible="false"/>
+    </MaskGroup>
+    <Group id="over">
+      <!-- A title with no picture gets a cover made from its name: one of eight tints, the same in every Portico app. -->
+      <Group id="made" visible="false">
+        <Label id="madeGlyph" horizAlign="right" opacity="0.085"/>
+        <Rectangle id="madeRule" height="3" color="0xEDF5FA8C"/>
+        <Label id="madeTitle" wrap="true" maxLines="5"/>
+      </Group>
+      <Label id="title" visible="false"/>
+      <Label id="sub" visible="false"/>
+      <Rectangle id="track" height="6" color="0xEDF5FA40" visible="false"/>
+      <Rectangle id="bar" height="6" color="0x409FD4FF" visible="false"/>
+      <Poster id="badgePlate" uri="pkg:/images/round-6.9.png" blendColor="0x409FD4FF" visible="false"/>
+      <Label id="badge" visible="false"/>
+    </Group>
+    </Group>
+  </children>
+</component>
