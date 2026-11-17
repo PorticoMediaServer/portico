@@ -2,7 +2,7 @@
  * in the private repository), in the shapes the apps' sign-in screens and their sign-in store
  * already use. The apps keep both tokens in their own store (`CredentialSessionService`); there is
  * no cookie. The calls themselves are `porticoAccount`'s, in token mode. */
-import {porticoAccount, ServicesError, type Device, type HeldSignIn, type Tokens} from './portico-account.ts';
+import {porticoAccount, ServicesError, type Device, type HeldSignIn, type Tokens, type Provider} from './portico-account.ts';
 import {ApiError, type HostedSession} from './http.ts';
 import type {CredentialApi} from './credentials.ts';
 import {MFARequiredError, parseSecurityState, type AccountScope, type SecurityState, type IdentityOptions, type MFAChallenge, type Registration} from './hosted-security.ts';
@@ -10,6 +10,9 @@ import {serverNow} from './server-clock.ts';
 
 /** A sign-in lasts 90 days from last use; every renewal starts the 90 days again. */
 export const PORTICO_SIGN_IN_LIFETIME_MS = 90 * 86400000;
+
+/** Only the opening keeps the provider proof; nothing here is persisted. */
+export type PorticoProviderProof = {id: string} & ({identityToken: string} | {code: string; secret: string});
 
 /** What a person typed that Services refused, shown as "check what you typed" rather than by its status. */
 const typedWrong = new Set(['credentials', 'two_step_wrong', 'code_wrong']);
@@ -77,8 +80,8 @@ export class PorticoServicesAccountClient {
     return {password: true, registration: email, recovery: email, accountSecurity: false, verifiedContactRequired: true, providers: []};
   }
   /** Tokens to the apps' session record, with the account they belong to. */
-  private async session(tokens: Tokens): Promise<HostedSession> {
-    const account = await refused(porticoAccount(heldFor(tokens.accessToken), this.origin, {fetcher: this.fetcher}).account());
+  private async session(tokens: Tokens, signal?: AbortSignal): Promise<HostedSession> {
+    const account = await refused(porticoAccount(heldFor(tokens.accessToken), this.origin, {fetcher: this.fetcher}).account(signal));
     return hostedSessionFrom(tokens, {id: account.id, username: account.username, displayName: account.displayName}, this.newFamily());
   }
   /** A password sign-in; an account with two-step on throws the challenge the screen asks the code for. */
@@ -108,6 +111,26 @@ export class PorticoServicesAccountClient {
   /** Account help: a reset code goes to the account's confirmed email address; Services answers the
    * same whether or not it has one. */
   async recover(email: string): Promise<void> { await refused(this.anyone.askPasswordReset(email)); }
+  async startProvider(provider: Provider, secretHash: string, nativeApple: boolean, signal: AbortSignal) {
+    const client = porticoAccountForCall('', this.origin, this.fetcher ?? fetch, signal);
+    return refused<{id: string; expiresAt: string; nonce?: string; authorizeUrl?: string}>(nativeApple ? client.startAppleSignIn() : client.startProvider(provider, secretHash));
+  }
+  /** Completion runs inside the app's existing credential owner, including late-result cleanup. */
+  async completeProvider(proof: PorticoProviderProof, chosen: {username?: string; displayName?: string}, signal: AbortSignal): Promise<HostedSession> {
+    const client = porticoAccountForCall('', this.origin, this.fetcher ?? fetch, signal);
+    const answer = await refused('identityToken' in proof
+      ? client.completeAppleSignIn(proof.id, proof.identityToken, this.device, chosen)
+      : client.completeProvider(proof.id, proof.code, proof.secret, this.device, chosen));
+    if (answer.twoStep) throw new MFARequiredError({mfaRequired: true, challengeId: answer.twoStep.challengeId, challengeToken: answer.twoStep.challengeId,
+      expiresAt: new Date(serverNow() + 5 * 60000).toISOString()});
+    if (!answer.tokens) throw new ApiError(502, 'invalid_response', 'portico_services_sign_in_answer');
+    try {return await this.session(answer.tokens, signal);}
+    catch (error) {
+      // Services issued this sign-in, but the account read failed: no owner can adopt it.
+      void this.anyone.endWith(answer.tokens.accessToken).catch(() => {});
+      throw error;
+    }
+  }
 }
 /** A sign-up waiting for its code, in the shape the apps' screens show (an hour, as the email says). */
 const pending = (accountId: string, address: string): Registration => Object.freeze({kind: 'registration', registrationId: accountId, status: 'contact_pending',
