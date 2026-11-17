@@ -775,7 +775,9 @@ func (d *DB) SaveQueueAsPlaylist(ctx context.Context, v Viewer, publicID, name, 
 			return err
 		}
 		if listID != "" {
-			return tx.QueryRow(`SELECT entry_count FROM lists WHERE public_id = ?`, listID).Scan(&entries)
+			l, err := readList(ctx, tx, v, acc, listID)
+			entries = l.Count
+			return err
 		}
 		listID = NewID("lst")
 		at := now.UnixMilli()
