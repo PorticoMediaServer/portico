@@ -159,7 +159,7 @@ export function parseGuideChannels(value: unknown, sources: readonly GuideSource
   const tuneAvailable = v.tuneAvailable === true && (v.tuneUnavailableReason ?? '') === '', recordAvailable = v.recordAvailable === true && (v.recordUnavailableReason ?? '') === '' && v.provenance !== 'library-channel';
   const tuneUnavailableReason = unavailable('channel.tuneUnavailableReason', tuneAvailable, v.tuneUnavailableReason ?? ''), recordUnavailableReason = unavailable('channel.recordUnavailableReason', recordAvailable, v.recordUnavailableReason ?? '');
   // A logo that is not one of this server's own pictures is not shown.
-  let logoPath=v.logoPath??'';if(typeof logoPath!=='string'||logoPath!==''&&!/^\/v1\/items\/[A-Za-z0-9_-]{1,128}\/art\/poster$/.test(logoPath)){noteSkipped('guide','channel.logoPath');logoPath='';}
+  let logoPath=v.logoPath??'';if(typeof logoPath!=='string'||logoPath!==''&&!/^\/v1\/(?:items\/[A-Za-z0-9_-]{1,128}\/art\/poster|images\/[a-f0-9]{64})$/.test(logoPath)){noteSkipped('guide','channel.logoPath');logoPath='';}
   const mark = parseChannelMark(v.mark);
   ids.add(v.id);
   const source=sources.find(s=>s.id===v.sourceId&&s.provenance===v.provenance)!;

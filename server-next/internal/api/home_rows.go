@@ -34,6 +34,8 @@ func (s *Server) homeRow(r *http.Request, _ None) (HomeRow, error) {
 		row.Title = "Continue Listening"
 	case "continue_books":
 		row.Title = "Continue your books"
+	case "on_now":
+		return s.onNowHomeRow(r)
 	case "recently_released":
 		row.Title = "Recently Released"
 	case "popular":

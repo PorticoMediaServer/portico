@@ -149,14 +149,28 @@ type LiveChannelQuery struct {
 
 // LiveChannels reads a page of channels in use, with the profile's own marks. It reads a run
 // of one ordered index and stops when the page is full, or, for favourites, the profile's own
-// marked rows. Who may see each channel is decided by the caller, through one function.
+// marked rows. Library limits apply before the SQL page limit; programme visibility is
+// checked by the caller when it reads the listings.
 func (d *DB) LiveChannels(ctx context.Context, v Viewer, q LiveChannelQuery) ([]LiveChannel, error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
 	order, after := "c.number, c.id", "(c.number, c.id) > (@number, @id)"
 	if q.ByName {
 		order, after = "c.sort_name, c.id", "(c.sort_name, c.id) > (@name, @id)"
 	}
 	from, where := q.clauses()
-	rows, err := d.read.QueryContext(ctx, `SELECT `+liveChannelColumns+` FROM `+from+liveChannelJoins+`
+	if !q.Owner {
+		acc, err := loadAccess(ctx, tx, v)
+		if err != nil {
+			return nil, err
+		}
+		where += ` AND (c.kind<>2 OR NOT EXISTS(SELECT 1 FROM json_each(l.libraries) chosen WHERE chosen.value NOT IN
+	  (SELECT allowed.public_id FROM libraries allowed WHERE ` + acc.libraryVisible("allowed.id") + `)))`
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT `+liveChannelColumns+` FROM `+from+liveChannelJoins+`
 		WHERE `+where+` AND `+after+` ORDER BY `+order+` LIMIT @limit`, q.args(v)...)
 	if err != nil {
 		return nil, err

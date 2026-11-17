@@ -3718,6 +3718,287 @@
         ],
         "type": "object"
       },
+      "HomeChannel": {
+        "properties": {
+          "actions": {
+            "$ref": "#/components/schemas/HomeLiveActions"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/HomeLiveChannel"
+          },
+          "source": {
+            "$ref": "#/components/schemas/HomeLiveSource"
+          }
+        },
+        "required": [
+          "source",
+          "channel",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "HomeLive": {
+        "properties": {
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/HomeChannel"
+            },
+            "type": "array"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/LiveChannelGroup"
+            },
+            "type": "array"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "sort": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "observedAt",
+          "expiresAt",
+          "sort",
+          "group",
+          "groups",
+          "channels"
+        ],
+        "type": "object"
+      },
+      "HomeLiveActions": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "play": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "play",
+          "favorite"
+        ],
+        "type": "object"
+      },
+      "HomeLiveChannel": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "guide": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "logoPath": {
+            "type": "string"
+          },
+          "mark": {
+            "$ref": "#/components/schemas/HomeLiveMark"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "preferenceRevision": {
+            "type": "integer"
+          },
+          "programmes": {
+            "items": {
+              "$ref": "#/components/schemas/HomeLiveProgramme"
+            },
+            "type": "array"
+          },
+          "provenance": {
+            "type": "string"
+          },
+          "recordAvailable": {
+            "type": "boolean"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "tuneAvailable": {
+            "type": "boolean"
+          },
+          "tuneUnavailableReason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sourceId",
+          "provenance",
+          "name",
+          "number",
+          "group",
+          "generation",
+          "mark",
+          "programmes",
+          "tuneAvailable",
+          "recordAvailable",
+          "tuneUnavailableReason",
+          "guide",
+          "favorite",
+          "hidden",
+          "preferenceRevision"
+        ],
+        "type": "object"
+      },
+      "HomeLiveEpisode": {
+        "properties": {
+          "number": {
+            "type": "integer"
+          },
+          "season": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "HomeLiveMark": {
+        "properties": {
+          "seed": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "seed"
+        ],
+        "type": "object"
+      },
+      "HomeLiveProgramme": {
+        "properties": {
+          "channelId": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "end": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "episode": {
+            "$ref": "#/components/schemas/HomeLiveEpisode"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lineage": {
+            "type": "string"
+          },
+          "rating": {
+            "$ref": "#/components/schemas/HomeLiveRating"
+          },
+          "start": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "channelId",
+          "title",
+          "start",
+          "end",
+          "lineage",
+          "description"
+        ],
+        "type": "object"
+      },
+      "HomeLiveRating": {
+        "properties": {
+          "system": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "system",
+          "value"
+        ],
+        "type": "object"
+      },
+      "HomeLiveSource": {
+        "properties": {
+          "availableEnd": {
+            "type": "string"
+          },
+          "availableStart": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "provenance": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "refreshState": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "generation",
+          "publishedAt",
+          "availableStart",
+          "availableEnd",
+          "provenance",
+          "refreshState"
+        ],
+        "type": "object"
+      },
       "HomeRow": {
         "properties": {
           "deferred": {
@@ -3737,6 +4018,9 @@
           },
           "library": {
             "type": "string"
+          },
+          "live": {
+            "$ref": "#/components/schemas/HomeLive"
           },
           "nextCursor": {
             "type": "string"

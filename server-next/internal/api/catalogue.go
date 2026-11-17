@@ -316,6 +316,11 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return Home{}, err
 		}
+		onNow, err := s.initialOnNowHomeRow(r)
+		if err != nil {
+			return Home{}, err
+		}
+		home = append(home, onNow)
 		rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, append(home, views...), withHidden)
 		if err == nil {
 			err = s.fillViewRows(r, rows)
@@ -751,7 +756,7 @@ func because(from []db.MoodReason) string {
 func shownRows(rows []HomeRow) []HomeRow {
 	out := []HomeRow{}
 	for _, row := range rows {
-		if len(row.Items) > 0 || row.Hidden || row.Deferred {
+		if len(row.Items) > 0 || row.Live != nil && len(row.Live.Channels) > 0 || row.Hidden || row.Deferred {
 			out = append(out, row)
 		}
 	}

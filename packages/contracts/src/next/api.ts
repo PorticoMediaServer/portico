@@ -1109,6 +1109,86 @@ export interface Home {
   spotlight?: HomeSpotlight[];
 }
 
+export interface HomeChannel {
+  source: HomeLiveSource;
+  channel: HomeLiveChannel;
+  actions: HomeLiveActions;
+}
+
+export interface HomeLive {
+  revision: string;
+  observedAt: string;
+  expiresAt: string;
+  sort: string;
+  group: string;
+  groups: LiveChannelGroup[];
+  channels: HomeChannel[];
+}
+
+export interface HomeLiveActions {
+  play: boolean;
+  favorite: boolean;
+}
+
+export interface HomeLiveChannel {
+  id: string;
+  sourceId: string;
+  provenance: string;
+  name: string;
+  number: string;
+  group: string;
+  generation: string;
+  logoPath?: string;
+  mark: HomeLiveMark;
+  programmes: HomeLiveProgramme[];
+  tuneAvailable: boolean;
+  recordAvailable: boolean;
+  tuneUnavailableReason: string;
+  guide: string;
+  favorite: boolean;
+  hidden: boolean;
+  preferenceRevision: number;
+}
+
+export interface HomeLiveEpisode {
+  season?: number;
+  number?: number;
+}
+
+export interface HomeLiveMark {
+  text: string;
+  seed: string;
+}
+
+export interface HomeLiveProgramme {
+  id: string;
+  channelId: string;
+  title: string;
+  start: string;
+  end: string;
+  lineage: string;
+  description: string;
+  subtitle?: string;
+  episode?: HomeLiveEpisode;
+  rating?: HomeLiveRating;
+}
+
+export interface HomeLiveRating {
+  system: string;
+  value: string;
+}
+
+export interface HomeLiveSource {
+  id: string;
+  name: string;
+  generation: string;
+  publishedAt: string;
+  availableStart: string;
+  availableEnd: string;
+  provenance: string;
+  refreshState: string;
+}
+
 export interface HomeRow {
   total?: number;
   id: string;
@@ -1116,6 +1196,7 @@ export interface HomeRow {
   reason?: string;
   shape: string;
   items: Item[];
+  live?: HomeLive;
   hidden?: boolean;
   library?: string;
   query?: string;
