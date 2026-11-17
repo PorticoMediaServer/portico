@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -68,7 +69,17 @@ func (s *Server) fillViewRows(r *http.Request, rows []HomeRow) error {
 			continue
 		}
 		filled++
-		page, query, err := s.viewRowItems(ctx, r, row.Library, row.Query)
+		var page db.ItemPage
+		query := row.Query
+		var err error
+		if strings.HasPrefix(row.ID, "collection:") {
+			page, err = s.db.HomeRowItems(ctx, viewer(r), row.ID, db.ItemQuery{Library: row.Library, Limit: viewRowLength})
+			if errors.Is(err, db.ErrNotFound) {
+				page, err = db.ItemPage{}, nil
+			}
+		} else {
+			page, query, err = s.viewRowItems(ctx, r, row.Library, row.Query)
+		}
 		if ctx.Err() != nil && r.Context().Err() == nil {
 			filled = filledViewRows // out of time: this row and the rest stay deferred
 			continue

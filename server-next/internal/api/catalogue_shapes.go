@@ -453,7 +453,7 @@ type HomeRow struct {
 	// Hidden is true only on GET /v1/home?hidden=include, for a row the profile hid: it is sent
 	// with its title and no items, so Customize Home can offer to show it again.
 	Hidden bool `json:"hidden,omitempty"`
-	// Library and Query are a saved view's, on its row "view:<id>": the row's titles are
+	// Library and Query are a saved-view or library-collection row's: its titles are
 	// GET /v1/items?library={library}&{query}, which is also how the row loads more.
 	Library string `json:"library,omitempty"`
 	Query   string `json:"query,omitempty"`
@@ -461,7 +461,7 @@ type HomeRow struct {
 	// more with GET /v1/items?library={library}&{query}&cursor={nextCursor}, in the same order,
 	// a random one included. Empty when the view has no more.
 	NextCursor string `json:"nextCursor,omitempty"`
-	// Deferred is a saved-view row Home sent without reading its titles. The app reads them as
+	// Deferred is a saved-view or collection row sent without its titles. The app reads them as
 	// the row comes near the screen; a deferred row may turn out empty, and is then not drawn.
 	Deferred bool `json:"deferred,omitempty"`
 }
