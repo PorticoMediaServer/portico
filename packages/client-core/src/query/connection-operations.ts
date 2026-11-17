@@ -106,24 +106,6 @@ export function createLocalDeviceApprovalTransport(request: HttpLocalApi['reques
     opening.check();throwIfAborted(stop);return value;
   }});
 }
-export function createHostedTVAuthorization<T = unknown>(api: ViewerRequester, requestId: string, publicKey: string, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(hostedPath('device_authorization_create'), 'POST', hostedBody('device_authorization_create', {requestId, ...tvIdentity(), protocol: 'tv-x25519-v1', publicKey}), signal);
-}
-export function pollHostedTVAuthorization<T = unknown>(api: ViewerRequester, deviceCode: string, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(hostedPath('tv_authorization_token'), 'POST', hostedBody('tv_authorization_token', {deviceCode}), signal);
-}
-export function cancelHostedTVAuthorization<T = unknown>(api: ViewerRequester, deviceCode: string, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(hostedPath('device_authorization_cancel'), 'POST', hostedBody('device_authorization_cancel', {deviceCode}), signal);
-}
-export function requestHostedRecovery(api: {request(path: string, method: string, body?: unknown, signal?: AbortSignal): Promise<unknown>}, identifier: string, requestId: string, signal?: AbortSignal): Promise<unknown> {
-  return api.request(hostedPath('account_recovery_request'), 'POST', hostedBody('account_recovery_request', {identifier, requestId}), signal);
-}
-export function completeHostedRecovery(api: {request(path: string, method: string, body?: unknown, signal?: AbortSignal): Promise<unknown>}, token: string, password: string, factor: string, signal: AbortSignal): Promise<unknown> {
-  return api.request(hostedPath('account_recovery_complete'), 'POST', hostedBody('account_recovery_complete', {token, newPassword: password, factor: factor.trim()}), signal);
-}
-export function confirmHostedEmailLink(api: {request(path: string, method: string, body?: unknown, signal?: AbortSignal): Promise<unknown>}, token: string, signal: AbortSignal): Promise<unknown> {
-  return api.request(hostedPath('email_link_confirm'), 'POST', hostedBody('email_link_confirm', {token}), signal);
-}
 export function leaveHostedServer(api: {request(path: string, method: string, body?: unknown, signal?: AbortSignal): Promise<unknown>}, serverId: string, signal: AbortSignal): Promise<unknown> {
   return api.request(hostedEncodedPath('server_leave', {id: encodeURIComponent(serverId)}), 'POST', hostedBody('server_leave', {}), signal);
 }
@@ -163,24 +145,9 @@ export async function readConnectionFacts(origin: string, signal: AbortSignal, f
   return typeof system?.atHome === 'boolean' ? {remote: !system.atHome} : {};
 }
 
-function tvIdentity() {
-  const value = installationIdentity();
-  if (!value) throw Object.assign(new Error('native_tv_consent_invalid'), {code: 'invalid_consent'});
-  return {deviceName: value.name, platform: value.platform, appVersion: value.appVersion};
-}
-
 export function readHostedSecurity<T = unknown>(api: ViewerRequester, signal?: AbortSignal): Promise<T> {
   return api.request<T>(hostedPath('account_security_get'), 'GET', undefined, signal);
 }
 export function readHostedServers<T = unknown>(api: ViewerRequester, signal?: AbortSignal): Promise<T> {
   return api.request<T>(hostedPath('servers_list'), 'GET', undefined, signal);
-}
-
-/** Anonymous TV authorization has no remembered bearer; native IO is injected. */
-export function createHostedTVAuthorizationApi(origin: string, fetcher: typeof fetch): HttpLocalApi {
-  return new HttpLocalApi(origin, '', fetcher);
-}
-
-export function cancelHostedIdentity(api: {request(path: string, method: string, body?: unknown, signal?: AbortSignal): Promise<unknown>}, signal?: AbortSignal): Promise<unknown> {
-  return api.request(hostedPath('identity_cancel'), 'POST', undefined, signal);
 }

@@ -4,8 +4,8 @@ import {HostedAccountClient, type AccountTransport} from '../hosted-security.ts'
 
 const cancelled = () => Object.assign(new Error('native_account_cancelled'), {name: 'AbortError'});
 
-/** Account passwords, factors and provider completions use the redirect-refusing native
- * transport. This factory performs no request; only an explicit account action contacts it. */
+/** Retained signed-in account security operations use the redirect-refusing native transport.
+ * New sign-ins use PorticoServicesAccountClient. */
 export function createNativeAccountClient(origin: string, binding: string, fetcher: typeof fetch, isCurrent: () => boolean = () => true, ownsResult: () => boolean = () => false): HostedAccountClient {
   // Already-issued session results stay with the canonical credential coordinator,
   // so cancellation can retire its fresh family instead of losing cleanup custody.

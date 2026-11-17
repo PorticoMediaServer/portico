@@ -48,7 +48,7 @@ export {
   type CatalogApi,
 } from "./catalog.ts";
 
-export { DeviceAuthorizationService, HttpDeviceAuthorizationApi, type DeviceAuthorization, type DeviceAuthorizationApi, type DeviceAuthorizationSnapshot } from "./device-authorization.ts";
+export { type DeviceAuthorization } from "./device-authorization.ts";
 
 export { HostedGate, hostedGate, type HostedGateSnapshot, type HostedRequestKind } from "./hosted-gate.ts";
 export { CredentialSessionService,HttpCredentialApi,type CredentialContext,type CredentialRecord,type CredentialStorage,type CredentialApi,type CredentialSnapshot,type CredentialCoordinator } from "./credentials.ts";
