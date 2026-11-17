@@ -488,7 +488,7 @@ func (s *Server) libraryRoutes() {
 	Handle(s, "DELETE /v1/admin/libraries/{id}/missing", Owner, s.emptyTrash)
 	Handle(s, "GET /v1/admin/items/{id}/deletion", Owner, s.previewItemDeletion)
 	Handle(s, "GET /v1/admin/versions/{id}/deletion", Owner, s.previewVersionDeletion)
-	Handle(s, "DELETE /v1/admin/items/{id}", Owner, s.deleteItem).with(ScopeLibrary)
+	Handle(s, "DELETE /v1/admin/items/{id}", Owner, s.deleteItem).with(ScopeLibrary).Confirm = "Type the title from the deletion preview."
 	Handle(s, "DELETE /v1/admin/versions/{id}", Owner, s.deleteVersion).with(ScopeLibrary)
 }
 

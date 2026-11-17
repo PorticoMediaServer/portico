@@ -16554,6 +16554,17 @@
     "/v1/admin/items/delete": {
       "post": {
         "operationId": "post_v1_admin_items_delete",
+        "parameters": [
+          {
+            "description": "Type the number of selected titles from the deletion preview.",
+            "in": "query",
+            "name": "confirm",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -16644,6 +16655,15 @@
           {
             "in": "path",
             "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Type the title from the deletion preview.",
+            "in": "query",
+            "name": "confirm",
             "required": true,
             "schema": {
               "type": "string"
