@@ -23,7 +23,7 @@ async function frontDoorModule(modules: Record<string, any>) {
     ...modules, '@portico/design': design, 'react-native-reanimated': {}, '../../kit/useMotion': {},
     '../../kit/states/StateActionButton': {StateActionButton: 'StateActionButton'},
   });
-  return screenModule(new URL('../src-next/tv/auth/TVFrontDoor.tsx', import.meta.url), {...modules, '@portico/design': design, './TVAuthLayout': layout, './TVCodePresenter': {TVCodeCard: 'CodeCard'}});
+  return screenModule(new URL('../src-next/tv/auth/TVFrontDoor.tsx', import.meta.url), {...modules, '@portico/design': design, './TVAuthLayout': layout, './TVCodePresenter': {TVNoCodeCard: 'CodeCard'}, './code-retry': {useCodeRetry: () => {}}});
 }
 // Mount the real shared frame and canvas; keep only native hosts as stand-ins.
 const drawFrame = (frame: any) => {const canvas = frame.type(frame.props); return canvas.type(canvas.props);};

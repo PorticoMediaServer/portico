@@ -50,7 +50,7 @@ export function SettingsSheet({profile, shortcuts, children, ...surface}: Omit<B
  * small spinner before it while that group is still being found (Find your server's On this network). */
 export function SettingsSectionLabel({label, first = false, inset = 20, busy = false}: {label: string; first?: boolean; inset?: number; busy?: boolean}) {
   const theme = useTheme();
-  const text = <Text accessibilityRole="header" style={[shellType(theme.isTV ? 20 : 13.5, 700), {color: theme.colors.textTertiary}]}>{label}</Text>;
+  const text = <Text accessibilityRole="header" style={[shellType(theme.isTV ? 20 : 13.5, 700), {color: theme.colors.textTertiary, flexShrink: 1}]}>{label}</Text>;
   return <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: first ? 0 : 22, marginBottom: 8, marginLeft: inset}}>
     {busy && <ActivityIndicator size="small" color={theme.colors.accentStrong}/>}{text}
   </View>;
