@@ -19,7 +19,7 @@ import {QueueSelectionRegistrations, type QueueSelectionRegistration} from './se
 
 export {toPlaybackSession};
 
-type Tracked = {reporter: ProgressReporter; stopping?: boolean; stopPromise?: Promise<void>; generation: number; positionMs: number; state: ProgressState;
+type Tracked = {reporter: ProgressReporter; progressToken?: string; stopping?: boolean; stopPromise?: Promise<void>; generation: number; positionMs: number; state: ProgressState;
   /** When `positionMs` was last set by the player. */
   positionAt?: number};
 
@@ -79,7 +79,9 @@ export class V1PlaybackApi implements PlaybackApi {
   adopt(session: Session, durationSeconds: number): PlaybackSession {
     const prior = this.tracked.get(session.id);
     // A presentation change keeps the same session, its observer epoch and its pending skip.
-    const tracked = prior ?? {reporter: this.reporterFor(session.id), generation: session.presentation.generation, positionMs: session.presentation.startPositionMs, state: 'playing' as ProgressState};
+    const tracked: Tracked = prior ?? {reporter: this.reporterFor(session.id), generation: session.presentation.generation,
+      positionMs: session.presentation.startPositionMs, state: 'playing'};
+    tracked.progressToken = session.progressToken;
     tracked.generation = session.presentation.generation;
     tracked.positionMs = session.presentation.startPositionMs;
     tracked.positionAt = this.now();
@@ -148,11 +150,14 @@ export class V1PlaybackApi implements PlaybackApi {
     if (!t) return this.sessions.stop(id, undefined, signal);
     if (t.stopPromise) return t.stopPromise;
     t.stopping = true;
-    // The DELETE carries the final position, which the server keeps.
+    const positionMs = t.positionMs, progressToken = t.progressToken, observedAt = t.positionAt ?? this.now();
+    const playClockMs = t.reporter.snapshot().playClockMs;
+    // Keep this observation's receipt, played time and age through a delayed stop.
     const work = Promise.resolve().then(async () => {
       t.reporter.stop();
       if (this.tracked.get(id) !== t) return;
-      await this.sessions.stop(id, t.positionMs, signal);
+      await this.sessions.stop(id, progressToken ? {progressToken, positionMs,
+        madeAgoMs: Math.max(0, Math.round(this.now() - observedAt)), playClockMs} : positionMs, signal);
       if (this.tracked.get(id) === t) this.forget(id);
     });
     t.stopPromise = work.finally(() => { if (this.tracked.get(id) === t) t.stopPromise = undefined; });
