@@ -40,6 +40,8 @@ func (s *Server) homeRow(r *http.Request, _ None) (HomeRow, error) {
 		row.Title = popularHomeTitle
 	case "recently_added":
 		row.Title = "Recently Added"
+	case "trending":
+		row.Title = "Trending now"
 	default:
 		if strings.HasPrefix(id, "collection:") {
 			var err error
