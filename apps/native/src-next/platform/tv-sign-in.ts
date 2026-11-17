@@ -1,15 +1,16 @@
-import {revokeCurrentSession, createHostedTVAuthorizationApi, cancelHostedTVAuthorization, createHostedTVAuthorization, createLocalTVAuthorization, pollHostedTVAuthorization, pollLocalTVAuthorization} from '../../../../packages/client-core/src/query/connection-operations.ts';
-import {NativeModules} from 'react-native';
+import {revokeCurrentSession, createLocalTVAuthorization, pollLocalTVAuthorization} from '../../../../packages/client-core/src/query/connection-operations.ts';
+import {NativeModules, Platform} from 'react-native';
 import {HttpLocalApi, type HostedSession, type LocalSession, type DeviceAuthorization} from '../../../../packages/client-core/src';
 import {SetupCodeService, type SetupCodeStorage, type SetupCodeJournal} from '../../../../packages/client-core/src/setup-code';
 import {parseLocalSession} from '../../../../packages/client-core/src/local-session';
-import {parseAccountSession} from '../../../../packages/client-core/src/hosted-security';
+import {porticoAccount, ServicesError} from '../../../../packages/client-core/src/portico-account';
+import {heldFor, hostedSessionFrom, porticoApiError} from '../../../../packages/client-core/src/portico-services-native';
+import {ApiError} from '../../../../packages/client-core/src/http';
+import {routeBase64} from '../../../../packages/client-core/src/route-identity';
 import {installationIdentity} from '../../../../packages/client-core/src/installation';
-import {routePath, routeBody} from '../../../../packages/contracts/src/routes';
-import {routePath as hostedPath, routeBody as hostedBody} from '../../../../packages/contracts/src/hosted/routes';
 import type {ServerSignIn} from '../../../../packages/client-core/src/sign-in';
 import {NativeQueueStore} from './queue-storage';
-import {nativeNetworkFetch} from './server-connections';
+import {nativeNetworkFetch, nativeRouteCrypto} from './server-connections';
 import {hostedUrl} from './account-authority';
 
 const invalid = () => Object.assign(new Error('native_tv_consent_invalid'), {code: 'invalid_consent'});
@@ -44,26 +45,63 @@ export function createNativeLocalTVSignIn(server: ServerSignIn, api: HttpLocalAp
   }, storage('local:' + server.id), requestId);
 }
 
-/** Portico TV consent keeps native private-key decryption and the canonical durable
- * create/poll/cancel journal. Only an explicit start contacts the account authority. */
+/** Portico Services has no TV cancel route: the journal forgets the code locally. */
 export function createNativePorticoTVSignIn() {
-  const http = createHostedTVAuthorizationApi(hostedUrl, nativeNetworkFetch), authority = hostedUrl + '#tv-x25519-v1';
+  const authority = hostedUrl + '#tv-codes', store = new NativeQueueStore();
+  const bindingKey = 'accounts.tv-binding:' + authority;
+  const account = porticoAccount(heldFor(''), hostedUrl, {fetcher: nativeNetworkFetch});
+  const forget = (id: string) => store.change(bindingKey, raw => {
+    const saved = raw as {requestId?: string} | null;
+    return {record: saved?.requestId === id ? null : raw, value: undefined};
+  });
   return new SetupCodeService<HostedSession>(authority, {
     create: async (id, signal) => {
-      const publicKey: unknown = await NativeModules.PorticoNetwork.tvPublicKey(id);
-      if (signal.aborted || typeof publicKey !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(publicKey)) throw invalid();
-      return createHostedTVAuthorization<DeviceAuthorization>(http, id, publicKey, signal);
+      // Save before sending: a lost create answer must reuse BOTH the secret and key.
+      const candidate = routeBase64(nativeRouteCrypto.random(32));
+      const secret = await store.change(bindingKey, raw => {
+        const saved = raw as {requestId?: string; secret?: string} | null;
+        const secret = saved?.requestId === id ? saved.secret : candidate;
+        if (typeof secret !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(secret)) throw invalid();
+        return {record: {requestId: id, secret}, value: secret};
+      });
+      const secretHash = routeBase64(await nativeRouteCrypto.sha256(new TextEncoder().encode(secret)));
+      const device = {name: Platform.OS === 'ios' ? 'Portico on Apple TV' : 'Portico on TV', kind: 'tv'};
+      let answer;
+      try {answer = await account.createTV(device, secretHash, id, signal);} catch (error) {throw porticoApiError(error);}
+      if (typeof answer.id !== 'string' || !answer.id) throw invalid();
+      const expiresIn = Math.ceil((Date.parse(answer.expiresAt) - Date.now()) / 1000);
+      // deviceCode stays inside the protected journal; snapshots expose only code and QR.
+      const authorization: DeviceAuthorization & {id: string} = {id: answer.id, deviceCode: secret, userCode: answer.code,
+        verificationUri: answer.verifyUrl, verificationUriComplete: answer.verifyUrlWithCode,
+        expiresAt: answer.expiresAt, expiresIn, interval: Math.ceil(answer.pollAfterMs / 1000)};
+      return authorization;
     },
-    poll: async (entry, signal) => {
-      const envelope = await pollHostedTVAuthorization<Record<string, unknown>>(http, entry.authorization.deviceCode, signal);
-      const key: unknown = await NativeModules.PorticoNetwork.tvPublicKey(entry.requestId);
-      if (signal.aborted || envelope.issuer !== hostedUrl || envelope.requestId !== entry.requestId || envelope.recipientKey !== key) throw invalid();
-      const raw: unknown = await NativeModules.PorticoNetwork.openTVGrant(entry.requestId, envelope);
-      if (signal.aborted || typeof raw !== 'string' || raw.length > 262144) throw invalid();
-      const session = parseAccountSession(JSON.parse(raw), 'native');
-      if ('mfaRequired' in session) throw invalid(); return session;
+    poll: async (entry, signal, checkpoint) => {
+      const authorization = entry.authorization as DeviceAuthorization & {id: string};
+      let answer;
+      try {answer = await account.redeemTV(authorization.id, authorization.deviceCode, signal);}
+      catch (error) {
+        if (error instanceof ServicesError && ['tv_code_gone', 'tv_code_denied'].includes(error.code))
+          throw new ApiError(410, error.code === 'tv_code_denied' ? 'access_denied' : 'expired_token', error.code);
+        throw porticoApiError(error);
+      }
+      if (answer.state === 'waiting') throw new ApiError(202, 'authorization_pending', 'tv_code_waiting', false, (answer.pollAfterMs ?? 5000) / 1000);
+      if (answer.state !== 'approved' || !answer.tokens) throw invalid();
+      const tokens = answer.tokens;
+      try {
+        const person = await porticoAccount(heldFor(tokens.accessToken), hostedUrl, {fetcher: nativeNetworkFetch}).account(signal);
+        const session = hostedSessionFrom(tokens, {id: person.id, username: person.username, displayName: person.displayName}, entry.requestId);
+        await checkpoint(session); return session;
+      } catch {
+        // Redemption is single-use. End an issued sign-in that cannot be saved/adopted.
+        void account.endWith(tokens.accessToken).catch(() => {});
+        throw new ApiError(410, 'invalid_grant', 'tv_code_sign_in_not_saved');
+      }
     },
-    cancel: (entry, signal) => cancelHostedTVAuthorization<void>(http, entry.authorization.deviceCode, signal),
-    forgotten: entry => {NativeModules.PorticoNetwork.forgetTVKey(entry.requestId);},
+    forgotten: entry => {void forget(entry.requestId).catch(() => {});},
+    abandoned: entry => {
+      void forget(entry.requestId).catch(() => {});
+      if (entry.grant) void account.endWith(entry.grant.accessToken).catch(() => {});
+    },
   }, storage(authority), requestId);
 }

@@ -61,7 +61,7 @@ function validAuthorization(value: DeviceAuthorization) {
     throw new Error('The activation response was invalid.');
   const uri = new URL(value.verificationUri);
   routeOrigin(uri.origin);
-  if (uri.pathname !== '/device' || uri.username || uri.password || uri.search || uri.hash ||
+  if (!['/device', '/tv'].includes(uri.pathname) || uri.username || uri.password || uri.search || uri.hash ||
       value.verificationUriComplete !== value.verificationUri + '#code=' + value.userCode)
     throw new Error('The activation address was invalid.');
 }

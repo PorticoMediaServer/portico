@@ -36,6 +36,8 @@ export const servicesRoutes = {
   serverIdentity: ['POST', '/v1/servers/{id}/identity'],
   leaveServer: ['DELETE', '/v1/servers/{id}/membership'],
   removeServer: ['DELETE', '/v1/servers/{id}'],
+  tvCreate: ['POST', '/v1/tv-codes'],
+  tvRedeem: ['POST', '/v1/tv-codes/{id}/redeem'],
   tvLookup: ['POST', '/v1/tv-codes/lookup'],
   tvDecision: ['POST', '/v1/tv-codes/{id}/decision'],
 } as const;
