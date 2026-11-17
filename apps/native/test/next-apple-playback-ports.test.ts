@@ -39,6 +39,11 @@ class FakeRuntime {
   toggle = () => {};
   replay = () => {};
   retry = (...args: unknown[]) => {calls.push({name: 'retry', args, self: this});};
+  policyDismiss = (...args: unknown[]) => {calls.push({name: 'policyDismiss', args, self: this}); return true;};
+  policySkip = async (...args: unknown[]) => {calls.push({name: 'policySkip', args, self: this});};
+  policyUndo = async (...args: unknown[]) => {calls.push({name: 'policyUndo', args, self: this});};
+  policyAdvance = async (...args: unknown[]) => {calls.push({name: 'policyAdvance', args, self: this});};
+  policyCancelAutoplay = (...args: unknown[]) => {calls.push({name: 'policyCancelAutoplay', args, self: this});};
   setQueuePolicy = (...args: unknown[]) => {calls.push({name: 'setQueuePolicy', args, self: this});};
   editQueue = (...args: unknown[]) => {calls.push({name: 'editQueue', args, self: this});};
   selectQueuedEntry = (...args: unknown[]) => {calls.push({name: 'selectQueuedEntry', args, self: this});};
@@ -101,6 +106,27 @@ const options = {
 };
 const adapter = createNativeShellPlaybackAdapter(options as never);
 const runtime = adapter.runtime as unknown as FakeRuntime;
+
+test('Apple policy buttons dispatch the exact fence and action to the installed runtime', async () => {
+  calls.length = 0;
+  const fence: PlaybackFence = {kind: 'queue', playback: {scope: {serverId: 'server', authority: 'local', accountId: 'account',
+    profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane'}, run: 1},
+    sessionId: 'session', itemId: 'item', sourceId: 'source', entryId: 'entry', generation: 1};
+  for (const command of ['policyDismiss', 'policySkip', 'policyUndo', 'policyAdvance', 'policyCancelAutoplay'] as const)
+    assert.strictEqual(adapter[command], runtime[command], command);
+  assert.equal(adapter.policyDismiss!(fence), true);
+  await adapter.policySkip!(fence, 'intro'); await adapter.policyUndo!(fence);
+  await adapter.policyAdvance!(fence, 'manual'); await adapter.policyAdvance!(fence, 'still-watching');
+  adapter.policyCancelAutoplay!(fence);
+  assert.deepEqual(calls, [
+    {name: 'policyDismiss', args: [fence], self: runtime},
+    {name: 'policySkip', args: [fence, 'intro'], self: runtime},
+    {name: 'policyUndo', args: [fence], self: runtime},
+    {name: 'policyAdvance', args: [fence, 'manual'], self: runtime},
+    {name: 'policyAdvance', args: [fence, 'still-watching'], self: runtime},
+    {name: 'policyCancelAutoplay', args: [fence], self: runtime},
+  ]);
+});
 
 test('Apple factory forwards the five existing runtime ports without substitution', () => {
   assert.strictEqual(adapter.retry, runtime.retry);
