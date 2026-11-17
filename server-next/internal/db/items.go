@@ -310,9 +310,7 @@ func scanItem(row interface{ Scan(...any) error }, it *Item, extra ...any) error
 	return row.Scan(append(it.dest(), extra...)...)
 }
 
-// Items lists items. The viewer's restrictions, every filter and the page position are all part
-// of the one statement, and each page starts after the last row of the page before, so a deep
-// page costs the same as the first.
+// Items uses keyset pagination over the viewer's authorised, filtered items.
 func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error) {
 	var page ItemPage
 	if q.Sort == "" {
@@ -366,7 +364,6 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	if found, err := q.filters(ctx, tx, where, acc); err != nil || !found {
 		return page, err
 	}
-
 	tail := false
 	if q.At > 0 {
 		if cursor != nil {
@@ -536,8 +533,7 @@ func total(ctx context.Context, tx *sql.Tx, where *query, acc access) (int, erro
 // listRun reads one run of a page: the rows that have a sort value, or the rows that do not.
 func listRun(ctx context.Context, tx *sql.Tx, acc access, where *query, spec sortSpec, q ItemQuery, after *listCursor, nulls bool, page *ItemPage) error {
 	run := &query{args: append([]any(nil), where.args...)}
-	// First the ids of the page's rows, in order, and nothing else: when a list has to be
-	// sorted, every candidate row passes through here, so it carries only what the sort needs.
+	// Sort with only the ID and sort columns.
 	run.add(`SELECT i.id, `, strings.Join(spec.columns, ", "), ` FROM `, where.from, ` WHERE `, where.pageWhere())
 	columns := append(append([]string(nil), spec.columns...), "i.id")
 	if nulls {
@@ -589,8 +585,13 @@ func listRun(ctx context.Context, tx *sql.Tx, acc access, where *query, spec sor
 	if err != nil || len(found) == 0 {
 		return err
 	}
-	// Then those rows in full, with the viewer's state.
-	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+itemFrom+`i.id IN `+intList(found), where.args[:1]...)
+	entry, args := "0", where.args[:1]
+	if q.List != "" {
+		entry = `(SELECT CASE WHEN count(*)=1 THEN min(e.id) ELSE 0 END FROM list_entries e JOIN lists l ON l.id=e.list_id
+			WHERE l.public_id=@entry_list AND e.item_id=i.id)`
+		args = []any{args[0], sql.Named("entry_list", q.List)}
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+", "+entry+itemFrom+`i.id IN `+intList(found), args...)
 	if err != nil {
 		return err
 	}
@@ -602,7 +603,7 @@ func listRun(ctx context.Context, tx *sql.Tx, acc access, where *query, spec sor
 	fetched := make([]Item, len(found))
 	for rows.Next() {
 		var it Item
-		if err := scanItem(rows, &it); err != nil {
+		if err := scanItem(rows, &it, &it.EntryID); err != nil {
 			return err
 		}
 		it.sortValues = values[place[it.ID]]
@@ -675,8 +676,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	var library int64
 	var kindList string
 	libraryWide := q.List == "" && q.Collection == "" && q.Series == "" && q.Publication == nil
-	// A library, title or person the list is of is looked up first. One the viewer may not see
-	// is not found, exactly like one that does not exist, as it is when opened on its own.
+	// Resolve a missing or inaccessible library, title or person as not found.
 	if q.Library != "" {
 		libraries, err := librariesInScope(ctx, tx, acc, q.Library)
 		if err != nil {

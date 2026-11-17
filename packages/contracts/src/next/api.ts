@@ -1800,6 +1800,7 @@ export interface List {
   revision: string;
   createdAt: string;
   updatedAt: string;
+  removed?: ListRemoval;
 }
 
 export interface ListAdd {
@@ -1846,6 +1847,11 @@ export interface ListOwner {
 export interface ListPage {
   items: List[];
   nextCursor?: string;
+}
+
+export interface ListRemoval {
+  after?: string;
+  before?: string;
 }
 
 export interface ListShare {

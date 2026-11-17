@@ -227,7 +227,8 @@ export async function sendPlaylistCommand(api: SavedNextApi, bound: SavedScope, 
       const order = context.entries ?? [], at = order.findIndex(entry => entry.id === intent.entryId);
       const list = await edit<List>(api, entryPath(intent.entryId), 'DELETE', context.revision, undefined, signal);
       // Undo puts the title back just after the entry in front of it (area 6 rule 32).
-      const undo = at >= 0 ? {undoToken: encodeUndo({listId: id, itemId: order[at]!.itemId, after: at > 0 ? order[at - 1]!.id : '', ...(at === 0 && order[1] ? {before: order[1].id} : {})}), undoUntil: new Date(Date.now() + 30_000).toISOString().replace(/\.\d+Z$/, 'Z')} : {};
+      const position = list.removed ?? {after: at > 0 ? order[at - 1]!.id : '', before: at === 0 ? order[1]?.id : undefined};
+      const undo = at >= 0 ? {undoToken: encodeUndo({listId: id, itemId: order[at]!.itemId, after: '', ...position}), undoUntil: new Date(Date.now() + 30_000).toISOString().replace(/\.\d+Z$/, 'Z')} : {};
       return receipt(id, list, {entryId: intent.entryId, ...undo});
     }
     case 'reorder': {
