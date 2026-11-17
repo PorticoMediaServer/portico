@@ -390,13 +390,19 @@ function rebuiltHomeRow(row: Home['rows'][number], allowEmpty = false): HomeRow 
   const entries = Object.freeze(firstOfEach('home', 'entries', homeEntriesOf(row.items, row.id), entry => entry.id));
   const live = row.live === undefined ? undefined : parseHomeLive(row.live);
   const viewRead = typeof row.library === 'string' && row.library && typeof row.query === 'string' ? Object.freeze({library: row.library, query: row.query}) : undefined;
+  const [source, resourceId] = row.id.split(':', 2);
+  const seeAll: HomeSeeAll | undefined = id(resourceId) && viewRead
+    ? source === 'collection' ? {type: 'collection', resourceId, libraryId: viewRead.library}
+      : source === 'view' ? {type: 'saved_view', resourceId} : undefined
+    : undefined;
   const deferred = !entries.length && row.deferred === true && !!viewRead;
   if (!allowEmpty && !entries.length && !live?.channels.length && !deferred) return undefined;
   const always = row.id.startsWith('continue'), nextCursor = words(row.nextCursor, 4096);
   return Object.freeze({id: row.id, title: words(row.title, 1024), kind: row.id, artworkShape: oneOfOr('home', 'row.artworkShape', row.shape, shapes, 'poster'),
     endpoint: '', privacySensitivity: '', policyState: '', priority: 0, required: always, hideable: !always, reorderable: true, critical: false, cursorCapable: !!nextCursor,
     entries, start: 0, limit: live?.channels.length ?? entries.length, hasMore: !!nextCursor, nextCursor,
-    ...(row.total === undefined ? {} : {total: row.total}), ...(live ? {live} : {}), ...(viewRead ? {viewRead} : {}), ...(deferred ? {deferred: true} : {})});
+    ...(row.total === undefined ? {} : {total: row.total}), ...(live ? {live} : {}), ...(viewRead ? {viewRead} : {}), ...(deferred ? {deferred: true} : {}),
+    ...(seeAll ? {seeAll: Object.freeze(seeAll)} : {})});
 }
 
 /** Home as the server composes it for this profile: the rows it sends, in its order. A row with nothing in it is not

@@ -22,3 +22,14 @@ test('a Home card offers what a title\'s page offers, and Continue Watching its 
   for (const id of ['watchlist', 'favorite', 'watched']) assert.ok(s.includes(id as never), `show: ${id} in ${s}`);
   for (const id of ['editMetadata', 'delete', 'refreshMetadata']) assert.ok(!f.includes(id as never), 'owner actions stay on the title\'s page');
 });
+
+test('Home See all opens the saved view or collection that owns the shelf', () => {
+  const home = homeDocument({rows: [
+    {id: 'view:lst_view', title: 'Rainy day films', shape: 'poster', items: [], library: 'L', query: 'kind=movie&genre=Drama', deferred: true},
+    {id: 'collection:itm_collection', title: 'Series', shape: 'poster', items: [item('film', 'movie')], library: 'L', query: 'collection=itm_collection'},
+  ]} as never);
+  assert.deepEqual(home.rows.map(row => row.seeAll), [
+    {type: 'saved_view', resourceId: 'lst_view'},
+    {type: 'collection', resourceId: 'itm_collection', libraryId: 'L'},
+  ]);
+});
