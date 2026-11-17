@@ -590,7 +590,7 @@ func listRun(ctx context.Context, tx *sql.Tx, acc access, where *query, spec sor
 		return err
 	}
 	// Then those rows in full, with the viewer's state.
-	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+itemFrom+`i.id IN `+intList(found), where.args[:1]...)
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+", "+uniqueListOccurrence+itemFrom+`i.id IN `+intList(found), where.args[0], sql.Named("entry_list", q.List))
 	if err != nil {
 		return err
 	}
@@ -602,7 +602,7 @@ func listRun(ctx context.Context, tx *sql.Tx, acc access, where *query, spec sor
 	fetched := make([]Item, len(found))
 	for rows.Next() {
 		var it Item
-		if err := scanItem(rows, &it); err != nil {
+		if err := scanItem(rows, &it, &it.EntryID); err != nil {
 			return err
 		}
 		it.sortValues = values[place[it.ID]]

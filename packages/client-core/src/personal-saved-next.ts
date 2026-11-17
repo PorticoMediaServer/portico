@@ -220,7 +220,8 @@ export async function sendResourceCommand(api: SavedNextApi, bound: SavedScope, 
       const at = removing.length === 1 && !added.length && !unchanged.length ? order.findIndex(entry => entry.id === removing[0]) : -1;
       const before = at > 0 ? order[at - 1]!.id : at === 0 ? markOf(context.cursor)?.previous ?? '' : '';
       const next = at === 0 && !before ? order[1]?.id : undefined;
-      const undo = at >= 0 && order[at]!.itemId ? {undoToken: encodeUndo({listId: id, itemId: order[at]!.itemId!, after: before, ...(next ? {before: next} : {})}), undoUntil: new Date(Date.now() + 30_000).toISOString().replace(/\.\d+Z$/, 'Z')} : {};
+      const position = list?.removed ?? {after: before, before: next};
+      const undo = at >= 0 && order[at]!.itemId ? {undoToken: encodeUndo({listId: id, itemId: order[at]!.itemId!, after: '', ...position}), undoUntil: new Date(Date.now() + 30_000).toISOString().replace(/\.\d+Z$/, 'Z')} : {};
       return answer(id, list, {entries: {added, removed, unchanged, failed}, ...undo});
     }
     case 'reorder': {
