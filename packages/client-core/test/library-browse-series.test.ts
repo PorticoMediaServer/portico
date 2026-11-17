@@ -89,6 +89,27 @@ test("a reading library's series card opens the reading series page in every lis
   assert.deepEqual(views(found.groups[0]!.items), want);
 });
 
+test('Discover continues the same server row inside its own library', async () => {
+  const {rebuiltContent} = await import('../src/library-content-rebuilt.ts');
+  const item = (id: string) => ({id, title: id, libraryId: 'lib_audio', kind: 'audiobook', state: {watched: false}});
+  const api = {request: async <T>(path: string): Promise<T> => {
+    const url = new URL(path, 'https://fixture.invalid');
+    if (url.pathname.endsWith('/landing')) return {rows: [{id: 'continue', shape: 'square', items: [item('one')], nextCursor: 'server-cursor'}]} as T;
+    if (url.pathname === '/v1/libraries/lib_audio') return {kind: 'audiobooks', name: 'Books'} as T;
+    assert.equal(url.pathname, '/v1/home/rows/continue');
+    assert.equal(url.searchParams.get('library'), 'lib_audio');
+    assert.equal(url.searchParams.get('cursor'), 'server-cursor');
+    return {id: 'continue', shape: 'square', items: [item('two')], total: 2} as T;
+  }};
+  const route = {libraryId: 'lib_audio', view: 'discover'} as const, scope = {viewerId: 'prf', serverId: 'srv'};
+  const first = (await rebuiltContent(api, route, scope, 40)).sections[0]!;
+  assert.equal(first.id, 'continue_listening');
+  const next = (await rebuiltContent(api, route, scope, 40, undefined, first.nextCursor)).sections[0]!;
+  assert.equal(next.id, first.id);
+  assert.deepEqual(next.entries.map(({id}) => id), ['two']);
+  assert.equal(next.nextCursor, '');
+});
+
 test("a re-checked card keeps a magazine's or newspaper's periodical link, and refuses any other pivot", async () => {
   // Saved, catalogue selection, recommendation and relation rows, and browse re-check every card (validateContentEntry).
   const {entryFromItem} = await import('../src/items.ts');
