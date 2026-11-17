@@ -128,6 +128,8 @@ type ItemQuery struct {
 	HomeAt      time.Time // server clock for an initial Home activity window
 	homePopular int64     // end of the seven-day ranking window, kept in its cursor
 
+	trendingVersion          int64
+	homeTrending             bool
 	homeIDs                  []int64 // a Continue row, in its own order; nil for other lists
 	homeBecause              int64
 	homeRecent, homeReleased bool
@@ -188,6 +190,9 @@ func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {
 	if q.homeBecause != 0 && q.Sort == SortOrder {
 		return sortSpec{columns: []string{"because.score"}}, true
 	}
+	if q.homeTrending && q.Sort == SortOrder {
+		return sortSpec{columns: []string{"trending.position"}}, true
+	}
 	if q.homeRecent && q.Sort == SortAdded {
 		return sortSpec{columns: []string{"max(i.added_at, ifnull(i.last_child_added_at, 0))"}}, true
 	}
@@ -214,13 +219,14 @@ func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {
 // listCursor is where the next page starts: the sort it belongs to and the position of the
 // last row sent. Clients treat the encoded form as opaque.
 type listCursor struct {
-	Sort   string `json:"s"`
-	Desc   bool   `json:"d,omitempty"`
-	Nulls  bool   `json:"n,omitempty"` // the run of rows without a sort value has begun
-	Values []any  `json:"v,omitempty"`
-	ID     int64  `json:"i"`
-	Seed   int64  `json:"r,omitempty"` // of a random order
-	AsOf   int64  `json:"a,omitempty"` // end of an activity ranking window
+	Sort    string `json:"s"`
+	Desc    bool   `json:"d,omitempty"`
+	Nulls   bool   `json:"n,omitempty"` // the run of rows without a sort value has begun
+	Values  []any  `json:"v,omitempty"`
+	ID      int64  `json:"i"`
+	Seed    int64  `json:"r,omitempty"` // of a random order
+	AsOf    int64  `json:"a,omitempty"` // end of an activity ranking window
+	Version int64  `json:"g,omitempty"` // provider input version
 }
 
 func (c listCursor) encode() string {
@@ -333,7 +339,7 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		return page, ErrCursorExpired
 	}
 	if q.Sort == SortOrder && q.Parent == "" && q.Series == "" && q.Collection == "" &&
-		q.homeIDs == nil && q.homePopular == 0 && q.homeBecause == 0 {
+		q.homeIDs == nil && q.homePopular == 0 && q.homeBecause == 0 && !q.homeTrending {
 		// Season and episode numbers order one show's items. Over a whole library they have
 		// no index and mean nothing, so the list would be sorted afresh for every page.
 		return page, invalid("Only the titles inside a show, season, artist, album or series can be sorted in their own order.")
@@ -397,6 +403,9 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		}
 		if q.homePopular != 0 {
 			next.AsOf = q.homePopular
+		}
+		if q.homeTrending {
+			next.Version = q.trendingVersion
 		}
 		if last.sortValues[0] == nil {
 			next.Nulls = true
@@ -925,6 +934,10 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		q.becauseSource(w, acc)
 		scoped = true
 	}
+	if q.homeTrending {
+		q.trendingSource(w)
+		scoped = true
+	}
 	// A list that can hold shows, seasons, artists, albums, collections or series leaves out
 	// those the viewer would find nothing under; one of films, episodes or tracks alone needs
 	// no such check, and nor does a series' list: it holds only volumes and issues.
@@ -945,18 +958,6 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		return false, invalid("Choose a library, a title, a person, a genre, Favorites or My List to list.")
 	}
 	return true, nil
-}
-
-// underHolder writes a query over the playable items under a holder. Titles nest at most
-// three deep, so a holder is the root or the parent of its leaves, and each is found through
-// its own index; asking for "root or parent" in one condition would read the whole table.
-// body is a SELECT over items c with "{under}" where that condition goes, and holder is the
-// SQL expression for the holder's id. The two results are joined by joiner: " UNION " to list
-// each leaf once, " OR " between two EXISTS.
-func underHolder(body, holder, joiner string) string {
-	root := strings.ReplaceAll(body, "{under}", "c.root_id = "+holder+" AND c.kind IN "+playableKindsSQL)
-	parent := strings.ReplaceAll(body, "{under}", "c.parent_id = "+holder+" AND c.kind IN "+playableKindsSQL)
-	return root + joiner + parent
 }
 
 // loadImages attaches chosen pictures, falling back to a visible album for a track with none.

@@ -28,6 +28,8 @@ func (d *DB) HomeRowItems(ctx context.Context, v Viewer, row string, q ItemQuery
 		if q.Sort == "" {
 			q.Sort, q.Desc = SortAdded, true
 		}
+	case "trending":
+		return d.TrendingPage(ctx, v, q)
 	case "continue", "continue_listening", "continue_books":
 		kinds := watchingKinds
 		if q.Library != "" {

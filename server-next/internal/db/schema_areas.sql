@@ -561,3 +561,11 @@ CREATE TABLE scrub_preview_sheets (
   file_hash TEXT NOT NULL,
   PRIMARY KEY (media_id, position)
 ) STRICT, WITHOUT ROWID;
+
+-- TMDB's published daily film/show order. No library or viewing facts are sent to fetch it.
+CREATE TABLE tmdb_trending (
+  kind INTEGER NOT NULL,
+  external_id TEXT NOT NULL,
+  position INTEGER NOT NULL UNIQUE,
+  PRIMARY KEY (kind, external_id)
+) STRICT, WITHOUT ROWID;
