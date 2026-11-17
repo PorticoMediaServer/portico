@@ -38,7 +38,7 @@ export type TVCode = Readonly<{id: string; device: Device}>;
 /** `began`, when given, keeps a new sign-in (not a renewal), so a holder can tell the two apart. */
 export type HeldSignIn = Readonly<{current: () => Tokens | undefined; keep: (tokens: Tokens) => void; forget: (held: Tokens | undefined) => void; kept?: () => boolean; began?: (tokens: Tokens) => void}>;
 
-type Options = Readonly<{token?: string; create?: boolean; signal?: AbortSignal}>;
+type Options = Readonly<{token?: string; create?: boolean | string; signal?: AbortSignal}>;
 type Transport = Readonly<{origin: string; cookie: boolean; fetcher?: typeof fetch}>;
 
 /** A signed document's contents, for showing. The apps and servers that act on one check its signature. */
@@ -55,7 +55,7 @@ async function send<T>({origin, cookie, fetcher = fetch}: Transport, route: Serv
   const headers: Record<string, string> = {Accept: 'application/json'};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
-  if (options.create) headers['Idempotency-Key'] = crypto.randomUUID();
+  if (options.create) headers['Idempotency-Key'] = typeof options.create === 'string' ? options.create : crypto.randomUUID();
   // The header asks Services to set, read or clear its refresh-token cookie
   // (`__Host-portico_refresh`), so the browser must be allowed to send and keep cookies. Only the
   // routes that do that are sent this way (`cookieRoutes`).
@@ -206,6 +206,10 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, f
       person<{identity: unknown}>('serverIdentity', {id: server}, {challenge, ...proof}, {signal}),
     leaveServer: (server: string) => person<void>('leaveServer', {id: server}),
     removeServer: (server: string) => person<void>('removeServer', {id: server}),
+    createTV: (device: Device, secretHash: string, requestId: string, signal?: AbortSignal) =>
+      anyone<{id: string; code: string; verifyUrl: string; verifyUrlWithCode: string; expiresAt: string; pollAfterMs: number}>('tvCreate', {}, {device, secretHash}, {create: requestId, signal}),
+    redeemTV: (id: string, secret: string, signal?: AbortSignal) =>
+      anyone<{state: 'waiting' | 'approved'; pollAfterMs?: number; tokens?: Tokens}>('tvRedeem', {id}, {secret}, {signal}),
     lookupTV: (code: string) => person<TVCode>('tvLookup', {}, {code}),
     decideTV: (code: string, approve: boolean) => person<{state: string}>('tvDecision', {id: code}, {approve}),
   };
