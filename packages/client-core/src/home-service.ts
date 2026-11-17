@@ -7,13 +7,13 @@
  * - `revalidate()` is the quiet read the freshness hub asks for when a library, the profile's
  *   watched state or a playback position moved. The answer is merged into what is shown: a row
  *   that did not change is the same object, so its cards do not draw again.
- * - The server sends each row whole, so `more()` has nothing further to read.
+ * - `more()` appends a page using the row's server-issued cursor.
  *
  * No React and no timers of its own beyond the read deadline: tested under Node.
  */
 import {readHomeLayoutSettings, saveHomeLayoutSettings} from './home-layout-settings.ts';
 import type {DeviceClass} from './preferences.ts';
-import {fetchHome, readHomeViewRow, type HomeApi, type HomeDocument, type HomeLayout, type HomeLayoutView, type HomeRow} from './home.ts';
+import {appendHomeRowPage, fetchHome, fetchHomeRow, type HomeApi, type HomeDocument, type HomeLayout, type HomeLayoutView, type HomeRow} from './home.ts';
 
 /** `deviceClass`: the kind of device this app is, which a settings save names (Customize Home is saved as settings). */
 export type HomeServiceOptions = Readonly<{timeoutMs?: number; deviceClass?: DeviceClass}>;
@@ -67,6 +67,7 @@ export class HomeService {
   /** Each explicit load starts a new one; an answer for an older one is dropped. */
   private generation = 0;
   private reading?: {controller: AbortController; promise: Promise<void>};
+  private pageLife = new AbortController();
   /** Deferred rows being read, and rows whose read failed while they stayed near (asked again once they leave and return). */
   private rowReads = new Map<string, AbortController>();
   private failedRows = new Set<string>();
@@ -105,9 +106,11 @@ export class HomeService {
     if (this.disposed) return Promise.resolve();
     if (this.reading && !options.clear) return this.reading.promise;
     this.reading?.controller.abort();
+    this.pageLife.abort();
+    this.pageLife = new AbortController();
     this.stopRowReads();
     const mine = ++this.generation, controller = new AbortController();
-    this.publish({phase: 'loading', error: undefined, ...(options.clear ? {document: undefined} : {})});
+    this.publish({phase: 'loading', error: undefined, paging: none, ...(options.clear ? {document: undefined} : {})});
     const promise = this.read(controller.signal).then(document => {
       if (mine !== this.generation) return;
       this.publish({phase: 'ready', error: undefined, document: this.state.document ? mergeHomeDocument(this.state.document, document) : document});
@@ -136,7 +139,7 @@ export class HomeService {
   async revalidate(context?: {signal?: AbortSignal; settle?: () => Promise<void>}): Promise<void> { await this.refresh(context); }
 
   /** The rows near the screen, as the app sees them. A saved view's row the server deferred is read once while it is
-   * near (GET /v1/items with the row's own library and query); a row that leaves has its read stopped. A row whose
+   * near; a row that leaves has its read stopped. A row whose
    * titles come back empty is taken out, as the server leaves out an empty row. One read per row at a time. */
   demand(rowIds: Iterable<string>): void {
     if (this.disposed) return;
@@ -157,25 +160,47 @@ export class HomeService {
   private readRow(row: HomeRow): void {
     const controller = new AbortController(), mine = this.generation, read = row.viewRead!;
     this.rowReads.set(row.id, controller);
-    void readHomeViewRow(this.api(), read, controller.signal).then(entries => {
+    void fetchHomeRow(this.api(), row.id, {limit: 20}, controller.signal).then(page => {
       const document = this.state.document;
       if (controller.signal.aborted || mine !== this.generation || this.disposed || !document) return;
       const at = document.rows.findIndex(each => each.id === row.id && each.deferred && sameJson(each.viewRead, read));
       if (at < 0) return;
       const {deferred: _pending, ...was} = document.rows[at]!;
-      const filled: HomeRow = Object.freeze({...was, entries, limit: entries.length});
+      const {entries, nextCursor, hasMore, cursorCapable, total} = page;
+      const filled: HomeRow = Object.freeze({...was, entries, limit: entries.length, nextCursor, hasMore, cursorCapable, total});
       const rows = entries.length ? document.rows.map((each, index) => index === at ? filled : each) : document.rows.filter((_, index) => index !== at);
       this.publish({document: Object.freeze({...document, rows: Object.freeze(rows)})});
     }, () => { if (!controller.signal.aborted && mine === this.generation) this.failedRows.add(row.id); })
       .finally(() => { if (this.rowReads.get(row.id) === controller) { this.rowReads.delete(row.id); if (!this.disposed && mine === this.generation) this.startRowReads(); } });
   }
 
-  /** Rows arrive whole, so there is never a further page. */
   async more(rowId: string): Promise<HomePageOutcome> {
-    const refused = (reason: 'not_ready' | 'row_missing' | 'no_cursor'): HomePageOutcome => ({rowId, requestedCursor: undefined, status: 'refused', applied: false, reason});
+    const refused = (reason: 'not_ready' | 'row_missing' | 'no_cursor' | 'already_paging'): HomePageOutcome =>
+      ({rowId, requestedCursor: undefined, status: 'refused', applied: false, reason});
     if (this.disposed) return {rowId, requestedCursor: undefined, status: 'ignored', applied: false, reason: 'disposed'};
-    if (!this.state.document) return refused('not_ready');
-    return refused(this.state.document.rows.some(row => row.id === rowId) ? 'no_cursor' : 'row_missing');
+    if (this.state.phase !== 'ready' || !this.state.document) return refused('not_ready');
+    const row = this.state.document.rows.find(value => value.id === rowId);
+    if (!row) return refused('row_missing');
+    if (!row.nextCursor) return refused('no_cursor');
+    if (this.state.paging.has(rowId)) return refused('already_paging');
+    const requestedCursor = row.nextCursor, signal = this.pageLife.signal;
+    const receipt = {rowId, requestedCursor};
+    this.publish({paging: new Set([...this.state.paging, rowId])});
+    try {
+      const page = await fetchHomeRow(this.api(), rowId, {cursor: requestedCursor}, signal);
+      const document = this.state.document;
+      if (signal.aborted || !document?.rows.includes(row)) return {...receipt, status: 'ignored', applied: false, reason: 'row_changed'};
+      if (page.nextCursor === requestedCursor) return {...receipt, status: 'failed', applied: false};
+      const appended = appendHomeRowPage(row, page);
+      this.publish({document: Object.freeze({...document, rows: Object.freeze(document.rows.map(value => value === row ? appended : value))})});
+      return {...receipt, status: 'applied', applied: true, firstItemId: appended.entries[row.entries.length]?.id ?? null};
+    } catch (error) {
+      const code = (error as {code?: unknown} | null)?.code;
+      if (!signal.aborted && (code === 'stale_continuation' || code === 'invalid_cursor')) void this.revalidate();
+      return {...receipt, status: 'failed', applied: false};
+    } finally {
+      if (!signal.aborted) this.publish({paging: new Set([...this.state.paging].filter(id => id !== rowId))});
+    }
   }
 
   /** Customize Home: Home's rows with the profile's saved order and hidden rows (`home-layout-settings.ts`). */
@@ -225,6 +250,7 @@ export class HomeService {
     this.disposed = true;
     this.generation++;
     this.reading?.controller.abort();
+    this.pageLife.abort();
     this.stopRowReads();
     this.listeners.clear();
   }
