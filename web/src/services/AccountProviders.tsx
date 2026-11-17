@@ -46,14 +46,18 @@ export function ProviderButtons({next, disabled, divider}: {next: string; disabl
   const {t} = servicesI18n();
   const [leaving, setLeaving] = useState(false), [error, setError] = useState<unknown>(), [providers, setProviders] = useState<readonly string[]>([]);
   useEffect(() => { let live = true; void offeredProviders().then(value => { if (live) setProviders(value); }); return () => { live = false; }; }, []);
+  const [notice, setNotice] = useState<Provider>();
+  // Apple and Google are always drawn (auth.html, the owner's 17 Nov ruling); one this Services doesn't offer says so.
   const start = (provider: Provider) => {
-    setLeaving(true); setError(undefined);
+    setError(undefined);
+    if (!providers.includes(provider)) { setNotice(provider); return; }
+    setNotice(undefined); setLeaving(true);
     startProvider(provider, next).catch(caught => { setError(caught); setLeaving(false); });
   };
-  if (!providers.includes('apple') && !providers.includes('google')) return null;
   return <>
-    {providers.includes('apple') && <ServicesProviderButton provider="apple" disabled={disabled || leaving} onClick={() => start('apple')}>{t('next.account.signIn.apple')}</ServicesProviderButton>}
-    {providers.includes('google') && <ServicesProviderButton provider="google" disabled={disabled || leaving} onClick={() => start('google')}>{t('next.account.signIn.google')}</ServicesProviderButton>}
+    <ServicesProviderButton provider="apple" disabled={disabled || leaving} onClick={() => start('apple')}>{t('next.account.signIn.apple')}</ServicesProviderButton>
+    <ServicesProviderButton provider="google" disabled={disabled || leaving} onClick={() => start('google')}>{t('next.account.signIn.google')}</ServicesProviderButton>
+    {notice ? <ServicesNotice tone="error">{t('accounts.provider.unavailable', {provider: t(notice === 'apple' ? 'accounts.provider.apple' : 'accounts.provider.google')})}</ServicesNotice> : null}
     {error ? <ServicesNotice tone="error">{t(providerProblem(error))}</ServicesNotice> : null}
     <ServicesDivider>{divider}</ServicesDivider>
   </>;
