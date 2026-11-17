@@ -1,9 +1,10 @@
 import React from 'react';
 import {StandardBackdrop} from '../artwork';
+import {useTheme} from '../theme';
 
-/** The one top every Settings page has, member and owner, phone, tablet and TV: the standard backdrop (the teal wash) under
- * its header and body. Settings' own sheet draws it, and so does every page opened from Settings that is drawn outside
- * that sheet (Notifications, Watch Together, Switch server, Live TV settings, Equalizer, the owner's Dashboard and
- * Libraries, through `Screen settings`), so no page builds its own top and none
- * shows a flat navy one beside the others (owner, 13 Nov; W4 F14). */
-export function SettingsBackdrop() {return <StandardBackdrop/>;}
+/** Under a page opened from Settings (Watch Together, Live TV settings, Equalizer, the owner's Dashboard and
+ * Libraries, through `Screen settings`). On a phone that page is inside the Settings sheet, and on a tablet inside the
+ * shell's Settings page; both already stand on their own surface, so the page draws nothing (system rules 1 and 2: a
+ * sheet is a plain surface and never draws a backdrop). On TV the page is a layer pushed over the one before it, and
+ * covers it with the standard backdrop. */
+export function SettingsBackdrop() {return useTheme().isTV ? <StandardBackdrop/> : null;}

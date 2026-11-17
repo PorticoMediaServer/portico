@@ -9,7 +9,7 @@ import {Menu} from '../../kit/overlays';
 import {shellType} from '../../kit/shell/visual';
 import {useTheme} from '../../kit/theme';
 import {Quiet} from '../../kit/states';
-import {SettingsBackdrop} from '../../kit/shell/SettingsBackdrop';
+import {StandardBackdrop} from '../../kit/artwork';
 import {TopBar} from '../../kit/layout/TopBar';
 
 type Snapshot = Awaited<ReturnType<typeof nativeAccounts.snapshot>>;
@@ -53,7 +53,7 @@ export function PhoneServerChooser({snapshot, busy, error, onBack, onSelect, onS
     <Button testID={`phone-server-menu-${server.id}`} variant="icon" iconOnly size="compact" icon="i-more" disabled={busy}
       accessibilityLabel={t('next.browse.native.moreFor', {title: server.name})} onPress={() => setMenu(server)} style={{minWidth: 42, paddingHorizontal: 8}}/>
   </View>;
-  return <View testID="phone-server-chooser" style={{flex: 1, paddingTop: insets.top + 12}}><SettingsBackdrop/>
+  return <View testID="phone-server-chooser" style={{flex: 1, paddingTop: insets.top + 12}}><StandardBackdrop/>
     <View style={{height: 5, width: 38, borderRadius: 3, alignSelf: 'center', backgroundColor: theme.colors.textTertiary, marginBottom: 8}}/>
     <TopBar safeArea={false} back={onBack ? {label: t('next.shell.settings'), onPress: onBack, testID: 'phone-server-back', disabled: busy} : undefined} title={t('web.servers.switchServer')}/>
     <ScrollView contentContainerStyle={{paddingHorizontal: 18, paddingTop: 18, paddingBottom: insets.bottom + 24}}>

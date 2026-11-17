@@ -7,13 +7,12 @@ import type {FocusAddress} from '../../kit/focus/registry';
 import type {ShellDestination} from '../../shell/model';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {StandardBackdrop} from '../../kit/artwork';
-import {SettingsBackdrop} from '../../kit/shell/SettingsBackdrop';
 
-/** `settings`: a page opened from Settings takes the one Settings top (SettingsBackdrop) on every platform; other screens
- * draw the standard backdrop on TV only and sit on the shell's own background elsewhere. */
-export function Screen({children, title, style, settings = false}: {children: ReactNode; title?: string; style?: StyleProp<ViewStyle>; settings?: boolean}) {
+/** On TV a screen is a layer pushed over the one before it and covers it with the standard backdrop; elsewhere it sits
+ * on its host's surface (the shell's page or the Settings sheet) and draws none. */
+export function Screen({children, title, style}: {children: ReactNode; title?: string; style?: StyleProp<ViewStyle>}) {
   const theme = useTheme();
-  return <View style={[{flex: 1, paddingLeft: theme.isTV ? 200 : 0, paddingRight: theme.isTV ? 96 : 0, paddingTop: theme.isTV ? 60 : 0}, style]}>{settings ? <SettingsBackdrop/> : theme.isTV && <StandardBackdrop/>}
+  return <View style={[{flex: 1, paddingLeft: theme.isTV ? 200 : 0, paddingRight: theme.isTV ? 96 : 0, paddingTop: theme.isTV ? 60 : 0}, style]}>{theme.isTV && <StandardBackdrop/>}
     {title && <Text accessibilityRole="header" style={[shellType(theme.isTV ? 44 : 32, 800, 'normal', -.035), {color: theme.colors.text, marginBottom: theme.isTV ? 38 : 16, marginHorizontal: theme.isTV ? 0 : 20}]}>{title}</Text>}
     {children}
   </View>;
