@@ -277,6 +277,8 @@ export type { IconId, IconDefinition } from './icons.ts';
 export { componentSpec, focus as focusSpec, button as buttonSpec, transport as transportSpec, field as fieldSpec, toggle as toggleSpec, chip as chipSpec, segmented as segmentedSpec, row as rowSpec, overlay as overlaySpec, menu as menuSpec, feedback as feedbackSpec, confirmation as confirmationSpec, hero as heroSpec, card as cardSpec, shelf as shelfSpec, banner as bannerSpec, episode as episodeSpec, generatedArt as generatedArtSpec, navigation as navigationSpec, activity as activitySpec, tag as tagSpec, tabs as tabsSpec } from './components.ts';
 export type { ComponentSpec, Fill, ButtonVariant, ButtonSize, ButtonState, RowVariant, OverlayKind, ScrimStop } from './components.ts';
 export {tvAccount as tvAccountSpec} from './components.ts';
+export {frame as frameSpec, frameForm} from './frames.ts';
+export type {FrameSpec, FrameForm, FrameTypeRole} from './frames.ts';
 
 /** Named surface roles, including the exact 6/10/12/14/16 px kit radii. */
 export const radii = {small: 6, control: 8, artwork: 10, surface: 10, panel: 12, overlay: 14, tag: 6, thumbnail: 8, heroButton: 12, liveCard: 12, fallback: 14, banner: 16, popover: 18, sheet: 24, pill: 999} as const;
