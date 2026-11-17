@@ -127,6 +127,7 @@ type ItemQuery struct {
 	WithTotal bool
 
 	homeIDs                  []int64 // a Continue row, in its own order; nil for other lists
+	homeBecause              int64
 	homeRecent, homeReleased bool
 	homeUnplayed             bool
 
@@ -179,6 +180,9 @@ var seriesOrder = sortSpec{columns: []string{"ifnull(i.index_number, 1e18)", "i.
 
 // sortSpec is how this list is ordered. Its own order means volume order for a series.
 func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {
+	if q.homeBecause != 0 && q.Sort == SortOrder {
+		return sortSpec{columns: []string{"because.score"}}, true
+	}
 	if q.homeRecent && q.Sort == SortAdded {
 		return sortSpec{columns: []string{"max(i.added_at, ifnull(i.last_child_added_at, 0))"}}, true
 	}
@@ -322,7 +326,7 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	if cursor != nil && !cursor.fits(spec) {
 		return page, ErrCursorExpired
 	}
-	if q.Sort == SortOrder && q.Parent == "" && q.Series == "" && q.Collection == "" && q.homeIDs == nil {
+	if q.Sort == SortOrder && q.Parent == "" && q.Series == "" && q.Collection == "" && q.homeIDs == nil && q.homeBecause == 0 {
 		// Season and episode numbers order one show's items. Over a whole library they have
 		// no index and mean nothing, so the list would be sorted afresh for every page.
 		return page, invalid("Only the titles inside a show, season, artist, album or series can be sorted in their own order.")
@@ -903,13 +907,17 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	if found, err := q.conditions(ctx, tx, w, &scoped, acc); err != nil || !found {
 		return false, err
 	}
+	if q.homeBecause != 0 {
+		q.becauseSource(w, acc)
+		scoped = true
+	}
 	// A list that can hold shows, seasons, artists, albums, collections or series leaves out
 	// those the viewer would find nothing under; one of films, episodes or tracks alone needs
 	// no such check, and nor does a series' list: it holds only volumes and issues.
 	// The holders are found once for the request, and are nearly always none.
 	if q.Series == "" && (len(q.Kinds) == 0 || w.holderKinds != "") {
 		if set := acc.emptiedWithin(library, w.holderKinds, w.within("f")); set != "" {
-			emptied, err := ids(ctx, tx, set)
+			emptied, err := ids(ctx, tx, set, w.args...)
 			if err != nil {
 				return false, err
 			}
@@ -925,19 +933,6 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	return true, nil
 }
 
-func boolSQL(b bool) string {
-	if b {
-		return "1"
-	}
-	return "0"
-}
-
-// A version's resolution class goes by width or height, so a wide 1920x800 film is still 1080p.
-var resolutionClasses = map[string]int{"sd": 1, "720p": 2, "1080p": 3, "4k": 4}
-
-const resolutionSQL = `CASE WHEN m.width >= 3800 OR m.height >= 2000 THEN 4 WHEN m.width >= 1900 OR m.height >= 1000 THEN 3
-	WHEN m.width >= 1200 OR m.height >= 700 THEN 2 ELSE 1 END`
-
 // underHolder writes a query over the playable items under a holder. Titles nest at most
 // three deep, so a holder is the root or the parent of its leaves, and each is found through
 // its own index; asking for "root or parent" in one condition would read the whole table.
@@ -948,15 +943,6 @@ func underHolder(body, holder, joiner string) string {
 	root := strings.ReplaceAll(body, "{under}", "c.root_id = "+holder+" AND c.kind IN "+playableKindsSQL)
 	parent := strings.ReplaceAll(body, "{under}", "c.parent_id = "+holder+" AND c.kind IN "+playableKindsSQL)
 	return root + joiner + parent
-}
-
-// idList is the ids of some items as an SQL list.
-func idList(items []Item) string {
-	ids := make([]string, len(items))
-	for n := range items {
-		ids[n] = fmt.Sprint(items[n].ID)
-	}
-	return "(" + strings.Join(ids, ", ") + ")"
 }
 
 // loadImages attaches chosen pictures, falling back to a visible album for a track with none.

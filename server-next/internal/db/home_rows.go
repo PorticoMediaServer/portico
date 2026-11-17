@@ -3,12 +3,16 @@ package db
 import (
 	"context"
 	"slices"
+	"strings"
 )
 
 // HomeRowItems opens a Home source as an ordinary item list, so See all keeps the library's
 // sorts, filters, exact totals and cursors. Continue sources read only this profile's activity,
 // not its whole libraries; the query rechecks visibility before returning or counting anything.
 func (d *DB) HomeRowItems(ctx context.Context, v Viewer, row string, q ItemQuery) (ItemPage, error) {
+	if strings.HasPrefix(row, "because:") {
+		return d.BecauseWatchedPage(ctx, v, row, q)
+	}
 	var continuing []Item
 	var mood *MoodRow
 	switch row {
