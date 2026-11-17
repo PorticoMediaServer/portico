@@ -78,7 +78,7 @@ const holderSorts: Readonly<Record<string, ContentProjection['sorts']>> = {
 
 /** One page of a view the rebuilt server answers. `cursor` is a section's next page, from that section's `nextCursor`. */
 export function rebuiltContent(api: ServerRequester, route: ContentRoute, bound: ContentScope, pageSize: number, signal?: AbortSignal, cursor?: string | null): Promise<ContentProjection> {
-  if (route.view === 'discover') return discoverFromLanding(api, route, bound, pageSize, signal);
+  if (route.view === 'discover') return discoverFromLanding(api, route, bound, pageSize, signal, readCursor(cursor));
   if (route.view === 'book') return audiobookPage(api, route, bound, signal);
   if (holders[route.view]) return holderPage(api, route, bound, Math.min(pageSize, 200), signal, {next: readCursor(cursor)});
   throw new Error('This view has no rebuilt read.');
@@ -144,24 +144,26 @@ async function holderPage(api: ServerRequester, route: ContentRoute, bound: Cont
   }) as ContentProjection;
 }
 
-async function discoverFromLanding(api: ServerRequester, route: ContentRoute, bound: ContentScope, pageSize: number, signal?: AbortSignal): Promise<ContentProjection> {
+async function discoverFromLanding(api: ServerRequester, route: ContentRoute, bound: ContentScope, pageSize: number, signal?: AbortSignal, next?: ReturnType<typeof readCursor>): Promise<ContentProjection> {
   // The landing answer does not say the library's kind, which the Discover layout reads (square
   // cards for music and audiobooks): it is read beside it.
   const [landing, library] = await Promise.all([
-    callServer(api, 'GET /v1/libraries/{id}/landing', {id: route.libraryId, signal}) as Promise<Home>,
+    next ? callServer(api, 'GET /v1/home/rows/{id}', {id: next.section, signal,
+      query: {library: route.libraryId, cursor: next.cursor, limit: Math.min(pageSize, railLimit), total: true}}).then(row => ({rows: [row]}))
+      : callServer(api, 'GET /v1/libraries/{id}/landing', {id: route.libraryId, signal}) as Promise<Home>,
     kindOf(api, route.libraryId, signal),
   ]);
   const rows = Array.isArray(landing?.rows) ? landing.rows : [];
   const sections: ContentSection[] = [];
   for (const row of firstOfEach('content', 'landing.rows', rows.filter(row => typeof row?.id === 'string' && row.id && Array.isArray(row.items)), row => row.id)) {
     const entries = firstOfEach('content', 'entries', entriesFromItems(row.items, route.libraryId), entry => entry.id).slice(0, railLimit);
-    if (!entries.length) continue;
+    if (!entries.length && !next) continue;
     // An audiobook library's Continue is the screen's resume shelf, which it knows by this id.
     const id = row.id === 'continue' && library.kind === 'audiobook' ? 'continue_listening' : row.id;
     // A heading code the app does not ship shows the server's own title as written.
     const shape = row.shape === 'landscape' || row.shape === 'square' || row.shape === 'poster' ? row.shape : undefined;
     sections.push(Object.freeze({id, type: 'rail', heading: Object.freeze({key: `library.landing.${row.id}`, fallback: typeof row.title === 'string' ? row.title : ''}),
-      entries: Object.freeze(entries), totalCount: entries.length, nextCursor: '', ...(shape ? {shape} : {})}));
+      entries: Object.freeze(entries), totalCount: row.total ?? entries.length, nextCursor: sectionCursor(row.id, row.nextCursor ?? ''), ...(shape ? {shape} : {})}));
   }
   return Object.freeze({
     heading: Object.freeze({key: 'library.tab.discover', fallback: library.name}),
