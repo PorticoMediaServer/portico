@@ -215,6 +215,8 @@ export type Session = Readonly<{
   control?: SessionControl;
   id: string; kind: SessionKind; role: 'local' | 'receiver' | 'group_member' | 'other';
   state: 'playing' | 'paused' | 'ended' | 'other'; itemId?: string; versionId?: string;
+  /** Receipt for saving this play's final position after its session has ended. */
+  progressToken?: string;
   discTitle?: DiscTitleRef;
   queue?: Readonly<{queueId: string; entryId: string}>;
   lease: Readonly<{expiresAt?: string; reportEveryMs: number}>;
@@ -261,6 +263,7 @@ export function parseSession(v: unknown): Session {
     id: id(v.id, 'session id'), kind: oneOf(v.kind, ['vod', 'audio', 'live', 'channel'] as const, 'other' as never),
     role: oneOf(v.role ?? 'local', ['local', 'receiver', 'group_member'] as const, 'other' as never), state: oneOf(v.state, ['playing', 'paused', 'ended'] as const, 'other' as never),
     itemId: optId(v.itemId, 'item id'), versionId: optId(v.versionId, 'version id'),
+    ...(typeof v.progressToken === 'string' && v.progressToken !== '' ? {progressToken: v.progressToken} : {}),
     ...(discTitle ? {discTitle} : {}),
     queue: obj(v.queue) ? Object.freeze({queueId: id(v.queue.queueId, 'queue id'), entryId: id(v.queue.entryId, 'entry id')}) : undefined,
     lease: Object.freeze({expiresAt: obj(v.lease) && typeof v.lease.expiresAt === 'string' ? v.lease.expiresAt : undefined, reportEveryMs: obj(v.lease) ? num(v.lease.reportEveryMs, 10_000) : 10_000}),

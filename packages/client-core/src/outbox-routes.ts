@@ -45,8 +45,8 @@ export const isOutboxRoute = (path: string, method: string): boolean => outboxKi
 /** The oldest edit the server orders (35 days); an older one counts as of then. */
 export const maxEditAgeMs = 35 * 24 * 60 * 60 * 1000;
 /**
- * What is sent for a kept edit. A change to a title's state or to the profile's settings says how
- * long ago the person made it (`madeAgoMs`), so the server can order it against changes from other
+ * What is sent for a kept edit. Title state, profile settings and a final playback observation say
+ * how long ago the person made them (`madeAgoMs`), so the server can order it against changes from other
  * devices; the server never reads this device's clock, only that length of time.
  */
 export function outboxBody(entry: Readonly<{path: string; method: string; body?: unknown; createdAt: number}>, now: number): unknown {
@@ -56,7 +56,9 @@ export function outboxBody(entry: Readonly<{path: string; method: string; body?:
     const age = (rows: unknown) => Array.isArray(rows) ? rows.map(row => ({...row, madeAgoMs: Math.max(0, Number(row.madeAgoMs) || 0) + Math.max(0, now - entry.createdAt)})) : rows;
     return {...body, ...(body.items === undefined ? {} : {items: age(body.items)}), ...(body.plays === undefined ? {} : {plays: age(body.plays)})};
   }
-  const ordered = [itemState, settings].some(route => entry.method === route.method && segments.length === route.parts.length
+  const stop = outboxKind(entry.path, entry.method) === 'stop' && entry.body && typeof entry.body === 'object'
+    && typeof (entry.body as {progressToken?: unknown}).progressToken === 'string' && (entry.body as {progressToken: string}).progressToken !== '';
+  const ordered = stop || [itemState, settings].some(route => entry.method === route.method && segments.length === route.parts.length
     && route.parts.every((part, i) => part.startsWith('{') ? !!segments[i] : part === segments[i]));
   if (!ordered || typeof entry.body !== 'object' || entry.body === null) return entry.body;
   // An edit made earlier still, while nothing could take it (a place in a book read offline), says so itself.

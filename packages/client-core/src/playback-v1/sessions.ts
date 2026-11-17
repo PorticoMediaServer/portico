@@ -207,9 +207,10 @@ export class SessionsClient {
   /** Stop, with the final position. A session the server no longer knows (it restarted, or already
    * ended it) is stopped. So is one whose stop got no answer: the outbox keeps it, and the final
    * position is sent when the server is back. */
-  async stop(id: string, positionMs?: number, signal?: AbortSignal): Promise<void> {
+  async stop(id: string, position?: number | Readonly<{progressToken: string; positionMs: number; madeAgoMs: number; playClockMs: number}>, signal?: AbortSignal): Promise<void> {
+    const body = typeof position === 'number' ? {positionMs: position} : position;
     const request = {method: 'DELETE', path: playbackPath('DELETE /v1/playback/sessions/{id}', {id}), ...(signal ? {signal} : {}),
-      ...(positionMs !== undefined ? {body: {positionMs: Math.max(0, Math.round(positionMs))}} : {})} as const;
+      ...(body ? {body: {...body, positionMs: Math.max(0, Math.round(body.positionMs))}} : {})} as const;
     await call(this.http, request, [204, 200]).catch(e => {
       const gone = e instanceof PlaybackApiError && (e.status === 404 || e.status === 410);
       if (!gone && (e as {code?: unknown} | null)?.code !== 'sync_pending') throw e;
@@ -306,6 +307,7 @@ export class PlaybackSessionController {
   private lastStart?: {target: StartTarget; options: StartOptions};
   /** Where the player last was while it played, paused or buffered: a failed element reports 0. */
   private heardMs?: number;
+  private heardAt?: number;
   private carriedFor?: number;
 
   constructor(o: ControllerOptions) {
@@ -373,7 +375,7 @@ export class PlaybackSessionController {
         return undefined;
       }
       this.gate.reset();
-      this.heardMs = undefined;
+      this.heardMs = undefined; this.heardAt = undefined;
       this.carriedFor = undefined;
       this.state = Object.freeze({...this.state, observation: undefined});
       this.leaseAtRisk = false;
@@ -398,7 +400,7 @@ export class PlaybackSessionController {
       this.startToken++;
       this.retireReporter();
       this.gate.reset();
-      this.heardMs = undefined;
+      this.heardMs = undefined; this.heardAt = undefined;
       this.leaseAtRisk = false;
       this.carriedFor = undefined;
       this.state = Object.freeze({...this.state, observation: undefined, error: undefined, ended: undefined, changing: false});
@@ -412,7 +414,7 @@ export class PlaybackSessionController {
     this.startToken++;
     this.retireReporter();
     this.gate.reset();
-    this.heardMs = undefined;
+    this.heardMs = undefined; this.heardAt = undefined;
     this.leaseAtRisk = false;
     this.publish({phase: 'idle', session: undefined, observation: undefined, error: undefined, ended: undefined, changing: false});
   }
@@ -512,7 +514,7 @@ export class PlaybackSessionController {
     const generation = this.gate.value;
     if (generation === undefined || !this.state.session || this.state.phase === 'ended') return;
     const o: PlayerObservation = Object.freeze({generation, state: reading.state, positionMs: Math.max(0, Math.round(reading.positionMs)), rate: reading.rate ?? 1, ...(reading.volume !== undefined ? {volume: reading.volume} : {}), ...(reading.muted !== undefined ? {muted: reading.muted} : {})});
-    if (o.state === 'playing' || o.state === 'paused' || o.state === 'buffering') this.heardMs = o.positionMs;
+    if (o.state === 'playing' || o.state === 'paused' || o.state === 'buffering') {this.heardMs = o.positionMs; this.heardAt = (this.timers.now ?? Date.now)();}
     this.publish({observation: o});
     this.reporter?.observe(o, cause);
   }
@@ -543,7 +545,7 @@ export class PlaybackSessionController {
   private playerEvent(e: PlayerEvent) {
     const o = e.observation;
     if (!this.gate.accepts(o.generation)) return;
-    if (o.state === 'playing' || o.state === 'paused' || o.state === 'buffering') this.heardMs = o.positionMs;
+    if (o.state === 'playing' || o.state === 'paused' || o.state === 'buffering') {this.heardMs = o.positionMs; this.heardAt = (this.timers.now ?? Date.now)();}
     this.publish({observation: o});
     if (e.type === 'error') { appLog.write('error','playback','error',{code:e.code,sessionId:this.state.session?.id}); this.reporter?.failed(o.generation); return; }
     // PiP or AirPlay can't show an overlay the app draws: ask for the same track in the manifest,
@@ -669,12 +671,18 @@ export class PlaybackSessionController {
     const session = this.state.session;
     ++this.startToken;
     const at = this.heardMs ?? this.state.observation?.positionMs;
+    const now = this.timers.now ?? Date.now, observedAt = this.heardAt ?? now();
+    const playClockMs = this.reporter?.snapshot().playClockMs ?? 0;
     const finalReport = this.reporter?.flush().catch(() => {});
     this.retireReporter();
     this.player.pause();
     this.publish({phase: 'ended', changing: false});
     await finalReport;
-    if (session) {try {await this.client.stop(session.id, at);} catch (error) {this.publish({phase:'error',error:error as Error});throw error;}}
+    if (session) {
+      const final = session.progressToken && at !== undefined ? {progressToken: session.progressToken, positionMs: at,
+        madeAgoMs: Math.max(0, Math.round(now() - observedAt)), playClockMs} : at;
+      try {await this.client.stop(session.id, final);} catch (error) {this.publish({phase:'error',error:error as Error});throw error;}
+    }
   }
 
   dispose() {
