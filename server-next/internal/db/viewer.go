@@ -278,6 +278,18 @@ func (a access) ratedIn(ctx context.Context, tx *sql.Tx, library int64, kinds st
 	return n, err
 }
 
+// underHolder writes a query over the playable items under a holder. Titles nest at most
+// three deep, so a holder is the root or the parent of its leaves, and each is found through
+// its own index; asking for "root or parent" in one condition would read the whole table.
+// body is a SELECT over items c with "{under}" where that condition goes, and holder is the
+// SQL expression for the holder's id. The two results are joined by joiner: " UNION " to list
+// each leaf once, " OR " between two EXISTS.
+func underHolder(body, holder, joiner string) string {
+	root := strings.ReplaceAll(body, "{under}", "c.root_id = "+holder+" AND c.kind IN "+playableKindsSQL)
+	parent := strings.ReplaceAll(body, "{under}", "c.parent_id = "+holder+" AND c.kind IN "+playableKindsSQL)
+	return root + joiner + parent
+}
+
 // query builds one statement with named values, so the visibility condition can appear in it
 // any number of times.
 type query struct {
@@ -374,4 +386,13 @@ func (q *query) add(parts ...string) {
 	for _, p := range parts {
 		q.sql.WriteString(p)
 	}
+}
+
+// idList is the ids of some items as an SQL list.
+func idList(items []Item) string {
+	ids := make([]string, len(items))
+	for n := range items {
+		ids[n] = fmt.Sprint(items[n].ID)
+	}
+	return "(" + strings.Join(ids, ", ") + ")"
 }

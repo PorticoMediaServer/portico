@@ -26,6 +26,8 @@ func (s *Server) homeRow(r *http.Request, _ None) (HomeRow, error) {
 		row.Title = "Recently Released"
 	case "recently_added":
 		row.Title = "Recently Added"
+	case "trending":
+		row.Title = "Trending now"
 	default:
 		if strings.HasPrefix(id, "view:") {
 			views, err := s.savedViewRows(r)

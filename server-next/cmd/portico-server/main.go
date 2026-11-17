@@ -218,6 +218,7 @@ func run(log *slog.Logger) (err error) {
 	goBackground(func() { titleData.Run(ctx) })
 	// Mood rows on Home are chosen in the background, so a Home request only reads them.
 	goBackground(func() { d.KeepMoodRows(ctx, log) })
+	goBackground(func() { handler.KeepTrending(ctx) })
 	// No write timeout: media and the events feed are long replies. Slow request headers are bounded.
 	// Messages read the log kept in the data folder.
 	handler.UseLog(serverLog)
