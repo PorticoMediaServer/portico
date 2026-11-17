@@ -1,5 +1,6 @@
 import type {DeviceInfo} from '../../contracts/src/next/api.ts';
 import {callServer} from './query/server-api.ts';
+import {ApiError} from './http.ts';
 import {installationIdentity} from './installation.ts';
 import {CodedError,unreadableServerResponse} from './server-messages.ts';
 import {parseLocalSession,currentUTCTimestamp} from './local-session.ts';
@@ -155,7 +156,13 @@ export function keepSignInRenewal(chosen:LocalSession,signIn:LocalSession):Local
 }
 /** `POST /v1/auth/sign-in`. */
 export async function directSignIn(api:ProfileAPI,username:string,password:string,signal?:AbortSignal):Promise<DirectSignIn>{
- return openOnlyProfile(api,parseDirectSignIn(await callServer(api,'POST /v1/auth/sign-in',{body:{username,password,device:signInDevice()},signal})),signal);
+ try {
+  const result=await callServer(api,'POST /v1/auth/sign-in',{body:{username,password,device:signInDevice()},signal});
+  return openOnlyProfile(api,parseDirectSignIn(result),signal);
+ } catch (error) {
+  if(error instanceof ApiError&&error.status===401&&error.code==='unauthorized')error.code='local_credentials_invalid';
+  throw error;
+ }
 }
 /** Creates the owner of a new server (`POST /v1/setup/owner`) with the setup code the server wrote
  * to its log and to setup-code.txt in its data folder, and opens the owner's main profile. */

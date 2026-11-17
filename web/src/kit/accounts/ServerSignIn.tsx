@@ -24,13 +24,15 @@ export function LocalServerSignIn({serverName, initialUsername = '', remembered 
     return () => {clearInterval(timer); window.removeEventListener('focus', tick); document.removeEventListener('visibilitychange', tick);};
   }, [retryAt]);
   const seconds = signInRetrySeconds(retryAt, now), waiting = seconds > 0;
+  const credentialMessage = (error as {code?: string} | undefined)?.code === 'local_credentials_invalid'
+    ? t('web.signIn.error.credentials', {server: serverName}) : undefined;
   return <AuthStage phoneShape="top">
     <p className={styles.eyebrow}>{t('accounts.signIn.to')}</p><h1>{serverName}</h1><p className={styles.lede}>{t('accounts.signIn.localBody')}</p>
     {remembered.length > 1 && <div className={styles.remembered}>{remembered.map(account => <button key={account.accountId} type="button" className={styles.accountChip}
       data-selected={username === account.username || undefined} disabled={busy} onClick={() => {setUsername(account.username); setPassword('');}}>
       <span>{Array.from(account.displayName || account.username)[0]}</span>{account.displayName || account.username}
     </button>)}</div>}
-    {retryAt === undefined ? <AuthError error={error} /> : waiting && <p className={`${styles.error} ${styles.wait}`} role="alert"><Icon name="i-clock" size={20} /><span><b>{t('accounts.signIn.rateLimitedTitle')}</b> {t('accounts.signIn.rateLimitedBody')}</span></p>}
+    {retryAt === undefined ? <AuthError error={error} message={credentialMessage} /> : waiting && <p className={`${styles.error} ${styles.wait}`} role="alert"><Icon name="i-clock" size={20} /><span><b>{t('accounts.signIn.rateLimitedTitle')}</b> {t('accounts.signIn.rateLimitedBody')}</span></p>}
     <form className={styles.form} onSubmit={event => {event.preventDefault(); if (username && password && !busy && signInRetrySeconds(retryAt) === 0) onSignIn(username, password);}}>
       <TextField variant="auth" label={t('accounts.signIn.username')} name="username" autoComplete="username" data-filled={remembered.some(account => account.username === username) || undefined} value={username} onChange={event => setUsername(event.currentTarget.value)} disabled={busy} required />
       <AuthPasswordField label={t('accounts.signIn.password')} name="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.currentTarget.value)} disabled={busy} aria-invalid={waiting || undefined} required />

@@ -31,7 +31,7 @@ test('the displayed countdown keeps two second digits and the active locale', ()
   assert.equal(signInRetryClock(65, 'ar-EG'), '١:٠٥');
 });
 
-test('the sign-in button renders the catalogue countdown template', async () => {
+test('the local sign-in form shows the countdown and names credential refusals', async () => {
   const {registerHooks} = await import('node:module');
   const {transformTsx} = await import('./transform-tsx.mjs');
   registerHooks({load(url, context, next) {
@@ -42,7 +42,10 @@ test('the sign-in button renders the catalogue countdown template', async () => 
   const {createElement} = await import('react');
   const {renderToStaticMarkup} = await import('react-dom/server');
   const {LocalServerSignIn} = await import('../src/kit/accounts/ServerSignIn.tsx');
-  const markup = renderToStaticMarkup(createElement(LocalServerSignIn, {serverName: 'Server', retryAt: Date.now() + 65000, onSignIn() {throw new Error('Rendering cannot sign in');}}));
+  const props = {serverName: 'Server', onSignIn() {throw new Error('Rendering cannot sign in');}};
+  const markup = renderToStaticMarkup(createElement(LocalServerSignIn, {...props, retryAt: Date.now() + 65000}));
   assert.match(markup, /Try again in 1:05/);
   assert.match(markup, /data-retry-waiting="true"/);
+  const refused = renderToStaticMarkup(createElement(LocalServerSignIn, {...props, error: {status: 401, code: 'local_credentials_invalid'}}));
+  assert.match(refused, /That username and password didn’t match an account on Server/);
 });

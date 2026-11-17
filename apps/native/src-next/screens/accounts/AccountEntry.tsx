@@ -878,13 +878,14 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const codeBack = () => {if (renderedTV?.current()) back();};
   const backAction = stage !== 'welcome' || onBack ? {id: 'back', label: t('action.back'), disabled: busy, onPress: stage === 'tv' ? codeBack : back} : undefined;
   const failure = stageError ? presentError(stageError, stage === 'profile-pin' ? 'profiles' : 'sign-in') : undefined;
+  const passwordInvalid = stage === 'local' && (stageError as {code?: string} | undefined)?.code === 'local_credentials_invalid';
   // A TV that reaches a server nobody has set up says where setup happens: this device cannot be
   // the owner, and the generic refusal tells nobody what to do. On the address step the notice is
   // drawn under the field it belongs to, so the field keeps the focus it already holds; a server
   // picked from a list says the same.
   const status = Platform.isTV && setupElsewhereRefusal(stageError)
     ? <FormError placement="block">{t('accounts.setup.elsewhere')}</FormError>
-    : failure && !failure.silent ? <FormError placement="block">{failure.body}</FormError>
+    : failure && !failure.silent ? <FormError placement="block">{passwordInvalid ? t('web.signIn.error.credentials', {server: server!.name}) : failure.body}</FormError>
     : accountEnded && stage === 'welcome' ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.text, marginBottom: 16}]}>{t('web.signIn.error.accountEnded')}</Text> : null;
   const directoryView = stage === 'servers' ? directoryFailure(target, error) : 'other';
   const hostedWaiting = stage === 'servers' && !!target && error instanceof HostedSignInUnavailable;
@@ -1339,9 +1340,6 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       {!Platform.isTV && server?.move === 'to_local' && <Button variant="link" disabled={busy} onPress={() => {void run(beginMemberCode);}}>{t('accounts.move.haveCode')}</Button>}
     </>;
     const signIn = async () => {consume(await operation.current!.signInLocal(username, password)); setPassword('');};
-    const refusedCode = (stageError as {code?: unknown} | undefined)?.code;
-    // server-next refuses a wrong username or password with 401 `unauthorized` (api/auth.go errBadSignIn).
-    const passwordInvalid = refusedCode === 'unauthorized';
     if (!theme.isTV && source) return <PhoneServerSignIn busy={busy} error={status} passwordInvalid={passwordInvalid} serverName={server!.name}
       address={address.trim() ? address.trim().replace(/^https?:\/\//i, '') : new URL(source.serverOrigin()).host}
       username={username} password={password} onUsernameChange={setUsername} onPasswordChange={setPassword} links={links}

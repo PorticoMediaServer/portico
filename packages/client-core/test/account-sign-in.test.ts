@@ -6,6 +6,7 @@ import {setInstallationIdentity} from '../src/installation.ts';
 import {ManagedProfilesClient, completeDirectSignInChallenge, completeOwnerSetup, directSignIn, directSignInContinuation, keepSignInRenewal, parseDirectSnapshot, parseManagedProfiles, selectDirectProfile, type ProfileAPI} from '../src/profile-management.ts';
 import {IdentityClient} from '../src/identity-client.ts';
 import {parseDevices} from '../src/identity-devices.ts';
+import {ApiError} from '../src/http.ts';
 
 const INSTALLATION = 'installation_for_sign_in_tests_0000001';
 const later = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
@@ -34,6 +35,18 @@ function server(answers: Record<string, unknown | ((call: Call) => unknown)>) {
 }
 test.beforeEach(() => setInstallationIdentity({installationId: INSTALLATION, name: 'Test browser', platform: 'web', app: 'portico', appVersion: '1'}));
 test.after(() => setInstallationIdentity(undefined));
+
+test('only the password endpoint’s 401 is an incorrect username or password', async () => {
+  const refusal = () => {throw new ApiError(401, 'unauthorized', 'Sign-in refused');};
+  const rejected = server({'POST /v1/auth/sign-in': refusal});
+  await assert.rejects(directSignIn(rejected.api, 'sam', 'unused'), {status: 401, code: 'local_credentials_invalid'});
+
+  const expired = server({
+    'POST /v1/auth/sign-in': {session: session(), account: account(), profiles: [profile('main')]},
+    'POST /v1/profiles/main/select': refusal,
+  });
+  await assert.rejects(directSignIn(expired.api, 'sam', 'unused'), {status: 401, code: 'unauthorized'});
+});
 
 test('signing in to an account with several profiles asks who is watching: nothing is chosen for the person', async () => {
   const s = server({'POST /v1/auth/sign-in': withUnknownFields({session: session(), account: account(), profiles: [profile('main'), profile('kid', {pinRequired: true})]})});
