@@ -15,16 +15,12 @@ import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 import * as directoryChooser from '../src-next/screens/accounts/directory-chooser';
 
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
-// The pickers and the PIN screen are shared pieces whose slots hold what layouts kept in beforeActions.
-const parts = (tree: any): any[] => tree?.type === 'PhoneWhosWatching' ? [...nodes(tree.props.picker), ...nodes(tree.props.children)] : tree?.type === 'PhoneProfilePIN' ? [tree, ...nodes(tree.props.remember), ...nodes(tree.props.status), ...nodes(tree.props.hints)] : nodes(tree?.props.beforeActions);
-
-test('phone Portico sign-in offers account help and returns to its form', async () => {
-  const forgotten: unknown[][] = [];
+test('phone Portico Forgot password hands off directly without a native reset form', async () => {
+  const forgotten: (() => boolean)[] = [], stages: string[] = [];
   let linkFails = false;
   class Portico {
     async prepare() {return {password: true, registration: true, recovery: true, providers: []};}
-    async forgot(...identifier: string[]) {forgotten.push(identifier);}
+    async forgot(current: () => boolean) {assert.equal(current(), true); forgotten.push(current);}
     async password() {throw new Error('not used');}
     dispose() {}
   }
@@ -61,7 +57,7 @@ test('phone Portico sign-in offers account help and returns to its form', async 
     './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, './PhoneServerSignIn': {PhoneServerSignIn: 'PhoneServerSignIn'}, 'react-native-qrcode-svg': {default: 'QR'},
   });
   let tree: any;
-  const host = createFabricHookHost(() => {tree = AccountEntry({onComplete: () => {}});});
+  const host = createFabricHookHost(() => {tree = AccountEntry({onComplete: () => {}, onStageChange: (stage: string) => {stages.push(stage);}});});
   await act(() => host.mount());
   try {
     // The first screen is the Portico Account page itself (auth.html frame 4); Forgot password? prepares on use.
@@ -71,20 +67,11 @@ test('phone Portico sign-in offers account help and returns to its form', async 
     linkFails = true; await act(() => tree.props.onOpenLink('https://web.example/terms')); linkFails = false;
     assert.notEqual(tree.props.error, undefined);
     await act(() => tree.props.onForgot());
-    assert.equal(tree.props.title, defaultI18n.t('auth.forgotPasswordTitle'));
-    assert.equal(tree.props.body, defaultI18n.t('auth.resetLinkLede'));
-    // One field takes the username or the email on the account, never both.
-    const fields = parts(tree).filter(node => node.type === 'Field');
-    assert.equal(fields.length, 1); assert.equal(fields[0].props.label, defaultI18n.t('auth.usernameOrEmail'));
-    await act(() => {fields[0].props.onChangeText('nana@example.com');});
-    await act(() => tree.props.primaryAction.onPress());
-    assert.deepEqual(forgotten, [['nana@example.com']]);
-    assert.equal(tree.props.title, defaultI18n.t('auth.checkEmail'));
-    assert.equal(tree.props.body, defaultI18n.t('auth.resetLinkSent'));
-    // Services makes the link single-use and 15 minutes long; the sent state says so, as on web.
-    assert.ok(parts(tree).some(node => node.type === 'Text' && node.props.children === defaultI18n.t('services.recovery.expiry')));
-    await act(() => tree.props.primaryAction.onPress());
+    assert.equal(forgotten.length, 1, 'the prepared account source opens hosted reset once');
+    assert.equal(typeof forgotten[0], 'function', 'handoff receives a lifetime guard, never an ignored email');
     assert.equal(tree.type, 'PhoneAccountSignIn'); assert.equal(tree.props.recovery, true);
+    assert.equal(stages.includes('forgot'), false, 'no intermediate native email form');
+    assert.equal(stages.includes('forgot-sent'), false, 'no claim that this app sent an email');
     await act(() => tree.props.onLocal());
     assert.equal(tree.type, 'PhoneFindServer');
   } finally {await host.unmount();}
