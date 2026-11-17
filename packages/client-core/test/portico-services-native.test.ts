@@ -82,12 +82,20 @@ test('sign-up sends the code to the address, a taken username says so, and the c
   assert.equal(emailedCode('abcdefgh'), 'ABCD-EFGH');
 });
 
-test('the sign-in options offer email sign-up and help only when Services has email, and no Google or Apple yet', async () => {
+test('sign-in options use Services capabilities for email help and the configured providers', async () => {
   const on = services({'GET /v1/system': () => [200, {capabilities: ['email', 'google', 'apple']}]});
   const options = await new PorticoServicesAccountClient(origin, device, on.fetcher).options();
-  assert.equal(options.registration, true); assert.equal(options.recovery, true); assert.deepEqual(options.providers, []);
+  assert.equal(options.registration, true); assert.equal(options.recovery, true);
+  assert.deepEqual(options.providers, [
+    {id: 'apple', enabled: true, native: false, nativeClientIds: []},
+    {id: 'google', enabled: true, native: false, nativeClientIds: []},
+  ]);
+  assert.deepEqual(on.calls.map(call => call.route), ['GET /v1/system']);
+  const one = services({'GET /v1/system': () => [200, {capabilities: ['pictures', 'google']}]});
+  assert.deepEqual((await new PorticoServicesAccountClient(origin, device, one.fetcher).options()).providers.map(value => value.id), ['google']);
   const off = services({'GET /v1/system': () => [200, {capabilities: []}]});
-  assert.equal((await new PorticoServicesAccountClient(origin, device, off.fetcher).options()).registration, false);
+  const unavailable = await new PorticoServicesAccountClient(origin, device, off.fetcher).options();
+  assert.equal(unavailable.registration, false); assert.equal(unavailable.recovery, false); assert.deepEqual(unavailable.providers, []);
 });
 
 test('the apps\' sign-in store renews at Portico Services and keeps the account and sign-in it renews', async () => {

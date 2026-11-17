@@ -67,8 +67,7 @@ export class PorticoServicesCredentialApi implements CredentialApi<string> {
   }
 }
 
-/** The sign-in steps the apps' screens take, at Portico Services. Google and Apple wait for their
- * own follow-up, so the options offer none. */
+/** The sign-in steps the apps' screens take, at Portico Services. */
 export class PorticoServicesAccountClient {
   private readonly anyone: ReturnType<typeof porticoAccount>;
   constructor(private readonly origin: string, private readonly device: Device, private readonly fetcher?: typeof fetch, private readonly newFamily: () => string = () => crypto.randomUUID()) {
@@ -77,7 +76,8 @@ export class PorticoServicesAccountClient {
   async options(): Promise<IdentityOptions> {
     const offered = await refused(this.anyone.capabilities());
     const email = offered.includes('email');
-    return {password: true, registration: email, recovery: email, accountSecurity: false, verifiedContactRequired: true, providers: []};
+    return {password: true, registration: email, recovery: email, accountSecurity: false, verifiedContactRequired: true,
+      providers: (['apple', 'google'] as const).filter(id => offered.includes(id)).map(id => ({id, enabled: true, native: false, nativeClientIds: []}))};
   }
   /** Tokens to the apps' session record, with the account they belong to. */
   private async session(tokens: Tokens, signal?: AbortSignal): Promise<HostedSession> {
