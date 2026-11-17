@@ -1,7 +1,6 @@
 import {forwardRef, useId, useRef, useState, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
 import {presentError} from '@core/presentation/errors.ts';
-import {ColourBackdrop} from '../artwork';
 import {TextField, type TextFieldProps} from '../controls/Fields';
 import {Icon} from '../Icon';
 import wordmark from '../../shell/wordmark.svg';
@@ -9,8 +8,8 @@ import styles from './accounts.module.css';
 
 const t = defaultI18n.t;
 /** The public auth surface has colour only. It never accepts library artwork. */
-/** `shape` and `phoneShape` are kept for callers but no longer change anything: every stage draws
- * the one standard backdrop (kit/backdrop.css), which already carries the phone band. */
+/** `shape` and `phoneShape` are kept for callers but no longer change anything: the stage is transparent
+ * over the window's one standard backdrop (kit/backdrop.css), which already carries the phone band. */
 export function AuthStage({children, layout = 'column', service = false, topRight, legal = true, bare = false, className, contentClassName}: {
   children: ReactNode; shape?: 'side' | 'round' | 'top'; phoneShape?: 'side' | 'round' | 'top'; layout?: 'column' | 'center' | 'state'; service?: boolean; topRight?: ReactNode; legal?: boolean; bare?: boolean;
   className?: string; contentClassName?: string;
@@ -21,7 +20,6 @@ export function AuthStage({children, layout = 'column', service = false, topRigh
     <div className={[styles.content, contentClassName].filter(Boolean).join(' ')} data-auth-content>{children}</div>
   </section>;
   return <section className={[styles.stage, className].filter(Boolean).join(' ')} data-layout={layout}>
-    <ColourBackdrop className={styles.standardBackdrop} />
     <header className={styles.brand}><img src={wordmark} alt={t('accounts.brand')} />{service && <span>{t('next.account.brand')}</span>}</header>
     {topRight && <div className={styles.topRight}>{topRight}</div>}
     <div className={[styles.content, contentClassName].filter(Boolean).join(' ')} data-auth-content>{children}</div>

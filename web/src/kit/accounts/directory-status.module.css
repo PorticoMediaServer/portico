@@ -1,5 +1,5 @@
 /* connect 2: the six connection states, on states.html's full-page state layout. */
-.page { min-height: 100dvh; background: var(--color-ink); color: var(--color-text); }
+.page { min-height: 100dvh; color: var(--color-text); }
 .main { position: relative; padding: 0 var(--gutter-desktop); min-height: calc(100dvh - 52px); display: flex; align-items: center; }
 .state { width: 620px; max-width: 100%; }
 .icon { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; margin: 0 0 26px; color: var(--color-text); }
