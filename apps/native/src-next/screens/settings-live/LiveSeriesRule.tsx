@@ -16,7 +16,7 @@ const paddingChoices = [0, 60, 120, 300, 600, 900];
 
 /** live-owner.html frame 29: Record series… from a guide programme, in the same side sheet.
  * The rule is built through `seriesRuleConfig` and the server's own preview supplies the count;
- * nothing is created until the primary action and the returned receipt. */
+ * nothing is created until the primary action and the server answer. */
 export function NativeSeriesRuleSheet({controller, draft, defaults, runtime, open, onOpenChange, onCreated, lifetime}: {
   controller: NativeRecordingsController;
   draft: RecordingDraft | undefined;
@@ -32,7 +32,7 @@ export function NativeSeriesRuleSheet({controller, draft, defaults, runtime, ope
   const [form, setForm] = useState<SeriesForm>(defaults ?? {episodes: 'new', anyChannel: false, keep: 'count:0', beforeSeconds: 0, afterSeconds: 0});
   const [preview, setPreview] = useState<RulePreview>(), [error, setError] = useState<unknown>(), [busy, setBusy] = useState(false);
   const primary = useRef<View>(null), cancel = useRef<View>(null);
-  const command = useRef<{id: Promise<string>; config: RuleConfig; anchor: Occurrence} | undefined>(undefined);
+  const command = useRef<{config: RuleConfig; anchor: Occurrence} | undefined>(undefined);
   const busyCommand = useRef(false);
   const current = () => !lifetime || !lifetime.signal.aborted && lifetime.isCurrent();
   const changeForm: typeof setForm = value => {if (!lifetime || !command.current) setForm(value);};
@@ -43,7 +43,7 @@ export function NativeSeriesRuleSheet({controller, draft, defaults, runtime, ope
     if (!open || !built || !current() || lifetime && command.current) return;
     let live = true;
     setPreview(undefined);
-    void controller.previewRule(built.config, lifetime).then(value => {if (live && current()) setPreview(value);}, failure => {if (live && current()) setError(failure);});
+    void controller.previewRule(built.config, built.anchor, lifetime).then(value => {if (live && current()) setPreview(value);}, failure => {if (live && current()) setError(failure);});
     return () => {live = false;};
   }, [open, form.episodes, form.anyChannel, controller]); // eslint-disable-line react-hooks/exhaustive-deps
   const titleMatch = built?.config.matchKind === 'title';
@@ -59,19 +59,11 @@ export function NativeSeriesRuleSheet({controller, draft, defaults, runtime, ope
         for (const values of [config.allowedChannels, config.blockedChannels, config.keywords, config.blockedKeywords]) Object.freeze(values);
         Object.freeze(config.options);Object.freeze(config);
         const anchor = Object.freeze({...built.anchor});
-        const id = controller.newRuleID(lifetime);void id.catch(() => {});
-        command.current = Object.freeze({id, config, anchor});
+        command.current = Object.freeze({config, anchor});
       }
       const original = command.current;
-      let ruleId: string | undefined;
-      if (original) {
-        try {ruleId = await original.id;}
-        catch (failure) {if (command.current === original) command.current = undefined;throw failure;}
-        if (!current()) return;
-      }
-      const result = await controller.createRule(original?.config ?? built.config, original?.anchor ?? built.anchor, lifetime, original?.id);
+      const result = await controller.createRule(original?.config ?? built.config, original?.anchor ?? built.anchor, lifetime);
       if (lifetime && current() && !result) throw new Error('recording_action_unavailable');
-      if (original && result && result.value.id !== ruleId) throw new Error('recording_rule_unavailable');
       if (result && current()) {onCreated();if (current()) onOpenChange(false);}
     } catch (failure) {if (current()) setError(failure);}
     finally {busyCommand.current = false;if (current()) setBusy(false);}

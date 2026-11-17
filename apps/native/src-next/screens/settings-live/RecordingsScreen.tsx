@@ -1,10 +1,11 @@
+import type {RecordingSpace} from '../../../../../packages/client-core/src/next-dvr';
 import {readCatalogueItemEncodedResponse} from '../../../../../packages/client-core/src/query/catalogue-reads';
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {FlatList, ScrollView, Text, View} from 'react-native';
 import {ListEdgeFade} from '../../kit/layout/ListEdgeFade';
 import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
-import {activeRecording, playableRecording, type DeletePreview, type DVRView, type Recording, type RecordingDetail, type RecordingGroups, type RecordingRule, type RecordingStorage, type RuleConfig} from '../../../../../packages/client-core/src/dvr';
+import {activeRecording, playableRecording, type DeletePreview, type DVRView, type Recording, type RecordingDetail, type RecordingGroups, type RecordingRule, type RuleConfig} from '../../../../../packages/client-core/src/dvr';
 import {titleTintHue} from '../../../../../packages/client-core/src/presentation/title-page';
 import {programmeTimeRange} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {parseMediaItem} from '../../../../../packages/client-core/src/media-item';
@@ -97,7 +98,7 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
   const first = query.view === 'recorded' && !query.group ? groups[0]?.key : query.view === 'rules' ? rules[0]?.id : (recordings.find(value => value.state === 'conflicted') ? `${recordings.find(value => value.state === 'conflicted')!.id}.resolve` : recordings[0]?.id);
   const emptyGuide = !state.loading && !state.accessDenied && state.error === undefined
     && (query.view === 'upcoming' && !recordings.length && state.page?.captureAvailable === true
-      || query.view === 'recorded' && !query.group && !groups.length && state.storage?.captureAvailable === true);
+      || query.view === 'recorded' && !query.group && !groups.length && state.storage?.writeHealthy === true);
   const entryRegion = first || emptyGuide ? body : tabs, entryChild = first ?? (emptyGuide ? 'recordings-open-guide' : query.view);
   const awaitingFirstPage = state.loading || !state.page && !state.groups && query.view !== 'storage';
   const enter = useScreenEntry(theme.isTV && !awaitingFirstPage ? {regionId: entryRegion, childId: entryChild} : undefined, controller.lifetime.current);
@@ -254,15 +255,15 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
 }
 
 function SpacedFacts({text}: {text: string}) {return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 16}}>{text.split(' · ').map((part, index) => <ScreenText key={index} secondary>{part}</ScreenText>)}</View>;}
-function StorageFacts({storage}: {storage: RecordingStorage}) {
-  const theme = useTheme(), facts = defaultI18n.t('recordings.storageUsed', {used: defaultI18n.bytes(storage.measurement.usedBytes), free: defaultI18n.bytes(storage.measurement.freeBytes)}).split(' · ');
+function StorageFacts({storage}: {storage: RecordingSpace}) {
+  const theme = useTheme(), facts = defaultI18n.t('recordings.storageUsed', {used: storage.usedBytes === undefined ? '—' : defaultI18n.bytes(storage.usedBytes), free: defaultI18n.bytes(storage.freeBytes)}).split(' · ');
   return <View style={{flexDirection: 'row', justifyContent: 'flex-end', gap: 10}}>{facts.map((part, index) => <Text key={index} style={[shellType(theme.isTV ? 22 : 12, index ? 400 : 700), {color: index ? theme.colors.textTertiary : theme.colors.text}]}>{part}</Text>)}</View>;
 }
-function Meter({storage}: {storage: RecordingStorage}) {const theme = useTheme(), total = storage.measurement.usedBytes + storage.measurement.freeBytes; return <View style={{height: 8, marginTop: 10, borderRadius: 5, backgroundColor: theme.colors.line, overflow: 'hidden'}}><View style={{height: 8, width: `${total > 0 ? Math.min(100, storage.measurement.usedBytes / total * 100) : 0}%`, backgroundColor: theme.colors.accentStrong}}/></View>;}
-function StorageView({storage, owner}: {storage: RecordingStorage; owner: boolean}) {
+function Meter({storage}: {storage: RecordingSpace}) {const theme = useTheme(); if (storage.usedBytes === undefined) return null; const total = storage.usedBytes + storage.freeBytes; return <View style={{height: 8, marginTop: 10, borderRadius: 5, backgroundColor: theme.colors.line, overflow: 'hidden'}}><View style={{height: 8, width: `${total > 0 ? Math.min(100, storage.usedBytes / total * 100) : 0}%`, backgroundColor: theme.colors.accentStrong}}/></View>;}
+function StorageView({storage, owner}: {storage: RecordingSpace; owner: boolean}) {
   const theme = useTheme(), t = defaultI18n.t;
-  return <View style={{maxWidth: theme.isTV ? 1100 : undefined, gap: 16}}><StorageFacts storage={storage}/><Meter storage={storage}/><ScreenText secondary>{t('recordings.hoursLeft', {count: storage.forecastHours})}</ScreenText>
-    <View style={{gap: 12, marginTop: 24}}>{storage.pendingDeleteBytes > 0 && <StorageRow icon="i-trash" text={t('recordings.pendingDelete', {size: defaultI18n.bytes(storage.pendingDeleteBytes)})}/>}{owner && storage.policy.retentionDays > 0 && <StorageRow icon="i-clock" text={t('recordings.retention', {count: storage.policy.retentionDays})}/>}{!storage.measurement.writeHealthy && <StorageRow icon="i-warn" text={t('recordings.writeUnhealthy')}/>}</View></View>;
+  return <View style={{maxWidth: theme.isTV ? 1100 : undefined, gap: 16}}><StorageFacts storage={storage}/><Meter storage={storage}/><ScreenText secondary>{t('recordings.hoursLeft', {count: storage.hoursLeft})}</ScreenText>
+    <View style={{gap: 12, marginTop: 24}}>{owner && storage.keepRule && <StorageRow icon="i-clock" text={t('next.live.keepRule', {rule: storage.keepRule})}/>}{!storage.writeHealthy && <StorageRow icon="i-warn" text={t('recordings.writeUnhealthy')}/>}</View></View>;
 }
 function StorageRow({icon, text}: {icon: 'i-trash' | 'i-clock' | 'i-warn'; text: string}) {const theme = useTheme(); return <View style={{height: theme.isTV ? 92 : 64, paddingHorizontal: 24, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 20, backgroundColor: theme.colors.raised}}><Icon name={icon} size={theme.isTV ? 34 : 24}/><ScreenText>{text}</ScreenText></View>;}
 function ProgrammeArt({title, seed, image, runtime, width}: {title: string; seed: string; image?: string; runtime?: NativeShellRuntime; width: number}) {

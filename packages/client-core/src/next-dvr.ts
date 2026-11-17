@@ -13,8 +13,8 @@
  */
 import type {DvrRecording, DvrRule} from '../../contracts/src/next/api.ts';
 import type {GuideProgramme} from './channel-guide.ts';
-import type {DeletePreview, DVRPage, DVRSummary, DVRView, Recording, RecordingDetail, RecordingGroups, RecordingRule, RecordingState, RuleConfig, RulePreview} from './dvr.ts';
-import {changeRecording, changeRule, endRecording, readDvr, readRecording, readRecordings, readRules, removeRule, type DvrOverview} from './live-tv.ts';
+import type {DeletePreview, DVRCommandLifetime, RecordingDraft, Occurrence, DVRPage, DVRSummary, DVRView, Recording, RecordingDetail, RecordingGroups, RecordingRule, RecordingState, RuleConfig, RulePreview} from './dvr.ts';
+import {bookRecording, saveRule as createRule, changeRecording, changeRule, endRecording, readDvr, readRecording, readRecordings, readRules, removeRule, type DvrOverview} from './live-tv.ts';
 import {readItem} from './items.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
 
@@ -98,10 +98,17 @@ export class NextDVRClient {
    * A refused read (401, 403) retires what is shown: the profile no longer has Recordings. A refused command is only a
    * refusal of that command (someone else's recording in Everyone's answers 403), unless the sign-in itself is gone (401).
    */
-  private async call<T>(work: (signal: AbortSignal) => Promise<T>, command = false): Promise<T> {
-    try { return await work(this.signal); }
-    catch (error) { const status = (error as {status?: number} | null)?.status; if (status === 401 || status === 403 && !command) this.accessChanged?.(); throw error; }
+  private async call<T>(work: (signal: AbortSignal) => Promise<T>, command = false, lifetime?: DVRCommandLifetime): Promise<T> {
+    const root = this.signal, abort = new AbortController(), stop = () => abort.abort();
+    const current = () => {if (root.aborted || lifetime && (lifetime.signal.aborted || !lifetime.isCurrent()) || root.aborted || lifetime?.signal.aborted) throw Object.assign(new Error('dvr_command_retired'), {name: 'AbortError'});};
+    current();
+    root.addEventListener('abort', stop, {once: true});
+    lifetime?.signal.addEventListener('abort', stop, {once: true});
+    try { current(); const answer = await work(abort.signal); current(); return answer; }
+    catch (error) { current(); const status = (error as {status?: number} | null)?.status; if (status === 401 || status === 403 && !command) this.accessChanged?.(); throw error; }
+    finally {root.removeEventListener('abort', stop); lifetime?.signal.removeEventListener('abort', stop);}
   }
+
   /** Everyone's recordings rather than this profile's own (rule 48): the server answers it for any profile that may watch. */
   everyone = false;
   /**
@@ -154,10 +161,24 @@ export class NextDVRClient {
     const libraryId = await this.library(answer.items.map(group => group.recording));
     return {groups: answer.items.map(group => ({...group, recording: nextRecording(group.recording, libraryId)})), nextCursor: answer.nextCursor ?? '', revision: 0};
   }
-  async detail(recordingId: string): Promise<RecordingDetail> {
+  async detail(recordingId: string, _after = ''): Promise<RecordingDetail> {
     const recording = await this.call(signal => readRecording(this.api, recordingId, signal)) as BookingFacts;
     const tuners = count(recording.tuners);
     return {recording: nextRecording(recording, await this.library([recording])), capacity: {known: tuners !== undefined, effective: tuners ?? 0}, overlaps: [], nextOverlap: ''};
+  }
+  /** Books the programme the viewer opened, with the selected padding and priority. */
+  async schedule(draft: RecordingDraft, options: Recording['options'], lifetime?: DVRCommandLifetime): Promise<Recording> {
+    const book = {programme: draft.programme.id, padBeforeMs: options.beforeSeconds * 1000, padAfterMs: options.afterSeconds * 1000, priority: options.priority};
+    return nextRecording(await this.call(signal => bookRecording(this.api, book, signal), true, lifetime), this.recordedLibrary);
+  }
+  async createRule(config: RuleConfig, anchor: Occurrence, lifetime?: DVRCommandLifetime): Promise<RecordingRule> {
+    const rule = {programme: anchor.programmeId, ...ruleChange(config)};
+    return nextRule(await this.call(signal => createRule(this.api, rule, false, signal), true, lifetime));
+  }
+  async previewNewRule(config: RuleConfig, anchor: Occurrence, lifetime?: DVRCommandLifetime): Promise<RulePreview> {
+    const rule = {programme: anchor.programmeId, ...ruleChange(config)};
+    const answer = await this.call(signal => createRule(this.api, rule, true, signal), false, lifetime) as RuleFacts;
+    return this.rulePreview(answer, anchor.programmeId);
   }
   /** Padding and priority. */
   async update(recording: Recording, options: Recording['options']): Promise<Recording> {
@@ -165,8 +186,8 @@ export class NextDVRClient {
       priority: options.priority}, signal), true), this.recordedLibrary);
   }
   /** A conflict's choice: record this one instead, or skip it. */
-  async choose(recording: Recording, choice: 'record' | 'skip'): Promise<Recording> {
-    return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {choice}, signal), true), this.recordedLibrary);
+  async choose(recording: Recording, choice: 'record' | 'skip', lifetime?: DVRCommandLifetime): Promise<Recording> {
+    return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {choice}, signal), true, lifetime), this.recordedLibrary);
   }
   async keep(recording: Recording): Promise<Recording> {
     return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {keep: !recording.keep}, signal), true), this.recordedLibrary);
@@ -197,6 +218,9 @@ export class NextDVRClient {
   async preview(config: RuleConfig, ruleId?: string): Promise<RulePreview> {
     if (!ruleId) throw Object.assign(new Error('This is not available on this server yet.'), {code: 'not_on_server'});
     const answer = await this.call(signal => changeRule(this.api, ruleId, ruleChange(config), signal, true)) as RuleFacts;
+    return this.rulePreview(answer, ruleId);
+  }
+  private rulePreview(answer: RuleFacts, ruleId: string): RulePreview {
     if (!answer.preview) throw Object.assign(new Error('This is not available on this server yet.'), {code: 'not_on_server'});
     return {matches: answer.preview.matches, unknownNewEvidence: 0, generation: '', capacity: {known: false, effective: 0},
       sample: answer.preview.airings.map((airing, index) => previewProgramme(airing, `${ruleId}:${index}`))};
