@@ -4,7 +4,7 @@ import {NativeScreenLifetime} from '../src-next/screens/settings-live/lifetime';
 import {NativeSettingsController, type NativeSettingsReader} from '../src-next/screens/settings-live/settings-controller';
 import {NativeDashboardController, type NativeDashboardAdmission, type NativeDashboardReaders} from '../src-next/screens/settings-live/dashboard-controller';
 import {NativeTogetherController, type NativeTogetherService} from '../src-next/screens/settings-live/together-controller';
-import {NativeRecordingsController, type NativeRecordingService} from '../src-next/screens/settings-live/recordings-controller';
+import {createNativeRecordingsController, NativeRecordingsController, type NativeRecordingService} from '../src-next/screens/settings-live/recordings-controller';
 import {RecordingOverlapWindow, type OverlapSnapshot} from '../src-next/screens/settings-live/recording-overlap-window';
 import {NativeLiveController} from '../src-next/screens/settings-live/live-controller';
 import {nativeGuideClock, nativeProgrammeCaption} from '../src-next/screens/settings-live/guide-presentation';
@@ -18,7 +18,7 @@ import type {ChannelApi, GuideChannel} from '../../../packages/client-core/src/c
 import type {GuideProgram} from '../../../packages/client-core/src/guide/types';
 import type {GuideSourceSummary} from '../../../packages/client-core/src/guide/directory';
 import {nativeGuideCellWindow, nativeGuideElapsedWidth, nativeGuidePanRange, nativeGuidePanTarget} from '../src-next/screens/settings-live/guide-pan-model';
-import {DVRClient, type DVRPage, type Recording, type RecordingDetail, type RecordingStorage} from '../../../packages/client-core/src/dvr';
+import {type DVRPage, type Recording, type RecordingDetail} from '../../../packages/client-core/src/dvr';
 import type {GroupSessionSnapshot} from '../../../packages/client-core/src/group-session';
 import type {GroupMember} from '../../../packages/client-core/src/social-playback';
 import type {PreferenceSnapshot} from '../../../packages/client-core/src/preferences';
@@ -179,12 +179,12 @@ test('Dashboard uses actual show identity and numbering without shortening store
 function recordingService() {
   let accessChanged = () => {}, disposed = 0;
   const page: DVRPage = {recordings: [], rules: [], nextCursor: '', revision: 1, captureAvailable: true, captureUnavailableReason: '', deletionAvailable: true, usage: {bytes: 0, pendingDeleteBytes: 0, recordings: 0}};
-  const storage: RecordingStorage = {policy: {revision: 1, retentionDays: 30, episodeLimit: 0, floorBytes: 1, capBytes: 0}, measurement: {freeBytes: 500, usedBytes: 100, reservedBytes: 10, writeHealthy: true, measuredAt: ''}, pendingDeleteBytes: 0, forecastBytes: 10, forecastHours: 50, forecastDescription: '', captureAvailable: true, warning: ''};
+  const storage = {freeBytes: 500, usedBytes: 100, hoursLeft: 50, keepRule: '30 days', keepDays: 30, writeHealthy: true};
   const unavailable = async (): Promise<never> => {throw new Error('Unexpected fixture mutation');};
   const service: NativeRecordingService = {
     list: async () => page, groups: async () => ({groups: [], nextCursor: '', revision: 1}),
     summary: async () => ({upcoming: 51, recorded: 201, rules: 3, conflicts: 2, groups: 80, unwatched: 60}), storage: async () => storage,
-    detail: unavailable, deletePreview: unavailable, preview: unavailable, newRuleID: async () => 'e'.repeat(64), schedule: unavailable, update: unavailable, cancel: unavailable, keep: unavailable, delete: unavailable, saveRule: unavailable, deleteRule: unavailable, saveStorage: unavailable,
+    detail: unavailable, deletePreview: unavailable, previewNewRule: unavailable, createRule: unavailable, choose: unavailable, schedule: unavailable, update: unavailable, cancel: unavailable, keep: unavailable, delete: unavailable, saveRule: unavailable, deleteRule: unavailable,
     onAccessChanged: fn => {accessChanged = fn;}, dispose: () => {disposed++;},
   };
   return {service, page, storage, revoke: () => accessChanged(), disposed: () => disposed};
@@ -591,15 +591,15 @@ test('recording recovery cannot overwrite a successor installed by predecessor a
 test('Resolve uses only the complete seed for its original detail opening', async () => {
   const owner = authority(), lifetime = new NativeScreenLifetime(owner), fixture = recordingService();
   const recording = {id: 'recording', revision: 7, state: 'conflicted', options: {beforeSeconds: 30, afterSeconds: 60, priority: 2, retentionDays: 14, episodeLimit: 3}} as Recording;
-  let firstNext = '', peerPriority = 5, current = true; const writes: {recording: Recording; options: unknown}[] = [];
+  let firstNext = '', peerPriority = 5, current = true; const writes: {recording: Recording; choice: unknown}[] = [];
   const detail = (nextOverlap: string, priority: number): RecordingDetail => ({recording, capacity: {known: true, effective: 1}, overlaps: [{id: 'peer', title: 'Peer', start: '', end: '', priority, state: 'conflicted'}], nextOverlap});
   fixture.service.detail = async (_id, cursor) => cursor ? detail('', 99) : detail(firstNext, peerPriority);
-  fixture.service.update = async (value, options) => {writes.push({recording: value, options}); return value;};
+  fixture.service.choose = async (value, choice) => {writes.push({recording: value, choice}); return value;};
   const controller = new NativeRecordingsController(lifetime, fixture.service);
   const complete = controller.detailOpening(recording, () => current), seed = await complete.read();
   assert.equal(complete.canResolve(seed), true); await complete.resolve(seed);
   assert.equal(writes.length, 1); assert.equal(writes[0].recording.id, 'recording'); assert.equal(writes[0].recording.revision, 7);
-  assert.deepEqual(writes[0].options, {...recording.options, priority: 6});
+  assert.equal(writes[0].choice, 'record');
   await complete.resolve({...seed}); assert.equal(writes.length, 1);
   const other = controller.detailOpening(recording, () => current), otherSeed = await other.read();
   await other.resolve(seed); await complete.resolve(seed); assert.equal(writes.length, 1); assert.equal(other.canResolve(otherSeed), true);
@@ -607,12 +607,10 @@ test('Resolve uses only the complete seed for its original detail opening', asyn
   const tail = await controller.detail(recording.id, 'next');
   assert.equal(incomplete.canResolve(initial), false); await incomplete.resolve(initial); await incomplete.resolve(tail);
   await incomplete.resolve({...tail, overlaps: []}); assert.equal(writes.length, 1);
-  peerPriority = 1000; firstNext = ''; const maximum = controller.detailOpening(recording, () => current), maxSeed = await maximum.read();
-  assert.equal(maximum.canResolve(maxSeed), false); await maximum.resolve(maxSeed); assert.equal(writes.length, 1);
   current = false; await complete.resolve(seed); await other.resolve(otherSeed); assert.equal(writes.length, 1);
   current = true; other.dispose(); await other.resolve(otherSeed); assert.equal(writes.length, 1);
   owner.replace({profileId: 'successor'}); await complete.resolve(seed); assert.equal(writes.length, 1);
-  complete.dispose(); incomplete.dispose(); maximum.dispose(); controller.dispose(); lifetime.dispose();
+  complete.dispose(); incomplete.dispose(); controller.dispose(); lifetime.dispose();
 });
 
 test('Resolve rechecks its original detail opening around busy notification and receipt', async () => {
@@ -620,7 +618,7 @@ test('Resolve rechecks its original detail opening around busy notification and 
   const recording = {id: 'recording', revision: 7, state: 'conflicted', options: {beforeSeconds: 0, afterSeconds: 0, priority: 1, retentionDays: 0, episodeLimit: 0}} as Recording;
   fixture.service.detail = async () => ({recording, capacity: {known: true, effective: 1}, overlaps: [], nextOverlap: ''});
   let writes = 0, finish!: (value: Recording) => void, current = true;
-  fixture.service.update = async () => {writes++; return new Promise(resolve => {finish = resolve;});};
+  fixture.service.choose = async () => {writes++; return new Promise(resolve => {finish = resolve;});};
   const controller = new NativeRecordingsController(lifetime, fixture.service);
   const first = controller.detailOpening(recording, () => current), seed = await first.read();
   const off = controller.subscribe(() => {if (controller.getSnapshot().busy) current = false;});
@@ -635,7 +633,7 @@ for (const retirement of ['close', 'authority'] as const) test(`Resolve refuses 
   const owner = authority(), lifetime = new NativeScreenLifetime(owner), fixture = recordingService();
   const recording = {id: 'recording', revision: 7, state: 'conflicted', options: {beforeSeconds: 0, afterSeconds: 0, priority: 1, retentionDays: 0, episodeLimit: 0}} as Recording;
   fixture.service.detail = async () => ({recording, capacity: {known: true, effective: 1}, overlaps: [], nextOverlap: ''});
-  let writes = 0; fixture.service.update = async value => {writes++; return value;};
+  let writes = 0; fixture.service.choose = async value => {writes++; return value;};
   const controller = new NativeRecordingsController(lifetime, fixture.service), opening = controller.detailOpening(recording, () => true), seed = await opening.read();
   assert.equal(opening.canResolve(seed), true);
   if (retirement === 'close') opening.dispose(); else owner.replace({profileId: 'successor'});
@@ -647,7 +645,7 @@ test('Resolve refuses dispatch when its last lifetime predicate replaces the ori
   const owner = authority(), lifetime = new NativeScreenLifetime(owner), fixture = recordingService();
   const recording = {id: 'recording', revision: 7, state: 'conflicted', options: {beforeSeconds: 0, afterSeconds: 0, priority: 1, retentionDays: 0, episodeLimit: 0}} as Recording;
   fixture.service.detail = async () => ({recording, capacity: {known: true, effective: 1}, overlaps: [], nextOverlap: ''});
-  let writes = 0; fixture.service.update = async value => {writes++; return value;};
+  let writes = 0; fixture.service.choose = async value => {writes++; return value;};
   const controller = new NativeRecordingsController(lifetime, fixture.service), originalCurrent = owner.current;
   let busyChecks = 0, replaceOnNextCurrent = false, successor: ReturnType<typeof controller.detailOpening> | undefined;
   owner.current = () => {if (replaceOnNextCurrent) {replaceOnNextCurrent = false; successor = controller.detailOpening(recording, () => true);} return originalCurrent();};
@@ -663,7 +661,7 @@ test('overlap window eviction and Previous cannot authorize an incomplete Resolv
   const lifetime = new NativeScreenLifetime(authority()), fixture = recordingService();
   const recording = {id: 'recording', revision: 7, state: 'conflicted', options: {beforeSeconds: 0, afterSeconds: 0, priority: 1, retentionDays: 0, episodeLimit: 0}} as Recording;
   const page = (cursor: string): RecordingDetail => ({recording, capacity: {known: true, effective: 1}, overlaps: [{id: cursor || 'first', title: 'Peer', start: '', end: '', priority: 2, state: 'conflicted'}], nextOverlap: cursor === '' ? 'p2' : cursor === 'p2' ? 'p3' : cursor === 'p3' ? 'p4' : ''});
-  fixture.service.detail = async (_id, cursor) => page(cursor ?? ''); let writes = 0; fixture.service.update = async value => {writes++; return value;};
+  fixture.service.detail = async (_id, cursor) => page(cursor ?? ''); let writes = 0; fixture.service.choose = async value => {writes++; return value;};
   const controller = new NativeRecordingsController(lifetime, fixture.service), opening = controller.detailOpening(recording, () => true), seed = await opening.read();
   let state!: OverlapSnapshot; const window = new RecordingOverlapWindow(recording, seed, controller, () => true, value => {state = value;});
   window.seed(seed); await window.next(state); await window.next(state); await window.next(state);
@@ -677,47 +675,18 @@ test('an observed detail-opening retirement cannot revive when its predicate bec
   const lifetime = new NativeScreenLifetime(authority()), fixture = recordingService(); let current = true, writes = 0;
   const recording = {id: 'recording', revision: 7, state: 'conflicted', options: {beforeSeconds: 0, afterSeconds: 0, priority: 1, retentionDays: 0, episodeLimit: 0}} as Recording;
   fixture.service.detail = async () => ({recording, capacity: {known: true, effective: 1}, overlaps: [], nextOverlap: ''});
-  fixture.service.update = async value => {writes++; return value;};
+  fixture.service.choose = async value => {writes++; return value;};
   const controller = new NativeRecordingsController(lifetime, fixture.service), opening = controller.detailOpening(recording, () => current), seed = await opening.read();
   assert.equal(opening.canResolve(seed), true); current = false; assert.equal(opening.canResolve(seed), false);
   current = true; assert.equal(opening.canResolve(seed), false); await opening.resolve(seed); assert.equal(writes, 0);
   opening.dispose(); controller.dispose(); lifetime.dispose();
 });
 
-test('Resolve preserves the real DVRClient dispatch fence across request-ID creation', async t => {
-  const lifetime = new NativeScreenLifetime(authority()), fixture = recordingService();
-  const recording = {id: 'a'.repeat(64), revision: 7, state: 'conflicted', options: {beforeSeconds: 0, afterSeconds: 0, priority: 1, retentionDays: 0, episodeLimit: 0}} as Recording;
-  fixture.service.detail = async () => ({recording, capacity: {known: true, effective: 1}, overlaps: [], nextOverlap: ''});
-  let finishId: ((value: string) => void) | undefined, allocations = 0; const requests: {method: string | undefined; body: any}[] = [], pending: Promise<unknown>[] = [];
-  const transportStop = new Error('transport reached');
-  const api: ChannelApi = {request: async (_path, method, body) => {requests.push({method, body}); throw transportStop;}};
-  const client = new DVRClient(api, 'server', () => {allocations++; return new Promise(resolve => {finishId = resolve;});});
-  fixture.service.update = client.update.bind(client);
-  const controller = new NativeRecordingsController(lifetime, fixture.service);
-  let opening: ReturnType<typeof controller.detailOpening> | undefined;
-  const bounded = async <T,>(promise: Promise<T>): Promise<T> => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {return await Promise.race([promise, new Promise<never>((_, reject) => {timer = setTimeout(() => reject(new Error('pending operation did not settle')), 1000);})]);}
-    finally {if (timer) clearTimeout(timer);}
-  };
-  t.after(async () => {finishId?.('b'.repeat(48)); opening?.dispose(); controller.dispose(); client.dispose(); lifetime.dispose(); await bounded(Promise.allSettled(pending));});
-  opening = controller.detailOpening(recording, () => true); const seed = await opening.read();
-  const retired = opening.resolve(seed).then(() => undefined, error => error); pending.push(retired);
-  assert.equal(allocations, 1); assert.ok(finishId, 'the real request-ID provider was entered');
-  opening.dispose(); finishId('b'.repeat(48));
-  const retiredError = await bounded(retired); assert.equal(retiredError?.name, 'AbortError'); assert.equal(requests.length, 0);
-  opening = controller.detailOpening(recording, () => true); const liveSeed = await opening.read();
-  const live = opening.resolve(liveSeed).then(() => undefined, error => error); pending.push(live);
-  assert.equal(await bounded(live), transportStop); assert.equal(allocations, 1);
-  assert.equal(requests.length, 1); assert.equal(requests[0].method, 'PATCH');
-  assert.equal(requests[0].body.requestId, 'b'.repeat(48)); assert.equal(requests[0].body.expectedRevision, 7); assert.equal(requests[0].body.options.priority, 2);
-});
-
 for (const retirement of ['controller-dispose', 'lifetime-abort'] as const) test(`Resolve refuses dispatch when its last predicate triggers ${retirement} and returns true`, async () => {
   const owner = authority(), lifetime = new NativeScreenLifetime(owner), fixture = recordingService();
   const recording = {id: 'recording', revision: 7, state: 'conflicted', options: {beforeSeconds: 0, afterSeconds: 0, priority: 1, retentionDays: 0, episodeLimit: 0}} as Recording;
   fixture.service.detail = async () => ({recording, capacity: {known: true, effective: 1}, overlaps: [], nextOverlap: ''});
-  let writes = 0; fixture.service.update = async value => {writes++; return value;};
+  let writes = 0; fixture.service.choose = async value => {writes++; return value;};
   const controller = new NativeRecordingsController(lifetime, fixture.service); let busyChecks = 0, retireOnNextCurrent = false;
   owner.current = () => {
     if (retireOnNextCurrent) {retireOnNextCurrent = false; if (retirement === 'controller-dispose') controller.dispose(); else lifetime.dispose();}
@@ -759,4 +728,42 @@ test('recording first-page worker is reserved before a reader synchronously queu
   assert.ok(finishNewest); finishNewest(fixture.page); await bounded(Promise.all([first, queuedB, queuedC, final]));
   assert.deepEqual(calls, ['upcoming', 'history', 'rules']); assert.equal(controller.getSnapshot().query.view, 'rules');
   assert.equal(controller.getSnapshot().loading, false); assert.equal(controller.getSnapshot().page?.recordings[0]?.id, 'rules');
+});
+
+test('native member DVR reads current bookings and sends programme Record, series preview/create and conflict choices', async () => {
+  const lifetime = new NativeScreenLifetime(authority()), requests: {path: string; method?: string; body: any}[] = [];
+  const booking = {id: 'booking', channel: 'Channel', title: 'Programme', startsAt: '2026-11-17T12:00:00Z', endsAt: '2026-11-17T13:00:00Z', state: 'scheduled', padBeforeMs: 60000, padAfterMs: 180000, priority: 2, keep: false, conflict: false};
+  const rule = {id: 'server-rule', title: 'Programme', source: 'source', channel: 'channel', newOnly: true, priority: 2, paused: false, preview: {matches: 1, airings: []}};
+  const api: ChannelApi = {request: async <T>(path: string, method?: string, body?: unknown) => {
+    requests.push({path, method, body});
+    if (path.startsWith('/v1/dvr/rules')) return rule as T;
+    if (path === '/v1/dvr/recordings' && method === 'GET') return {items: [booking], nextCursor: ''} as T;
+    return booking as T;
+  }};
+  const controller = createNativeRecordingsController(lifetime, api, async () => {throw new Error('legacy request ID must not be used');});
+  try {
+    await controller.load(); assert.equal(controller.getSnapshot().page?.recordings[0].id, 'booking'); assert.equal(controller.getSnapshot().error, undefined);
+    const abort = new AbortController(), command = {signal: abort.signal, isCurrent: () => true};
+    const options = {beforeSeconds: 60, afterSeconds: 180, priority: 2, retentionDays: 0, episodeLimit: 0};
+    const draft = {programme: {id: 'programme'}, channel: {}} as any;
+    assert.equal((await controller.schedule(draft, options, command))?.value.id, 'booking');
+    const config = {enabled: true, episodes: 'new', allowedChannels: ['channel'], blockedChannels: [], keywords: [], blockedKeywords: [], options} as any;
+    const anchor = {programmeId: 'programme'} as any;
+    assert.equal((await controller.previewRule(config, anchor, command)).matches, 1);
+    assert.equal((await controller.createRule(config, anchor, command))?.value.id, 'server-rule');
+    const conflicted = {...controller.getSnapshot().page!.recordings[0], state: 'conflicted'} as Recording;
+    booking.conflict = true;
+    const opening = controller.detailOpening(conflicted, () => true), seed = await opening.read();
+    await opening.resolve(seed); opening.dispose();
+    assert.deepEqual(requests.map(r => [r.method, r.path]), [['GET', '/v1/dvr/recordings'], ['POST', '/v1/dvr/recordings'], ['POST', '/v1/dvr/rules?preview=true'], ['POST', '/v1/dvr/rules'], ['GET', '/v1/dvr/recordings/booking'], ['PATCH', '/v1/dvr/recordings/booking']]);
+    assert.deepEqual(requests[1].body, {programme: 'programme', padBeforeMs: 60000, padAfterMs: 180000, priority: 2});
+    assert.equal(requests[2].body.programme, 'programme'); assert.equal(requests[3].body.programme, 'programme');
+    assert.deepEqual(requests[5].body, {choice: 'record'});
+    const pendingAbort = new AbortController(); let finish!: (value: any) => void, sentSignal: AbortSignal | undefined;
+    api.request = <T>(_path: string, _method?: string, _body?: unknown, signal?: AbortSignal) => {sentSignal = signal; return new Promise<T>(resolve => {finish = resolve;});};
+    const pending = controller.schedule(draft, options, {signal: pendingAbort.signal, isCurrent: () => true});
+    pendingAbort.abort(); assert.equal(sentSignal?.aborted, true); finish(booking);
+    await assert.rejects(pending, {name: 'AbortError'});
+    abort.abort(); await assert.rejects(async () => controller.schedule(draft, options, command), {name: 'AbortError'}); assert.equal(requests.length, 6);
+  } finally {controller.dispose(); lifetime.dispose();}
 });
