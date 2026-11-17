@@ -75,7 +75,9 @@ function lists(titles = ['a', 'b', 'c'], pageSize = 40) {
       if (url.pathname === '/v1/lists') return {items: [list(), theirs]} as T;
       if (url.pathname === '/v1/lists/col') return list() as T;
       if (url.pathname === '/v1/items' && q.get('list') === 'col') {
-        const ordered = q.get('order') === 'desc' ? [...entries].reverse() : entries, from = Number(q.get('cursor') ?? 0), size = Number(q.get('limit'));
+        const ordered = q.get('sort') === 'title' ? [...entries].sort((a, b) => a.itemId.localeCompare(b.itemId)) : [...entries];
+        if (q.get('order') === 'desc') ordered.reverse();
+        const from = Number(q.get('cursor') ?? 0), size = Number(q.get('limit'));
         const page = ordered.slice(from, from + size);
         return {items: page.map(entry => ({...item(entry.itemId), entryId: entry.entryId})), total: entries.length, ...(from + size < entries.length ? {nextCursor: String(from + size)} : {})} as T;
       }
@@ -95,7 +97,11 @@ function lists(titles = ['a', 'b', 'c'], pageSize = 40) {
       }
       if (!fresh(options.headers)) return refuse(412, 'list_changed');
       if (path === '/v1/lists/col' && method === 'PATCH') {if (body.name !== undefined) name = body.name; if (body.everyone !== undefined) everyone = body.everyone; revision++; return answer(list());}
-      if (entry && method === 'DELETE') {entries.splice(at(entry), 1); revision++; return answer(list());}
+      if (entry && method === 'DELETE') {
+        const index = at(entry);
+        const removed = index > 0 ? {after: entries[index - 1]!.entryId} : {before: entries[1]?.entryId};
+        entries.splice(index, 1); revision++; return answer({...list(), removed});
+      }
       if (entry && method === 'PATCH') {
         const moving = entries.splice(at(entry), 1)[0]!;
         entries.splice(body.after ? at(body.after) + 1 : at(body.before), 0, moving); revision++; return answer(list());
@@ -394,6 +400,18 @@ test('when the profile\'s pins cannot be read, a collection or saved view still 
     assert.deepEqual([shot.resource?.id, shot.resource?.pinned, shot.resource?.actions.includes('pin')], [resourceId, false, false]);
     saved.dispose();
   }
+});
+
+test('Undo from a sorted collection restores the original order', async () => {
+  const s = lists(['c', 'b', 'a']), saved = service(s.api);
+  await saved.select({view: 'resource', resourceId: 'col', sort: 'title'});
+  assert.deepEqual(saved.getSnapshot().entries.map(row => row.id), ['le3', 'le2', 'le1']);
+  assert.equal(await saved.mutate({action: 'entries', removeEntryIds: ['le2']}), true);
+  assert.deepEqual(s.order(), ['c', 'a']);
+  const token = saved.getSnapshot().result!.undo!.token;
+  assert.equal(await saved.mutate({action: 'entries', undoToken: token}), true);
+  assert.deepEqual(s.order(), ['c', 'b', 'a']);
+  saved.dispose();
 });
 
 test('sorted collection items without entry ids remain visible and never become removal ids', async () => {

@@ -59,6 +59,8 @@ type List struct {
 	UpdatedAt int64
 	// Covers are the first entries the viewer may see, up to four, for the list's picture.
 	Covers []Item
+	// RemovedAfter and RemovedBefore name the visible neighbours of a removed entry in list order.
+	RemovedAfter, RemovedBefore int64
 
 	ownerID  int64
 	sortName string
@@ -329,6 +331,13 @@ func (d *DB) ListEntries(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, 
 	return page, loadLeafCounts(ctx, tx, v, acc, page.Items)
 }
 
+// A sorted title acts as an entry only when exactly one occurrence is in the authorised list.
+const uniqueListOccurrence = `CASE WHEN @entry_list = '' THEN 0 ELSE (
+	SELECT CASE WHEN count(*) = 1 THEN min(e.id) ELSE 0 END
+	FROM list_entries e JOIN lists l ON l.id = e.list_id
+	WHERE l.public_id = @entry_list AND e.item_id = i.id
+) END`
+
 // listInQuery is the condition, for the item list, that an item is in a list the viewer may
 // read. A list the viewer may not read is not found. viewer is the statement's viewer_profile
 // value.
@@ -576,16 +585,27 @@ func (d *DB) MoveInList(ctx context.Context, v Viewer, publicID string, revision
 // is not found: a removal sent again after its reply was lost answers not found, and the app
 // takes that as done.
 func (d *DB) RemoveFromList(ctx context.Context, v Viewer, publicID string, revision, entry int64, now time.Time) (out List, err error) {
+	var after, before int64
 	err = d.listWrite(ctx, User, v, publicID, revision, false, now, func(e *listEdit) error {
-		if _, err := e.position(entry); err != nil {
+		position, err := e.position(entry)
+		if err != nil {
+			return err
+		}
+		neighbour := ` FROM list_entries e CROSS JOIN items i ON i.id=e.item_id WHERE e.list_id=@list AND ` + e.acc.visible("i")
+		err = e.tx.QueryRowContext(ctx, `SELECT coalesce((SELECT e.id`+neighbour+
+			` AND e.position < @position ORDER BY e.position DESC LIMIT 1), 0), coalesce((SELECT e.id`+neighbour+
+			` AND e.position > @position ORDER BY e.position LIMIT 1), 0)`,
+			append(v.args(), sql.Named("list", e.id), sql.Named("position", position))...).Scan(&after, &before)
+		if err != nil {
 			return err
 		}
 		if _, err := e.tx.Exec(`DELETE FROM list_entries WHERE id = ?`, entry); err != nil {
 			return err
 		}
-		_, err := e.tx.Exec(`UPDATE lists SET entry_count = entry_count - 1 WHERE id = ?`, e.id)
+		_, err = e.tx.Exec(`UPDATE lists SET entry_count = entry_count - 1 WHERE id = ?`, e.id)
 		return err
 	}, &out)
+	out.RemovedAfter, out.RemovedBefore = after, before
 	return out, err
 }
 

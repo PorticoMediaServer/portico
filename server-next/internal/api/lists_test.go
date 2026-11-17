@@ -8,6 +8,35 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
+func TestSortedListRemovalUsesListOrder(t *testing.T) {
+	th := newTheatre(t)
+	for _, kind := range []string{"collection", "playlist"} {
+		ids := []string{th.film, th.eps[0]}
+		if kind == "playlist" {
+			ids = append(ids, th.film)
+		}
+		var made ListCreated
+		if w := th.queue("POST", "/v1/lists", "", ListCreate{Kind: kind, Name: kind, Items: ids}, &made); w.Code != 201 {
+			t.Fatalf("creating %s: %d %s", kind, w.Code, w.Body)
+		}
+		path := "/v1/items?list=" + made.ID
+		manual := get[ItemPage](t, th.s, th.owner.AccessToken, path)
+		sorted := get[ItemPage](t, th.s, th.owner.AccessToken, path+"&sort=title&order=desc")
+		found := make(map[string]string)
+		for _, item := range sorted.Items {
+			found[item.ID] = item.EntryID
+		}
+		if len(found) != 2 || found[th.eps[0]] != manual.Items[1].EntryID || (found[th.film] == "") != (kind == "playlist") {
+			t.Fatalf("incorrect sorted occurrence IDs for %s: %v", kind, found)
+		}
+		var updated List
+		remove := "/v1/lists/" + made.ID + "/entries/" + found[th.eps[0]]
+		if w := th.queue("DELETE", remove, "", nil, &updated); w.Code != 200 || updated.Removed == nil || updated.Removed.After != manual.Items[0].EntryID {
+			t.Fatalf("remove from %s: %d %s", kind, w.Code, w.Body)
+		}
+	}
+}
+
 // A saved view keeps a library's sort and filters and opens with them. A filter naming
 // something that no longer exists is left out when it opens, and the view says so.
 func TestSavedViewOpensWithWhatStillExists(t *testing.T) {
