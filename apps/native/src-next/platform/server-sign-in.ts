@@ -448,10 +448,9 @@ export class NativeServerSignIn {
       const continuation = directSignInContinuation(result);
       if (continuation === 'password-change' || continuation === 'two-step-setup') {
         const requirement = continuation === 'password-change' ? 'password' as const : 'two-step' as const;
-        const publicServer = this.requiredSetupHandoff && this.server.signIn === 'local'
+        const publicServer = this.server.signIn === 'local' && (this.requiredSetupHandoff || requirement === 'two-step')
           ? {serverName: this.server.name, serverOrigin: this.serverOrigin()} : undefined;
-        // Ruling 31: a TV keeps no restricted grant while showing the public
-        // hand-off. Logout uses the issued credential, never the selected viewer.
+        // The browser starts its own sign-in. Revoke the restricted native grant first.
         this.api.setAccessToken(''); this.account = undefined; this.snapshot = undefined; this.challenge = undefined;
         await this.retire(session).catch(() => {});
         this.assertCurrent();

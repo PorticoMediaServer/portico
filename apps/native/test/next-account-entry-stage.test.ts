@@ -25,10 +25,11 @@ import type {NativeAccountEntryStage} from '../src-next/screens/accounts/Account
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 // The pickers and the PIN screen are shared pieces whose slots hold what layouts kept in beforeActions.
 const parts = (tree: any): any[] => tree?.type === 'PhoneWhosWatching' ? [...nodes(tree.props.picker), ...nodes(tree.props.children)] : tree?.type === 'PhoneProfilePIN' ? [tree, ...nodes(tree.props.remember), ...nodes(tree.props.status), ...nodes(tree.props.hints)] : nodes(tree?.props.beforeActions);
-type FixtureOptions = Readonly<{providers?: boolean; setupRequired?: boolean; providerTransaction?: any; inspectFails?: (origin: string) => boolean; tv?: boolean}>;
+type FixtureOptions = Readonly<{providers?: boolean; setupRequired?: boolean; providerTransaction?: any; inspectFails?: (origin: string) => boolean; tv?: boolean; requiredTwoStep?: boolean}>;
 
 async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options: FixtureOptions = {}) {
   const events: string[] = [], stages: NativeAccountEntryStage[] = [], inspected: string[] = [], back = new Set<() => boolean>();
+  const opened: string[] = [];
   let tree: any, phase = 'render', complete = 0, observed = true, providerCalls = 0, prepareCalls = 0;
   const credentials = {synchronize: async () => {}, getSnapshot: () => ({session: undefined})};
   const available = {password: true, registration: false, recovery: false, providers: options.providers
@@ -49,6 +50,10 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
     async confirmLocal() {events.push('confirm-identity');}
     serverOrigin() {return 'https://public.example';}
     serverDescriptor() {return {id: 'public-server', name: 'Public fixture', signIn: 'local'};}
+    async signInLocal() {
+      assert.ok(options.requiredTwoStep);
+      return {kind: 'required-setup', requirement: 'two-step', serverName: 'Public fixture', serverOrigin: this.serverOrigin()};
+    }
     dispose() {events.push('dispose-command');}
   }
   // These adapters forward the screen's dependency lists to the real hooks.
@@ -66,7 +71,7 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
       useLayoutEffect: (create: () => void | (() => void), deps: readonly unknown[]) => React.useLayoutEffect(() => {phase = 'layout'; try {return create();} finally {phase = 'render';}}, deps),
       // eslint-disable-next-line react-hooks/exhaustive-deps
       useEffect: (create: () => void | (() => void), deps: readonly unknown[]) => React.useEffect(() => {phase = 'passive'; try {return create();} finally {phase = 'render';}}, deps)},
-    'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: {addEventListener: (_: string, handler: () => boolean) => {back.add(handler); return {remove: () => back.delete(handler)};}}, Platform: {isTV: options.tv === true}, NativeModules: {PorticoAccountAuth: {canOpenBrowser: options.providers === true}}, Linking: {openURL: async () => {}}, View: 'View', Text: 'Text'},
+    'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: {addEventListener: (_: string, handler: () => boolean) => {back.add(handler); return {remove: () => back.delete(handler)};}}, Platform: {isTV: options.tv === true}, NativeModules: {PorticoAccountAuth: {canOpenBrowser: options.providers === true}}, Linking: {openURL: async (url: string) => {opened.push(url);}}, View: 'View', Text: 'Text'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src': {},
     '../../../../../packages/client-core/src/sign-in': {}, '../../../../../packages/client-core/src/route-identity': {routeOrigin},
     '../../../../../packages/client-core/src/server-address': serverAddress,
@@ -87,9 +92,22 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
   };
   const host = createFabricHookHost(() => {tree = AccountEntry({initialStage, onComplete: () => {complete++;}, onStageChange: observed ? onStageChange : undefined});});
   await act(() => host.mount());
-  return {host, stages, events, inspected, back, tree: () => tree, complete: () => complete, providerCalls: () => providerCalls, prepareCalls: () => prepareCalls,
+  return {host, stages, events, inspected, back, opened, tree: () => tree, complete: () => complete, providerCalls: () => providerCalls, prepareCalls: () => prepareCalls,
     omitObserver: async () => {observed = false; await host.rerender();}};
 }
+
+test('required two-step opens the verified server’s existing web sign-in without entering profiles', async () => {
+  const f = await fixture('address', {requiredTwoStep: true});
+  try {
+    await act(() => f.tree().props.onAddressChange('https://public.example'));
+    await act(() => f.tree().props.onContinue());
+    assert.equal(f.tree().type, 'PhoneServerSignIn');
+    await act(() => f.tree().props.onSignIn());
+    assert.deepEqual(f.opened, ['https://public.example/sign-in']);
+    assert.equal(f.tree().type, 'PhoneServerSignIn');
+    assert.equal(f.complete(), 0);
+  } finally {await f.host.unmount();}
+});
 
 test('AccountEntry reports initial/current stages in layout before discovery, preserving real commands and reporting Back without reopening policy', async () => {
   const f = await fixture();

@@ -464,12 +464,17 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const consume = useCallback((result: Result) => {
     if (!lifetime.current) return;
     if (result.kind === 'required-setup') {
-      if (!Platform.isTV) throw Object.assign(new Error('native_required_account_setup'), {code: 'access_refused'});
       setPassword(''); setCode(''); setRecoveryCode(''); setRecovery(false); setProfiles([]); setProfile(undefined); setCanRemember(false); setRemember(false);
       setTransaction(undefined); setOptions(undefined); setName(''); setEmail(''); setMasked('');
       setIdentityCode(''); setIdentityWrong(false); setIdentityAddress(''); identityOrigin.current = undefined;
       accountScope.current = undefined; contact.current = undefined;
-      setRequiredSetup(result); setStage('tv-required-setup');
+      if (Platform.isTV) {setRequiredSetup(result); setStage('tv-required-setup');}
+      else {
+        const source = operation.current, entered = stageRef.current;
+        void Linking.openURL(new URL('/sign-in', result.serverOrigin).href).catch(error => {
+          if (lifetime.current && operation.current === source && stageRef.current === entered) setError(error);
+        });
+      }
     }
     else if (result.kind === 'profiles') {setServer(operation.current!.serverDescriptor()); setProfiles(result.profiles); setCanRemember(result.canRemember === true); setRemember(false); setStage('profiles');}
     else if (result.kind === 'challenge') {factorKind.current = 'local'; setCode(''); setRecovery(false); setStage('factor');}
