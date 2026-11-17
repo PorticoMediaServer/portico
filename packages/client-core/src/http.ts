@@ -713,6 +713,10 @@ export class HttpLocalApi {
       return value as T;
     });
   }
+  /** Open the live Messages stream with the selected session's renewal; the caller owns its lifetime. */
+  openOwnerLogEvents(headers: Record<string, string>, signal: AbortSignal): Promise<Response> {
+    return this.exchange(routePath('get_admin_logs_events'), 'GET', undefined, signal, headers, false, true);
+  }
   /** A consented app log is plain text, read through the same authenticated exchange as JSON. */
   async readReportLog(id: string, input?: AbortSignal): Promise<string> {
     const path = serverPath('GET /v1/admin/reports/{id}/log', {id});
