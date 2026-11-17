@@ -475,7 +475,9 @@ func (r *run) store(f *folder, gone []db.FileRef) error {
 			rest.files = append(rest.files, file)
 		}
 	}
-	units = append(units, rest)
+	// A title may reference an unclaimed cover file: store sidecars first even when
+	// that title fills the batch and is flushed before the rest of the folder.
+	units = append([]unit{rest}, units...)
 
 	// Folders share transactions: a library of one film to a folder would otherwise sync the
 	// disk once for every film.

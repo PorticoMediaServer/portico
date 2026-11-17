@@ -167,3 +167,26 @@ func (p pictures) Hash(data []byte) (string, error) {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
 }
+
+func TestAnAudiobookCoverSurvivesSmallImportBatches(t *testing.T) {
+	f := newFixture(t, db.LibraryAudiobooks)
+	f.s.BatchFiles = 1
+	f.s.Pictures = pictures{}
+	f.write("Jane Austen/Pride and Prejudice/01.mp3")
+	f.put("Jane Austen/Pride and Prejudice/cover.jpg", picture(t, 10))
+	f.scan()
+
+	book := f.titles(db.KindAudiobook)["Pride and Prejudice"]
+	if poster := shown(book, db.ImagePoster); poster == nil || poster.Width != 10 {
+		t.Fatalf("the audiobook lost its cover at a batch boundary: %+v", book.Images)
+	}
+
+	// Scan all files must keep the same book and read its replacement cover too.
+	f.s.AllFiles = true
+	f.put("Jane Austen/Pride and Prejudice/cover.jpg", picture(t, 11))
+	f.scan()
+	again := f.titles(db.KindAudiobook)["Pride and Prejudice"]
+	if poster := shown(again, db.ImagePoster); again.PublicID != book.PublicID || poster == nil || poster.Width != 11 {
+		t.Fatalf("the full rescan lost the book or its replacement cover: %+v", again)
+	}
+}
