@@ -263,3 +263,13 @@ test('Undo of a playlist\'s first entry puts its title back first, not at the en
   await sendPlaylistCommand(api as never, scope, {action: 'restore', undoToken: removed.undoToken as string}, {playlistId: 'pl'}, 'op2');
   assert.deepEqual(entries.map(entry => entry.itemId), ['a', 'b', 'a'], 'the title is back in front, the playlist\'s other copy where it was');
 });
+
+test('sorted playlist items without occurrences stay visible and cannot remove a guessed entry', async () => {
+  const s = server({'GET /v1/items': () => ({items: [title('a'), title('b')], total: 2})}), saved = service(s.api);
+  await saved.select({view: 'playlist', playlistId: 'pl', sort: 'title'});
+  const rows = saved.getSnapshot().projection!.sections[0]!.entries;
+  assert.deepEqual(rows.map(row => [row.id, 'itemOnly' in row && row.itemOnly]), [['a', true], ['b', true]]);
+  assert.throws(() => saved.mutate({action: 'remove', entryId: 'a'}));
+  assert.equal(s.calls.some(call => call.method === 'DELETE'), false);
+  saved.dispose();
+});

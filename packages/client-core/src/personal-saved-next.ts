@@ -140,7 +140,7 @@ export async function readResource(api: SavedNextApi, bound: SavedScope, resourc
   if (list.kind === 'saved_view') return viewPage(api, bound, list, cursor, signal, pins);
   if (list.kind !== 'collection') throw new CodedError('not_available', 'This is not available on this server yet.');
   const page = value(await pageRead), last = value(await lastRead);
-  const entries = page.items.flatMap(item => {const media = wireEntryFromItem(item as Item); return media && item.entryId ? [{id: item.entryId, hidden: false, media}] : [];});
+  const entries = page.items.flatMap(item => {const media = wireEntryFromItem(item as Item); return media ? [{id: item.entryId ?? item.id, ...(item.entryId ? {} : {itemOnly: true}), hidden: false, media}] : [];});
   const ids = entries.map(entry => entry.id), lastEntry = last?.items[0]?.entryId;
   const first = mark ? mark.first : ids[0];
   const nextCursor = page.nextCursor ? markCursor({start: start + entries.length, ...(ids.length ? {previous: ids.at(-1)} : {}), ...(first ? {first} : {}), cursor: page.nextCursor}) : '';
