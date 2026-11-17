@@ -226,10 +226,6 @@
         ],
         "type": "object"
       },
-      "Addr": {
-        "properties": {},
-        "type": "object"
-      },
       "AdminJob": {
         "properties": {
           "canRetry": {
@@ -3762,6 +3758,32 @@
           "title",
           "shape",
           "items"
+        ],
+        "type": "object"
+      },
+      "HomeRowSource": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "inProgress": {
+            "type": "boolean"
+          },
+          "library": {
+            "type": "string"
+          },
+          "order": {
+            "type": "string"
+          },
+          "sort": {
+            "type": "string"
+          },
+          "watched": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id"
         ],
         "type": "object"
       },
@@ -10781,6 +10803,9 @@
           "container": {
             "type": "string"
           },
+          "homeRow": {
+            "$ref": "#/components/schemas/HomeRowSource"
+          },
           "items": {
             "items": {
               "type": "string"
@@ -15131,18 +15156,6 @@
         "required": [
           "delivered"
         ],
-        "type": "object"
-      },
-      "addrDetail": {
-        "properties": {},
-        "type": "object"
-      },
-      "addrDetailHandle": {
-        "properties": {},
-        "type": "object"
-      },
-      "uint128": {
-        "properties": {},
         "type": "object"
       }
     },

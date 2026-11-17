@@ -77,7 +77,7 @@ func (v QueueView) query() (db.ItemQuery, error) {
 		YearTo: v.YearTo, Watched: v.Watched, Favorite: v.Favorite, InList: v.InList, Resolution: v.Resolution, Sort: v.Sort, Desc: v.Desc}
 	for _, name := range v.Kinds {
 		kind, ok := db.ParseItemKind(name)
-		if !ok || !kind.Playable() && kind != db.KindShow && kind != db.KindSeason && kind != db.KindAlbum && kind != db.KindArtist {
+		if !ok || !queueKind(kind) {
 			return q, ErrUnsupported
 		}
 		q.Kinds = append(q.Kinds, kind)
@@ -119,7 +119,8 @@ type QueueSource struct {
 	// List is a playlist or a collection.
 	List string `json:"list,omitempty"`
 	// View is a library view with its sort and filters, of any size.
-	View *QueueView `json:"view,omitempty"`
+	View    *QueueView     `json:"view,omitempty"`
+	HomeRow *HomeRowSource `json:"homeRow,omitempty"`
 	// Radio is the song, album or artist a radio starts from. A radio never ends.
 	Radio string `json:"radio,omitempty"`
 	// Queue is another device's queue on the same account, taken on when playback moves here:
@@ -134,7 +135,8 @@ type QueueSource struct {
 // selection is what a queue too long to hold at once was built from, and how far into it
 // the queue has got. It is stored with the queue as JSON.
 type selection struct {
-	View QueueView `json:"view"`
+	View QueueView           `json:"view"`
+	Home *db.HomeQueueSource `json:"home,omitempty"`
 	// Radio says the selection never ends: when everything has played it starts again in a
 	// new order.
 	Radio bool `json:"radio,omitempty"`
@@ -246,7 +248,7 @@ func (s *Service) take(ctx context.Context, v db.Viewer, sel *selection, limit i
 		}
 		sel.Sound = "" // nothing near it has been analysed: by genre from here
 	}
-	q, err := sel.View.query()
+	q, err := sel.query()
 	if err != nil {
 		return nil, err
 	}
@@ -348,8 +350,8 @@ func (s *Service) Create(ctx context.Context, c Caller, in CreateInput) (db.Queu
 			return db.Queue{}, err
 		}
 		n.Items, n.InOrder = append(n.Items, more...), true
-	case src.View != nil:
-		if n.Items, sel, err = s.fromView(ctx, c.Viewer, *src.View, in.Shuffle, n.ShuffleSeed, startAt); err != nil {
+	case src.View != nil || src.HomeRow != nil:
+		if n.Items, sel, err = s.fromView(ctx, c.Viewer, src, in.Shuffle, n.ShuffleSeed, startAt); err != nil {
 			return db.Queue{}, err
 		}
 		n.InOrder = sel != nil
@@ -397,8 +399,12 @@ func (s *Service) items(ctx context.Context, v db.Viewer, src QueueSource, limit
 			return nil, err
 		}
 		return s.db.PlayableItems(ctx, v, songs)
-	case src.View != nil:
-		q, err := src.View.query()
+	case src.View != nil || src.HomeRow != nil:
+		sel, err := src.viewSelection()
+		if err != nil {
+			return nil, err
+		}
+		q, err := sel.query()
 		if err != nil {
 			return nil, err
 		}
@@ -414,8 +420,12 @@ func (s *Service) items(ctx context.Context, v db.Viewer, src QueueSource, limit
 // fromView starts a queue from a view. A view the queue can hold whole is held whole, so
 // shuffle can be turned on and off in place. A longer one becomes a selection: the first
 // part now, the rest as the listener gets there.
-func (s *Service) fromView(ctx context.Context, v db.Viewer, view QueueView, shuffle bool, seed *int64, startAt int64) ([]int64, *selection, error) {
-	q, err := view.query()
+func (s *Service) fromView(ctx context.Context, v db.Viewer, source QueueSource, shuffle bool, seed *int64, startAt int64) ([]int64, *selection, error) {
+	sel, err := source.viewSelection()
+	if err != nil {
+		return nil, nil, err
+	}
+	q, err := sel.query()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -435,7 +445,7 @@ func (s *Service) fromView(ctx context.Context, v db.Viewer, view QueueView, shu
 		rest, _, err := s.db.ViewItems(ctx, v, q, db.QueueMax-len(whole))
 		return append(whole, rest...), nil, err
 	}
-	sel := &selection{View: view, Shuffle: shuffle}
+	sel.Shuffle = shuffle
 	var items []int64
 	if startAt != 0 {
 		items, sel.Skip = []int64{startAt}, startAt
@@ -550,7 +560,7 @@ func (s *Service) Change(ctx context.Context, c Caller, id string, ifMatch int64
 		next.Seed, next.Skip = change.Seed, current.ID
 		refill.ShuffleSeed = &next.Seed
 	} else if current.PublicID != "" {
-		view, err := sel.View.query()
+		view, err := sel.query()
 		if err != nil {
 			return q, err
 		}

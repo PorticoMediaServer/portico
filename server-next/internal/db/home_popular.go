@@ -1,34 +1,9 @@
 package db
 
 import (
-	"context"
 	"fmt"
 	"time"
 )
-
-// popularHomeItems keeps the seven-day window fixed across pages. New plays do not move
-// a title ahead of the reader. Sharing and the caller's restrictions are checked on every read.
-func (d *DB) popularHomeItems(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error) {
-	if q.Sort == "" {
-		q.Sort, q.Desc = SortOrder, true
-	}
-	after, err := decodeCursor(q.Cursor, q.Sort, q.Desc)
-	if err != nil {
-		return ItemPage{}, err
-	}
-	now := q.HomeAt
-	if now.IsZero() {
-		now = time.Now()
-	}
-	q.homePopular = now.UnixMilli()
-	if after != nil {
-		if after.AsOf <= 0 || after.AsOf > q.homePopular {
-			return ItemPage{}, ErrCursorExpired
-		}
-		q.homePopular = after.AsOf
-	}
-	return d.Items(ctx, v, q)
-}
 
 // Start from the seven days of plays, not from every title in every library. Fold a play
 // to the show or album it belongs to only after checking that both are visible to the caller.
