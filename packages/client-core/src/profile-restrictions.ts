@@ -18,15 +18,14 @@ export const RATING_LIMITS: RatingSystem = Object.freeze({id: 'age', name: 'Age'
  * a screen only shows and edits this. `maximumAgeRating` is '' for no limit; an age the choices do not
  * name shows as the highest choice below it. `blockedLabels` are Tag ids (the wire still says labels).
  * The account's library and rating limits are sent back unchanged with every save.
- * Downloads and Watch Together are read as the server sends them; the account's switches are sent back unchanged.
- * Live TV and recordings are not read here yet and read as allowed.
+ * All four switches are read as the server sends them; the account's switches are sent back unchanged.
  */
 export type ProfileRestrictions = Readonly<{profileId: string; ratingSystem: string; maximumAgeRating: string; maximumAge: number; allowUnrated: boolean;
   blockedLabels: readonly string[]; allLibraries: boolean; libraries: readonly string[]; accountAllLibraries: boolean; accountLibraries: readonly string[];
   accountMaxRatingAge: number | null; accountAllowUnrated: boolean; accountBlockedLabels: readonly string[];
-  allowDownloads: boolean; accountAllowDownloads: boolean; allowLiveTv: boolean; allowDvr: boolean; allowWatchTogether: boolean; accountAllowWatchTogether: boolean}>;
+  allowDownloads: boolean; accountAllowDownloads: boolean; allowLiveTv: boolean; accountAllowLiveTv: boolean; allowDvr: boolean; accountAllowDvr: boolean; allowWatchTogether: boolean; accountAllowWatchTogether: boolean}>;
 /** Editable profile limits; the account's switches are preserved from the current read. */
-export type RestrictionChanges = Partial<Omit<ProfileRestrictions, 'profileId' | 'maximumAge' | 'accountAllLibraries' | 'accountLibraries' | 'accountAllowDownloads' | 'accountAllowWatchTogether' | 'accountMaxRatingAge' | 'accountAllowUnrated' | 'accountBlockedLabels'>>;
+export type RestrictionChanges = Partial<Omit<ProfileRestrictions, 'profileId' | 'maximumAge' | 'accountAllLibraries' | 'accountLibraries' | 'accountAllowDownloads' | 'accountAllowLiveTv' | 'accountAllowDvr' | 'accountAllowWatchTogether' | 'accountMaxRatingAge' | 'accountAllowUnrated' | 'accountBlockedLabels'>>;
 
 const ids = (value: unknown): string[] => Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.length > 0) : [];
 /** The choice that shows a stored age: the highest whose age is at or below it. */
@@ -43,7 +42,8 @@ export function parseRestrictions(profileId: string, raw: unknown): ProfileRestr
     blockedLabels: Object.freeze(ids(v.blockedLabels)), allLibraries: v.allLibraries !== false, libraries: Object.freeze(ids(v.libraries)),
     accountAllLibraries: v.accountAllLibraries !== false, accountLibraries: Object.freeze(ids(v.accountLibraries)),
     accountMaxRatingAge: v.accountMaxRatingAge ?? null, accountAllowUnrated: v.accountAllowUnrated === true, accountBlockedLabels: Object.freeze(ids(v.accountBlockedLabels)),
-    allowDownloads: v.allowDownloads !== false, accountAllowDownloads: v.accountAllowDownloads !== false, allowLiveTv: true, allowDvr: true,
+    allowDownloads: v.allowDownloads !== false, accountAllowDownloads: v.accountAllowDownloads !== false, allowLiveTv: v.allowLiveTv !== false, accountAllowLiveTv: v.accountAllowLiveTv !== false,
+    allowDvr: v.allowDvr !== false, accountAllowDvr: v.accountAllowDvr !== false,
     allowWatchTogether: v.allowWatchTogether !== false, accountAllowWatchTogether: v.accountAllowWatchTogether !== false});
 }
 
@@ -59,8 +59,8 @@ export async function saveRestrictions(api: ServerRequester, current: ProfileRes
   const body: Restrictions = {maxRatingAge: value ? value.minimumAge : null, allowUnrated: next.allowUnrated, blockedLabels: [...next.blockedLabels], allLibraries: next.allLibraries,
     libraries: [...next.libraries], accountAllLibraries: current.accountAllLibraries, accountLibraries: [...current.accountLibraries],
     accountMaxRatingAge: current.accountMaxRatingAge, accountAllowUnrated: current.accountAllowUnrated, accountBlockedLabels: [...current.accountBlockedLabels],
-    allowDownloads: next.allowDownloads, allowWatchTogether: next.allowWatchTogether,
-    accountAllowDownloads: current.accountAllowDownloads, accountAllowWatchTogether: current.accountAllowWatchTogether};
+    allowDownloads: next.allowDownloads, allowLiveTv: next.allowLiveTv, allowDvr: next.allowDvr, allowWatchTogether: next.allowWatchTogether,
+    accountAllowDownloads: current.accountAllowDownloads, accountAllowLiveTv: current.accountAllowLiveTv, accountAllowDvr: current.accountAllowDvr, accountAllowWatchTogether: current.accountAllowWatchTogether};
   return parseRestrictions(current.profileId, await callServer(api, 'PUT /v1/profiles/{id}/restrictions', {id: current.profileId, query: {member}, body, signal}));
 }
 

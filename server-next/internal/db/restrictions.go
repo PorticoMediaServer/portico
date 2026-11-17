@@ -31,6 +31,10 @@ type Restrictions struct {
 	// (AccountAllowDownloads, read-only here). Nil in a change leaves it as it is.
 	AllowDownloads        *bool
 	AccountAllowDownloads bool
+	AllowLiveTV           *bool
+	AccountAllowLiveTV    bool
+	AllowDVR              *bool
+	AccountAllowDVR       bool
 	// AllowWatchTogether is the profile's Watch Together switch; nil when setting leaves it as
 	// it is. AccountAllowWatchTogether is the account's, which the profile's cannot lift.
 	AllowWatchTogether        *bool
@@ -83,12 +87,14 @@ func restrictions(tx *sql.Tx, userID int64, publicID string) (int64, Restriction
 	var id int64
 	var allowDownloads bool
 	out.AllowWatchTogether = new(bool)
+	out.AllowLiveTV, out.AllowDVR = new(bool), new(bool)
 	err := tx.QueryRow(`SELECT p.id, p.max_rating_age, p.allow_unrated, p.all_libraries, u.all_libraries,
 		p.allow_downloads, u.allow_downloads, p.allow_watch_together, u.allow_watch_together,
+		p.allow_live_tv, u.role = 'owner' OR u.allow_live_tv, p.allow_dvr, u.role = 'owner' OR u.allow_dvr,
 		u.max_rating_age, u.allow_unrated
 		FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.user_id = ? AND p.public_id = ?`, userID, publicID).
 		Scan(&id, &out.MaxRatingAge, &out.AllowUnrated, &out.AllLibraries, &out.AccountAllLibraries, &allowDownloads, &out.AccountAllowDownloads,
-			out.AllowWatchTogether, &out.AccountAllowWatchTogether,
+			out.AllowWatchTogether, &out.AccountAllowWatchTogether, out.AllowLiveTV, &out.AccountAllowLiveTV, out.AllowDVR, &out.AccountAllowDVR,
 			&out.AccountMaxRatingAge, &out.AccountAllowUnrated)
 	out.AllowDownloads = &allowDownloads
 	if errors.Is(err, sql.ErrNoRows) {
@@ -147,7 +153,8 @@ func sameRestrictions(stored, next Restrictions) bool {
 	sameSwitch := func(a, b *bool) bool { return b == nil || a != nil && *a == *b }
 	return age && stored.AllowUnrated == next.AllowUnrated && stored.AllLibraries == next.AllLibraries &&
 		sameSet(stored.BlockedLabels, next.BlockedLabels) && sameSet(stored.Libraries, next.Libraries) &&
-		sameSwitch(stored.AllowDownloads, next.AllowDownloads) && sameSwitch(stored.AllowWatchTogether, next.AllowWatchTogether)
+		sameSwitch(stored.AllowDownloads, next.AllowDownloads) && sameSwitch(stored.AllowWatchTogether, next.AllowWatchTogether) &&
+		sameSwitch(stored.AllowLiveTV, next.AllowLiveTV) && sameSwitch(stored.AllowDVR, next.AllowDVR)
 }
 
 // ChangeProfileRestrictions is SetProfileRestrictions for a change to some of them: change is
@@ -180,7 +187,8 @@ func (d *DB) ChangeProfileRestrictions(ctx context.Context, userID int64, public
 			return err
 		}
 		if _, err := tx.Exec(`UPDATE profiles SET max_rating_age = ?, allow_unrated = ?, all_libraries = ?, allow_downloads = coalesce(?, allow_downloads),
-			updated_at = ? WHERE id = ?`, r.MaxRatingAge, r.AllowUnrated, r.AllLibraries, r.AllowDownloads, now.UnixMilli(), id); err != nil {
+			allow_live_tv = coalesce(?, allow_live_tv), allow_dvr = coalesce(?, allow_dvr), updated_at = ? WHERE id = ?`,
+			r.MaxRatingAge, r.AllowUnrated, r.AllLibraries, r.AllowDownloads, r.AllowLiveTV, r.AllowDVR, now.UnixMilli(), id); err != nil {
 			return err
 		}
 		if r.AllowWatchTogether != nil {

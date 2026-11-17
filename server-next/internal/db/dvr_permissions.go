@@ -18,7 +18,7 @@ type DvrPermission struct {
 func (d *DB) DvrPermissions(ctx context.Context) ([]DvrPermission, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT u.public_id, u.username, p.public_id, p.name,
  CASE WHEN u.portico_account_id IS NULL THEN 'local' ELSE 'hosted' END,
- u.role = 'owner' OR u.allow_dvr, p.allow_dvr, u.allow_live_tv AND p.allow_live_tv,
+ u.role = 'owner' OR u.allow_dvr, p.allow_dvr, (u.role = 'owner' OR u.allow_live_tv) AND p.allow_live_tv,
  u.role = 'owner', u.revision, p.access_changed_at
  FROM users u JOIN profiles p ON p.user_id = u.id
  WHERE u.state = 'active' AND u.disabled_at IS NULL ORDER BY u.id, p.position, p.id`)
@@ -33,7 +33,7 @@ func (d *DB) DvrPermissions(ctx context.Context) ([]DvrPermission, error) {
 			&row.LiveAllowed, &row.OwnerAccount, &row.AccountRevision, &row.Revision); err != nil {
 			return nil, err
 		}
-		row.CanRecord = row.ProfileAllowed && row.AccountAllowed && (row.OwnerAccount || row.LiveAllowed)
+		row.CanRecord = row.ProfileAllowed && row.AccountAllowed && row.LiveAllowed
 		out = append(out, row)
 	}
 	return out, rows.Err()

@@ -10268,6 +10268,12 @@
           "allowDownloads": {
             "type": "boolean"
           },
+          "allowDvr": {
+            "type": "boolean"
+          },
+          "allowLiveTv": {
+            "type": "boolean"
+          },
           "allowUnrated": {
             "type": "boolean"
           },
@@ -11823,6 +11829,12 @@
           "accountAllowDownloads": {
             "type": "boolean"
           },
+          "accountAllowDvr": {
+            "type": "boolean"
+          },
+          "accountAllowLiveTv": {
+            "type": "boolean"
+          },
           "accountAllowUnrated": {
             "type": "boolean"
           },
@@ -11855,6 +11867,12 @@
             "type": "boolean"
           },
           "allowDownloads": {
+            "type": "boolean"
+          },
+          "allowDvr": {
+            "type": "boolean"
+          },
+          "allowLiveTv": {
             "type": "boolean"
           },
           "allowUnrated": {
@@ -11894,6 +11912,8 @@
           "accountAllLibraries",
           "accountLibraries",
           "accountAllowDownloads",
+          "accountAllowLiveTv",
+          "accountAllowDvr",
           "accountAllowWatchTogether",
           "accountAllowUnrated",
           "accountBlockedLabels"
