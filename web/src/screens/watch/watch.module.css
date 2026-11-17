@@ -10,6 +10,8 @@
   --watch-gesture-size: 13px; --watch-gesture-weight: 800;
  position: fixed; inset: 0; z-index: calc(var(--layer-player) + 1); color: var(--color-text); pointer-events: none; isolation: isolate; }
 .watch[hidden] { display: none; }
+/* Panels and fullscreen portals share this pointer-transparent player root. */
+.watch :where([role='dialog'], [role='region'], [role='menu']) { pointer-events: auto; }
 .pictureSlot { position: absolute; inset: 0; pointer-events: none; }
 .chrome { position: absolute; inset: 0; }
 .pictureTap { position: absolute; inset: 0; padding: 0; border: 0; background: transparent; pointer-events: auto; cursor: pointer; touch-action: manipulation; }
