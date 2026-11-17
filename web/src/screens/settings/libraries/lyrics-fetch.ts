@@ -2,7 +2,6 @@ import {fetchOwnerLibraryLyrics} from '@core/owner-library-requests.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 type Receipt = Readonly<{id: string; state: string}>;
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
-const states = new Set(['queued', 'running', 'cancellation-requested', 'reconciling', 'paused', 'succeeded', 'failed', 'cancelled']);
 /** One explicit library command. An uncertain result keeps its key for a manual retry. */
 export class LibraryLyricsFetch {
   private key: string | undefined;
@@ -26,10 +25,8 @@ export class LibraryLyricsFetch {
     const key = this.key;
     const request = async (): Promise<Receipt | undefined> => {
       try {
-        const raw: unknown = await fetchOwnerLibraryLyrics(this.options.api, this.options.libraryId, key, this.lifetime.signal);
+        const raw = await fetchOwnerLibraryLyrics(this.options.api, this.options.libraryId, key, this.lifetime.signal);
         if (this.lifetime.signal.aborted || !this.options.isCurrent()) return undefined;
-        if (!object(raw) || typeof raw.id !== 'string' || !raw.id || raw.id.length > 256 || /[\x00-\x1f\x7f]/.test(raw.id) ||
-            raw.kind !== 'library-lyrics-fetch' || raw.resource !== this.options.libraryId || typeof raw.state !== 'string' || !states.has(raw.state)) throw new Error('invalid_lyrics_job');
         this.key = undefined;
         return {id: raw.id, state: raw.state};
       } catch (error) {

@@ -1,3 +1,4 @@
+import {libraryLyricsJobState} from '../../../../../../packages/client-core/src/owner-library-requests';
 import {jobStateName} from '../../../../../../packages/client-core/src/server-admin/console-catalogue';
 import type {LibraryContentApi} from '../../../../../../packages/client-core/src/library-content';
 import {LibraryTrashGroup} from './LibraryTrashGroup';
@@ -276,7 +277,7 @@ function MetadataTab({document, metadata, busy, t, save, saveAgent, fetchLyrics,
     </>}
     <LibrarySettingsRows tab="metadata" document={document} busy={busy || !!state.lyricsBusy} t={t} save={save} fetchLyrics={current => fetchLyrics(document, () => parentCurrent() && current())}/>
     {state.lyricsError !== undefined && <FormError placement="inline">{presentError(state.lyricsError, 'library').body}</FormError>}
-    {state.lyricsJob && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{jobStateName(t, id => defaultI18n.has(id), state.lyricsJob.state)}</Text>}
+    {state.lyricsJob && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{jobStateName(t, id => defaultI18n.has(id), libraryLyricsJobState(state.lyricsJob.state))}</Text>}
     <SettingsGroup style={{marginTop: 18}}><SettingsRow first label={t('server.library.ownKeys')} description={t('server.library.ownKeysHelp')}/></SettingsGroup>
   </>;
 }
