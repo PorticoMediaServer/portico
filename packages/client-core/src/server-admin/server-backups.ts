@@ -1,6 +1,7 @@
 import type {Backups, BackupInspection, RestoreStaged} from '../../../contracts/src/next/api.ts';
 import {callServer, type ServerRequester} from '../query/server-api.ts';
 import type {BackupSummary} from '../administration.ts';
+import {linkNativeAbortSignals} from '../native-abort-signals.ts';
 
 /**
  * Storage & backups on the rebuilt server, for the owner. `GET /v1/admin/backups` lists the backups, the
@@ -69,9 +70,10 @@ export class ServerBackupSource {
   /** A signed-out answer ends this source; the shell opens sign-in. */
   private async run<T>(work: (signal: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T> {
     this.check();
-    const request = signal ? AbortSignal.any([signal, this.lifetime.signal]) : this.lifetime.signal;
-    try {const value = await work(request);this.check();return value;}
+    const linked = linkNativeAbortSignals([signal, this.lifetime.signal]);
+    try {const value = await work(linked.signal);this.check();return value;}
     catch (error) {if (scopeEnded(error)) {this.dispose();this.notify();}throw error;}
+    finally {linked.dispose();}
   }
 
   load = (signal?: AbortSignal): Promise<void> => this.run(async s => {

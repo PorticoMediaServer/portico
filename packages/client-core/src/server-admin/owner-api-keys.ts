@@ -4,6 +4,7 @@ import {callServer, serverPath} from '../query/server-api.ts';
 import {apiScopes, type ApiScope} from '../api-access.ts';
 import {randomId} from '../random-id.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
+import {linkNativeAbortSignals} from '../native-abort-signals.ts';
 
 export type OwnerApiKey = Readonly<Omit<Key, 'scopes'> & {scopes: readonly ApiScope[]; state: 'active' | 'expired' | 'revoked'; revokedAt?: string}>;
 export type OwnerApiKeyDraft = Readonly<{name: string; scopes: readonly ApiScope[]; expiresAt?: string}>;
@@ -43,7 +44,7 @@ export class OwnerApiKeysSource {
  load = async (cursor = '', keepError?: Failure): Promise<void> => {
   if (!this.current() || this.mutating) return;
   this.reading?.abort();const reading = new AbortController();this.reading = reading;
-  const signal = AbortSignal.any([this.life.signal, reading.signal]);
+  const linked = linkNativeAbortSignals([this.life.signal, reading.signal]), signal = linked.signal;
   this.publish({phase: 'loading', error: keepError, ...(keepError ? {} : {problem: undefined})});
   try {
    if (!this.current() || reading.signal.aborted) return;
@@ -52,7 +53,7 @@ export class OwnerApiKeysSource {
    if (!Array.isArray(answer.items) || answer.nextCursor !== undefined && typeof answer.nextCursor !== 'string') return invalid();
    this.publish({phase: 'ready', page: {items: Object.freeze(answer.items.map(item => key(item))), nextCursor: answer.nextCursor}, error: keepError});
   } catch (error) {if (this.current() && !reading.signal.aborted) this.failure(error, 'read');}
-  finally {if (this.reading === reading) this.reading = undefined;}
+  finally {linked.dispose();if (this.reading === reading) this.reading = undefined;}
  };
  create = async (draft: OwnerApiKeyDraft): Promise<OwnerKeyIssued | undefined> => {
   if (!this.current() || this.mutating || this.intent || (this.state.phase !== 'ready' && this.state.error !== 'create')) return;

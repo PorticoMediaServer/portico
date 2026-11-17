@@ -35,3 +35,18 @@ test('a replaced page cannot publish a late answer or dispatch after retirement'
   const first=source.load();await source.load('2');finish({items:[key]});await first;assert.equal(source.getSnapshot().page?.items[0].id,'new');
  }finally{source.dispose();}
 });
+
+test('native key reads work without AbortSignal.any and retirement still cancels a pending read',async()=>{
+ const any=Object.getOwnPropertyDescriptor(AbortSignal,'any')!;
+ Object.defineProperty(AbortSignal,'any',{value:undefined,configurable:true});
+ let signal:AbortSignal|undefined,finish!:(value:unknown)=>void,deferred=false;
+ const source=new OwnerApiKeysSource({request:async <T>(_path:string,_method?:string,_body?:unknown,input?:AbortSignal)=>{
+  signal=input;return deferred?new Promise(resolve=>{finish=resolve;}) as Promise<T>:{items:[key]} as T;
+ },requestRaw:async()=>{throw Error('unexpected write');}},()=>true,assert.fail);
+ try{
+  await source.load();assert.equal(source.getSnapshot().page?.items[0].id,key.id);
+  deferred=true;const second=source.load();assert.equal(source.getSnapshot().phase,'loading');assert.equal(signal?.aborted,false);
+  source.dispose();assert.equal(signal?.aborted,true);finish({items:[]});await second;
+  assert.equal(source.getSnapshot().phase,'idle');
+ }finally{source.dispose();Object.defineProperty(AbortSignal,'any',any);}
+});
