@@ -9432,6 +9432,9 @@
           "presentation": {
             "$ref": "#/components/schemas/Presentation"
           },
+          "progressToken": {
+            "type": "string"
+          },
           "queue": {
             "$ref": "#/components/schemas/QueueLink"
           },
@@ -9500,8 +9503,17 @@
       },
       "PlaybackStop": {
         "properties": {
+          "madeAgoMs": {
+            "type": "integer"
+          },
+          "playClockMs": {
+            "type": "integer"
+          },
           "positionMs": {
             "type": "integer"
+          },
+          "progressToken": {
+            "type": "string"
           }
         },
         "type": "object"

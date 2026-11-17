@@ -2820,6 +2820,7 @@ export interface PlaybackSession {
   state: string;
   itemId: string;
   versionId: string;
+  progressToken?: string;
   queue?: QueueLink;
   channel?: LibraryChannelLink;
   live?: LiveWindow;
@@ -2850,6 +2851,9 @@ export interface PlaybackStart {
 
 export interface PlaybackStop {
   positionMs?: number;
+  progressToken?: string;
+  madeAgoMs?: number;
+  playClockMs?: number;
 }
 
 export interface PlaybackSubtitle {
