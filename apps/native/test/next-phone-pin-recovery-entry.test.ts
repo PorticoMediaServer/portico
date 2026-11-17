@@ -73,7 +73,7 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
     '../../platform/portico-sign-in': {}, '../../platform/server-connections': {browseNearby: async () => []},
     '../../platform/tv-sign-in': {}, '../../platform/account-authority': {}, '../../tv/auth': {},
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
-    './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'Phone'},
+    './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, './PhoneServerSignIn': {PhoneServerSignIn: 'PhoneServerSignIn'},
     './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
     './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
@@ -86,11 +86,10 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
   await act(() => host.mount());
   try {
     await act(() => tree.props.onLocal());
-    await act(() => parts(tree).find(n => n.type === 'Field').props.onChangeText('https://verified.example'));
-    await act(() => tree.props.primaryAction.onPress());
-    const credentials = parts(tree).filter(n => n.type === 'Field');
-    await act(() => {credentials[0].props.onChangeText('person'); credentials[1].props.onChangeText('test password');});
-    await act(() => tree.props.primaryAction.onPress());
+    await act(() => tree.props.onAddressChange('https://verified.example'));
+    await act(() => tree.props.onContinue());
+    await act(() => {tree.props.onUsernameChange('person'); tree.props.onPasswordChange('test password');});
+    await act(() => tree.props.onSignIn());
     await act(() => parts(tree).find(n => n.type === 'Picker').props.onSelect(profile.id));
     assert.equal(tree.type, 'PhoneProfilePIN', 'the protected profile uses the shared phone PIN screen');
     assert.equal(typeof tree.props.onForgot, 'function', 'it offers Forgot PIN');
@@ -134,11 +133,10 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
     await act(() => {[...back.listeners][0]!();}); // the PIN page back to Who's watching
     await act(() => {[...back.listeners][0]!();}); // reset the sign-in operation
     await act(() => tree.props.onLocal());
-    await act(() => parts(tree).find(n => n.type === 'Field').props.onChangeText('https://successor.example'));
-    await act(() => tree.props.primaryAction.onPress());
-    const nextCredentials = parts(tree).filter(n => n.type === 'Field');
-    await act(() => {nextCredentials[0].props.onChangeText('person'); nextCredentials[1].props.onChangeText('test password');});
-    await act(() => tree.props.primaryAction.onPress());
+    await act(() => tree.props.onAddressChange('https://successor.example'));
+    await act(() => tree.props.onContinue());
+    await act(() => {tree.props.onUsernameChange('person'); tree.props.onPasswordChange('test password');});
+    await act(() => tree.props.onSignIn());
     await act(() => parts(tree).find(n => n.type === 'Picker').props.onSelect(profile.id));
     await act(() => tree.props.onForgot());
     const newController = tree.props.controller;
@@ -195,7 +193,7 @@ test('a wrong profile PIN uses the profile error context and clears the boxes', 
     '../../platform/portico-sign-in': {}, '../../platform/server-connections': {browseNearby: async () => []},
     '../../platform/tv-sign-in': {}, '../../platform/account-authority': {}, '../../tv/auth': {},
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
-    './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'Phone'},
+    './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, './PhoneServerSignIn': {PhoneServerSignIn: 'PhoneServerSignIn'},
     './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
     './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
@@ -208,11 +206,10 @@ test('a wrong profile PIN uses the profile error context and clears the boxes', 
   await act(() => host.mount());
   try {
     await act(() => tree.props.onLocal());
-    await act(() => parts(tree).find(n => n.type === 'Field').props.onChangeText('https://verified.example'));
-    await act(() => tree.props.primaryAction.onPress());
-    const credentials = parts(tree).filter(n => n.type === 'Field');
-    await act(() => {credentials[0].props.onChangeText('person'); credentials[1].props.onChangeText('test password');});
-    await act(() => tree.props.primaryAction.onPress());
+    await act(() => tree.props.onAddressChange('https://verified.example'));
+    await act(() => tree.props.onContinue());
+    await act(() => {tree.props.onUsernameChange('person'); tree.props.onPasswordChange('test password');});
+    await act(() => tree.props.onSignIn());
     await act(() => parts(tree).find(n => n.type === 'Picker').props.onSelect(profile.id));
     await act(() => tree.props.onSubmit('9999'));
     assert.equal(contexts.at(-1), 'profiles', 'the picker PIN failure is not presented as a generic sign-in failure');

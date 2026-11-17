@@ -1,5 +1,5 @@
 import React, {type ReactNode} from 'react';
-import {Text, View, useWindowDimensions, type StyleProp, type ViewStyle} from 'react-native';
+import {ActivityIndicator, Text, View, useWindowDimensions, type StyleProp, type ViewStyle} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Focusable} from '../controls/Focusable';
@@ -46,9 +46,14 @@ export function SettingsSheet({profile, shortcuts, children, ...surface}: Omit<B
 
 /** A settings list's section label ("Account"): phone-app `.sec`, 13.5/700 with 22 pt above it and 8 below. `first` drops the
  * space above when nothing sits over it. */
-export function SettingsSectionLabel({label, first = false}: {label: string; first?: boolean}) {
+/** A group's heading. `inset` lines it up with what it heads (20 under a settings card's rounded edge); `busy` puts the
+ * small spinner before it while that group is still being found (Find your server's On this network). */
+export function SettingsSectionLabel({label, first = false, inset = 20, busy = false}: {label: string; first?: boolean; inset?: number; busy?: boolean}) {
   const theme = useTheme();
-  return <Text style={[shellType(theme.isTV ? 20 : 13.5, 700), {marginTop: first ? 0 : 22, marginBottom: 8, marginLeft: 20, color: theme.colors.textTertiary}]}>{label}</Text>;
+  const text = <Text accessibilityRole="header" style={[shellType(theme.isTV ? 20 : 13.5, 700), {color: theme.colors.textTertiary}]}>{label}</Text>;
+  return <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: first ? 0 : 22, marginBottom: 8, marginLeft: inset}}>
+    {busy && <ActivityIndicator size="small" color={theme.colors.accentStrong}/>}{text}
+  </View>;
 }
 
 /** Navigation carries a setting's state, never a summary count. Major issues must be known for this exact row. */

@@ -3,7 +3,8 @@ import type {NextMessageId} from '../../../../packages/i18n/src/catalog/en-US/ne
 
 /** web is the genuine >=1024 desktop theme column, never a phone alias. */
 export type GalleryPlatform = 'phone' | 'tablet' | 'web' | 'tv';
-export type Gallery = Readonly<{id: string; title: NextMessageId; render: ComponentType; platforms?: readonly GalleryPlatform[]}>;
+/** `screen`: the case is a whole screen that keeps its own safe areas, so a capture window draws it edge to edge. */
+export type Gallery = Readonly<{id: string; title: NextMessageId; render: ComponentType; platforms?: readonly GalleryPlatform[]; screen?: boolean}>;
 export type GalleryContext = {keys(): string[]; (key: string): {default: Gallery | readonly Gallery[]}};
 declare const require: {context(directory: string, recursive: boolean, filter: RegExp): GalleryContext};
 

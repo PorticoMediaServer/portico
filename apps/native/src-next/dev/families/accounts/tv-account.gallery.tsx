@@ -7,7 +7,7 @@ import type {Gallery} from '../../gallery-registry';
 import {FormError} from '../../../kit/controls/FormError';
 import {Button} from '../../../kit/controls';
 import {useTheme} from '../../../kit/theme';
-import {TVCredentialForm, TVFrontDoor} from '../../../tv/auth';
+import {TVCodePresenter, TVCredentialForm, TVFrontDoor} from '../../../tv/auth';
 import {AccountEntry} from '../../../screens/accounts/AccountEntry';
 import {ServersRoute} from '../../../screens/accounts/AccountRoutes';
 import {TVServerChooser} from '../../../screens/accounts/TVServerChooser';
@@ -54,6 +54,15 @@ function Chooser({long = false, busy = false}: {long?: boolean; busy?: boolean})
 
 const T = 'next.shell.native.accountGallery' as const;
 const galleries: readonly Gallery[] = [
+  // The TV's first screen (auth.html frame 8): the activation code, Sign in with a Portico Account focused.
+  {id: 'tv-account-activate', title: T, platforms: ['tv'], render: () => <Whole><TVCodePresenter mode="portico" body={t('accounts.consent.portico')} busy={false}
+    verificationUri="https://web.getportico.tv/device" verificationUriComplete="https://web.getportico.tv/device?code=7KQM-4TXP" userCode="7KQM-4TXP"
+    onTypeCredentials={noop} onBack={noop} onLocal={noop}/></Whole>},
+  {id: 'tv-account-activate-busy', title: T, platforms: ['tv'], render: () => <Whole><TVCodePresenter mode="portico" body={t('accounts.consent.portico')} busy
+    verificationUri="https://web.getportico.tv/device" onTypeCredentials={noop} onBack={noop} onLocal={noop}/></Whole>},
+  // No code could be fetched: the same composition, the card says why and what to do.
+  {id: 'tv-account-activate-unavailable', title: T, platforms: ['tv'], render: () => <Whole><TVFrontDoor busy={false} onPortico={noop} onLocal={noop}
+    reason={t('activation.unreachable')}/></Whole>},
   {id: 'tv-account-welcome', title: T, platforms: ['tv'], render: () => <Whole><TVFrontDoor busy={false} onPortico={noop} onLocal={noop}/></Whole>},
   {id: 'tv-account-welcome-busy', title: T, platforms: ['tv'], render: () => <Whole><TVFrontDoor busy onPortico={noop} onLocal={noop}/></Whole>},
   {id: 'tv-account-address-empty', title: T, platforms: ['tv'], render: () => <Whole><AccountEntry initialStage="address" onComplete={noop} onBack={noop}/></Whole>},
