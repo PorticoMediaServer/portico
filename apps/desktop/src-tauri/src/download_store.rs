@@ -88,6 +88,8 @@ CREATE TABLE IF NOT EXISTS download_artwork (
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DownloadRules {
     pub remove_watched: bool,
+    // Keep the inert database column compatible with existing stores.
+    #[serde(default, skip_serializing)]
     pub next_episode: bool,
     pub unmetered_only: bool,
     pub limit_bytes: u64,
@@ -1837,6 +1839,25 @@ mod tests {
         assert!(store.pending_plays(&other).unwrap().is_empty());
         store.acknowledge_play(&viewer(), "play", now + 1).unwrap();
         assert!(store.pending_plays(&viewer()).unwrap().is_empty());
+        drop(store);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn current_rules_save_without_the_retired_next_episode_field() {
+        let root = root();
+        let mut store = DownloadStore::open(&root, &DownloadRules {
+            next_episode: true,
+            ..rules()
+        }).unwrap();
+        let value = serde_json::json!({"removeWatched": true, "unmeteredOnly": false, "limitBytes": 2000});
+        let current: DownloadRules = serde_json::from_value(value.clone()).unwrap();
+        let saved = store.set_rules(0, current.clone()).unwrap();
+        assert_eq!(saved.revision, 1);
+        assert_eq!(serde_json::to_value(&saved.rules).unwrap(), value);
+        drop(store);
+        let store = DownloadStore::open(&root, &rules()).unwrap();
+        assert_eq!(store.rules().unwrap().rules, current);
+        assert_eq!(store.rules().unwrap().revision, 1);
         drop(store);
         std::fs::remove_dir_all(root).unwrap();
     }

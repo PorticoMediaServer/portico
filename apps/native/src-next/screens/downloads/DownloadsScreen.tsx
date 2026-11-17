@@ -396,7 +396,6 @@ function DownloadsRules({settings, pending, copy, save, onLimit, limitRef}: {set
   const rows = [
     {field: 'wifiOnly', label: 'downloads.wifiOnly', help: 'downloads.wifiOnlyHelp'},
     {field: 'deleteWatched', label: 'downloads.removeAfterWatching', help: 'downloads.removeAfterWatchingHelp'},
-    {field: 'autoNext', label: 'downloads.nextEpisode', help: 'downloads.nextEpisodeHelp'},
   ] as const;
   const label = (title: string, help: string) => <View style={{flex: 1, minWidth: 0}}><Text style={[browseType(theme, 15.5, 600), {color: theme.colors.text}]}>{title}</Text><Text style={[browseType(theme, 12.5, 500, 0, 17.5), {color: theme.colors.textTertiary, marginTop: 2}]}>{help}</Text></View>;
   return <>

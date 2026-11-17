@@ -29,7 +29,7 @@ async function harness(published:Partial<Pick<DesktopOfflineTransport,'resolvePu
       case 'enroll':return {kind:'entry',value:{...row}};
       case 'list':return {kind:'page',value:{items:[{...row}],nextCursor:null}};
       case 'entry':return {kind:'entry',value:{...row}};
-      case 'rules':return {kind:'rules',value:{revision:0,rules:{removeWatched:false,nextEpisode:false,unmeteredOnly:true,limitBytes:0}}};
+      case 'rules':return {kind:'rules',value:{revision:0,rules:{removeWatched:false,unmeteredOnly:true,limitBytes:0}}};
       case 'append':assert.equal(op.offset,row.bytesDone);assert.equal(op.expectedRevision,row.revision);assert.ok((op.bytes as number[]).length<=262144);row={...row,revision:row.revision+1,bytesDone:row.bytesDone+(op.bytes as number[]).length,state:'downloading'};afterAppend?.();return {kind:'entry',value:{...row}};
       case 'seal':assert.equal(row.bytesDone,row.bytes);row={...row,revision:row.revision+1,state:'ready'};return {kind:'entry',value:{...row}};
       case 'hold':if(op.expectedRevision!==row.revision)throw 'downloads_conflict';row={...row,revision:row.revision+1,state:'queued'};return {kind:'entry',value:{...row}};

@@ -10,7 +10,7 @@ function setup() {
   const viewer = session.viewer;
   const entry: OfflineEntry = {id:'copy',itemId:'movie',title:'Movie',subtitle:'',quality:'original',artworkUrl:'',state:'ready',error:'',waiting:'',held:false,bytes:10,bytesDone:10,addedAt:1,onServer:false,changedOnServer:false,
     receipt:{receiptId:'receipt',algorithm:'ed25519',keyId:'key',payload:'fixture',signature:'fixture',revision:1,claims:{kind:'portico.download-receipt',version:'1',receiptId:'receipt',keyId:'key',viewer,itemId:'movie',preparationId:'preparation',quality:'original',qualityLabel:'Original',artifact:{sha256:'a'.repeat(64),bytes:10},issuedAt:'2026-01-01T00:00:00Z',expiresAt:'2100-01-01T00:00:00Z'}}};
-  let snapshot: OfflineSnapshot = {supported:true,ready:true,entries:[entry],settings:{wifiOnly:true,deleteWatched:false,autoNext:false,limitBytes:0},freeBytes:100,usedBytes:10,otherBytes:0,pendingProgress:0};
+  let snapshot: OfflineSnapshot = {supported:true,ready:true,entries:[entry],settings:{wifiOnly:true,deleteWatched:false,limitBytes:0},freeBytes:100,usedBytes:10,otherBytes:0,pendingProgress:0};
   let reason: ReturnType<import('../platform/offline-downloads').OfflineDownloads['playabilityReason']> = null;
   const media: LocalMedia = {entryId:'copy',itemId:'movie',playId:'play_actual-journal',fileUrl:'file:///private/Downloads/copy/movie.mp4',durationSeconds:600,startSeconds:42};
   let load: () => Promise<LocalMedia> = async () => media;

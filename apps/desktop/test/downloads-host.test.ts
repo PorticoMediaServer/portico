@@ -14,7 +14,7 @@ async function setup(){
  const row={...first,preparationId:'server-prep',quality:'original',sha256:'2'.repeat(64),bytes:8,bytesDone:8,state:'ready',held:false,addedMs:1,receiptExpiresMs:null,offlineAccess:'valid'};
  const bridge:NativeDownloadsBridge={async bind(value){binds.push(value);return lease},async release(value){releases.push(value)},async command(_,op){
   operations.push(op);switch(op.action){
-   case 'rules':return{kind:'rules',value:{revision:0,rules:{removeWatched:false,nextEpisode:false,unmeteredOnly:true,limitBytes:0}}};
+   case 'rules':return{kind:'rules',value:{revision:0,rules:{removeWatched:false,unmeteredOnly:true,limitBytes:0}}};
    case 'list':return{kind:'page',value:{items:[row],nextCursor:null}};
    case 'groups':return{kind:'groups',value:[{kind:'songs',parentId:'album',groupId:'disc',revision:groupRevision,count:2,bytes:16,bytesDone:16,state:'ready',held:false,offlineAccess:'valid',parentTitle:'Album'}]};
    case 'capacity':return{kind:'capacity',value:{totalBytes:100,freeBytes:84,usedBytes:16,otherDownloadsBytes:0}};
