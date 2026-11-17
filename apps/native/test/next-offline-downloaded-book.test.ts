@@ -103,3 +103,32 @@ test('with history paused, reading a downloaded book keeps no place', async () =
   assert.equal((await session.progress()).progress, null);
   await session.close();
 });
+
+test('a whole download is confirmed, retrying failed contact or local acknowledgement quietly', async t => {
+  device.reset();
+  device.state = JSON.stringify({version: 3, settings: {wifiOnly: true, deleteWatched: false, autoNext: false, limitBytes: 0}, reading: {}, plays: {}, resume: {}, keys: {},
+    wanted: {}, wantedPublications: {}, nextAfter: {}, renewed: {}, clockFloor: 0, permissions: {[owner]: Date.now() + 86_400_000}});
+  device.seed({id: 'film', itemId: 'film-1', bytes: 10, bytesDone: 10, sha256: digest, meta: {downloadId: 'dl-2', owner, kind: 'movie'}});
+  device.seed({id: 'half', itemId: 'film-2', state: 'downloading', bytes: 10, bytesDone: 4, meta: {downloadId: 'dl-3', owner, kind: 'movie'}});
+  const store = new OfflineDownloads(); active.add(store); store.adopt(A); await store.open();
+  const sent: string[] = []; let reachable = false;
+  Reflect.set(store, 'api', {baseUrl: 'http://server.test', mediaUrl: (path: string) => path, request: async (path: string, method: string) => {
+    if (!reachable) throw Object.assign(new Error('offline'), {code: 'network_error'});
+    sent.push(`${method} ${path}`); return undefined;
+  }});
+  const send = () => Reflect.get(store, 'sendReceived').call(store) as Promise<void>;
+  await send();
+  assert.deepEqual(sent, []); assert.equal(device.metaOf('film').received, undefined);
+  reachable = true;
+  const original = native.setMeta;
+  const failing = t.mock.method(native, 'setMeta', async () => {throw new Error('device full');});
+  await send();
+  assert.equal(device.metaOf('film').received, undefined, 'a failed local write stays retryable');
+  failing.mock.restore();
+  assert.equal(native.setMeta, original);
+  await send(); await send();
+  // Only the whole one; a failed local acknowledgement retries the idempotent call.
+  assert.deepEqual(sent, ['POST /v1/downloads/dl-2/items/film-1/received', 'POST /v1/downloads/dl-2/items/film-1/received']);
+  assert.equal(device.metaOf('film').received, true);
+  assert.equal(store.getSnapshot().entries.find((entry: {id: string}) => entry.id === 'film')?.state, 'ready');
+});
