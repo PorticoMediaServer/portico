@@ -56,7 +56,7 @@ test('touch menus request the firm platform capability once without changing sel
     assert.equal(await selectionHaptic(), true);
     Platform.OS = 'android';
     assert.equal(await touchMenuHaptic(), true);
-    assert.deepEqual(calls, ['contextMenu', 'selection', 'selection']);
+    assert.deepEqual(calls, ['contextMenu', 'selection', 'contextMenu']);
     assert.equal(await touchMenuHaptic(false), false);
     assert.equal(calls.length, 3);
   } finally {modules.PorticoHaptics = prior; Platform.OS = os; Platform.isTV = tv;}
@@ -90,7 +90,9 @@ test('touch menu admission is strict and an absent Apple menu bridge never falls
 
 test('native source uses policy-respecting view feedback and UIKit without permissions or simulated receipts', () => {
   const android = readFileSync(new URL('../android/app/src/main/java/tv/getportico/portico/native/PorticoHaptics.kt', import.meta.url), 'utf8');
-  assert.match(android, /performHapticFeedback\(HapticFeedbackConstants\.LONG_PRESS\)/);
+  assert.match(android, /fun selection\(promise: Promise\) = perform\(HapticFeedbackConstants\.CLOCK_TICK, promise\)/);
+  assert.match(android, /fun contextMenu\(promise: Promise\) = perform\(HapticFeedbackConstants\.LONG_PRESS, promise\)/);
+  assert.match(android, /view\.performHapticFeedback\(feedback\)/);
   assert.match(android, /promise\.resolve\(admitted\)/);
   assert.doesNotMatch(android, /IGNORE_GLOBAL_SETTING|IGNORE_VIEW_SETTING|VIBRATE|VibrationEffect/);
   const apple = readFileSync(new URL('../Native/PorticoHaptics.m', import.meta.url), 'utf8');
