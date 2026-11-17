@@ -134,19 +134,13 @@ export function parseChannelSession(v: unknown): Session {
 /**
  * Where this device is with a session's stream: which attachment of it (a new stream, or Go to
  * live reloading one, is a new attachment the engine joins), the position it was asked to start or
- * seek to, and the seek it has reached.
+ * seek to (null joins the stream's live edge), and the seek it has reached.
  */
-export type ChannelAttachment = Readonly<{generation: number; key: string; seekId: string; targetMs: number; ackId?: string; confirmedMs?: number}>;
+export type ChannelAttachment = Readonly<{generation: number; key: string; seekId: string; targetMs: number | null; ackId?: string; confirmedMs?: number}>;
 
 /** How the engine takes the stream: a file or a live source's own MPEG-TS directly, anything else as HLS. */
 const engineMode = (s: Session): 'direct' | 'hls' =>
   s.kind === 'live' ? (s.presentation.route === 'original' ? 'direct' : 'hls') : s.presentation.mode === 'direct' ? 'direct' : 'hls';
-/**
- * Where a live stream is joined: its live edge, now. Live HLS is read by its program dates from the window's oldest moment, so
- * the edge is that far along, and never earlier than the server's time (a window read a while ago is behind it); a live
- * source's own stream starts where this device joined it, at media time 0.
- */
-const liveJoinMs = (s: Session, serverNow: number) => engineMode(s) === 'hls' && s.window ? Math.max(s.window.liveAtMs, serverNow) - s.window.oldestAtMs : 0;
 
 /** The session as the channel projection `PlaybackService.applyChannel` reads. */
 export function channelView(s: Session, channel: ChannelReference, at: ChannelAttachment, timing: Readonly<{now: number; serverNow: number}>): ChannelView {
@@ -160,7 +154,8 @@ export function channelView(s: Session, channel: ChannelReference, at: ChannelAt
   const datedLive = s.kind === 'live' && engineMode(s) === 'hls' && s.window ? Math.max(s.window.liveAtMs, timing.serverNow) - s.window.oldestAtMs : undefined;
   const windowEndMs = start !== undefined && end !== undefined ? Math.max(0, end - start) : datedLive ?? DAY_MS;
   const liveEdgeMs = start !== undefined ? Math.min(windowEndMs, Math.max(0, timing.serverNow - start)) : datedLive ?? (s.window ? s.window.liveAtMs - s.window.oldestAtMs : 0);
-  const seek = Object.freeze({seekCommandId: at.seekId, bufferGeneration: generation, kind: 'position' as const, positionUs: us(at.targetMs)});
+  const seek = Object.freeze({seekCommandId: at.seekId, bufferGeneration: generation, kind: at.targetMs === null ? 'live' as const : 'position' as const,
+    positionUs: at.targetMs === null ? null : us(at.targetMs)});
   const desired: ChannelDesired = Object.freeze({state: s.state === 'paused' ? 'paused' : 'playing', seek, retryRequestId: null});
   // The countdown is a server instant: moved onto this device's clock here, at receipt.
   const reservation = s.countdown ? Math.max(0, s.countdown.endsAtMs - timing.serverNow + Math.round(timing.now)) : undefined;
@@ -402,7 +397,8 @@ export class V1ChannelControl implements ChannelPlayback {
       // A new stream (the start, or the server's new presentation): the engine joins it where the
       // server starts it; a live stream from its live edge.
       const fromStart = !a.joined && a.placeAtStart && s.kind === 'title';
-      a.at = Object.freeze({generation: ++this.attachments, key, seekId: this.key(), targetMs: fromStart ? 0 : s.kind === 'title' ? s.presentation.startPositionMs : liveJoinMs(s, this.serverNow())});
+      const targetMs = s.kind === 'title' ? (fromStart ? 0 : s.presentation.startPositionMs) : engineMode(s) === 'hls' ? null : 0;
+      a.at = Object.freeze({generation: ++this.attachments, key, seekId: this.key(), targetMs});
       a.joined = true;
       // At the start of the programme now on (11 rule 109's oldest point): the server is told where the viewer is.
       if (fromStart) void this.patch(a, {state: this.wanted, seek: {id: a.at.seekId, positionMs: 0}});
@@ -410,7 +406,7 @@ export class V1ChannelControl implements ChannelPlayback {
     }
     if (a.reporter && a.reporter.snapshot().generation !== s.presentation.generation) {
       a.reporter.setGeneration(s.presentation.generation);
-      a.reporter.observe({generation: s.presentation.generation, state: this.wanted, positionMs: a.at.confirmedMs ?? a.at.targetMs, rate: this.wanted === 'playing' ? 1 : 0}, 'state');
+      a.reporter.observe({generation: s.presentation.generation, state: this.wanted, positionMs: a.at.confirmedMs ?? a.at.targetMs ?? 0, rate: this.wanted === 'playing' ? 1 : 0}, 'state');
     }
     this.emit(a);
   }
@@ -435,7 +431,7 @@ export class V1ChannelControl implements ChannelPlayback {
   private atLive(a: Active): boolean {
     const start = a.session?.channel?.startsAtMs;
     if (this.wanted !== 'playing' || start === undefined) return false;
-    return (a.positionMs ?? a.at.targetMs) >= this.serverNow() - start - LIVE_SLACK_MS;
+    return (a.positionMs ?? a.at.targetMs ?? 0) >= this.serverNow() - start - LIVE_SLACK_MS;
   }
   /** The length of the programme this viewer is in, when it has one. */
   private programmeMs(a: Active): number | undefined {
@@ -489,12 +485,14 @@ export class V1ChannelControl implements ChannelPlayback {
 
   /** The engine goes to a position of this attachment: a new seek it acknowledges when it gets there. */
   private moveTo(a: Active, ms: number) {
-    a.at = Object.freeze({...a.at, seekId: this.key(), targetMs: Math.max(0, Math.round(ms)), ackId: undefined, confirmedMs: undefined});
+    const targetMs = Math.max(0, Math.round(ms));
+    a.at = Object.freeze({...a.at, seekId: this.key(), targetMs, ackId: undefined, confirmedMs: undefined});
     this.emit(a);
+    return targetMs;
   }
   /** A live stream joined again from its live edge: a new attachment of the same stream. */
   private reload(a: Active) {
-    a.at = Object.freeze({generation: ++this.attachments, key: a.at.key, seekId: this.key(), targetMs: a.session ? liveJoinMs(a.session, this.serverNow()) : 0});
+    a.at = Object.freeze({generation: ++this.attachments, key: a.at.key, seekId: this.key(), targetMs: a.session && engineMode(a.session) === 'hls' ? null : 0});
     this.emit(a);
   }
 
@@ -511,8 +509,8 @@ export class V1ChannelControl implements ChannelPlayback {
     }
     // A Library Channel goes back as far as its programme's start and never past live: the server
     // holds that bound, and the engine goes where it was asked.
-    this.moveTo(a, seconds * 1000);
-    void this.patch(a, {state: this.wanted, seek: {id: a.at.seekId, positionMs: a.at.targetMs}});
+    const positionMs = this.moveTo(a, seconds * 1000);
+    void this.patch(a, {state: this.wanted, seek: {id: a.at.seekId, positionMs}});
   }
   goLive() {
     this.wanted = 'playing';
@@ -523,8 +521,8 @@ export class V1ChannelControl implements ChannelPlayback {
     if (start === undefined) {void this.patch(a, {state: 'playing'}); return;}
     // Behind live in a programme that has already ended on the clock: live is in the programme now on.
     if (end !== undefined && this.serverNow() >= end) {this.retune(a, false); return;}
-    this.moveTo(a, this.serverNow() - start);
-    void this.patch(a, {state: 'playing', seek: {id: a.at.seekId, positionMs: a.at.targetMs}});
+    const positionMs = this.moveTo(a, this.serverNow() - start);
+    void this.patch(a, {state: 'playing', seek: {id: a.at.seekId, positionMs}});
   }
   /** Play again: the server's retry; a live stream is joined again from live. */
   retry() {

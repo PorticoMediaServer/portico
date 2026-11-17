@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {setTimeout as wait} from 'node:timers/promises';
+import {PlaybackService} from '../src/playback-service.ts';
 import {V1ChannelControl, CHANNEL_NOT_PLAYABLE_HERE, type ChannelView} from '../src/playback-v1/channel-control.ts';
 import type {V1Request} from '../src/playback-v1/http.ts';
 
@@ -47,14 +48,18 @@ test('a live HLS stream the server converted is played as HLS', async () => {
   const f = control(r => r.method === 'POST' ? {status: 201, body: live({presentation: {...live().presentation, url: '/v1/live/streams/grant/index.m3u8', route: 'repackaged', container: 'mpegts_hls'}})} : {status: 204},
     // The server's time is pinned at the window's live moment, so the join target does not move with the real clock.
     {plays: p => !(p.mode === 'live' && p.route === 'original'), serverNow: () => Date.parse('2026-11-12T20:05:00Z')});
-  await f.c.open(reference('live-source', 'chn_1'), f.sink);
+  const service = new PlaybackService({createPlayback: async () => {throw new Error('Unexpected title start');},
+    stopPlayback: async () => {}, progressPlayback: async () => {}}, () => 'key', {channels: f.c});
+  await service.playChannel(reference('live-source', 'chn_1'));
   try {
-    const view = f.views.at(-1)!;
-    assert.equal(view.linear.media.mode, 'hls');assert.equal(view.linear.media.clock, 'dates');assert.deepEqual(f.errors, []);
-    // Read by program dates from the stretch's oldest moment (20:00): joined at live (20:05), never at the oldest moment.
-    assert.equal(view.linear.desired.seek?.positionUs, String(300_000 * 1000));
-    assert.equal(view.linear.media.originMs, Date.parse('2026-11-12T20:00:00Z'));
-  } finally {f.c.close();}
+    const started = service.getSnapshot();
+    assert.equal(started.session?.mode, 'hls');
+    assert.equal(started.linear?.media.clock, 'dates');
+    assert.equal(started.linear?.media.originMs, Date.parse('2026-11-12T20:00:00Z'));
+    assert.equal(started.pendingSeek, undefined, 'an HLS tune joins without waiting for an exact wall-clock seek');
+    service.seek(90);
+    assert.equal(service.getSnapshot().pendingSeek?.positionSeconds, 90, 'an explicit rewind still asks for its exact place');
+  } finally {service.leave();}
 });
 
 test('every tuner busy: the server\'s own words say what is using them', async () => {
@@ -196,11 +201,14 @@ test('Go to live on a converted live channel goes to live now, not to where live
   const f = control(r => r.method === 'POST' ? {status: 201, body: hls()} : r.method === 'PATCH' ? {status: 200, body: hls()} : {status: 204}, {serverNow: () => clock});
   await f.c.open(reference('live-source', 'chn_1'), f.sink);
   try {
-    assert.equal(f.views.at(-1)!.linear.desired.seek?.positionUs, String((liveAtStart - oldest) * 1000), 'it joins at live');
+    const joined = f.views.at(-1)!;
+    assert.equal(joined.linear.desired.seek?.kind, 'live');
     clock = liveAtStart + 20 * 60_000;
     f.c.goLive();
     await wait(20);
-    const target = Number(f.views.at(-1)!.linear.desired.seek?.positionUs) / 1000;
-    assert.ok(target >= clock - oldest - 5_000, `Go to live asked for ${Math.round((clock - oldest - target) / 60_000)} minutes behind live`);
+    const rejoined = f.views.at(-1)!;
+    assert.notEqual(rejoined.linear.media.bufferGeneration, joined.linear.media.bufferGeneration);
+    assert.equal(rejoined.linear.desired.seek?.kind, 'live');
+    assert.equal(Number(rejoined.linear.media.liveEdgeUs) / 1000, clock - oldest);
   } finally {f.c.close();}
 });

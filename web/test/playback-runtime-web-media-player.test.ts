@@ -499,6 +499,21 @@ test('a live channel is positioned by the stream’s programme dates', async () 
   player.dispose();
 });
 
+test('a live tune starts when the first playable frame arrives', async () => {
+  const origin = Date.UTC(2026, 0, 1, 20, 0, 0);
+  const {video, instances, player} = setup();
+  player.load(source({startPositionMs: 0, liveOriginMs: origin}));
+  try {
+    await settle();
+    const hls = instances[0]!;
+    hls.engine.levels = [{details: {fragments: [{start: 0, duration: 6, programDateTime: origin + 12_000} as never]}}];
+    hls.engine.playingDate = new Date(origin + 12_000);
+    video.ready(0);
+    assert.equal(video.paused, false);
+    assert.equal(player.observe().positionMs, 12_000);
+  } finally {player.dispose();}
+});
+
 test('a late event from the presentation before cannot speak for the one now loading', async () => {
   const {video, player, events} = setup();
   player.load(source({generation: 1, startPositionMs: 0}));
