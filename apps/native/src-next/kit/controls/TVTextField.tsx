@@ -1,5 +1,5 @@
 import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState} from 'react';
-import {StyleSheet, Text, TextInput, View} from 'react-native';
+import {Keyboard, Platform, StyleSheet, Text, TextInput, View} from 'react-native';
 import {fieldSpec} from '@portico/design';
 import {Focusable} from './Focusable';
 import {colorAlpha} from './control-model';
@@ -21,10 +21,21 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
   const search = variant === 'search', height = search ? fieldSpec.search.height.tv : fieldSpec.height.tv;
   const suppliedRadius = StyleSheet.flatten(fieldStyle)?.borderRadius;
   const radius = typeof suppliedRadius === 'number' ? suppliedRadius : search ? fieldSpec.search.radius.tv : fieldSpec.radius.tv;
-  const open = useCallback(() => {if (eligible) {submitted.current = false; setEditing(true);}}, [eligible]);
+  const open = useCallback(() => {if (eligible && !editing) {submitted.current = false; setEditing(true);}}, [editing, eligible]);
+  const close = useCallback(() => {
+    if (!editing) return;
+    setEditing(false);
+    if (eligible && !submitted.current) target.current?.requestTVFocus();
+  }, [editing, eligible]);
   useImperativeHandle(ref, () => ({focus: open, blur: () => input.current?.blur(),
     clear: () => input.current?.clear(), isFocused: () => input.current?.isFocused() ?? false}) as TextInput, [open]);
-  useEffect(() => {if (editing && eligible) input.current?.focus(); else input.current?.blur();}, [editing, eligible]);
+  useEffect(() => {
+    if (!eligible) setEditing(false);
+    if (!editing || !eligible || Platform.OS !== 'android') return;
+    // The Android IME can close on Back without blurring its input.
+    const subscription = Keyboard.addListener('keyboardDidHide', close);
+    return () => subscription.remove();
+  }, [close, editing, eligible]);
   const value = props.value ?? props.defaultValue ?? '';
   const displayed = props.secureTextEntry ? '•'.repeat(value.length) : value;
   const textStyle = [style, theme.type[value ? fieldSpec.tv.value : fieldSpec.tv.placeholder],
@@ -34,7 +45,7 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
     <Focusable ref={target} focusId={focusId} testID={testID} disabled={!eligible} preferredFocus={autoFocus}
       accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : props.placeholder)}
       accessibilityValue={{text: displayed || props.placeholder || ''}} accessibilityState={{...accessibilityState, disabled: !editable}}
-      focusKind="field" focusRadius={radius} onPress={open} onFocus={onFocus} onBlur={onBlur}
+      focusKind="field" focusRadius={radius} onPress={open} onAccessibilityTap={open} onFocus={onFocus} onBlur={onBlur}
       style={({focused}) => [{minHeight: height, borderRadius: radius, paddingHorizontal: search ? fieldSpec.search.paddingX.tv : fieldSpec.paddingX.tv,
         flexDirection: 'row', alignItems: 'center', gap: 10, opacity: editable ? 1 : .45}, fieldStyle,
         {backgroundColor: focused ? theme.colors[fieldSpec.fill.focus] : colorAlpha(theme.colors[fieldSpec.tv.rest.background], fieldSpec.tv.rest.backgroundAlpha ?? 1),
@@ -43,14 +54,16 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
       <Text numberOfLines={1} ellipsizeMode="head" style={[textStyle, {flex: 1, minWidth: 0}]}>{displayed || props.placeholder || ''}</Text>
       {trailing}
     </Focusable>
-    <TextInput {...props} ref={input} nativeID={nativeID} value={value} multiline={multiline} editable={eligible} focusable={editing && eligible}
+    {/* Focus on native mount so the text input is in the window when it asks for the keyboard. */}
+    <TextInput key={editing ? 'editing' : 'idle'} {...props} ref={input} nativeID={nativeID} value={value} multiline={multiline}
+      autoFocus={editing && eligible} editable={eligible} focusable={editing && eligible}
       accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : props.placeholder)}
       accessible={false} importantForAccessibility="no-hide-descendants" cursorColor={cursorColor} selectionColor={selectionColor}
       style={styles.keyboardInput} onChangeText={eligible ? props.onChangeText : undefined}
       onSubmitEditing={event => {
         submitted.current = true; setEditing(false);
         if (props.onSubmitEditing) props.onSubmitEditing(event); else target.current?.requestTVFocus();
-      }} onBlur={() => {setEditing(false); if (eligible && !submitted.current) target.current?.requestTVFocus();}}/>
+      }} onBlur={close}/>
     {error !== undefined ? <FormError placement="inline">{error}</FormError>
       : description !== undefined && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{description}</Text>}
   </View>;
