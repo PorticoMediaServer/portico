@@ -53,6 +53,7 @@ type house struct {
 	data   string
 	device string
 	engine *mediaengine.Engine
+	server *api.Server
 }
 
 func (h *house) do(method, path string, body any, header ...string) *http.Response {
@@ -142,7 +143,8 @@ func newHouseWithSTRM(t *testing.T, ffmpeg, ffprobe string, client *strm.Client)
 	}
 	previous := decoder.CurrentToolchain()
 	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(data, "transcodes"), FFmpeg: ffmpeg, FFprobe: ffprobe,
-		Remote: handler.RemoteSources().Open, STRM: client, Settings: handler.Settings()})
+		SubtitleDir: filepath.Join(data, "subtitles"),
+		Remote:      handler.RemoteSources().Open, STRM: client, Settings: handler.Settings()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +164,7 @@ func newHouseWithSTRM(t *testing.T, ffmpeg, ffprobe string, client *strm.Client)
 		decoder.RestoreToolchain(previous)
 		d.Close()
 	})
-	h := &house{T: t, url: server.URL, data: data, engine: engine}
+	h := &house{T: t, url: server.URL, data: data, engine: engine, server: handler}
 
 	code, err := os.ReadFile(filepath.Join(data, "setup-code.txt"))
 	if err != nil {

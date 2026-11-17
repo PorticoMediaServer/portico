@@ -55,7 +55,7 @@ func burning(r playback.PlanRequest, facts mediafacts.Facts) (*burnTrack, error)
 		default:
 			b = nil
 		}
-		if b != nil && !track.Sidecar {
+		if b != nil && !track.Sidecar && track.Downloaded == "" {
 			found := false
 			if b.index, found = fileTrack(r.Version, facts, db.StreamSubtitle, "subtitle", r.Choice.SubtitleTrackID); !found {
 				b = nil
@@ -86,13 +86,17 @@ func (e *Engine) burnLoader(p *planned, source streaming.Source) func(context.Co
 		defer cancel()
 		out := &streaming.BurnSubtitle{Format: b.format, OffsetUS: b.nudgeMs * 1000}
 		var err error
-		if !b.track.Sidecar {
+		if !b.track.Sidecar && b.track.Downloaded == "" {
 			out.Data, err = e.place("").streams.SubtitleTrack(ctx, source, b.index, !b.picture)
 			return out, err
 		}
-		_, source, err := e.subtitleFile(ctx, b.track.FileID)
-		if err != nil {
-			return nil, err
+		if b.track.Downloaded != "" {
+			source = downloadedSubtitle{dir: e.subtitleDir, hash: b.track.DownloadedHash}
+		} else {
+			_, source, err = e.subtitleFile(ctx, b.track.FileID)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if out.Data, err = e.place("").streams.SubtitleFile(ctx, source); err != nil {
 			return nil, err
