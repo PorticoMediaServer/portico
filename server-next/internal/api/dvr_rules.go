@@ -88,14 +88,12 @@ func ruleOut(rule db.RecordingRule, source, channel string) DvrRule {
 }
 
 func (s *Server) listRules(r *http.Request, _ None) (Page[DvrRule], error) {
-	if _, err := s.ruleAccess(r); err != nil {
+	lv, err := s.ruleAccess(r)
+	if err != nil {
 		return Page[DvrRule]{}, err
 	}
-	profile := viewer(r).ProfileID
-	if r.URL.Query().Get("scope") == "everyone" && CallerFrom(r.Context()).Role == "owner" {
-		profile = 0
-	}
-	rules, err := s.db.Rules(r.Context(), profile)
+	all := r.URL.Query().Get("scope") == "everyone" && CallerFrom(r.Context()).Role == "owner"
+	rules, err := s.currentRules(r, lv, all)
 	if err != nil {
 		return Page[DvrRule]{}, err
 	}
@@ -293,7 +291,7 @@ func (s *Server) createRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
 	if ch.Kind != db.ChannelFromSource {
 		return DvrRule{}, ErrConflict("cannot_record", "This program can't be recorded.")
 	}
-	rule := db.RecordingRule{ProfileID: v.ProfileID, SourceID: ch.SourceID, ChannelID: ch.ID, SeriesKey: p.SeriesKey, Title: p.Title}
+	rule := db.RecordingRule{ProfileID: v.ProfileID, SourceID: ch.SourceID, ChannelID: ch.ID, SeriesKey: p.SeriesKey, Title: p.Title, RatingAge: p.RatingAge}
 	if req.AnyChannel != nil && *req.AnyChannel && p.SeriesKey != "" {
 		rule.ChannelID = 0
 	}
@@ -337,8 +335,14 @@ func (s *Server) changeRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
 	if err != nil {
 		return DvrRule{}, sourceError(err)
 	}
-	if rule.ProfileID != viewer(r).ProfileID && CallerFrom(ctx).Role != "owner" {
-		return DvrRule{}, ErrNotPermitted()
+	if CallerFrom(ctx).Role != "owner" {
+		ok, err := s.personalRuleVisible(r, lv, rule)
+		if err != nil {
+			return DvrRule{}, err
+		}
+		if !ok {
+			return DvrRule{}, ErrNotFound()
+		}
 	}
 	before := rule.ChannelID
 	if err := s.ruleChannel(r, lv, &rule, req); err != nil {
@@ -372,7 +376,8 @@ func (s *Server) changeRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
 }
 
 func (s *Server) deleteRule(r *http.Request, _ None) (None, error) {
-	if _, err := s.ruleAccess(r); err != nil {
+	lv, err := s.ruleAccess(r)
+	if err != nil {
 		return None{}, err
 	}
 	ctx := r.Context()
@@ -383,8 +388,14 @@ func (s *Server) deleteRule(r *http.Request, _ None) (None, error) {
 	if err != nil {
 		return None{}, err
 	}
-	if rule.ProfileID != viewer(r).ProfileID && CallerFrom(ctx).Role != "owner" {
-		return None{}, ErrNotPermitted()
+	if CallerFrom(ctx).Role != "owner" {
+		ok, err := s.personalRuleVisible(r, lv, rule)
+		if err != nil {
+			return None{}, err
+		}
+		if !ok {
+			return None{}, nil
+		}
 	}
 	return None{}, s.db.DeleteRule(ctx, rule.PublicID, r.URL.Query().Get("bookings") == "cancel", s.now())
 }

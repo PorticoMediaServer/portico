@@ -275,6 +275,13 @@ func (s *Server) dvrSummary(r *http.Request, _ None) (DvrOverview, error) {
 	if err != nil {
 		return DvrOverview{}, err
 	}
+	if lv.Record && !scope.AllRules {
+		rules, err := s.currentRules(r, lv, false)
+		if err != nil {
+			return DvrOverview{}, err
+		}
+		counts.Rules = len(rules)
+	}
 	upcoming, err := s.db.Upcoming(ctx, s.now().AddDate(0, 0, 14))
 	if err != nil {
 		return DvrOverview{}, err

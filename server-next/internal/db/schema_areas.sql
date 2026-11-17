@@ -427,6 +427,7 @@ CREATE TABLE recording_rules (
   channel_id    INTEGER REFERENCES channels(id) ON DELETE CASCADE,
   series_key    TEXT,
   title         TEXT    NOT NULL,
+  rating_age    INTEGER,
   new_only      INTEGER NOT NULL DEFAULT 0 CHECK (new_only IN (0, 1)),
   keep_newest   INTEGER,
   keep_days     INTEGER,

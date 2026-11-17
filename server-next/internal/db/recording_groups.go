@@ -114,7 +114,7 @@ func (d *DB) RecordingGroups(ctx context.Context, scope RecordingReadScope, q Re
 }
 
 // RecordingOverviewTotals counts the same scoped rows as the group read, and the rules
-// this viewer's rules read offers, without walking either list.
+// the stored rules. The API applies current guide access to personal rule counts.
 func (d *DB) RecordingOverviewTotals(ctx context.Context, scope RecordingReadScope) (RecordingTotals, error) {
 	var out RecordingTotals
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
