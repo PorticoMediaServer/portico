@@ -10,9 +10,9 @@ test('Together borrows one actual service per authority and closes its facts on 
   const listeners = new Set<() => void>();
   const api = new HttpLocalApi('https://together-session.test', 'synthetic_access', async () => {
     requests++;
-    return new Response(JSON.stringify({protocolVersion: '1.0', serverTime: new Date().toISOString(), groups: []}), {status: 200, headers: {'Content-Type': 'application/json'}});
+    return new Response(JSON.stringify({items: []}), {status: 200, headers: {'Content-Type': 'application/json'}});
   });
-  const owner = {api, authority: () => authority, current: () => current, session: () => undefined,
+  const owner = {api, events: {on: () => () => {}, onResync: () => () => {}, subscribeStatus: () => () => {}, getStatus: () => ({connected: false})} as any, authority: () => authority, current: () => current, session: () => undefined,
     subscribeAuthority: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};}};
   const service = nativeTogetherSession(owner);
   try {

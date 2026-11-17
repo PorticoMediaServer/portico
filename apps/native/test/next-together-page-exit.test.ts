@@ -5,8 +5,9 @@ import * as React from 'react';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {NativeTogetherController} from '../src-next/screens/settings-live/together-controller.ts';
-import {parseGroupSnapshot} from '../../../packages/client-core/src/social-playback.ts';
-import {GroupSessionService} from '../../../packages/client-core/src/group-session.ts';
+import {parseRoom, roomEntry} from '../../../packages/client-core/src/room-protocol.ts';
+import {roomFixture} from './helpers/room-fixture';
+import {RoomSessionService} from '../../../packages/client-core/src/room-session.ts';
 import {NativeScreenLifetime} from '../src-next/screens/settings-live/lifetime.ts';
 import {NativeShellNavigation} from '../src-next/shell/routes';
 import {nativeTogetherPages} from '../src-next/screens/settings-live/together-page';
@@ -18,12 +19,13 @@ const module = await screenModule(new URL('../src-next/screens/settings-live/Tog
   'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},
   '../../../../../packages/i18n/src': {defaultI18n: {t: (s: string) => s}},
   '../../../../../packages/client-core/src/media-item': {}, '../../../../../packages/contracts/src/routes': {},
-  '../../../../../packages/client-core/src/social-playback': {}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Segmented: 'Segmented', TextField: 'TextField'},
+  '../../../../../packages/client-core/src/room-protocol': {roomEntry}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Segmented: 'Segmented', TextField: 'TextField'},
   '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays': {Dialog: 'Dialog', Banner: 'Banner', Menu: 'Menu'},
   '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt', Artwork: 'Artwork', ProfileFace: 'ProfileFace'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {StateView: 'StateView'},
   '../../kit/shell/visual': {alpha: () => '', shellType: () => ({})}, '../../kit/theme': {useTheme: () => ({isTV: false, width: 390, colors: {raised: 'a', text: 'b', textSecondary: 'c', textTertiary: 'd', line: 'e', raisedHigh: 'f'}})},
   '../../shell/tv-focus': {tvFocusIds: () => ({surface: (s: string) => s, rail: 'rail'})}, '../destinations': {NativeTVKeyboard: 'Keyboard'},
   './Screen': {Screen: 'Screen', ScreenText: 'ScreenText', useScreenEntry: () => {}}, './together-presentation': {memberNames, nativeTogetherLobbyFaces: () => []},
+  './group-port': {groupPort: () => undefined},
   './TogetherTVRoom': {NativeTogetherTVRoom: 'TVRoom'},
 });
 const find = (node: any, id: string): any => {
@@ -33,7 +35,7 @@ const find = (node: any, id: string): any => {
   return find(node.props?.children, id);
 };
 async function fixture(phase = 'idle', actualService?: any, joinCode?: string) {
-  const group = {id: 'group', viewerMemberId: 'member', endedReason: 'ended'}, listeners = new Set<() => void>();
+  const group = roomFixture({id: 'group', ended: {reason: 'ended_by_host', at: '2026-11-16T23:00:00Z'}}), listeners = new Set<() => void>();
   let state: any = {phase, group: ['idle', 'left'].includes(phase) ? undefined : group, directory: [], busy: false}, back = 0, ends = 0, refreshes = 0;
   let pending: any, resolveJoin!: (value: boolean) => void; const calls: string[] = [];
   const lifetime = new NativeScreenLifetime({authority: () => ({serverId: 's', accountId: 'a', profileId: 'profile', epoch: 'e', viewerFence: 'v'}), current: () => true, subscribeAuthority: () => () => {}});
@@ -60,7 +62,7 @@ async function fixture(phase = 'idle', actualService?: any, joinCode?: string) {
     directory: () => {state = {...state, directory: [{id: 'offered', name: 'Offered', members: [], permissions: {isHost: false}, timeline: {state: 'paused'}}]}; for (const fn of listeners) fn();},
     pageBack: () => find(tree.type(tree.props), 'together-page-back').props.onPress(), back: () => back, ends: () => ends, pending: () => pending,
     refreshes: () => refreshes,
-    refuseCode: () => {state = {...state, phase: 'idle', error: 'together.error.join', joinFailure: {code: 'invite_not_found', inviteCode: 'ABCDEFGH'}}; for (const fn of listeners) fn();},
+    refuseCode: () => {state = {...state, phase: 'idle', error: 'together.error.join', joinFailure: {code: 'code_invalid', inviteCode: 'ABCDEFGH'}}; for (const fn of listeners) fn();},
     leave: () => navigation.back(authority()), unmount: () => host.unmount(),
     revisit: async () => {await host.unmount(); navigation.open({kind: 'together'}, authority()); page = capture(); host = await mount();},
     restore: async () => {await host.unmount(); navigation.open({kind: 'notifications'}, authority()); navigation.back(authority()); page = capture(); host = await mount();},
@@ -139,28 +141,24 @@ test('failed join leaves the lobby form escapable without an End command', async
 
 
 test('late successful server join after page Back is not adopted by the real authority service', async () => {
-  let answer!: (value: any) => void, requestSignal: AbortSignal | undefined, streams = 0;
-  const service = new GroupSessionService({api: {baseUrl: 'https://example.invalid', request: async (path, _method, _body, signal) => {
-    if (path === '/v1/groups') return {protocolVersion: '1.0', serverTime: '2026-09-16T20:00:00Z', groups: []} as any;
-    requestSignal = signal; return new Promise<any>(resolve => {answer = resolve;});
-  }}, stream: async () => {streams++; return new Response(null, {status: 200});}, key: () => 'key'});
+  let answer!: (value: any) => void, requestSignal: AbortSignal | undefined;
+  const paths: string[] = [];
+  const service = new RoomSessionService({api: {requestRaw: async (path, _method, options) => {
+    paths.push(path);
+    if (path === '/v1/groups') return {status: 200, headers: {}, body: {items: []}};
+    requestSignal = options?.signal; return new Promise<any>(resolve => {answer = body => resolve({status: 200, headers: {}, body});});
+  }}, key: () => 'key'});
   const f = await fixture('idle', service);
-  const timestamp = '2026-09-16T20:00:00Z';
-  const host = {id: 'mem_1', displayName: 'Host', private: false, role: 'host', state: 'joined', readiness: 'ready', positionUs: '0', reportedAt: timestamp, presence: 'connected', joinedAt: timestamp};
-  const group = {id: 'grp_1', name: 'Night', state: 'playing', hostAuthority: 'host-only', hostMemberId: 'mem_1', revision: '7', playbackRevision: '3', settingsRevision: '1', governanceRevision: '1', queueRevision: '2', reconnectGeneration: '1', lastCommand: 'play', lastCommandId: 'p', endedReason: '', eventOrdinal: '9', createdAt: timestamp, updatedAt: timestamp,
-    permissions: {isHost: true, canControl: true, canManageQueue: true}, authority: {deviceId: 'dev_1', playbackId: 'pb1', state: 'bound'}, host: {presence: 'connected', lastSeenAt: timestamp, pauseAt: null, endAt: null},
-    timeline: {itemId: 'item', currentEntryId: 'ent_1', state: 'playing', anchorPositionUs: '10000000', anchorAt: timestamp, rate: {numerator: '1', denominator: '1'}, queuePosition: 0, waitUntil: null},
-    settings: {shuffleEnabled: false, repeatMode: 'none'}, sync: {noCorrectionUnderMs: 750, rateCorrectionMinimum: '0.90', rateCorrectionMaximum: '1.10', rateCorrectionMaxMs: 4000, seekAtOrOverMs: 3000},
-    readiness: {aggregate: 'ready', ready: 1, buffering: 0, lagging: 0, stale: 0, memberCount: 1}, members: [host], queue: null, viewerMemberId: 'mem_1'};
+  const group = roomFixture({id: 'grp_1'});
   try {
     await act(() => find(f.tree(), 'together-join').props.onPress());
     await act(() => {find(f.tree(), 'together-code').props.onChangeText('ABCDEFGH'); find(f.tree(), 'together-display-name').props.onChangeText('Viewer');});
     await act(() => find(f.tree(), 'together-form').props.footer.props.onPress());
     assert.ok(requestSignal); await act(() => f.pageBack()); assert.equal(requestSignal!.aborted, true);
-    const accepted = {protocolVersion: '1.0', serverTime: timestamp, group};
-    assert.equal(parseGroupSnapshot(accepted).group.id, 'grp_1');
+    const accepted = group;
+    assert.equal(parseRoom(accepted).id, 'grp_1');
     answer(accepted); await act(async () => {});
-    assert.equal(service.getSnapshot().phase, 'idle'); assert.equal(service.getSnapshot().group, undefined); assert.equal(streams, 0);
+    assert.equal(service.getSnapshot().phase, 'idle'); assert.equal(service.getSnapshot().group, undefined); assert.equal(paths.some(path => path.endsWith('/events')), false);
     await act(() => f.pageBack()); assert.equal(f.back(), 1); assert.equal(f.ends(), 0);
     await f.dispose(); assert.equal(service.getSnapshot().phase, 'idle', 'page disposal does not dispose authority service');
   } finally {await f.dispose(); service.dispose();}

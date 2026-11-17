@@ -19,8 +19,9 @@ import type {GuideProgram} from '../../../packages/client-core/src/guide/types';
 import type {GuideSourceSummary} from '../../../packages/client-core/src/guide/directory';
 import {nativeGuideCellWindow, nativeGuideElapsedWidth, nativeGuidePanRange, nativeGuidePanTarget} from '../src-next/screens/settings-live/guide-pan-model';
 import {type DVRPage, type Recording, type RecordingDetail} from '../../../packages/client-core/src/dvr';
-import type {GroupSessionSnapshot} from '../../../packages/client-core/src/group-session';
-import type {GroupMember} from '../../../packages/client-core/src/social-playback';
+import type {RoomSessionSnapshot} from '../../../packages/client-core/src/room-session';
+import type {Room} from '../../../packages/client-core/src/room-protocol';
+type RoomMember = Room['members'][number];
 import type {PreferenceSnapshot} from '../../../packages/client-core/src/preferences';
 import type {ShellAuthority} from '../src-next/shell/model';
 
@@ -362,11 +363,11 @@ test('Dashboard removes owner-only facts before a demoted viewer read finishes',
 });
 
 function togetherService() {
-  const state: GroupSessionSnapshot = {directory: [], directoryPhase: 'idle', phase: 'idle', busy: false, clockOffsetMs: 0};
+  const state: RoomSessionSnapshot = {directory: [], directoryPhase: 'idle', phase: 'idle', busy: false, clockOffsetMs: 0};
   const calls: string[] = [], listeners = new Set<() => void>();
   const service: NativeTogetherService & {dispose: () => void} = {
     getSnapshot: () => state, subscribe: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
-    serverNow: () => 1, refreshDirectory: async () => {calls.push('directory');}, refreshQueue: async () => {calls.push('queue');},
+    serverNow: () => 1, refreshDirectory: async () => {calls.push('directory');}, refresh: async () => {calls.push('room');},
     open: async () => true, create: async () => true, join: async () => true, dismiss() {calls.push('dismiss');}, clearJoinFailure() {calls.push('clearJoinFailure');},
     transport: async () => true, invite: async () => true, makeHost: async () => true, queueRemove: async () => true,
     leave: async () => {}, end: async () => true, dispose() {calls.push('borrowed-dispose');},
@@ -374,14 +375,14 @@ function togetherService() {
   return {calls, service, listeners};
 }
 
-test('Together lobby faces use only joined members and strip private identity before rendering', () => {
-  const member = (id: string, displayName: string, privateViewer = false, state: GroupMember['state'] = 'joined'): GroupMember => ({id, displayName, private: privateViewer, role: 'member', state, readiness: 'ready', positionUs: '0', reportedAt: null, presence: 'connected', joinedAt: '2026-10-23T15:00:00Z'});
+test('Together lobby faces use Room members and strip private identity before rendering', () => {
+  const member = (id: string, name: string, privateViewer = false): RoomMember => ({id, name, private: privateViewer, host: false, you: false, status: 'in_step'});
   const viewer = {id: 'selected-profile', initial: 'V', color: 'violet' as const};
-  const faces = nativeTogetherLobbyFaces({viewerMemberId: 'viewer-member', members: [member('invited', 'Unjoined', false, 'invited'), member('private', 'Never reveal this name', true), member('viewer-member', 'Viewer nickname'), member('other', 'Other'), member('fourth', 'Fourth')]}, viewer);
+  const faces = nativeTogetherLobbyFaces({you: {memberId: 'viewer-member', host: false, mayControl: false, mayBecomeHost: false}, members: [member('private', 'Never reveal this name', true), member('viewer-member', 'Viewer nickname'), member('other', 'Other'), member('fourth', 'Fourth')]}, viewer);
   assert.deepEqual(faces, [{id: 'private', private: true}, {id: 'viewer-member', private: false, initial: 'V', color: 'violet', source: undefined}, {id: 'other', private: false, initial: 'O'}]);
   assert.equal(JSON.stringify(faces).includes('Never reveal'), false);
   // A matching name is never sufficient to borrow the selected profile's art.
-  assert.deepEqual(nativeTogetherLobbyFaces({viewerMemberId: 'different-member', members: [member('other', 'Viewer nickname')]}, viewer), [{id: 'other', private: false, initial: 'V'}]);
+  assert.deepEqual(nativeTogetherLobbyFaces({you: {memberId: 'different-member', host: false, mayControl: false, mayBecomeHost: false}, members: [member('other', 'Viewer nickname')]}, viewer), [{id: 'other', private: false, initial: 'V'}]);
   assert.deepEqual(nativeTogetherLobbyFaces(undefined, viewer), [{id: 'profile:selected-profile', private: false, initial: 'V', color: 'violet', source: undefined}]);
 });
 
