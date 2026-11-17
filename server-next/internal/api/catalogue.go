@@ -93,7 +93,13 @@ func (s *Server) catalogueRoutes() {
 		if _, err := s.pageHomeRows(r, rows[:3], l.PublicID); err != nil {
 			return Home{}, err
 		}
-		return Home{Rows: shownRows(rows)}, nil
+		collections, err := s.collectionHomeRows(r, l.PublicID, "")
+		if err != nil {
+			return Home{}, err
+		}
+		rows = append(rows, collections...)
+		err = s.fillViewRows(r, rows)
+		return Home{Rows: shownRows(rows)}, err
 	})
 	Handle(s, "GET /v1/items", WithProfile, func(r *http.Request, _ None) (ItemPage, error) {
 		q, err := itemQuery(r.URL.Query())
@@ -291,6 +297,11 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return Home{}, err
 		}
+		collections, err := s.addedCollectionHomeRows(r)
+		if err != nil {
+			return Home{}, err
+		}
+		home = append(home, collections...)
 		for _, mood := range moods {
 			home = append(home, HomeRow{ID: mood.Key, Title: moodRowTitle(mood.Label), Reason: because(mood.Because),
 				Shape: "poster", Items: itemShapes(mood.Items), NextCursor: mood.NextCursor})
