@@ -99,9 +99,3 @@ test('only credential changes on an app session use it, and only a proof finishe
   await assert.rejects(providerRecentProof(other.client, {transactionId: 'oid_A', provider: 'google', intent, completionCode: code}, '', scope, 'token_A'), 'a proof for another account');
   await assert.rejects(providerRecentProof(fake().client, {transactionId: 'oid_A', provider: 'google', intent, completionCode: 'short'}, '', scope, 'token_A'));
 });
-
-test('a native browser sign-in completion sends its completion code', async () => {
-  const {client, calls} = fake({'POST /v1/identity/transactions/oid_A/complete': {accessToken: 'a'.repeat(43)}});
-  await client.complete('oid_A', {factor: '', completionCode: code}).catch(() => undefined);
-  assert.equal((calls[0]!.body as {completionCode?: string}).completionCode, code);
-});

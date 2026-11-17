@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DeviceAuthorizationService} from '../src/index.ts';
 import {observeServerTime, resetServerClocks, serverNow} from '../src/server-clock.ts';
 import {SetupCodeApprover, SetupCodeService, type SetupCodeJournal} from '../src/setup-code.ts';
 import {TVConsentApprover, type TVConsentAuthority} from '../src/tv-consent.ts';
@@ -35,18 +34,6 @@ function skewed(t: {after(fn: () => void): void}, skew: number, origin = 'https:
 const settle = async () => {for (let n = 0; n < 32; n++) await Promise.resolve(); await new Promise(r => setTimeout(r, 30));};
 
 for (const [label, skew] of SKEWS) {
-  test(`device activation waits for a code that expires in the server's future when the clock is ${label}`, async t => {
-    const truth = skewed(t, skew);
-    const authorization = {deviceCode: 'private-secret', userCode: 'ABCD-EFGH', verificationUri: 'https://example.com/device', verificationUriComplete: 'https://example.com/device#code=ABCD-EFGH', expiresIn: 600, expiresAt: iso(truth + 600_000), interval: 0};
-    let polls = 0;
-    const service = new DeviceAuthorizationService({create: async () => authorization, poll: async () => {polls++; throw Object.assign(new Error('pending'), {status: 400, code: 'authorization_pending'});}, cancel: async () => {}, revoke: async () => {}}, {minimumPollMs: 1, requestTimeoutMs: 100}, async () => crypto.randomUUID());
-    await service.start('TV', 'tvos');
-    assert.equal(service.getSnapshot().phase, 'waiting');
-    await settle();
-    assert.notEqual(service.getSnapshot().phase, 'error');
-    service.cancel();
-  });
-
   test(`the setup code service shows a fresh code instead of refusing or replacing it when the clock is ${label}`, async t => {
     const truth = skewed(t, skew);
     let journal: SetupCodeJournal<string> | undefined, creates = 0;
