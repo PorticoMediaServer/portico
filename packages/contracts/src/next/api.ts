@@ -1206,8 +1206,12 @@ export interface HomeRowSource {
   library?: string;
   sort?: string;
   order?: string;
+  genre?: string;
+  year?: string;
   watched?: boolean;
   inProgress?: boolean;
+  favorite?: boolean;
+  inList?: boolean;
 }
 
 export interface HomeSpotlight {

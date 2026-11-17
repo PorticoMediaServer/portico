@@ -8,8 +8,12 @@ type HomeRowSource struct {
 	Library    string `json:"library,omitempty"`
 	Sort       string `json:"sort,omitempty"`
 	Order      string `json:"order,omitempty"`
+	Genre      string `json:"genre,omitempty"`
+	Year       string `json:"year,omitempty"`
 	Watched    *bool  `json:"watched,omitempty"`
 	InProgress *bool  `json:"inProgress,omitempty"`
+	Favorite   *bool  `json:"favorite,omitempty"`
+	InList     *bool  `json:"inList,omitempty"`
 	prepared   *db.HomeQueueSource
 }
 

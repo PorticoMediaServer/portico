@@ -27,12 +27,12 @@ func (s *Server) prepareQueueSource(r *http.Request, source *playqueue.QueueSour
 		return ErrField("source.homeRow.id", "Choose a Home row.")
 	}
 	values := url.Values{}
-	for name, value := range map[string]string{"library": row.Library, "sort": row.Sort, "order": row.Order} {
+	for name, value := range map[string]string{"library": row.Library, "sort": row.Sort, "order": row.Order, "genre": row.Genre, "year": row.Year} {
 		if value != "" {
 			values.Set(name, value)
 		}
 	}
-	for name, value := range map[string]*bool{"watched": row.Watched, "inProgress": row.InProgress} {
+	for name, value := range map[string]*bool{"watched": row.Watched, "inProgress": row.InProgress, "favorite": row.Favorite, "inList": row.InList} {
 		if value != nil {
 			values.Set(name, strconv.FormatBool(*value))
 		}

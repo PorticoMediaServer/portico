@@ -260,12 +260,18 @@ func (s *Server) catalogueRoutes() {
 		return out, nil
 	})
 	Handle(s, "GET /v1/facets", WithProfile, func(r *http.Request, _ None) (Facets, error) {
-		q, err := itemQuery(r.URL.Query())
+		params := r.URL.Query()
+		q, err := itemQuery(params)
 		if err != nil {
 			return Facets{}, err
 		}
-		facet := r.URL.Query().Get("facet")
-		values, err := s.db.Facets(r.Context(), viewer(r), q, facet)
+		facet := params.Get("facet")
+		var values []db.FacetValue
+		if row := params.Get("homeRow"); row != "" {
+			values, err = s.db.HomeRowFacets(r.Context(), viewer(r), row, q, facet)
+		} else {
+			values, err = s.db.Facets(r.Context(), viewer(r), q, facet)
+		}
 		if err != nil {
 			return Facets{}, refuse(err)
 		}
