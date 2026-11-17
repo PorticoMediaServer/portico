@@ -1,3 +1,4 @@
+import {currentTogetherBindings} from '../together/owner';
 import {subscribeFacts} from '../../shell/fact-source';
 import {subscribePresentation, useShellFacts} from '../../shell/fact-hooks';
 import {createEntryMetadataEffect, retireEntryMetadata, type EntryMetadataPorts} from '../../shell/entry-metadata';
@@ -34,12 +35,23 @@ function libraryScreenOwner(context: ProtectedLibraryScreen['context'], scopeKey
   const navigate = (action: Promise<void>) => {void action.catch(reportError);};
   const entryPorts: EntryMetadataPorts = {queries: context.freshness.queries, artwork: context.artwork,pickerIdentity: {authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId, events: context.events}, api: context.api, serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId]), isCurrent: current, requestId: async () => crypto.randomUUID()};
   const entryEffects = {...(viewer.authority === 'local' && viewer.role === 'owner' ? {editMetadata: createEntryMetadataEffect(entryPorts, () => current() && context.session().viewer.role === 'owner' && context.session().viewer.authority === 'local')} : {}), addToPlaylist: addToDestinationEffect(entryPorts, 'playlist'), addToCollection: addToDestinationEffect(entryPorts, 'collection', viewer.role === 'owner'), ...(viewer.role === 'owner' ? {deleteTitle: deleteTitleEffect(entryPorts)} : {})};
+  const group = () => {
+    assert();const binding = currentTogetherBindings(getBinding().playback?.runtime), state = binding?.getSnapshot().room;
+    if (!binding || !state?.group?.you.mayControl || !['live', 'reconnecting'].includes(state.phase)) throw new DOMException('Room control unavailable', 'AbortError');
+    return binding;
+  };
   const value: ScreenContext = {
     api: context.api, queries: context.freshness.queries, events: context.events, artwork: context.artwork, get identity() {return context.facts.identity;}, subscribeIdentity: listener => subscribeFacts(context, listener),
     scope: {serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId])}, isCurrent: current, libraryRouteSignal: context.libraryRouteSignal,
     preferences: {getSnapshot: () => context.preferences?.getSnapshot() ?? context.facts.preferences,
       subscribe: listener => subscribePresentation(context, listener)},
     effects: {
+      groupControl: () => {
+        const state = currentTogetherBindings(getBinding().playback?.runtime)?.getSnapshot().room;
+        return current() && state?.group?.you.mayControl && ['live', 'reconnecting'].includes(state.phase) ? state.group.id : undefined;
+      },
+      watchWithGroup: async target => {await group().service.watch(target.itemId);},
+      addToGroupQueue: async target => {await group().service.queueAdd([target.itemId]);},
       download: createBrowserDownloadPort(context.api, current, downloadSignal),
       reportError,
       notify,

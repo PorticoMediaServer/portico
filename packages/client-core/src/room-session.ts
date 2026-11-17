@@ -277,7 +277,7 @@ const SEEK_END_ROOM_SECONDS=5;
  * behind it again. It aims ahead only for a player that says when its seeks land, and only where
  * that leaves room before the end of the title. */
 export class RoomFollower{
- private timer?:Repeating;private correctingUntil=0;private loadedFor='';private unsubscribe?:()=>void;
+ private timer?:Repeating;private running=false;private correctingUntil=0;private loadedFor='';private unsubscribe?:()=>void;
  /** The follower's own seek that is not known to be over: when it was asked, the group clock it
   * was aimed at, and the position asked for. */
  private own?:{at:number;clock:string;aim:number};
@@ -286,8 +286,8 @@ export class RoomFollower{
  private epoch='';private endReported='';private anchor = 0;
  private service:RoomSessionService;private player:RoomPlayer;private now:()=>number;
  constructor(service:RoomSessionService,player:RoomPlayer,now:()=>number=()=>Date.now()){this.service=service;this.player=player;this.now=now;}
- start(){if(this.timer)return;this.timer=repeat(async()=>{this.tick();},{everyMs:1000,backoff:{baseMs:1000,maxMs:1000},immediate:false});this.unsubscribe=this.service.subscribe(()=>this.tick());this.tick();}
- stop(){this.timer?.stop();this.timer=undefined;this.unsubscribe?.();this.unsubscribe=undefined;this.player.setRate(1);}
+ start(){if(this.timer)return;this.running=true;this.timer=repeat(async()=>{this.tick();},{everyMs:1000,backoff:{baseMs:1000,maxMs:1000},immediate:false});this.unsubscribe=this.service.subscribe(()=>this.tick());this.tick();}
+ stop(){this.running=false;this.timer?.stop();this.timer=undefined;this.unsubscribe?.();this.unsubscribe=undefined;this.player.setRate(1);}
  /** Where the group is now, in seconds, or undefined when nothing is loaded. */
  target(): number | undefined {
   const group = this.service.getSnapshot().group;
@@ -297,6 +297,7 @@ export class RoomFollower{
   return length !== undefined && Number.isFinite(length) && length > 0 ? Math.min(target, length) : target;
  }
  private tick() {
+  if (!this.running) return;
   const snapshot = this.service.getSnapshot(), group = snapshot.group;
   if (!group || (snapshot.phase !== 'live' && snapshot.phase !== 'reconnecting')) return;
   const entry = roomEntry(group), target = this.target(), timeline = group.clock;

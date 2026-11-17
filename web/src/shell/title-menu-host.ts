@@ -31,7 +31,7 @@ export type TitleMenuHostOptions = Readonly<{detail?: (context: ScreenContext, l
 
 export type TitleMenuPhase = 'loading' | 'ready' | 'failed';
 /** One menu, bound to the exact opening: the anchor, subject and the grants read for it. */
-export type TitleMenuOpening = Readonly<{token: object; anchor: HTMLElement; subject: TitleMenuSubject; phase: TitleMenuPhase; caps: EntryCapabilities; detail?: TitleMenuDetail}>;
+export type TitleMenuOpening = Readonly<{token: object; anchor: HTMLElement; subject: TitleMenuSubject; groupId?: string; phase: TitleMenuPhase; caps: EntryCapabilities; detail?: TitleMenuDetail}>;
 export type TitleRatingPhase = 'loading' | 'ready' | 'saving' | 'result' | 'uncertain' | 'error';
 export type TitleRatingSession = Readonly<{token: object; subject: TitleMenuSubject; detail: TitleMenuDetail; phase: TitleRatingPhase; value?: number | null; error?: string}>;
 export type TitleMenuSnapshot = Readonly<{menu?: TitleMenuOpening; rating?: TitleRatingSession}>;
@@ -78,7 +78,7 @@ export class TitleMenuHost {
   private ports(): Omit<TitleMenuPorts, 'play'> {
     const viewer = this.context.identity?.viewer, effects = this.context.effects;
     const localOwner = viewer?.role === 'owner' && viewer.authority === 'local';
-    return {playlist: !!effects.addToPlaylist, collection: !!effects.addToCollection, edit: !!effects.editMetadata && localOwner, delete: !!effects.deleteTitle, refresh: localOwner, rate: true};
+    return {group: !!effects.watchWithGroup && !!effects.addToGroupQueue && !!effects.groupControl?.(), playlist: !!effects.addToPlaylist, collection: !!effects.addToCollection, edit: !!effects.editMetadata && localOwner, delete: !!effects.deleteTitle, refresh: localOwner, rate: true};
   }
   private reportError = (error: unknown) => { if (this.context.isCurrent()) this.context.effects.reportError(error); };
   private alive(opening: TitleMenuOpening) {
@@ -112,7 +112,7 @@ export class TitleMenuHost {
     this.anchor.current = anchor;
     const reads = !(entry as HomeEntry).homeActions && isLeafKind(entry.kind) && !!entry.libraryId;
     const detail = reads ? this.detailFor() : undefined;
-    const opening: TitleMenuOpening = {token, anchor, subject, phase: reads ? 'loading' : 'ready', caps: knownCapabilities(entry, carried), ...(detail ? {detail} : {})};
+    const opening: TitleMenuOpening = {groupId: this.context.effects.groupControl?.(),token, anchor, subject, phase: reads ? 'loading' : 'ready', caps: knownCapabilities(entry, carried), ...(detail ? {detail} : {})};
     this.publish({...this.state, menu: opening});
     if (!detail || !entry.libraryId) return Promise.resolve();
     const libraryId = entry.libraryId;
@@ -161,6 +161,8 @@ export class TitleMenuHost {
       case 'details': act(() => { effects.openEntry(entry as SearchEntry); }); break;
       case 'watchlist': case 'favorite': case 'watched': act(() => this.personal(opening, id), true); break;
       case 'rate': act(() => this.rateOpen(subject)); break;
+      case 'watchWithGroup': act(() => {if (target && opening.groupId && effects.groupControl?.() === opening.groupId) return effects.watchWithGroup?.(target);}); break;
+      case 'addToGroupQueue': act(() => {if (target && opening.groupId && effects.groupControl?.() === opening.groupId) return effects.addToGroupQueue?.(target);}); break;
       case 'addToPlaylist': act(() => target && effects.addToPlaylist?.(target, element)); break;
       case 'addToCollection': act(() => target && effects.addToCollection?.(target, element)); break;
       case 'delete': act(() => target && effects.deleteTitle?.(target, element)); break;

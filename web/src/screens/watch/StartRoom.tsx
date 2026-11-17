@@ -8,13 +8,18 @@ import styles from './start-room.module.css';
  * The group service owns creation, membership and the clock; this draws the form beside
  * the picture so starting a room never leaves what is playing. */
 export function WatchStartRoom({binding, open, onOpenChange}: {binding: TogetherBindings; open: boolean; onOpenChange(open: boolean): void}) {
-  const t = binding.t, [name, setName] = useState(''), [authority, setAuthority] = useState<'host-only' | 'anyone'>('host-only'), [busy, setBusy] = useState(false);
+  const t = binding.t, [name, setName] = useState(''), [authority, setAuthority] = useState<'host' | 'everyone'>('host'), [busy, setBusy] = useState(false);
   const room = binding.getSnapshot().room;
   const start = async () => {
     if (busy || !binding.isCurrent() || !name.trim() || !binding.profileName.trim()) return;
     setBusy(true);
     try {
-      if (await binding.service.create({name, displayName: binding.profileName, hostAuthority: authority})) onOpenChange(false);
+      const current = binding.runtime.getSnapshot();
+      if (!current.fence || current.fence.kind !== 'queue' || current.subject?.kind !== 'video') return;
+      const itemId = current.fence.itemId;
+      if (await binding.service.create({name, displayName: binding.profileName, control: authority})) {
+        await binding.service.watch(itemId);onOpenChange(false);
+      }
     } finally {setBusy(false);}
   };
   return <Dialog open={open} onOpenChange={onOpenChange} title={t('web.together.startTitle')} size="sm" accessibilityLabel={t('web.settings.together')}
@@ -27,8 +32,8 @@ export function WatchStartRoom({binding, open, onOpenChange}: {binding: Together
       <fieldset className={styles.field}>
         <legend>{t('web.together.whoControls')}</legend>
         <Segmented aria-label={t('web.together.whoControls')} value={authority}
-          items={[{value: 'host-only', label: t('web.together.onlyMe')}, {value: 'anyone', label: t('web.together.everyone')}]}
-          onValueChange={value => setAuthority(value === 'anyone' ? 'anyone' : 'host-only')}/>
+          items={[{value: 'host', label: t('web.together.onlyMe')}, {value: 'everyone', label: t('web.together.everyone')}]}
+          onValueChange={value => setAuthority(value === 'everyone' ? 'everyone' : 'host')}/>
       </fieldset>
       <p className={styles.help}>{t('web.together.hostIntro')}</p>
     </form>

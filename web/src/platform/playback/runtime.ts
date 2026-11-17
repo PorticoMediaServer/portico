@@ -23,8 +23,9 @@ import type {HomeSelectionPlaybackPort, HomeSelectionPlaybackRequest} from '@cor
 import type {SelectionContext} from '@core/selection-model/types.ts';
 import type {HomeChannel} from '@core/home.ts';
 import type {GuideChannel} from '@core/channel-guide.ts';
-import type {GroupSessionService} from '@core/group-session.ts';
-import type {GroupTransportCommand} from '@core/social-playback.ts';
+import type {RoomSessionService as GroupSessionService} from '@core/room-session.ts';
+import {roomEntry} from '@core/room-protocol.ts';
+type GroupTransportCommand = 'play' | 'pause' | 'seek' | 'previous' | 'next';
 import {bindRuntimeGroup, type RuntimeGroupBinding} from './group-binding.ts';
 import {localPlaybackScope, sameLocalScope, type LocalPlaybackFence, type SkipMode} from '../../../../packages/player-core/src/index.ts';
 import {WebLocalQueue, captureLocalQueue, type WebLocalQueuePreparation, type WebLocalQueueResource, type WebLocalQueueMember} from './local-queue.ts';
@@ -761,9 +762,9 @@ export class WebShellPlaybackRuntime {
           playing: value.phase === 'ready' && value.intent === 'playing' && !value.audioEffects.waiting, ready: value.phase === 'ready',
           buffering: value.phase === 'starting' || !!value.recovering || !!value.audioEffects.waiting, seeking: !!value.pendingSeek,
           ...(value.duration > 0 ? {durationSeconds: value.duration} : {})};},
-        play: () => {if (currentGroup()?.timeline.itemId === this.stack.service.getSnapshot().itemId) this.stack.service.resume();},
-        pause: () => {if (currentGroup()?.timeline.itemId === this.stack.service.getSnapshot().itemId) this.stack.service.pause();},
-        seek: seconds => {if (currentGroup()?.timeline.itemId === this.stack.service.getSnapshot().itemId) this.stack.service.seek(seconds);},
+        play: () => {if ((currentGroup() && roomEntry(currentGroup()!)?.itemId) === this.stack.service.getSnapshot().itemId) this.stack.service.resume();},
+        pause: () => {if ((currentGroup() && roomEntry(currentGroup()!)?.itemId) === this.stack.service.getSnapshot().itemId) this.stack.service.pause();},
+        seek: seconds => {if ((currentGroup() && roomEntry(currentGroup()!)?.itemId) === this.stack.service.getSnapshot().itemId) this.stack.service.seek(seconds);},
         setRate: rate => {if (this.current() && Number.isFinite(rate) && rate >= .25 && rate <= 4) {this.groupRate = rate;this.stack.service.setPlaybackRate(rate);this.stack.web.setRate(rate);this.sync();}},
       },
       load: (itemId, seconds, playing, context) => this.playGroupItem(itemId, seconds, playing, context),
@@ -802,15 +803,21 @@ export class WebShellPlaybackRuntime {
   private async groupTransport(command: GroupTransportCommand, fence: PlaybackFence, seconds?: number): Promise<boolean> {
     if (!this.group?.matches(fence)) return false;
     this.require(fence);
-    const group = this.group.active();if (!group?.permissions.canControl) problem('group_control_forbidden');
-    // The screen's service owns its actual expected revision and refusal/readback path.
+    const group = this.group.active();if (!group?.you.mayControl) problem('group_control_forbidden');
     const service = this.groupServices.get(this.group);if (!service) problem('group_playback_unavailable');
-    if (!await service.transport(command, seconds === undefined ? {} : {positionUs: String(Math.round(seconds * 1e6))})) problem('group_transport_refused');return true;
+    if (command === 'next' || command === 'previous') {
+      const index = group.queue.findIndex(entry => entry.entryId === group.clock.entryId);
+      const entries = command === 'next' ? group.queue.slice(index + 1) : group.queue.slice(0, index).reverse();
+      const next = entries.find(entry => entry.available && entry.itemId);
+      if (!next || !await service.transport('watch', {entryId: next.entryId})) problem('group_transport_refused');
+    } else if (!await service.transport(command === 'play' && group.clock.waitUntil ? 'goAhead' : command,
+      seconds === undefined ? {} : {positionMs: Math.round(seconds * 1000)})) problem('group_transport_refused');
+    return true;
   }
   /** Current room occurrence only; equal title IDs do not prove a room's source was adopted. */
   groupPlaybackMatches(fence: PlaybackFence, groupId: string, entryId: string): boolean {
     const active = this.group?.active();
-    return this.matches(fence) && !!this.group?.matches(fence) && active?.id === groupId && active.timeline.currentEntryId === entryId;
+    return this.matches(fence) && !!this.group?.matches(fence) && active?.id === groupId && active.clock.entryId === entryId;
   }
   private readonly groupServices = new WeakMap<RuntimeGroupBinding, GroupSessionService>();
   /** Actual installed optional port and captured scope, not a platform/UA inference. */
@@ -1396,11 +1403,12 @@ export class WebShellPlaybackRuntime {
         if (fence.kind === 'queue' && queue && (chapterPrevious !== undefined ? !!chapterPrevious : queue.queue.entries.findIndex(entry => entry.id === fence.entryId) > 0 || playback.positionSeconds > 3) && !playback.ended) controls.push('previous');
         if (this.source.settings.webVolume() && this.video) controls.push('volume');
         if (this.group?.matches(fence)) {
-          const group = this.group.active(), queue = this.groupServices.get(this.group)?.getSnapshot().queue ?? group?.queue;
-          if (!group?.permissions.canControl) controls.splice(0, controls.length, ...controls.filter(value => value === 'volume'));
-          else if (queue) {
-            if (queue.entries.some(entry => entry.position > queue.position && !entry.unavailable && entry.itemId) && !controls.includes('next')) controls.push('next');
-            if (queue.entries.some(entry => entry.position < queue.position && !entry.unavailable && entry.itemId) && !controls.includes('previous')) controls.push('previous');
+          const group = this.group.active();
+          if (!group?.you.mayControl) controls.splice(0, controls.length, ...controls.filter(value => value === 'volume'));
+          else {
+            const index = group.queue.findIndex(entry => entry.entryId === group.clock.entryId);
+            if (group.queue.slice(index + 1).some(entry => entry.available && entry.itemId) && !controls.includes('next')) controls.push('next');
+            if (group.queue.slice(0, index).some(entry => entry.available && entry.itemId) && !controls.includes('previous')) controls.push('previous');
           }
         }
         presentation = {fence, subject: stack.subject, kind: stack.subject.kind === 'channel' ? 'video' : stack.subject.kind, posterUrl: stack.posterUrl, backdropUrl: stack.backdropUrl, durationSeconds: playback.duration, positionSeconds: local.positionSeconds, playing: local.playing, expanded: stack.expanded, finished, controls, volume: this.video?.volume ?? 1, muted: this.video?.muted ?? false, rate: speed, policy: this.policyView, ...(playback.channel && playback.linear ? {seekWindow: {startSeconds: Number(playback.linear.media.windowStartUs) / 1e6, endSeconds: Number(playback.linear.media.windowEndUs) / 1e6}} : {})};
@@ -1934,7 +1942,7 @@ export class WebShellPlaybackRuntime {
   /** Execute only the prompt the caller actually rendered, through the existing policy and
    * queue controllers. No UI-supplied position, synthetic completion or queue ordering. */
   async policyAction(expected: QueuePlaybackFence, action: WebPlaybackPolicyAction): Promise<void> {
-    if (this.group?.matches(expected) && !this.group.active()?.permissions.canControl) problem('group_control_forbidden');
+    if (this.group?.matches(expected) && !this.group.active()?.you.mayControl) problem('group_control_forbidden');
     if (expected.kind !== 'queue') problem('playback_policy_unavailable');
     const fence = playbackFence(expected);
     this.require(fence); this.sync();
