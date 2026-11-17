@@ -34,7 +34,7 @@ const values: Readonly<Record<string, BulkFieldValues>> = {year: {state: 'mixed'
 const empty: BulkEditorDraft = {fields: {}, lists: {}, lockEdited: true};
 
 test('language display and summary use the canonical language formatter without changing write values', () => {
-  for (const value of ['en', 'fr', 'en-US', 'zh-Hant', '']) assert.equal(bulkFieldDisplayValue('metadataLanguage', value), value ? defaultI18n.languageName(value) : '');
+  for (const value of ['en', 'fr', 'en-US', 'zh-Hant', '']) assert.equal(bulkFieldDisplayValue('metadataLanguage', value), value ? defaultI18n.languageName(value) : 'Library default');
   assert.equal(bulkFieldDisplayValue('studio', 'en'), 'en');
   const registry = [{field: 'metadataLanguage', label: 'Metadata language', group: 'general' as const, type: 'text' as const, bulk: true}];
   const actual = {metadataLanguage: {state: 'mixed' as const, distinctCount: 2, truncated: false, values: [{value: 'en', count: 2}, {value: 'fr', count: 1}], entries: []}};
@@ -43,6 +43,7 @@ test('language display and summary use the canonical language formatter without 
   assert.equal(summary[0].text, 'Metadata language becomes English on all 3');
   assert.equal(summary[0].changedCount, 1);
   assert.equal(draft.fields.metadataLanguage, 'en');
+  assert.equal(bulkSummary(registry, actual, {...empty, fields: {metadataLanguage: ''}}, 3)[0]?.text, 'Metadata language becomes Library default on all 3');
 });
 
 test('only actual bulk fields can enter a save; untouched Mixed fields never become empty writes', () => {

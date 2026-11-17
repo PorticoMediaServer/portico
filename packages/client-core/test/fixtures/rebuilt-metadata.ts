@@ -21,6 +21,7 @@ export function rebuiltMetadata(docs: Record<string, FakeDoc>, options: Readonly
     const d = docs[id] as {fields?: Record<string, unknown>; lists?: Record<string, readonly string[]>};
     const fields = {...d.fields}, lists: Record<string, readonly string[]> = {genres: [], studios: [], countries: [], labels: [], ...d.lists};
     for (const name of ['year', 'edition', 'contentRating']) if (name in params) fields[name] = params[name];
+    if ('metadataLanguage' in params) fields.metadataLanguage = params.metadataLanguage || null;
     for (const [name, values] of Object.entries(params.add ?? {}) as [string, string[]][]) lists[name] = [...new Set([...(lists[name] ?? []), ...values])];
     for (const [name, values] of Object.entries(params.remove ?? {}) as [string, string[]][]) lists[name] = (lists[name] ?? []).filter(value => !values.includes(value));
     const edited = [...Object.keys(params).filter(name => ['year', 'edition', 'contentRating'].includes(name)), ...Object.keys(params.add ?? {}), ...Object.keys(params.remove ?? {})].filter(name => name !== 'labels');

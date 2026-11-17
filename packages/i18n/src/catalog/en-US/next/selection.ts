@@ -113,6 +113,7 @@ export const selectionMessages = {
   'next.selection.removeListValue': 'Remove from {field}',
   'next.selection.manyValues': 'Many values',
   'next.selection.language': 'Language',
+  'next.selection.libraryLanguage': 'Library default',
   'next.selection.valueCount': '{count, plural, one {# value} other {# values}}',
   'next.selection.sameForAll': 'Same for all {count, number}',
   'next.selection.allCount': 'All {count, number}',
