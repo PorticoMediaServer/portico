@@ -77,7 +77,10 @@ const NativeTextField = forwardRef<TextInput, TextFieldProps>(function NativeTex
         style={[theme.type.body, styles.input, {fontFamily: selection || auth ? fontFamilies[600] : search ? fontFamilies[500] : fontFamilies[400],
           fontWeight: auth ? '600' : theme.type.body.fontWeight,
           fontSize: auth ? 16 * theme.textScale : search && !theme.isTV ? 15.5 * theme.textScale : theme.type.body.fontSize,
-          color: theme.colors.text, minHeight: inputHeight - 2 * (selection ? selectionBorder : fieldSpec.borderWidth[theme.platform])}, style]} />
+          color: theme.colors.text, minHeight: inputHeight - 2 * (selection ? selectionBorder : fieldSpec.borderWidth[theme.platform])}, style,
+          // A one-line field never takes a line height: on iOS it turns the unfocused value into a wrapped paragraph that
+          // spills a half-cut second line out of the box; without it the value stays on one line and ends in an ellipsis.
+          multiline ? undefined : {lineHeight: undefined}]} />
       {trailing}
     </>;
   const ring = focused && !selection ? <View pointerEvents="none" style={[styles.ring, {borderColor: search ? colorAlpha(theme.colors.accent, fieldSpec.search.focusAlpha) : theme.colors.focus,

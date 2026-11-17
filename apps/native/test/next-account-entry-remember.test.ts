@@ -83,7 +83,7 @@ async function entry(canRemember: boolean, api?: ProfileAPI) {
     '../../platform/portico-sign-in': {}, '../../platform/server-connections': {browseNearby: async () => []},
     '../../platform/tv-sign-in': {}, '../../platform/account-authority': {}, '../../tv/auth': {},
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
-    './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'Phone'},
+    './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, './PhoneServerSignIn': {PhoneServerSignIn: 'PhoneServerSignIn'},
     './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request: (route: {kind: string}, profileId: string) => {afterEntryLog.push(`request:${route.kind}:${profileId}`);}, clear: () => {afterEntryLog.push('clear');}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
     './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
@@ -95,11 +95,10 @@ async function entry(canRemember: boolean, api?: ProfileAPI) {
   const host = createFabricHookHost(() => {tree = AccountEntry({onComplete: () => {complete++;}});});
   await act(() => host.mount());
   await act(() => tree.props.onLocal());
-  await act(() => nodes(tree.props.beforeActions).find(n => n.type === 'Field').props.onChangeText('https://verified.example'));
-  await act(() => tree.props.primaryAction.onPress());
-  const credentials = nodes(tree.props.beforeActions).filter(n => n.type === 'Field');
-  await act(() => {credentials[0].props.onChangeText('person'); credentials[1].props.onChangeText('test password');});
-  await act(() => tree.props.primaryAction.onPress());
+  await act(() => tree.props.onAddressChange('https://verified.example'));
+  await act(() => tree.props.onContinue());
+  await act(() => {tree.props.onUsernameChange('person'); tree.props.onPasswordChange('test password');});
+  await act(() => tree.props.onSignIn());
   const remember = () => parts(tree).find(n => n.type === 'Remember');
   const picker = () => parts(tree).find(n => n.type === 'Picker');
   return {calls, host, tree: () => tree, remember, picker, complete: () => complete};

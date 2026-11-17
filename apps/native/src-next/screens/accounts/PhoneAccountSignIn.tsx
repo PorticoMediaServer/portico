@@ -3,25 +3,22 @@ import {Image, Text, View} from 'react-native';
 import {FormScrollView} from '../../platform/keyboard';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import type {IdentityOptions} from '../../../../../packages/client-core/src/hosted-security';
 import {ColourBackdrop} from '../../kit/artwork';
 import {Button, TextField} from '../../kit/controls';
 import {nativeType, useTheme} from '../../kit/theme';
 import {LegalAgreement} from './LegalAgreement';
 import {ProviderButton} from './ProviderButton';
 
-type Provider = IdentityOptions['providers'][number];
-
-/** auth.html frame 4. The direct phone/tablet/fold Portico Account surface. */
-export function PhoneAccountSignIn({busy, error, providers, passwordEnabled, registration, recovery, username, password,
+/** auth.html frame 4, the first screen a signed-out phone or tablet shows. Apple and Google are always drawn; the
+ * screen that owns it says plainly when one is not available yet. */
+export function PhoneAccountSignIn({busy, error, passwordEnabled, registration, recovery, username, password,
   onUsernameChange, onPasswordChange, onContinue, onProvider, onForgot, onCreate, onLocal, onRetry, onOpenLink}: {
-  busy: boolean; error?: React.ReactNode; providers: readonly Provider[]; passwordEnabled: boolean;
+  busy: boolean; error?: React.ReactNode; passwordEnabled: boolean;
   registration: boolean; recovery: boolean; username: string; password: string;
   onUsernameChange: (value: string) => void; onPasswordChange: (value: string) => void;
-  onContinue: () => void; onProvider: (id: Provider['id']) => void; onForgot: () => void; onCreate: () => void; onLocal: () => void; onRetry?: () => void; onOpenLink: (url: string) => void;
+  onContinue: () => void; onProvider: (id: 'apple' | 'google') => void; onForgot: () => void; onCreate: () => void; onLocal: () => void; onRetry?: () => void; onOpenLink: (url: string) => void;
 }) {
   const theme = useTheme(), insets = useSafeAreaInsets(), t = defaultI18n.t;
-  const ordered = [...providers].sort((a, b) => a.id === 'apple' ? -1 : b.id === 'apple' ? 1 : 0);
   const label = (value: string) => <Text style={{fontSize: 13 * theme.textScale, fontWeight: '600', color: theme.colors.textSecondary}}>{value}</Text>;
   return <View testID="accounts-welcome" style={{flex: 1, backgroundColor: theme.colors.ink}}>
     <ColourBackdrop shape="top"/>
@@ -36,10 +33,10 @@ export function PhoneAccountSignIn({busy, error, providers, passwordEnabled, reg
         {error}
         {onRetry && <Button testID="accounts-auth-retry" variant="glass" disabled={busy} style={{width: '100%', alignSelf: 'stretch', height: 48, borderRadius: 11, marginBottom: 10}}
           textStyle={{fontSize: 16 * theme.textScale, fontWeight: '700'}} onPress={onRetry}>{t('action.tryAgain')}</Button>}
-        {!!ordered.length && <View style={{gap: 10, marginBottom: 10}}>
-          {ordered.map(value => <ProviderButton key={value.id} provider={value.id} testID={`accounts-auth-${value.id}`} busy={busy}
-            label={t(value.id === 'google' ? 'auth.signInWithGoogle' : 'auth.signInWithApple')} onPress={() => onProvider(value.id)}/>)}
-        </View>}
+        <View style={{gap: 10, marginBottom: 10}}>
+          {(['apple', 'google'] as const).map(id => <ProviderButton key={id} provider={id} testID={`accounts-auth-${id}`} busy={busy}
+            label={t(id === 'google' ? 'auth.signInWithGoogle' : 'auth.signInWithApple')} onPress={() => onProvider(id)}/>)}
+        </View>
         {passwordEnabled && <>
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 4, marginBottom: 14}}>
             <View style={{flex: 1, height: 1, backgroundColor: theme.colors.line}}/>
@@ -47,7 +44,7 @@ export function PhoneAccountSignIn({busy, error, providers, passwordEnabled, reg
             <View style={{flex: 1, height: 1, backgroundColor: theme.colors.line}}/>
           </View>
           <View style={{gap: 12}}>
-            <TextField appearance="auth" testID="accounts-auth-username" accessibilityLabel={t('auth.usernameOrEmail')} label={label(t('auth.usernameOrEmail'))} value={username} onChangeText={onUsernameChange} editable={!busy}
+            <TextField appearance="auth" testID="accounts-auth-username" accessibilityLabel={t('auth.usernameOrEmail')} label={label(t('auth.usernameOrEmail'))} value={username} placeholder="name@example.com" onChangeText={onUsernameChange} editable={!busy}
               textContentType="username" autoComplete="username" autoCapitalize="none" autoCorrect={false}/>
             <TextField appearance="auth" testID="accounts-auth-password" accessibilityLabel={t('auth.password')} label={label(t('auth.password'))} value={password} onChangeText={onPasswordChange} editable={!busy}
               secureTextEntry textContentType="password" autoComplete="current-password" autoCapitalize="none" autoCorrect={false}/>

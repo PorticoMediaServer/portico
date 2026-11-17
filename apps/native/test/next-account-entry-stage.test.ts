@@ -79,7 +79,7 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
     '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {FormError, Button: 'Button', TextField: 'Field'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
     '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}}, '../../platform/server-sign-in': {NativeServerSignIn: SignIn}, '../../platform/portico-sign-in': {NativePorticoSignIn: Portico},
     '../../platform/server-connections': {browseNearby: async () => {events.push('discovery'); return [];}}, '../../platform/tv-sign-in': {}, '../../platform/account-authority': {},
-    '../../tv/auth': {TVFrontDoor: 'TVFrontDoor'}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'PhoneFrontDoor'}, 'react-native-qrcode-svg': {default: 'QR'},
+    '../../tv/auth': {TVFrontDoor: 'TVFrontDoor'}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, './PhoneServerSignIn': {PhoneServerSignIn: 'PhoneServerSignIn'}, 'react-native-qrcode-svg': {default: 'QR'},
   });
   const onStageChange = (...args: NativeAccountEntryStage[]) => {
     assert.equal(phase, 'layout'); assert.equal(args.length, 1, 'the observer receives only the stage, never fields or authority');
@@ -94,23 +94,23 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
 test('AccountEntry reports initial/current stages in layout before discovery, preserving real commands and reporting Back without reopening policy', async () => {
   const f = await fixture();
   try {
-    assert.deepEqual(f.stages, ['welcome']); assert.deepEqual(f.events, ['stage:welcome']); assert.equal(f.tree().type, 'PhoneFrontDoor'); assert.equal(f.prepareCalls(), 0);
+    assert.deepEqual(f.stages, ['welcome']); assert.deepEqual(f.events, ['stage:welcome']); assert.equal(f.tree().type, 'PhoneAccountSignIn'); assert.equal(f.prepareCalls(), 0);
     await act(() => f.tree().props.onLocal());
     assert.deepEqual(f.stages, ['welcome', 'address']);
     assert.ok(f.events.indexOf('stage:address') < f.events.indexOf('discovery'), 'capture retirement precedes address-stage passive work');
-    await act(() => nodes(f.tree().props.beforeActions).find(node => node.type === 'Field').props.onChangeText('https://public.example'));
+    await act(() => f.tree().props.onAddressChange('https://public.example'));
     assert.deepEqual(f.stages, ['welcome', 'address'], 'field changes are not observer events');
-    await act(() => f.tree().props.primaryAction.onPress());
+    await act(() => f.tree().props.onContinue());
     assert.deepEqual(f.stages, ['welcome', 'address', 'local']); assert.ok(f.events.includes('inspect')); assert.ok(f.events.includes('confirm-identity'));
-    const fields = nodes(f.tree().props.beforeActions).filter(node => node.type === 'Field');
-    await act(() => {fields[0].props.onChangeText('fixture-user'); fields[1].props.onChangeText('fixture-password');});
+    assert.equal(f.tree().type, 'PhoneServerSignIn');
+    await act(() => {f.tree().props.onUsernameChange('fixture-user'); f.tree().props.onPasswordChange('fixture-password');});
     assert.deepEqual(f.stages, ['welcome', 'address', 'local']);
     await act(() => {assert.equal([...f.back][0]!(), true);});
     assert.deepEqual(f.stages, ['welcome', 'address', 'local', 'welcome'], 'the observer reports genuine Back; the public-launch gate owns its monotonic retirement');
     assert.equal(f.complete(), 0); assert.equal(f.prepareCalls(), 0, 'local entry and Back never contact Services');
     await f.omitObserver(); await act(() => f.tree().props.onLocal());
     assert.deepEqual(f.stages, ['welcome', 'address', 'local', 'welcome'], 'the optional observer does not alter navigation when absent');
-    assert.equal(f.tree().type, 'Layout');
+    assert.equal(f.tree().type, 'PhoneFindServer');
   } finally {await f.host.unmount();}
   assert.equal(f.back.size, 0);
 });
@@ -122,8 +122,8 @@ test('an entry starting at address reports address only, never a synthetic welco
 });
 
 async function enterAddress(f: Awaited<ReturnType<typeof fixture>>, typed: string) {
-  await act(() => nodes(f.tree().props.beforeActions).find(node => node.type === 'Field').props.onChangeText(typed));
-  await act(() => f.tree().props.primaryAction.onPress());
+  await act(() => f.tree().props.onAddressChange(typed));
+  await act(() => f.tree().props.onContinue());
 }
 
 test('a server address typed without a scheme is tried as the web tries it and reaches the server', async () => {
@@ -164,10 +164,9 @@ test('actual AccountEntry seeds the committed provider name once and a newer dra
   const f = await fixture('welcome', {providers: true, providerTransaction: {transactionId: 'provider-original', provider: 'google',
     status: 'pending', needsUsername: true, suggestedName: 'Suggested Name', mfaRequired: false, contactVerified: false}});
   try {
-    assert.equal(f.tree().type, 'PhoneFrontDoor'); assert.equal(f.prepareCalls(), 0);
-    await act(() => f.tree().props.onPortico());
-    assert.equal(f.tree().type, 'PhoneAccountSignIn'); assert.equal(f.prepareCalls(), 1);
+    assert.equal(f.tree().type, 'PhoneAccountSignIn'); assert.equal(f.prepareCalls(), 0);
     await act(() => f.tree().props.onProvider('google'));
+    assert.equal(f.prepareCalls(), 1, 'the first account action prepares the account client once');
     assert.equal(f.providerCalls(), 1);
     assert.equal(f.stages.at(-1), 'provider');
     const name = defaultI18n.t('auth.yourName');
@@ -184,8 +183,8 @@ test('actual AccountEntry seeds the committed provider name once and a newer dra
 test('a server that needs setup opens the setup screen after the confirmation, with one target kept across renders', async () => {
   const f = await fixture('address', {setupRequired: true});
   try {
-    await act(() => providerFields(f.tree())[0]!.props.onChangeText('https://public.example'));
-    await act(() => f.tree().props.primaryAction.onPress());
+    await act(() => f.tree().props.onAddressChange('https://public.example'));
+    await act(() => f.tree().props.onContinue());
     assert.equal(f.stages.at(-1), 'setup-confirm');
     await act(() => f.tree().props.primaryAction.onPress());
     assert.equal(f.stages.at(-1), 'setup');
@@ -223,7 +222,6 @@ test('a refused Portico sign-in is said there, and not carried to Use a local se
   const refused = {then: (_: unknown, reject: (error: unknown) => void) => reject(Object.assign(new Error('refused'), {code: 'invalid'}))};
   const f = await fixture('welcome', {providers: true, providerTransaction: refused});
   try {
-    await act(() => f.tree().props.onPortico());
     assert.equal(f.tree().type, 'PhoneAccountSignIn');
     await act(() => f.tree().props.onProvider('google'));
     assert.ok(f.tree().props.error, 'the refusal is said on the sign-in form');
