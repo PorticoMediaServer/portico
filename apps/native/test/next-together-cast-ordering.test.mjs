@@ -8,7 +8,7 @@ const root = process.env.PORTICO_TEST_SOURCE_ROOT
 const load = p => import(new URL(p,root));
 const {bindNativeTogether}=await load('apps/native/src-next/screens/settings-live/together-playback.ts');
 const {nativeTogetherSession}=await load('apps/native/src-next/screens/settings-live/together-session.ts');
-const {parseGroupSnapshot}=await load('packages/client-core/src/social-playback.ts');
+const {roomFixture}=await load('apps/native/test/helpers/room-fixture.ts');
 const {screenModule}=await load('apps/native/test/helpers/screen-harness.mjs');
 const cast=await load('packages/client-core/src/cast/index.ts');
 const connection=await load('packages/client-core/src/connection-policy.ts');
@@ -29,21 +29,12 @@ function together(id){
  const read=deferred(),calls=[],notices=[],starts=[];let current=true;
  const playback={getSnapshot:()=>({authority,queue:{},playback:{playbackRun:0,intent:'paused',phase:'idle'}}),start:async x=>{starts.push(x);},
  toggle:async()=>{},seek:async()=>{},skip:async()=>{},next:async()=>{},previous:async()=>{},replay:async()=>{},setRate(){},open(){}};
- const context={api:{baseUrl:'https://server.test',request(...args){calls.push(args);return read.promise;}},authority:()=>authority,current:()=>current,session:()=>undefined,subscribeAuthority:()=>()=>{},playback,
+ const context={events:{on:()=>()=>{},onResync:()=>()=>{},subscribeStatus:()=>()=>{},getStatus:()=>({connected:false})},api:{baseUrl:'https://server.test',requestRaw:async()=>({status:200,headers:{},body:{}}),request(...args){calls.push(args);return read.promise;}},authority:()=>authority,current:()=>current,session:()=>undefined,subscribeAuthority:()=>()=>{},playback,
  navigation:{getSnapshot:()=>({route:{kind:'home'}}),subscribe:()=>()=>{}}};
  const service=nativeTogetherSession(context);
  const stamp=new Date().toISOString();
- const group=parseGroupSnapshot({protocolVersion:'1.0',serverTime:stamp,group:{
- id:'room',name:'Room',state:'paused',hostAuthority:'host-only',hostMemberId:'member',viewerMemberId:'member',
- revision:'1',playbackRevision:'1',settingsRevision:'1',governanceRevision:'1',queueRevision:'1',reconnectGeneration:'1',
- lastCommand:'',lastCommandId:'',endedReason:'',eventOrdinal:'1',createdAt:stamp,updatedAt:stamp,
- permissions:{isHost:true,canControl:true,canManageQueue:true},authority:{deviceId:'device',playbackId:null,state:'fresh'},
- host:{presence:'connected',lastSeenAt:stamp,pauseAt:null,endAt:null},members:[{id:'member',displayName:'Host',private:false,role:'host',state:'joined',readiness:'ready',positionUs:'0',reportedAt:stamp,presence:'connected',joinedAt:stamp}],queue:null,
- settings:{shuffleEnabled:false,repeatMode:'none'},sync:{noCorrectionUnderMs:1000,rateCorrectionMinimum:'0.98',rateCorrectionMaximum:'1.02',rateCorrectionMaxMs:3000,seekAtOrOverMs:5000},
- readiness:{aggregate:'ready',ready:1,buffering:0,lagging:0,stale:0,memberCount:1},
- timeline:{itemId:id,currentEntryId:'entry',state:'paused',anchorPositionUs:'0',anchorAt:stamp,rate:{numerator:'1',denominator:'1'},queuePosition:0,waitUntil:null}
- }}).group;
- service.getSnapshot=()=>({phase:'live',group,clockOffsetMs:0});service.readiness=async()=>{};service.notice=e=>notices.push(e);
+ const group=roomFixture({clock:{entryId:'entry',positionMs:0,at:stamp,playing:false,ready:1,waitingFor:0},queue:[{entryId:'entry',itemId:id,available:true}]});
+ service.getSnapshot=()=>({phase:'live',group,clockOffsetMs:0});service.report=async()=>{};service.notice=e=>notices.push(e);
  const off=bindNativeTogether(context,true);
  return {read,calls,notices,starts,retire:()=>{current=false;},close:()=>{read.resolve(null);off();service.dispose();}};
 }

@@ -4,8 +4,9 @@ import {React, fabricHost} from './helpers/fabric-host.mjs';
 import {standardHomeApp} from './helpers/standard-home-app-harness.mjs';
 import type {NativeShellBootstrapContext, RestoredNativeShellRuntime} from '../src-next/shell/bootstrap';
 import type {NativeShellRoute} from '../src-next/shell/routes';
-import type {Group} from '../../../packages/client-core/src/social-playback';
-import type {GroupSessionSnapshot} from '../../../packages/client-core/src/group-session';
+import {roomFixture} from './helpers/room-fixture';
+import type {Room} from '../../../packages/client-core/src/room-protocol';
+import type {RoomSessionSnapshot} from '../../../packages/client-core/src/room-session';
 import type {NativeTogetherService} from '../src-next/screens/settings-live/together-controller';
 
 /**
@@ -19,21 +20,8 @@ import type {NativeTogetherService} from '../src-next/screens/settings-live/toge
 
 const deferred = () => {let resolve!: () => void; const promise = new Promise<void>(done => {resolve = done;}); return {promise, resolve};};
 const stamp = '2026-10-27T00:00:00Z';
-const group = (): Group => ({
-  id: 'group-1', name: 'Fixture room', state: 'live', hostAuthority: {deviceId: 'device-1', playbackId: null, state: 'fresh'},
-  hostMemberId: 'profile', revision: 1, playbackRevision: 1, settingsRevision: 1, governanceRevision: 1, queueRevision: 1, reconnectGeneration: 1,
-  lastCommand: '', lastCommandId: '', endedReason: '', eventOrdinal: 1, createdAt: stamp, updatedAt: stamp,
-  permissions: {isHost: true, canControl: true, canManageQueue: true},
-  authority: {deviceId: 'device-1', playbackId: null, state: 'fresh'},
-  host: {presence: 'connected', lastSeenAt: stamp, pauseAt: null, endAt: null},
-  timeline: {itemId: '', currentEntryId: '', state: 'idle', anchorPositionUs: 0, anchorAt: stamp, rate: {numerator: 1, denominator: 1}, queuePosition: 0, waitUntil: null},
-  settings: {shuffleEnabled: false, repeatMode: 'none'},
-  sync: {noCorrectionUnderMs: 100, rateCorrectionMinimum: '0', rateCorrectionMaximum: '0', rateCorrectionMaxMs: 0, seekAtOrOverMs: 1000},
-  readiness: {aggregate: 'ready', ready: 1, buffering: 0, lagging: 0, stale: 0, memberCount: 1},
-  members: [{id: 'profile', displayName: 'Fixture viewer', private: false, role: 'host', state: 'joined', readiness: 'ready', positionUs: 0, reportedAt: null, presence: 'connected', joinedAt: stamp}],
-  queue: {revision: 1, position: 0, entries: [], eligibility: null}, viewerMemberId: 'profile',
-} as unknown as Group);
-const snapshot = (busy = false): GroupSessionSnapshot => ({phase: 'live', group: group(), busy, queue: group().queue} as unknown as GroupSessionSnapshot);
+const group = (): Room => roomFixture({id: 'group-1', name: 'Fixture room'});
+const snapshot = (busy = false): RoomSessionSnapshot => ({phase: 'live', group: group(), busy, directory: [], directoryPhase: 'ready', clockOffsetMs: 0});
 
 test('NM-ID-02: the real Together confirmation keeps its region, busy binding, Back and opener', async () => {
   let endFlight: ReturnType<typeof deferred> | undefined;
@@ -65,12 +53,12 @@ test('NM-ID-02: the real Together confirmation keeps its region, busy binding, B
     // One healthy in-memory room service; the room's own controller and lifetime run unchanged.
     let current = snapshot();
     const listeners = new Set<() => void>();
-    const publish = (next: GroupSessionSnapshot) => {current = next; for (const listener of [...listeners]) listener();};
+    const publish = (next: RoomSessionSnapshot) => {current = next; for (const listener of [...listeners]) listener();};
     const service = {
       getSnapshot: () => current,
       subscribe: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};},
       refreshDirectory: async () => true, open: async () => true, create: async () => true, join: async () => true, dismiss: async () => true,
-      serverNow: () => Date.parse(stamp), refreshQueue: async () => true, transport: async () => true, invite: async () => true,
+      serverNow: () => Date.parse(stamp), refresh: async () => {}, transport: async () => true, invite: async () => true,
       makeHost: async () => true, queueRemove: async () => true,
       leave: async () => {publish(snapshot()); return true;},
       end: async () => {endFlight = deferred(); publish(snapshot(true)); await endFlight.promise; publish(snapshot(false)); return true;},

@@ -129,7 +129,7 @@ test('the shared touch entry menu composes offered Play, My List, playlist and r
   const value: any = {phase: 'menu', capture: {entry: {id: 'actual', kind: 'movie', title: 'Actual'}},
     detail: {personal: {watchlisted: false}, actions: [{id: 'watchlist', enabled: true}, {id: 'play', enabled: true, playback: {itemId: 'actual'}}]},
     actions: {entry: {play() {}, addToPlaylist() {}}, fileInfo() {}, extraActions: [{id: 'not-interested', label: 'Not interested', onSelect() {}}]}};
-  const presenters = {subscribe: () => () => {}, getSnapshot: () => value, overlayCurrent: () => true, current: () => true,
+  const presenters = {subscribe: () => () => {}, getSnapshot: () => value, overlayCurrent: () => true, current: () => true, togetherActions: () => ({queue: false, watch: false}),
     playEntry: () => calls.push('play'), personal: () => calls.push('watchlist'), addToPlaylist: () => calls.push('playlist'),
     extraEntry: (opening: unknown, id: string) => {assert.equal(opening, value); calls.push(id);}};
   const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/watch/WatchOverlays.tsx', import.meta.url), {
@@ -225,7 +225,7 @@ test('shared menu Play requires the exact live opening and an enabled detail gra
     react: {default: {}}, 'react-native': {Platform: {isTV: false}}, '../../../../../packages/player-core/src': {},
     '../../../../../packages/client-core/src/detail': {}, '../../../../../packages/client-core/src/administration': {},
     '../../../../../packages/client-core/src/search': {}, '../../../../../packages/client-core/src/title-identity': {},
-    '../../shell/model': {sameAuthority: (a: unknown, b: unknown) => a === b}, './file-info': {}, './FileInfoPanel': {}, '../../../../../packages/client-core/src/file-info-session': {}, '../settings-live/together-session': {},
+    '../../shell/model': {sameAuthority: (a: unknown, b: unknown) => a === b}, './file-info': {}, './FileInfoPanel': {}, '../../../../../packages/client-core/src/file-info-session': {}, '../settings-live/together-session': {nativeTogetherSession: () => ({subscribe: () => () => {}, getSnapshot: () => ({phase: 'idle'})})},
   });
   const authority = {}, capture = {authority, routeRevision: 1, current: () => true, entry: {id: 'actual'}};
   const subscribe = () => () => {}, calls: string[] = [];
