@@ -473,9 +473,9 @@ func (s *Server) room(r *http.Request, g together.Group, err error) (Room, error
 	if out.You.Host && g.Ended == nil && now.Before(g.CodeExpires) && g.JoinsLeft > 0 {
 		out.Invitation = &RoomCode{Code: g.Code, ExpiresAt: g.CodeExpires.UTC(), JoinsLeft: g.JoinsLeft}
 	}
-	ready, waitingFor := g.Ready(now)
+	ready, eligible := g.Ready(now)
 	out.Clock = RoomClock{EntryID: g.Clock.EntryID, PositionMs: g.Position(now), At: now.UTC(), Playing: g.Clock.Playing,
-		Ready: ready, WaitingFor: waitingFor}
+		Ready: ready, WaitingFor: eligible - ready}
 	if !g.Clock.WaitUntil.IsZero() {
 		until := g.Clock.WaitUntil.UTC()
 		out.Clock.WaitUntil = &until

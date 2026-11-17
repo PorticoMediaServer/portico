@@ -203,7 +203,7 @@ func (g *Group) Ready(now time.Time) (ready, waitedFor int) {
 			continue
 		}
 		waitedFor++
-		if m.EntryID == g.Clock.EntryID && (m.State == "ready" || m.State == "playing") {
+		if (m.State == "ready" || m.State == "playing" || m.State == "paused") && g.Status(m, now) == StatusInStep {
 			ready++
 		}
 	}

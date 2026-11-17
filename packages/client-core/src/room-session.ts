@@ -21,7 +21,7 @@ export type RoomSessionSnapshot = Readonly<{
   joinFailure?: Readonly<{code: 'code_invalid'; inviteCode: string}>; clockOffsetMs: number;
 }>;
 type Options = Readonly<{api: RoomApi; events?: Pick<EventsClient, 'on' | 'onResync' | 'subscribeStatus' | 'getStatus'>; key?: () => string; now?: () => number; i18n?: I18n}>;
-type ActiveRoom = {id: string; life: AbortController; timer?: ReturnType<typeof setTimeout>; reading?: Promise<void>; dirty: boolean; report?: Promise<void>; flight?: Promise<unknown>; retryAt: number};
+type ActiveRoom = {id: string; life: AbortController; timer?: ReturnType<typeof setTimeout>; reading?: Promise<void>; dirty: boolean; report?: Promise<void>; reportKey?: string; flight?: Promise<unknown>; retryAt: number};
 const status = (e: unknown) => (e as {status?: number})?.status;
 const code = (e: unknown) => (e as {code?: string})?.code;
 const groupPath = (id: string) => serverPath('GET /v1/groups/{id}', {id});
@@ -168,12 +168,14 @@ export class RoomSessionService {
     clearTimeout(room.timer);
     room.timer = setTimeout(() => {if (this.room !== room) return; void this.report(this.reportValue.state as GroupReportState, this.reportValue.positionMs); void this.refresh(); this.schedule(room);}, Math.max(250, this.state.group?.reportEveryMs ?? 10000));
   }
-  /** The follower supplies seconds converted to milliseconds; the service owns cadence and presence. */
+  /** Report player transitions promptly and keep steady presence on the server's cadence. */
   async report(state: GroupReportState, positionMs: number, here = false): Promise<void> {
     const room = this.room, group = this.state.group; if (!room || !group || !Number.isFinite(positionMs)) return;
     this.reportValue = {state, positionMs: Math.max(0, Math.round(positionMs)), ...(group.clock.entryId ? {entryId: group.clock.entryId} : {}), ...(here ? {here: true} : {})};
-    if (room.report || this.now() < room.retryAt || !here && this.now() - this.reportAt < group.reportEveryMs) return;
-    const body = this.reportValue; this.reportAt = this.now();
+    const key = group.clock.entryId && [group.clock.entryId, state, state === 'ready' ? group.clock.waitUntil : undefined].join('/');
+    const changed = !!key && key !== room.reportKey;
+    if (room.report || this.now() < room.retryAt || !here && !changed && this.now() - this.reportAt < group.reportEveryMs) return;
+    const body = this.reportValue; this.reportAt = this.now(); room.reportKey = key;
     room.report = this.readRoom(room, 'PUT', '/me', body).then(() => {}, error => {this.failed(error, room);}).finally(() => {room.report = undefined;});
     await room.report;
   }
@@ -337,7 +339,7 @@ export class RoomFollower{
    if (!this.correctingUntil) {this.correctingUntil = at + 4000; this.player.setRate(drift > 0 ? 1.05 : .95);}
    else if (at > this.correctingUntil) this.seek(local, target, true, clock, at);
   } else if (this.correctingUntil) {this.player.setRate(1); this.correctingUntil = 0;}
-  this.report(local.buffering || local.seeking ? 'buffering' : timeline.waitUntil ? 'ready' : local.playing ? 'playing' : 'paused', local.positionSeconds);
+  this.report(this.own || local.seeking ? 'buffering' : timeline.waitUntil ? 'ready' : local.playing ? 'playing' : 'paused', local.positionSeconds);
  }
  /** A corrective seek at normal speed. While the group is moving it is aimed ahead by what this
   * player's seeks have cost, but never near the end of the title: there, or when the length of

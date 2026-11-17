@@ -75,7 +75,7 @@ export function TogetherScreen({binding}: {binding: TogetherBindings}) {
               onClick={() => act(() => binding.service.transport(group.clock.waitUntil ? 'goAhead' : group.clock.playing ? 'pause' : 'play'))}><Icon name={group.clock.playing && !group.clock.waitUntil ? 'i-pause' : 'i-play'} size={18} />{t(togetherPlayLabel(group))}</button>
               : <span className={styles.hostControls}>{t('web.together.pill.hostControls')}</span>}
               {!phone && <button type="button" onClick={openPlayer} disabled={!currentPlayback}>{t('web.together.openPlayer')}</button>}</div>
-            {!phone && <p className={styles.readiness}>{t('web.together.waiting', {ready: group.clock.ready, total: group.members.length, count: Math.max(0, group.members.length - group.clock.ready)})}</p>}
+            {!phone && <p className={styles.readiness}>{group.clock.waitingFor === 0 ? t('web.together.allReady') : t('web.together.waiting', {ready: group.clock.ready, total: group.clock.ready + group.clock.waitingFor, count: group.clock.waitingFor})}</p>}
             {!phone && <><h3>{t('web.together.queue')}<small>{queue ? t('web.person.titles', {count: queue.length}) : ''}</small></h3>
             <div className={styles.list}>{queue?.map((entry, index) => {const raw = !!entry.available && entry.itemId ? snapshot.items.get(entry.itemId) : undefined;
               const item = raw ? playbackIdentity(itemSubject(raw), 'full', binding.environment) : undefined;
