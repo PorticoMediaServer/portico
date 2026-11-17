@@ -26,15 +26,15 @@ test('an audiobook in Continue your books shows its chapter and the time left', 
   assert.match(facts.left ?? '', /3 h 34 min left/);
 });
 
-// The place alone (a book of several files, for which the server sends no chapter) gives no
-// bookProgress: the audiobook page and resume keep their own rule; the card still says the time left.
-test('an audiobook without a chapter keeps no bookProgress and still shows the time left', () => {
+// A book without chapter metadata still retains its whole-book resume position and time left.
+test('an audiobook without a chapter keeps its whole-book progress and time left', () => {
   const state = {watched: false, positionMs: 2_400_000, playCount: 0, favorite: false, inList: false, notInterested: false};
   const home = homeDocument({rows: [{id: 'continue_books', title: 'Continue your books', shape: 'poster', items: [
     {id: 'itm_parts', kind: 'audiobook', title: 'Two Discs', durationMs: 15_238_827, libraryId: 'lib_a', images: {}, state},
   ]}]} as never);
   const entry = home.rows[0]!.entries[0]!;
-  assert.equal(entry.bookProgress, undefined);
+  assert.deepEqual(entry.bookProgress, {bookId: 'itm_parts', itemId: 'itm_parts', partPositionMs: 2_400_000,
+    positionMs: 2_400_000, durationMs: 15_238_827, remainingMs: 12_838_827});
   const facts = continueBookFacts(entry, t, homeCardModel(homeContinuationSource(entry, entry), true, {t, locale: 'en'}));
   assert.equal(facts.where, undefined);
   assert.match(facts.left ?? '', /3 h 34 min left/);

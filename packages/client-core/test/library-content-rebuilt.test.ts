@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {LibraryContentService, libraryContentPages} from '../src/library-content.ts';
 import {withQueries} from './fixtures/viewer-queries.ts';
 import {detailProjection} from '../src/detail.ts';
-import type {Item} from '../src/items.ts';
+import {entryFromItem, type Item} from '../src/items.ts';
 
 const scope = {viewerId: JSON.stringify(['hosted', 'account', 'profile']), serverId: 'server'};
 const film = (id: string) => ({id, kind: 'movie', title: `Film ${id}`, images: {poster: `/v1/images/${id}`}});
@@ -297,33 +297,46 @@ test('an audiobook page lists its chapters, who wrote and read it, and where the
   nav.dispose();
 });
 
-test('an audiobook of several files lists its parts plainly, as rows of the book with no file menu; only the first, the book\'s start, plays from its row (a stopgap)', async () => {
-  // The detail a real two-file scan produces: each part is a whole file, with no place in the book.
+test('a multi-file audiobook resumes on the book clock and each part uses its published offset', async () => {
   const stream = {index: 0, kind: 'audio', codec: 'mp3', channels: 2, sampleRate: 44100};
-  const nav = service(audiobookApi({state: {}, versions: [{id: 'v1', container: 'mp3', durationMs: 800_000, parts: [{size: 1000, streams: [stream]}, {size: 1000, streams: [stream]}]}]}));
+  const nav = service(audiobookApi({durationMs: 800_000, state: {positionMs: 450_000}, versions: [{id: 'v1', container: 'mp3',
+    durationMs: 800_000, parts: [{size: 1000, offsetMs: 0, durationMs: 300_000, streams: [stream]},
+      {size: 1000, offsetMs: 300_000, startMs: 50_000, endMs: 550_000, durationMs: 500_000, streams: [stream]}]}]}));
   await nav.select({libraryId: 'lib_a', view: 'book', entityId: 'bk_1'});
   const snap = nav.getSnapshot();
   assert.equal(snap.sections.some(section => section.id === 'chapters'), false);
-  assert.deepEqual(snap.sections.find(section => section.id === 'files')!.entries.map(entry => [entry.kind, entry.title, entry.duration, entry.playback]), [
-    ['chapter', 'Part 1', undefined, {itemId: 'bk_1', startSeconds: 0}], ['chapter', 'Part 2', undefined, undefined]]);
-  assert.equal(snap.projection?.entity?.bookProgress, undefined, 'nothing listened to yet');
-  // A several-file book plays only its first file on the rebuilt server today: no Resume, Play from the start only (a stopgap).
-  assert.equal(snap.projection?.listening?.resume, undefined);
+  assert.deepEqual(snap.sections.find(section => section.id === 'files')!.entries.map(entry => [entry.kind, entry.title, entry.playback]), [
+    ['chapter', 'Part 1', {itemId: 'bk_1', startSeconds: 0}], ['chapter', 'Part 2', {itemId: 'bk_1', startSeconds: 300}]]);
+  assert.deepEqual(snap.projection?.entity?.bookProgress,
+    {bookId: 'bk_1', itemId: 'bk_1', partPositionMs: 450_000, positionMs: 450_000, durationMs: 800_000, remainingMs: 350_000});
+  assert.deepEqual(snap.projection?.listening?.resume, {itemId: 'bk_1', positionSeconds: 450});
   assert.deepEqual(snap.projection?.listening?.actions, ['play', 'enqueue']);
   nav.dispose();
 });
 
-test('a several-file book shows no place, and of its whole-book chapters only the one at its start plays (a stopgap)', async () => {
+test('a multi-file book retains progress and lets every whole-book chapter play', async () => {
   const stream = {index: 0, kind: 'audio', codec: 'mp3', channels: 2, sampleRate: 44100};
-  const nav = service(audiobookApi({state: {positionMs: 450_000}, versions: [{id: 'v1', durationMs: 600_000, parts: [{size: 1000, streams: [stream]}, {size: 1000, streams: [stream]}],
+  const nav = service(audiobookApi({state: {positionMs: 450_000}, versions: [{id: 'v1', durationMs: 600_000,
+    parts: [{size: 1000, offsetMs: 0, streams: [stream]}, {size: 1000, offsetMs: 300_000, streams: [stream]}],
     markers: [{kind: 'chapter', startMs: 0, endMs: 300_000, title: 'One'}, {kind: 'chapter', startMs: 300_000, endMs: 600_000, title: 'Two'}]}]}));
   await nav.select({libraryId: 'lib_a', view: 'book', entityId: 'bk_1'});
   const snap = nav.getSnapshot();
   assert.deepEqual(snap.sections.find(section => section.id === 'chapters')!.entries.map(entry => [entry.title, entry.playback]), [
-    ['One', {itemId: 'bk_1', startSeconds: 0}], ['Two', undefined]]);
-  assert.equal(snap.projection?.entity?.bookProgress, undefined, 'a place inside the first file is not shown as the book\'s');
-  assert.equal(snap.projection?.listening?.resume, undefined);
+    ['One', {itemId: 'bk_1', startSeconds: 0}], ['Two', {itemId: 'bk_1', startSeconds: 300}]]);
+  assert.deepEqual([snap.projection?.entity?.bookProgress?.positionMs, snap.projection?.entity?.bookProgress?.remainingMs,
+    snap.projection?.entity?.bookProgress?.chapter?.number], [450_000, 150_000, 2]);
+  assert.deepEqual(snap.projection?.listening?.resume, {itemId: 'bk_1', positionSeconds: 450});
   nav.dispose();
+});
+
+test('an audiobook card keeps its resume place when the server has no chapter at that place', () => {
+  const item: Item = {id: 'book', kind: 'audiobook', libraryId: 'lib_a', title: 'Book', addedAt: '', images: {}, durationMs: 600_000,
+    state: {watched: false, playCount: 0, favorite: false, inList: false, notInterested: false, positionMs: 450_000}};
+  for (const chapter of [undefined, {number: 1, title: 'Earlier', startMs: 0, endMs: 300_000}]) {
+    const entry = entryFromItem({...item, chapter}, 'lib_a');
+    assert.deepEqual(entry?.bookProgress,
+      {bookId: 'book', itemId: 'book', partPositionMs: 450_000, positionMs: 450_000, durationMs: 600_000, remainingMs: 150_000});
+  }
 });
 
 test('a book of one file without chapters is one row for the whole book, and offers Play until it has been listened to', async () => {

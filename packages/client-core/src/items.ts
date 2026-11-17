@@ -35,11 +35,13 @@ const periodicalPivots: Readonly<Record<string, 'magazines' | 'newspapers'>> = {
 const stars = (rating: number | undefined): number | undefined => rating === undefined ? undefined : rating / 2;
 
 /** The card for one item. A kind this app does not know has no card. `libraryId` is the list's library when the item does not say. */
-function bookProgressOf(item: Item, chapter: NonNullable<Item['chapter']>, positionMs: number) {
-  if (positionMs < chapter.startMs || positionMs >= chapter.endMs) return undefined;
+function bookProgressOf(item: Item, positionMs: number) {
+  const chapter = item.chapter;
   return {bookId: item.id, itemId: item.id, partPositionMs: positionMs, positionMs,
     ...(item.durationMs && positionMs <= item.durationMs ? {durationMs: item.durationMs, remainingMs: item.durationMs - positionMs} : {}),
-    chapter: {index: chapter.number - 1, number: chapter.number, title: chapter.title || `Chapter ${chapter.number}`, startMs: chapter.startMs, endMs: chapter.endMs}};
+    ...(chapter && positionMs >= chapter.startMs && positionMs < chapter.endMs ? {chapter: {
+      index: chapter.number - 1, number: chapter.number, title: chapter.title || `Chapter ${chapter.number}`,
+      startMs: chapter.startMs, endMs: chapter.endMs}} : {})};
 }
 
 export function entryFromItem(item: Item, libraryId?: string): ContentEntry | undefined {
@@ -79,10 +81,8 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
     badges: item.kind === 'album' ? albumAudioBadges(item.albumAudio) : undefined,
     albumAudio: item.kind === 'album' && item.albumAudio ? item.albumAudio : undefined,
     playback: view ? undefined : {itemId: item.id, ...(state?.positionMs ? {startSeconds: Math.round(state.positionMs / 1000)} : {})},
-    // An audiobook in Continue your books: the chapter its place is in, for the card's "Chapter 5 · 9 h left". Only
-    // with the server's chapter, which it sends only for a one-file book: a book of several files never gets a
-    // bookProgress here (its page withholds one too, library-content-rebuilt.ts).
-    bookProgress: item.kind === 'audiobook' && item.chapter && state?.positionMs ? bookProgressOf(item, item.chapter, state.positionMs) : undefined,
+    // The stored place is book-wide even when there is no chapter at that place.
+    bookProgress: item.kind === 'audiobook' && state?.positionMs ? bookProgressOf(item, state.positionMs) : undefined,
   };
   for (const key of Object.keys(entry)) if (entry[key] === undefined || entry[key] === null) delete entry[key];
   return Object.freeze(entry) as ContentEntry;

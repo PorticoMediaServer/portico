@@ -172,12 +172,7 @@ async function discoverFromLanding(api: ServerRequester, route: ContentRoute, bo
   }) as ContentProjection;
 }
 
-/**
- * An audiobook's page: the book (`GET /v1/items/{id}`), who wrote and read it, its chapters or its parts, its
- * series, and where the listener is. Everything comes from the detail: a version that is one whole file carries
- * its chapters as `markers` of kind `chapter`; a book of several files carries no chapters, and its parts are
- * the list. A row plays the book itself from its start.
- */
+/** The audiobook's chapters and part offsets use the server's whole-book playback clock. */
 async function audiobookPage(api: ServerRequester, route: ContentRoute, bound: ContentScope, signal?: AbortSignal): Promise<ContentProjection> {
   const id = route.entityId ?? '';
   const [item, library] = await Promise.all([callServer(api, 'GET /v1/items/{id}', {id, signal}) as Promise<Item>, kindOf(api, route.libraryId, signal)]);
@@ -186,22 +181,20 @@ async function audiobookPage(api: ServerRequester, route: ContentRoute, bound: C
   const play = (startMs: number) => Object.freeze({itemId: id, startSeconds: Math.max(0, startMs) / 1000});
   const durationOf = (ms?: number) => ms && ms > 0 ? Math.round(ms / 1000) : undefined;
   const seconds = (startMs?: number, endMs?: number) => startMs !== undefined && endMs !== undefined && endMs > startMs ? Math.round((endMs - startMs) / 1000) : undefined;
-  // Stopgap, not a deferral, for a book of several files: the rebuilt server plays only its first file, and a place
-  // past it cannot be reached whatever is sent (the streaming lane is fixing this); the detail does not yet say
-  // where each part starts in the whole book either (the browse-reads lane; a part's own startMs/endMs are a range
-  // inside one file). So such a book lists its chapters, or else its parts, and only the row at the book's start
-  // plays; its place and time left are not shown; and it offers Play from its start, never Resume.
-  const partsOf = version?.parts ?? [], severalFiles = partsOf.length > 1;
+  const partsOf = version?.parts ?? [];
   const chapterMarks = (version?.markers ?? []).filter((mark): mark is Marker => mark?.kind === 'chapter' && Number.isFinite(mark.startMs)).sort((a, b) => a.startMs - b.startMs);
   const chapters = chapterMarks.map((mark, n) => Object.freeze({id: `${id}:chapter:${n + 1}`, kind: 'chapter', libraryId, title: mark.title || `Chapter ${n + 1}`,
     trackNumber: n + 1, ...(seconds(mark.startMs, mark.endMs) ? {duration: seconds(mark.startMs, mark.endMs)} : {}),
-    ...(!severalFiles || mark.startMs <= 0 ? {playback: play(mark.startMs)} : {})}) as ContentEntry);
+    playback: play(mark.startMs)}) as ContentEntry);
   // Parts are rows of the book itself, not items of their own: no file menu acts on them. A book of one file
   // without chapters is one row for the whole book, so Play has a place to start.
   const parts = chapters.length ? [] : partsOf.length < 2 ? (partsOf.length ? [Object.freeze({id: `${id}:part:1`, kind: 'chapter', libraryId,
     title: item?.title ?? '', trackNumber: 1, ...(durationOf(item?.durationMs) ? {duration: durationOf(item?.durationMs)} : {}), playback: play(0)}) as ContentEntry] : [])
-    : partsOf.map((_part, n) => Object.freeze({id: `${id}:part:${n + 1}`, kind: 'chapter', libraryId, title: `Part ${n + 1}`, trackNumber: n + 1,
-      ...(n === 0 ? {playback: play(0)} : {})}) as ContentEntry);
+    : partsOf.map((part, n) => {
+      const offsetMs = part.offsetMs ?? (n === 0 ? 0 : undefined);
+      return Object.freeze({id: `${id}:part:${n + 1}`, kind: 'chapter', libraryId, title: `Part ${n + 1}`, trackNumber: n + 1,
+        ...(typeof offsetMs === 'number' && Number.isFinite(offsetMs) && offsetMs >= 0 ? {playback: play(offsetMs)} : {})}) as ContentEntry;
+    });
   // Who wrote it opens their page; the series opens its own (sent once the server names a book's series).
   const credits = item?.credits ?? [];
   const authors = credits.filter(credit => credit.role === 'author' && credit.personId && credit.name);
@@ -215,7 +208,7 @@ async function audiobookPage(api: ServerRequester, route: ContentRoute, bound: C
   const durationMs = item?.durationMs, positionMs = item?.state?.positionMs ?? 0;
   const chapterIndex = chapterMarks.reduce((found, mark, n) => mark.startMs <= positionMs ? n : found, -1);
   const current = chapterIndex >= 0 ? chapterMarks[chapterIndex]! : undefined;
-  const bookProgress = positionMs > 0 && !severalFiles ? Object.freeze({bookId: id, itemId: id, partPositionMs: positionMs, positionMs,
+  const bookProgress = positionMs > 0 ? Object.freeze({bookId: id, itemId: id, partPositionMs: positionMs, positionMs,
     ...(durationMs ? {durationMs, remainingMs: Math.max(0, durationMs - positionMs)} : {}),
     ...(current ? {chapter: Object.freeze({index: chapterIndex, number: chapterIndex + 1, title: current.title || `Chapter ${chapterIndex + 1}`, startMs: current.startMs, endMs: current.endMs})} : {})}) : undefined;
   const entity = found ? (({playback: _ignored, ...rest}) => Object.freeze({...rest, ...(authors.length ? {author: authors.map(credit => credit.name).join(', ')} : {}),
@@ -226,8 +219,8 @@ async function audiobookPage(api: ServerRequester, route: ContentRoute, bound: C
   return Object.freeze({
     heading: Object.freeze({key: 'library.content.book', fallback: entity?.title ?? ''}),
     ...(entity ? {entity, listening: Object.freeze({target: Object.freeze({kind: 'book', id, libraryId}), actions: Object.freeze(['play', 'enqueue'] as const),
-      // Resume once the book has been listened to (Play before that); never for several files (the stopgap above).
-      ...(severalFiles || positionMs <= 0 ? {} : {resume: Object.freeze({itemId: id, positionSeconds: positionMs / 1000})}), resumeUnavailable: false})} : {}),
+      // Resume on the whole-book clock once the book has been listened to (Play before that).
+      ...(positionMs <= 0 ? {} : {resume: Object.freeze({itemId: id, positionSeconds: positionMs / 1000})}), resumeUnavailable: false})} : {}),
     scope: Object.freeze({serverId: bound.serverId, libraryId, libraryKind: library.kind, view: route.view, entityId: id}),
     navigation: Object.freeze([]),
     query: Object.freeze({sort: '', direction: '', category: '', q: '', limit: chapters.length || parts.length, searchMode: 'none'}),
