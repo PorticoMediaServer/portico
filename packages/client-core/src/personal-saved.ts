@@ -18,7 +18,8 @@ export type PersonalResourceKind='collection'|'view';
 export type SavedDefinition=Readonly<{libraryId:string;pivot:string;query:BrowseNode|null;sort:readonly BrowseSortSelection[];presentation:'grid'|'list'}>;
 export type PersonalVisibility='private'|'server';
 export type PersonalResource=Readonly<{totalIsLowerBound?:boolean;shape?:'posters'|'squares';artworkPaths?:readonly string[];samples?:readonly ContentEntry[];onHome?:boolean;serverId:string;viewerFence:string;id:string;kind:PersonalResourceKind;name:string;summary:string;visibility:PersonalVisibility;revision:number;role:'owner'|'editor'|'viewer';entryCount:number;actions:readonly string[];definition?:SavedDefinition;status:'ready'|'needs-review';invalidComponents:readonly string[];pinned:boolean;pinRevision:number;shares:readonly Readonly<SavedActor&{role:'viewer'|'editor';displayName:string}>[]}>;
-export type PersonalResourceEntry=Readonly<{id:string;hidden:boolean;media?:ContentEntry;updatedAt?:string;positionSeconds?:number;completed?:boolean}>;
+/** itemOnly rows name a title, not a list entry. */
+export type PersonalResourceEntry=Readonly<{itemOnly?:true;id:string;hidden:boolean;media?:ContentEntry;updatedAt?:string;positionSeconds?:number;completed?:boolean}>;
 export type PersonalSavedIntent=Readonly<
  {action:'create';kind:PersonalResourceKind;name:string;summary?:string;visibility?:PersonalVisibility;definition?:SavedDefinition}|
  {action:'update';name?:string;summary?:string;visibility?:PersonalVisibility;definition?:SavedDefinition}|
@@ -291,7 +292,7 @@ export class PersonalSavedService{
       if(!obj(original))bad();
       return {id:media.id,hidden:false,media:validateHomeEntry({...media,homeActions:original.homeActions})};
      });patch.nextCursor=page.pageInfo.nextCursor;
-    }else{patch.entries=distinct(keepReadable('personal-saved','entries',rows(raw.entries),e=>{if(!obj(e)||!id(e.id)||typeof e.hidden!=='boolean')bad();return {id:e.id,hidden:e.hidden,...(!e.hidden?{media:validateHomeEntry(e.media)}:{})};}),'entries');
+    }else{patch.entries=distinct(keepReadable('personal-saved','entries',rows(raw.entries),e=>{if(!obj(e)||!id(e.id)||typeof e.hidden!=='boolean')bad();return {id:e.id,hidden:e.hidden,...(e.itemOnly===true?{itemOnly:true as const}:{}),...(!e.hidden?{media:validateHomeEntry(e.media)}:{})};}),'entries');
      if(r.kind==='collection')patch.page=resourcePage(raw,resourceContentQuery(route));}
    }else{
     if(raw.serverId!==this.scope.serverId||!id(raw.viewerFence)||!num(raw.revision))bad();patch.viewerFence=raw.viewerFence;patch.revision=raw.revision;
@@ -309,6 +310,7 @@ export class PersonalSavedService{
  async mutate(intent:PersonalSavedIntent,rebased=false):Promise<boolean>{
   if(this.disposed||this.state.loading||this.state.pending||this.command)throw new Error('Finish or dismiss the outstanding change before starting another.');
   const r=this.state.resource,g=this.generation,route=this.state.route;if(!route||!this.state.viewerFence)throw new Error('Reload Saved before changing it.');
+  if(this.state.entries.some(entry=>entry.itemOnly&&(intent.action==='entries'?intent.removeEntryIds?.includes(entry.id):intent.action==='reorder'&&(intent.entryIds.includes(entry.id)||intent.afterEntryId===entry.id))))throw new Error('Open the list’s own order to change this entry.');
   let path: string=routePath("post_saved_resources"),method='POST',body:Record<string,unknown>={expectedRevision:r?.revision??0};
   if(intent.action==='create'){if(route.view!=='collections'&&route.view!=='views')throw new Error('Open the matching resource directory.');Object.assign(body,{kind:intent.kind,name:intent.name,summary:intent.summary??'',...(intent.visibility?{visibility:visibility(intent.visibility)}:{}),...(intent.definition?{definition:definition(intent.definition)}:{})});}
   else if(intent.action==='clear-history'||intent.action==='reset-viewing-activity'){if(route.view!=='history')throw new Error('Open viewing history.');path=routePath("post_personal_history_actions");body={expectedRevision:this.state.revision,action:intent.action};}

@@ -109,7 +109,7 @@ async function playlistPage(api: SavedNextApi, bound: SavedScope, selected: Play
     items(api, {list: selected.playlistId, ...listFilters[filter], sort: pageSorts[sort], order: sort === 'position' ? undefined : direction, limit: PAGE, total: true, cursor: cursor ?? undefined}, signal),
     manual ? items(api, {list: selected.playlistId, sort: 'order', order: 'desc', limit: 1}, signal) : Promise.resolve(undefined),
   ]);
-  const entries = page.items.flatMap(item => {const media = wireEntryFromItem(item as Item); return media && item.entryId ? [{id: item.entryId, kind: 'playlist_entry', hidden: false, media}] : [];});
+  const entries = page.items.flatMap(item => {const media = wireEntryFromItem(item as Item); return media ? [{id: item.entryId ?? item.id, ...(item.entryId ? {} : {itemOnly: true}), kind: 'playlist_entry', hidden: false, media}] : [];});
   const lastEntry = last?.items[0]?.entryId;
   const resource = await playlistResource(api, bound, list, signal);
   return {resource, page: {scope: scopeOf(bound, 'playlist', selected.playlistId), revision: {catalog: 0, viewer: 0}, playlistRevision: revisionOf(list), heading: {key: 'saved.playlist', fallback: list.name},

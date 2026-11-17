@@ -68,7 +68,7 @@ export type NativeSavedResourceProps = Readonly<{
   condition?: string;
 }>;
 
-type Row = Readonly<{id: string; media: ContentEntry}>;
+type Row = Readonly<{itemOnly?: true; id: string; media: ContentEntry}>;
 /** One row-sheet opening: what it names, the route it belongs to, and the row focus it took
  * once when it opened, so no later move can pull focus to a row the person has left. */
 type RowMenu = Readonly<{entry: ContentEntry; entryId: string; route: SavedRoute; focus?: 'open' | 'up' | 'down'}>;
@@ -94,8 +94,8 @@ const resourceSortKeys = {title: 'web.saved.sort.title', year: 'web.saved.sort.y
 
 function membershipRows(isPlaylist: boolean, state: Readonly<{saved?: SavedSnapshot; personal?: PersonalSavedSnapshot}>): readonly Row[] {
   return isPlaylist
-    ? (state.saved?.projection?.sections ?? []).flatMap(section => section.entries.flatMap(entry => entry.kind === 'playlist_entry' && !entry.hidden ? [{id: entry.id, media: entry.media}] : []))
-    : (state.personal?.entries ?? []).flatMap(entry => !entry.hidden && entry.media ? [{id: entry.id, media: entry.media}] : []);
+    ? (state.saved?.projection?.sections ?? []).flatMap(section => section.entries.flatMap(entry => entry.kind === 'playlist_entry' && !entry.hidden ? [{id: entry.id, itemOnly: entry.itemOnly, media: entry.media}] : []))
+    : (state.personal?.entries ?? []).flatMap(entry => !entry.hidden && entry.media ? [{id: entry.id, itemOnly: entry.itemOnly, media: entry.media}] : []);
 }
 
 /** collections.html 11a–13c and 18–20. The page reads the actual Saved route
@@ -148,7 +148,7 @@ export function SavedResourceScreen({route, destination, activation, runtime, ac
     if (target) void destination.select(target).catch(report);
   };
   const reorderGranted = isPlaylist ? playlist?.actions.includes('reorder') === true : resource?.kind === 'collection' && resource.actions.includes('reorder') === true;
-  const canReorder = reorderGranted && manual && !!order.witness;
+  const canReorder = reorderGranted && rows.every(row => !row.itemOnly) && manual && !!order.witness;
   useEffect(() => {if (!canReorder) setReordering(false);}, [canReorder]);
   const visibility = resource?.kind === 'collection' ? savedVisibility(resource, theme.isTV) : undefined;
   const report = (error: unknown) => runtime.reportError(error);
@@ -253,7 +253,7 @@ export function SavedResourceScreen({route, destination, activation, runtime, ac
     const removable = isPlaylist ? live.playlist?.actions.includes('remove') === true
       : live.resource?.kind === 'collection' && live.resource.role !== 'viewer' && live.resource.actions.includes('entries') === true;
     // The row, and the action on it, are checked against the page as it is now.
-    if (index < 0 || !removable) {closeOpening(menu); return;}
+    if (index < 0 || live.rows[index]?.itemOnly || !removable) {closeOpening(menu); return;}
     const row = live.rows[index]!;
     closeOpening(menu);
     void run(async still => {
@@ -374,7 +374,7 @@ export function SavedResourceScreen({route, destination, activation, runtime, ac
       ] as const : []),
       // The page's current membership row, not the object captured when the sheet opened: the
       // refresh after each move replaces the projection's objects while the sheet stays open.
-      ...(index >= 0 && (isPlaylist ? playlist?.actions.includes('remove') : resource?.kind === 'collection' && resource.role !== 'viewer' && resource.actions.includes('entries'))
+      ...(index >= 0 && !rows[index]?.itemOnly && (isPlaylist ? playlist?.actions.includes('remove') : resource?.kind === 'collection' && resource.role !== 'viewer' && resource.actions.includes('entries'))
         ? [{id: 'remove', separator: true as const}, {id: 'remove-entry', label: t(isPlaylist ? 'web.saved.removeFromPlaylist' : 'web.saved.removeFromCollection'), icon: 'i-trash' as const, destructive: true, disabled: busy, onSelect: () => remove(menu)}]
         : []),
     ];

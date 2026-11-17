@@ -395,3 +395,17 @@ test('when the profile\'s pins cannot be read, a collection or saved view still 
     saved.dispose();
   }
 });
+
+test('sorted collection items without entry ids remain visible and never become removal ids', async () => {
+  const s = lists(), request = s.api.request.bind(s.api);
+  s.api.request = async <T>(path: string, method = 'GET', body?: unknown): Promise<T> => {
+    if (new URL(path, 'https://x').pathname === '/v1/items') return {items: [item('a'), item('b')], total: 2} as T;
+    return request<T>(path, method, body);
+  };
+  const saved = service(s.api);
+  await saved.select({view: 'resource', resourceId: 'col', sort: 'title'});
+  assert.deepEqual(saved.getSnapshot().entries.map(row => [row.id, row.itemOnly]), [['a', true], ['b', true]]);
+  await assert.rejects(saved.mutate({action: 'entries', removeEntryIds: ['a']}));
+  assert.equal(s.calls.some(call => call.method === 'DELETE'), false);
+  saved.dispose();
+});

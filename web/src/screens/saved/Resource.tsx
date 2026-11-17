@@ -62,7 +62,7 @@ export function SavedResourceScreen({bindings}: {bindings: SavedViewBindings}) {
   const witness = isPlaylist ? playlist.projection?.playlistRevision === resource?.revision ? section?.order : undefined : personal.page?.order;
   const orderPage: ResourceOrderPage = {ids: entryIds, start: (isPlaylist ? section?.start : personal.page?.start) ?? 0, count: resource?.entryCount ?? 0, witness: manual ? witness : undefined};
   const orderIds = resourceOrderIds(orderPage), orderIndex = rowMenu ? orderIds.indexOf(rowMenu.entryId) : -1;
-  const canReorder = actions.includes('reorder') && manual && !!orderPage.witness, reordering = reorder && canReorder;
+  const canReorder = actions.includes('reorder') && entries.every(entry => !('itemOnly' in entry && entry.itemOnly)) && manual && !!orderPage.witness, reordering = reorder && canReorder;
   const selectedPlaylistEntry = rowMenu && playlist.projection?.sections.flatMap(section => section.entries).find(entry => entry.id === rowMenu.entryId);
   const selectedPersonalEntry = rowMenu && personal.entries.find(entry => entry.id === rowMenu.entryId);
   const menuMedia = isPlaylist ? selectedPlaylistEntry?.kind === 'playlist_entry' && !selectedPlaylistEntry.hidden ? selectedPlaylistEntry.media : undefined
@@ -151,7 +151,7 @@ export function SavedResourceScreen({bindings}: {bindings: SavedViewBindings}) {
           {id: 'move-bottom', label: t('order.moveBottom'), disabled: busy || !resourceOrderEdge(orderPage, rowMenu.entryId, 'bottom'), onSelect: () => {const intent = resourceOrderEdge(orderPage, rowMenu.entryId, 'bottom');if (intent) move(intent, rowMenu.entryId);}},
           {id: 'move-down', label: t('web.profile.moveDown'), icon: 'i-down' as const, disabled: busy || orderIndex < 0 || orderIndex >= orderIds.length - 1, onSelect: () => {if (orderIndex >= 0 && orderIndex < orderIds.length - 1) moveTo(rowMenu.entryId, orderIds[orderIndex + 1]);}},
         ] : []),
-        ...((isPlaylist ? actions.includes('remove') : kind === 'collection' && actions.includes('entries')) ? [
+        ...((isPlaylist ? selectedPlaylistEntry?.kind === 'playlist_entry' && !selectedPlaylistEntry.itemOnly && actions.includes('remove') : !selectedPersonalEntry?.itemOnly && kind === 'collection' && actions.includes('entries')) ? [
           {id: 'remove-separator', separator: true} as const,
           {id: 'remove', label: <span className={styles.removeMenuLabel}><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" d="M6 12h12" /></svg>{t(isPlaylist ? 'web.saved.removeFromPlaylist' : 'web.saved.removeFromCollection')}</span>, destructive: true, disabled: busy, onSelect: () => {
             const removed = {...rowMenu, media: menuMedia};

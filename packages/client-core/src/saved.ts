@@ -85,7 +85,8 @@ export function personalHistoryPath(options: Readonly<{ period?: HistoryPeriod; 
   if (options.cursor) params.set('cursor', options.cursor);
   return routePath("get_personal_history") + "?" + (params);
 }
-export type PlaylistOccurrence = Readonly<{ id: string; kind: 'playlist_entry'; hidden: true } | { id: string; kind: 'playlist_entry'; hidden: false; media: ContentEntry }>;
+/** itemOnly rows use the title id for display; they name no removable list occurrence. */
+export type PlaylistOccurrence = Readonly<{itemOnly?: true}> & Readonly<{ id: string; kind: 'playlist_entry'; hidden: true } | { id: string; kind: 'playlist_entry'; hidden: false; media: ContentEntry }>;
 export type PlaylistCard = Readonly<{ id: string; kind: 'playlist'; title: string; subtitle?: string; count?: number; /** This viewer pinned the playlist. */ pinned?: boolean; /** When the playlist itself last changed (its creation, or its last name/summary/items edit). */ lastChanged?: string; artworkPaths?:readonly string[]; navigation: Readonly<{ view: 'playlist'; entityId: string }> }>;
 export type SavedEntry = ContentEntry | PlaylistOccurrence | PlaylistCard | SavedReadingGroupCard;
 export const savedEntryKey = (entry: SavedEntry): string => entry.kind === 'reading_group' ? `reading-group:${entry.id}` : entry.id;
@@ -201,7 +202,7 @@ function entry(v: unknown, view: SavedRoute['view']): SavedEntry {
   if (!id(v.id) || v.kind !== 'playlist_entry' || typeof v.hidden !== 'boolean') invalid();
   // A hidden occurrence stays opaque: whatever else the row carries is never read.
   if (v.hidden) return { id: v.id, kind: 'playlist_entry', hidden: true };
-  return { id: v.id, kind: 'playlist_entry', hidden: false, media: media(v.media) };
+  return { id: v.id, kind: 'playlist_entry', hidden: false, ...(v.itemOnly === true ? {itemOnly: true as const} : {}), media: media(v.media) };
  }
  if (view === 'playlists') {
   if (!id(v.id) || v.kind !== 'playlist' || !prose(v.title, 200) || !record(v.navigation) || v.navigation.view !== 'playlist' || v.navigation.entityId !== v.id || v.playback !== undefined) invalid();
@@ -485,6 +486,7 @@ export class SavedService {
   if (!p || this.state.phase !== 'ready') throw new Error('Load the current playlist before changing it.');
   const required = command.action === 'unshare' ? 'share' : command.action === 'restore' ? 'remove' : command.action === 'rename' && command.name === undefined ? 'summary' : command.action;
   if (!p.actions.includes(required) || command.action === 'rename' && command.summary !== undefined && !p.actions.includes('summary')) throw new Error('This playlist action is not available.');
+  if ((command.action === 'remove' || command.action === 'reorder') && this.state.projection?.sections.some(section => section.entries.some(entry => entry.kind === 'playlist_entry' && entry.itemOnly && (command.action === 'remove' ? entry.id === command.entryId : command.entryIds.includes(entry.id) || command.afterEntryId === entry.id)))) throw new Error('Open the list’s own order to change this occurrence.');
   if (command.action === 'add' && p.limits.maxEntries !== undefined && p.entryCount >= p.limits.maxEntries) throw new Error('This playlist is at its entry limit.');
   if (command.action === 'reorder') {
    const order = this.state.order;
