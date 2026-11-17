@@ -9,7 +9,7 @@ import {Button, Tabs} from '../../kit/controls';
 import {Icon, type IconName} from '../../kit/Icon';
 import {Menu, type MenuEntry} from '../../kit/overlays';
 import {NotificationItem, SettingsSheet} from '../../kit/shell';
-import {SettingsBackdrop} from '../../kit/shell/SettingsBackdrop';
+import {StandardBackdrop} from '../../kit/artwork';
 import {Quiet, StateView} from '../../kit/states';
 import {shellType} from '../../kit/shell/visual';
 import {useTheme} from '../../kit/theme';
@@ -256,8 +256,8 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
  * Header gestures, Back, escape and screen-reader containment use the shared host. */
 function NotificationsFrame({children, header, title, testID, onClose}: {children?: React.ReactNode; header?: React.ReactNode; title: string; testID: string; onClose: () => void}) {
   const theme = useTheme(), insets = useSafeAreaInsets(), window = useWindowDimensions();
-  if (theme.platform !== 'phone') return <View testID={testID} style={{flex: 1, paddingTop: insets.top + 14}}><SettingsBackdrop/>{header}{children}</View>;
-  return <SettingsSheet testID={testID} surfaceBackground={<SettingsBackdrop/>} profile={null} shortcuts={null} open onOpenChange={open => {if (!open) onClose();}} accessibilityLabel={title}
+  if (theme.platform !== 'phone') return <View testID={testID} style={{flex: 1, paddingTop: insets.top + 14}}><StandardBackdrop/>{header}{children}</View>;
+  return <SettingsSheet testID={testID} profile={null} shortcuts={null} open onOpenChange={open => {if (!open) onClose();}} accessibilityLabel={title}
     detents={[Math.max(1, window.height - 62)]} headerContent={header ?? <View style={{height: 56}}/>} scrollable={false} showClose={false} showGrabber={false}
     style={{paddingTop: 0}}>
     {children}
