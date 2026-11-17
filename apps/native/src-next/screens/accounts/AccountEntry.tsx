@@ -42,7 +42,8 @@ import type {NativeSignInHint} from '../../platform/sign-in-ended';
 import {PhoneOwnerReset} from './PhoneOwnerReset';
 import type {ResetFileLocation} from '../../../../../packages/client-core/src/account-reset';
 import {NativeSetup} from './NativeSetup';
-import {PhoneFrontDoor} from './PhoneFrontDoor';
+import {PhoneFindServer} from './PhoneFindServer';
+import {PhoneServerSignIn} from './PhoneServerSignIn';
 import {PhoneNoServers} from './PhoneNoServers';
 import {qrScannerAvailable, scanQRCode} from '../../platform/qr-scanner';
 import type {AccountDownloadsEntry} from './downloads-entry-model';
@@ -70,6 +71,7 @@ import {directoryFailure, directoryOfflineBody, directoryRows, nextRetryDelay} f
 import {registerBack} from '../../kit/navigation/back';
 
 export type NativeAccountEntryStage = 'welcome' | 'tv-move-handoff' | 'ended-sign-in' | 'owner-reset' | 'owner-reset-code' | 'owner-reset-done' | 'setup-confirm' | 'setup' | 'address' | 'identity-code' | 'local' | 'factor' | 'uses-portico' | 'portico' | 'forgot' | 'forgot-sent' | 'register' | 'verify' | 'provider' | 'contact' | 'servers' | 'account-sign-out' | 'profiles' | 'profile-pin' | 'profile-forgot-pin' | 'tv' | 'tv-credentials' | 'tv-required-setup' | 'member-move' | 'invitation-code' | 'invitation-local' | 'invitation-portico' | 'invitation-sign-out' | 'invitation-entry' | 'invitation-account' | 'account-workspace';
+type AccountIntent = Readonly<{kind: 'provider'; id: 'apple' | 'google'} | {kind: 'continue' | 'forgot' | 'create'}>;
 type MemberMove = Awaited<ReturnType<NativeServerSignIn['createMemberMove']>>;
 type MemberMoveSnapshot = ReturnType<MemberMove['getSnapshot']>;
 type PINRecovery = {controller: NativeProfileRecovery; profile: ManagedProfile; operation: NativeServerSignIn; retired: boolean};
@@ -429,6 +431,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     if (stage === 'invitation-code' || stage === 'invitation-local' || stage === 'invitation-portico') {invitationIntent.current = undefined; retireInvitation(); cancelDirectory(); setPassword(''); setCode(''); setAddress(''); stageRef.current = 'address'; setStage('address'); return;}
     if (stage === 'owner-reset' || stage === 'owner-reset-code' || stage === 'owner-reset-done') {reset(); setCode(''); setResetLocation(undefined); setStage('address'); return;}
     if (stage === 'setup') {setError(undefined); setStage('setup-confirm'); return;}
+    // Phone and tablet: Back from a server's own sign-in returns to Find your server with its address kept (auth.html 5-6).
+    if (stage === 'local' && !Platform.isTV) {const kept = address; reset(); setAddress(kept); stageRef.current = 'address'; setStage('address'); return;}
     if (stage === 'member-move') {stopMemberMove(); setStage(server?.signIn === 'local' ? 'local' : 'uses-portico'); return;}
     if (stage === 'tv-move-handoff') {setStage('uses-portico'); return;}
     if (pinRecoveryRef.current) {retireRecovery(); setCode(''); return;}
@@ -441,14 +445,21 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     if (Platform.isTV && (stage === 'tv-credentials' || stage === 'factor' || stage === 'tv-required-setup')) {void run(returnToTVCode); return;}
     if (stage === initialStage) onBack?.(); else reset();
   };
+  // On TV the activation code is the first screen (owner, 17 Nov): Back there leaves the app.
+  const tvDoor = Platform.isTV && tvKind === 'portico' && initialStage === 'welcome' && !onBack;
+  const tvDoorRef = useRef(false); tvDoorRef.current = tvDoor && stage === 'tv';
   backRef.current = back;
   useEffect(() => {const listener = registerBack(() => {
-    if (stageRef.current === 'tv' && !adoptingTV.current) {backRef.current(); return true;}
+    if (stageRef.current === 'tv' && !adoptingTV.current) {
+      // Idle, Back leaves the app; while something is under way it cancels that and a fresh code starts.
+      if (tvDoorRef.current && !busyRef.current) return false;
+      tvDoorTried.current = false; backRef.current(); return true;
+    }
     if (busyRef.current || adoptingTV.current) return true;
     if (stageRef.current === 'welcome' && !onBackRef.current) return false;
     backRef.current(); return true;
   }, {scope: 'surface'}); return () => listener();}, []);
-  useTVMenuCapture(Platform.isTV && (stage !== 'welcome' || !!onBack));
+  useTVMenuCapture(Platform.isTV && (stage !== 'welcome' || !!onBack) && !(stage === 'tv' && tvDoor));
   const consume = useCallback((result: Result) => {
     if (!lifetime.current) return;
     if (result.kind === 'required-setup') {
@@ -631,6 +642,26 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   // At launch with no saved server, a Portico Account kept on this device opens its server list
   // ("No servers yet" included) as if Sign in with Portico Account were chosen; it reads only this
   // device's store until then, and a refused renewal there says so on welcome.
+  // auth.html frame 4 is the first screen on phone and tablet. It draws without Services; the first Portico Account
+  // action (Apple, Google, Continue, Forgot password?, Create account) prepares the account client, as the old front
+  // door's button did (section 11), and is then carried out on the prepared page.
+  const pendingIntent = useRef<AccountIntent | undefined>(undefined), intentRunner = useRef<((intent: AccountIntent) => void) | undefined>(undefined);
+  const [providerNotice, setProviderNotice] = useState<'apple' | 'google'>();
+  useEffect(() => {
+    if (stage !== 'portico') {if (stage !== 'welcome') pendingIntent.current = undefined; return;}
+    const intent = pendingIntent.current;
+    if (busy || !intent || !intentRunner.current) return;
+    pendingIntent.current = undefined; intentRunner.current(intent);
+  }, [stage, busy, options]);
+  const startAccount = (intent: AccountIntent) => {
+    if (!lifetime.current || stageRef.current !== 'welcome' || busyRef.current || acting.current) return;
+    setProviderNotice(undefined); pendingIntent.current = intent; void run(portico);
+  };
+  // On TV the activation code is the first screen: the door starts it by itself (the owner's ruling, 17 Nov, replacing
+  // the two-button door) at launch and after a return from Sign in directly to a server. A refused or failed code
+  // stays on the door with its reason, so nothing retries in a loop.
+  const tvDoorTried = useRef(false);
+  useEffect(() => {if (stage === 'address') tvDoorTried.current = false;}, [stage]);
   const resume = useRef(() => {}); resume.current = () => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) void run(portico);};
   useEffect(() => {
     if (!resumeAccount) return;
@@ -807,13 +838,15 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     if (factorKind.current === 'portico') {await account.current!.factor(value); await directory();}
     else consume(await (operation.current!.directoryChallengePending() ? operation.current!.completeDirectorySecondFactor(value) : operation.current!.completeSecondFactor(value)));
   };
+  // Every password field on a touch screen can be shown (auth.html frame 6), the new one and the one you sign in with.
+  const revealable = (credential: string | undefined, label: string) => !theme.isTV && label === t('auth.password') && (credential === 'new-password' || credential === 'password');
   const field = (label: string, value: string, change: (next: string) => void, secure = false, credential?: 'username' | 'password' | 'new-password' | 'email', invalid?: string, help?: string, placeholder?: string, oneTime = false) => <TextField key={label} label={label} value={value} onChangeText={change}
-    appearance={theme.platform === 'phone' ? 'auth' : undefined} secureTextEntry={secure && (credential !== 'new-password' || !passwordShown)}
+    appearance={theme.platform === 'phone' ? 'auth' : undefined} secureTextEntry={secure && !(passwordShown && revealable(credential, label))}
     keyboardType={oneTime && !theme.isTV ? 'number-pad' : credential === 'email' ? 'email-address' : undefined} inputMode={oneTime && !theme.isTV ? 'numeric' : undefined}
     textContentType={oneTime && !theme.isTV ? 'oneTimeCode' : credential === 'new-password' ? 'newPassword' : credential === 'email' ? 'emailAddress' : credential}
     autoComplete={oneTime && !theme.isTV ? 'one-time-code' : credential === 'password' ? 'current-password' : credential}
     autoCapitalize="none" autoCorrect={false} editable={!busy} error={invalid} description={help} placeholder={placeholder}
-    trailing={credential === 'new-password' && label === t('auth.password') && !theme.isTV ? <Button testID="accounts-password-visibility" variant="text" size="compact" iconOnly icon={passwordShown ? 'i-eyeoff' : 'i-eye'} iconSize={18}
+    trailing={revealable(credential, label) ? <Button testID="accounts-password-visibility" variant="text" size="compact" iconOnly icon={passwordShown ? 'i-eyeoff' : 'i-eye'} iconSize={18}
       accessibilityLabel={t(passwordShown ? 'accounts.signIn.hidePassword' : 'accounts.signIn.showPassword')} accessibilityState={{selected: passwordShown}}
       disabled={busy} style={{height: 40, width: 40, paddingHorizontal: 0}} onPress={() => {if (lifetime.current && stageRef.current === stage && !busyRef.current && !acting.current) setPasswordShown(value => !value);}}/> : undefined}/>;
   const codeField = (label: string, value: string, change: (next: string) => void) => field(label, value, change, false, undefined, undefined, undefined, undefined, true);
@@ -884,12 +917,13 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   }, [stage, target, directoryView, hostedWaiting, busy, appActive, allDirectoryOffline, servers, directoryScope, stopRetry]);
   // One setup target per server shown for setup: NativeSetup keeps one controller for it.
   const setupTarget = useMemo(() => server && setupAddress ? Object.freeze({origin: setupAddress, server, expected: endedTarget.current}) : undefined, [server, setupAddress]);
-  const FormLayout = theme.isTV ? TVAuthLayout : theme.platform === 'phone' ? PhoneAccountForm : StateLayout;
+  // Phone and tablet share the compact form column (auth.html frames 4 to 6).
+  const FormLayout = theme.isTV ? TVAuthLayout : PhoneAccountForm;
   // Pickers and directory/recovery states keep their authored centred composition.
   const EntryLayout = theme.isTV ? TVAuthLayout : ['profiles', 'profile-pin', 'servers', 'account-sign-out', 'tv'].includes(stage) ? StateLayout : FormLayout;
   const formStep = theme.platform === 'phone' && stage.startsWith('setup-')
     ? <Text style={[theme.type.captionStrong, {fontSize: 13.5 * theme.textScale, color: theme.colors.textSecondary}]}>{t('accounts.setup.title')}</Text> : undefined;
-  const layout = (title: string, body?: string, before?: React.ReactNode, primary?: ReturnType<typeof action>, more?: React.ReactNode) => <EntryLayout testID="accounts-entry" title={title} body={body} kicker={formStep} beforeActions={<>{before}{status}</>} primaryAction={primary} secondaryAction={backAction} avoidKeyboard={stage === 'profile-pin'}>{more}</EntryLayout>;
+  const layout = (title: string, body?: string, before?: React.ReactNode, primary?: ReturnType<typeof action>, more?: React.ReactNode) => <EntryLayout testID="accounts-entry" title={title} body={body} kicker={formStep} beforeActions={theme.isTV ? <>{before}{status}</> : <>{status}{before}</>} primaryAction={primary} secondaryAction={backAction} avoidKeyboard={stage === 'profile-pin'}>{more}</EntryLayout>;
   // O-159: a server this app can't talk to is refused before any credential, by name.
   const refusal = negotiationRefusal(error);
   if (refusal) return <ServerNeedsUpdate refusal={refusal} onBack={() => {setError(undefined); reset();}}/>;
@@ -947,8 +981,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     return <PhoneAccountWorkspace createSource={ticket.createSource!} username={ticket.username}
       onDone={() => leave('servers')} onJoin={() => leave('invitation-entry')} onFind={() => leave('address')} onSignOut={() => leave('account-sign-out')}/>;
   }
-  if (stage === 'welcome' && theme.isTV) return <TVFrontDoor busy={busy} error={status}
-    onPortico={() => {void run(portico);}} onLocal={() => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) {
+  if (stage === 'welcome' && theme.isTV) return <TVFrontDoor busy={busy} reason={Platform.isTV && setupElsewhereRefusal(stageError) ? t('accounts.setup.elsewhere') : failure && !failure.silent ? failure.category === 'unreachable' || failure.category === 'timeout' ? t('activation.unreachable') : failure.body : accountEnded ? t('web.signIn.error.accountEnded') : undefined} autoStart={tvDoor && !tvDoorTried.current && !resumeAccount && !stageError}
+    onPortico={() => {tvDoorTried.current = true; void run(portico);}} onLocal={() => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) {
       setAddress(''); setUsername(''); setPassword(''); setError(undefined); stageRef.current = 'address'; setStage('address');
     }}}/>;
   const authOptions = account.current && preparedAuthSource.current === account.current ? options : undefined;
@@ -961,13 +995,15 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   if ((stage === 'portico' && providerLoading && providerLoading === account.current)
     || (stage === 'servers' && directoryList === 'loading'))
     return <StateLayout testID="accounts-server-list-loading" title={t('web.chooser.loading')}/>;
-  if (stage === 'welcome' && theme.platform === 'phone') return <PhoneFrontDoor busy={busy} error={status}
-    onInvitation={() => {if (lifetime.current && stageRef.current === 'welcome') openInvitationEntry();}}
-    onPortico={() => {if (lifetime.current && stageRef.current === 'welcome') void run(portico);}}
-    onLocal={() => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) {setError(undefined); stageRef.current = 'address'; setStage('address');}}}/>;
-  if (stage === 'welcome') return <StateLayout testID="accounts-welcome" title={t('web.signin.welcomeHome')} beforeActions={status}
-    primaryAction={action('portico', t('accounts.signIn.portico'), portico)} secondaryAction={{id: 'local', label: t('accounts.signIn.local'), onPress: () => {setError(undefined); setStage('address');}}}
-    detailsAction={backAction}/>;
+  const providerNoticeView = providerNotice ? <FormError placement="block">{t('accounts.provider.unavailable',
+    {provider: t(providerNotice === 'apple' ? 'accounts.provider.apple' : 'accounts.provider.google')})}</FormError> : null;
+  if (stage === 'welcome') return <PhoneAccountSignIn busy={busy} error={status ?? providerNoticeView} onOpenLink={openLegalLink}
+    passwordEnabled registration recovery username={username} password={password}
+    onUsernameChange={value => {if (lifetime.current && stageRef.current === 'welcome') setUsername(value);}}
+    onPasswordChange={value => {if (lifetime.current && stageRef.current === 'welcome') setPassword(value);}}
+    onProvider={id => startAccount({kind: 'provider', id})} onContinue={() => {if (username && password) startAccount({kind: 'continue'});}}
+    onForgot={() => startAccount({kind: 'forgot'})} onCreate={() => startAccount({kind: 'create'})}
+    onLocal={() => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) {setError(undefined); setProviderNotice(undefined); stageRef.current = 'address'; setStage('address');}}}/>;
   if (stage === 'setup-confirm') return layout(t('accounts.setup.confirmTitle'), t('accounts.setup.confirmBody'),
     <View style={{alignSelf: 'stretch', gap: 12, marginBottom: 18}}>
       <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{server!.name}</Text>
@@ -981,6 +1017,15 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   if (stage === 'address') {
     const ticket = nearbySource.current;
     const current = () => !!ticket?.active && nearbySource.current === ticket && lifetime.current && stageRef.current === 'address';
+    if (!theme.isTV) return <PhoneFindServer busy={busy} error={status} address={address} onAddressChange={setAddress}
+      found={nearby.map(value => ({origin: value.origin, name: value.server.name, host: new URL(value.origin).host, setupRequired: value.server.setupRequired === true}))}
+      searching={nearbyStatus === 'loading'} failed={nearbyStatus === 'failed'} localNetworkNote={Platform.OS === 'ios'}
+      onContinue={() => {if (address.trim()) void run(async () => {await inspect();});}}
+      onChoose={origin => {if (!current() || busyRef.current) return; setAddress(origin); void run(async () => {await inspect(origin);});}}
+      onSearchAgain={() => {if (!current() || busyRef.current) return; ticket!.active = false; setNearbyRefresh(value => value + 1);}}
+      onPortico={() => {if (lifetime.current && stageRef.current === 'address' && !busyRef.current) back();}}
+      onInvitation={() => {if (lifetime.current && stageRef.current === 'address' && !busyRef.current) openInvitationEntry();}}
+      onBack={() => {if (lifetime.current && stageRef.current === 'address' && !busyRef.current) back();}}/>;
     return layout(t('accounts.signIn.local'), undefined, fields(field(t('accounts.signIn.address'), address, setAddress)), action('inspect', t('action.continue'), async () => {await inspect();}, !address.trim()),
       <View style={{alignSelf: 'stretch', gap: 10, marginTop: 18}}>
         <Text style={[theme.isTV ? theme.type.accountHint : theme.type.caption, {color: theme.isTV ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{t('playOn.onThisNetwork')}</Text>
@@ -1252,9 +1297,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   }
   if (stage === 'local') {
     const source = operation.current;
-    return layout(server!.name, t('accounts.signIn.localBody'), fields(field(t('auth.username'), username, setUsername, false, 'username'), field(t('auth.password'), password, setPassword, true, 'password')),
-    action('local-sign-in', t('auth.signIn'), async () => {consume(await operation.current!.signInLocal(username, password)); setPassword('');}, !username || !password),
-    <View style={{alignSelf: 'stretch', gap: 8}}>
+    const links = <>
       <Button variant="link" disabled={busy} onPress={() => {
         if (!source || source !== operation.current || !lifetime.current || stageRef.current !== 'local') return;
         void run(async () => {if (source === operation.current && lifetime.current && stageRef.current === 'local') await Linking.openURL(new URL('/sign-in', source.serverOrigin()).href);});
@@ -1269,7 +1312,17 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
         try {openInvitationEntry(source.serverOrigin());} catch (failure) {setError(failure);}
       }}>{t('web.directJoin.have')}</Button>}
       {!Platform.isTV && server?.move === 'to_local' && <Button variant="link" disabled={busy} onPress={() => {void run(beginMemberCode);}}>{t('accounts.move.haveCode')}</Button>}
-    </View>);
+    </>;
+    const signIn = async () => {consume(await operation.current!.signInLocal(username, password)); setPassword('');};
+    const refusedCode = (stageError as {code?: unknown} | undefined)?.code;
+    const passwordInvalid = typeof refusedCode === 'string' && ['password_wrong', 'invalid_credentials', 'invalid', 'unauthorized'].includes(refusedCode);
+    if (!theme.isTV && source) return <PhoneServerSignIn busy={busy} error={status} passwordInvalid={passwordInvalid} serverName={server!.name}
+      address={address.trim() ? address.trim().replace(/^https?:\/\//i, '') : new URL(source.serverOrigin()).host}
+      username={username} password={password} onUsernameChange={setUsername} onPasswordChange={setPassword} links={links}
+      onSignIn={() => {if (lifetime.current && stageRef.current === 'local' && source === operation.current) void run(signIn);}} onBack={back}/>;
+    return layout(server!.name, t('accounts.signIn.localBody'), fields(field(t('auth.username'), username, setUsername, false, 'username'), field(t('auth.password'), password, setPassword, true, 'password')),
+    action('local-sign-in', t('auth.signIn'), signIn, !username || !password),
+    <View style={{alignSelf: 'stretch', gap: 8}}>{links}</View>);
   }
   if (stage === 'factor' && factorKind.current === 'portico' && !Platform.isTV) {
     // The phone Portico factor form acts only through its own opening: the exact issued
@@ -1310,10 +1363,10 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const current = () => !!source && lifetime.current && stageRef.current === 'portico' && account.current === source
       && preparedAuthSource.current === source && invitationSwitch.current === ticket
       && (!ticket || (ticket.active && invitationIntent.current === ticket.entry));
-    return <PhoneAccountSignIn busy={busy} error={status} onOpenLink={openLegalLink} providers={availableProviders}
-      passwordEnabled={!!authOptions?.password} registration={!!authOptions?.registration} recovery={authOptions?.recovery !== false}
-      username={username} password={password} onUsernameChange={value => {if (current()) setUsername(value);}} onPasswordChange={value => {if (current()) setPassword(value);}}
-      onProvider={id => {if (!current() || busy || !availableProviders.some(value => value.id === id)) return; void run(async () => {
+    // Apple and Google are always offered; one Services has not turned on, or this device can't open, says so plainly.
+    const onProvider = (id: 'apple' | 'google') => {if (!current() || busy) return;
+      if (!availableProviders.some(value => value.id === id)) {setProviderNotice(id); return;}
+      setProviderNotice(undefined); void run(async () => {
         if (!current() || !source) return;
         setProviderLoading(source);
         try {
@@ -1324,13 +1377,18 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
           } else if (current()) setStage('provider');
         } catch (error) {if (current()) throw error;}
         finally {if (lifetime.current) setProviderLoading(value => value === source ? undefined : value);}
-      });}}
-      onContinue={() => {if (!current() || busy || !authOptions?.password || !username || !password || !source) return; void run(async () => {
+      });};
+    const onContinue = () => {if (!current() || busy || !authOptions?.password || !username || !password || !source) return; void run(async () => {
         if (!current()) return; try {await source.password(username, password, current); if (current()) await directory();} catch (error) {if (current()) throw error;}
-      });}}
-      onForgot={() => {if (!current() || busy || !authOptions?.recovery) return; setPassword(''); setStage('forgot');}}
-      onCreate={() => {if (!current() || busy || !authOptions?.registration) return; setPassword(''); setStage('register');}}
-      onLocal={() => {if (!current() || busy) return; setPassword(''); setStage('address');}}/>;
+      });};
+    const onForgot = () => {if (!current() || busy || !authOptions?.recovery) return; setPassword(''); setStage('forgot');};
+    const onCreate = () => {if (!current() || busy || !authOptions?.registration) return; setPassword(''); setStage('register');};
+    intentRunner.current = intent => {if (intent.kind === 'provider') onProvider(intent.id); else if (intent.kind === 'continue') onContinue(); else if (intent.kind === 'forgot') onForgot(); else onCreate();};
+    return <PhoneAccountSignIn busy={busy} error={status ?? providerNoticeView} onOpenLink={openLegalLink}
+      passwordEnabled={!!authOptions?.password} registration={!!authOptions?.registration} recovery={authOptions?.recovery !== false}
+      username={username} password={password} onUsernameChange={value => {if (current()) setUsername(value);}} onPasswordChange={value => {if (current()) setPassword(value);}}
+      onProvider={onProvider} onContinue={onContinue} onForgot={onForgot} onCreate={onCreate}
+      onLocal={() => {if (!current() || busy) return; setPassword(''); setProviderNotice(undefined); setStage('address');}}/>;
   }
   if (stage === 'portico') return layout(t('accounts.signIn.portico'), t('auth.accountLead'), options?.password ? fields(field(t('auth.usernameOrEmail'), username, setUsername, false, 'username'), field(t('auth.password'), password, setPassword, true, 'password')) : undefined,
     options?.password ? action('account-password', t('auth.signIn'), async () => {await account.current!.password(username, password); await directory();}, !username || !password) : undefined,
@@ -1681,7 +1739,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   if (Platform.isTV) return <TVCodePresenter {...(tvKind === 'local' ? {mode: 'local' as const, serverName: server!.name} : {mode: 'portico' as const})} body={consentBody}
     verificationUri={tvState.verificationUri} verificationUriComplete={tvState.verificationUriComplete} userCode={tvState.userCode}
     status={<>{status}{(tvState.phase === 'denied' || tvState.phase === 'error') && <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginBottom: 28}]}>{t(tvState.phase === 'denied' ? 'activation.declined' : 'activation.failed')}</Text>}</>}
-    busy={busy} onTypeCredentials={() => {void renderedTV?.credentials();}} onBack={codeBack} onNewCode={newCode} onRetry={retryApproval} retryAt={approval?.retryAt} credentialsDisabled={!!approval && !renderedTV?.canTypeCredentials()}/>;
+    busy={busy} onTypeCredentials={() => {void renderedTV?.credentials();}} onBack={codeBack}
+    onLocal={tvDoor ? () => {if (renderedTV?.current() && !busyRef.current) {back(); setError(undefined); stageRef.current = 'address'; setStage('address');}} : undefined} onNewCode={newCode} onRetry={retryApproval} retryAt={approval?.retryAt} credentialsDisabled={!!approval && !renderedTV?.canTypeCredentials()}/>;
   return layout(t('activation.title'), consentBody,
     <View style={{gap: 16, marginBottom: 20}}>{tvState.verificationUriComplete && <QRCode value={tvState.verificationUriComplete} size={theme.isTV ? 240 : 180}/>}
       <Text selectable style={[theme.type.title, {color: theme.colors.text}]}>{tvState.userCode ?? t('activation.preparingCode')}</Text>

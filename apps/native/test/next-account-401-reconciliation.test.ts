@@ -165,7 +165,7 @@ async function entry(t: any, f: F, extra: Record<string, any> = {}, resumeAccoun
       }}}, '../../platform/account-work': accountWork,
     '../../platform/account-authority': {hostedUrl}, '../../platform/portico-sign-in': {NativePorticoSignIn: Auth},
     '../../platform/server-connections': await import('../src-next/platform/server-connections'),
-    '../../platform/tv-menu': {useTVMenuCapture() {}}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, './ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, './tv-code-opening': tvOpening, './directory-chooser': chooser, './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, './PhoneAccountForm': {PhoneAccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, './PhoneAccountSignIn': {PhoneAccountSignIn: 'SignIn'}, './PhoneFrontDoor': {PhoneFrontDoor: 'FrontDoor'},
+    '../../platform/tv-menu': {useTVMenuCapture() {}}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, './ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, './tv-code-opening': tvOpening, './directory-chooser': chooser, './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, './PhoneAccountForm': {PhoneAccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, './PhoneAccountSignIn': {PhoneAccountSignIn: 'SignIn'}, './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, './PhoneServerSignIn': {PhoneServerSignIn: 'PhoneServerSignIn'},
     './PhoneNoServers': {PhoneNoServers: 'NoServers'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}},
     ...extra,
   };
@@ -175,7 +175,7 @@ async function entry(t: any, f: F, extra: Record<string, any> = {}, resumeAccoun
   t.after(() => {if (previous) Object.defineProperty(globalThis, 'require', previous); else Reflect.deleteProperty(globalThis, 'require');});
   const host = createFabricHookHost(() => {tree = AccountEntry({resumeAccount, onComplete: () => {throw new Error('Unexpected navigation');}, onStageChange: (stage: string) => {stages.push(stage);}});});
   t.after(() => host.unmount()); await act(() => host.mount());
-  if (!resumeAccount) {assert.equal(tree.type, 'FrontDoor'); await act(() => tree.props.onPortico());}
+  if (!resumeAccount) {assert.equal(tree.type, 'SignIn'); await act(() => tree.props.onProvider('apple'));}
   return {host, stages, tree: () => tree, settle: async () => {for (let i = 0; i < 8; i++) await act(() => {});}};
 }
 test('actual AccountEntry directory remote revocation returns to the front door instead of a cached-bearer Retry loop', async t => {
@@ -184,7 +184,7 @@ test('actual AccountEntry directory remote revocation returns to the front door 
   transport(t, async () => {calls++; return response(401);});
   const app = await entry(t, f); await app.settle();
   assert.equal(f.owner.getSnapshot().phase, 'signedOut'); assert.equal(f.renewals.length, 1); assert.equal(calls, 1);
-  assert.equal(app.tree().type, 'FrontDoor'); assert.equal(app.stages.at(-1), 'welcome');
+  assert.equal(app.tree().type, 'SignIn'); assert.equal(app.stages.at(-1), 'welcome');
 });
 test('actual AccountEntry directory safely recovers once and retires its original view on a new family', async t => {
   const f = await fixture(), tokens: string[] = [];
@@ -193,9 +193,9 @@ test('actual AccountEntry directory safely recovers once and retires its origina
   assert.deepEqual(tokens, ['Bearer old-access', 'Bearer renewed-access']);
   await act(async () => {await f.install(grant('new-family', 'account', 'successor-access'));}); await app.settle();
   assert.equal(f.owner.getSnapshot().session?.familyId, 'new-family'); assert.equal(f.renewals.length, 1);
-  assert.equal(app.tree().type, 'FrontDoor');
+  assert.equal(app.tree().type, 'SignIn');
   assert.deepEqual(tokens, ['Bearer old-access', 'Bearer renewed-access'], 'replacement does not contact Services until explicitly selected');
-  await act(() => app.tree().props.onPortico()); await app.settle();
+  await act(() => app.tree().props.onProvider('apple')); await app.settle();
   assert.equal(app.tree().type, 'NoServers');
   assert.ok(tokens.includes('Bearer successor-access')); assert.deepEqual(f.revocations, ['fixture-refresh-family']);
 });
@@ -217,9 +217,9 @@ for (const replacement of ['same-account', 'other-account', 'ABA', 'unmount', 's
     assert.equal(f.renewals.length, 0); assert.deepEqual(f.revocations, revocations);
     assert.equal(f.owner.getSnapshot().session?.familyId, ['unmount', 'ABA'].includes(replacement) ? 'family' : 'new-family');
     if (replacement !== 'unmount') {
-      assert.equal(app.tree().type, 'FrontDoor');
+      assert.equal(app.tree().type, 'SignIn');
       assert.equal(calls, 1, 'a retired directory read cannot automatically read for the replacement family');
-      await act(() => app.tree().props.onPortico()); await app.settle();
+      await act(() => app.tree().props.onProvider('apple')); await app.settle();
       assert.equal(app.tree().type, 'NoServers');
       assert.equal(calls, 2, 'only the explicit selection reads the replacement directory');
     }
@@ -307,7 +307,7 @@ test('a Portico Account kept on this device opens its server list at launch, eve
   // Signed out, launch stays on welcome and asks Services nothing.
   await act(async () => {await f.owner.logout();}); await app.settle();
   const again = await entry(t, f, {}, true); await again.settle();
-  assert.equal(again.tree().type, 'FrontDoor'); assert.equal(ended(again.tree()), false);
+  assert.equal(again.tree().type, 'SignIn'); assert.equal(ended(again.tree()), false);
 });
 
 test('a renewal Services refuses while the list is open lands on welcome saying the sign-in has ended; signing out says nothing', async t => {
@@ -316,12 +316,12 @@ test('a renewal Services refuses while the list is open lands on welcome saying 
   const app = await entry(t, f); await app.settle(); assert.equal(app.tree().type, 'NoServers');
   refused = true; f.renewal(async () => {throw new core.ApiError(401, 'session_ended', 'Ended', false);});
   await act(() => app.tree().props.onRefresh()); await app.settle();
-  assert.equal(app.tree().type, 'FrontDoor'); assert.equal(ended(app.tree()), true);
+  assert.equal(app.tree().type, 'SignIn'); assert.equal(ended(app.tree()), true);
   assert.equal(app.tree().props.busy, false);
   const chosen = await fixture(); refused = false;
   const other = await entry(t, chosen); await other.settle();
   await act(async () => {await chosen.owner.logout();}); await other.settle();
-  assert.equal(other.tree().type, 'FrontDoor'); assert.equal(ended(other.tree()), false);
+  assert.equal(other.tree().type, 'SignIn'); assert.equal(ended(other.tree()), false);
 });
 
 test('when the account ends while a server is opening, welcome is not left busy', async t => {
@@ -334,5 +334,5 @@ test('when the account ends while a server is opening, welcome is not left busy'
   f.renewal(async () => {throw new core.ApiError(401, 'session_ended', 'Ended', false);});
   await act(async () => {await f.owner.accessSession(true, accountWork.accountExpectation(f.owner.getSnapshot().session!)).catch(() => {});}); await app.settle();
   held.resolve(undefined as never); await app.settle();
-  assert.equal(app.tree().type, 'FrontDoor'); assert.equal(app.tree().props.busy, false); assert.equal(ended(app.tree()), true);
+  assert.equal(app.tree().type, 'SignIn'); assert.equal(app.tree().props.busy, false); assert.equal(ended(app.tree()), true);
 });

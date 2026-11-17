@@ -152,5 +152,5 @@ test('replacing an invitation during prepare retires old options and keeps succe
   await act(()=>f.tree().props.primaryAction.onPress());assert.equal(f.tree().props.primaryAction.disabled,true);
   await act(()=>old.resolve(offered));assert.equal(f.tree().props.testID,'accounts-invitation-account');assert.equal(f.tree().props.primaryAction.disabled,true);
   await act(()=>next.resolve({...offered,password:false,providers:[{id:'apple',enabled:true,native:false,nativeClientIds:[]}]}));
-  const phone=await f.phone();assert.ok(byID(phone,'accounts-auth-apple'));assert.equal(byID(phone,'accounts-auth-google'),undefined);assert.equal(byID(phone,'accounts-auth-continue'),undefined);
+  const phone=await f.phone();assert.ok(byID(phone,'accounts-auth-apple'));assert.ok(byID(phone,'accounts-auth-google'),'Google is always drawn and says so when it is not offered');assert.equal(byID(phone,'accounts-auth-continue'),undefined);
 });

@@ -15,6 +15,8 @@ export type TextFieldProps = TextInputProps & {
   label?: React.ReactNode;
   description?: React.ReactNode;
   error?: React.ReactNode;
+  /** Draws the field in the error colour with no message of its own: the form's error box says why (auth.html frame 6). */
+  invalid?: boolean;
   leadingIcon?: IconName;
   iconSize?: number;
   trailing?: React.ReactNode;
@@ -32,7 +34,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 });
 
 const NativeTextField = forwardRef<TextInput, TextFieldProps>(function NativeTextField({
-  label, description, error, leadingIcon, iconSize, trailing, variant = 'field', containerStyle, fieldStyle, appearance = 'default',
+  label, description, error, invalid = false, leadingIcon, iconSize, trailing, variant = 'field', containerStyle, fieldStyle, appearance = 'default',
   editable = true, focusable, style, onFocus, onBlur, accessibilityLabel, accessibilityState,
   placeholderTextColor, cursorColor, selectionColor, nativeID, multiline, focusId, testID, ...props
 }, ref) {
@@ -50,17 +52,18 @@ const NativeTextField = forwardRef<TextInput, TextFieldProps>(function NativeTex
   const suppliedHeight = suppliedField?.height;
   const inputHeight = typeof suppliedHeight === 'number' ? suppliedHeight : height;
   const radius = typeof suppliedField?.borderRadius === 'number' ? suppliedField.borderRadius : auth ? 11 : search ? fieldSpec.search.radius[theme.platform] : fieldSpec.radius[theme.platform];
-  const color = error ? theme.colors.danger : focused ? theme.colors.accent : theme.colors.lineControl;
-  const selectionBorder = focused || error ? 2 : suppliedField?.borderWidth ?? 1;
+  const flagged = error !== undefined || invalid;
+  const color = flagged ? theme.colors.danger : focused ? theme.colors.accent : theme.colors.lineControl;
+  const selectionBorder = focused || flagged ? 2 : suppliedField?.borderWidth ?? 1;
   const labelID = `${id}-label`;
   const faceStyle: StyleProp<ViewStyle> = [styles.field, {minHeight: inputHeight, height: multiline || auth ? undefined : inputHeight, borderRadius: radius,
       paddingHorizontal: auth ? 14 : search ? fieldSpec.search.paddingX[theme.platform] : fieldSpec.paddingX[theme.platform],
       gap: search ? fieldSpec.search.gap[theme.platform] : 10,
       backgroundColor: auth ? glass.nativeBlur ? 'rgba(7,16,24,.62)' : colorAlpha(glass.backgroundColor, glass.backgroundAlpha)
         : search || focused ? theme.colors.raisedHigh : theme.colors.raised,
-      borderWidth: search && !error ? 0 : fieldSpec.borderWidth[theme.platform], borderColor: color,
+      borderWidth: search && !flagged ? 0 : fieldSpec.borderWidth[theme.platform], borderColor: color,
       opacity: auth || editable ? 1 : .45}, fieldStyle, grow ? {height: undefined, minHeight: Math.max(inputHeight, typeof suppliedField?.minHeight === 'number' ? suppliedField.minHeight : 0)} : undefined, selection ? {backgroundColor: suppliedField?.backgroundColor ?? theme.colors.ink, borderWidth: selectionBorder,
-        borderColor: error ? theme.colors.danger : focused ? theme.colors.focus : suppliedField?.borderColor ?? theme.colors.line} : undefined];
+        borderColor: flagged ? theme.colors.danger : focused ? theme.colors.focus : suppliedField?.borderColor ?? theme.colors.line} : undefined];
   const content = <>
       {leadingIcon ? <Icon name={leadingIcon} size={iconSize ?? (theme.isTV ? 30 : 20)} color={theme.colors.textTertiary} /> : null}
       <TextInput {...binding} {...props} testID={binding.testID} ref={binding.ref} nativeID={nativeID ?? id} editable={editable && paint.interactive} focusable={eligible}
@@ -77,7 +80,10 @@ const NativeTextField = forwardRef<TextInput, TextFieldProps>(function NativeTex
         style={[theme.type.body, styles.input, {fontFamily: selection || auth ? fontFamilies[600] : search ? fontFamilies[500] : fontFamilies[400],
           fontWeight: auth ? '600' : theme.type.body.fontWeight,
           fontSize: auth ? 16 * theme.textScale : search && !theme.isTV ? 15.5 * theme.textScale : theme.type.body.fontSize,
-          color: theme.colors.text, minHeight: inputHeight - 2 * (selection ? selectionBorder : fieldSpec.borderWidth[theme.platform])}, style]} />
+          color: theme.colors.text, minHeight: inputHeight - 2 * (selection ? selectionBorder : fieldSpec.borderWidth[theme.platform])}, style,
+          // A one-line field never takes a line height: on iOS it turns the unfocused value into a wrapped paragraph that
+          // spills a half-cut second line out of the box; without it the value stays on one line and ends in an ellipsis.
+          multiline ? undefined : {lineHeight: undefined}]} />
       {trailing}
     </>;
   const ring = focused && !selection ? <View pointerEvents="none" style={[styles.ring, {borderColor: search ? colorAlpha(theme.colors.accent, fieldSpec.search.focusAlpha) : theme.colors.focus,

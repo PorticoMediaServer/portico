@@ -82,7 +82,7 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
     '../../platform/portico-sign-in': {NativePorticoSignIn: Portico, porticoUsernameUnavailable: () => false},
     '../../platform/server-connections': {browseNearby: async () => []},
     '../../platform/tv-menu': {useTVMenuCapture() {}},
-    './PhoneFrontDoor': {PhoneFrontDoor: 'FrontDoor'}, './PhoneAccountSignIn': {PhoneAccountSignIn: 'AccountSignIn'},
+    './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, './PhoneServerSignIn': {PhoneServerSignIn: 'PhoneServerSignIn'}, './PhoneAccountSignIn': {PhoneAccountSignIn: 'AccountSignIn'},
     './LegalAgreement': legal, './PhoneAccountForm': {PhoneAccountForm: 'AccountForm'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'Strength'},
     '../../platform/negotiation': {negotiationRefusal: () => undefined}, './ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'},
   };
@@ -102,10 +102,10 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
   const fields = () => nodes(tree.props.beforeActions).filter(node => node.type === 'TextField');
   return {host, calls, tree: () => tree, fields, failLinks: (error: Error) => {linkFailure = error;}, prepare: (work: typeof prepare) => {prepare = work;},
     local: async () => {
-      if (tree.type === 'FrontDoor') await act(() => tree.props.onLocal());
-      await act(() => fields()[0].props.onChangeText('https://local.example'));
-      await act(() => tree.props.primaryAction.onPress());
-      assert.equal(tree.props.title, 'Local server');
+      if (tree.type === 'AccountSignIn') await act(() => tree.props.onLocal());
+      await act(() => tree.props.onAddressChange('https://local.example'));
+      await act(() => tree.props.onContinue());
+      assert.equal(tree.type, 'PhoneServerSignIn'); assert.equal(tree.props.serverName, 'Local server');
     }};
 }
 
@@ -113,52 +113,51 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
 // captured committed setup/cleanup pair as the development renderer can.
 test('welcome, effect replay, local entry and Back never prepare or synchronize a Portico account', async context => {
   const f = await fixture(context, 'welcome', undefined, createHookHost);
-  assert.equal(f.tree().type, 'FrontDoor');
-  const retainedPortico = f.tree().props.onPortico;
+  assert.equal(f.tree().type, 'AccountSignIn');
+  const retainedPortico = f.tree().props.onForgot;
   await act(() => {f.host.replay(); f.host.rerender();});
   assert.equal(f.calls.prepare, 0); assert.equal(f.calls.constructed, 0); assert.equal(f.calls.synchronize, 0);
   await f.local(); await act(() => retainedPortico());
-  assert.equal(f.tree().props.title, 'Local server'); assert.equal(f.calls.prepare, 0);
-  const forgot = nodes(f.tree().props.children).find(node => node.type === 'Button' && node.props.children === 'auth.forgotPassword');
+  assert.equal(f.tree().props.serverName, 'Local server'); assert.equal(f.calls.prepare, 0);
+  const forgot = nodes(f.tree().props.links).find(node => node.type === 'Button' && node.props.children === 'auth.forgotPassword');
   assert.ok(forgot, 'regular local sign-in exposes recovery');
   await act(() => forgot.props.onPress()); assert.deepEqual(f.calls.links, ['https://local.example/sign-in']);
-  await act(() => f.tree().props.secondaryAction.onPress());
-  assert.equal(f.tree().type, 'FrontDoor');
+  await act(() => f.tree().props.onBack());
+  assert.equal(f.tree().type, 'PhoneFindServer', 'Back from a server sign-in returns to Find your server');
   await act(() => forgot.props.onPress()); assert.equal(f.calls.links.length, 1, 'the retired local form cannot launch recovery');
   assert.equal(f.calls.prepare, 0); assert.equal(f.calls.synchronize, 0);
 });
 
 test('one explicit Portico Account tap prepares once, while retained front-door actions retire', async context => {
   const f = await fixture(context), old = f.tree().props;
-  await act(() => {old.onPortico(); old.onPortico();});
-  assert.equal(f.calls.prepare, 1); assert.equal(f.tree().type, 'AccountSignIn');
-  await act(() => old.onLocal()); assert.equal(f.tree().type, 'AccountSignIn');
-  await act(() => f.tree().props.onLocal()); assert.equal(f.tree().type, 'AccountForm');
-  await act(() => old.onPortico()); assert.equal(f.calls.prepare, 1);
+  await act(() => {old.onForgot(); old.onForgot();});
+  assert.equal(f.calls.prepare, 1);
+  await act(() => old.onLocal()); assert.notEqual(f.tree().type, 'PhoneFindServer', 'the retired welcome cannot move on');
+  await act(() => old.onForgot()); assert.equal(f.calls.prepare, 1);
 });
 
 test('failed explicit preparation stays at the front door and retries only on another tap', async context => {
   const f = await fixture(context); f.prepare(async () => {throw new Error('offline');});
-  await act(() => f.tree().props.onPortico());
-  assert.equal(f.tree().type, 'FrontDoor'); assert.equal(f.calls.prepare, 1); assert.ok(f.tree().props.error);
+  await act(() => f.tree().props.onForgot());
+  assert.equal(f.tree().type, 'AccountSignIn'); assert.equal(f.calls.prepare, 1); assert.ok(f.tree().props.error);
   await act(() => f.host.rerender()); assert.equal(f.calls.prepare, 1);
-  f.prepare(async () => offered); await act(() => f.tree().props.onPortico());
-  assert.equal(f.tree().type, 'AccountSignIn'); assert.equal(f.calls.prepare, 2);
+  f.prepare(async () => offered); await act(() => f.tree().props.onForgot());
+  assert.equal(f.calls.prepare, 2);
 });
 
 // A Portico Account failure belongs to the Portico Account choice: choosing a local server instead
 // starts clean, so the local form never shows a refusal it did not cause.
 test('a failed Portico Account tap does not follow the person to the local server form', async context => {
   const f = await fixture(context); f.prepare(async () => {throw Object.assign(new Error('not_found'), {status: 404});});
-  await act(() => f.tree().props.onPortico());
-  assert.equal(f.tree().type, 'FrontDoor'); assert.ok(f.tree().props.error, 'the failure shows where it happened');
+  await act(() => f.tree().props.onForgot());
+  assert.equal(f.tree().type, 'AccountSignIn'); assert.ok(f.tree().props.error, 'the failure shows where it happened');
   await act(() => f.tree().props.onLocal());
-  assert.equal(f.tree().type, 'AccountForm');
-  assert.ok(!words(f.tree().props.beforeActions).includes('Request failed'), 'the local server form shows no Portico Account failure');
+  assert.equal(f.tree().type, 'PhoneFindServer');
+  assert.ok(!f.tree().props.error, 'the local server form shows no Portico Account failure');
 });
 
 test('registration preserves API argument order while drawing approved fields, password reveal, legal copy and a guarded resend', async context => {
-  const f = await fixture(context); await act(() => f.tree().props.onPortico()); await act(() => f.tree().props.onCreate());
+  const f = await fixture(context); await act(() => f.tree().props.onCreate());
   assert.equal(f.tree().type, 'AccountForm');
   assert.deepEqual(f.fields().map(node => node.props.label), ['auth.email', 'auth.username', 'auth.yourName · field.optional', 'auth.password']);
   assert.equal(f.tree().props.primaryAction.label, 'action.continue');
@@ -191,8 +190,8 @@ test('registration preserves API argument order while drawing approved fields, p
 
 test('local two-step uses numeric one-time-code autofill and keeps the local completion path', async context => {
   const f = await fixture(context); await f.local();
-  await act(() => {f.fields()[0].props.onChangeText('person'); f.fields()[1].props.onChangeText('password');});
-  await act(() => f.tree().props.primaryAction.onPress());
+  await act(() => {f.tree().props.onUsernameChange('person'); f.tree().props.onPasswordChange('password');});
+  await act(() => f.tree().props.onSignIn());
   assert.equal(f.tree().props.title, 'auth.enterVerificationCode');
   const code = f.fields()[0].props;
   assert.equal(code.keyboardType, 'number-pad'); assert.equal(code.inputMode, 'numeric');

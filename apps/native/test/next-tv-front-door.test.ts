@@ -23,7 +23,7 @@ async function frontDoorModule(modules: Record<string, any>) {
     ...modules, '@portico/design': design, 'react-native-reanimated': {}, '../../kit/useMotion': {},
     '../../kit/states/StateActionButton': {StateActionButton: 'StateActionButton'},
   });
-  return screenModule(new URL('../src-next/tv/auth/TVFrontDoor.tsx', import.meta.url), {...modules, '@portico/design': design, './TVAuthLayout': layout});
+  return screenModule(new URL('../src-next/tv/auth/TVFrontDoor.tsx', import.meta.url), {...modules, '@portico/design': design, './TVAuthLayout': layout, './TVCodePresenter': {TVCodeCard: 'CodeCard'}});
 }
 // Mount the real shared frame and canvas; keep only native hosts as stand-ins.
 const drawFrame = (frame: any) => {const canvas = frame.type(frame.props); return canvas.type(canvas.props);};
@@ -57,7 +57,7 @@ test('the TV front door renders its wordmark and only actual authority-choice ca
     assert.equal(logo.props.ref, undefined, 'production preserves the original unforwarded Image ref');
     assert.equal(logo.props.source, 'wordmark'); assert.equal(logo.props.accessibilityLabel, defaultI18n.t('accounts.brand'));
     const buttons = all.filter(node => node.type === 'Button');
-    assert.deepEqual(buttons.map(node => node.props.children), [defaultI18n.t('accounts.signIn.portico'), defaultI18n.t('accounts.signIn.local')]);
+    assert.deepEqual(buttons.map(node => node.props.children), [defaultI18n.t('accounts.signIn.porticoOnTV'), defaultI18n.t('auth.signInDirectly')]);
     assert.equal(buttons.length, 2, 'no code, terms, provider or extra Back control appears at the front door');
     assert.ok(buttons.every(node => node.props.loading === undefined), 'idle labels reserve no undrawn loading-glyph slot');
     assert.deepEqual(entries[0].address, {regionId: 'tv.auth.front-door', childId: 'portico'});
@@ -143,7 +143,7 @@ test('DEV TV heading records only native text events, invalidates changed layout
     tree.props.ref(replacementRoot);
     assert.equal(registry.read(root), undefined);
     assert.equal(registry.read(replacementRoot)?.semanticId, 'tv-front-door');
-    assert.equal(nodes(tree).filter(node => node.type === 'Text').length, 1, 'no body node is added');
+    assert.equal(nodes(tree).filter(node => node.type === 'Text' && node.props.accessibilityRole === 'header').length, 1, 'one heading; the help line and terms are not headings');
     const first = {tag: 101}, replacement = {tag: 102};
     heading().props.ref(first);
     const observed = [{x: 0, y: 2, width: 630, height: 88, text: defaultI18n.t('web.signin.welcomeHome'), ascender: 70}];
