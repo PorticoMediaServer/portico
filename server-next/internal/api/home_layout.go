@@ -26,6 +26,9 @@ func (s *Server) homeLayout(ctx context.Context, profileID int64, rows []HomeRow
 		return nil, err
 	}
 	order, hidden := savedList(stored, "home.rowOrder"), savedList(stored, "home.hiddenRowIds")
+	if popularHomeStartsHidden && stored["home.hiddenRowIds"] == "" {
+		hidden = append(hidden, "popular")
+	}
 	place := func(id string) int {
 		if n := slices.Index(order, id); n >= 0 {
 			return n

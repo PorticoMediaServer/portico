@@ -122,9 +122,11 @@ type ItemQuery struct {
 	Cursor     string
 	// At opens the list at a position instead of a cursor: 0 is the first item. It is how a
 	// screen jumps to wherever a scroll bar or a letter points.
-	At        int
-	Limit     int
-	WithTotal bool
+	At          int
+	Limit       int
+	WithTotal   bool
+	HomeAt      time.Time // server clock for an initial Home activity window
+	homePopular int64     // end of the seven-day ranking window, kept in its cursor
 
 	homeIDs                  []int64 // a Continue row, in its own order; nil for other lists
 	homeRecent, homeReleased bool
@@ -179,6 +181,9 @@ var seriesOrder = sortSpec{columns: []string{"ifnull(i.index_number, 1e18)", "i.
 
 // sortSpec is how this list is ordered. Its own order means volume order for a series.
 func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {
+	if q.homePopular != 0 && q.Sort == SortOrder {
+		return sortSpec{columns: []string{"popular.score"}}, true
+	}
 	if q.homeRecent && q.Sort == SortAdded {
 		return sortSpec{columns: []string{"max(i.added_at, ifnull(i.last_child_added_at, 0))"}}, true
 	}
@@ -211,6 +216,7 @@ type listCursor struct {
 	Values []any  `json:"v,omitempty"`
 	ID     int64  `json:"i"`
 	Seed   int64  `json:"r,omitempty"` // of a random order
+	AsOf   int64  `json:"a,omitempty"` // end of an activity ranking window
 }
 
 func (c listCursor) encode() string {
@@ -322,7 +328,7 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	if cursor != nil && !cursor.fits(spec) {
 		return page, ErrCursorExpired
 	}
-	if q.Sort == SortOrder && q.Parent == "" && q.Series == "" && q.Collection == "" && q.homeIDs == nil {
+	if q.Sort == SortOrder && q.Parent == "" && q.Series == "" && q.Collection == "" && q.homeIDs == nil && q.homePopular == 0 {
 		// Season and episode numbers order one show's items. Over a whole library they have
 		// no index and mean nothing, so the list would be sorted afresh for every page.
 		return page, invalid("Only the titles inside a show, season, artist, album or series can be sorted in their own order.")
@@ -383,6 +389,9 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		next := listCursor{Sort: q.Sort, Desc: q.Desc, ID: last.ID}
 		if q.Sort == SortRandom {
 			next.Seed = seed
+		}
+		if q.homePopular != 0 {
+			next.AsOf = q.homePopular
 		}
 		if last.sortValues[0] == nil {
 			next.Nulls = true
@@ -903,6 +912,10 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	if found, err := q.conditions(ctx, tx, w, &scoped, acc); err != nil || !found {
 		return false, err
 	}
+	if q.homePopular != 0 {
+		q.popularSource(w, acc)
+		scoped = true
+	}
 	// A list that can hold shows, seasons, artists, albums, collections or series leaves out
 	// those the viewer would find nothing under; one of films, episodes or tracks alone needs
 	// no such check, and nor does a series' list: it holds only volumes and issues.
@@ -924,19 +937,6 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	}
 	return true, nil
 }
-
-func boolSQL(b bool) string {
-	if b {
-		return "1"
-	}
-	return "0"
-}
-
-// A version's resolution class goes by width or height, so a wide 1920x800 film is still 1080p.
-var resolutionClasses = map[string]int{"sd": 1, "720p": 2, "1080p": 3, "4k": 4}
-
-const resolutionSQL = `CASE WHEN m.width >= 3800 OR m.height >= 2000 THEN 4 WHEN m.width >= 1900 OR m.height >= 1000 THEN 3
-	WHEN m.width >= 1200 OR m.height >= 700 THEN 2 ELSE 1 END`
 
 // underHolder writes a query over the playable items under a holder. Titles nest at most
 // three deep, so a holder is the root or the parent of its leaves, and each is found through
