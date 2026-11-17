@@ -15,8 +15,8 @@ import (
 // List is a playlist, a collection or a saved view. A saved view holds no entries: it is a
 // library with a sort and filters, opened as GET /v1/items?library={library}&{query}, and its
 // count is that list's total. A playlist's or collection's entries are read with
-// GET /v1/items?list={id}: in the list's own order (the default, or sort=order) each item
-// carries its entryId, which moving and removing name. Revision is also the list's ETag; an
+// GET /v1/items?list={id}: each unambiguous occurrence carries its entryId for moves and removals.
+// Revision is also the list's ETag; an
 // edit may send it back in If-Match, and one made on an out-of-date copy is refused with 412.
 type List struct {
 	ID          string `json:"id"`
@@ -44,6 +44,13 @@ type List struct {
 	Revision  string              `json:"revision"`
 	CreatedAt string              `json:"createdAt"`
 	UpdatedAt string              `json:"updatedAt"`
+	// Removed is present only in a successful Remove entry reply.
+	Removed *ListRemoval `json:"removed,omitempty"`
+}
+
+type ListRemoval struct {
+	After  string `json:"after,omitempty"`
+	Before string `json:"before,omitempty"`
 }
 
 func (l List) reply(h http.Header) int { etag(h, l.Revision); return 0 }
@@ -175,7 +182,17 @@ func (s *Server) listRoutes() {
 			return List{}, err
 		}
 		l, err := s.db.RemoveFromList(r.Context(), viewer(r), r.PathValue("id"), revision, db.ParseEntryID(r.PathValue("entryId")), s.now())
-		return listShape(l), listError(err)
+		if err != nil {
+			return List{}, listError(err)
+		}
+		out := listShape(l)
+		out.Removed = &ListRemoval{}
+		if l.RemovedAfter != 0 {
+			out.Removed.After = db.EntryID(l.RemovedAfter)
+		} else if l.RemovedBefore != 0 {
+			out.Removed.Before = db.EntryID(l.RemovedBefore)
+		}
+		return out, nil
 	})
 }
 

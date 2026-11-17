@@ -6020,6 +6020,9 @@
           "query": {
             "type": "string"
           },
+          "removed": {
+            "$ref": "#/components/schemas/ListRemoval"
+          },
           "revision": {
             "type": "string"
           },
@@ -6182,6 +6185,17 @@
         "required": [
           "items"
         ],
+        "type": "object"
+      },
+      "ListRemoval": {
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "ListShare": {

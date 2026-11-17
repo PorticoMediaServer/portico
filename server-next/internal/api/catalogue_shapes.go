@@ -153,7 +153,7 @@ type Item struct {
 	LibraryID string `json:"libraryId"`
 	// Chapter is, for an audiobook in Home's Continue your books, the chapter the place is in.
 	Chapter *ItemChapter `json:"chapter,omitempty"`
-	// EntryID is the entry's id in a list read in its own order: what a move or a removal names.
+	// EntryID names a list entry for moves and removals. In a sorted view it is omitted when the item occurs twice or more.
 	EntryID string `json:"entryId,omitempty"`
 
 	// On GET /v1/items/{id} only.
