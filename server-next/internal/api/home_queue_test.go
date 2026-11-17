@@ -11,6 +11,34 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 )
 
+func TestSavedViewPlaysFromSaved(t *testing.T) {
+	th := newTheatre(t)
+	_, want := th.album("Selected", 3)
+	library := th.libs[db.LibraryMusic].PublicID
+	var saved ListCreated
+	if w := th.queue("POST", "/v1/lists", "", ListCreate{Kind: "saved_view", Name: "Albums", Library: library,
+		Query: "kind=album&sort=title&order=asc"}, &saved); w.Code != 201 {
+		t.Fatal(w.Body)
+	}
+	for _, shuffle := range []bool{false, true} {
+		q := th.create(QueueCreate{Source: playqueue.QueueSource{List: saved.ID}, Shuffle: shuffle}).Queue
+		got := th.order(q.ID)
+		if shuffle {
+			slices.Sort(got)
+			slices.Sort(want)
+		}
+		if q.Shuffle != shuffle || !slices.Equal(got, want) {
+			t.Fatalf("saved view shuffle=%t: %v; want %v", shuffle, got, want)
+		}
+	}
+	// The same view ID cannot be played by a different profile.
+	addMember(t, th.s, th.owner.AccessToken, "another", "member")
+	viewer := signInAs(t, th.s, "another", testPassword, 2)
+	if w := call(t, th.s, "POST", "/v1/queues", viewer.AccessToken, QueueCreate{Source: playqueue.QueueSource{List: saved.ID}}, nil); w.Code != 404 {
+		t.Fatalf("another profile's view: %d %s", w.Code, w.Body)
+	}
+}
+
 // Home Play reads the whole row on the server, expands album cards and refills. Continue's
 // chosen order survives even when playing makes the live Continue row empty.
 func TestHomeRowsAreWholeQueueSources(t *testing.T) {

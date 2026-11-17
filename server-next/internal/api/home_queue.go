@@ -9,10 +9,22 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 )
 
-func (s *Server) prepareHomeQueue(r *http.Request, source *playqueue.QueueSource) error {
+func (s *Server) prepareQueueSource(r *http.Request, source *playqueue.QueueSource) error {
 	row := source.HomeRow
+	var viewQuery string
 	if row == nil {
-		return nil
+		if source.List == "" {
+			return nil
+		}
+		views, err := s.db.HomeViews(r.Context(), viewer(r), []string{source.List})
+		if err != nil || len(views) == 0 {
+			return err // a playlist or collection still uses its stored entries
+		}
+		row = &playqueue.HomeRowSource{Library: views[0].Library}
+		viewQuery = views[0].Query
+		source.List = ""
+	} else if row.ID == "" {
+		return ErrField("source.homeRow.id", "Choose a Home row.")
 	}
 	values := url.Values{}
 	for name, value := range map[string]string{"library": row.Library, "sort": row.Sort, "order": row.Order} {
@@ -36,24 +48,25 @@ func (s *Server) prepareHomeQueue(r *http.Request, source *playqueue.QueueSource
 			if view.ID != id {
 				continue
 			}
-			query, _, err := s.openView(r, view.Query)
-			if err != nil {
-				return err
-			}
-			base, _ := url.ParseQuery(query)
-			for name, value := range values {
-				base[name] = value
-			}
-			base.Set("library", view.Library)
-			values, found = base, true
+			viewQuery, found = view.Query, true
+			values.Set("library", view.Library)
 			break
 		}
 		if !found {
 			return ErrNotFound()
 		}
 		id = ""
-	} else if id == "" {
-		return ErrField("source.homeRow.id", "Choose a Home row.")
+	}
+	if id == "" {
+		query, _, err := s.openView(r, viewQuery)
+		if err != nil {
+			return err
+		}
+		base, _ := url.ParseQuery(query)
+		for name, value := range values {
+			base[name] = value
+		}
+		values = base
 	}
 	q, err := itemQuery(values)
 	if err != nil {
@@ -66,5 +79,6 @@ func (s *Server) prepareHomeQueue(r *http.Request, source *playqueue.QueueSource
 		return refuse(err)
 	}
 	row.Prepare(prepared)
+	source.HomeRow = row
 	return nil
 }
