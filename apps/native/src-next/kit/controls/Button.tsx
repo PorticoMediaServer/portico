@@ -18,7 +18,7 @@ export type ButtonProps = Omit<FocusableProps, 'children'> & {
   /** Optional drawn glyph color; labels continue to use textStyle. */
   iconColor?: string;
   iconOnly?: boolean;
-  /** TV draws a slot only for an icon or a running spinner; touch keeps its loading geometry. */
+  /** The leading slot is drawn only for an icon or a running spinner, so an idle label stays centred on every platform. */
   loading?: boolean;
   textStyle?: StyleProp<TextStyle>;
   /** Lines the label may take before it is cut (default 1); the face grows to hold them. Larger text always wraps. */
@@ -82,7 +82,7 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
       if (typeof __DEV__ !== 'undefined' && __DEV__) fillObservation.recordDeclaredStyle(StyleSheet.flatten(fillStyle));
       const fill = <View ref={fillObservation.ref} style={fillStyle} />;
       const content = <View pointerEvents="none" style={[styles.content, {gap: suppliedStyle?.columnGap ?? suppliedStyle?.gap ?? geometry.gap}]}>
-        {icon || (theme.isTV ? loading : loading !== undefined) ? <View style={{width: glyphSize, height: glyphSize, alignItems: 'center', justifyContent: 'center'}}>
+        {icon || loading ? <View style={{width: glyphSize, height: glyphSize, alignItems: 'center', justifyContent: 'center'}}>
           {loading ? <ActivityIndicator size={glyphSize} color={glyphColor} /> : icon ? <Icon name={icon} size={glyphSize} color={glyphColor} /> : null}
         </View> : null}
         {/* A control's label is never cut (owner's rule): a one-line label that does not fit shrinks a little first ("Continue readi…", W4 F11). */}

@@ -36,6 +36,7 @@ export function ButtonsGallery() {
     <Button testID="controls-button-disabled" disabled onPress={press}>{t('entry.play')}</Button>
     <Button testID="controls-button-loading" loading={loading} icon="i-play" onPress={press}>{t('entry.play')}</Button>
     <Button testID="controls-button-loading-text" loading={loading} onPress={press}>{t('action.tryAgain')}</Button>
+    <Button testID="controls-button-idle" loading={false} onPress={press}>{t('action.tryAgain')}</Button>
     <Button testID="controls-button-loading-toggle" variant="glass" size="small" onPress={() => setLoading(value => !value)}>{t('action.tryAgain')}</Button>
     <Button testID="controls-button-long" variant="glass" onPress={press} style={{maxWidth: 250}}>{longTitle}</Button>
     <Button testID="controls-button-full50" onPress={press} style={{height: 50, alignSelf: 'stretch'}}>{t('action.tryAgain')}</Button>
@@ -111,6 +112,17 @@ export function SwitchesGallery() {
       <Switch variant={variant} defaultChecked={false} testID={`controls-switch-${variant}-uncontrolled`}>{t('settings.row.startNextDuringCredits')}</Switch>
       <Switch variant={variant} checked disabled testID={`controls-switch-${variant}-disabled`}>{t('settings.row.autoplayNext')}</Switch>
     </View>)}
+  </Frame>;
+}
+
+/** Idle, idle-with-a-pending-flag and busy, stretched so a label off centre shows (outside review VP-12). */
+export function ButtonsBusyGallery() {
+  const press = () => {};
+  return <Frame title="next.controls.native.buttonsTitle">
+    {([undefined, false, true] as const).map(loading => <Button key={String(loading)} testID={`controls-busy-${String(loading)}`} loading={loading}
+      onPress={press} style={{alignSelf: 'stretch'}}>{t('action.tryAgain')}</Button>)}
+    {([undefined, false, true] as const).map(loading => <Button key={`glass-${String(loading)}`} variant="glass" loading={loading}
+      onPress={press} style={{alignSelf: 'stretch'}}>{t('action.continue')}</Button>)}
   </Frame>;
 }
 
@@ -196,6 +208,7 @@ export function TVChoiceGallery() {
 const galleries: readonly Gallery[] = [
   {id: 'controls', title: 'next.controls.native.galleryTitle', render: FocusGallery},
   {id: 'controls-buttons', title: 'next.controls.native.buttonsTitle', render: ButtonsGallery},
+  {id: 'controls-buttons-busy', title: 'next.controls.native.buttonsTitle', render: ButtonsBusyGallery},
   {id: 'controls-resume', title: 'next.controls.native.resumeTitle', render: ResumeGallery},
   {id: 'controls-chips', title: 'next.controls.native.chipsTitle', render: ChipsGallery},
   {id: 'controls-tabs', title: 'next.controls.native.tabsTitle', render: TabsGallery},
