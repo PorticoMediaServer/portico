@@ -106,7 +106,7 @@ test('Together republishes display and fallback preferences on the same service,
   const f = fixture(), serviceListeners = new Set<() => void>(), room = {phase: 'idle'}, runtime = {getSnapshot: () => ({disposed: false}), bindGroup: () => () => {detached++;}};
   let detached = 0, disposed = 0, constructed = 0;
   class Group {constructor() {constructed++;}getSnapshot = () => room;subscribe = (listener: () => void) => {serviceListeners.add(listener);return () => {serviceListeners.delete(listener);};};setI18n() {}dispose() {disposed++;}}
-  const module = await componentModule(new URL('../src/screens/together/bindings.ts', import.meta.url), {'@core/group-session.ts': {GroupSessionService: Group}, '../../shell/fact-hooks': {subscribePresentation},
+  const module = await componentModule(new URL('../src/screens/together/bindings.ts', import.meta.url), {'@core/room-session.ts': {RoomSessionService: Group}, '../../shell/fact-hooks': {subscribePresentation},
     '../../shell/settings': {shellLanguage: () => defaultI18n}, './item-summaries': {TogetherItemSummaries: class {update() {}dispose() {}invalidate() {}}}});
   const binding = module.createTogetherBindings(f.context, {runtime, artwork: f.context.artwork, environment: defaultI18n, reportError() {}});
   binding.start();const service = binding.service, items = binding.getSnapshot().items;let changes = 0;const off = binding.subscribe(() => changes++);

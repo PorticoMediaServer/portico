@@ -1,49 +1,37 @@
-import type {MessageId} from '@i18n';
-import type {Group, GroupMember} from '@core/social-playback.ts';
+import {defaultI18n, type MessageId} from '@i18n';
+import type {Room} from '@core/room-protocol.ts';
 
-/** The drawn room state: host reconnecting first, then the real timeline, then the group state. */
-export function togetherStateKey(group: Group): MessageId {
-  if (group.state.startsWith('host-reconnecting')) return 'web.together.state.hostReconnecting';
-  if (group.timeline.state === 'playing') return 'web.together.state.playing';
-  switch (group.state) {
-    case 'preparing': return 'web.together.state.preparing';
-    case 'waiting': return 'web.together.state.waiting';
-    case 'ready': return 'web.together.state.ready';
-    case 'ending': return 'web.together.state.ending';
-    case 'ended': return 'web.together.state.ended';
-    case 'paused': return 'next.dock.paused';
-    default: return 'web.together.state.lobby';
-  }
+type Member = Room['members'][number];
+export function togetherStateKey(group: Room): MessageId {
+  if (group.ended) return 'web.together.state.ended';
+  if (!group.host.present) return 'web.together.state.hostReconnecting';
+  if (group.clock.waitUntil) return 'web.together.state.waiting';
+  if (group.clock.playing) return 'web.together.state.playing';
+  return group.clock.entryId ? 'next.dock.paused' : 'web.together.state.lobby';
 }
 export type TogetherHostNotice = Readonly<{key: MessageId; seconds: number; takeOver: boolean; canClaim: boolean}>;
-/** The drawn warning strip: pauses while the host may still return, ends once the wait has passed.
- * The server owns self-claim eligibility; a missing canClaimHost is false. */
-export function togetherHostNotice(group: Group, nowMs: number): TogetherHostNotice | undefined {
-  if (group.host.presence === 'connected') return undefined;
-  const reconnecting = group.host.presence === 'reconnecting';
-  const at = Date.parse((reconnecting ? group.host.pauseAt : group.host.endAt) ?? '');
+export function togetherHostNotice(group: Room, nowMs: number): TogetherHostNotice | undefined {
+  if (group.host.present) return undefined;
+  const pauseAt = Date.parse(group.host.pausesAt ?? '');
+  const reconnecting = Number.isFinite(pauseAt) && nowMs < pauseAt;
+  const at = Date.parse((reconnecting ? group.host.pausesAt : group.host.endsAt) ?? '');
   if (!Number.isFinite(at)) return undefined;
-  const canClaim = !reconnecting && !group.permissions.isHost && group.permissions.canClaimHost === true;
+  const canClaim = group.you.mayBecomeHost;
   return {key: reconnecting ? 'web.together.pausesIn' : 'web.together.endsIn', seconds: Math.max(0, (at - nowMs) / 1000), takeOver: canClaim, canClaim};
 }
-/** The frame draws Make host only on someone who is in step. */
-export function togetherCanMakeHost(group: Group, member: GroupMember): boolean {
-  return group.permissions.isHost && member.id !== group.viewerMemberId && member.state === 'joined'
-    && member.presence === 'connected' && member.readiness === 'ready';
+export function togetherCanMakeHost(group: Room, member: Member): boolean {
+  return group.you.host && !member.you && member.status === 'in_step';
 }
-/** Pause while playing, Play anyway while anyone is still catching up, otherwise Play for everyone. */
-export function togetherPlayLabel(group: Group): MessageId {
-  if (group.timeline.state === 'playing') return 'web.together.pauseAll';
-  return group.readiness.ready < group.readiness.memberCount ? 'web.together.playAnyway' : 'web.together.playAll';
+export function togetherPlayLabel(group: Room): MessageId {
+  if (group.clock.waitUntil) return 'web.together.playAnyway';
+  return group.clock.playing ? 'web.together.pauseAll' : 'web.together.playAll';
 }
-/** A member sees the room without the Invite section. */
-export function togetherInviteVisible(group: Group): boolean {
-  return group.permissions.isHost;
+export function togetherInviteVisible(group: Room): boolean {return group.you.host;}
+export const memberName = (member: Member, privateName = defaultI18n.t('together.privateViewer')): string =>
+  member.private ? privateName : member.username || member.name || '';
+export const memberAlias = (member: Member): string | undefined =>
+  !member.private && member.username && member.name?.trim() && member.name !== member.username ? member.name : undefined;
+export function memberStatusKey(member: Member): MessageId {
+  return member.status === 'in_step' ? 'web.together.inStep' : member.status === 'buffering' ? 'web.together.loading'
+    : member.status === 'catching_up' ? 'web.together.catchingUp' : 'web.together.away';
 }
-
-type NamedMember = Readonly<{displayName: string; username?: string; private: boolean}>;
-/** G38: a member is named by username first; private members keep their masked name. */
-export const memberName = (member: NamedMember): string => !member.private && member.username ? member.username : member.displayName;
-/** The "Your name in the group" name, shown quieter only when it differs from the username. */
-export const memberAlias = (member: NamedMember): string | undefined =>
-  !member.private && member.username && member.displayName.trim() && member.displayName !== member.username ? member.displayName : undefined;

@@ -44,6 +44,9 @@ export type ScreenContext = Readonly<{
     editMetadata?: EntryMetadataEffect;
     addToPlaylist?: (target: EntryActionTarget, anchor: HTMLElement) => Promise<void>;
     addToCollection?: (target: EntryActionTarget, anchor: HTMLElement) => Promise<void>;
+    groupControl?: () => string | undefined;
+    watchWithGroup?: (target: EntryActionTarget) => Promise<void>;
+    addToGroupQueue?: (target: EntryActionTarget) => Promise<void>;
     deleteTitle?: (target: EntryActionTarget, anchor: HTMLElement) => Promise<void>;
     reportError: (error: unknown) => void;
     /** A short confirmation toast, with one action (Undo) when given. */

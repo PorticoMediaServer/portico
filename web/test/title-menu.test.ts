@@ -30,8 +30,8 @@ function fakeDetail(read: () => Promise<ReturnType<typeof detailData> | undefine
   return detail as unknown as Detail;
 }
 
-function harness(options: {role?: 'owner' | 'member'; read?: (entry: ContentEntry) => Promise<ReturnType<typeof detailData> | undefined>; enabled?: readonly string[]} = {}) {
-  const log = {errors: [] as unknown[], opened: [] as unknown[], playlists: [] as unknown[], collections: [] as unknown[], edits: [] as unknown[], deletes: [] as unknown[], requests: [] as string[], wire: [] as {path: string; method?: string; body?: unknown; signal?: AbortSignal}[]};
+function harness(options: {groupControl?: () => string | undefined; role?: 'owner' | 'member'; read?: (entry: ContentEntry) => Promise<ReturnType<typeof detailData> | undefined>; enabled?: readonly string[]} = {}) {
+  const log = {group: [] as unknown[], errors: [] as unknown[], opened: [] as unknown[], playlists: [] as unknown[], collections: [] as unknown[], edits: [] as unknown[], deletes: [] as unknown[], requests: [] as string[], wire: [] as {path: string; method?: string; body?: unknown; signal?: AbortSignal}[]};
   const state = {live: true};
   const details: Detail[] = [];
   const owner = options.role !== 'member';
@@ -39,7 +39,7 @@ function harness(options: {role?: 'owner' | 'member'; read?: (entry: ContentEntr
     api: {request: async (path: string, method?: string, body?: unknown, signal?: AbortSignal) => { log.requests.push(`${method ?? 'GET'} ${path}`); log.wire.push({path, method, body, signal}); return {}; }, requestRaw: async () => ({})},
     scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => state.live,
     identity: {viewer: {role: options.role ?? 'owner', authority: 'local'}},
-    effects: {reportError: (error: unknown) => { log.errors.push(error); }, openEntry: (entry: unknown) => { log.opened.push(entry); }, play: async () => {},
+    effects: {...(options.groupControl ? {groupControl: options.groupControl, watchWithGroup: async (target: unknown) => {log.group.push(['watch', target]);}, addToGroupQueue: async (target: unknown) => {log.group.push(['add', target]);}} : {}), reportError: (error: unknown) => { log.errors.push(error); }, openEntry: (entry: unknown) => { log.opened.push(entry); }, play: async () => {},
       addToPlaylist: async (target: unknown) => { log.playlists.push(target); }, addToCollection: async (target: unknown) => { log.collections.push(target); },
       ...(owner ? {editMetadata: async (target: unknown) => { log.edits.push(target); }, deleteTitle: async (target: unknown) => { log.deletes.push(target); }} : {})},
   }) as unknown as ScreenContext;
@@ -223,4 +223,23 @@ test('Rate reads the title, saves through its Detail, and a retired title cannot
   h.host.setRatingValue(session, 8);
   await h.host.saveRating(h.host.getSnapshot().rating!);
   assert.deepEqual(h.details.at(-1)!.mutations, [{action: 'rating', value: 8}]);
+});
+
+
+test('Together title rows use the current room control grant and recheck it at selection', async () => {
+  let controls: string | undefined = 'g1';
+  const h = harness({groupControl: () => controls});
+  try {
+    await h.host.open(anchor, h.subject(movie));
+    assert.ok(h.idsOf(h.menuOf()).includes('watchWithGroup'));
+    await h.host.choose(h.menuOf(), 'watchWithGroup');
+    await h.host.open(anchor, h.subject(movie));
+    await h.host.choose(h.menuOf(), 'addToGroupQueue');
+    assert.deepEqual(h.log.group, [['watch', {libraryId:'films', itemId:'m1', kind:'movie', title:'Heat'}], ['add', {libraryId:'films', itemId:'m1', kind:'movie', title:'Heat'}]]);
+    await h.host.open(anchor, h.subject(movie));controls = undefined;
+    await h.host.choose(h.menuOf(), 'watchWithGroup');assert.equal(h.log.group.length, 2);
+    controls = 'g1';await h.host.open(anchor, h.subject(movie));controls = 'g2';
+    await h.host.choose(h.menuOf(), 'addToGroupQueue');assert.equal(h.log.group.length, 2);controls = undefined;
+    await h.host.open(anchor, h.subject(movie));assert.ok(!h.idsOf(h.menuOf()).includes('watchWithGroup'));
+  } finally {h.host.dispose();}
 });

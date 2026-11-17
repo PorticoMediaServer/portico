@@ -55,6 +55,7 @@ export function detailMenuCapabilities(detail: TitleDetailFacts): EntryCapabilit
 /** What the opening screen can really carry out. A row without a port behind it is not drawn. */
 export type TitleMenuPorts = Readonly<{
   play: boolean;
+  group?: boolean;
   /** The shell's playlist and collection pickers. */
   playlist: boolean;
   collection: boolean;
@@ -70,7 +71,7 @@ export type TitleMenuPorts = Readonly<{
 /** Capabilities, narrowed to what this screen's ports carry out. Details is always offered. */
 export function limitMenuCapabilities(caps: EntryCapabilities, ports: TitleMenuPorts): EntryCapabilities {
   const kind = caps.kind, leaf = isLeafKind(kind);
-  // No queue, Watch Together, download, Continue Watching, recommendation or artist-separation row off Home.
+  // Uncarried actions stay absent; Together requires the active room control port.
   const next: {-readonly [K in keyof EntryCapabilities]: EntryCapabilities[K]} = {...caps};
   for (const key of ['queue', 'group', 'download', 'continueWatching', 'notInterested', 'separateArtist'] as const) delete next[key];
   // A leaf's personal state goes through its Detail, a show, season, album, artist or book's through the container
@@ -80,6 +81,7 @@ export function limitMenuCapabilities(caps: EntryCapabilities, ports: TitleMenuP
   return Object.freeze({
     ...next,
     playable: !!caps.playable && ports.play,
+    group: !!ports.group && leaf && kind !== 'book',
     addToPlaylist: !!caps.addToPlaylist && ports.playlist && leaf,
     addToCollection: !!caps.addToCollection && ports.collection && leaf,
     editMetadata: !!caps.editMetadata && ports.edit && (leaf || isAggregateKind(kind)),
