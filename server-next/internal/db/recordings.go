@@ -508,6 +508,7 @@ type RecordingRule struct {
 	ID, SourceID, ChannelID, ProfileID int64
 	PublicID                           string
 	SeriesKey, Title                   string
+	RatingAge                          *int // the creating programme, used only after its guide entries are gone
 	NewOnly, Paused                    bool
 	KeepNewest, KeepDays               *int
 	Priority                           int
@@ -515,13 +516,13 @@ type RecordingRule struct {
 }
 
 const ruleColumns = `id, public_id, profile_id, source_id, ifnull(channel_id, 0), ifnull(series_key, ''), title, new_only, keep_newest, keep_days,
-	priority, pad_before_ms, pad_after_ms, paused`
+	priority, pad_before_ms, pad_after_ms, paused, rating_age`
 
 func scanRule(row interface{ Scan(...any) error }) (RecordingRule, error) {
 	var r RecordingRule
 	var before, after *int64
 	err := row.Scan(&r.ID, &r.PublicID, &r.ProfileID, &r.SourceID, &r.ChannelID, &r.SeriesKey, &r.Title, &r.NewOnly, &r.KeepNewest,
-		&r.KeepDays, &r.Priority, &before, &after, &r.Paused)
+		&r.KeepDays, &r.Priority, &before, &after, &r.Paused, &r.RatingAge)
 	if before != nil {
 		d := time.Duration(*before) * time.Millisecond
 		r.PadBefore = &d
@@ -552,9 +553,9 @@ func (d *DB) SaveRule(ctx context.Context, r RecordingRule, now time.Time) (Reco
 			}
 			r.PublicID = NewID("rul")
 			_, err = tx.Exec(`INSERT INTO recording_rules (public_id, profile_id, source_id, channel_id, series_key, title, new_only, keep_newest,
-				keep_days, priority, pad_before_ms, pad_after_ms, paused, created_at, updated_at) VALUES (?, ?, ?, nullif(?, 0), nullif(?, ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				keep_days, priority, pad_before_ms, pad_after_ms, paused, created_at, updated_at, rating_age) VALUES (?, ?, ?, nullif(?, 0), nullif(?, ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				r.PublicID, r.ProfileID, r.SourceID, r.ChannelID, r.SeriesKey, r.Title, r.NewOnly, r.KeepNewest, r.KeepDays, r.Priority,
-				durationMS(r.PadBefore), durationMS(r.PadAfter), r.Paused, now.UnixMilli(), now.UnixMilli())
+				durationMS(r.PadBefore), durationMS(r.PadAfter), r.Paused, now.UnixMilli(), now.UnixMilli(), r.RatingAge)
 			return err
 		}
 		res, err := tx.Exec(`UPDATE recording_rules SET channel_id = nullif(?, 0), series_key = nullif(?, ''), title = ?, new_only = ?, keep_newest = ?,
