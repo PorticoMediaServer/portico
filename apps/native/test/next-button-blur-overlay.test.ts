@@ -166,16 +166,23 @@ test('one-line action labels shrink before cutting; multiline actions keep their
   }
 });
 
-test('TV buttons centre idle labels, draw the disabled primary token and align link ink with the column', async () => {
+test('idle buttons keep no empty spinner slot on phone, tablet and TV', async () => {
   const state = {focused: false, hovered: false, pressed: false};
-  for (const os of ['ios', 'android'] as const) {
-    const actual = await button(os, true);
+  for (const os of ['ios', 'android'] as const) for (const tv of [false, true]) {
+    const actual = await button(os, tv);
     for (const loading of [undefined, false, true]) {
       const focus = actual.host('primary', {loading});
       const content = elements(focus.props.children(state)).find(node => flatten(node.props.style).justifyContent === 'center')!;
       assert.deepEqual(elements(content).filter(node => node.type === 'View' && flatten(node.props.style).width).length, loading ? 1 : 0,
         'a false loading state does not leave an empty leading slot');
     }
+  }
+});
+
+test('TV buttons draw the disabled primary token and align link ink with the column', async () => {
+  const state = {focused: false, hovered: false, pressed: false};
+  for (const os of ['ios', 'android'] as const) {
+    const actual = await button(os, true);
     const disabled = actual.host('primary', {disabled: true});
     assert.equal(flatten(disabled.props.style(state)).opacity, 1, 'the disabled fill supplies its own alpha');
     const drawn = elements(disabled.props.children(state));
