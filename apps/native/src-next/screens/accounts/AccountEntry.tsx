@@ -705,8 +705,11 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     else {memberMoveRef.current.cancel(); setStage('member-move');}
   };
   const requestReset = async () => {
-    await account.current!.forgot(username);
-    if (lifetime.current) {setPassword(''); setCode(''); setStage('forgot-sent');}
+    const source = account.current;
+    if (!source) return;
+    const current = () => lifetime.current && account.current === source && stageRef.current === 'forgot';
+    await source.forgot(username, current);
+    if (current()) {setPassword(''); setCode(''); setStage('portico');}
   };
   const inspect = async (origin = address) => {
     const resetIntent = ownerResetIntent.current, invite = invitationIntent.current;

@@ -1,5 +1,5 @@
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
-import {NativeModules} from 'react-native';
+import {NativeModules, Linking} from 'react-native';
 import {MFARequiredError, parseNativeAccountContinuation,
   type IdentityProvider, type IdentityTransaction, type MFAChallenge, type NativeAccountContinuation, type Registration} from '../../../../packages/client-core/src/hosted-security';
 import type {PorticoServicesAccountClient} from '../../../../packages/client-core/src/portico-services-native';
@@ -131,11 +131,12 @@ export class NativePorticoSignIn {
       try {return await this.api().mfa(challenge, code);} finally {linked.dispose();}
     }, callerLive, formLive);
   }
-  /** Account help sends a reset code to the account's confirmed email address; the new
-   * password is chosen at web.getportico.tv. Services answers the same way whether or not
-   * the address has an account. */
-  async forgot(email: string) {
-    return this.api().recover(email.trim().toLowerCase());
+  /** The hosted page owns the emailed code and new password. Return to ordinary app sign-in;
+   * resetting never grants this app a session or needs an invented callback. */
+  async forgot(_email: string, callerCurrent?: () => boolean) {
+    this.checkCaller(callerCurrent);
+    await Linking.openURL(hostedUrl + '/reset');
+    this.checkCaller(callerCurrent);
   }
   /** Google and Apple are not offered yet (their own follow-up). */
   async provider(_provider: IdentityProvider, _callerCurrent?: () => boolean): Promise<IdentityTransaction> {
