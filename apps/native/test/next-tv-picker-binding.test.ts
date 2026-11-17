@@ -46,7 +46,7 @@ const shared = (back: Awaited<ReturnType<typeof backOwner>>) => ({
   '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/Icon': {Icon: 'Icon'},
   '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({entries: []}), remove: async () => {}}, offlineOwnerKey: () => 'owner'},
   './sign-out-downloads': {removeCapturedDownloads: async () => 0},
-  '../../tv/auth': {TVProfilePINForm: 'PIN', TVForgotPINHandoff: 'Forgot', TVFrontDoor: 'Front', TVCodePresenter: 'Code',
+  '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../tv/auth': {TVProfilePINForm: 'PIN', TVForgotPINHandoff: 'Forgot', TVFrontDoor: 'Front', TVCodePresenter: 'Code',
     TVCredentialForm: 'Credentials', TVVerificationForm: 'Factor', TVRequiredSetupHandoff: 'Required', TVWhosWatching: 'WhosWatching', TVProfileSwitchPage: 'SwitchPage'},
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
 });
