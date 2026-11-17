@@ -12,7 +12,8 @@ import {linkNativeAbortSignals} from '../../../packages/client-core/src/native-a
 const origin = 'https://accounts.example.test', secret = 's'.repeat(43), code = 'c'.repeat(43);
 const tokens = {accessToken: 'pat_fixture', refreshToken: 'prt_fixture', expiresAt: new Date(Date.now() + 3600000).toISOString()};
 type Call = {path: string; body: any; headers: Headers; credentials?: RequestCredentials};
-async function fixture(nativeApple = true, completion: (body: any) => [number, unknown] = () => [200, {tokens}]) {
+async function fixture(nativeApple = true, completion: (body: any) => [number, unknown] = () => [200, {tokens}], provider: 'apple' | 'google' = 'apple') {
+  const authorizeUrl = provider === 'apple' ? 'https://appleid.apple.com/auth/authorize' : 'https://accounts.google.com/o/oauth2/v2/auth';
   const calls: Call[] = [], saves: string[] = []; let sheets = 0, browsers = 0, adopted = 0, live = true, bindings = 0;
   let browserResult = `portico://account-return?transactionId=sso_fixture&code=${code}`;
   let duringSheet = () => {}, duringBrowser = () => {}, accountUnavailable = false;
@@ -23,7 +24,7 @@ async function fixture(nativeApple = true, completion: (body: any) => [number, u
     let status = 200, answer: unknown;
     if (path === '/v1/sessions/provider') answer = body.kind === 'app'
       ? {id: 'sso_fixture', nonce: 'nonce-from-services', expiresAt: new Date(Date.now() + 600000).toISOString()}
-      : {id: 'sso_fixture', authorizeUrl: 'https://appleid.apple.com/auth/authorize', expiresAt: new Date(Date.now() + 600000).toISOString()};
+      : {id: 'sso_fixture', authorizeUrl, expiresAt: new Date(Date.now() + 600000).toISOString()};
     else if (path === '/v1/sessions/apple' || path === '/v1/sessions/provider/complete') [status, answer] = completion(body);
     else if (path === '/v1/sessions/two-step') [status, answer] = body.code === '123456' ? [200, {tokens}] : [403, {error: {code: 'two_step_wrong'}}];
     else if (path === '/v1/account') [status, answer] = accountUnavailable ? [503, {error: {code: 'busy'}}] : [200, {id: 'acct_fixture', username: 'ada', displayName: 'Ada'}];
@@ -34,12 +35,12 @@ async function fixture(nativeApple = true, completion: (body: any) => [number, u
   const client = new PorticoServicesAccountClient(origin, {name: 'Portico test phone', kind: 'phone'}, fetcher, () => 'family_fixture');
   // Capabilities have their own wire test (PR1); this fixture supplies the offered-method view model.
   client.options = async () => ({password: true, registration: true, recovery: true, accountSecurity: false, verifiedContactRequired: true,
-    providers: [{id: 'apple', enabled: true, native: false, nativeClientIds: []}]});
+    providers: [{id: provider, enabled: true, native: false, nativeClientIds: []}]});
   const bridge = {canSignInApple: nativeApple, canOpenBrowser: true,
     loadContinuation: async () => null, saveContinuation: async (_origin: string, value: string) => {saves.push(value);},
     newBinding: async () => ++bindings === 1 ? 'b'.repeat(43) : secret, cancel() {},
     signInApple: async (nonce: string) => {sheets++; assert.equal(nonce, 'nonce-from-services'); duringSheet(); return {idToken: 'apple-identity-token', displayName: 'Ada Lovelace'};},
-    openBrowser: async (url: string, expected: string) => {browsers++; assert.equal(url, 'https://appleid.apple.com/auth/authorize'); assert.equal(expected, 'sso_fixture'); duringBrowser(); return browserResult;},
+    openBrowser: async (url: string, expected: string) => {browsers++; assert.equal(url, authorizeUrl); assert.equal(expected, 'sso_fixture'); duringBrowser(); return browserResult;},
   };
   const nativeAccounts = {onCancel: () => () => {}, porticoClient: () => client, cancel() {},
     authenticatePorticoAccount: async (work: (signal: AbortSignal) => Promise<unknown>, current: () => boolean) => {
@@ -136,4 +137,39 @@ test('a provider grant whose account cannot be read is ended instead of left wit
   const ended = f.calls.find(call => call.path === '/v1/sessions/current');
   assert.equal(ended?.headers.get('Authorization'), 'Bearer pat_fixture');
   f.source.dispose();
+});
+
+
+test('Google uses the browser even on an Apple-capable device and completes through the Gallery entry points', async () => {
+  const f = await fixture(true, () => [200, {tokens}], 'google');
+  const tx = await f.source.provider('google'); await f.source.finishProvider();
+  assert.equal(tx.provider, 'google'); assert.equal(tx.status, 'verified');
+  assert.equal(f.sheets(), 0); assert.equal(f.browsers(), 1); assert.equal(f.adopted(), 1);
+  assert.equal(f.calls[0].body.provider, 'google'); assert.equal(f.calls[0].body.kind, undefined);
+  assert.equal(f.calls[0].body.secretHash, routeBase64(await webRouteCrypto.sha256(new TextEncoder().encode(secret))));
+  assert.equal(f.calls[1].path, '/v1/sessions/provider/complete');
+  assert.equal(f.calls[1].body.code, code); assert.equal(f.calls[1].body.secret, secret);
+  assert.ok(f.calls[1].headers.get('Idempotency-Key')); f.source.dispose();
+});
+
+test('Google first-use username and two-step replies use the existing forms', async () => {
+  for (const step of ['username', 'two-step'] as const) {
+    const f = await fixture(true, body => step === 'username'
+      ? body.username ? [200, {tokens}] : [422, {error: {code: 'username_needed'}}]
+      : [200, {twoStep: {challengeId: 'tsc_fixture'}}], 'google');
+    const tx = await f.source.provider('google'); assert.equal(f.adopted(), 0);
+    if (step === 'username') {assert.equal(tx.needsUsername, true); await f.source.finishProvider('ada', 'Ada');}
+    else {assert.equal(tx.mfaRequired, true); await f.source.finishProvider(undefined, undefined, '123456');}
+    assert.equal(f.adopted(), 1); assert.equal(f.browsers(), 1); f.source.dispose();
+  }
+});
+
+test('Google rejects an unrelated return or an opening retired while its browser was out', async () => {
+  for (const retired of [false, true]) {
+    const f = await fixture(false, () => [200, {tokens}], 'google');
+    if (retired) f.onBrowser(f.retire);
+    else f.setBrowser(`portico://account-return?transactionId=other&code=${code}`);
+    await assert.rejects(f.source.provider('google'));
+    assert.equal(f.calls.length, 1); assert.equal(f.adopted(), 0); f.source.dispose();
+  }
 });
