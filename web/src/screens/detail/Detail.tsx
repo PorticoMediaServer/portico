@@ -70,7 +70,7 @@ export function TitleBody({binding, compact = false, artworkClaim}: {binding: De
   const watch = useWatchBodyPlayback();
   const snapshot = useSyncExternalStore(binding.service.subscribe, binding.service.getSnapshot, binding.service.getSnapshot);
   const preferences = useSyncExternalStore(binding.context.preferences.subscribe, binding.context.preferences.getSnapshot, binding.context.preferences.getSnapshot);
-  const data = snapshot.data, {tab} = useSyncExternalStore(binding.view.subscribe, binding.view.getSnapshot, binding.view.getSnapshot);
+  const data = snapshot.data, {tab: requestedTab} = useSyncExternalStore(binding.view.subscribe, binding.view.getSnapshot, binding.view.getSnapshot);
   const recommendations = useSyncExternalStore(binding.recommendations.subscribe, binding.recommendations.getSnapshot, binding.recommendations.getSnapshot);
   useEffect(() => { if (data?.item.kind === 'movie') void binding.readRecommendations(data); }, [binding, data]);
   // music-plus f7 (MC-9): an album's More like this is the server's own bounded ranking, read
@@ -86,7 +86,12 @@ export function TitleBody({binding, compact = false, artworkClaim}: {binding: De
   // Keep the viewport hook unconditional while the detail request is loading.
   const standalonePhone = useShellWidth() < 600;
   if (!data) return snapshot.phase === 'error' ? <ScreenProblem context={binding.context} error={snapshot.error} subject={binding.subject()} retry={() => { void binding.service.retry(); }} /> : <DetailLoading key={snapshot.target?.itemId} />;
-  const tabs = [{value: 'related', label: t('next.controls.moreLikeThis')}, {value: 'details', label: t('next.controls.details')}, ...(data.extras?.some(extra => extra.items.length) ? [{value: 'extras', label: t('next.controls.extras')}] : [])];
+  const relatedRows = titleRecommendationRows(recommendations.data);
+  const hasRelated = data.item.kind === 'movie' ? recommendations.phase !== 'ready' || relatedRows.length > 0
+    : data.item.kind === 'album' ? similar?.data !== data || !!(similar.value.entries.length || similar.value.nextCursor)
+      : !!data.related?.rows.length;
+  const tab = requestedTab === 'related' && !hasRelated ? 'details' : requestedTab;
+  const tabs = [...(hasRelated ? [{value: 'related', label: t('next.controls.moreLikeThis')}] : []), {value: 'details', label: t('next.controls.details')}, ...(data.extras?.some(extra => extra.items.length) ? [{value: 'extras', label: t('next.controls.extras')}] : [])];
   return <article className={styles.page} data-compact={compact || undefined} data-title-id={data.scope.itemId}>
     {standalonePhone && !compact && <div className={styles.phoneTopBar}>{binding.context.effects.back && <Button variant="icon" icon="i-left" iconOnly aria-label={t('next.states.back')} onClick={() => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); })} />}</div>}
     {!compact && <TitleHero binding={binding} data={data} artworkClaim={artworkClaim} showBackdrops={preferenceValue<boolean>(preferences, 'appearance.showBackdrops')} />}
@@ -95,7 +100,9 @@ export function TitleBody({binding, compact = false, artworkClaim}: {binding: De
     {snapshot.phase === 'error' && <ScreenFailure retry={() => { void binding.service.retry(); }} />}
     {snapshot.mutationError && <ScreenFailure retry={() => { void binding.service.retryMutation(); }} />}
     <div key={tab} id={tabPanelId} role="tabpanel" aria-labelledby={`${tabPanelId}-tab-${tab}`} tabIndex={0} className={tab === 'details' ? styles.tabPanel : `${styles.tabPanel} ${styles.rowsPanel}`}>{tab === 'details' ? <TitleDetails binding={binding} data={data} /> : tab === 'extras' ? data.extras?.map(extra => <TitleRow key={extra.type} heading={extra.label} entries={extra.items} binding={binding} />)
-      : recommendations.data ? titleRecommendationRows(recommendations.data).map(row => <TitleRecommendationRow key={row.id} row={row} owner={{kind: 'item', id: data.item.id}} binding={binding} subtitleVisible={!compact} guard={() => binding.current(data)} />)
+      : data.item.kind === 'movie' && recommendations.phase === 'error' ? <ScreenFailure retry={() => { void binding.readRecommendations(data); }} />
+        : data.item.kind === 'movie' && recommendations.phase !== 'ready' ? <DetailLoading />
+        : recommendations.data ? relatedRows.map(row => <TitleRecommendationRow key={row.id} row={row} owner={{kind: 'item', id: data.item.id}} binding={binding} subtitleVisible={!compact} guard={() => binding.current(data)} />)
         : similar?.data === data ? (<SimilarTitleRow first={similar.value} scope={similar.scope} heading={t('music.moreLikeThis')} subtitle={t(similar.value.bySound ? 'music.moreLikeThisBySound' : 'music.moreLikeThisHint')} binding={binding} guard={() => binding.current(data)} />)
         : data.related?.rows.map(row => <RelatedTitleRow key={row.id} row={row} data={data} binding={binding} guard={() => binding.current(data)} />)}</div>
   </article>;
