@@ -1,11 +1,10 @@
-import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
+import {serverPath} from './query/server-api.ts';
 import {unreadableServerResponse} from './server-messages.ts';
-import {wireDurations} from './wire-units.ts';
-/** Trickplay set descriptors and their delivery URLs.
+/** Scrub previews: a version's frames on JPEG sprite sheets, as the players draw them.
  *
- * The server owns the geometry, the staleness decision and the published URLs;
- * this module only rejects payloads that do not describe a consistent sprite
- * sheet. It never derives a tile path from anything but the parsed set. */
+ * The server owns the geometry and the sheet addresses (`GET /v1/items/{id}/scrub-previews`);
+ * this module only rejects answers that do not describe a consistent grid. It never derives a
+ * sheet path from anything but the parsed answer. */
 
 export type TrickplaySet = Readonly<{
   id: string;
@@ -29,15 +28,6 @@ export type TrickplaySet = Readonly<{
   /** A download's sheets, as files on the device, by tile; they stand in for `tilesUrl`. */
   tileUrls?: readonly string[];
 }>;
-export type TrickplayScope = Readonly<{
-  serverId: string;
-  libraryId: string;
-  itemId: string;
-  viewerFence: string;
-  sessionId: string;
-  sessionGeneration: number;
-}>;
-export type TrickplayView = Readonly<{scope: TrickplayScope; sets: readonly TrickplaySet[]}>;
 export type TrickplayTarget = Readonly<{libraryId: string; itemId: string}>;
 /** One resolved preview frame: which tile to draw and the crop inside it. */
 export type TrickplayFrame = Readonly<{
@@ -54,80 +44,48 @@ export type TrickplayFrame = Readonly<{
 
 const object = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
 const text = (x: unknown, max = 512): x is string => typeof x === 'string' && x.length > 0 && x.length <= max && !/[\x00-\x1f\x7f]/.test(x);
-const opaque = (x: unknown): x is string => typeof x === 'string' && /^[a-f0-9]{64}$/.test(x);
 const count = (x: unknown, max: number): x is number => typeof x === 'number' && Number.isSafeInteger(x) && x >= 1 && x <= max;
 const positive = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0;
 function assertTrickplay(condition: unknown): asserts condition {
   if (!condition) throw Object.assign(new Error(unreadableServerResponse),{code:'invalid_trickplay'});
 }
 
-function parseTrickplaySet(wire: unknown, target: TrickplayTarget): TrickplaySet {
-  // The wire carries milliseconds; the set is indexed in seconds like the player's clock.
-  let raw: unknown;
-  try { raw = wireDurations(wire, {intervalSeconds: 'intervalMs', durationSeconds: 'durationMs', sourceOffsetSeconds: 'sourceOffsetMs'}); } catch { raw = undefined; }
-  assertTrickplay(object(raw));
-  assertTrickplay(opaque(raw.id) && text(raw.sourceId, 256) && text(raw.sourceRevision, 256) && opaque(raw.revision));
-  assertTrickplay(count(raw.tileWidth, 4096) && count(raw.tileHeight, 4096) && count(raw.columns, 64) && count(raw.rows, 64));
-  assertTrickplay(count(raw.width, 16384) && count(raw.height, 16384));
-  // Sheet geometry must be exactly the grid it claims, or every crop drifts.
-  assertTrickplay(raw.width === raw.columns * raw.tileWidth && raw.height === raw.rows * raw.tileHeight);
-  assertTrickplay(count(raw.frameCount, 65536) && count(raw.tileCount, 65536));
-  assertTrickplay(raw.tileCount === Math.ceil(raw.frameCount / (raw.columns * raw.rows)));
-  assertTrickplay(positive(raw.intervalSeconds) && positive(raw.durationSeconds));
-  // Frames are captured over the whole source; a trimmed item starts later in it.
-  assertTrickplay(typeof raw.sourceOffsetSeconds === 'number' && Number.isFinite(raw.sourceOffsetSeconds) && raw.sourceOffsetSeconds >= 0);
-  assertTrickplay(typeof raw.stale === 'boolean');
-  const tilesUrl = encodedRoutePath("get_items_id", {"id": target.itemId}) + '/trickplay/' + raw.id + '/tiles';
-  const thumbnailsUrl = encodedRoutePath("get_items_id_trickplay_set_thumbnails_vtt", {"id": target.itemId, "set": raw.id});
-  // Delivery URLs are server authored; accept only the ones this item can serve.
-  assertTrickplay(raw.tilesUrl === tilesUrl && raw.thumbnailsUrl === thumbnailsUrl);
-  return Object.freeze({
-    id: raw.id,
-    sourceId: raw.sourceId,
-    sourceRevision: raw.sourceRevision,
-    width: raw.width,
-    height: raw.height,
-    tileWidth: raw.tileWidth,
-    tileHeight: raw.tileHeight,
-    columns: raw.columns,
-    rows: raw.rows,
-    intervalSeconds: raw.intervalSeconds,
-    durationSeconds: raw.durationSeconds,
-    sourceOffsetSeconds: raw.sourceOffsetSeconds,
-    tileCount: raw.tileCount,
-    frameCount: raw.frameCount,
-    stale: raw.stale,
-    revision: raw.revision,
-    tilesUrl,
-    thumbnailsUrl,
-  });
+/** Whether the server makes scrub previews (`scrub-previews` in `GET /v1/system`'s capabilities). Until it
+ * says so the players never ask, so a server without them costs no failing read. */
+export function serverOffersScrubPreviews(system: unknown): boolean {
+  const capabilities = object(system) ? system.capabilities : undefined;
+  return Array.isArray(capabilities) && capabilities.includes('scrub-previews');
 }
 
-export function parseTrickplay(raw: unknown, serverId: string, target: TrickplayTarget): TrickplayView {
-  assertTrickplay(object(raw) && object(raw.scope) && Array.isArray(raw.sets) && raw.sets.length <= 32);
-  const scope = raw.scope;
-  assertTrickplay(scope.serverId === serverId && scope.libraryId === target.libraryId && scope.itemId === target.itemId);
-  assertTrickplay(text(scope.viewerFence, 256) && scope.sessionId === '' && scope.sessionGeneration === 0);
-  const sets = raw.sets.map(v => parseTrickplaySet(v, target));
-  assertTrickplay(new Set(sets.map(v => v.id)).size === sets.length);
-  return Object.freeze({
-    scope: Object.freeze({
-      serverId,
-      libraryId: target.libraryId,
-      itemId: target.itemId,
-      viewerFence: scope.viewerFence,
-      sessionId: '',
-      sessionGeneration: 0,
-    }),
-    sets: Object.freeze(sets),
+const scrubPath = (itemId: string) => serverPath('GET /v1/items/{id}/scrub-previews', {id: itemId});
+
+/** One version's previews as the set the players draw: `null` when the server has none for it
+ * (`available: false`), and the player keeps its plain scrubber. Sheets are read with the viewer's
+ * sign-in, at the addresses the answer names. */
+export function parseScrubPreviews(raw: unknown, itemId: string, versionId: string): TrickplaySet | null {
+  assertTrickplay(object(raw) && raw.version === versionId && typeof raw.available === 'boolean');
+  if (!raw.available) return null;
+  // The grid is 10 by 10 unless the answer names its rows.
+  const rows = raw.rows ?? raw.columns;
+  assertTrickplay(count(raw.frameWidth, 4096) && count(raw.frameHeight, 4096) && count(raw.columns, 64) && count(rows, 64) && count(raw.frameCount, 65536));
+  assertTrickplay(positive(raw.intervalMs) && positive(raw.durationMs) && Array.isArray(raw.sheets));
+  const tileCount = Math.ceil(raw.frameCount / (raw.columns * rows)), base = scrubPath(itemId) + '?';
+  assertTrickplay(raw.sheets.length === tileCount);
+  const tileUrls = raw.sheets.map((url, sheet) => {
+    assertTrickplay(text(url, 1024) && url.startsWith(base));
+    const query = new URLSearchParams(url.slice(base.length));
+    assertTrickplay([...query.keys()].length === 2 && query.get('version') === versionId && query.get('sheet') === String(sheet));
+    return base + new URLSearchParams({version: versionId, sheet: String(sheet)});
   });
+  return Object.freeze({id: versionId, sourceId: versionId, sourceRevision: versionId, width: raw.columns * raw.frameWidth, height: rows * raw.frameHeight,
+    tileWidth: raw.frameWidth, tileHeight: raw.frameHeight, columns: raw.columns, rows, intervalSeconds: raw.intervalMs / 1000, durationSeconds: raw.durationMs / 1000,
+    sourceOffsetSeconds: 0, tileCount, frameCount: raw.frameCount, stale: false, revision: versionId, tilesUrl: '', thumbnailsUrl: '', tileUrls: Object.freeze(tileUrls)});
 }
 
-/** An item's preview sets (`GET /v1/items/{id}/trickplay`): one named read. The server decides
- * which sets are stale; callers choose with `preferredTrickplaySet`. */
-export async function readItemTrickplay(request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<T>,
-  serverId: string, target: TrickplayTarget, signal?: AbortSignal): Promise<TrickplayView> {
-  return parseTrickplay(await request<unknown>(encodedRoutePath('get_items_id_trickplay', {id: target.itemId}), 'GET', undefined, signal), serverId, target);
+/** Reads one version's scrub previews. Ask only where `serverOffersScrubPreviews` says the server has them. */
+export async function readScrubPreviews(request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<T>,
+  itemId: string, versionId: string, signal?: AbortSignal): Promise<TrickplaySet | null> {
+  return parseScrubPreviews(await request<unknown>(scrubPath(itemId) + '?' + new URLSearchParams({version: versionId}), 'GET', undefined, signal), itemId, versionId);
 }
 
 /** The sprite sheet holding a tile index. */
@@ -141,11 +99,6 @@ export function trickplayTileUrl(set: TrickplaySet, tileIndex: number): string {
     return local;
   }
   return set.tilesUrl + '/' + tileIndex + '.jpg';
-}
-
-/** The WebVTT thumbnails track for a set. */
-export function trickplayThumbnailsUrl(set: TrickplaySet): string {
-  return set.thumbnailsUrl;
 }
 
 /** Resolve a preview frame by its index within the set.
@@ -179,16 +132,6 @@ export function trickplayFrameAt(set: TrickplaySet, seconds: number): TrickplayF
   const index = Math.min(set.frameCount - 1, Math.floor((seconds + set.sourceOffsetSeconds) / set.intervalSeconds));
   if (index < 0) return null;
   return trickplayFrame(set, index);
-}
-
-/** Prefer a current set over a stale one, then the finest interval. */
-export function preferredTrickplaySet(view: TrickplayView, sourceId?: string): TrickplaySet | null {
-  const usable = view.sets.filter(v => sourceId === undefined || v.sourceId === sourceId);
-  if (!usable.length) return null;
-  const ranked = [...usable].sort(
-    (a, b) => Number(a.stale) - Number(b.stale) || a.intervalSeconds - b.intervalSeconds || b.tileWidth - a.tileWidth,
-  );
-  return ranked[0];
 }
 
 /** A download's preview set (queue 6): the geometry its bundle carried and its sheets as files on
