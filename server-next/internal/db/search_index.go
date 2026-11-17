@@ -539,6 +539,10 @@ func (ix *searchIndex) apply(changes []Change) error {
 		return err
 	}
 	w.close()
+	// Publish the copied facts and their cursor together, after searches using the old
+	// facts finish. Main-database writes never wait for this lock.
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
 	if err := tx.Commit(); err != nil {
 		return err
 	}
