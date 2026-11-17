@@ -12,7 +12,7 @@
 import {entriesFromItems, readItems} from './items.ts';
 import {libraryItemQuery} from './library-browse.ts';
 import type {JobSelector} from './bulk-jobs.ts';
-import type {Job, JobStart, MetadataDocument} from '../../contracts/src/next/api.ts';
+import type {AdminLibrary, Job, JobStart, MetadataDocument} from '../../contracts/src/next/api.ts';
 import type {BulkMetadataField, BulkMetadataPreview, BulkMetadataPreviewTarget, BulkMetadataValueCount} from './home-selection/metadata-preview.ts';
 import type {BulkEdit, BulkListEdit} from './metadata-bulk.ts';
 import type {RepairFieldSpec} from './metadata-repair.ts';
@@ -83,6 +83,15 @@ function aggregate(values: readonly string[], titles: readonly string[], entries
     values: Object.freeze(rows), entries: Object.freeze(entryRows.rows), locked, truncated});
 }
 
+/** All selected films must accept the same choice; an empty value inherits each film's library language. */
+async function languageField(api: BulkMetadataApi, targets: readonly BulkMetadataPreviewTarget[], signal?: AbortSignal): Promise<RepairFieldSpec> {
+  const libraries = await Promise.all([...new Set(targets.map(target => target.libraryId))].map(id =>
+    api.request<AdminLibrary>(serverPath('GET /v1/admin/libraries/{id}', {id}), 'GET', undefined, signal)));
+  const choices = libraries.map(library => library.metadataProviders.find(provider => provider.id === library.metadataProvider)?.languages ?? []);
+  const common = [...new Set(choices[0] ?? [])].filter(value => choices.every(values => values.includes(value)));
+  return {field: 'metadataLanguage', label: 'Metadata language', group: 'general', type: 'enum', bulk: true, allowed: ['', ...common]};
+}
+
 /** The bulk editor's preview of the chosen titles. */
 export async function readBulkMetadataPreview(api: BulkMetadataApi, targets: readonly BulkMetadataPreviewTarget[], serverId: string,
   signal?: AbortSignal, isCurrent?: () => boolean): Promise<BulkMetadataPreview> {
@@ -91,7 +100,10 @@ export async function readBulkMetadataPreview(api: BulkMetadataApi, targets: rea
   // Titles edited together are one kind (rule 27).
   if (docs.some((doc, index) => !doc || doc.itemId !== targets[index]!.id || doc.kind !== docs[0]!.kind)) throw fail('metadata-one-kind-required');
   const titles = docs.map(doc => asText(doc.fields?.title?.value));
-  const schema = [...scalarFields.filter(spec => docs.every(doc => doc.fields && spec.field in doc.fields)),
+  const language = docs[0]!.kind === 'movie' && docs.every(doc => doc.fields && 'metadataLanguage' in doc.fields)
+    ? await languageField(api, targets, signal) : undefined;
+  if (signal?.aborted || isCurrent && !isCurrent()) throw fail('cancelled');
+  const schema = [...scalarFields.filter(spec => docs.every(doc => doc.fields && spec.field in doc.fields)), ...(language ? [language] : []),
     ...listFields.filter(spec => docs.every(doc => doc.lists && listField(spec.field) in doc.lists))];
   const fields: Record<string, BulkMetadataField> = {};
   for (const spec of schema) {
@@ -117,7 +129,8 @@ export function bulkMetadataParams(edit: BulkEdit): Record<string, unknown> {
       const year = Number(change.value.trim());
       if (!Number.isInteger(year) || year < 0 || year > 9999) throw fail('metadata-edit-unavailable');
       params.year = year;
-    } else if (field === 'edition' || field === 'contentRating') params[field] = change.value.trim();
+    } else if (field === 'metadataLanguage') params.metadataLanguage = change.value.trim();
+    else if (field === 'edition' || field === 'contentRating') params[field] = change.value.trim();
     else throw fail('metadata-edit-unavailable');
   }
   const lists: [string, BulkListEdit][] = [...Object.entries(edit.lists ?? {}), ...(edit.genres ? [['genres', edit.genres] as [string, BulkListEdit]] : [])];
@@ -134,6 +147,7 @@ export function bulkMetadataParams(edit: BulkEdit): Record<string, unknown> {
 function applied(doc: MetadataDocument, params: Record<string, unknown>): boolean {
   for (const field of ['year', 'edition', 'contentRating']) if (field in params
     && (asText(doc.fields?.[field]?.value) !== asText(params[field]) || params.lock === true && !doc.fields?.[field]?.locked)) return false;
+  if ('metadataLanguage' in params && asText(doc.fields?.metadataLanguage?.value) !== asText(params.metadataLanguage)) return false;
   const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
   for (const [name, values] of Object.entries((params.add ?? {}) as Record<string, string[]>)) if (!values.every(value => doc.lists?.[name]?.values.some(entry => same(entry, value)))) return false;
   for (const [name, values] of Object.entries((params.remove ?? {}) as Record<string, string[]>)) if (values.some(value => doc.lists?.[name]?.values.some(entry => same(entry, value)))) return false;

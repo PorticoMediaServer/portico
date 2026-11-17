@@ -106,7 +106,7 @@ export function bulkFieldHint(field: BulkFieldValues, count: number, edited: boo
 export type BulkSummaryLine = Readonly<{id: string; text: string; fieldLabel?: string; changedCount?: number; changedTitles?: readonly string[]}>;
 /** Display names never enter a metadata write. The draft always keeps the actual language tag. */
 export function bulkFieldDisplayValue(field: string, value: string): string {
-  return field === 'metadataLanguage' && value ? defaultI18n.languageName(value) : value;
+  return field === 'metadataLanguage' ? value ? defaultI18n.languageName(value) : selectionText('next.selection.libraryLanguage') : value;
 }
 /** OW-6: the titles a scalar change touches, only when the preview names every one of them (up to five). The
  * titles that already hold the new value don't matter; a value whose list is short of its count does. */
