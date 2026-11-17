@@ -3,9 +3,11 @@ package metadata
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
 // RefreshAll asks the provider again about every matched title of a library not refreshed
@@ -53,25 +55,39 @@ func (s *Service) RefreshAll(ctx context.Context, libraryID int64, since time.Ti
 	}
 }
 
-// RefreshTitles is Refresh metadata on a selection: each title not refreshed since a time is
-// asked about again, and one with no match is looked up again from its name and year. A title
-// that is gone, or that no provider is asked about, is passed over. progress is told how many
-// titles are done. It says which libraries the titles it reached are in, whose picture passes
-// fetch what the refresh recorded. An error means the provider could not be asked.
-func (s *Service) RefreshTitles(ctx context.Context, itemIDs []string, since time.Time, progress func(done int64)) (libraries map[int64]bool, err error) {
+// RefreshJobTitles refreshes a selection as its current main profile. A title-specific
+// provider refusal is recorded and passed over; an outage stops the job without inventing
+// failures for titles not reached. Successful root writes clear earlier failures atomically.
+func (s *Service) RefreshJobTitles(ctx context.Context, v db.Viewer, jobID int64, itemIDs []string, since time.Time,
+	progress func(done int64)) (libraries map[int64]bool, err error) {
 	libraries = map[int64]bool{}
 	for n, id := range itemIDs {
 		if err := ctx.Err(); err != nil {
 			return libraries, err
 		}
-		item, libraryID, err := s.DB.RefreshTarget(ctx, id)
-		switch {
-		case errors.Is(err, db.ErrNotFound):
+		if err := s.DB.SeesItem(ctx, v, id); err != nil {
+			if !errors.Is(err, db.ErrNotFound) {
+				return libraries, err
+			}
+			if err := s.DB.RecordMetadataJobOutcome(ctx, jobID, id, ""); err != nil {
+				return libraries, err
+			}
+			progress(int64(n + 1))
 			continue
-		case err != nil:
+		}
+		item, libraryID, err := s.DB.RefreshTarget(ctx, id)
+		if errors.Is(err, db.ErrNotFound) {
+			progress(int64(n + 1))
+			continue
+		}
+		if err != nil {
 			return libraries, err
 		}
-		if item.RefreshedAt < since.UnixMilli() {
+		failed, err := s.DB.JobItemFailed(ctx, jobID, item.ID)
+		if err != nil {
+			return libraries, err
+		}
+		if item.RefreshedAt < since.UnixMilli() || failed {
 			src, err := s.DB.LibrarySource(ctx, libraryID)
 			if err != nil {
 				return libraries, err
@@ -80,14 +96,37 @@ func (s *Service) RefreshTitles(ctx context.Context, itemIDs []string, since tim
 			p := s.provider(src)
 			switch {
 			case localReading(item.Kind, src):
-				err = s.refreshLocal(ctx, id, item.ID, db.Background)
+				err = s.refreshLocal(ctx, id, item.ID, db.Background, jobID)
 			case p == nil || providerKinds[item.Kind] == "":
+				if failed {
+					err = s.DB.RecordMetadataJobOutcome(ctx, jobID, id, "")
+				}
 			case ownID(p, item.ExternalIDs) != "":
-				err = s.refresh(ctx, p, Locale{Language: src.Language, Region: src.Region}, item, db.Background)
+				err = s.refreshJob(ctx, p, Locale{Language: src.Language, Region: src.Region}, item, db.Background, jobID)
 			default:
-				_, err = s.Rematch(ctx, id)
+				_, err = s.rematchJob(ctx, id, jobID)
 			}
-			if err != nil && !errors.Is(err, ErrMatchLocked) && !errors.Is(err, ErrNoProvider) {
+			if ctx.Err() != nil {
+				return libraries, ctx.Err()
+			}
+			switch {
+			case err == nil:
+			case errors.Is(err, scan.ErrMetadataUnreadable):
+				if err := s.DB.RecordMetadataJobOutcome(ctx, jobID, id, "metadata_file_unavailable"); err != nil {
+					return libraries, err
+				}
+			case errors.Is(err, db.ErrNotFound), errors.Is(err, ErrMatchLocked), errors.Is(err, ErrNoProvider):
+				if err := s.DB.RecordMetadataJobOutcome(ctx, jobID, id, ""); err != nil {
+					return libraries, err
+				}
+			case errors.As(err, new(providerError)):
+				if providerOutage(err) {
+					return libraries, fmt.Errorf("%w: %w", ErrProviderDown, err)
+				}
+				if err := s.DB.RecordMetadataJobOutcome(ctx, jobID, id, "provider_rejected"); err != nil {
+					return libraries, err
+				}
+			default:
 				return libraries, err
 			}
 		}

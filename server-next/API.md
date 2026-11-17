@@ -146,7 +146,7 @@ Item cards carry `rootTitle` alongside `rootId`: the existing root's title (a sh
 | `POST /v1/lists/{id}/entries`, `PATCH /v1/lists/{id}/entries/{entryId}`, `DELETE /v1/lists/{id}/entries/{entryId}` | Add, move, remove entries. Entries are read with `GET /v1/items?list=`. |
 | `GET /v1/lists/{id}/shares`, `PUT /v1/lists/{id}/shares` | Who a list is shared with |
 | `GET /v1/jobs/{id}`, `POST /v1/jobs`, `DELETE /v1/jobs/{id}` | Run a bulk action over a selection, watch it, cancel it |
-| `GET /v1/jobs/{id}/failures` | Failed titles of a selection job, paged by `cursor` and `limit` (default 50, maximum 200): `Page<JobItemFailure>` with `items: [{itemId, title, error: {code, message}}]`, `nextCursor?`, no total. Same job access as `GET /v1/jobs/{id}`: owner/admin or the originating profile/account, otherwise the same `404`. Each page applies the reader's selected profile's current library, rating and Tag limits before paging; hidden/deleted titles are absent. Results survive restart and remain for the job's existing 30-day lifetime; deleting the title removes its result. Currently populated by `set_state` and `add_view_to_list`; metadata selection jobs follow separately |
+| `GET /v1/jobs/{id}/failures` | Failed titles of a selection job, paged by `cursor` and `limit` (default 50, maximum 200): `Page<JobItemFailure>` with `items: [{itemId, title, error: {code, message}}]`, `nextCursor?`, no total. Same job access as `GET /v1/jobs/{id}`: owner/admin or the originating profile/account, otherwise the same `404`. Each page applies the reader's selected profile's current library, rating and Tag limits before paging; hidden/deleted titles are absent. Results survive restart and remain for the job's existing 30-day lifetime; deleting the title removes its result. Populated by `set_state`, `add_view_to_list`, `edit_items` and `refresh_items` |
 | `POST /v1/jobs` kind `set_state` | Any profile: set watched, favourite, My List, Not interested or rating on every title in a view it sees. `target.filter` is the view's `GET /v1/items` query; `params` are the state fields |
 | `POST /v1/jobs` kind `add_view_to_list` | Any profile: add every title of a view it sees to a playlist or collection it may change, in the view's own order (its `sort` and `order` kept). `target.filter` is the view's `GET /v1/items` query; `params` is `{"list": id}`. Its structured `result` is described below; taken up again after a restart it adds nothing twice |
 
@@ -162,10 +162,10 @@ contents: a later list edit does not rewrite them. Restart/replay does not count
 twice. Existing `progress`, `state` and cancel behavior are unchanged. Other job kinds omit
 `result`. Apps use these fields; they never parse the human `error` sentence for numbers.
 
-`set_state` and `add_view_to_list` continue past individual refusals. A partially failed job has state `failed` and
+`set_state`, `add_view_to_list`, `edit_items` and `refresh_items` continue past individual refusals. A partially failed job has state `failed` and
 the plain summary "Some titles could not be changed. The rest is done.", without title names
 or failure counts. Its failure page gives the details; an app can retry only those titles on
-the existing per-title state or list-entry route. Cancelling or restarting keeps committed changes and
+the existing per-title state or list-entry route, or `POST /v1/jobs` with only failed metadata ids in `target.items`. Cancelling or restarting keeps committed changes and
 failure results. A replay clears a title's earlier failure if that change now succeeds.
 Titles that have gone or become hidden while the job runs are skipped, not recorded as
 failures. Reads of the job (including an idempotent start reply and the owner's task list)
@@ -181,6 +181,18 @@ per job; a new intentional job may add it again. Collections still hold each tit
 Keys are retained while their job exists, including across shutdowns longer than the normal
 35-day client retry window. No extra table or column is used.
 
+Metadata selection failures use this same page and summary for explicit titles and whole
+views. Bulk edits keep each title's own change and History; a failed-only retry sends at most
+1,000 ids per new metadata job. No success ledger or retry endpoint is added. A title-specific
+provider refusal is recorded and the refresh continues; a provider-wide outage stops the
+job with its own plain reason. Titles never reached are not labelled as individual failures.
+A local title whose files cannot be read records `metadata_file_unavailable` and the next
+title is still refreshed. A successful local reread clears its earlier failure with its
+refresh completion timestamp.
+A root saved before a child request failed remains retryable on resume. Successful metadata
+writes clear earlier failures in that same transaction, including when the save moves a
+title out of the view's filter. The job's main-profile restrictions are rechecked at write.
+
 Job failure reason codes are a closed list. Messages are fixed plain language, never file
 paths, provider responses or other people's names:
 
@@ -189,6 +201,11 @@ paths, provider responses or other people's names:
 | `unsupported_state` | Music has play counts, not a watched state. |
 | `edit_too_old` | This change is more than 35 days old. Make the change again. |
 | `too_many_titles` | This title has too many playable titles to add at once. Add a smaller selection. |
+| `invalid_metadata` | An edited metadata value is not allowed for this title. Check the fields and try again. |
+| `metadata_list_full` | This edit would put too many entries in a metadata list. Remove entries and try again. |
+| `metadata_changed` | This title changed while it was being saved. Try again. |
+| `provider_rejected` | The metadata provider could not refresh this title. Try again later. |
+| `metadata_file_unavailable` | This title's metadata could not be read from its files. Check that the files are available and try again. |
 
 Home's `spotlight` holds up to five distinct films or shows, newest added first (id breaks ties), from the profile's visible libraries and within its rating and label limits. Missing titles, empty shows, non-video items and this profile's Not interested titles are not featured. The reason is Recently added, without a recommendation claim. Each entry has its existing artwork, genres, year, runtime when known and at most 300 characters of synopsis; only these few titles get detail metadata. `play` and `myList` are the server's offers for the hero. A show's `resumeTarget` is its current Continue Watching episode, otherwise its first visible, available unwatched regular episode (first regular episode if all are watched); specials are offered only when already in progress. No duplicate slides fill a sparse library.
 

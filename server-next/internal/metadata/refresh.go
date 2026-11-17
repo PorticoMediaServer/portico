@@ -24,20 +24,31 @@ func ownID(p Provider, ids []db.ExternalID) string {
 // no longer gives keeps its value: the database write decides that, not this code. A provider
 // that cannot be asked changes nothing, and the title stays due.
 func (s *Service) refresh(ctx context.Context, p Provider, locale Locale, item db.RefreshItem, priority db.Priority) error {
+	return s.refreshJob(ctx, p, locale, item, priority, 0)
+}
+
+func (s *Service) refreshJob(ctx context.Context, p Provider, locale Locale, item db.RefreshItem, priority db.Priority, jobID int64) error {
 	locale = locale.For(item.Language)
 	ref := Ref{Provider: p.Name(), Kind: providerKinds[item.Kind], ID: ownID(p, item.ExternalIDs)}
 	if ref.ID == "" || ref.Kind == "" {
+		if jobID != 0 {
+			return s.DB.MarkJobRefreshed(ctx, jobID, item.ID)
+		}
 		return s.DB.MarkRefreshed(ctx, priority, item.ID)
 	}
 	record, err := p.Details(ctx, ref, locale)
 	if errors.Is(err, ErrNotFound) {
 		// The provider dropped the title: what it has stays, and it is not asked about daily.
+		if jobID != 0 {
+			return s.DB.MarkJobRefreshed(ctx, jobID, item.ID)
+		}
 		return s.DB.MarkRefreshed(ctx, priority, item.ID)
 	}
 	if err != nil {
 		return providerError{err}
 	}
 	stored := details(record, db.MatchNone)
+	stored.JobID = jobID
 	stored.Continuing = &record.Continuing
 	if err := s.DB.ApplyDetails(ctx, priority, item.ID, stored); err != nil {
 		return err
@@ -61,7 +72,7 @@ func (s *Service) Refresh(ctx context.Context, itemID string) (bool, error) {
 		return false, err
 	}
 	if localReading(item.Kind, src) {
-		return false, s.refreshLocal(ctx, itemID, item.ID, db.User)
+		return false, s.refreshLocal(ctx, itemID, item.ID, db.User, 0)
 	}
 	p := s.provider(src)
 	if p == nil || ownID(p, item.ExternalIDs) == "" || providerKinds[item.Kind] == "" {
@@ -140,12 +151,15 @@ func localReading(kind db.ItemKind, source db.LibrarySource) bool {
 	return source.ProviderName() == db.ProviderLocal && (kind.Reading() || kind == db.KindAudiobook)
 }
 
-func (s *Service) refreshLocal(ctx context.Context, publicID string, id int64, priority db.Priority) error {
+func (s *Service) refreshLocal(ctx context.Context, publicID string, id int64, priority db.Priority, jobID int64) error {
 	if s.Scans == nil {
 		return scan.ErrMetadataUnreadable
 	}
 	if err := s.Scans.RefreshMetadata(ctx, publicID); err != nil {
 		return err
+	}
+	if jobID != 0 {
+		return s.DB.MarkJobRefreshed(ctx, jobID, id)
 	}
 	return s.DB.MarkRefreshed(ctx, priority, id)
 }
