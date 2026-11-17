@@ -1,4 +1,3 @@
-import {routePattern} from '../../../contracts/src/routes.ts';
 import {serverPath} from '../query/server-api.ts';
 import {retryAfterSecondsFrom, type AuthRecovery, type HttpLocalApi} from '../index.ts';
 import {ambientArtworkSource, type AmbientArtworkIdentity} from './ambient.ts';
@@ -30,10 +29,10 @@ export function foregroundArtwork(url: string | undefined, pixels: number, aspec
 /** A member's profile picture, as the rebuilt profile answer names it for People (`?v=…&member=…`), at one of the
  * server's two sizes. Read with the owner's or admin's sign-in. */
 const memberProfileAvatarPattern = /^\/v1\/profiles\/[A-Za-z0-9_-]{1,128}\/avatar\?v=[a-z0-9]{1,16}&member=[A-Za-z0-9_-]{1,128}&size=(?:small|large)$/;
-const trickplayTilePattern = new RegExp('^' + routePattern('get_v1_items_id_trickplay_set_tiles_tile_jpg').replace(/[.]/g, '\\.')
-  .replace('{id}', '([^/?#]{1,512})').replace('{set}', '[a-f0-9]{64}').replace('{tile}', '(?:0|[1-9]\\d{0,4})') + '$');
-/** A video's preview sheet (W1-A2): the server's own sprite, unscaled. The route takes no query, so it is never
- * a rendition; the crop needs the sheet's real pixels. The set id and revision name its content. */
+/** The server's unscaled sprite sheet, read with the viewer's sign-in. */
+const scrubPreviewPath = serverPath('GET /v1/items/{id}/scrub-previews', {id: '__item__'});
+const trickplayTilePattern = new RegExp('^' + scrubPreviewPath.replace('__item__', '([^/?#]{1,512})')
+  + '\\?version=[A-Za-z0-9_.%-]{1,256}&sheet=(?:0|[1-9]\\d{0,4})$');
 export function trickplayTileArtwork(url: string, identity: AmbientArtworkIdentity, revision = '') {
   if (url.length > 1024 || /[\s\\#\x00-\x1f\x7f]/.test(url) || ![identity.serverId, identity.viewerId, identity.authorityKey].every(value => typeof value === 'string' && value.length > 0 && value.length <= 512 && !/[\x00-\x1f\x7f]/.test(value))) return undefined;
   const match = trickplayTilePattern.exec(url);
