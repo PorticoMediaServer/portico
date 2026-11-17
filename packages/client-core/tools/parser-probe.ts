@@ -44,7 +44,8 @@ import {InboxService} from '../src/inbox.ts';
 import {parseFeedbackCapabilities} from '../src/notifications.ts';
 import {DownloadsService} from '../src/downloads-service.ts';
 import {parseDownloadUsage} from '../src/downloads.ts';
-import {GroupSessionService} from '../src/group-session.ts';
+import {RoomSessionService} from '../src/room-session.ts';
+import {serverPath} from '../src/query/server-api.ts';
 import {ConsoleClient} from '../src/console.ts';
 import {parseAccessDevice, parseAccessMember, parseInvitation, parseLogPage, parseLogSettings} from '../src/server-administration.ts';
 import {parseApiCredential} from '../src/api-access.ts';
@@ -583,11 +584,8 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
   }
   downloadsSvc.dispose();
   rec.skip('download request by id', 'needs a request id that only a POST create returns (download-requests.ts)');
-  const groupSvc = new GroupSessionService({
-    api: {baseUrl: input.origin, request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => api.request<T>(path, method, body, signal)},
-    stream: () => Promise.reject(new Error('the probe never opens event streams')),
-  });
-  const groupsPath = '/v1/groups';
+  const groupSvc = new RoomSessionService({api});
+  const groupsPath = serverPath('GET /v1/groups');
   try {
     await groupSvc.refreshDirectory();
     const directory = groupSvc.getSnapshot();
@@ -601,7 +599,7 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
     rec.fail('notify', 'group directory', 'GET', groupsPath, error);
   }
   groupSvc.dispose();
-  rec.skip('group snapshot/queue/events', 'open() starts a live event stream; the probe only reads the directory (group-session.ts)');
+  rec.skip('Room/queue/membership', 'the read-only probe reads the directory; it never joins or changes a Room');
   rec.skip('hosted account notifications', 'a different authority/transport, not the selected server (account-notifications.ts)');
 
   // 8. Owner console reads.

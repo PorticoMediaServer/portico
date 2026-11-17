@@ -1,5 +1,5 @@
 import type {ReactNode, RefObject} from 'react';
-import {Platform, type View} from 'react-native';
+import type {View} from 'react-native';
 import {sameFence} from '../../../../../packages/player-core/src';
 import {type DetailApi, type DetailProjection, type PersonalIntent} from '../../../../../packages/client-core/src/detail';
 import {deleteVersionFiles, previewVersionDeletion, versionDeletionRefusal, type VersionDeletion} from '../../../../../packages/client-core/src/administration';
@@ -58,7 +58,7 @@ export class NativeWatchPresenters {
   constructor(context: NativeShellBootstrapContext, common: NativeScreenServices) {
     this.context = context; this.common = common;
     this.off = [context.navigation.subscribe(this.invalidate), context.subscribeAuthority(this.invalidate), context.playback.subscribe(this.invalidate)];
-    if (Platform.isTV) this.off.push(nativeTogetherSession(context).subscribe(() => {if (this.value?.phase === 'menu' && !this.value.busy) this.patch(this.value, {});}));
+    this.off.push(nativeTogetherSession(context).subscribe(() => {if (this.value?.phase === 'menu' && !this.value.busy) this.patch(this.value, {});}));
   }
   getSnapshot = () => this.value;
   getMenuEntry = () => this.value?.phase === 'menu' ? this.value.capture.entry : undefined;
@@ -105,15 +105,15 @@ export class NativeWatchPresenters {
     this.menuEntry = actions.entry;
     this.menuOff = actions.entry?.subscribe(this.menuChanged);
     const detail = actions.entry?.current();
-    const room = Platform.isTV ? nativeTogetherSession(this.context).getSnapshot() : undefined;
-    const together = room?.phase === 'live' && room.group ? {groupId: room.group.id, viewer: room.group.viewerMemberId} : undefined;
+    const room = nativeTogetherSession(this.context).getSnapshot();
+    const together = room?.phase === 'live' && room.group ? {groupId: room.group.id, viewer: room.group.you.memberId} : undefined;
     this.replace({capture, actions, anchorRef, phase: 'menu', confirmation: '', busy: false, candidates: [], together, ...(detail ? {detail} : {})});
   };
   togetherActions = (value: NativeWatchOverlay) => {
     const state = nativeTogetherSession(this.context).getSnapshot(), group = state.phase === 'live' ? state.group : undefined;
     const valid = this.current(value.capture) && !value.busy && !!value.capture.entry.playback && ['movie', 'episode'].includes(value.capture.entry.kind)
-      && group?.id === value.together?.groupId && group?.viewerMemberId === value.together?.viewer;
-    return {queue: valid && group?.permissions.canManageQueue === true, watch: valid && group?.permissions.canManageQueue === true && group.permissions.canControl};
+      && group?.id === value.together?.groupId && group?.you.memberId === value.together?.viewer;
+    return {queue: valid && group?.you.mayControl === true, watch: valid && group?.you.mayControl === true && group.you.mayControl};
   };
   togetherEntry = async (value: NativeWatchOverlay, watch: boolean) => {
     const allowed = this.togetherActions(value);

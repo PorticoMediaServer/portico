@@ -1,12 +1,11 @@
-import type {GroupSessionService, GroupSessionSnapshot, GroupEnterLifetime} from '../../../../../packages/client-core/src/group-session';
-import type {Group} from '../../../../../packages/client-core/src/social-playback';
-import type {GroupHostAuthority} from '../../../../../packages/client-core/src/social-playback';
+import type {RoomSessionService, RoomSessionSnapshot, RoomEnterLifetime} from '../../../../../packages/client-core/src/room-session';
+import type {Room, GroupControl} from '../../../../../packages/client-core/src/room-protocol';
 import {NativeScreenLifetime, NativeScreenStore, screenScopeEnded} from './lifetime';
 
-export type NativeTogetherService = Pick<GroupSessionService, 'getSnapshot' | 'subscribe' | 'refreshDirectory' | 'open' | 'create' | 'join' | 'dismiss' | 'serverNow' | 'refreshQueue' | 'transport' | 'invite' | 'makeHost' | 'queueRemove' | 'leave' | 'end' | 'clearJoinFailure'>;
+export type NativeTogetherService = Pick<RoomSessionService, 'getSnapshot' | 'subscribe' | 'refreshDirectory' | 'open' | 'create' | 'join' | 'dismiss' | 'serverNow' | 'refresh' | 'transport' | 'invite' | 'makeHost' | 'queueRemove' | 'leave' | 'end' | 'clearJoinFailure'>;
 
 /** A borrowed service is already bound to the same authenticated player/follower lifetime. */
-export class NativeTogetherController extends NativeScreenStore<GroupSessionSnapshot> {
+export class NativeTogetherController extends NativeScreenStore<RoomSessionSnapshot> {
   private off: () => void;
   private disposed = false;
   readonly lifetime: NativeScreenLifetime;
@@ -18,17 +17,17 @@ export class NativeTogetherController extends NativeScreenStore<GroupSessionSnap
   }
   private async action<T>(work: () => Promise<T>): Promise<T> {this.lifetime.assert(); if (this.disposed) throw screenScopeEnded(); const value = await work(); this.lifetime.assert(); if (this.disposed) throw screenScopeEnded(); return value;}
   refresh = () => this.action(() => this.service.refreshDirectory());
-  open = (id: string, lifetime?: GroupEnterLifetime) => this.action(() => this.service.open(id, lifetime));
-  create = (name: string, displayName: string, hostAuthority: GroupHostAuthority, lifetime?: GroupEnterLifetime) => this.action(() => this.service.create({name, displayName, hostAuthority}, lifetime));
-  join = (code: string, displayName: string, lifetime?: GroupEnterLifetime) => this.action(() => this.service.join(code, displayName, lifetime));
-  currentGroup = (original: Pick<Group, 'id' | 'viewerMemberId'>): Group | undefined => {
+  open = (id: string, lifetime?: RoomEnterLifetime) => this.action(() => this.service.open(id, lifetime));
+  create = (name: string, displayName: string, control: GroupControl, lifetime?: RoomEnterLifetime) => this.action(() => this.service.create({name, displayName, control}, lifetime));
+  join = (code: string, displayName: string, lifetime?: RoomEnterLifetime) => this.action(() => this.service.join(code, displayName, lifetime));
+  currentGroup = (original: Pick<Room, 'id' | 'you'>): Room | undefined => {
     const value = this.getSnapshot();
     return !this.disposed && this.lifetime.current() && (value.phase === 'live' || value.phase === 'reconnecting')
-      && value.group?.id === original.id && value.group.viewerMemberId === original.viewerMemberId ? value.group : undefined;
+      && value.group?.id === original.id && value.group.you.memberId === original.you.memberId ? value.group : undefined;
   };
   serverNow = () => this.service.serverNow();
-  refreshQueue = () => this.action(() => this.service.refreshQueue());
-  transport = (...args: Parameters<GroupSessionService['transport']>) => this.action(() => this.service.transport(...args));
+  refreshRoom = () => this.action(() => this.service.refresh());
+  transport = (...args: Parameters<RoomSessionService['transport']>) => this.action(() => this.service.transport(...args));
   invite = () => this.action(() => this.service.invite());
   makeHost = (memberId: string) => this.action(() => this.service.makeHost(memberId));
   queueRemove = (entryId: string) => this.action(() => this.service.queueRemove(entryId));
