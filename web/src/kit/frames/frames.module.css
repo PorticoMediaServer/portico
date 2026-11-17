@@ -1,0 +1,149 @@
+/* The screen frames (design/ui-v1 system-frames.html). Every measurement is a --frame-* token projected from
+   packages/design/src/frames.ts; nothing here is a number of this file's own except what the comments name.
+   Inside the shell the gutter is the shell's (it knows the rail and sidebar); a standalone page takes the frame's. */
+.frame { --g: var(--shell-gutter, var(--frame-gutter)); --card: var(--frame-card-inset); color: var(--color-text); font-family: var(--font); }
+@media (min-width: 600px) { .frame { --card: var(--g); } }
+
+/* Rule 6: one style per role. */
+.pageTitle, .sectionHeading, .groupLabel, .rowLabel, .rowHelp, .body, .barTitle { margin: 0; }
+.pageTitle { font-size: var(--frame-type-page-title-size); line-height: var(--frame-type-page-title-line); font-weight: var(--frame-type-page-title-weight); letter-spacing: var(--frame-type-page-title-tracking); text-wrap: balance; }
+.sectionHeading { font-size: var(--frame-type-section-heading-size); font-weight: var(--frame-type-section-heading-weight); letter-spacing: var(--frame-type-section-heading-tracking); line-height: normal; }
+.groupLabel { font-size: var(--frame-type-group-label-size); font-weight: var(--frame-type-group-label-weight); letter-spacing: var(--frame-type-group-label-tracking); line-height: normal; color: var(--color-text-secondary); }
+.rowLabel { font-size: var(--frame-type-row-label-size); line-height: var(--frame-type-row-label-line); font-weight: var(--frame-type-row-label-weight); }
+.rowHelp { font-size: var(--frame-type-row-help-size); line-height: var(--frame-type-row-help-line); font-weight: var(--frame-type-row-help-weight); color: var(--color-text-tertiary); }
+.body { font-size: var(--frame-type-body-size); line-height: var(--frame-type-body-line); font-weight: var(--frame-type-body-weight); color: var(--color-text-secondary); max-width: var(--frame-paragraph-max); }
+.barTitle { font-size: var(--frame-type-bar-title-size); font-weight: var(--frame-type-bar-title-weight); line-height: normal; }
+.clamp2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+
+/* Rule 3: the one header. The phone's top bar is 56 high (the shell's); wider forms start at the rule's title line. */
+.header { padding: calc(56px + var(--frame-header-gap)) var(--g) var(--frame-header-gap); }
+.header[data-back] { padding-top: 0; }
+.headerRow { display: flex; align-items: flex-end; gap: var(--space-sm); }
+.headerRow > :first-child { flex: 1; min-width: 0; }
+.back { display: inline-flex; align-items: center; height: var(--frame-header-back-row); margin: 12px 0 0 -6px; padding: 0 6px 0 0; border: 0; background: none; cursor: pointer; font: inherit; font-size: 16px; font-weight: 600; color: var(--color-text-secondary); }
+@media (min-width: 1024px) { .header, .header[data-back] { padding-top: var(--frame-title-top); } .back { margin-top: -44px; } }
+
+/* Frame 1. */
+.browse { display: flex; flex-direction: column; padding-bottom: var(--frame-bottom-clear); min-height: 100%; }
+.browseTop { height: 56px; }
+.browseRows { display: flex; flex-direction: column; gap: var(--frame-section-gap); }
+/* After the hero the first row starts at the rule's own offset from the art's bottom edge. */
+.browse[data-hero] > .browseRows { position: relative; margin-top: var(--frame-hero-home-row-offset); }
+.skeletonRow { padding-left: var(--g); display: flex; flex-direction: column; gap: var(--frame-heading-gap); }
+.skeletonCards { display: flex; gap: var(--row-gap); overflow: hidden; }
+
+/* Parts. */
+.sectionHead { display: flex; align-items: center; gap: var(--space-sm); margin: 0 var(--g) var(--frame-heading-gap); }
+.sectionHead > :first-child { flex: 1; min-width: 0; }
+.cardLabel { display: flex; align-items: center; gap: var(--space-xs); margin: 0 var(--g) var(--frame-heading-gap); min-height: var(--target-pointer); }
+.stale { flex: 1; color: var(--color-amber); }
+.card { margin: 0 var(--card); border-radius: var(--frame-card-radius); background: var(--color-raised); overflow: hidden; }
+.stateRow { display: flex; align-items: center; gap: 12px; min-height: var(--frame-row-two-line); padding: var(--space-xs) var(--frame-card-padding); }
+.stateText, .stateLines { flex: 1; min-width: 0; }
+.stateRow b { display: block; font-weight: 700; }
+/* Skeleton lines are the raised tone; on a raised card they take the next one up, and keep the two text lines' room. */
+.stateLines { display: grid; gap: 8px; }
+.stateLines > * { background: var(--color-raised-high); }
+.tile { flex: none; width: 30px; height: 30px; border-radius: var(--radius-control); display: grid; place-items: center; background: var(--color-raised-bright); color: var(--color-text-secondary); }
+.tile[data-error] { background: color-mix(in srgb, var(--color-record) 16%, transparent); color: var(--color-record); }
+.art { position: relative; display: block; overflow: hidden; border-radius: var(--card-radius); background: var(--color-raised); }
+.art[data-kind='poster'] { aspect-ratio: 2 / 3; } .art[data-kind='square'] { aspect-ratio: 1; } .art[data-kind='wide'] { aspect-ratio: 16 / 9; }
+.art > * { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* Rule 12: the placeholder fills the box; its icon is a third of the short side (container units). */
+.placeholder { container-type: size; display: grid; place-items: center; background: linear-gradient(135deg, var(--color-raised-high), var(--color-raised)); box-shadow: inset 0 0 0 1px var(--frame-placeholder-line); border-radius: inherit; color: var(--color-text-tertiary); }
+.placeholder svg { width: calc(min(100cqw, 100cqh) * var(--frame-placeholder-icon-share)); height: auto; aspect-ratio: 1; }
+
+/* Frame 2. Everything in the art box hangs from its bottom edge, so a longer title grows upward and the row below never moves. */
+.title { padding-bottom: var(--frame-bottom-clear); }
+.titleArt { position: relative; height: var(--frame-hero-title-height); isolation: isolate; }
+.titleArt > :first-child { position: absolute; inset: 0; z-index: -1; }
+.titleTop { position: absolute; inset: 12px 16px auto; display: flex; justify-content: space-between; }
+.titleTop button { border-radius: 50%; }
+.titleCopy { position: absolute; left: var(--g); right: var(--g); bottom: var(--frame-hero-title-copy-bottom); text-align: center; }
+.titleLockup { margin: 0; font-size: var(--frame-hero-title-lockup); line-height: var(--frame-hero-lockup-line); font-weight: 800; letter-spacing: var(--frame-hero-lockup-tracking); text-wrap: balance; text-shadow: 0 2px 30px color-mix(in srgb, var(--color-ink) 50%, transparent); }
+.titleMeta { min-height: 1.5em; margin-top: 10px; display: flex; justify-content: center; align-items: center; }
+.titleMeta > * { margin: 0; }
+.titleActions { display: flex; align-items: center; gap: var(--spec-hero-actions-gap-phone); height: var(--button-hero-height); }
+.titleActions > :first-child { flex: 1; }
+.titleRound { width: var(--button-hero-height); padding: 0; flex: none; }
+.titleBelow { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--frame-title-action-gap) var(--g) 0; }
+.titleWide { display: none; }
+.synopsis { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--frame-hero-title-synopsis-lines); overflow: hidden; max-width: 540px; }
+.titleTabs { margin-top: var(--space-sm); padding: 0 var(--g); }
+.titlePanel { display: flex; flex-direction: column; gap: var(--frame-section-gap); margin-top: calc(var(--frame-header-gap) + var(--frame-heading-gap)); }
+@media (min-width: 600px) {
+  .titleTop, .titleBelow { display: none; }
+  .titleCopy { right: auto; width: 620px; max-width: calc(100% - 2 * var(--g)); text-align: left; }
+  .titleMeta { justify-content: flex-start; }
+  .titleWide { display: flex; flex-direction: column; gap: var(--frame-title-action-gap); margin-top: var(--space-sm); }
+  .titleActions > :first-child { flex: none; }
+  .titleTabs { margin-top: 0; }
+}
+
+/* Frames 3 and 4. At phone width the list or the selected page fills the width under one compact bar; from 600 the
+   list is a sticky column beside the page, and both start at the column's own edges. */
+.settingsMaster { padding-bottom: var(--frame-bottom-clear); display: flex; flex-direction: column; gap: var(--frame-section-gap); }
+.settingsMaster[data-covered] { display: none; }
+/* The list column's group labels are the rule's smaller list label. */
+.settingsMaster .groupLabel { font-size: var(--frame-type-list-label-size); letter-spacing: var(--frame-type-list-label-tracking); }
+.signInForm { display: grid; gap: var(--space-px-12); }
+.settingsBar, .pageBar { margin-bottom: calc(var(--frame-header-gap) - var(--frame-section-gap)); }
+.page { display: flex; flex-direction: column; gap: var(--frame-section-gap); padding-bottom: var(--frame-bottom-clear); }
+.page > .body { margin: 0 var(--g); }
+.pageHead { display: none; }
+.sheetBar { position: relative; display: flex; align-items: center; justify-content: space-between; height: var(--frame-header-bar); padding: 0 10px; }
+.sheetBar .barTitle { position: absolute; left: 96px; right: 96px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheetBar .back { margin: 0; height: 38px; }
+@media (min-width: 600px) {
+  .settingsFrame { display: flex; gap: var(--frame-settings-gap); padding: 0 var(--g); }
+  .settingsMaster, .settingsMaster[data-covered] { display: flex; flex: none; width: var(--frame-settings-list); padding-top: var(--frame-title-top); position: sticky; top: 0; align-self: flex-start; max-height: 100dvh; overflow-y: auto; box-sizing: border-box; }
+  .settingsMaster, .settingsDetail .page { --g: 0px; --card: 0px; }
+  .settingsDetail { flex: 1; min-width: 0; max-width: var(--frame-settings-page-max); }
+  .settingsBar, .pageBar { display: none; }
+  .pageHead { display: flex; align-items: baseline; gap: var(--space-sm); padding: var(--frame-title-top) var(--g) 0; margin-bottom: calc(var(--frame-header-gap) - var(--frame-section-gap)); }
+}
+
+/* Frame 7: the one frame with no backdrop. The prompt corner rides on the bottom bar's box, which keeps its size while the chrome is hidden. */
+.player { position: relative; height: 100%; min-height: 100dvh; background: var(--color-shadow); overflow: hidden; }
+.player > :first-child { position: absolute; inset: 0; }
+.playerTop, .playerBottom { position: absolute; left: 0; right: 0; padding: var(--space-sm) max(var(--frame-gutter), env(safe-area-inset-left)); transition: opacity var(--motion-standard) var(--ease-out); }
+.playerTop { top: 0; padding-bottom: var(--space-lg); background: linear-gradient(180deg, color-mix(in srgb, var(--color-live-player-scrim) 75%, transparent), transparent); }
+.playerBottomBox { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; pointer-events: none; }
+.playerBottom { position: static; padding-top: var(--space-lg); background: linear-gradient(0deg, color-mix(in srgb, var(--color-live-player-scrim) 85%, transparent), transparent); pointer-events: auto; }
+.playerPrompts { align-self: flex-end; padding: 0 max(var(--frame-gutter), env(safe-area-inset-right)); pointer-events: auto; }
+.playerTransport { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; transition: opacity var(--motion-standard) var(--ease-out); }
+.playerTransport > * { pointer-events: auto; }
+.player[data-chrome='false'] :is(.playerTop, .playerBottom, .playerTransport) { opacity: 0; pointer-events: none; }
+.player[data-chrome='false'] .playerTransport > * { pointer-events: none; }
+
+/* Frame 8 and rule 12. Phone: the artwork hangs from the top, everything else is stacked up from the bottom edge, and
+   the only space that changes is between them. Wide: columns placed from the top; Up next scrolls. */
+.audio { display: flex; flex-direction: column; height: 100%; min-height: 100dvh; box-sizing: border-box; padding: 0 var(--frame-audio-inset) max(var(--frame-sheet-footer-clear), env(safe-area-inset-bottom)); max-width: calc(var(--frame-audio-artwork) + 2 * var(--frame-audio-inset)); margin: 0 auto; }
+.audioTop { display: flex; align-items: center; gap: var(--space-xs); height: var(--frame-audio-top-bar); flex: none; }
+.audioTop > p { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--color-text-secondary); }
+.audioArtSpace { flex: 1; min-height: 0; padding-top: var(--frame-audio-gap); overflow: hidden; }
+.audioArt { width: 100%; max-width: var(--frame-audio-artwork); aspect-ratio: 1; }
+.audioWords { height: var(--frame-audio-title-slot); flex: none; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; }
+.audioWords h1 { margin: 0; font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: 700; letter-spacing: var(--type-title-tracking); }
+.audioWords > :not(h1) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.5em; }
+.audioScrubber { height: var(--frame-audio-scrubber); margin-top: var(--frame-audio-gap); flex: none; display: grid; align-items: center; }
+.audioTransport { height: var(--frame-audio-transport); flex: none; display: flex; align-items: center; justify-content: space-between; }
+.audioControl { width: var(--spec-transport-control-size-web); height: var(--spec-transport-control-size-web); border-radius: 50%; border: 0; padding: 0; display: grid; place-items: center; background: none; color: var(--color-text); cursor: pointer; transition: transform var(--motion-quick) var(--ease-out); }
+.audioControl[data-primary] { width: var(--spec-transport-primary-size-web); height: var(--spec-transport-primary-size-web); background: var(--color-text); color: var(--color-ink); }
+.audioControl[data-active], .audioOption[data-active] { color: var(--color-accent-strong); }
+.audioControl:active, .audioOption:active { transform: scale(.97); }
+.audioControl:disabled, .audioOption:disabled { opacity: .35; cursor: default; }
+.audioControl:focus-visible, .audioOption:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+.audioNext { height: var(--frame-audio-next-line); flex: none; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.audioOptions { height: var(--frame-audio-bottom-row); flex: none; display: flex; }
+.audioOption { flex: 1; min-width: 0; border: 0; background: none; color: var(--color-text); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: inherit; border-radius: var(--radius-control); }
+.audioOption small { font-size: var(--type-micro-size); font-weight: var(--type-micro-weight); color: var(--color-text-tertiary); }
+.audioUpNext { display: none; }
+@media (min-width: 1024px) {
+  .audio { display: grid; grid-template-columns: var(--frame-audio-artwork) minmax(320px, 420px) minmax(var(--frame-audio-up-next), 1fr); grid-template-rows: var(--frame-audio-top-bar) auto auto auto auto auto 1fr; column-gap: var(--frame-audio-gap); align-content: start; max-width: none; padding-top: var(--frame-title-top); padding-bottom: var(--frame-bottom-clear); }
+  .audioTop { grid-column: 1 / -1; } .audioTop > p { text-align: left; } .audioTop > button { display: none; }
+  .audioArtSpace { grid-column: 1; grid-row: 2 / -1; padding-top: 0; }
+  .audioWords, .audioScrubber, .audioTransport, .audioNext, .audioOptions { grid-column: 2; }
+  .audioNext { text-align: left; }
+  .audioUpNext { display: block; grid-column: 3; grid-row: 2 / -1; overflow-y: auto; min-height: 0; }
+}
