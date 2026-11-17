@@ -284,6 +284,7 @@ func (s *Server) catalogueRoutes() {
 			{ID: "continue_listening", Title: "Continue Listening", Shape: "poster", Items: []Item{}},
 			{ID: "continue_books", Title: "Continue your books", Shape: "poster", Items: []Item{}},
 			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: []Item{}},
+			{ID: "popular", Title: popularHomeTitle, Shape: "poster", Items: []Item{}},
 			{ID: "recently_released", Title: "Recently Released", Shape: "poster", Items: []Item{}},
 		}
 		continuing, err := s.pageHomeRows(r, home, "")
