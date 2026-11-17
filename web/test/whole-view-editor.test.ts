@@ -118,3 +118,21 @@ test('an audiobook whole-view edit narrows the shared Books pivot to one server 
   await createJob(api, {operationId: 'edit', command: 'metadata-edit', selector: {query}, args: {fields: {year: {value: '1984'}}}});
   assert.deepEqual(sent, [{kind: 'edit_items', target: {filter: 'library=lib&kind=audiobook'}, params: {year: 1984, lock: true}}]);
 });
+
+test('whole-view Metadata language starts Unchanged and submits the canonical override for the view', async () => {
+  const selected = held(), fake = rebuiltMetadata({one: {fields: {metadataLanguage: 'en'}}}), writes: unknown[] = [];
+  const editor = createQuerySelectionEditor({api: {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    if (path.startsWith('/v1/items?')) return {items: [{id: 'one', libraryId: 'lib', kind: 'movie', title: 'One'}]} as T;
+    if (path === '/v1/admin/libraries/lib') return {metadataProvider: 'tmdb', metadataProviders: [{id: 'tmdb', languages: ['en', 'fr']}]} as T;
+    if (path === '/v1/jobs') {writes.push(body);return {id: 'job', kind: 'edit_items', state: 'done', progress: {done: 5000, total: 5000}} as T;}
+    const value = fake.answer(path, method, body); if (value === undefined) throw new Error('unexpected ' + path); return value as T;
+  }}, events: {on: () => () => {}}, requestId: async () => 'language', isCurrent: () => true, serverId: 'server'});
+  try {
+    const preview = await editor.preview(selected.operation);
+    assert.equal(preview.fields.metadataLanguage.value, undefined); assert.deepEqual(preview.fields.metadataLanguage.values, []);
+    assert.deepEqual(preview.schema.find(spec => spec.field === 'metadataLanguage')?.allowed, ['', 'en', 'fr']);
+    await editor.save(selected.operation, preview, {fields: {metadataLanguage: 'fr'}, lists: {}, lockEdited: false}, () => {});
+    assert.deepEqual(writes, [{kind: 'edit_items', target: {filter: 'library=lib&kind=movie&genre=Drama'}, params: {metadataLanguage: 'fr', lock: false}}]);
+    assert.deepEqual(fake.reads, ['one']);
+  } finally {selected.model.dispose();}
+});
