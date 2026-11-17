@@ -54,7 +54,7 @@ function fixture() {
       async create() {
         if (failCreates > 0) {failCreates--; calls.failedCreate++; throw new ApiError(0, 'network', 'fixture offline', true);}
         const code = ++calls.create === 1 ? 'ABCD-EFGH' : 'JKMN-PQRS';
-        const verificationUri = (kind === 'local' ? 'https://local.example' : 'https://accounts.example') + '/device';
+        const verificationUri = kind === 'local' ? 'https://local.example/device' : 'https://web.getportico.tv/tv';
         return {deviceCode: 'd'.repeat(48), userCode: code, verificationUri, verificationUriComplete: verificationUri + '#code=' + code,
           expiresAt: new Date(Date.now() + 600_000).toISOString(), expiresIn: 600, interval: 5};
       },
@@ -130,7 +130,7 @@ async function presenter(f: Awaited<ReturnType<typeof fixture>>, kind: TVCodeKin
     refresh: () => act(() => host.rerender())};
 }
 
-async function accountEntry(f: Awaited<ReturnType<typeof fixture>>, prepare: () => Promise<Record<string, unknown>> = async () => ({}), approvedAccounts?: unknown) {
+async function accountEntry(f: Awaited<ReturnType<typeof fixture>>, prepare: () => Promise<Record<string, unknown>> = async () => ({}), approvedAccounts?: unknown, resumeAccount = false) {
   let tree: any, completed = 0;
   const back = new Set<() => boolean>(); let appStateChange: (value: string) => void = () => {};
   // Observe actual hook references/state publications without relying on hook
@@ -191,7 +191,7 @@ async function accountEntry(f: Awaited<ReturnType<typeof fixture>>, prepare: () 
     get: (_, name: string) => function unexpectedBoundary() {throw new Error(`Unvisited fixture boundary: ${module}:${name}`);},
   })});
   const {AccountEntry} = await screenModule(new URL('../src-next/screens/accounts/AccountEntry.tsx', import.meta.url), strict);
-  const host = createFabricHookHost(() => {tree = AccountEntry({onComplete: () => {completed++;}});});
+  const host = createFabricHookHost(() => {tree = AccountEntry({onComplete: () => {completed++;}, resumeAccount});});
   await act(() => host.mount());
   return {host, background: () => appStateChange('background'), tree: () => tree, completed: () => completed, back, accounts, refs, writes, AuthSource,
     async enter(kind: TVCodeKind) {
@@ -204,6 +204,18 @@ async function accountEntry(f: Awaited<ReturnType<typeof fixture>>, prepare: () 
       assert.equal(tree.type, 'Code');
     }};
 }
+
+test('a signed-out TV opening shows its code without waiting for the retry timer', async t => {
+  t.mock.timers.enable({apis: ['Date', 'setTimeout']});
+  const f = fixture(), entry = await accountEntry(f, undefined, undefined, true);
+  try {
+    t.mock.timers.tick(0); await settle();
+    assert.equal(f.calls.create, 1);
+    assert.equal(entry.tree().props.userCode, 'ABCD-EFGH');
+    assert.match(entry.tree().props.body, /web\.getportico\.tv\/tv\b/);
+    assert.equal(entry.tree().props.verificationUriComplete, 'https://web.getportico.tv/tv#code=ABCD-EFGH');
+  } finally {await entry.host.unmount(); f.cleanup();}
+});
 
 test('Portico TV credential prepare publishes readiness only for its own prepared source', async t => {
   t.mock.timers.enable({apis: ['Date', 'setTimeout']});

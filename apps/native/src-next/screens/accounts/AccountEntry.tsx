@@ -640,9 +640,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     }
     if (publishPreparedAccount(next, available, current)) {stageRef.current = 'portico'; setStage('portico');}
   };
-  // At launch with no saved server, a Portico Account kept on this device opens its server list
-  // ("No servers yet" included) as if Sign in with Portico Account were chosen; it reads only this
-  // device's store until then, and a refused renewal there says so on welcome.
+  // Restore a saved Portico Account before a signed-out TV opens its activation code.
   // auth.html frame 4 is the first screen on phone and tablet. It draws without Services; the first Portico Account
   // action (Apple, Google, Continue, Forgot password?, Create account) prepares the account client, as the old front
   // door's button did (section 11), and is then carried out on the prepared page.
@@ -676,12 +674,13 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   });
   useEffect(() => {if (stage === 'address') tvDoorTried.current = false;}, [stage]);
   const resume = useRef(() => {}); resume.current = () => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) void run(portico);};
+  const resumeWelcome = resumeAccount && (!tvDoor || stage === 'welcome' && appActive && !stageError);
   useEffect(() => {
-    if (!resumeAccount) return;
+    if (!resumeWelcome) return;
     let active = true; const credentials = nativeAccounts.accountCredentials();
-    void credentials.synchronize().then(() => {if (active && credentials.getSnapshot().session) resume.current();}, () => {});
+    void credentials.synchronize().then(() => {if (active && (credentials.getSnapshot().session || tvDoor)) resume.current();}, () => {});
     return () => {active = false;};
-  }, [resumeAccount]);
+  }, [resumeWelcome, tvDoor]);
   const beginMemberMove = async () => {
     const source = operation.current;
     if (!source || !server || server.move !== 'to_portico' || Platform.isTV) return;

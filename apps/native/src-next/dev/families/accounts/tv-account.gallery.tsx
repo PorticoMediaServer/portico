@@ -56,10 +56,10 @@ const T = 'next.shell.native.accountGallery' as const;
 const galleries: readonly Gallery[] = [
   // The TV's first screen (auth.html frame 8): the activation code, Sign in with a Portico Account focused.
   {id: 'tv-account-activate', title: T, platforms: ['tv'], render: () => <Whole><TVCodePresenter mode="portico" body={t('accounts.consent.portico')} busy={false}
-    verificationUri="https://web.getportico.tv/device" verificationUriComplete="https://web.getportico.tv/device?code=7KQM-4TXP" userCode="7KQM-4TXP"
+    verificationUri="https://web.getportico.tv/tv" verificationUriComplete="https://web.getportico.tv/tv#code=7KQM-4TXP" userCode="7KQM-4TXP"
     onTypeCredentials={noop} onBack={noop} onLocal={noop}/></Whole>},
   {id: 'tv-account-activate-busy', title: T, platforms: ['tv'], render: () => <Whole><TVCodePresenter mode="portico" body={t('accounts.consent.portico')} busy
-    verificationUri="https://web.getportico.tv/device" onTypeCredentials={noop} onBack={noop} onLocal={noop}/></Whole>},
+    verificationUri="https://web.getportico.tv/tv" onTypeCredentials={noop} onBack={noop} onLocal={noop}/></Whole>},
   // The real first screen: AccountEntry starts the code exactly as the app does at launch (one request to the configured
   // Portico Services). Whatever comes back is drawn: the code, or, if it cannot be created, the reason in the code card.
   {id: 'tv-account-activate-live', title: T, platforms: ['tv'], render: () => <Whole><AccountEntry onComplete={noop}/></Whole>},

@@ -196,7 +196,7 @@ export const accountMessages = {
   'accounts.ownerSwitch.secureTitle': 'Switch from a secure page',
   'accounts.ownerSwitch.secureBody': 'Switching sends sign-in details this page can’t protect. Open Portico at its secure address, or on the server itself at {localUrl}.',
   'accounts.ownerSwitch.openSecure': 'Open secure address',
-  'accounts.consent.portico': 'Scan the QR code, or visit web.getportico.tv/device and enter the code. Sign in with Google, Apple, or your Portico Account in the browser.',
+  'accounts.consent.portico': 'Scan the QR code, or visit web.getportico.tv/tv and enter the code. Sign in with Google, Apple, or your Portico Account in the browser.',
   'accounts.consent.local': 'On a phone signed in to {server}, open Portico › Settings › Link a TV, or on a computer open {address}.',
 
   'accounts.signIn.confirm': 'Confirm',
