@@ -1,5 +1,5 @@
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
-import {NativeModules} from 'react-native';
+import {NativeModules, Linking} from 'react-native';
 import {MFARequiredError, parseNativeAccountContinuation, parseAccountReturn,
   type IdentityProvider, type IdentityTransaction, type MFAChallenge, type NativeAccountContinuation, type Registration} from '../../../../packages/client-core/src/hosted-security';
 import type {PorticoServicesAccountClient, PorticoProviderProof} from '../../../../packages/client-core/src/portico-services-native';
@@ -136,11 +136,12 @@ export class NativePorticoSignIn {
       try {return await this.api().mfa(challenge, code);} finally {linked.dispose();}
     }, callerLive, formLive);
   }
-  /** Account help sends a reset code to the account's confirmed email address; the new
-   * password is chosen at web.getportico.tv. Services answers the same way whether or not
-   * the address has an account. */
-  async forgot(email: string) {
-    return this.api().recover(email.trim().toLowerCase());
+  /** The hosted page owns the emailed code and new password. Return to ordinary app sign-in;
+   * resetting never grants this app a session or needs an invented callback. */
+  async forgot(callerCurrent?: () => boolean) {
+    this.checkCaller(callerCurrent);
+    await Linking.openURL(hostedUrl + '/reset');
+    this.checkCaller(callerCurrent);
   }
   /** The same entry point used by phone/tablet and TV account buttons. */
   async provider(provider: IdentityProvider, callerCurrent?: () => boolean): Promise<IdentityTransaction> {
