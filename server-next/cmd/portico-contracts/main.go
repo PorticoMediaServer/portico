@@ -73,7 +73,7 @@ func generate() (types, openAPI []byte, err error) {
 		if r.Status != 0 {
 			status = fmt.Sprint(r.Status)
 		}
-		routes = append(routes, route{r.Pattern, method, path, accessNames[r.Access], g.use(r.Request), g.use(r.Response), status, string(r.Scope)})
+		routes = append(routes, route{r.Pattern, method, path, accessNames[r.Access], g.use(r.Request), g.use(r.Response), status, string(r.Scope), r.Confirm})
 	}
 	// Every refusal has this one shape, whichever route it comes from.
 	g.use(reflect.TypeFor[api.Error]())
@@ -93,6 +93,7 @@ type route struct {
 	request, response string
 	status            string // the status of a reply with a body
 	scope             string
+	confirm           string
 }
 
 type generator struct {
@@ -399,6 +400,10 @@ func (g *generator) openAPI(routes []route) []byte {
 		params := []object{}
 		for _, m := range pathParam.FindAllStringSubmatch(r.path, -1) {
 			params = append(params, object{"name": m[1], "in": "path", "required": true, "schema": object{"type": "string"}})
+		}
+		if r.confirm != "" {
+			params = append(params, object{"name": "confirm", "in": "query", "required": true,
+				"description": r.confirm, "schema": object{"type": "string"}})
 		}
 		if len(params) > 0 {
 			op["parameters"] = params

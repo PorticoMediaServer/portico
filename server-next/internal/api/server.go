@@ -107,6 +107,8 @@ type Route struct {
 	// Status is the status of a reply with a body when it is not 200: 202 for a slow write
 	// that answers with a job to watch.
 	Status int
+	// Confirm describes the required confirm query of a destructive handler.
+	Confirm string
 	// BodyLimit is the largest request body the route takes, when it is not maxBody.
 	BodyLimit int64
 	// Enrolling routes also take a sign-in that may only set up two-step sign-in.

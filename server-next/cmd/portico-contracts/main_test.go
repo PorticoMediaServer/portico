@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,7 +31,31 @@ func TestContractsAreCurrent(t *testing.T) {
 
 // Every registered route must be representable even when freshness is not checked.
 func TestRegisteredRoutesCanGenerate(t *testing.T) {
-	if _, _, err := generate(); err != nil {
+	_, openAPI, err := generate()
+	if err != nil {
 		t.Fatal(err)
+	}
+	var doc struct {
+		Paths map[string]map[string]struct {
+			Parameters []struct {
+				Name, In string
+				Required bool
+				Schema   struct{ Type string }
+			}
+		}
+	}
+	if err := json.Unmarshal(openAPI, &doc); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range [][2]string{{"delete", "/v1/admin/items/{id}"}, {"post", "/v1/admin/items/delete"}} {
+		found := false
+		for _, p := range doc.Paths[r[1]][r[0]].Parameters {
+			if p.Name == "confirm" {
+				found = p.In == "query" && p.Required && p.Schema.Type == "string"
+			}
+		}
+		if !found {
+			t.Errorf("%s %s must declare its required confirm query", r[0], r[1])
+		}
 	}
 }
