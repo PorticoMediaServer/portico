@@ -621,9 +621,8 @@ export class PlaybackService {
     if(tunerHandedOver(m,this.options.now?.()??Date.now())){this.handTunerOver(linear);return;}
     const changed=this.snapshot.session?.generation!==Number(m.bufferGeneration);
     let patch:Partial<PlaybackSnapshot>={linear,channel:linear.channel,linearStalled:state.status==='recoverable',intent:this.channelWantedState==='paused'?'paused':linear.desired.state,error:m.errorCode?channelMessage(m.errorCode):undefined};
-    // No engine attachment until an ordered, server-resolved join target exists.
-    if(m.streamUrl&&seek&&seek.bufferGeneration===m.bufferGeneration&&seek.positionUs!==null){
-      const target=channelSeconds(seek.positionUs);
+    if(m.streamUrl&&seek&&seek.bufferGeneration===m.bufferGeneration&&(seek.kind==='live'||seek.positionUs!==null)){
+      const target=seek.positionUs===null?0:channelSeconds(seek.positionUs);
       if(!this.snapshot.session||changed){
         const generation=Number(m.bufferGeneration);if(!Number.isSafeInteger(generation)){this.fail(this.snapshot.intentId,'Channel generation is not supported.');return;}
         patch.session={id:state.playbackId,generation,streamUrl:m.streamUrl,mode:m.mode??'hls',duration:0,resumeSeconds:target};
@@ -631,10 +630,13 @@ export class PlaybackService {
       }else if(this.snapshot.phase==='error')patch.phase='error';
       if(seek.seekCommandId!==this.channelSeekId){
         this.clearSeek();this.channelSeekId=seek.seekCommandId;this.channelSubmittedSeek=undefined;
-        const revision=this.snapshot.seekRevision+1,intent=this.snapshot.intentId;
-        patch.seekRevision=revision;patch.pendingSeek=Object.freeze({revision,positionSeconds:target});patch.failedSeek=undefined;patch.seekError=undefined;
-        const deadline=this.visibleDeadline(this.options.seekTimeoutMs??15000,()=>this.seekFailed(intent,revision,'That position is no longer available. Choose Go Live or another position.'));
-        this.seekWait=deadline.clear;
+        patch.pendingSeek=undefined;patch.failedSeek=undefined;patch.seekError=undefined;
+        if(seek.kind==='position'){
+          const revision=this.snapshot.seekRevision+1,intent=this.snapshot.intentId;
+          patch.seekRevision=revision;patch.pendingSeek=Object.freeze({revision,positionSeconds:target});
+          const deadline=this.visibleDeadline(this.options.seekTimeoutMs??15000,()=>this.seekFailed(intent,revision,'That position is no longer available. Choose Go Live or another position.'));
+          this.seekWait=deadline.clear;
+        }
       }
       if(linear.acknowledgedSeekCommandId===seek.seekCommandId&&this.channelSubmittedSeek===seek.seekCommandId&&this.channelObservedSeek!==seek.seekCommandId&&!linear.seekError){
         this.channelObservedSeek=seek.seekCommandId;this.clearSeek();patch.pendingSeek=undefined;patch.seekError=undefined;patch.failedSeek=undefined;

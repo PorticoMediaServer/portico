@@ -467,8 +467,8 @@ export class WebMediaPlayer implements MediaPlayer {
         },
       });
       this.hls = engine;
-      // The element does the positioning for a live join; hls.js does it for everything else.
-      this.target = live ? {ms: startMs, assigned: false, start: true} : startMs > 0 ? {ms: startMs, assigned: true, start: true} : undefined;
+      // A live join without a position starts at hls.js's playable edge.
+      this.target = startMs > 0 ? {ms: startMs, assigned: !live, start: true} : undefined;
       // Cues stay hidden until hls.js says where the stream sits on the element's clock.
       this.options.subtitles?.timeline(null);
       engine.subtitleDisplay = false;
@@ -492,7 +492,7 @@ export class WebMediaPlayer implements MediaPlayer {
     if (!this.video.canPlayType('application/vnd.apple.mpegurl')) { this.fail('unsupported', 'no HLS support'); return; }
     this.options.subtitles?.timeline(0);
     this.subtitleOffset = 0;
-    this.target = startMs > 0 || this.live() !== undefined ? {ms: startMs, assigned: false, start: true} : undefined;
+    this.target = startMs > 0 ? {ms: startMs, assigned: false, start: true} : undefined;
     this.video.src = url;
     this.airPlay?.native(url);
     this.video.load();
