@@ -378,18 +378,19 @@ test('continuation coalesces a section and retains first-page entity and listeni
 /** The rebuilt server's answers for an audiobook library: a book's detail (its chapters or parts, the
  * listener's place) and a series' volumes a page at a time. */
 const rebuiltLibrary = {id: 'books', name: 'Audiobooks', kind: 'audiobooks'};
-// A book of several files as a real scan sends it: each part a whole file, with no place in the book.
+// The rebuilt server publishes each audio part's place in the joined book.
 const rebuiltBook = (id: string, parts: number, positionMs = 0) => ({id, kind: 'audiobook', title: id, libraryId: 'books', images: {}, addedAt: '2026-11-12T00:00:00Z',
   durationMs: parts * 60_000, state: positionMs ? {positionMs} : {}, versions: [{id: 'v1', container: 'mp3', durationMs: parts * 60_000,
-    parts: Array.from({length: parts}, () => ({size: 1000, streams: [{index: 0, kind: 'audio', codec: 'mp3', channels: 2, sampleRate: 44100}]}))}]});
+    parts: Array.from({length: parts}, (_, n) => ({size: 1000, offsetMs: n * 60_000, durationMs: 60_000,
+      streams: [{index: 0, kind: 'audio', codec: 'mp3', channels: 2, sampleRate: 44100}]}))}]});
 const rebuiltSeries = {id: 'series-1', kind: 'series', title: 'Series', libraryId: 'books', images: {}, addedAt: '2026-11-12T00:00:00Z', state: {}};
 const volume = (id: string) => ({id, kind: 'audiobook', title: id, libraryId: 'books', images: {}, addedAt: '2026-11-12T00:00:00Z', state: {}});
 
-test('a book of eighty-one parts lists them all from its detail, offers no Resume, and Start over plays it from the beginning', async () => {
+test('a book of eighty-one parts resumes and starts later parts on the book clock; Start over still starts at zero', async () => {
   const starts: any[] = [], requests: string[] = [];
   const api = {request: async (path: string) => {
     requests.push(path);
-    return new URL(path, 'https://server.test').pathname === '/v1/items/book-1' ? rebuiltBook('book-1', 81, 2_520_000) : rebuiltLibrary;
+    return new URL(path, 'https://server.test').pathname === '/v1/items/book-1' ? rebuiltBook('book-1', 81, 2_535_000) : rebuiltLibrary;
   }};
   const {NativeAudiobookController} = await screenModule(new URL('../src-next/screens/destinations/audiobooks/model.ts', import.meta.url), {
     react: {default: {}}, '../lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}, current: () => true})},
@@ -400,11 +401,11 @@ test('a book of eighty-one parts lists them all from its detail, offers no Resum
   await value.load(lease);
   assert.equal(value.getSnapshot().sections[0].id, 'files');
   assert.equal(value.getSnapshot().sections[0].entries.length, 81, 'the detail lists every part; nothing pages');
-  // Stopgap: the rebuilt server plays only a several-file book's first file, so a place past it is not resumed.
   await value.resume(lease);
-  assert.equal(starts.length, 0);
+  await value.playChapter(lease, value.getSnapshot().sections[0].entries[42]);
   await value.startOver(lease);
-  assert.deepEqual(starts[0].target, {itemId: 'book-1', startSeconds: 0});
+  assert.deepEqual(starts.map(start => start.target), [
+    {itemId: 'book-1', startSeconds: 2535}, {itemId: 'book-1', startSeconds: 2520}, {itemId: 'book-1', startSeconds: 0}]);
   await value.next('files', lease);
   assert.equal(requests.filter(path => path.startsWith('/v1/items/')).length, 1);
   assert.equal(value.getSnapshot().entity.id, 'book-1');
