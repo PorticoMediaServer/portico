@@ -149,6 +149,7 @@ func mergeInto(b *batchTx, library, from, into, now int64) error {
 		// kept from the merged title, and never gains one through a merge.
 		{copyLabels, []any{into, from}},
 		{`UPDATE play_history SET item_id = ? WHERE item_id = ?`, []any{into, from}},
+		{`UPDATE play_history SET holder_id = ? WHERE holder_id = ?`, []any{into, from}},
 		{`UPDATE OR IGNORE item_relations SET item_id = ? WHERE item_id = ?`, []any{into, from}},
 		{`UPDATE OR IGNORE item_relations SET related_item_id = ? WHERE related_item_id = ?`, []any{into, from}},
 		// The keys that find a title across scans move, except its place under its parent

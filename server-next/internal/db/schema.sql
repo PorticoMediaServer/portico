@@ -857,7 +857,7 @@ CREATE TABLE play_history (
   profile_id      INTEGER REFERENCES profiles(id) ON DELETE SET NULL,
   profile_name    TEXT    NOT NULL,
   account_name    TEXT    NOT NULL,
-  item_id         INTEGER REFERENCES items(id) ON DELETE SET NULL,
+  item_id         INTEGER REFERENCES items(id) ON DELETE SET NULL, holder_id INTEGER REFERENCES items(id) ON DELETE SET NULL,
   device_id       INTEGER REFERENCES devices(id) ON DELETE SET NULL,
   client_event_id TEXT    NOT NULL,
   played_at       INTEGER NOT NULL,
@@ -880,7 +880,7 @@ CREATE TABLE play_history (
 );
 CREATE INDEX play_history_profile ON play_history (profile_id, played_at);
 CREATE INDEX play_history_played ON play_history (played_at);
-CREATE INDEX play_history_item ON play_history (item_id) WHERE item_id IS NOT NULL;
+CREATE INDEX play_history_item ON play_history (item_id) WHERE item_id IS NOT NULL; CREATE INDEX play_history_holder ON play_history (holder_id) WHERE holder_id IS NOT NULL;
 CREATE INDEX play_history_device ON play_history (device_id) WHERE device_id IS NOT NULL;
 CREATE INDEX play_history_user ON play_history (user_id, played_at) WHERE user_id IS NOT NULL;
 CREATE INDEX play_history_library ON play_history (library_id, played_at) WHERE library_id IS NOT NULL;

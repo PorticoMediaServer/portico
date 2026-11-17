@@ -82,8 +82,9 @@ func (d *DB) History(ctx context.Context, v Viewer, since int64, cursor string, 
 		HistoryEntry
 		id, itemID int64
 	}
-	rows, err := queryAll(ctx, tx, `SELECT h.id, h.played_at, ifnull(h.watched_ms, 0), h.item_kind, h.title, ifnull(h.subtitle, ''),
-		ifnull(h.item_id, 0) FROM play_history h LEFT JOIN items i ON i.id = h.item_id
+	rows, err := queryAll(ctx, tx, `SELECT h.id, h.played_at, ifnull(h.watched_ms, 0), h.item_kind, h.title,
+		CASE WHEN h.holder_id IS NULL OR `+acc.visible("holder")+` THEN ifnull(h.subtitle, '') ELSE '' END,
+		ifnull(h.item_id, 0) FROM play_history h LEFT JOIN items i ON i.id = h.item_id LEFT JOIN items holder ON holder.id = h.holder_id
 		WHERE `+historyShown+` AND h.played_at > @since AND h.played_at <= @at AND (h.played_at < @at OR h.id < @id)
 		AND (h.item_id IS NULL OR `+acc.visible("i")+`)
 		ORDER BY h.played_at DESC, h.id DESC LIMIT @limit`,
