@@ -200,12 +200,12 @@ button.circle:focus-visible { outline: 3px solid var(--color-focus); outline-off
 .pickerArtwork, .newPickerArtwork { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 8px; overflow: hidden; flex: none; background: var(--color-raised); box-shadow: 0 0 0 1px rgba(237,245,250,.08); }
 .newPickerArtwork { background: rgba(237,245,250,.1); color: var(--color-text); }
 .pickerText { min-width: 0; flex: 1; }
-.pickerText b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; font-weight: 700; color: var(--color-text); }
+.pickerText b { display: block; white-space: normal; overflow-wrap: anywhere; font-size: 14.5px; font-weight: 700; color: var(--color-text); }
 .pickerText small { display: block; margin-top: 1px; font-size: 12.5px; font-weight: 500; color: var(--color-text-tertiary); }
 .pickerEnd { flex: none; font-size: 12.5px; font-weight: 700; color: var(--color-accent-strong); }
 .pickerSeparator { height: 1px; margin: 6px 4px; background: var(--color-line); }
 .pickerEntries { max-height: min(360px,50dvh); overflow: auto; overscroll-behavior: contain; }
-.pickerButtons { display: flex; gap: 8px; margin: 12px 4px 4px; }
+.pickerButtons { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 4px 4px; }
 .pickerButtons.pickerButtons button { height: 42px; padding: 0 16px; border-radius: 10px; font-size: 14.5px; }
 .pickerButtons button:last-child { flex: 1; justify-content: center; }
 .pickerNew { margin: 4px 4px 0; }

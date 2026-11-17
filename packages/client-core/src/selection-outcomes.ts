@@ -17,6 +17,7 @@ export type PickerObservation = Readonly<{
   failed?: number;
   unknown?: number;
   pending?: boolean;
+  cancelled?: boolean;
   failures: readonly unknown[];
   complete: boolean;
 }>;
@@ -33,7 +34,7 @@ export function bulkReceiptView(receipts: readonly BulkReceipt[]): BulkReceiptVi
 
 /** Complete observations may still contain failures; missing counters prove no success. */
 export function pickerResultSucceeded(result: PickerObservation): boolean {
-  return result.complete && result.inserted !== undefined && result.failed === 0 && (result.unknown === undefined || result.unknown === 0) && result.pending !== true && result.failures.length === 0;
+  return result.complete && !result.cancelled && result.inserted !== undefined && result.failed === 0 && (result.unknown === undefined || result.unknown === 0) && result.pending !== true && result.failures.length === 0;
 }
 
 /** The mock-up's ceiling: a larger destructive selection is refused, never split into parts. */

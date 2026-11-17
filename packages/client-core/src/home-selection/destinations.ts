@@ -3,6 +3,7 @@ import type {HomeSelectionOptions, HomeSelectionPicker, HomeSelectionPickerRow} 
 import type {HomeDestinationReceipt} from './destination-receipt.ts';
 import {selectionExecutionError} from './execution.ts';
 import {addToDestination, createDestination, readDestination, readDestinationPage, selectionItemIds, type ListDestinationApi} from './list-destinations.ts';
+import {ViewDestinationJob, type ViewDestinationSnapshot} from './view-destination-job.ts';
 
 export type HomeDestinationOptions = Pick<HomeSelectionOptions, 'api' | 'events' | 'requestId'>;
 
@@ -15,13 +16,13 @@ export function receiptOf(kind: 'playlist' | 'collection', destinationId: string
 
 /**
  * One add-to-playlist or add-to-collection sheet for a selection, on the rebuilt server (`list-destinations.ts`): the
- * profile's lists to choose from, a search by name and pages of 40, the titles added in parts of 500, or a new list made
- * with them in it. Each sheet is private; paging it never changes Saved's visible route.
+ * profile's lists to choose from, a search by name and pages of 40. Explicit picks are added in parts of 500; a whole
+ * view runs as one server job, including for a newly created empty list. Each sheet is private; paging it never changes Saved's visible route.
  */
 export class HomeSelectionDestinations {
   private state: HomeSelectionPicker;
   private chosen?: string;
-  /** The titles this sheet adds, read once (a whole view is resolved then) and kept for a retry. */
+  /** Explicit chosen titles, kept for a retry; whole views are never enumerated here. */
   private ids?: readonly string[];
   /** The operation an addition or a new list is sent under; a retry reuses it, so nothing goes in twice. */
   private operation?: Readonly<{key: string; destination: string | 'new'; name?: string}>;
@@ -32,6 +33,8 @@ export class HomeSelectionDestinations {
   private readVersion = 0;
   private readController?: AbortController;
   private closed = false;
+  private viewJob?: ViewDestinationJob;
+  private viewKey?: string;
   private options: HomeDestinationOptions;
   private target: SelectionTarget;
   private signal: AbortSignal;
@@ -63,11 +66,28 @@ export class HomeSelectionDestinations {
   }
   search(query: string) {if (this.operation) throw selectionExecutionError('finish-destination-retry'); return this.load(query);}
   async page(previous = false) {
-    this.active(); if (this.state.phase !== 'ready') throw selectionExecutionError('picker-busy');
+    this.active();
+    if (this.viewJob && this.state.receipt?.complete) return this.viewJob.page(previous);
+    if (this.state.phase !== 'ready') throw selectionExecutionError('picker-busy');
     if (previous) {if (this.history.length) await this.load(this.query, this.history.at(-1), this.history.slice(0, -1));}
     else if (this.nextCursor) await this.load(this.query, this.nextCursor, [...this.history, this.cursor]);
   }
-  /** The titles to add, read once per sheet. A whole view of more than one addition takes is refused here. */
+  private viewChanged = ({row, receipt, progress, next, previous, cancelling, jobFailed}: ViewDestinationSnapshot) => {
+    this.update({receipt, jobs: receipt.jobs, progress, next, previous, cancelling, destination: {kind: this.state.kind, ...row},
+      phase: receipt.pending ? 'adding' : jobFailed ? 'error' : receipt.failed || receipt.cancelled ? 'partial' : 'added',
+      error: jobFailed ? info(selectionExecutionError('execution_failed')) : null});
+  };
+  private addView(row: HomeSelectionPickerRow, key: string) {
+    if (this.target.mode !== 'query') throw selectionExecutionError('query-destination-unavailable');
+    if (this.viewKey !== key) {
+      this.viewKey = key;
+      this.viewJob = new ViewDestinationJob({api: this.api, target: this.target, kind: this.state.kind, row, key,
+        events: this.options.events, signal: this.signal, current: () => !this.closed && this.current(), changed: this.viewChanged});
+    }
+    return this.viewJob!.run();
+  }
+  cancel() {this.active(); return this.viewJob?.cancel() ?? Promise.resolve();}
+  /** Explicit titles to add, retained for the same keyed operation. */
   private async titles(): Promise<readonly string[]> {
     if (!this.ids) {this.ids = await selectionItemIds(this.api, this.target, this.signal); this.active();}
     if (!this.ids.length) throw selectionExecutionError('destination-required');
@@ -85,6 +105,10 @@ export class HomeSelectionDestinations {
     this.active(); if (this.state.phase !== 'ready' && !(this.operation?.destination === 'new' && this.operation.name === name)) throw selectionExecutionError('picker-busy');
     this.update({phase: 'adding', error: null});
     try {
+      if (this.target.mode === 'query') {
+        const key = await this.key('new', name), made = await createDestination(this.api, this.state.kind, name, [], key, this.signal);
+        this.active(); await this.addView(made.row, key + '.view'); return;
+      }
       const ids = await this.titles(), key = await this.key('new', name);
       const made = await createDestination(this.api, this.state.kind, name, ids, key, this.signal); this.active();
       this.finish(made.row, made.added, ids.length - made.added);
@@ -98,6 +122,11 @@ export class HomeSelectionDestinations {
     this.chosen = id;
     this.update({phase: 'adding', destination: offered ? {kind: this.state.kind, ...offered} : this.state.destination, error: null});
     try {
+      if (this.target.mode === 'query') {
+        const row = await readDestination(this.api, this.state.kind, id, this.signal); this.active();
+        if (!row.canAdd) throw selectionExecutionError('destination-not-permitted');
+        await this.addView(row, await this.key(id)); return;
+      }
       const ids = await this.titles();
       const row = await readDestination(this.api, this.state.kind, id, this.signal); this.active();
       if (!row.canAdd) throw selectionExecutionError('destination-not-permitted');
@@ -119,6 +148,12 @@ export class HomeSelectionDestinations {
   /** Try again: the addition or the new list that did not answer, under its own operation, or the rows. */
   async retry() {
     this.active();
+    if (this.viewJob) {
+      this.update({phase: 'adding', error: null});
+      try {await this.viewJob.run();}
+      catch (error) {if (this.current()) this.update({phase: 'uncertain', error: info(error)});}
+      return;
+    }
     const operation = this.operation;
     if (operation?.destination === 'new' && operation.name !== undefined) {this.update({phase: 'ready'}); return this.create(operation.name);}
     if (operation) {this.update({phase: 'ready'}); return this.choose(operation.destination);}

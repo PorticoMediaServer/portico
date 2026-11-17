@@ -9,6 +9,7 @@ export type HomeDestinationReceipt = Readonly<{
   /** Distinct actual expanded members across this entire genuine job set. */
   added: number; alreadyPresent: number; failed: number; unknown: number;
   complete: boolean; pending: boolean; unresolvedJobIds: readonly string[];
+  cancelled?: boolean;
   failures: readonly JobFailure[]; nextCursor: string;
   /** Actual authorized expanded leaves for this failure window, same order. */
   failureEntries: readonly ContentEntry[];

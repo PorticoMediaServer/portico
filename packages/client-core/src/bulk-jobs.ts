@@ -39,7 +39,7 @@ export type Job=Readonly<{
  /** A selection of titles is done here, one title at a time: its job ends as it starts, with what failed and why. */
  failures?:readonly JobFailure[];
 }>;
-export type JobFailure=Readonly<{itemId:string;code:string}>;
+export type JobFailure=Readonly<{itemId:string;code:string;message?:string}>;
 export type JobFailurePage=Readonly<{items:readonly JobFailure[];nextCursor:string}>;
 export interface BulkJobsApi{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}
 
@@ -189,9 +189,9 @@ const unavailable=()=>Object.assign(new Error('This action is not available on t
 /** A job this app ran title by title: its id is local, and it never needs reading again. */
 const localJob=(id:string)=>id.startsWith('titles-');
 
-/** The view a query selector names, as the query of `GET /v1/items` (its sort is no part of the view). */
-export function jobViewFilter(query:Extract<JobSelector,{query:unknown}>['query']):string{
- const list=libraryItemQuery({id:query.libraryId},query.pivot,query.filter===undefined||query.filter===null?[]:[query.filter as BrowseNode],[]);
+/** The view a job names; list additions retain its order, while state/metadata jobs need only the filter. */
+export function jobViewFilter(query:Extract<JobSelector,{query:unknown}>['query'],keepOrder=false):string{
+ const list=libraryItemQuery({id:query.libraryId},query.pivot,query.filter===undefined||query.filter===null?[]:[query.filter as BrowseNode],keepOrder?query.sort??[]:[]);
  const out=new URLSearchParams();
  for(const [name,value] of Object.entries(list))if(value!==undefined&&value!=='')out.set(name,String(value));
  return out.toString();

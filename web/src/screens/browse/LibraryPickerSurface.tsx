@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
+import {presentError} from '@core/presentation/errors.ts';
 import type {HomeSelectionPicker} from '@core/home-selection/types.ts';
 import type {EntryActionPorts, EntryDestination} from '../../shell/entry-actions';
 import {pickerResultView} from '../../shell/selection-presentation';
@@ -44,16 +45,18 @@ export function LibraryPickerSurface({destination, target, ports, artwork, onVie
     return covers.length ? <CoverMosaic alt="" covers={covers} /> : undefined;
   };
   const entries: readonly PickerEntry[] = picker?.rows.map(row => ({id: row.id, name: row.name, size: row.count, canAdd: row.canAdd, alreadyIn: row.alreadyIn, artwork: mosaic(row.artwork)})) ?? [];
-  const resultView = picker && pickerResultView(picker, () => t('next.selection.pickerFailed'));
+  const resultView = picker && pickerResultView(picker, code => presentError({code}, 'home', {operation: 'action'}).body);
   const result = resultView && picker ? {...resultView, destination: {...resultView.destination, artwork: mosaic(picker.destination?.artwork)}} : undefined;
   // select.html 18: a fully successful add closes the sheet, ends the selection and
   // leaves one toast with View; a partial result keeps the sheet open (frame 19).
   const succeeded = picker?.phase === 'added' && !!result && pickerResultSucceeded(result);
-  const selectionCount = {count: 'mode' in target ? target.total : target.length};
+  const selectionCount = 'mode' in target ? {count: target.total, kind: target.summary.types[0]?.kind} : {count: target.length};
   const Picker = destination === 'playlist' ? PlaylistPicker : CollectionPicker;
   return <><Picker open={!succeeded} onOpenChange={value => {if (!value) close();}} selection={selectionCount} anchorRef={anchorRef} returnFocusRef={anchorRef}
     entries={entries} query={picker?.query ?? ''} onQueryChange={value => run(owned => owned.search(value))}
     loading={!picker || picker.phase === 'loading'} busy={picker?.phase === 'adding'}
+    progress={picker?.progress} cancelling={picker?.cancelling}
+    onCancel={picker?.phase === 'adding' && picker.jobs.length ? () => run(owned => owned.cancel()) : undefined}
     hasNext={picker?.next} hasPrevious={picker?.previous} onNext={picker?.next ? () => run(owned => owned.page()) : undefined}
     onPrevious={picker?.previous ? () => run(owned => owned.page(true)) : undefined}
     mode={mode} onModeChange={next => {if (next === 'new' && destination === 'collection' && !canCreate) {setError(t('next.selection.collectionOwnerOnly')); return;} setMode(next);}}
@@ -62,7 +65,7 @@ export function LibraryPickerSurface({destination, target, ports, artwork, onVie
     onRetryOperation={picker?.phase === 'uncertain' ? () => run(owned => owned.retry()) : undefined}
     onRetryError={picker?.phase === 'error' || error ? () => run(owned => owned.retry()) : undefined}
     result={result} error={error ?? (picker?.error ? t('next.selection.pickerFailed') : undefined)} />
-    {result && <PickerAddedToast open={succeeded} onOpenChange={value => {if (!value && succeeded) close();}} selection={selectionCount} destination={destination} result={result}
+    {result && <PickerAddedToast open={succeeded} onOpenChange={value => {if (!value && succeeded) close();}} selection={{count: selectionCount.count}} destination={destination} result={result}
       {...(onView ? {onView: (id: string) => onView(destination, id)} : {})} />}
   </>;
 }

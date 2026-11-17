@@ -2,6 +2,7 @@ import type {BrowserQueryActionHost} from './selection-action-host';
 import {selectionUnavailableActions} from './selection-unavailable-actions';
 import {catalogueQuerySelectionSegments} from '@core/catalogue-query-selection.ts';
 import {queryDestinationTarget, type LibraryPickerTarget} from './selection-picker';
+import {withRequestRaw, type RequestRaw} from '@core/home-selection/list-destinations.ts';
 import {queryDeleteTarget} from './selection-delete-query';
 import {QuerySelectionEditorSurface} from './QuerySelectionEditorSurface';
 import {LibraryPickerSurface, type LibraryPickerOptions} from './LibraryPickerSurface';
@@ -280,9 +281,11 @@ export function createLibrarySelection({playSelection, owner, descriptor, wholeS
     const lifetime = new AbortController(), signal = AbortSignal.any([lifetime.signal, pickers.signal]);
     const current = () => !signal.aborted && pickers.isCurrent() && playSelection.isOperationCurrent?.(operation) === true;
     const check = () => {if (!current()) throw new DOMException('Selection retired', 'AbortError');};
-    const ports: EntryActionPorts = {...pickers, isCurrent: current, api: {request: async <T,>(path: string, method?: string, body?: unknown, caller?: AbortSignal): Promise<T> => {
+    const api = {request: async <T,>(path: string, method?: string, body?: unknown, caller?: AbortSignal): Promise<T> => {
       check(); const value = await pickers.api.request<T>(path, method, body, caller ? AbortSignal.any([signal, caller]) : signal); check(); return value;
-    }}};
+    }};
+    const raw = (pickers.api as {requestRaw?: RequestRaw}).requestRaw?.bind(pickers.api);
+    const ports: EntryActionPorts = {...pickers, isCurrent: current, api: withRequestRaw(api, raw, check)};
     pickerSession = Object.freeze({operation, anchor, lifetime, current, kind, ports, items: operation.target.mode === 'query' ? operation.target : Object.freeze(operation.target.items.map(pick => pick.item))});
     for (const listener of pickerListeners) listener();
   };
