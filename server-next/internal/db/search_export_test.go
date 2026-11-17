@@ -22,6 +22,12 @@ func SetSearchCheckCap(matches int) (restore func()) {
 	return func() { searchCheckCap = old }
 }
 
+func SetSearchHiddenCheckCap(matches int) (restore func()) {
+	old := searchHiddenCheckCap
+	searchHiddenCheckCap = matches
+	return func() { searchHiddenCheckCap = old }
+}
+
 // RenameItem and DeleteItem stand in for the metadata editor and the library's delete, which
 // are not built yet. Each writes what those will: the row, and its change.
 func (d *DB) RenameItem(ctx context.Context, publicID, title string) error {

@@ -36,12 +36,10 @@ const (
 )
 
 var (
-	// searchCheckCap is the most matches one request checks against the main database for
-	// one kind. It bounds what a profile with restrictions, or a sort, costs on a search as
-	// wide as one letter. A page that stops at it carries a cursor to go on from; a count of
-	// people that stops at it is marked as a minimum (titles are always counted exactly);
-	// a sort over more matches than this is refused.
-	searchCheckCap = 2000
+	// searchCheckCap bounds visible People totals and matches offered for sorting.
+	// Hidden matches are checked in batches and do not consume that budget.
+	searchCheckCap       = 2000
+	searchHiddenCheckCap = 2000 // a page stops here and returns a continuation cursor
 )
 
 // SearchQuery is what to search for. Kind is one of the group names ("movie", "person", ...)
@@ -167,12 +165,14 @@ func (c searchCursor) encode() string {
 type searcher struct {
 	ctx   context.Context
 	tx    *sql.Tx // the main database
-	index *sql.DB // search.db
+	index *sql.DB // search.db; its publication waits for done
 	v     Viewer
 	acc   access
 	match searchMatch
 	// What this request has already asked the main database: whether each row may be seen.
 	checked map[int64]bool
+	stale   bool  // the follower does not describe this main-database snapshot
+	cursor  int64 // the cursor read from this index snapshot
 }
 
 // narrowed is an expression over titles that leaves out what the viewer's libraries, rating
@@ -229,8 +229,13 @@ func (d *DB) searcher(ctx context.Context, v Viewer, terms searchTerms) (s *sear
 	}
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err == nil {
-		s = &searcher{ctx: ctx, tx: tx, index: ix.read, v: v, match: terms.match(), checked: map[int64]bool{}}
-		if s.acc, err = loadAccess(ctx, tx, v); err != nil {
+		s = &searcher{ctx: ctx, tx: tx, index: ix.read, v: v, match: terms.match(), checked: map[int64]bool{}, cursor: ix.cursor.Load()}
+		if s.acc, err = loadAccess(ctx, tx, v); err == nil {
+			var current int64
+			err = tx.QueryRowContext(ctx, `SELECT ifnull((SELECT seq FROM sqlite_sequence WHERE name = 'changes'), 0)`).Scan(&current)
+			s.stale = current != s.cursor
+		}
+		if err != nil {
 			tx.Rollback()
 		}
 	}
@@ -330,7 +335,7 @@ func (d *DB) Search(ctx context.Context, v Viewer, q SearchQuery) (SearchResults
 		total := totals[g.code]
 		group := SearchGroup{Kind: g.name, Counted: q.Cursor == "", Total: total.visible, TotalIsMinimum: total.minimum}
 		var rows []int64
-		if (only == nil || only == g) && (!group.Counted || group.Total > 0) {
+		if (only == nil || only == g) && (!group.Counted || group.Total > 0 || group.TotalIsMinimum) {
 			// A group's cursor names the group, so the rest of it is asked for by its kind.
 			start, next := searchCursor{Kind: g.name, Sort: q.Sort, Desc: q.Desc}, searchCursor{}
 			if q.Cursor != "" {
@@ -384,7 +389,7 @@ func (s *searcher) candidates(expr string, code, after int64, limit int) ([]int6
 		last = searchRow(int64(len(searchGroups))+1, 0)
 	}
 	rows, err := s.index.QueryContext(s.ctx, `SELECT rowid FROM search_titles WHERE search_titles MATCH ? AND rowid > ? AND rowid <= ? ORDER BY rowid LIMIT ?`,
-		s.over(expr, code), max(after, first), last, limit)
+		s.candidateMatch(expr, code), max(after, first), last, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -467,7 +472,7 @@ func (s *searcher) check(rows []int64) (map[int64]bool, error) {
 // is all of them: a row whose title was deleted a moment ago is dropped when the page is loaded.
 func (s *searcher) visible(rows []int64) (map[int64]bool, error) {
 	seen := make(map[int64]bool, len(rows))
-	if s.acc.seesAll() {
+	if s.acc.seesAll() && !s.stale {
 		for _, row := range rows {
 			seen[row] = true
 		}
@@ -489,7 +494,10 @@ func (s *searcher) visible(rows []int64) (map[int64]bool, error) {
 		return nil, err
 	}
 	for _, row := range ask {
-		seen[row], s.checked[row] = asked[row], asked[row]
+		seen[row] = asked[row]
+		if asked[row] || len(s.checked) < searchCheckCap {
+			s.checked[row] = asked[row]
+		}
 	}
 	return seen, nil
 }
@@ -545,6 +553,13 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 	if !s.acc.known {
 		return totals, nil
 	}
+	changed, missing, err := s.changedMatches()
+	if err != nil {
+		return nil, err
+	}
+	if missing {
+		return s.currentTotals()
+	}
 	var counting sync.WaitGroup
 	var mu sync.Mutex
 	var failed error
@@ -578,30 +593,21 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 			total.visible = max(total.visible-n, 0)
 			totals[code] = total
 		}
+		if err := s.correctTotals(totals, changed); err != nil {
+			return nil, err
+		}
 		return totals, nil
 	}
 	if s.acc.seesAll() {
 		return done(nil)
 	}
-	// While the index counts, the main database is asked who may be seen.
-	people, err := s.candidates(s.match.all, searchPeople, 0, searchCheckCap+1)
+	// People are counted from titles visible in the current main-database snapshot.
+	people, err := s.visibleCandidates(s.match.all, searchPeople, searchCheckCap+1)
 	if err != nil {
 		return done(err)
 	}
 	minimum := len(people) > searchCheckCap
-	if minimum {
-		people = people[:searchCheckCap]
-	}
-	seen, err := s.visible(people)
-	if err != nil {
-		return done(err)
-	}
-	visible := 0
-	for _, row := range people {
-		if seen[row] {
-			visible++
-		}
-	}
+	visible := min(len(people), searchCheckCap)
 	mu.Lock()
 	totals[searchPeople] = searchTotal{visible: visible, minimum: minimum}
 	mu.Unlock()
@@ -613,14 +619,21 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 			if g.code == searchPeople || g.kinds[0].Playable() {
 				continue
 			}
-			rows, err := s.candidates(s.match.all, g.code, 0, -1)
+			rows, err := s.indexRows(`SELECT rowid FROM search_titles WHERE search_titles MATCH ? AND rowid > ? AND rowid < ?`,
+				s.over(s.match.all, g.code), searchRow(g.code, 0), searchRow(g.code+1, 0))
 			if err != nil || len(rows) == 0 {
 				if err != nil {
 					return done(err)
 				}
 				continue
 			}
-			items, _ := splitRows(rows)
+			var unchanged []int64
+			for _, row := range rows {
+				if !changed[row] {
+					unchanged = append(unchanged, row)
+				}
+			}
+			items, _ := splitRows(unchanged)
 			var n int
 			if err := s.tx.QueryRowContext(s.ctx, `SELECT count(*) FROM json_each(@ids) j CROSS JOIN items i ON i.id = j.value
 				WHERE NOT (1`+filled+`)`, s.args(items)...).Scan(&n); err != nil {
@@ -640,8 +653,9 @@ func (s *searcher) best(tiers []string, code int64, from searchCursor, limit, kn
 	next, end := from, from
 	end.Tier = -1
 	var hits []int64
-	checked, batch := 0, firstBatch(limit)
+	batch := firstBatch(limit)
 	tier, after := from.Tier, from.After
+	hidden := 0
 	for tier < len(tiers) && len(hits) != known {
 		candidates, err := s.candidates(tiers[tier], code, after, batch)
 		if err != nil {
@@ -653,6 +667,11 @@ func (s *searcher) best(tiers []string, code int64, from searchCursor, limit, kn
 		}
 		for _, row := range candidates {
 			if !seen[row] {
+				hidden++
+				if hidden == searchHiddenCheckCap {
+					next.Tier, next.After = tier, row
+					return hits, next, nil
+				}
 				continue
 			}
 			if len(hits) == limit {
@@ -661,15 +680,9 @@ func (s *searcher) best(tiers []string, code int64, from searchCursor, limit, kn
 			hits = append(hits, row)
 			next.Tier, next.After = tier, row
 		}
-		checked += len(candidates)
 		switch {
 		case len(candidates) < batch:
 			tier, after = tier+1, 0
-		case checked >= searchCheckCap:
-			// Almost nothing of what matches is this viewer's to see. Stop here; the next
-			// page carries on from the last match checked.
-			next.Tier, next.After = tier, candidates[len(candidates)-1]
-			return hits, next, nil
 		default:
 			after, batch = candidates[len(candidates)-1], min(batch*4, 1000)
 		}
@@ -681,7 +694,7 @@ func (s *searcher) best(tiers []string, code int64, from searchCursor, limit, kn
 func (s *searcher) sorted(code int64, from searchCursor, limit int) ([]int64, searchCursor, error) {
 	end := from
 	end.Tier = -1
-	candidates, err := s.candidates(s.match.all, code, 0, searchCheckCap+1)
+	candidates, err := s.visibleCandidates(s.match.all, code, searchCheckCap+1)
 	if err != nil {
 		return nil, end, err
 	}
