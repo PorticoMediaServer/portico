@@ -2,7 +2,7 @@ import {useId, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type
 import {defaultI18n} from '@i18n';
 import {Icon, type IconName} from '../Icon';
 import {Button} from '../controls/Button';
-import {Artwork, ColourBackdrop, type ArtworkSource} from '../artwork';
+import {Artwork, type ArtworkSource} from '../artwork';
 import {SidePanel} from '../overlays/SidePanel';
 import {knownProgress} from './model';
 import styles from './states.module.css';
@@ -160,7 +160,7 @@ export function StateLayout({backdrop = {kind: 'colour'}, variant = 'page', chro
   return <div className={[styles.layout, styles[variant], className].filter(Boolean).join(' ')} style={style} data-details-open={panel?.open || undefined}>
     {/* A page state is transparent over the window's standard backdrop, wherever it sits; a player
         state covers the picture with the same backdrop. */}
-    {backdrop?.kind === 'colour' ? variant === 'page' ? null : <ColourBackdrop/> : backdrop && <div className={styles.frozen} aria-hidden="true"><Artwork source={backdrop.source} alt=""/><div className={styles.frozenShade}/></div>}
+    {backdrop?.kind === 'colour' ? variant === 'page' ? null : <div aria-hidden="true" className={`portico-backdrop ${styles.cover}`}/> : backdrop && <div className={styles.frozen} aria-hidden="true"><Artwork source={backdrop.source} alt=""/><div className={styles.frozenShade}/></div>}
     {chrome}
     <div className={styles.position} style={positionStyle}><StateContent {...content} compact={variant === 'landscape'} panelDetails={!!panel} detailsTriggerRef={detailsTrigger}/></div>
     {panel && <SidePanel open={panel.open} onOpenChange={panel.onOpenChange} title={panel.label ?? defaultI18n.t('next.states.details')} width={352} topInset={10} className={styles.landscapeDetails} returnFocusRef={detailsTrigger}>{panel.content}</SidePanel>}

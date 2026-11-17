@@ -36,7 +36,7 @@
 @media (min-width: 1920px) { :global(:root) { --auth-zoom: 1.25; } }
 .stage:not([data-bare]):not([data-layout="state"]) [data-auth-content] > * { zoom: var(--auth-zoom); }
 .stage[data-layout="state"] { --state-zoom: var(--auth-zoom); }
-.stage { position: relative; isolation: isolate; min-height: 100svh; overflow: hidden; background: var(--color-ink); font-size: 16px; }
+.stage { position: relative; isolation: isolate; min-height: 100svh; overflow: hidden; font-size: 16px; }
 .stage, .stage button, .stage input { font-family: var(--font); }
 .phoneFace, .phonePINHeading, .phonePINLabel, .phoneProfileBack { display: none; }
 .brand { position: absolute; z-index: 1; left: var(--auth-left); top: 30px; display: flex; align-items: center; gap: 14px; }
