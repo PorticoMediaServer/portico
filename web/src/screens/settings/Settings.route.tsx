@@ -2,7 +2,6 @@ import {GeneralPause} from './server/GeneralPause';
 import {OwnerGeneralSettings} from '@core/server-admin/general-settings.ts';
 import {readOwnerSignInConfiguration} from '@core/sign-in-policy.ts';
 import {ownerItemArtworkPath, uploadOwnerProfileAvatar, uploadOwnerMemberAvatar} from '@core/owner-upload-requests.ts';
-import {openOwnerLogEvents} from '@core/owner-diagnostics-requests.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
 import {forwardFacts, subscribeFacts} from '../../shell/fact-source';
 import {mountQuietInput, type QuietInput} from './quiet-refresh';
@@ -478,9 +477,9 @@ export function SettingsEntry() {
     // make, read from the published route access (troubleshooting/parts.ts).
     const troubleshooting = route.section === 'troubleshooting' && (role === 'owner' || role === 'admin') && identity.primaryProfile === true && identity.capabilities?.manageServer === true ? createTroubleshootingSurfaces({tier: role, transport: api, serverId: viewer.serverId,
       viewerId: options.viewerId, downloadBase: api.baseUrl, isCurrent: current, subscribe: controller.subscribe, reportError,
-      messageConnection: {open: (headers, signal) => {
-        if (!current()) return Promise.reject(new DOMException('The settings scope ended.', 'AbortError'));
-        return openOwnerLogEvents(api, headers, context.session().accessToken, signal);
+      messageConnection: {open: async (headers, input) => {
+        assert();
+        return originalApi.openOwnerLogEvents(headers, signal(input));
       }}}) : undefined;
     const previewLife = new AbortController();
     const preview = createScreenPlayEffect({isCurrent: current, runtime: () => mediaRuntime});
