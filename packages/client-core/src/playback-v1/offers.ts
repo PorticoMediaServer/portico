@@ -1,7 +1,8 @@
 import type {QualityRung} from '../delivery.ts';
 import type {ContentScope} from '../library-content.ts';
 import type {PlayerCurrentOffer, PlayerOfferControl, PlayerOfferedStream, PlayerOffersData, PlayerOffersQuery, PlayerSourceOffer} from '../player-offers.ts';
-import type {SubtitleFormat, SubtitlePlan, SubtitleResource} from '../subtitles.ts';
+import {subtitleOriginals} from '../subtitle-originals.ts';
+import type {SubtitleDelivery, SubtitleFormat, SubtitlePlan, SubtitleResource} from '../subtitles.ts';
 import type {SegmentMarker, SegmentMarkerSet} from '../segment-markers.ts';
 import {parseOptions, parseSession, type MediaVersion, type PlaybackOptions, type Session} from './types.ts';
 import {playbackPath} from './routes.ts';
@@ -41,19 +42,36 @@ function sourceOffer(version: MediaVersion, rungs: readonly QualityRung[]): Play
     streams: Object.freeze(known ? streams.map(s => Object.freeze(s)) : []), qualities: rungs});
 }
 
-/** The subtitle choices of the version playing, and the one on. A text track is drawn by the page
- * from the WebVTT the session names; a picture track (PGS, VobSub, DVB) is not offered yet. */
+/** The version's offered deliveries and the current session's grant-confined subtitle files. */
 export function sessionSubtitlePlan(session: Session, version: MediaVersion): SubtitlePlan {
-  const presented = session.presentation, offsetMs = presented.subtitles.find(s => s.trackId === presented.subtitle?.trackId)?.offsetMs ?? 0;
-  const resources = version.subtitles.map((s): SubtitleResource => Object.freeze({id: s.id, sourceId: version.id, revision: 1, scope: 'shared', language: s.language ?? '', title: s.title ?? '',
-    format: subtitleFormat(s.format), origin: s.source === 'sidecar' ? 'sidecar' : 'embedded', rights: '', offsetUs: String(Math.round(offsetMs * 1000)), canManage: false,
-    enabled: textFormats.includes(s.format), ...(textFormats.includes(s.format) ? {} : {reason: 'subtitle_delivery_unavailable'}),
-    renderer: 'external_text', default: s.default, forced: s.forced, hearingImpaired: s.sdh}));
-  const selected = resources.find(r => r.id === presented.subtitle?.trackId && r.enabled) ?? null;
-  const document = selected ? presented.subtitles.find(s => s.trackId === selected.id)?.url : undefined;
+  const presented = session.presentation, shown = presented.subtitle;
+  const files = presented.subtitles.filter(file => file.trackId === shown?.trackId);
+  const selectedFile = files.find(file => file.format === shown?.kind || shown?.kind === 'ass' && file.format === 'ssa')
+    ?? files.find(file => file.format === 'vtt');
+  const offsetMs = selectedFile?.offsetMs ?? 0;
+  const renderer: SubtitlePlan['renderer'] = shown?.delivery === 'burn' ? 'burn_in'
+    : shown?.delivery === 'device' && shown.kind !== 'text' && shown.kind !== 'other' ? 'client' : 'external_text';
+  const resources = version.subtitles.map((s): SubtitleResource => {
+    const deliveries = new Map((s.deliveries ?? []).map(delivery => [delivery.format, delivery]));
+    for (const file of presented.subtitles.filter(file => file.trackId === s.id)) {
+      const format = file.format === 'ssa' ? 'ass' : file.format === 'vtt' ? 'text' : file.format;
+      if (!['text', 'ass', 'pgs', 'vobsub', 'dvb'].includes(format)) continue;
+      deliveries.set(format as SubtitleDelivery['format'], Object.freeze({format: format as SubtitleDelivery['format'], url: file.url,
+        ...(file.companionUrl ? {companionUrl: file.companionUrl} : {}), ...(file.fontsUrl ? {fontsUrl: file.fontsUrl} : {}), ...(file.linesUrl ? {linesUrl: file.linesUrl} : {})}));
+    }
+    const enabled = textFormats.includes(s.format) || deliveries.size > 0;
+    return Object.freeze({id: s.id, sourceId: version.id, revision: 1, scope: 'shared', language: s.language ?? '', title: s.title ?? '',
+      format: subtitleFormat(s.format), origin: s.source === 'sidecar' ? 'sidecar' : 'embedded', rights: '', offsetUs: String(Math.round(offsetMs * 1000)), canManage: false,
+      enabled, ...(enabled ? {} : {reason: 'subtitle_delivery_unavailable'}), deliveries: Object.freeze([...deliveries.values()]),
+      renderer, default: s.default, forced: s.forced, hearingImpaired: s.sdh});
+  });
+  const selected = resources.find(r => r.id === shown?.trackId && r.enabled) ?? null;
+  const document = selected ? presented.subtitles.find(s => s.trackId === selected.id && s.format === 'vtt')?.url : undefined;
+  const ready = selected && (renderer === 'burn_in' || (renderer === 'client'
+    ? subtitleOriginals(selected).some(original => original.format === shown?.kind) : !!document));
   return Object.freeze({version: 1, sessionId: session.id, generation: presented.generation, sourceId: version.id, revision: presented.generation, catalogRevision: 1,
-    renderer: 'external_text', mode: selected && document ? 'track' : 'off', offAvailable: true, offsetUs: String(Math.round(offsetMs * 1000)), selected: selected && document ? selected : null,
-    ...(selected && document ? {documentUrl: document} : {}), resources: Object.freeze(resources), discovered: Object.freeze([])});
+    renderer, mode: ready ? 'track' : 'off', offAvailable: true, offsetUs: String(Math.round(offsetMs * 1000)), selected: ready ? selected : null,
+    ...(ready && document ? {documentUrl: document} : {}), resources: Object.freeze(resources), discovered: Object.freeze([])});
 }
 
 /** The skippable spans of the version playing (intro, recap, credits) as the player's skip prompts
