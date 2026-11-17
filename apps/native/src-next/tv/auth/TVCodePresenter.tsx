@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Text, View} from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -17,6 +17,8 @@ export type TVCodePresenterProps = Readonly<{
   /** The TV's first screen (auth.html frame 8): the second button signs in directly to a server, and the remote's
    * Back leaves the app, so no Back button is drawn. */
   onLocal?: () => void;
+  /** No code could be created: the card says why and what to do instead of showing a code (the caller retries). */
+  reason?: string;
   /** An explicit terminal retry, already bound to the rendered original opening. */
   onNewCode?: () => void;
   onRetry?: () => void; retryAt?: number; credentialsDisabled?: boolean;
@@ -45,12 +47,13 @@ function CodePresenter(props: TVCodePresenterProps) {
   const order = ['credentials', ...(props.onRetry ? ['retry-approval'] : []), ...(props.onNewCode ? ['new-code'] : []), ...(props.mode === 'portico' ? [props.onLocal ? 'local' : 'back'] : [])];
   useDestinationEntryFocus({visible: !props.busy, intent: 'enter', revision: entryRevision * 3 + (props.onRetry ? 2 : props.onNewCode ? 1 : 0)}, {regionId: id, childId: entry});
   const type = (size: number, weight: 400 | 600 | 700 | 800 = 400, lineHeight = 1.45) => nativeType({size, weight, tracking: 0, lineHeight: size * lineHeight}, theme.textScale);
-  const aside = <TVCodeCard>
+  const aside = props.reason ? <TVNoCodeCard reason={props.reason}/> : <TVCodeCard>
       {props.verificationUriComplete && <View style={{width: 300, height: 300, padding: 20, marginBottom: 34, borderRadius: 20, backgroundColor: theme.colors.white}}>
         <QRCode value={props.verificationUriComplete} size={260}/>
       </View>}
       <Text selectable style={[type(30, 700), {color: theme.colors.textSecondary}]}>{address}</Text>
-      {(props.userCode || !props.onNewCode) && <Text selectable style={[type(90, 800, 1.05), {color: theme.colors.text, letterSpacing: 3.6, fontVariant: ['tabular-nums'], marginTop: 10, marginBottom: 16}]}>{props.userCode ? props.userCode.split('-').flatMap((part, index) => index ? [<Text key={index} style={{color: theme.colors.textTertiary}}>-</Text>, part] : [part]) : t('activation.preparingCode')}</Text>}
+      {!props.userCode && !props.onNewCode && <Text style={[type(30, 700), {color: theme.colors.text, marginTop: 10, marginBottom: 16}]}>{t('activation.preparingCode')}</Text>}
+      {props.userCode && <Text selectable style={[type(90, 800, 1.05), {color: theme.colors.text, letterSpacing: 3.6, fontVariant: ['tabular-nums'], marginTop: 10, marginBottom: 16}]}>{props.userCode ? props.userCode.split('-').flatMap((part, index) => index ? [<Text key={index} style={{color: theme.colors.textTertiary}}>-</Text>, part] : [part]) : t('activation.preparingCode')}</Text>}
       {!props.onNewCode && <Text style={[type(21), {color: theme.colors.textTertiary, textAlign: 'center'}]}>{t('activation.codeRefreshes')}</Text>}
   </TVCodeCard>;
   return <TVAuthLayout testID={`tv-${props.mode}-code`} portico={props.mode === 'portico'} aside={aside}
@@ -82,4 +85,26 @@ export function TVCodeCard({children}: {children: React.ReactNode}) {
       {children}
     </View>
   </View>;
+}
+
+/** The code card when there is no code: the reason, and that the web address still works and the code will come. */
+export function TVNoCodeCard({reason}: {reason?: string}) {
+  const theme = useTheme(), t = defaultI18n.t;
+  const type = (size: number, weight: 400 | 700 = 400) => nativeType({size, weight, tracking: 0, lineHeight: size * 1.45}, theme.textScale);
+  return <TVCodeCard>
+    <Text accessibilityRole="alert" style={[type(30, 700), {color: theme.colors.text, textAlign: 'center', marginBottom: 16}]}>{reason ?? t('activation.preparingCode')}</Text>
+    <Text style={[type(22), {color: theme.colors.textSecondary, textAlign: 'center'}]}>{t('activation.noCodeHelp')}</Text>
+  </TVCodeCard>;
+}
+
+export const CODE_RETRY_MS = 30_000;
+/** While `active`, asks for a code every 30 seconds: one request per tick, through a caller that ignores a request while
+ * one is already in flight. Nothing runs while inactive (busy, or a code is showing). */
+export function useCodeRetry(active: boolean, retry: (() => void) | undefined) {
+  const latest = useRef(retry); latest.current = retry;
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => latest.current?.(), CODE_RETRY_MS);
+    return () => clearInterval(timer);
+  }, [active]);
 }

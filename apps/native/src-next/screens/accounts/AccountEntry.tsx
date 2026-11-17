@@ -71,6 +71,8 @@ import {directoryFailure, directoryOfflineBody, directoryRows, nextRetryDelay} f
 import {registerBack} from '../../kit/navigation/back';
 
 export type NativeAccountEntryStage = 'welcome' | 'tv-move-handoff' | 'ended-sign-in' | 'owner-reset' | 'owner-reset-code' | 'owner-reset-done' | 'setup-confirm' | 'setup' | 'address' | 'identity-code' | 'local' | 'factor' | 'uses-portico' | 'portico' | 'forgot' | 'forgot-sent' | 'register' | 'verify' | 'provider' | 'contact' | 'servers' | 'account-sign-out' | 'profiles' | 'profile-pin' | 'profile-forgot-pin' | 'tv' | 'tv-credentials' | 'tv-required-setup' | 'member-move' | 'invitation-code' | 'invitation-local' | 'invitation-portico' | 'invitation-sign-out' | 'invitation-entry' | 'invitation-account' | 'account-workspace';
+/** How often a TV without a code asks for one again (the code card says so). */
+const CODE_RETRY_MS = 30_000;
 type AccountIntent = Readonly<{kind: 'provider'; id: 'apple' | 'google'} | {kind: 'continue' | 'forgot' | 'create'}>;
 type MemberMove = Awaited<ReturnType<NativeServerSignIn['createMemberMove']>>;
 type MemberMoveSnapshot = ReturnType<MemberMove['getSnapshot']>;
@@ -661,6 +663,24 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   // the two-button door) at launch and after a return from Sign in directly to a server. A refused or failed code
   // stays on the door with its reason, so nothing retries in a loop.
   const tvDoorTried = useRef(false);
+  // A Portico code that could not be created keeps the Activate card, saying why. A failed create is retried by the code
+  // service itself (about 5, 10, 20 s, then every 30 s at most, one request at a time); when the opening itself failed
+  // nothing would retry, so the screen asks again every 30 seconds through newCode, which refuses a second request
+  // while one is in flight.
+  const selfRetrying = tvState.phase === 'creating' && !!tvState.message;
+  // The approval watch exists from the start in phase 'ready'; only its later phases mean a code was used.
+  const approvalNow = tvView?.opening.approval();
+  const noCodeNow = Platform.isTV && stage === 'tv' && tvKind === 'portico' && !tvState.userCode && (!approvalNow || approvalNow.phase === 'ready')
+    && (selfRetrying || tvState.phase === 'error' || stageError !== undefined);
+  const codeRetry = useRef(() => {}); codeRetry.current = () => {
+    const opening = tvView?.opening; if (opening?.current() && !busyRef.current && !opening.pending()) void opening.newCode();
+  };
+  const codeRetrying = noCodeNow && !selfRetrying && !busy;
+  useEffect(() => {
+    if (!codeRetrying) return;
+    const timer = setInterval(() => codeRetry.current(), CODE_RETRY_MS);
+    return () => clearInterval(timer);
+  }, [codeRetrying]);
   useEffect(() => {if (stage === 'address') tvDoorTried.current = false;}, [stage]);
   const resume = useRef(() => {}); resume.current = () => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) void run(portico);};
   useEffect(() => {
@@ -981,7 +1001,11 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     return <PhoneAccountWorkspace createSource={ticket.createSource!} username={ticket.username}
       onDone={() => leave('servers')} onJoin={() => leave('invitation-entry')} onFind={() => leave('address')} onSignOut={() => leave('account-sign-out')}/>;
   }
-  if (stage === 'welcome' && theme.isTV) return <TVFrontDoor busy={busy} reason={Platform.isTV && setupElsewhereRefusal(stageError) ? t('accounts.setup.elsewhere') : failure && !failure.silent ? failure.category === 'unreachable' || failure.category === 'timeout' ? t('activation.unreachable') : failure.body : accountEnded ? t('web.signIn.error.accountEnded') : undefined} autoStart={tvDoor && !tvDoorTried.current && !resumeAccount && !stageError}
+  // Why a TV has no code, in plain words, for the code card (the door and the code screen say the same).
+  const tvReason = () => Platform.isTV && setupElsewhereRefusal(stageError) ? t('accounts.setup.elsewhere')
+    : failure && !failure.silent ? failure.category === 'unreachable' || failure.category === 'timeout' ? t('activation.unreachable') : failure.body
+    : accountEnded ? t('web.signIn.error.accountEnded') : undefined;
+  if (stage === 'welcome' && theme.isTV) return <TVFrontDoor busy={busy} reason={tvReason()} autoStart={tvDoor && !tvDoorTried.current && !resumeAccount && !stageError}
     onPortico={() => {tvDoorTried.current = true; void run(portico);}} onLocal={() => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) {
       setAddress(''); setUsername(''); setPassword(''); setError(undefined); stageRef.current = 'address'; setStage('address');
     }}}/>;
@@ -1315,7 +1339,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     </>;
     const signIn = async () => {consume(await operation.current!.signInLocal(username, password)); setPassword('');};
     const refusedCode = (stageError as {code?: unknown} | undefined)?.code;
-    const passwordInvalid = typeof refusedCode === 'string' && ['password_wrong', 'invalid_credentials', 'invalid', 'unauthorized'].includes(refusedCode);
+    // server-next refuses a wrong username or password with 401 `unauthorized` (api/auth.go errBadSignIn).
+    const passwordInvalid = refusedCode === 'unauthorized';
     if (!theme.isTV && source) return <PhoneServerSignIn busy={busy} error={status} passwordInvalid={passwordInvalid} serverName={server!.name}
       address={address.trim() ? address.trim().replace(/^https?:\/\//i, '') : new URL(source.serverOrigin()).host}
       username={username} password={password} onUsernameChange={setUsername} onPasswordChange={setPassword} links={links}
@@ -1736,6 +1761,11 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const newCode = (approval ? approval.phase === 'terminal' && renderedTV?.canTypeCredentials()
     : tvState.phase === 'error' || tvState.phase === 'denied' || error)
     ? () => {void renderedTV?.newCode();} : undefined;
+  // A Portico code that could not be created keeps the Activate composition: the card says why and the screen asks again
+  // every 30 seconds through newCode, which refuses a second request while one is in flight.
+  if (noCodeNow) return <TVCodePresenter mode="portico" body={consentBody} busy={busy} reason={tvReason() ?? t('activation.unreachable')}
+    onTypeCredentials={() => {void renderedTV?.credentials();}} onBack={codeBack} credentialsDisabled={!renderedTV?.canTypeCredentials()}
+    onLocal={tvDoor ? () => {if (renderedTV?.current() && !busyRef.current) {back(); setError(undefined); stageRef.current = 'address'; setStage('address');}} : undefined}/>;
   if (Platform.isTV) return <TVCodePresenter {...(tvKind === 'local' ? {mode: 'local' as const, serverName: server!.name} : {mode: 'portico' as const})} body={consentBody}
     verificationUri={tvState.verificationUri} verificationUriComplete={tvState.verificationUriComplete} userCode={tvState.userCode}
     status={<>{status}{(tvState.phase === 'denied' || tvState.phase === 'error') && <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginBottom: 28}]}>{t(tvState.phase === 'denied' ? 'activation.declined' : 'activation.failed')}</Text>}</>}

@@ -42,16 +42,17 @@ function fixture() {
   let view: {opening: TVCodeOpening; state: Omit<SetupCodeSnapshot<Grant>, 'grant'>} | undefined;
   let error: unknown, busy = false, ids = 0, failNext = false;
   let holdNext: ReturnType<typeof deferred<void>> | undefined, holdCompletion: ReturnType<typeof deferred<void>> | undefined;
-  let failCompletion = false;
+  let failCompletion = false, failCreates = 0;
   const journals = new Map<string, SetupCodeJournal<Grant>>();
   const services: {service: SetupCodeService<Grant>; callbacks: (() => void)[]; cancels: number}[] = [];
-  const calls = {create: 0, poll: 0, cancel: 0, accept: 0, credentials: 0};
+  const calls = {create: 0, failedCreate: 0, poll: 0, cancel: 0, accept: 0, credentials: 0};
   let poll: 'denied' | 'pending' | 'approved' = 'denied';
   let acceptHold: ReturnType<typeof deferred<void>> | undefined;
   function newService(kind: TVCodeKind) {
     const authority = kind === 'local' ? 'local:fixture' : 'https://accounts.example#tv-x25519-v1';
     const service = new SetupCodeService<Grant>(authority, {
       async create() {
+        if (failCreates > 0) {failCreates--; calls.failedCreate++; throw new ApiError(0, 'network', 'fixture offline', true);}
         const code = ++calls.create === 1 ? 'ABCD-EFGH' : 'JKMN-PQRS';
         const verificationUri = (kind === 'local' ? 'https://local.example' : 'https://accounts.example') + '/device';
         return {deviceCode: 'd'.repeat(48), userCode: code, verificationUri, verificationUriComplete: verificationUri + '#code=' + code,
@@ -96,7 +97,7 @@ function fixture() {
   }
   return {mount, newService, calls, services, view: () => view!, error: () => error, busy: () => busy, stage: () => stage,
     failCompletion: () => {failCompletion = true;}, holdCompletion: () => holdCompletion = deferred<void>(),
-    poll: (value: typeof poll) => {poll = value;}, failNext: () => {failNext = true;},
+    poll: (value: typeof poll) => {poll = value;}, failNext: () => {failNext = true;}, failCreates: (count: number) => {failCreates = count;},
     holdNext: () => holdNext = deferred<void>(), holdAccept: () => acceptHold = deferred<void>(),
     changeSource: () => {source = {};},
     back() {owner?.retire(true); owner = undefined; stage = 'welcome'; busy = false;},
@@ -665,4 +666,42 @@ test('FX213 real Retry Button/Focusable/registry retains its entry host through 
     assert.equal(registry.entryTarget(actualRegion.id), host); assert.equal(pressable.props.ref, ref);
     await act(() => pressable.props.onPress()); await settle(); assert.equal(accounts.calls.filter(value => value === 'admit').length, 2);
   } finally {await driver?.unmount(); await presenter?.host.unmount(); await entry.host.unmount(); f.cleanup();}
+});
+
+test('a Portico code that cannot be created keeps the Activate card with the reason; the code service retries one request at a time', async t => {
+  t.mock.timers.enable({apis: ['Date', 'setTimeout', 'setInterval']});
+  const f = fixture(); f.failCreates(2); f.poll('pending');
+  const entry = await accountEntry(f);
+  const attempts = () => f.calls.create + f.calls.failedCreate;
+  try {
+    await entry.enter('portico'); t.mock.timers.tick(0); await settle();
+    assert.equal(attempts(), 1);
+    const failed = entry.tree().props;
+    assert.ok(failed.reason, 'the code card says why there is no code');
+    assert.equal(failed.userCode, undefined); assert.equal(failed.onNewCode, undefined, 'no manual Get a new code: the TV keeps trying');
+    assert.equal(failed.status, undefined, 'no second, left-side failure line');
+    for (let second = 0; second < 30; second++) {t.mock.timers.tick(1000); await settle(); assert.ok(attempts() <= 3, 'bounded, one request at a time');}
+    assert.equal(attempts(), 3, 'the service asks again (about 5 then 10 s) and the third create succeeds');
+    assert.equal(entry.tree().props.reason, undefined); assert.ok(entry.tree().props.userCode, 'the code appears when it can be created');
+    t.mock.timers.tick(120_000); await settle(); assert.equal(attempts(), 3, 'nothing more once a code is showing');
+  } finally {await entry.host.unmount(); f.cleanup();}
+});
+
+test('when the Portico code opening itself fails, the card says why and the TV asks again exactly once every 30 seconds', async t => {
+  t.mock.timers.enable({apis: ['Date', 'setTimeout', 'setInterval']});
+  const f = fixture(); f.failNext(); f.poll('pending');
+  const entry = await accountEntry(f);
+  const attempts = () => f.calls.create + f.calls.failedCreate;
+  try {
+    await entry.enter('portico'); t.mock.timers.tick(0); await settle();
+    const failed = entry.tree().props;
+    assert.ok(failed.reason, 'the code card says why there is no code'); assert.equal(failed.onNewCode, undefined);
+    const before = attempts();
+    t.mock.timers.tick(29_999); await settle(); assert.equal(attempts(), before, 'nothing before 30 seconds');
+    t.mock.timers.tick(1); await settle();
+    for (let step = 0; step < 4; step++) {t.mock.timers.tick(250); await settle();}
+    assert.equal(attempts(), before + 1, 'exactly one new request after 30 seconds');
+    assert.ok(entry.tree().props.userCode, 'the code appears');
+    t.mock.timers.tick(120_000); await settle(); assert.equal(attempts(), before + 1, 'nothing more once a code is showing');
+  } finally {await entry.host.unmount(); f.cleanup();}
 });
