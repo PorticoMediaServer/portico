@@ -39,7 +39,7 @@ export function WatchQueueList({port, context}: {port: WebQueueListPort; context
   };
   if (!held) return null;
   const lifetime = {signal: held.life.signal, isCurrent: () => active.current === held && !held.life.signal.aborted && port.isCurrent()};
-  return <SidePanel open onOpenChange={value => { if (!value) close(); }} title={t('player.queue')}
+  return <SidePanel open className={styles.playerPanel} onOpenChange={value => { if (!value) close(); }} title={t('player.queue')}
     returnFocusRef={context.returnFocusRef} width={420} closeOnOutsidePress>
     {!snapshot.current ? null : snapshot.entries.length <= 1 && snapshot.more === 0
       ? <p className={styles.empty}>{t('player.queueEmpty')}</p>

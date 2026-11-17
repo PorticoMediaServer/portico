@@ -8,10 +8,11 @@
   --watch-skip-size: 8.5px; --watch-skip-weight: 800;
   --watch-preview-time-size: 15px; --watch-preview-time-weight: 800;
   --watch-gesture-size: 13px; --watch-gesture-weight: 800;
- position: fixed; inset: 0; z-index: calc(var(--layer-player) + 1); color: var(--color-text); pointer-events: none; isolation: isolate; }
+ position: fixed; inset: 0; z-index: calc(var(--layer-player) + 1); color: var(--color-text); pointer-events: auto; isolation: isolate; }
 .watch[hidden] { display: none; }
 .pictureSlot { position: absolute; inset: 0; pointer-events: none; }
-.chrome { position: absolute; inset: 0; }
+/* Panels inherit normal input. Only the picture chrome passes hits through its empty areas. */
+.chrome { position: absolute; inset: 0; pointer-events: none; }
 .pictureTap { position: absolute; inset: 0; padding: 0; border: 0; background: transparent; pointer-events: auto; cursor: pointer; touch-action: manipulation; }
 .tapFeedback { position: absolute; z-index: 1; top: 0; bottom: 0; width: 44%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 38px; gap: 6px; background: color-mix(in srgb, var(--color-text) 16%, transparent); font-size: var(--watch-gesture-size); font-weight: var(--watch-gesture-weight); pointer-events: none; animation: tapFeedback var(--motion-hero) var(--ease-out) forwards; }
 .tapFeedback[data-direction='left'] { left: 0; border-radius: 0 60% 60% 0 / 0 50% 50% 0; }

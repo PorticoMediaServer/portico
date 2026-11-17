@@ -16,3 +16,4 @@
 .more { margin: 8px 0 0; padding: 0 10px; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-tertiary); }
 .empty { margin: 0; padding: 0 10px 8px; font-size: var(--type-body-size); line-height: var(--type-body-line); color: var(--color-text-tertiary); }
 .failed { margin: 12px 0 0; padding: 0 10px; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-danger-text); }
+.playerPanel { z-index: var(--layer-menu); }
