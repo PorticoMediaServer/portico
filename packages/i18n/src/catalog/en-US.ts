@@ -1503,7 +1503,7 @@ export const enUS = {
   'activation.getNewCode': 'Get a new code',
   'activation.codeFailed': 'A code couldn’t be made right now.',
   'activation.unreachable': 'This TV can’t reach Portico right now, so there’s no code yet.',
-  'activation.noCodeHelp': 'On a phone or computer you can still go to web.getportico.tv/device. The code appears here as soon as Portico can be reached; this TV keeps trying by itself.',
+  'activation.noCodeHelp': 'On a phone or computer you can still go to web.getportico.tv/tv. The code appears here as soon as Portico can be reached; this TV keeps trying by itself.',
   'activation.failed': 'Portico couldn’t get a sign-in code. Check your connection, then get a new code.',
   'activation.preparingCode': 'Preparing your code',
   'activation.lead': 'Scan the QR code, or visit {host} and enter the code. Sign in with Google, Apple, or your Portico Account in the browser.',
