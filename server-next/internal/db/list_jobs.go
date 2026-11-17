@@ -14,6 +14,7 @@ func (d *DB) AddJobToList(ctx context.Context, v Viewer, list string, items []st
 	var out ListAdded
 	for next := 0; next < len(items); {
 		err := d.listWrite(ctx, Background, v, list, 0, false, now, func(e *listEdit) error {
+			e.jobID = job.ID
 			written, added := 0, 0
 			for next < len(items) && written < 300 {
 				id := items[next]

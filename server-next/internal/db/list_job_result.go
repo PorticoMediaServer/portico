@@ -35,8 +35,8 @@ func (d *DB) ListJobResult(ctx context.Context, v Viewer, job Job) (ListJobResul
 		FROM idempotency_keys k CROSS JOIN items i ON i.public_id = substr(k.key, @start)
 		WHERE k.user_id = @owner AND k.key GLOB @keys AND `+a.visible("i")+`
 		UNION ALL
-		SELECT 0, 0, 1 FROM job_item_failures f CROSS JOIN items i ON i.id = f.item_id
-		WHERE f.job_id = @job AND `+a.visible("i")+`)`,
+		SELECT 0, 0, 1 FROM job_item_outcomes f CROSS JOIN items i ON i.id = f.item_id
+		WHERE f.job_id = @job AND f.code <> '' AND `+a.visible("i")+`)`,
 		append(v.args(), sql.Named("owner", job.OwnerID), sql.Named("keys", prefix+"*"),
 			sql.Named("start", len(prefix)+1), sql.Named("job", job.ID))...).Scan(&out.Added, &out.AlreadyPresent, &out.Failed)
 	return out, err
