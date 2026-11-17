@@ -31,6 +31,11 @@ type Restrictions struct {
 	// off, the profile's devices remove its downloads the next time they reach the server.
 	AllowDownloads        *bool `json:"allowDownloads,omitempty"`
 	AccountAllowDownloads bool  `json:"accountAllowDownloads"`
+	// Live TV and recording choices can only narrow the account's read-only switches.
+	AllowLiveTV        *bool `json:"allowLiveTv,omitempty"`
+	AccountAllowLiveTV bool  `json:"accountAllowLiveTv"`
+	AllowDVR           *bool `json:"allowDvr,omitempty"`
+	AccountAllowDVR    bool  `json:"accountAllowDvr"`
 	// AllowWatchTogether lets the profile start and join Watch Together groups. Left out of
 	// a PUT, it stays as it is. Turning it off takes the profile out of its groups at once.
 	// AccountAllowWatchTogether is the account's own switch, read-only here, which the
@@ -58,6 +63,8 @@ type ProfileRestrictionsEdit struct {
 	AllLibraries   *bool       `json:"allLibraries,omitempty"`
 	Libraries      *[]string   `json:"libraries,omitempty"`
 	AllowDownloads *bool       `json:"allowDownloads,omitempty"`
+	AllowLiveTV    *bool       `json:"allowLiveTv,omitempty"`
+	AllowDVR       *bool       `json:"allowDvr,omitempty"`
 	// AllowWatchTogether turned off takes the profile out of its groups at once.
 	AllowWatchTogether *bool `json:"allowWatchTogether,omitempty"`
 
@@ -91,8 +98,10 @@ func (e *ProfileRestrictionsEdit) over(current db.Restrictions) (db.Restrictions
 		AllLibraries       bool     `json:"allLibraries"`
 		Libraries          []string `json:"libraries"`
 		AllowDownloads     *bool    `json:"allowDownloads"`
+		AllowLiveTV        *bool    `json:"allowLiveTv"`
+		AllowDVR           *bool    `json:"allowDvr"`
 		AllowWatchTogether *bool    `json:"allowWatchTogether"`
-	}{current.MaxRatingAge, current.AllowUnrated, current.BlockedLabels, current.AllLibraries, current.Libraries, nil, nil}
+	}{current.MaxRatingAge, current.AllowUnrated, current.BlockedLabels, current.AllLibraries, current.Libraries, nil, nil, nil, nil}
 	if err := json.Unmarshal(e.sent, &next); err != nil {
 		return current, ErrInvalid("These restrictions could not be read.")
 	}
@@ -105,7 +114,7 @@ func (e *ProfileRestrictionsEdit) over(current db.Restrictions) (db.Restrictions
 		return current, ErrField("libraries", "That is too many libraries.")
 	}
 	return db.Restrictions{MaxRatingAge: next.MaxRatingAge, AllowUnrated: next.AllowUnrated, BlockedLabels: next.BlockedLabels,
-		AllLibraries: next.AllLibraries, Libraries: next.Libraries, AllowDownloads: next.AllowDownloads,
+		AllLibraries: next.AllLibraries, Libraries: next.Libraries, AllowDownloads: next.AllowDownloads, AllowLiveTV: next.AllowLiveTV, AllowDVR: next.AllowDVR,
 		AllowWatchTogether: next.AllowWatchTogether}, nil
 }
 
@@ -119,6 +128,7 @@ func restrictionsOut(r db.Restrictions) Restrictions {
 	return Restrictions{MaxRatingAge: r.MaxRatingAge, AllowUnrated: r.AllowUnrated, BlockedLabels: r.BlockedLabels, AllLibraries: r.AllLibraries,
 		Libraries: r.Libraries, AccountAllLibraries: r.AccountAllLibraries, AccountLibraries: r.AccountLibraries,
 		AllowDownloads: r.AllowDownloads, AccountAllowDownloads: r.AccountAllowDownloads,
+		AllowLiveTV: r.AllowLiveTV, AccountAllowLiveTV: r.AccountAllowLiveTV, AllowDVR: r.AllowDVR, AccountAllowDVR: r.AccountAllowDVR,
 		AllowWatchTogether: r.AllowWatchTogether, AccountAllowWatchTogether: r.AccountAllowWatchTogether,
 		AccountMaxRatingAge: r.AccountMaxRatingAge, AccountAllowUnrated: r.AccountAllowUnrated, AccountBlockedLabels: r.AccountBlockedLabels}
 }

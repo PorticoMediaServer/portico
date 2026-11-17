@@ -83,8 +83,8 @@ func (d *DB) ViewerLive(ctx context.Context, v Viewer) (LiveViewer, error) {
 		return out, err
 	}
 	out.Owner, out.MaxAge = role == "owner" && primary, acc.maxAge
-	out.LiveTV = out.Owner || userLive && profileLive
-	out.Record = (role == "owner" || out.LiveTV && userDVR) && profileDVR
+	out.LiveTV = (role == "owner" || userLive) && profileLive
+	out.Record = out.LiveTV && (role == "owner" || userDVR) && profileDVR
 	rows, err := tx.QueryContext(ctx, `SELECT l.public_id FROM libraries l WHERE `+acc.libraryVisible("l.id"))
 	if err != nil {
 		return out, err

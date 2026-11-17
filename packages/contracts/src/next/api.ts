@@ -3089,6 +3089,8 @@ export interface ProfileRestrictionsEdit {
   allLibraries?: boolean;
   libraries?: string[];
   allowDownloads?: boolean;
+  allowLiveTv?: boolean;
+  allowDvr?: boolean;
   allowWatchTogether?: boolean;
 }
 
@@ -3582,6 +3584,10 @@ export interface Restrictions {
   accountLibraries: string[];
   allowDownloads?: boolean;
   accountAllowDownloads: boolean;
+  allowLiveTv?: boolean;
+  accountAllowLiveTv: boolean;
+  allowDvr?: boolean;
+  accountAllowDvr: boolean;
   allowWatchTogether?: boolean;
   accountAllowWatchTogether: boolean;
   accountMaxRatingAge?: number | null;
