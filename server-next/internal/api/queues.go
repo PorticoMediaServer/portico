@@ -284,10 +284,11 @@ func (s *Server) createQueue(r *http.Request, req QueueCreate) (QueueCreated, er
 		// Another device's queue is taken on only when that device moves playback here.
 		return QueueCreated{}, ErrNotFound()
 	}
-	if err := s.prepareHomeQueue(r, &req.Source); err != nil {
+	source := req.Source
+	if err := s.prepareQueueSource(r, &source); err != nil {
 		return QueueCreated{}, err
 	}
-	q, err := s.queues.Create(r.Context(), s.playbackCaller(r), playqueue.CreateInput{Source: req.Source, Shuffle: req.Shuffle,
+	q, err := s.queues.Create(r.Context(), s.playbackCaller(r), playqueue.CreateInput{Source: source, Shuffle: req.Shuffle,
 		StartAt: req.StartAt, Resume: req.Resume, Key: key, Hash: requestHash(req)})
 	if err != nil {
 		return QueueCreated{}, queueError(err)
@@ -348,7 +349,7 @@ func (s *Server) addToQueue(r *http.Request, req QueueAdd) (Queue, error) {
 	if err != nil {
 		return Queue{}, err
 	}
-	if err := s.prepareHomeQueue(r, &req.Source); err != nil {
+	if err := s.prepareQueueSource(r, &req.Source); err != nil {
 		return Queue{}, err
 	}
 	place := db.QueuePlace{Next: req.Placement == "next"}
