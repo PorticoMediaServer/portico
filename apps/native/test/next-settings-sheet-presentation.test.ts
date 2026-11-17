@@ -66,6 +66,7 @@ test('Inline Settings retains one child ancestry through sheet-page-sheet and re
   const outside = nodes(tree).find(node => node.props?.onResponderRelease); assert.equal(outside.props.pointerEvents, 'none'); assert.equal(outside.props.onStartShouldSetResponder(), false); outside.props.onResponderRelease();
   assert.deepEqual(f.dismissals, []); assert.equal(flatStyle(outside.props.style).display, 'none');
   const pane = nodes(tree).find(node => node.props?.testID === 'settings-sheet'); assert.equal(flatStyle(pane.props.style).position, undefined); assert.equal(flatStyle(pane.props.style).borderTopLeftRadius, undefined);
+  assert.equal(flatStyle(pane.props.style).backgroundColor, 'transparent', 'a tablet Settings page stands on the shell\'s backdrop, with no fill of its own');
   f.resize(390); tree = f.renderSettings('sheet');
   assert.deepEqual(ancestry(tree, 'retained-draft'), path); assert.equal(f.lifecycle.at(-1)![0], true); assert.equal(f.gesture().enabledValue, true);
 });
