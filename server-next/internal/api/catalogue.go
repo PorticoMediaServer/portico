@@ -295,6 +295,11 @@ func (s *Server) catalogueRoutes() {
 			home = append(home, HomeRow{ID: mood.Key, Title: moodRowTitle(mood.Label), Reason: because(mood.Because),
 				Shape: "poster", Items: itemShapes(mood.Items), NextCursor: mood.NextCursor})
 		}
+		becauseRows, err := s.becauseHomeRows(r, "")
+		if err != nil {
+			return Home{}, err
+		}
+		home = append(home, becauseRows...)
 		views, err := s.savedViewRows(r)
 		if err != nil {
 			return Home{}, err
