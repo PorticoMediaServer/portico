@@ -1,4 +1,3 @@
-import {routePath as hostedRoutePath} from "../../contracts/src/hosted/routes.ts";
 import {routePath} from "../../contracts/src/route-paths.ts";
 import {randomId} from './random-id.ts';
 import {ApiError, HttpLocalApi} from './index.ts';
@@ -329,13 +328,11 @@ export type SetupPreview = {clientRequestId?:string;publicKey?:string;protocol?:
 /** The caller selects one authority BEFORE entering/reviewing a code. No search
  * across servers, no inferred authority from an ambiguous human code. */
 export class SetupCodeApprover {
-  private readonly api:HttpLocalApi;readonly authority:'hosted'|'local';
-  private readonly gate?:HostedGate;
-  constructor(api:HttpLocalApi,authority:'hosted'|'local'){this.api=api;this.authority=authority;this.gate=authority==='hosted'?hostedGate(api.baseUrl):undefined;}
-  private request<T>(work:()=>Promise<T>):Promise<T>{return this.gate?this.gate.run('interactive',work):work();}
-  private get path() {return this.authority === 'hosted' ? hostedRoutePath("device_authorization_create") : routePath("post_quick_connect");}
+  private readonly api:HttpLocalApi;readonly authority:'local';
+  constructor(api:HttpLocalApi,authority:'local'){this.api=api;this.authority=authority;}
+  private get path() {return routePath("post_quick_connect");}
   async review(code: string, signal?: AbortSignal) {
-    const result = await this.request(() => this.api.request<SetupPreview>(this.path + '/review', 'POST', {userCode: normalizeSetupCode(code)}, signal));
+    const result = await this.api.request<SetupPreview>(this.path + '/review', 'POST', {userCode: normalizeSetupCode(code)}, signal);
     if (!result || typeof result.requestId !== 'string' || result.requestId.length > 128 ||
         normalizeSetupCode(result.userCode) !== normalizeSetupCode(code) ||
         !Number.isFinite(Date.parse(result.expiresAt)) ||
@@ -344,6 +341,6 @@ export class SetupCodeApprover {
     return result;
   }
   decide(preview: SetupPreview, decision: 'approve' | 'deny', signal?: AbortSignal) {
-    return this.request(() => this.api.request<void>(this.path + '/decision', 'POST', {requestId: preview.requestId, userCode: normalizeSetupCode(preview.userCode), decision}, signal));
+    return this.api.request<void>(this.path + '/decision', 'POST', {requestId: preview.requestId, userCode: normalizeSetupCode(preview.userCode), decision}, signal);
   }
 }

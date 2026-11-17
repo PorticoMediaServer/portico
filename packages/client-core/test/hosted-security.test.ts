@@ -77,14 +77,14 @@ test('SEC-01: the transaction view sends the completion code as X-Portico-Comple
 });
 test('SEC-01: the start asks for a completion code only when the service offers one',async()=>{
  const bodies:unknown[]=[];
- const client=new HostedAccountClient('https://accounts.example.com','native',async(_path,_method,body)=>{bodies.push(body);return {transactionId:'tx_A',expiresAt:'2030-01-01T00:00:00Z',mode:'login',authorizationUrl:'https://accounts.google.com/o/oauth2/auth?x=1'};},'b'.repeat(43));
- await client.start('google',{mode:'login',requestId:'r1',completion:'code'});
- await client.start('google',{mode:'login',requestId:'r2'});
+ const client=new HostedAccountClient('https://accounts.example.com','native',async(_path,_method,body)=>{bodies.push(body);return {transactionId:'tx_A',expiresAt:'2030-01-01T00:00:00Z',mode:'reauthenticate',authorizationUrl:'https://accounts.google.com/o/oauth2/auth?x=1'};},'b'.repeat(43));
+ await client.start('google',{mode:'reauthenticate',requestId:'r1',completion:'code'});
+ await client.start('google',{mode:'reauthenticate',requestId:'r2'});
  assert.equal((bodies[0] as {completion?:string}).completion,'code');
  assert.equal('completion' in (bodies[1] as object),false,'an older service refuses unknown start fields');
- const browser=new HostedAccountClient('https://accounts.example.com','browser',async(_path,_method,body)=>{bodies.push(body);return {transactionId:'tx_A',expiresAt:'2030-01-01T00:00:00Z',mode:'login',authorizationUrl:'https://accounts.google.com/o/oauth2/auth?x=1'};});
- await browser.start('google',{mode:'login',requestId:'r3',completion:'code'});
- assert.equal('completion' in (bodies[2] as object),false,'browser sign-ins return to the page, not an app');
+ const browser=new HostedAccountClient('https://accounts.example.com','browser',async(_path,_method,body)=>{bodies.push(body);return {transactionId:'tx_A',expiresAt:'2030-01-01T00:00:00Z',mode:'reauthenticate',authorizationUrl:'https://accounts.google.com/o/oauth2/auth?x=1'};});
+ await browser.start('google',{mode:'reauthenticate',requestId:'r3',completion:'code'});
+ assert.equal('completion' in (bodies[2] as object),false,'browser security returns to the page, not an app');
  const options={password:true,verifiedContactRequired:false,providers:[]};
  assert.equal(parseIdentityOptions(options).nativeCompletion,undefined);
  assert.equal(parseIdentityOptions({...options,nativeCompletion:'code'}).nativeCompletion,'code');
@@ -117,11 +117,7 @@ test('provider email is optional and comes only from a verified current transact
  assert.throws(()=>parseIdentityTransaction({...tx,contactVerified:false,verifiedEmail:'actual@example.test'}));
  assert.throws(()=>parseIdentityTransaction({...tx,verifiedEmail:'actual@example.test'},'tx_B'));
 });
-test('account requests keep the session mode and continuation shape at the API boundary',async()=>{
- const calls:{path:string;method:string;body:unknown}[]=[];
- const client=new HostedAccountClient('https://accounts.example.test','native',async(path,method,body)=>{calls.push({path,method,body});if(path==='/v1/sessions')return session;return {kind:'registration',registrationId:'reg_A',status:'contact_pending',revision:'1',maskedAddress:'a***@example.test',expiresAt:'2030-01-01T00:00:00Z',contactVerified:false};},'a'.repeat(43));
- await client.login('alice','Password1!','request_123456789');assert.deepEqual(calls[0].body,{username:'alice',password:'Password1!',requestId:'request_123456789',sessionMode:'native'});
- const pending=await client.register({username:'alice',displayName:'Alice',password:'Password1!',contactAddress:'alice@example.test',requestId:'request_123456789'});assert.equal(pending.kind,'registration');assert.equal(calls[1].path,'/v1/registrations');
+test('the retained security client requires a secure origin and native continuation',()=>{
  assert.throws(()=>new HostedAccountClient('http://untrusted.example.test','native',undefined,'a'.repeat(43)));
  assert.throws(()=>new HostedAccountClient('https://accounts.example.test','native'));
 });

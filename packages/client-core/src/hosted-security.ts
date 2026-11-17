@@ -175,18 +175,12 @@ export class HostedAccountClient {
   });
  }
  request(path:string,method='GET',body?:unknown,signal?:AbortSignal,token?:string,completion?:string){if(!/^\/v1\/[A-Za-z0-9_/-]+$/.test(path))throw new Error('Invalid account request.');if(completion!==undefined&&!completionCode.test(completion))throw new Error('Invalid sign-in completion.');return this.transport(path,method,body,signal,token,completion);}
- async options(signal?:AbortSignal){return parseIdentityOptions(await this.request(hostedRoutePath("identity_options_get"),'GET',undefined,signal));}
- async login(username:string,password:string,requestId:string,signal?:AbortSignal){return parseAccountSession(await this.request(hostedRoutePath("session_create"),'POST',hostedRouteBody("session_create", {username,password,requestId,sessionMode:this.mode}),signal),this.mode);}
- async register(input:{username:string;displayName:string;password:string;contactAddress:string;requestId:string},signal?:AbortSignal){return parseRegistration(await this.request(hostedRoutePath("registration_create"),'POST',hostedRouteBody("registration_create", {...input,sessionMode:this.mode}),signal));}
- async registration(id?:string,signal?:AbortSignal){const v=await this.request(hostedEncodedRoutePath("registration_get", {"id": id?pathID(id):'current'}),'GET',undefined,signal);return v===null?null:parseRegistration(v);}
- async verifyRegistration(id:string,input:{code:string;username?:string;displayName?:string},signal?:AbortSignal){return parseAccountSession(await this.request(hostedEncodedRoutePath("registration_verify", {"id": pathID(id)}),'POST',input,signal),this.mode);}
- async resendRegistration(id:string,requestId:string,signal?:AbortSignal){return parseRegistration(await this.request(hostedEncodedRoutePath("registration_resend", {"id": pathID(id)}),'POST',hostedRouteBody("registration_resend", {requestId}),signal));}
  /** `completion`: the provider return's completion code (SEC-01), without which a current service
   * shows a native provider sign-in's status only. An older service ignores it. */
  async transaction(id?:string,signal?:AbortSignal,completion?:string){const v=await this.request(id?hostedEncodedRoutePath("identity_transaction_get", {"id": pathID(id)}):hostedRoutePath("identity_current"),'GET',undefined,signal,undefined,completion);return v===null?null:parseIdentityTransaction(v,id);}
  /** `completion: 'code'` (SEC-01) asks for the provider return's completion code: only for a native
   * browser sign-in, and only when the service's options say it gives one (`nativeCompletion`). */
- async start(p:IdentityProvider,input:{mode:OIDCStart['mode'];requestId:string;intent?:SecurityIntent;proof?:string;expectedIdentity?:{id:string;revision:string};nativeApple?:boolean;completion?:'code'},signal?:AbortSignal,token?:string){
+ async start(p:IdentityProvider,input:{mode:Exclude<OIDCStart['mode'],'login'>;requestId:string;intent?:SecurityIntent;proof?:string;expectedIdentity?:{id:string;revision:string};nativeApple?:boolean;completion?:'code'},signal?:AbortSignal,token?:string){
   const {completion,...rest}=input;const asks=completion==='code'&&this.mode==='native'&&!input.nativeApple;
   return parseOIDCStart(await this.request(hostedEncodedRoutePath("identity_start", {"provider": p}),'POST',hostedRouteBody("identity_start", {...rest,sessionMode:this.mode,...(asks?{completion}:{})}),signal,token),p,input.nativeApple);}
  /** Cancels only the captured reauthenticate transaction of a hosted Security return. */
@@ -194,15 +188,9 @@ export class HostedAccountClient {
   if(this.mode!=='browser'||!/^oid_[A-Za-z0-9_-]{43}$/.test(transactionId))return invalid();
   await this.request(hostedEncodedRoutePath("identity_security_cancel",{id:pathID(transactionId)}),'POST',{},signal);
  }
- /** `completionCode`: a native browser sign-in's provider return code (SEC-01). The service refuses
-  * that sign-in's completion without it. */
- async complete(id:string,input:{username?:string;displayName?:string;onboardingToken?:string;factor?:string;completionCode?:string},signal?:AbortSignal){return parseAccountSession(await this.request(hostedEncodedRoutePath("identity_transaction_complete", {"id": pathID(id)}),'POST',input,signal),this.mode);}
  /** `completion`: a native browser provider return's completion code (SEC-01), the same one-use proof as a sign-in's. */
  async completeSecurity(id:string,factor:string,scope:AccountScope,token:string,signal?:AbortSignal,completion?:string):Promise<SecurityCompletion>{if(completion!==undefined&&!completionCode.test(completion))return invalid();const v=await this.request(hostedEncodedRoutePath("identity_transaction_complete", {"id": pathID(id)}),'POST',hostedRouteBody("identity_transaction_complete", {factor,...(completion?{completionCode:completion}:{})}),signal,token);if(!object(v))return invalid();if(v.recentProof)return{recentProof:parseRecentProof(v.recentProof,scope)};if(v.securityResult)return{securityResult:parseSecurityResult(v.securityResult,scope)};return invalid();}
- async sendContact(id:string,contactAddress:string,requestId:string,signal?:AbortSignal){return parseContactChallenge(await this.request(hostedEncodedRoutePath("identity_transaction_contact", {"id": pathID(id)}),'POST',hostedRouteBody("identity_transaction_contact", {contactAddress,requestId}),signal));}
- async verifyContact(id:string,challengeId:string,code:string,signal?:AbortSignal){return parseIdentityTransaction(await this.request(hostedEncodedRoutePath("identity_transaction_contact_verify", {"id": pathID(id)}),'POST',hostedRouteBody("identity_transaction_contact_verify", {challengeId,code}),signal),id);}
  async nativeApple(id:string,idToken:string,displayName:string,signal?:AbortSignal){return parseIdentityTransaction(await this.request(hostedEncodedRoutePath("identity_transaction_native_apple", {"id": pathID(id)}),'POST',hostedRouteBody("identity_transaction_native_apple", {idToken,displayName}),signal),id);}
- async mfa(challenge:MFAChallenge,factor:string,signal?:AbortSignal){return parseAccountSession(await this.request(hostedRoutePath("identity_mfa_complete"),'POST',hostedRouteBody("identity_mfa_complete", {challengeId:challenge.challengeId,challengeToken:challenge.challengeToken,factor}),signal),this.mode);}
  async state(scope:AccountScope,token:string,signal?:AbortSignal){return parseSecurityState(await this.request(hostedRoutePath("account_security_get"),'GET',undefined,signal,token),scope);}
  async passwordProof(intent:SecurityIntent,password:string,factor:string,scope:AccountScope,token:string,signal?:AbortSignal){return parseRecentProof(await this.request(hostedRoutePath("account_security_proof"),'POST',hostedRouteBody("account_security_proof", {intent,password,factor}),signal,token),scope);}
  /** A80: only credential changes carry a proof (see securityPurposeNeedsProof); account management sends none. */

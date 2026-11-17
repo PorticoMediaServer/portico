@@ -2,8 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readServerSystem, readDirectAccount, readViewerIdentity, revokeCurrentSession,
   readOwnerClaim, cancelOwnerClaim, prepareOwnerClaim, previewLocalInvitation, acceptLocalInvitation,
-  lookupBrowserHostedClaim, decideBrowserHostedClaim, completeBrowserHostedReturn, readConnectionFacts,
-  requestHostedRecovery} from '../src/query/connection-operations.ts';
+  lookupBrowserHostedClaim, decideBrowserHostedClaim, completeBrowserHostedReturn, readConnectionFacts} from '../src/query/connection-operations.ts';
 import {routePath} from '../../contracts/src/routes.ts';
 import {routePath as hostedPath, encodedRoutePath} from '../../contracts/src/hosted/routes.ts';
 
@@ -49,14 +48,6 @@ test('Hosted claims carry the exact token and encode return IDs once', async () 
     [hostedPath('server_claim_deny'),'POST',{code:'CODE'},signal,'captured-token'],
     [encodedRoutePath('server_return_complete',{id:'id%2Fwith%20slash'}),'POST',{},signal,'captured-token'],
   ]);
-});
-
-
-test('account recovery keeps a single submitted intent and its refusal without retry', async () => {
-  const refusal=Object.assign(new Error('busy'),{status:503});let calls=0;
-  const api={request:async()=>{calls++;throw refusal;}};
-  await assert.rejects(requestHostedRecovery(api,'alex','request-id'),e=>e===refusal);
-  assert.equal(calls,1);
 });
 
 
