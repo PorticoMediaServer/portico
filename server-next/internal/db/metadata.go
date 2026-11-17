@@ -181,6 +181,8 @@ func (d *DB) ChildNumbers(ctx context.Context, itemID int64) ([]int, error) {
 // ItemDetails is what a provider said about one title. An empty field or list means the
 // provider did not say, and what the title has is kept.
 type ItemDetails struct {
+	// JobID clears this selection job's earlier failure with the saved provider answer.
+	JobID int64
 	// Match is MatchFound for a match the server made and MatchChosen for one a person
 	// picked. Zero leaves the match as it is: a refresh.
 	Match MatchState
@@ -289,6 +291,9 @@ func (d *DB) Seasons(ctx context.Context, showID int64) (map[int]int64, error) {
 }
 
 func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
+	if err := metadataJobItem(b.tx, d.JobID, itemID); err != nil {
+		return err
+	}
 	var library int64
 	var kind ItemKind
 	var locked, local, language sql.NullString
@@ -463,7 +468,19 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 // the title joins its library's Unmatched items list with the reason and the closest matches
 // (JSON, kept on the title so the list is read without asking the provider again).
 func (d *DB) SetUnmatched(ctx context.Context, p Priority, itemID int64, reason, candidates string) error {
+	return d.setUnmatched(ctx, p, itemID, reason, candidates, 0)
+}
+
+// SetJobUnmatched stores a completed lookup with no match and clears its earlier failure.
+func (d *DB) SetJobUnmatched(ctx context.Context, jobID, itemID int64, reason, candidates string) error {
+	return d.setUnmatched(ctx, Background, itemID, reason, candidates, jobID)
+}
+
+func (d *DB) setUnmatched(ctx context.Context, p Priority, itemID int64, reason, candidates string, jobID int64) error {
 	return d.write(ctx, p, func(tx *sql.Tx) error {
+		if err := metadataJobItem(tx, jobID, itemID); err != nil {
+			return err
+		}
 		if candidates == "" {
 			candidates = "[]"
 		}

@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 )
 
 const selectionFailureSummary = "Some titles could not be changed. The rest is done."
@@ -31,7 +33,8 @@ func (s *Server) jobResult(r *http.Request, job db.Job) (db.Job, error) {
 			job.Error = listViewNote(result.Added, result.AlreadyPresent)
 		}
 	}
-	if job.Kind != stateJobKind && job.Kind != listViewJobKind || job.State != db.JobFailed || job.Error != selectionFailureSummary {
+	if job.Kind != stateJobKind && job.Kind != listViewJobKind && job.Kind != jobEditItems && job.Kind != jobRefreshItems ||
+		job.State != db.JobFailed || job.Error != selectionFailureSummary {
 		return job, nil
 	}
 	failed := job.ListResult != nil && job.ListResult.Failed > 0
@@ -46,6 +49,18 @@ func (s *Server) jobResult(r *http.Request, job db.Job) (db.Job, error) {
 		job.State, job.Error = db.JobDone, ""
 	}
 	return job, nil
+}
+
+// selectionResult reports a partial failure without names or an unfiltered failure count.
+func (s *Server) selectionResult(ctx context.Context, jobID int64) error {
+	failed, err := s.db.JobHasItemFailures(ctx, jobID)
+	if err != nil {
+		return err
+	}
+	if failed {
+		return &jobs.Failure{Shown: selectionFailureSummary}
+	}
+	return nil
 }
 
 // JobItemFailure is one failed title the selected profile may still see. Reason codes
