@@ -140,14 +140,33 @@ func (s *Server) listReminders(r *http.Request, _ None) (Page[LiveReminderOut], 
 		if err != nil {
 			continue
 		}
-		ch, err := s.db.LiveChannelByID(ctx, viewer(r), public)
-		if err != nil || !mayWatch(lv, ch) {
-			continue // a channel the profile may no longer watch: its reminders are absent
+		ch, p, err := s.programme(ctx, viewer(r), lv, programmeRef(public, rem.StartsAt))
+		if err != nil || p.ProgrammeKey != rem.ProgrammeKey {
+			continue
 		}
-		out.Items = append(out.Items, LiveReminderOut{Programme: programmeRef(public, rem.StartsAt), Channel: ch.Name, ChannelID: public, Title: rem.Title,
+		title, err := s.reminderTitle(r, lv, ch, p)
+		if err != nil {
+			continue
+		}
+		out.Items = append(out.Items, LiveReminderOut{Programme: programmeRef(public, rem.StartsAt), Channel: ch.Name, ChannelID: public, Title: title,
 			StartsAt: rem.StartsAt.UTC(), EndsAt: rem.EndsAt.UTC()})
 	}
 	return out, nil
+}
+
+// Reminders use the guide's current profile projection, including a visible episode
+// whose show has since become hidden. The shared guide also checks stored item identity.
+func (s *Server) reminderTitle(r *http.Request, lv db.LiveViewer, ch db.LiveChannel, p db.GuideProgramme) (string, error) {
+	rows, err := s.programmes(r.Context(), viewer(r), lv, []db.LiveChannel{ch}, p.StartsAt, p.StartsAt.Add(time.Millisecond), 2)
+	if err != nil {
+		return "", err
+	}
+	for _, shown := range rows[0] {
+		if shown.StartsAt.Equal(p.StartsAt) && !shown.NotAvailable && !shown.Slate {
+			return shown.Title, nil
+		}
+	}
+	return "", ErrNotFound()
 }
 
 func (s *Server) setReminder(r *http.Request, _ None) (None, error) {
@@ -163,19 +182,9 @@ func (s *Server) setReminder(r *http.Request, _ None) (None, error) {
 	if !p.EndsAt.After(s.now()) {
 		return None{}, ErrConflict("programme_over", "This program has ended.")
 	}
-	title := p.Title
-	if ch.Kind == db.ChannelFromLibrary {
-		// A Library Channel's programme is named from the title as it is now, and only when the
-		// profile may see it; otherwise the reminder says only that something is on.
-		seen, err := s.db.VisibleItems(ctx, viewer(r), []int64{p.ItemID})
-		if err != nil {
-			return None{}, err
-		}
-		if seen[p.ItemID] != p.ProgrammeKey {
-			return None{}, ErrNotFound()
-		}
-	} else if !rated(lv, p.RatingAge) {
-		return None{}, ErrNotFound()
+	title, err := s.reminderTitle(r, lv, ch, p)
+	if err != nil {
+		return None{}, err
 	}
 	return None{}, s.db.SetReminder(ctx, viewer(r).ProfileID, db.Reminder{ChannelID: ch.ID, ProgrammeKey: p.ProgrammeKey, Title: title,
 		StartsAt: p.StartsAt, EndsAt: p.EndsAt}, s.now())
