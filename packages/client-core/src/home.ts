@@ -6,7 +6,6 @@ import type {Home} from '../../contracts/src/next/api.ts';
 import {entryFromItem, readHomeRows} from './items.ts';
 import {parseBrowseNode, type BrowseNode, type BrowseSortSelection} from './browse.ts';
 import {firstOfEach, keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
-import {callServer} from './query/server-api.ts';
 import {parseGuideChannels, parseGuideSources, type GuideChannel, type GuideSource} from './channel-guide.ts';
 
 export type HomeArtworkShape = 'poster' | 'square' | 'landscape';
@@ -355,15 +354,6 @@ function oneSelectionIdentity(slide: HomeSpotlight, rows: readonly HomeRow[]): H
 }
 
 export type HomeViewRead = Readonly<{library: string; query: string}>;
-/** As many titles as the server puts in a saved view's row when it fills one itself. */
-export const HOME_VIEW_ROW_LENGTH = 20;
-/** A deferred saved-view row's titles: one read of its library with its own query (API.md, GET /v1/home). */
-export async function readHomeViewRow(api: HomeApi, read: HomeViewRead, signal?: AbortSignal): Promise<readonly ContentEntry[]> {
-  const query = {...Object.fromEntries(new URLSearchParams(read.query)), library: read.library, limit: HOME_VIEW_ROW_LENGTH};
-  const page = await callServer(api, 'GET /v1/items', {query, signal});
-  if (!page || !Array.isArray(page.items)) invalid();
-  return Object.freeze(firstOfEach('home', 'entries', homeEntriesOf(page.items as never, ''), entry => entry.id));
-}
 
 /** What a Home card offers on the rebuilt server, which sends no per-card grants: the same as a title's page
  * (detail.ts) for any profile, its own My List, Favorite, rating and lists, Watched where the title is watched, Play
