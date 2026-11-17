@@ -1,36 +1,25 @@
-import {GroupSessionService, type GroupSessionSnapshot} from '../../../../../packages/client-core/src/group-session';
+import {RoomSessionService, type RoomSessionSnapshot} from '../../../../../packages/client-core/src/room-session';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {openEventStream} from '../../platform/event-stream';
+import {withGuardedRaw} from '../../../../../packages/client-core/src/home-selection/list-destinations';
 import {nativeRouteCrypto} from '../../platform/server-connections';
 import {NativeScreenLifetime} from './lifetime';
 
-type Owner = Pick<NativeShellBootstrapContext, 'api' | 'authority' | 'current' | 'session' | 'subscribeAuthority'>;
-const sessions = new WeakMap<Owner, GroupSessionService>();
-const closed: GroupSessionSnapshot = Object.freeze({directory: [], directoryPhase: 'idle', phase: 'idle', busy: false, clockOffsetMs: 0});
+type Owner = Pick<NativeShellBootstrapContext, 'api' | 'authority' | 'current' | 'session' | 'subscribeAuthority' | 'events'>;
+const sessions = new WeakMap<Owner, RoomSessionService>();
+const closed: RoomSessionSnapshot = Object.freeze({directory: [], directoryPhase: 'idle', phase: 'idle', busy: false, clockOffsetMs: 0});
 
 /** One real room service per restored authority, borrowed by the screen and
  * player follower. Leaving a screen never creates, closes or replaces a room. */
-export function nativeTogetherSession(context: Owner): GroupSessionService {
+export function nativeTogetherSession(context: Owner): RoomSessionService {
   if (!context.current()) throw Object.assign(new Error('native_together_retired'), {name: 'AbortError'});
   const existing = sessions.get(context);
   if (existing) return existing;
   const lifetime = new NativeScreenLifetime(context);
-  const service = new GroupSessionService({
-    api: {
-      baseUrl: context.api.baseUrl,
-      request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => lifetime.request(next => context.api.request<T>(path, method, body, next), signal),
-    },
-    stream: async (path, lastEventId, signal) => {
-      lifetime.assert();
-      const session = context.session();
-      if (!session) throw Object.assign(new Error('native_together_retired'), {name: 'AbortError'});
-      // The group service owns this reader's AbortSignal and aborts it on room
-      // leave/disposal. A one-request wrapper would close SSE as soon as opened.
-      const response = await openEventStream(context.api, path, {Accept: 'text/event-stream', Authorization: `Bearer ${session.accessToken}`,
-        ...(lastEventId ? {'Last-Event-ID': lastEventId} : {})}, signal);
-      lifetime.assert(); return response;
-    },
+  const service = new RoomSessionService({
+    api: withGuardedRaw({request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) =>
+      lifetime.request(next => context.api.request<T>(path, method, body, next), signal)}, context.api, lifetime.assert),
+    events: context.events,
     key: () => {lifetime.assert(); return [...nativeRouteCrypto.random(24)].map(byte => byte.toString(16).padStart(2, '0')).join('');},
     i18n: defaultI18n,
   });

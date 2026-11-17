@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {HttpLocalApi} from '../../../packages/client-core/src/index.ts';
 import {NativeVersionChooserController} from '../src-next/screens/watch/version-destination.ts';
+import {nativeTogetherSession} from '../src-next/screens/settings-live/together-session';
+import {roomFixture} from './helpers/room-fixture';
 import {NativeWatchPresenters} from '../src-next/screens/watch/presenters.ts';
 import {NativeScreenServices} from '../src-next/screens/screen-services.ts';
 import {parseOptions} from '../../../packages/client-core/src/playback-v1/types.ts';
@@ -9,6 +11,7 @@ import {FileInfoSession} from '../../../packages/client-core/src/file-info-sessi
 import {item as fileItem, locations} from './helpers/file-info-windows.ts';
 import {NativeShellNavigation} from '../src-next/shell/routes.ts';
 import type {NativeShellBootstrapContext} from '../src-next/shell/bootstrap.ts';
+import type {NativeWatchMenuActions} from '../src-next/screens/watch/factory.tsx';
 
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
 const entry = {id: 'movie', kind: 'movie' as const, title: 'Real title', displayTitle: 'Real title: Edition', libraryId: 'library'};
@@ -48,7 +51,7 @@ async function fixture(over: {manage?: typeof ownerSurface['manage']; held?: boo
   const fileInfo = async () => {presenters.openFileInfo(capture, 'real content', {session, kind: 'movie', changed: async () => {changed++;}});};
   presenters.openMenu(capture, {fileInfo});
   await presenters.fileInfo(presenters.getSnapshot()!);
-  return {presenters, common, capture, session, open, calls, changed: () => changed, state,
+  return {presenters, common, context, capture, session, open, calls, changed: () => changed, state,
     // Arrange the future screen's opening; manageFile's production gate stays off until it draws all the impacts.
     beginDelete: () => {Reflect.get(presenters, 'patch').call(presenters, presenters.getSnapshot(), {phase: 'delete', fileId: occurrence, confirmation: '', preview: undefined}); return presenters.previewDelete();},
     leases: (lane = '') => calls.filter(call => call.method === 'DELETE' && call.path.startsWith('/v1/file-info-queries/' + lane)).map(call => call.path),
@@ -297,4 +300,27 @@ test('a shared title action closes the menu and runs only for its exact current 
     d.presenters.titleAction(d.presenters.getSnapshot() ?? first, 'rate');
     assert.deepEqual(calls.filter(call => call === 'rate'), [], 'a retired route never runs the action');
   } finally {d.dispose();}
+});
+
+test('native title menu carries current Room actions on phone and rejects a revoked grant or successor Room', async () => {
+  const f = await fixture(), service = nativeTogetherSession(f.context);
+  let group = roomFixture(), calls: string[] = [];
+  service.getSnapshot = () => ({phase: 'live', group, directory: [], directoryPhase: 'ready', busy: false, clockOffsetMs: 0});
+  service.watch = async id => {calls.push(`watch:${id}`);return true;};
+  service.queueAdd = async ids => {calls.push(`queue:${ids.join(',')}`);return true;};
+  const capture = {...f.capture, entry: {...entry, playback: {itemId: 'movie'}}};
+  const actions: NativeWatchMenuActions = {fileInfo: async () => {}};
+  try {
+    f.presenters.openMenu(capture, actions);
+    const opening = f.presenters.getSnapshot()!;
+    assert.deepEqual(f.presenters.togetherActions(opening), {queue: true, watch: true});
+    group = roomFixture({...group, you: {...group.you, mayControl: false}});
+    await f.presenters.togetherEntry(opening, true);assert.deepEqual(calls, []);
+    group = roomFixture({id: 'successor'});
+    await f.presenters.togetherEntry(opening, false);assert.deepEqual(calls, []);
+    f.presenters.openMenu(capture, actions);
+    await f.presenters.togetherEntry(f.presenters.getSnapshot()!, false);
+    assert.deepEqual(calls, ['queue:movie']);assert.equal(f.presenters.getSnapshot(), undefined);
+    await f.presenters.togetherEntry(opening, true);assert.deepEqual(calls, ['queue:movie']);
+  } finally {f.dispose();service.dispose();}
 });

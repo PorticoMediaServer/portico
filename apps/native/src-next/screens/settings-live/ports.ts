@@ -1,5 +1,5 @@
 import type {ReactNode} from 'react';
-import type {GroupSessionService} from '../../../../../packages/client-core/src/group-session';
+import type {RoomSessionService} from '../../../../../packages/client-core/src/room-session';
 import type {SettingsContext, SettingsCustomId} from '../../../../../packages/client-core/src/presentation/settings-structure';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../shell/runtime';
@@ -19,7 +19,7 @@ export type NativeSettingsLivePorts = Readonly<{
    * characters. Accounts binds nativeRouteCrypto.random(24); the UUID port above is separate. */
   dvrRequestId: () => Promise<string>;
   /** Borrowed from the app's one group/follower lifetime; this factory never duplicates it. */
-  together: GroupSessionService;
+  together: RoomSessionService;
   accountActions: Readonly<{signOut: () => Promise<void>; linkTV: () => void}>;
   /** Account/device custom surfaces remain with their semantic owners. Required, never a stub. */
   renderSettingsPanel: (id: SettingsCustomId, runtime: NativeShellRuntime) => ReactNode;
