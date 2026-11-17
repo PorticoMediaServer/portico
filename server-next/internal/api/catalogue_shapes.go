@@ -450,6 +450,8 @@ type HomeRow struct {
 	Reason string `json:"reason,omitempty"`
 	Shape  string `json:"shape"`
 	Items  []Item `json:"items"`
+	// OnNow carries the existing live channel/programme shape; Items stays empty for this row.
+	OnNow []LiveOnNow `json:"onNow,omitempty"`
 	// Hidden is true only on GET /v1/home?hidden=include, for a row the profile hid: it is sent
 	// with its title and no items, so Customize Home can offer to show it again.
 	Hidden bool `json:"hidden,omitempty"`

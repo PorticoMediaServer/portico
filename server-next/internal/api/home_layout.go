@@ -38,7 +38,7 @@ func (s *Server) homeLayout(ctx context.Context, profileID int64, rows []HomeRow
 		case !slices.Contains(hidden, row.ID) || slices.Contains(alwaysOnRows, row.ID):
 			out = append(out, row)
 		case withHidden:
-			row.Hidden, row.Items = true, []Item{}
+			row.Hidden, row.Items, row.OnNow = true, []Item{}, nil
 			out = append(out, row)
 		}
 	}
