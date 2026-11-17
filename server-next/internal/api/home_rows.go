@@ -14,6 +14,18 @@ func (s *Server) homeRowRoutes() {
 
 func (s *Server) homeRow(r *http.Request, _ None) (HomeRow, error) {
 	id, values := r.PathValue("id"), r.URL.Query()
+	if strings.HasPrefix(id, "because:") {
+		row, err := s.becauseHomeRow(r, id)
+		if err != nil {
+			return row, err
+		}
+		q, err := itemQuery(values)
+		if err != nil {
+			return row, err
+		}
+		page, err := s.db.BecauseWatchedPage(r.Context(), viewer(r), id, q)
+		return homePage(row, page, q.WithTotal), refuse(err)
+	}
 	row := HomeRow{ID: id, Shape: "poster"}
 	switch id {
 	case "continue":

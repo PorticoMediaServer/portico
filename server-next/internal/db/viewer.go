@@ -375,3 +375,12 @@ func (q *query) add(parts ...string) {
 		q.sql.WriteString(p)
 	}
 }
+
+// idList is the ids of some items as an SQL list.
+func idList(items []Item) string {
+	ids := make([]string, len(items))
+	for n := range items {
+		ids[n] = fmt.Sprint(items[n].ID)
+	}
+	return "(" + strings.Join(ids, ", ") + ")"
+}
