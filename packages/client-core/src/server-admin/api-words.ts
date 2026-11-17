@@ -116,11 +116,8 @@ export function webhookEventLabel(t: Translate, has: Has, event: string): string
 }
 
 /** What needs the owner's eye on a webhook, most serious first; nothing when all is well. */
-export function webhookTrouble(t: Translate, webhook: Webhook): {tone: WordTone; text: string} | undefined {
-  // The server's authoritative retirement fact comes first: ordinary delivery counts cannot say
-  // that the destination or signing secret needs the owner's review before it may be enabled.
-  if (webhook.requiresOwnerReview === true) return {tone: 'warning', text: t('api.webhooks.ownerReviewRequired')};
-  if (webhook.failing > 0) return {tone: 'danger', text: t('api.webhooks.failing', {count: webhook.failing})};
+export function webhookTrouble(t: Translate, webhook: Webhook, has: Has = () => false): {tone: WordTone; text: string} | undefined {
+  if (webhook.trouble) {const id = `api.webhooks.error.${webhook.trouble}`;return {tone: 'danger', text: t(has(id) ? id as MessageId : 'api.webhooks.error.request_failed')};}
   if (webhook.dropped > 0) return {tone: 'warning', text: t('api.webhooks.dropped', {count: webhook.dropped})};
   if (webhook.waiting > 0) return {tone: 'neutral', text: t('api.webhooks.waiting', {count: webhook.waiting})};
   return undefined;
@@ -128,24 +125,24 @@ export function webhookTrouble(t: Translate, webhook: Webhook): {tone: WordTone;
 
 // ── The delivery log ────────────────────────────────────────────────────────
 
-export const deliveryTone = (delivery: WebhookDelivery): WordTone => (delivery.state === 'delivered' ? 'healthy' : delivery.state === 'failed' ? 'danger' : 'warning');
+export const deliveryTone = (delivery: WebhookDelivery): WordTone => (delivery.state === 'delivered' ? 'healthy' : delivery.state === 'gave_up' ? 'danger' : 'warning');
 
 /** Why a delivery has not arrived, in words: the server's reason, or the other service's answer. Nothing for one that arrived or has not been tried. */
-export function deliveryProblem(t: Translate, has: Has, delivery: WebhookDelivery): string | undefined {
+export function deliveryProblem(t: Translate, has: Has, delivery: Pick<WebhookDelivery, 'state'|'error'|'status'>): string | undefined {
   if (delivery.state === 'delivered') return undefined;
   if (delivery.error) {
     const id = `api.webhooks.error.${delivery.error}`;
     return t(has(id) ? (id as MessageId) : 'api.webhooks.error.request_failed');
   }
-  if (delivery.status >= 300) return t('api.webhooks.error.status', {status: delivery.status});
-  return undefined;
+  if ((delivery.status ?? 0) >= 300) return t('api.webhooks.error.status', {status: delivery.status ?? 0});
+  return delivery.state === 'gave_up' ? t('api.webhooks.error.request_failed') : undefined;
 }
 
 /** "3 attempts · trying again at 14:05": how far a delivery has got. */
 export function deliveryProgress(t: Translate, delivery: WebhookDelivery, time: (iso: string) => string): string {
   return [
-    delivery.attempts > 0 ? t('api.webhooks.attempts', {count: delivery.attempts}) : '',
-    delivery.state === 'pending' && delivery.nextAttemptAt && delivery.attempts > 0 ? t('api.webhooks.nextAttempt', {when: time(delivery.nextAttemptAt)}) : '',
+    delivery.tries > 0 ? t('api.webhooks.attempts', {count: delivery.tries}) : '',
+    delivery.state === 'waiting' && delivery.nextTryAt && delivery.tries > 0 ? t('api.webhooks.nextAttempt', {when: time(delivery.nextTryAt)}) : '',
   ].filter(Boolean).join(' · ');
 }
 
