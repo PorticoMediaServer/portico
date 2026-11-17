@@ -8,6 +8,7 @@ import {settingsRowIndex} from '../presentation/settings-spec.ts';
 import type {ConfigurationValue, SettingsConfiguration} from '../settings-configuration.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
 import {throwIfAborted} from '../abort-lifetime.ts';
+import {linkNativeAbortSignals} from '../native-abort-signals.ts';
 
 export type OwnerRemoteStatus = RemoteAccessStatus & {
  outside?: {checkedAt?: string; addresses?: {address: string; port: number; reachable: boolean}[]; problem?: string};
@@ -59,7 +60,8 @@ export class OwnerRemoteSettings {
   return field && {current: field.current, effective: field.effective, default: field.default, source: field.source, configOnly: false};
  };
  readConfiguration = async (caller?: AbortSignal): Promise<SettingsConfiguration> => {
-  const signal = AbortSignal.any([this.life.signal, ...(caller ? [caller] : [])]);
+  const linked = linkNativeAbortSignals([this.life.signal, caller]), signal = linked.signal;
+  try {
   const [interfaces, network, status, blocked] = await Promise.all([
    readNetworkInterface(this.api, signal),
    this.api.requestRaw(serverPath('GET /v1/admin/settings/network'), 'GET', {signal}),
@@ -87,6 +89,7 @@ export class OwnerRemoteSettings {
   this.configuration = {revision: Number(interfaces.etag.slice(1, -1)), registryRevision: 'remote-access', path: '', signInPolicyRevision: '', fields};
   this.publish({interfaces, status: {...status, warnings: [...new Map([...status.warnings, ...values.warnings].map(warning => [warning.code, warning])).values()]}, blocks: blocked.items, error: undefined});
   return this.configuration;
+  } finally {linked.dispose();}
  };
  private async write(name: Name, etag: string, body: Record<string, unknown>, signal?: AbortSignal) {
   try {await putSettingsDocument(this.api, name, etag, body, signal);this.publish({confirmation: undefined});}

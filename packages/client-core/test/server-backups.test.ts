@@ -17,6 +17,23 @@ function server(answer: (call: Call) => unknown) {
 const reads = (call: Call) => call.path === '/v1/admin/backups' ? page() : call.path === '/v1/admin/settings/backups' ? settings : undefined;
 const refusal = (status: number, code: string, message = '') => Object.assign(new Error(message), {status, code});
 
+test('native backup reads work without AbortSignal.any and retain caller cancellation',async()=>{
+  const any=Object.getOwnPropertyDescriptor(AbortSignal,'any')!;
+  Object.defineProperty(AbortSignal,'any',{value:undefined,configurable:true});
+  const caller=new AbortController();let seen:AbortSignal|undefined,deferred=false;
+  const finishes:(()=>void)[]=[];
+  const source=new ServerBackupSource({request:async <T>(path:string,method='GET',body?:unknown,signal?:AbortSignal)=>{
+    seen=signal;const value=reads({path,method,body}) as T;
+    return deferred?new Promise<T>(resolve=>{finishes.push(()=>resolve(value));}):value;
+  }},()=>true,()=>{});
+  try{
+    await source.load(caller.signal);assert.equal(source.getSnapshot().settings?.keep,7);
+    // A live caller cancellation still reaches the actual request's signal.
+    deferred=true;const pending=source.load(caller.signal);
+    caller.abort();assert.equal(seen?.aborted,true);finishes.forEach(finish=>finish());await pending;
+  }finally{source.dispose();Object.defineProperty(AbortSignal,'any',any);}
+});
+
 test('the backups page lists what the server holds, in the list\'s shape, with the backups settings', async () => {
   const {api} = server(reads);
   const source = new ServerBackupSource(api, () => true, () => {});

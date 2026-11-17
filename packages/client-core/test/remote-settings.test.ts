@@ -2,6 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {OwnerRemoteSettings} from '../src/server-admin/remote-settings.ts';
 
+test('native Remote reads work without AbortSignal.any and refuse a cancelled caller',async()=>{
+ const any=Object.getOwnPropertyDescriptor(AbortSignal,'any')!;
+ Object.defineProperty(AbortSignal,'any',{value:undefined,configurable:true});
+ const f=fixture(),caller=new AbortController();
+ try{
+  await f.source.readConfiguration(caller.signal);
+  assert.equal(f.source.getSnapshot().status?.identityCode,'actual-server');
+  caller.abort();await assert.rejects(f.source.readConfiguration(caller.signal),{name:'AbortError'});
+ }finally{f.source.dispose();Object.defineProperty(AbortSignal,'any',any);}
+});
+
 function fixture() {
  const remote = {advertisedInterface: '', interfaces: [{name: 'eth0', addresses: ['10.0.0.2']}], remoteAccess: 'on', remoteSecurity: 'enhanced', secureConnections: 'preferred', signInFromOutside: 'anyone', portMapping: 'automatic', publicPort: 32500, ipv6: false, findAtHome: true, dlna: false, ownAddress: {enabled: false, domain: '', certificateFile: '', keyFile: ''}, allowedAddresses: [], certificateWarningDays: 14};
  const network = {homeNetworks: ['10.0.0.0/24'], homeNetworksDefault: true, trustedProxies: [], webOrigins: ['https://tools.example'], builtInWebOrigins: [], warnings: []};
