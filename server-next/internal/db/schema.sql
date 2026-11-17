@@ -12,11 +12,9 @@
 --   * No triggers. Counts kept on a row are updated in the same transaction as their cause.
 --   * Before the first release this file is edited in place and nothing else is needed.
 --     After it, every change here also needs an upgrade step: see internal/db/upgrade.go.
-
 -- ---------------------------------------------------------------------------------------
 -- A. System
 -- ---------------------------------------------------------------------------------------
-
 -- The database's version is the highest row. A new database has one row; each upgrade step
 -- adds one. background_after is NULL unless the step has background work still to do, and
 -- then says how far that work has got.
@@ -921,7 +919,8 @@ CREATE TABLE list_entries (
   list_id  INTEGER NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
   item_id  INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
   position INTEGER NOT NULL,
-  added_at INTEGER NOT NULL
+  added_at INTEGER NOT NULL,
+  addition_key TEXT
 );
 CREATE UNIQUE INDEX list_entries_order ON list_entries (list_id, position);
 CREATE INDEX list_entries_item ON list_entries (item_id, list_id);

@@ -519,15 +519,15 @@ func (d *DB) AddToList(ctx context.Context, v Viewer, publicID string, revision 
 			return err
 		}
 		if made != "" {
-			// What the first request did, kept with its key.
-			e.unchanged = true
-			_, err := fmt.Sscanf(made, "%d %d", &out.Added, &out.Already)
-			return err
+			return e.retryAddition(items, made, &out)
+		}
+		if key != "" {
+			e.additionKey = NewID("add")
 		}
 		if out.Added, out.Already, err = e.add(items, after); err != nil {
 			return err
 		}
-		return rememberCreated(e.tx, v.UserID, key, requestHash, fmt.Sprintf("%d %d", out.Added, out.Already), now)
+		return rememberCreated(e.tx, v.UserID, key, requestHash, fmt.Sprintf("%d %d %s", out.Added, out.Already, e.additionKey), now)
 	}, &out.List)
 	return out, err
 }
@@ -599,7 +599,8 @@ type listEdit struct {
 	kind string
 	at   int64
 	// unchanged says the change turned out to change nothing, so the revision stays.
-	unchanged bool
+	unchanged   bool
+	additionKey string // the keyed addition that created each playlist entry
 }
 
 // listWrite runs one change to a list the viewer may change: its entries when it may edit
@@ -719,27 +720,9 @@ func (e *listEdit) add(publicIDs []string, after int64) (added, already int, err
 	if len(publicIDs) > MaxListAdd {
 		return 0, 0, invalid("Add at most %d titles at once.", MaxListAdd)
 	}
-	var items []int64
-	for _, publicID := range publicIDs {
-		var id int64
-		var kind ItemKind
-		err := e.tx.QueryRowContext(e.ctx, `SELECT i.id, i.kind FROM items i WHERE i.public_id = @id AND `+e.acc.visible("i"),
-			append(e.v.args(), sql.Named("id", publicID))...).Scan(&id, &kind)
-		if errors.Is(err, sql.ErrNoRows) {
-			return 0, 0, ErrNotFound
-		}
-		if err != nil {
-			return 0, 0, err
-		}
-		if e.kind != ListPlaylist || kind.Playable() {
-			items = append(items, id)
-			continue
-		}
-		under, err := playableUnder(e.ctx, e.tx, e.v, e.acc, id, kind)
-		if err != nil {
-			return 0, 0, err
-		}
-		items = append(items, under...)
+	items, err := e.additionItems(publicIDs)
+	if err != nil {
+		return 0, 0, err
 	}
 	if e.kind == ListCollection {
 		var fresh []int64
@@ -771,13 +754,13 @@ func (e *listEdit) add(publicIDs []string, after int64) (added, already int, err
 	if err != nil {
 		return 0, 0, err
 	}
-	insert, err := e.tx.Prepare(`INSERT INTO list_entries (list_id, item_id, position, added_at) VALUES (?, ?, ?, ?)`)
+	insert, err := e.tx.Prepare(`INSERT INTO list_entries (list_id, item_id, position, added_at, addition_key) VALUES (?, ?, ?, ?, nullif(?, ''))`)
 	if err != nil {
 		return 0, 0, err
 	}
 	defer insert.Close()
 	for n, id := range items {
-		if _, err := insert.Exec(e.id, id, positions[n], e.at); err != nil {
+		if _, err := insert.Exec(e.id, id, positions[n], e.at, e.additionKey); err != nil {
 			return 0, 0, err
 		}
 	}
