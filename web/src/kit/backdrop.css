@@ -1,9 +1,10 @@
 /* The standard backdrop: one implementation for every screen (DESIGN.md "Boot and loading" values;
    Justin, 29 Oct). Ink under the blue and green glows, always the whole window: the full glows at
    tablet, web and TV widths, the 560 px band over ink at phone width. Screens without their own
-   artwork stay transparent over it; artwork screens lay their art over it. Full-window surfaces
-   that must stay opaque use the same declarations through .portico-backdrop or these variables.
-   bootstrap.css imports it, so every entry has it; ColourBackdrop draws .portico-backdrop. */
+   artwork stay transparent over it; artwork screens lay their art over it. bootstrap.css imports
+   it, so every entry has it. No page or screen draws it again. .portico-backdrop is for the few
+   full-window covers that must hide what is under them with the same picture: the boot layer, a
+   player's state over its picture, and the expanded audio player. */
 :root {
   --backdrop-glows: radial-gradient(44% 66% at 86% 4%, rgba(47,134,187,.46) 0%, rgba(47,134,187,.15) 46%, transparent 74%),
     radial-gradient(42% 58% at 64% 104%, rgba(30,91,82,.6) 0%, rgba(30,91,82,.18) 50%, transparent 76%),
