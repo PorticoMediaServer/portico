@@ -209,7 +209,7 @@ func (d *DB) ShuffledItems(ctx context.Context, v Viewer, q ItemQuery, seed, aft
 	}
 	where := newQuery(v)
 	q.Sort = SortTitle
-	if len(q.Kinds) == 0 {
+	if len(q.Kinds) == 0 && !containerView(q) {
 		q.Kinds = []ItemKind{KindMovie, KindEpisode, KindTrack, KindAudiobook}
 	}
 	if containerView(q) {

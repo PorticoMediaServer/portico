@@ -172,7 +172,10 @@ func (g *generator) collect(t reflect.Type) {
 		}
 		g.shapes[n] = t
 		for i := range t.NumField() {
-			g.collect(t.Field(i).Type)
+			field := t.Field(i)
+			if field.IsExported() && field.Tag.Get("json") != "-" {
+				g.collect(field.Type)
+			}
 		}
 	}
 }
