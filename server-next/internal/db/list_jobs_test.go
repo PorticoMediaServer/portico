@@ -30,6 +30,13 @@ func TestListJobPartialPagesAreSafeToReplay(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	counts := func(want int64) {
+		t.Helper()
+		got, err := l.d.VisibleJobCounts(ctx, l.all, job.ID)
+		if err != nil || got.Done != want || got.Added != want || got.Already != 0 {
+			t.Fatalf("outcomes: %+v, %v, want %d", got, err, want)
+		}
+	}
 	add(films[0].PublicID, films[1].PublicID)
 	// A title disappears from the view before restart; the second page now overlaps the
 	// first. Only the new title follows, not another copy of the overlap.
@@ -39,6 +46,7 @@ func TestListJobPartialPagesAreSafeToReplay(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("changed pages: %v, want %v", got, want)
 	}
+	counts(3)
 	// Force a failure after the write has added one title but before its second title can
 	// be processed. The whole write, including the first title's key, must roll back.
 	key := "list-view:" + job.PublicID + ":" + films[4].PublicID
@@ -51,6 +59,7 @@ func TestListJobPartialPagesAreSafeToReplay(t *testing.T) {
 	if got, _, _ := entries(t, l.d, l.all, list.PublicID); !slices.Equal(got, want) {
 		t.Fatalf("entries escaped rollback: %v", got)
 	}
+	counts(3) // the failed transaction must not leave an outcome either
 	add(films[3].PublicID)
 	want = append(want, films[3].PublicID)
 	// An unrelated creating request ages ordinary keys out, as after a long shutdown.
@@ -59,6 +68,7 @@ func TestListJobPartialPagesAreSafeToReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	add(want...)
+	counts(4) // replay must not count the same original addition twice
 	if got, _, _ := entries(t, l.d, l.all, list.PublicID); !slices.Equal(got, want) {
 		t.Fatalf("old unfinished job added titles twice: %v", got)
 	}

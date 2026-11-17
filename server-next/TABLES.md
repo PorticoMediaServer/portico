@@ -12,7 +12,7 @@ change the schema, before and after the first release, is rule 9 of `RULES.md`.
 | System | `schema_migrations` | yes | Upgrades that know where to start, and background upgrade work that carries on after a restart |
 | | `settings` | yes | Server settings |
 | | `jobs` | yes | Scans, matching and bulk actions that survive a restart and show progress |
-| | `job_item_failures` | yes | Which titles a selection job could not change, and why, after a restart |
+| | `job_item_outcomes` | yes | Profile-job outcomes, current visible progress and addition counts, and per-title failures |
 | | `idempotency_keys` | yes | A lost reply to "add to playlist" would add the track twice |
 | | `audit_log` | yes | The owner's record of admin and security actions |
 | | `changes` | yes | Open screens updating by themselves; search catching up after a crash |

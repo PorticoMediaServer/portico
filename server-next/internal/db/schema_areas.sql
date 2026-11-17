@@ -7,16 +7,19 @@
 -- memory. Setup, remote access and the Portico Account link need no table either: their
 -- state is settings rows, columns on users, auth_codes kinds and key files.
 
--- Failed titles of a selection job; names and visibility are read from the current item.
+-- Titles processed by a profile job; names and visibility are read from the current item.
 -- These go with the job at its existing 30-day tidy-up, or with a deleted title.
-CREATE TABLE job_item_failures (
+CREATE TABLE job_item_outcomes (
   job_id  INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
   item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
-  code    TEXT    NOT NULL,
-  message TEXT    NOT NULL,
+  done    INTEGER NOT NULL DEFAULT 0,
+  added   INTEGER NOT NULL DEFAULT 0,
+  already INTEGER NOT NULL DEFAULT 0,
+  code    TEXT    NOT NULL DEFAULT '',
+  message TEXT    NOT NULL DEFAULT '',
   PRIMARY KEY (job_id, item_id)
 ) STRICT, WITHOUT ROWID;
-CREATE INDEX job_item_failures_item ON job_item_failures (item_id);
+CREATE INDEX job_item_outcomes_item ON job_item_outcomes (item_id);
 
 -- ---------------------------------------------------------------------------------------
 -- H. Outside tools
