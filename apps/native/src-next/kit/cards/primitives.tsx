@@ -77,7 +77,7 @@ export function CardFrame({children, overlay, frame: _frame, title, titleMargin:
     return () => {menuRegistration.current?.(); menuRegistration.current = undefined;};
   }, [focused, disabled, waiting, onMore, theme.isTV]);
   useEffect(() => {
-    const next = !motion.transforms || disabled ? 1 : theme.isTV && focused ? theme.spec.focus.scale.card.tv : pressed && theme.isTV ? 0.97 : 1;
+    const next = !motion.transforms || disabled ? 1 : theme.isTV && focused ? theme.spec.focus.scale.card.tv : pressed ? 0.97 : 1;
     scale.value = withTiming(next, motion.timing('quick'));
   }, [focused, pressed, holding, disabled, theme.isTV, theme.spec.focus.scale.card.tv, motion, scale]);
   const animated = useAnimatedStyle(() => ({transform: [{scale: scale.value}]}));
