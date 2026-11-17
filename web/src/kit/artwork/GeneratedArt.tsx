@@ -5,7 +5,7 @@ import type {ArtworkPalette, ArtStyleProps, GeneratedCoverTint} from './types';
 import styles from './artwork.module.css';
 
 export type GeneratedArtProps = ArtStyleProps & Readonly<{glyph: string; palette?: ArtworkPalette}>;
-/** Missing-title art only. ColourBackdrop is used for auth, state and Server bands. */
+/** Missing-title art only. Auth, state and Server bands stand on the window's backdrop. */
 export function GeneratedArt({glyph, palette, className, style, width, height}: GeneratedArtProps) {
   return <span aria-hidden="true" className={artClass(styles.generatedArt, className)} style={artSize({width, height, style: {...(palette ? {'--art-first': palette.first, '--art-second': palette.second} : {}), ...style} as CSSProperties})}>
     <span className={styles.generatedGlyph}>{glyph}</span>

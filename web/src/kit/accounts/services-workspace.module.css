@@ -1,5 +1,5 @@
 /* account.html 20–29: account-only Settings list, serverless header, real paged lists. */
-.workspace { min-height: 100dvh; position: relative; background: var(--color-ink); }
+.workspace { min-height: 100dvh; position: relative; }
 .header { position: absolute; z-index: var(--layer-navigation); inset: 0 0 auto; height: 76px; display: flex; align-items: center; gap: 40px; padding: 0 64px; background: linear-gradient(180deg, rgba(7,16,24,.78), rgba(7,16,24,0)); }
 .brand { display: block; }
 .brand img { height: calc(20px * var(--spec-navigation-web-wordmark-scale)); display: block; }
@@ -89,7 +89,7 @@
 .inlineFacts { display: inline-flex; flex-wrap: wrap; column-gap: 12px; }
 .dangerAction.dangerAction { height: 46px; padding: 0 18px; border-radius: 10px; font-size: 15px; line-height: normal; font-weight: 700; letter-spacing: normal; background: rgba(243,139,136,.14); color: var(--color-danger); }
 .dangerAction.dangerAction[data-size="xs"] { height: 36px; padding: 0 14px; border-radius: 9px; font-size: 14px; }
-.start { min-height: max(1070px, 100dvh); position: relative; background: var(--color-ink); }
+.start { min-height: max(1070px, 100dvh); position: relative; }
 .startMain { position: relative; min-height: 1070px; padding: 124px 64px 26px; }
 .startHeading { max-width: 1100px; }
 .startIntro, .startCardHeading { display: contents; }

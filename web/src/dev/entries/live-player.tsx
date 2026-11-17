@@ -1,7 +1,6 @@
 import {createRoot} from 'react-dom/client';
 import {defaultI18n, formatMessage} from '@i18n';
 import {livePlayerFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/live-player-fixtures';
-import {ColourBackdrop} from '../../kit/artwork';
 import styles from './live-player.module.css';
 import {Icon, IconSprite} from '../../kit/Icon';
 import {LiveChrome} from '../../screens/live/LiveChrome';
@@ -53,7 +52,7 @@ function Right() {
 
 createRoot(document.getElementById('root')!).render(<><IconSprite />
   <main style={{position: 'fixed', inset: 0, background: 'var(--color-ink)', color: 'var(--color-text)'}} data-live-player-specimen>
-    <ColourBackdrop fill shape="round" className={styles.backplate}/>
+    <div aria-hidden="true" className={`portico-backdrop ${styles.backplate}`}/>
     <span className={styles.pictureLabel}>{t('next.live.livePicture')}</span>
     <LiveChrome port={port} playing={true} initialMiniGuideOpen
       onCollapse={() => {}} onStop={() => {}} onPlayPause={() => {}} onSkip={() => {}} onSeek={() => {}} onMore={() => {}}
