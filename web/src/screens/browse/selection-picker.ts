@@ -12,8 +12,8 @@ const queryTarget = (target: LibraryPickerTarget): target is QuerySelectionTarge
 
 export function queryDestinationTarget<C>(target: QuerySelectionTarget<C>, kind: EntryDestination): boolean {
   if (!target.total || !target.summary.every[kind] || target.summary.library.kind !== 'single'
-    || !/^browse_[a-f0-9]{64}$/.test(target.expected.catalogRevision)
-    || !target.summary.types.length || target.summary.types.some(type => !['movie', 'episode', 'song', 'audiobook_file'].includes(type.kind))) return false;
+    || !target.expected.catalogRevision || target.summary.types.length !== 1
+    || ['channel', 'person'].includes(target.summary.types[0].kind)) return false;
   const checked = selectionQuerySelector(target);
   return checked.ok && 'query' in checked.selector && checked.selector.query.libraryId === target.summary.library.libraryId;
 }
@@ -123,5 +123,6 @@ export class LibraryPickerProducer {
     await this.required().create(name);
   });}
   retry() {return this.session ? this.run(() => this.required().retry()) : this.open();}
+  cancel() {return this.required().cancel();}
   close() {this.lifetime.abort(); this.session?.dispose(); this.detail.dispose();}
 }

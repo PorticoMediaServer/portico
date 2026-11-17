@@ -104,6 +104,8 @@ export type HomeSelectionPicker = Readonly<{
   kind: 'playlist' | 'collection';
   /** All genuine jobs, including confirmed earlier rounds of a partial retry. */
   jobs: readonly Job[];
+  progress?: HomeSelectionProgress;
+  cancelling?: boolean;
   /** Server DISTINCT summary; job.done never stands in for newly added. */
   receipt: HomeDestinationReceipt | null;
   query: string;

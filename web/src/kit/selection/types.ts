@@ -98,6 +98,7 @@ export type PickerResult = Readonly<{
   failed?: number;
   unknown?: number;
   pending?: boolean;
+  cancelled?: boolean;
   total?: number;
   alreadyIn?: number;
   failures: readonly PickerFailure[];
@@ -127,6 +128,9 @@ export type SelectionPickerProps = SelectionSurface & Pick<OverlaySurfaceProps, 
   /** Present only for a genuine read or confirmed command error on the retained picker. */
   onRetryError?: () => void;
   result?: PickerResult;
+  progress?: Readonly<{done: number; total: number; totalKnown: boolean}>;
+  onCancel?: () => void;
+  cancelling?: boolean;
   busy?: boolean;
   error?: string;
 }>;

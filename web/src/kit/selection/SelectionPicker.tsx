@@ -19,7 +19,7 @@ function PickerRow({entry, onSelect, busy, end}: {entry: PickerRowDisplay; onSel
 
 /** Every action delegates to the supplied operation; entries and outcomes are bounded real data. */
 function SelectionPicker({destination, ...props}: SelectionPickerProps & {destination: Destination}) {
-  const {selection, entries, query, onQueryChange, hasNext, hasPrevious, onNext, onPrevious, loading = false, mode, onModeChange, name, onNameChange, onAdd, onCreateAndAdd, onRetry, onRetryOperation, onRetryError, result, busy = false, error, anchorRef, ...surface} = props;
+  const {selection, entries, query, onQueryChange, hasNext, hasPrevious, onNext, onPrevious, loading = false, mode, onModeChange, name, onNameChange, onAdd, onCreateAndAdd, onRetry, onRetryOperation, onRetryError, result, progress, onCancel, cancelling = false, busy = false, error, anchorRef, ...surface} = props;
   const phone = usePhone(), nameRef = useRef<HTMLInputElement | null>(null), retryRef = useRef<HTMLButtonElement | null>(null), listRef = useRef<HTMLDivElement | null>(null);
   const retryRecovery = onRetryError ?? onRetryOperation, recovering = !!retryRecovery;
   const windowKey = JSON.stringify([query, entries.map(entry => entry.id)]);
@@ -53,17 +53,26 @@ function SelectionPicker({destination, ...props}: SelectionPickerProps & {destin
   const retryAvailable = recovering || retryFailed;
   useEffect(() => {if (surface.open && retryAvailable) retryRef.current?.focus({preventScroll: true});}, [surface.open, retryAvailable]);
   const resultSummary = result?.inserted === undefined ? undefined : result.total === undefined ? text('next.selection.added', {count: result.inserted}) : text('next.selection.addedPartial', {added: result.inserted, total: result.total, name: result.destination.name});
-  const content = <div className={styles.pickerContent} aria-busy={busy || loading || result && !result.complete || undefined}>
+  const content = <div className={styles.pickerContent} aria-busy={busy || loading || result?.pending || undefined}>
     {!phone && <div className={styles.pickerHeading}>{titleParts.map((part, index) => part.argument === 'items' ? <b key={index}>{part.text}</b> : part.text)}</div>}
     {result ? <>
-      {(resultSummary || failures.length > 0 || result.jobFacts?.length || !result.complete && result.processed !== undefined && result.total !== undefined) && <div className={styles.pickerFailure} role="status">
+      {(resultSummary || progress || failures.length > 0 || result.jobFacts?.length || !result.complete && result.processed !== undefined && result.total !== undefined) && <div className={styles.pickerFailure} role="status">
         {resultSummary && <b><Icon name={failures.length || recovering ? 'i-warn' : !loading && pickerResultSucceeded(result) ? 'i-check' : 'i-info'} size={18} />{resultSummary}</b>}
+        {!!result.alreadyIn && <p>{text('next.selection.alreadyIn', {count: result.alreadyIn})}</p>}
+        {!!result.failed && <p>{text('next.selection.failedToAdd', {count: result.failed})}</p>}
         {!result.complete && result.processed !== undefined && result.total !== undefined && <p>{text('next.selection.countOf', {count: result.processed, total: result.total})}</p>}
+        {progress && <p>{text(progress.totalKnown ? 'next.selection.jobProgress' : 'next.selection.jobPreparing', {done: progress.done, total: progress.total})}</p>}
+        {result.cancelled && <p>{text('next.selection.jobCancelled')}</p>}
         {result.jobFacts?.map(fact => <p key={fact.id}>{fact.text}</p>)}
         {failures.map(failure => <p key={failure.id}>{text('next.selection.couldNotAdd', {title: failure.title, reason: failure.reason})}</p>)}
       </div>}
       <PickerRow entry={{...result.destination, alreadyIn: result.alreadyIn}} busy={busy} end={result.inserted === undefined ? undefined : <span className={styles.pickerEnd}>{text('next.selection.added', {count: result.inserted})}</span>} />
-      <div className={styles.pickerButtons}><Button size="small" disabled={busy} onClick={() => surface.onOpenChange(false, 'action')}>{text('next.selection.done')}</Button>{retryFailed && <Button ref={retryRef} size="small" variant="primary" loading={busy} onClick={() => {if (!busy && !loading) onRetry?.(missingPickerIds(failures));}}>{retryLabel(failures)}</Button>}{retryRecovery && <Button ref={retryRef} size="small" variant="primary" loading={busy} onClick={() => {if (!busy) retryRecovery();}}>{text('next.selection.retry')}</Button>}</div>
+      <div className={styles.pickerButtons}>
+        {onCancel && <Button size="small" loading={cancelling} onClick={onCancel}>{text('next.selection.cancel')}</Button>}
+        {hasPrevious && <Button size="small" disabled={busy || loading} onClick={onPrevious}>{text('next.selection.previousFailures')}</Button>}
+        {hasNext && <Button size="small" disabled={busy || loading} onClick={onNext}>{text('next.selection.nextFailures')}</Button>}
+        <Button size="small" disabled={busy} onClick={() => surface.onOpenChange(false, 'action')}>{text('next.selection.done')}</Button>{retryFailed && <Button ref={retryRef} size="small" variant="primary" loading={busy} onClick={() => {if (!busy && !loading) onRetry?.(missingPickerIds(failures));}}>{retryLabel(failures)}</Button>}{retryRecovery && <Button ref={retryRef} size="small" variant="primary" loading={busy} onClick={() => {if (!busy) retryRecovery();}}>{text('next.selection.retry')}</Button>}
+      </div>
     </> : retryRecovery ? <div className={styles.pickerButtons}><Button size="small" disabled={busy} onClick={() => surface.onOpenChange(false, 'action')}>{text('next.selection.done')}</Button><Button ref={retryRef} size="small" variant="primary" loading={busy} onClick={() => {if (!busy) retryRecovery();}}>{text('next.selection.retry')}</Button></div> : mode === 'new' ? <form className={styles.pickerNew} onSubmit={event => { event.preventDefault(); if (!busy && !loading) onCreateAndAdd(name.trim() || newName); }}>
       <TextField ref={nameRef} autoFocus label={text('next.selection.name')} aria-label={text('next.selection.name')} value={name} onChange={event => onNameChange(event.currentTarget.value)} placeholder={newName} disabled={busy} />
       {/* select.html 19: the new-name sheet carries one button; dismissing it is the cancel. */}
