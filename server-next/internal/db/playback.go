@@ -739,9 +739,10 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 		// The account, the library, the device's name, home or away and how it was delivered
 		// are for the owner's Play history and its filters.
 		res, err := w.exec(`INSERT INTO play_history (profile_id, profile_name, account_name, item_id, device_id, client_event_id, played_at,
-			watched_ms, item_kind, title, subtitle, hidden_from_profile, user_id, library_id, device_name, away, delivery)
+			watched_ms, item_kind, title, subtitle, hidden_from_profile, user_id, library_id, device_name, away, delivery, holder_id)
 			SELECT p.id, p.name, u.username, ?1, ?2, ?3, ?4, ?5, ?6, ?7, nullif(?8, ''), ?9, u.id,
-				(SELECT library_id FROM items WHERE id = ?1), ifnull((SELECT name FROM devices WHERE id = ?2), ''), ?11, ?12
+				(SELECT library_id FROM items WHERE id = ?1), ifnull((SELECT name FROM devices WHERE id = ?2), ''), ?11, ?12,
+				(SELECT ifnull(root_id, parent_id) FROM items WHERE id = ?1)
 			FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.id = ?10
 			ON CONFLICT (profile_id, client_event_id) DO NOTHING`,
 			id, nz(sample.DeviceID), sample.PlayID, sample.At.UnixMilli(), sample.WatchedMS, kind, title, holder, paused, w.viewer.ProfileID,
@@ -832,9 +833,10 @@ func (w *stateWriter) recordPlaying(sample Progress, id int64, kind ItemKind, ti
 		return nil
 	}
 	_, err = w.exec(`INSERT INTO play_history (profile_id, profile_name, account_name, item_id, device_id, client_event_id, played_at,
-		watched_ms, item_kind, title, subtitle, hidden_from_profile, user_id, library_id, device_name, away, delivery)
+		watched_ms, item_kind, title, subtitle, hidden_from_profile, user_id, library_id, device_name, away, delivery, holder_id)
 		SELECT p.id, p.name, u.username, ?1, ?2, ?3, ?4, ?5, ?6, ?7, nullif(?8, ''), 1, u.id,
-			(SELECT library_id FROM items WHERE id = ?1), ifnull((SELECT name FROM devices WHERE id = ?2), ''), ?10, ?11
+			(SELECT library_id FROM items WHERE id = ?1), ifnull((SELECT name FROM devices WHERE id = ?2), ''), ?10, ?11,
+			(SELECT ifnull(root_id, parent_id) FROM items WHERE id = ?1)
 		FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.id = ?9
 		ON CONFLICT (profile_id, client_event_id) DO UPDATE SET watched_ms = max(ifnull(watched_ms, 0), excluded.watched_ms)`,
 		id, nz(sample.DeviceID), sample.PlayID+playingSuffix, sample.At.UnixMilli(), watched, kind, title, holder, w.viewer.ProfileID,
