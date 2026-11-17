@@ -92,6 +92,7 @@ func TestATitlesPageRowsOfItsCastCreatorAndGenre(t *testing.T) {
 		return out
 	}
 	want := []string{
+		"more_like_this | Collateral | Hidden | Ronin",
 		"cast Al | Hidden | Ronin",
 		"cast Cy | Collateral",
 		"creator Dee Rector | Collateral",
@@ -100,11 +101,11 @@ func TestATitlesPageRowsOfItsCastCreatorAndGenre(t *testing.T) {
 	if got := rows(owner, "Heat"); !slices.Equal(got, want) {
 		t.Errorf("Heat's rows:\n%q\nwant\n%q", got, want)
 	}
-	want = []string{"cast Al | Ronin", "cast Cy | Collateral", "creator Dee Rector | Collateral", "genre Crime | Ronin | Collateral"}
+	want = []string{"more_like_this | Collateral | Ronin", "cast Al | Ronin", "cast Cy | Collateral", "creator Dee Rector | Collateral", "genre Crime | Ronin | Collateral"}
 	if got := rows(quiet.AccessToken, "Heat"); !slices.Equal(got, want) {
 		t.Errorf("Heat's rows for the profile kept from the label:\n%q\nwant\n%q", got, want)
 	}
-	if got := rows(owner, "Wire"); !slices.Equal(got, []string{"cast Wren Writer | Treme"}) {
+	if got := rows(owner, "Wire"); !slices.Equal(got, []string{"more_like_this | Treme", "cast Wren Writer | Treme"}) {
 		t.Errorf("Wire's rows: %q", got)
 	}
 	if got := rows(owner, "Thief"); len(got) != 1 || got[0] != "genre Drama | Heat | Insomnia" {
