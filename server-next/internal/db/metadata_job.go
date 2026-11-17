@@ -37,7 +37,7 @@ func metadataJobItem(tx *sql.Tx, jobID, itemID int64) error {
 	if !visible {
 		return ErrNotFound
 	}
-	_, err = tx.Exec(`DELETE FROM job_item_failures WHERE job_id = ? AND item_id = ?`, jobID, itemID)
+	_, err = tx.Exec(`DELETE FROM job_item_outcomes WHERE job_id = ? AND item_id = ?`, jobID, itemID)
 	return err
 }
 
@@ -66,6 +66,6 @@ func (d *DB) RecordMetadataJobOutcome(ctx context.Context, jobID int64, item, co
 // saved before a later provider request for its children failed.
 func (d *DB) JobItemFailed(ctx context.Context, jobID, itemID int64) (bool, error) {
 	var failed bool
-	err := d.read.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM job_item_failures WHERE job_id = ? AND item_id = ?)`, jobID, itemID).Scan(&failed)
+	err := d.read.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM job_item_outcomes WHERE job_id = ? AND item_id = ? AND code <> '')`, jobID, itemID).Scan(&failed)
 	return failed, err
 }

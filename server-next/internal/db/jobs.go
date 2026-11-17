@@ -91,7 +91,7 @@ func (d *DB) StartJob(ctx context.Context, n NewJob) (Job, error) {
 			return err
 		}
 		if changed, _ := res.RowsAffected(); changed > 0 {
-			if _, err := tx.Exec(`DELETE FROM job_item_failures WHERE job_id = ?`, job.ID); err != nil {
+			if _, err := tx.Exec(`DELETE FROM job_item_outcomes WHERE job_id = ?`, job.ID); err != nil {
 				return err
 			}
 		}

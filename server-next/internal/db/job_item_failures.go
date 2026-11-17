@@ -27,8 +27,8 @@ func (d *DB) JobItemFailures(ctx context.Context, v Viewer, jobID, after int64, 
 		return nil, err
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT i.id, i.public_id, i.title, f.code, f.message
-		FROM job_item_failures f CROSS JOIN items i ON i.id = f.item_id
-		WHERE f.job_id = @job AND f.item_id > @after AND `+a.visible("i")+` ORDER BY f.item_id LIMIT @limit`,
+		FROM job_item_outcomes f CROSS JOIN items i ON i.id = f.item_id
+		WHERE f.job_id = @job AND f.code <> '' AND f.item_id > @after AND `+a.visible("i")+` ORDER BY f.item_id LIMIT @limit`,
 		append(v.args(), sql.Named("job", jobID), sql.Named("after", after), sql.Named("limit", limit))...)
 	if err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func (d *DB) JobItemFailures(ctx context.Context, v Viewer, jobID, after int64, 
 // JobHasItemFailures lets the summary say something failed without revealing a count.
 func (d *DB) JobHasItemFailures(ctx context.Context, jobID int64) (bool, error) {
 	var failed bool
-	err := d.read.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM job_item_failures WHERE job_id = ?)`, jobID).Scan(&failed)
+	err := d.read.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM job_item_outcomes WHERE job_id = ? AND code <> '')`, jobID).Scan(&failed)
 	return failed, err
 }
 
@@ -56,12 +56,9 @@ func (d *DB) JobHasItemFailures(ctx context.Context, jobID int64) (bool, error) 
 // errors may contain paths, provider replies or names the reader must never be given.
 // A missing item stores nothing; a successful replay clears an earlier refusal.
 func jobItemOutcome(tx *sql.Tx, jobID int64, itemID, code string) error {
-	if code == "" {
-		_, err := tx.Exec(`DELETE FROM job_item_failures WHERE job_id = ? AND item_id = (SELECT id FROM items WHERE public_id = ?)`, jobID, itemID)
-		return err
-	}
 	var message string
 	switch code {
+	case "":
 	case "unsupported_state":
 		message = "Music has play counts, not a watched state."
 	case "edit_too_old":
@@ -81,8 +78,8 @@ func jobItemOutcome(tx *sql.Tx, jobID int64, itemID, code string) error {
 	default:
 		return invalid("unknown job failure code")
 	}
-	_, err := tx.Exec(`INSERT INTO job_item_failures (job_id, item_id, code, message)
-		SELECT ?, id, ?, ? FROM items WHERE public_id = ?
-		ON CONFLICT (job_id, item_id) DO UPDATE SET code = excluded.code, message = excluded.message`, jobID, code, message, itemID)
+	_, err := tx.Exec(`INSERT INTO job_item_outcomes (job_id, item_id, done, code, message)
+		SELECT ?, id, 1, ?, ? FROM items WHERE public_id = ?
+		ON CONFLICT (job_id, item_id) DO UPDATE SET done = 1, code = excluded.code, message = excluded.message`, jobID, code, message, itemID)
 	return err
 }

@@ -591,13 +591,14 @@ func (d *DB) RemoveFromList(ctx context.Context, v Viewer, publicID string, revi
 
 // listEdit is one change to a list, inside its transaction.
 type listEdit struct {
-	ctx  context.Context
-	tx   *sql.Tx
-	v    Viewer
-	acc  access
-	id   int64
-	kind string
-	at   int64
+	jobID int64 // profile job whose actual additions are counted
+	ctx   context.Context
+	tx    *sql.Tx
+	v     Viewer
+	acc   access
+	id    int64
+	kind  string
+	at    int64
 	// unchanged says the change turned out to change nothing, so the revision stays.
 	unchanged   bool
 	additionKey string // the keyed addition that created each playlist entry
@@ -733,6 +734,9 @@ func (e *listEdit) add(publicIDs []string, after int64) (added, already int, err
 				return 0, 0, err
 			}
 			if held || seen[id] {
+				if err := listJobAddition(e.tx, e.jobID, id, false); err != nil {
+					return 0, 0, err
+				}
 				already++
 				continue
 			}
@@ -761,6 +765,9 @@ func (e *listEdit) add(publicIDs []string, after int64) (added, already int, err
 	defer insert.Close()
 	for n, id := range items {
 		if _, err := insert.Exec(e.id, id, positions[n], e.at, e.additionKey); err != nil {
+			return 0, 0, err
+		}
+		if err := listJobAddition(e.tx, e.jobID, id, true); err != nil {
 			return 0, 0, err
 		}
 	}

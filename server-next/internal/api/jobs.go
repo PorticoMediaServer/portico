@@ -68,7 +68,7 @@ func (s *Server) startJob(r *http.Request, req JobStart) (Job, error) {
 	if err != nil {
 		return Job{}, err
 	}
-	return *jobOut(r, job), nil
+	return s.profileJobOut(r, job)
 }
 
 // mayStart reports whether the caller's role lets them start a kind of job.
@@ -113,7 +113,7 @@ func (s *Server) readJob(r *http.Request, _ None) (Job, error) {
 	if err != nil {
 		return Job{}, err
 	}
-	return *jobOut(r, job), nil
+	return s.profileJobOut(r, job)
 }
 
 // cancelJob stops a job that is waiting or running. What it has done so far stays done.
