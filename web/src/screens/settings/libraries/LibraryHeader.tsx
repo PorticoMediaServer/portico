@@ -1,3 +1,4 @@
+import {libraryLyricsJobState} from '@core/owner-library-requests.ts';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import type {LibraryContentApi} from '@core/library-content.ts';
@@ -53,6 +54,7 @@ export function LibraryHeader({libraryId, name, service, artwork, onError, renam
     <div className={styles.content}>
       <h1>{name}</h1>
       <div className={styles.facts}>
+        {lyric.jobState && <span role="status">{defaultI18n.t(`server.jobState.${libraryLyricsJobState(lyric.jobState)}`)}</span>}
         {library?.summary?.counts.map(count => <span key={count.kind}>{libraryCountText(count)}</span>)}
         {active ? <span role="status">{defaultI18n.t('next.settings.libraries.scanning')}</span> : scan?.finishedAt && Number.isFinite(Date.parse(scan.finishedAt)) && ['complete', 'complete_with_warnings'].includes(scan.status)
           ? <span>{defaultI18n.t('server.libraries.scanned', {when: defaultI18n.dateTime(scan.finishedAt)})}</span> : null}

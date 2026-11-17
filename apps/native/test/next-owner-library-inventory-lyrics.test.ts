@@ -5,7 +5,7 @@ import * as routes from '../../../packages/contracts/src/routes.ts';
 
 async function fixture() {
   const posts: any[] = [], selections: string[] = [];
-  let response: () => Promise<unknown> = async () => ({id: 'lyrics-job', state: 'queued'});
+  let response: () => Promise<unknown> = async () => ({id: 'lyrics-job',kind:'fetch_lyrics', state: 'waiting'});
   const documents = new Map<string, any>();
   class Management {
     selected: any = {phase: 'idle', data: null};
@@ -29,8 +29,8 @@ async function fixture() {
   });
   let keys = 0;
   const controller = new module.NativeOwnerLibrariesController({request: async (path: string, method?: string, body?: unknown) => {
-    if (method === 'POST') {posts.push({path, body}); return response();} return {};
-  }}, {serverId: 'server', viewerId: 'owner'}, () => `key-${++keys}`);
+    return {};
+  },requestRaw: async (path: string, method: string, options: any) => {posts.push({path,body:options.body,headers:options.headers});return {status:202,headers:{},body:await response()};}}, {serverId: 'server', viewerId: 'owner'}, () => `key-${++keys}`);
   return {controller, posts, selections, documents, inventory: (read: typeof inventoryRead) => {inventoryRead = read;}, respond: (next: typeof response) => {response = next;}};
 }
 
@@ -57,14 +57,14 @@ test('lyrics fetch keeps one idempotent operation, rejects stale openings and re
     f.respond(() => new Promise(resolve => {finish = resolve;}));
     const pending = f.controller.fetchLyrics(document, () => true);
     await f.controller.fetchLyrics(document, () => true);
-    assert.equal(f.posts.length, 1); assert.equal(f.posts[0].path, '/v1/libraries/music%20%2F%20one/lyrics/fetch');
-    finish({id: 'actual-job', state: 'queued'}); await pending;
+    assert.equal(f.posts.length, 1); assert.equal(f.posts[0].path, '/v1/jobs');assert.deepEqual(f.posts[0].body,{kind:'fetch_lyrics',target:{library:'music / one'}});assert.ok(f.posts[0].headers['Idempotency-Key']);
+    finish({id: 'actual-job',kind:'fetch_lyrics',state:'waiting'}); await pending;
     assert.equal(f.controller.getSnapshot().lyricsJob.id, 'actual-job'); assert.equal(f.selections.length, 2);
     f.respond(async () => {throw {code: 'offline'};});
     await f.controller.fetchLyrics(document, () => true); assert.ok(f.controller.getSnapshot().lyricsError);
-    assert.notDeepEqual(f.posts[0].body, f.posts[1].body, 'a confirmed job ends the previous operation');
+    assert.notDeepEqual(f.posts[0].headers, f.posts[1].headers, 'a confirmed job ends the previous operation');
     await f.controller.fetchLyrics(document, () => true);
-    assert.deepEqual(f.posts[1].body, f.posts[2].body, 'uncertain outcomes never get a new operation key');
+    assert.deepEqual(f.posts[1].headers, f.posts[2].headers, 'uncertain outcomes never get a new operation key');
     await f.controller.fetchLyrics(document, () => false); assert.equal(f.posts.length, 3);
     await f.controller.load('other');
     await f.controller.fetchLyrics(document, () => true); assert.equal(f.posts.length, 3);

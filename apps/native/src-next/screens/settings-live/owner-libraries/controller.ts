@@ -1,5 +1,5 @@
-import {readOwnerMetadataAgent, fetchOwnerLibraryLyricsContract} from '../../../../../../packages/client-core/src/owner-library-requests';
-import {type RouteResponse} from '../../../../../../packages/contracts/src/routes';
+import {readOwnerMetadataAgent, fetchOwnerLibraryLyrics} from '../../../../../../packages/client-core/src/owner-library-requests';
+import type {Job} from '../../../../../../packages/contracts/src/next/api';
 import type {ExpectedRemoteSource} from '../../../../../../packages/client-core/src/remote-source-selection';
 import {LibraryManagementService, type LibraryManagementSnapshot, type ManagedLibrary} from '../../../../../../packages/client-core/src/library-management';
 import {readUnmatchedTitles, type UnmatchedTitle} from '../../../../../../packages/client-core/src/library-management';
@@ -29,7 +29,7 @@ export type NativeOwnerLibrariesSnapshot = Readonly<{
   inventory?: InventoryConfig;
   inventoryLoading?: boolean;
   inventoryError?: unknown;
-  lyricsJob?: RouteResponse<'post_libraries_id_lyrics_fetch'>;
+  lyricsJob?: Job;
   lyricsError?: unknown;
   lyricsBusy?: boolean;
   metadata?: LibraryMetadataAgent;
@@ -259,8 +259,7 @@ export class NativeOwnerLibrariesController {
     this.publish({lyricsBusy: true, lyricsError: undefined, lyricsJob: undefined});
     try {
       if (!owns()) return;
-      const job = await fetchOwnerLibraryLyricsContract<RouteResponse<'post_libraries_id_lyrics_fetch'>>(this.api, document.libraryId, key);
-      if (!job || typeof job.id !== 'string' || !job.id || typeof job.state !== 'string') throw new Error('Invalid lyrics job response.');
+      const job = await fetchOwnerLibraryLyrics(this.api, document.libraryId, key);
       this.lyricsKeys.delete(document.libraryId);
       if (!owns()) return;
       this.publish({lyricsJob: job});

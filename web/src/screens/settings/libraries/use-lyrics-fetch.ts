@@ -23,13 +23,14 @@ export function useLibraryLyricsFetch({api, libraryId, isCurrent, onError}: Read
   api?: LibraryContentApi; libraryId: string; isCurrent: () => boolean; onError: (error: unknown) => void;
 }>) {
   const [busy, setBusy] = useState(false);
+  const [receipt, setReceipt] = useState<Readonly<{lease: LyricsLease; state: string}>>();
   const live = useRef<LyricsLease | undefined>(undefined);
   const [lease, setLease] = useState<LyricsLease | undefined>(undefined);
   useLayoutEffect(() => {
     const next = api ? new LyricsLease(api, libraryId, isCurrent) : undefined;
     live.current = next;
     setLease(next);
-    setBusy(false);
+    setBusy(false);setReceipt(undefined);
     return () => {
       // Retire synchronously: the lease stops being current before its command
       // is aborted, so no handler can observe a half-retired command.
@@ -43,12 +44,12 @@ export function useLibraryLyricsFetch({api, libraryId, isCurrent, onError}: Read
     if (captured.api !== api || captured.libraryId !== libraryId || captured.isCurrent !== isCurrent) return;
     if (!isCurrent() || captured.pending) return;
     captured.pending = true;
-    setBusy(true);
-    void captured.command.run().catch(error => {
+    setBusy(true);setReceipt(undefined);
+    void captured.command.run().then(result => {if (result && live.current === captured && captured.isCurrent()) setReceipt({lease: captured, state: result.state});}).catch(error => {
       if (live.current === captured && captured.isCurrent()) onError(error);
     }).finally(() => {
       if (live.current === captured) {captured.pending = false;if (captured.isCurrent()) setBusy(false);}
     });
   };
-  return {busy, run};
+  return {busy, run, jobState: receipt?.lease === lease ? receipt?.state : undefined};
 }
