@@ -124,6 +124,19 @@ func TestWatchTogether(t *testing.T) {
 	if started := th.here(ada, made.ID, "ready", 600_000, entry); started.Clock.WaitUntil != nil {
 		t.Fatalf("everyone was ready and the group still waits: %+v", started.Clock)
 	}
+	th.room("POST", "/v1/groups/"+made.ID+"/playback", host, GroupAction{Action: "pause"})
+	th.here(host, made.ID, "paused", 600_000, entry)
+	if paused := th.here(ada, made.ID, "paused", 600_000, entry); paused.Clock.Ready != 2 || paused.Clock.WaitingFor != 0 {
+		t.Fatalf("both players are paused at the group position: %+v", paused.Clock)
+	}
+	_, resumed := th.room("POST", "/v1/groups/"+made.ID+"/playback", host, GroupAction{Action: "play"})
+	if !resumed.Clock.Playing || resumed.Clock.WaitUntil != nil {
+		t.Fatalf("both players were ready to resume: %+v", resumed.Clock)
+	}
+	_, seeking = th.room("POST", "/v1/groups/"+made.ID+"/playback", host, GroupAction{Action: "seek", PositionMs: 605_000})
+	if seeking.Clock.WaitUntil == nil || seeking.Clock.Ready != 0 {
+		t.Fatalf("readiness from before the seek counted at the new position: %+v", seeking.Clock)
+	}
 
 	// The host's device goes quiet. At two minutes playback pauses and Ada, in step, may become host.
 	for range 4 {

@@ -107,6 +107,10 @@ test('follower waits for Room readiness, reports ms and uses server correction b
   await service.open('room'); const follower = new GroupFollower(service, player, () => now);
   try {
     follower.start(); assert.ok(!changes.some(c => c[0] === 'play'));
+    await settle();
+    assert.deepEqual(reports.at(-1), {state: 'ready', positionMs: 10000, entryId: 'first'});
+    t.mock.timers.tick(1000); await settle();
+    assert.equal(reports.length, 2, 'a settled player reports readiness once before the next heartbeat');
     current = room({queue: entries, clock: {entryId: 'first', positionMs: 10000, at: stamp(), playing: true, ready: 1, waitingFor: 1}});
     await service.refresh(); assert.ok(changes.some(c => c[0] === 'play'));
     local.positionSeconds = 9; t.mock.timers.tick(1000); await settle(); assert.ok(changes.some(c => c[0] === 'rate' && c[1] > 1));
