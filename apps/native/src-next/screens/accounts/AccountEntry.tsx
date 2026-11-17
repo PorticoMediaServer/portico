@@ -736,8 +736,12 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     else {memberMoveRef.current.cancel(); setStage('member-move');}
   };
   const requestReset = async () => {
-    await account.current!.forgot(username);
-    if (lifetime.current) {setPassword(''); setCode(''); setStage('forgot-sent');}
+    const source = account.current;
+    if (!source) return;
+    const originalStage = stageRef.current;
+    const current = () => lifetime.current && account.current === source && stageRef.current === originalStage;
+    await source.forgot(current);
+    if (current()) {setPassword(''); setCode(''); setStage('portico');}
   };
   const inspect = async (origin = address) => {
     const resetIntent = ownerResetIntent.current, invite = invitationIntent.current;
@@ -1381,7 +1385,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const onContinue = () => {if (!current() || busy || !authOptions?.password || !username || !password || !source) return; void run(async () => {
         if (!current()) return; try {await source.password(username, password, current); if (current()) await directory();} catch (error) {if (current()) throw error;}
       });};
-    const onForgot = () => {if (!current() || busy || !authOptions?.recovery) return; setPassword(''); setStage('forgot');};
+    const onForgot = () => {if (!current() || busy || !authOptions?.recovery) return; void run(requestReset);};
     const onCreate = () => {if (!current() || busy || !authOptions?.registration) return; setPassword(''); setStage('register');};
     intentRunner.current = intent => {if (intent.kind === 'provider') onProvider(intent.id); else if (intent.kind === 'continue') onContinue(); else if (intent.kind === 'forgot') onForgot(); else onCreate();};
     return <PhoneAccountSignIn busy={busy} error={status ?? providerNoticeView} onOpenLink={openLegalLink}
@@ -1397,7 +1401,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       if (tx.status === 'verified' && !tx.needsUsername && !tx.mfaRequired) {await account.current!.finishProvider(); await directory();} else setStage('provider');
     });}}>{t(value.id === 'google' ? 'auth.signInWithGoogle' : 'auth.signInWithApple')}</Button>)}
     {options?.registration && <Button variant="link" disabled={busy} onPress={() => {setPassword(''); setStage('register');}}>{t('auth.createAccount')}</Button>}
-    {options?.recovery !== false && <Button variant="link" disabled={busy} onPress={() => {setPassword(''); setStage('forgot');}}>{t('auth.forgotPassword')}</Button>}
+    {options?.recovery !== false && <Button variant="link" disabled={busy} onPress={() => {void run(requestReset);}}>{t('auth.forgotPassword')}</Button>}
     <Button variant="link" disabled={busy} onPress={() => {setPassword(''); setStage('address');}}>{t('accounts.signIn.local')}</Button>
     <LegalAgreement style={[theme.type.caption, {color: theme.colors.textSecondary, textAlign: 'center', marginTop: 6}]}
       linkStyle={{color: theme.colors.accent, textDecorationLine: 'underline'}} onOpenLink={openLegalLink}/></View>);
