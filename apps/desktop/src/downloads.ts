@@ -5,7 +5,7 @@ import {parseDownloadTitle, type DownloadTitle, type DownloadReceipt} from '../.
 // App-owned transport. UI owners consume the canonical web port after its MAIN landing.
 export type DownloadScope = Readonly<{authority:'local'|'hosted';serverId:string;accountId:string;profileId:string;sessionFamilyId:string}>;
 export type LocalDownload = Readonly<{id:string;revision:number;preparationId:string;itemId:string;quality:string;sha256:string;bytes:number;bytesDone:number;state:'queued'|'downloading'|'paused'|'failed'|'ready';held:boolean;addedMs:number;receiptExpiresMs:number|null;offlineAccess:'valid'|'needsCheckIn';title:DownloadTitle}>;
-export type DownloadRules = Readonly<{removeWatched:boolean;nextEpisode:boolean;unmeteredOnly:boolean;limitBytes:number}>;
+export type DownloadRules = Readonly<{removeWatched:boolean;unmeteredOnly:boolean;limitBytes:number}>;
 export type RulesSnapshot = Readonly<{revision:number;rules:DownloadRules}>;
 export type DownloadCursor = Readonly<{addedMs:number;id:string}>;
 export type DownloadPage = Readonly<{items:readonly LocalDownload[];nextCursor:DownloadCursor|null}>;
@@ -69,7 +69,7 @@ export function parseLocalDownload(value:unknown):LocalDownload {
 }
 function rules(value:unknown):RulesSnapshot{
   const v=object(value),r=object(v.rules);
-  return Object.freeze({revision:integer(v.revision),rules:Object.freeze({removeWatched:boolean(r.removeWatched),nextEpisode:boolean(r.nextEpisode),unmeteredOnly:boolean(r.unmeteredOnly),limitBytes:integer(r.limitBytes)})});
+  return Object.freeze({revision:integer(v.revision),rules:Object.freeze({removeWatched:boolean(r.removeWatched),unmeteredOnly:boolean(r.unmeteredOnly),limitBytes:integer(r.limitBytes)})});
 }
 function page(value:unknown):DownloadPage{
   const v=object(value);

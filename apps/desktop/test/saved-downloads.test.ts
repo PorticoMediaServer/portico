@@ -9,7 +9,7 @@ const row={id,revision:4,preparationId:'prep',itemId:'item',quality:'original',s
  state:'ready',held:false,addedMs:1,receiptExpiresMs:1234,offlineAccess:'valid',
  title:{kind:'song',title:'Stored song',artist:'Track artist',parentId:'album',parentTitle:'Stored album',groupId:'disc',groupTitle:'',groupNumber:1,number:2,year:1977,durationMs:181000,onServer:false}};
 const group={kind:'songs',parentId:'album',groupId:'disc',count:9,bytes:72,bytesDone:64,revision:groupRevision,state:'ready',held:false,offlineAccess:'valid'};
-const flat={removeWatched:false,nextEpisode:false,unmeteredOnly:true,limitBytes:0};
+const flat={removeWatched:false,unmeteredOnly:true,limitBytes:0};
 async function harness(playback:DesktopSavedPlayback={async play(){}}){
  let current=true,revision=7,values=flat,failRead=false;
  let custom:NativeDownloadsBridge['command']|undefined;

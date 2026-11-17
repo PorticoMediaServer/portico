@@ -204,3 +204,16 @@ test('retirement cannot acknowledge cleanup before an outstanding native load co
   finish(localReceipt());await assert.rejects(load,{name:'AbortError'});await retirement;assert.deepEqual(retired,[9]);
  }finally{store.dispose()}
 });
+
+
+test('current rules round-trip without a global next-episode field',async()=>{
+ const value={removeWatched:true,unmeteredOnly:false,limitBytes:1234},calls:Record<string,unknown>[]=[];
+ const store=await DesktopDownloadStore.bind(scope,()=>true,bridge(async(_,operation)=>{
+  calls.push({...operation});return{kind:'rules',value:{revision:operation.action==='setRules'?1:0,rules:value}};
+ }));
+ try{
+  assert.deepEqual((await store.rules()).rules,value);
+  assert.deepEqual((await store.setRules(0,value)).rules,value);
+  assert.deepEqual(calls.at(-1),{action:'setRules',expectedRevision:0,value});
+ }finally{store.dispose();}
+});
