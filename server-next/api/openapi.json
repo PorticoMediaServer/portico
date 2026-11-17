@@ -4047,8 +4047,17 @@
       },
       "HomeRowSource": {
         "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "genre": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
+          },
+          "inList": {
+            "type": "boolean"
           },
           "inProgress": {
             "type": "boolean"
@@ -4064,6 +4073,9 @@
           },
           "watched": {
             "type": "boolean"
+          },
+          "year": {
+            "type": "string"
           }
         },
         "required": [

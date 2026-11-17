@@ -39,6 +39,48 @@ func TestSavedViewPlaysFromSaved(t *testing.T) {
 	}
 }
 
+func TestHomeRowFacetsAndQueueShareTheFilteredSource(t *testing.T) {
+	th := newTheatre(t)
+	library := th.libs[db.LibraryMovies]
+	batch := db.ImportBatch{LibraryID: library.ID, PathID: library.Paths[0].ID, Scan: 2, Dirs: []db.ImportDir{{}}}
+	for _, title := range []struct{ name, genre, release string }{
+		{"Drama Here", "Drama", "2000-01-01"},
+		{"Comedy Here", "Comedy", "2000-01-01"},
+		{"Future Drama", "Drama", "2999-01-01"},
+	} {
+		path := db.FileRef{Name: title.name + ".mkv"}
+		batch.Files = append(batch.Files, db.ImportFile{FileRef: path, Role: db.FileMedia, Size: 1, DurationMS: 180_000})
+		batch.Items = append(batch.Items, db.ImportItem{
+			Kind: db.KindMovie, Title: title.name, ReleaseDate: title.release, Keys: []db.ItemKey{{Kind: db.KeyName, Key: title.name}},
+			Tags: []db.TagName{{Kind: db.TagGenre, Name: title.genre}}, Versions: []db.ImportVersion{{Parts: []db.ImportPart{{File: path}}}},
+		})
+	}
+	if _, err := th.s.db.Import(context.Background(), batch); err != nil {
+		t.Fatal(err)
+	}
+	token, row := th.owner.AccessToken, "recently_released"
+	scope := "&library=" + library.PublicID
+	genres := get[Facets](t, th.s, token, "/v1/facets?facet=genre&homeRow="+row+scope)
+	letters := get[Facets](t, th.s, token, "/v1/facets?facet=letter&homeRow="+row+scope+"&sort=title")
+	if len(genres.Values) != 2 || genres.Values[0].Count != 1 || genres.Values[1].Count != 1 {
+		t.Fatalf("genre counts included a title outside the row: %+v", genres)
+	}
+	if !slices.Equal(letters.Values, []FacetValue{{Value: "C", Count: 1}, {Value: "D", Count: 1}}) {
+		t.Fatalf("letter positions included a title outside the row: %+v", letters)
+	}
+	list := get[HomeRow](t, th.s, token, "/v1/home/rows/"+row+"?genre=Drama"+scope)
+	if len(list.Items) != 1 || list.Items[0].Title != "Drama Here" {
+		t.Fatalf("filtered row: %+v", list)
+	}
+	source := playqueue.QueueSource{HomeRow: &playqueue.HomeRowSource{ID: row, Library: library.PublicID, Genre: "Drama"}}
+	for _, shuffle := range []bool{false, true} {
+		queue := th.create(QueueCreate{Source: source, Shuffle: shuffle}).Queue
+		if got := th.order(queue.ID); !slices.Equal(got, []string{list.Items[0].ID}) {
+			t.Fatalf("queue shuffle=%t: %v does not match the row", shuffle, got)
+		}
+	}
+}
+
 // Home Play reads the whole row on the server, expands album cards and refills. Continue's
 // chosen order survives even when playing makes the live Continue row empty.
 func TestHomeRowsAreWholeQueueSources(t *testing.T) {

@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// HomeRowFacets counts the same visible titles as a Home row's list. Only the
+// ordinary catalogue rows offer facets; ranked rows and Continue keep their order.
+func (d *DB) HomeRowFacets(ctx context.Context, v Viewer, row string, q ItemQuery, facet string) ([]FacetValue, error) {
+	if row != "recently_added" && row != "recently_released" {
+		return nil, invalid("This Home row does not have filter choices.")
+	}
+	if facet != FacetGenre && facet != FacetLetter {
+		return nil, invalid("This Home row supports genre and letter counts.")
+	}
+	q, _, _, err := d.homeRowQuery(ctx, v, row, q)
+	if err != nil {
+		return nil, err
+	}
+	return d.Facets(ctx, v, q, facet)
+}
+
 // HomeRowItems opens a Home source as an ordinary item list, so See all keeps the library's
 // sorts, filters, exact totals and cursors. Continue sources read only this profile's activity,
 // not its whole libraries; the query rechecks visibility before returning or counting anything.
