@@ -1,5 +1,5 @@
 /* connect 1, 28 and 31c: the root server directory. Values read from the frames. */
-.page { position: relative; min-height: 100dvh; background: var(--color-ink); color: var(--color-text); }
+.page { position: relative; min-height: 100dvh; color: var(--color-text); }
 .main { position: relative; padding: 124px var(--gutter-desktop) 80px; max-width: none; }
 .head { max-width: 1100px; margin-bottom: 40px; }
 .why { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: var(--color-accent-strong); overflow-wrap: anywhere; }
