@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
- accessTokenPrefix,apiKeyPrefix,apiScopePresets,createAccessToken,createApiKey,createWebhook,isApiCredentialSecret,listApiKeys,listAccessTokens,listWebhookDeliveries,
+ accessTokenPrefix,apiKeyPrefix,apiScopePresets,createAccessToken,createApiKey,isApiCredentialSecret,listApiKeys,listAccessTokens,listWebhookDeliveries,
  parseApiAccessOptions,parseApiCredential,parseIssuedApiCredential,parseIssuedWebhook,parsePathReport,parseTitlePage,parseWebhook,parseWebhookDelivery,parseWebhookDeliveryPage,parseWebhookList,
- changeWebhook,presetOf,queryTitles,reportChangedPaths,refreshIntegrationLibraries,revokeApiKey,sendWebhookTest,updateWebhook,webhookChangeApplies,webhookEdits,type ApiAccessTransport,
+ presetOf,queryTitles,reportChangedPaths,refreshIntegrationLibraries,revokeApiKey,sendWebhookTest,updateWebhook,webhookEdits,type ApiAccessTransport,
 } from '../src/api-access.ts';
 
 const member={accountId:'owner',username:'sam',profileId:'p1',profile:'Sam'};
@@ -65,31 +65,28 @@ test('credential services call the documented routes', async () => {
  assert.deepEqual(revoked.calls[0],{path:'/v1/admin/api-keys/c%2F1',method:'DELETE',body:undefined});
 });
 
-const webhook={id:'w1',name:'Home',url:'http://192.168.1.2/hook',events:['playback.started','a.future.event'],enabled:true,secretHint:'abcd',createdAt:'2026-10-13T12:00:00Z',updatedAt:'2026-10-13T12:00:00Z',waiting:0,failing:2,dropped:1,revision:3};
+const webhook={id:'w1',name:'Home',url:'http://192.168.1.2/hook',events:['playback.started','a.future.event'],enabled:true,createdAt:'2026-10-13T12:00:00Z',waiting:0,dropped:1};
 
-test('webhook documents are parsed strictly and keep event names a newer server may add', async () => {
+test('current webhook pages and receipts keep events and distinct log rows', async () => {
  assert.deepEqual(parseWebhook(webhook).events,['playback.started','a.future.event']);
  assert.throws(()=>parseWebhook({...webhook,secret:'whsec_x'}));
- assert.throws(()=>parseWebhook({...webhook,failing:-1}));
+ assert.throws(()=>parseWebhook({...webhook,waiting:-1}));
  assert.equal(parseIssuedWebhook({webhook,secret:'whsec_x'}).secret,'whsec_x');
- assert.equal(parseWebhookList({items:[webhook],events:['title.added'],maximum:20}).maximum,20);
- const delivery={id:'d1',event:'webhook.test',state:'pending',attempts:1,createdAt:'2026-10-13T12:00:00Z',nextAttemptAt:'2026-10-13T12:00:30Z',status:500,durationMs:12,error:'status_500'};
+ assert.throws(()=>parseIssuedWebhook({webhook}));
+ assert.equal(parseWebhookList({items:[webhook]}).items.length,1);
+ const delivery={event:'test',state:'waiting',tries:1,createdAt:'2026-10-13T12:00:00Z',nextTryAt:'2026-10-13T12:00:30Z',status:500,error:'status_500'};
  assert.equal(parseWebhookDelivery(delivery).error,'status_500');
  assert.throws(()=>parseWebhookDelivery({...delivery,state:'lost'}));
- // The log leaves out a line it cannot read; a list of webhooks with one it cannot read is refused whole.
- assert.deepEqual(parseWebhookDeliveryPage({items:[delivery,{...delivery,id:'d2',state:'lost'},{...delivery,event:'again'}],limit:50}).items.map(d=>[d.id,d.event]),[['d1','webhook.test']]);
- assert.throws(()=>parseWebhookList({items:[webhook,{...webhook,id:'w2',failing:-1}],events:[],maximum:20}));
- const made=recorder({webhook,secret:'whsec_x'});
- await createWebhook(made.transport,{name:'Home',url:webhook.url,events:['playback.started']});
- assert.deepEqual(made.calls[0],{path:'/v1/admin/webhooks',method:'POST',body:{name:'Home',url:webhook.url,events:['playback.started']}});
- await updateWebhook(made.transport,'w1',3,{enabled:false});
- assert.deepEqual(made.calls[1],{path:'/v1/admin/webhooks/w1',method:'PATCH',body:{expectedRevision:3,enabled:false}});
- const test=recorder(delivery);
- await sendWebhookTest(test.transport,'w1');
- assert.equal(test.calls[0].path,'/v1/admin/webhooks/w1/test');
- const log=recorder({items:[delivery],limit:50});
+ assert.equal(parseWebhookDeliveryPage({items:[delivery,{...delivery,state:'lost'},delivery]}).items.length,2);
+ assert.throws(()=>parseWebhookList({items:[webhook,{...webhook,id:'w2',waiting:-1}]}));
+ const made=recorder(webhook);
+ await updateWebhook(made.transport,'w1',{enabled:false});
+ assert.deepEqual(made.calls[0],{path:'/v1/admin/webhooks/w1',method:'PATCH',body:{enabled:false}});
+ const result=recorder({delivered:false,status:503});
+ assert.equal((await sendWebhookTest(result.transport,'w1')).delivered,false);
+ const log=recorder({items:[delivery]});
  await listWebhookDeliveries(log.transport,'w1',{cursor:'c'});
- assert.equal(log.calls[0].path,'/v1/admin/webhooks/w1/deliveries?limit=50&cursor=c');
+ assert.equal(log.calls[0].path,'/v1/admin/webhooks/w1/deliveries?cursor=c');
 });
 
 test('the title query and the paths-changed report', async () => {
@@ -110,23 +107,8 @@ test('the title query and the paths-changed report', async () => {
  assert.throws(()=>parsePathReport({paths:[{path:'/x',status:'scanning'}],jobs:[]}));
 });
 
-test('a webhook edit made against an older copy is sent again quietly unless the same thing changed', async () => {
+test('webhook form sends only changed fields', () => {
  const was=parseWebhook(webhook);
- const stale=()=>Object.assign(new Error('changed'),{code:'revision_mismatch',status:412});
- // Someone renamed it; this owner turned it off: sent again against the new revision.
- let now={...webhook,name:'Renamed',revision:4};const sent:unknown[]=[];
- const t:ApiAccessTransport={request:async<T>(path:string,method?:string,body?:unknown)=>{if(method==='GET')return now as T;sent.push(body);if((body as {expectedRevision:number}).expectedRevision!==now.revision)throw stale();return {webhook:{...now,enabled:false,revision:5}} as T;}};
- const out=await changeWebhook(t,was,{enabled:false});
- assert.equal(out.webhook.revision,5);
- assert.deepEqual(sent.map(b=>(b as {expectedRevision:number}).expectedRevision),[3,4]);
- // Someone else turned it off already: nothing more is sent.
- now={...webhook,enabled:false,revision:6};sent.length=0;
- assert.equal((await changeWebhook(t,was,{enabled:false})).webhook.revision,6);
- assert.equal(sent.length,1);
- // Someone changed the address to something else: the conflict is shown.
- now={...webhook,url:'http://10.0.0.9/other',revision:7};
- await assert.rejects(changeWebhook(t,was,{url:'http://10.0.0.5/mine'}),/changed/);
- assert.equal(webhookChangeApplies(was,parseWebhook({...webhook,revision:8}),{rotateSecret:true}),'send');
  assert.deepEqual(webhookEdits(was,{name:'Home',url:webhook.url,events:['a.future.event','playback.started']}),{});
  assert.deepEqual(webhookEdits(was,{name:'Hall',url:webhook.url,events:[...was.events]}),{name:'Hall'});
 });

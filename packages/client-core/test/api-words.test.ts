@@ -63,22 +63,22 @@ test('webhook events are grouped, and one this app does not know is still offere
 });
 
 test('a webhook says its most serious trouble first', () => {
-  const hook: Webhook = {id: 'w', name: 'n', url: 'https://example.com', events: [], enabled: true, secretHint: 'ab', createdAt: '2026-10-01T10:00:00Z', updatedAt: '2026-10-01T10:00:00Z', waiting: 2, failing: 0, dropped: 0};
+  const hook: Webhook = {id: 'w', name: 'n', url: 'https://example.com', events: [], enabled: true, createdAt: '2026-10-01T10:00:00Z', waiting: 2, dropped: 0};
   assert.equal(webhookTrouble(t, {...hook, waiting: 0}), undefined);
   assert.equal(webhookTrouble(t, hook)?.tone, 'neutral');
   assert.equal(webhookTrouble(t, {...hook, dropped: 4})?.tone, 'warning');
-  assert.equal(webhookTrouble(t, {...hook, dropped: 4, failing: 3})?.tone, 'danger');
+  assert.equal(webhookTrouble(t, {...hook, dropped: 4, trouble: 'timed_out'})?.tone, 'danger');
 });
 
 test('a delivery that has not arrived says why in words', () => {
-  const sent: WebhookDelivery = {id: 'd', event: 'title.added', state: 'failed', attempts: 3, createdAt: '2026-10-01T10:00:00Z', status: 0, durationMs: 0, error: 'timed_out'};
+  const sent: WebhookDelivery = {event: 'title.added', state: 'gave_up', tries: 3, createdAt: '2026-10-01T10:00:00Z', status: 0, error: 'timed_out'};
   assert.equal(deliveryTone(sent), 'danger');
   assert.equal(deliveryProblem(t, has, sent), 'The other service took too long to answer.');
   assert.equal(deliveryProblem(t, has, {...sent, error: 'something_new'}), 'The message could not be sent.');
   assert.equal(deliveryProblem(t, has, {...sent, error: undefined, status: 500}), 'The other service answered with an error (500).');
   assert.equal(deliveryProblem(t, has, {...sent, state: 'delivered', error: undefined, status: 200}), undefined);
-  assert.equal(deliveryProgress(t, {...sent, state: 'pending', nextAttemptAt: '2026-10-01T10:05:00Z'}, () => '10:05'), '3 attempts · trying again at 10:05');
-  assert.equal(deliveryProgress(t, {...sent, state: 'pending', attempts: 0}, () => ''), '');
+  assert.equal(deliveryProgress(t, {...sent, state: 'waiting', nextTryAt: '2026-10-01T10:05:00Z'}, () => '10:05'), '3 attempts · trying again at 10:05');
+  assert.equal(deliveryProgress(t, {...sent, state: 'waiting', tries: 0}, () => ''), '');
 });
 
 test('a webhook address is http or https with no name or password in it', () => {

@@ -1,5 +1,6 @@
 import {routeBody} from "../../contracts/src/routes.ts";
-import {isStaleAnswer} from './freshness-actions.ts';
+import {serverPath} from './query/server-api.ts';
+import type {RequestRaw} from './home-selection/list-destinations.ts';
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath} from "../../contracts/src/route-paths.ts";
 import {wireDurations} from './wire-units.ts';
@@ -132,73 +133,53 @@ export const revokeAccessToken=async(t:ApiAccessTransport,tokenId:string,signal?
 export const webhookEvents=['title.added','title.updated','title.removed','scan.started','scan.finished','playback.started','playback.paused','playback.resumed','playback.stopped',
  'recording.finished','recording.failed','member.signed_in','backup.succeeded','backup.failed','storage.low','update.available','server.started'] as const;
 export type WebhookEvent=typeof webhookEvents[number];
-export type Webhook=Readonly<{id:string;name:string;url:string;events:readonly string[];enabled:boolean;secretHint:string;createdAt:string;updatedAt:string;waiting:number;failing:number;dropped:number;revision:number;
- /** Authoritative transfer-retirement status for display only, never permission to enable. Absence makes no assertion. */
- requiresOwnerReview?:boolean}>;
-/** The answer to adding a webhook or rotating its secret: the one time the secret is shown. */
-export type IssuedWebhook=Readonly<{webhook:Webhook;secret?:string}>;
-export type WebhookList=Readonly<{items:readonly Webhook[];events:readonly string[];maximum:number}>;
-export type WebhookDeliveryState='pending'|'delivered'|'failed';
-export type WebhookDelivery=Readonly<{id:string;event:string;state:WebhookDeliveryState;attempts:number;createdAt:string;finishedAt?:string;nextAttemptAt?:string;status:number;durationMs:number;error?:string}>;
-export type WebhookDeliveryPage=Readonly<{items:readonly WebhookDelivery[];limit:number;nextCursor?:string}>;
-export type NewWebhook=Readonly<{name:string;url:string;events:readonly string[];secret?:string;enabled?:boolean}>;
-export type WebhookChange=Readonly<{name?:string;url?:string;events?:readonly string[];enabled?:boolean;rotateSecret?:boolean;secret?:string}>;
+export type Webhook=Readonly<{id:string;name:string;url:string;events:readonly string[];enabled:boolean;trouble?:string;createdAt:string;waiting:number;dropped:number;lastDeliveredAt?:string}>;
+export type IssuedWebhook=Readonly<{webhook:Webhook;secret:string}>;
+export type WebhookList=Readonly<{items:readonly Webhook[];nextCursor?:string}>;
+export type WebhookDeliveryState='waiting'|'delivered'|'gave_up';
+export type WebhookDelivery=Readonly<{event:string;state:WebhookDeliveryState;tries:number;createdAt:string;finishedAt?:string;nextTryAt?:string;status?:number;error?:string}>;
+export type WebhookDeliveryPage=Readonly<{items:readonly WebhookDelivery[];nextCursor?:string}>;
+export type WebhookTest=Readonly<{delivered:boolean;status?:number;error?:string}>;
+export type NewWebhook=Readonly<{name:string;url:string;events:readonly string[]}>;
+export type WebhookChange=Readonly<{name?:string;url?:string;events?:readonly string[];enabled?:boolean}>;
+export type WebhookTransport=ApiAccessTransport & {requestRaw:RequestRaw};
+export const webhookMaximum=20;
 
 export function parseWebhook(raw:unknown):Webhook{
  if(!object(raw))return invalid('webhook');
  if('secret' in raw)invalid('webhook carries a secret');
- // Event names are kept as text: a newer server may send one this build does not list.
- return Object.freeze({id:filled(raw.id,128,'webhook id'),name:filled(raw.name,160,'webhook name'),url:filled(raw.url,2048,'webhook url'),events:list(raw.events,64,v=>filled(v,64,'webhook event'),'webhook events'),
-  enabled:flag(raw.enabled,'webhook enabled'),...(raw.requiresOwnerReview===undefined?{}:{requiresOwnerReview:flag(raw.requiresOwnerReview,'webhook owner review')}),secretHint:text(raw.secretHint,16,'webhook secret hint'),createdAt:instant(raw.createdAt,'webhook createdAt'),updatedAt:instant(raw.updatedAt,'webhook updatedAt'),
-  waiting:whole(raw.waiting,'webhook waiting'),failing:whole(raw.failing,'webhook failing'),dropped:whole(raw.dropped,'webhook dropped'),revision:whole(raw.revision,'webhook revision')});
+ return Object.freeze({id:filled(raw.id,128,'webhook id'),name:filled(raw.name,120,'webhook name'),url:filled(raw.url,2048,'webhook url'),events:list(raw.events,64,v=>filled(v,64,'webhook event'),'webhook events'),
+  enabled:flag(raw.enabled,'webhook enabled'),trouble:optional(raw.trouble,1024,'webhook trouble'),createdAt:instant(raw.createdAt,'webhook createdAt'),lastDeliveredAt:optionalInstant(raw.lastDeliveredAt,'webhook lastDeliveredAt'),
+  waiting:whole(raw.waiting,'webhook waiting'),dropped:whole(raw.dropped,'webhook dropped')});
 }
 export function parseIssuedWebhook(raw:unknown):IssuedWebhook{
  if(!object(raw))return invalid('issued webhook');
- return Object.freeze({webhook:parseWebhook(raw.webhook),secret:optional(raw.secret,256,'webhook secret')});
+ return Object.freeze({webhook:parseWebhook(raw.webhook),secret:filled(raw.secret,256,'webhook secret')});
 }
 export function parseWebhookList(raw:unknown):WebhookList{
  if(!object(raw))return invalid('webhook list');
- return Object.freeze({items:list(raw.items,100,parseWebhook,'webhook list items'),events:list(raw.events,64,v=>filled(v,64,'webhook event'),'webhook list events'),maximum:whole(raw.maximum,'webhook maximum')});
+ return Object.freeze({items:list(raw.items,100,parseWebhook,'webhook list items'),nextCursor:optional(raw.nextCursor,512,'webhook cursor')});
 }
 export function parseWebhookDelivery(raw:unknown):WebhookDelivery{
  if(!object(raw))return invalid('webhook delivery');
- return Object.freeze({id:filled(raw.id,128,'delivery id'),event:filled(raw.event,64,'delivery event'),state:oneOf(raw.state,['pending','delivered','failed'] as const,'delivery state'),attempts:whole(raw.attempts,'delivery attempts'),
-  createdAt:instant(raw.createdAt,'delivery createdAt'),finishedAt:optionalInstant(raw.finishedAt,'delivery finishedAt'),nextAttemptAt:optionalInstant(raw.nextAttemptAt,'delivery nextAttemptAt'),
-  status:whole(raw.status,'delivery status'),durationMs:whole(raw.durationMs,'delivery duration'),error:optional(raw.error,128,'delivery error')});
+ return Object.freeze({event:filled(raw.event,64,'delivery event'),state:oneOf(raw.state,['waiting','delivered','gave_up'] as const,'delivery state'),tries:whole(raw.tries,'delivery tries'),
+  createdAt:instant(raw.createdAt,'delivery createdAt'),finishedAt:optionalInstant(raw.finishedAt,'delivery finishedAt'),nextTryAt:optionalInstant(raw.nextTryAt,'delivery nextTryAt'),
+  status:raw.status===undefined?undefined:whole(raw.status,'delivery status'),error:optional(raw.error,1024,'delivery error')});
 }
 export function parseWebhookDeliveryPage(raw:unknown):WebhookDeliveryPage{
  if(!object(raw))return invalid('webhook delivery page');
- return Object.freeze({items:Object.freeze(firstOfEach('api-access','deliveries',keepReadable('api-access','deliveries',list(raw.items,100,v=>v,'delivery page items'),parseWebhookDelivery),row=>row.id)),limit:whole(raw.limit,'delivery page limit'),nextCursor:optional(raw.nextCursor,512,'delivery page cursor')});
+ // Log rows have no occurrence ID: equal events/timestamps may be distinct deliveries.
+ return Object.freeze({items:Object.freeze(keepReadable('api-access','deliveries',list(raw.items,100,v=>v,'delivery page items'),parseWebhookDelivery)),nextCursor:optional(raw.nextCursor,512,'delivery page cursor')});
 }
-
-const WEBHOOKS=routePath("list_webhooks");
-export const listWebhooks=async(t:ApiAccessTransport,signal?:AbortSignal):Promise<WebhookList>=>parseWebhookList(await t.request<unknown>(WEBHOOKS,'GET',undefined,signal));
-/** `operationId` makes one create retry-safe: the same id with the same request answers with the webhook it made (the secret was shown once), a different request under it is refused, and a webhook since deleted answers not found. Omitted, the create behaves as before. */
-export const createWebhook=async(t:ApiAccessTransport,q:NewWebhook,signal?:AbortSignal,operationId?:string):Promise<IssuedWebhook>=>parseIssuedWebhook(await t.request<unknown>(WEBHOOKS,'POST',{...q,events:[...q.events],...(operationId?{operationId}:{})},signal));
-/** A field left out of `change` is left as it is. */
-/** One webhook as the list shows it. */
-export const getWebhook=async(t:ApiAccessTransport,webhookId:string,signal?:AbortSignal):Promise<Webhook>=>parseWebhook(await t.request<unknown>(`${WEBHOOKS}/${id(webhookId)}`,'GET',undefined,signal));
-/** A change made against `revision`, the one the editor read. An older one is answered 412 with the webhook as it is now. */
-export const updateWebhook=async(t:ApiAccessTransport,webhookId:string,revision:number,change:WebhookChange,signal?:AbortSignal):Promise<IssuedWebhook>=>parseIssuedWebhook(await t.request<unknown>(`${WEBHOOKS}/${id(webhookId)}`,'PATCH',{expectedRevision:revision,...change,...(change.events?{events:[...change.events]}:{})},signal));
-/**
- * Changes a webhook the editor read as `was`. When someone else changed it in the meantime, it is
- * read again and the change is sent once more, without a word, unless they changed one of the
- * same things to something else: then the server's answer comes back. A change that is already
- * what the webhook says (another owner did the same) ends with the webhook as it is.
- */
-export async function changeWebhook(t:ApiAccessTransport,was:Webhook,change:WebhookChange,signal?:AbortSignal):Promise<IssuedWebhook>{
- let current=was;
- for(let attempt=0;;attempt++){
-  try{return await updateWebhook(t,current.id,current.revision,change,signal);}catch(error){
-   if(attempt>=2||!isStaleAnswer(error))throw error;
-   const now=await getWebhook(t,was.id,signal).catch(()=>{throw error;});
-   const verdict=webhookChangeApplies(was,now,change);
-   if(verdict==='conflict')throw error;
-   if(verdict==='done')return Object.freeze({webhook:now});
-   current=now;
-  }
- }
+export const listWebhooks=async(t:ApiAccessTransport,signal?:AbortSignal):Promise<WebhookList>=>parseWebhookList(await t.request<unknown>(serverPath('GET /v1/admin/webhooks'),'GET',undefined,signal));
+/** Keep this key for the exact create after an uncertain answer. */
+export async function createWebhook(t:WebhookTransport,q:NewWebhook,signal:AbortSignal|undefined,operationId:string):Promise<IssuedWebhook>{
+ const answer=await t.requestRaw(serverPath('POST /v1/admin/webhooks'),'POST',{body:{name:q.name,url:q.url,events:[...q.events]},headers:{'Idempotency-Key':operationId},signal});
+ if(answer.status>=400){const error=answer.body as {code?:string;message?:string}|undefined;throw Object.assign(new ApiAccessError(error?.code??'request_failed',error?.message),{status:answer.status});}
+ return parseIssuedWebhook(answer.body);
 }
+export const updateWebhook=async(t:ApiAccessTransport,webhookId:string,change:WebhookChange,signal?:AbortSignal):Promise<Webhook>=>parseWebhook(await t.request<unknown>(serverPath('PATCH /v1/admin/webhooks/{id}',{id:webhookId}),'PATCH',change,signal));
+export const rotateWebhookSecret=async(t:ApiAccessTransport,webhookId:string,signal?:AbortSignal):Promise<IssuedWebhook>=>parseIssuedWebhook(await t.request<unknown>(serverPath('POST /v1/admin/webhooks/{id}/secret',{id:webhookId}),'POST',undefined,signal));
 /** The fields of an edit form that differ from the webhook it was opened on: only those are sent, so another owner's change to the rest is kept. */
 export function webhookEdits(was:Webhook,form:Readonly<{name:string;url:string;events:readonly string[]}>):WebhookChange{
  const out:{name?:string;url?:string;events?:readonly string[]}={};
@@ -207,23 +188,13 @@ export function webhookEdits(was:Webhook,form:Readonly<{name:string;url:string;e
  if(JSON.stringify([...form.events].sort())!==JSON.stringify([...was.events].sort()))out.events=form.events;
  return Object.freeze(out);
 }
-/** Whether a change still means the same against the webhook as it is now: `done` when it already is, `conflict` when a field it sets was changed underneath to something else. */
-export function webhookChangeApplies(was:Webhook,now:Webhook,change:WebhookChange):'send'|'done'|'conflict'{
- const same=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
- const fields:Array<'name'|'url'|'events'|'enabled'>=['name','url','events','enabled'];
- let pending=change.rotateSecret===true||change.secret!==undefined;
- for(const field of fields){
-  if(change[field]===undefined)continue;
-  if(same(now[field],change[field]))continue;
-  if(!same(now[field],was[field]))return 'conflict';
-  pending=true;
- }
- return pending?'send':'done';
+export const deleteWebhook=async(t:ApiAccessTransport,webhookId:string,signal?:AbortSignal):Promise<void>=>{await t.request<unknown>(serverPath('DELETE /v1/admin/webhooks/{id}',{id:webhookId}),'DELETE',undefined,signal);};
+export async function sendWebhookTest(t:ApiAccessTransport,webhookId:string,signal?:AbortSignal):Promise<WebhookTest>{
+ const raw=await t.request<unknown>(serverPath('POST /v1/admin/webhooks/{id}/test',{id:webhookId}),'POST',undefined,signal);
+ if(!object(raw))return invalid('webhook test');
+ return Object.freeze({delivered:flag(raw.delivered,'test delivered'),status:raw.status===undefined?undefined:whole(raw.status,'test status'),error:optional(raw.error,1024,'test error')});
 }
-export const deleteWebhook=async(t:ApiAccessTransport,webhookId:string,signal?:AbortSignal):Promise<void>=>{await t.request<unknown>(`${WEBHOOKS}/${id(webhookId)}`,'DELETE',undefined,signal);};
-/** Queues a test event; its result appears in the delivery log a moment later. */
-export const sendWebhookTest=async(t:ApiAccessTransport,webhookId:string,signal?:AbortSignal):Promise<WebhookDelivery>=>parseWebhookDelivery(await t.request<unknown>(`${WEBHOOKS}/${id(webhookId)}/test`,'POST',undefined,signal));
-export const listWebhookDeliveries=async(t:ApiAccessTransport,webhookId:string,options:Readonly<{cursor?:string;limit?:number}>={},signal?:AbortSignal):Promise<WebhookDeliveryPage>=>parseWebhookDeliveryPage(await t.request<unknown>(`${WEBHOOKS}/${id(webhookId)}/deliveries`+query({limit:options.limit??50,cursor:options.cursor}),'GET',undefined,signal));
+export const listWebhookDeliveries=async(t:ApiAccessTransport,webhookId:string,options:Readonly<{cursor?:string}>={},signal?:AbortSignal):Promise<WebhookDeliveryPage>=>parseWebhookDeliveryPage(await t.request<unknown>(serverPath('GET /v1/admin/webhooks/{id}/deliveries',{id:webhookId,query:{cursor:options.cursor}}),'GET',undefined,signal));
 
 // ── For tools outside Portico ───────────────────────────────────────────────
 

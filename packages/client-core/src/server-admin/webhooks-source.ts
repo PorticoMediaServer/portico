@@ -1,6 +1,6 @@
 import {webRouteCrypto} from '../route-identity.ts';
 import {storageOperationId} from './panel-logic.ts';
-import {ApiAccessError, createWebhook, deleteWebhook, listWebhooks, listWebhookDeliveries, sendWebhookTest, updateWebhook, type ApiAccessTransport, type IssuedWebhook, type NewWebhook, type Webhook, type WebhookChange, type WebhookDeliveryPage, type WebhookList} from '../api-access.ts';
+import {ApiAccessError, createWebhook, deleteWebhook, listWebhooks, listWebhookDeliveries, sendWebhookTest, updateWebhook, rotateWebhookSecret, webhookEvents, webhookMaximum, type WebhookTransport, type IssuedWebhook, type NewWebhook, type Webhook, type WebhookChange, type WebhookDeliveryPage, type WebhookList} from '../api-access.ts';
 
 type Failure = 'read'|'write'|'deliveries';
 export type WebhooksSnapshot = Readonly<{phase: 'idle'|'loading'|'ready'|'error'; list?: WebhookList; selected?: Webhook; deliveries?: WebhookDeliveryPage; busy: boolean; uncertain: boolean; error?: Failure}>;
@@ -18,8 +18,6 @@ const eventsKey = (events: readonly string[]) => [...new Set(events)].sort().joi
 async function webhookRequestFingerprint(intent: NewWebhook): Promise<string | undefined> {
   const body = {
     name: intent.name, url: intent.url, events: [...intent.events],
-    ...(intent.secret !== undefined ? {secret: intent.secret} : {}),
-    ...(intent.enabled !== undefined ? {enabled: intent.enabled} : {}),
   };
   try {
     const digest = await webRouteCrypto.sha256(new TextEncoder().encode(JSON.stringify(body)));
@@ -32,7 +30,7 @@ const matches = (hook: Webhook, input: WebhookChange) => (input.name === undefin
 
 /** One owner/server lifetime. A webhook create keeps one operation id for its
  * exact request, so an uncertain response is retried as the same create: the
- * same webhook answers without its secret, a changed request is refused and a
+ * same webhook and secret answer, a changed request is refused and a
  * webhook since deleted answers not found. Edits, removals and tests are not
  * replayed. */
 export class SettingsWebhooksSource {
@@ -43,15 +41,15 @@ export class SettingsWebhooksSource {
   private detail?: AbortController;
   private mutation?: AbortController;
   private createAttempt?: Readonly<{fingerprint: string; operationId: string}>;
-  // What this owner has done since a transfer, bound to the revision the
-  // server confirmed. The server keeps the authority; this only orders the
-  // existing surfaces a retired webhook needs.
-  private reviewProgress = new Map<string, Readonly<{urlEvents: boolean; secret: boolean; revision: number}>>();
-  constructor(private readonly api: ApiAccessTransport, private readonly isCurrent: () => boolean, private readonly reportError: (error: unknown) => void) {}
+  constructor(private readonly api: WebhookTransport, private readonly isCurrent: () => boolean, private readonly reportError: (error: unknown) => void) {}
   private current = () => !this.lifetime.signal.aborted && this.isCurrent();
   private ownsRead = (read: AbortController) => this.current() && this.read === read && !read.signal.aborted && !this.mutation;
   private ownsWrite = (write: AbortController) => this.current() && this.mutation === write && !write.signal.aborted;
-  private transport(owns: () => boolean): ApiAccessTransport {return {request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => owns() ? this.api.request<T>(path, method, body, signal) : Promise.reject(Object.assign(new Error('The webhook scope ended.'), {name: 'AbortError'}))};}
+  private transport(owns: () => boolean): WebhookTransport {
+    const guard = () => {if (!owns()) throw Object.assign(new Error('The webhook scope ended.'), {name: 'AbortError'});};
+    return {request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => {guard();return this.api.request<T>(path, method, body, signal);},
+      requestRaw: (path, method, options) => {guard();return this.api.requestRaw(path, method, options);}};
+  }
   getSnapshot = (): WebhooksSnapshot => this.current() ? this.state : empty;
   subscribe = (listener: () => void) => {this.listeners.add(listener);return () => {this.listeners.delete(listener);};};
   private publish(patch: Partial<WebhooksSnapshot>) {if (this.current()) {this.state = Object.freeze({...this.state, ...patch});for (const listener of this.listeners) listener();}}
@@ -67,11 +65,6 @@ export class SettingsWebhooksSource {
     try {
       const list = await listWebhooks(this.transport(() => this.ownsRead(read)), read.signal);
       if (!this.ownsRead(read)) return;
-      for (const id of [...this.reviewProgress.keys()]) {
-        const now = list.items.find(hook => hook.id === id);
-        const held = this.reviewProgress.get(id);
-        if (!now?.requiresOwnerReview || !held || now.revision !== held.revision) this.reviewProgress.delete(id);
-      }
       this.publish({phase: 'ready', list});
     }
     catch (error) {if (this.ownsRead(read)) this.failure(error, 'read');}
@@ -85,7 +78,7 @@ export class SettingsWebhooksSource {
     this.detail?.abort();const detail = new AbortController();this.detail = detail;
     const owns = () => this.current() && this.detail === detail && !detail.signal.aborted && this.state.selected === hook && this.state.list?.items.includes(hook) === true && !this.mutation;
     this.publish({selected: hook, deliveries: undefined, error: undefined});if (!owns()) return;
-    try {const deliveries = await listWebhookDeliveries(this.transport(owns), hook.id, {cursor: cursor || undefined, limit: 50}, detail.signal);if (owns()) this.publish({deliveries});}
+    try {const deliveries = await listWebhookDeliveries(this.transport(owns), hook.id, {cursor: cursor || undefined}, detail.signal);if (owns()) this.publish({deliveries});}
     catch (error) {if (owns()) this.failure(error, 'deliveries');}
   };
   close = () => {this.detail?.abort();this.detail = undefined;this.publish({selected: undefined, deliveries: undefined});};
@@ -94,7 +87,7 @@ export class SettingsWebhooksSource {
     this.read?.abort();this.detail?.abort();const write = new AbortController();this.mutation = write;
     this.publish({busy: true, error: undefined});return write;
   }
-  private async write<T>(operation: (api: ApiAccessTransport, signal: AbortSignal, owns: () => boolean) => Promise<T>, hook?: Webhook): Promise<T | undefined> {
+  private async write<T>(operation: (api: WebhookTransport, signal: AbortSignal, owns: () => boolean) => Promise<T>, hook?: Webhook): Promise<T | undefined> {
     const write = this.claim(hook);if (!write) return;
     const owns = () => this.ownsWrite(write);
     let result: T | undefined;
@@ -106,14 +99,12 @@ export class SettingsWebhooksSource {
   }
   create = async (input: NewWebhook): Promise<IssuedWebhook | undefined> => {
     const name = input.name.trim(), url = input.url.trim(), events = Object.freeze([...new Set(input.events)]);
-    if (!name || name.length > 160 || !events.length || events.some(event => !this.state.list?.events.includes(event)) || this.state.list && this.state.list.items.length >= this.state.list.maximum) return;
+    if (!name || name.length > 120 || !events.length || events.some(event => !webhookEvents.includes(event as typeof webhookEvents[number])) || this.state.list && this.state.list.items.length >= webhookMaximum) return;
     try {const parsed = new URL(url);if (!['http:','https:'].includes(parsed.protocol) || parsed.username || parsed.password) return;} catch {return;}
     const intent = Object.freeze({...input, name, url, events});
     return this.write(async (api, signal, owns) => {
       // The attempt belongs to this claimed write: an ignored create never
       // touches the id a pending uncertain one still needs.
-      // No digest means no safe retry identity: refuse rather than create
-      // something a retry could duplicate.
       // No digest means no safe retry identity: refuse visibly, under this
       // write, rather than create something a retry could silently duplicate.
       const fingerprint = await webhookRequestFingerprint(intent);
@@ -138,35 +129,21 @@ export class SettingsWebhooksSource {
       return issued;
     });
   };
-  /** Which drawn step a retired webhook still needs here, for the revision the
-   * server last confirmed. A different revision starts the review again. */
-  reviewStep = (hook: Webhook): 'urlEvents'|'secret'|'done' => {
-    if (!hook.requiresOwnerReview) return 'done';
-    const held = this.reviewProgress.get(hook.id);
-    if (!held || held.revision !== hook.revision) return 'urlEvents';
-    return held.urlEvents ? held.secret ? 'done' : 'secret' : 'urlEvents';
-  };
-  /** Both review steps done here, so an enable may be offered; the server still decides. */
-  reviewed = (hook: Webhook): boolean => this.reviewStep(hook) === 'done';
-  update = async (hook: Webhook, change: WebhookChange): Promise<IssuedWebhook | undefined> => {
+  update = async (hook: Webhook, change: WebhookChange): Promise<Webhook | undefined> => {
     const intent = Object.freeze({...change, ...(change.events ? {events: Object.freeze([...change.events])} : {})});
     return this.write(async (api, signal, owns) => {
-      const issued = await updateWebhook(api, hook.id, hook.revision, intent, signal);
-      // Nothing is recorded or compared once this exact write is no longer the
-      // source's current one: a retired writer cannot repopulate progress.
+      const updated = await updateWebhook(api, hook.id, intent, signal);
       if (!owns() || signal.aborted) return;
-      if (issued.webhook.id !== hook.id || !matches(issued.webhook, intent)) throw new ApiAccessError('invalid_document');
-      // Progress carries only from the revision this write was accepted
-      // against; the answer already carries the next one. A refused review no
-      // longer asks for one, so nothing is kept for it.
-      const held = this.reviewProgress.get(hook.id);
-      const previous = held && held.revision === hook.revision ? held : {urlEvents: false, secret: false};
-      if (!issued.webhook.requiresOwnerReview) this.reviewProgress.delete(hook.id);
-      else this.reviewProgress.set(hook.id, {urlEvents: previous.urlEvents || (intent.url !== undefined && intent.events !== undefined), secret: previous.secret || intent.secret !== undefined || intent.rotateSecret === true, revision: issued.webhook.revision});
-      return issued;
+      if (updated.id !== hook.id || !matches(updated, intent)) throw new ApiAccessError('invalid_document');
+      return updated;
     }, hook);
   };
+  rotate = (hook: Webhook) => this.write(async (api, signal) => {
+    const issued = await rotateWebhookSecret(api, hook.id, signal);
+    if (issued.webhook.id !== hook.id) throw new ApiAccessError('invalid_document');
+    return issued;
+  }, hook);
   remove = (hook: Webhook) => this.write(async (api, signal) => {await deleteWebhook(api, hook.id, signal);return true;}, hook);
   test = (hook: Webhook) => this.write((api, signal) => sendWebhookTest(api, hook.id, signal), hook);
-  dispose = () => {this.read?.abort();this.detail?.abort();this.mutation?.abort();this.mutation = undefined;this.createAttempt = undefined;this.reviewProgress.clear();this.lifetime.abort();this.state = empty;this.listeners.clear();};
+  dispose = () => {this.read?.abort();this.detail?.abort();this.mutation?.abort();this.mutation = undefined;this.createAttempt = undefined;this.lifetime.abort();this.state = empty;this.listeners.clear();};
 }
