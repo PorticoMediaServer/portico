@@ -10,7 +10,6 @@ import {porticoAccountHolder} from '../../platform/portico-account-holder';
 import {browserAppSessions, observeBrowserSessionChanges} from '../../platform/server-connections';
 import {browserAppSessionActions, signOutBrowserPorticoAccount} from '../../platform/app-sessions';
 import {browserServerDisplay} from '../../platform/server-display';
-import {ColourBackdrop} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {ProfileAvatarFace} from '../../kit/shell/AccountSurfaces';
@@ -142,7 +141,6 @@ export function MobileServerChooser({rows, initial, attempt, busy = false, notic
     const primaryLabel = state === 'waiting' ? t('web.chooser.checkNow') : state === 'unreachable' || state === 'unconfirmed' ? t('web.chooser.tryAgain') : state === 'loadFailed' ? t('web.chooser.tryAgain') : undefined;
     const onPrimary = state === 'loadFailed' ? onRefresh : onCheckNow;
     return <section className={styles.page} data-mweb-server-chooser data-state={state}>
-      <ColourBackdrop />
       <ChooserHeader initial={initial} />
       <div className={styles.state}>
         <div className={styles.stateIcon} data-accent={state === 'opening' || state === 'loading' || undefined} data-bad={state === 'loadFailed' || state === 'refused' || undefined}>
@@ -166,7 +164,6 @@ export function MobileServerChooser({rows, initial, attempt, busy = false, notic
   }
   const presented = notice;
   return <section className={styles.page} data-mweb-server-chooser>
-    <ColourBackdrop />
     <ChooserHeader initial={initial} />
     <div className={styles.content}>
       <h1>{t('portico.landing.pickTitle')}</h1>

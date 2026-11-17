@@ -9,7 +9,6 @@
   position: relative;
   min-height: 100svh;
   overflow: hidden;
-  background: var(--color-ink);
   color: var(--color-text);
   font-family: var(--font);
 }
