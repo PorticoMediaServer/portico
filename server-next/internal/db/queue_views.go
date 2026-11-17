@@ -5,11 +5,15 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"slices"
 	"strings"
 )
 
 // containerView is a view whose cards hold playable titles, rather than being playable.
 func containerView(q ItemQuery) bool {
+	if q.homeRecent || q.homeIDs != nil || q.homePopular != 0 {
+		return true
+	}
 	for _, kind := range q.Kinds {
 		if kind == KindShow || kind == KindSeason || kind == KindArtist || kind == KindAlbum {
 			return true
@@ -43,7 +47,7 @@ func (d *DB) containerViewItems(ctx context.Context, v Viewer, q ItemQuery, limi
 	q.WithTotal, q.Limit, q.Cursor = false, 1, at.Next
 	for len(items) < limit {
 		if at.Holder == 0 {
-			page, err := d.Items(ctx, v, q)
+			page, err := d.queueCard(ctx, v, q)
 			if err != nil || len(page.Items) == 0 {
 				return items, "", err
 			}
@@ -182,7 +186,18 @@ func (d *DB) containerViewCursorAt(ctx context.Context, tx *sql.Tx, v Viewer, q 
 	if err != nil {
 		return "", notFound(err)
 	}
-	if at.Next, err = cursorAt(ctx, tx, v, q, at.Holder); err != nil {
+	if q.homeIDs != nil && q.Sort == SortOrder {
+		index := slices.Index(q.homeIDs, at.Holder)
+		at.Next = (listCursor{Sort: SortOrder, Desc: q.Desc, ID: at.Holder, Values: []any{int64(index)}}).encode()
+	} else if q.homePopular != 0 && q.Sort == SortOrder {
+		var score int64
+		err := tx.QueryRowContext(ctx, `SELECT popular.score FROM `+w.from+` WHERE `+w.pageWhere()+` AND i.id = @holder`,
+			append(w.args, sql.Named("holder", at.Holder))...).Scan(&score)
+		if err != nil {
+			return "", err
+		}
+		at.Next = (listCursor{Sort: SortOrder, Desc: q.Desc, ID: at.Holder, Values: []any{score}, AsOf: q.homePopular}).encode()
+	} else if at.Next, err = cursorAt(ctx, tx, v, q, at.Holder); err != nil {
 		return "", err
 	}
 	if !at.Kind.Playable() {
