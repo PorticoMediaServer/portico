@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
@@ -75,6 +76,12 @@ func (e *ProfileRestrictionsEdit) UnmarshalJSON(raw []byte) error {
 
 // over lays the save over the profile's restrictions as they are and checks the result.
 func (e *ProfileRestrictionsEdit) over(current db.Restrictions) (db.Restrictions, error) {
+	if current.MaxRatingAge != nil {
+		age := *current.MaxRatingAge
+		current.MaxRatingAge = &age
+	}
+	current.BlockedLabels = slices.Clone(current.BlockedLabels)
+	current.Libraries = slices.Clone(current.Libraries)
 	// Only what a save may change is carried over: what the account is held to is not the
 	// profile's to send.
 	next := struct {
