@@ -78,9 +78,10 @@ type End struct {
 // Session is one device playing one title. Values of this type handed out by the Service are
 // copies.
 type Session struct {
-	ID        string
-	UserID    int64
-	ProfileID int64
+	ID              string
+	UserID          int64
+	ProfileID       int64
+	ProfilePublicID string // stable identity for observations delivered after this session is gone
 	// SignInID is the sign-in the session was started from. Ending it ends the session.
 	SignInID int64
 	Device   db.SessionDevice

@@ -254,6 +254,10 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	if err != nil {
 		return nil, err
 	}
+	profile, err := s.db.ProfileByID(ctx, c.Viewer.UserID, c.Viewer.ProfileID)
+	if err != nil {
+		return nil, err
+	}
 	now := s.now()
 	position := resumeAt(r.item, r.prefs)
 	switch {
@@ -263,7 +267,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 		position = 0
 	}
 	sess := &session{version: r.version, awayKbps: r.awayKbps, uploadHeld: r.held}
-	sess.Session = Session{ID: db.NewID("pbs"), UserID: c.Viewer.UserID, ProfileID: c.Viewer.ProfileID, SignInID: c.SignInID,
+	sess.Session = Session{ID: db.NewID("pbs"), UserID: c.Viewer.UserID, ProfileID: c.Viewer.ProfileID, SignInID: c.SignInID, ProfilePublicID: profile.PublicID,
 		Device: device, Item: r.item, VersionID: r.version.PublicID, fileID: r.version.FileID, Queue: in.Queue,
 		State: StatePlaying, Choice: r.choice, Network: r.network, Plan: r.plan, Generation: 1,
 		StartPositionMs: position, PositionMs: position, StartedAt: now, LeaseUntil: now.Add(lease), Channel: in.Channel}
