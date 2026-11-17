@@ -89,7 +89,7 @@ export type OfflineEntry = Readonly<{
   /** The server now holds a different file for this title. This copy still plays. */
   changedOnServer: boolean;
 }>;
-export type OfflineSettings = Readonly<{wifiOnly: boolean; deleteWatched: boolean; autoNext: boolean; limitBytes: number}>;
+export type OfflineSettings = Readonly<{wifiOnly: boolean; deleteWatched: boolean; limitBytes: number}>;
 export type OfflinePlayabilityReason = 'sign_in'|'not_finished'|'needs_setup'|'needs_check_in'|'other_profile';
 export type OfflineEntryFacts = Readonly<{
   /** The viewer's item bookmark, not a per-artifact observation or a completion flag. */
@@ -184,7 +184,6 @@ type Stored = {
   wantedPublications: Owned<OfflineDisplay>;
   /** Members already accepted from each request, including copies later removed. */
   enrolledMembers: Owned<Record<string, true>>;
-  nextAfter: Owned<{quality: string; libraryId?: string; kind?: string}>;
   /** When each viewer's receipts were last renewed. */
   renewed: Record<string, number>;
   /** B-14.21: the receipt clock's floor (receipt-clock.ts): never earlier than the latest time trusted. */
@@ -215,7 +214,7 @@ const native = NativeModules.PorticoDownloads as undefined | {
   fetchExtra(id: string, name: string, url: string): Promise<string>;
 };
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
-const defaults: OfflineSettings = Object.freeze({wifiOnly: true, deleteWatched: false, autoNext: false, limitBytes: 0});
+const defaults: OfflineSettings = Object.freeze({wifiOnly: true, deleteWatched: false, limitBytes: 0});
 const random = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 const operationId = () => 'op_' + random();
 
@@ -261,7 +260,7 @@ function storedReading(raw: unknown): Owned<ReadingRecord> {
 }
 /** Marks a document read from an earlier layout, so open() rewrites it once. */
 const upgradedLayout = Symbol('upgradedLayout');
-const emptyStored = (): Stored => ({version: 3, reading: {}, settings: defaults, plays: {}, resume: {}, keys: {}, wanted: {}, selectionActions: {}, wantedPublications: {}, enrolledMembers: {}, nextAfter: {}, renewed: {}, clockFloor: 0, permissions: {}, removed: {}, places: {}, notes: {}});
+const emptyStored = (): Stored => ({version: 3, reading: {}, settings: defaults, plays: {}, resume: {}, keys: {}, wanted: {}, selectionActions: {}, wantedPublications: {}, enrolledMembers: {}, renewed: {}, clockFloor: 0, permissions: {}, removed: {}, places: {}, notes: {}});
 
 /** A present document must be readable in full. An unsupported or damaged record
  * is never replaced with an empty outbox on the next settings/progress write. */
@@ -274,7 +273,7 @@ function readStored(parsed: any): Stored {
   // the rest was shaped for another contract. Only a damaged current document fails closed.
   if (Number.isSafeInteger(parsed.version) && parsed.version >= 1 && parsed.version < 3) {
     const settings = object(parsed.settings) ? parsed.settings : {}, keys = object(parsed.keys) ? parsed.keys : {};
-    out.settings = {...defaults, ...Object.fromEntries(['wifiOnly', 'deleteWatched', 'autoNext'].filter(key => typeof settings[key] === 'boolean').map(key => [key, settings[key]])),
+    out.settings = {...defaults, ...Object.fromEntries(['wifiOnly', 'deleteWatched'].filter(key => typeof settings[key] === 'boolean').map(key => [key, settings[key]])),
       ...(safeInteger(settings.limitBytes) ? {limitBytes: settings.limitBytes} : {})};
     out.keys = Object.fromEntries(Object.entries(keys).filter(([, value]) => typeof value === 'string')) as Record<string, string>;
     return Object.assign(out, {[upgradedLayout]: true});
@@ -283,10 +282,15 @@ function readStored(parsed: any): Stored {
   const owned = (value: unknown) => {const values = record(value); for (const entries of Object.values(values)) record(entries); return values;};
   if (parsed.settings !== undefined) {
     const settings = record(parsed.settings);
-    for (const key of ['wifiOnly', 'deleteWatched', 'autoNext']) if (settings[key] !== undefined && typeof settings[key] !== 'boolean') invalid();
+    for (const key of ['wifiOnly', 'deleteWatched']) if (settings[key] !== undefined && typeof settings[key] !== 'boolean') invalid();
     if (settings.limitBytes !== undefined && !safeInteger(settings.limitBytes)) invalid();
   }
-  out.settings = {...defaults, ...record(parsed.settings ?? {})};
+  const settings = record(parsed.settings ?? {});
+  out.settings = {wifiOnly: settings.wifiOnly ?? defaults.wifiOnly, deleteWatched: settings.deleteWatched ?? defaults.deleteWatched,
+    limitBytes: settings.limitBytes ?? defaults.limitBytes};
+  // The device-wide next-episode wish named no show or count. Keep the server's
+  // per-show Keep requests and all local files; retire only the obsolete wish.
+  if ('autoNext' in settings || 'nextAfter' in parsed) Object.assign(out, {[upgradedLayout]: true});
   out.keys = record(parsed.keys ?? {});
   if (Object.values(out.keys).some(value => typeof value !== 'string')) invalid();
   out.plays = owned(parsed.plays ?? {});
@@ -319,8 +323,6 @@ function readStored(parsed: any): Stored {
   for (const values of Object.values(out.wantedPublications)) for (const value of Object.values(values)) if (!object(value) || typeof value.title !== 'string' || value.kind !== 'ebook' && value.kind !== 'comic') invalid();
   out.enrolledMembers = owned(parsed.enrolledMembers ?? {});
   for (const requests of Object.values(out.enrolledMembers)) for (const members of Object.values(requests)) if (Object.values(record(members)).some(value => value !== true)) invalid();
-  out.nextAfter = owned(parsed.nextAfter ?? {});
-  for (const values of Object.values(out.nextAfter)) for (const value of Object.values(values)) if (!object(value) || typeof value.quality !== 'string') invalid();
   out.renewed = record(parsed.renewed ?? {});
   if (Object.values(out.renewed).some(value => !safeInteger(value))) invalid();
   if (parsed.clockFloor !== undefined && !safeInteger(parsed.clockFloor)) invalid();
@@ -416,7 +418,6 @@ export class OfflineDownloads {
   // Paired wants/cursor changes cannot transfer or read ahead until durable.
   private selectionActionDirty = false;
   private enrollTimer?: ReturnType<typeof setTimeout>;
-  private continuing = new Set<string>();
   /** Bumped by every connect and disconnect. Work started under an earlier
    * generation may finish, but may not write anything back. */
   private generation = 0;
@@ -588,7 +589,6 @@ export class OfflineDownloads {
       void this.syncProgress(generation);
       void this.syncReadingProgress(generation).then(() => this.refreshReadingProgress(generation));
       void this.collect();
-      void this.continueNext(generation);
       void this.tend(generation);
     }).catch(() => {if (this.generation === generation) this.publish({error: serviceText('downloads.deviceUnreadable')});});
   }
@@ -1030,38 +1030,6 @@ export class OfflineDownloads {
     // The rest of a large request is the next batch's.
     if (more) this.enrollSoon(generation);
   }
-  /** Finishing a title asks the server to prepare the next one, and the accepted items become
-   * this viewer's local wants — the same two steps the download sheet performs. */
-  private async autoNext(entry: OfflineEntry) {
-    const owner = this.entryOwner(entry);
-    if (!owner) return;
-    bucket(this.stored.nextAfter, owner)[entry.itemId] = {quality: entry.quality, libraryId: entry.libraryId, kind: entry.kind};
-    await this.persist();
-    if (owner === this.ownerKey()) await this.continueNext();
-  }
-  private async continueNext(generation = this.generation) {
-    const service = this.service, owner = this.ownerKey();
-    if (!service || !owner || generation !== this.generation || !this.stored.settings.autoNext) return;
-    for (const [itemId, intent] of Object.entries(this.stored.nextAfter[owner] ?? {})) {
-      if (generation !== this.generation) return;
-      const key = JSON.stringify([generation, owner, itemId]);
-      if (this.continuing.has(key)) continue;
-      this.continuing.add(key);
-      try {
-        const batch = await service.request({nextAfterMediaId: itemId}, intent.quality);
-        if (generation !== this.generation) return;
-        if (batch.items.length) await this.want(batch.items);
-        if (generation !== this.generation) return;
-        if (this.stored.nextAfter[owner]?.[itemId] === intent) delete this.stored.nextAfter[owner]![itemId];
-        await this.persist();
-      } catch (e) {
-        // No next episode is an answer, not something to keep asking about.
-        if ((e as {status?: unknown} | null)?.status === 404 && this.stored.nextAfter[owner]?.[itemId] === intent) { delete this.stored.nextAfter[owner]![itemId]; await this.persist(); }
-      }
-      finally { this.continuing.delete(key); }
-    }
-  }
-
   /** Bytes promised to transfers that haven't finished: counted against the limit (whole files)
    * and against free space (what is still to arrive), so starting several at once can't overshoot. */
   private starting = new Map<string, number>();
@@ -1326,7 +1294,6 @@ export class OfflineDownloads {
     void this.collect(generation);
     void this.syncProgress(generation);
     void this.syncReadingProgress(generation).then(() => this.refreshReadingProgress(generation, undefined, false));
-    void this.continueNext(generation);
     void this.renewReceipts(generation, api, owner, false);
     const now = Date.now();
     for (const entry of this.ownedEntries(owner)) {
@@ -2256,7 +2223,6 @@ export class OfflineDownloads {
     void this.syncProgress();
     if (!completion.finished) return;
     this.playing.delete(entry.id);
-    if (this.stored.settings.autoNext) void this.autoNext(entry);
   }
   /** Sends plays made offline, for the connected viewer only. The server records each one and
    * keeps whichever state is newer. A play made by a different viewer stays queued until that

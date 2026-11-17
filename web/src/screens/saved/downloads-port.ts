@@ -6,7 +6,6 @@ import type {SettingsViewerScope} from '../../platform/settings-platform';
 export type SavedDownloadsScope = SettingsViewerScope;
 export type SavedDownloadRules = Readonly<{
   removeWatched: boolean;
-  nextEpisode: boolean;
   unmeteredOnly: boolean;
   limitBytes: number;
 }>;

@@ -206,7 +206,6 @@ function DownloadRules({snapshot, busy, onChange, onChooseFolder}: {snapshot: Sa
     <h3>{t('downloads.rules')}</h3>
     {([
       ['removeWatched', t('downloads.removeAfterWatching'), t('downloads.removeAfterWatchingHelp')],
-      ['nextEpisode', t('downloads.nextEpisode'), t('downloads.nextEpisodeHelp')],
       ['unmeteredOnly', s('next.saved.unmetered'), s('next.saved.unmeteredHelp')],
     ] as const).map(([field, label, help]) => <label className={styles.rule} key={field}><span>{label}<small>{help}</small></span><Switch checked={value[field]} disabled={busy} onCheckedChange={checked => onChange({...value, [field]: checked})} /></label>)}
     <div className={styles.rule}><span>{t('downloads.storageLimit')}<small>{s('next.saved.limitHelp')}</small></span>

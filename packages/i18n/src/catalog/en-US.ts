@@ -1549,8 +1549,6 @@ export const enUS = {
   'downloads.wifiOnlyHelp': 'Never use mobile data to download',
   'downloads.removeAfterWatching': 'Remove after watching',
   'downloads.removeAfterWatchingHelp': 'Free the space once you finish a title',
-  'downloads.nextEpisode': 'Download the next episode',
-  'downloads.nextEpisodeHelp': 'When you finish one, ask your server for the next',
   'downloads.storageLimit': 'Storage limit',
   'downloads.storageLimitHelp': 'The most space downloads may use on this device',
   'downloads.noLimit': 'No limit',
