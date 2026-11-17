@@ -42,6 +42,8 @@ type Options struct {
 	// Folder is where conversions are written. It is emptied at start, so it must be a
 	// folder of the server's own.
 	Folder string
+	// SubtitleDir holds the server's downloaded subtitle files, named by their text hash.
+	SubtitleDir string
 	// FFmpeg and FFprobe are the tools to run; empty finds the bundled or installed ones.
 	FFmpeg, FFprobe string
 	// Kept is a file in which what ffmpeg can do is kept between starts, so only the first
@@ -76,7 +78,8 @@ type Engine struct {
 	// kept is the file what an ffmpeg can do is kept in between starts.
 	kept string
 	// settings are the owner's settings documents; nil is the defaults.
-	settings *settings.Settings
+	settings    *settings.Settings
+	subtitleDir string
 	// switching is held for the whole of one change of folder or program.
 	switching sync.Mutex
 	// program is the ffmpeg the server was started with ("" finds it), and the others the
@@ -101,7 +104,7 @@ type Engine struct {
 // do its housekeeping.
 func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 	e := &Engine{db: d, ctx: ctx, log: o.Log, probe: mediafacts.Probe{Binary: o.FFprobe, CodecSetup: true}, facts: map[string]mediafacts.Facts{}, remote: o.Remote, strm: o.STRM,
-		by: map[string]*place{}, folder: o.Folder, program: o.FFmpeg, kept: o.Kept, settings: o.Settings,
+		by: map[string]*place{}, folder: o.Folder, program: o.FFmpeg, kept: o.Kept, settings: o.Settings, subtitleDir: o.SubtitleDir,
 		// No limit of its own: a limit here would refuse the fifth remote film being converted
 		// at once, since a converter is not made to wait for a slot.
 		processes: &processpool.Supervisor{}}
@@ -666,7 +669,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		text := subtitleTrack{track: track, format: format, selected: chosen}
 		kind := subtitles.RenderingFormat(format)
 		served := subtitleoffer.TextFormat(format) || kind != "text"
-		if served && !track.Sidecar {
+		if served && !track.Sidecar && track.Downloaded == "" {
 			text.index, served = fileTrack(r.Version, facts, db.StreamSubtitle, "subtitle", id)
 		}
 		if served {
@@ -676,7 +679,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		case !chosen || burn != nil:
 		case served && kind != "text" && request.Device != nil && request.Device.Profile(plan.Engine).RendersSubtitle(kind):
 			out.Subtitle = &playback.SubtitleInForce{TrackID: id, Kind: kind, Delivery: "device"}
-		case out.Mode == "direct" && !track.Sidecar:
+		case out.Mode == "direct" && !track.Sidecar && track.Downloaded == "":
 			out.Subtitle = &playback.SubtitleInForce{TrackID: id, Kind: track.Codec, Delivery: "device"}
 		case served:
 			out.Subtitle = &playback.SubtitleInForce{TrackID: id, Kind: "text", Delivery: "sidecar"}
@@ -692,6 +695,13 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	// Two plans that would produce the same stream share a key, so a change that alters
 	// nothing in the stream does not interrupt it.
 	raw, _ := json.Marshal(plan)
+	// A download added during playback needs a new grant that serves its text. Choosing
+	// between tracks already served by that grant still leaves the video uninterrupted.
+	for _, text := range detail.subtitles {
+		if text.track.Downloaded != "" {
+			raw = append(raw, (text.track.Downloaded + text.track.DownloadedHash)...)
+		}
+	}
 	if detail.sent && detail.nudgeMs != 0 && out.Subtitle != nil && out.Subtitle.Delivery == "sidecar" {
 		raw = append(raw, fmt.Sprint("nudge ", detail.nudgeMs)...)
 	}
@@ -726,7 +736,10 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 		if p.sent {
 			rendition.OffsetUS = p.nudgeMs * 1000
 		}
-		if track.Sidecar {
+		if track.Downloaded != "" {
+			source := downloadedSubtitle{dir: e.subtitleDir, hash: track.DownloadedHash}
+			rendition.Path, rendition.Source = source.path(), source
+		} else if track.Sidecar {
 			// A subtitle no longer present is left out; the film still plays.
 			beside, source, err := e.subtitleFile(ctx, track.FileID)
 			if err != nil {

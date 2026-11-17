@@ -141,7 +141,8 @@ func run(log *slog.Logger) (err error) {
 	// no stream outlives a restart.
 	conversions := conversionFolder(*data, log)
 	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: conversions, Log: log.With("log_kind", "playback"),
-		Kept: filepath.Join(*data, "ffmpeg-abilities.json"), Remote: handler.RemoteSources().Open, STRM: handler.STRMSources(), Settings: handler.Settings()})
+		SubtitleDir: filepath.Join(*data, "subtitles"),
+		Kept:        filepath.Join(*data, "ffmpeg-abilities.json"), Remote: handler.RemoteSources().Open, STRM: handler.STRMSources(), Settings: handler.Settings()})
 	if err != nil {
 		return err
 	}
