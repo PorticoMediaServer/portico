@@ -4,67 +4,22 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"time"
 )
 
 // HomeRowItems opens a Home source as an ordinary item list, so See all keeps the library's
 // sorts, filters, exact totals and cursors. Continue sources read only this profile's activity,
 // not its whole libraries; the query rechecks visibility before returning or counting anything.
 func (d *DB) HomeRowItems(ctx context.Context, v Viewer, row string, q ItemQuery) (ItemPage, error) {
+	if row == "trending" {
+		return d.TrendingPage(ctx, v, q)
+	}
 	if strings.HasPrefix(row, "because:") {
 		return d.BecauseWatchedPage(ctx, v, row, q)
 	}
-	var continuing []Item
-	var mood *MoodRow
-	switch row {
-	case "popular":
-		return d.popularHomeItems(ctx, v, q)
-	case "recently_released":
-		q.homeRecent, q.homeReleased = true, true
-		if q.Sort == "" {
-			q.Sort, q.Desc = SortRelease, true
-		}
-	case "recently_added":
-		q.homeRecent = true
-		if q.Sort == "" {
-			q.Sort, q.Desc = SortAdded, true
-		}
-	case "trending":
-		return d.TrendingPage(ctx, v, q)
-	case "continue", "continue_listening", "continue_books":
-		kinds := watchingKinds
-		if q.Library != "" {
-			kinds = nil
-		} else if row == "continue_listening" {
-			kinds = listeningKinds
-		} else if row == "continue_books" {
-			kinds = bookKinds
-		}
-		var err error
-		continuing, err = d.continueItems(ctx, v, kinds, q.Library, -1)
-		if err != nil {
-			return ItemPage{}, err
-		}
-		q.homeIDs = make([]int64, 0, len(continuing))
-		for _, item := range continuing {
-			q.homeIDs = append(q.homeIDs, item.ID)
-		}
-		if q.Sort == "" {
-			q.Sort, q.Desc = SortOrder, false
-		}
-	default:
-		if strings.HasPrefix(row, "collection:") {
-			q.Collection = strings.TrimPrefix(row, "collection:")
-			return d.Items(ctx, v, q)
-		}
-		choice, err := d.MoodRow(ctx, v, row)
-		if err != nil {
-			return ItemPage{}, err
-		}
-		mood = &choice
-		q.homeIDs, q.homeUnplayed = choice.Source, true
-		if q.Sort == "" {
-			q.Sort, q.Desc = SortOrder, false
-		}
+	q, continuing, mood, err := d.homeRowQuery(ctx, v, row, q)
+	if err != nil {
+		return ItemPage{}, err
 	}
 
 	if mood != nil && q.Sort == SortOrder {
@@ -142,4 +97,78 @@ func (d *DB) HomeRowItems(ctx context.Context, v Viewer, row string, q ItemQuery
 		}
 	}
 	return page, nil
+}
+
+// homeRowQuery keeps See all and Play on the same source and default order.
+func (d *DB) homeRowQuery(ctx context.Context, v Viewer, row string, q ItemQuery) (ItemQuery, []Item, *MoodRow, error) {
+	var continuing []Item
+	var mood *MoodRow
+	switch row {
+	case "popular":
+		if q.Sort == "" {
+			q.Sort, q.Desc = SortOrder, true
+		}
+		after, err := decodeCursor(q.Cursor, q.Sort, q.Desc)
+		if err != nil {
+			return q, nil, nil, err
+		}
+		now := q.HomeAt
+		if now.IsZero() {
+			now = time.Now()
+		}
+		q.homePopular = now.UnixMilli()
+		if after != nil {
+			if after.AsOf <= 0 || after.AsOf > q.homePopular {
+				return q, nil, nil, ErrCursorExpired
+			}
+			q.homePopular = after.AsOf
+		}
+	case "recently_released":
+		q.homeRecent, q.homeReleased = true, true
+		if q.Sort == "" {
+			q.Sort, q.Desc = SortRelease, true
+		}
+	case "recently_added":
+		q.homeRecent = true
+		if q.Sort == "" {
+			q.Sort, q.Desc = SortAdded, true
+		}
+	case "continue", "continue_listening", "continue_books":
+		kinds := watchingKinds
+		if q.Library != "" {
+			kinds = nil
+		} else if row == "continue_listening" {
+			kinds = listeningKinds
+		} else if row == "continue_books" {
+			kinds = bookKinds
+		}
+		var err error
+		continuing, err = d.continueItems(ctx, v, kinds, q.Library, -1)
+		if err != nil {
+			return q, nil, nil, err
+		}
+		q.homeIDs = make([]int64, 0, len(continuing))
+		for _, item := range continuing {
+			q.homeIDs = append(q.homeIDs, item.ID)
+		}
+		if q.Sort == "" {
+			q.Sort, q.Desc = SortOrder, false
+		}
+	default:
+		if strings.HasPrefix(row, "collection:") {
+			q.Collection = strings.TrimPrefix(row, "collection:")
+			return q, nil, nil, nil
+		}
+		choice, err := d.MoodRow(ctx, v, row)
+		if err != nil {
+			return q, nil, nil, err
+		}
+		mood = &choice
+		q.homeIDs, q.homeUnplayed = choice.Source, true
+		if q.Sort == "" {
+			q.Sort, q.Desc = SortOrder, false
+		}
+	}
+
+	return q, continuing, mood, nil
 }
