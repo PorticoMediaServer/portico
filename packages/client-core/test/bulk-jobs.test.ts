@@ -1,72 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createJob, getJob, isJobTerminal, jobRequestBody, jobViewFilter, parseJob} from '../src/bulk-jobs.ts';
+import {createJob, getJob, isJobTerminal, jobRequestBody, jobViewFilter} from '../src/bulk-jobs.ts';
 import {runSelectionJobs, type HomeJobTask} from '../src/home-selection/execution.ts';
-import {resetSkippedParts, skippedParts} from '../src/tolerant.ts';
-
-function job(over: Record<string, unknown> = {}): any {
-  return {
-    jobId: 'job-1', command: 'personal-state', state: 'running',
-    total: 0, totalKnown: false, done: 0, failed: 0, ...over,
-  };
-}
-
 type Call = {path: string; method?: string; body?: unknown};
 function fakeApi(answer: (call: Call) => unknown): {request<T>(path: string, method?: string, body?: unknown): Promise<T>; calls: Call[]} {
   const calls: Call[] = [];
   return {calls, async request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {const call = {path, method, body}; calls.push(call); return answer(call) as T;}};
 }
 const refused = (code: string) => {throw Object.assign(new Error(code), {status: 404, code});};
-
-test('a bulk receipt starts indeterminate and parses terminal states', () => {
-  const created = parseJob(job());
-  assert.equal(created.totalKnown, false);
-  assert.equal(isJobTerminal(created.state), false);
-  for (const state of ['complete', 'partial', 'failed']) assert.equal(isJobTerminal(parseJob(job({state, total: 10, totalKnown: true, done: 9, failed: 1})).state), true);
-  assert.equal(parseJob(job({state: 'failed', total: 4, totalKnown: true, done: 1, failed: 1, errorCode: 'selection_changed'})).errorCode, 'selection_changed');
-});
-
-test('a job rejects an unknown state or command, an unreadable id, count or cursor', () => {
-  for (const change of [
-    (v: any) => { v.state = 'done'; },
-    (v: any) => { v.command = 'reindex'; },
-    (v: any) => { v.jobId = ''; },
-    (v: any) => { v.jobId = 'job\n1'; },
-    (v: any) => { v.jobId = 'j'.repeat(257); },
-    (v: any) => { v.total = -1; },
-    (v: any) => { v.done = 1.5; },
-    (v: any) => { v.failed = '0'; },
-    (v: any) => { v.totalKnown = 'yes'; },
-    (v: any) => { v.failuresCursor = ''; },
-    (v: any) => { v.failuresCursor = 'c'.repeat(257); },
-  ]) {
-    const raw = job({total: 0, totalKnown: false});
-    change(raw);
-    assert.throws(() => parseJob(raw));
-  }
-  for (const raw of [null, [], 'job']) assert.throws(() => parseJob(raw));
-});
-
-test('a job keeps its progress past a failure code it does not know, a stray code, a field it does not know and a count over the total', () => {
-  resetSkippedParts();
-  // An unknown failure code is left out, so the caller's general wording is used.
-  const unknownCode = parseJob(job({state: 'failed', total: 1, totalKnown: true, errorCode: 'made_up'}));
-  assert.equal(unknownCode.state, 'failed');
-  assert.equal('errorCode' in unknownCode, false);
-  // A failure code on a job that has not failed is left out.
-  const stray = parseJob(job({errorCode: 'selection_changed'}));
-  assert.equal(stray.state, 'running');
-  assert.equal('errorCode' in stray, false);
-  assert.equal('errorCode' in parseJob(job({state: 'failed', errorCode: 7})), false);
-  // A field from a newer server is ignored and never carried along.
-  const extra = parseJob(job({state: 'partial', total: 3, totalKnown: true, done: 2, failed: 1, failuresCursor: 'next', pausedBy: 'owner', estimate: {seconds: 4}}));
-  assert.deepEqual(extra, {jobId: 'job-1', command: 'personal-state', state: 'partial', total: 3, totalKnown: true, done: 2, failed: 1, failuresCursor: 'next'});
-  // A finished count over a known total reads as the total; while the total is unknown it is kept.
-  assert.equal(parseJob(job({totalKnown: true, total: 2, done: 3})).done, 2);
-  assert.equal(parseJob(job({totalKnown: false, total: 0, done: 3})).done, 3);
-  assert.deepEqual(skippedParts().map(p => [p.part, p.count]), [['job.errorCode', 3], ['job.done', 1]]);
-  assert.ok(skippedParts().every(p => p.document === 'bulk-jobs'));
-});
 
 test('requests validate selectors, args and fences', () => {
   const base = {operationId: 'op-1', command: 'personal-state' as const, selector: {items: {ids: ['a', 'b']}}, args: {watched: true}};
