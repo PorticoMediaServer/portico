@@ -143,10 +143,13 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, f
       anyone<{providers?: string[]}>('passwordResetConfirm', {}, {email, code, password}),
     /** Starts Sign in with Google or Apple; with `proof`, connects it to the signed-in account instead. */
     startProvider: (provider: Provider, secretHash: string, proof?: Proof) => proof
-      ? person<{id: string; authorizeUrl: string}>('providerStart', {}, {provider, secretHash, ...proof})
-      : anyone<{id: string; authorizeUrl: string}>('providerStart', {}, {provider, secretHash}),
+      ? person<{id: string; authorizeUrl: string; expiresAt: string}>('providerStart', {}, {provider, secretHash, ...proof})
+      : anyone<{id: string; authorizeUrl: string; expiresAt: string}>('providerStart', {}, {provider, secretHash}),
     completeProvider: (flow: string, code: string, secret: string, device: Device, chosen: {username?: string; displayName?: string} = {}) =>
       anyone<ProviderCompletion>('providerComplete', {}, {id: flow, code, secret, device, ...chosen}, {create: true}).then(tokensKept),
+    startAppleSignIn: () => anyone<{id: string; nonce: string; expiresAt: string}>('providerStart', {}, {provider: 'apple', kind: 'app'}),
+    completeAppleSignIn: (id: string, identityToken: string, device: Device, chosen: {username?: string; displayName?: string} = {}) =>
+      anyone<ProviderCompletion>('providerApple', {}, {id, identityToken, device, ...chosen}, {create: true}).then(tokensKept),
     /** A fresh provider flow bound to this PIN request. It never starts/adopts an account session. */
     startPINProvider: (provider: Provider, secretHash: string, pin: {serverId: string; challenge: string}, signal?: AbortSignal) =>
       person<{id: string; authorizeUrl: string}>('providerStart', {}, {provider, secretHash, pin}, {signal}),
