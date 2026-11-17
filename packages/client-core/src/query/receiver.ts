@@ -1,6 +1,6 @@
 import {serverPath} from './server-api.ts';
 import {reviewLocalTVAuthorization, decideLocalTVAuthorization} from './connection-operations.ts';
-import {routePath, routePattern, encodedRoutePath} from '../../../contracts/src/routes.ts';
+import {routePattern, encodedRoutePath} from '../../../contracts/src/routes.ts';
 import type {ItemResponse} from '../media-item.ts';
 import {parseMediaItem} from '../media-item.ts';
 
@@ -39,12 +39,4 @@ export function receiverLinkOperations(api: ReceiverApi) {
       await decideLocalTVAuthorization(api, code, decision, life?.signal);
     },
   };
-}
-
-/** GroupSessionService supplies the scoped path and cursor; preserve the original stream auth. */
-export function openTogetherStream(api: {baseUrl: string; routeFetch: typeof fetch}, token: string, path: string, lastEventId: string | undefined, signal: AbortSignal): Promise<Response> {
-  const url = new URL(path, api.baseUrl);
-  if (!path.startsWith(routePath('social_get_v1_groups') + '/') || url.origin !== new URL(api.baseUrl).origin) throw new Error('invalid_group_stream');
-  return api.routeFetch(url.href, {signal, headers: {Accept: 'text/event-stream', Authorization: `Bearer ${token}`,
-    ...(lastEventId ? {'Last-Event-ID': lastEventId} : {})}});
 }

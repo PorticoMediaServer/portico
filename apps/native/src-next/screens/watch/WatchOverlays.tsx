@@ -137,7 +137,7 @@ export function NativeWatchOverlays({presenters, runtime, common}: {presenters: 
   // Title rows come from the one shared model and renderer (also Home's More menu); this menu
   // adds only what belongs to a screen's own surface: Start radio, Play a different version…,
   // File info, Select, Disc titles and the caller's extras (select.html 17 and 23, tablet.html 9).
-  const together = tv ? presenters.togetherActions(value) : undefined;
+  const together = presenters.togetherActions(value);
   const groups = nativeWatchMenuGroups({entry, detail: value.detail, menu, together});
   const row = (id: string, label: string, icon: IconName, onSelect: () => void, extra?: Partial<MenuAction>): MenuAction => ({id, label, icon, onSelect, ...extra});
   const select = value.actions?.select ? row('select', t('next.selection.select'), 'i-check', () => presenters.selectEntry(value)) : undefined;

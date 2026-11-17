@@ -102,8 +102,12 @@ function fixture(hasDestination = true, readSession?: NativePlaybackAdapter['rea
       ...(extra.owner ? {owner: true} : {}), ...(extra.download ? {download() {}} : {})},
   });
   // The fixture's existing dispose is the one cleanup every test already calls,
-  // so it retires the presenter and its services before the subscription counts.
-  const screens = {...factory, dispose: () => {factory.dispose(); presenters.dispose(); common.dispose();}};
+  // so it retires the presenter and the simulated shell authority before counting.
+  // Together borrows an authority-owned service; closing a presenter cannot dispose it.
+  const screens = {...factory, dispose: () => {
+    factory.dispose(); presenters.dispose(); common.dispose();
+    bound = {...bound, epoch: 'disposed'}; for (const listener of [...authorityListeners]) listener();
+  }};
   return {screens, requests, fileInfos, menus, versions, starts, errors, navigations, enqueues, playlistOpens,
     session: (role?: 'local' | 'group_member') => {source = {...source, session: role ? {itemId: entry.id, versionId: 'v1', role} : undefined}; for (const listener of playbackListeners) listener();},
     holdStart: (held: Promise<void>) => {holdStart = held;},
