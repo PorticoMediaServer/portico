@@ -68,6 +68,7 @@ export * from './browse.ts';
 export * from './browse-buckets.ts';
 export * from './browse-whole-selection.ts';
 export * from './social-playback.ts';
+export * from './room-protocol.ts';
 export * from './group-session.ts';
 export * from './remote-playback.ts';
 export * from './library-pins.ts';
