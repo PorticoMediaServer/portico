@@ -1,9 +1,8 @@
-import {serverNow} from './server-clock.ts';
 import type {HttpLocalApi} from './index.ts';
-import {parseDownloadBatch, parseDownloadGrant, parseDownloadOptions, parseDownloadPreparation, type DownloadOptionsView, type DownloadPreparation} from './downloads.ts';
+import {downloadReasonMessage, parseDownloadOptions, type DownloadOptionsView} from './downloads.ts';
 import {parseMediaItem} from './media-item.ts';
-import {readAttachmentDownloadItemResponse, readDownloadOptionsResponse, readDownloadPreparationResponse} from './query/download-documents.ts';
-import {prepareItemDownloadResponse, grantPreparedDownloadResponse} from './download-coordination.ts';
+import {readAttachmentDownloadItemResponse, readDownloadOptionsResponse} from './query/download-documents.ts';
+import {askForDownload, readDownload, readDownloadedItem} from './device-downloads.ts';
 
 export type BrowserDownloadTarget = Readonly<{libraryId: string; itemId: string}>;
 /** Capture one target object and caller lifetime per open sheet. save resolves when
@@ -12,8 +11,8 @@ export type BrowserDownloadPort = Readonly<{
   options(target: BrowserDownloadTarget, signal: AbortSignal, isCurrent: () => boolean): Promise<DownloadOptionsView>;
   save(target: BrowserDownloadTarget, quality: string, signal: AbortSignal, isCurrent: () => boolean): Promise<void>;
 }>;
-type Attempt = {target: BrowserDownloadTarget; body: Readonly<{operationId: string; mediaId: string; quality: string}>; grantId: string;
-  current: () => boolean; signal: AbortSignal; preparation?: DownloadPreparation; flight?: Promise<void>; submitted: boolean};
+type Attempt = {target: BrowserDownloadTarget; body: Readonly<{operationId: string; itemId: string; quality: string}>;
+  current: () => boolean; signal: AbortSignal; downloadId?: string; flight?: Promise<void>; submitted: boolean};
 
 function pause(signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -25,8 +24,14 @@ function pause(signal: AbortSignal): Promise<void> {
   });
 }
 
-/** Browser transfers use the server's own attachment response and opaque grant.
- * No media blob, local offline store, authentication token or invented URL. */
+/** Ask the server to send its existing file capability as a browser attachment. */
+export function browserAttachmentAddress(href: string): string {
+  const url = new URL(href);
+  url.searchParams.set('save', '1');
+  return url.href;
+}
+
+/** Browser transfers use the server's own attachment response and opaque grant. */
 export function createAttachmentDownloadPort(api: Pick<HttpLocalApi, 'request' | 'mediaUrl'>, authorityCurrent: () => boolean, lifetime: AbortSignal, handoff: (href: string, filename: string, check: () => void) => void): BrowserDownloadPort {
   const attempts = new WeakMap<BrowserDownloadTarget, Map<string, Attempt>>();
   const assert = (signal: AbortSignal, current: () => boolean) => {
@@ -51,7 +56,7 @@ export function createAttachmentDownloadPort(api: Pick<HttpLocalApi, 'request' |
     if (attempt) assert(attempt.signal, attempt.current);
     if (attempt?.flight) return attempt.flight;
     if (!attempt) {
-      attempt = {target: Object.freeze({...target}), body: Object.freeze({operationId: crypto.randomUUID(), mediaId: target.itemId, quality}), grantId: crypto.randomUUID(),
+      attempt = {target: Object.freeze({...target}), body: Object.freeze({operationId: crypto.randomUUID(), itemId: target.itemId, quality}),
         signal, current, submitted: false};
       perTarget.set(quality, attempt);
     }
@@ -67,34 +72,33 @@ export function createAttachmentDownloadPort(api: Pick<HttpLocalApi, 'request' |
           if (!view.policy.allowDownloads || !view.options.some(row => row.quality === quality && row.available)) throw new Error('download-quality-unavailable');
           check(); captured.submitted = true;
         }
-        if (!captured.preparation) {
-          const batch = parseDownloadBatch(await prepareItemDownloadResponse(api, captured.body, combined));
+        if (!captured.downloadId) {
+          const download = await askForDownload(api, captured.body, combined);
           check();
-          if (batch.items.length !== 1 || batch.accepted !== 1 || batch.rejected.length) throw new Error('download-preparation-unconfirmed');
-          captured.preparation = batch.items[0];
+          if (!download.id || download.target.id !== target.itemId || download.quality !== quality) throw new Error('download-preparation-mismatch');
+          captured.downloadId = download.id;
         }
-        const validate = (value: DownloadPreparation) => {
-          if (value.itemId !== target.itemId || value.libraryId !== target.libraryId || value.quality !== quality) throw new Error('download-preparation-mismatch');
-          return value;
-        };
-        let preparation = validate(captured.preparation);
+        const downloadId = captured.downloadId;
         const started = Date.now();
-        while (preparation.state === 'queued' || preparation.state === 'running') {
+        for (;;) {
+          const download = await readDownload(api, downloadId, combined);
           check();
+          const title = download.items?.find(item => item.itemId === target.itemId);
+          if (download.id !== downloadId || download.target.id !== target.itemId || download.quality !== quality || !title)
+            throw new Error('download-preparation-mismatch');
+          if (title.state === 'ready' || title.state === 'received') break;
+          if (title.state !== 'waiting' && title.state !== 'preparing') throw new Error('download-not-ready');
           if (Date.now() - started > 300000) throw new Error('download-preparation-pending');
           await pause(combined); check();
-          const next = parseDownloadPreparation(await readDownloadPreparationResponse(api, preparation.id, combined));
-          check();
-          if (next.id !== preparation.id) throw new Error('download-preparation-mismatch');
-          captured.preparation = preparation = validate(next);
         }
-        if (preparation.state !== 'ready') throw new Error('download-not-ready');
-        const grant = parseDownloadGrant(await grantPreparedDownloadResponse(api, preparation.id, captured.grantId, combined));
+        const downloaded = await readDownloadedItem(api, downloadId, target.itemId, combined);
         check();
-        if (grant.preparationId !== preparation.id || grant.itemId !== target.itemId || grant.artifact.sha256 !== preparation.artifact.sha256
-          || grant.artifact.bytes !== preparation.artifact.bytes || Date.parse(grant.expiresAt) <= serverNow()) throw new Error('download-grant-mismatch');
-        const href = api.mediaUrl(grant.url); check();
-        handoff(href, grant.artifact.fileName, check);
+        if (downloaded.item.id !== target.itemId || downloaded.item.libraryId !== target.libraryId || downloaded.quality !== quality)
+          throw new Error('download-grant-mismatch');
+        if (downloaded.files.length > 1) throw new Error(downloadReasonMessage('several_files'));
+        const file = downloaded.files[0];
+        if (!file) throw new Error('download-not-ready');
+        handoff(browserAttachmentAddress(file.url), `${downloaded.item.title}.${file.container ?? 'bin'}`, check);
         perTarget.delete(quality);
       } finally {captured.flight = undefined;}
     };
