@@ -145,9 +145,9 @@ export class NativePorticoSignIn {
   /** The same entry point used by phone/tablet and TV account buttons. */
   async provider(provider: IdentityProvider, callerCurrent?: () => boolean): Promise<IdentityTransaction> {
     this.checkCaller(callerCurrent);
-    if (provider !== 'apple' || !this.offered.includes(provider)) throw new CodedError('unavailable', 'native_provider_unavailable');
+    if (!this.offered.includes(provider)) throw new CodedError('unavailable', 'native_provider_unavailable');
     if (this.providerStarting || this.authenticating) throw new CodedError('busy', 'native_account_attempt_active');
-    const nativeApple = this.bridge.canSignInApple === true;
+    const nativeApple = provider === 'apple' && this.bridge.canSignInApple === true;
     if (!nativeApple && this.bridge.canOpenBrowser !== true) throw new CodedError('unavailable', 'native_provider_unavailable');
     this.providerStarting = true; this.providerFlow = undefined; this.providerResult = undefined;
     try {
