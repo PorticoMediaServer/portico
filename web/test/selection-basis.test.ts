@@ -197,3 +197,35 @@ test('the real web toolbar tells the truth about bounded query actions instead o
     } finally {withoutHost.dispose?.(); withHost.dispose?.(); queryActions.dispose(); held.model.dispose();}
   }
 });
+
+test('the held-selection picker retains the keyed transport and retires it with the selection', async () => {
+  const held = selected(), host = hooks(); let current = true, calls = 0;
+  const {createLibrarySelection} = await componentModule(new URL('../src/screens/browse/selection.tsx', import.meta.url), {
+    react: host.react, '@i18n': {defaultI18n}, '../../kit/selection': {SelectionBars: 'SelectionBars'},
+    './selection-actions': {createSelectionActions, personalTargetIsLeaf: () => true, personalTargetSupportsJob: () => true},
+    './selection-picker': {queryDestinationTarget: () => true},
+    './selection-query': {wholeViewQuery}, './selection-unavailable-actions': selectionUnavailableActions,
+  });
+  const request = {headers: {'Idempotency-Key': 'same-operation'}, body: {kind: 'add_view_to_list'}};
+  const signal = new AbortController().signal, ports = {api: {
+    request: async () => {throw new Error('not used');},
+    requestRaw: async (path: string, method: string, options: unknown) => {
+      calls++; assert.equal(path, '/v1/jobs'); assert.equal(method, 'POST'); assert.equal(options, request);
+      return {status: 202, headers: {}, body: {id: 'job'}};
+    },
+  }, serverId: 'server', viewerId: 'viewer', requestId: async () => 'operation', isCurrent: () => current, signal,
+  canCreateCollection: true, pickerIdentity: {authority: 'local', accountId: 'account', profileId: 'profile'}};
+  const playSelection = {getSnapshot: () => ({phase: 'ready', selection: held.model.getSnapshot(), rows: [], canPlay: true, canQueue: true}), subscribe: () => () => {},
+    captureOperation: () => held.operation, isOperationCurrent: () => current};
+  const adapter = createLibrarySelection({playSelection, pickers: ports, actions: {...ports, reportError(error: unknown) {throw error;}}, reportError(error: unknown) {throw error;}});
+  try {
+    const toolbar = adapter.toolbar.props.children[0], bar = host.render(() => toolbar.type(toolbar.props));
+    bar.props.actions.onPlaylist({});
+    const pickerHost = adapter.toolbar.props.children.find((node: any) => node?.type?.name === 'LibraryPickerHost');
+    const surface = host.render(() => pickerHost.type(pickerHost.props)), api = surface.props.ports.api;
+    assert.equal((await api.requestRaw('/v1/jobs', 'POST', request)).body.id, 'job');
+    current = false;
+    await assert.rejects(api.requestRaw('/v1/jobs', 'POST', request), {name: 'AbortError'});
+    assert.equal(calls, 1);
+  } finally {adapter.dispose?.(); held.model.dispose();}
+});

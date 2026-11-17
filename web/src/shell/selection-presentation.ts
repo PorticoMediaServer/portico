@@ -38,10 +38,11 @@ export function pickerResultView(picker: HomeSelectionPicker, reason: (code: str
   if (!destination || !receipt) return undefined;
   if (receipt.kind !== destination.kind || receipt.destinationId !== destination.id || receipt.failureEntries.length !== receipt.failures.length) throw new Error('invalid-picker-receipt-display');
   return {destination: {id: destination.id, name: destination.name, size: destination.count}, inserted: receipt.added, alreadyIn: receipt.alreadyPresent,
-    failed: receipt.failed, unknown: receipt.unknown, pending: receipt.pending, complete: receipt.complete, jobFacts,
+    failed: receipt.failed, unknown: receipt.unknown, pending: receipt.pending, cancelled: receipt.cancelled, complete: receipt.complete,
+    jobFacts,
     failures: receipt.failures.map((failure, index) => {
       const entry = receipt.failureEntries[index];
       if (entry.id !== failure.itemId) throw new Error('invalid-picker-failure-display');
-      return {id: entry.id, title: entry.title, reason: reason(failure.code)};
+      return {id: entry.id, title: entry.title, reason: failure.message ?? reason(failure.code)};
     })};
 }

@@ -50,7 +50,7 @@ export async function selectionJobTasks(target: SelectionTarget, command: JobCom
   for (const selector of selectors) out.push({request: {operationId: (await requestId()).replaceAll('-', ''), command, selector, args}, failures: [], observed: false});
   return out;
 }
-function pause(signal: AbortSignal, jobId: string, events?: Pick<EventsClient, 'on'> & Partial<Pick<EventsClient, 'onResync' | 'resyncReads'>>): Promise<void> {
+export function waitForSelectionJob(signal: AbortSignal, jobId: string, events?: Pick<EventsClient, 'on'> & Partial<Pick<EventsClient, 'onResync' | 'resyncReads'>>): Promise<void> {
   return new Promise((resolve, reject) => {
     let finished = false;
     let unsubscribe: (() => void) | undefined, offResync: (() => void) | undefined;
@@ -99,7 +99,7 @@ export async function runSelectionJobs(api: HomeApi, tasks: HomeJobTask[], signa
         const answering = resyncDebt;
         task.job = await read(() => getJob(api, task.job!.jobId, signal)); current();
         report();
-        if (!isJobTerminal(task.job.state) && answering === resyncDebt) await pause(signal, task.job.jobId, events);
+        if (!isJobTerminal(task.job.state) && answering === resyncDebt) await waitForSelectionJob(signal, task.job.jobId, events);
       }
       // Chosen titles are done one at a time: the job carries what failed, title by title.
       if (!task.observed && task.job.failures) {task.failures = task.job.failures; task.observed = true;}

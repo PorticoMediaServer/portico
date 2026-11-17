@@ -1,4 +1,5 @@
 import {readBrowseCapabilitiesResponse} from '@core/query/browse-reads.ts';
+import {withRequestRaw} from '@core/home-selection/list-destinations.ts';
 import {readLibraryMetadataAgentResponse} from '@core/query/catalogue-actions.ts';
 import {createBrowserQueryActions, type BrowserQueryActionHost} from './selection-action-host';
 import {entryStartDisplay} from '../../platform/playback/subject';
@@ -446,9 +447,9 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       playback: runtime?.cataloguePlayback()});
     const selection = createLibrarySelection({
       playSelection, queryActions,
-      pickers: {api, queries: context.queries, serverId: context.scope.serverId, viewerId: context.scope.viewerId, requestId: async () => randomId(),
+      pickers: {api: withRequestRaw(api, raw, () => {if (!current()) throw new DOMException('Browse selection retired', 'AbortError');}), queries: context.queries, serverId: context.scope.serverId, viewerId: context.scope.viewerId, requestId: async () => randomId(),
         signal, isCurrent: current,
-        canCreateCollection: context.identity?.viewer.role === 'owner',
+        canCreateCollection: true, artwork: context.artwork,
         pickerIdentity: {authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId, events: context.events}},
       ...(runtime ? {enqueue: playSelection.enqueue, enqueueQuery: playSelection.enqueueQuery} : {}),
       owner: context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local',
@@ -469,7 +470,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     if (visibleRange.current) selection.registerWindow(visibleRange.current.first, visibleRange.current.last);
     return () => {command.abort();queryBridge.attach();selection.dispose?.();playSelection.dispose();};
     // A page revision belongs to its selection model: the hub reading the grid again in place starts a new one.
-  }, [captured.context, context, resources, controller, runtime, state.queryRevision, state.revision, queryActions, queryBridge]);
+  }, [captured.context, context, resources, controller, runtime, state.queryRevision, state.revision, queryActions, queryBridge, raw]);
   const selectedLease = selectionLease?.resources === resources && selectionLease.controller === controller && selectionLease.runtime === runtime
     && selectionLease.queryRevision === state.queryRevision && selectionLease.current() ? selectionLease : undefined;
   const playSelection = selectedLease?.playSelection, selection = selectedLease?.selection;
