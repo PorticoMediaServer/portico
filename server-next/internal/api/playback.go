@@ -376,7 +376,7 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	if c := CallerFrom(r.Context()); c.Role == roleCast {
 		s.castStarted(c.SessionID, req.ItemID, session.ID)
 	}
-	out := sessionOut(session)
+	out := s.sessionOut(session)
 	switch {
 	case !ready:
 		out.status, out.RetryAfterMs = http.StatusAccepted, playback.RetryAfter.Milliseconds()
@@ -392,7 +392,7 @@ func (s *Server) getPlayback(r *http.Request, _ None) (PlaybackSession, error) {
 	}
 	c := s.playbackCaller(r)
 	session, err := s.playback.Get(r.PathValue("id"), c.Viewer, c.SignInID)
-	return sessionOut(session), playbackError(err)
+	return s.sessionOut(session), playbackError(err)
 }
 
 func (s *Server) changePlayback(r *http.Request, req PlaybackChange) (PlaybackSession, error) {
@@ -434,7 +434,7 @@ func (s *Server) changePlayback(r *http.Request, req PlaybackChange) (PlaybackSe
 		return PlaybackSession{}, ErrField("skip", "Move along this device's own queue with POST /v1/queues/{id}/advance.")
 	}
 	session, err := s.playback.Change(r.Context(), r.PathValue("id"), s.playbackCaller(r), change)
-	return sessionOut(session), playbackError(err)
+	return s.sessionOut(session), playbackError(err)
 }
 
 // reportPlayback takes a device's latest position and answers how long the session now
@@ -466,7 +466,14 @@ func (s *Server) stopPlayback(r *http.Request, req PlaybackStop) (None, error) {
 		s.viewings.Stop(r.PathValue("id"), c.UserID)
 		return None{}, nil
 	}
-	s.playback.Stop(r.Context(), r.PathValue("id"), c.UserID, c.SessionID, req.PositionMs)
+	if err := s.saveFinalPlayback(r, req); err != nil {
+		return None{}, err
+	}
+	position := req.PositionMs
+	if req.ProgressToken != "" {
+		position = nil // already saved at its observed time, not the stop request's arrival
+	}
+	s.playback.Stop(r.Context(), r.PathValue("id"), c.UserID, c.SessionID, position)
 	return None{}, nil
 }
 

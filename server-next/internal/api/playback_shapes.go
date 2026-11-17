@@ -203,10 +203,12 @@ type PlaybackSession struct {
 	// Kind is vod or audio.
 	Kind string `json:"kind"`
 	// State is playing, paused or ended.
-	State     string              `json:"state"`
-	ItemID    string              `json:"itemId"`
-	VersionID string              `json:"versionId"`
-	Queue     *playback.QueueLink `json:"queue,omitempty"`
+	State     string `json:"state"`
+	ItemID    string `json:"itemId"`
+	VersionID string `json:"versionId"`
+	// ProgressToken binds a final position to this play even after its session ends.
+	ProgressToken string              `json:"progressToken,omitempty"`
+	Queue         *playback.QueueLink `json:"queue,omitempty"`
 	// Channel is the Library Channel this session joined, with the programme's times: pausing
 	// and going back reach as far as the programme's start, and Go to live joins it again.
 	Channel *playback.LibraryChannelLink `json:"channel,omitempty"`
@@ -308,6 +310,10 @@ type PlaybackProgress struct {
 // PlaybackStop is the optional body of a stop: the device's final position.
 type PlaybackStop struct {
 	PositionMs *int64 `json:"positionMs,omitempty"`
+	// ProgressToken is the session's signed token; MadeAgoMs is when this position was observed.
+	ProgressToken string `json:"progressToken,omitempty"`
+	MadeAgoMs     int64  `json:"madeAgoMs,omitempty"`
+	PlayClockMs   int64  `json:"playClockMs,omitempty"`
 }
 
 // AccountStream is one thing the account is playing. A title the asking profile may not see
@@ -370,10 +376,10 @@ func decisions(p playback.Plan) PlaybackDecisions {
 	return PlaybackDecisions{Video: p.Video, Audio: p.Audio, Subtitles: p.Subtitles}
 }
 
-func sessionOut(v playback.Session) PlaybackSession {
+func (s *Server) sessionOut(v playback.Session) PlaybackSession {
 	out := PlaybackSession{ID: v.ID, Kind: sessionKind(v.Item.Kind), State: v.State, ItemID: v.Item.PublicID, VersionID: v.VersionID,
 		Queue: v.Queue, Channel: v.Channel, Lease: PlaybackLease{ExpiresAt: v.LeaseUntil.UTC(), ReportEveryMs: v.ReportEvery().Milliseconds()},
-		PlaybackInfo: v.Plan.PlaybackInfo, Command: v.Command}
+		PlaybackInfo: v.Plan.PlaybackInfo, Command: v.Command, ProgressToken: s.progressToken(v)}
 	subtitles := append([]playback.SubtitleFile{}, v.Stream.Subtitles...)
 	for i := range subtitles {
 		if subtitles[i].TimeDomain == "source-relative" {

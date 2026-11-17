@@ -421,7 +421,7 @@ func (s *Server) prepareNext(r *http.Request, req QueuePrepare) (PreparedNext, e
 	if err != nil {
 		return PreparedNext{}, queueError(err)
 	}
-	preview := sessionOut(playback.Session{Plan: p.Stream.Plan, Stream: p.Stream.Stream, Generation: 1})
+	preview := s.sessionOut(playback.Session{Plan: p.Stream.Plan, Stream: p.Stream.Stream, Generation: 1})
 	return PreparedNext{Token: p.Token, ExpiresAt: p.ExpiresAt.UTC(), EntryID: playqueue.EntryID(p.EntryID), ItemID: p.Stream.ItemID,
 		Presentation: preview.Presentation}, nil
 }
@@ -431,7 +431,7 @@ func (s *Server) commitNext(r *http.Request, req QueueCommit) (QueueCommitted, e
 	if err != nil {
 		return QueueCommitted{}, queueError(err)
 	}
-	return QueueCommitted{Queue: s.queueOut(q), Session: sessionOut(session)}, nil
+	return QueueCommitted{Queue: s.queueOut(q), Session: s.sessionOut(session)}, nil
 }
 
 func (s *Server) saveQueue(r *http.Request, req QueueSave) (SavedPlaylist, error) {
