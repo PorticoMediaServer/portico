@@ -1,4 +1,3 @@
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 /** Server-composed home rows. Clients render membership, order and policy as published; they never rank, hide or page a row themselves. */
@@ -385,21 +384,25 @@ const homeEntriesOf = (items: Home['rows'][number]['items'], rowId: string) =>
     return entry ? Object.freeze({...entry, homeActions: homeActionsOf(item, entry, rowId)}) as HomeEntry : undefined;
   });
 
+/** The rebuilt wire row uses items, shape and an opaque continuation rather than legacy entries. */
+function rebuiltHomeRow(row: Home['rows'][number], allowEmpty = false): HomeRow | undefined {
+  if (!id(row.id)) return undefined;
+  const entries = Object.freeze(firstOfEach('home', 'entries', homeEntriesOf(row.items, row.id), entry => entry.id));
+  const live = row.live === undefined ? undefined : parseHomeLive(row.live);
+  const viewRead = typeof row.library === 'string' && row.library && typeof row.query === 'string' ? Object.freeze({library: row.library, query: row.query}) : undefined;
+  const deferred = !entries.length && row.deferred === true && !!viewRead;
+  if (!allowEmpty && !entries.length && !live?.channels.length && !deferred) return undefined;
+  const always = row.id.startsWith('continue'), nextCursor = words(row.nextCursor, 4096);
+  return Object.freeze({id: row.id, title: words(row.title, 1024), kind: row.id, artworkShape: oneOfOr('home', 'row.artworkShape', row.shape, shapes, 'poster'),
+    endpoint: '', privacySensitivity: '', policyState: '', priority: 0, required: always, hideable: !always, reorderable: true, critical: false, cursorCapable: !!nextCursor,
+    entries, start: 0, limit: live?.channels.length ?? entries.length, hasMore: !!nextCursor, nextCursor,
+    ...(row.total === undefined ? {} : {total: row.total}), ...(live ? {live} : {}), ...(viewRead ? {viewRead} : {}), ...(deferred ? {deferred: true} : {})});
+}
+
 /** Home as the server composes it for this profile: the rows it sends, in its order. A row with nothing in it is not
  * sent, except a saved view's row the server deferred: it is kept, empty, with how to read its titles. */
 export function homeDocument(home: Home): HomeDocument {
-  const rows = firstOfEach('home', 'rows', keepReadable('home', 'rows', home.rows, raw => {
-    const row = raw as Home['rows'][number];
-    if (!id(row.id)) return undefined;
-    const entries = Object.freeze(firstOfEach('home', 'entries', homeEntriesOf(row.items, row.id), entry => entry.id));
-    const viewRead = typeof row.library === 'string' && row.library && typeof row.query === 'string' ? Object.freeze({library: row.library, query: row.query}) : undefined;
-    const deferred = !entries.length && row.deferred === true && !!viewRead;
-    if (!entries.length && !deferred) return undefined;
-    const always = row.id.startsWith('continue');
-    return Object.freeze({id: row.id, title: words(row.title, 1024), kind: row.id, artworkShape: oneOfOr('home', 'row.artworkShape', row.shape, shapes, 'poster'),
-      endpoint: '', privacySensitivity: '', policyState: '', priority: 0, required: always, hideable: !always, reorderable: true, critical: false, cursorCapable: false,
-      entries, start: 0, limit: entries.length, hasMore: false, nextCursor: '', ...(viewRead ? {viewRead} : {}), ...(deferred ? {deferred: true} : {})}) as HomeRow;
-  }), row => row.id);
+  const rows = firstOfEach('home', 'rows', keepReadable('home', 'rows', home.rows, raw => rebuiltHomeRow(raw as Home['rows'][number])), row => row.id);
   const spotlight = firstOfEach('home', 'spotlight', keepReadable('home', 'spotlight', home.spotlight ?? [], raw => {
     const slide = raw as NonNullable<Home['spotlight']>[number];
     const card = entryFromItem(slide.entry), target = slide.resumeTarget ? entryFromItem(slide.resumeTarget) : undefined;
@@ -470,7 +473,8 @@ export function appendHomeRowPage(row: HomeRow, page: HomeRow): HomeRow {
 
 export async function fetchHomeRow(api: HomeApi, rowId: string, page: HomeRowPage = {}, signal?: AbortSignal): Promise<HomeRow> {
   if (page.cursor && (page.start !== undefined || page.anchorId)) throw new Error('A home row pages by cursor or by anchored range, not both.');
-  const row = validateHomeRow(await api.request<RouteResponse<"get_home_row">>(encodedRoutePath("get_home_row", {"id": encodeURIComponent(rowId)}) + (pageQuery(page)), 'GET', undefined, signal));
+  const raw = await api.request<unknown>(encodedRoutePath("get_home_row", {"id": encodeURIComponent(rowId)}) + pageQuery(page), 'GET', undefined, signal);
+  const row = object(raw) && Array.isArray(raw.items) ? rebuiltHomeRow(raw as Home['rows'][number], true) ?? invalid() : validateHomeRow(raw);
   if (row.id !== rowId) invalid();
   return row;
 }

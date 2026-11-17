@@ -375,6 +375,10 @@ func (s *Server) liveGuide(r *http.Request, _ None) (LiveGuide, error) {
 // liveNow lists the profile's favourite channels first, then the rest by number, each with
 // what is on and what is next.
 func (s *Server) liveNow(r *http.Request, _ None) (Page[LiveOnNow], error) {
+	return s.liveNowAt(r, s.now())
+}
+
+func (s *Server) liveNowAt(r *http.Request, now time.Time) (Page[LiveOnNow], error) {
 	lv, err := s.liveViewer(r)
 	if err != nil {
 		return Page[LiveOnNow]{}, err
@@ -404,7 +408,6 @@ func (s *Server) liveNow(r *http.Request, _ None) (Page[LiveOnNow], error) {
 			}
 		}
 	}
-	now := s.now()
 	progs, err := s.programmes(ctx, viewer(r), lv, channels, now, now.Add(24*time.Hour), 2)
 	if err != nil {
 		return Page[LiveOnNow]{}, err
