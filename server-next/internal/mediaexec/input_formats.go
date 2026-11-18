@@ -8,3 +8,11 @@ package mediaexec
 // Disc readers select their own explicit demuxer in the admitted input options.
 const LocalInputFormats = "mov,matroska,mp3,flac,ogg,wav,aac,mpegts,avi,aiff,asf,ape,wv,tta,amr,w64,caf,dsf,iff,mpc,mpc8,mpeg,mpegvideo,flv,mxf,dv,rm,yuv4mpegpipe,nut,nsv,flic,bink,smk,mjp" +
 	"eg,h264,hevc,vvc"
+
+// HLSInputProtocols and HLSInputFormats are how a decoder reads an HLS playlist served by the
+// server's input bridge (a .strm that names one), whose every address is the bridge's: the
+// playlist demuxer and its pieces' formats, over http, with crypto for AES-128 pieces.
+const (
+	HLSInputProtocols = "http,tcp,crypto"
+	HLSInputFormats   = "hls,mpegts,mov,aac,mp3"
+)

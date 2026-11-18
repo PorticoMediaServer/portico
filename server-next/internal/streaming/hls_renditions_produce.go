@@ -354,7 +354,7 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 					copied[i+1] = url
 					break
 				}
-				if copied[i] == "-protocol_whitelist" {
+				if copied[i] == "-protocol_whitelist" && copied[i+1] == "file,pipe" {
 					copied[i+1] = "http,tcp"
 				}
 			}

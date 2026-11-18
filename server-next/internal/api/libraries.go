@@ -288,7 +288,7 @@ var skippedMessages = map[db.FileProblem]string{
 	db.ProblemEncryptedDisc:   "This disc is copy-protected. Portico can't read copy-protected discs.",
 	db.ProblemSTRMRefused:     "The stream address moves from HTTPS to plain HTTP, which is refused.",
 	db.ProblemSTRMUnavailable: "The stream cannot be reached.",
-	db.ProblemSTRMRange:       "The stream is not seekable. Playlists and live streams are not supported.",
+	db.ProblemSTRMRange:       "The stream is neither a file the server can seek in nor an HLS playlist with an end. Live streams and DASH playlists are not supported.",
 	db.ProblemSTRMRedirects:   "The stream sent too many redirects.",
 	db.ProblemSTRMPointer:     "This .strm file must contain one HTTP or HTTPS URL of at most 8 KiB.",
 	db.ProblemNoDiscReader:    "This server's media tools can't read discs.",

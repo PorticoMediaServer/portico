@@ -148,6 +148,17 @@ func (f remoteFile) openBridge(ctx context.Context, ffmpeg, ffprobe string, proc
 	if err != nil {
 		return nil, nil, err
 	}
+	if _, ok := file.(inputbridge.Playlist); ok {
+		// An HLS .strm: the bridge serves the playlist, every address in it its own.
+		bridge, err := inputbridge.Open(ctx, file, 0)
+		if err != nil {
+			file.Close()
+			return nil, nil, ErrSourceUnavailable
+		}
+		options := []string{"-protocol_whitelist", mediaexec.HLSInputProtocols, "-format_whitelist", mediaexec.HLSInputFormats}
+		window := &bridgeWindow{bridge: bridge, ffmpeg: ffmpeg, ffprobe: ffprobe, processes: processes, libraries: libraries}
+		return &PlaybackInput{ReleaseSource: file.Close, Options: options}, window, nil
+	}
 	reader := &sequentialReaderAt{file: file}
 	bridge, err := inputbridge.Open(ctx, reader, file.Size())
 	if err != nil {

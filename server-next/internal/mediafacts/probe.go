@@ -121,9 +121,13 @@ func (p Probe) InspectScan(ctx context.Context, path string) (Facts, error) {
 
 // InspectRemote reads a file that is not on a disk here through the private loopback
 // address that serves it (package inputbridge), the way a scan reads a local one.
+// An address ending ".m3u8" is an HLS playlist the bridge serves.
 func (p Probe) InspectRemote(ctx context.Context, address string) (Facts, error) {
-	return p.inspect(ctx, address, []string{"-protocol_whitelist", "http,tcp", "-format_whitelist", mediaexec.LocalInputFormats, "-probesize", "8388608",
-		"-analyzeduration", "5000000"})
+	protocols, formats := "http,tcp", mediaexec.LocalInputFormats
+	if strings.HasSuffix(address, ".m3u8") {
+		protocols, formats = mediaexec.HLSInputProtocols, mediaexec.HLSInputFormats
+	}
+	return p.inspect(ctx, address, []string{"-protocol_whitelist", protocols, "-format_whitelist", formats, "-probesize", "8388608", "-analyzeduration", "5000000"})
 }
 
 func (p Probe) InspectRemoteMP4(ctx context.Context, path string) (Facts, error) {
@@ -272,7 +276,8 @@ func decodeMediaProbe(data []byte) (Facts, error) {
 	}
 	f := Facts{Container: demuxerIdentity(raw.Format.Name)}
 	f.Duration, _ = strconv.ParseFloat(raw.Format.Duration, 64)
-	if rate, e := strconv.ParseInt(detail.Format.BitRate, 10, 64); e == nil && rate > 0 && rate < 1<<40 {
+	// A playlist's own bit rate is its text's size over its length: not the media's.
+	if rate, e := strconv.ParseInt(detail.Format.BitRate, 10, 64); e == nil && rate > 0 && rate < 1<<40 && f.Container != "hls" {
 		f.BitRate = rate
 	}
 	if start, e := strconv.ParseFloat(raw.Format.Start, 64); e == nil && !math.IsNaN(start) && !math.IsInf(start, 0) && math.Abs(start) <= 86400 {
