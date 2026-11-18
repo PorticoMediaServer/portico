@@ -34,6 +34,7 @@ type access struct {
 	maxAge       *int    // the lower of the account's rating limit and the profile's
 	allowUnrated bool    // with a limit: whether a title with no rating is shown
 	blockedTags  []int64 // labels the account or the profile must never be shown
+	manager      bool    // the account is the owner or an administrator
 }
 
 func ids(ctx context.Context, tx *sql.Tx, query string, args ...any) ([]int64, error) {
@@ -58,9 +59,9 @@ func loadAccess(ctx context.Context, tx *sql.Tx, v Viewer) (access, error) {
 	var userAll, profileAll bool
 	var accountAge *int
 	var accountUnrated bool
-	err := tx.QueryRowContext(ctx, `SELECT u.all_libraries, p.all_libraries, p.max_rating_age, p.allow_unrated, u.max_rating_age, u.allow_unrated
-		FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.id = ? AND u.id = ?`, v.ProfileID, v.UserID).
-		Scan(&userAll, &profileAll, &a.maxAge, &a.allowUnrated, &accountAge, &accountUnrated)
+	err := tx.QueryRowContext(ctx, `SELECT u.all_libraries, p.all_libraries, p.max_rating_age, p.allow_unrated, u.max_rating_age, u.allow_unrated,
+		u.role IN ('owner', 'admin') FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.id = ? AND u.id = ?`, v.ProfileID, v.UserID).
+		Scan(&userAll, &profileAll, &a.maxAge, &a.allowUnrated, &accountAge, &accountUnrated, &a.manager)
 	if errors.Is(err, sql.ErrNoRows) {
 		return a, nil
 	}

@@ -90,6 +90,7 @@ const (
 	SortLatest          = "latest"     // a show or album by its newest episode or track
 	SortRandom          = "random"     // one order for as long as a reader pages through it
 	SortPopular         = "popular"    // one artist's or album's songs, most played on the server first
+	SortFileSize        = "fileSize"   // what its files take on disk, for the owner and administrators only
 )
 
 // ItemQuery says which items to list. Library, Parent, Person, Tag, Collection and Series are public ids. At
@@ -170,6 +171,7 @@ var sortSpecs = map[string]sortSpec{
 	SortUserRating:      {columns: []string{ownState("rating")}, nullable: true, state: "rating IS NOT NULL"},
 	SortLastPlayed:      {columns: []string{ownState("last_played_at")}, nullable: true, state: "last_played_at IS NOT NULL"},
 	SortPlayCount:       {columns: []string{ownState("nullif(play_count, 0)")}, nullable: true, state: "play_count <> 0"},
+	SortFileSize:        {columns: []string{fileSizeSQL}, nullable: true},
 }
 
 // seriesOrder is a series' own order, as volumeOrder has it: by volume number, then the
@@ -352,6 +354,9 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	if err != nil {
 		return page, err
 	}
+	if q.Sort == SortFileSize && !acc.manager {
+		return page, invalid("This list cannot be sorted that way.")
+	}
 	where := newQuery(v)
 	if found, err := q.filters(ctx, tx, where, acc); err != nil || !found {
 		return page, err
@@ -414,16 +419,6 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		return page, err
 	}
 	return page, loadLeafCounts(ctx, tx, v, acc, page.Items)
-}
-
-// listTotal counts the whole list when the request asked for its total.
-func listTotal(ctx context.Context, tx *sql.Tx, where *query, q ItemQuery, acc access, page *ItemPage) error {
-	if !q.WithTotal {
-		return nil
-	}
-	var err error
-	page.Total, err = total(ctx, tx, where, acc)
-	return err
 }
 
 // positionCursor finds the item just before position q.At and returns it as a cursor, so the
