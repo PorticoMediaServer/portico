@@ -3,7 +3,6 @@ export function validDirectPassword(value:string):boolean {
  return Array.from(value).length>=8&&new TextEncoder().encode(value).length<=72&&/\p{Lu}/u.test(value)&&/\p{Ll}/u.test(value)&&/[^\p{L}]/u.test(value);
 }
 
-import type {RouteRequest, RouteResponse} from '../../contracts/src/route-paths.ts';
 import type {ProfileAPI} from './profile-management.ts';
 import {CodedError} from './server-messages.ts';
 import {identityCode} from './route-identity.ts';
@@ -12,10 +11,16 @@ import type {Invitation as NextInvitation} from '../../contracts/src/next/api.ts
 import {formatShortInvitationCode} from './short-invitation-code.ts';
 import {ratingAges,ratingOf} from './settings-people.ts';
 
-export type ServerInvitation=RouteResponse<'get_admin_access_invitation'>;
+/** What an invitation lets the person do on joining, as the People screens draw it. */
+export type InvitationAccess={accessTokens:boolean;allowRemote:boolean;maxContentRating:string;maxStreams:number;maxStreamsMode:string};
+/** An invitation in the shape the People screens read; `serverInvitationOf` builds it from the rebuilt server's invitation. */
+export type ServerInvitation={acceptedAt?:string;access:InvitationAccess;accountId?:string;allowedLibraries:Array<string>;code?:string;createdAt:string;expiresAt:string;id:string;notes?:string;porticoUsername?:string;revision:number;role:string;serverId?:string;state:string};
+/** What the invite form sends; `PeopleInvitationsClient.create` turns it into the rebuilt server's `InvitationCreate`. */
+export type InvitationCreateInput={access?:InvitationAccess;allowedLibraries:Array<string>;expiresInHours:number;notes?:string;operationId:string;porticoUsername?:string;role:string};
+/** What an invitation edit sends; `PeopleInvitationsClient.edit` turns it into the rebuilt server's `InvitationEdit`. */
+export type InvitationEditInput={access?:InvitationAccess;allowedLibraries:Array<string>;expectedRevision:number;expiresAt:string;notes?:string;operationId:string;role:string};
 export type ServerInvitationLink=Readonly<{code:string;expiresAt:string;serverId?:string}>;
 export type ServerShortInvitation=Readonly<{shortCode?:string;expiresAt:string;serverId:string}>;
-export type PeopleMember=RouteResponse<'get_admin_access_member'>;
 export type PublicInvitation=Readonly<{serverName:string;expiresAt:string;role:'admin'|'member';libraries:readonly {name:string;kind?:string}[];allLibraries:boolean;signInMethod:'local'|'portico';inviterUsername?:string}>;
 export type PeopleInvitationPage=Readonly<{items:readonly ServerInvitation[];limit:number;nextCursor:string;totalCount:number;matchedCount:number}>;
 export type PeopleInvitationQuery=Readonly<{q?:string;state?:'pending'|'accepted'|'revoked'|'expired';sort?:'sent'|'status';direction?:'asc'|'desc';limit?:number;cursor?:string}>;
@@ -60,8 +65,7 @@ const notOnServerYet=():never=>{throw new CodedError('not_available','This is no
 /** An invitation's away-from-home, tokens and highest-rating choices as the account limits it carries (owner ruling A16:
  * the account is held to them from its first sign-in). Streams at once are the owner's stream limits, not an
  * invitation's, so a choice other than the server's default is refused, never dropped; so is a rating with no age. */
-type InviteAccess=NonNullable<RouteRequest<'post_admin_access_invitations'>['access']>;
-function invitationLimits(access:InviteAccess,edit:boolean){
+function invitationLimits(access:InvitationAccess,edit:boolean){
  if(access.maxStreamsMode!=='inherit'||access.maxStreams)notOnServerYet();
  const age=access.maxContentRating?ratingAges[access.maxContentRating]:undefined;
  if(access.maxContentRating&&age===undefined)notOnServerYet();
@@ -106,7 +110,7 @@ export class PeopleInvitationsClient{
   return Object.freeze({items:Object.freeze(items),limit:Math.max(1,items.length),nextCursor:'',totalCount:all.length,matchedCount:items.length});
  }
  /** A named Portico Account is not kept on an invitation: asking for one is refused, never dropped. */
- async create(input:RouteRequest<'post_admin_access_invitations'>,signal?:AbortSignal):Promise<ServerInvitation>{
+ async create(input:InvitationCreateInput,signal?:AbortSignal):Promise<ServerInvitation>{
   if(input.porticoUsername)notOnServerYet();
   const limits=input.access?invitationLimits(input.access,false):undefined;
   const days=input.expiresInHours/24,note=privatePersonNotes(input.notes)??undefined;
@@ -115,7 +119,7 @@ export class PeopleInvitationsClient{
  }
  async read(id:string,signal?:AbortSignal):Promise<ServerInvitation>{return serverInvitationOf(await this.find(id,signal));}
  /** Changes who it is for and what it shares. The expiry stays as it is. */
- async edit(id:string,input:RouteRequest<'put_admin_access_invitation'>,signal?:AbortSignal):Promise<ServerInvitation>{
+ async edit(id:string,input:InvitationEditInput,signal?:AbortSignal):Promise<ServerInvitation>{
   const limits=input.access?invitationLimits(input.access,true):undefined;
   const note=privatePersonNotes(input.notes);
   return serverInvitationOf(await callServer(this.api,'PATCH /v1/admin/invitations/{id}',{id,body:{role:input.role,allLibraries:input.allowedLibraries.length===0,libraries:[...input.allowedLibraries],note:note??'',...(limits?{limits}:{})},signal}));
