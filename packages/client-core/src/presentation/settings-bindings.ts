@@ -12,9 +12,9 @@ import {validatePreferencePatch,type PreferenceSnapshot,type PreferenceScope,typ
 import type {ReadingPreferences} from '../preference-effects.ts';
 
 /** `awayLimit`: the Streaming document's away-from-home limit, read optionally for a page that only shows it.
- * `notices`, `titleData` and `segments` are the rebuilt server's settings documents of those names. */
-export type SettingsBindingForm='signInPolicy'|'runtime'|'streamLimits'|'connectivity'|'awayLimit'|'connectivityStatus'|'maintenance'|'alerts'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata'|'segments'|'backups'|'notices'|'titleData';
-export type SettingsBinding=Readonly<{form:SettingsBindingForm;key:string;scope?:PreferenceScope;readOnly?:boolean;scale?:number;codec?:'insecure-connections'|'history-retention'|'number-choice'|'unlimited'|'domain'|'interface'|'remote-policy'|'away-quality'|'update-checks'|'window-mode'|'days'|'still-watching'|'music-quality-choice'|'video-quality-choice'|'inherited-watched-threshold'|'surround'|'player-engine'|'tv-support'|'boolean'|'artwork-size'|'server-notices'|'notice-audience'|'hardware-selection'|'backup-schedule'|'backup-days';fields?:Readonly<Record<string,string>>;window?:'heavy'|'backup'}>;
+ * The rebuilt server settings documents include `storage`, `remote-access`, `notices`, `titleData` and `segments`. */
+export type SettingsBindingForm='signInPolicy'|'runtime'|'streamLimits'|'connectivity'|'awayLimit'|'connectivityStatus'|'maintenance'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata'|'segments'|'backups'|'storage'|'remote-access'|'notices'|'titleData';
+export type SettingsBinding=Readonly<{form:SettingsBindingForm;key:string;scope?:PreferenceScope;readOnly?:boolean;scale?:number;codec?:'insecure-connections'|'history-retention'|'number-choice'|'unlimited'|'domain'|'interface'|'remote-policy'|'away-quality'|'update-checks'|'window-mode'|'days'|'still-watching'|'music-quality-choice'|'video-quality-choice'|'inherited-watched-threshold'|'surround'|'player-engine'|'tv-support'|'boolean'|'artwork-size'|'server-notices'|'hardware-selection'|'backup-schedule'|'backup-days';fields?:Readonly<Record<string,string>>;window?:'heavy'|'backup'}>;
 export type SettingsBindingSources=Readonly<{configuration?:SettingsConfiguration;preferences?:PreferenceSnapshot;forms?:Readonly<Partial<Record<SettingsBindingForm,Readonly<Record<string,unknown>>>>>;device?:Readonly<Record<string,unknown>>;deviceDefaults?:Readonly<Record<string,unknown>>}>;
 export type SettingsBindingValue=Readonly<{current:unknown;effective:unknown;default:unknown;source:string;configOnly:boolean;applicationMode?:string}>;
 export type SettingsBindingPatch=Readonly<{form:SettingsBindingForm;values:Readonly<Record<string,unknown>>}>;
@@ -106,11 +106,10 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'storage.backupTime':{form:'backups',key:'hour',codec:'number-choice'},
  'storage.backupDays':{form:'backups',key:'days',codec:'backup-days'},
  'general.backgroundSpeed':{form:'maintenance',key:'backgroundSpeed'},
- 'general.alertStorageWarn':{form:'alerts',key:'storageWarningPercent',codec:'number-choice'},
- 'general.alertStorageCritical':{form:'alerts',key:'storageCriticalPercent',codec:'number-choice'},
- 'general.alertCertificateDays':{form:'alerts',key:'certificateWarningDays',codec:'number-choice'},
- 'general.serverNoticesTo':{form:'alerts',key:'serverNoticesTo',codec:'server-notices'},
- 'general.noticeAudience':{form:'alerts',key:'noticeAudience',codec:'notice-audience'},
+ 'general.alertStorageWarn':{form:'storage',key:'warnPercent',codec:'number-choice'},
+ 'general.alertStorageCritical':{form:'storage',key:'majorPercent',codec:'number-choice'},
+ 'general.alertCertificateDays':{form:'remote-access',key:'certificateWarningDays',codec:'number-choice'},
+ 'general.serverNoticesTo':{form:'notices',key:'serverNoticesTo',codec:'server-notices'},
  'storage.keepNotifications':{form:'notices',key:'keepDays',codec:'number-choice'},
  'storage.backupKeep':{form:'backups',key:'keep'},
  'troubleshooting.detailLength':{form:'logs',key:'logDetailMinutes',codec:'number-choice'},
@@ -256,7 +255,6 @@ function presented(binding:SettingsBinding,v:unknown,sources:SettingsBindingSour
  if(binding.codec==='video-quality-choice')return binding.key==='quality.downloads'&&v==='ask'?'ask':typeof v==='string'&&canonicalQualityLadder.some(q=>q.id===v)&&(!downloadQualityKey(binding.key)||v!=='automatic')?(v==='2160p'?'4k':v):undefined;
  if(binding.codec==='artwork-size')return v===1280?'small':v===1920?'standard':v===2560?'large':undefined;
  if(binding.codec==='server-notices')return v==='owner'||v==='owner-and-admins'?v:undefined;
- if(binding.codec==='notice-audience')return validNoticeAudience(v)?v:undefined;
  if(binding.codec==='hardware-selection')return validHardwareSelection(v)?v:undefined;
  if(binding.codec==='backup-schedule')return Array.isArray(v)?v.length===0?'never':new Set(v).size===7?'nightly':'custom':undefined;
  if(binding.codec==='backup-days'&&Array.isArray(v)){const chosen=v;return Object.fromEntries(days.map((day,index)=>[day,chosen.includes((index+1)%7)?'runs':'skips']));}
@@ -275,12 +273,6 @@ function presented(binding:SettingsBinding,v:unknown,sources:SettingsBindingSour
  if(binding.codec==='days'&&Array.isArray(v)){const chosen=v;return Object.fromEntries(days.map(d=>[d,chosen.includes(d)?'runs':'skips']));}
  if(binding.scale){if(v===0&&binding.key==='uploadCapacityKbps')return null;v=typeof v==='number'?v/binding.scale:v;}
  return binding.codec==='number-choice'?String(v):v;
-}
-/** Settings › General › Who sees each notice: every notice kind, each sent to both, the owner, or no one. */
-function validNoticeAudience(v:unknown):v is Readonly<Record<string,'both'|'owner'|'off'>>{
- if(!v||typeof v!=='object'||Array.isArray(v))return false;
- const entries=Object.entries(v),kinds=['scan','storage','certificate','recording','feedback'];
- return entries.length===kinds.length&&entries.every(([k,x])=>kinds.includes(k)&&(x==='both'||x==='owner'||x==='off'));
 }
 /** Settings › Streaming › Device: automatic, the processor, or one adapter's opaque id from the hardware report. */
 function validHardwareSelection(v:unknown):v is string{return typeof v==='string'&&(v==='auto'||v==='software'||/^[a-z0-9_-]{1,80}$/.test(v));}
@@ -408,7 +400,6 @@ export function settingsBindingPatch(binding:SettingsBinding,value:unknown,sourc
  if(binding.codec==='boolean'&&typeof value!=='boolean')throw new Error('Invalid setting value.');
  if(binding.codec==='insecure-connections'&&value!=='never'&&value!=='local'&&value!=='always')throw new Error('Invalid setting value.');
  if(binding.codec==='server-notices'&&value!=='owner'&&value!=='owner-and-admins')throw new Error('Invalid notice audience.');
- if(binding.codec==='notice-audience'){if(!validNoticeAudience(value))throw new Error('Invalid setting matrix.');raw={...value};}
  if(binding.codec==='hardware-selection'&&!validHardwareSelection(value))throw new Error('Invalid setting value.');
  if(binding.codec==='surround'){if(value!=='asis'&&value!=='stereo')throw new Error('Invalid setting value.');raw=value==='stereo';}
  if(binding.codec==='player-engine'){if(value!=='auto'&&value!=='native'&&value!=='mpv')throw new Error('Invalid setting value.');raw=value==='auto'?'automatic':value;}
