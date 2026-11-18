@@ -24,10 +24,6 @@ import {nativeAccountMenu, nativeAccountOpenTransition, nativeMenuRouteAvailable
 import {createNativeOwnerActivity} from './owner-activity';
 import {libraryScanReadiness} from './library-scan';
 import {NativeDownloadSheet} from '../screens/downloads/DownloadSheet';
-import {createNativeHomeSelectionAction, nativeSelectionActionInput, type NativeHomeQueryActions, type NativeSelectionActionPresentation} from '../screens/library/selection-actions';
-import {askNativeDownload, closeNativeDownload, getNativeDownloadSnapshot} from '../screens/downloads/request';
-import {offlineDownloads} from '../platform/offline-downloads';
-import {selectedItemsLabel} from './selection-display';
 import {nativeHomeSelectionScope} from './selection-scope';
 import {homeSeeAllRoute, nativeEntryRoute, nativeEntryRouteSupported, nativeRailDestination, type NativeShellRoute} from './routes';
 import {nativeShellRoutes} from './route-registry';
@@ -109,45 +105,6 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     ...(context.subscribeLibraries ? {subscribeVisibleLibraries: context.subscribeLibraries} : {}),
     routes: {openEntry: entry => {if (!nativeEntryRouteSupported(entry)) reportError(failure('unavailable')); else open(nativeEntryRoute(entry));}, openCollection: collection => open({kind: 'collection', libraryId: collection.collection.libraryId, collectionId: collection.collection.id, title: collection.collection.name}),
       openDestination: destination => open({kind: 'saved-destination', destination})}});
-  let queryAction: NativeSelectionActionPresentation | undefined, stopQueryAction: (() => void) | undefined;
-  const queryListeners = new Set<() => void>();
-  const publishQuery = () => {for (const listener of [...queryListeners]) listener(); publish();};
-  const closeQueryAction = (expected?: NativeSelectionActionPresentation) => {
-    if (expected && queryAction !== expected) return;
-    const closing = queryAction; queryAction = undefined;
-    stopQueryAction?.(); stopQueryAction = undefined;
-    if (closing) {
-      const request = getNativeDownloadSnapshot();
-      if (request?.queryAction === closing) closeNativeDownload(request);
-      closing.dispose(); publishQuery();
-    }
-  };
-  const queryActions: NativeHomeQueryActions = Object.freeze({
-    subscribe: listener => {queryListeners.add(listener); return () => {queryListeners.delete(listener);};},
-    getSnapshot: () => queryAction,
-    offer: (kind, view) => {
-      if (!currentHome() || view !== controller.selection.getSnapshot() || view.target?.mode !== 'query') return false;
-      try {nativeSelectionActionInput(view.target, kind, context); return true;} catch {return false;}
-    },
-    open: (kind, view) => {
-      if (queryAction || !queryActions.offer(kind, view)) return;
-      const state = controller.getSnapshot();
-      if (state.deletion || state.editor || state.picker || state.rating || state.mixedEdit || state.action.phase !== 'idle') return;
-      try {
-        const action = createNativeHomeSelectionAction(context, controller, undefined, {
-          follow: (operationId, deviceId) => offlineDownloads.followSelectionAction(operationId, deviceId),
-        });
-        if (view !== controller.selection.getSnapshot() || action.target !== view.target) {action.dispose(); return;}
-        queryAction = action;
-        stopQueryAction = action.subscribe(() => {if (!action.current()) closeQueryAction(action); else publishQuery();});
-        if (kind === 'delete') void action.openDelete().catch(error => {if (queryAction === action && action.current()) reportError(error);});
-        else askNativeDownload({title: selectedItemsLabel(view.summary), queryAction: action,
-          lifetime: {signal: action.source.signal!, isCurrent: action.current}});
-        publishQuery();
-      } catch (error) {reportError(error);}
-    },
-    close: closeQueryAction,
-  });
   let capturedMenu: {menu: NonNullable<ReturnType<HomeSelectionController['getSnapshot']>['menu']>; anchorRef?: RefObject<View | null>; owner: object} | undefined;
   const windowId = (rowId: string) => `home-row:${rowId}`;
   const members = new Map<string, Registration & {cleanup: () => void}>();
@@ -297,7 +254,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
   // owner-dashboard 1a: the glyph beside the avatar (phone) and the rail's activity button (tablet) read the owner's summary.
   const ownerActivity = createNativeOwnerActivity(context, Platform.isTV);
   const cleanups = [context.home.subscribe(onDocument), controller.subscribe(() => {if (capturedMenu?.menu !== controller.getSnapshot().menu) capturedMenu = undefined; publish();}), context.navigation.subscribe(() => {
-    closeQueryAction(); controller.clear();
+    controller.clear();
     if (!currentHome()) homeTopPending = false;
     if (currentHome()) onDocument();
     publish();
@@ -305,8 +262,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
   const releaseBack = registerBack(() => {
     if (!alive || !context.current()) return false;
     const state = controller.getSnapshot();
-    if (queryAction) closeQueryAction(queryAction);
-    else if (state.rating) controller.closeRating();
+    if (state.rating) controller.closeRating();
     else if (state.deletion) controller.closeDelete();
     else if (state.editor || state.mixedEdit) controller.closeEditor();
     else if (state.picker) controller.closePicker();
@@ -468,9 +424,9 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
       isMenuOpen: id => {const capture = currentMenuCapture(), window = windows.get(rowId);
         return !!capture && !!window && window.keys.get(id) === capture.menu.key && window.memberWindows.get(id) === capture.menu.windowId;},
       isSelected: id => {const key = windows.get(rowId)?.keys.get(id); return !!key && controller.selection.isSelected(key);},
-      onToggle: id => {const key = windows.get(rowId)?.keys.get(id); if (!queryAction && key && currentHome()) controller.toggle(windows.get(rowId)!.memberWindows.get(id)!, key);},
+      onToggle: id => {const key = windows.get(rowId)?.keys.get(id); if (key && currentHome()) controller.toggle(windows.get(rowId)!.memberWindows.get(id)!, key);},
       onEnter: id => {
-        const key = windows.get(rowId)?.keys.get(id); if (queryAction || !key || !currentHome()) return;
+        const key = windows.get(rowId)?.keys.get(id); if (!key || !currentHome()) return;
         const before = controller.getSnapshot().selection.active, changed = controller.toggle(windows.get(rowId)!.memberWindows.get(id)!, key);
         if (changed.ok && !before && controller.getSnapshot().selection.active) void selectionHaptic().catch(reportError);
       }}),
@@ -490,7 +446,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
       try {reconcileWindows();} catch (error) {reportError(error, 'home-registration');}
     },
     homeMenuRow: id => [...windows.values()].find(window => [...window.memberWindows.values()].includes(id))?.row,
-    renderSelection: () => <><HomeSelectionBars runtime={runtime} controller={controller} queryActions={queryActions} ownerTag={ownerTag} reportError={reportError}/><HomeSelectionOverlays queryActions={queryActions} anchorRef={currentMenuCapture()?.anchorRef} controller={controller} runtime={runtime} ownerTag={ownerTag} reportError={reportError}/><NativeScreenFeedbackHost service={feedback} bottomOffset={84}/></>,
+    renderSelection: () => <><HomeSelectionBars runtime={runtime} controller={controller} ownerTag={ownerTag} reportError={reportError}/><HomeSelectionOverlays anchorRef={currentMenuCapture()?.anchorRef} controller={controller} runtime={runtime} ownerTag={ownerTag} reportError={reportError}/><NativeScreenFeedbackHost service={feedback} bottomOffset={84}/></>,
     renderRoutes: options => {
       const route = context.navigation.getSnapshot().route;
       // Instantiate the current module before asking it for retained native views.
@@ -555,6 +511,6 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     mixes,
     musicDiscover: musicNavigation.open,
     onArtworkError: error => reportError(error, 'artwork-error'),
-    dispose: () => {if (!alive) return; closeQueryAction(); queryListeners.clear(); alive = false; offDropped(); capturedMenu = undefined; listeningPlaylist?.dispose(); listeningQueuePolicy?.dispose(); listeningSongDetail?.dispose(); musicNavigation.dispose(); mixesLife.abort(); mixes.dispose(); routes.dispose(); for (const operation of operations) operation.abort(); operations.clear(); for (const cleanup of cleanups) cleanup(); for (const member of members.values()) member.cleanup(); members.clear(); for (const window of windows.values()) window.cleanup?.(); for (const spotlight of spotlights.values()) spotlight.cleanup(); windows.clear(); spotlights.clear(); controller.dispose(); management?.dispose(); ownerActivity?.dispose(); scroll.clear(); tvPageBack.clear(); runtime = undefined; listeners.clear();},
+    dispose: () => {if (!alive) return; alive = false; offDropped(); capturedMenu = undefined; listeningPlaylist?.dispose(); listeningQueuePolicy?.dispose(); listeningSongDetail?.dispose(); musicNavigation.dispose(); mixesLife.abort(); mixes.dispose(); routes.dispose(); for (const operation of operations) operation.abort(); operations.clear(); for (const cleanup of cleanups) cleanup(); for (const member of members.values()) member.cleanup(); members.clear(); for (const window of windows.values()) window.cleanup?.(); for (const spotlight of spotlights.values()) spotlight.cleanup(); windows.clear(); spotlights.clear(); controller.dispose(); management?.dispose(); ownerActivity?.dispose(); scroll.clear(); tvPageBack.clear(); runtime = undefined; listeners.clear();},
   };
 }

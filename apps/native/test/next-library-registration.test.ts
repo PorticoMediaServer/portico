@@ -12,7 +12,6 @@ import * as selectionModel from '../../../packages/client-core/src/selection-mod
 import * as mediaSelection from '../../../packages/client-core/src/media-selection.ts';
 import * as browseWholeSelection from '../../../packages/client-core/src/browse-whole-selection.ts';
 import * as selectionUnavailableActions from '../src-next/screens/library/selection-unavailable-actions.ts';
-import * as wholeQueryUnavailable from '../src-next/screens/library/whole-query-unavailable.ts';
 import {presentError} from '../../../packages/client-core/src/presentation/errors.ts';
 import {createTheme} from '../src-next/kit/theme.ts';
 import {defaultI18n} from '../../../packages/i18n/src';
@@ -33,7 +32,6 @@ test('the handheld Library module self-registers real actions and a captured rec
     '../destinations/lifetime': {nativeDestinationLifetime}, '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},
   });
   const {createNativeLibrarySelection} = await screenModule(new URL('../src-next/screens/library/selection.tsx', import.meta.url), {
-    './selection-actions': {nativeSelectionActionInput: () => {throw new Error('unexpected query action');}}, '../downloads/request': {}, '../../platform/offline-downloads': {},
     react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/errors': {presentError},
     '../../../../../packages/client-core/src/catalogue-query-selection': catalogueQuerySelection, '../../../../../packages/client-core/src/selection-model': selectionModel,
@@ -43,7 +41,7 @@ test('the handheld Library module self-registers real actions and a captured rec
     '../destinations/lifetime': {nativeDestinationLifetime}, '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},
     '../destinations/DestinationPicker': {NativeDestinationPicker: 'NativeDestinationPicker'}, '../search/loaded-destinations': {NativeLoadedDestinations: 'NativeLoadedDestinations'},
     '../destinations/bulk-media': {NativeBulkMedia: 'NativeBulkMedia'}, './model': {nativeLibraryEntryKey}, './play-selection': playSelection,
-    './selection-unavailable-actions': selectionUnavailableActions, './whole-query-unavailable': wholeQueryUnavailable,
+    './selection-unavailable-actions': selectionUnavailableActions,
   });
   const {NativeLibraryMarkAllDialog} = await screenModule(new URL('../src-next/screens/library/MarkAllDialog.tsx', import.meta.url), {
     react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},

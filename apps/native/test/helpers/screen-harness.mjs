@@ -1,5 +1,6 @@
 import * as design from '@portico/design';
 import * as setupCodes from '../../../../packages/client-core/src/setup-code.ts';
+import * as catalogueQueryDelete from '../../../../packages/client-core/src/query/catalogue-query-delete.ts';
 import * as catalogueActions from '../../../../packages/client-core/src/query/catalogue-actions.ts';
 import * as catalogueReads from '../../../../packages/client-core/src/query/catalogue-reads.ts';
 import * as playbackQueries from '../../../../packages/client-core/src/query/playback.ts';
@@ -82,6 +83,7 @@ function railHoldLeaf(react) {
 }
 // Moved core operations execute against the fixture's captured API; no request is mocked here.
 const leaf = (source, react, native) => source === '@portico/design' ? design : /client-core\/src\/query\/playback(\.ts)?$/.test(source) ? playbackQueries
+  : /client-core\/src\/query\/catalogue-query-delete(?:\.ts)?$/.test(source) ? catalogueQueryDelete
   : /client-core\/src\/query\/catalogue-actions(?:\.ts)?$/.test(source) ? catalogueActions
   : /client-core\/src\/query\/catalogue-reads(?:\.ts)?$/.test(source) ? catalogueReads
   : /client-core\/src\/playback-v1\/preparing-cleanup(\.ts)?$/.test(source) ? preparingCleanup

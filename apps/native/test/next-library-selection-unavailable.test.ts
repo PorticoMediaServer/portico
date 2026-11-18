@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {NativeLibraryDestination} from '../src-next/screens/library/model.ts';
 import * as selectionUnavailableActions from '../src-next/screens/library/selection-unavailable-actions.ts';
-import * as wholeQueryUnavailable from '../src-next/screens/library/whole-query-unavailable.ts';
 import type {LibraryContentApi} from '../../../packages/client-core/src/library-content.ts';
 import type {BrowseRequestBody} from '../../../packages/client-core/src/browse.ts';
 
@@ -23,7 +22,6 @@ test('actual native Library selection composes the refusal without an executor a
  const producer={model:{getSnapshot:()=>selectionState,subscribe:()=>()=>{},clear(){}},whole:()=>undefined,dispose(){disposed++;}};
  const source={getSnapshot:()=>sourceState,subscribe:(fn:()=>void)=>{listeners.add(fn);return()=>listeners.delete(fn);},hold:()=>()=>{}};
  const {createNativeLibrarySelection}=await screenModule(new URL('../src-next/screens/library/selection.tsx',import.meta.url),{
-    './selection-actions': {nativeSelectionActionInput: () => {throw new Error('unexpected query action');}}, '../downloads/request': {}, '../../platform/offline-downloads': {},
   react:host.react,'react-native':{Text:'Text',View:'View'},'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:0,bottom:0})},
   '../../../../../packages/i18n/src':{defaultI18n:{t:(key:string)=>key}},
   '../../../../../packages/client-core/src/presentation/errors':{},
@@ -36,7 +34,7 @@ test('actual native Library selection composes the refusal without an executor a
   '../destinations/lifetime':{nativeDestinationLifetime:()=>({current:()=>true})},
   '../native-screen-services':{nativeScreenServices:()=>({})},'../destinations/DestinationPicker':{},'../search/loaded-destinations':{},'../destinations/bulk-media':{},
   './model':{nativeLibraryEntryKey:()=>''},'./play-selection':{createNativeLibraryPlaySelection:()=>producer},
-  './selection-unavailable-actions':selectionUnavailableActions,'./whole-query-unavailable':wholeQueryUnavailable,
+  './selection-unavailable-actions':selectionUnavailableActions,
  });
  const port=createNativeLibrarySelection({subscribeAuthority:()=>()=>{}} as any,source as any,{getSnapshot:()=>({visible:true}),subscribe:()=>()=>{}} as any);
  const off=port.subscribe(()=>{notifications++;});
