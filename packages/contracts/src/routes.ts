@@ -495,32 +495,6 @@ export const routes = [
     "admission": "default"
   },
   {
-    "audience": "Integrations",
-    "id": "create_integration_app_password",
-    "method": "POST",
-    "path": "/v1/integrations/app-passwords",
-    "summary": "Create an integration app password for one account and profile",
-    "access": "owner",
-    "requires": "session",
-    "lane": "security",
-    "cost": "constant",
-    "bodyLimit": 4096,
-    "errors": [
-      "unauthorized",
-      "not_permitted",
-      "insufficient_scope",
-      "session_required",
-      "invalid_request",
-      "not_found",
-      "credential_limit",
-      "internal",
-      "database_busy",
-      "writer_capacity"
-    ],
-    "status": 201,
-    "admission": "security-fence"
-  },
-  {
     "audience": "Clients",
     "id": "create_queue",
     "method": "POST",
@@ -3511,29 +3485,6 @@ export const routes = [
   },
   {
     "audience": "Clients",
-    "id": "get_devices",
-    "method": "GET",
-    "path": "/v1/devices",
-    "summary": "List this account's devices",
-    "access": "device",
-    "requires": "admin",
-    "lane": "security",
-    "cost": "page_sized",
-    "bodyLimit": 0,
-    "query": [
-      "installationId"
-    ],
-    "errors": [
-      "unauthorized",
-      "invalid_request",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "admission": "auth"
-  },
-  {
-    "audience": "Clients",
     "id": "get_direct_account",
     "method": "GET",
     "path": "/v1/direct",
@@ -4767,30 +4718,6 @@ export const routes = [
   },
   {
     "audience": "Clients",
-    "id": "get_items_id_metadata_manual",
-    "method": "GET",
-    "path": "/v1/items/{id}/metadata/manual",
-    "summary": "Read title metadata manual",
-    "access": "admin_scope",
-    "adminScope": "metadata",
-    "requires": "library",
-    "lane": "browsing",
-    "cost": "constant",
-    "bodyLimit": 0,
-    "errors": [
-      "invalid_request",
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "http": true,
-    "admission": "browsing"
-  },
-  {
-    "audience": "Clients",
     "id": "get_items_id_prepared_versions",
     "method": "GET",
     "path": "/v1/items/{id}/prepared-versions",
@@ -5135,30 +5062,6 @@ export const routes = [
       "database_busy"
     ],
     "status": 200,
-    "admission": "browsing"
-  },
-  {
-    "audience": "Clients",
-    "id": "get_libraries_id_metadata_screen",
-    "method": "GET",
-    "path": "/v1/libraries/{id}/metadata/screen",
-    "summary": "Read library metadata screen",
-    "access": "admin_scope",
-    "adminScope": "libraries",
-    "requires": "library",
-    "lane": "browsing",
-    "cost": "constant",
-    "bodyLimit": 0,
-    "errors": [
-      "invalid_request",
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "http": true,
     "admission": "browsing"
   },
   {
@@ -7769,46 +7672,6 @@ export const routes = [
     "admission": "media-body"
   },
   {
-    "audience": "Integrations",
-    "id": "integration_users",
-    "method": "GET",
-    "path": "/v1/integrations/users",
-    "summary": "Read permitted native user and profile identities",
-    "access": "device",
-    "requires": "read",
-    "lane": "browsing",
-    "cost": "page_sized",
-    "bodyLimit": 0,
-    "query": [
-      "cursor",
-      "limit"
-    ],
-    "queryIntegers": [
-      {
-        "name": "limit",
-        "minimum": 1,
-        "default": 100,
-        "maximum": 100,
-        "emptyIsDefault": true
-      }
-    ],
-    "errors": [
-      "unauthorized",
-      "not_permitted",
-      "insufficient_scope",
-      "session_required",
-      "invalid_request",
-      "invalid_cursor",
-      "cursor_expired",
-      "stale_continuation",
-      "not_found",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "admission": "browsing"
-  },
-  {
     "audience": "Clients",
     "id": "issue_download_receipts",
     "method": "POST",
@@ -8101,34 +7964,6 @@ export const routes = [
       "downloads_unavailable",
       "internal",
       "timeout",
-      "database_busy"
-    ],
-    "status": 200,
-    "admission": "security-fence"
-  },
-  {
-    "audience": "Integrations",
-    "id": "list_integration_app_passwords",
-    "method": "GET",
-    "path": "/v1/integrations/app-passwords",
-    "summary": "List named integration app passwords",
-    "access": "owner",
-    "requires": "session",
-    "lane": "security",
-    "cost": "constant",
-    "bodyLimit": 0,
-    "query": [
-      "cursor"
-    ],
-    "errors": [
-      "unauthorized",
-      "not_permitted",
-      "insufficient_scope",
-      "session_required",
-      "invalid_request",
-      "not_found",
-      "credential_limit",
-      "internal",
       "database_busy"
     ],
     "status": 200,
@@ -12629,56 +12464,6 @@ export const routes = [
     "admission": "default"
   },
   {
-    "audience": "Integrations",
-    "id": "reveal_api_key",
-    "method": "GET",
-    "path": "/v1/admin/api-keys/{id}/secret",
-    "summary": "Reveal this credential to the signed-in owner",
-    "access": "owner",
-    "requires": "session",
-    "lane": "security",
-    "cost": "constant",
-    "bodyLimit": 0,
-    "errors": [
-      "unauthorized",
-      "not_permitted",
-      "insufficient_scope",
-      "session_required",
-      "invalid_request",
-      "not_found",
-      "credential_limit",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "admission": "security-fence"
-  },
-  {
-    "audience": "Integrations",
-    "id": "reveal_integration_app_password",
-    "method": "GET",
-    "path": "/v1/integrations/app-passwords/{id}/secret",
-    "summary": "Reveal this credential to the signed-in owner",
-    "access": "owner",
-    "requires": "session",
-    "lane": "security",
-    "cost": "constant",
-    "bodyLimit": 0,
-    "errors": [
-      "unauthorized",
-      "not_permitted",
-      "insufficient_scope",
-      "session_required",
-      "invalid_request",
-      "not_found",
-      "credential_limit",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "admission": "security-fence"
-  },
-  {
     "audience": "Clients",
     "id": "revoke_download_receipts",
     "method": "POST",
@@ -12704,32 +12489,6 @@ export const routes = [
       "downloads_unavailable",
       "internal",
       "timeout",
-      "database_busy",
-      "writer_capacity"
-    ],
-    "status": 200,
-    "admission": "security-fence"
-  },
-  {
-    "audience": "Integrations",
-    "id": "revoke_integration_app_password",
-    "method": "DELETE",
-    "path": "/v1/integrations/app-passwords/{id}",
-    "summary": "Revoke an app password and every token issued from it",
-    "access": "owner",
-    "requires": "session",
-    "lane": "security",
-    "cost": "constant",
-    "bodyLimit": 0,
-    "errors": [
-      "unauthorized",
-      "not_permitted",
-      "insufficient_scope",
-      "session_required",
-      "invalid_request",
-      "not_found",
-      "credential_limit",
-      "internal",
       "database_busy",
       "writer_capacity"
     ],

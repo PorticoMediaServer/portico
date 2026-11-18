@@ -1937,7 +1937,6 @@ export type RouteContracts = {
 "create_download_grant": { request: CreateDownloadGrantRequest; response: CreateDownloadGrantResponse };
 "create_download_preparations": { request: CreateDownloadPreparationsRequest; response: CreateDownloadPreparationsResponse };
 "create_download_request": { request: CreateDownloadRequestRequest; response: CreateDownloadRequestResponse };
-"create_integration_app_password": { request: CreateIntegrationAppPasswordRequest; response: CreateIntegrationAppPasswordResponse };
 "create_queue": { request: CreateQueueRequest; response: CreateQueueResponse };
 "create_selection_action": { request: CreateSelectionActionRequest; response: CreateSelectionActionResponse };
 "create_selection_action_preparation": { request: CreateSelectionActionPreparationRequest; response: CreateSelectionActionPreparationResponse };
@@ -2047,7 +2046,6 @@ export type RouteContracts = {
 "get_console_settings": { request: GetConsoleSettingsRequest; response: GetConsoleSettingsResponse };
 "get_container_personal_state": { request: GetContainerPersonalStateRequest; response: GetContainerPersonalStateResponse };
 "get_data_storage_usage": { request: GetDataStorageUsageRequest; response: GetDataStorageUsageResponse };
-"get_devices": { request: GetDevicesRequest; response: GetDevicesResponse };
 "get_direct_account": { request: GetDirectAccountRequest; response: GetDirectAccountResponse };
 "get_direct_member_deletion_preview": { request: GetDirectMemberDeletionPreviewRequest; response: GetDirectMemberDeletionPreviewResponse };
 "get_direct_profile_avatars": { request: GetDirectProfileAvatarsRequest; response: GetDirectProfileAvatarsResponse };
@@ -2085,7 +2083,6 @@ export type RouteContracts = {
 "get_items_id_credits": { request: GetItemsIdCreditsRequest; response: GetItemsIdCreditsResponse };
 "get_items_id_detail": { request: GetItemsIdDetailRequest; response: GetItemsIdDetailResponse };
 "get_items_id_lyrics": { request: GetItemsIdLyricsRequest; response: GetItemsIdLyricsResponse };
-"get_items_id_metadata_manual": { request: GetItemsIdMetadataManualRequest; response: GetItemsIdMetadataManualResponse };
 "get_items_id_prepared_versions": { request: GetItemsIdPreparedVersionsRequest; response: GetItemsIdPreparedVersionsResponse };
 "get_items_id_similar": { request: GetItemsIdSimilarRequest; response: GetItemsIdSimilarResponse };
 "get_items_id_source_availability": { request: GetItemsIdSourceAvailabilityRequest; response: GetItemsIdSourceAvailabilityResponse };
@@ -2098,7 +2095,6 @@ export type RouteContracts = {
 "get_libraries_id_content": { request: GetLibrariesIdContentRequest; response: GetLibrariesIdContentResponse };
 "get_libraries_id_inventory_status": { request: GetLibrariesIdInventoryStatusRequest; response: GetLibrariesIdInventoryStatusResponse };
 "get_libraries_id_listening_selection": { request: GetLibrariesIdListeningSelectionRequest; response: GetLibrariesIdListeningSelectionResponse };
-"get_libraries_id_metadata_screen": { request: GetLibrariesIdMetadataScreenRequest; response: GetLibrariesIdMetadataScreenResponse };
 "get_libraries_id_network_roots": { request: GetLibrariesIdNetworkRootsRequest; response: GetLibrariesIdNetworkRootsResponse };
 "get_libraries_id_strm_analysis_policy": { request: GetLibrariesIdStrmAnalysisPolicyRequest; response: GetLibrariesIdStrmAnalysisPolicyResponse };
 "get_libraries_libraryId_reading_mark_all": { request: GetLibrariesLibraryIdReadingMarkAllRequest; response: GetLibrariesLibraryIdReadingMarkAllResponse };
@@ -2182,7 +2178,6 @@ export type RouteContracts = {
 "get_v1_media_subtitles_grant_resource_revision": { request: GetV1MediaSubtitlesGrantResourceRevisionRequest; response: GetV1MediaSubtitlesGrantResourceRevisionResponse };
 "get_v1_media_subtitles_grant_resource_revision_vtt": { request: GetV1MediaSubtitlesGrantResourceRevisionVttRequest; response: GetV1MediaSubtitlesGrantResourceRevisionVttResponse };
 "head_reading_sessions_sessionId_source": { request: HeadReadingSessionsSessionIdSourceRequest; response: HeadReadingSessionsSessionIdSourceResponse };
-"integration_users": { request: IntegrationUsersRequest; response: IntegrationUsersResponse };
 "issue_download_receipts": { request: IssueDownloadReceiptsRequest; response: IssueDownloadReceiptsResponse };
 "list_access_tokens": { request: ListAccessTokensRequest; response: ListAccessTokensResponse };
 "list_admin_sessions": { request: ListAdminSessionsRequest; response: ListAdminSessionsResponse };
@@ -2191,7 +2186,6 @@ export type RouteContracts = {
 "list_download_receipt_keys": { request: ListDownloadReceiptKeysRequest; response: ListDownloadReceiptKeysResponse };
 "list_download_requests": { request: ListDownloadRequestsRequest; response: ListDownloadRequestsResponse };
 "list_download_revocations": { request: ListDownloadRevocationsRequest; response: ListDownloadRevocationsResponse };
-"list_integration_app_passwords": { request: ListIntegrationAppPasswordsRequest; response: ListIntegrationAppPasswordsResponse };
 "list_live_source_channels": { request: ListLiveSourceChannelsRequest; response: ListLiveSourceChannelsResponse };
 "list_live_source_groups": { request: ListLiveSourceGroupsRequest; response: ListLiveSourceGroupsResponse };
 "list_live_sources": { request: ListLiveSourcesRequest; response: ListLiveSourcesResponse };
@@ -2352,10 +2346,7 @@ export type RouteContracts = {
 "reorder_saved_collection": { request: ReorderSavedCollectionRequest; response: ReorderSavedCollectionResponse };
 "report_changed_paths": { request: ReportChangedPathsRequest; response: ReportChangedPathsResponse };
 "revalidate_download_receipts": { request: RevalidateDownloadReceiptsRequest; response: RevalidateDownloadReceiptsResponse };
-"reveal_api_key": { request: RevealApiKeyRequest; response: RevealApiKeyResponse };
-"reveal_integration_app_password": { request: RevealIntegrationAppPasswordRequest; response: RevealIntegrationAppPasswordResponse };
 "revoke_download_receipts": { request: RevokeDownloadReceiptsRequest; response: RevokeDownloadReceiptsResponse };
-"revoke_integration_app_password": { request: RevokeIntegrationAppPasswordRequest; response: RevokeIntegrationAppPasswordResponse };
 "save_live_source": { request: SaveLiveSourceRequest; response: SaveLiveSourceResponse };
 "save_queue_as_playlist": { request: SaveQueueAsPlaylistRequest; response: SaveQueueAsPlaylistResponse };
 "search": { request: SearchRequest; response: SearchResponse };
