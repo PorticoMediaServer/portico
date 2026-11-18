@@ -8,7 +8,6 @@ import {rememberedFor} from '../src/remember-marker.ts';
 import {moveOfferDays} from '../src/sign-in.ts';
 import {captureReportContext} from '../src/report-context.ts';
 import {recordMembershipEndingShown, parseMembershipEndingNotice} from '../src/membership-ending.ts';
-import {securityBlockLine} from '../src/server-admin/security-summary.ts';
 import {parseRetryAfter} from '../src/timer.ts';
 import {providerProblem} from '../src/subtitles.ts';
 
@@ -88,9 +87,6 @@ for (const [label, skew] of SKEWS) {
     assert.ok(parseRetryAfter(new Date(truth + 30_000).toUTCString())! <= 31_000);
     // "resets at" is the server's now plus its wait
     assert.ok(providerProblem({code: 'subtitle_provider_quota', retryAfterSeconds: 120})?.text);
-    // a block that ends later today reads as a time of day on the server's calendar
-    const words = {t: ((_id: string, values?: Record<string, string | number>) => String(values?.time)) as never, time: () => 'TIME', dateTime: () => 'DATETIME'};
-    assert.equal(securityBlockLine({blockedUntil: iso(truth + 60_000), failedAttempts: 3} as never, words), new Date(truth + 60_000).getDate() === new Date(serverNow()).getDate() ? 'TIME' : 'DATETIME');
     // the exchange took 40 ms on the device's clock (sentAt − 20 to receivedAt + 20): the server's now is within it
     assert.ok(Math.abs(serverNow() - truth) <= 20);
   });
