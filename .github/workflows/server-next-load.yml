@@ -21,8 +21,9 @@ name: New server under load
 #
 # The "wire" job is an evening at a real server process, through its routes: a seeded library
 # (400,000 items unless asked), 200 people each signed in on a device of their own, 80 of them
-# playing a real film by direct play with byte ranges and progress reports, the rest browsing,
-# half on restricted profiles. Measured on this runner, not on the owner's hardware.
+# playing a real film (70 by direct play with byte ranges, 10 converted in software and fetched
+# as HLS at real-time pace) with progress reports, the rest browsing, half on restricted
+# profiles. Measured on this runner, not on the owner's hardware.
 on:
   workflow_dispatch:
     inputs:
@@ -53,6 +54,9 @@ on:
       wire_streams:
         description: People of the 200 in the wire job who are streaming
         default: '80'
+      wire_converting:
+        description: Of those streams, how many play a film the server must convert in software (HEVC 10-bit to a device that plays only H.264)
+        default: '10'
   # A change to the workflow or the load tools runs them.
   pull_request:
     paths:
@@ -76,6 +80,7 @@ env:
   BUSY_TIME: ${{ inputs.busy_time || '10ms' }}
   WIRE_ITEMS: ${{ inputs.wire_items || '400000' }}
   WIRE_STREAMS: ${{ inputs.wire_streams || '80' }}
+  WIRE_CONVERTING: ${{ inputs.wire_converting || '10' }}
   WORK: ${{ github.workspace }}/load
 defaults:
   run:
@@ -330,22 +335,36 @@ jobs:
         run: |
           mkdir -p "$WORK/bin" "$WORK/data" "$WORK/media"
           cd server-next && CGO_ENABLED=0 go build -o "$WORK/bin/" ./cmd/portico-seed ./cmd/portico-load ./cmd/portico-server
-      - name: Seed the library and make a real film (1080p H.264 at 8 Mbit/s with AAC, one minute)
+      - name: Seed the library and make two real films (1080p H.264 at 8 Mbit/s for direct play; 1080p HEVC 10-bit for conversion)
         run: |
           "$WORK/bin/portico-seed" -db "$WORK/data/main.db" -items "$WIRE_ITEMS" -phase import 2>&1 | tail -2
           ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i testsrc2=size=1920x1080:rate=24 -f lavfi -i sine=frequency=440:sample_rate=48000 \
             -t 60 -c:v libx264 -preset veryfast -b:v 8M -pix_fmt yuv420p -c:a aac -ac 2 "$WORK/media/film.mkv"
-      - name: Start the server, then 200 people for ten minutes
+          # One minute encoded, then repeated to eleven by copying, so no converting player reaches the end.
+          ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i testsrc2=size=1920x1080:rate=24 -f lavfi -i sine=frequency=330:sample_rate=48000 \
+            -t 60 -c:v libx265 -preset ultrafast -x265-params log-level=error -pix_fmt yuv420p10le -b:v 6M -c:a aac -ac 2 "$WORK/media/minute.mkv"
+          ffmpeg -nostdin -hide_banner -loglevel error -stream_loop 10 -i "$WORK/media/minute.mkv" -c copy "$WORK/media/hevc.mkv" && rm "$WORK/media/minute.mkv"
+      - name: Start the server, then 200 people for ten minutes, with no network but loopback
         working-directory: server-next
         run: |
-          # TMDB is pointed at a closed port: nothing here reaches an outside service.
-          PORTICO_TMDB_ORIGIN=http://127.0.0.1:9 "$WORK/bin/portico-server" -data "$WORK/data" -listen 127.0.0.1:32500 > "$WORK/server.log" 2>&1 &
-          echo "$!" > "$WORK/server.pid"
+          # The server and the driver share a network with only loopback: seeded libraries are TMDB and MusicBrainz
+          # libraries, and nothing here may reach an outside service.
+          cat > "$WORK/evening.sh" <<'SCRIPT'
+          set -eu
+          "$WORK/bin/portico-server" -data "$WORK/data" -listen 127.0.0.1:32500 > "$WORK/server.log" 2>&1 &
+          server=$!
           for _ in $(seq 120); do [ -f "$WORK/data/setup-code.txt" ] && curl -s -o /dev/null http://127.0.0.1:32500/ && break; sleep 1; done
           "$WORK/bin/portico-load" -mode http -url http://127.0.0.1:32500 -setup-code "$WORK/data/setup-code.txt" -media "$WORK/media/film.mkv" \
-            -pid "$(cat "$WORK/server.pid")" -people 200 -streams "$WIRE_STREAMS" -crowd-time 10m -out "$WORK/wire.json" | tee "$WORK/wire.txt"
+            -convert-media "$WORK/media/hevc.mkv" -converting "$WIRE_CONVERTING" \
+            -pid "$server" -people 200 -streams "$WIRE_STREAMS" -crowd-time 10m -out "$WORK/wire.json" > "$WORK/wire.txt" 2>&1 || true
+          kill "$server"; wait "$server" || true
+          SCRIPT
+          sudo systemd-run --quiet --wait --collect --pipe -p PrivateNetwork=yes --uid="$(id -u)" --gid="$(id -g)" \
+            --working-directory="$PWD" -E WORK="$WORK" -E WIRE_STREAMS="$WIRE_STREAMS" -E WIRE_CONVERTING="$WIRE_CONVERTING" -E PATH="$PATH" \
+            bash "$WORK/evening.sh"
+          cat "$WORK/wire.txt"
           {
-            echo "### A real server over HTTP: 200 people, $WIRE_STREAMS streaming by direct play, $WIRE_ITEMS items"
+            echo "### A real server over HTTP: 200 people, $WIRE_STREAMS streaming ($WIRE_CONVERTING of them converted in software), $WIRE_ITEMS items"
             echo
             echo "Runner: ubuntu-24.04, $(nproc) vCPU, $(awk '/MemTotal/ {printf "%.0f", $2 / 1048576}' /proc/meminfo) GB, nothing limited; driver and server share it"
             echo
@@ -353,9 +372,9 @@ jobs:
             cat "$WORK/wire.txt"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Stop the server
+      - name: The server's last log lines
         if: always()
-        run: kill "$(cat "$WORK/server.pid")" 2>/dev/null; sleep 5; tail -n 40 "$WORK/server.log" || true
+        run: tail -n 40 "$WORK/server.log" || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

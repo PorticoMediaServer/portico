@@ -99,6 +99,8 @@ func main() {
 	address := flag.String("url", "http://127.0.0.1:32500", "http: the running server, seeded and not yet set up")
 	setupCode := flag.String("setup-code", "", "http: the server's setup-code.txt")
 	media := flag.String("media", "", "http: a real film the streams play, copied into a library of its own beside it")
+	convertMedia := flag.String("convert-media", "", "http: a real film the converting streams play, which the baseline device cannot play as it is")
+	converting := flag.Int("converting", 0, "http: how many of the streams play -convert-media and so are converted")
 	document := flag.String("device", "internal/streaming/profiles/androidtv.json", "http: the device profile the players declare")
 	pid := flag.Int("pid", 0, "http: the server's process id, to read its processor time and memory")
 	streamFile := flag.String("stream-file", "", "crowd: a large file each stream reads a mebibyte a second of")
@@ -126,14 +128,17 @@ func main() {
 	}
 	if *mode == "http" {
 		// The server owns the database: everything here goes through its routes.
-		report := httpCrowd(ctx, *address, *setupCode, *media, *document, *pid, *people, *streams, *crowdTime)
+		report := httpCrowd(ctx, *address, *setupCode, *media, *convertMedia, *document, *pid, *people, *streams, *converting, *crowdTime)
 		for _, name := range sortedKeys(report.Requests) {
 			t := report.Requests[name]
 			fmt.Printf("%-34s n %6d  p50 %7.1f  p90 %7.1f  p99 %7.1f  max %7.1f ms\n", name, t.N, t.P50, t.P90, t.P99, t.Max)
 		}
 		fmt.Printf("streams: %d started, start p50 %.1f p99 %.1f ms; %d MiB read, mebibyte reads p99 %.1f max %.1f ms\n",
 			report.StreamStarts.N, report.StreamStarts.P50, report.StreamStarts.P99, report.StreamedMiB, report.Chunks.P99, report.Chunks.Max)
-		fmt.Printf("server: %.2f cores on average, peak memory %d MiB; failures %v\n", report.ServerCPU, report.ServerPeakRSS/mib, report.Failures)
+		fmt.Printf("conversions: %d, first picture p50 %.0f max %.0f ms, late segments %d, first 30 s made at %.1f times real time\n",
+			report.Converting, report.ConvertStarts.P50, report.ConvertStarts.Max, report.LateSegments, report.ConvertSpeed)
+		fmt.Printf("server: %.2f cores on average, peak memory %d MiB; this driver %.2f cores; failures %v\n",
+			report.ServerCPU, report.ServerPeakRSS/mib, report.DriverCPU, report.Failures)
 		printBars(report.Bars)
 		writeReport(*out, report)
 		return
