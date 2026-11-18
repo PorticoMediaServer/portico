@@ -17,7 +17,8 @@ import {Button} from '../controls/Button';
 const BesideList = createContext(false);
 
 export type SettingsListFrameProps = Readonly<{
-  /** The sheet's bar while the list shows (Settings, Done). Phone only; wider forms have the shell's navigation. */
+  /** The sheet's bar while the list shows (Settings, Done) on a phone; wider forms draw its title over the search, as the
+   * page's title beside it (final3-tv-15, desktop-settings f1, tablet f12). */
   bar: SheetBarProps;
   /** Phone: the sheet's open state. Wider forms draw Settings in the page and ignore it. */
   open: boolean; onOpenChange: (open: boolean, reason: OverlayReason) => void;
@@ -53,7 +54,8 @@ function SettingsListBody({bar, open, onOpenChange, search, list, profile, short
   return <View testID={testID} style={{flex: 1, flexDirection: 'row', paddingLeft: frame.gutter, gap: frameSpec.settings.gap[form]}}>
     {/* The list's column is already placed from the gutter, so the cards in it start at the column's own edges. */}
     <View style={{width}}>
-      <ScrollView style={{flex: 1, width: width + 2 * ring, marginLeft: -ring}} contentContainerStyle={{paddingTop: frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}><FrameColumn.Provider value>{search}{list}</FrameColumn.Provider></ScrollView>
+      <ScrollView style={{flex: 1, width: width + 2 * ring, marginLeft: -ring}} contentContainerStyle={{paddingTop: frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}><FrameColumn.Provider value>
+        <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, marginBottom: frame.headerGap}]}>{bar.title}</Text>{search}{list}</FrameColumn.Provider></ScrollView>
       {form === 'tv' && hints ? <View style={{paddingBottom: frame.bottomClear}}>{hints}</View> : null}
     </View>
     <View style={{flex: 1}}><BesideList.Provider value>{page}</BesideList.Provider></View>
@@ -102,7 +104,10 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
   // Back and the large title at the gutter (tablets SC-8, r7 S6 on TV), like any pushed page.
   const header = inSheet ? <SheetBar title={title} back={back} action={action}/>
     : beside ? <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm, marginTop: server ? frame.headerGap : frame.titleTop || frame.headerGap, marginBottom: frame.headerGap}}>
-      <Text accessibilityRole="header" style={[theme.type.pageTitle, {flex: 1, color: theme.colors.text}]}>{title}</Text>{trailing}</View>
+      {/* "✓ Saved" follows the title, the page's own buttons keep the far end (desktop-settings f1, final3-tv-15). */}
+      <Text accessibilityRole="header" style={[theme.type.pageTitle, {flexShrink: 1, color: theme.colors.text}]}>{title}</Text>
+      {saved && <View style={{marginBottom: theme.space.xs}}>{saved}</View>}<View style={{flex: 1}}/>
+      {(actions || own) && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>{actions}{own}</View>}</View>
     : <PageHeader title={title} back={back} trailing={trailing}/>;
   const strip = server && <View style={{marginHorizontal: beside ? 0 : frame.cardInset, marginTop: beside ? frame.titleTop || frame.headerGap : 0}}>{server}</View>;
   const body = <>
