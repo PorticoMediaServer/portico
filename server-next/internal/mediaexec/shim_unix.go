@@ -47,6 +47,11 @@ func execShim(spec shimSpec, inner []string) error {
 	if spec.Background {
 		// Background work yields to viewers; it is never paused.
 		_ = unix.Setpriority(unix.PRIO_PROCESS, 0, 10)
+	} else {
+		// A viewer's conversion yields to the server itself: with the processor full of
+		// conversions, pages, sign-ins and played-as-is files must not wait behind them.
+		// The server needs little, so a conversion loses almost nothing (load proof, 18 Nov).
+		_ = unix.Setpriority(unix.PRIO_PROCESS, 0, playbackNice)
 	}
 	// Publication MUST precede this check. Configure changes the guard before
 	// scanning: publication after that scan sees the new instance and must
@@ -61,6 +66,9 @@ func execShim(spec shimSpec, inner []string) error {
 	}
 	return execInPlace(inner)
 }
+
+// playbackNice is a viewer's media job's priority: below the server (0), above background work (10).
+const playbackNice = 4
 
 func execInPlace(argv []string) error {
 	if len(argv) == 0 || !filepath.IsAbs(argv[0]) {

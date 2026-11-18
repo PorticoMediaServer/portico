@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -379,4 +380,47 @@ func crashedServer() {
 	}
 	os.Stdout.WriteString(strconv.Itoa(cmd.Process.Pid) + "\n")
 	time.Sleep(time.Hour)
+}
+
+// A viewer's conversion runs a little below the server, so pages and played-as-is files are
+// served first when conversions fill the processor; background work stays below both.
+func TestAViewersMediaJobYieldsToTheServerAndBackgroundToBoth(t *testing.T) {
+	resetForTest(t)
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The limits shim, which sets the priority, is this test binary as the server is itself.
+	if _, err := Configure(Options{StateDir: t.TempDir(), Helper: binary, SkipOrphanKill: true}); err != nil {
+		t.Fatal(err)
+	}
+	ffmpeg := decodertest.QualifiedFFmpeg(t)
+	for _, c := range []struct {
+		background bool
+		want       int
+	}{{false, playbackNice}, {true, 10}} {
+		cmd, err := Command(Job{Executable: ffmpeg, Background: c.background,
+			Args: []string{"-hide_banner", "-loglevel", "error", "-re", "-f", "lavfi", "-i", "nullsrc=s=16x16:d=3", "-f", "null", "-"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd.Stdout = nil
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		nice := -100
+		for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline) && nice != c.want; time.Sleep(50 * time.Millisecond) {
+			stat, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", cmd.Process.Pid))
+			if err != nil {
+				break
+			}
+			fields := strings.Fields(string(stat[strings.LastIndexByte(string(stat), ')')+1:]))
+			nice, _ = strconv.Atoi(fields[16])
+		}
+		cmd.Process.Kill()
+		cmd.Wait()
+		if nice != c.want {
+			t.Errorf("a job with Background %v runs at nice %d, want %d", c.background, nice, c.want)
+		}
+	}
 }
