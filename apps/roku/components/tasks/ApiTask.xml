@@ -18,4 +18,5 @@
   <script type="text/brightscript" uri="Transfer.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
   <script type="text/brightscript" uri="pkg:/source/AppLog.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Servers.brs"/>
 </component>

@@ -31,6 +31,12 @@ sub storeWrite(values as object)
     end for
 end sub
 
+function storeRead(key as string) as string
+    value = m.store[lcase(key)]
+    if value = invalid then return ""
+    return value
+end function
+
 function installationId() as string
     return "installation"
 end function

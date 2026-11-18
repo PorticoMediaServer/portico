@@ -71,6 +71,35 @@ sub load()
     api("GET", "/v1/me", invalid, "onMe")
     api("GET", "/v1/devices", invalid, "onDevices")
     api("GET", "/v1/system", invalid, "onSystem")
+    accountServers(false)
+end sub
+
+' --- Switch server: the Portico Account's servers -------------------------------------------------
+' Read from Portico Services with the account's sign-in this TV keeps. The last list is kept and
+' shown at once; it is read again when it is more than six hours old (the foreground check of the
+' native apps) or when Refresh servers is pressed.
+sub accountServers(now as boolean)
+    kept = storeRead("accountServers")
+    if kept <> "" then m.accountServers = parseJson(kept)
+    if storeRead("porticoRefresh") = "" then return
+    age = createObject("roDateTime").asSeconds() - val(storeRead("accountServersAt"))
+    if not now and kept <> "" and age < 6 * 3600 then return
+    api("POST", "/v1/sessions/refresh", {refreshToken: storeRead("porticoRefresh")}, "onAccountRenewed", invalid, true, "", services())
+end sub
+
+sub onAccountRenewed(event as object)
+    result = event.getData()
+    if not result.ok or result.data = invalid or result.data.accessToken = invalid then return     ' the kept list stays
+    if result.data.refreshToken <> invalid then storeWrite({porticoRefresh: result.data.refreshToken})
+    api("GET", "/v1/servers?signature=rsa", invalid, "onAccountServers", invalid, true, "", services(), "", result.data.accessToken)
+end sub
+
+sub onAccountServers(event as object)
+    result = event.getData()
+    if not result.ok or result.data = invalid or result.data.list = invalid then return
+    m.accountServers = listedServers(result.data.list.payload)
+    storeWrite({accountServers: formatJson(m.accountServers), accountServersAt: createObject("roDateTime").asSeconds().toStr()})
+    redraw()
 end sub
 
 sub onPreferences(event as object)
@@ -345,6 +374,44 @@ function accountRows(spec as object) as object
             if device.current = true then return [{label: spec.label, value: device.name, act: does}]
         end for
         return []
+    else if id = "connected"
+        if m.me = invalid then return []
+        help = "Signed in with a local account"
+        if m.me.account.hostedAccountId <> invalid then help = "Signed in with your Portico Account"
+        value = ""
+        if m.me.account.role = "owner" then value = "Owner"
+        return [{label: storeRead("serverName"), help: help, value: value, icon: "server", act: does}]
+    else if id = "accountServers"
+        if m.accountServers = invalid then return []
+        rows = []
+        here = serverAt(rememberedServers(storeRead("servers")), storeRead("origin"))
+        for each server in m.accountServers
+            onTV = invalid
+            for each kept in rememberedServers(storeRead("servers"))
+                if kept.serverId <> invalid and kept.serverId = server.serverId then onTV = kept
+            end for
+            if here = invalid or here.serverId = invalid or here.serverId <> server.serverId
+                row = {label: server.name, icon: "server", act: {kind: "action", id: "server", serverId: server.serverId, name: server.name}}
+                if server.owner = true then row.value = "Owner"
+                if onTV <> invalid
+                    row.help = "Signed in on this TV"
+                    row.act.origin = onTV.origin
+                end if
+                rows.push(row)
+            end if
+        end for
+        return rows
+    else if id = "localServers"
+        rows = []
+        for each kept in rememberedServers(storeRead("servers"))
+            if kept.kind = "local" and kept.origin <> storeRead("origin")
+                rows.push({label: kept.name, help: addressShown(kept.origin), icon: "server", act: {kind: "action", id: "server", origin: kept.origin, name: kept.name}})
+            end if
+        end for
+        return rows
+    else if id = "refreshServers"
+        if storeRead("porticoRefresh") = "" then return []
+        return [{label: spec.label, icon: spec.icon, act: does}]
     else if id = "appVersion"
         return [{label: spec.label, value: createObject("roAppInfo").getVersion(), act: does}]
     else if id = "server" or id = "serverVersion"
@@ -620,6 +687,11 @@ function onKeyEvent(key as string, press as boolean) as boolean
         return true
     end if
     if key = "OK" then act(m.stops[m.row].act)
+    ' Hold OK on a server this TV is signed in to: Forget asks first (connect.html frame 25)
+    if key = "options" and m.stops[m.row].act.origin <> invalid
+        m.forgetting = m.stops[m.row].act
+        m.confirm.model = {title: "Forget " + m.forgetting.name + " on this TV?", body: "This TV stops listing it and forgets its sign-in there. You can sign in to it again from Use a local server or your Portico Account.", verb: "Forget"}
+    end if
     return true
 end function
 
@@ -653,6 +725,14 @@ sub act(a as object)
         redraw()
     else if a.id = "signout"
         m.top.account = "signout"      ' the scene asks first, as it does from the rail's profile menu
+    else if a.id = "server" and a.origin <> invalid
+        m.top.account = "server|" + a.origin      ' a server this TV is signed in to: the scene switches
+    else if a.id = "server"
+        m.top.account = "open|" + a.serverId      ' one of the account's servers, not yet on this TV
+    else if a.id = "refreshServers"
+        accountServers(true)
+    else if a.id = "addServer"
+        m.top.account = "local"
     else if a.id = "reset"
         m.confirm.model = {title: "Reset recommendations?", body: "Portico will forget what it has learned about your taste. Your watch history, ratings and lists stay.", verb: "Reset"}
     else if a.id = "licences"
@@ -803,7 +883,14 @@ sub onConfirmed()
     ' the dialog is inside the screen, so the screen cannot take focus back from it: its list group does
     m.list.setFocus(true)
     paint()
+    forgetting = m.forgetting
+    m.forgetting = invalid
     if m.confirm.chosen <> "confirm" then return
+    if forgetting <> invalid
+        storeWrite({servers: formatJson(withoutServer(rememberedServers(storeRead("servers")), forgetting.origin))})
+        redraw()
+        return
+    end if
     api("POST", "/v1/me/recommendations:reset", {}, "onReset", invalid, false, createObject("roDeviceInfo").getRandomUUID())
 end sub
 

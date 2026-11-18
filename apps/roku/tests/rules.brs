@@ -63,11 +63,28 @@ sub main()
     same("mdns compressed names", [found.ip, found.port.toStr(), found.id], ["10.0.0.7", "32500", "srv_TC4bO_PVMehPe63MA3pvh1AzzvSbKlmCkd6m_ye0PIg"])
     same("mdns goodbye, question, short", [type(mdnsServer(hexBytes("000084000000000400000000085F706F727469636F045F746370056C6F63616C00000C000100000000002610506F727469636F2D6131623263336434085F706F727469636F045F746370056C6F63616C0010506F727469636F2D6131623263336434085F706F727469636F045F746370056C6F63616C000021800100000000001E000000007EF410706F727469636F2D6131623263336434056C6F63616C0010506F727469636F2D6131623263336434085F706F727469636F045F746370056C6F63616C000010800100000000005B03763D313269643D7372765F544334624F5F50564D6568506536334D413370766831417A7A7653624B6C6D436B64366D5F7965305049672366703D613162326333643465356636303731383239336134623563366437653866393010706F727469636F2D6131623263336434056C6F63616C0000018001000000000004C0A80114"), len("000084000000000400000000085F706F727469636F045F746370056C6F63616C00000C000100000000002610506F727469636F2D6131623263336434085F706F727469636F045F746370056C6F63616C0010506F727469636F2D6131623263336434085F706F727469636F045F746370056C6F63616C000021800100000000001E000000007EF410706F727469636F2D6131623263336434056C6F63616C0010506F727469636F2D6131623263336434085F706F727469636F045F746370056C6F63616C000010800100000000005B03763D313269643D7372765F544334624F5F50564D6568506536334D413370766831417A7A7653624B6C6D436B64366D5F7965305049672366703D613162326333643465356636303731383239336134623563366437653866393010706F727469636F2D6131623263336434056C6F63616C0000018001000000000004C0A80114") / 2)), type(mdnsServer(mdnsQuery(), mdnsQuery().count())), type(mdnsServer(hexBytes("000084000000000400000000085F706F727469636F045F746370056C6F63616C00000C000100000078002610506F727469636F2D6131623263336434085F706F727469636F045F746370056C6F63616C0010506F727469636F2D6131623263336434085F706F727469636F045F746370056C6F63616C000021800100000078001E000000007EF410706F727469636F2D6131623263336434056C6F63616C0010506F727469636F2D6131623263336434085F706F727469636F045F746370056C6F63616C000010800100000078005B03763D313269643D7372765F544334624F5F50564D6568506536334D413370766831417A7A7653624B6C6D436B64366D5F7965305049672366703D613162326333643465356636303731383239336134623563366437653866393010706F727469636F2D6131623263336434056C6F63616C0000018001000000780004C0A80114"), 40))], ["Invalid", "Invalid", "Invalid"])
 
+    ' Portico Services' list after its signature holds: never an older version, every id the digest of its key
+    idOf = function(key as string) as string
+        return "srv_" + key
+    end function
+    good = {kind: "portico.server-list", version: 7, servers: [{serverId: "srv_k1", publicKey: "k1"}]}
+    same("server list rules", [listRules(good, invalid, idOf), listRules(good, 7, idOf), listRules(good, 8, idOf), listRules({kind: "portico.server-list", version: 7, servers: [{serverId: "srv_x", publicKey: "k1"}]}, invalid, idOf), listRules(invalid, invalid, idOf), listRules({kind: "other"}, invalid, idOf)], ["", "", "older", "id", "unreadable", "unreadable"])
+    same("base64url", [bytesBase64url(base64urlBytes("_-8")), base64urlBytes("AAEC").toHexString()], ["_-8", "000102"])
     same("file sizes", [sizeText(1600000000), sizeText(42000000), sizeText(42582), sizeText(0)], ["1.6 GB", "42 MB", "43 KB", ""])
     ' an artist's circle: two albums split it with the newest on the right; three or more cut the right half
     two = circleTiles(2, 412, 3)
     three = circleTiles(3, 412, 3)
     same("circle tiles", [circleTiles(1, 412, 3).count().toStr(), two[1].index.toStr(), two[1].x.toStr(), three[2].y.toStr(), three[2].h.toStr(), circleTiles(7, 412, 3).count().toStr()], ["1", "0", "207.5", "207.5", "204.5", "4"])
+    ' the servers this TV remembers (Switch server): one entry per address, the newest fields winning
+    list = withServer([], {origin: "https://a", name: "A", refreshToken: "r1"})
+    list = withServer(list, {origin: "https://b", name: "B"})
+    list = withServer(list, {origin: "https://a", refreshToken: "r2"})
+    same("servers kept", [list.count().toStr(), list[0].name, list[0].refreshToken, list[1].name], ["2", "A", "r2", "B"])
+    same("server forgotten", [withoutServer(list, "https://a").count().toStr(), withoutServer(list, "https://a")[0].name], ["1", "B"])
+    same("servers read", [rememberedServers("").count().toStr(), rememberedServers("not json").count().toStr(), rememberedServers(formatJson(list)).count().toStr()], ["0", "0", "2"])
+    ' Services' signed list: a base64url payload (here {"servers":[{"serverId":"srv_a","name":"Ünïcode home"}]})
+    same("server list read", [listedServers("eyJzZXJ2ZXJzIjpbeyJzZXJ2ZXJJZCI6InNydl9hIiwibmFtZSI6IsOcbsOvY29kZSBob21lIn1dfQ")[0].name, listedServers(invalid).count().toStr()], ["Ünïcode home", "0"])
+
     same("duration", [durationText(3840000), durationText(3120000), durationText(3600000), durationText(20000)], ["1 h 4 min", "52 min", "1 h", "1 min"])
     same("episode", [episodeCode({parentIndex: 1, index: 3}), episodeCode({index: 3})], ["S1 E3", ""])
     same("time left", [timeLeftText({durationMs: 7200000, state: {positionMs: 3360000}}), timeLeftText({durationMs: 7200000, state: {}})], ["1 h 4 min left", ""])

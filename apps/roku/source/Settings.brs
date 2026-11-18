@@ -109,6 +109,15 @@ function settingsPages() as object
                 {type: "action", id: "licences", label: "Open-source licenses", value: "View licenses", control: "open"},
                 {type: "action", id: "sendLog", label: "Send app log", help: "Sent to the server owner, without passwords.", control: "open"}
             ]}
+        ]},
+        ' Switch server (connect.html frame 24): the server in use, the Portico Account's servers and
+        ' the local servers this TV is signed in to. No certificates group: a Roku trusts only the
+        ' certificates its system trusts, so there is no certificate of its own to forget.
+        {id: "servers", title: "Switch server", icon: "server", gapBefore: true, intro: "Choose where to watch from. Your profile and progress stay with each server.", sections: [
+            {title: "Connected to", rows: [{type: "info", id: "connected"}]},
+            {title: "Your servers", rows: [{type: "info", id: "accountServers"}]},
+            {title: "Local servers", rows: [{type: "info", id: "localServers"}]},
+            {title: "", rows: [{type: "action", id: "refreshServers", label: "Refresh servers", icon: "refresh"}, {type: "action", id: "addServer", label: "Use a local server"}]}
         ]}
     ]
 end function

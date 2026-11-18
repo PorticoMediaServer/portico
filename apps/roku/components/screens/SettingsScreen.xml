@@ -18,6 +18,8 @@
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Settings.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Servers.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Address.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
     <Label id="heading" text="Settings"/>

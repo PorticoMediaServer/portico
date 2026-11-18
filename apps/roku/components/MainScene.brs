@@ -259,6 +259,8 @@ end sub
 
 sub onSignedOut()
     m.global.appLog = []     ' the app's log goes with the sign-in
+    ' signed out of this server: it is no longer one of this TV's servers
+    storeWrite({servers: formatJson(withoutServer(rememberedServers(storeRead("servers")), storeRead("origin")))})
     storeWrite({refreshToken: "", renewalId: "", profileId: ""})
     m.task.session = {origin: storeRead("origin"), installationId: installationId()}
     showSignIn()
@@ -495,6 +497,16 @@ sub onSignedIn(event as object)
     ' the server's id is kept beside its address: no renewal sends the token where it is not (ApiTask.renew)
     m.task.session = {origin: signIn.origin, serverId: signIn.serverId, accessToken: session.accessToken, refreshToken: session.refreshToken, installationId: installationId()}
     storeWrite({origin: signIn.origin, serverId: signIn.serverId, serverName: signIn.serverName, refreshToken: session.refreshToken, renewalId: ""})
+    m.switching = false
+    ' one of this TV's servers from now on (Switch server); a Portico Account's sign-in is kept for its list
+    kind = "local"
+    if signIn.account <> invalid
+        kind = "portico"
+        storeWrite({porticoRefresh: signIn.account.refreshToken, porticoUser: signIn.account.username})
+    end if
+    serverId = ""
+    if signIn.serverId <> invalid then serverId = signIn.serverId
+    rememberServer({origin: signIn.origin, name: signIn.serverName, serverId: serverId, kind: kind})
     if session.viewer <> invalid and session.viewer.profileId <> invalid
         enter()
     else
@@ -556,7 +568,45 @@ sub onMe(event as object)
     m.rail.profileName = profile.name
     m.global.together.ask = {do: "forget"}     ' a group belongs to the profile that joined it
     m.rail.profileColour = faceColour(profile.color)
+    ' a sign-in from before this TV kept a list of servers joins it now
+    if serverAt(rememberedServers(storeRead("servers")), storeRead("origin")) = invalid
+        kind = "local"
+        if result.data.account <> invalid and result.data.account.hostedAccountId <> invalid then kind = "portico"
+        rememberServer({origin: storeRead("origin"), name: storeRead("serverName"), serverId: "", kind: kind})
+    end if
     showHome()
+end sub
+
+' --- the servers this TV is signed in to (Switch server, connect.html frame 24) -------------------
+
+sub rememberServer(entry as object)
+    storeWrite({servers: formatJson(withServer(rememberedServers(storeRead("servers")), entry))})
+end sub
+
+' The server in use keeps its own sign-in in its entry while another one is used.
+sub setAsideCurrent()
+    rememberServer({origin: storeRead("origin"), refreshToken: storeRead("refreshToken"), profileId: storeRead("profileId")})
+end sub
+
+' Another server this TV is signed in to: its sign-in becomes the one in use, and Home opens there.
+sub switchServer(origin as string)
+    target = serverAt(rememberedServers(storeRead("servers")), origin)
+    if target = invalid or target.refreshToken = invalid or target.refreshToken = "" then return
+    setAsideCurrent()
+    storeWrite({origin: target.origin, serverName: target.name, refreshToken: target.refreshToken, profileId: target.profileId, renewalId: ""})
+    m.entered = false
+    m.global.origin = target.origin
+    m.task.session = {origin: target.origin, refreshToken: target.refreshToken, installationId: installationId()}
+    api("GET", "/v1/me", invalid, "onMe")
+end sub
+
+' A server of the Portico Account this TV has not signed in to yet, or a local server's address: the
+' sign-in pages, with Back to the server in use (m.switching) until the new one signs in.
+sub signInElsewhere(serverId as string)
+    setAsideCurrent()
+    showSignIn()
+    m.switching = true
+    if serverId <> "" then m.screen.callFunc("openAccount", serverId) else m.screen.callFunc("askAddress")
 end sub
 
 sub onCapabilitiesSent(event as object)
@@ -867,9 +917,18 @@ end function
 
 ' Settings' Sign out row asks the scene, as the profile menu's does
 sub onSettingsAsk(event as object)
-    m.sheetIsOwn = true
-    onSheetChosen(event)
-    m.signOutFromMenu = false     ' asked from Settings: Back returns to its row there
+    ask = event.getData()
+    if left(ask, 7) = "server|"
+        switchServer(mid(ask, 8))
+    else if left(ask, 5) = "open|"
+        signInElsewhere(mid(ask, 6))
+    else if ask = "local"
+        signInElsewhere("")
+    else
+        m.sheetIsOwn = true
+        onSheetChosen(event)
+        m.signOutFromMenu = false     ' asked from Settings: Back returns to its row there
+    end if
 end sub
 
 sub onRailLeft()
@@ -903,6 +962,12 @@ function onKeyEvent(key as string, press as boolean) as boolean
     ' Back from Who's watching while someone is signed in with a profile goes to Home too
     if key = "back" and m.screen <> invalid and m.entered = true and m.screen.subtype() = "ProfilesScreen"
         showHome()
+        return true
+    end if
+    ' Back from the front door while another server was being added: back to the server in use
+    if key = "back" and m.switching = true and m.screen <> invalid and m.screen.subtype() = "SignInScreen"
+        m.switching = false
+        enter()
         return true
     end if
     ' Up from a page's top reaches the now-playing card, which opens in place
