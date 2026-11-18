@@ -402,6 +402,21 @@ function gridCard(item as object) as object
     return card
 end function
 
+' Whether a library's toolbar can hold a saved view's query (collections frame 21): its kind, its
+' sort and order, and the quick filters. A view that asks for more (a year, a genre) stays a page
+' of what it finds until the grid can name a filter's values (the Filters panel's facets).
+function savedViewOnToolbar(query as string) as boolean
+    quick = {}
+    for each q in quickFilters([{id: "watched"}, {id: "inProgress"}, {id: "favorite"}, {id: "inList"}])
+        quick[q.param] = true
+    end for
+    for each pair in query.split("&")
+        key = left(pair, instr(1, pair, "=") - 1)
+        if pair <> "" and key <> "kind" and key <> "sort" and key <> "order" and quick[pair] <> true then return false
+    end for
+    return true
+end function
+
 ' A library's views, sorts and counts, in words.
 function viewName(kind as string) as string
     names = {discover: "Discover", movie: "Movies", show: "Shows", collection: "Collections", artist: "Artists", album: "Albums", track: "Songs", audiobook: "Audiobooks", season: "Seasons", episode: "Episodes", playlist: "Playlists"}

@@ -104,6 +104,7 @@ sub onDetail(event as object)
     if m.detail.sorts <> invalid and m.detail.sorts.count() > 0 then m.sort = m.detail.sorts[0]
     m.filterSpecs = filterSpecs(m.detail.filters)
     m.view = 0
+    startFromView()      ' a saved view's kind, sort and quick filters, before the toolbar is built
     buildTools()
     drawViews()
     drawChips()
@@ -330,6 +331,35 @@ end sub
 function narrowed() as boolean
     return m.quick.count() > 0 or chosenCount() > 0
 end function
+
+' A saved view's query as the library's own controls: its kind the view shown, its sort and order
+' the Sort button's, its quick filters on. Called once the library's detail is read, before the
+' toolbar is drawn.
+sub startFromView()
+    if m.top.view = invalid or m.top.view.query = invalid then return
+    query = "&" + m.top.view.query + "&"
+    for i = 0 to m.detail.views.count() - 1
+        if m.detail.views[i].kind <> "" and instr(1, query, "&kind=" + m.detail.views[i].kind + "&") > 0 then m.view = i
+    end for
+    if m.detail.sorts <> invalid
+        for each sort in m.detail.sorts
+            if instr(1, query, "&sort=" + sort.id + "&") > 0 then m.sort = sort
+        end for
+    end if
+    if m.sort <> invalid
+        for each order in ["asc", "desc"]
+            if instr(1, query, "&order=" + order + "&") > 0
+                sorted = {}
+                sorted.append(m.sort)
+                sorted.order = order
+                m.sort = sorted
+            end if
+        end for
+    end if
+    for each spec in quickFilters(m.detail.filters)
+        if instr(1, query, "&" + spec.param + "&") > 0 then m.quick[spec.id] = true
+    end for
+end sub
 
 function listPath() as string
     if m.list <> invalid then return m.list.path

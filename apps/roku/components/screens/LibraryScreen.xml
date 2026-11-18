@@ -9,6 +9,9 @@
     <!-- Or one list as a grid with its title and count, no toolbar: {kind: "list", title, path,
          view}. Search's "See all" for one kind (path is that search with kind) and a genre's titles. -->
     <field id="item" type="assocarray" onChange="onItem"/>
+    <!-- A saved view to open the library on: {query}, set before `library`. The grid then starts
+         with the view's kind, sort and quick filters, on the library's own toolbar (collections frame 21). -->
+    <field id="view" type="assocarray"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="art" type="string"/>
     <!-- Set to the id of another library of the same kind chosen from the name's menu: the scene opens it. -->

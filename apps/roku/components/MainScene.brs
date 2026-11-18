@@ -406,6 +406,14 @@ sub onOpenAsk(ask as object)
         player.active = true
         return
     end if
+    if kind = "savedView"
+        ' a saved view opens as its library's grid, under the view's name, its kind, sort and quick filters set
+        page = push("LibraryScreen")
+        page.view = {query: ask.item.query}
+        page.library = {id: ask.item.library, name: ask.item.title}
+        page.active = true
+        return
+    end if
     page = invalid
     if kind = "album" or kind = "artist" then page = push("MusicScreen")
     if kind = "audiobook" or kind = "author" or kind = "series" then page = push("BookScreen")

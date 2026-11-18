@@ -90,6 +90,7 @@ sub main()
         quick.push(q.text)
     end for
     same("quick filters", quick, ["Unplayed", "My List"])
+    same("saved view on the toolbar", [savedViewOnToolbar("kind=movie&watched=false&sort=title&order=asc"), savedViewOnToolbar("kind=movie&year=1990..1999&sort=year"), savedViewOnToolbar("")], [true, false, true])
     specs = filterSpecs([{id: "studio"}, {id: "watched"}, {id: "genre"}, {id: "year"}])
     names = []
     for each s in specs
