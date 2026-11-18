@@ -202,10 +202,16 @@ function ProgrammeBody() {
     </View>
   </>;
 }
+/** The source's facts beside the title (desktop-live guide): its name in the text colour, then its count and reach in the
+ * secondary grey, at a row's help size. */
+function LiveFacts() {
+  const {theme} = useScale(), [source, ...rest] = f('liveFacts').split(' · ');
+  return <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}><Text style={{color: theme.colors.text, fontFamily: theme.type.listLabel.fontFamily}}>{source}</Text>{rest.map(part => `   ${part}`).join('')}</Text>;
+}
 function LiveGuide({details = false}: {details?: boolean}) {
   const {theme} = useScale(), web = theme.platform === 'web';
   return <Page destination={{kind: 'live'}}><FocusProvider><LiveFrame testID={details ? 'frames-live-details' : 'frames-live-guide'} title={f('liveTv')} switcher={<Switcher/>}
-    facts={<Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{f('liveFacts')}</Text>} actions={<LiveActions/>} tabs={<LiveTabs value="guide"/>} chips={<Groups/>}
+    facts={<LiveFacts/>} actions={<LiveActions/>} tabs={<LiveTabs value="guide"/>} chips={<Groups/>}
     lead={web && <OnNowRow/>} toolbar={<GuideTools/>} details={details ? programmePane() : undefined} hints={web && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{f('keyboardHint')}</Text>}>
     <Grid/>
   </LiveFrame></FocusProvider></Page>;
