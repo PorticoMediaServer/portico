@@ -6,7 +6,6 @@ import type {AccessDevice, AccessMember, MemberDeletionPreview, MemberLimits} fr
 import {roleLabel as accessRoleLabel} from '../../../../../../packages/client-core/src/server-admin/people-words';
 import {peopleStreamLimits, readSettingsBinding, settingsBinding, settingsBindingPatch, applySettingsBindingPatch} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsSpec} from '../../../../../../packages/client-core/src/presentation/settings-spec';
-import type {RuntimeSettings} from '../../../../../../packages/client-core/src/console';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {Button, Focusable, Select, Switch, Tabs, TextField} from '../../../kit/controls';
 import {BottomSheet} from '../../../kit/overlays';
@@ -27,7 +26,7 @@ import {settingsPageHeading, settingsPageInset} from './page-layout';
 
 type Props = {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean};
 type Confirmation = Readonly<{person: AccessMember; action: 'disable' | 'enable' | 'role' | 'devices'; role?: 'admin' | 'member'; device?: AccessDevice} | {person: AccessMember; action: 'remove'; preview: MemberDeletionPreview} | {invitation: ServerInvitation; action: 'revoke'} | {row: SettingsPersonRow; action: 'letBackIn'}>;
-const IDS = ['runtime'] as const;
+const IDS = ['streamLimits'] as const;
 // List contracts expose strings; the shared parser admits these three roles.
 const roleLabel = (t: NativeShellRuntime['text']['t'], role: string) => accessRoleLabel(t, role === 'owner' || role === 'admin' ? role : 'member');
 // Invitation list rows carry the machine state; show the same labels as the status filter.
@@ -219,17 +218,15 @@ function PeopleAdvanced({ports, runtime}: Props) {
   return group ? <BoundPeopleAdvanced key={group.mount} group={group} runtime={runtime}/> : null;
 }
 function BoundPeopleAdvanced({group, runtime}: {group: StorageForms; runtime: NativeShellRuntime}) {
-  const t = runtime.text.t, form = group.forms.runtime, state = useFormState<RuntimeSettings, unknown>(form), save = useStorageSet(group);
+  const t = runtime.text.t, form = group.forms.streamLimits, state = useFormState<Record<string, unknown>, unknown>(form), save = useStorageSet(group);
   const rows = settingsSpec.find(section => section.scope === 'server' && section.id === 'people')?.advanced?.groups?.flatMap(group => group.rows) ?? [];
   return <NativeAdvancedSection testID="people-advanced" summary={save.dirty ? t('settings.save.unsaved') : t('next.settings.allDefaults')}>
     {state.loadError !== undefined && <StateView variant="inline" {...runtime.error(state.loadError, () => {void form.load();}, 'server-console')}/>}
     {state.draft && rows.map(row => {
-      const binding = settingsBinding(row.id); if (!binding || binding.form !== 'runtime') return null;
-      const value = readSettingsBinding(binding, {forms: {runtime: state.draft}}); if (!value) return null;
-      // The authored option says "administrator"; this existing binding stores
-      // the server's "admin" enum. Project it locally without changing the API.
-      const shown = row.id === 'people.inviteRole' && value.current === 'admin' ? 'administrator' : value.current;
-      return <NativeSettingControl key={row.id} row={row} value={shown} t={t} disabled={save.saving} onChange={next => {const projected = row.id === 'people.inviteRole' && next === 'administrator' ? 'admin' : next; const patch = settingsBindingPatch(binding, projected); form.set(current => applySettingsBindingPatch(current, patch));}}/>;
+      // Only the rows the rebuilt server keeps a value for are drawn (streams at once for each person).
+      const binding = settingsBinding(row.id); if (!binding || binding.form !== 'streamLimits') return null;
+      const value = readSettingsBinding(binding, {forms: {streamLimits: state.draft}}); if (!value) return null;
+      return <NativeSettingControl key={row.id} row={row} value={value.current} t={t} disabled={save.saving} onChange={next => {const patch = settingsBindingPatch(binding, next); form.set(current => applySettingsBindingPatch(current, patch));}}/>;
     })}
     {save.dirty && <View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={save.saving} onPress={() => group.set.discard()}>{t('action.discard')}</Button><Button loading={save.saving} disabled={!!save.problem} onPress={() => {void group.set.save();}}>{t('action.save')}</Button></View>}
     {save.saveError !== undefined && <StateView variant="inline" {...runtime.error(save.saveError, () => {void group.set.save();}, 'server-console')}/>}
