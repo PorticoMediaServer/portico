@@ -286,6 +286,48 @@ function quickFilters(filters as dynamic) as object
     return out
 end function
 
+' The filters of a library's Filters panel: those its own `filters` list names whose choices the
+' server lists (GET /v1/facets), in the order the other apps show them. Each is {id, label}; the
+' id is both the filter's parameter and its facet.
+function filterSpecs(filters as dynamic) as object
+    named = {}
+    if filters <> invalid
+        for each f in filters
+            named[f.id] = true
+        end for
+    end if
+    out = []
+    for each spec in [{id: "genre", label: "Genre"}, {id: "year", label: "Year"}, {id: "contentRating", label: "Content rating"}, {id: "studio", label: "Studio"}, {id: "network", label: "Network"}, {id: "label", label: "Tag"}, {id: "resolution", label: "Resolution"}]
+        if named[spec.id] = true then out.push(spec)
+    end for
+    return out
+end function
+
+' What the item list is asked with for the chosen values ({filter id: [{value, label}]}): each
+' filter once, its values joined so that any of them passes.
+function filterParams(chosen as object, specs as object) as string
+    q = ""
+    for each spec in specs
+        values = chosen[spec.id]
+        if values <> invalid and values.count() > 0
+            joined = ""
+            for each v in values
+                if joined <> "" then joined = joined + ","
+                joined = joined + v.value.encodeUriComponent()
+            end for
+            q = q + "&" + spec.id + "=" + joined
+        end if
+    end for
+    return q
+end function
+
+' A filter heading's value in the panel: what is chosen under it.
+function filterSummary(values as dynamic) as string
+    if values = invalid or values.count() = 0 then return "Any"
+    if values.count() = 1 then return values[0].label
+    return values.count().toStr() + " chosen"
+end function
+
 ' Why a read failed, in one sentence for a page or a section that could not load.
 function whyFailed(result as object) as string
     if result.status = 0 then return "The server didn't answer. You're still signed in."
