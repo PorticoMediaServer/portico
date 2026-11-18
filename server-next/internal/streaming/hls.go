@@ -179,6 +179,11 @@ func NewHLS(ctx context.Context, root, binary string) (*HLS, error) {
 	if e = os.MkdirAll(root, 0700); e != nil {
 		return nil, e
 	}
+	// The converter is handed the folder where it really is: its sandbox mounts only that,
+	// and a conversion folder can be reached through a link (on macOS /var is one).
+	if root, e = filepath.EvalSymlinks(root); e != nil {
+		return nil, e
+	}
 	// A new server process has no streams, so nothing left in the folder can be
 	// asked for again.
 	if e = emptyDirectory(root); e != nil {
