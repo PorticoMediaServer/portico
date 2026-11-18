@@ -1,31 +1,54 @@
-# Backup consistency and recovery
+# Backups
 
-New backups contain one newline-delimited `manifest.json`. Creation, validation
-and restore read bounded records and directory batches rather than retaining the
-file registry in memory. Each file has a length and SHA-256 hash, with a running
-manifest chain and final checksum. There is no total manifest-size or file-count
-ceiling in this format and no manifest chunk files.
+What the server does, from `server-next/internal/backup`. Routes: `/v1/admin/backups`
+(`server-next/API.md`, Console API).
 
-Restore reports damaged manifest lines and byte regions and continues with
-readable entries. A damaged chain alone does not discard a file whose payload
-matches its file hash. Keys and configuration require matching payload hashes.
-A readable database without a matching manifest hash is inspected and reported
-as unverified; structural validation still applies. Before replacing live state,
-restore completes a previous-state recovery copy and journals incremental work.
+## What a backup holds
 
-During backup, application-owned changes to Keys and `portico.toml` participate
-in a process-local mutation fence. A writer active before the database copy, or
-any admitted mutation before the final comparison, makes the attempt fail.
-The carried authority path set and file bytes must also match stable per-file
-observations of the live files. Only `.conf` files in `Keys/managed-storage` are
-carried; allocation locks and temporary files are excluded. Other Keys files,
-including cryptographic keys, remain part of the backup.
+One `.tar.gz` in the backup folder, with a small `.json` beside it that describes it. It holds:
 
-External editors and rclone do not participate in the process fence. Stable
-per-file end comparisons can detect changed names and bytes, but do not establish
-a single global instant across files or detect arbitrary external A→B→A edits.
-Edit authority files with the server stopped when an exact cross-file snapshot
-is required. A changed rclone configuration is checked by the same per-file rule;
-its database reference is by filename. No filesystem snapshot guarantee is made.
-The process fence has no persisted generation and makes no cross-restart claim;
-interrupted attempts are retired through the existing scratch and hold cleanup.
+- the database;
+- the key files that open what the database keeps sealed;
+- the pictures people uploaded, and downloaded subtitles;
+- with `includeArtwork` in the `backups` settings, the pictures Portico could download again.
+
+It never holds media, recordings, the cache, logs or conversions.
+
+The database is copied a few pages at a time behind people's writes, so a backup runs while the
+server is in use.
+
+## When
+
+Scheduled backups run at the owner's hour on the owner's days (3 am every night by default), and
+the newest scheduled ones are kept (7 by default, 1 to 365). **Back up now** makes one that is
+not counted and stays until the owner deletes it. Pausing background work pauses scheduled
+backups too.
+
+## Protection
+
+With a passphrase set, backups are encrypted: bounded, authenticated records with a required
+final record, so a damaged, reordered or cut-short file is refused. Unattended backups keep only
+a salted key derived from the passphrase, never the passphrase itself. A new passphrase applies
+to later backups only, and old ones still need their old phrase.
+
+Each backup's description carries a mark made with a key that stays in this server's data folder
+and is never in a backup. A backup without this server's mark, or changed since it was made, is
+not refused: restoring onto a new machine after a loss is what backups are for. The owner is
+warned and must confirm.
+
+## Restore
+
+1. **Check.** The archive is checked whole before anything changes. It may hold only a database,
+   key files, pictures and subtitles under the names Portico gives them, and its database must
+   pass a full check. A backup that fails any part is refused whole.
+2. **Stage.** The backup is unpacked once into the data folder; the database that was checked is
+   the file put in place. Nothing in use changes until the next start, which must come within an
+   hour, or the staged restore is dropped.
+3. **Swap.** At that start, before the database opens, the swap runs under a journal. The current
+   database and the key files the backup replaces move into `restore-previous`, and the backup's
+   move in. A stop at any point ends with either the backup in place or the original back. If the
+   restored database will not open, the original is put back.
+4. **Sign in again.** Every sign-in is ended once the restored database opens.
+
+A restore takes the owner signed in (never a key), not on a TV, with their password or PIN again.
+The previous state stays in `restore-previous` until the next restore.

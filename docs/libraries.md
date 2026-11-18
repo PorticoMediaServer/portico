@@ -150,10 +150,10 @@ valid lines remain active. Each file is limited to 64 KiB, 512 patterns and
 A library's Metadata tab chooses its provider and language. TMDB is the default
 for film, TV and anime; the registry also offers TheTVDB for film/TV/anime and
 AniList for anime. Music uses MusicBrainz. Audiobook metadata is local in the current provider registry. Choose
-local metadata only (`metadataAgent: "local"`) to use filenames, embedded tags,
+local metadata only (`metadataProvider: "local"`) to use filenames, embedded tags,
 NFO, OPF, Audiobookshelf and cue sidecars and local artwork without online
-matching. The available choices are
-published by `GET /v1/library-kinds/{kind}/metadata-agents`; use the server's list in an API client.
+matching. The choices for each kind, and whether each can be used on this server, are in
+`metadataProviders` of `GET /v1/admin/libraries`; use the server's list in an API client.
 Owner-supplied TMDB/TheTVDB credentials are server-wide Metadata settings.
 
 Matching weighs names, aliases, year, provider IDs and other available evidence.
