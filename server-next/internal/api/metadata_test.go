@@ -346,3 +346,23 @@ func TestAMergeSentAgainAnswersTheSame(t *testing.T) {
 	}
 	sh.do("POST", "/v1/admin/items/"+heat+"/merge", MergeRequest{ItemID: "itm_neverthere"}, nil, 404)
 }
+
+// A device that was offline while two titles became one still sends its edits to the old id:
+// they go to the title that remains, alone and in a batch.
+func TestStateSentToAMergedAwayTitleReachesTheOneThatRemains(t *testing.T) {
+	sh := newShelf(t, "Heat.mkv", "Zzyzx Home Video (2011).mkv")
+	list := sh.unmatched()
+	heat, zzyzx := list[0].ItemID, list[1].ItemID
+	sh.do("POST", "/v1/admin/items/"+heat+"/merge", MergeRequest{ItemID: zzyzx}, nil, 200)
+	sh.do("PUT", "/v1/items/"+zzyzx+"/state", map[string]any{"favorite": true}, nil, 200)
+	var batch StateBatchReply
+	sh.do("POST", "/v1/items/state:batch", map[string]any{"items": []map[string]any{{"itemId": zzyzx, "inList": true}}}, &batch, 200)
+	if len(batch.Items) != 1 || batch.Items[0].Error != nil {
+		t.Fatalf("a batched edit to the merged-away id: %+v", batch.Items)
+	}
+	var item Item
+	sh.do("GET", "/v1/items/"+heat, nil, &item, 200)
+	if !item.State.Favorite || !item.State.InList {
+		t.Fatalf("the title that remains did not get the edits: %+v", item.State)
+	}
+}
