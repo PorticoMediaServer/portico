@@ -29,6 +29,11 @@ sub init()
     body = m.top.findNode("body")
     body.width = m.width
     setType(body, "body", c.textSecondary)
+    setType(m.top.findNode("liveTag"), "tag", c.danger)
+    m.top.findNode("liveDot").blendColor = c.danger
+    m.top.findNode("progressTrack").color = c.track
+    m.top.findNode("progressBar").color = c.accentStrong
+    m.top.findNode("progressTrack").width = m.width
     m.plate.width = m.width
     m.plate.height = 64
     m.ring.width = m.width + 72
@@ -42,11 +47,20 @@ sub onModel()
     model = m.top.model
     eyebrow = ""
     if model.eyebrow <> invalid then eyebrow = model.eyebrow
-    m.top.findNode("eyebrow").text = eyebrow
+    label = m.top.findNode("eyebrow")
+    label.text = eyebrow
     title = m.top.findNode("title")
     title.text = model.title
     y = frames().sheet.top
+    label.translation = [m.x, y]
+    label.height = 0
+    label.vertAlign = "top"
+    setType(label, "caption", colours().textTertiary)
+    for each id in ["mark", "liveTag", "liveDot"]
+        m.top.findNode(id).visible = false
+    end for
     if eyebrow <> "" then y = y + 38
+    if model.mark <> invalid then y = drawMark(model, y)
     title.translation = [m.x, y]
     y = y + title.boundingRect().height + 8
     status = m.top.findNode("status")
@@ -54,11 +68,23 @@ sub onModel()
     if model.status <> invalid then status.text = model.status
     status.translation = [m.x, y]
     if status.text <> "" then y = y + status.boundingRect().height + 8
+    ' how far into the programme
+    track = m.top.findNode("progressTrack")
+    bar = m.top.findNode("progressBar")
+    track.visible = (model.progress <> invalid)
+    bar.visible = track.visible
+    if track.visible
+        track.translation = [m.x, y + 8]
+        bar.translation = [m.x, y + 8]
+        bar.width = m.width * model.progress
+        y = y + 8 + 6 + 14
+    end if
     body = m.top.findNode("body")
     body.text = ""
     if model.body <> invalid then body.text = model.body
     body.translation = [m.x, y + 8]
     if body.text <> "" then y = y + 8 + body.boundingRect().height + 8
+    y = drawLater(model.later, y)
     m.listTop = y + 20
     m.window.translation = [m.x, m.listTop]
     ' the rows end above the remote's keys at the foot, when the sheet has them
@@ -279,4 +305,63 @@ function onKeyEvent(key as string, press as boolean) as boolean
         pressKey(key)
     end if
     return true     ' the sheet holds focus until it closes
+end function
+
+' The channel's badge (kit/ChannelMark) and its name on one line with the Live tag at the right;
+' the title goes under it.
+function drawMark(model as object, y as integer) as integer
+    c = colours()
+    top = frames().sheet.top
+    mark = m.top.findNode("mark")
+    mark.channel = model.mark
+    mark.translation = [m.x, top]
+    mark.visible = true
+    label = m.top.findNode("eyebrow")
+    setType(label, "metaStrong", c.textSecondary)
+    label.translation = [m.x + 72, top]
+    label.height = 56
+    label.vertAlign = "center"
+    live = (model.live = true)
+    tag = m.top.findNode("liveTag")
+    tag.visible = live
+    m.top.findNode("liveDot").visible = live
+    if live
+        w = tag.boundingRect().width
+        tag.translation = [m.x + m.width - w, top + 16]
+        m.top.findNode("liveDot").translation = [m.x + m.width - w - 18, top + 24]
+    end if
+    return top + 56 + 36
+end function
+
+' "Later on Summit Sports", then a line for each programme after this one: its time, its title.
+function drawLater(later as dynamic, y as integer) as integer
+    c = colours()
+    group = m.top.findNode("later")
+    group.removeChildrenIndex(group.getChildCount(), 0)
+    if later = invalid or later.lines.count() = 0 then return y
+    y = y + 22
+    rule = group.createChild("Rectangle")
+    rule.color = c.line
+    rule.width = m.width
+    rule.height = 2
+    rule.translation = [m.x, y]
+    head = group.createChild("Label")
+    head.text = later.heading
+    head.width = m.width
+    head.translation = [m.x, y + 20]
+    setType(head, "groupLabel", c.textTertiary)
+    y = y + 20 + 34
+    for each line in later.lines
+        time = group.createChild("Label")
+        time.text = line.time
+        time.translation = [m.x, y]
+        setType(time, "metaStrong", c.textTertiary)
+        name = group.createChild("Label")
+        name.text = line.title
+        name.width = m.width - 82
+        name.translation = [m.x + 82, y]
+        setType(name, "meta", c.textSecondary)
+        y = y + 38
+    end for
+    return y
 end function
