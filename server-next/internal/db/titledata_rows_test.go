@@ -277,3 +277,24 @@ func TestMoreLikeThisPagesTheSignalInRankOrder(t *testing.T) {
 		}
 	}
 }
+
+// Not interested makes similar titles less likely, not only that one title (personal state
+// rule 12): three cozy films watched make a cozy row, and a cozy film marked Not interested
+// counts against it, so the row is no longer chosen.
+func TestNotInterestedCountsAgainstItsMoods(t *testing.T) {
+	l, films, _ := moodLibrary(t)
+	v := l.viewers[0]
+	for _, film := range films[:3] {
+		watch(t, l, v, film.PublicID)
+	}
+	if rows := moodRows(t, l, v); len(rows) != 1 || rows[0].Key != "mood:cozy" {
+		t.Fatalf("three cozy films watched: %+v", rows)
+	}
+	yes := true
+	if _, _, err := l.d.SetState(ctx, v, films[3].PublicID, db.StateEdit{Hidden: &yes}); err != nil {
+		t.Fatal(err)
+	}
+	if rows := moodRows(t, l, v); len(rows) != 0 {
+		t.Fatalf("with a cozy film marked Not interested the cozy row is still chosen: %+v", rows)
+	}
+}

@@ -331,7 +331,8 @@ func (d *DB) moodRows(ctx context.Context, v Viewer, key string) ([]MoodRow, err
 
 // chooseMoodRows chooses the profile's mood rows: the tags most common among the films and shows
 // it played or favourited recently (a title marked watched by hand without playing is not
-// read: only plays and favourites have an index by time), each in at least three of them,
+// read: only plays and favourites have an index by time), each in at least three of them more
+// than the titles it marked Not interested,
 // strongest first, and for each the best-rated titles with that tag it has not watched, rated
 // titles first and then the newest. A title is in one row at most.
 func (d *DB) chooseMoodRows(ctx context.Context, v Viewer) ([]keptMoodRow, error) {
@@ -401,15 +402,27 @@ func (d *DB) chooseMoodRows(ctx context.Context, v Viewer) ([]keptMoodRow, error
 		}
 		byTag[c.tag].items = append(byTag[c.tag].items, c.item)
 	}
+	// Not interested makes similar titles less likely (personal state rule 12): each title so
+	// marked since the last reset counts once against every mood tag it carries.
+	against, err := ids(ctx, tx, `SELECT it.tag_id FROM (SELECT item_id FROM user_item_state WHERE profile_id = @viewer_profile AND hidden = 1
+		AND hidden_at > `+tasteSince+` LIMIT `+fmt.Sprint(tasteFavorites)+`) s CROSS JOIN item_tags it ON it.item_id = s.item_id`, v.args()...)
+	if err != nil {
+		return nil, err
+	}
+	unliked := map[int64]int{}
+	for _, tag := range against {
+		unliked[tag]++
+	}
+	weight := func(tc *tagCount) int { return len(tc.items) - unliked[tc.id] }
 	var liked []*tagCount
 	for _, tc := range byTag {
-		if len(tc.items) >= moodLiked {
+		if weight(tc) >= moodLiked {
 			slices.SortFunc(tc.items, func(a, b int64) int { return cmp.Compare(newest[a], newest[b]) })
 			liked = append(liked, tc)
 		}
 	}
 	slices.SortFunc(liked, func(a, b *tagCount) int {
-		return cmp.Or(cmp.Compare(len(b.items), len(a.items)), cmp.Compare(a.key, b.key))
+		return cmp.Or(cmp.Compare(weight(b), weight(a)), cmp.Compare(a.key, b.key))
 	})
 	labels, err := td.rowLabels(ctx)
 	if err != nil {
