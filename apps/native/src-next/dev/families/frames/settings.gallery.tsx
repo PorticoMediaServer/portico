@@ -82,7 +82,7 @@ const SettingsAlone = () => <Page destination={{kind: 'settings'}}><OwnerPage ba
 
 /** Every overlay task over a real page (phones cause 9): a library row whose first card opened the menu. */
 function Over({children}: {children: (anchor: React.RefObject<View | null>) => ReactNode}) {
-  const anchor = useRef<View>(null), theme = useTheme(), width = theme.spec.card.width.poster[theme.platform];
+  const anchor = useRef<View>(null), theme = useTheme(), width = theme.spec.card.width.poster[theme.column];
   return <OverlaysProvider><Page destination={{kind: 'libraries'}}><View style={{paddingTop: 60, gap: 24}}>
     <View style={{flexDirection: 'row', gap: 12, paddingHorizontal: theme.gutter}}>
       <View ref={anchor} collapsable={false}><PosterCard title={f('cardTitle')} artwork={asset('pool/movies/alien.jpg')} width={width} onNavigate={none}/></View>
