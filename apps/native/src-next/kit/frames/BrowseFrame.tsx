@@ -152,7 +152,8 @@ function RowsSkeleton() {
 }
 
 /** The poster grid's card width: as many columns of at least `frameSpec.browse.grid.card` as fit between the gutters, stretched
- * to fill them (phone-app 5: three across; desktop-browse: seven). Beside a docked Filters pane the grid has that much less room. */
+ * to fill them (phone-app 5: three across; desktop-browse: seven). Beside a docked Filters pane the grid has that much less room.
+ * `frame` must be read inside the page the grid is drawn in (under the shell's page inset), or the columns are the window's. */
 export function browseGridCard(frame: FrameMetrics, filtersDocked = false) {
   const grid = frameSpec.browse.grid, gap = grid.columnGap[frame.form];
   const room = frame.width - frame.gutter - frame.rightGutter - (filtersDocked ? frameSpec.browse.filtersWidth[frame.form] : 0);
