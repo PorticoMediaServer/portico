@@ -4344,6 +4344,7 @@ export interface StreamTotals {
   away: number;
   converting: number;
   problems: number;
+  uploadHeld: number;
 }
 
 export interface StreamingHardwareDevice {

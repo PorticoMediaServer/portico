@@ -104,6 +104,10 @@ type StreamTotals struct {
 	Converting int `json:"converting"`
 	// Problems are the streams whose player has waited ProblemAfter or more for its stream.
 	Problems int `json:"problems"`
+	// UploadHeld is what the owner's upload speed is holding back (console rule 91: "Upload
+	// speed is holding back 1 stream"): streams playing away below what they asked for, and
+	// starts it refused in the last five minutes. 0 when it holds back nothing.
+	UploadHeld int `json:"uploadHeld"`
 }
 
 // DashboardBackups says when the newest backup was made. Read is false while the backup
@@ -205,6 +209,8 @@ func (s *Server) dashboard(r *http.Request, _ None) (Dashboard, error) {
 			out.NowPlaying.Problems++
 		}
 	}
+	held := s.playback.UploadHeld()
+	out.NowPlaying.UploadHeld = held.Narrowed + held.Refused
 	for _, v := range s.viewings.All() {
 		out.NowPlaying.Streams++
 		if v.Away {

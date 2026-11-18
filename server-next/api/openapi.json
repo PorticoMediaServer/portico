@@ -14529,13 +14529,17 @@
           },
           "streams": {
             "type": "integer"
+          },
+          "uploadHeld": {
+            "type": "integer"
           }
         },
         "required": [
           "streams",
           "away",
           "converting",
-          "problems"
+          "problems",
+          "uploadHeld"
         ],
         "type": "object"
       },
