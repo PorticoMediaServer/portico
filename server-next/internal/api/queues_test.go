@@ -535,3 +535,16 @@ func TestPrepareAndCommitNext(t *testing.T) {
 		t.Fatal("the failed prepared stream is still playing its dead address")
 	}
 }
+
+// The next entry is got ready only for a session that is playing: its stream is counted by no
+// stream limit, so one asked for with nothing playing would be a stream beyond every limit.
+func TestPrepareNextNeedsARunningSession(t *testing.T) {
+	th := newTheatre(t)
+	album, _ := th.album("Record", 4)
+	q := th.create(QueueCreate{Source: playqueue.QueueSource{Container: album}}).Queue
+	for _, from := range []string{"", "pbs_none"} {
+		if w := th.queue("POST", "/v1/queues/"+q.ID+"/prepare-next", "", QueuePrepare{SessionID: from}, nil); w.Code != 404 || th.engine.streams() != 0 {
+			t.Errorf("preparing the next entry with session %q answered %d with %d streams, want 404 and none", from, w.Code, th.engine.streams())
+		}
+	}
+}
