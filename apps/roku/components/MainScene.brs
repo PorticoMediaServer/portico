@@ -235,6 +235,11 @@ sub markLibrary(item as object)
     end for
 end sub
 
+' Another library chosen from a library's name: opened as the rail opens it.
+sub onSwitchLibrary(event as object)
+    m.rail.chosen = event.getData()
+end sub
+
 ' The front door. `why` says so when it is not a first run (the server ended the sign-in).
 sub showSignIn(why = "" as string)
     if m.screen <> invalid and m.screen.subtype() = "SignInScreen" then return
@@ -510,6 +515,7 @@ sub onRailChosen(event as object)
                 m.rail.visible = true
                 m.rail.current = id
                 m.screen.library = library
+                m.screen.observeField("switchTo", "onSwitchLibrary")
                 m.screen.active = true
                 return
             end if

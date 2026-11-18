@@ -11,6 +11,9 @@ sub init()
     name = m.top.findNode("name")
     setType(name, "title", c.text)
     name.translation = [f.gutter, f.browse.titleY]
+    m.chevron = m.top.findNode("chevron")
+    m.chevron.blendColor = c.textSecondary
+    m.siblings = []
     m.views.translation = [0, f.browse.titleY + 12]
     m.top.findNode("viewMark").color = c.accent
     m.tools.translation = [f.gutter, f.grid.toolsY]
@@ -47,7 +50,10 @@ sub onLibrary()
     m.top.findNode("name").text = library.name
     m.top.art = ""
     m.page.visible = false
+    m.siblings = []
+    m.chevron.visible = false
     api("GET", "/v1/libraries/" + library.id, invalid, "onDetail", {id: library.id})
+    api("GET", "/v1/libraries", invalid, "onSiblings", {id: library.id})
 end sub
 
 sub onDetail(event as object)
@@ -82,11 +88,33 @@ sub showPageState(result as object)
     if m.top.isInFocusChain() then m.page.active = true
 end sub
 
+' The libraries holding the same kind as this one (Films and Films from TMDB): with more than one,
+' the name carries a chevron and its menu switches between them (tv-focus frame 18).
+sub onSiblings(event as object)
+    result = event.getData()
+    if event.getRoSGNode().ctx.id <> m.top.library.id or not result.ok or result.data.items = invalid then return
+    m.siblings = []
+    for each library in result.data.items
+        if library.kind = m.top.library.kind then m.siblings.push(library)
+    end for
+    if m.siblings.count() < 2 then m.siblings = []
+    m.chevron.visible = (m.siblings.count() > 0)
+    name = m.top.findNode("name")
+    m.chevron.translation = [frames().gutter + name.boundingRect().width + 12, frames().browse.titleY + (name.boundingRect().height - 20) / 2]
+    if m.detail <> invalid then drawViews()
+    paint()
+end sub
+
+function hasSwitcher() as boolean
+    return m.siblings.count() > 0
+end function
+
 ' The views beside the name, with the one shown underlined.
 sub drawViews()
     c = colours()
     m.views.removeChildrenIndex(m.views.getChildCount(), 0)
     x = frames().gutter + m.top.findNode("name").boundingRect().width + 56
+    if hasSwitcher() then x = x + 32       ' past the chevron
     m.viewX = []
     for each view in m.detail.views
         label = m.views.createChild("Label")
@@ -305,6 +333,15 @@ sub paint()
         mark.translation = [m.viewX[m.view][0], y + 52]
         mark.width = m.viewX[m.view][1]
     end if
+    if has and m.region = "switch"
+        ' the ring round the name and its chevron
+        out = metrics().focusSpread + 6
+        name = m.top.findNode("name")
+        m.viewRing.visible = true
+        m.viewRing.translation = [frames().gutter - 18 - out, y - out]
+        m.viewRing.width = name.boundingRect().width + 32 + 36 + out * 2
+        m.viewRing.height = name.boundingRect().height + out * 2
+    end if
     if has and m.region = "views"
         out = metrics().focusSpread + 6
         m.viewRing.visible = true
@@ -315,6 +352,13 @@ sub paint()
 end sub
 
 sub onMenuChosen(event as object)
+    if left(event.getData(), 4) = "lib:"
+        ' a library from the name's menu: the scene opens it
+        for each library in m.siblings
+            if library.id = mid(event.getData(), 5) and library.id <> m.top.library.id then m.top.switchTo = library.id
+        end for
+        return
+    end if
     id = event.getData()
     for each sort in m.detail.sorts
         if sort.id = id then m.sort = sort
@@ -342,7 +386,11 @@ function onKeyEvent(key as string, press as boolean) as boolean
         else if key = "down"
             if m.grid.visible or (m.gridState.visible and m.gridState.action <> "") then m.region = "grid"
         else if key = "up"
-            if m.detail.views.count() > 1 then m.region = "views"
+            if m.detail.views.count() > 1
+                m.region = "views"
+            else if hasSwitcher()
+                m.region = "switch"
+            end if
         else if key = "OK"
             spec = m.toolSpecs[m.tool]
             if spec.id = "sort"
@@ -361,6 +409,30 @@ function onKeyEvent(key as string, press as boolean) as boolean
         else
             return false
         end if
+        focusRegion()
+        return true
+    end if
+    if m.region = "switch"
+        ' the library's name: OK lists the libraries of its kind; Left is the rail
+        if key = "OK"
+            rows = []
+            for each library in m.siblings
+                rows.push({id: "lib:" + library.id, text: library.name, current: library.id = m.top.library.id})
+            end for
+            m.top.menu = {eyebrow: "", title: "Libraries", status: "", rows: rows}
+            return true
+        else if key = "right" and m.detail.views.count() > 1
+            m.region = "views"
+        else if key = "down"
+            m.region = "tools"
+        else if key = "left"
+            return false
+        end if
+        focusRegion()
+        return true
+    end if
+    if key = "left" and m.view = 0 and hasSwitcher()
+        m.region = "switch"     ' Left from the first view: the library's name
         focusRegion()
         return true
     end if
