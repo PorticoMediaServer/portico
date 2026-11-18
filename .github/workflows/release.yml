@@ -114,15 +114,16 @@ jobs:
 
   media-tools:
     # Portico's own ffmpeg, ffprobe and disc reader, from this commit, for each Linux server build.
-    # The build job of media-tools.yml asks for packages: write because its other stages save
-    # build caches; the bundle stage only reads them.
+    # A called workflow may ask only for what its caller grants, for every job, run or not: its
+    # build job asks for packages: write (its other stages save build caches; the bundle stage only
+    # reads them) and its test job for actions: read.
     needs: identity
     strategy:
       fail-fast: false
       matrix: {platform: [linux-x64, linux-arm64]}
     uses: ./.github/workflows/media-tools.yml
     with: {platform: '${{ matrix.platform }}', stage: bundle, ref: '${{ needs.identity.outputs.sha }}'}
-    permissions: {contents: read, packages: write}
+    permissions: {contents: read, packages: write, actions: read}
 
   gate:
     # Test the server actually shipped, including the tagged decoders, with the media tools it
