@@ -33,8 +33,9 @@ export type OverlayBar = Readonly<{
 }>;
 /** `halves`: two buttons of equal width across the foot (Cancel | the action; Back | Add source). `full`: one button the
  * foot's width (Show 19 movies). `end`: at their own width at the end of the foot, primary last (a pointer dialog).
- * `none`: the overlay commits as you choose (a menu, a picker). */
-export type OverlayFoot = 'halves' | 'full' | 'end' | 'none';
+ * `none`: the overlay commits as you choose (a menu, a picker). `hints`: TV, where Back closes and the foot says so with
+ * key hints ("OK Choose", "Back Close") in place of buttons. */
+export type OverlayFoot = 'halves' | 'full' | 'end' | 'none' | 'hints';
 export type OverlayForm = Readonly<{kind: OverlayFormKind; modal: boolean; bar: OverlayBar; foot: OverlayFoot}>;
 
 /** The tasks. A screen names one of these; anything that is none of them is a page. */
@@ -63,60 +64,65 @@ const form = (kind: OverlayFormKind, modal: boolean, overlayBar: OverlayBar, foo
 /** Nothing in the bar: a popover has at most a quiet heading of its own content. */
 const quiet = bar('none', 'none', 'none');
 
-/** Task x form. The TV column belongs to the TV builder (R9 TV column, family G): on TV a menu or picker is a right-hand
- * side sheet with an eyebrow, a title, full-width rows and a Back/Close key-hint footer. Until that builder fills it, a
- * TV cell is `null` and the kit keeps its existing TV form. */
+/** The TV side sheet's bar: an eyebrow (what it is about) over the title, at the start. TV never draws Cancel or Done in a bar. */
+const tvBar = bar('none', 'start', 'none', true);
+
+/** Task x form. The TV column (detail-tv 5c, 5d, tv-focus 4, 9, 21, 38, 43, tv-more 23): a menu, a picker or a short
+ * task is the right-hand side sheet (640) over the dimmed page, with an eyebrow, a title, full-width rows and key hints at
+ * its foot; Filters is the side panel with Clear all and Show N; a confirmation is a centred dialog, Cancel first; File
+ * info is a full-height side sheet with Done; the profile menu is the one anchored TV menu, a flyout right of the rail;
+ * Settings is a page. No mock-up draws Notifications on TV: that cell is `null` and the kit keeps its own TV form. */
 export const overlayForms: Readonly<Record<OverlayTask, Readonly<Record<FrameForm, OverlayForm | null>>>> = {
   actions: {
     phone: form('sheet', true, bar('none', 'start', 'done', true), 'none'),
     medium: form('popover', true, bar('none', 'start', 'none', true), 'none'),
     /** A pointer menu (desktop-detail f2) leaves the page undimmed. */
     expanded: form('popover', false, bar('none', 'start', 'none', true), 'none'),
-    tv: null,
+    tv: form('side', true, tvBar, 'hints'),
   },
   choice: {
     phone: form('popover', true, quiet, 'none'),
     medium: form('popover', true, quiet, 'none'),
     expanded: form('popover', false, quiet, 'none'),
-    tv: null,
+    tv: form('side', true, tvBar, 'hints'),
   },
   confirm: {
     phone: form('sheet', true, bar('none', 'start', 'none'), 'halves'),
     medium: form('dialog', true, bar('none', 'start', 'none'), 'end'),
     expanded: form('dialog', true, bar('none', 'start', 'none'), 'end'),
-    tv: null,
+    tv: form('dialog', true, bar('none', 'start', 'none'), 'end'),
   },
   task: {
     /** live-owner 13a-c: "Cancel · centred title"; the action (or Back and the action) at the foot. */
     phone: form('sheet', true, bar('cancel', 'centre', 'none'), 'full'),
     medium: form('side', true, bar('none', 'start', 'close'), 'halves'),
     expanded: form('dialog', true, bar('none', 'start', 'close'), 'end'),
-    tv: null,
+    tv: form('side', true, bar('none', 'start', 'none'), 'hints'),
   },
   details: {
     phone: form('sheet', true, bar('none', 'start', 'done', true), 'none'),
     medium: form('side', false, bar('none', 'start', 'close', true), 'none'),
     expanded: form('side', false, bar('none', 'start', 'close', true), 'none'),
-    tv: null,
+    tv: form('side', true, tvBar, 'full'),
   },
   filters: {
     phone: form('sheet', true, bar('none', 'start', 'done'), 'halves'),
     medium: form('side', false, bar('none', 'start', 'close'), 'halves'),
     expanded: form('side', false, bar('none', 'start', 'close'), 'halves'),
-    tv: null,
+    tv: form('side', true, bar('none', 'start', 'none'), 'halves'),
   },
   settings: {
     /** The index: "Settings · Done". A page pushed inside it: "‹ Settings · centred title · its action". */
     phone: form('fullSheet', true, bar('back', 'centre', 'done'), 'none'),
     medium: form('page', false, quiet, 'none'),
     expanded: form('page', false, quiet, 'none'),
-    tv: null,
+    tv: form('page', false, quiet, 'none'),
   },
   account: {
     phone: form('sheet', true, bar('none', 'start', 'done'), 'none'),
     medium: form('popover', true, quiet, 'none'),
     expanded: form('popover', true, quiet, 'none'),
-    tv: null,
+    tv: form('popover', false, quiet, 'none'),
   },
   notifications: {
     /** On a phone Notifications is a page pushed inside the Settings sheet (phone-app 21): "‹ Settings · Notifications · Mark all read". */
@@ -127,7 +133,7 @@ export const overlayForms: Readonly<Record<OverlayTask, Readonly<Record<FrameFor
   },
 };
 
-/** The form a task takes on a form, or `null` on TV until its column is filled. */
+/** The form a task takes on a form; `null` only where no form is drawn (Notifications on TV). */
 export function overlayForm(task: OverlayTask, frameForm: FrameForm): OverlayForm | null {
   return overlayForms[task][frameForm];
 }

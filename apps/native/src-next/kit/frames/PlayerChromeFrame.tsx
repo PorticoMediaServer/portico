@@ -6,6 +6,7 @@ import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {frameSpec} from '@portico/design';
 import {alpha} from '../shell/visual';
 import {useTheme} from '../theme';
+import {StartFocusScope} from '../focus';
 import {useFrameMetrics, usePlayerUpright} from './metrics';
 
 /** The time read-outs; the frame places them for the form (under the scrubber, either side of it, or as one clock). */
@@ -47,6 +48,8 @@ export type PlayerChromeFrameProps = Readonly<{
   /** The upright form only: the watch page under the picture (the title page's own content). */
   body?: ReactNode;
   testID?: string;
+  /** TV: the control the page starts on (R1), by its `focusId` or `testID`. Never in the rail. */
+  startFocus?: string;
 }>;
 
 /** The top and bottom scrims over the picture, from the spec's stops. */
@@ -65,7 +68,10 @@ function Shade() {
  * side of the scrubber. Upright (phone-player 4, tablet-play 3): the picture is a 16:9 strip under the status bar with
  * the chrome inside it, the scrubber on its lower edge, and the watch page below. No backdrop under the picture; every
  * region is fixed; the parts that fill it are `kit/player`'s. */
-export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, scrubbing = false, hints, body, testID}: PlayerChromeFrameProps) {
+export function PlayerChromeFrame({startFocus, ...props}: PlayerChromeFrameProps) {
+  return <StartFocusScope id={startFocus}><PlayerChromeFrameBody {...props}/></StartFocusScope>;
+}
+function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, scrubbing = false, hints, body, testID}: Omit<PlayerChromeFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), spec = frameSpec.player, {form} = frame;
   const phone = form === 'phone', tv = form === 'tv', upright = usePlayerUpright(), sideways = phone && !upright, beside = !!panel && !upright && !phone && !tv;
   const edge = upright ? spec.portrait.edge : Math.max(spec.edge[form], insets.left, insets.right);

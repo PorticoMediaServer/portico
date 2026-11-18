@@ -288,20 +288,23 @@ and the video player (`data-cover="player"`, black). `ColourBackdrop` and `.port
 One table, `overlayForms` in `packages/design/src/overlay-forms.ts`. A screen names the TASK; the kit picks the kind,
 the bar and the foot. Bar: start · title · end. Foot: **halves** (equal shares), **full** (one button the width),
 **end** (own width at the end, primary last), never hugging the left. An anchored overlay opens below or beside its
-trigger and leaves it in view; a modal one dims the page. The TV column is the TV builder's (family G); until it is
-filled a TV cell is `null` and the kit keeps its TV form.
+trigger and leaves it in view; a modal one dims the page. On TV (detail-tv 5c, 5d, tv-focus 4, 9, 21, 38, 43) a menu, a
+picker or a short task is the right-hand side sheet with key hints at its foot (foot `hints`: Back closes, and the foot
+says so); Filters is the side panel with its two buttons; a confirmation is a centred dialog starting on Cancel; File info
+is a full-height side sheet with Done; the profile menu is the one anchored flyout, right of the rail; Settings is a page.
+No mock-up draws Notifications on TV, so that one cell is `null`.
 
 | Task | Phone | Tablet (medium) | Wide (expanded, web) | TV |
 | --- | --- | --- | --- | --- |
-| `actions` (More / long press) | sheet, modal; bar: title + item · Done | popover beside the card, modal | popover, not dimmed | TV builder |
-| `choice` (select list, switcher, sort) | popover under the trigger, modal | popover, modal | popover, not dimmed | TV builder |
-| `confirm` (Delete…?) | sheet; foot halves (Cancel, the action; destructive is a red fill) | dialog; foot at the end | dialog; foot at the end | TV builder |
-| `task` (Add source, Save as playlist) | sheet; bar: Cancel · centred title; foot full (the action) | side panel, modal; title · round ×; foot halves | dialog; title · round ×; foot at the end | TV builder |
-| `details` (File info) | sheet; bar: title + item · Done | side panel; title + item · round × | side panel | TV builder |
-| `filters` | sheet; title · Done; foot halves | side panel; title · round ×; foot halves | side panel | TV builder |
-| `settings` | full sheet; index "Settings · Done", a page "‹ Settings · centred title · its action" | a page beside the list | a page beside the list (web: full page at phone width, ruled) | TV builder |
-| `account` | sheet; title · Done | popover under the avatar | popover under the avatar | TV builder |
-| `notifications` | a page in the Settings sheet: "‹ Settings · Notifications · Mark all read" | popover under the bell | popover under the bell | TV builder |
+| `actions` (More / long press) | sheet, modal; bar: title + item · Done | popover beside the card, modal | popover, not dimmed | side sheet, modal; eyebrow + title; foot: key hints |
+| `choice` (select list, switcher, sort) | popover under the trigger, modal | popover, modal | popover, not dimmed | side sheet, modal; eyebrow + title; foot: key hints |
+| `confirm` (Delete…?) | sheet; foot halves (Cancel, the action; destructive is a red fill) | dialog; foot at the end | dialog; foot at the end | dialog; foot at the end, Cancel first |
+| `task` (Add source, Save as playlist) | sheet; bar: Cancel · centred title; foot full (the action) | side panel, modal; title · round ×; foot halves | dialog; title · round ×; foot at the end | side sheet, modal; title; foot: key hints (no Cancel) |
+| `details` (File info) | sheet; bar: title + item · Done | side panel; title + item · round × | side panel | full-height side sheet; eyebrow + title; foot full (Done) |
+| `filters` | sheet; title · Done; foot halves | side panel; title · round ×; foot halves | side panel | side panel; title; foot halves (Clear all, Show N) |
+| `settings` | full sheet; index "Settings · Done", a page "‹ Settings · centred title · its action" | a page beside the list | a page beside the list (web: full page at phone width, ruled) | a page |
+| `account` | sheet; title · Done | popover under the avatar | popover under the avatar | flyout right of the rail |
+| `notifications` | a page in the Settings sheet: "‹ Settings · Notifications · Mark all read" | popover under the bell | popover under the bell | not drawn |
 
 Kit: `SheetFrame` takes `task` (native `kind: 'task'`), `title`, `subtitle?` (the item), `action?`, `foot?`,
 `anchorRef?`. Sheet and side-panel feet share the width; a modal popover draws a scrim; focus placed on open draws

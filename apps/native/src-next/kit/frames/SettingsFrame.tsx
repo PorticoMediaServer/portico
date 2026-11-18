@@ -2,6 +2,7 @@ import React, {createContext, useContext, type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {frameSpec} from '@portico/design';
 import type {TopBarBack} from '../layout/TopBar';
+import {StartFocusScope} from '../focus';
 import {useTheme} from '../theme';
 import {FrameColumn, useFrameMetrics} from './metrics';
 import {PageHeader} from './PageHeader';
@@ -30,11 +31,18 @@ export type SettingsListFrameProps = Readonly<{
   /** The selected page, a `SettingsPageFrame`. On a phone it takes the list's place inside the same sheet. */
   page?: ReactNode;
   testID?: string;
+  /** TV: the control the page starts on (R1), by its `focusId` or `testID`. Never in the rail. */
+  startFocus?: string;
+  /** TV: the key hints under the list (R11: "Up Down Choose a page", ...). */
+  hints?: ReactNode;
 }>;
 
 /** Frame 3, the index of Settings. Phone: one full-height sheet with one bar; the list, or the selected page in its
  * place. Tablet and TV: the list in its own column beside the page, each with its own scroll. */
-export function SettingsListFrame({bar, open, onOpenChange, search, list, profile, shortcuts, page, testID}: SettingsListFrameProps) {
+export function SettingsListFrame({startFocus, ...props}: SettingsListFrameProps) {
+  return <StartFocusScope id={startFocus}><SettingsListBody {...props}/></StartFocusScope>;
+}
+function SettingsListBody({bar, open, onOpenChange, search, list, profile, shortcuts, page, hints, testID}: Omit<SettingsListFrameProps, 'startFocus'>) {
   const frame = useFrameMetrics(), {form} = frame, width = frameSpec.settings.listWidth[form];
   // A TV row's focus ring is drawn outside the row: the list's scroll box leaves it that room so it is never cut.
   const theme = useTheme(), ring = form === 'tv' ? theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv : 0;
@@ -43,7 +51,10 @@ export function SettingsListFrame({bar, open, onOpenChange, search, list, profil
   </SheetFrame>;
   return <View testID={testID} style={{flex: 1, flexDirection: 'row', paddingLeft: frame.gutter, gap: frameSpec.settings.gap[form]}}>
     {/* The list's column is already placed from the gutter, so the cards in it start at the column's own edges. */}
-    <ScrollView style={{flexGrow: 0, width: width + 2 * ring, marginLeft: -ring}} contentContainerStyle={{paddingTop: frame.titleTop || frame.headerGap, paddingBottom: frame.bottomClear, paddingHorizontal: ring}}><FrameColumn.Provider value>{search}{list}</FrameColumn.Provider></ScrollView>
+    <View style={{width}}>
+      <ScrollView style={{flex: 1, width: width + 2 * ring, marginLeft: -ring}} contentContainerStyle={{paddingTop: frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}><FrameColumn.Provider value>{search}{list}</FrameColumn.Provider></ScrollView>
+      {form === 'tv' && hints ? <View style={{paddingBottom: frame.bottomClear}}>{hints}</View> : null}
+    </View>
     <View style={{flex: 1}}><BesideList.Provider value>{page}</BesideList.Provider></View>
   </View>;
 }
@@ -69,18 +80,23 @@ export type SettingsPageFrameProps = Readonly<{
   /** The whole page can't load. One section failing is a `StateRow` in that section's card instead. */
   state?: PageStateProps;
   testID?: string;
+  /** TV: the control the page starts on (R1), by its `focusId` or `testID`. Never in the rail. */
+  startFocus?: string;
 }>;
 
 /** Frame 4, one settings or owner page, or a form: its header, an intro, then sections of rows. Which header it
  * gets depends only on where it is (rule 3): the compact bar inside a sheet, Back and a large title full screen on
  * a phone, the page title in the column beside the list on a tablet and TV. */
-export function SettingsPageFrame({title, back, action, status, actions, server, intro, tabs, children, state, testID}: SettingsPageFrameProps) {
+export function SettingsPageFrame({startFocus, ...props}: SettingsPageFrameProps) {
+  return <StartFocusScope id={startFocus}><SettingsPageBody {...props}/></StartFocusScope>;
+}
+function SettingsPageBody({title, back, action, status, actions, server, intro, tabs, children, state, testID}: Omit<SettingsPageFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), inSheet = useInSheet(), beside = useContext(BesideList) && frame.form !== 'phone' && !inSheet, t = defaultI18n.t;
   const saved = status && <View accessibilityLiveRegion="polite" style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>{status === 'saved' && <Icon name="i-check" size={16} color={theme.colors.textSecondary}/>}
     <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t(status === 'saved' ? 'next.settings.saved' : 'next.settings.saving')}</Text></View>;
   const trailing = (saved || actions) ? <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>{saved}{actions}</View> : undefined;
   // Rule 3: the compact bar inside the phone's Settings sheet; the page title beside the list; a page shown alone keeps
-  // Back and the large title at the gutter (tablets SC-8), like any pushed page.
+  // Back and the large title at the gutter (tablets SC-8, r7 S6 on TV), like any pushed page.
   const header = inSheet ? <SheetBar title={title} back={back} action={action}/>
     : beside ? <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm, marginTop: server ? frame.headerGap : frame.titleTop || frame.headerGap, marginBottom: frame.headerGap}}>
       <Text accessibilityRole="header" style={[theme.type.pageTitle, {flex: 1, color: theme.colors.text}]}>{title}</Text>{trailing}</View>

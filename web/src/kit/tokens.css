@@ -305,6 +305,7 @@
   --spec-focus-offset-inner-phone: -3px;
   --spec-focus-offset-inner-tablet: -3px;
   --spec-focus-offset-inner-tv: -4px;
+  --spec-focus-row-fill-alpha: 0.1;
   --spec-focus-scale-button-web: 1;
   --spec-focus-scale-button-phone: 1;
   --spec-focus-scale-button-tablet: 1;
@@ -927,6 +928,7 @@
   --spec-overlay-motion-scale-from: 0.98;
   --spec-overlay-motion-spring: settle;
   --spec-overlay-motion-reduced-ms: 160ms;
+  --spec-menu-tv-sheet-row-gap: 12px;
   --spec-menu-surface: var(--color-raised-high);
   --spec-menu-radius-web: 14px;
   --spec-menu-radius-phone: 14px;
@@ -1666,6 +1668,7 @@
   --spec-navigation-tv-item-radius: 14px;
   --spec-navigation-tv-content-shift: 270px;
   --spec-navigation-tv-dim-alpha: 0.5;
+  --spec-navigation-tv-mark-room: 24px;
   --spec-activity-glyph: levels;
   --spec-activity-height: 40px;
   --spec-activity-min-width: 40px;

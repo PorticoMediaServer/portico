@@ -238,6 +238,46 @@ Left for Stage 2, so it is not forgotten:
 - TV search's keyboard is the screen's `NativeTVKeyboard` (`screens/search/TVKeyboard.tsx`), drawn by the gallery from there: it reads destination focus, so it moves to the kit with the TV search screen.
 - Music, Audiobooks and Saved are named uses of `BrowseFrame`: the library switcher, counts line, tabs, toolbar and grid are the library frame's regions (stage1/r8-library). Until they land, the gallery cases draw the kit `Tabs` at the head of the rows and rows in place of the grid.
 
+## TV rules (round 8: R1, R9's TV column, R11)
+
+Each is fixed once in the kit; every TV screen inherits it.
+
+- **One focus look (R1).** Every focusable thing takes the kit `Focusable`'s ring: the 4 px ring, a 4 px ink gap and the
+  glow. A free-standing control (button, card, chip, tab, tile, Up next) draws it outside itself and grows a little. A row
+  (`focusKind="row"`: settings rows, player panel rows, queue and chapter rows, the Settings nav, server rows) sits in a
+  card or column that clips, so it draws the same ring inside its own edges, over a raised fill, and does not grow. Nothing
+  draws an edge line or its own focus fill. A TV side sheet's and the Settings list's scroll boxes leave a free-standing
+  ring its room.
+- **Current is not focus (R1).** The open page (the rail's accent bar left of the icon, on every page; Settings nav's accent
+  band), the chosen option (an accent tick before the label in a TV panel list; the tick in a menu row) and an active
+  control (accent glyph) stay drawn when focus is elsewhere. Focus is only the ring.
+- **Start focus (R1).** Every frame takes `startFocus`: the `focusId` or `testID` of the control the page starts on. The
+  frame wraps its content in `StartFocusScope` (`kit/focus`), and that control asks for focus through the
+  same preferred ask every kit control has (`useFocusTarget`), which now asks again on the next frames until focus lands
+  or anything else takes it (Android TV drops an ask made before the view can take focus). The rail is outside every
+  frame, so a page never starts in it. Defaults: `TitleFrame` starts on its primary (Play or Resume, a focus stop even
+  while loading); `PageStateFrame` on its primary action; a `Menu` on its first enabled row. Where a page starts:
+  Home, the first Continue Watching card; a list, its first card; a title, Play or Resume; Settings, the current page in
+  the nav; a sheet, menu or Playback options, the first row; a picker or a panel's list, its current choice (the first
+  row when nothing is chosen); a confirmation, Cancel; the player, Play or Pause; Up next, Play now.
+- **The rail (R1, S3, S6).** Closed, its clip leaves room for the current page's bar. Open, it is the solid panel over the
+  dimmed page, which moves right (the shell's `tvRailScrim`, drawn by the shell and by the gallery's `Page`).
+- **Overlays on TV (R9, TV column).** A menu or picker is never a pointer drop-down: every `Popover` and `Menu` on TV is
+  the right-hand side sheet (`BottomSheet`'s side form, 640 wide): eyebrow (`headerContext`), title, full-width rows
+  with the gap between them, and the Back/Close key hints at the foot. The only anchored TV menu is the rail's own
+  profile flyout (`placement="right-end"`). A dialog stays a centred dialog that starts on Cancel. These are the TV
+  column of `overlayForms` (packages/design): `SheetFrame kind="task"` reads its cell, and where the foot is `hints` it
+  draws key hints in place of buttons.
+- **Key hints (R11).** `KeyHints` takes one or more key caps per hint and wraps before it cuts. Hint regions: the Home
+  hero (in the actions' place: OK Resume, Hold OK More options), `SettingsListFrame`'s `hints` under the list,
+  `SheetFrame`'s `hints` in place of its footer on TV (OK Choose, Back Close), `PlayerPanel`'s foot (Back Close, always
+  on TV), every TV side sheet (Back Close), and `PlayerChromeFrame`'s `hints` while scrubbing.
+- **Page inset (S6).** A settings page drawn on its own on a tablet or TV is a pushed page: Back, the large title and its
+  sections at the page's gutter (x = 200 beside the rail on TV), held to the page's column; beside its list it starts at
+  the column.
+- **No cut text (S9).** A TV queue or chapter row's title takes two lines and the row grows; a TV menu row's label takes
+  two lines.
+
 ## Decided by the owner (Justin, 18 Nov)
 
 - **Skip intro on an upright phone** sits in the picture's bottom row between the time and the options. It never covers the transport and is hidden while a panel or Up next is open.
@@ -314,20 +354,23 @@ status bar (light content; hidden only on the full-window video player). `test/n
 One table, `overlayForms` in `packages/design/src/overlay-forms.ts`. A screen names the TASK; the kit picks the kind,
 the bar and the foot. Bar: start · title · end. Foot: **halves** (equal shares), **full** (one button the width),
 **end** (own width at the end, primary last), never hugging the left. An anchored overlay opens below or beside its
-trigger and leaves it in view; a modal one dims the page. The TV column is the TV builder's (family G); until it is
-filled a TV cell is `null` and the kit keeps its TV form.
+trigger and leaves it in view; a modal one dims the page. On TV (detail-tv 5c, 5d, tv-focus 4, 9, 21, 38, 43) a menu, a
+picker or a short task is the right-hand side sheet with key hints at its foot (foot `hints`: Back closes, and the foot
+says so); Filters is the side panel with its two buttons; a confirmation is a centred dialog starting on Cancel; File info
+is a full-height side sheet with Done; the profile menu is the one anchored flyout, right of the rail; Settings is a page.
+No mock-up draws Notifications on TV, so that one cell is `null`.
 
 | Task | Phone | Tablet (medium) | Wide (expanded, web) | TV |
 | --- | --- | --- | --- | --- |
-| `actions` (More / long press) | sheet, modal; bar: title + item · Done | popover beside the card, modal | popover, not dimmed | TV builder |
-| `choice` (select list, switcher, sort) | popover under the trigger, modal | popover, modal | popover, not dimmed | TV builder |
-| `confirm` (Delete…?) | sheet; foot halves (Cancel, the action; destructive is a red fill) | dialog; foot at the end | dialog; foot at the end | TV builder |
-| `task` (Add source, Save as playlist) | sheet; bar: Cancel · centred title; foot full (the action) | side panel, modal; title · round ×; foot halves | dialog; title · round ×; foot at the end | TV builder |
-| `details` (File info) | sheet; bar: title + item · Done | side panel; title + item · round × | side panel | TV builder |
-| `filters` | sheet; title · Done; foot halves | side panel; title · round ×; foot halves | side panel | TV builder |
-| `settings` | full sheet; index "Settings · Done", a page "‹ Settings · centred title · its action" | a page beside the list | a page beside the list (web: full page at phone width, ruled) | TV builder |
-| `account` | sheet; title · Done | popover under the avatar | popover under the avatar | TV builder |
-| `notifications` | a page in the Settings sheet: "‹ Settings · Notifications · Mark all read" | popover under the bell | popover under the bell | TV builder |
+| `actions` (More / long press) | sheet, modal; bar: title + item · Done | popover beside the card, modal | popover, not dimmed | side sheet, modal; eyebrow + title; foot: key hints |
+| `choice` (select list, switcher, sort) | popover under the trigger, modal | popover, modal | popover, not dimmed | side sheet, modal; eyebrow + title; foot: key hints |
+| `confirm` (Delete…?) | sheet; foot halves (Cancel, the action; destructive is a red fill) | dialog; foot at the end | dialog; foot at the end | dialog; foot at the end, Cancel first |
+| `task` (Add source, Save as playlist) | sheet; bar: Cancel · centred title; foot full (the action) | side panel, modal; title · round ×; foot halves | dialog; title · round ×; foot at the end | side sheet, modal; title; foot: key hints (no Cancel) |
+| `details` (File info) | sheet; bar: title + item · Done | side panel; title + item · round × | side panel | full-height side sheet; eyebrow + title; foot full (Done) |
+| `filters` | sheet; title · Done; foot halves | side panel; title · round ×; foot halves | side panel | side panel; title; foot halves (Clear all, Show N) |
+| `settings` | full sheet; index "Settings · Done", a page "‹ Settings · centred title · its action" | a page beside the list | a page beside the list (web: full page at phone width, ruled) | a page |
+| `account` | sheet; title · Done | popover under the avatar | popover under the avatar | flyout right of the rail |
+| `notifications` | a page in the Settings sheet: "‹ Settings · Notifications · Mark all read" | popover under the bell | popover under the bell | not drawn |
 
 Kit: `SheetFrame` takes `task` (native `kind: 'task'`), `title`, `subtitle?` (the item), `action?`, `foot?`,
 `anchorRef?`. Sheet and side-panel feet share the width; a modal popover draws a scrim; focus placed on open draws

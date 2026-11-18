@@ -647,9 +647,16 @@ test('Library Save view follows caller eligibility without disabling the other m
   }} finally {state.theme = previous;}
 });
 
-test('F09 explicitly anchored TV Menu holds its in-window native focus guide', async () => {
+test('F09 the rail\'s anchored TV flyout holds its in-window native focus guide; any other anchored TV menu is the side sheet (R9)', async () => {
   state.theme = createTheme({isTV: true, width: 1920});
-  const menu = await mount(Menu, {testID: 'anchored-menu', open: true, onOpenChange() {}, presentation: 'anchored', anchorRef: {current: {measureInWindow: (run: any) => run(300, 200, 100, 60)}}, items: [{id: 'action', label: 'Actual action', onSelect() {}}]});
+  const anchorRef = {current: {measureInWindow: (run: any) => run(300, 200, 100, 60)}}, items = [{id: 'action', label: 'Actual action', onSelect() {}}];
+  const sheet = await mount(Menu, {testID: 'anchored-menu', open: true, onOpenChange() {}, presentation: 'anchored', anchorRef, items});
+  try {assert.notEqual((sheet.tree as any).type, Popover, 'R9: a TV menu is never a pointer drop-down');}
+  finally {await sheet.host.unmount();}
+  // The flyout re-measures its anchor each frame while the rail moves; this case looks at one frame.
+  const request = globalThis.requestAnimationFrame, cancel = globalThis.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = () => 0; globalThis.cancelAnimationFrame = () => {};
+  const menu = await mount(Menu, {testID: 'anchored-menu', open: true, onOpenChange() {}, presentation: 'anchored', placement: 'right-end', anchorRef, items});
   try {
     const popover = menu.tree as any; assert.equal(popover.type, Popover); assert.equal(popover.props.holdFocus, true); assert.equal(popover.props.modal, undefined);
     const surface = await mount(Popover, popover.props);
@@ -657,7 +664,7 @@ test('F09 explicitly anchored TV Menu holds its in-window native focus guide', a
       await surface.host.flush(); const boundary = nodes(surface.tree).find(node => (node.type as any)?.name === 'FocusBoundary')!;
       assert.ok(boundary); assert.equal(boundary.props.modal, true, 'containment is independent of the native window modality');
     } finally {await surface.host.unmount();}
-  } finally {await menu.host.unmount();}
+  } finally {await menu.host.unmount(); globalThis.requestAnimationFrame = request; globalThis.cancelAnimationFrame = cancel;}
 });
 
 test('F10 standalone Row owns one provider and reports actual raw viewport keys across retained holes', async () => {

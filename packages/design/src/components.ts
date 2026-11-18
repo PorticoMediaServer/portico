@@ -32,6 +32,9 @@ export const focus = {
   /** Items inside a container (rows, menu items, tabs, segments, table rows). */
   offsetInner: same(-3, -4),
   /** Only television scales on focus. */
+  /** R1, TV: a focused row (settings, panel, menu, queue) keeps its size and draws the ring inside its own edges over this
+   * much of the text colour. */
+  rowFillAlpha: .1,
   scale: {button: same(1, 1.05), row: same(1, 1.02), card: same(1, 1.08), chip: same(1, 1.05), field: same(1, 1)},
   /** Never add a fill as well as the ring on keyboard focus; hover may change the fill. */
   fillOnFocus: false,
@@ -242,6 +245,8 @@ export const overlay = {
 
 /** Menus (card menu, More, sort, pickers on web; anchored panels on iPad). CON-05. */
 export const menu = {
+  /** R9, TV: the gap between a side sheet's rows, so one row's ring never touches the next. */
+  tvSheetRowGap: 12,
   surface: 'raisedHigh' as ColorToken,
   radius: all(14, 14, 14, 24),
   phoneMaterial: {color: 'raisedBright' as ColorToken, alpha: 0.96, blur: 30},
@@ -386,7 +391,9 @@ export const navigation = {
   phone: {height: 100, paddingTop: 50, solidHeight: 96, solidPaddingTop: 46, markHeight: 16, avatarSize: 30, solidAlpha: 0.82, blur: 24, saturation: 1.3,
     tabBar: {height: 84, paddingTop: 9, paddingX: 14, gap: 3, alpha: 0.82, blur: 24, borderAlpha: 0.08, label: 'tabBar' as TypeRole}},
   mobileWeb: {topHeight: 56, topPaddingLeft: 20, topPaddingRight: 16, tabBar: {height: 56, paddingTop: 7, paddingX: 14, gap: 2, alpha: 0.9, blur: 24, borderAlpha: 0.08}},
-  tv: {width: 260, openWidth: 560, itemSize: 64, openItemWidth: 320, insetLeft: 72, paddingTop: 58, paddingBottom: 56, itemGap: 8, labelGap: 22, itemRadius: 14, contentShift: 270, dimAlpha: 0.5},
+  tv: {width: 260, openWidth: 560, itemSize: 64, openItemWidth: 320, insetLeft: 72, paddingTop: 58, paddingBottom: 56, itemGap: 8, labelGap: 22, itemRadius: 14, contentShift: 270, dimAlpha: 0.5,
+    /** R1: the room left of the closed rail's items kept unclipped, so the current page's accent bar shows. */
+    markRoom: 24},
 } as const;
 /** desktop-activity.html#1–6. Glyph A is selected by accepted Q38. */
 export const activity = {

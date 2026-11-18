@@ -24,5 +24,7 @@ export type PageStateProps = Readonly<{
  * in a glass circle, a large title, one sentence, a white primary and a glass secondary; centred on a phone, at the
  * gutter elsewhere. The other frames draw it for their `state`; a screen with no frame of its own uses it directly. */
 export function PageStateFrame({downloads, ...props}: PageStateProps) {
-  return <StateLayout {...props} beforeActions={downloads} backdropShape="none" style={{backgroundColor: 'transparent'}}/>;
+  // R1: a page state starts on its primary action (tv-focus 47).
+  const primaryAction = props.primaryAction && {...props.primaryAction, preferredFocus: props.primaryAction.preferredFocus ?? true};
+  return <StateLayout {...props} primaryAction={primaryAction} beforeActions={downloads} backdropShape="none" style={{backgroundColor: 'transparent'}}/>;
 }

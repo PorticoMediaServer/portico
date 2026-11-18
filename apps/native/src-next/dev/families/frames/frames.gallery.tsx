@@ -17,7 +17,8 @@ import {useTheme} from '../../../kit/theme';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {MediumRail} from '../../../shell/MediumRail';
 import {TVRail} from '../../../shell/TVRail';
-import {FocusProvider} from '../../../kit/focus';
+import {tvRailScrim} from '../../../shell/NativeShell';
+import {FocusProvider, StartFocusScope, focusTestID} from '../../../kit/focus';
 import {PhoneTabBar} from '../../../shell/PhoneTabBar';
 import {mediumRailMetrics, phoneBarHeight, type ShellDestination} from '../../../shell/model';
 import {NativePageInsetProvider} from '../../../kit/layout/page-inset';
@@ -56,26 +57,28 @@ export function Page({children, destination}: {children: ReactNode; destination:
   const theme = useTheme(), window = useWindowDimensions(), insets = useSafeAreaInsets(), {form} = useFrameMetrics();
   const landscape = window.width > window.height, rail = form === 'medium' || form === 'expanded', sidebar = theme.layoutMode === 'desktop';
   const inset = rail ? sidebar ? sidebarWidth : mediumRailMetrics.width : 0;
-  const profileRef = useRef<View>(null);
+  const profileRef = useRef<View>(null), [railOpen, setRailOpen] = useState(false);
   return <View style={{height: window.height, marginHorizontal: -theme.gutter}}>
-    {/* The shell draws the rail over the window's left edge and gives the page the room beside it. */}
-    <View style={{position: 'absolute', top: 0, bottom: form === 'phone' ? phoneBarHeight(insets.bottom, landscape) : 0, left: inset, right: 0}}><NativePageInsetProvider value={inset}>{children}</NativePageInsetProvider></View>
+    {/* The shell draws the rail over the window's left edge and gives the page the room beside it. On TV the open rail
+        pushes the page right under the shell's one rail scrim, a solid panel running into an even dim (tv-2-rail-open). */}
+    <View style={{position: 'absolute', top: 0, bottom: form === 'phone' ? phoneBarHeight(insets.bottom, landscape) : 0, left: inset, right: 0, transform: railOpen ? [{translateX: theme.spec.navigation.tv.contentShift}] : undefined}}><NativePageInsetProvider value={inset}>{children}</NativePageInsetProvider></View>
+    {form === 'tv' && <View pointerEvents="none" style={{position: 'absolute', inset: 0, experimental_backgroundImage: tvRailScrim(theme.colors.ink, railOpen)}}/>}
     {rail && <MediumRail expanded={sidebar} brand={sidebar} serverName={f('serverName')} libraries={libraries} hasLiveTV destination={destination} profile={{id: 'gallery', name: f('profileInitial'), initial: f('profileInitial'), color: 'blue'}} unread
       notificationAction={{label: f('notifications'), onPress: none}} serverAction={{id: 'activity', label: f('serverActivity'), onPress: none}} onNavigate={none} onProfile={none} profileRef={profileRef} short={window.height < theme.layout.breakpoint.phone}/>}
     {form === 'phone' && <PhoneTabBar destination={destination} hasLiveTV onSelect={none} landscape={landscape}/>}
     {/* TV: the shell's own rail, collapsed, over the page's left edge as the app draws it. */}
-    {form === 'tv' && <FocusProvider><TVRail authority={galleryAuthority} libraries={libraries} hasLiveTV destination={destination} profile={{id: 'gallery', name: f('profileInitial'), initial: f('profileInitial'), color: 'blue'}} onNavigate={none} onProfile={none} profileRef={profileRef} onExpandedChange={none}/></FocusProvider>}
+    {form === 'tv' && <FocusProvider><TVRail authority={galleryAuthority} libraries={libraries} hasLiveTV destination={destination} profile={{id: 'gallery', name: f('profileInitial'), initial: f('profileInitial'), color: 'blue'}} onNavigate={none} onProfile={none} profileRef={profileRef} onExpandedChange={setRailOpen}/></FocusProvider>}
   </View>;
 }
 
-export function PosterRow({title, fresh = false}: {title: string; /** The first few are new. */ fresh?: boolean}) {
+export function PosterRow({title, fresh = false, testID}: {title: string; /** The first few are new. */ fresh?: boolean; testID?: string}) {
   const theme = useTheme(), width = theme.spec.card.width.poster[theme.column];
-  return <Row title={title} items={posters} getKey={item => item.id} itemWidth={width} itemHeight={width * 1.5} selection={selection}
+  return <Row testID={testID} title={title} items={posters} getKey={item => item.id} itemWidth={width} itemHeight={width * 1.5} selection={selection}
     renderItem={(item, context) => <PosterCard {...card(context)} title={item.title} artwork={item.art} width={width} isNew={fresh && posters.indexOf(item) < 3} onNavigate={none}/>}/>;
 }
-function WideRow() {
+function WideRow({testID}: {testID?: string}) {
   const theme = useTheme(), width = theme.spec.card.width.wide[theme.column];
-  return <Row title={f('continueWatching')} items={wides} getKey={item => item.id} itemWidth={width} itemHeight={width * 9 / 16} selection={selection}
+  return <Row testID={testID} title={f('continueWatching')} items={wides} getKey={item => item.id} itemWidth={width} itemHeight={width * 9 / 16} selection={selection}
     renderItem={(item, context) => <WideCard {...card(context)} title={item.title} artwork={item.art} width={width} progress={.4} caption={[{id: 'episode-label', text: f('wideEpisode'), role: 'identity'}, {id: 'remaining', text: f('wideLeft'), role: 'context'}]} primaryAction="play" onPlay={none} onNavigate={none}/>}/>;
 }
 
@@ -85,15 +88,20 @@ const heroes = [
 ];
 function BrowseHome() {
   // The sample hero holds its first title: the real one moves on by itself, and a shot taken mid-change shows a faded hero.
-  const index = 0, setIndex = none, art = (id: string) => heroes.find(entry => entry.id === id)?.art;
-  return <Page destination={{kind: 'home'}}><BrowseFrame testID="frames-browse-home" hero={<HomeHero candidates={heroes} activeIndex={index} onIndexChange={setIndex}
+  const index = 0, setIndex = none, art = (id: string) => heroes.find(entry => entry.id === id)?.art, {form} = useFrameMetrics();
+  // TV (owner, 18 Nov): Home starts on the first Continue Watching card and the hero has no buttons; its hint row says
+  // what OK and Hold OK do on the focused card (final3-tv-01).
+  const actions = () => form === 'tv' ? <KeyHints hints={[{key: f('keyOk'), label: f('hintResume')}, {key: f('keyHoldOk'), label: f('hintMoreOptions')}]}/>
+    : <><Button icon="i-play" onPress={none}>{f('play')}</Button><Button variant="glass" icon="i-plus" onPress={none}>{f('myList')}</Button></>;
+  return <Page destination={{kind: 'home'}}><BrowseFrame testID="frames-browse-home" startFocus={`${homeContinue}-item-tlou`} hero={<HomeHero candidates={heroes} activeIndex={index} onIndexChange={setIndex}
     renderArtwork={(entry, context) => <AmbientArt foreground={art(entry.id)} visible={context.visible} foregroundStyle={context.foregroundStyle} onReady={context.onReady} onError={context.onError}/>}
-    renderActions={() => <><Button icon="i-play" preferredFocus onPress={none}>{f('play')}</Button><Button variant="glass" icon="i-plus" onPress={none}>{f('myList')}</Button></>}/>}>
-    <WideRow/><PosterRow fresh title={f('newOnServer')}/>
+    renderActions={actions}/>}>
+    <WideRow testID={homeContinue}/><PosterRow fresh title={f('newOnServer')}/>
   </BrowseFrame></Page>;
 }
-const BrowseList = () => <Page destination={{kind: 'libraries'}}><BrowseFrame testID="frames-browse-list" header={{title: f('movies'), back: {label: f('libraries'), onPress: none}, trailing: <Button variant="glass" size="small" icon="i-filter" onPress={none}>{f('filters')}</Button>}}>
-  <PosterRow title={f('newOnServer')}/><PosterRow title={f('moreLikeThis')}/>
+const homeContinue = 'frames-browse-home-continue', listFirst = 'frames-browse-list-new';
+const BrowseList = () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-list" startFocus={`${listFirst}-item-spirited-away`} header={{title: f('movies'), back: {label: f('libraries'), onPress: none}, trailing: <Button variant="glass" size="small" icon="i-filter" onPress={none}>{f('filters')}</Button>}}>
+  <PosterRow testID={listFirst} title={f('newOnServer')}/><PosterRow title={f('moreLikeThis')}/>
 </BrowseFrame></Page>;
 const BrowseLoading = () => <Window><BrowseFrame testID="frames-browse-loading" header={{title: f('movies')}} state={{kind: 'loading'}}/></Window>;
 
@@ -119,7 +127,7 @@ function Episodes() {
 }
 function Title({variant}: {variant: 'full' | 'missing' | 'loading'}) {
   const [tab, setTab] = useState('more'), full = variant !== 'missing', {form} = useFrameMetrics();
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID={`frames-title-${variant}`} back={{label: f('back'), onPress: none}} topAction={{icon: 'i-cast', label: f('playOn'), onPress: none}}
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID={`frames-title-${variant}`} back={{label: f('back'), onPress: none}} topAction={{icon: 'i-cast', label: f('playOn'), onPress: none}}
     art={<AmbientArt treatment="title" foreground={full ? asset('bd-insideout.jpg') : undefined}/>}
     title={full ? f('insideOut') : f('longTitle')} metadata={<HeroMetadata facts={fact(full ? `${f('insideOutFacts')} · ${f('insideOutRating')}` : f('longFacts'))} centered={form === 'phone'}/>}
     primary={full ? {icon: 'i-play', label: f('resume'), progress: .09, remaining: f('resumeLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none} : {icon: 'i-play', label: f('play'), onPress: none}}
@@ -136,7 +144,7 @@ function PlaybackSections() {
   const [autoplay, setAutoplay] = useState(true);
   return <>
     <SectionCard label={f('nextEpisode')}>
-      <SettingsRow first label={f('autoplay')} control={<Switch checked={autoplay} onCheckedChange={setAutoplay} accessibilityLabel={f('autoplay')}/>}/>
+      <SettingsRow first label={f('autoplay')} control={<Switch testID="frames-settings-autoplay" checked={autoplay} onCheckedChange={setAutoplay} accessibilityLabel={f('autoplay')}/>}/>
       <SettingsRow label={f('wait')} description={f('waitHelp')} value={f('waitValue')} onPress={none}/>
     </SectionCard>
     <SectionCard label={f('skipping')}>
@@ -150,7 +158,7 @@ function StateSections() {
   return <>
     <SectionCard label={f('sources')}><StateRow kind="error" icon="i-warn" title={f('sourcesFailed')} reason={f('sourcesReason')} action={{label: f('tryAgain'), onPress: none}}/></SectionCard>
     <SectionCard label={f('sources')} stale={{label: f('sourcesStale'), retryLabel: f('tryAgain'), onRetry: none}}>
-      <SettingsRow first icon="i-live" label={f('source1')} description={f('source1Meta')} navigates onPress={none}/>
+      <SettingsRow testID="frames-settings-source1" first icon="i-live" label={f('source1')} description={f('source1Meta')} navigates onPress={none}/>
       <SettingsRow icon="i-live" label={f('source2')} description={f('source2Meta')} navigates onPress={none}/>
     </SectionCard>
     <SectionCard label={f('guide')}><StateRow kind="loading"/></SectionCard>
@@ -168,13 +176,14 @@ function SettingsList() {
   const tiles = ([['profiles', 'i-person', 'settingsSwitchProfile'], ['servers', 'i-server', 'switchServer'], ['notifications', 'i-bell', 'notifications'], ['together', 'i-people', 'settingsTogether']] as const).map(([id, icon, name]) => ({id, icon, label: f(name), onPress: none}));
   const list = <View>{form !== 'phone' && <LargeTitleHeader title={f('settings')} style={{paddingHorizontal: 0}}/>}{form === 'phone' && <ShortcutTiles testID="frames-settings-tiles" actions={tiles}/>}
     <SettingsNav testID="frames-settings-nav" accountPages={settingsPages.account} serverPages={settingsPages.server} viewerRole="owner" serverName={f('serverName')} selectedId={form === 'tv' ? 'playback' : page ?? (wide ? 'playback' : '')} onNavigate={form === 'tv' ? none : setPage} mode={form === 'tv' ? 'account' : 'combined'}/></View>;
-  return <Window><SettingsListFrame testID="frames-settings-list" open onOpenChange={none} bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
+  const hints = <KeyHints hints={[{key: [f('keyUp'), f('keyDown')], label: f('hintChoosePage')}, {key: f('keyRight'), label: f('hintEditRows')}, {key: f('keyLeft'), label: f('hintPages')}]}/>;
+  return <Window><SettingsListFrame testID="frames-settings-list" startFocus={focusTestID('frames-settings-nav', JSON.stringify(['account', 'playback']))} hints={hints} open onOpenChange={none} bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
     page={page || wide ? <SettingsPageFrame title={f('playback')} back={{label: f('settings'), onPress: () => setPage(undefined)}} intro={f('playbackIntro')}><PlaybackSections/></SettingsPageFrame> : undefined}/></Window>;
 }
-const SettingsPage = () => <Window><SettingsPageFrame testID="frames-settings-page" title={f('liveTv')} back={{label: f('settings'), onPress: none}} intro={f('playbackIntro')}><StateSections/></SettingsPageFrame></Window>;
+const SettingsPage = () => <Window><SettingsPageFrame testID="frames-settings-page" startFocus="frames-settings-source1" title={f('liveTv')} back={{label: f('settings'), onPress: none}} intro={f('playbackIntro')}><StateSections/></SettingsPageFrame></Window>;
 
 const Sheet = () => <Window><BrowseFrame header={{title: f('liveTv')}}><View/></BrowseFrame>
-  <SheetFrame kind="task" task="task" testID="frames-sheet" open onOpenChange={none} title={f('addSource')}>
+  <SheetFrame kind="task" task="task" testID="frames-sheet" startFocus="frames-sheet-playlist" hints={<KeyHints hints={[{key: f('keyOk'), label: f('hintChoose')}, {key: f('keyBack'), label: f('hintClose')}]}/>} open onOpenChange={none} title={f('addSource')}>
     <SettingsRow testID="frames-sheet-playlist" first icon="i-link" label={f('playlist')} description={f('playlistMeta')} navigates onPress={none}/>
     <SettingsRow testID="frames-sheet-tuners" icon="i-wifi" label={f('findTuners')} description={f('findTunersMeta')} navigates onPress={none}/>
   </SheetFrame></Window>;
@@ -215,7 +224,8 @@ function WatchPage({paused = false}: {paused?: boolean}) {
 }
 /** The video player filled with the kit's player parts, with what each mock-up puts in each place for its form
  * (tablet-play 1 and tv-player 1; phone-player 1 on its side; phone-player 4 and tablet-play 3 upright). Nothing moves between the states. */
-function Player({state = 'playing', panel, card, id = `frames-player-${state}`}: {state?: PlayerState; /** A `PlayerPanel`, open. */ panel?: ReactNode; /** Up next, over the credits. */ card?: ReactNode; id?: string}) {
+function Player({state = 'playing', panel, card, id = `frames-player-${state}`, start}: {state?: PlayerState; /** A `PlayerPanel`, open. */ panel?: ReactNode; /** Up next, over the credits. */ card?: ReactNode; id?: string;
+  /** TV: where the case starts (R1); Play or Pause unless a panel or card is open. */ start?: string}) {
   const {form} = useFrameMetrics(), phone = form === 'phone', tv = form === 'tv', upright = usePlayerUpright(), tablet = !phone && !tv && !upright, live = state === 'live', missing = state === 'missing', scrubbing = state === 'scrubbing';
   const still = <Artwork source={asset('bd-tlou.jpg')}/>;
   const tool = (icon: AudioControl['icon'], name: FixtureName, disabled = false) => <PlayerControl key={name} testID={`${id}-${name}`} onPicture icon={icon} label={f(name)} disabled={disabled} onPress={none}/>;
@@ -225,7 +235,7 @@ function Player({state = 'playing', panel, card, id = `frames-player-${state}`}:
   const audio = <PlayerPill testID={`${id}-audio`} icon="i-audio" name={f('audio')} value={f('english')} label={f('audio')} disabled={missing} onPress={none}/>;
   // On touch and on TV the knob goes to the time being previewed (phone-player 1b, tv-player 2).
   const at = scrubbing ? .65 : live ? .96 : .29;
-  return <Window><PlayerChromeFrame testID={id} chromeVisible scrubbing={scrubbing} panel={panel} card={card} picture={still} close={tool('i-down', 'close')} title={<PlayerTitle title={f('tlou')} lead={f('videoLead')} subtitle={f('videoSubtitle')}/>}
+  return <Window><PlayerChromeFrame testID={id} startFocus={start ?? `${id}-toggle`} chromeVisible scrubbing={scrubbing} panel={panel} card={card} picture={still} close={tool('i-down', 'close')} title={<PlayerTitle title={f('tlou')} lead={f('videoLead')} subtitle={f('videoSubtitle')}/>}
     tools={upright ? <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{tool('i-cc', 'subtitles', missing)}{tool('i-settings', 'playerSettings')}</>
       : tablet ? <>{tool('i-cast', 'playOn')}{tool('i-more', 'more')}{tool('i-x', 'dismiss')}</> : <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{tool('i-settings', 'playerSettings')}</>}
     scrubber={<PlayerScrubBar value={at} buffered={[{start: at, end: live ? 1 : at + .14}]} marks={missing || live ? [] : [{start: .02, end: .08}, {start: .95, end: 1}]}
@@ -263,11 +273,13 @@ function PlayerPanelCase({panel}: {panel: PanelName}) {
     speed: <PlayerPanelGroup>{row('optSpeed05')}{row('optSpeed075')}{row('optNormal', undefined, true)}{row('optSpeed125')}{row('optSpeed15')}{row('optSpeed2')}</PlayerPanelGroup>,
   }[panel];
   const title = {options: 'optTitle', subtitles: 'subtitles', audio: 'audio', quality: 'qualityShort', speed: 'optSpeed'} as const;
-  return <Player state="paused" id={id} panel={<PlayerPanel testID={`${id}-panel`} title={f(title[panel])} note={panel === 'options' ? f('optNote') : undefined} back={panel === 'options' ? undefined : back} close={close}>{body}</PlayerPanel>}/>;
+  // R1: a list starts on its current choice, Playback options on its first row.
+  const start = {options: 'subtitles', subtitles: 'english', audio: 'english', quality: 'optAutomatic', speed: 'optNormal'} as const;
+  return <Player state="paused" id={id} start={`${id}-${start[panel]}`} panel={<PlayerPanel testID={`${id}-panel`} title={f(title[panel])} note={panel === 'options' ? f('optNote') : undefined} back={panel === 'options' ? undefined : back} close={close}>{body}</PlayerPanel>}/>;
 }
 function PlayerEpisodesCase() {
   const [hide, setHide] = useState(false);
-  return <Player state="paused" id="frames-player-episodes" panel={<PlayerPanel testID="frames-player-episodes-panel" title={f('episodesTitle')} close={{label: f('optDone'), onPress: none}} footer={f('episodesNote')}>
+  return <Player state="paused" id="frames-player-episodes" start="frames-episode-episode2" panel={<PlayerPanel testID="frames-player-episodes-panel" title={f('episodesTitle')} close={{label: f('optDone'), onPress: none}} footer={f('episodesNote')}>
     <SeasonBar label={f('episodesSeason')} count={f('episodesCount')} onSeasons={none} hideWatched={hide} onHideWatched={setHide}/>
     <EpisodeRows panel/>
   </PlayerPanel>}/>;
@@ -275,7 +287,7 @@ function PlayerEpisodesCase() {
 /** Up next over the credits (tv-player 5, phone-player 6): the kit card in the player's prompt corner, the controls hidden. */
 function PlayerUpNextCase() {
   const {form} = useFrameMetrics();
-  return <Player id="frames-player-up-next" card={<PlayerUpNext compact={form !== 'tv'} item={{entryId: 'next', title: f('episode3'), durationMs: 76 * 60_000, episode: {seasonNumber: 1, number: 3}} as never} artwork={asset('bd-tlou.jpg')}
+  return <Player id="frames-player-up-next" start="watch-up-next-play" card={<PlayerUpNext compact={form !== 'tv'} item={{entryId: 'next', title: f('episode3'), durationMs: 76 * 60_000, episode: {seasonNumber: 1, number: 3}} as never} artwork={asset('bd-tlou.jpg')}
     countdown={{seconds: 42, automatic: false}} countdownTotal={60} sceneAfter={false} onPlayNow={none} onWatchCredits={none} onSkipCredits={none}/>}/>;
 }
 /** The Live TV player's controls on the player frame (tv-player 11, tablet-play 8, phone-player 1c): the channel's
@@ -286,7 +298,7 @@ function PlayerLiveControlsCase() {
   const theme = useTheme(), still = <Artwork source={asset('bd-tlou.jpg')}/>, markSize = theme.spec.transport.control.size[theme.column];
   const quality = <PlayerPill testID={`${id}-quality`} name={tv ? f('qualityShort') : undefined} qualifier={f('qualityAuto')} value={f('qualityValue')} label={f('qualityShort')} onPress={none}/>;
   const plain = (icon: AudioControl['icon'], name: FixtureName) => <PlayerControl key={name} testID={`${id}-${name}`} icon={icon} label={f(name)} onPress={none}/>;
-  return <Window><PlayerChromeFrame testID={id} chromeVisible picture={still} close={<PlayerControl testID={`${id}-close`} onPicture icon="i-down" label={f('close')} onPress={none}/>}
+  return <Window><PlayerChromeFrame testID={id} startFocus={`${id}-toggle`} chromeVisible picture={still} close={<PlayerControl testID={`${id}-close`} onPicture icon="i-down" label={f('close')} onPress={none}/>}
     title={<PlayerTitle mark={<ChannelMark mark={{text: f('liveMark'), seed: 'synthetic:sse'} as never} size={markSize}/>} title={f('liveTitle')} lead={f('liveChannelName')} subtitle={f('liveNumber')} live={f('liveNow')} detail={f('liveThen')}/>}
     tools={<>{upright && <PlayerControl testID={`${id}-guide`} onPicture icon="i-list" label={f('guide')} onPress={none}/>}<PlayerLiveActions enabled compact={phone || upright} record={{label: f('liveRecord'), onPress: none}} more={{onPress: none}}/></>}
     scrubber={<PlayerScrubBar value={.68} from={.55} buffered={[{start: .55, end: .7}]} liveEdge={.7}/>}
@@ -319,7 +331,7 @@ function Audio({variant}: {variant: 'music' | 'missing' | 'book' | 'loading'}) {
     row={{id: name, playing: index === 1, duration: {id: 'duration', text: f(`queueDuration${index + 1}` as FixtureName), role: 'context'}, text: {id: name, title: f(name), caption: [], detail: []}}}/>)}</View>;
   const queue = <View>{label('queueNow')}{song('now', f('songTitle'), 'queueDurationNow', true)}{label('queueNextFrom')}
     {(['queue1', 'queue2', 'queue3', 'queue4', 'queue5', 'queue6'] as const).map((name, index) => song(name, f(name), `queueDuration${index + 1}` as FixtureName))}</View>;
-  return <Window><AudioPlayerFrame testID={id} loading={variant === 'loading'}
+  return <Window><AudioPlayerFrame testID={id} startFocus={`${id}-pause`} loading={variant === 'loading'}
     close={control('i-down', 'close')} more={control('i-more', 'more')} favourite={control('i-heart', 'favourite')} context={book ? f('playingFromListening') : missing ? f('playingFromField') : f('playingFrom')} source={book ? f('playingSourceListening') : missing ? f('playingSourceField') : f('playingSource')}
     artwork={missing ? undefined : asset(book ? 'pool/books/the-hobbit.jpg' : 'pool/albums/after-hours.jpg')} icon={book ? 'i-book' : 'i-music'}
     title={book ? f('hobbit') : missing ? f('longSong') : f('songTitle')} byline={book ? f('tolkien') : missing ? f('choir') : f('songArtist')} chapter={book ? {label: f('chapter'), of: f('chapterOf')} : undefined}
@@ -340,7 +352,7 @@ function Elements() {
     ['rowLabel', 'roleRowLabel', theme.colors.text], ['rowHelp', 'roleRowHelp', theme.colors.textTertiary], ['intro', 'roleBody', theme.colors.textSecondary]] as const;
   const boxes = [['square', 'i-music', 'artMusic', square, undefined], ['square', 'i-book', 'artBook', square, undefined], ['poster', 'i-film', 'artPoster', poster, undefined], ['wide', 'i-tv', 'artWide', poster * 1.6, undefined],
     ['square', 'i-music', 'withArtwork', square, asset('pool/albums/thriller.jpg')], ['poster', 'i-film', 'withArtwork', poster, asset('pool/movies/dune.jpg')]] as const;
-  return <View testID="frames-elements" style={{marginHorizontal: -theme.gutter, paddingVertical: frame.sectionGap, gap: frame.sectionGap}}>
+  return <StartFocusScope id="frames-settings-autoplay"><View testID="frames-elements" style={{marginHorizontal: -theme.gutter, paddingVertical: frame.sectionGap, gap: frame.sectionGap}}>
     <View style={{marginHorizontal: frame.gutter, gap: theme.space.sm}}>{roles.map(([role, name, color]) => <Text key={role} style={[theme.type[role], {color}]}>{f(name)}</Text>)}</View>
     <PlaybackSections/>
     <StateSections/>
@@ -352,7 +364,7 @@ function Elements() {
       <PosterCard title={f('longTitle')} caption={fact('1974')} width={poster} onNavigate={none}/>
       <SquareCard title={f('songTitle')} caption={fact(f('songArtist'))} width={square} onNavigate={none}/>
     </View></Section>
-  </View>;
+  </View></StartFocusScope>;
 }
 
 /** Decision 4: each frame empty, as the frames page draws it. What the frame owns is drawn by the frame, with stand-in

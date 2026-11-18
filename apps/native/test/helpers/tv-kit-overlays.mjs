@@ -45,6 +45,7 @@ export async function tvKitOverlays(kit, {wait = 60} = {}) {
   const sheet = await screenModule(src('kit/overlays/BottomSheet.tsx'), {...common, './surface': surface,
     '../../platform/keyboard': {useKeyboardHeight: () => 0}, 'react-native-gesture-handler': {Gesture: {Pan: () => pan}, GestureDetector: ({children}) => children}});
   const menu = await screenModule(src('kit/overlays/Menu.tsx'), {...common, './surface': surface, './BottomSheet': sheet,
+    '../controls/KeyHints': {BackCloseHints: none},
     '../../platform/native-blur': {glassRecipe: () => ({nativeBlur: false}), BlurView: none}, './anchored-menu-geometry': {rightEndMenuRect: () => ({x: 0, y: 0, width: 300, height: 300})},
     '../browse/touch-menu-geometry': {touchMenuRect: () => undefined}});
   const panels = await screenModule(src('kit/overlays/TVPanelMotion.tsx'), {react, 'react-native': native, 'react-native-reanimated': animated,

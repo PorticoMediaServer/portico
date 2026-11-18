@@ -8,6 +8,7 @@ import {TopBar, type TopBarBack} from '../layout/TopBar';
 import {headerWordmark} from '../shell/brand';
 import {FormScrollView} from '../../platform/keyboard';
 import {useTheme} from '../theme';
+import {StartFocusScope} from '../focus';
 import {useFrameMetrics} from './metrics';
 
 export type SignInFrameProps = Readonly<{
@@ -25,12 +26,17 @@ export type SignInFrameProps = Readonly<{
   /** Terms and Privacy, held at the bottom. */
   terms?: ReactNode;
   testID?: string;
+  /** TV: the control the page starts on (R1), by its `focusId` or `testID`. Never in the rail. */
+  startFocus?: string;
 }>;
 
 /** Frame 6, the pages before you're in (welcome, sign in, local server, codes, profiles), on a phone and a tablet.
  * Fixed: Back or the wordmark, the title slot, Terms at the bottom. Flexible: the form, which scrolls and stays
  * above the keyboard. On a tablet the same column is centred at 380. TV sign-in is the existing `TVAuthLayout`. */
-export function SignInFrame({back, kicker, title, lede, error, children, terms, testID}: SignInFrameProps) {
+export function SignInFrame({startFocus, ...props}: SignInFrameProps) {
+  return <StartFocusScope id={startFocus}><SignInFrameBody {...props}/></StartFocusScope>;
+}
+function SignInFrameBody({back, kicker, title, lede, error, children, terms, testID}: Omit<SignInFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), column = frameSpec.signIn.column[frame.form];
   return <View testID={testID} style={{flex: 1, paddingBottom: Math.max(insets.bottom, theme.space.sm)}}>
     {back ? <TopBar back={back}/> : <View style={{paddingTop: insets.top, height: insets.top + frameSpec.header.backRow, paddingHorizontal: frame.gutter, justifyContent: 'center', alignItems: column ? 'center' : 'flex-start'}}>
