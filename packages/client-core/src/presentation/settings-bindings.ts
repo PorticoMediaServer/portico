@@ -13,7 +13,7 @@ import type {ReadingPreferences} from '../preference-effects.ts';
 
 /** `awayLimit`: the Streaming document's away-from-home limit, read optionally for a page that only shows it.
  * `notices`, `titleData` and `segments` are the rebuilt server's settings documents of those names. */
-export type SettingsBindingForm='signInPolicy'|'runtime'|'connectivity'|'awayLimit'|'connectivityStatus'|'maintenance'|'alerts'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata'|'segments'|'backups'|'notices'|'titleData';
+export type SettingsBindingForm='signInPolicy'|'runtime'|'streamLimits'|'connectivity'|'awayLimit'|'connectivityStatus'|'maintenance'|'alerts'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata'|'segments'|'backups'|'notices'|'titleData';
 export type SettingsBinding=Readonly<{form:SettingsBindingForm;key:string;scope?:PreferenceScope;readOnly?:boolean;scale?:number;codec?:'insecure-connections'|'history-retention'|'number-choice'|'unlimited'|'domain'|'interface'|'remote-policy'|'away-quality'|'update-checks'|'window-mode'|'days'|'log-retention'|'still-watching'|'missing-rule'|'music-quality-choice'|'video-quality-choice'|'inherited-watched-threshold'|'surround'|'player-engine'|'tv-support'|'boolean'|'artwork-size'|'server-notices'|'notice-audience'|'hardware-selection'|'backup-schedule'|'backup-days';fields?:Readonly<Record<string,string>>;window?:'heavy'|'backup'}>;
 export type SettingsBindingSources=Readonly<{configuration?:SettingsConfiguration;preferences?:PreferenceSnapshot;forms?:Readonly<Partial<Record<SettingsBindingForm,Readonly<Record<string,unknown>>>>>;device?:Readonly<Record<string,unknown>>;deviceDefaults?:Readonly<Record<string,unknown>>}>;
 export type SettingsBindingValue=Readonly<{current:unknown;effective:unknown;default:unknown;source:string;configOnly:boolean;applicationMode?:string}>;
@@ -52,7 +52,7 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'segments.mode':{form:'segments',key:'mode'},
  'people.inviteExpiry':{form:'runtime',key:'people.invitation_days',codec:'number-choice'},
  'people.inviteRole':{form:'runtime',key:'people.invitation_role'},
- 'people.maxStreamsEach':{form:'runtime',key:'perAccountCap',codec:'unlimited'},
+ 'people.maxStreamsEach':{form:'streamLimits',key:'perPerson',codec:'unlimited'},
  'people.communityActivity':{form:'runtime',key:'home.communityActivityEnabled'},
  'integrations.compatibility':{form:'runtime',key:'integrations.compatibilityEnabled',codec:'boolean'},
  'metadata.titleDataset':{form:'titleData',key:'download',codec:'boolean'},
