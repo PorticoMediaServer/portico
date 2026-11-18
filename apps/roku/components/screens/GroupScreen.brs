@@ -360,6 +360,7 @@ function pressKey(key as string) as boolean
 end function
 
 function onKeyEvent(key as string, press as boolean) as boolean
+    if press and key = "options" then return cardKey()
     holdKey(key, press and (key = "up" or key = "down"))
     if not press or m.state.visible then return false
     if key = "up" or key = "down"
@@ -368,3 +369,30 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
     return false
 end function
+
+' * on a card in the rows: the title's menu (kit/CardMenu.brs).
+function cardKey() as boolean
+    if m.state.visible or not m.rows.isInFocusChain() or m.focus >= m.shown.count() then return false
+    row = m.shown[m.focus]
+    at = row.node.focusedIndex
+    if row.state = "ok" and at >= 0 and at < row.items.count()
+        m.menuAt = {row: row, at: at}
+        m.top.menu = cardMenu(row.items[at], [], [])
+    end if
+    return true
+end function
+
+sub onMenuChosen(event as object)
+    cardMenuChosen(event.getData())
+end sub
+
+' The card takes the title's new state (its watched tick); the row keeps its place.
+sub cardMenuChanged(item as object)
+    if m.menuAt = invalid then return
+    card = gridCard(item)
+    if item.state <> invalid then card.played = (item.state.watched = true)
+    card.art = imageUrl(card.art, 200, 300)
+    fresh = createObject("roSGNode", "ContentNode")
+    fresh.addFields(card)
+    m.menuAt.row.node.cards.replaceChild(fresh, m.menuAt.at)
+end sub

@@ -158,50 +158,6 @@ function coverTint(title as string) as integer
     return lo mod 8
 end function
 
-' The side sheet for a title: {eyebrow, title, status, rows}. `inContinue` adds the Continue
-' Watching row's own action.
-function titleMenu(item as object, inContinue as boolean) as object
-    title = item.title
-    eyebrow = ""
-    if item.kind = "episode"
-        if item.rootTitle <> invalid then title = item.rootTitle
-        eyebrow = episodeCode(item)
-    end if
-    status = ""
-    if progressOf(item) >= 0 then status = "In progress      " + timeLeftText(item)
-    rows = []
-    playable = (item.kind = "movie" or item.kind = "episode")
-    if playable
-        if progressOf(item) >= 0 then rows.push({id: "play", text: "Resume", icon: "play"}) else rows.push({id: "play", text: "Play", icon: "play"})
-    end if
-    ' films and shows are watched (the mock-ups' word); books and music are played
-    word = "played"
-    if item.kind = "movie" or item.kind = "episode" or item.kind = "show" or item.kind = "season" then word = "watched"
-    if item.state <> invalid and item.state.watched = true
-        rows.push({id: "unplayed", text: "Mark as un" + word, icon: "refresh"})
-    else
-        rows.push({id: "played", text: "Mark as " + word, icon: "check"})
-    end if
-    if inContinue then rows.push({id: "dismiss", text: "Remove from Continue Watching", icon: "close"})
-    if item.state <> invalid and item.state.inList = true
-        rows.push({id: "unlist", text: "Remove from My List", icon: "close"})
-    else
-        rows.push({id: "list", text: "Add to My List", icon: "plus"})
-    end if
-    rows.push({id: "details", text: "Details", icon: "info", gapBefore: true})
-    return {eyebrow: eyebrow, title: title, status: status, rows: rows}
-end function
-
-' The state change a menu row stands for, or invalid when the row is not a state change.
-function titleMenuChange(item as object, which as string) as dynamic
-    if which = "played" then return {watched: true}
-    if which = "unplayed" then return {watched: false}
-    if which = "list" then return {inList: true}
-    if which = "unlist" then return {inList: false}
-    if which = "dismiss" then return {continueDismissed: true}
-    return invalid
-end function
-
 ' "TC" for Timothée Chalamet: the first letters of the first and last names.
 function initialsOf(name as string) as string
     parts = name.trim().split(" ")

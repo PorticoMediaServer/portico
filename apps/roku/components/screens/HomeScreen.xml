@@ -22,6 +22,7 @@
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/CardMenu.brs"/>
   <children>
     <Hero id="hero" mode="preview" visible="false"/>
     <!-- Rows above the one in focus slide up out of this window, under the hero's words. -->

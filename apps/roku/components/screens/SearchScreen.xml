@@ -7,11 +7,15 @@
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="art" type="string"/>
     <field id="open" type="assocarray" alwaysNotify="true"/>
+    <!-- Asks the scene for a title's menu (*); the choice comes back in menuChosen. -->
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
   </interface>
   <script type="text/brightscript" uri="SearchScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/CardMenu.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
     <Group id="results">

@@ -465,14 +465,7 @@ end sub
 ' The * menu (and the "..." button) for the show, or for the episode in focus.
 sub openMenu(item as object)
     if item = invalid or item.state = invalid then return
-    m.menuFor = item
-    menu = titleMenu(item, false)
-    rows = []
-    for each row in menu.rows
-        if row.id <> "details" then rows.push(row)     ' Details is this page
-    end for
-    menu.rows = rows
-    m.top.menu = menu
+    m.top.menu = cardMenu(item, [], ["details", "show"])     ' Details and Go to show are this page
 end sub
 
 function focusedEpisode() as dynamic
@@ -484,18 +477,11 @@ function focusedEpisode() as dynamic
 end function
 
 sub onMenuChosen(event as object)
-    item = m.menuFor
-    which = event.getData()
-    if item = invalid then return
-    if which = "play"
-        if item.kind = "show" then item = playTarget()
-        if item <> invalid then m.top.open = {item: item, play: true, startOver: false}
-        return
-    end if
-    change = titleMenuChange(item, which)
-    if change = invalid then return
-    change.madeAgoMs = 0
-    api("PUT", "/v1/items/" + item.id + "/state", change, "onSaved")
+    cardMenuChosen(event.getData())
+end sub
+
+sub cardMenuChanged(item as object)
+    reread()
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean

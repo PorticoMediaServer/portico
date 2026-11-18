@@ -439,25 +439,20 @@ end function
 sub openMenu()
     item = focusedItem()
     if item = invalid then return
-    m.menuFor = item
-    m.top.menu = titleMenu(item, m.rows[m.focus].row.id = "continue")
+    extras = []
+    if m.rows[m.focus].row.id = "continue" then extras.push({id: "dismiss", text: "Remove from Continue Watching", icon: "close"})
+    m.top.menu = cardMenu(item, extras, [])
 end sub
 
+' The card menu's own rows are done by kit/CardMenu.brs; Home's own is Continue Watching's.
 sub onMenuChosen(event as object)
-    item = m.menuFor
     which = event.getData()
-    if item = invalid then return
-    if which = "play"
-        m.top.open = {item: item, play: true}
-    else if which = "details"
-        openPage(item)
-    else
-        change = titleMenuChange(item, which)
-        if change <> invalid
-            change.madeAgoMs = 0
-            api("PUT", "/v1/items/" + item.id + "/state", change, "onMenuSaved")
-        end if
-    end if
+    if cardMenuChosen(which) then return
+    if which = "dismiss" then api("PUT", "/v1/items/" + m.cardItem.id + "/state", {continueDismissed: true, madeAgoMs: 0}, "onMenuSaved")
+end sub
+
+sub cardMenuChanged(item as object)
+    refresh()
 end sub
 
 ' Home is read again after a change made from a menu.

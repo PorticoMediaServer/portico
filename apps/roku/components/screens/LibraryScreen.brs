@@ -565,6 +565,7 @@ sub onMenuChosen(event as object)
         return
     end if
     m.panelOpen = false
+    if cardMenuChosen(id) then return       ' a title's own menu (kit/CardMenu.brs); else Sort's
     for each sort in m.detail.sorts
         if sort.id = id then m.sort = sort
     end for
@@ -699,6 +700,11 @@ sub chooseFilter(id as string)
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
+    ' * on a card in the grid: the title's menu (kit/CardMenu.brs)
+    if press and key = "options" and m.region = "grid" and m.list = invalid and m.grid.visible and m.items.count() > 0
+        m.top.menu = cardMenu(m.items[m.grid.itemFocused], [], [])
+        return true
+    end if
     if press and key = "up" and m.region = "page" and m.empty = true and m.detail.views.count() > 1
         m.region = "views"      ' Up from an empty library's Browse Home reaches its views
         focusRegion()
@@ -829,3 +835,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
     focusRegion()
     return true
 end function
+
+' The grid draws no watched or saved marks, so a change from the menu leaves it as it is.
+sub cardMenuChanged(item as object)
+end sub

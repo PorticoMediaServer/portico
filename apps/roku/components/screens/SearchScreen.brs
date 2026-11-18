@@ -363,6 +363,12 @@ function onKeyEvent(key as string, press as boolean) as boolean
         end if
         return key = "right"      ' nothing found yet: Right stops
     end if
+    if key = "options"
+        row = m.rows[m.focus]
+        at = row.node.focusedIndex
+        if row.kind <> "person" and at >= 0 and at < row.items.count() then m.top.menu = cardMenu(row.items[at], [], [])
+        return true
+    end if
     if key = "left" or key = "back"
         moveTo(-1)                ' Left from a row's first card (or Back): the keyboard, at the key it left
         return true
@@ -379,3 +385,11 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
     return false
 end function
+
+sub onMenuChosen(event as object)
+    cardMenuChosen(event.getData())
+end sub
+
+' Results draw no watched or saved marks, so a change from the menu leaves them as they are.
+sub cardMenuChanged(item as object)
+end sub

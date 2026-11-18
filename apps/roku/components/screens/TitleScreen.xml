@@ -20,6 +20,7 @@
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/CardMenu.brs"/>
   <children>
     <Hero id="hero" mode="title"/>
     <TitleSections id="sections"/>
