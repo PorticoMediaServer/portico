@@ -1,6 +1,5 @@
 import React from 'react';
 import {Text, View} from 'react-native';
-import type {RuntimeSettings} from '../../../../../../packages/client-core/src/console';
 import {settingsRowIndex} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {Switch} from '../../../kit/controls/Switch';
 import {shellType} from '../../../kit/shell/visual';
@@ -12,26 +11,26 @@ import {SectionTitle} from '../owner-libraries/controls';
 import {useFormState, useStorageForms, useStorageSet, type StorageForms} from './storage/forms';
 import {TVSwitchRow} from './TVSettingRows';
 
-const IDS = ['runtime'] as const;
+const IDS = ['titleData'] as const;
 const ROW = 'metadata.titleDataset';
 
-/** Settings › Metadata › Recommendations: the title dataset switch (owner runtime setting
- * recommendations.titleDataset). Like the page's other switches, a change saves at once. */
+/** Settings › Metadata › Recommendations: the title dataset switch (the rebuilt server's `title_data` document, its
+ * `download` value). Like the page's other switches, a change saves at once. */
 export function NativeTitleDatasetGroup({ports, runtime, tv = false}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; tv?: boolean}) {
   const group = useStorageForms(ports, IDS, runtime.reportError);
   return group ? <Group key={group.mount} group={group} runtime={runtime} tv={tv}/> : null;
 }
 
 function Group({group, runtime, tv}: {group: StorageForms; runtime: NativeShellRuntime; tv: boolean}) {
-  const theme = useTheme(), t = runtime.text.t, form = group.forms.runtime;
-  const state = useFormState<RuntimeSettings, unknown>(form), save = useStorageSet(group);
+  const theme = useTheme(), t = runtime.text.t, form = group.forms.titleData;
+  const state = useFormState<Record<string, unknown>, unknown>(form), save = useStorageSet(group);
   const location = settingsRowIndex.get(ROW);
   if (!location || !state.draft) return null;
   const row = location.row, title = location.section.groups?.find(candidate => candidate.rows.some(value => value.id === ROW))?.title;
-  const on = state.draft['recommendations.titleDataset'] !== false;
+  const on = state.draft.download !== false;
   const change = (next: boolean) => {
     if (save.saving || form.getSnapshot().saving) return;
-    form.set((draft: RuntimeSettings) => ({...draft, 'recommendations.titleDataset': next}));
+    form.set((draft: Record<string, unknown>) => ({...draft, download: next}));
     void group.set.save();
   };
   const label = t(row.label), help = row.help ? t(row.help) : undefined;

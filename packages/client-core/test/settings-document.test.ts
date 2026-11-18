@@ -32,3 +32,19 @@ test('a stale Intros edit retains the refusal and newer value, rather than overw
     assert.deepEqual(values, {shortestEpisodeMinutes: 15, shortestFilmMinutes: 45});
   } finally {form.dispose();}
 });
+
+test('the title data form reads and saves the rebuilt server\'s title_data document, naming only the change', async () => {
+  const {createServerForm} = await import('../src/server-admin/server-forms.ts');
+  const sent: unknown[] = [];
+  const api = {
+    request: async <T>(path: string, method?: string) => {sent.push([method, path]); return {name: 'title_data', etag: '"4"', values: {download: true}, defaults: {download: true}} as T;},
+    requestRaw: async (path: string, method: string, options: any) => {sent.push([method, path, options.headers['If-Match'], options.body]); return {status: 200, headers: {}, body: {name: 'title_data', etag: '"5"', values: {download: false}}};},
+  };
+  const form = createServerForm('titleData', {api, console: {} as never, serverId: 'server', operationId: () => 'unused'});
+  try {
+    await form.load(); assert.equal(form.getSnapshot().saved?.download, true);
+    form.set((draft: Record<string, unknown>) => ({...draft, download: false})); await form.save();
+    assert.deepEqual(sent, [['GET', '/v1/admin/settings/title_data'], ['PUT', '/v1/admin/settings/title_data', '"4"', {download: false}]]);
+    assert.equal(form.getSnapshot().saved?.download, false);
+  } finally {form.dispose();}
+});
