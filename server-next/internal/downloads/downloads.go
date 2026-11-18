@@ -44,6 +44,8 @@ type Service struct {
 	Prepare  *prepare.Service
 	Settings *settings.Settings
 	Now      func() time.Time
+	// SubtitleDir holds the subtitles people searched for or uploaded, named by their hash.
+	SubtitleDir string
 	// BookCopy is the copy a book downloads as when its own file is not one the app reads
 	// (reading.DownloadCopy): the book version whose first file is fileID, of item, as v sees it.
 	BookCopy func(ctx context.Context, v db.Viewer, item string, fileID int64) (reading.Copy, bool, error)

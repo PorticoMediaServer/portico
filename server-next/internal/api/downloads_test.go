@@ -643,3 +643,48 @@ func TestAnExpiredCopyIsMadeAgainOnRetry(t *testing.T) {
 		t.Fatalf("after Try again the title's files answered %d", w.Code)
 	}
 }
+
+// A subtitle someone searched for or uploaded is a file the server keeps, not a track inside
+// the film: an original download lists it with an address and serves its text.
+func TestADownloadCarriesASubtitleSomeoneFetched(t *testing.T) {
+	rig := newDownloadRig(t)
+	ctx := context.Background()
+	item, err := rig.s.db.PlaybackItem(ctx, db.Viewer{UserID: 1, ProfileID: 1}, rig.film)
+	if err != nil || len(item.Versions) != 1 {
+		t.Fatal(item, err)
+	}
+	text := []byte("1\n00:00:00,000 --> 00:00:01,000\nBonjour\n")
+	sum := sha256.Sum256(text)
+	hash := hex.EncodeToString(sum[:])
+	kept := filepath.Join(rig.s.dataDir, "subtitles", hash[:2], hash)
+	if err := os.MkdirAll(filepath.Dir(kept), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(kept, text, 0o600)
+	if _, err := rig.s.db.AddSubtitle(ctx, db.Subtitle{MediaID: item.Versions[0].MediaID(), Provider: "opensubtitles", ProviderRef: "1", FileHash: hash, Format: "srt", Language: "fra"}); err != nil {
+		t.Fatal(err)
+	}
+	_, ask := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "original"})
+	var got DownloadedItem
+	if w := call(t, rig.s, "GET", "/v1/downloads/"+ask.ID+"/items/"+rig.film, rig.owner, nil, &got); w.Code != 200 {
+		t.Fatalf("the title's files answered %d: %s", w.Code, w.Body)
+	}
+	var fetched, inside int
+	for _, s := range got.Subtitles {
+		switch s.Source {
+		case "downloaded":
+			fetched++
+			if res, body := rig.fetch(s.URL); res.StatusCode != 200 || !strings.Contains(string(body), "Bonjour") {
+				t.Fatalf("the fetched subtitle answered %d %q", res.StatusCode, body)
+			}
+		case "embedded":
+			inside++
+			if s.URL != "" {
+				t.Errorf("a track inside the original has an address of its own: %+v", s)
+			}
+		}
+	}
+	if fetched != 1 || inside != 1 {
+		t.Fatalf("the download lists %d fetched and %d inside subtitles: %+v", fetched, inside, got.Subtitles)
+	}
+}

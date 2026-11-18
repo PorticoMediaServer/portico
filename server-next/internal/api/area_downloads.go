@@ -33,6 +33,7 @@ func (s *Server) startDownloads(ctx context.Context) error {
 	s.goBackground(func() { s.prepare.Run(ctx) })
 	s.jobs.Tidy("unused prepared copies", 6*time.Hour, s.prepare.Tidy)
 	s.downloads = &downloads.Service{DB: s.db, Prepare: s.prepare, Settings: s.settings, Now: func() time.Time { return s.now() },
+		SubtitleDir: filepath.Join(s.dataDir, "subtitles"),
 		BookCopy: func(ctx context.Context, v db.Viewer, item string, fileID int64) (reading.Copy, bool, error) {
 			version, ok, err := s.bookVersion(ctx, v, item, fileID)
 			if !ok {
