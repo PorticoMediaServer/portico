@@ -112,5 +112,5 @@ python3 -m unittest discover -s scripts -p test_prepare_sonic_runtime.py
 
 # Exercise the actual server aggregation/normalization and cancellation boundary.
 export PORTICO_SONIC_HELPER_TEST="$work/portico-sonic" PORTICO_SONIC_MODEL_TEST="$work/model"
-(cd server && GOTOOLCHAIN=go1.26.10 GOMAXPROCS=1 GOMEMLIMIT=1200MiB GOTMPDIR="$TMPDIR" GOFLAGS="-p=1 -trimpath" \
+(cd server-next && GOTOOLCHAIN=go1.26.10 GOMAXPROCS=1 GOMEMLIMIT=1200MiB GOTMPDIR="$TMPDIR" GOFLAGS="-p=1 -trimpath" \
   go test -count=1 ./internal/sonic -run "^TestRuntimeActual(CPUAndCurrentVerifiedModel|CancellationRetiresHelperAndInput)$")

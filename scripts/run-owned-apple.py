@@ -280,7 +280,7 @@ def tls_fixture(work):
         thread.start()
         yield {'origin': f'https://127.0.0.1:{server.server_port}', 'fingerprint': fingerprint}
         posts = [row for row in requests if row[0] == 'POST']
-        if len(posts) != 3 or any(row[1] != '/v1/networking/identity-proof' for row in posts):
+        if len(posts) != 3 or any(row[1] != '/v1/system/identity-proof' for row in posts):
             raise ValueError('TLS fixture did not receive exactly the three fixed-route proofs')
         for _, _, headers in posts:
             headers = {key.lower(): value for key, value in headers.items()}

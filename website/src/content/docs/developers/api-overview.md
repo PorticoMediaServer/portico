@@ -19,7 +19,7 @@ The API base path is `/v1` on the same origin and port as Portico Web bundled wi
 
 `GET /v1/system` is public and reports the server's ID, name, version and setup state. Protected operations require a server session, API key or personal access token, as described in [Authentication architecture](/docs/developers/authentication/).
 
-The server repository's `server/api/portico.openapi.json` is generated from the production route registry. Its `server/api/guide/` directory documents authentication, media, playback, keys, webhooks and MCP. Read each operation's models, `x-scope`, limits and preconditions instead of inferring routes from browser traffic.
+The server repository's `server-next/api/openapi.json` is generated from the server's own route table, and `server-next/API.md` explains it. Read each operation's models, `x-scope`, limits and preconditions instead of inferring routes from browser traffic.
 
 Use this contract for libraries, titles, search, playback, downloads, Live TV, DVR, permissions, settings and diagnostics.
 
