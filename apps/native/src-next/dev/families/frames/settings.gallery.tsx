@@ -140,9 +140,11 @@ function SettingsIntegrations({failed = false}: {failed?: boolean}) {
  * a key). A short task by R9 over the page it guards: the six boxes, "Lost your phone? Use a recovery code" (which swaps
  * the boxes for the recovery field), Continue once six digits are in. `refused`: the code was wrong. */
 function TwoStepBox({refused = false}: {refused?: boolean}) {
-  const theme = useTheme(), [code, setCode] = useState(refused ? '482913' : '482'), [recovery, setRecovery] = useState(false);
+  // Opened once the Settings sheet under it has settled, as a real one opens on a press: two sheets opening at mount show
+  // only the first on Android.
+  const theme = useTheme(), settled = useSettled(), [code, setCode] = useState(refused ? '482913' : '482'), [recovery, setRecovery] = useState(false);
   const ready = recovery ? Boolean(code.trim()) : /^\d{6}$/.test(code), swap = () => {setCode(''); setRecovery(!recovery);};
-  const sheet = <SheetFrame kind="task" task="task" open onOpenChange={none} title={t(recovery ? 'services.signin.recovery' : 'web.direct.codeTitle')} action={{label: t('action.continue'), disabled: !ready, onPress: none}}>
+  const sheet = <SheetFrame kind="task" task="task" open={settled} onOpenChange={none} title={t(recovery ? 'services.signin.recovery' : 'web.direct.codeTitle')} action={{label: t('action.continue'), disabled: !ready, onPress: none}}>
       <SheetBody>
         <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{t(recovery ? 'services.signin.recoveryBody' : 'services.signin.twoStep')}</Text>
         {recovery ? <TextField label={t('accounts.signIn.recoveryCode')} placeholder={t('services.recovery.codePlaceholder')} value={code} onChangeText={setCode} invalid={refused}/>
