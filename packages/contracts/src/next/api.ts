@@ -3120,6 +3120,7 @@ export interface Presentation {
   decision: PlaybackDecisions;
   hdr?: HDR;
   audioRender?: unknown;
+  notice?: string;
 }
 
 export interface ProblemReport {

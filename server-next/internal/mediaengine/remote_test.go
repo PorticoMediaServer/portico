@@ -123,6 +123,9 @@ func testRemoteFilm(t *testing.T, partCount int) {
 	if second.Route != playback.RouteConverted || !strings.HasSuffix(second.URL, "/master.m3u8") {
 		t.Fatalf("a lower quality should be a conversion: %+v", second)
 	}
+	if second.Notice != "" {
+		t.Fatalf("parts on remote storage play whole, yet the person is told %q", second.Notice)
+	}
 	base := second.URL[:strings.LastIndex(second.URL, "/")+1]
 	code, _, playlist := h.media(second.URL)
 	if !strings.Contains(string(playlist), "#EXTINF:") {
