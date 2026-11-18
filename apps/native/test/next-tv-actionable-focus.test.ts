@@ -51,7 +51,7 @@ async function bindings() {
   const {Focusable} = await screenModule(new URL('../src-next/kit/controls/Focusable.tsx', import.meta.url), {react, 'react-native': native, 'react-native-reanimated': animation,
     '@portico/design': {focusSpec}, '../theme': {useTheme: () => theme}, '../focus': {...focus, useCovered: () => false}, './control-model': controlModel,
     '../useMotion': {useMotion: () => ({transforms: false, reduce: true, timing: () => ({})})}, './useFocusedMenu': {useFocusedMenu() {}},
-    '../overlays/OverlayPaintContext': paint, '../dev-observation': {useNativeObservation: (_: any, ref: any) => ({ref, recordFocus() {}, recordDeclaredStyle() {}})}});
+    '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': paint, '../dev-observation': {useNativeObservation: (_: any, ref: any) => ({ref, recordFocus() {}, recordDeclaredStyle() {}})}});
   const entry = await screenModule(new URL('../src-next/kit/focus/useDestinationEntryFocus.ts', import.meta.url), {react, './FocusRegion': focus, './destination-entry': destination});
   const drivers: Awaited<ReturnType<typeof createFabricHookHost>>[] = []; let tag = 1;
   async function region(get: () => any) {

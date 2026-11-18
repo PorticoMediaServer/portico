@@ -40,7 +40,7 @@ async function focusableFixture() {
   const f = fixture();
   const {Focusable} = await screenModule(new URL('../src-next/kit/controls/Focusable.tsx', import.meta.url), {
     ...f.common, '@portico/design': {focusSpec}, './control-model': controlModel, './useFocusedMenu': {useFocusedMenu() {}},
-    '../overlays/OverlayPaintContext': {...liveOverlayPaint, useOverlayPaintMode: () => ({visible: true, interactive: f.state.interactive})},
+    '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': {...liveOverlayPaint, useOverlayPaintMode: () => ({visible: true, interactive: f.state.interactive})},
   });
   return {...f, render: (props: any) => f.host.render(() => {const adapter = Focusable(props); return adapter.type(adapter.props);})};
 }
@@ -116,7 +116,7 @@ test('single-line fields keep text scaling enabled and release the fixed parent 
     const f = fixture(scale);
     const {TextField} = await screenModule(new URL('../src-next/kit/controls/TextField.tsx', import.meta.url), {'./FormError': formErrorModule,
       ...f.common, '@portico/design': {fieldSpec}, './control-model': controlModel, '../Icon': {Icon: 'Icon'},
-      '../overlays/OverlayPaintContext': liveOverlayPaint, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})},
+      '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': liveOverlayPaint, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})},
     });
     const outer = f.host.render(() => TextField({value: 'Editable text', fieldStyle: {height: 28, minHeight: 35}}));
     const tree = f.host.render(() => outer.type(outer.props));
@@ -207,7 +207,7 @@ test('CardFrame announces presentation context and state while preserving named 
   const f = fixture(), calls: string[] = [];
   const {CardFrame} = await screenModule(new URL('../src-next/kit/cards/primitives.tsx', import.meta.url), {
     ...f.common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n}, './model': cardModel,
-    '../browse/useTouchHold': {useTouchHold: () => ({phase: 'idle', consumePress: () => false, end() {}, cancel() {}, handlers: {onTouchStart() {}, onTouchMove() {}, onTouchEnd() {}, onTouchCancel() {}}})},
+    '../overlays/OverlayHost': {useInTopLayer: () => true}, '../browse/useTouchHold': {useTouchHold: () => ({phase: 'idle', consumePress: () => false, end() {}, cancel() {}, handlers: {onTouchStart() {}, onTouchMove() {}, onTouchEnd() {}, onTouchCancel() {}}})},
     '../../platform/haptics': {}, '../../platform/menu-key': {registerFocusedMenu: () => () => {}},
     '../Icon': {Icon: 'Icon'}, '../selection/index': {SelectionHoldFeedback: 'SelectionHoldFeedback'},
   });
@@ -309,7 +309,7 @@ test('card facts: drop is one fixed line of whole facts, wrap moves whole facts 
   const f = fixture(1.3);
   const {Parts, Caption} = await screenModule(new URL('../src-next/kit/cards/primitives.tsx', import.meta.url), {
     ...f.common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n}, './model': cardModel,
-    '../browse/useTouchHold': {useTouchHold: () => ({phase: 'idle', consumePress: () => false, end() {}, cancel() {}, handlers: {onTouchStart() {}, onTouchMove() {}, onTouchEnd() {}, onTouchCancel() {}}})},
+    '../overlays/OverlayHost': {useInTopLayer: () => true}, '../browse/useTouchHold': {useTouchHold: () => ({phase: 'idle', consumePress: () => false, end() {}, cancel() {}, handlers: {onTouchStart() {}, onTouchMove() {}, onTouchEnd() {}, onTouchCancel() {}}})},
     '../../platform/haptics': {}, '../../platform/menu-key': {registerFocusedMenu: () => () => {}},
     '../Icon': {Icon: 'Icon'}, '../selection/index': {SelectionHoldFeedback: 'SelectionHoldFeedback'}, '../focus': {...f.common['../focus'], useFocusWaiting: () => false},
   });

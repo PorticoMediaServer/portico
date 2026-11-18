@@ -13,7 +13,7 @@ import {Icon} from '../Icon';
 import {nativeType, useTheme, titleLine} from '../theme';
 import {useMotion} from '../useMotion';
 import {BottomSheet} from './BottomSheet';
-import {OverlayPortal, useOverlayFrame, useOverlayLifecycle} from './OverlayHost';
+import {OverlayLayer, OverlayPortal, useOverlayFrame, useOverlayLifecycle} from './OverlayHost';
 import {useNativeModalPresence} from './native-dismissal';
 import type {DialogProps, OverlayReason, SidePanelProps, SurfaceProps} from './types';
 import type {OverlayFoot} from '@portico/design';
@@ -71,10 +71,12 @@ export function useOverlayRegion(testID?: string): string {
   const id = useId();
   return testID ?? `overlay:${id}`;
 }
-export function FocusBoundary({modal, children, style, testID}: {modal: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID: string}) {
+export function FocusBoundary({modal, children, style, testID, layer}: {modal: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID: string;
+  /** The open overlay's layer (`useOverlayLifecycle`): its controls draw their ring only while it is the top one. */
+  layer?: object}) {
   const {isTV} = useTheme();
   if (!isTV) return <View style={style}>{children}</View>;
-  return <FocusRegion id={testID} hold={modal} style={style}>{children}</FocusRegion>;
+  return <FocusRegion id={testID} hold={modal} style={style}>{layer ? <OverlayLayer.Provider value={layer}>{children}</OverlayLayer.Provider> : children}</FocusRegion>;
 }
 export function SurfaceHeader({title, description, action, side = false, inset = true, dialog = false, titleType: suppliedType, titleTextStyle, descriptionTextStyle, style}: Pick<SurfaceProps, 'title' | 'description' | 'titleType' | 'titleTextStyle' | 'descriptionTextStyle'> & {action?: React.ReactNode; side?: boolean; inset?: boolean; dialog?: boolean; style?: StyleProp<ViewStyle>}) {
   const theme = useTheme();
@@ -95,7 +97,7 @@ function CenteredDialog({open, onOpenChange, title, headerContext, description, 
   // Its Modal is gone (and focus goes back) only once the platform says so (useNativeModalPresence).
   const native = useNativeModalPresence(animation.present, animation.present, undefined, animation.present && !open);
   const region = useOverlayRegion(testID);
-  useOverlayLifecycle(native.mounted, true, dismiss, initialFocusRef ?? closeRef, returnFocusRef, animation.enterMs, region, restoreFocus);
+  const layer = useOverlayLifecycle(native.mounted, true, dismiss, initialFocusRef ?? closeRef, returnFocusRef, animation.enterMs, region, restoreFocus);
   if (!native.mounted || !paint.visible) return null;
   const width = suppliedWidth ?? (size === 'md' ? theme.isTV ? 900 : 480 : theme.spec.overlay.width[size][theme.column]);
   return <OverlayPaintDescendants><Modal key={native.key} transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => dismiss('back')} supportedOrientations={['portrait', 'landscape']}>
@@ -104,7 +106,7 @@ function CenteredDialog({open, onOpenChange, title, headerContext, description, 
       <Pressable accessible={false} focusable={false} style={StyleSheet.absoluteFill} onPress={() => {if (dismissOnOutsidePress) dismiss('outside');}}/>
       <Animated.View testID={testID} accessibilityLabel={accessibilityLabel} style={[{width: width || '100%', maxWidth: '92%', maxHeight: `${theme.spec.overlay.maxHeight[theme.column] * 100}%`, borderRadius: theme.isTV ? 26 : 20, paddingTop: theme.isTV ? 48 : 26, paddingHorizontal: theme.isTV ? 52 : 26, paddingBottom: theme.isTV ? 44 : 22, backgroundColor: faceColor ?? theme.colors.raised, borderWidth: 1, borderColor: alpha(theme.colors.text, 0.09)}, animation.style, style]}>
         {faceColor ? null : <DialogBackground radius={theme.isTV ? 26 : 20}/>}
-        <FocusBoundary modal testID={region} style={{flexShrink: 1, minHeight: 0}}>
+        <FocusBoundary modal testID={region} layer={layer} style={{flexShrink: 1, minHeight: 0}}>
           {headerContext}
           <SurfaceHeader dialog inset={false} title={title} description={description} titleType={titleType} titleTextStyle={titleTextStyle} descriptionTextStyle={descriptionTextStyle}/>
           {scrollable ? <ScrollView style={{flexGrow: 0, flexShrink: 1, minHeight: 0}} contentContainerStyle={contentStyle} keyboardShouldPersistTaps="handled">{children}</ScrollView>
@@ -147,7 +149,7 @@ export function SidePanel({open, onOpenChange, title, headerContext, description
   const closeRef = useRef<View>(null);
   const dismiss = (reason: OverlayReason) => {if ((reason !== 'back' && reason !== 'escape') || dismissOnBack) onOpenChange(false, reason);};
   const region = useOverlayRegion(testID);
-  useOverlayLifecycle(animation.present, false, dismiss, initialFocusRef ?? closeRef, returnFocusRef, animation.enterMs, region, restoreFocus);
+  const layer = useOverlayLifecycle(animation.present, false, dismiss, initialFocusRef ?? closeRef, returnFocusRef, animation.enterMs, region, restoreFocus);
   const panelWidth = Math.min(actualWidth, hostWidth);
   const rect = theme.isTV
     ? {x: frame.x + physical.left + (physical.width - actualWidth) * physical.scale, y: frame.y + physical.top + topInset * physical.scale, width: actualWidth * physical.scale, height: Math.max(0, physical.height - topInset) * physical.scale}
@@ -155,7 +157,7 @@ export function SidePanel({open, onOpenChange, title, headerContext, description
   if (!animation.present || !paint.visible) return null;
   const padding = {paddingTop: theme.isTV ? 64 : 24, paddingBottom: theme.isTV ? 56 : 20, paddingLeft: theme.isTV ? 56 : 0, paddingRight: theme.isTV ? 96 : 0};
   const content = <>{theme.isTV && <PanelBackground/>}
-      <FocusBoundary modal testID={region} style={styles.root}>
+      <FocusBoundary modal testID={region} layer={layer} style={styles.root}>
         {headerContext}
         <SurfaceHeader side title={title} description={description} titleType={titleType} titleTextStyle={titleTextStyle} descriptionTextStyle={descriptionTextStyle} action={showClose ? <Button testID={testID ? `${testID}-close` : undefined} focusId="close" ref={closeRef} variant="text" size="small" onPress={() => dismiss('close-button')}>{defaultI18n.t('action.close')}</Button> : undefined}/>
         <View style={[styles.root, contentStyle]}>{children}</View>

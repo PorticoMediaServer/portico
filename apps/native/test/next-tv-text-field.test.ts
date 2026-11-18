@@ -24,7 +24,7 @@ test('TV text entry draws one box, opens the keyboard only on Select, and edits 
         return {remove: () => {keyboardDidHide = undefined;}};
       }}, StyleSheet: {create: (value: any) => value, flatten: (value: any) => value}},
     './Focusable': {Focusable: 'Focusable'}, './FormError': {FormError: 'FormError'}, '../Icon': {Icon: 'Icon'},
-    '../theme': {useTheme: () => theme}, '../overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({interactive: true})},
+    '../theme': {useTheme: () => theme}, '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({interactive: true})},
   });
   let tree!: Element, value = 'https://server.example', returned = 0, submitted = 0, secure = false, cleared = 0;
   const forwarded = {current: null as any};

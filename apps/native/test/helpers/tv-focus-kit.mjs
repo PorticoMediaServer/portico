@@ -22,7 +22,7 @@ export async function tvFocusKit(options = {}) {
     createTVLayerStack: layerStack.createTVLayerStack};
   const {Focusable} = await screenModule(src('kit/controls/Focusable.tsx'), {...common,
     '@portico/design': {focusSpec}, '../useMotion': {useMotion: () => ({reduce: true, transforms: false, timing: () => ({duration: 0})})},
-    './control-model': controlModel, './useFocusedMenu': {useFocusedMenu() {}}, '../overlays/OverlayPaintContext': liveOverlayPaint,
+    './control-model': controlModel, './useFocusedMenu': {useFocusedMenu() {}}, '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': liveOverlayPaint,
     '../focus': focus, '../dev-observation': {useNativeObservation: (_facts, ref) => ({ref, recordFocus() {}, recordDeclaredStyle() {}})}});
   const {TVRow} = await screenModule(src('kit/layout/TVRow.tsx'), {react, '../theme': {useTheme: () => theme}, '../focus': focus});
   const e = React.createElement;
