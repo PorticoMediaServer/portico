@@ -230,6 +230,7 @@ export const frameRegions = {
   music: [
     {id: 'header.title', forms: all, from: ['final3-desktop-12-music-discover', 'desktop-listen music', 'phone-app 15a']},
     {id: 'header.switcher', forms: all, from: ['final3-desktop-12-music-discover']},
+    {id: 'header.counts', forms: wide, from: ['final3-desktop-12-music-discover', 'desktop-listen music, songs']},
     {id: 'header.trailing', forms: touch, from: ['final3-desktop-12-music-discover']},
     {id: 'header.tabs', forms: all, from: ['final3-desktop-12-music-discover', 'desktop-listen songs']},
     {id: 'rows', forms: all, flexible: true, from: ['final3-desktop-12-music-discover', 'desktop-listen songs', 'phone-app 15a', 'final3-tv-11-music-card']},
@@ -238,6 +239,7 @@ export const frameRegions = {
   audiobooks: [
     {id: 'header.title', forms: all, from: ['desktop-listen books', 'phone-app 15c', 'listen-7-audiobooks-discover']},
     {id: 'header.switcher', forms: all, from: ['desktop-listen books']},
+    {id: 'header.counts', forms: wide, from: ['desktop-listen books']},
     {id: 'header.tabs', forms: all, from: ['desktop-listen books']},
     {id: 'rows', forms: all, flexible: true, from: ['desktop-listen books', 'phone-app 15c']},
   ],

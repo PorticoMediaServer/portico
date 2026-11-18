@@ -247,6 +247,9 @@ function LiveUpcoming() {
     {phone && <Storage/>}
   </LiveFrame></FocusProvider></Page>;
 }
+/** desktop-live live-recorded: each show a live card with its channel, its corner badge or unwatched count, and its line. */
+const recordedShows = [[channels.ad, 'pClockmakers', 'recordings6', undefined, 2], [channels.pk, 'pStoryTime', 'recordings3', undefined, 2], [channels.n24, 'pWorldTonight', 'yesterday430', undefined, undefined],
+  [channels.lm, 'pQuietHarbor', 'quietHarborFacts', 'kept', undefined], [channels.ad, 'pWildPlains', 'recordingsThree', 'kept', undefined], [channels.ss, 'pCycling', 'today130', 'incomplete', undefined]] as const;
 function LiveRecorded() {
   const {theme, phone} = useScale();
   return <Page destination={{kind: 'live'}}><FocusProvider><LiveFrame testID="frames-live-recorded" {...recordingsHeader('recorded', phone)} chips={<RecordingsChips value="recorded"/>}
@@ -256,9 +259,8 @@ function LiveRecorded() {
 function RecordedTiles() {
   const {theme, frame, phone} = useScale(), columns = phone ? 1 : frame.form === 'tv' ? 3 : 2, gap = theme.space.sm;
   const width = (frame.width - frame.gutter - frame.rightGutter - gap * (columns - 1)) / columns;
-  const items = [['pClockmakers', 'recordings6', 'bd-matrix'], ['pStoryTime', 'recordings3', 'bd-toystory'], ['pWorldTonight', 'yesterday430', 'bd-sev'], ['pQuietHarbor', 'quietHarborFacts', 'bd-spirited']] as const;
   return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
-    {items.map(([title, caption, art]) => <WideCard key={title} title={f(title)} artwork={asset(`${art}.jpg`)} width={width} caption={[fact('caption', f(caption))]} onNavigate={none}/>)}
+    {recordedShows.map(([channel, title, line, badge, count]) => <LiveCard key={title} title={f(title)} channel={channel.name} mark={channel.mark} caption={[fact('line', f(line))]} badge={badge && f(badge)} count={count} width={width} onNavigate={none}/>)}
   </View>;
 }
 function rulePane(): FramePane {
@@ -380,6 +382,7 @@ function useListenHeader(kind: 'music' | 'audiobook', tab: string) {
     switcher: <LibrarySwitcher libraries={libraries} value={library} onValueChange={setLibrary} trigger={phone ? 'name' : 'chevron'}/>,
     menu: <LibraryMenu owner ownerTag={<OwnerTag compact/>} onSaveView={none} onMarkAll={none} onEditPins={none} onLibrarySettings={none} onScan={none}/>,
     trailing: kind === 'music' && !phone ? <Button variant="glass" size="small" icon="i-shuffle" onPress={none}>{f('shuffleAll')}</Button> : undefined,
+    counts: f(kind === 'music' ? 'musicCounts' : 'bookCounts').split(' · ').map((text, index) => fact(`count${index}`, text)),
     tabs: {value: current, onValueChange: setCurrent, items: libraryTabs(kind).map(item => ({value: item.id, label: defaultI18n.t(item.label)}))}};
 }
 const albums = [['after-hours', 'aAfterHours', 'rWeeknd'], ['damn', 'aDamn', 'rKendrick'], ['rumours', 'aRumours', 'rFleetwood'], ['abbey-road-2019-mix', 'aAbbey', 'rBeatles'],

@@ -210,12 +210,15 @@ function LiveUpcoming() {
     {phone && <StorageMeter used={f('storageUsed')} free={f('storageFree')} value={.14} note={f('storageNote')}/>}
   </LiveFrame></Page>;
 }
+/** desktop-live live-recorded: each show a live card with its channel, its corner badge or unwatched count, and its line. */
+const recordedShows = [[channels.ad, 'pClockmakers', 'recordings6', undefined, 2], [channels.pk, 'pStoryTime', 'recordings3', undefined, 2], [channels.n24, 'pWorldTonight', 'yesterday430', undefined, undefined],
+  [channels.lm, 'pQuietHarbor', 'quietHarborFacts', 'kept', undefined], [channels.ad, 'pWildPlains', 'recordingsThree', 'kept', undefined], [channels.ss, 'pCycling', 'today130', 'incomplete', undefined]] as const;
 function LiveRecorded() {
-  const art = useReferenceArtwork(), phone = usePhone();
-  const items = [['pClockmakers', 'recordings6', 'bd-matrix'], ['pStoryTime', 'recordings3', 'bd-toystory'], ['pWorldTonight', 'yesterday430', 'bd-sev'], ['pQuietHarbor', 'quietHarborFacts', 'bd-spirited']] as const;
+  const phone = usePhone();
   return <Page current="liveTvShort"><LiveFrame {...recordings('recorded', phone)} toolbar={<><small style={{color: 'var(--color-text-secondary)'}}>{f('recordedCounts')}</small><span style={{flex: 1}}/><Button variant="text" size="small" icon="i-chdown" onClick={none}>{f('sortRecent')}</Button></>}>
-    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 'var(--space-sm)', padding: '0 var(--g)'}}>
-      {items.map(([title, caption, path]) => <WideCard key={title} model={{title: f(title), caption: [fact('caption', f(caption))], detail: []}} artwork={art(`${path}.jpg`)} onNavigate={none}/>)}
+    <div className={page.cardGrid}>
+      {recordedShows.map(([channel, title, line, badge, count]) => <LiveCard key={title} channel={{sourceId: 'demo', id: channel.id, name: channel.name, mark: channel.mark}} programme={{title: f(title), facts: [fact('line', f(line))]}}
+        badge={badge && f(badge)} count={count} style={{width: '100%'}} onNavigate={none}/>)}
     </div>
   </LiveFrame></Page>;
 }
@@ -321,6 +324,7 @@ function useListenHeader(kind: 'music' | 'audiobook', tab: string) {
     switcher: <LibrarySwitcher libraries={libraries} value={library} onValueChange={setLibrary} compact={phone}/>,
     menu: <LibraryMenu owner onSaveView={none} onMarkAll={none} onEditPins={none} onLibrarySettings={none} onScan={none}/>,
     trailing: kind === 'music' && !phone ? <Button icon="i-shuffle" onClick={none}>{f('shuffleAll')}</Button> : undefined,
+    counts: f(kind === 'music' ? 'musicCounts' : 'bookCounts').split(' · ').map((text, index) => fact(`count${index}`, text)),
     tabs: {value: current, onValueChange: setCurrent, items: libraryTabs(kind).map(item => ({value: item.id, label: defaultI18n.t(item.label)}))}};
 }
 const albums = [['after-hours', 'aAfterHours', 'rWeeknd'], ['damn', 'aDamn', 'rKendrick'], ['rumours', 'aRumours', 'rFleetwood'], ['abbey-road-2019-mix', 'aAbbey', 'rBeatles'],
@@ -331,10 +335,12 @@ function Songs({count = 4}: {count?: number}) {
   return <div className={page.inset}>{songs.slice(0, count).map(([title, duration, path, by], index) => <SongRow key={title} context="search" onPlay={none}
     row={{id: title, playing: index === 0, artwork: <ArtBox kind="square" icon="i-music" source={art(`pool/albums/${path}.jpg`)}/>, duration: fact('duration', f(duration)), text: {id: title, title: f(title), caption: [fact('artist', f(by))], detail: []}}}/>)}</div>;
 }
-/** Recently played: quick tiles two lines deep, four across from tablet width and two at phone width (final3-desktop-12, phone-app 15a). */
+/** Recently played: quick tiles two rows deep, as many across as tiles of about their own width fit, two to four
+ * (final3-desktop-12, phone-app 15a; the native gallery's rule). */
 function RecentlyPlayed() {
-  const art = useReferenceArtwork(), phone = usePhone();
-  return <Section title={f('recentlyPlayed')}><div className={page.tiles}>{albums.slice(0, phone ? 4 : 8).map(([id, name, by]) =>
+  const art = useReferenceArtwork(), width = typeof window === 'undefined' ? 1440 : window.innerWidth;
+  const columns = Math.min(4, Math.max(2, Math.round(width / frameSpec.quickTile.width[frameForm(width)])));
+  return <Section title={f('recentlyPlayed')}><div className={page.tiles} style={{'--columns': columns} as CSSProperties}>{albums.slice(0, columns * 2).map(([id, name, by]) =>
     <QuickTile key={id} visible model={{title: f(name), caption: [fact('by', f(by), 'identity')]}} artwork={art(`pool/albums/${id}.jpg`)} playing={id === 'after-hours'} onPause={none} onNavigate={none}/>)}</div></Section>;
 }
 function Music({tab = 'discover'}: {tab?: 'discover' | 'songs'}) {

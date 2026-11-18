@@ -248,6 +248,12 @@ export const newFramesFixtureMessages = {
   'next.newframes.fixture.yesterday430': 'Yesterday, 4:30 PM',
   'next.newframes.fixture.quietHarborFacts': '2014 · 1 h 42 min',
   'next.newframes.fixture.sortRecent': 'Recently recorded',
+  'next.newframes.fixture.kept': 'Kept',
+  'next.newframes.fixture.incomplete': 'Incomplete',
+  'next.newframes.fixture.recordingsThree': '3 recordings',
+  'next.newframes.fixture.today130': 'Today, 1:30 PM',
+  'next.newframes.fixture.musicCounts': '10 artists · 10 albums · 40 songs',
+  'next.newframes.fixture.bookCounts': '8 books · 7 authors',
   'next.newframes.fixture.recordedCounts': '10 shows and films · 20 recordings · 8 unwatched',
   // Saved and Downloads (desktop-search saved, phone-app 9, tablet 11 and 11b, collections-34).
   'next.newframes.fixture.saved': 'Saved',

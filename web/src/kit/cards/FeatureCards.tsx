@@ -21,9 +21,14 @@ export type LiveCardProps = Omit<CardProps, 'model'> & Readonly<{
   large?: boolean;
   onRemind?: () => void;
   reminderSet?: boolean;
+  /** A recording's corner badge, top left: Kept, Incomplete (desktop-live live-recorded). The channel row moves under it. */
+  badge?: string;
+  /** A recorded show's unwatched count, a round mark top right; absent or 0 draws nothing (desktop-live live-recorded). */
+  count?: number;
 }>;
-export function LiveCard({channel, programme, logo, tint, results, large, onRemind, reminderSet, ...props}: LiveCardProps) {
+export function LiveCard({channel, programme, logo, tint, results, large, onRemind, reminderSet, badge, count, ...props}: LiveCardProps) {
   return <CardFrame {...props} className={cx(results && styles.liveResults, large && styles.liveLarge, props.className)} model={{title: programme?.title ?? channel.name, caption: []}} additionalDescription={[channel.name, channel.number, ...(programme?.facts.map(part => part.text) ?? []), ...(programme?.extra?.map(part => part.text) ?? []), programme?.remaining, programme?.live ? defaultI18n.t('next.cards.live') : undefined, programme?.isNew ? defaultI18n.t('next.cards.new') : undefined, programme?.premiere ? defaultI18n.t('next.cards.premiere') : undefined, programme?.recording ? defaultI18n.t('next.cards.recording') : undefined]} kind="live" style={{...tintStyle(tint), ...props.style}} overlay={onRemind && <button type="button" disabled={props.disabled} className={styles.remind} aria-label={defaultI18n.t('guide.remind')} aria-pressed={reminderSet} onClick={onRemind}><Icon name="i-bell" size={16} /></button>}>
+    {badge !== undefined && <span className={styles.liveBadge}>{badge}</span>}{!!count && <span className={styles.liveCount}>{count}</span>}
     <span className={styles.channel}>{channel.mark ? <ChannelMark mark={channel.mark} source={logo} size={34} visible={props.visible} /> : <span className={styles.channelPlaceholder}>{logo && <Artwork source={logo} fit="contain" alt="" visible={props.visible}/>}</span>}<span className={styles.channelName}>{channel.name}{channel.favorite && <Icon name="i-star" size={13}/>}{channel.number && <span className={styles.channelNumber}>{channel.number}</span>}</span>
       {programme?.live && <span className={styles.liveFlag}>{defaultI18n.t('next.cards.live')}</span>}
     </span>
