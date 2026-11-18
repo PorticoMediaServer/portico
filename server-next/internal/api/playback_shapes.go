@@ -189,6 +189,9 @@ type Presentation struct {
 	Decision     PlaybackDecisions         `json:"decision"`
 	HDR          *playback.HDR             `json:"hdr,omitempty"`
 	AudioRender  JSON                      `json:"audioRender,omitempty"`
+	// Notice, when set, is a sentence to show the person: "Only part 1 of 2 can play: the parts
+	// are encoded differently." for a film in parts that cannot be joined into one stream.
+	Notice string `json:"notice,omitempty"`
 }
 
 // SessionEnd says why a session ended and what the viewer is told.
@@ -389,7 +392,7 @@ func (s *Server) sessionOut(v playback.Session) PlaybackSession {
 	out.Presentation = Presentation{Generation: v.Generation, Mode: v.Plan.Mode, URL: v.Stream.URL, StartPositionMs: v.StartPositionMs,
 		SeekID: v.SeekID, Engine: v.Plan.Player, Route: v.Plan.Route, Container: v.Plan.Container, BitrateKbps: v.Plan.BitrateKbps,
 		Quality: v.Plan.Quality, AudioTrackID: v.Plan.AudioTrackID, Subtitle: v.Plan.Subtitle, Subtitles: subtitles,
-		Decision: decisions(v.Plan), HDR: v.Plan.HDR, AudioRender: v.Plan.AudioRender}
+		Decision: decisions(v.Plan), HDR: v.Plan.HDR, AudioRender: v.Plan.AudioRender, Notice: v.Plan.Notice}
 	if v.Stream.AudioRender != nil {
 		// A stream's own render plan carries its addresses; the plan's is a preview without them.
 		out.Presentation.AudioRender = JSON(v.Stream.AudioRender)
