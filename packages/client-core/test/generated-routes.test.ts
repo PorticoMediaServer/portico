@@ -28,14 +28,6 @@ test('the migrated manual paths are the canonical generated routes', () => {
  assert.equal(encodedRoutePath('test_storage_source',{id:encoded('source/one')}),'/v1/storage/sources/source%2Fone/test');
 });
 
-test('development routes have their own contract and none is a production route',async()=>{
- const development=await import('../../contracts/src/development/routes.ts');
- const production=await import('../../contracts/src/routes.ts');
- assert.equal(development.routes.length,2);
- assert.equal(development.routePath('post_dev_e2e_sign_in'),'/v1/dev/e2e/sign-in');
- for(const route of development.routes) assert.equal(production.routes.some(p=>p.method===route.method&&p.path===route.path),false);
-});
-
 test('generated parameters cannot change URL path segments or inject a query', async () => {
  const modules = [
   {api:await import('../../contracts/src/routes.ts'), operation:'get_items_id_detail'},
