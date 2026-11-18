@@ -7,8 +7,8 @@ import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
 import {AmbientArt, ChannelMark, type ArtworkImage, type ArtworkSource} from '../../kit/artwork';
 import {EpisodeTile, PosterCard, SquareCard, WideCard} from '../../kit/cards';
 import {SongRow} from '../../kit/browse';
-import {Button, Switch, Tabs, TextField} from '../../kit/controls';
-import {ArtBox, AudioPlayerFrame, BrowseFrame, EpisodeRows, HomeHero, SeasonBar, PageStateFrame, PlayerChromeFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame,
+import {Button, Chip, Switch, Tabs, TextField} from '../../kit/controls';
+import {ArtBox, AudioPlayerFrame, BrowseFrame, EpisodeList, HomeHero, PanelBlock, SeasonBar, episodeRowClass, PageStateFrame, PlayerChromeFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame,
   type AudioControl, type AudioOption} from '../../kit/frames';
 import {Icon} from '../../kit/Icon';
 import {HeroFacts, Shelf} from '../../kit/layout';
@@ -35,7 +35,7 @@ const none = () => {};
 const fact = (text: string): FactPart[] => text.split(' · ').map((part, index) => ({id: index === 0 ? 'year' : `fact-${index}`, text: part, role: index === 0 ? 'identity' : 'context'}));
 
 /** The reference artwork the capture run serves (the same files the native gallery and the mock-ups use). */
-function useReferenceArtwork() {
+export function useReferenceArtwork() {
   const scheduler = useMemo(() => new ArtworkScheduler<ArtworkImage>({load: (key, signal) => new Promise((resolve, reject) => {
     const picture = new Image();
     const clear = () => {signal.removeEventListener('abort', abort); picture.onload = null; picture.onerror = null;};
@@ -50,14 +50,14 @@ function useReferenceArtwork() {
 }
 
 /** One whole window: the standard backdrop the window draws, and the shell's gutter, which a frame takes inside the shell. */
-function Window({children}: {children: ReactNode}) {
+export function Window({children}: {children: ReactNode}) {
   return <div className="portico-backdrop" style={{height: '100%', overflowY: 'auto', '--shell-gutter': 'var(--page-gutter)'} as CSSProperties}>{children}</div>;
 }
 /** A page as the app shows it: inside the shell's own top bar (from 1024) or wordmark bar and tab bar (phone width),
  * drawn with the shell's stylesheet so the frame is judged where it lives. Between 600 and 1023 the shell's rail is not drawn here. */
 /** The owner's server activity in the top bar, with two people watching (mock.html home). Only what the closed button reads. */
 const activityView = {phase: 'ready', serverName: '', health: 'normal', streamCount: 2, taskCount: 0, streams: [], scans: [], tasks: []} as unknown as ActivityPanelView;
-function Page({children, current, home = false}: {children: ReactNode; current: 'home' | 'movies' | 'settings'; home?: boolean}) {
+export function Page({children, current, home = false}: {children: ReactNode; current: 'home' | 'movies' | 'settings'; home?: boolean}) {
   const phone = usePhone(), wide = useWide(), tools = (name: 'i-search' | 'i-bookmark' | 'i-bell', label: FixtureName) => <a className={shell.icon} aria-label={f(label)}><Icon name={name} size={22} /></a>;
   // The shell's underline measures the list it is in, so it is mounted once that list exists.
   const destinations = useRef<HTMLUListElement>(null), [listed, setListed] = useState(false);
@@ -79,7 +79,7 @@ function Page({children, current, home = false}: {children: ReactNode; current: 
 
 const posters = ['spirited-away', 'inside-out', 'alien', 'blade-runner', 'dune', 'barbie', 'back-to-the-future', 'the-dark-knight', 'avatar', 'aliens'].map(id => ({id, title: id.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ')}));
 const wides = [{id: 'tlou', title: f('tlou'), art: 'bd-tlou.jpg'}, {id: 'inside-out', title: f('insideOut'), art: 'bd-insideout.jpg'}, {id: 'spirited', title: f('spirited'), art: 'bd-spirited.jpg'}];
-function PosterRow({title, fresh = false}: {title: string; /** The first few are new. */ fresh?: boolean}) {
+export function PosterRow({title, fresh = false}: {title: string; /** The first few are new. */ fresh?: boolean}) {
   const art = useReferenceArtwork(), phone = usePhone();
   return <Shelf heading={title} platform={phone ? 'phone-web' : 'desktop'} items={posters} getKey={item => item.id}
     renderItem={item => <PosterCard isNew={fresh && posters.indexOf(item) < 3} model={{title: item.title, caption: []}} artwork={art(`pool/movies/${item.id}.jpg`)} style={{width: 'var(--card-poster-width)'}} onNavigate={none} />} />;
@@ -116,26 +116,12 @@ const episodes = [
 ] as const;
 function Episodes() {
   const art = useReferenceArtwork(), [hide, setHide] = useState(false);
-  return <div style={{display: 'grid', gap: 'var(--space-sm)', margin: '0 var(--g)'}}>
-    <SeasonBar label={f('episodesSeason')} count={f('episodesCount')} onSeasons={none} hideWatched={hide} hideWatchedLabel={f('hideWatched')} onHideWatched={setHide} />
-    <EpisodeRows>{episodes.map(episode => <EpisodeTile key={episode.name} context="detail" artworkKind="still" artwork={episode.art ? art('bd-tlou.jpg') : undefined} playing={episode.playing} watched={episode.watched}
+  return <PanelBlock>
+    <SeasonBar season={<Chip variant="toolbar" trailingIcon="i-down">{f('episodesSeason')}</Chip>} count={f('episodesCount')} hideWatched={{label: f('hideWatched'), checked: hide, onCheckedChange: setHide}} />
+    <EpisodeList layout="list">{episodes.map(episode => <EpisodeTile key={episode.name} className={episodeRowClass} context="detail" artworkKind="still" artwork={episode.art ? art('bd-tlou.jpg') : undefined} playing={episode.playing} watched={episode.watched}
       model={{title: f(episode.name), caption: [{id: 'episode', text: f(episode.number), role: 'context'}], detail: [], progress: episode.progress}}
-      playback={[{id: 'state', text: f(episode.status), role: 'identity'}, {id: 'length', text: f(episode.length), role: 'context'}]} description={f('tlouSynopsis')} onNavigate={none} />)}</EpisodeRows>
-  </div>;
-}
-function Title({variant}: {variant: 'full' | 'missing' | 'loading'}) {
-  const art = useReferenceArtwork(), [tab, setTab] = useState('more'), full = variant !== 'missing', phone = usePhone();
-  return <Page current="movies"><TitleFrame back={{label: f('back'), onPress: none}} topAction={{icon: 'i-cast', label: f('playOn'), onPress: none}}
-    art={<AmbientArt treatment={phone ? 'phone' : 'title'} foreground={full ? art('bd-insideout.jpg') : undefined} />}
-    title={full ? f('insideOut') : f('longTitle')} metadata={<HeroFacts parts={full ? [...fact(f('insideOutFacts')), {id: 'content-rating', text: f('insideOutRating'), role: 'context'}] : fact(f('longFacts'))} platform={phone ? 'phone-web' : 'desktop'} />}
-    primary={full ? {icon: 'i-play', label: f('resume'), progress: .09, remaining: f('resumeLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none} : {icon: 'i-play', label: f('play'), onPress: none}}
-    actions={full ? [{icon: 'i-plus', label: f('myList'), labelled: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}] : []}
-    tagline={full ? f('insideOutTagline') : undefined} synopsis={full ? f('insideOutSynopsis') : undefined}
-    credits={full ? [{label: f('directedBy'), names: f('insideOutDirector')}, {label: f('starring'), names: f('insideOutCast')}] : undefined}
-    tabs={{items: [{value: 'more', label: f('moreLikeThis')}, {value: 'details', label: f('details')}], value: tab, onValueChange: setTab}}
-    state={variant === 'loading' ? {kind: 'loading'} : undefined}>
-    <PosterRow title={f('moreLikeInsideOut')} />
-  </TitleFrame></Page>;
+      playback={[{id: 'state', text: f(episode.status), role: 'identity'}, {id: 'length', text: f(episode.length), role: 'context'}]} description={f('tlouSynopsis')} onNavigate={none} />)}</EpisodeList>
+  </PanelBlock>;
 }
 
 const value = (text: string) => <span className={frame.rowHelp} style={{display: 'inline-flex', alignItems: 'center', gap: 4}}>{text}<Icon name="i-right" size={18} /></span>;
@@ -202,7 +188,7 @@ function Scrubber({scrubbing = false, live = false, chapters = true}: {scrubbing
     input={{min: 0, max: 1, step: .001, value: at, onChange: none, 'aria-label': f('seek')}} />;
 }
 /** From 1024 the bar has room for volume, speed and picture in picture. */
-function useWide() {
+export function useWide() {
   const [wide, setWide] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
   useEffect(() => {const media = window.matchMedia('(min-width: 1024px)'), update = () => setWide(media.matches); media.addEventListener('change', update); return () => media.removeEventListener('change', update);}, []);
   return wide;
@@ -396,9 +382,6 @@ export default defineGalleryFamily({id: 'frames', labelKey: 'next.platform.frame
   section('browse-home', 'browseHome', BrowseHome),
   section('browse-list', 'browseList', BrowseList),
   section('browse-loading', 'browseLoading', BrowseLoading),
-  section('title', 'title', () => <Title variant="full" />),
-  section('title-missing', 'titleMissing', () => <Title variant="missing" />),
-  section('title-loading', 'titleLoading', () => <Title variant="loading" />),
   section('settings-list', 'settingsList', SettingsList),
   section('settings-page', 'settingsPage', SettingsPage),
   section('sheet', 'sheet', Sheet),

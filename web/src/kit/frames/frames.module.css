@@ -59,51 +59,8 @@
 .placeholder { container-type: size; display: grid; place-items: center; background: linear-gradient(135deg, var(--color-raised-high), var(--color-raised)); box-shadow: inset 0 0 0 var(--space-hairline) var(--frame-placeholder-line); border-radius: inherit; color: var(--color-text-tertiary); }
 .placeholder svg { width: calc(min(100cqw, 100cqh) * var(--frame-placeholder-icon-share)); height: auto; aspect-ratio: 1; }
 
-/* Frame 2. The title sits on the art box's bottom edge and grows upward, so nothing below it moves. At phone width
-   the action row and synopsis follow the art box; from 600 the same row and synopsis are the foot of the box, under
-   the title, with the synopsis first. */
-.title { padding-bottom: var(--frame-bottom-clear); }
-.titleHead { position: relative; isolation: isolate; display: grid; grid-template-rows: var(--frame-hero-title-height) auto; }
-.titleArt { grid-area: 1 / 1; position: relative; z-index: -1; }
-.titleArt > * { position: absolute; inset: 0; }
-.titleTop { grid-area: 1 / 1; align-self: start; display: flex; justify-content: space-between; padding: var(--space-px-12) var(--space-sm) 0; }
-.titleTop > * { border-radius: 50%; }
-.titleCopy { grid-area: 1 / 1; align-self: end; padding: 0 var(--g) var(--frame-hero-title-copy-bottom); text-align: center; }
-.titleLockup { margin: 0; font-size: var(--frame-hero-title-lockup); line-height: var(--frame-hero-lockup-line); font-weight: var(--type-lockup-weight); letter-spacing: var(--frame-hero-lockup-tracking); text-wrap: balance; text-shadow: 0 2px 30px color-mix(in srgb, var(--color-ink) 50%, transparent); }
-.titleMeta { min-height: var(--type-row-label-line); margin-top: var(--space-control-gap); display: flex; justify-content: center; align-items: center; }
-.titleMeta > * { margin: 0; }
-.titleBody { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--frame-title-action-gap) var(--g) 0; }
-.titleActions { display: flex; align-items: center; gap: var(--spec-hero-actions-gap-phone); height: var(--button-hero-height); }
-.titleActions > :first-child { flex: 1; min-width: 0; }
-/* A phone's Resume line: the played part across the row, then the time left and Start over under it. */
-.titleProgress { display: grid; grid-template-columns: 1fr auto; align-items: center; row-gap: var(--space-tight); }
-.titleProgress > span { grid-column: 1 / -1; height: var(--spec-card-progress-height-phone); border-radius: var(--spec-card-progress-height-phone); overflow: hidden; background: color-mix(in srgb, var(--color-text) 22%, transparent); }
-.titleProgress i { display: block; height: 100%; background: var(--color-accent-strong); }
-.titleBody, .titleWords, .titleCopy { min-width: 0; }
-.titleMeta > * { flex-wrap: wrap; justify-content: inherit; }
-.titleRound { width: var(--button-hero-height); padding: 0; flex: none; }
-/* The words under the action row on a phone, over it from tablet width: tagline, synopsis, credits. */
-.titleWords { display: flex; flex-direction: column; gap: var(--frame-title-credits-gap); }
-.titleCredits { display: none; }
-.titleCredits > span { margin-inline-end: var(--space-md); }
-.titleCredits b { color: var(--color-text-secondary); font-weight: inherit; }
-.synopsis { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--frame-hero-title-synopsis-lines); overflow: hidden; max-width: var(--spec-hero-synopsis-max-width-web); }
-/* The tabs start at the gutter; the rule under them belongs to the strip and runs the page's full width (phone-detail 1, desktop-detail 2). */
-.titleTabs { margin-top: var(--space-sm); }
+/* The tabs' strip runs the page's full width; the tabs start at the gutter (the title page and the watch page). */
 .tabsInset { padding-left: var(--g); padding-right: var(--g); }
-.titlePanel { display: flex; flex-direction: column; gap: var(--frame-section-gap); margin-top: calc(var(--frame-header-gap) + var(--frame-heading-gap)); }
-@media (min-width: 600px) {
-  .titleHead { display: flex; flex-direction: column; justify-content: flex-end; height: var(--frame-hero-title-height); padding-bottom: var(--frame-hero-title-copy-bottom); box-sizing: border-box; }
-  .titleArt { position: absolute; inset: 0; }
-  .titleTop { display: none; }
-  .titleCopy, .titleBody { width: calc(var(--spec-hero-copy-title-width-web) + 2 * var(--g)); max-width: 100%; box-sizing: border-box; }
-  .titleCopy { align-self: flex-start; padding-bottom: 0; text-align: left; }
-  .titleMeta { justify-content: flex-start; }
-  .titleBody { flex-direction: column-reverse; gap: var(--frame-title-action-gap); padding-top: var(--space-sm); }
-  .titleActions > :first-child { flex: none; }
-  .titleCredits { display: block; }
-  .titleTabs { margin-top: 0; }
-}
 
 /* Frames 3 and 4. At phone width the list or the selected page fills the width under one compact bar; from 600 the
    list is a sticky column beside the page, and both start at the column's own edges. */
@@ -240,15 +197,6 @@
   .audioUpNext { display: block; grid-column: 2; grid-row: 2 / -1; overflow-y: auto; min-height: 0; }
 }
 
-/* The episodes bar and the episode rows of a show (phone-player 4, tablet-play 3). */
-.seasonBar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-control-gap); }
-.seasonHide { margin-left: auto; display: flex; align-items: center; gap: var(--space-xs); font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-button-weight); color: var(--color-text-secondary); }
-.episodeRows { display: flex; flex-direction: column; gap: var(--space-sm); }
-.episodeRows > * { width: 100%; }
-.episodeRows > * > button { display: grid; grid-template-columns: calc(var(--card-poster-width) * 1.15) minmax(0, 1fr); column-gap: var(--space-sm); text-align: left; width: 100%; }
-.episodeRows > * > button > :first-child { grid-column: 1; grid-row: 1; }
-.episodeRows > * > button > :nth-child(2) { grid-column: 2; margin-top: 0; align-self: center; }
-.episodeRows > * > button > :nth-child(3) { grid-column: 1 / -1; }
 
 /* A phone on its side: the finger is on the scrubber, so the transport in the middle of the picture makes way for the preview (phone-player 1b). */
 @media (max-height: 500px) { .player[data-scrubbing='true'] .playerCentre { opacity: 0; pointer-events: none; } }

@@ -123,9 +123,12 @@ test('held seek stops at the retained-window boundary without committing playbac
 
 test('Seasons has a stable sheet, selected-season entry, Done/Go identities and opener restoration', async () => {
   const h = watchHooks(), opener = {current: {}}, selected: string[] = [];
-  const {NativeSeasonsSheet} = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {
-    react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../kit/controls': controlsAtoms, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/theme': themed,
+  // The sheet is the kit's (kit/layout/SeasonSheet.tsx); the screen's wrapper maps the show's seasons to its rows.
+  const kit = await screenModule(new URL('../src-next/kit/layout/SeasonSheet.tsx', import.meta.url), {
+    react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../controls': controlsAtoms, '../Icon': {Icon: 'Icon'}, '../overlays': {BottomSheet: 'BottomSheet'}, '../theme': themed,
   });
+  const wrapper = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {react: h.react, '../../../../../packages/i18n/src': i18n, '../../kit/layout/SeasonSheet': kit});
+  const NativeSeasonsSheet = (props: any) => {const sheet = wrapper.NativeSeasonsSheet(props); return kit.SeasonSheet(sheet.props);};
   const props: any = {open: true, onOpenChange() {}, returnFocusRef: opener, total: 40, seasons: [{id: 'one', number: 1}, {id: 'two', number: 2}], selectedId: 'two', onSelect: (id: string) => selected.push(id), hideWatched: false, onHideWatched() {}};
   try {
     const tree = h.render(() => NativeSeasonsSheet(props));

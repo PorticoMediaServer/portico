@@ -1,7 +1,8 @@
 /** The screen frames (design/ui-v1 `system-frames.html`). FRAMES.md beside this file is the brief for building a screen on them. */
 export {BrowseFrame, type BrowseFrameProps} from './BrowseFrame';
 export {HomeHero, type HomeHeroProps} from './HomeHero';
-export {TitleFrame, type TitleFrameProps, type TitleAction, type TitlePrimary, type TitleCredit} from './TitleFrame';
+export {TitleFrame, type TitleFrameProps, type TitleAction, type TitlePrimary, type TitleCredit, type TitleKicker, type TitleCover} from './TitleFrame';
+export {PanelBlock, PanelHeading, AboutTable, CastRow, TrackPicker, NumberedRow, OwnerCard, EpisodeNeighbour, type AboutValue, type CastPerson} from './title-parts';
 export {SettingsListFrame, SettingsPageFrame, type SettingsListFrameProps, type SettingsPageFrameProps} from './SettingsFrame';
 export {SheetFrame, type SheetFrameProps, type SheetBarProps} from './SheetFrame';
 export {SignInFrame, type SignInFrameProps} from './SignInFrame';

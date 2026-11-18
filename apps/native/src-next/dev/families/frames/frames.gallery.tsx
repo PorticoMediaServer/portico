@@ -52,7 +52,7 @@ function Window({children}: {children: ReactNode}) {
 
 /** A page as the app shows it: with the shell's own tab bar on a phone and its rail on a tablet, so the frame is judged
  * where it lives. The TV rail needs a signed-in session and is not drawn here. */
-function Page({children, destination}: {children: ReactNode; destination: ShellDestination}) {
+export function Page({children, destination}: {children: ReactNode; destination: ShellDestination}) {
   const theme = useTheme(), window = useWindowDimensions(), insets = useSafeAreaInsets(), {form} = useFrameMetrics();
   const landscape = window.width > window.height, rail = form === 'medium' || form === 'expanded', sidebar = theme.layoutMode === 'desktop';
   const inset = rail ? sidebar ? sidebarWidth : mediumRailMetrics.width : 0;
@@ -116,20 +116,6 @@ function Episodes() {
     <SeasonBar label={f('episodesSeason')} count={f('episodesCount')} onSeasons={none} hideWatched={hide} onHideWatched={setHide}/>
     <EpisodeRows/>
   </View>;
-}
-function Title({variant}: {variant: 'full' | 'missing' | 'loading'}) {
-  const [tab, setTab] = useState('more'), full = variant !== 'missing', {form} = useFrameMetrics();
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID={`frames-title-${variant}`} back={{label: f('back'), onPress: none}} topAction={{icon: 'i-cast', label: f('playOn'), onPress: none}}
-    art={<AmbientArt treatment="title" foreground={full ? asset('bd-insideout.jpg') : undefined}/>}
-    title={full ? f('insideOut') : f('longTitle')} metadata={<HeroMetadata facts={fact(full ? `${f('insideOutFacts')} · ${f('insideOutRating')}` : f('longFacts'))} centered={form === 'phone'}/>}
-    primary={full ? {icon: 'i-play', label: f('resume'), progress: .09, remaining: f('resumeLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none} : {icon: 'i-play', label: f('play'), onPress: none}}
-    actions={full ? [{icon: 'i-check', label: f('myList'), labelled: true, active: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}] : []}
-    tagline={full ? f('insideOutTagline') : undefined} synopsis={full ? f('insideOutSynopsis') : undefined}
-    credits={full ? [{label: f('directedBy'), names: f('insideOutDirector')}, {label: f('starring'), names: f('insideOutCast')}] : undefined}
-    tabs={{items: [{value: 'more', label: f('moreLikeThis')}, {value: 'details', label: f('details')}], value: tab, onValueChange: setTab}}
-    state={variant === 'loading' ? {kind: 'loading'} : undefined}>
-    <PosterRow title={f('moreLikeInsideOut')}/><WideRow/><PosterRow title={f('newOnServer')}/>
-  </TitleFrame></Page>;
 }
 
 function PlaybackSections() {
@@ -403,9 +389,6 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-browse-home', title: 'next.platform.frame.browseHome', render: BrowseHome, ...whole},
   {id: 'frames-browse-list', title: 'next.platform.frame.browseList', render: BrowseList, ...whole},
   {id: 'frames-browse-loading', title: 'next.platform.frame.browseLoading', render: BrowseLoading, ...whole},
-  {id: 'frames-title', title: 'next.platform.frame.title', render: () => <Title variant="full"/>, ...whole},
-  {id: 'frames-title-missing', title: 'next.platform.frame.titleMissing', render: () => <Title variant="missing"/>, ...whole},
-  {id: 'frames-title-loading', title: 'next.platform.frame.titleLoading', render: () => <Title variant="loading"/>, ...whole},
   {id: 'frames-settings-list', title: 'next.platform.frame.settingsList', render: SettingsList, ...whole},
   {id: 'frames-settings-page', title: 'next.platform.frame.settingsPage', render: SettingsPage, ...whole},
   {id: 'frames-sheet', title: 'next.platform.frame.sheet', render: Sheet, ...whole},
