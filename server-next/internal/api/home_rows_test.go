@@ -255,6 +255,20 @@ func TestMoodRowContinuesItsKeptChoiceFromHome(t *testing.T) {
 	if !slices.Equal(remaining, tail) || continued.NextCursor != "" {
 		t.Fatalf("filtered continuation: %v, want %v", remaining, tail)
 	}
+	// The film library's Discover page has the same mood row, read for that library, and it
+	// continues there as on Home.
+	var discover HomeRow
+	for _, row := range get[Home](t, s, token, "/v1/libraries/"+library+"/landing").Rows {
+		if row.ID == "mood:cozy" {
+			discover = row
+		}
+	}
+	if len(discover.Items) != 40 || discover.Title == "" || discover.NextCursor == "" {
+		t.Fatalf("the library's Discover page has no cozy row: %+v", discover)
+	}
+	if page := get[HomeRow](t, s, token, "/v1/home/rows/mood:cozy?library="+library+"&cursor="+url.QueryEscape(discover.NextCursor)); len(page.Items) == 0 {
+		t.Fatal("the Discover mood row does not continue")
+	}
 	// A changed ranking expires the old cursor instead of silently moving cards between pages.
 	if err := s.db.RefreshMoodRows(ctx); err != nil {
 		t.Fatal(err)

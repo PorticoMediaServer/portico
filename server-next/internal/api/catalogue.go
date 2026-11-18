@@ -98,6 +98,21 @@ func (s *Server) catalogueRoutes() {
 			return Home{}, err
 		}
 		rows = append(rows, collections...)
+		// Home's mood rows, this library's titles only (metadata rule 58: Home and Discover).
+		if l.Kind == db.LibraryMovies || l.Kind == db.LibraryShows || l.Kind == db.LibraryAnime {
+			moods, err := s.db.MoodRows(r.Context(), viewer(r))
+			if err != nil {
+				return Home{}, err
+			}
+			var moodRows []HomeRow
+			for _, mood := range moods {
+				moodRows = append(moodRows, HomeRow{ID: mood.Key, Title: moodRowTitle(mood.Label), Reason: because(mood.Because), Shape: "poster"})
+			}
+			if _, err := s.pageHomeRows(r, moodRows, l.PublicID); err != nil {
+				return Home{}, err
+			}
+			rows = append(rows, moodRows...)
+		}
 		err = s.fillViewRows(r, rows)
 		return Home{Rows: shownRows(rows)}, err
 	})
