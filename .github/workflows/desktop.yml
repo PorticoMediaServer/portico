@@ -37,9 +37,16 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-      - name: System libraries (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq libwebkit2gtk-4.1-dev xvfb
+      - name: System libraries and mpv
+        run: |
+          case "$RUNNER_OS" in
+            Linux) sudo apt-get update -qq && sudo apt-get install -y -qq libwebkit2gtk-4.1-dev xvfb mpv ;;
+            macOS) brew install mpv ;;
+            Windows)
+              choco install mpv -y --no-progress
+              found=$(find /c/ProgramData/chocolatey/lib -name mpv.exe | head -1) && echo "mpv at $found"
+              cygpath -w "$(dirname "$found")" >> "$GITHUB_PATH" ;;
+          esac
       - name: Rust
         run: rustup toolchain install 1.99.0 --profile minimal && rustup default 1.99.0
       - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
@@ -51,12 +58,24 @@ jobs:
           key: desktop-${{ runner.os }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
           restore-keys: desktop-${{ runner.os }}-
       - run: npm ci --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false
+        working-directory: apps/desktop
+      - name: Type check and unit tests (TypeScript)
+        if: runner.os == 'Linux'
+        working-directory: apps/desktop
+        run: npx --no-install tsc --noEmit && node --experimental-transform-types --test test/*.test.ts
       - name: Build
         working-directory: apps/desktop
         run: npm run build:unsigned
-      - name: Unit tests
+      - name: Unit tests, with a real mpv playing over HTTP
         working-directory: apps/desktop
-        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --features custom-protocol
+        run: |
+          mpv --version | head -1
+          py=$(command -v python3 || command -v python)
+          mkdir -p "$RUNNER_TEMP/media"
+          "$py" -c "import wave,sys;w=wave.open(sys.argv[1],'wb');w.setnchannels(2);w.setsampwidth(2);w.setframerate(48000);w.writeframes(bytes(48000*4*10))" "$RUNNER_TEMP/media/test.wav"
+          "$py" scripts/serve-media.py "$RUNNER_TEMP/media" 18099 &
+          PORTICO_TEST_MEDIA_URL=http://127.0.0.1:18099/test.wav cargo test --locked --manifest-path src-tauri/Cargo.toml --features custom-protocol
       - name: Start once
         working-directory: apps/desktop
         run: |

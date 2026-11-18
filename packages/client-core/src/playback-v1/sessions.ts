@@ -448,7 +448,7 @@ export class PlaybackSessionController {
     this.player.load({
       url: session.presentation.url, generation: session.presentation.generation, mode: session.presentation.mode,
       startPositionMs: startPositionMs !== undefined ? Math.max(0, Math.round(startPositionMs)) : session.presentation.startPositionMs, subtitles: session.presentation.subtitles, autoplay,
-      sessionId: session.id, ...(session.itemId ? {itemId: session.itemId} : {}),
+      sessionId: session.id, ...(session.itemId ? {itemId: session.itemId} : {}), engine: session.presentation.engine,
       ...(session.presentation.bitrateKbps ? {bitrateKbps: session.presentation.bitrateKbps} : {}),
     });
   }
