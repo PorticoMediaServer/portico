@@ -78,14 +78,19 @@ export type SheetFrameProps = SheetBase & (
  * and nothing else. It takes no background, glow or header of the content's own. */
 export function SheetFrame(props: SheetFrameProps) {
   const theme = useTheme(), viewport = useWindowDimensions(), {height} = viewport, insets = useSafeAreaInsets(), spec = frameSpec.sheet;
-  const {open, onOpenChange, testID} = props, frame = useFrameMetrics(), children = <StartFocusScope id={props.startFocus}>{props.children}</StartFocusScope>;
+  const {open, onOpenChange, testID} = props, frame = useFrameMetrics();
   if (props.kind === 'task') {
     const form = overlayForm(props.task, frame.form), close = () => onOpenChange(false, 'close-button'), t = defaultI18n.t;
     const bar = form.bar;
     // TV focus regions need a stable id on every focusable; the sheet names its own buttons.
     const primary = props.action && <Button testID={`${testID ?? 'sheet'}-action`} variant="primary" disabled={props.action.disabled} onPress={props.action.onPress}>{props.action.label}</Button>;
-    const buttons = props.foot ?? (props.action && bar.trailing !== 'action' ? <>{bar.leading !== 'cancel' && <Button testID={`${testID ?? 'sheet'}-cancel`} variant="glass" onPress={close}>{t('next.overlays.cancel')}</Button>}{primary}</> : null);
-    const footer = buttons ? <OverlayFootRow layout={form.foot}>{buttons}</OverlayFootRow> : undefined;
+    // A read-only TV sheet (File info) has one full-width Done at its foot and starts on it (detail-tv-5d).
+    const doneId = `${testID ?? 'sheet'}-done`, done = frame.form === 'tv' && form.foot === 'full' && !props.foot && !props.action;
+    const buttons = props.foot ?? (props.action && bar.trailing !== 'action' ? <>{bar.leading !== 'cancel' && <Button testID={`${testID ?? 'sheet'}-cancel`} variant="glass" onPress={close}>{t('next.overlays.cancel')}</Button>}{primary}</>
+      : done ? <Button testID={doneId} variant="primary" onPress={close}>{t('next.overlays.done')}</Button> : null);
+    const start = props.startFocus ?? (done ? doneId : undefined), children = <StartFocusScope id={start}>{props.children}</StartFocusScope>;
+    // The foot is drawn outside the body, so it carries the same start (a Done that the sheet starts on).
+    const footer = buttons ? <StartFocusScope id={start}><OverlayFootRow layout={form.foot}>{buttons}</OverlayFootRow></StartFocusScope> : undefined;
     // A side panel, a dialog and a popover place their own column (their padding is the edge), so the page gutter and card
     // inset are zero inside them, as beside the Settings list; a bottom sheet spans the window and keeps them.
     const column = (content: ReactNode) => form.kind !== 'sheet' ? <FrameColumn.Provider value>{content}</FrameColumn.Provider> : content;
@@ -94,15 +99,16 @@ export function SheetFrame(props: SheetFrameProps) {
     // R9, TV: Back closes and the foot says so. The kit sheet's TV form is the side sheet; key hints stand where buttons
     // would, and a task's own action (Add source) is the last stop of the body, the sheet's width.
     const tvAction = props.foot ?? primary;
-    if (form.foot === 'hints') return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.title} description={bar.subtitle ? props.subtitle : undefined} footer={props.hints ?? <BackCloseHints/>} showClose={false}>
+    if (form.foot === 'hints') return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} width={form.width} title={props.title} description={bar.subtitle ? props.subtitle : undefined} footer={props.hints ?? <BackCloseHints/>} showClose={false}>
       {body}{tvAction && <View style={{marginTop: theme.space.md}}><OverlayFootRow layout="full">{tvAction}</OverlayFootRow></View>}</BottomSheet>;
     if (form.kind === 'popover' && props.anchorRef) return <Popover open={open} onOpenChange={onOpenChange} anchorRef={props.anchorRef} title={props.title} modal={form.modal} backdropOpacity={form.modal ? .5 : 0}
       placement={frame.form === 'phone' ? 'bottom-start' : 'right-end'} width={popoverWidth.min.native}
       maxWidth={frame.form === 'phone' ? viewport.width - 2 * frame.gutter : popoverWidth.max} testID={testID}>{bar.title === 'start' ? header : null}{body}</Popover>;
     if (form.kind === 'dialog') return <Dialog open={open} onOpenChange={onOpenChange} title={props.title} description={bar.subtitle ? props.subtitle : undefined} footer={footer} testID={testID}>{body}</Dialog>;
     // TV draws its side sheet's own heading (the title, the item it is about under it), as the hints form does.
-    return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.title} description={bar.subtitle ? props.subtitle : undefined} headerContent={frame.form === 'tv' ? undefined : header} footer={footer} showClose={false} fitContent={form.kind === 'sheet'}>{body}</BottomSheet>;
+    return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} width={form.width} title={props.title} description={bar.subtitle ? props.subtitle : undefined} headerContent={frame.form === 'tv' ? undefined : header} footer={footer} showClose={false} fitContent={form.kind === 'sheet'}>{body}</BottomSheet>;
   }
+  const children = <StartFocusScope id={props.startFocus}>{props.children}</StartFocusScope>;
   return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.bar?.title ?? ''} accessibilityLabel={props.bar?.title} scrollable={false}
     detents={[height - Math.max(insets.top, spec.fullTop)]} headerContent={props.bar ? <SheetBar {...props.bar}/> : null}
     style={{backgroundColor: theme.colors.ink, borderTopLeftRadius: spec.fullRadius, borderTopRightRadius: spec.fullRadius}}>
