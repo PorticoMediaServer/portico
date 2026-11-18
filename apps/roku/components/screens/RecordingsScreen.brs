@@ -43,6 +43,7 @@ sub onScheduled(event as object)
     ctx = event.getRoSGNode().ctx
     if ctx.seq <> m.seq then return
     if not result.ok
+        m.failedWith = result
         failed()
         return
     end if
@@ -60,6 +61,7 @@ sub onRecorded(event as object)
     if ctx.seq <> m.seq then return
     m.asking = false
     if not result.ok
+        m.failedWith = result
         if not ctx.more then failed()
         return
     end if
@@ -78,8 +80,8 @@ end sub
 
 sub failed()
     m.page.icon = "warning"
-    m.page.title = "Recordings could not be loaded"
-    m.page.body = "The server didn’t answer. Check that it’s running, then try again."
+    m.page.title = "Couldn't load your recordings"
+    m.page.body = whyFailed(m.failedWith)
     m.page.buttons = [{id: "retry", text: "Try again", icon: "refresh"}]
     m.list.removeChildrenIndex(m.list.getChildCount(), 0)
     m.rows = []

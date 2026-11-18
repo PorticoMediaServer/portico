@@ -14,10 +14,12 @@ sub init()
     title = m.top.findNode("pageTitle")
     title.translation = [frames().gutter, frames().browse.titleY]
     setType(title, "title", c.text)
-    state = m.top.findNode("state")
-    state.translation = [frames().gutter, m.g.rowsY]
-    state.width = 1200
-    setType(state, "body", c.textSecondary)
+    m.page = m.top.findNode("page")
+    m.page.observeField("pressed", "onPagePressed")
+    m.empty = m.top.findNode("empty")
+    m.empty.translation = [frames().gutter, m.g.rowsY]
+    m.empty.width = frames().rightEdge - frames().gutter
+    m.empty.observeField("pressed", "showAll")
     m.rows = m.top.findNode("rows")
     m.ring = m.top.findNode("ring")
     m.top.findNode("window").clippingRect = [frames().gutter - 40, m.g.rowsY - 30, 1920, 1080 - m.g.rowsY + 30]
@@ -34,7 +36,7 @@ sub init()
     m.c = 0             ' the cell in focus in that row (0 is the channel itself)
     m.first = 0         ' the channel at the top of the screen
     m.day = 0           ' 0 today, 1 tomorrow
-    m.region = "grid"   ' "bar" (the toolbar), "chips" or "grid"
+    m.region = "grid"   ' "bar" (the toolbar), "chips", "grid", "empty" (a filter's empty row) or "page" (the page's state)
     m.sources = []      ' the channel sources, with their groups
     m.filter = {source: "", group: "", favorites: false}
     m.booked = {}       ' the profile's bookings by bookingKey (source/Live.brs)
@@ -175,6 +177,7 @@ end function
 sub load()
     m.seq = m.seq + 1
     m.next = ""
+    m.paging = false
     loadBookings()
     ' the sources and their groups come with the first page of channels
     api("GET", "/v1/live/channels?limit=1", invalid, "onSources")
@@ -201,13 +204,22 @@ sub onGuide(event as object)
     ctx = event.getRoSGNode().ctx
     if ctx.seq <> m.seq then return
     m.paging = false
-    state = m.top.findNode("state")
     if not result.ok
         if ctx.more then return     ' the channels already here stay; the next press asks again
-        state.text = "The guide could not be loaded."
-        state.visible = true
+        m.guide = []
+        m.start = guideStart(nowSeconds(), m.day)
+        m.from = m.start
+        draw()
+        m.page.icon = "warning"
+        m.page.title = "Couldn't load the guide"
+        m.page.body = whyFailed(result)
+        m.page.buttons = [{id: "retry", text: "Try again", icon: "refresh"}]
+        m.page.visible = true
+        focusRegion("page")
         return
     end if
+    m.page.visible = false
+    if m.region = "page" then m.region = "grid"
     m.next = ""
     if result.data.nextCursor <> invalid then m.next = result.data.nextCursor
     if ctx.more
@@ -220,8 +232,7 @@ sub onGuide(event as object)
     if m.guide.count() > m.r then keep = m.guide[m.r].channel.id
     m.guide = result.data.items
     m.readAt = nowSeconds()
-    state.visible = (m.guide.count() = 0)
-    state.text = "There are no channels to watch."
+    showEmpty()
     m.r = 0
     for i = 0 to m.guide.count() - 1
         if m.guide[i].channel.id = keep then m.r = i
@@ -236,6 +247,50 @@ sub onGuide(event as object)
     focusAt(m.time)
 end sub
 
+' With no channels: a filter that leaves none says so in the grid's first row, with the way back
+' to every channel; with none at all the page says so (the owner adds them).
+sub showEmpty()
+    empty = guideEmpty(m.guide.count(), m.filter)
+    m.empty.visible = (empty = "filter")
+    if m.empty.visible
+        if m.filter.favorites
+            m.empty.title = "No channels in Favorites"
+            m.empty.reason = "Add a channel to Favorites from its sheet in the guide."
+        else
+            m.empty.title = "No channels to show here"
+            m.empty.reason = "None of the channels you can watch is in " + filterName() + "."
+        end if
+        m.empty.action = "Show all channels"
+        ' focus in the emptied guide goes to the row in its place; on the chips it stays there
+        if m.region = "grid" then focusRegion("grid")
+    else if m.region = "empty"
+        focusRegion("grid")
+    end if
+    if empty = "none"
+        m.page.icon = ""
+        m.page.title = "No channels to watch"
+        m.page.body = "When the server’s owner adds a TV source or a Library Channel, its channels show here."
+        m.page.buttons = []
+        m.page.visible = true
+    end if
+end sub
+
+function filterName() as string
+    if m.filter.group <> "" then return m.filter.group
+    return sourceName()
+end function
+
+sub showAll()
+    choose({source: "", group: "", favorites: false})
+    focusRegion("chips")
+end sub
+
+sub onPagePressed()
+    m.page.visible = false
+    focusRegion("grid")
+    load()
+end sub
+
 function nowSeconds() as integer
     return createObject("roDateTime").asSeconds()
 end function
@@ -247,6 +302,7 @@ sub draw()
     g = m.g
     header = m.top.findNode("header")
     header.removeChildrenIndex(header.getChildCount(), 0)
+    header.visible = (m.guide.count() > 0)
     for i = 0 to 5
         at = m.from + i * 1800
         label = header.createChild("Label")
@@ -287,10 +343,25 @@ sub draw()
             span = guideSpan(s, e, m.from, g)
             if span <> invalid then cells.push(programmeCell(p, row.channel.id, s, e, span.x, y, span.width, span.earlier))
         end for
+        if cells.count() = 1 then cells.push(noGuideCell(y))
         m.cells.push(cells)
     end for
     drawNow()
 end sub
+
+' A channel with nothing in the guide for these hours: one cell across the grid that says so; OK
+' on it opens the channel's sheet, to watch it live.
+function noGuideCell(y as float) as object
+    width = 1920 - m.g.gridX
+    plate = cellPlate(m.g.gridX, y, width)
+    label = m.rows.createChild("Label")
+    label.text = "No guide information for these hours"
+    label.height = m.g.cell
+    label.vertAlign = "center"
+    label.translation = [m.g.gridX + 18, y]
+    setType(label, "help", colours().textTertiary)
+    return {x: m.g.gridX, width: width, plate: plate, start: m.from, ends: m.start + 3 * 3600, programme: invalid}
+end function
 
 function cellPlate(x as float, y as float, width as float) as object
     plate = m.rows.createChild("Poster")
@@ -368,7 +439,7 @@ sub drawNow()
     line = m.top.findNode("nowLine")
     pill = m.top.findNode("nowPill")
     text = m.top.findNode("nowText")
-    showing = (x >= g.gridX and x < 1920)
+    showing = (x >= g.gridX and x < 1920 and m.guide.count() > 0)
     line.visible = showing
     pill.visible = showing
     text.visible = showing
@@ -405,7 +476,10 @@ sub focusAt(at as integer)
 end sub
 
 sub paint()
-    if m.cells = invalid or m.cells.count() = 0 then return
+    if m.cells = invalid or m.cells.count() = 0
+        m.ring.visible = false
+        return
+    end if
     c = colours()
     g = m.g
     ' keep the row in focus on the screen
@@ -431,7 +505,7 @@ function pressKey(key as string) as boolean
     if m.cells = invalid or m.cells.count() = 0 then return false
     if key = "up" or key = "down"
         if key = "up" and m.r = 0
-            if m.chips.visible then focusRegion("chips") else focusRegion("bar")
+            focusRegion(above())
             return true
         end if
         if key = "down" and m.r = m.cells.count() - 1 then return false
@@ -471,9 +545,16 @@ end function
 
 ' Moves focus to the toolbar, the chips or the guide; the row that loses it draws its focus off.
 sub focusRegion(region as string)
+    if region = "grid" and m.empty.visible then region = "empty"     ' the row in the emptied guide's place
     m.region = region
+    ' covered by another page (the player over the guide), the guide keeps its place but takes no
+    ' focus: a late answer (the guide failing, a filter left empty) never pulls the keys from what
+    ' is in front. It takes focus again when it is shown and made active.
+    if not m.top.visible then return
     m.toolbar.active = (region = "bar")
     m.chips.active = (region = "chips")
+    m.empty.active = (region = "empty")
+    m.page.active = (region = "page")
     if region = "grid"
         m.rows.setFocus(true)
         paint()
@@ -482,6 +563,18 @@ sub focusRegion(region as string)
     m.ring.visible = false
     if m.cells <> invalid and m.cells.count() > 0 then m.cells[m.r][m.c].plate.blendColor = colours().raised
 end sub
+
+' What is under the chips: a filter's empty row, the page's Try again, or the guide.
+function belowChips() as string
+    if m.empty.visible then return "empty"
+    if m.page.visible and m.page.buttons.count() > 0 then return "page"
+    return "grid"
+end function
+
+function above() as string
+    if m.chips.visible then return "chips"
+    return "bar"
+end function
 
 sub onToolbar(event as object)
     which = event.getData()
@@ -567,13 +660,19 @@ function onKeyEvent(key as string, press as boolean) as boolean
     if m.region <> "grid"
         ' the toolbar or the chips gave the key up: Down goes on towards the guide, Up towards the
         ' toolbar, Back returns to the guide's start; Left at their start opens the rail
+        if m.region = "page" or m.region = "empty"
+            ' Try again or Show all channels, in the guide's place: Up returns to the filters; Back
+            ' and Left go on to the scene
+            if key = "up" then focusRegion(above())
+            return key = "up"
+        end if
         if key = "back"
             focusRegion("grid")
             toStart()
             return true
         end if
         if key = "down"
-            if m.region = "bar" and m.chips.visible then focusRegion("chips") else focusRegion("grid")
+            if m.region = "bar" and m.chips.visible then focusRegion("chips") else focusRegion(belowChips())
             return true
         end if
         if key = "up" and m.region = "chips"
@@ -581,6 +680,10 @@ function onKeyEvent(key as string, press as boolean) as boolean
             return true
         end if
         return false
+    end if
+    if key = "up" and (m.cells = invalid or m.cells.count() = 0)
+        focusRegion(above())
+        return true
     end if
     if key = "back"
         ' Back, step by step: first to the guide's start (what is on now on the first channel)

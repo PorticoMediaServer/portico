@@ -25,6 +25,7 @@ sub main()
     same("live groups of one source", [liveGroups(sources, "a", 8).shown.join(",")], ["Sports,News,Kids"])
     groups = liveGroups(sources, "", 2)
     same("live groups capped", [groups.shown.join(","), groups.more.join(",")], ["Kids,Sports", "News,Music"])
+    same("guide empty", [guideEmpty(3, {source: "", group: "News", favorites: false}), guideEmpty(0, {source: "", group: "", favorites: true}), guideEmpty(0, {source: "", group: "", favorites: false})], ["", "filter", "none"])
     same("live groups one over", [liveGroups(sources, "", 3).shown.join(",")], ["Kids,Sports,News,Music"])
     ' the red dot: a booking still to record or recording now, found by channel and start; a recording
     ' whose channel is gone marks nothing

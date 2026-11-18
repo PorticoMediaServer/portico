@@ -811,7 +811,7 @@ end sub
 sub again()
     if m.session = invalid or m.ended then return
     if m.tries >= 6
-        fail("This title could not be played on this TV.")
+        if m.live = true then fail("This channel could not be played on this TV.") else fail("This title could not be played on this TV.")
         return
     end if
     m.tries = m.tries + 1
@@ -937,7 +937,10 @@ end sub
 sub onProgress(event as object)
     result = event.getData()
     if m.session = invalid or event.getRoSGNode().ctx.id <> m.session.id then return
-    if result.ok and result.data <> invalid and result.data.generation <> invalid and result.data.generation <> m.presentation.generation
+    if m.live = true and result.ok and result.data <> invalid and result.data.state = "ended" and result.data.end <> invalid
+        ' the channel stopped at its source, or could not be converted for this TV
+        fail(result.data.end.message)
+    else if result.ok and result.data <> invalid and result.data.generation <> invalid and result.data.generation <> m.presentation.generation
         ' the server moved this title to another stream by itself: read the session and play that
         api("GET", "/v1/playback/sessions/" + m.session.id, invalid, "onRecheck", {id: m.session.id, failed: false})
     else if result.status = 410
@@ -1023,7 +1026,8 @@ sub fail(message as string)
     cancelScrub()
     m.controls.visible = true
     paint()
-    if m.last > 0 then message = message + " Your place is saved at " + clockText(m.last) + ", so Try again picks up right there."
+    ' live has no place to keep: Try again joins the channel live
+    if m.last > 0 and m.live <> true then message = message + " Your place is saved at " + clockText(m.last) + ", so Try again picks up right there."
     m.notice.icon = "warning"
     m.notice.title = "Playback failed"
     m.notice.body = message

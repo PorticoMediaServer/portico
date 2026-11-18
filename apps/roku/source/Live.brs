@@ -73,6 +73,14 @@ function liveGroups(sources as object, sourceId as string, most as integer) as o
     return {shown: shown, more: more}
 end function
 
+' What the guide says when it has no channels: "" when it has some, "filter" when a source, group
+' or Favorites leaves none (its row offers every channel again), "none" when there are none at all.
+function guideEmpty(count as integer, filter as object) as string
+    if count > 0 then return ""
+    if filter.source <> "" or filter.group <> "" or filter.favorites then return "filter"
+    return "none"
+end function
+
 ' The key a booking is found by: its channel and the second its programme starts.
 function bookingKey(channelId as string, starts as integer) as string
     return channelId + "|" + starts.toStr()

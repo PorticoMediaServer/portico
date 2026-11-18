@@ -22,7 +22,7 @@
     <Group id="chipWindow">
       <ButtonRow id="chips" visible="false"/>
     </Group>
-    <Label id="state" visible="false"/>
+
     <Group id="header"/>
     <Group id="window">
       <Group id="rows"/>
@@ -32,6 +32,10 @@
     <Poster id="nowPill" uri="pkg:/images/round-10.9.png" height="34" visible="false"/>
     <Label id="nowText" height="34" vertAlign="center" horizAlign="center" visible="false"/>
     <Timer id="minute" duration="60" repeat="true"/>
+    <!-- The guide could not be read, or there are no channels at all (in place of the guide), and a
+         filter with no channels in it (the grid's first row). -->
+    <PageState id="page" visible="false"/>
+    <StateRow id="empty" kind="empty" visible="false"/>
     <Confirm id="confirm" visible="false"/>
   </children>
 </component>
