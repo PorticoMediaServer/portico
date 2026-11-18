@@ -124,6 +124,7 @@
 .remember input { appearance: none; margin: 0; width: 24px; height: 24px; border-radius: 7px; box-shadow: inset 0 0 0 2px var(--color-line-strong); }
 .remember input:checked { background: var(--color-accent-strong); box-shadow: none; }
 .remember input:checked::after { content: '✓'; display: grid; place-items: center; color: var(--color-ink); font-weight: 800; }
+.remember a { color: var(--color-text); text-decoration: none; font-weight: 700; }
 .pinActions { display: flex; align-items: center; gap: 12px; }
 .pinActions button { height: 44px; padding: 0 18px; font-size: 15px; line-height: normal; letter-spacing: normal; }
 .pinActions button:last-child { padding: 0 14px; color: var(--color-accent-strong); }

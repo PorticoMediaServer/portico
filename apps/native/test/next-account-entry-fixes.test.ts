@@ -77,7 +77,7 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
     '../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
     '../../../../../packages/client-core/src/server-address': serverAddress,
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
-    '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'StateLayout'}, '../../kit/controls': {Button: 'Button', TextField: 'TextField', Focusable: 'Focusable'},
+    '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'StateLayout'}, '../../kit/controls': {Button: 'Button', TextField: 'TextField', Focusable: 'Focusable', Switch: 'Switch'},
     '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}}, '../../platform/server-sign-in': {NativeServerSignIn: Server},
     '../../platform/portico-sign-in': {NativePorticoSignIn: Portico, porticoUsernameUnavailable: () => false},
     '../../platform/server-connections': {browseNearby: async () => []},
@@ -174,8 +174,12 @@ test('registration preserves API argument order while drawing approved fields, p
   await act(() => password().trailing.props.onPress()); assert.equal(password().secureTextEntry, false);
   await act(() => {const fields = f.fields(); fields[0].props.onChangeText('a@example.test'); fields[1].props.onChangeText('person'); fields[2].props.onChangeText('Person'); fields[3].props.onChangeText('correct horse battery staple');});
   assert.equal(nodes(f.tree().props.beforeActions).find(node => node.type === 'Strength').props.password, 'correct horse battery staple');
+  // A new account needs the 13-or-older and Terms of Use box ticked (definition 01 rule 55): unticked to start, Continue stays off.
+  const ageTerms = () => nodes(f.tree().props.beforeActions).find(node => node.props?.testID === 'accounts-age-terms');
+  assert.equal(ageTerms().props.checked, false); assert.equal(f.tree().props.primaryAction.disabled, true);
+  await act(() => ageTerms().props.onCheckedChange(true)); assert.equal(f.tree().props.primaryAction.disabled, false);
   await act(() => f.tree().props.primaryAction.onPress());
-  assert.deepEqual(f.calls.register, [['person', 'Person', 'correct horse battery staple', 'a@example.test']]);
+  assert.deepEqual(f.calls.register, [['person', 'Person', 'correct horse battery staple', 'a@example.test', true]]);
   assert.equal(f.tree().props.primaryAction.label, 'auth.createAccount');
   assert.equal(f.fields()[0].props.keyboardType, 'number-pad'); assert.equal(f.fields()[0].props.autoComplete, 'one-time-code');
   assert.ok(words(f.tree().props.children).includes('services.signup.codeHelp'));

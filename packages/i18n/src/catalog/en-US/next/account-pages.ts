@@ -224,6 +224,7 @@ export const accountPagesMessages = {
   'next.account.problem.signedOut': 'You’ve been signed out. Sign in again.',
   'next.account.problem.credentials': 'That email, username or password isn’t right. Check them and try again.',
   'next.account.problem.usernameTaken': 'That username is taken. Try another.',
+  'next.account.problem.termsRequired': 'Tick the box to confirm you are 13 or older and agree to the Terms of Use.',
   'next.account.problem.username': 'Use 3 to 64 characters, with no spaces or @.',
   'next.account.problem.email': 'Enter an email address, like name@example.com.',
   'next.account.problem.name': 'Use a shorter name (120 characters at most).',

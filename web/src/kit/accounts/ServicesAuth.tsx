@@ -7,6 +7,7 @@ import {Icon, type IconName} from '../Icon';
 import {AuthActions, AuthStage} from './AuthStage';
 import {ProfileAvatarFace} from '../shell/AccountSurfaces';
 import styles from './services-auth.module.css';
+import accountStyles from './accounts.module.css';
 
 const t = createI18n(resolveRegion(undefined, deviceRegion())).t;
 export function ServicesAuthStage({children, variant = 'auth', legal = variant !== 'signup' && variant !== 'providerOnboarding'}: {children: ReactNode; variant?: 'auth' | 'signup' | 'providerOnboarding' | 'reset' | 'state' | 'device' | 'deviceReview' | 'deviceSignIn' | 'ownerReview'; legal?: boolean}) {
@@ -66,6 +67,12 @@ export function ServicesHint({children}: {children: ReactNode}) { return <p clas
 export function ServicesTerms({provider}: {provider?: IdentityProvider} = {}) {
   const message = t('services.signup.agreement', {terms: '{terms}', privacy: '{privacy}'});
   return <p className={styles.terms}>{provider && <>{t('services.provider.privacy', {provider: t(provider === 'apple' ? 'accounts.provider.apple' : 'accounts.provider.google')})}{' '}</>}{parseMessage(message).map((part, index) => part.kind === 'text' ? <Fragment key={index}>{part.value}</Fragment> : part.kind === 'arg' && part.name === 'terms' ? <a key={index} href="https://getportico.tv/terms">{t('services.signup.terms')}</a> : part.kind === 'arg' && part.name === 'privacy' ? <a key={index} href="https://getportico.tv/privacy">{t('services.signup.privacy')}</a> : null)}</p>;
+}
+/** The box a new Portico Account needs ticked (definition 01 rule 55): the kit's account checkbox, unticked to start. */
+export function ServicesAgeTerms({checked, disabled, onChange}: {checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void}) {
+  const message = t('services.signup.ageTerms', {terms: '{terms}'});
+  return <label className={accountStyles.remember}><input type="checkbox" name="accept-terms" checked={checked} disabled={disabled} onChange={event => onChange(event.currentTarget.checked)} />
+    <span>{parseMessage(message).map((part, index) => part.kind === 'text' ? <Fragment key={index}>{part.value}</Fragment> : part.kind === 'arg' && part.name === 'terms' ? <a key={index} href="https://getportico.tv/terms/" target="_blank" rel="noreferrer">{t('services.signup.termsOfUse')}</a> : null)}</span></label>;
 }
 export function ServicesFacts({items}: {items: readonly {id: string; label: ReactNode; value: ReactNode}[]}) {
   return <dl className={styles.facts}>{items.map(item => <div key={item.id} data-fact={item.id}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>;

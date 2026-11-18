@@ -30,6 +30,7 @@ export function problemMessage(error: unknown, place: ProblemPlace): MessageId {
     case 'signed_out': return 'next.account.problem.signedOut';
     case 'credentials': return 'next.account.problem.credentials';
     case 'username_taken': return 'next.account.problem.usernameTaken';
+    case 'terms_required': return 'next.account.problem.termsRequired';
     case 'invalid': {
       const field = problemField(error);
       return field ? fieldMessages[field]! : 'next.account.problem.internal';

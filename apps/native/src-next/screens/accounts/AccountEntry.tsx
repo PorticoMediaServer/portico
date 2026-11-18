@@ -16,7 +16,7 @@ import {presentError} from '../../../../../packages/client-core/src/presentation
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {TVAccountFields, TVAuthLayout} from '../../tv/auth/TVAuthLayout';
 import {StateLayout} from '../../kit/states';
-import {Button, Focusable, TextField, FormError} from '../../kit/controls';
+import {Button, Focusable, TextField, FormError, Switch} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {ProfilePicker} from '../../kit/artwork';
 import {BootWaitLine} from '../../shell/StartupBoot';
@@ -123,6 +123,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const ownerResetOpening = useRef<{source: NativeServerSignIn; controller: AbortController} | undefined>(undefined);
   const retireOwnerReset = useCallback(() => {const ticket = ownerResetOpening.current; ownerResetOpening.current = undefined; ticket?.controller.abort(); ticket?.source.dispose();}, []);
   const [setupAddress, setSetupAddress] = useState('');
+  // A new Portico Account needs "I am 13 or older and I agree to the Terms of Use" ticked (definition 01 rule 55).
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [setupPasswordConfirm, setSetupPasswordConfirm] = useState(''), [name, setName] = useState(''), [email, setEmail] = useState(''), [masked, setMasked] = useState('');
   const [server, setServer] = useState<ServerSignIn>(), [profiles, setProfiles] = useState<readonly ManagedProfile[]>([]), [profile, setProfile] = useState<ManagedProfile>();
   // "Remember this profile on this device": offered only where the server allows it; the tick carries from the faces to a PIN page and applies after a correct PIN.
@@ -870,6 +872,9 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const codeField = (label: string, value: string, change: (next: string) => void) => field(label, value, change, false, undefined, undefined, undefined, undefined, true);
   const fields = (...children: React.ReactNode[]) => theme.isTV ? <TVAccountFields>{children}</TVAccountFields>
     : <View style={{alignSelf: 'stretch', gap: 14, marginBottom: 20}}>{children}</View>;
+  // The kit's labelled switch is the box; the legal line below the form links the Terms of Use.
+  const ageTerms = <Switch key="age-terms" testID="accounts-age-terms" checked={acceptTerms} disabled={busy} onCheckedChange={setAcceptTerms}>
+    {t('services.signup.ageTerms', {terms: t('services.signup.termsOfUse')})}</Switch>;
   const action = (id: string, label: string, work: () => Promise<void>, disabled = false) => ({id, label, disabled: busy || disabled, loading: busy, onPress: () => {void run(work);}});
   const renderedTV = stage === 'tv' ? tvView?.opening : undefined;
   const codeBack = () => {if (renderedTV?.current()) back();};
@@ -1449,12 +1454,12 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const emailField = field(t('auth.email'), email, edit(setEmail), false, 'email');
     return layout(t('auth.createYourAccount'), theme.isTV ? undefined : t('auth.oneAccount'), fields(
       ...(theme.isTV ? [usernameField, nameField, emailField] : [emailField, usernameField, nameField]),
-      field(t('auth.password'), password, edit(setPassword), true, 'new-password'), !theme.isTV && <PasswordStrengthMeter key="strength" password={password}/>),
+      field(t('auth.password'), password, edit(setPassword), true, 'new-password'), !theme.isTV && <PasswordStrengthMeter key="strength" password={password}/>, ageTerms),
       action('register', t(theme.isTV ? 'auth.createAccount' : 'action.continue'), async () => {
         const source = opening?.source;
         if (!source || !live(source)) return;
         try {
-          const value = await source.register(submitted.username, theme.isTV ? submitted.name : submitted.name.trim() || submitted.username.trim(), password, submitted.email);
+          const value = await source.register(submitted.username, theme.isTV ? submitted.name : submitted.name.trim() || submitted.username.trim(), password, submitted.email, acceptTerms);
           if (!live(source)) return;
           setVerifyOpening(Object.freeze({source, registration: value})); setPassword(''); setMasked(value.maskedAddress); setStage('verify');
         } catch (refusal) {
@@ -1464,7 +1469,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
           if (!theme.isTV && porticoUsernameUnavailable(refusal)) {setUsernameUnavailable(true); return;}
           throw refusal;
         }
-      }, theme.isTV ? (!username || !name || !password || !email) : (!username || !password || !email)), theme.isTV ? undefined : legalFooter);
+      }, !acceptTerms || (theme.isTV ? (!username || !name || !password || !email) : (!username || !password || !email))), theme.isTV ? undefined : legalFooter);
   }
   if (stage === 'verify') {
     const opening = verifyOpening, revision = registerDraftRev.current;
@@ -1531,6 +1536,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
         theme.isTV ? undefined : t('services.provider.usernameHelp')),
       tx?.needsUsername && (theme.isTV ? field(t('auth.yourName'), name, edit(setName))
         : field(`${t('auth.yourName')} · ${t('field.optional')}`, name, edit(setName), false, undefined, undefined, undefined, t('services.signup.sameUsername'))),
+      tx?.needsUsername && ageTerms,
       tx?.mfaRequired && codeField(t('auth.verificationCode'), code, edit(setCode)), !tx?.contactVerified && field(t('auth.email'), email, edit(setEmail))),
       action('provider-complete', t('action.continue'), async () => {
         const source = opening?.source;
@@ -1543,7 +1549,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
           try {
             await source.finishProvider(theme.isTV ? username || undefined : username.trim() || undefined,
               theme.isTV ? name || undefined : name.trim() || username.trim() || undefined, code || undefined,
-              {signal: opening.life.signal, isCurrent: live});
+              {signal: opening.life.signal, isCurrent: live}, !!tx?.needsUsername && acceptTerms);
           } catch (refusal) {
             // Only the confirmed public-handle collision marks this field, and only while
             // this very form and draft are still live; a stale refusal publishes nothing.
@@ -1554,7 +1560,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
           if (!live()) return;
           await directory();
         }
-      }));
+      }, !!tx?.needsUsername && !acceptTerms), tx?.needsUsername && !theme.isTV ? legalFooter : undefined);
   }
   if (stage === 'contact') return layout(t('auth.checkEmail'), t('auth.codeSentTo', {address: masked}), fields(codeField(t('auth.verificationCode'), code, setCode)), action('contact', t('action.continue'), async () => {
     await account.current!.verifyContact(contact.current!, code); setTransaction(value => value && {...value, contactVerified: true}); setCode(''); setStage('provider');

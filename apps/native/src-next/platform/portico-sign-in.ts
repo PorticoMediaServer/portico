@@ -182,8 +182,9 @@ export class NativePorticoSignIn {
         contactVerified: true, needsUsername, mfaRequired, ...(suggestedName ? {suggestedName} : {})};
     } finally {this.providerStarting = false;}
   }
+  /** `acceptTerms`: a new account's form had the 13-or-older and Terms of Use box ticked (definition 01 rule 55). */
   async finishProvider(username?: string, displayName?: string, factor?: string,
-    caller?: Readonly<{signal: AbortSignal; isCurrent: () => boolean}>): Promise<HostedSession> {
+    caller?: Readonly<{signal: AbortSignal; isCurrent: () => boolean}>, acceptTerms = false): Promise<HostedSession> {
     const predicate = caller?.isCurrent.bind(caller);
     this.checkCaller(predicate);
     if (caller?.signal.aborted) throw new CodedError('cancelled', 'native_provider_changed');
@@ -197,7 +198,7 @@ export class NativePorticoSignIn {
       try {
         const challenge = this.continuation?.mfa;
         return challenge ? await this.api().mfa(challenge, factor ?? '')
-          : await this.api().completeProvider(flow.proof, {username, displayName: displayName ?? flow.suggestedName}, linked.signal);
+          : await this.api().completeProvider(flow.proof, {username, displayName: displayName ?? flow.suggestedName, ...(acceptTerms ? {acceptTerms} : {})}, linked.signal);
       } finally {linked.dispose();}
     }, current);
     this.providerResult = result; this.providerFlow = undefined;
@@ -209,10 +210,10 @@ export class NativePorticoSignIn {
   async verifyContact(_challengeId: string, _code: string): Promise<void> {
     throw new CodedError('unavailable', 'native_provider_unavailable');
   }
-  async register(username: string, displayName: string, password: string, contactAddress: string) {
+  async register(username: string, displayName: string, password: string, contactAddress: string, acceptTerms: boolean) {
     this.registrationCollision = undefined;
     this.check();
-    const value = await this.api().register({username, displayName, password, contactAddress});
+    const value = await this.api().register({username, displayName, password, contactAddress, acceptTerms});
     this.check(); this.registration = Object.freeze({...value}); return this.registration;
   }
   async resendRegistration(original: Registration, caller: Readonly<{isCurrent: () => boolean}>) {
