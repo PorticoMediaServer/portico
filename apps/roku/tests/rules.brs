@@ -42,6 +42,7 @@ sub main()
         quick.push(q.text)
     end for
     same("quick filters", quick, ["Unplayed", "My List"])
+    same("copies told apart", copyNames([{title: "Dune", year: 2021, libraryId: "a"}, {title: "Dune", year: 2021, libraryId: "b"}, {title: "Alien", year: 1979, libraryId: "a"}], {a: "Films", b: "Films from TMDB"}), ["Films", "Films from TMDB", ""])
     same("search found", [foundText({total: 20, totalIsMinimum: true}), foundText({total: 4}), foundText({})], ["20+", "4", ""])
 
     ' the capability table against the profiles the server records for Roku (server-next/internal/streaming/profiles)

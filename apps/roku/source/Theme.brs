@@ -63,11 +63,11 @@ function frames() as object
         browse: {titleY: 64, heroTop: 110, rowsY: 520}
         ' A library (tv.html frame 4): the toolbar under the page title, the count, then the grid's first cards.
         grid: {toolsY: 144, countY: 236, cardsY: 318}
-        ' A person or a collection (tv-detail frames 9 and 10): the words in fixed slots from the title
-        ' frame's copyTop (a person's beside a face `face` across); between a collection's description
-        ' and `rowsY` lies the place of its action row; the first row's heading is fixed at `rowsY`, and
-        ' once focus goes down the row in focus sits at `scrolledY`.
-        group: {face: 280, nameY: 112, factsY: 252, aboutY: 298, rowsY: 470, scrolledY: 164}
+        ' A person or a collection (tv-detail frames 9 and 10, tv-detail.html .pcopy and .tvc): the
+        ' words in fixed slots from `eyebrowY` (a person's beside a face `face` across, its top on the
+        ' same line); a person's first row's heading on `rowsY`, a collection's on `actionRowsY`, which
+        ' leaves the place of its action row above it; once focus goes down the row in focus sits at `scrolledY`.
+        group: {face: 280, nameY: 132, factsY: 260, aboutY: 306, rowsY: 440, scrolledY: 164, eyebrowY: 96, actionRowsY: 520}
         ' Live TV's guide: the time header, the first row and the row pitch, the channel column, and the
         ' grid from `gridX` at `perMinute` px a minute; `shown` rows fit on the screen.
         guide: {headerY: 244, rowsY: 296, pitch: 100, cell: 90, channelWidth: 300, gridX: 520, perMinute: 8, shown: 7}

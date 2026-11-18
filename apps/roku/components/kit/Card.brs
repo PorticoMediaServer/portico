@@ -79,6 +79,7 @@ sub onContent()
     isPerson = (item.kind = "person")
     m.person.visible = isPerson
     m.top.findNode("frame").getChild(0).visible = not isPerson
+    m.under.visible = not isPerson     ' a face has no plate behind it (tv-detail frame 4)
     m.clip.visible = not isPerson
     m.over.visible = not isPerson
     if isPerson
@@ -124,7 +125,8 @@ sub onContent()
         ' no picture: the generated cover, with the title on it unless the card already words it
         m.art.loadDisplayMode = "noScale"
         m.art.uri = "pkg:/images/cover-" + coverTint(item.title).toStr() + ".jpg"
-        if not overlay and not under
+        ' (a grid's card words it under the cover too, but the cover carries the name: rule 12)
+        if not overlay and (not under or item.oneLine = true)
             m.madeTitle.text = item.title
             m.madeGlyph.text = ucase(left(item.title, 1))
         end if
@@ -132,7 +134,7 @@ sub onContent()
         if item.whole then m.art.loadDisplayMode = "scaleToFit" else m.art.loadDisplayMode = "scaleToZoom"
         m.art.uri = item.art
     end if
-    m.made.visible = (item.art = "" and not overlay and not under)
+    m.made.visible = (item.art = "" and not overlay and (not under or item.oneLine = true))
     m.plate.visible = (item.art <> "" and (overlay or not item.whole))
     m.shade.visible = overlay
     m.title.visible = overlay
