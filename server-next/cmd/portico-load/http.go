@@ -318,10 +318,10 @@ func (p *person) alone(ctx context.Context, libraries []api.AdminLibrary) {
 			p.get(ctx, "alone home row "+row.ID+who, "/v1/home/rows/"+url.PathEscape(row.ID)+"?limit=40", nil)
 		}
 		p.get(ctx, "alone first page"+who, list, &page)
-		p.get(ctx, "alone count"+who, list+"&total=true&limit=1", nil)
+		p.get(ctx, "alone count"+who, counted(list), nil)
 		genre := list + "&genre=" + url.QueryEscape(seed.Genres(lib.Kind)[i%len(seed.Genres(lib.Kind))])
 		p.get(ctx, "alone genre page"+who, genre, nil)
-		p.get(ctx, "alone count genre"+who, genre+"&total=true&limit=1", nil)
+		p.get(ctx, "alone count genre"+who, counted(genre), nil)
 		for _, it := range page.Items {
 			word, _, _ := strings.Cut(it.Title, " ")
 			ids, words = append(ids, it.ID), append(words, word)
@@ -366,7 +366,7 @@ func (p *person) browse(ctx context.Context, r *rand.Rand, all []api.AdminLibrar
 			if p.get(ctx, "first page"+who, list, &page) {
 				next = list + "&cursor=" + url.QueryEscape(page.NextCursor)
 			}
-			p.get(ctx, "count"+who, list+"&total=true&limit=1", nil)
+			p.get(ctx, "count"+who, counted(list), nil)
 		case n < 60:
 			if next == "" {
 				continue
@@ -377,7 +377,7 @@ func (p *person) browse(ctx context.Context, r *rand.Rand, all []api.AdminLibrar
 		case n < 70:
 			filtered := list + "&genre=" + url.QueryEscape(pick(r, seed.Genres(lib.Kind)))
 			p.get(ctx, "genre page"+who, filtered, &page)
-			p.get(ctx, "count genre"+who, filtered+"&total=true&limit=1", nil)
+			p.get(ctx, "count genre"+who, counted(filtered), nil)
 		case n < 85:
 			if len(seen) == 0 {
 				continue
@@ -411,6 +411,10 @@ func (p *person) browse(ctx context.Context, r *rand.Rand, all []api.AdminLibrar
 		}
 	}
 }
+
+// counted is a list's count request: its total, with a one-title page. The list already holds
+// limit=50 and the server reads the first limit, so "&limit=1" on the end still sent 50 titles.
+func counted(list string) string { return strings.Replace(list, "limit=50", "limit=1", 1) + "&total=true" }
 
 func (p *person) get(ctx context.Context, name, path string, out any) bool {
 	if ctx.Err() != nil {
