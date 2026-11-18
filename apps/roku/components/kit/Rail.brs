@@ -17,6 +17,7 @@ sub init()
     m.foot = m.top.findNode("foot")
     m.fixed = m.top.findNode("fixed")
     m.fadeBottom = m.top.findNode("fadeBottom")
+    m.fadeBottom.blendColor = c.railPanel      ' it lies on the open rail's panel, the only place it shows
     m.moreAbove = m.top.findNode("moreAbove")
     m.moreBelow = m.top.findNode("moreBelow")
     setType(m.moreAbove, "micro", c.textTertiary)
@@ -193,17 +194,16 @@ sub paint()
     if m.scroll > m.count - m.fits then m.scroll = m.count - m.fits
     if m.scroll < 0 then m.scroll = 0
     rest = m.count - m.scroll - m.fits
+    ' the "more" cue is the open rail's, beside the names: closed, a half-shown icon would read as a
+    ' dash, so the closed rail is whole icons only
     m.lift = 0
-    if m.scroll > 0 then m.lift = 28
+    if m.open and m.scroll > 0 then m.lift = 28
     peek = 0
-    if rest > 0 then peek = 36
+    if m.open and rest > 0 then peek = 36
     m.list.translation = [0, m.lift - 72 * m.scroll]
     m.window.clippingRect = [0, m.lift, 440, m.fits * 72 + peek]
-    m.fadeBottom.visible = (rest > 0)
+    m.fadeBottom.visible = (peek > 0)
     m.fadeBottom.translation = [0, m.listTop + m.lift + m.fits * 72]
-    if m.open then m.fadeBottom.blendColor = c.railPanel else m.fadeBottom.blendColor = c.ink
-    if m.open then m.fadeBottom.width = 440 else m.fadeBottom.width = 170     ' closed: off the page
-    ' the words go with the names, so only on the open rail
     m.moreAbove.visible = (m.open and m.scroll > 0)
     m.moreAbove.text = m.scroll.toStr() + " more above"
     m.moreAbove.translation = [141, m.listTop]
