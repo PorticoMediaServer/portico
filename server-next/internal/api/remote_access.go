@@ -788,7 +788,7 @@ func (s *Server) applyRemoteAccess(r *http.Request, req RemoteAccessSave, match 
 	// The DLNA switch and names are part of this document. See dlna.go.
 	v.Warning = ""
 	inForce, _ := s.access.current()
-	if err := s.checkDLNA(r, &v, inForce); err != nil {
+	if err := s.checkDLNA(&v, inForce); err != nil {
 		return RemoteAccessSettings{}, err
 	}
 	if req.AllowThisAddress {

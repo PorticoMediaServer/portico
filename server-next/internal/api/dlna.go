@@ -69,8 +69,8 @@ func (s *Server) dlnaRoutes() {
 
 // checkDLNA checks the DLNA fields of a remote access document about to be saved, against
 // the one in force. Turning DLNA on needs the owner's own home list, since DLNA answers only
-// there; and opening the library to every device at home is for the owner signed in, never a key.
-func (s *Server) checkDLNA(r *http.Request, v *RemoteAccessSettings, before RemoteAccessSettings) error {
+// there. No key reaches this: the whole remote access document takes a signed-in owner.
+func (s *Server) checkDLNA(v *RemoteAccessSettings, before RemoteAccessSettings) error {
 	names, err := checkNames(v.DLNANames)
 	if err != nil {
 		return err
@@ -78,9 +78,6 @@ func (s *Server) checkDLNA(r *http.Request, v *RemoteAccessSettings, before Remo
 	v.DLNANames = names
 	if v.DLNA == before.DLNA && slices.Equal(v.DLNANames, nonNil(before.DLNANames)) {
 		return nil
-	}
-	if CallerFrom(r.Context()).Key {
-		return refusal(http.StatusForbidden, "session_required", "This needs a signed-in person, not a key.", false)
 	}
 	if _, stored := s.network.current(s.now()); v.DLNA && !before.DLNA && stored.Home == nil {
 		return ErrField("dlna", "List your home networks in the network settings first: DLNA answers only there.")
