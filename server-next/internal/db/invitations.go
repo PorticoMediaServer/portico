@@ -16,7 +16,7 @@ const maxOpenInvitations = 200
 var ErrInvitationLimit = errors.New("too many open invitations")
 
 // NoAccountLimits are what an account nobody has limited is held to: the users table's defaults.
-var NoAccountLimits = AccountLimits{AllowWatchTogether: true, AllowTokens: true}
+var NoAccountLimits = AccountLimits{AllowWatchTogether: true, AllowTokens: true, AllowLiveTV: true}
 
 // Invitation lets one person create their own account on this server.
 type Invitation struct {
@@ -54,6 +54,7 @@ func scanInvitation(row interface{ Scan(...any) error }, now time.Time) (Invitat
 		return i, ErrNotFound
 	}
 	if err == nil {
+		i.Limits = NoAccountLimits // a switch the kept limits do not name is on, as on a new account
 		err = json.Unmarshal([]byte(limits), &i.Limits)
 	}
 	i.CreatedAt, i.ExpiresAt = time.UnixMilli(created), time.UnixMilli(expires)

@@ -38,6 +38,9 @@ type MemberLimits struct {
 	AllowWatchTogether bool `json:"allowWatchTogether"`
 	// AllowTokens: the account's people may make personal tokens and app passwords.
 	AllowTokens bool `json:"allowTokens"`
+	// AllowLiveTv: the account may watch Live TV at all, and so record it. Off, no profile of it
+	// starts a channel; one already watching carries on to its end, as a profile's own switch does.
+	AllowLiveTv bool `json:"allowLiveTv"`
 }
 
 func memberLimitsOut(l db.AccountLimits) MemberLimits {
@@ -47,7 +50,7 @@ func memberLimitsOut(l db.AccountLimits) MemberLimits {
 	}
 	return MemberLimits{HomeOnly: l.HomeOnly, ViewingHours: l.Hours, MaxRatingAge: l.MaxRatingAge, AllowUnrated: l.AllowUnrated,
 		BlockedLabels: labels, MaxProfiles: l.MaxProfiles,
-		AllowWatchTogether: l.AllowWatchTogether, AllowTokens: l.AllowTokens}
+		AllowWatchTogether: l.AllowWatchTogether, AllowTokens: l.AllowTokens, AllowLiveTv: l.AllowLiveTV}
 }
 
 // MemberLimitsEdit changes what an account is held to. Only the fields sent change: one left
@@ -62,6 +65,7 @@ type MemberLimitsEdit struct {
 	MaxProfiles        *int               `json:"maxProfiles,omitempty"`
 	AllowWatchTogether *bool              `json:"allowWatchTogether,omitempty"`
 	AllowTokens        *bool              `json:"allowTokens,omitempty"`
+	AllowLiveTv        *bool              `json:"allowLiveTv,omitempty"`
 
 	// sent is the edit as it arrived, which alone tells a field left out from one sent as null.
 	sent json.RawMessage
@@ -123,7 +127,7 @@ func memberLimitsIn(l MemberLimits) (db.AccountLimits, error) {
 	}
 	return db.AccountLimits{HomeOnly: l.HomeOnly, Hours: l.ViewingHours, MaxRatingAge: l.MaxRatingAge, AllowUnrated: l.AllowUnrated,
 		BlockedLabels: l.BlockedLabels, MaxProfiles: l.MaxProfiles,
-		AllowWatchTogether: l.AllowWatchTogether, AllowTokens: l.AllowTokens}, nil
+		AllowWatchTogether: l.AllowWatchTogether, AllowTokens: l.AllowTokens, AllowLiveTV: l.AllowLiveTv}, nil
 }
 
 // accountLimitRefusal turns the two ways an account's limits stop a sign-in, a renewal, a

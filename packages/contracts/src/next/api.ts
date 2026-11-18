@@ -2333,6 +2333,7 @@ export interface MemberLimits {
   maxProfiles?: number | null;
   allowWatchTogether: boolean;
   allowTokens: boolean;
+  allowLiveTv: boolean;
 }
 
 export interface MemberLimitsEdit {
@@ -2344,6 +2345,7 @@ export interface MemberLimitsEdit {
   maxProfiles?: number;
   allowWatchTogether?: boolean;
   allowTokens?: boolean;
+  allowLiveTv?: boolean;
 }
 
 export interface MemberPage {
