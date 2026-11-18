@@ -180,6 +180,16 @@ func TestASplitVideoPlaysBothParts(t *testing.T) {
 	}
 	item = page.Items[0].ID
 	play("chromium", false, 18000)
+	// Make from the video gives the split episode a frame of its first file.
+	var made api.Page[api.ArtworkPicture]
+	h.call("POST", "/v1/admin/items/"+item+"/artwork/make", nil, &made, 200)
+	frame := false
+	for _, picture := range made.Items {
+		frame = frame || picture.Source == "frame"
+	}
+	if !frame {
+		t.Fatalf("Make from the video of a split episode: %+v", made.Items)
+	}
 }
 
 // Descriptive stream titles do not prevent copying. A genuinely different

@@ -67,24 +67,26 @@ var (
 )
 
 // madeFrame makes one picture from an episode's video, a frame a tenth of the way in: for the
-// picture pass and for Make from the video. A file that changed or is out of reach is
-// errOutOfReach; a server with no decoder, errNoDecoder; a version of several files or a part
-// of one, mediaanalysis.ErrUnsupported.
+// picture pass and for Make from the video. A version in several files gives it from its first
+// file, a tenth of the way into an even share of the length, which is well inside that file.
+// A file that changed or is out of reach is errOutOfReach; a server with no decoder,
+// errNoDecoder; a part of one file, mediaanalysis.ErrUnsupported.
 func (s *Server) madeFrame(ctx context.Context, e db.SegmentEntry) ([]byte, error) {
 	supervisor, ffmpeg, err := s.analysisTools(ctx)
 	if err != nil || supervisor == nil || ffmpeg == "" {
 		return nil, errors.Join(errNoDecoder, err)
 	}
-	if e.Parts != 1 || e.StartMS != 0 || e.EndMS != 0 || e.DurationMS <= 0 {
+	if e.Parts < 1 || e.StartMS != 0 || e.EndMS != 0 || e.DurationMS <= 0 {
 		return nil, mediaanalysis.ErrUnsupported
 	}
+	length := e.DurationMS / int64(e.Parts) // the entry is the version's first file
 	file, err := segments.OpenFile(ctx, s.remote.Open, e)
 	if err != nil {
 		return nil, errors.Join(errOutOfReach, err)
 	}
 	defer file.Close()
 	made, err := mediaanalysis.MakeEpisodeThumbnail(ctx, mediaanalysis.FileDecode(supervisor, ffmpeg, nil, file, e.Size),
-		mediaanalysis.EpisodeThumbnailRequest{Mode: mediaanalysis.EpisodeThumbnailDefaultMode, Manual: true, DurationUS: e.DurationMS * 1000,
-			EndUS: e.DurationMS * 1000, SourceVideo: decoder.PreviewVideoFacts{DynamicRange: e.HDR}})
+		mediaanalysis.EpisodeThumbnailRequest{Mode: mediaanalysis.EpisodeThumbnailDefaultMode, Manual: true, DurationUS: length * 1000,
+			EndUS: length * 1000, SourceVideo: decoder.PreviewVideoFacts{DynamicRange: e.HDR}})
 	return made.JPEG, err
 }
