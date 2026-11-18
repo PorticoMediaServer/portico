@@ -1,13 +1,9 @@
 import {parseReportInterval,verifyReportInterval,reportQuery,type ReportContext,type ReportInterval} from './report-context.ts';
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath} from "../../contracts/src/route-paths.ts";
-import {wireDurations} from './wire-units.ts';
 import {unreadableServerResponse} from './server-messages.ts';
-import {firstOfEach, keepReadable, noteSkipped} from './tolerant.ts';
+import {keepReadable} from './tolerant.ts';
 import type {I18n, MessageId} from '../../i18n/src/index.ts';
-import {dependsOn} from './freshness-hub.ts';
-import {queryKeys} from './query/keys.ts';
-import type {ViewerQueryOptions} from './query/react.ts';
 
 /**
  * The server's play history (`GET /v1/admin/play-history`): every play on the server, newest
@@ -43,72 +39,20 @@ export type PlayHistoryEntry = Readonly<{
   durationSeconds: number;
   completed: boolean;
 }>;
-export type PlayHistoryPage = ReportInterval & Readonly<{entries: readonly PlayHistoryEntry[]; /** Plays matching the filters; first page only. */ total?: number; nextCursor: string}>;
 
 export const PLAY_HISTORY_PERIODS = ['all', 'today', '24h', '7d', '30d', '90d', '1y'] as const;
 export type PlayHistoryPeriod = (typeof PLAY_HISTORY_PERIODS)[number];
 export type ReportPeriod=PlayHistoryPeriod|'12h';
 export type PlayHistoryFilters = ReportContext & Readonly<{accountId?: string; libraryId?: string;media?:string;search?:string;sort?:string;direction?:'asc'|'desc'; period: ReportPeriod}>;
-export const PLAY_HISTORY_PAGE = 100;
 
 export interface PlayHistoryApi {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}
 
 const object = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const text = (v: unknown, max = 1024): v is string => typeof v === 'string' && v.length <= max;
 const whole = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
-const amount = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 
 function invalid(): never {
   throw Object.assign(new Error(unreadableServerResponse), {code: 'invalid_play_history', retryable: false});
-}
-
-export function parsePlayHistory(value: unknown): PlayHistoryPage {
-  if (!object(value) || !Array.isArray(value.entries) || value.entries.length > 200 || !text(value.nextCursor, 256)) invalid();
-  const total = whole(value.total) ? value.total : undefined;
-  if (value.total !== undefined && total === undefined) noteSkipped('play-history', 'total');
-  // A play this app cannot read is left out alone; an optional detail it cannot read is left off its play.
-  const entries = firstOfEach('play-history', 'entries', keepReadable('play-history', 'entries', value.entries, raw => {
-    raw=wireDurations(raw,{positionSeconds:'positionMs',durationSeconds:'durationMs'});
-    if (!object(raw) || !text(raw.id, 64) || !raw.id || !text(raw.user) || !text(raw.accountId, 256) || !text(raw.kind, 64) || !text(raw.title) || !text(raw.libraryId, 256)) invalid();
-    if (!text(raw.startedAt, 64) || !Number.isFinite(Date.parse(raw.startedAt)) || !amount(raw.positionSeconds) || !amount(raw.durationSeconds) || typeof raw.completed !== 'boolean') invalid();
-    const entry: {-readonly [K in keyof PlayHistoryEntry]: PlayHistoryEntry[K]} = {
-      ...(whole(raw.watchedMs)?{watchedMs:raw.watchedMs}:{}),...(text(raw.location,32)?{location:raw.location}:{}),
- id: raw.id, user: raw.user, accountId: raw.accountId, kind: raw.kind, title: raw.title, libraryId: raw.libraryId,
-      startedAt: raw.startedAt, positionSeconds: raw.positionSeconds, durationSeconds: raw.durationSeconds, completed: raw.completed,
-    };
-    for (const field of ['profile', 'parentTitle', 'itemId', 'device', 'platform'] as const) {
-      const v = raw[field];
-      if (v === undefined || v === '') continue;
-      if (!text(v)) { noteSkipped('play-history', 'entry.' + field); continue; }
-      entry[field] = v;
-    }
-    for (const field of ['season', 'episode'] as const) {
-      const v = raw[field];
-      if (v === undefined) continue;
-      if (!whole(v)) { noteSkipped('play-history', 'entry.' + field); continue; }
-      entry[field] = v;
-    }
-    return Object.freeze(entry);
-  }), entry => entry.id);
-  return Object.freeze({...parseReportInterval(value),entries: Object.freeze(entries), ...(total === undefined ? {} : {total}), nextCursor: value.nextCursor});
-}
-
-export async function fetchPlayHistory(api: PlayHistoryApi, filters: PlayHistoryFilters, cursor = '', signal?: AbortSignal): Promise<PlayHistoryPage> {
-  const query = reportQuery(filters);query.set('limit',String(PLAY_HISTORY_PAGE));
-  if(filters.media)query.set('media',filters.media);if(filters.search)query.set('q',filters.search);if(filters.sort)query.set('sort',filters.sort);if(filters.direction)query.set('direction',filters.direction);
-  if (filters.accountId) query.set('accountId', filters.accountId);
-  if (filters.libraryId) query.set('libraryId', filters.libraryId);
-  query.set('period', filters.period);
-  if (cursor) query.set('cursor', cursor);
-  const out=parsePlayHistory(await api.request<RouteResponse<"get_admin_play_history">>(routePath("get_admin_play_history") + "?" + (query.toString()), 'GET', undefined, signal));verifyReportInterval(out,filters,filters.period);return out;
-}
-
-/** What the play history is built from. */
-const historyMoved=['playback.history','session.updated'].map(type=>dependsOn.event(type));
-/** The first page of the play history for these filters and this sort, in the viewer's cache (later pages are its continuation, never cached). */
-export function playHistoryFirstPageQuery(api:PlayHistoryApi,filters:PlayHistoryFilters):ViewerQueryOptions<PlayHistoryPage>{
- const {sort,direction,...rest}=filters;
- return {queryKey:queryKeys.adminPlayHistory(rest,{sort:sort??'',direction:direction??''}),queryFn:({signal})=>fetchPlayHistory(api,filters,'',signal),meta:{dependencies:historyMoved}};
 }
 
 // ── Viewing statistics ──────────────────────────────────────────────────────────────────────

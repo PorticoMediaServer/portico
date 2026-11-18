@@ -13,7 +13,7 @@ import {parseOwnerSignInSettings} from '../../../../../../packages/client-core/s
 import {parseMetadataSettings} from '../../../../../../packages/client-core/src/metadata-settings';
 import {signInLabelKey} from '../../../../../../packages/client-core/src/sign-in';
 import {listWebhooks} from '../../../../../../packages/client-core/src/api-access';
-import {fetchPlayHistory} from '../../../../../../packages/client-core/src/play-history';
+import {readServerPlayHistory} from '../../../../../../packages/client-core/src/admin/server-play-history';
 import type {ReportContext} from '../../../../../../packages/client-core/src/report-context';
 import {listRemoteSources} from '../../../../../../packages/client-core/src/remote-storage';
 import {liveSourceState} from '../../../../../../packages/client-core/src/server-admin/live-words';
@@ -59,7 +59,7 @@ export async function readTVServerPage(page: TVReadOnlyPage, api: Api, current: 
     } finally {signal.removeEventListener('abort', keys.dispose);keys.dispose();}
   }
   if (page === 'history') {
-    const history = await fetchPlayHistory(api, {...report, period: 'all'}, cursor, signal);
+    const history = await readServerPlayHistory(api, {period: 'all'}, cursor, signal);
     return {facts: history.entries.map(entry => ({id: entry.id, label: entry.title,
       value: [entry.user, entry.profile !== entry.user ? entry.profile : undefined, entry.device].filter(Boolean).join('  '),
       detail: new Intl.DateTimeFormat(locale, {dateStyle: 'medium', timeStyle: 'short', timeZone: report.timeZone}).format(new Date(entry.startedAt))})), nextCursor: history.nextCursor};
