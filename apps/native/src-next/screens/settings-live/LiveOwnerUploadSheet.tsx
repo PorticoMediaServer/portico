@@ -135,7 +135,7 @@ export function UploadSourceSheet({controller, runtime, open, onOpenChange, onSa
       const saved = await controller.saveFiles(renderedDraft, caller);
       if (active.current !== target || target.retired || target.phase !== 'saving' || target.abort.signal.aborted) return;
       if (saved) {onSaved();close(target);}
-      else {target.phase = 'open';target.error = controller.getSnapshot().error ?? new Error('save_live_source');changed();}
+      else {target.phase = 'open';target.error = controller.getSnapshot().error ?? new Error('save_failed');changed();}
     } catch (failure) {
       if (active.current === target && !target.retired && target.phase === 'saving' && !target.abort.signal.aborted) {
         target.phase = 'open';target.error = failure;changed();
