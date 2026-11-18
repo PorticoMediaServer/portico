@@ -156,7 +156,8 @@ def check_contents(directory,expected_source,manifest,development=False):
         bundle=directory/'third_party/ffmpeg'
         if manifest.get('sonicManifestSha256'):
             target='linux-'+{'amd64':'x64','arm64':'arm64'}[manifest['target'].split('-')[1]]
-            SONIC['verify_installed'](bundle,target)
+            if media_tools(bundle):verify_media_tools(bundle,target)
+            else:SONIC['verify_installed'](bundle,target)
             if SONIC['digest'](bundle/'bin/sonic-manifest.json')!=manifest['sonicManifestSha256']:raise ValueError('Sonic manifest changed')
         elif development:
             DEV_ENGINE['verify'](bundle,manifest['target'].replace('darwin-','macos-').replace('-amd64','-x64'))
@@ -188,18 +189,38 @@ def media_tools(bundle):
 def engine_manifest(bundle):
     return bundle/('manifest.json' if media_tools(bundle) else 'toolchain-manifest.json')
 
+def sonic_files(bundle):
+    """The files a Sonic install put beside the media tools (bin/sonic-manifest.json lists them), or none."""
+    listed=bundle/'bin/sonic-manifest.json'
+    if not listed.is_file():return set()
+    return {'bin/'+e['path'] for e in json.loads(listed.read_text())['files']}|{'bin/sonic-manifest.json'}
+
 def verify_media_tools(bundle,target=None):
-    """Every file is the one the bundle's manifest names, nothing else is there, and the three programs are."""
+    """Every file is the one the bundle's manifest names, nothing else is there, and the three programs are.
+    Sonic, when installed beside them, is checked against its own manifest by sonic-bundle.py."""
     m=json.loads((bundle/'manifest.json').read_text())
     if m.get('schemaVersion')!=2 or m.get('licence')!='GPL-3.0-or-later':raise SystemExit('Not a Portico media tools bundle')
     if target and m.get('target')!=target:raise SystemExit('Media tools bundle is for '+str(m.get('target'))+', not '+target)
     exe='.exe' if m['target'].startswith('windows-') else ''
     if not {'bin/ffmpeg'+exe,'bin/ffprobe'+exe,'bin/portico-disc'+exe,'LICENSES/GPL-3.0.txt','NOTICE.md'}<=set(m['files']):raise SystemExit('Media tools bundle lacks a program or its licence')
-    if any(p.is_symlink() for p in bundle.rglob('*')):raise SystemExit('Media tools bundle has a symbolic link')
-    actual={p.relative_to(bundle).as_posix() for p in bundle.rglob('*') if p.is_file()}-{'manifest.json'}
+    sonic=sonic_files(bundle)
+    if any(p.is_symlink() and p.relative_to(bundle).as_posix() not in sonic for p in bundle.rglob('*')):raise SystemExit('Media tools bundle has a symbolic link')
+    actual={p.relative_to(bundle).as_posix() for p in bundle.rglob('*') if p.is_file() or p.is_symlink()}-{'manifest.json'}-sonic
     if actual!=set(m['files']):raise SystemExit('Media tools bundle files differ from its manifest')
     for name,digest in m['files'].items():
         if hashlib.sha256((bundle/name).read_bytes()).hexdigest()!=digest:raise SystemExit('Media tools bundle file changed: '+name)
+    if sonic:SONIC['verify'](bundle/'bin',m['target'],[n[4:] for n in m['files'] if n.startswith('bin/')])
+
+def install_sonic(sonic,bundle,target):
+    """The pinned Sonic bundle (music analysis) beside the media tools, where the server looks for it."""
+    files=[e['path'] for e in SONIC['verify'](sonic,target)['files']]+['sonic-manifest.json']
+    for name in files:
+        source,dest=sonic/name,bundle/'bin'/name
+        if dest.exists() or dest.is_symlink():raise SystemExit('Sonic would replace a media tools file: '+name)
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        if source.is_symlink():dest.symlink_to(os.readlink(source))
+        else:shutil.copy2(source,dest)
+    verify_media_tools(bundle,target)
 
 def check_engine(bundle,unsealed):
     """Portico's own media tools, the qualified toolchain, or (only --unsealed) the pinned development engine."""
@@ -241,9 +262,8 @@ def main():
         target={'darwin':'macos','linux':'linux','windows':'windows'}[args.os]+'-'+{'amd64':'x64','arm64':'arm64'}[args.arch]
         if toolchain['target']!=target:raise SystemExit('FFmpeg bundle target does not match server')
         if development and args.sonic_bundle:raise SystemExit('Development builds leave Sonic out')
-        # A qualified Linux server always carries Sonic: the pinned bundle unless one is given.
-        # (Sonic installs into the qualified toolchain's inventory; Portico's own media tools carry none yet.)
-        if not development and not media_tools(bundle) and args.os=='linux' and not args.sonic_bundle:
+        # A Linux server always carries Sonic (music analysis): the pinned bundle unless one is given.
+        if not development and args.os=='linux' and not args.sonic_bundle:
             args.sonic_bundle=ROOT/'.cache/sonic'/target
             if args.sonic_bundle.exists():SONIC['verify'](args.sonic_bundle,target)
             else:SONIC['fetch'](args.sonic_bundle,target)
@@ -306,7 +326,7 @@ def main():
         if media_tools(bundle):manifest['engine']={'mediaTools':toolchain['ffmpeg']}
         if args.sonic_bundle:
             if args.os!='linux':raise SystemExit('Sonic bundles currently support Linux only')
-            SONIC['install'](args.sonic_bundle.resolve(),stage/'third_party/ffmpeg',target)
+            (install_sonic if media_tools(bundle) else SONIC['install'])(args.sonic_bundle.resolve(),stage/'third_party/ffmpeg',target)
             manifest['sonicManifestSha256']=SONIC['digest'](stage/'third_party/ffmpeg/bin/sonic-manifest.json')
         merge_rclone(rclone_bundle,stage/'third_party/rclone')
         manifest['rcloneManifestSha256']=hashlib.sha256((rclone_bundle/'bundle-manifest.json').read_bytes()).hexdigest()
