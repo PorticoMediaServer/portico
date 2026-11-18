@@ -1,6 +1,5 @@
 import {downloadCopyReference, downloadPreparation, downloadedBundle} from '../../../packages/client-core/src/downloads-service';
 import {downloadedSubtitleText, keepDownloadsInStep, readDownload, removeDownloadedTitle, reportDownloadPlay} from '../../../packages/client-core/src/device-downloads';
-import {stepNativeSelectionActionDownloads, type NativeSelectionActionDownloadIntent} from '../src-next/screens/library/selection-action-downloads';
 import {serverNow} from '../../../packages/client-core/src/server-clock';
 import {openDownloadedBook, nativePublicationReadsAvailable, type OfflineReadingSession} from './offline-reading';
 import {readingAnnotationBody, readingAnnotationEntry, readingPlacePosition, readingPlaceProgress, type ReadingLocation, type ReadingManifest, type ReadingProgress} from '../../../packages/client-core/src/reading';
@@ -158,7 +157,6 @@ type Stored = {
   /** Accepted preparations, keyed by preparation id, never by title alone. */
   wanted: Owned<OfflineWant>;
   /** Actual explicitly confirmed command follow; never a query or member list. */
-  selectionActions: Owned<NativeSelectionActionDownloadIntent>;
   wantedPublications: Owned<OfflineDisplay>;
   /** Members already accepted from each request, including copies later removed. */
   enrolledMembers: Owned<Record<string, true>>;
@@ -198,7 +196,7 @@ export const offlineOwnerKey = (viewer: Viewer) =>
 const safeInteger = (value: unknown, minimum = 0): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= minimum;
 /** Marks a document read from an earlier layout, so open() rewrites it once. */
 const upgradedLayout = Symbol('upgradedLayout');
-const emptyStored = (): Stored => ({version: 3, settings: defaults, plays: {}, resume: {}, wanted: {}, selectionActions: {}, wantedPublications: {}, enrolledMembers: {}, clockFloor: 0, permissions: {}, removed: {}, places: {}, notes: {}});
+const emptyStored = (): Stored => ({version: 3, settings: defaults, plays: {}, resume: {}, wanted: {}, wantedPublications: {}, enrolledMembers: {}, clockFloor: 0, permissions: {}, removed: {}, places: {}, notes: {}});
 
 /** A present document must be readable in full. An unsupported or damaged record
  * is never replaced with an empty outbox on the next settings/progress write. */
@@ -242,16 +240,7 @@ function readStored(parsed: any): Stored {
     if (object(value) && typeof value.title === 'string' && value.itemId === undefined) {delete values[id]; continue;}
     if (!object(value) || typeof value.title !== 'string' || typeof value.itemId !== 'string' || !value.itemId) invalid();
   }
-  out.selectionActions = owned(parsed.selectionActions ?? {});
-  for (const actions of Object.values(out.selectionActions)) {
-    if (Object.keys(actions).length > 16) invalid();
-    for (const [id, value] of Object.entries(actions)) {
-      if (!object(value) || value.operationId !== id || !/^[A-Za-z0-9_-]{1,160}$/.test(id)
-        || typeof value.deviceId !== 'string' || !/^[A-Za-z0-9_-]{1,160}$/.test(value.deviceId)
-        || typeof value.cursor !== 'string' || value.cursor.length > 512
-        || value.terminal !== undefined && typeof value.terminal !== 'boolean') invalid();
-    }
-  }
+  // Ignore pre-launch whole-view download markers when reading old state.
   out.wantedPublications = owned(parsed.wantedPublications ?? {});
   for (const values of Object.values(out.wantedPublications)) for (const value of Object.values(values)) if (!object(value) || typeof value.title !== 'string' || value.kind !== 'ebook' && value.kind !== 'comic') invalid();
   out.enrolledMembers = owned(parsed.enrolledMembers ?? {});
@@ -310,12 +299,6 @@ export class OfflineDownloads {
   private enrolledPreparations = new Map<string, DownloadPreparation>();
   private requestChecks = new Map<string, number>();
   private preparationChecks = new Map<string, number>();
-  private selectionActionAfter = '';
-  private selectionActionErrors = new Map<string, string>();
-  private selectionActionTimer?: ReturnType<typeof setTimeout>;
-  private selectionActionRead?: AbortController;
-  // Paired wants/cursor changes cannot transfer or read ahead until durable.
-  private selectionActionDirty = false;
   private enrollTimer?: ReturnType<typeof setTimeout>;
   /** Bumped by every connect and disconnect. Work started under an earlier
    * generation may finish, but may not write anything back. */
@@ -482,7 +465,7 @@ export class OfflineDownloads {
   wake() { if (this.api) void this.tend(this.generation); }
   /** Drops the server binding while preserving the saved viewer for authorized
    * offline access. Sign-out clears it explicitly through `adopt(undefined)`. */
-  disconnect() { this.selectionActionRead?.abort(); this.selectionActionRead = undefined; clearTimeout(this.selectionActionTimer); this.selectionActionTimer = undefined; this.generation++; this.unfollow?.(); this.unfollow = undefined; this.api = undefined; this.service = undefined; clearInterval(this.tending); this.tending = undefined; this.publishPending(); }
+  disconnect() { this.generation++; this.unfollow?.(); this.unfollow = undefined; this.api = undefined; this.service = undefined; clearInterval(this.tending); this.tending = undefined; this.publishPending(); }
   dispose() { this.disposed = true; this.entriesScheduled = false; this.disconnect(); clearTimeout(this.enrollTimer); this.enrollTimer = undefined; this.subscriptions.forEach(s => s.remove()); this.subscriptions = []; this.listeners.clear(); clearInterval(this.tending); }
 
   private read(raw: any): OfflineEntry | undefined {
@@ -593,80 +576,6 @@ export class OfflineDownloads {
     await native.setMeta(id, JSON.stringify(next));
   }
 
-  /** Called only after explicit confirmation, before its stable first POST. */
-  async followSelectionAction(operationId: string, deviceId: string): Promise<void> {
-    const owner = this.ownerKey(), generation = this.generation;
-    if (!this.state.supported || !owner || !this.service || !this.api
-      || !/^[A-Za-z0-9_-]{1,160}$/.test(operationId) || !/^[A-Za-z0-9_-]{1,160}$/.test(deviceId)) throw new Error('downloads_unavailable');
-    await this.open();
-    if (this.ownerKey() !== owner || this.generation !== generation) throw new Error('cancelled');
-    const mine = bucket(this.stored.selectionActions, owner), previous = mine[operationId];
-    if (previous && previous.deviceId !== deviceId) throw new Error('idempotency_key_reused');
-    if (!previous && Object.keys(mine).length >= 16) throw Object.assign(new Error('selection_action_capacity'), {code: 'rate_limited'});
-    mine[operationId] ??= Object.freeze({operationId, deviceId, cursor: ''});
-    this.selectionActionDirty = true;
-    if (!await this.persist()) throw new Error(serviceText('downloads.deviceUnwritable'));
-    this.selectionActionDirty = false;
-    this.scheduleSelectionActions(generation);
-  }
-  private scheduleSelectionActions(generation: number, soon = false) {
-    if (generation !== this.generation) return;
-    if (soon && this.selectionActionTimer) {clearTimeout(this.selectionActionTimer); this.selectionActionTimer = undefined;}
-    if (this.selectionActionTimer) return;
-    const owner = this.ownerKey();
-    if (!owner || !Object.keys(this.stored.selectionActions[owner] ?? {}).length) return;
-    this.selectionActionTimer = setTimeout(() => {
-      this.selectionActionTimer = undefined;
-      if (generation === this.generation) void this.collect(generation);
-    }, soon ? 0 : 15000);
-  }
-  private async enrollSelectionActions(owner: string, service: DownloadsService, generation: number) {
-    const api = this.api, actions = this.stored.selectionActions[owner];
-    const ids = Object.keys(actions ?? {}).sort();
-    if (!api || !ids.length) return;
-    const id = ids.find(value => value > this.selectionActionAfter) ?? ids[0]; this.selectionActionAfter = id;
-    let marker = actions[id], settled = false;
-    const read = new AbortController(); this.selectionActionRead = read;
-    const current = () => !read.signal.aborted && generation === this.generation && this.ownerKey() === owner && this.service === service && this.api === api && (settled || actions[id] === marker);
-    try {
-      const result = await stepNativeSelectionActionDownloads({api, intent: marker, signal: read.signal, isCurrent: current,
-        room: Math.max(0, Math.min(20, ENROLL_BACKLOG - Object.keys(this.stored.wanted[owner] ?? {}).length)),
-        markTerminal: async terminal => {
-          if (!current()) throw new Error('cancelled');
-          marker = actions[id] = Object.freeze({...terminal, terminal: true}); this.selectionActionDirty = true;
-          if (!await this.persist()) throw new Error(serviceText('downloads.deviceUnwritable'));
-          this.selectionActionDirty = false;
-        },
-        admit: async page => {
-          if (!current()) throw new Error('cancelled');
-          const mine = bucket(this.stored.wanted, owner);
-          const fresh = page.items.filter(preparation => !mine[preparation.id] && !this.all.some(entry => entry.id === preparation.id && this.entryOwner(entry) === owner));
-          if (Object.keys(mine).length + fresh.length > ENROLL_BACKLOG) throw Object.assign(new Error('selection_action_capacity'), {code: 'rate_limited'});
-          this.selectionActionDirty = true;
-          for (const preparation of page.items) {
-            if (fresh.includes(preparation)) mine[preparation.id] = {...this.display(preparation), itemId: preparation.itemId};
-            if (mine[preparation.id]) this.enrolledPreparations.set(JSON.stringify([owner, preparation.id]), preparation);
-          }
-          if (page.complete) delete actions[id];
-          else marker = actions[id] = Object.freeze({...page.intent, cursor: page.nextCursor, terminal: true});
-          // Same state document: wants and cursor are never persisted separately.
-          // A failed write keeps the pair dirty and fences all further effects;
-          // retry persistence before reading another page or starting a transfer.
-          if (!await this.persist()) throw new Error(serviceText('downloads.deviceUnwritable'));
-          this.selectionActionDirty = false;
-          if (page.complete) settled = true;
-        }});
-      this.selectionActionErrors.delete(JSON.stringify([owner, id]));
-      this.scheduleSelectionActions(generation, result === 'more');
-    } catch (error) {
-      if (generation === this.generation && this.ownerKey() === owner && actions[id]) {
-        const code = String((error as {code?: unknown})?.code ?? '');
-        this.selectionActionErrors.set(JSON.stringify([owner, id]), this.selectionActionDirty ? serviceText('downloads.deviceUnwritable') : downloadReasonMessage(code) || serviceText('error.unavailable'));
-        this.scheduleSelectionActions(generation);
-      }
-    } finally {if (this.selectionActionRead === read) this.selectionActionRead = undefined;}
-    this.publishPending();
-  }
   /** Remembers the exact accepted copy, so another quality of the same title
    * cannot satisfy this device's intent first. */
   async want(preparations: readonly DownloadPreparation[], display?: OfflineDisplay, originatingService?: DownloadsService) {
@@ -720,22 +629,11 @@ export class OfflineDownloads {
         : serviceText('downloads.blocked.preparing');
       return Object.freeze({id, itemId: preparation?.itemId ?? this.stored.wanted[owner!]?.[id]?.itemId ?? '', title: display.title, subtitle: display.subtitle, reason});
     });
-    for (const marker of Object.values(owner ? this.stored.selectionActions[owner] ?? {} : {})) pending.push(Object.freeze({
-      id: `selection-action:${marker.operationId}`, itemId: '', title: serviceText('next.selection.actions'), subtitle: undefined,
-      reason: this.selectionActionErrors.get(JSON.stringify([owner, marker.operationId])) ?? serviceText(this.service ? 'next.selection.jobPreparing' : 'downloads.connectToStart'),
-    }));
     if (JSON.stringify(pending) !== JSON.stringify(this.state.pendingDownloads ?? [])) this.publish({pendingDownloads: Object.freeze(pending)});
   }
   /** Cancels this viewer's device request; the server's shared copy can still serve others. */
   async cancelPending(id: string) {
     const owner = this.ownerKey(); if (!owner) return;
-    if (id.startsWith('selection-action:')) {
-      const operationId = id.slice('selection-action:'.length), actions = this.stored.selectionActions[owner], marker = actions?.[operationId];
-      if (!marker) return;
-      delete actions[operationId]; this.selectionActionDirty = true;
-      if (!await this.persist()) {actions[operationId] ??= marker; this.publishPending(); throw new Error(serviceText('downloads.deviceUnwritable'));}
-      this.selectionActionDirty = false; this.selectionActionErrors.delete(JSON.stringify([owner, operationId])); this.publishPending(); return;
-    }
     const wanted = this.stored.wanted[owner]?.[id], publication = this.stored.wantedPublications[owner]?.[id];
     if (!wanted && !publication) return;
     this.incarnations.delete(id);
@@ -777,9 +675,6 @@ export class OfflineDownloads {
   private async collectWanted(generation: number) {
     const owner = this.ownerKey(), service = this.service;
     if (generation !== this.generation || !service || !this.state.ready || !owner) return;
-    if (this.selectionActionDirty) {if (!await this.persist()) return; this.selectionActionDirty = false;}
-    await this.enrollSelectionActions(owner, service, generation);
-    if (generation !== this.generation || this.selectionActionDirty) return;
     try {await this.enrollRequests(owner, service, generation);} catch {return;}
     if (generation !== this.generation) return;
     const mine = this.stored.wanted[owner] ?? {}, publications = this.stored.wantedPublications[owner] ?? {};
@@ -808,7 +703,6 @@ export class OfflineDownloads {
       } finally { this.collecting.delete(p.id); }
     }
     // Room on the list: a large request that was waiting for it reads on.
-    if (collected && Object.keys(this.stored.selectionActions[owner] ?? {}).length) this.scheduleSelectionActions(generation, true);
     if (collected && [...this.enrolled.values()].some(reading => !reading.tail)) this.enrollSoon(generation);
   }
   /** A first-page server list need not contain an older accepted preparation.

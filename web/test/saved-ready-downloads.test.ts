@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {DownloadsService} from '@core/downloads-service.ts';
-import {parseDownloadPage} from '@core/downloads.ts';
+import {parseDownloadPreparation, type DownloadPreparation} from '@core/downloads.ts';
 import {SavedOperations} from '../src/screens/saved/operations.ts';
 import {SavedReadyDownloads, readyArtifactKey} from '../src/screens/saved/ready-downloads.ts';
 import type {SavedDownloadsScope} from '../src/screens/saved/downloads-port.ts';
@@ -16,10 +16,10 @@ const preparation = (overrides: Record<string, unknown> = {}) => ({
 });
 // This consumer accepts the shared preparation view, independently of which server protocol produced it.
 function source() {
-  let snapshot = {items: parseDownloadPage({items: []}).items};
+  let snapshot: {items: readonly DownloadPreparation[]} = {items: []};
   const listeners = new Set<() => void>();
   const service = {getSnapshot: () => snapshot, subscribe(fn: () => void) {listeners.add(fn); return () => {listeners.delete(fn);};}, dispose() {listeners.clear();}} as DownloadsService;
-  return {service, async publish(rows: unknown[]) {snapshot = {items: parseDownloadPage({items: rows}).items}; listeners.forEach(fn => fn());}};
+  return {service, async publish(rows: unknown[]) {snapshot = {items: rows.map(parseDownloadPreparation)}; listeners.forEach(fn => fn());}};
 }
 
 test('one shared preparation source hands each exact READY artifact off once, independent of preparation revision', async () => {

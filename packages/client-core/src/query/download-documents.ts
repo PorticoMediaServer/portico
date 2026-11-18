@@ -7,9 +7,6 @@ import type {DownloadsApi} from '../downloads-service.ts';
 export function readAttachmentDownloadItemResponse(api: DownloadsApi, itemId: string, signal: AbortSignal) {
   return api.request<unknown>(encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)}), 'GET', undefined, signal);
 }
-export function readDownloadPreparationResponse(api: DownloadsApi, id: string, signal?: AbortSignal) {
-  return api.request<unknown>(encodedRoutePath('get_download_preparation', {id: encodeURIComponent(id)}), 'GET', undefined, signal);
-}
 export function readDownloadOptionsResponse(api: DownloadsApi, itemId: string, signal?: AbortSignal, versionId?: string) {
   const path = encodedRoutePath('get_download_options', {itemId: encodeURIComponent(itemId)})
     + (versionId === undefined ? '' : `?versionId=${encodeURIComponent(versionId)}`);

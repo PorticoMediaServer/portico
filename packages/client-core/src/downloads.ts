@@ -1,6 +1,4 @@
 import {canonicalQualityLadder} from '../../contracts/src/types.ts';
-import {routePrefix} from "../../contracts/src/routes.ts";
-import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {wireDurations} from './wire-units.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {serviceText} from './presentation/service-text.ts';
@@ -54,7 +52,6 @@ export type DownloadPreparation = Readonly<{
 }>;
 export type DownloadRejection = Readonly<{itemId: string; code: string}>;
 export type DownloadBatch = Readonly<{batchId: string; items: readonly DownloadPreparation[]; rejected: readonly DownloadRejection[]; accepted: number; duplicate: boolean}>;
-export type DownloadPage = Readonly<{items: readonly DownloadPreparation[]; nextCursor: string}>;
 /** The address a download's bytes are fetched from. It stays good while it is used or renewed;
  * `renewAfterSeconds` is when to renew a transfer that is still unfinished. Renewing (`renew` with
  * this `token`) keeps the same address, so a transfer the device's own downloader is holding
@@ -122,7 +119,6 @@ const digest = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{
 /** A published code (a reason, a quality rung) this app may not know yet: short and lower-case, never free text. */
 const code = (v: unknown): v is string => typeof v === 'string' && /^[a-z0-9_-]{1,64}$/.test(v);
 const reasonCode = (v: unknown): v is string => v === '' || code(v);
-const base64url = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max && /^[A-Za-z0-9_-]+$/.test(v);
 /** An empty instant means "not yet" and is published as an absent field. */
 const instant = (v: unknown, optional = false): v is string => typeof v === 'string' && (optional && v === '' || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.test(v) && Number.isFinite(Date.parse(v)));
 
@@ -214,25 +210,6 @@ export function parseDownloadBatch(raw: unknown): DownloadBatch {
   // The server cannot have accepted more than it sent rows for; a larger figure reads as the rows it sent.
   if (raw.accepted > sent.length) noteSkipped('download-batch', 'accepted');
   return Object.freeze({batchId: raw.batchId, items: Object.freeze(items), rejected: Object.freeze(rejected), accepted: Math.min(raw.accepted, sent.length), duplicate: raw.duplicate});
-}
-
-export function parseDownloadPage(raw: unknown): DownloadPage {
-  if (!object(raw) || !text(raw.nextCursor ?? '', 512)) invalid();
-  const items = firstOfEach('downloads', 'items', keepReadable('downloads', 'items', array(raw.items, 200), v => parseDownloadPreparation(v)), v => v.id);
-  return Object.freeze({items: Object.freeze(items), nextCursor: String(raw.nextCursor ?? '')});
-}
-
-export function parseDownloadGrant(raw: unknown): DownloadGrant {
-  if (!object(raw) || !id(raw.preparationId) || !id(raw.itemId) || !base64url(raw.token, 200)) invalid();
-  // The URL is a path this server published. A client must never construct one,
-  // and an absolute URL here would be an attempt to redirect the transfer.
-  if (typeof raw.url !== 'string' || !raw.url.startsWith(routePrefix("get_download_artifact", 3)) || raw.url.includes('..')) invalid();
-  if (raw.url !== encodedRoutePath("get_download_artifact", {"grant": raw.token})) invalid();
-  if (!instant(raw.issuedAt) || !instant(raw.expiresAt) || !count(raw.renewAfterMs) || raw.renewAfterMs < 1000 || typeof raw.renewed !== 'boolean') invalid();
-  if (Date.parse(raw.expiresAt) <= Date.parse(raw.issuedAt)) invalid();
-  const bytes = artifact(raw.artifact);
-  if (bytes.sha256 === '') invalid();
-  return Object.freeze({preparationId: raw.preparationId, itemId: raw.itemId, url: raw.url, token: raw.token, issuedAt: raw.issuedAt, expiresAt: raw.expiresAt, renewAfterSeconds: raw.renewAfterMs / 1000, renewed: raw.renewed, artifact: bytes});
 }
 
 function qualityOption(raw: unknown): DownloadQualityOption {

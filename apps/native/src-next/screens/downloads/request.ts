@@ -1,12 +1,10 @@
 import type {RefObject} from 'react';
 import type {View} from 'react-native';
-import type {NativeSelectionActionPresentation} from '../library/selection-actions';
 /** One download intent raised from a title page. The shell owns the sheet, so a
  * title renderer only names the real item (or container) and its drawn title. */
 export type NativeDownloadContainerKind = 'show' | 'season' | 'album' | 'book' | 'playlist';
 export type NativeDownloadRequest = Readonly<{
   title: string;
-  queryAction?: NativeSelectionActionPresentation;
   /** Actual Reading publications use their own original-version choice, never a video ladder. */
   reading?: true;
   /** The single item to ask the server's real quality menu for. */
@@ -30,15 +28,13 @@ const publish = () => {for (const listener of [...listeners]) listener();};
 
 /** A newer intent replaces the sheet's request; the sheet is never stacked. */
 export function askNativeDownload(request: NativeDownloadRequest): void {
-  if (!request.title || !(request.itemId || request.itemIds?.length || request.container?.id || request.queryAction)) return;
-  const previous = current;
+  if (!request.title || !(request.itemId || request.itemIds?.length || request.container?.id)) return;
   current = Object.freeze({...request,
     ...(request.itemIds ? {itemIds: Object.freeze([...request.itemIds])} : {}),
     ...(request.container ? {container: Object.freeze({...request.container})} : {}),
     ...(request.lifetime ? {lifetime: Object.freeze({...request.lifetime})} : {}),
   });
   openingKeys.set(current, ++nextOpeningKey);
-  if (previous?.queryAction && previous.queryAction !== current.queryAction) previous.queryAction.dispose();
   publish();
 }
 
@@ -55,9 +51,7 @@ export function nativeDownloadRequestKey(request: NativeDownloadRequest): number
 export function closeNativeDownload(expected?: NativeDownloadRequest): boolean {
   if (expected && current !== expected) return false;
   if (!current) return false;
-  const closing = current;
   current = undefined;
-  closing.queryAction?.dispose();
   publish();
   return true;
 }

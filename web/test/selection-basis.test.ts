@@ -1,12 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {BrowseSelectionModel, type BrowseSelectionContext} from '../../packages/client-core/src/selection-model/index.ts';
+import {BrowseSelectionModel} from '../../packages/client-core/src/selection-model/index.ts';
 import {createDownloadRequest} from '../../packages/client-core/src/download-requests.ts';
 import {wholeViewQuery} from '../src/screens/browse/selection-query.ts';
 import {createSelectionActions} from '../src/screens/browse/selection-actions.ts';
-import {createBrowserQueryActions} from '../src/screens/browse/selection-action-host.tsx';
 import {createQuerySelectionEditor} from '../src/screens/browse/selection-query-editor.ts';
-import {queryDeleteTarget, resolveQueryDelete} from '../src/screens/browse/selection-delete-query.ts';
 import {componentModule, hooks} from './helpers/component-harness.mjs';
 import {createRenderer, tree} from './helpers/interaction-harness.mjs';
 import {defaultI18n} from '@i18n';
@@ -57,17 +55,6 @@ test('queue-source capture validates and preserves the supplied proof losslessly
   assert.deepEqual(captureQueueSource({query: {libraryId: 'lib'}}), {query: {libraryId: 'lib'}});
 });
 
-test('larger query Delete fails before I/O while its capability facts remain truthful', async () => {
-  const held = selected(proof, 201); let calls = 0;
-  const ports = {api: {request: async () => {calls++; throw new Error('must not enumerate');}}, serverId: 'server', viewerId: 'viewer', isCurrent: () => true, requestId: async () => 'operation'};
-  try {
-    assert.equal(queryDeleteTarget(held.target), false);
-    await assert.rejects(resolveQueryDelete(held.target, ports, new AbortController().signal), /query-delete-unavailable/); assert.equal(calls, 0);
-    assert.equal(held.target.summary.every.delete, true);
-    const legacy = {...held.target, total: 2, sourceTotal: 2, selector: {query: {libraryId: 'lib', pivot: 'movies', sort}}}; assert.equal(queryDeleteTarget(legacy), false);
-  } finally {held.model.dispose();}
-});
-
 test('the container-only download dispatcher refuses a proof-bearing query instead of approximating item IDs', async () => {
   const held = selected(); let calls = 0;
   try {
@@ -91,40 +78,27 @@ test('the existing selection menu renders unavailable Download and Delete rows w
   host.dispose();
 });
 
-test('the real web toolbar tells the truth about bounded query actions instead of guessing an unreal bound', async () => {
+test('the web Library toolbar omits Delete and Download for whole views at and above the delete limit', async () => {
   for (const size of [200, 201]) {
     const held = selected(proof, size), host = hooks();
     const {createLibrarySelection} = await componentModule(new URL('../src/screens/browse/selection.tsx', import.meta.url), {
       react: host.react, '@i18n': {defaultI18n}, '../../kit/selection': {SelectionBars: 'SelectionBars'},
       './selection-actions': {createSelectionActions, personalTargetIsLeaf: () => true, personalTargetSupportsJob: () => true},
-      './selection-delete-query': {queryDeleteTarget}, './selection-query': {wholeViewQuery},
+      './selection-query': {wholeViewQuery},
       './selection-unavailable-actions': selectionUnavailableActions,
     });
     const signal = new AbortController().signal, ports = {api: {request: async () => {throw new Error('no I/O expected');}}, events: {on: () => () => {}}, serverId: 'server', viewerId: 'viewer', requestId: async () => 'operation', isCurrent: () => true, signal};
     const playSelection = {getSnapshot: () => ({phase: 'ready', selection: held.model.getSnapshot(), rows: [], canPlay: true, canQueue: true}), subscribe: () => () => {},
       captureOperation: () => held.operation, isOperationCurrent: () => true, dispose() {}};
-    // The Library composer passes the actual query action host; that host's own exact policy
-    // (selectionActionTargetInput) decides eligibility, at every bounded size.
-    const queryActions = createBrowserQueryActions<BrowseSelectionContext>({subscribe: () => () => {}, captureOperation: () => held.operation, isOperationCurrent: () => true}, {
-      api: {request: async <T>() => {throw new Error('no I/O expected');}, mediaUrl: (path: string) => path},
-      requestId: async () => 'operation', deviceId: 'device', owner: true, signal, scopeKey: () => 'scope-key', isCurrent: () => true, subscribe: () => () => {}});
-    // Without that host (the document-selection composer) the bar must not invent a Download it
-    // cannot run, and the 200-member enumeration bound still bounds Delete on that path.
-    const withoutHost = createLibrarySelection({playSelection, owner: true, actions: {...ports, reportError() {}}, deletion: ports, reportError() {}});
-    const withHost = createLibrarySelection({playSelection, queryActions, owner: true, actions: {...ports, reportError() {}}, deletion: ports, reportError() {}});
-    const render = (adapter: typeof withoutHost) => {const toolbar = adapter.toolbar.props.children[0]; return host.render(() => toolbar.type(toolbar.props));};
+    const adapter = createLibrarySelection({playSelection, owner: true, actions: {...ports, reportError() {}}, deletion: ports, reportError() {}});
     try {
-      const fallback = render(withoutHost);
-      assert.equal(fallback.type, 'SelectionBars'); assert.equal(fallback.props.selection.count, size);
-      assert.equal(fallback.props.actions.downloadDisabledReason, undefined); assert.equal(fallback.props.actions.onDownload, undefined);
-      assert.equal(fallback.props.actions.deleteDisabledReason, undefined); assert.equal(fallback.props.actions.onDelete, undefined);
-      assert.equal(queryActions.offered(held.target, 'download'), false); assert.equal(queryActions.offered(held.target, 'delete'), false);
-      const composed = render(withHost);
-      assert.equal(composed.props.selection.count, size);
-      assert.equal(composed.props.actions.onDownload, undefined); assert.equal(composed.props.actions.onDelete, undefined);
-      assert.equal(composed.props.actions.downloadDisabledReason, undefined); assert.equal(composed.props.actions.deleteDisabledReason, undefined);
+      const toolbar = adapter.toolbar.props.children[0];
+      const rendered = host.render(() => toolbar.type(toolbar.props));
+      assert.equal(rendered.type, 'SelectionBars'); assert.equal(rendered.props.selection.count, size);
+      assert.equal(rendered.props.actions.onDownload, undefined); assert.equal(rendered.props.actions.onDelete, undefined);
+      assert.equal(rendered.props.actions.downloadDisabledReason, undefined); assert.equal(rendered.props.actions.deleteDisabledReason, undefined);
       assert.equal(held.target.summary.every.delete, true); assert.equal(held.target.summary.every.download, true);
-    } finally {withoutHost.dispose?.(); withHost.dispose?.(); queryActions.dispose(); held.model.dispose();}
+    } finally {adapter.dispose?.(); held.model.dispose();}
   }
 });
 

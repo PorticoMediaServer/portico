@@ -1,7 +1,5 @@
 import {useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
 import {defaultI18n} from '@i18n';
-import type {BrowserQueryActionHost} from '../screens/browse/selection-action-host';
-import type {SelectionContext} from '@core/selection-model/types.ts';
 import type {HomeSelectionController, HomeSelectionSnapshot} from '@core/home-selection/index.ts';
 import {summarizeSelection} from '@core/selection-model/index.ts';
 import {presentError} from '@core/presentation/errors.ts';
@@ -23,7 +21,6 @@ import styles from './selection.module.css';
 
 export type SelectionRendererSource = Readonly<{
   controller: HomeSelectionController;
-  queryActions?: BrowserQueryActionHost<SelectionContext>;
   metadata?: Readonly<{api: Parameters<typeof MetadataEditor>[0]['api']; scope: Parameters<typeof MetadataEditor>[0]['scope']; current: (snapshot: HomeSelectionSnapshot) => boolean}>;
   anchor: RefObject<HTMLElement | null>;
   artwork: ShellArtwork;
@@ -45,12 +42,9 @@ function run(source: SelectionRendererSource, action: () => void | Promise<unkno
   runSelectionCommand(action, source.reportError);
 }
 function actionsFor(source: SelectionRendererSource, snapshot: HomeSelectionSnapshot) {
-  const target = snapshot.selection.target;
-  const query = target?.mode === 'query' ? {onDelete: source.queryActions?.offered(target, 'delete') ? () => run(source, source.queryActions!.openDelete) : undefined,
-    onDownload: source.queryActions?.offered(target, 'download') ? () => run(source, source.queryActions!.openDownload) : undefined} : {};
   return {...selectionCallbacks(snapshot, source.controller, element => { source.anchor.current = element; }, source.reportError),
     ...(snapshot.actions.delete.state === 'disabled' && snapshot.actions.delete.reason === 'one-library-required' ? {deleteDisabledReason: t('next.selection.oneLibrary')} : {}),
-    ...query, ownerMark: <ServerMark size={22} />};
+    ownerMark: <ServerMark size={22} />};
 }
 
 export function SelectionPhoneBar({source}: {source: SelectionRendererSource}) {
@@ -102,7 +96,6 @@ export function SelectionSurfaces({source}: {source: SelectionRendererSource}) {
   const singleEditor = source.metadata && editor?.phase === 'ready' && editor.preview?.total === 1 && editor.preview.targets.length === 1 && snapshot.displayMembers.length === 1 && source.metadata.current(snapshot);
   return <>
     <ToastHost toast={toast} onDismiss={id => setToast(current => current?.id === id ? null : current)} />
-    {source.queryActions?.surface}
     {snapshot.selection.active && <div className={styles.bar}><SelectionBar selection={{count: summary.count, kind: summary.types.length === 1 ? summary.types[0].kind : undefined}}
       actions={actionsFor(source, snapshot)} typeCount={summary.types.length} selectAll={{kind: 'row'}}
       onSelectAll={() => run(source, () => { const result = controller.selectRow(); if (!result.ok) throw Object.assign(new Error(result.reason), {code: result.reason}); })}

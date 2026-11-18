@@ -3,11 +3,9 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 import {compileFunction} from 'node:vm';
-import {transformSync} from 'rolldown/utils';
-import * as documentRequests from '../src/query/download-documents.ts';
-import * as downloads from '../src/downloads.ts';
+import {parseDownloadOptions} from '../src/downloads.ts';
 import {parseMediaItem} from '../src/media-item.ts';
-import {serverNow} from '../src/server-clock.ts';
+import {encodedRoutePath} from '../../contracts/src/routes.ts';
 import {createAttachmentDownloadPort} from '../src/attachment-download.ts';
 
 // Exact source slices and full-file digests captured from untouched main before extraction.
@@ -20,13 +18,8 @@ function run(code: string, ports: Record<string, unknown>, expression: string) {
   return compileFunction(source + '\nreturn referenceBody();', Object.keys(ports))(...Object.values(ports));
 }
 function originalBrowser(api: any, current: () => boolean, signal: AbortSignal) {
-  let code = transformSync('main-browser-download.ts', original.browser, {tsconfig: false}).code;
-  code = code.replace(/^import .*;\n/gm, '').replace('export function createBrowserDownloadPort', 'function createBrowserDownloadPort');
-  return run(code, {...downloads, parseMediaItem, serverNow, ...documentRequests,
-    // Main's generated builders and DOM adapter are its actual external ports.
-    ...routeBuilders, document: {createElement: () => ({click() {}, remove() {}}), body: {append() {}}}}, 'createBrowserDownloadPort')(api, current, signal);
+  return run(original.browser, {api, authorityCurrent: current, lifetime: signal, parseMediaItem, parseDownloadOptions, encodedRoutePath}, '{options}');
 }
-import * as routeBuilders from '../../contracts/src/routes.ts';
 test('main parity: attachment parser rejection competes with the same queued fallback', async () => {
   const exercise = async (factory: typeof originalBrowser) => {
     const response = deferred(); let current = true;

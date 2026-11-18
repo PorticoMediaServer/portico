@@ -1,4 +1,3 @@
-import {resolveQueryDelete} from './selection-delete-query';
 import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import {Button} from '../../kit/controls';
@@ -21,7 +20,7 @@ export function LibraryDeleteSurface({session, options, onClose}: {session: Libr
   useEffect(() => {
     const session = owner.session;
     const target = session.operation.target;
-    if (tooMany || !session.current()) return;
+    if (target.mode !== 'explicit' || tooMany || !session.current()) return;
     setResolutionError(false);
     const signal = AbortSignal.any([session.lifetime.signal, options.signal]);
     const check = () => {if (signal.aborted || !session.current() || !options.isCurrent()) throw new DOMException('Selection retired', 'AbortError');};
@@ -32,12 +31,10 @@ export function LibraryDeleteSurface({session, options, onClose}: {session: Libr
       },
     }};
     void (async () => {
-      const targets: readonly Pick<EntryActionTarget, 'itemId' | 'libraryId' | 'kind'>[] = target.mode === 'query'
-        ? await resolveQueryDelete(target, ports, combined)
-        : target.items.map(pick => {
-          if (!('libraryId' in pick.item) || !pick.item.capabilities.delete) throw new Error('delete-not-offered');
-          return {itemId: pick.item.id, libraryId: pick.item.libraryId, kind: pick.item.kind};
-        });
+      const targets: readonly Pick<EntryActionTarget, 'itemId' | 'libraryId' | 'kind'>[] = target.items.map(pick => {
+        if (!('libraryId' in pick.item) || !pick.item.capabilities.delete) throw new Error('delete-not-offered');
+        return {itemId: pick.item.id, libraryId: pick.item.libraryId, kind: pick.item.kind};
+      });
       check();combined.throwIfAborted();producer.open(targets, ports);
     })().catch(() => {if (!combined.aborted && session.current()) setResolutionError(true);});
     return () => {local.abort();producer.close();};

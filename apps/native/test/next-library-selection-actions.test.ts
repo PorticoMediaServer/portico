@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import React from 'react';
 import * as actions from '../../../packages/client-core/src/selection-actions.ts';
 import {NativeBulkMedia} from '../src-next/screens/destinations/bulk-media.ts';
 import * as nativeUnavailable from '../src-next/screens/library/selection-unavailable-actions.ts';
@@ -16,11 +15,11 @@ function target() {
   refinement: {kind: null, excludedItems: []}, summary: {count: total, types: [{kind: 'movie', count: total}],
     library: {kind: 'single', libraryId: 'library'}, every: {delete: true, download: true}}};
 }
-const preview = (action = 'delete', preparationId = 'preparation') => ({kind: 'selection-action-preview', action, preparationId, basis,
-  total, files: total, bytes: 1234, bytesKnown: action === 'delete', confirmation: String(total), confirmationKind: 'count',
+const preview = () => ({kind: 'selection-action-preview', action: 'delete', preparationId: 'preparation', basis,
+  total, files: total, bytes: 1234, bytesKnown: true, confirmation: String(total), confirmationKind: 'count',
   expiresAt: '2030-01-01T00:00:00Z', sample: [{itemId: 'item', title: 'Real title', kind: 'movie'}]});
-const job = (action = 'delete', state = 'complete') => ({operationId: 'stable-operation', action, state, total, admitted: total,
-  done: state === 'complete' ? total : 0, failed: 0, bytesDeleted: 0, filesDeleted: 0, retryAfterMs: 250});
+const partialJob = {operationId: 'stable-operation', action: 'delete', state: 'partial', total, admitted: total,
+  done: 0, failed: 1, filesDeleted: 2, bytesDeleted: 1024, errorCode: 'cancelled', retryAfterMs: 250};
 
 async function librarySelection({supported = false, isTV = false} = {}) {
   const host = hooks(), held = target();
@@ -117,7 +116,6 @@ test('native Library whole-view Download hands exact Browse IDs to the native do
     const request = getNativeDownloadSnapshot();
     assert.deepEqual(request?.itemIds, ['movie-a', 'movie-b']);
     assert.equal(request?.title, '2 movies');
-    assert.equal(request?.queryAction, undefined);
     closeNativeDownload(request);
 
     exceedLimit();
@@ -139,7 +137,7 @@ test('native aggregate Delete dialog accepts 257 real preview totals and rejects
   let state = ready, confirms = 0, closes = 0, edits = 0;
   const action: any = {target: target(), current: () => true, getSnapshot: () => state, subscribe: () => () => {},
     controller: {getSnapshot: () => state, confirm: async () => {confirms++;}, cancel: async () => {}, setConfirmation: () => {}, retry: async () => {}},
-    openDelete: async () => {edits++;}, downloadQualities: async () => []};
+    openDelete: async () => {edits++;}};
   const module = await screenModule(new URL('../src-next/screens/library/SelectionActionSurface.tsx', import.meta.url), {
     react: host.react, 'react-native': {View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key, bytes: (n: number) => String(n)}},
     '../../../../../packages/client-core/src/selection-actions': actions, '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'error'})},
@@ -148,7 +146,7 @@ test('native aggregate Delete dialog accepts 257 real preview totals and rejects
     '../../kit/selection/surface': {SelectionSurface: 'SelectionSurface', SelectionText: 'SelectionText', selectionFooterProps: () => ({})},
   });
   const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.footer), ...nodes(value.props.children)] : [];
-  const render = () => nodes(host.render(() => module.NativeQuerySelectionActionSurface({action, kind: 'delete', onClose: () => {closes++;}})));
+  const render = () => nodes(host.render(() => module.NativeQueryDeleteMediaDialog({action, onClose: () => {closes++;}})));
   const first = render(), confirm = first.find(node => node.props.testID === 'query-action-confirm');
   assert.equal(confirm.props.disabled, false); await confirm.props.onPress(); assert.equal(confirms, 1);
   assert.ok(first.some(node => node.type === 'TextField')); assert.ok(first.some(node => node.type === 'Switch'));
@@ -159,12 +157,12 @@ test('native aggregate Delete dialog accepts 257 real preview totals and rejects
   assert.equal(render().find(node => node.props.testID === 'query-action-confirm').props.disabled, true);
 });
 
-test('native terminal cancellation is explicit, partial Delete shows actual file effects, and Download says processed', async () => {
+test('native terminal cancellation is explicit and partial Delete shows actual file effects', async () => {
   const host = hooks();
-  let state: any = {phase: 'result', input: {action: 'delete', options: {deleteFiles: true}}, preparation: null, confirmation: '', errorCode: null,
-    job: {...job('delete', 'partial'), done: 0, failed: 1, filesDeleted: 2, bytesDeleted: 1024, errorCode: 'cancelled'}};
+  const state = {phase: 'result', input: {action: 'delete', options: {deleteFiles: true}}, preparation: null, confirmation: '', errorCode: null,
+    job: partialJob};
   const action: any = {target: target(), current: () => true, getSnapshot: () => state, subscribe: () => () => {},
-    controller: {getSnapshot: () => state}, downloadQualities: async () => []};
+    controller: {getSnapshot: () => state}};
   const module = await screenModule(new URL('../src-next/screens/library/SelectionActionSurface.tsx', import.meta.url), {
     react: host.react, 'react-native': {View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {
       t: (key: string, values?: unknown) => `${key}:${JSON.stringify(values ?? {})}`, bytes: (n: number) => `bytes(${n})`}},
@@ -175,60 +173,9 @@ test('native terminal cancellation is explicit, partial Delete shows actual file
     '../../kit/selection/surface': {SelectionSurface: 'SelectionSurface', SelectionText: 'SelectionText', selectionFooterProps: () => ({})},
   });
   const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.footer), ...nodes(value.props.children)] : [];
-  const render = (kind: string) => nodes(host.render(() => module.NativeQuerySelectionActionSurface({action, kind, onClose: () => {}})));
-  const deletion = render('delete'), text = deletion.filter(node => node.type === 'SelectionText').flatMap(node => node.props.children);
+  const deletion = nodes(host.render(() => module.NativeQueryDeleteMediaDialog({action, onClose: () => {}}))), text = deletion.filter(node => node.type === 'SelectionText').flatMap(node => node.props.children);
   assert.ok(text.includes('download.state.canceled:{}'), 'cancellation does not rely on the silent error presenter');
   assert.ok(text.includes('next.selection.native.deleteResult:{"removed":0,"failed":1}'));
   assert.ok(text.includes('next.selection.native.fileFacts:{"count":2,"size":"bytes(1024)"}'));
   assert.ok(!deletion.some(node => node.props.testID === 'query-action-cancel'));
-  state = {...state, input: {action: 'download', options: {quality: 'original', deviceId: 'device'}}, job: job('download')};
-  const download = render('download').filter(node => node.type === 'SelectionText').flatMap(node => node.props.children);
-  assert.ok(download.includes('next.selection.jobProgress:{"done":257,"total":257}'));
-  assert.ok(!download.some((value: unknown) => typeof value === 'string' && value.startsWith('downloads.requestProgress')));
-});
-
-test('native exact inventory waits for terminal admission, honors real queue backpressure and reads one bounded filtered page', async () => {
-  let closed = false, reads = 0, admissions = 0;
-  const calls: string[] = [];
-  const module = await screenModule(new URL('../src-next/screens/library/selection-action-downloads.ts', import.meta.url), {
-    react: {default: React}, '../../../../../packages/client-core/src/selection-actions': {...actions,
-      getSelectionAction: async () => {reads++; throw new Error('short-lived status must not gate transfer inventory');}},
-  });
-  const preparation = (i: number) => ({id: `prep-${i}`, itemId: `item-${i}`, libraryId: 'library', profileId: 'profile', quality: 'original', origin: 'manual', state: 'ready',
-    artifact: {kind: 'source', sha256: 'a'.repeat(64), bytes: 1024, estimated: false}, title: {kind: 'movie', title: `Film ${i}`, onServer: true},
-    actions: ['remove'], revision: 1, createdAt: '2026-10-28T00:00:00Z', updatedAt: '2026-10-28T00:00:00Z', readyAt: '2026-10-28T00:00:00Z', expiresAt: '2030-01-01T00:00:00Z'});
-  const api = {request: async (path: string) => {
-    calls.push(path); const query = new URL(path, 'https://fixture.invalid').searchParams;
-    assert.equal(query.get('operationId'), 'stable-operation'); assert.equal(query.get('deviceId'), 'device');
-    assert.equal(query.get('limit'), '20'); assert.equal(query.get('cursor'), null);
-    return {items: Array.from({length: 20}, (_, i) => preparation(i)), nextCursor: 'next-exact-page', closed};
-  }};
-  const intent = Object.freeze({operationId: 'stable-operation', deviceId: 'device', cursor: ''}), signal = new AbortController().signal;
-  const admitted: any[] = [];
-  const options = {api, intent, signal, isCurrent: () => true, room: 0, admit: async (page: any) => {admissions++; admitted.push(page);}};
-  assert.equal(await module.stepNativeSelectionActionDownloads(options), 'blocked'); assert.equal(reads, 0);
-  assert.equal(await module.stepNativeSelectionActionDownloads({...options, room: 200}), 'waiting'); assert.equal(calls.length, 1);
-  closed = true;
-  assert.equal(await module.stepNativeSelectionActionDownloads({...options, room: 200}), 'more');
-  assert.equal(calls.length, 2); assert.equal(admissions, 1); assert.equal(reads, 0); assert.equal(admitted[0].items.length, 20);
-  assert.equal(admitted[0].nextCursor, 'next-exact-page'); assert.equal(admitted[0].complete, false); assert.equal(intent.cursor, '');
-  await assert.rejects(module.stepNativeSelectionActionDownloads({...options, room: 200, admit: async () => {throw new Error('native write failed');}}), /native write failed/);
-  assert.equal(intent.cursor, '', 'failed native persistence cannot advance the durable cursor');
-});
-
-test('native exact inventory refuses changed scope and repeated cursor, and enrolls partial cancellation inventory truthfully', async () => {
-  const module = await screenModule(new URL('../src-next/screens/library/selection-action-downloads.ts', import.meta.url), {
-    react: {default: React}, '../../../../../packages/client-core/src/selection-actions': {...actions,
-      getSelectionAction: async () => actions.parseSelectionActionJob({...job('download', 'partial'), done: 1, errorCode: 'cancelled'})},
-  });
-  const intent = {operationId: 'stable-operation', deviceId: 'device', cursor: 'last'}, abort = new AbortController();
-  let live = true, admissions = 0;
-  const options = {intent, signal: abort.signal, isCurrent: () => live, room: 20, admit: async () => {admissions++;},
-    api: {request: async () => ({items: [], nextCursor: 'last', closed: true})}};
-  await assert.rejects(module.stepNativeSelectionActionDownloads(options), {code: 'invalid_response'});
-  assert.equal(admissions, 0);
-  assert.equal(await module.stepNativeSelectionActionDownloads({...options, api: {request: async () => ({items: [], nextCursor: '', closed: true})}}), 'complete');
-  assert.equal(admissions, 1);
-  await assert.rejects(module.stepNativeSelectionActionDownloads({...options, api: {request: async () => {live = false; return {items: [], nextCursor: '', closed: true};}}}), {name: 'AbortError'});
-  assert.equal(admissions, 1, 'late inventory never enrolls into a successor profile');
 });

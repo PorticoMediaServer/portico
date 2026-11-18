@@ -1,11 +1,7 @@
 import {readBrowseCapabilitiesResponse} from '@core/query/browse-reads.ts';
 import {withRequestRaw} from '@core/home-selection/list-destinations.ts';
 import {readLibraryMetadataAgentResponse} from '@core/query/catalogue-actions.ts';
-import {createBrowserQueryActions, type BrowserQueryActionHost} from './selection-action-host';
 import {entryStartDisplay} from '../../platform/playback/subject';
-import {createSelectionActionHostBridge} from './selection-action-lifetime';
-import type {BrowseSelectionContext} from '@core/selection-model/types.ts';
-import {subscribeFacts} from '../../shell/fact-source';
 import {useGuardedLibraryContext, useLibraryRouteGuard} from './library-route-guard';
 import {useRouteLibrary} from './route-library';
 import {useShellFacts} from '../../shell/fact-hooks';
@@ -401,26 +397,6 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
   // The grid reports its visible range only when it changes; a selection built afterwards (another
   // grid, a new page revision) is given the range already on screen.
   const visibleRange = useRef<Readonly<{first: number; last: number}>>(undefined);
-  const [queryBridge] = useState(() => createSelectionActionHostBridge<BrowseSelectionContext>());
-  const gridName = frame.gridKey ? JSON.stringify(frame.gridKey) : null;
-  const [queryOwner, publishQueryOwner] = useState<Readonly<{resources: BrowseLease; controller?: BrowseController; actions: BrowserQueryActionHost<BrowseSelectionContext>}>>();
-  useLayoutEffect(() => {
-    const life = new AbortController(), signal = resources.life.signal(life.signal);
-    const session = captured.context.session(), actor = session.viewer;
-    const scopeKey = () => {
-      const current = captured.context.session(), viewer = current.viewer, query = controller?.getSnapshot() ?? noGrid;
-      return JSON.stringify([resources.routeKey, gridName, current.sessionFamilyId, current.deviceId,
-        viewer.serverId, viewer.authority, viewer.accountId, viewer.profileId, viewer.role,
-        query.predicates, query.sort]);
-    };
-    const actions = createBrowserQueryActions(queryBridge, {api: {...resources.life.api, mediaUrl: context.api.mediaUrl.bind(context.api)},
-      requestId: async () => randomId(), deviceId: session.deviceId ?? '', owner: actor.role === 'owner' && actor.authority === 'local',
-      signal, scopeKey, isCurrent: () => resources.life.current() && context.isCurrent() && libraryAddressKey(router.state.location) === href,
-      subscribe: listener => {const a = controller?.subscribe(listener), b = subscribeFacts(captured.context, listener), c = router.subscribe('onResolved', listener); return () => {a?.();b();c();};}});
-    publishQueryOwner({resources, controller, actions});
-    return () => {life.abort();actions.dispose();queryBridge.dispose();};
-  }, [resources, controller, gridName, context, captured.context, queryBridge, href]);
-  const queryActions = queryOwner?.resources === resources && queryOwner.controller === controller ? queryOwner.actions : undefined;
   // Selection and Play selection belong to the grid shown: another query's grid gets its own.
   useLayoutEffect(() => {
     if (!controller) {publishSelection(undefined); return;}
@@ -446,7 +422,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       queue: runtime?.catalogueQueue(),
       playback: runtime?.cataloguePlayback()});
     const selection = createLibrarySelection({
-      playSelection, queryActions,
+      playSelection,
       pickers: {api: withRequestRaw(api, raw, () => {if (!current()) throw new DOMException('Browse selection retired', 'AbortError');}), queries: context.queries, serverId: context.scope.serverId, viewerId: context.scope.viewerId, requestId: async () => randomId(),
         signal, isCurrent: current,
         canCreateCollection: true, artwork: context.artwork,
@@ -464,13 +440,12 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
         signal, isCurrent: current, reportError: context.effects.reportError, ...(context.effects.notify ? {notify: context.effects.notify} : {})},
       reportError: context.effects.reportError,
     });
-    queryBridge.attach(playSelection);
     publishSelection({resources, controller, runtime, queryRevision, current, playSelection, selection});
     playSelection.start();
     if (visibleRange.current) selection.registerWindow(visibleRange.current.first, visibleRange.current.last);
-    return () => {command.abort();queryBridge.attach();selection.dispose?.();playSelection.dispose();};
+    return () => {command.abort();selection.dispose?.();playSelection.dispose();};
     // A page revision belongs to its selection model: the hub reading the grid again in place starts a new one.
-  }, [captured.context, context, resources, controller, runtime, state.queryRevision, state.revision, queryActions, queryBridge, raw]);
+  }, [captured.context, context, resources, controller, runtime, state.queryRevision, state.revision, raw]);
   const selectedLease = selectionLease?.resources === resources && selectionLease.controller === controller && selectionLease.runtime === runtime
     && selectionLease.queryRevision === state.queryRevision && selectionLease.current() ? selectionLease : undefined;
   const playSelection = selectedLease?.playSelection, selection = selectedLease?.selection;
@@ -592,7 +567,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
   };
   if (library.kind === 'audiobook' && (view === 'book' || view === 'author' || view === 'book_series') && search.entityId)
     return <AudiobookEntry context={context} target={{libraryId: library.id, view, entityId: search.entityId}}/>;
-  return <>{queryActions?.surface}{unmatched ? <><LibraryIdentity {...header}/><NeedsAttention libraryId={library.id} libraryName={library.name} api={resources.life.api} onEdit={context.effects.editMetadata ? editAttention : undefined}/></>
+  return <>{unmatched ? <><LibraryIdentity {...header}/><NeedsAttention libraryId={library.id} libraryName={library.name} api={resources.life.api} onEdit={context.effects.editMetadata ? editAttention : undefined}/></>
     : view === 'show' || view === 'season' ? <LibraryShow captured={captured} libraryId={library.id} search={search}/>
     : view === 'artist' && search.entityId ? <ArtistScreen context={context} libraryId={library.id} artistId={search.entityId}
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {}}).catch(context.effects.reportError);}} />

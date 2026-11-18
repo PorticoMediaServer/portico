@@ -19,13 +19,9 @@ export const settle = async () => {for (let i = 0; i < 12; i++) await new Promis
 // The native filesystem and server are explicit test ports.
 export async function offlineFixture(options = {}) {
   const words = {serviceText: id => id};
-  const routes = {
-    routePrefix: name => {if (name !== 'get_download_artifact') throw new Error('Unexpected route ' + name); return '/v1/downloads/artifacts/';},
-    encodedRoutePath: (name, params) => {if (name !== 'get_download_artifact') throw new Error('Unexpected route ' + name); return '/v1/downloads/artifacts/' + params.grant;},
-  };
   const downloads = await offlineModule(new URL('../../../../packages/client-core/src/downloads.ts', import.meta.url), {
     '../../contracts/src/types.ts': {canonicalQualityLadder: [{id: 'original'}, {id: 'small'}]},
-    '../../contracts/src/routes.ts': routes, './presentation/service-text.ts': words,
+    './presentation/service-text.ts': words,
   });
   /** @type {Set<(entry: any) => void>} */
   const listeners = new Set();
