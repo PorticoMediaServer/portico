@@ -10,7 +10,7 @@
 .headerAmbient { position: absolute; inset: 0 0 auto; height: 560px; pointer-events: none; z-index: -1; }
 .libraryIdentity { position: relative; display: flex; align-items: center; gap: 14px; padding: 112px var(--shell-gutter) 0; }
 .libraryName { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.libraryName h1 { margin: 0; font-size: 56px; line-height: 1; font-weight: 800; letter-spacing: -.045em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.libraryName h1 { margin: 0; font-size: 56px; line-height: 1.04; font-weight: 800; letter-spacing: -.045em; text-wrap: balance; overflow-wrap: anywhere; } /* A page title wraps; it is never cut (rule 3). */
 .libraryCounts { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 12px; font-size: 15px; color: var(--browse-muted); }
 .libraryEnd { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 /* The page's tabs under the title row: one gap for every page that uses this header. */

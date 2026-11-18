@@ -20,9 +20,8 @@ Each section fills the window and adapts to it, so the same id is captured on a 
 | id | Shows |
 |---|---|
 | `frames-backdrop` | The window's backdrop alone |
-| `frames-browse-home` | Browse: Home, the moderate hero and two rows |
-| `frames-browse-list` | Browse: a pushed list with Back, a title and a header action |
-| `frames-browse-loading` | Browse: loading, in the loaded page's boxes |
+| `frames-browse-home` | Home: the hero (TV: following the focused Continue Watching card, with key hints), Continue Watching, New on your server (New badges, subtitle, See all), On now (not TV), Continue Listening, People on this server are watching; the phone's wordmark bar (`library.gallery.tsx`) |
+| `frames-browse-list`, `-discover`, `-music`, `-filters`, `-collections`, `-see-all`, `-empty`, `-menu`, `-loading` | The library (`library.gallery.tsx`): the grid with its rail; Discover's rows; Music's tabs; Filters open (sheet, pane over, docked pane or side sheet by form); Collections; See all; no titles match; the More menu (owner; not TV); loading in the loaded page's boxes |
 | `frames-title` | Title page with artwork, three round buttons, a synopsis and tabs |
 | `frames-title-missing` | Title page with no artwork, a long title, no round buttons, no synopsis |
 | `frames-title-loading` | Title page loading |

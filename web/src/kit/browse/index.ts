@@ -4,6 +4,8 @@ export {BrowseToolbar, FiltersButton, QuickToggle, SortMenu, ViewToggle, CardSiz
 export type {BrowseToolbarProps, FiltersButtonProps, QuickToggleProps, SortMenuProps, AppliedFilterChipsProps} from './BrowseToolbar';
 export {FilterBuilder, FieldTile, FacetChips, MatchMode} from './FilterBuilder';
 export type {FilterBuilderProps, FieldTileProps, FacetChipsProps, MatchModeProps} from './FilterBuilder';
+export {FiltersSurface} from './FiltersSurface';
+export type {FiltersSurfaceProps, FiltersSurfaceForm} from './FiltersSurface';
 export {FilteredEmpty, RelaxSuggestions} from './FilteredEmpty';
 export type {FilteredEmptyProps, RelaxSuggestion} from './FilteredEmpty';
 export {TrackTable, SongRow} from './TrackTable';

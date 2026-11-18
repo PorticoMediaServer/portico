@@ -16,6 +16,7 @@ import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {AlphabetRail, Row, WindowedGrid, type HeroCandidate} from '../../../kit/layout';
 import {OwnerTag} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
+import {frameSpec} from '@portico/design';
 import {PhoneHomeHeader} from '../../../shell/PhoneHomeHeader';
 import type {Gallery} from '../../gallery-registry';
 import {capability, clearedFields, fieldNames, initialFields, labels, updateField} from '../browse/browse.gallery';
@@ -29,10 +30,12 @@ const posters = libraryFramesPosters.map(([id, year]) => ({id, year, title: l(`n
 type Poster = typeof posters[number];
 const year = (poster: Poster) => [{id: 'year', text: String(poster.year), role: 'identity' as const}];
 const watched = new Set(['alien', 'blade-runner']), progress: Readonly<Record<string, number>> = {'avengers-endgame': .4, barbie: .7};
+/** The grid's own lists are constants: a new list each render would be a new collection each render. */
+const animated = posters.filter(poster => ['how-to-train-your-dragon', 'incredibles-2', 'inside-out', 'moana', 'monsters-inc', 'interstellar'].includes(poster.id)), recent = posters.slice(20);
 const count = (n: number) => t('lib.count', {count: n, pivot: 'movies'});
 
 /** The library's own header regions: the switcher in the title, ⋯, Select (tablet) and the tabs. */
-function useLibraryHeader({tab = 'movies', kind = 'movie', menuOpen = false}: {tab?: string; kind?: string; menuOpen?: boolean} = {}) {
+function useLibraryHeader({tab = 'browse', kind = 'movie', menuOpen = false}: {tab?: string; kind?: string; menuOpen?: boolean} = {}) {
   const {form} = useFrameMetrics(), [library, setLibrary] = useState(kind === 'music' ? 'music' : 'movie'), [current, setCurrent] = useState(tab);
   const name = libraries.find(entry => entry.id === library)?.name ?? f('movies');
   return {
@@ -46,13 +49,13 @@ function useLibraryHeader({tab = 'movies', kind = 'movie', menuOpen = false}: {t
 }
 
 /** The Filters bar: Filters with its count, quick chips, the count, sort with order, grid or list, card size, Save view, applied chips. */
-function useToolbar(filtered: boolean) {
+function useToolbar(filtered: boolean, total = filtered ? 6 : 80) {
   const [sort, setSort] = useState<BrowseSortSelection>({field: 'title', direction: 'asc'});
   const [predicates, setPredicates] = useState<readonly BrowseNode[]>(filtered ? [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: [l('next.libraryFrames.fixture.animation')]}, {variant: 'predicate', field: 'decade', operator: 'in', value: ['2010']}] : []);
   const [view, setView] = useState<'grid' | 'list'>('grid'), [size, setSize] = useState('medium'), [open, setOpen] = useState(filtered);
   const model = useMemo(() => browseToolbarModel(capability, 'movie', predicates, sort, {t, owner: true}), [predicates, sort]);
   const applied = model.applied.flatMap((predicate, index) => 'field' in predicate ? [{id: String(index), parts: appliedFilterParts(predicate as AppliedFilter, id => t(fieldNames[id]!), {t})}] : []);
-  const toolbar = <BrowseToolbar model={model} labels={labels} resultCount={count(filtered ? 6 : 80)} filtersOpen={open} onFilters={() => setOpen(true)} onSortChange={setSort}
+  const toolbar = <BrowseToolbar model={model} labels={labels} resultCount={count(total)} filtersOpen={open} onFilters={() => setOpen(true)} onSortChange={setSort}
     onReshuffle={() => setSort(previous => ({...previous, seed: (previous.seed ?? 0) + 1}))}
     onQuickChange={(id, checked) => {const query = model.quick.find(item => item.id === id)!.query; setPredicates(previous => checked ? [...previous, query] : previous.filter(item => item !== query));}}
     applied={applied} onRemoveFilter={id => setPredicates(previous => previous.filter(item => item !== model.applied[Number(id)]))} onClearFilters={() => setPredicates([])}
@@ -77,7 +80,7 @@ function useGrid(items: readonly Poster[] = posters) {
   const positionIndex = useMemo(() => Object.fromEntries([...new Set(items.map(item => /^\d/.test(item.title) ? '#' : item.title[0]!.toUpperCase()))].map(key => [key, items.findIndex(item => (/^\d/.test(item.title) ? '#' : item.title[0]!.toUpperCase()) === key)])), [items]);
   const collection = useMemo(() => createWindowedCollection({pageSize: 40, maxResidentPages: 4, maxConcurrent: 1, keyOf: (item: Poster) => item.id,
     fetchPage: async (start, size) => ({items: items.slice(start, start + size), total: items.length, positionIndex})}), [items, positionIndex]);
-  const element = <WindowedGrid ref={grid} collection={collection} getKey={item => item.id} itemWidth={width} itemHeight={width * 1.5 + caption} captionHeight={caption} selection={selection}
+  const element = <WindowedGrid ref={grid} collection={collection} getKey={item => item.id} itemWidth={width} itemHeight={width * 1.5 + caption} captionHeight={caption} selection={selection} gap={frameSpec.browse.grid.columnGap[frame.form]} rowGap={frameSpec.browse.grid.rowGap[frame.form]}
     gutter={frame.gutter} rightGutter={frame.rightGutter} paddingBottom={frame.bottomClear} onVisibleRange={(first, last) => setVisible(previous => previous.first === first && previous.last === last ? previous : {first, last})}
     renderPlaceholder={() => null}
     renderItem={(item, context) => <PosterCard {...card(context)} preferredFocus={context.index === 0} title={item.title} caption={year(item)} artwork={item.art} width={width} watched={watched.has(item.id)} progress={progress[item.id]} onNavigate={none}/>}/>;
@@ -168,7 +171,7 @@ function BrowseDiscover({kind = 'movie'}: {kind?: string}) {
 /** Filters open over (or docked beside) a filtered grid: applied chips with Clear all, and the count. */
 function BrowseFilters() {
   const header = useLibraryHeader(), {toolbar, open, setOpen} = useToolbar(true);
-  const {grid, alphabet} = useGrid(posters.filter(poster => ['how-to-train-your-dragon', 'incredibles-2', 'inside-out', 'moana', 'monsters-inc', 'interstellar'].includes(poster.id)));
+  const {grid, alphabet} = useGrid(animated);
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-filters" header={header} toolbar={toolbar} grid={grid} alphabet={alphabet}
     filters={{open, onClose: () => setOpen(false), onClear: none, onDone: () => setOpen(false), count: count(6), save: {canSave: true, onSave: none}, children: <FiltersFields/>}}/></Page>;
 }
@@ -188,9 +191,9 @@ function BrowseCollections() {
 
 /** See all: a pushed page with Back and a plain title, Play and Shuffle beside it, the Filters bar and the grid. */
 function BrowseSeeAll() {
-  const {toolbar} = useToolbar(false), {grid, alphabet} = useGrid(posters.slice(20));
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-see-all" header={{title: f('newOnServer'), back: {label: f('movies'), onPress: none},
-    trailing: <View style={{flexDirection: 'row', gap: 8}}><Button size="small" icon="i-play" onPress={none}>{f('play')}</Button><Button variant="glass" size="small" icon="i-shuffle" onPress={none}>{l('next.libraryFrames.fixture.shuffle')}</Button></View>}}
+  const {toolbar} = useToolbar(false, recent.length), {grid, alphabet} = useGrid(recent);
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-see-all" header={{title: f('newOnServer'), back: {label: f('movies'), onPress: none}, intro: l('next.libraryFrames.fixture.seeAllBody'),
+    actions: <><Button icon="i-play" onPress={none}>{f('play')}</Button><Button variant="glass" icon="i-shuffle" onPress={none}>{l('next.libraryFrames.fixture.shuffle')}</Button></>}}
     toolbar={toolbar} grid={grid} alphabet={alphabet}/></Page>;
 }
 
@@ -211,7 +214,7 @@ function BrowseLoading() {
 /** Each region of the library frame, outlined: the screen's in blue, the flexible region in amber. */
 function RegionsBrowse() {
   const frame = useFrameMetrics(), box = (label: string, rows = 1) => <View style={{marginHorizontal: frame.gutter}}><Region label={label} height={frame.rowTwoLine * rows}/></View>;
-  return <Window><BrowseFrame header={{title: f('movies'), switcher: <Region label="header.switcher" height={frame.rowTwoLine * .6}/>, menu: <Region label="header.menu" height={frame.rowTwoLine * .6}/>, tabs: {value: 'movies', onValueChange: none, items: [{value: 'discover', label: 'header.tabs'}, {value: 'movies', label: f('movies')}]}}}
+  return <Window><BrowseFrame header={{title: f('movies'), switcher: <Region label="header.switcher" height={frame.rowTwoLine * .6}/>, menu: <Region label="header.menu" height={frame.rowTwoLine * .6}/>, tabs: {value: 'browse', onValueChange: none, items: [{value: 'discover', label: 'header.tabs'}, {value: 'browse', label: f('movies')}]}}}
     toolbar={box('toolbar')} grid={<Block name="regionRows" flexible rows={6}/>} alphabet={<Region label="alphabet" height={frame.rowTwoLine * 4}/>}/></Window>;
 }
 

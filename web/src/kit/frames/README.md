@@ -11,16 +11,15 @@ Open one case with no chrome around it:
 Every case answers to the window's width, so set the window and the `width` and `height` parameters together:
 1440 by 900 for the desktop, 390 by 844 for phone width (and 820 or 1180 wide for the tablet forms).
 
-The page cases (`browse-home`, `browse-list`, `title*`, `settings-list`, `state`) are drawn inside the shell's own top bar
+The page cases (`frames-library` `browse-*`, `title*`, `settings-list`, `state`) are drawn inside the shell's own top bar
 from 1024 wide and its wordmark bar and tab bar at phone width; the rail between 600 and 1023 is not drawn. The video
 player has three forms: shoot `player*` at 1440 by 900, 390 by 844 and 844 by 390.
 
 | case | Shows |
 |---|---|
 | `backdrop` | The window's backdrop alone |
-| `browse-home` | Browse: Home, the moderate hero and two rows |
-| `browse-list` | Browse: a pushed list with Back, a title and a header action |
-| `browse-loading` | Browse: loading, in the loaded page's boxes |
+| `frames-library` family: `browse-home` | Home: the hero with its pager thumbnails, Continue Watching, New on your server (New badges, subtitle, See all), On now, Continue Listening, People on this server are watching |
+| `frames-library`: `browse-list`, `-discover`, `-music`, `-filters`, `-collections`, `-see-all`, `-empty`, `-menu`, `-loading`, `regions-browse` | The library: the grid with its rail; Discover's rows; Music's tabs; Filters open; Collections; See all; no titles match; the More menu (owner); loading in the loaded page's boxes; the regions outlined |
 | `title` | Title page with artwork, three round buttons, a synopsis and tabs |
 | `title-missing` | Title page with no artwork, a long title, no round buttons, no synopsis |
 | `title-loading` | Title page loading |
@@ -36,7 +35,7 @@ player has three forms: shoot `player*` at 1440 by 900, 390 by 844 and 844 by 39
 | `audio-loading` | Audio player: loading |
 | `state` | The whole-page state |
 | `elements` | Type roles, row kinds, in-section states, artwork boxes with and without a picture, cards (1800 tall) |
-| `regions-browse`, `-title`, `-settings`, `-sheet`, `-sign-in`, `-player`, `-audio`, `-state` | Each frame empty: what the frame owns drawn by the frame, what the screen supplies as outlined boxes (blue), the one flexible region in amber |
+| `regions-title`, `-settings`, `-sheet`, `-sign-in`, `-player`, `-audio`, `-state` | Each frame empty: what the frame owns drawn by the frame, what the screen supplies as outlined boxes (blue), the one flexible region in amber |
 
 The native Kit page has the same sections as `frames-<case>`. Buttons, fields, switches, chips and cards in every
 state are in the existing families (`controls`, `cards`, `states`, `overlays`).

@@ -1,5 +1,5 @@
 import React, {type ReactNode} from 'react';
-import {ScrollView, View} from 'react-native';
+import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -21,6 +21,10 @@ export type BrowseHeaderProps = PageHeaderProps & Readonly<{
   /** The page's tabs: Discover / Movies / Collections (Music: Discover / Artists / Albums / Songs / Genres). The frame draws
    * the kit `Tabs` from the gutter, its rule across the page. */
   tabs?: Readonly<{items: readonly TabItem[]; value: string; onValueChange: (value: string) => void}>;
+  /** A pushed list's one line saying why these titles are here (desktop-browse seeall, collections-46). */
+  intro?: string;
+  /** Labelled buttons under the intro: Play and Shuffle on See all. */
+  actions?: ReactNode;
 }>;
 
 /** The Filters region: what the fields say and do. The frame picks the surface for the form: a sheet on a phone, a pane over
@@ -66,7 +70,6 @@ export function BrowseFrame({header, hero, toolbar, grid, alphabet, filters, sta
   // A library's header and toolbar stay put while its grid or rows scroll under them; a plain page's title scrolls away.
   const pinned = !!header && (!!header.switcher || !!toolbar || !!grid);
   const top = header ? <BrowseHeader {...header}/> : hero ?? <View style={{height: form === 'tv' ? frame.titleTop : insets.top + frameSpec.header.wordmarkBar}}/>;
-  const bar = toolbar && <View style={{marginTop: frameSpec.browse.toolbarGap[form]}}>{toolbar}</View>;
   if (failure) return <View testID={testID} style={{flex: 1}}>{top}<PageStateFrame {...failure}/></View>;
   const rows = <View style={{gap: frame.sectionGap, marginTop: hero ? frameSpec.hero.home.rowOffset[form] : header ? frame.headerGap : 0}}>{loading ? <RowsSkeleton/> : children}</View>;
   const body = grid || (loading && toolbar)
@@ -75,7 +78,7 @@ export function BrowseFrame({header, hero, toolbar, grid, alphabet, filters, sta
       {alphabet && !loading && form !== 'tv' && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, bottom: frame.bottomClear, right: 0, width: frame.rightGutter, alignItems: 'center', justifyContent: 'center'}}>{alphabet}</View>}
     </View>
     : <ScrollView style={{flex: 1}} scrollEnabled={!loading} contentContainerStyle={{paddingBottom: frame.bottomClear}}>{!pinned && top}{rows}</ScrollView>;
-  const page = <View style={{flex: 1}}>{pinned && top}{bar}{body}</View>;
+  const page = <View style={{flex: 1}}>{pinned && top}{toolbar}{body}</View>;
   return <View testID={testID} style={{flex: 1}}>
     <View style={{flex: 1, flexDirection: 'row'}}>{page}{filters?.open && form === 'expanded' && <FiltersDock testID={testID && `${testID}-filters`}><Pane filters={filters}/></FiltersDock>}</View>
     {filters && <FiltersSurface filters={filters} testID={testID && `${testID}-filters`}/>}
@@ -84,12 +87,16 @@ export function BrowseFrame({header, hero, toolbar, grid, alphabet, filters, sta
 
 /** The header per form (frameRegions.browse `header.*`). A library: the phone's top bar with the switcher centred and ⋯, the
  * upright tablet's 24 pt name, the landscape tablet's large title, TV's title with its tabs beside it. A plain page: rule 3's header. */
-function BrowseHeader({title, back, trailing, switcher, menu, tabs: tabItems}: BrowseHeaderProps) {
+function BrowseHeader({title, back, trailing, switcher, menu, tabs: tabItems, intro, actions}: BrowseHeaderProps) {
   const frame = useFrameMetrics(), form = frame.form;
   // TV sets the tabs beside the title, in the header's own row; elsewhere they run from the gutter under it.
   const tabs = tabItems && <Tabs items={tabItems.items} value={tabItems.value} onValueChange={tabItems.onValueChange} style={form === 'tv' ? undefined : {marginTop: form === 'phone' ? 0 : frame.headerGap}}
     contentContainerStyle={form === 'tv' ? undefined : {paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
-  if (!switcher) return <><PageHeader title={title} back={back} trailing={trailing}/>{tabs}</>;
+  const theme = useTheme();
+  if (!switcher) return <><PageHeader title={title} back={back} trailing={trailing}/>
+    {intro && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: frame.gutter, maxWidth: frameSpec.settings.paragraphMax}]}>{intro}</Text>}
+    {actions && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.controlGap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, marginTop: frame.headerGap}}>{actions}</View>}
+    {tabs}</>;
   if (form === 'phone') return <StickyBrowseHeader name={title} switcher={switcher} menu={menu} back={back}>{tabs}</StickyBrowseHeader>;
   if (form === 'medium') return <LibraryMediumHeader name={title} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryMediumHeader>;
   if (form === 'expanded') return <LibraryExpandedHeader name={title} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryExpandedHeader>;
@@ -133,9 +140,9 @@ function RowsSkeleton() {
 /** A library grid loading: posters at their real size with their two caption lines, in the grid's own columns. */
 function GridSkeleton() {
   const theme = useTheme(), frame = useFrameMetrics();
-  const width = theme.spec.card.width.poster[theme.platform], gap = theme.spec.shelf.gap[theme.platform], line = theme.type.cardTitle.fontSize ?? 13;
+  const width = theme.spec.card.width.poster[theme.platform], grid = frameSpec.browse.grid, gap = grid.columnGap[frame.form], line = theme.type.cardTitle.fontSize ?? 13;
   const columns = Math.max(1, Math.floor((frame.width - frame.gutter - frame.rightGutter + gap) / (width + gap)));
-  return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, overflow: 'hidden'}}>
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: gap, rowGap: grid.rowGap[frame.form], paddingLeft: frame.gutter, paddingRight: frame.rightGutter, overflow: 'hidden'}}>
     {Array.from({length: columns * 3}, (_, index) => <View key={index} style={{width, gap: theme.space.tight}}>
       <SkeletonBlock width={width} height={width * 1.5} radius={theme.radii.artwork} shine={index === 0}/>
       <SkeletonBlock width={width * .8} height={line}/><SkeletonBlock width={width * .4} height={line * .8}/>

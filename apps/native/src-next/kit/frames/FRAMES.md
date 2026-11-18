@@ -26,11 +26,15 @@ which never move, and one flexible region, the only place that may change when c
 
 ## Props
 
-- `BrowseFrame`: `header: {title, back?, trailing?}` or `hero` (Home; `null` while there is nothing to feature);
-  `state?: {kind: 'loading'} | PageStateProps`; `children` are kit `Row`s or a grid. A `Row` draws its own heading;
-  `Section` is only for a block that is not a row of cards, and a `Row` never goes inside one. The frame spaces them.
-- `HomeHero`: the kit `Hero`'s data and render props only (`candidates`, `renderArtwork`, `renderActions`, ...).
-  Its sizes are rule 14's.
+- `BrowseFrame` (its regions are `frameRegions.browse` and `.home` in packages/design, drawn below per form): `header: {title,
+  back?, trailing?, switcher?, menu?, tabs?, intro?, actions?}` or `hero` (Home; `null` while there is nothing to feature);
+  `toolbar?`; `filters?: {open, onClose, onClear, count?, onDone, save?, children}`; one flexible region, `children` (kit `Row`s;
+  the frame scrolls and spaces them) or `grid` (a self-scrolling kit `WindowedGrid`) with `alphabet?`; `state?: {kind:
+  'loading'} | PageStateProps`. A `Row` draws its own heading; `Section` is only for a block that is not a row of cards, and
+  a `Row` never goes inside one.
+- `HomeHero`: the kit `Hero`'s data and render props only (`candidates`, `renderArtwork`, `renderActions`, ...), and on TV
+  `focusedEntry` and `hints`: the hero follows the focused card (owner, 18 Nov), with no spotlight, buttons or pager, and the
+  key hints under its words. Its sizes are rule 14's.
 - `TitleFrame`: `art` (the kit `AmbientArt treatment="title"`), `back`, `topAction?`, `title`, `metadata?` (facts and the
   rating badge), `primary` (with `progress` and `remaining` it is Resume, with the played part along its lower edge),
   `actions?` (in order: `labelled` ones such as Start over and My List, then round ones such as watched and More; one
@@ -167,6 +171,37 @@ Left for Stage 2, listed so it is not forgotten:
 - A card's own menu (long press, or ⋯ on a pointer) has no gallery case here: `detail-phone-5-menu-file-info.jpg` and `detail-tv-5c-episode-menu.jpg` draw it. Stage 2 adds the case with the first screen that opens one.
 
 Round 7 (18 Nov): a wide tablet's hero and title artwork now fades out by its alpha mask as TV's does (`kit/artwork/Surfaces.tsx`), so the title page has no hard edge where the picture starts. The TV audio player is one centred row (artwork 560) with no empty lower half. The Record glyph (`i-rec`) is a solid dot.
+
+## The library and Home (round 8)
+
+The owner's largest regression was the library: the frame had a title, Back and one button. The required regions are now
+data (`frameRegions.browse`, `frameRegions.home`): each region's id is the frame's prop of that name, the forms that draw it and
+the mock-up frames it comes from. How the native frame draws each:
+
+| Region | Phone | Tablet upright (`medium`) | Tablet landscape (`expanded`) | TV |
+| --- | --- | --- | --- | --- |
+| `header.title`, `.switcher` | the top bar with the switcher (name ⌄) centred (`StickyBrowseHeader`) | the 24 pt name with the round switcher (`LibraryMediumHeader`) | the large title with the round switcher (`LibraryExpandedHeader`) | the title ▾ with the tabs beside it (`LibraryHeader`) |
+| `header.back` | ‹ Libraries in the bar; Back on a plain page | a plain page only | a plain page only | the remote's Back |
+| `header.trailing` | not drawn | Select, before ⋯ | Select, before ⋯ | not drawn |
+| `header.menu` | ⋯ in the bar | ⋯ at the right | ⋯ at the right | not drawn (a card's Hold OK menu) |
+| `header.tabs` | inside the bar, scrolling | under the title from the gutter, the rule across | same | beside the title |
+| `header.intro`, `.actions` | a plain page (See all): the line under the title, Play and Shuffle under it | same | same | same |
+| `toolbar` | the kit `BrowseToolbar`, pinned under the header | same | same | sort, Filters, Jump to, the quick chips; applied chips and the count on the second line |
+| `filters` | a sheet (Filters, Clear all; Save view, Show 6 movies) | a pane over the dimmed grid (`FiltersOver`, 420) | a pane docked beside the grid (`FiltersDock`, 380) | a side sheet (680) |
+| `grid` + `alphabet` | the grid scrolls itself under the toolbar; the rail is centred in the right gutter | same | same | the grid; no rail (Jump to) |
+| `children` (rows) | the frame scrolls and spaces them | same | same | same |
+| `state` | loading keeps the header, tabs and toolbar and draws the grid's boxes (or two rows' boxes) | same | same | same |
+| `hero` (Home) | the moderate hero under the shell's wordmark bar (`PhoneHomeHeader`) | the moderate hero | the moderate hero | the focus-led hero with OK Resume / Hold OK More options; the first Continue Watching card has the start focus |
+
+The Filters pane and its dock and over-the-grid hosts (`kit/browse/FiltersPane.tsx`), the two tablet header forms
+(`kit/browse/Library.tsx`) and a card caption's height (`kit/cards/caption-metrics.ts` `cardCaptionHeight`) moved here from
+`screens/library`, which draws them from the kit. A row's height includes its cards' captions (`captionHeight`), so no caption
+is clipped (the TV review's S5); a row's heading and subtitle wrap and are never cut. Gallery: `dev/families/frames/library.gallery.tsx`.
+
+Left for Stage 2: `LibraryScreen` still composes these parts itself and moves onto the frame's regions; its own
+`LibraryCompactHeader` (the kit `StickyBrowseHeader` drawn again), `LibraryTabs` (the kit `Tabs` with a focus region) and
+`LibraryResultCount` go then. The list view's row (`screens/library/LibraryListRow.tsx`) reads the runtime and has no case here.
+`screens/home/HomeRemoteHint` still draws its own key caps (the kit `KeyHints` is the hero's `hints`).
 
 ## Decided by the owner (Justin, 18 Nov)
 

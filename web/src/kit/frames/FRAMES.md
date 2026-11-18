@@ -26,9 +26,12 @@ which never move, and one flexible region, the only place that may change when c
 
 ## Props
 
-- `BrowseFrame`: `header: {title, back?, trailing?}` or `hero` (Home; `null` while there is nothing to feature);
-  `state?: {kind: 'loading'} | PageStateProps`; `children` are kit `Shelf`s or a grid. A `Shelf` draws its own heading;
-  `Section` is only for a block that is not a row of cards, and a `Shelf` never goes inside one. The frame spaces them.
+- `BrowseFrame` (`BrowseFrame.tsx`; its regions are `frameRegions.browse` and `.home` in packages/design, drawn below per
+  width): `header: {title, back?, trailing?, switcher?, menu?, tabs?, intro?, actions?}` or `hero` (Home; `null` while there
+  is nothing to feature); `toolbar?`; `filters?: {open, onClose, onClear, count?, save?, children}`; one flexible region,
+  `children` (kit `Shelf`s; the frame spaces them) or `grid` (a self-scrolling kit `WindowedGrid` at `height="100%"`) with
+  `alphabet?`; `state?: {kind: 'loading'} | PageStateProps`. A `Shelf` draws its own heading; `Section` is only for a block
+  that is not a row of cards, and a `Shelf` never goes inside one.
 - `HomeHero`: the kit `Hero`'s data and render props only (`candidates`, `renderArtwork`, `renderActions`, ...).
   Its sizes are rule 14's.
 - `TitleFrame`: `art` (the kit `AmbientArt treatment="title"`), `back`, `topAction?`, `title`, `metadata?` (facts and the
@@ -144,10 +147,39 @@ Left for Stage 2, listed so it is not forgotten:
 - Still in `screens/watch`: Chapters (`ChaptersDrawer.tsx`, which shares the Episodes drawer's styles), the queue
   (`QueueList.tsx`), Playback info, the version chooser, Still watching and the end card.
 - Audio player, still short of the mock-up (`final3-desktop-13-now-playing.jpg`): the volume line under the transport, the queue as a panel with Up next and Lyrics tabs, and Save as playlist at its foot.
-- The home hero's pager is text and lines; the mock-up (`mock.html` home, `final-desktop-1-home.jpg`) draws four thumbnails with names. Part: `HomeHero`.
 - A card's own menu (⋯) has no gallery case with fixed inputs: `motion-11-desktop-pages-menus-panels.jpg` draws it. Stage 2 adds the case with the first screen that opens one.
 
 Round 7 (18 Nov): in the upright live strip Go to live sits on a row of its own above the bar's live end, so it covers neither the bar nor the read-out; the gallery's page under the strip carries the channel mark, the Live mark, Guide and Record. The Record glyph (`i-rec`) is a solid dot. A sheet's handle shows keyboard focus by its own colour, not a ring.
+
+## The library and Home (round 8)
+
+The owner's largest regression was the library: the frame had a title, Back and one button. The required regions are now
+data (`frameRegions.browse`, `frameRegions.home`): each region's id is the frame's prop of that name, the forms that draw it and
+the mock-up frames it comes from. How the web frame draws each:
+
+| Region | Phone width (under 600) | 600 and up |
+| --- | --- | --- |
+| `header.title`, `header.switcher` | the compact bar: the switcher (the library's name and ⌄) centred (`StickyBrowseHeader`) | the large title with the round chevron beside it (`LibraryHeader`) |
+| `header.back` | ‹ Libraries at the left of the bar; on a plain page Back over the title | on a plain page Back over the title (See all); a library has none |
+| `header.trailing` | not drawn | at the right before ⋯ (Shuffle on Music; on a touch tablet Select) |
+| `header.menu` | ⋯ at the right of the bar | the glass ⋯ square at the right of the title row |
+| `header.tabs` | inside the bar, the strip scrolling | under the title from the gutter, the rule across the page |
+| `header.intro`, `header.actions` | a plain page: the line under the title and Play / Shuffle under it (desktop-browse seeall) | same |
+| `toolbar` | the kit `BrowseToolbar`: Filters and sort chips with the quick chips scrolling, then the count with grid / list | Filters (with its count), the quick chips, the count, sort with order, grid / list, card size, Save view; applied chips with Clear all on a second line |
+| `filters` | a sheet: Filters and Clear all, the fields, Save view and Show 19 movies | a side panel over the page (520; 420 under 1024), docked beside the grid on a touch tablet (380) |
+| `grid` + `alphabet` | the grid fills the window under the toolbar and scrolls itself; the A–Z rail stands in the right gutter | same; columns of at least `frameSpec.browse.grid.card` stretched to both gutters, `grid.columnGap` / `grid.rowGap` |
+| `children` (rows) | the frame owns the space between rows: inside it a kit `Row` adds no margin (`--row-stack-gap: 0`) | same |
+| `state` | loading keeps the header, tabs and toolbar and draws the grid's boxes in the grid's own columns (or two rows' boxes) | same |
+| `hero` (Home) | the moderate hero under the shell's wordmark bar; the pager is dots | the pager is the thumbnails with their names (`renderThumbnail`) |
+
+Kit rules that came with it: a row's heading is never squeezed by its subtitle (the subtitle moves under it); at phone width a
+row's See all is the chevron after its heading; a phone's 16:9 card says the episode number only, wider cards add its name; a
+library's title wraps and is never cut. The Filters surface (`kit/browse/FiltersSurface.tsx`) moved from `screens/browse/Filters.tsx`,
+which draws it from the kit. The gallery's cases are the `frames-library` family (`dev/families/frames-library.tsx`).
+
+Left for Stage 2: `screens/browse/Library.tsx` and `Discovery.tsx` still compose these parts themselves; they move onto the
+frame's regions, and `BrowseResults` becomes the frame's `grid`. A list view (table) has no case here: it is `BrowseResults`'
+list rows, bound to the browse controller.
 
 ## Decided by the owner (Justin, 18 Nov)
 

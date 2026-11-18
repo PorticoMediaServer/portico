@@ -120,6 +120,8 @@
 .wideSubtitle, .wideDetail { margin-top:2px; font-size:13px; color:var(--color-text-secondary); white-space:nowrap; overflow:hidden; }
 .wideSubtitle > span { overflow:hidden; text-overflow:ellipsis; }
 .wideDetail { margin-top:8px; color:var(--color-text-tertiary); }
+/* A phone's 16:9 card says the episode number only (phone-app 1), so its line is never cut; wider cards add the episode's name. */
+@media (max-width: 599px) { .wideSubtitle > [data-fact='episode-title'] { display: none; } }
 .finished { width:auto; gap:5px; padding:4px 8px; border-radius:6px; font-size:11.5px; font-weight:700; }
 .wide .play { width:52px; height:52px; right:auto; left:50%; top:50%; bottom:auto; margin-top:-26px; margin-left:-26px; transform:scale(.9); }
 .episode { --cards-width:316px; }

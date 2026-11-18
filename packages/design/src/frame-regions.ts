@@ -21,6 +21,8 @@ export const frameRegions = {
     {id: 'header.back', forms: touch, from: ['phone-app 4 (‹ Libraries)', 'collections-46, -47 (See all)']},
     {id: 'header.trailing', forms: ['medium', 'expanded'], from: ['tablet 3, 4 (Select)', 'desktop-listen music (Shuffle)']},
     {id: 'header.menu', forms: touch, from: ['phone-app 4c', 'desktop-browse grid (⋯)', 'tablet 3']},
+    {id: 'header.intro', forms: touch, from: ['desktop-browse seeall (why these titles are here)', 'collections-46, -47']},
+    {id: 'header.actions', forms: touch, from: ['desktop-browse seeall (Play, Shuffle)', 'collections-46, -47']},
     {id: 'header.tabs', forms: every, from: ['desktop-browse grid', 'phone-app 4', 'tablet 4', 'final3-tv-08', 'desktop-listen music (Discover / Artists / Albums / Songs / Genres)']},
     {id: 'toolbar', forms: every, from: ['desktop-browse grid, filters, sort', 'phone-app 5', 'tablet 4', 'final3-tv-08', 'tv-focus 18-21']},
     {id: 'filters', forms: every, from: ['desktop-browse filters (side panel)', 'phone-app 6 (sheet)', 'tablet 4 (docked), 5 (over the grid)', 'final3-tv-08 (side sheet)']},

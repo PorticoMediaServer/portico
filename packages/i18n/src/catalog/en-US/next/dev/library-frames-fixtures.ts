@@ -38,6 +38,7 @@ export const libraryFramesFixtureMessages = {
   'next.libraryFrames.fixture.fourFilms': '4 films',
   'next.libraryFrames.fixture.sixFilms': '6 films',
   'next.libraryFrames.fixture.seeAllBody': 'Everything added to the server in the last two weeks, newest first.',
+  'next.libraryFrames.fixture.emptyDescription': 'There are no animated films from the 2010s in Movies.',
   'next.libraryFrames.fixture.shuffle': 'Shuffle',
   'next.libraryFrames.fixture.runtime1': '1 h 36 min',
   'next.libraryFrames.fixture.runtime2': '1 h 57 min',

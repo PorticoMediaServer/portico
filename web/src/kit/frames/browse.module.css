@@ -1,0 +1,22 @@
+/* Frame 1, Browse (frameRegions.browse and .home): one owner of the space between its regions and rows. A kit row adds no
+   margin of its own inside it (--row-stack-gap), so the frame's section gap is the whole gap between two rows. */
+.browse { --row-stack-gap: 0px; display: flex; flex-direction: column; padding-bottom: var(--frame-bottom-clear); min-height: 100%; }
+.top { height: var(--spec-navigation-mobile-web-top-height); }
+.rows { display: flex; flex-direction: column; gap: var(--frame-section-gap); }
+.browse[data-header] > .rows { margin-top: var(--frame-header-gap); }
+/* After the hero the first row starts at the rule's own offset from the art's bottom edge. */
+.browse[data-hero] > .rows { position: relative; margin-top: var(--frame-hero-home-row-offset); }
+.tabsInset { padding-left: var(--g); padding-right: var(--g); }
+.intro { margin: calc(-1 * var(--frame-header-gap) + var(--space-xs)) var(--g) 0; max-width: var(--frame-paragraph-max); color: var(--color-text-secondary); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-control-gap); margin: var(--frame-header-gap) var(--g) var(--space-xs); }
+/* A grid fills the window under the header and toolbar and scrolls itself; the A–Z rail stands in the right gutter. */
+.browse[data-grid] { height: 100%; min-height: 0; padding-bottom: 0; }
+.content { position: relative; flex: 1; min-height: 0; display: flex; margin-top: var(--frame-browse-grid-gap); padding: 0 var(--g); }
+.content > :first-child { flex: 1; min-width: 0; }
+.alphabet { position: absolute; top: 0; right: 0; width: var(--g); display: flex; justify-content: center; }
+.browse[data-docked] > * { margin-right: var(--frame-browse-filters); }
+.skeletonRow { padding-left: var(--g); display: flex; flex-direction: column; gap: var(--frame-heading-gap); }
+.skeletonCards { display: flex; gap: var(--row-gap); overflow: hidden; }
+.skeletonCards > * { flex: none; }
+.skeletonGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--frame-browse-grid-card), 1fr)); gap: var(--frame-browse-grid-row-gap) var(--frame-browse-grid-column-gap); align-content: start; overflow: hidden; }
+.skeletonCell { display: flex; flex-direction: column; gap: var(--space-xs); }

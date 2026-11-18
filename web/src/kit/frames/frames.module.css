@@ -26,16 +26,6 @@
 .back { margin-left: calc(-1 * var(--space-control-gap)); justify-self: start; align-self: flex-start; }
 @media (min-width: 1024px) { .header, .header[data-back] { padding-top: var(--frame-title-top); } }
 
-/* Frame 1. */
-.browse { display: flex; flex-direction: column; padding-bottom: var(--frame-bottom-clear); min-height: 100%; }
-.browseTop { height: var(--spec-navigation-mobile-web-top-height); }
-.browseRows { display: flex; flex-direction: column; gap: var(--frame-section-gap); }
-/* After the hero the first row starts at the rule's own offset from the art's bottom edge. */
-.browse[data-hero] > .browseRows { position: relative; margin-top: var(--frame-hero-home-row-offset); }
-.skeletonRow { padding-left: var(--g); display: flex; flex-direction: column; gap: var(--frame-heading-gap); }
-.skeletonCards { display: flex; gap: var(--row-gap); overflow: hidden; }
-.skeletonCards > * { flex: none; }
-
 /* Parts. */
 .sectionHead { display: flex; align-items: center; gap: var(--space-sm); margin: 0 var(--g) var(--frame-heading-gap); }
 .sectionHead > :first-child { flex: 1; min-width: 0; }

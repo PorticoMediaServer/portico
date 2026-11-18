@@ -71,11 +71,11 @@ export const frame = {
   /** Frame 1, a library's fixed regions under its header (desktop-browse grid and filters, phone-app 4 to 6, tablet 3 to 5,
    * final3-tv-08). The regions are `frameRegions.browse`. R5 interim: these numbers move to the rules hand's rhythm table. */
   browse: {
-    /** The tabs' rule to the toolbar, and the toolbar's last line to the grid's first row. */
-    toolbarGap: forms(0, 12, 20, 24), // R5 interim
-    gridGap: forms(4, 12, 24, 24), // R5 interim
-    /** The A–Z rail stands in the right gutter beside the grid's last column. TV jumps with the toolbar's Jump to. */
-    alphabetWidth: forms(20, 24, 32, 0), // R5 interim
+    /** The toolbar's last line to the grid's first row. The toolbar's own top padding is the gap under the tabs' rule (kit `BrowseToolbar`). */
+    gridGap: forms(4, 12, 26, 24), // R5 interim (desktop-browse .pgrid: 26 under the toolbar)
+    /** The poster grid: the narrowest a column's card may be (the columns stretch to both gutters), and the gaps between
+     * columns and rows (desktop-browse .pgrid 20 / 30; phone-app 5; tablet 4 and 5). Its loading boxes use the same. */
+    grid: {card: forms(100, 130, 160, 200), columnGap: forms(10, 16, 20, 28), rowGap: forms(16, 22, 30, 36)}, // R2 and R5 interim
     /** Filters: a sheet on a phone; over the grid on an upright tablet (tablet 5, 420); a column docked beside the grid on a
      * landscape tablet (tablet 4, 380); the web's side panel (desktop-browse filters, 520); TV's side sheet (680). */
     filtersWidth: {...forms(0, 420, 380, 680), web: 520},

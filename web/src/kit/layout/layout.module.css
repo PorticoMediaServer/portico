@@ -72,11 +72,12 @@
 .heroProgress { display: inline-flex; align-items: center; gap: 14px; color: var(--color-text); font-weight: 700; }
 .progressTrack { display: inline-block; width: 160px; height: 6px; border-radius: 6px; background: rgba(237,245,250,.22); overflow: hidden; }
 .progressTrack i { display: block; height: 100%; background: var(--color-accent-strong); border-radius: 6px; transform-origin: left; }
-.row { --layout-gutter: var(--shell-gutter); position: relative; margin-top: 44px; }
+.row { --layout-gutter: var(--shell-gutter); position: relative; margin-top: var(--row-stack-gap, 44px); } /* Inside a frame the frame owns the gap between rows (--row-stack-gap: 0). */
 .row:first-child { margin-top: 0; }
 /* Rows and heroes sit on the shell's one page-edge gutter (20 px on a phone, 28 px beside the rail). */
-.rowHead { display: flex; align-items: baseline; gap: 14px; padding: 0 var(--layout-gutter); margin-bottom: 14px; }
-.rowHead h2 { margin: 0; }
+/* A heading is never squeezed by what follows it: its subtitle moves under it when the two do not fit on one line. */
+.rowHead { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 14px; row-gap: 2px; padding: 0 var(--layout-gutter); margin-bottom: 14px; }
+.rowHead h2 { margin: 0; flex: 0 1 auto; }
 .rowSubtitle { color: var(--color-text-tertiary); }
 .rowActions { margin-left: auto; display: flex; align-self: center; gap: 12px; }
 .rowActions[data-placement='inline'] { margin-left: 18px; }
@@ -92,11 +93,13 @@
 .arrowRight { right: 0; background: linear-gradient(270deg, rgba(7,16,24,.9), transparent); }
 .row:hover .arrow:not(:disabled), .row:focus-within .arrow:not(:disabled) { opacity: 1; }
 .arrow:disabled { pointer-events: none; visibility: hidden; }
-.row[data-platform^='phone'] { margin-top: 28px; }
+.row[data-platform^='phone'] { margin-top: var(--row-stack-gap, 28px); }
 .row[data-platform^='phone'] .rowHead { margin-bottom: 4px; }
 .row[data-platform^='phone'] .track { padding: 8px var(--layout-gutter) 10px; gap: 12px; }
 .row[data-platform^='phone'] .rowHead h2 { display: flex; align-items: center; gap: 1px; }
 .row[data-platform^='phone'] .rowHead h2 svg { color: var(--color-text-tertiary); }
+.headingLink { display: inline-flex; align-items: center; gap: 1px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: start; text-decoration: none; cursor: pointer; }
+.headingLink > svg { flex: none; }
 .row[data-platform='tv'] { --layout-gutter: var(--gutter-tv); }
 .row[data-platform='tv'] .rowHead { gap: 18px; margin-bottom: 22px; padding-right: 96px; }
 .row[data-platform='tv'] .track { gap: 28px; padding-top: 0; padding-bottom: 0; padding-right: 96px; }
