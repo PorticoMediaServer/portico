@@ -5,6 +5,7 @@
 '
 ' A row: {key (a preference), composite, type ("switch", "choice", "languages", "info", "action"),
 ' label, help, sheetHelp (said only in its choice sheet), scope ("This device" for a value kept for this device only), choices: [[value, words]],
+' on and off (a switch over two words rather than true and false),
 ' when: {key, equals} (shown only then), id (an info or action row the screen fills or runs)}.
 
 function settingsPages() as object
@@ -80,10 +81,10 @@ function settingsPages() as object
         ]},
         ' Appearance (tv-more frame 28). Card size and Text size are left out: every page here is laid
         ' out from fixed frames for one card size and one type scale. Layout is for Android boxes only.
-        ' Reduce motion comes with the focus zoom it turns off (kit/Card and kit/Shelf).
         {id: "appearance", title: "Appearance", icon: "sliders", gapBefore: true, intro: "", sections: [
             {title: "", rows: [
                 {key: "appearance.showBackdrops", type: "switch", label: "Show backdrops", help: "Artwork behind title pages and Home.", scope: "All TVs"},
+                {key: "appearance.motion", type: "switch", on: "reduce", off: "follow", label: "Reduce motion", help: "No zoom on focus, and quicker fades between pictures.", scope: "This device"},
                 {key: "notifications.badges", type: "switch", label: "Show a dot for new notifications", help: "On the profile item in the rail."}
             ]}
         ]},
@@ -114,6 +115,14 @@ end function
 ' Two values compared whatever their kind (the server's numbers, the choices' numbers and words).
 function sameSetting(a as dynamic, b as dynamic) as boolean
     return formatJson(a) = formatJson(b)
+end function
+
+' Whether a switch row is on. A two-word switch (Reduce motion: "reduce" or "follow") is on at its
+' `on` word; any other only when its value is true. The value is never put beside true with "=":
+' a word there stops a Roku.
+function switchIsOn(spec as object, value as dynamic) as boolean
+    if spec.on <> invalid then return sameSetting(value, spec.on)
+    return sameSetting(value, true)
 end function
 
 ' The words of a choice row's value, or "" when the value is none of its choices.
@@ -147,9 +156,9 @@ function compositePatch(id as string, choice as string) as object
 end function
 
 ' The profile's Appearance settings this TV honours, from its preferences (GET /v1/preferences):
-' Show backdrops. MainScene keeps them in m.global.looks.
+' Show backdrops and Reduce motion. MainScene keeps them in m.global.looks.
 function appearanceLooks(values as object) as object
-    return {showBackdrops: (values["appearance.showBackdrops"] <> false)}
+    return {showBackdrops: (values["appearance.showBackdrops"] <> false), reduceMotion: (values["appearance.motion"] = "reduce")}
 end function
 
 ' The languages offered for adding, in the shared order (language-list.ts COMMON_LANGUAGES).

@@ -259,7 +259,7 @@ sub onFocus()
     p = m.top.focusPercent
     if not (m.top.rowListHasFocus or m.top.gridHasFocus) then p = 0
     k = metrics()
-    grow(1 + (k.focusScale - 1) * p)
+    grow(1 + (focusZoom() - 1) * p)
     ring = m.top.findNode("ownRing")
     inGrid = (m.top.gridHasFocus and p > 0)
     ring.visible = inGrid
@@ -277,8 +277,8 @@ sub onFocus()
     ring.uri = "pkg:/images/focus-14.9.png"
     if inGrid
         out = k.focusSpread + 6
-        w = m.w * k.focusScale
-        h = m.h * k.focusScale
+        w = m.w * focusZoom()
+        h = m.h * focusZoom()
         ring.opacity = p
         ring.translation = [(m.w - w) / 2 - out, (m.h - h) / 2 - out]
         ring.width = w + out * 2

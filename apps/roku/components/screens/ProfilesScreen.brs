@@ -161,7 +161,7 @@ sub paint()
     for i = 0 to m.cells.count() - 1
         cell = m.cells[i]
         on = (shown and i = m.focus)
-        if on then cell.node.scale = [metrics().focusScale, metrics().focusScale] else cell.node.scale = [1, 1]
+        if on then cell.node.scale = [focusZoom(), focusZoom()] else cell.node.scale = [1, 1]
         cell.ring.visible = on
         if on then cell.name.color = c.text else cell.name.color = c.textSecondary
     end for

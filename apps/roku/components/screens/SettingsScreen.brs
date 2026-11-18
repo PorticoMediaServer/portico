@@ -297,7 +297,7 @@ function rowsFor(spec as object, section as object, page as object) as object
     end if
     if spec.type = "switch"
         row.control = "switch"
-        row.switchOn = (value = true)
+        row.switchOn = switchIsOn(spec, value)
     else if spec.type = "languages"
         row.value = languagesWords(value)
     else
@@ -592,7 +592,12 @@ end function
 ' --- what OK does on a row ------------------------------------------------------------------------
 
 sub act(a as object)
-    if a.kind = "switch"
+    if a.kind = "switch" and a.spec.on <> invalid
+        ' a switch over two words: the other one
+        value = a.spec.on
+        if sameSetting(m.values[a.spec.key], a.spec.on) then value = a.spec.off
+        save({key: a.spec.key, value: value}, invalid)
+    else if a.kind = "switch"
         save({key: a.spec.key}, invalid)
     else if a.kind = "choice"
         spec = a.spec
@@ -719,7 +724,7 @@ end sub
 sub save(change as object, spec as dynamic)
     if change.key <> invalid
         value = change.value
-        if value = invalid then value = not (m.values[change.key] = true)
+        if value = invalid then value = not sameSetting(m.values[change.key], true)
         patch = {}
         patch[change.key] = value
     else
