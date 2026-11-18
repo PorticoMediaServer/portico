@@ -164,6 +164,11 @@ sub onPage(event as object)
     ctx = event.getRoSGNode().ctx
     if ctx.generation <> m.generation then return
     m.asking = false
+    ' the plain cards that stood in for this page give their places to its titles (or go, if it failed)
+    if ctx.first <> true and m.grid.content <> invalid
+        extra = m.grid.content.getChildCount() - m.items.count()
+        if extra > 0 then m.grid.content.removeChildrenIndex(extra, m.items.count())
+    end if
     if not result.ok
         ' the toolbar works, so only the grid's part says so; a later page is asked again on the next move
         if ctx.first = true then gridSays("error", "Couldn't load these titles", whyFailed(result), "Try again")
@@ -239,6 +244,14 @@ sub onCardFocused(event as object)
     if m.cursor <> invalid and not m.asking and at >= m.items.count() - 21
         m.asking = true
         api("GET", listPath() + "&limit=60&cursor=" + m.cursor, invalid, "onPage", {generation: m.generation, first: false})
+        ' while it comes, one row of plain cards past the last (tv-focus frame 19): Down from the
+        ' last row lands on the one in its own column and waits there for the real one
+        columns = m.grid.numColumns
+        pad = (columns - m.items.count() mod columns) mod columns + columns
+        tall = m.grid.content.getChild(m.items.count() - 1).artHeight     ' the box of the cards above it
+        for i = 1 to pad
+            m.grid.content.createChild("ContentNode").addFields({skeleton: true, kind: "", art: "", title: "", artHeight: tall})
+        end for
     end if
 end sub
 

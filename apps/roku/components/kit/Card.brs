@@ -107,6 +107,7 @@ sub onContent()
         m.clip.visible = false
         m.over.visible = false
         m.h = m.fullH
+        if item.artHeight <> invalid and item.artHeight > 0 then m.h = item.artHeight     ' a grid's: its picture's box, its words' place left empty
         m.under.translation = [0, 0]
         m.plate.height = m.h
         m.plate.blendColor = c.raisedHigh
