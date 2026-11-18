@@ -56,7 +56,7 @@ func (e *Engine) openSTRM(ctx context.Context, id int64, place db.FileOnDisk, re
 	}
 	client := e.strm
 	if client == nil {
-		client = strm.New(nil)
+		client = strm.New()
 	}
 	return client.Open(ctx, address)
 }
