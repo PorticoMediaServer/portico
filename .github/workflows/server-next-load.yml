@@ -18,6 +18,11 @@ name: New server under load
 # the real prober (ffprobe on confined workers). Reading a file costs tens of milliseconds
 # whatever the library's size, so a million files would take hours: this job measures the
 # rate, and the first scan of a million follows from it.
+#
+# The "wire" job is an evening at a real server process, through its routes: a seeded library
+# (400,000 items unless asked), 200 people each signed in on a device of their own, 80 of them
+# playing a real film by direct play with byte ranges and progress reports, the rest browsing,
+# half on restricted profiles. Measured on this runner, not on the owner's hardware.
 on:
   workflow_dispatch:
     inputs:
@@ -42,6 +47,12 @@ on:
       busy_time:
         description: How long one import transaction should take while people use the server (a person's write waits for the one in flight)
         default: '10ms'
+      wire_items:
+        description: Playable items in the seeded library of the wire job
+        default: '400000'
+      wire_streams:
+        description: People of the 200 in the wire job who are streaming
+        default: '80'
   # A change to the workflow or the load tools runs them.
   pull_request:
     paths:
@@ -63,6 +74,8 @@ env:
   REAL_ITEMS: ${{ inputs.real_items || '50000' }}
   REAL_EXTRA: ${{ inputs.real_extra || '5000' }}
   BUSY_TIME: ${{ inputs.busy_time || '10ms' }}
+  WIRE_ITEMS: ${{ inputs.wire_items || '400000' }}
+  WIRE_STREAMS: ${{ inputs.wire_streams || '80' }}
   WORK: ${{ github.workspace }}/load
 defaults:
   run:
@@ -297,6 +310,59 @@ jobs:
           path: |
             server-next-load-search.json
             ${{ env.WORK }}/search-cost.txt
+          retention-days: 30
+
+  wire:
+    name: A real server over HTTP, people streaming and browsing
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
+      - name: Install ffmpeg and bubblewrap, and allow unprivileged user namespaces on this VM
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends ffmpeg bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
+      - name: Build the seeder, the load driver and the server
+        run: |
+          mkdir -p "$WORK/bin" "$WORK/data" "$WORK/media"
+          cd server-next && CGO_ENABLED=0 go build -o "$WORK/bin/" ./cmd/portico-seed ./cmd/portico-load ./cmd/portico-server
+      - name: Seed the library and make a real film (1080p H.264 at 8 Mbit/s with AAC, one minute)
+        run: |
+          "$WORK/bin/portico-seed" -db "$WORK/data/main.db" -items "$WIRE_ITEMS" -phase import 2>&1 | tail -2
+          ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i testsrc2=size=1920x1080:rate=24 -f lavfi -i sine=frequency=440:sample_rate=48000 \
+            -t 60 -c:v libx264 -preset veryfast -b:v 8M -pix_fmt yuv420p -c:a aac -ac 2 "$WORK/media/film.mkv"
+      - name: Start the server, then 200 people for ten minutes
+        working-directory: server-next
+        run: |
+          # TMDB is pointed at a closed port: nothing here reaches an outside service.
+          PORTICO_TMDB_ORIGIN=http://127.0.0.1:9 "$WORK/bin/portico-server" -data "$WORK/data" -listen 127.0.0.1:32500 > "$WORK/server.log" 2>&1 &
+          echo "$!" > "$WORK/server.pid"
+          for _ in $(seq 120); do [ -f "$WORK/data/setup-code.txt" ] && curl -s -o /dev/null http://127.0.0.1:32500/ && break; sleep 1; done
+          "$WORK/bin/portico-load" -mode http -url http://127.0.0.1:32500 -setup-code "$WORK/data/setup-code.txt" -media "$WORK/media/film.mkv" \
+            -pid "$(cat "$WORK/server.pid")" -people 200 -streams "$WIRE_STREAMS" -crowd-time 10m -out "$WORK/wire.json" | tee "$WORK/wire.txt"
+          {
+            echo "### A real server over HTTP: 200 people, $WIRE_STREAMS streaming by direct play, $WIRE_ITEMS items"
+            echo
+            echo "Runner: ubuntu-24.04, $(nproc) vCPU, $(awk '/MemTotal/ {printf "%.0f", $2 / 1048576}' /proc/meminfo) GB, nothing limited; driver and server share it"
+            echo
+            echo '```'
+            cat "$WORK/wire.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Stop the server
+        if: always()
+        run: kill "$(cat "$WORK/server.pid")" 2>/dev/null; sleep 5; tail -n 40 "$WORK/server.log" || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: server-next-load-wire
+          path: |
+            ${{ env.WORK }}/wire.json
+            ${{ env.WORK }}/wire.txt
           retention-days: 30
 
   unsynced:

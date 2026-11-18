@@ -83,7 +83,7 @@ func main() {
 		}
 		os.Exit(0)
 	}
-	mode := flag.String("mode", "", "import, rescan, mixed, crowd, tree or search")
+	mode := flag.String("mode", "", "import, rescan, mixed, crowd, http, tree or search")
 	path := flag.String("db", "main.db", "database file")
 	items := flag.Int("items", 20_000, "playable items: the library size for import and rescan, the size of each extra import for mixed")
 	seedValue := flag.Uint64("seed", 1, "seed of the library")
@@ -93,9 +93,14 @@ func main() {
 	writesPerSec := flag.Int("writes", 20, "mixed: user writes a second")
 	settle := flag.Duration("settle", time.Minute, "how long after the import to watch the WAL")
 	out := flag.String("out", "", "JSON report file")
-	people := flag.Int("people", 200, "crowd: people using the server at once")
-	streams := flag.Int("streams", 80, "crowd: how many of them are streaming")
-	crowdTime := flag.Duration("crowd-time", 4*time.Minute, "crowd: how long, with an import through the middle half")
+	people := flag.Int("people", 200, "crowd and http: people using the server at once")
+	streams := flag.Int("streams", 80, "crowd and http: how many of them are streaming")
+	crowdTime := flag.Duration("crowd-time", 4*time.Minute, "crowd: how long, with an import through the middle half; http: how long")
+	address := flag.String("url", "http://127.0.0.1:32500", "http: the running server, seeded and not yet set up")
+	setupCode := flag.String("setup-code", "", "http: the server's setup-code.txt")
+	media := flag.String("media", "", "http: a real film the streams play, copied into a library of its own beside it")
+	document := flag.String("device", "internal/streaming/profiles/androidtv.json", "http: the device profile the players declare")
+	pid := flag.Int("pid", 0, "http: the server's process id, to read its processor time and memory")
 	streamFile := flag.String("stream-file", "", "crowd: a large file each stream reads a mebibyte a second of")
 	noSync := flag.Bool("no-sync", false, "commit without syncing to disk, to time everything but the disk")
 	flag.StringVar(&treeRoot, "tree", "", "a folder of real files: with it, import, rescan and mixed use the real scanner over it; -mode tree writes it")
@@ -117,6 +122,20 @@ func main() {
 			log.Fatal(err)
 		}
 		log.Printf("wrote %d files under %s in %s", files, treeRoot, time.Since(start).Round(time.Second))
+		return
+	}
+	if *mode == "http" {
+		// The server owns the database: everything here goes through its routes.
+		report := httpCrowd(ctx, *address, *setupCode, *media, *document, *pid, *people, *streams, *crowdTime)
+		for _, name := range sortedKeys(report.Requests) {
+			t := report.Requests[name]
+			fmt.Printf("%-34s n %6d  p50 %7.1f  p90 %7.1f  p99 %7.1f  max %7.1f ms\n", name, t.N, t.P50, t.P90, t.P99, t.Max)
+		}
+		fmt.Printf("streams: %d started, start p50 %.1f p99 %.1f ms; %d MiB read, mebibyte reads p99 %.1f max %.1f ms\n",
+			report.StreamStarts.N, report.StreamStarts.P50, report.StreamStarts.P99, report.StreamedMiB, report.Chunks.P99, report.Chunks.Max)
+		fmt.Printf("server: %.2f cores on average, peak memory %d MiB; failures %v\n", report.ServerCPU, report.ServerPeakRSS/mib, report.Failures)
+		printBars(report.Bars)
+		writeReport(*out, report)
 		return
 	}
 	d, err := db.Open(ctx, *path)
@@ -160,18 +179,27 @@ func main() {
 		report.bar("6 largest WAL", "at most 512 MiB", float64(report.WALMaxBytes)/mib, "MiB", report.WALMaxBytes <= 512*mib)
 		report.bar("6 WAL a minute after the import", "under 64 MiB", float64(report.WALEndBytes)/mib, "MiB", report.WALEndBytes < 64*mib)
 	}
-	for _, b := range report.Bars {
+	printBars(report.Bars)
+	writeReport(*out, report)
+}
+
+func printBars(bars []Bar) {
+	for _, b := range bars {
 		mark := "MISSED"
 		if b.Passed {
 			mark = "ok"
 		}
 		fmt.Printf("%-6s bar %-34s %12.1f %-8s (%s)\n", mark, b.Bar, b.Value, b.Unit, b.Limit)
 	}
-	if *out != "" {
-		raw, _ := json.MarshalIndent(report, "", "  ")
-		if err := os.WriteFile(*out, raw, 0o644); err != nil {
-			log.Fatal(err)
-		}
+}
+
+func writeReport(file string, report any) {
+	if file == "" {
+		return
+	}
+	raw, _ := json.MarshalIndent(report, "", "  ")
+	if err := os.WriteFile(file, raw, 0o644); err != nil {
+		log.Fatal(err)
 	}
 }
 
