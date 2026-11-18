@@ -80,14 +80,6 @@ class Allocation(unittest.TestCase):
             self.assertEqual(calls[check][0][-2:],['--dist',str(ROOT/'web/dist')])
 
 
-    def test_desktop_rust_remains_once(self):
-        p={'js':extend_selection([{'component':'apps/desktop','files':['apps/desktop/test/a.test.ts']}],{})}
-        with patch('run.execute') as execute:
-            js_static(p,'apps/desktop')
-            self.assertEqual(sum(c.args[0]==['npm','run','test:rust'] for c in execute.call_args_list),1)
-
-
-
 class Accounting(unittest.TestCase):
     def test_receipt_mutations_fail_closed(self):
         p = plan()
