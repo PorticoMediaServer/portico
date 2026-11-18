@@ -72,10 +72,10 @@ function frames() as object
         ' same line); a person's first row's heading on `rowsY`, a collection's on `actionRowsY`, which
         ' leaves the place of its action row above it; once focus goes down the row in focus sits at `scrolledY`.
         group: {face: 280, nameY: 132, factsY: 260, aboutY: 306, rowsY: 440, scrolledY: 164, eyebrowY: 96, actionRowsY: 520}
-        ' Live TV's guide: the toolbar beside the page title, the time header, the first row and the
-        ' row pitch, the channel column, and the
+        ' Live TV's guide: the toolbar beside the page title, the filter chips' line, the time header, the
+        ' first row and the row pitch, the channel column, and the
         ' grid from `gridX` at `perMinute` px a minute; `shown` rows fit on the screen.
-        guide: {headerY: 244, rowsY: 296, pitch: 100, cell: 90, channelWidth: 300, gridX: 520, perMinute: 8, shown: 7, toolbarX: 380, toolbarY: 56}
+        guide: {headerY: 244, rowsY: 296, pitch: 100, cell: 90, channelWidth: 300, chipsY: 144, gridX: 520, perMinute: 8, shown: 7, toolbarX: 380, toolbarY: 56}
         ' Every page beside the rail: its content starts at `gutter`.
         gutter: 200
         ' The video player: the picture is the page. The top row hangs from `top`; the seek bar,

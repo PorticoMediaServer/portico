@@ -2,8 +2,10 @@
 ' channel; Up and Down change channel keeping the time position; Left and Right walk the
 ' programmes; Left from the earliest programme reaches the channel cell, and Left again opens the
 ' rail. The time grid runs from the half hour before now; its lines are frames().guide. Up from the
-' first channel reaches the toolbar: the day shown (today or tomorrow, as the server reads a day of the
-' guide at a time) and Now, back to what is on now.
+' first channel reaches the filter chips (All and the channel groups), and Up again the toolbar:
+' the channel source when there is more than one, the day shown (today or tomorrow, as the server
+' reads a day of the guide at a time) and Now, back to what is on now. A chip or a choice reads the
+' guide again with the server's own filter; focus stays where it was.
 sub init()
     c = colours()
     m.g = frames().guide
@@ -23,14 +25,25 @@ sub init()
     m.top.findNode("nowPill").blendColor = c.accent
     m.top.findNode("minute").observeField("fire", "drawNow")
     m.guide = []        ' [{channel, programmes}] from the server
+    m.next = ""         ' the cursor of the guide's next page of channels, "" at the end
+    m.paging = false    ' that next page has been asked for
+    m.seq = 0           ' which read of the guide is current: a late answer to an older one is dropped
     m.r = 0             ' the channel in focus
     m.c = 0             ' the cell in focus in that row (0 is the channel itself)
     m.first = 0         ' the channel at the top of the screen
     m.day = 0           ' 0 today, 1 tomorrow
-    m.onBar = false     ' focus on the toolbar
+    m.region = "grid"   ' "bar" (the toolbar), "chips" or "grid"
+    m.sources = []      ' the channel sources, with their groups
+    m.filter = {source: "", group: ""}
     m.toolbar = m.top.findNode("toolbar")
     m.toolbar.translation = [m.g.toolbarX, m.g.toolbarY]
     m.toolbar.observeField("pressed", "onToolbar")
+    m.chips = m.top.findNode("chips")
+    m.chips.translation = [frames().gutter, m.g.chipsY]
+    m.chips.observeField("pressed", "onChip")
+    m.chips.observeField("focusedIndex", "slideChips")
+    ' a long row of chips slides under this window, its focus ring kept whole
+    m.top.findNode("chipWindow").clippingRect = [frames().gutter - 40, m.g.chipsY - 40, 1920 - frames().gutter + 40, 72 + 80]
     drawToolbar()
     m.top.findNode("minute").control = "start"
 end sub
@@ -38,41 +51,117 @@ end sub
 sub drawToolbar()
     day = "Today"
     if m.day = 1 then day = "Tomorrow"
-    m.toolbar.buttons = [{id: "day", text: day, icon: ""}, {id: "now", text: "Now", icon: ""}]
+    buttons = []
+    for each id in liveToolbar(m.sources.count())
+        if id = "source" then buttons.push({id: "source", text: sourceName(), icon: "", menu: true})
+        if id = "day" then buttons.push({id: "day", text: day, icon: "", menu: true})
+        if id = "now" then buttons.push({id: "now", text: "Now", icon: ""})
+    end for
+    m.toolbar.buttons = buttons
+end sub
+
+function sourceName() as string
+    for each source in m.sources
+        if source.id = m.filter.source then return source.name
+    end for
+    return "All channels"
+end function
+
+' All, then the groups of the channels shown; a group past the first few is behind More groups.
+sub drawChips()
+    groups = liveGroups(m.sources, m.filter.source, 8)
+    m.moreGroups = groups.more
+    chips = [{id: "all", text: "All", icon: "", switchedOn: m.filter.group = ""}]
+    for each name in groups.shown
+        chips.push({id: "g:" + name, text: name, icon: "", switchedOn: m.filter.group = name})
+    end for
+    if groups.more.count() > 0
+        chosen = false
+        for each name in groups.more
+            if name = m.filter.group then chosen = true
+        end for
+        chips.push({id: "more", text: "More groups", icon: "", menu: true, switchedOn: chosen})
+    end if
+    if chips.count() = 1 then chips = []      ' All alone filters nothing
+    m.chips.buttons = chips
+    m.chips.visible = (chips.count() > 0)
+    if not m.chips.visible and m.region = "chips" then focusRegion("bar")
+end sub
+
+' Keeps the chip in focus inside the window, sliding the row no further than it must.
+sub slideChips()
+    if m.chips.getChildCount() = 0 then return
+    chip = m.chips.getChild(m.chips.focusedIndex)
+    room = frames().rightEdge - frames().gutter
+    x = m.chips.translation[0] - frames().gutter
+    left = chip.translation[0] + x
+    if left + chip.buttonWidth > room then x = room - chip.buttonWidth - chip.translation[0]
+    if chip.translation[0] + x < 0 then x = -chip.translation[0]
+    m.chips.translation = [frames().gutter + x, m.g.chipsY]
 end sub
 
 sub onActive()
     if not m.top.active then return
-    if m.onBar then m.toolbar.active = true else m.rows.setFocus(true)
+    focusRegion(m.region)
     ' read again when come back to after a while: what is on now has moved on
     if m.readAt = invalid or nowSeconds() - m.readAt > 60 then load()
 end sub
 
-' Today from the half hour before now; tomorrow from the same half hour a day on. Three hours either way.
-function windowStart() as integer
-    now = nowSeconds()
-    return now - (now mod 1800) + m.day * 86400
+' The guide's query: the day's three hours and the filter, with the cursor of a next page.
+function guidePath(cursor as string) as string
+    from = createObject("roDateTime")
+    from.fromSeconds(guideStart(nowSeconds(), m.day))
+    upTo = createObject("roDateTime")
+    upTo.fromSeconds(guideStart(nowSeconds(), m.day) + 3 * 3600)
+    path = "/v1/live/guide?limit=50&from=" + from.toISOString() + "&to=" + upTo.toISOString()
+    escape = createObject("roUrlTransfer")
+    if m.filter.source <> "" then path = path + "&source=" + escape.escape(m.filter.source)
+    if m.filter.group <> "" then path = path + "&group=" + escape.escape(m.filter.group)
+    if cursor <> "" then path = path + "&cursor=" + escape.escape(cursor)
+    return path
 end function
 
 sub load()
-    if m.day = 0
-        api("GET", "/v1/live/guide", invalid, "onGuide", {day: 0})
-        return
-    end if
-    from = createObject("roDateTime")
-    from.fromSeconds(windowStart())
-    upTo = createObject("roDateTime")
-    upTo.fromSeconds(windowStart() + 3 * 3600)
-    api("GET", "/v1/live/guide?from=" + from.toISOString() + "&to=" + upTo.toISOString(), invalid, "onGuide", {day: m.day})
+    m.seq = m.seq + 1
+    m.next = ""
+    ' the sources and their groups come with the first page of channels
+    api("GET", "/v1/live/channels?limit=1", invalid, "onSources")
+    api("GET", guidePath(""), invalid, "onGuide", {seq: m.seq, more: false})
+end sub
+
+' The next page of channels, read as focus nears the end of those already here.
+sub loadMore()
+    if m.next = "" or m.paging = true then return
+    m.paging = true
+    api("GET", guidePath(m.next), invalid, "onGuide", {seq: m.seq, more: true})
+end sub
+
+sub onSources(event as object)
+    result = event.getData()
+    if not result.ok or result.data.sources = invalid then return
+    m.sources = result.data.sources
+    drawToolbar()
+    drawChips()
 end sub
 
 sub onGuide(event as object)
     result = event.getData()
-    if event.getRoSGNode().ctx.day <> m.day then return
+    ctx = event.getRoSGNode().ctx
+    if ctx.seq <> m.seq then return
+    m.paging = false
     state = m.top.findNode("state")
     if not result.ok
+        if ctx.more then return     ' the channels already here stay; the next press asks again
         state.text = "The guide could not be loaded."
         state.visible = true
+        return
+    end if
+    m.next = ""
+    if result.data.nextCursor <> invalid then m.next = result.data.nextCursor
+    if ctx.more
+        m.guide.append(result.data.items)
+        draw()
+        if m.region = "grid" then paint()
         return
     end if
     keep = ""
@@ -86,7 +175,7 @@ sub onGuide(event as object)
         if m.guide[i].channel.id = keep then m.r = i
     end for
     ' the grid starts on the half hour before now; focus starts on what is on now
-    m.start = windowStart()
+    m.start = guideStart(nowSeconds(), m.day)
     m.from = m.start
     m.time = nowSeconds()
     if m.day > 0 then m.time = m.start
@@ -187,15 +276,8 @@ sub draw()
         for each p in row.programmes
             s = secondsOf(p.startsAt)
             e = secondsOf(p.endsAt)
-            if e > m.from
-                shown = s
-                if shown < m.from then shown = m.from
-                x = g.gridX + (shown - m.from) / 60 * g.perMinute
-                width = (e - shown) / 60 * g.perMinute - 10
-                if x < 1920 and width > 20
-                    cells.push(programmeCell(p, s, e, x, y, width, s < m.from))
-                end if
-            end if
+            span = guideSpan(s, e, m.from, g)
+            if span <> invalid then cells.push(programmeCell(p, s, e, span.x, y, span.width, span.earlier))
         end for
         m.cells.push(cells)
     end for
@@ -301,7 +383,7 @@ sub focusAt(at as integer)
         if cells[i].start <= at and at < cells[i].ends then m.c = i
     end for
     if m.c = 0 and cells.count() > 1 and at >= m.from then m.c = 1
-    paint()
+    if m.region = "grid" then paint()
 end sub
 
 sub paint()
@@ -331,11 +413,13 @@ function pressKey(key as string) as boolean
     if m.cells = invalid or m.cells.count() = 0 then return false
     if key = "up" or key = "down"
         if key = "up" and m.r = 0
-            toBar(true)
+            if m.chips.visible then focusRegion("chips") else focusRegion("bar")
             return true
         end if
         if key = "down" and m.r = m.cells.count() - 1 then return false
         if key = "up" then m.r = m.r - 1 else m.r = m.r + 1
+        ' the next page of channels is read before focus reaches the last one here
+        if m.r >= m.cells.count() - 5 then loadMore()
         if m.c = 0 then paint() else focusAt(m.time)
         return true
     end if
@@ -367,26 +451,59 @@ function pressKey(key as string) as boolean
     return true
 end function
 
-sub toBar(on as boolean)
-    m.onBar = on
-    if on
-        m.ring.visible = false
-        if m.cells <> invalid and m.cells.count() > 0 then m.cells[m.r][m.c].plate.blendColor = colours().raised
-        m.toolbar.active = true
-    else
+' Moves focus to the toolbar, the chips or the guide; the row that loses it draws its focus off.
+sub focusRegion(region as string)
+    m.region = region
+    m.toolbar.active = (region = "bar")
+    m.chips.active = (region = "chips")
+    if region = "grid"
         m.rows.setFocus(true)
-        m.toolbar.active = false       ' the row draws its focus off
         paint()
+        return
     end if
+    m.ring.visible = false
+    if m.cells <> invalid and m.cells.count() > 0 then m.cells[m.r][m.c].plate.blendColor = colours().raised
 end sub
 
 sub onToolbar(event as object)
-    if event.getData() = "now"
-        toBar(false)
+    which = event.getData()
+    if which = "now"
+        focusRegion("grid")
         toStart()
+    else if which = "source"
+        rows = [{id: "source:", text: "All channels", current: m.filter.source = ""}]
+        for each source in m.sources
+            rows.push({id: "source:" + source.id, text: source.name, current: m.filter.source = source.id})
+        end for
+        m.top.menu = {title: "Channels", rows: rows}
     else
         m.top.menu = {title: "Day", rows: [{id: "day:0", text: "Today", current: m.day = 0}, {id: "day:1", text: "Tomorrow", current: m.day = 1}]}
     end if
+end sub
+
+sub onChip(event as object)
+    which = event.getData()
+    if which = "more"
+        rows = []
+        for each name in m.moreGroups
+            rows.push({id: "group:" + name, text: name, current: m.filter.group = name})
+        end for
+        m.top.menu = {title: "Channel groups", rows: rows}
+        return
+    end if
+    group = ""
+    if left(which, 2) = "g:" then group = mid(which, 3)
+    choose({source: m.filter.source, group: group})
+end sub
+
+' A new filter: the chips show it at once, and the guide is read again from its first channel.
+sub choose(filter as object)
+    m.filter = filter
+    drawToolbar()
+    drawChips()
+    m.r = 0
+    m.first = 0
+    load()
 end sub
 
 function atStart() as boolean
@@ -427,11 +544,20 @@ end sub
 function onKeyEvent(key as string, press as boolean) as boolean
     holdKey(key, press)
     if not press then return false
-    if m.onBar
-        ' the toolbar gave the key up: Down returns to the guide, Up goes on to the scene
-        if key = "down" or key = "back"
-            toBar(false)
-            if key = "back" then toStart()
+    if m.region <> "grid"
+        ' the toolbar or the chips gave the key up: Down goes on towards the guide, Up towards the
+        ' toolbar, Back returns to the guide's start; Left at their start opens the rail
+        if key = "back"
+            focusRegion("grid")
+            toStart()
+            return true
+        end if
+        if key = "down"
+            if m.region = "bar" and m.chips.visible then focusRegion("chips") else focusRegion("grid")
+            return true
+        end if
+        if key = "up" and m.region = "chips"
+            focusRegion("bar")
             return true
         end if
         return false
@@ -474,15 +600,24 @@ sub openSheet()
 end sub
 
 sub onMenuChosen(event as object)
-    if left(event.getData(), 4) = "day:"
-        m.day = mid(event.getData(), 5).toInt()
+    chosen = event.getData()
+    if left(chosen, 4) = "day:"
+        m.day = mid(chosen, 5).toInt()
         drawToolbar()
         m.r = 0
-        toBar(false)
+        focusRegion("grid")
         load()
         return
     end if
-    if event.getData() <> "watch" then return
+    if left(chosen, 7) = "source:"
+        choose({source: mid(chosen, 8), group: ""})
+        return
+    end if
+    if left(chosen, 6) = "group:"
+        choose({source: m.filter.source, group: mid(chosen, 7)})
+        return
+    end if
+    if chosen <> "watch" then return
     row = m.guide[m.r]
     ' the player gets the channel and the whole lineup, for channel up and down
     m.top.open = {play: true, item: {kind: "channel", id: row.channel.id, title: row.channel.name, channel: row.channel, programmes: row.programmes, lineup: m.guide}}

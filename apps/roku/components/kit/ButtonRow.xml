@@ -9,6 +9,9 @@
     <field id="flexible" type="string"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="pressed" type="string" alwaysNotify="true"/>
+    <!-- A button's spec may also say switchedOn (a filter chip that is on) or menu (it opens a menu).
+         Set by the row: the button in focus, for a page that slides a long row of chips. -->
+    <field id="focusedIndex" type="integer"/>
   </interface>
   <script type="text/brightscript" uri="ButtonRow.brs"/>
 </component>

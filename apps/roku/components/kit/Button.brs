@@ -41,10 +41,17 @@ sub onChange()
         m.detail.translation = [w - 24, 0]
         w = w + m.detail.boundingRect().width + 14
     end if
+    chevron = m.top.findNode("chevron")
+    chevron.visible = m.top.menu
+    chevron.blendColor = c.textTertiary
+    if m.top.menu
+        chevron.translation = [w - 26, 24]
+        w = w + 24 + 6
+    end if
     if m.top.minWidth > w
         ' wider than its words: they move to the middle, the plate takes the whole width
         shift = (m.top.minWidth - w) / 2
-        for each part in [m.icon, m.label, m.track, m.bar, m.detail]
+        for each part in [m.icon, m.label, m.track, m.bar, m.detail, chevron]
             part.translation = [part.translation[0] + shift, part.translation[1]]
         end for
         w = m.top.minWidth
@@ -52,6 +59,7 @@ sub onChange()
     m.plate.width = w
     m.top.buttonWidth = w
     if m.top.on
+        chevron.blendColor = c.actionInk
         m.plate.blendColor = c.plateOn
         m.label.color = c.actionInk
         m.icon.blendColor = c.actionInk

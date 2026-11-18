@@ -20,6 +20,8 @@ sub onButtons()
     m.nodes = []
     for each spec in m.top.buttons
         b = m.top.createChild("Button")
+        b.switchedOn = (spec.switchedOn = true)
+        b.menu = (spec.menu = true)
         if spec.progress <> invalid then b.progress = spec.progress
         if spec.detail <> invalid then b.detail = spec.detail
         b.danger = (spec.danger = true)
@@ -71,6 +73,7 @@ end sub
 
 sub paint()
     has = m.top.hasFocus()
+    m.top.focusedIndex = m.focused
     for i = 0 to m.nodes.count() - 1
         m.nodes[i].on = (has and i = m.focused)
     end for
