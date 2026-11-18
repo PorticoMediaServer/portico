@@ -129,15 +129,15 @@ export function LibraryBrowse(bindings: LibraryBrowseBindings) {
   const model = useMemo(() => state.capabilities && state.sort ? browseToolbarModel(state.capabilities, library.kind, state.predicates, state.sort, {...env, owner: bindings.owner, scope: controller.source.base?.length ? 'group' : 'library'}) : undefined,
     [state.capabilities, state.sort, state.predicates, library.kind, env, bindings.owner, controller]);
   const sort = useCallback((sort: BrowseSortSelection) => {try {controller.setQuery(state.predicates, sort, state);} catch (error) {reportError(error);}}, [controller, state, reportError]);
-  // An author or series chip whose name this app has not listed yet (a link, a reload): read each
+  // An author, series or collection chip whose name this app has not listed yet (a link, a reload): read each
   // of its ids once so the chip says the name, not the id, wherever it sits in the library's list.
   const [, named] = useState(0);
   const unnamed = [...new Set((model?.applied ?? []).flatMap(node => 'field' in node && namedFilterFields.has(node.field)
     ? (Array.isArray(node.value) ? node.value : [node.value]).flatMap(value => typeof value === 'string' && filterValueName(value) === undefined ? [`${node.field}:${value}`] : []) : []))].join(',');
   useEffect(() => {
     if (!unnamed) return;
-    const stop = new AbortController(), wanted = unnamed.split(',').map(pair => pair.split(':') as ['author' | 'series', string]);
-    void Promise.all((['author', 'series'] as const).map(field => controller.nameValues(field, wanted.flatMap(([each, id]) => each === field ? [id] : []), stop.signal)))
+    const stop = new AbortController(), wanted = unnamed.split(',').map(pair => pair.split(':') as ['author' | 'series' | 'collection', string]);
+    void Promise.all((['author', 'series', 'collection'] as const).map(field => controller.nameValues(field, wanted.flatMap(([each, id]) => each === field ? [id] : []), stop.signal)))
       .then(() => {if (!stop.signal.aborted) named(count => count + 1);}, () => undefined);
     return () => stop.abort();
   }, [unnamed, controller]);

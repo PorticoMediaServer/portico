@@ -4,6 +4,7 @@ import {libraryBrowseCapabilities, libraryItemQuery, libraryQueryControls} from 
 
 import {BrowseQueryBuilder, parseBrowseCapabilities, parseBrowseFacets} from '../src/browse.ts';
 import {readBrowseFacetResponse} from '../src/query/browse-reads.ts';
+import {filterValueName} from '../src/filter-value-names.ts';
 import {browseToolbarModel} from '../src/presentation/kit-model/index.ts';
 import {defaultI18n} from '../../i18n/src/index.ts';
 import {readItems} from '../src/items.ts';
@@ -82,4 +83,5 @@ test('the owner\'s file size sort and matched filter, and the collection filter,
   const facets = parseBrowseFacets(await readBrowseFacetResponse(api as never, 'lib', 'collection', 'movies', undefined, 'north', 50), 'collection');
   assert.deepEqual(facets.values.map(value => [value.value, value.label, value.count]), [['itm_set', 'Northern Lights', 3]]);
   assert.match(asked[0]!, /library=lib/); assert.match(asked[0]!, /kind=collection/);
+  assert.equal(filterValueName('itm_set'), 'Northern Lights', 'the chosen collection\'s chip says its name');
 });

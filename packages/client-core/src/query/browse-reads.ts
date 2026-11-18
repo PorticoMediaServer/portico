@@ -45,6 +45,8 @@ export async function readBrowseFacetResponse(api: BrowseReadApi, libraryId: str
     const wanted = search.trim().toLocaleLowerCase(), page = await readItems(api as ServerRequester, {library: libraryId, kind: 'collection', sort: 'title'}, {limit: 200}, signal);
     const values = page.items.filter(item => !wanted || item.title.toLocaleLowerCase().includes(wanted))
       .map(item => ({value: item.id, label: item.title, count: item.counts?.children ?? 0}));
+    // A chosen collection's chip says its name, not its id.
+    rememberFilterNames(values);
     return {field, total: values.length, values: values.slice(0, limit)};
   }
   // The counted filter itself is left out, so its other choices keep their counts.
@@ -56,9 +58,9 @@ export async function readBrowseFacetResponse(api: BrowseReadApi, libraryId: str
     .filter(value => !wanted || value.label.toLocaleLowerCase().includes(wanted));
   return {field, total: values.length, values: values.slice(0, limit)};
 }
-/** Names the author or series ids a filter holds that this app has not listed yet (a link, a
+/** Names the author, series or collection ids a filter holds that this app has not listed yet (a link, a
  * reload): each is read on its own, so its chip says the name wherever it sits in the library's list. */
-export async function nameFilterValues(api: BrowseReadApi, field: 'author' | 'series', ids: readonly string[], signal?: AbortSignal): Promise<void> {
+export async function nameFilterValues(api: BrowseReadApi, field: 'author' | 'series' | 'collection', ids: readonly string[], signal?: AbortSignal): Promise<void> {
   const named = await Promise.all(ids.map(async id => {
     const label = field === 'author' ? (await readPersonFacts(api as ServerRequester, id, signal).catch(() => undefined))?.name
       : (await readItem(api as ServerRequester, id, signal).catch(() => undefined))?.title;
