@@ -52,7 +52,7 @@ export function PlayerLiveActions({enabled, record, more, size = 48, compact = t
   // 14 left inset; each control 64 high with 26 of horizontal padding and radius 14,
   // the round one exactly 64 square. Nothing here is positioned absolutely.
   return <View testID="tv-live-actions" style={{flexDirection: 'row', alignItems: 'center', flexShrink: 0, marginLeft: 'auto', gap: 16, paddingLeft: 14}}>
-    {record && <Button variant="glass" size="compact" icon="i-rec" iconSize={28} focusId="watch-live-record" testID="watch-live-record"
+    {record && <Button variant="glass" size="compact" icon="i-rec" iconSize={28} iconColor={theme.colors.record} focusId="watch-live-record" testID="watch-live-record"
       style={record.recording ? {backgroundColor: 'rgba(241,121,121,.2)'} : undefined}
       loading={record.busy} disabled={record.disabled} onPress={record.onPress}>{record.label}</Button>}
     {more && <Button variant="glass" size="compact" icon="i-more" iconSize={28} iconOnly focusId="watch-live-more" testID="watch-live-more"

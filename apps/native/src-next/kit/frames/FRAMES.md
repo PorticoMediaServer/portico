@@ -125,6 +125,13 @@ Changed in the fix round after the first device captures (the reviewer's S-1 to 
   panel under a bar across the window) and takes `favourite`. `SettingsListFrame` gives its list a column, so cards in
   it start at the column's edge. `TitleFrame`'s action row has the page's width.
 
+Changed in the second fix round (r5):
+
+- TV scrubbing (tv-player 2): `PlayerFilmstrip` (five pictures, the landing one large), `PlayerScrubBar` `filmstrip` and `labels` (chapter names under the bar), and the frame's `hints` (kit `KeyHints`, in the controls row's place while scrubbing). The watch screen's `NativeTrickplayStrip` now draws through `PlayerFilmstrip` and only fills its tiles from the trickplay sheets. `screens/home` `HomeRemoteHint` still draws its own key caps: Stage 2 moves it onto `KeyHints`.
+- `AudioPlayerFrame`: `source` (what it is playing from, said strongly), `chapter` (an audiobook's line over the scrubber), `next` as a label and a title, options as tiles when they carry a value, `inline` for the device, and labelled buttons on TV. `PlayerTimes` takes `middle`. The queue in the gallery is the kit `SongRow`.
+- `TitleFrame` loading reserves the progress line and the words' lines, so the tabs do not move when the page arrives.
+- The Settings index in the gallery is the shell's own `SettingsNav` and `ShortcutTiles`, passed as the frame's `list`.
+
 Left for Stage 2, listed so it is not forgotten:
 
 - `screens/watch/WatchPanels.tsx` (options, Subtitles, Audio, Quality, Speed, sleep timer, subtitle style) and
@@ -137,8 +144,18 @@ Left for Stage 2, listed so it is not forgotten:
   and reads the guide directly.
 - `PlayerUpNext` and `PlayerLiveActions` keep the sizes and tints they had in the screen. Reading them from
   `frameSpec.player` is Stage 2 work.
-- The TV panel in tv-player 4 opens each list in place under its heading; `PlayerPanel` shows one list at a time with
-  Back, as the phone and tablet do. See the question in the PR.
+- The TV panel opens each list in place under its heading (owner's decision, below): built into `PlayerPanelGroup` when the TV player moves in Stage 2.
+
+## Decided by the owner (Justin, 18 Nov)
+
+- **Skip intro on an upright phone** sits in the picture's bottom row between the time and the options. It never covers the transport and is hidden while a panel or Up next is open.
+- **Scrubbing on a phone:** the transport hides while the scrubber is held, and the knob follows the previewed time.
+- **Live TV on an upright phone:** Guide, Record and More are icons in the top row; channel down and up sit either side of the transport; the time, how far behind live, Go to live and quality are in the bottom row.
+- **TV playback options open in place** under their headings, as the TV mock-up and today's TV app do. This is a requirement on the shared panel: it is built into `PlayerPanelGroup` when the TV player moves onto it in Stage 2. Until then the gallery's TV panel shows one list at a time.
+- **Episodes panel:** a drawer on the web, a column on a tablet. Both stay.
+- **Tablet title page:** the hero layout, the same as the web and a phone. tablet.html frame 7's header-bar layout is not used.
+- **Button labels are never shrunk and never cut.** Buttons are sized so standard labels fit on every form; a long translation makes the button wider or takes a second line. An ellipsis on a button label is a fault. In the kit: no label is shrunk to fit; a button in a place that can be too narrow for its label passes `labelLines={2}` (the frames' action rows and the prompt do).
+- Also settled: the Watch Together pill comes in Stage 2; phone transport is 76 / 76 / 58; TV player type takes the nearest roles; Start over is a button on a tablet; the synopsis is two lines; both missing-art looks stay; the tablet gutter is 28; web Settings is a full page at phone width; the audio queue uses the kit's song row; web cards carry their second line; the native backdrop comes in Stage 2.
 
 ## What a screen may do
 

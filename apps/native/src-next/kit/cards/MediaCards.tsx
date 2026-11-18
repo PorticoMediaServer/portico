@@ -175,7 +175,7 @@ export function EpisodeTile(props: EpisodeTileProps) {
     <Marks watched={props.watched} progress={props.progress} />
   </ArtFrame>;
   const text = <View style={{flex: row ? 1 : undefined, minWidth: 0, marginTop: row ? 0 : t.spec.episode.titleMargin[t.platform], gap: 3, paddingRight: row && (props.onDownload || props.onMore) ? 40 : 0}}>
-    <Text numberOfLines={row && !t.isTV ? 2 : 1} style={[row ? titleStyle(t, 15) : t.type.episodeTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
+    <Text numberOfLines={row && !t.isTV ? 2 : 1} style={[row ? titleStyle(t, 15) : t.type.episodeTitle, {color: props.selection?.selected || props.playing ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
     <Parts parts={props.label} fit={row && !t.isTV ? 'wrap' : 'cut'} style={row ? titleStyle(t, 12.5, 600) : undefined} />
     {row && (props.length || props.status) && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12}}>
       {props.status && <Text style={[titleStyle(t, 12.5, 700), {color: t.colors.accentStrong}]}>{props.status}</Text>}

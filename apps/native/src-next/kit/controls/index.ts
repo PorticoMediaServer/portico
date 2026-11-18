@@ -15,3 +15,4 @@ export {Select, RichSelect} from './Select';
 export type {SelectOption, SelectProps, RichSelectProps} from './Select';
 export type {ButtonVariant, ButtonSize, ChipVariant, FocusKind} from './control-model';
 export {NumberPad} from './NumberPad';
+export {KeyHints} from './KeyHints';

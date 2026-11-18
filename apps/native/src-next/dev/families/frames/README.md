@@ -82,3 +82,5 @@ for Stage 2.
 A section a kind of device does not have (a phone-only sheet on a TV) opens as a one-line notice saying so, not as the catalogue. A case opened as a window silences the development warning box.
 
 Not gallery sections: `browse-sort-menu`, `browse-library-switcher` and `cards-reference` on the web are measurement cases that need the gallery inputs manifest (`web/scripts/config.mjs`); without it they say "gallery inputs unavailable" or stay empty. The web `overlays` `toast` case is 1440 wide; shoot `phone-toast` at 390.
+
+Android tablet in portrait: the device tool's rotate command does nothing on the tablet emulator while auto-rotate is off. Use `adb shell settings put system user_rotation 1` (and `0` to put it back); the gallery itself rotates freely.

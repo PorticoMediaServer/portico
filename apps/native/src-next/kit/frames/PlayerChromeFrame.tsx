@@ -42,6 +42,8 @@ export type PlayerChromeFrameProps = Readonly<{
   panel?: ReactNode;
   /** The scrubber is held: the transport makes way for the preview (in the middle of the picture on a phone; the whole controls row on a tablet and TV, tv-player 2). */
   scrubbing?: boolean;
+  /** TV, while scrubbing: `KeyHints`, in the controls row's place (tv-player 2). */
+  hints?: ReactNode;
   /** The upright form only: the watch page under the picture (the title page's own content). */
   body?: ReactNode;
   testID?: string;
@@ -63,7 +65,7 @@ function Shade() {
  * side of the scrubber. Upright (phone-player 4, tablet-play 3): the picture is a 16:9 strip under the status bar with
  * the chrome inside it, the scrubber on its lower edge, and the watch page below. No backdrop under the picture; every
  * region is fixed; the parts that fill it are `kit/player`'s. */
-export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, scrubbing = false, body, testID}: PlayerChromeFrameProps) {
+export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, scrubbing = false, hints, body, testID}: PlayerChromeFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), spec = frameSpec.player, {form} = frame;
   const phone = form === 'phone', tv = form === 'tv', upright = usePlayerUpright(), sideways = phone && !upright, beside = !!panel && !upright && !phone && !tv;
   const edge = upright ? spec.portrait.edge : Math.max(spec.edge[form], insets.left, insets.right);
@@ -110,12 +112,15 @@ export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, 
         <View pointerEvents={touch} style={shown}>{scrubber}</View>
       </View> : <View pointerEvents={touch} style={[{paddingHorizontal: edge, paddingBottom: Math.max(spec.bottom[form], insets.bottom)}, shown]}>
         {sideways ? <View style={[row, {gap: theme.space.controlGap}]}>{position}<View style={{flex: 1}}>{scrubber}</View>{remaining}</View>
-          : <View style={{gap: spec.timesGap[form]}}>{scrubber}<View style={[row, {justifyContent: 'space-between'}]}>{position}{remaining}</View></View>}
+          : <View style={{gap: spec.timesGap[form]}}>{scrubber}<View style={[row, {justifyContent: 'space-between'}, tv && scrubbing && {opacity: 0}]}>{position}{remaining}</View></View>}
         {/* Three fixed places. The transport is centred on the bar itself, not between the ends, so it stays in the middle whatever each end holds. */}
-        <View style={[row, scrubbing && {opacity: 0}, {justifyContent: 'space-between', gap: spec.endGap[form], marginTop: spec.controlsGap[form], minHeight: theme.spec.transport.primary.size[theme.platform]}, sideways && {minHeight: spec.pill.height[form]}]}>
-          {!phone && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, row, {justifyContent: 'center', gap: theme.spec.transport.gap[theme.platform]}]}>{transport}</View>}
-          <View style={[row, {flexShrink: 0, gap: spec.endGap[form]}]}>{leading}</View>
-          <View style={[row, {flexShrink: 1, minWidth: 0, overflow: 'hidden', justifyContent: 'flex-end', gap: spec.endGap[form]}]}>{trailing}</View>
+        <View>
+          <View style={[row, scrubbing && {opacity: 0}, {justifyContent: 'space-between', gap: spec.endGap[form], marginTop: spec.controlsGap[form], minHeight: theme.spec.transport.primary.size[theme.platform]}, sideways && {minHeight: spec.pill.height[form]}]}>
+            {!phone && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, row, {justifyContent: 'center', gap: theme.spec.transport.gap[theme.platform]}]}>{transport}</View>}
+            <View style={[row, {flexShrink: 0, gap: spec.endGap[form]}]}>{leading}</View>
+            <View style={[row, {flexShrink: 1, minWidth: 0, overflow: 'hidden', justifyContent: 'flex-end', gap: spec.endGap[form]}]}>{trailing}</View>
+          </View>
+          {tv && scrubbing && hints !== undefined && <View pointerEvents="none" style={[StyleSheet.absoluteFill, {justifyContent: 'center', marginTop: spec.controlsGap[form]}]}>{hints}</View>}
         </View>
       </View>}
     </View>
