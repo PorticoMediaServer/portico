@@ -143,6 +143,11 @@ Left for Stage 2, listed so it is not forgotten:
 - An episode with no still shows the drawer's own blank, not the rule 12 placeholder.
 - Still in `screens/watch`: Chapters (`ChaptersDrawer.tsx`, which shares the Episodes drawer's styles), the queue
   (`QueueList.tsx`), Playback info, the version chooser, Still watching and the end card.
+- Audio player, still short of the mock-up (`final3-desktop-13-now-playing.jpg`): the volume line under the transport, the queue as a panel with Up next and Lyrics tabs, and Save as playlist at its foot.
+- The home hero's pager is text and lines; the mock-up (`mock.html` home, `final-desktop-1-home.jpg`) draws four thumbnails with names. Part: `HomeHero`.
+- A card's own menu (⋯) has no gallery case with fixed inputs: `motion-11-desktop-pages-menus-panels.jpg` draws it. Stage 2 adds the case with the first screen that opens one.
+
+Round 7 (18 Nov): in the upright live strip Go to live sits on a row of its own above the bar's live end, so it covers neither the bar nor the read-out; the gallery's page under the strip carries the channel mark, the Live mark, Guide and Record. The Record glyph (`i-rec`) is a solid dot. A sheet's handle shows keyboard focus by its own colour, not a ring.
 
 ## Decided by the owner (Justin, 18 Nov)
 

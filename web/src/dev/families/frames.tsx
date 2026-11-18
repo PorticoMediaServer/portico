@@ -4,7 +4,7 @@ import {ArtworkScheduler} from '@core/artwork';
 import type {FactPart} from '@portico/client-core/kit-model';
 import {framesFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/frames-fixtures.ts';
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
-import {AmbientArt, type ArtworkImage, type ArtworkSource} from '../../kit/artwork';
+import {AmbientArt, ChannelMark, type ArtworkImage, type ArtworkSource} from '../../kit/artwork';
 import {EpisodeTile, PosterCard, SquareCard, WideCard} from '../../kit/cards';
 import {SongRow} from '../../kit/browse';
 import {Button, Switch, Tabs, TextField} from '../../kit/controls';
@@ -298,7 +298,9 @@ function PlayerLiveCase({guide = false}: {guide?: boolean}) {
   if (upright) return <div style={{height: '100%', overflowY: 'auto', background: 'var(--color-ink)'}}>
     <div style={{position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden'}}>{picture}{chrome}</div>
     <div className={frame.frame} style={{display: 'grid', gap: 'var(--space-sm)', padding: 'var(--space-sm) var(--g)'}}>
-      <p className={frame.rowLabel}><b>{f('liveChannelName')}  {f('liveNumber')}</b></p><h1 className={frame.pageTitle}>{f('liveTitle')}</h1><p className={frame.intro}>{f('liveThen')}</p>
+      <p className={frame.rowLabel} style={{display: 'flex', alignItems: 'center', gap: 'var(--space-control-gap)'}}><ChannelMark mark={{sourceId: 'synthetic', id: 'sse', text: f('liveMark'), seed: 'synthetic:sse'}} size={40} /><b>{f('liveChannelName')}  {f('liveNumber')}</b><b style={{color: 'var(--color-record)'}}>{f('liveNow')}</b></p>
+      <h1 className={frame.pageTitle}>{f('liveTitle')}</h1><p className={frame.intro}>{f('liveThen')}</p>
+      <div style={{display: 'flex', gap: 'var(--spec-hero-actions-gap-phone)'}}><Button phone icon="i-list">{f('liveGuide')}</Button><Button phone icon="i-rec">{f('liveRecord')}</Button></div>
     </div>
   </div>;
   return <div style={{position: 'relative', height: '100%', overflow: 'hidden', background: 'var(--color-ink)'}}>{picture}{chrome}</div>;
