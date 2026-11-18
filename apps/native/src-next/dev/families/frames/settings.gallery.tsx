@@ -87,10 +87,10 @@ function Search({value, onChange}: {value: string; onChange: (value: string) => 
 }
 function SettingsIndex({search = false}: {search?: boolean}) {
   const {form} = useFrameMetrics(), wide = form !== 'phone', [page, setPage] = useState<string>(), [query, setQuery] = useState(search ? sample.settingsQuery : '');
-  return <Window><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}} search={<Search value={query} onChange={setQuery}/>}
+  return <Page destination={{kind: 'settings'}}><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}} search={<Search value={query} onChange={setQuery}/>}
     profile={query ? undefined : <SettingsProfileCard profile={profile} description={f('signedIn')} onPress={none}/>} shortcuts={query ? undefined : <ShortcutTiles actions={tiles}/>}
     list={<Index selected={page ?? (wide ? 'playback' : '')} onOpen={setPage} query={query}/>}
-    page={page || wide ? <SettingsPageFrame title={fx('playback')} status="saved" back={{label: t('next.shell.settings'), onPress: () => setPage(undefined)}} intro={fx('playbackIntro')}><PlaybackSections/></SettingsPageFrame> : undefined}/></Window>;
+    page={page || wide ? <SettingsPageFrame title={fx('playback')} status="saved" back={{label: t('next.shell.settings'), onPress: () => setPage(undefined)}} intro={fx('playbackIntro')}><PlaybackSections/></SettingsPageFrame> : undefined}/></Page>;
 }
 function OwnerPage({back}: {back?: () => void}) {
   const [tab, setTab] = useState('accounts'), {form} = useFrameMetrics();
@@ -104,8 +104,8 @@ function OwnerPage({back}: {back?: () => void}) {
 }
 function SettingsOwner() {
   const {form} = useFrameMetrics(), [page, setPage] = useState<string | undefined>('people');
-  return <Window><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}}
-    list={<Index selected="people" onOpen={setPage}/>} page={page || form !== 'phone' ? <OwnerPage back={() => setPage(undefined)}/> : undefined}/></Window>;
+  return <Page destination={{kind: 'settings'}}><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}}
+    list={<Index selected="people" onOpen={setPage}/>} page={page || form !== 'phone' ? <OwnerPage back={() => setPage(undefined)}/> : undefined}/></Page>;
 }
 /** The owner's Integrations page (owner-server 16, 23, phone 38-40) with its two switches (definition 13 rules 33 and 37;
  * client-core `IntegrationSwitchesSource`): the Jellyfin-compatible routes and Assistants, each off until the owner turns
@@ -132,8 +132,8 @@ function IntegrationsPage({failed = false, back, over}: {failed?: boolean; back?
 }
 function SettingsIntegrations({failed = false}: {failed?: boolean}) {
   const {form} = useFrameMetrics(), [page, setPage] = useState<string | undefined>('integrations');
-  return <Window><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}}
-    list={<Index selected="integrations" onOpen={setPage}/>} page={page || form !== 'phone' ? <IntegrationsPage failed={failed} back={() => setPage(undefined)}/> : undefined}/></Window>;
+  return <Page destination={{kind: 'settings'}}><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}}
+    list={<Index selected="integrations" onOpen={setPage}/>} page={page || form !== 'phone' ? <IntegrationsPage failed={failed} back={() => setPage(undefined)}/> : undefined}/></Page>;
 }
 /** The two-step code box (security STATUS "Needs the visual rebuild"; account-10 frames 3 and 4, account-31 frame 3): a
  * signed-in person whose sign-in has not shown a code is asked for one before a guarded action (approving a TV, creating
