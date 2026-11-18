@@ -525,9 +525,27 @@ scene after the credits, Up next counting down, Still watching? (native), the en
 live edge with live data (native), live controls, the short guide (web); audio music, Lyrics (none), choose lyrics
 (web), Save as playlist (web), the queue sheet (phone), missing, audiobook, loading.
 
-Still in the screens, with why: the docked mini player and dock bar, picture in picture and casting are kit `dock`
-parts with their own gallery family (`dock`), drawn from the shell's dock host; a native film end card is
-`screens/watch/PostPlayScreen.tsx`, which loads its own data (Stage 2 splits the drawing from the read); the live
-mini guide on native (`HandheldMiniGuide`, `TVMiniGuide`) and Playback info (`PlaybackInfoPanel`, web `kit/media
-PlaybackInfo`) read the live guide and the runtime directly. The web's Live TV chrome is the kit `PlayerLive`, its
+Still in the screens, with why (part 2 moved the rest, below): the web's Live TV chrome is the kit `PlayerLive`, its
 own chrome rather than this frame.
+
+**Part 2 (18 Nov): the player's missing cases.**
+- **Episodes as each form draws it (owner ruling 5).** A tablet: a column beside the picture (`panel`; tablet-play 2a).
+  A phone on its side: the same panel as a side sheet. Upright: Episodes is the watch page's own tab under the picture
+  (phone-player 4), so the case is that page. TV: a band of tiles across the bottom (tv-player p1 frame 3): new frame
+  region `band` (TV only; `frameRegions.player`), filled by the kit `PlayerEpisodeBand` (heading, count, the season at
+  the right, a row of `EpisodeTile` tiles); the controls hide and the bottom shade stays while it shows.
+- **The shared `EpisodeTile` rule:** where the length sits on the picture (a tile, a tablet row), Playing or Watched is a
+  labelled chip at the picture's top left (`Badge kind="playing"`, `kind="watched"` with words), never in the length's
+  corner; a tablet row that is playing is raised; its status words for Playing and Watched are the chip, not repeated.
+  The player's own panel draws no Download per row (tablet-play 2a); the watch page keeps it.
+- **Moved into the kit (one copy; the screens draw them):** `PlayerEndCard` (`kit/player`; `screens/watch/PostPlayScreen`
+  reads the title and its related rows and passes them in), the short guide's `MiniGuideHead`, `MiniGuideRow` and
+  `MiniGuideAll` (`kit/live/MiniGuide.tsx`; `TVMiniGuide` and `HandheldMiniGuide` keep their opening, focus and data),
+  and Playback info's `PlaybackInfoComparison` (`kit/player/PlaybackInfo.tsx`; `PlaybackInfoPanel` keeps the read,
+  retry and scroll memory). Behaviour and test ids are unchanged.
+- **Dock, casting, picture in picture:** the dock family's case (`dev/families/dock`) is drawn by the player family's
+  frames gallery with the reference artwork (`frames-player-dock`, `-dock-music`, `-casting`, `-casting-connecting`,
+  `-dock-tv`); no frame region is needed (the dock host places the bar). Picture in picture has no case: the system
+  draws its window and Portico draws nothing in it (tablet-play 5); its one Portico mark is the card's "Playing in
+  Picture in Picture" line, the cards family's.
+- Cases added: `frames-player-episodes` per form (above), `-end-card`, `-live-guide`, `-info`, `-dock*`, `-casting*`.

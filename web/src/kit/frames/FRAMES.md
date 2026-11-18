@@ -447,9 +447,18 @@ scene after the credits, Up next counting down, Still watching? (native), the en
 live edge with live data (native), live controls, the short guide (web); audio music, Lyrics (none), choose lyrics
 (web), Save as playlist (web), the queue sheet (phone), missing, audiobook, loading.
 
-Still in the screens, with why: the docked mini player and dock bar, picture in picture and casting are kit `dock`
-parts with their own gallery family (`dock`), drawn from the shell's dock host; a native film end card is
-`screens/watch/PostPlayScreen.tsx`, which loads its own data (Stage 2 splits the drawing from the read); the live
-mini guide on native (`HandheldMiniGuide`, `TVMiniGuide`) and Playback info (`PlaybackInfoPanel`, web `kit/media
-PlaybackInfo`) read the live guide and the runtime directly. The web's Live TV chrome is the kit `PlayerLive`, its
+Still in the screens, with why (part 2 moved the rest, below): the web's Live TV chrome is the kit `PlayerLive`, its
 own chrome rather than this frame.
+
+**Part 2 (18 Nov): the player's missing cases.**
+- **Episodes as each form draws it (owner ruling 5):** the drawer across the bottom (`PlayerEpisodes`, desktop-player f6:
+  the season as the kit toolbar `Chip`, Close as the player's glass disc, the air date after the number); on a phone on
+  its side (any window 500 or less high) the drawer takes the whole window so a row of cards fits; upright, Episodes is
+  the watch page's own tab under the picture (phone-player 4), so the case is that page. The Chapters drawer shares the
+  surface and its Close.
+- **Moved into the kit:** `PlayerStillWatching` (`kit/player/StillWatching.tsx` with its CSS; `screens/watch/StillWatchingPrompt`
+  keeps the policy, the opening and the actions). Playback info was already the kit's `PlaybackInfo` (`kit/media`).
+- **Dock and casting:** the dock family's own case (`dev/families/dock`, `galleryCase`) at the foot of a page
+  (`player-dock`, `-dock-music`, `-casting`, `-casting-connecting`). The video dock's art slot is the live picture and
+  stays black with no video, by the dock's rule (never a poster in place of the picture).
+- Cases added: `player-still-watching`, `player-info`, `player-dock*`, `player-casting*`; `player-episodes` per form.
