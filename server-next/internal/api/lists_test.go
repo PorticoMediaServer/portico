@@ -38,7 +38,8 @@ func TestSortedListRemovalUsesListOrder(t *testing.T) {
 }
 
 // A saved view keeps a library's sort and filters and opens with them. A filter naming
-// something that no longer exists is left out when it opens, and the view says so.
+// something that no longer exists is left out when it opens, and the view says so. Its count and
+// tile are those of its list.
 func TestSavedViewOpensWithWhatStillExists(t *testing.T) {
 	th := newTheatre(t)
 	films := th.libs["movies"].PublicID
@@ -64,8 +65,16 @@ func TestSavedViewOpensWithWhatStillExists(t *testing.T) {
 	th.queue("GET", "/v1/lists/"+made.ID, "", nil, &opened)
 
 	var page ItemPage
-	if w := th.queue("GET", "/v1/items?library="+films+"&"+opened.Query, "", nil, &page); w.Code != 200 || len(page.Items) == 0 {
+	if w := th.queue("GET", "/v1/items?library="+films+"&"+opened.Query+"&total=true", "", nil, &page); w.Code != 200 || len(page.Items) == 0 {
 		t.Fatalf("the view's list answered %d: %s", w.Code, w.Body)
+	}
+	// Its count and tile are its list's, as it opens, on its own and in the list of views.
+	var views Page[List]
+	th.queue("GET", "/v1/lists?kind=saved_view", "", nil, &views)
+	for _, view := range append(views.Items, opened) {
+		if view.ID == made.ID && (view.Count != *page.Total || len(view.Covers) != min(4, *page.Total)) {
+			t.Fatalf("the view counts %d with %d covers, and its list holds %d", view.Count, len(view.Covers), *page.Total)
+		}
 	}
 	if w := th.queue("POST", "/v1/lists", "", ListCreate{Kind: "saved_view", Name: "Bad", Library: films, Query: "watched=perhaps"}, nil); w.Code != 400 {
 		t.Fatalf("a view with a filter the list refuses answered %d", w.Code)

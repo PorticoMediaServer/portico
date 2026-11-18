@@ -78,7 +78,7 @@ func (s *Server) fillViewRows(r *http.Request, rows []HomeRow) error {
 				page, err = db.ItemPage{}, nil
 			}
 		} else {
-			page, query, err = s.viewRowItems(ctx, r, row.Library, row.Query)
+			page, query, err = s.viewRowItems(ctx, r, row.Library, row.Query, viewRowLength, false)
 		}
 		if ctx.Err() != nil && r.Context().Err() == nil {
 			filled = filledViewRows // out of time: this row and the rest stay deferred
@@ -92,10 +92,10 @@ func (s *Server) fillViewRows(r *http.Request, rows []HomeRow) error {
 	return nil
 }
 
-// viewRowItems reads the first titles of a saved view, and says the query they were read
-// with. When that finds nothing, the view is read again as it opens (see openView): a filter
+// viewRowItems reads the first titles of a saved view, and its total when asked, and says the
+// query they were read with. When that finds nothing, the view is read again as it opens (see openView): a filter
 // naming something that no longer exists is left out, as it is when the person opens the view.
-func (s *Server) viewRowItems(ctx context.Context, r *http.Request, library, query string) (db.ItemPage, string, error) {
+func (s *Server) viewRowItems(ctx context.Context, r *http.Request, library, query string, limit int, total bool) (db.ItemPage, string, error) {
 	read := func(query string) (db.ItemPage, error) {
 		values, err := url.ParseQuery(query)
 		if err != nil {
@@ -105,7 +105,7 @@ func (s *Server) viewRowItems(ctx context.Context, r *http.Request, library, que
 		if err != nil {
 			return db.ItemPage{}, nil
 		}
-		q.Library, q.Limit, q.WithTotal = library, viewRowLength, false
+		q.Library, q.Limit, q.WithTotal = library, limit, total
 		page, err := s.db.Items(ctx, viewer(r), q)
 		if errors.Is(err, db.ErrNotFound) || errors.Is(err, db.ErrInvalid) {
 			return db.ItemPage{}, nil
