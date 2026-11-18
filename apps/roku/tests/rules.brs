@@ -50,7 +50,15 @@ sub main()
     same("duration", [durationText(3840000), durationText(3120000), durationText(3600000), durationText(20000)], ["1 h 4 min", "52 min", "1 h", "1 min"])
     same("episode", [episodeCode({parentIndex: 1, index: 3}), episodeCode({index: 3})], ["S1 E3", ""])
     same("time left", [timeLeftText({durationMs: 7200000, state: {positionMs: 3360000}}), timeLeftText({durationMs: 7200000, state: {}})], ["1 h 4 min left", ""])
-    same("clock", [hourMinuteText(16, 2), hourMinuteText(0, 30), hourMinuteText(12, 0), hourMinuteText(9, 45)], ["4:02 PM", "12:30 AM", "12:00 PM", "9:45 AM"])
+    ' a time of day by the TV's own clock: the seconds that read 4:02 PM, 12:30 AM, noon and 9:45 AM there
+    clock = createObject("roDateTime")
+    clock.fromSeconds(0)
+    clock.toLocalTime()
+    shift = clock.getHours() * 3600 + clock.getMinutes() * 60
+    at = function(h as integer, mins as integer, shift as integer) as integer
+        return (h * 3600 + mins * 60 - shift + 86400) mod 86400
+    end function
+    same("clock", [guideTime(at(16, 2, shift), true), guideTime(at(0, 30, shift), true), guideTime(at(12, 0, shift), true), guideTime(at(9, 45, shift), true), guideTime(at(16, 2, shift), false)], ["4:02 PM", "12:30 AM", "12:00 PM", "9:45 AM", "4:02"])
     same("tries", [triesText(1, "4:02 PM"), triesText(6, "4:02 PM")], ["1 try since 4:02 PM", "6 tries since 4:02 PM"])
     same("reading left out", [withoutReading([{kind: "movie"}, {kind: "book"}, {kind: "series", publicationType: "book"}, {kind: "audiobook"}]).count().toStr()], ["2"])
     kept = keptOrder(["b", "a", "c"], [{id: "a"}, {id: "d"}, {id: "b"}])

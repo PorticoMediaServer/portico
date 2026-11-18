@@ -176,9 +176,7 @@ end sub
 ' 30 seconds, saying when it will next try and how long it has been trying.
 sub unreachable()
     if m.tries = 0
-        now = createObject("roDateTime")
-        now.toLocalTime()
-        m.since = hourMinuteText(now.getHours(), now.getMinutes())
+        m.since = guideTime(createObject("roDateTime").asSeconds(), true)     ' by the TV's own clock
     end if
     m.tries = m.tries + 1
     name = storeRead("serverName")
