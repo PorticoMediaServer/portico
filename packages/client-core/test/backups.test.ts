@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {deleteBackup,fixStatePermissions,getBackups,restoreBackup,startBackup,waitForBackupCompletion,waitForServerAnswer,STATE_PERMISSIONS_FIX_PATH,type BackupTransport,type BackupsDocument} from '../src/backups.ts';
+import {deleteBackup,getBackups,restoreBackup,startBackup,waitForBackupCompletion,waitForServerAnswer,type BackupTransport,type BackupsDocument} from '../src/backups.ts';
 
 const SERVER='srv-1';
 const backup={id:'2026-09-24T013000Z',createdAt:'2026-09-24T01:30:00Z',kind:'manual',schemaVersion:41,serverVersion:'1.2.0',bytes:120,path:'/var/lib/portico/backups/2026-09-24T013000Z'};
@@ -29,8 +29,6 @@ test('the typed clients hit the spec routes with the operation id',async()=>{
  const byPath=await restoreBackup(api,SERVER,'op-3',{path:'/media/portico.db'});
  assert.deepEqual(calls[5].body,{operationId:'op-3',source:{path:'/media/portico.db'}});
  assert.equal(byPath.validation.integrity,'ok');
- await fixStatePermissions(api,SERVER,'op-4');
- assert.deepEqual(calls[7],{path:STATE_PERMISSIONS_FIX_PATH,method:'POST',body:{operationId:'op-4'}});
 });
 
 test('a response from another server is refused',async()=>{
@@ -89,19 +87,14 @@ test('restore receipt survives missing the staged response during restart',async
  assert.equal(result.validation.integrity,'ok');
 });
 
-test('backup settings transport publishes only presence and encrypted restore keeps the secret out of its source',async()=>{
- const {getBackupSettings,updateBackupSettings}=await import('../src/backups.ts');
+test('encrypted restore keeps the secret out of its source',async()=>{
  const calls:{path:string;method:string;body:unknown}[]=[];
- const settings={backupFolder:'/mnt/backup',includeArtwork:true,passphraseProtected:true,passphraseSet:true};
  const api=transport(path=>{
-  if(path==='/v1/admin/backups/settings')return envelope({...settings,passphrase:'must never escape parser'});
   if(path==='/v1/admin/backups/restore')return envelope({jobId:'private-restore'});
   return envelope({backups:[{...backup,encrypted:true}],restore:{jobId:'private-restore',phase:'staged',bytesDone:1,bytesTotal:1,result:{staged:true,restartRequired:true,validation:{schemaVersion:1,integrity:'ok'}}}});
  },calls);
- assert.deepEqual(await getBackupSettings(api,SERVER),settings);
- assert.deepEqual(await updateBackupSettings(api,SERVER,{passphraseProtected:true,passphrase:'private fixture phrase'}),settings);
  await restoreBackup(api,SERVER,'restore-private',{backupId:backup.id},undefined,'private fixture phrase');
- assert.deepEqual(calls[2].body,{operationId:'restore-private',source:{backupId:backup.id},passphrase:'private fixture phrase'});
+ assert.deepEqual(calls[0].body,{operationId:'restore-private',source:{backupId:backup.id},passphrase:'private fixture phrase'});
  const listed=await getBackups(api,SERVER);assert.equal(listed.backups[0].encrypted,true);
 });
 

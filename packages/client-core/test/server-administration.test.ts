@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {
  parseAccessMember,parseAccessMemberPage,parseLimitsDocument,parseMemberLimits,parseInvitation,parseInvitationPage,
- parseAccessDevicePage,parseLogPage,parseLogSettings,parseLogEvent,parseClientLogUploadPage,
+ parseAccessDevicePage,parseLogPage,parseLogEvent,parseClientLogUploadPage,
  parseConnectivityPolicy,parseConnectivityStatus,grantsTier,managesTier,
  previewMemberDeletion,deleteMember,readMemberDevices,signOutMemberDevice,signOutMemberDevices,
 } from '../src/server-administration.ts';
@@ -130,19 +130,6 @@ test('log records keep their sequence as a string so a long-running server does 
   const record = parseLogEvent('{"sequence":"4","at":"2026-09-16T12:00:00Z","level":"info","category":"scan","message":"walking"}');
   assert.equal(record.category, 'scan');
   assert.throws(() => parseLogEvent('not json'));
-});
-
-test('log settings publish the level in force and any open debug window', () => {
-  const settings = parseLogSettings({revision: 4, logLevel: 'info', effectiveLevel: 'debug', debugWindowUntil: '2026-09-16T12:05:00Z',
-    retention: [{category: 'scan', days: 2}], levels: ['error', 'warn', 'info', 'debug'], categories: ['server', 'scan']});
-  assert.equal(settings.effectiveLevel, 'debug');
-  assert.equal(settings.retention[0].days, 2);
-  assert.equal(settings.debugWindowUntil, '2026-09-16T12:05:00Z');
-  // No window open: the field is simply absent.
-  const quiet = parseLogSettings({revision: 4, logLevel: 'info', effectiveLevel: 'info', retention: [], levels: [], categories: []});
-  assert.equal(quiet.debugWindowUntil, undefined);
-  assert.throws(() => parseLogSettings({revision: 4, logLevel: 'info', effectiveLevel: 'info', retention: [{category: 'nope', days: 1}], levels: [], categories: []}));
-  assert.throws(() => parseLogSettings({revision: 4, logLevel: 'info', effectiveLevel: 'info', retention: [{category: 'scan', days: 0}], levels: [], categories: []}));
 });
 
 test('a client log listing carries metadata without bodies', () => {

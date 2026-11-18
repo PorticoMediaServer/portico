@@ -1,15 +1,10 @@
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {routePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
-/** Viewer suggestions and per-item related rows. Reasons, ranking and row shape are server-authored. */
-import {validateContentEntry, type ContentEntry} from './library-content.ts';
+import type {ContentEntry} from './library-content.ts';
 import {validateHomeRow, type HomeApi, type HomeRevision, type HomeRow} from './home.ts';
 import {firstOfEach, keepReadable, noteSkipped} from './tolerant.ts';
 import {entriesFromItems, readRelatedItems} from './items.ts';
 import type {Related} from '../../contracts/src/next/api.ts';
 
-export type Suggestion = Readonly<{entry: ContentEntry; reason: string; source: string; score: number}>;
-export type Suggestions = Readonly<{items: readonly Suggestion[]; total: number; revision: HomeRevision; generatedAt: string}>;
 export type ItemRecommendations = Readonly<{itemId: string; rows: readonly HomeRow[]; revision: HomeRevision}>;
 
 const object = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -23,29 +18,6 @@ function invalid(): never {
 function revision(value: unknown): HomeRevision {
   if (!object(value) || !whole(value.catalog) || !whole(value.viewer)) invalid();
   return Object.freeze({catalog: value.catalog, viewer: value.viewer});
-}
-
-/** Text a suggestion is drawn with: absent reads as empty, and text over its bound refuses the suggestion. */
-function words(value: unknown, max: number): string {
-  if (value === undefined || value === null || value === '') return '';
-  if (!text(value, max)) invalid();
-  return value;
-}
-
-/**
- * Suggestions. The revision and the bound of 100 are exact. A suggestion whose entry cannot be read
- * is left out alone, a repeated entry keeps its first appearance, a missing reason or source is
- * empty, and a score outside 0–1 reads as 0.
- */
-export function validateSuggestions(value: unknown): Suggestions {
-  if (!object(value) || !Array.isArray(value.items) || value.items.length > 100) invalid();
-  const items = firstOfEach('recommendations', 'suggestions', keepReadable('recommendations', 'suggestions', value.items, raw => {
-    if (!object(raw)) invalid();
-    const score = typeof raw.score === 'number' && Number.isFinite(raw.score) && raw.score > 0 && raw.score <= 1 ? raw.score : 0;
-    return Object.freeze({entry: validateContentEntry(raw.entry), reason: words(raw.reason, 1024), source: words(raw.source, 128), score});
-  }), item => item.entry.id);
-  // The total is at least the suggestions kept.
-  return Object.freeze({items: Object.freeze(items), total: Math.max(whole(value.total) ? value.total : 0, items.length), revision: revision(value.revision), generatedAt: words(value.generatedAt, 128)});
 }
 
 /**
@@ -105,10 +77,6 @@ export function validateShowRecommendations(value: unknown, showId: string): Sho
 export async function fetchShowRecommendations(api: HomeApi, showId: string, limit?: number, signal?: AbortSignal): Promise<ShowRecommendations> {
   const rows = relatedRows(await readRelatedItems(api, showId, signal, {limit}), showId, limit);
   return Object.freeze({showId, rows, revision: unversioned});
-}
-
-export async function fetchSuggestions(api: HomeApi, limit?: number, signal?: AbortSignal): Promise<Suggestions> {
-  return validateSuggestions(await api.request<RouteResponse<"get_suggestions">>(routePath("get_suggestions") + (limit === undefined ? '' : '?limit=' + limit), 'GET', undefined, signal));
 }
 
 /** A title's More like this, cast, creator and genre rows from the server's related groups. */

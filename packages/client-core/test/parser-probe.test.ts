@@ -93,7 +93,6 @@ function routesFor(libraryCount: number, role: string): Map<string, RouteBody> {
   get('/v1/home?limit=12', homeDocument(2));
   get('/v1/home/layout', {revision: 1, rowOrder: ['recent'], hiddenRowIds: [], rows: [{id: 'recent', title: 'Recent', kind: 'recent', artworkShape: 'poster', libraryId: 'lib-0', required: false, hideable: true, reorderable: true, hidden: false}]});
   get('/v1/home/rows/recent', row('recent', [movieEntry('m-home-0'), movieEntry('m-home-1')]));
-  get('/v1/suggestions?limit=12', {items: [], total: 0, revision: {catalog: 1, viewer: 1}, generatedAt: '2026-09-16T12:00:00.000Z'});
   get('/v1/libraries', {items: Array.from({length: libraryCount}, (_, index) => ({id: `lib-${index}`, name: `L${index}`, kind: 'movie'}))});
   for (let index = 0; index < libraryCount; index++) {
     get(`/v1/libraries/lib-${index}/content?view=discover&limit=40`, projection(`lib-${index}`, 'discover', 5));

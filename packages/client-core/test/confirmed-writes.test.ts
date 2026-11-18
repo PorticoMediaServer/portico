@@ -141,14 +141,13 @@ test('the transport tells of a confirmed write once, with its answer; the writer
 test('a listener never hears a write\'s body or its whole answer', async () => {
   const t = transport();
   try {
-    await t.api.request('/v1/admin/backups/settings', 'PUT', {backupFolder: '/backups', passphrase: 'correct horse battery staple'});
-    await t.api.request('/v1/networking/remote/config', 'POST', {authorityId: 'a', config: {enabled: true}});
+    await t.api.request('/v1/networking/remote/config', 'POST', {authorityId: 'private-authority', config: {enabled: true}});
     await t.api.request('/v1/items/one/personal-state', 'PUT', {operationId: '00000000-0000-4000-8000-000000000000', expectedRevision: 3, watched: true});
     await settle();
-    assert.deepEqual(t.heard.map(w => w.route), ['put_admin_backup_settings', 'post_networking_remote_config', 'put_items_id_personal_state']);
+    assert.deepEqual(t.heard.map(w => w.route), ['post_networking_remote_config', 'put_items_id_personal_state']);
     for (const write of t.heard) {
       assert.deepEqual(Object.keys(write).sort(), write.answer ? ['answer', 'params', 'route'] : ['params', 'route']);
-      assert.ok(!JSON.stringify(write).includes('horse') && !JSON.stringify(write).includes('viewerFence'), JSON.stringify(write));
+      assert.ok(!JSON.stringify(write).includes('private-authority') && !JSON.stringify(write).includes('viewerFence'), JSON.stringify(write));
     }
   } finally { t.dispose(); }
 });

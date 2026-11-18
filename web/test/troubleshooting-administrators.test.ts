@@ -22,12 +22,12 @@ const {SettingsMessagesSource} = await import('../src/screens/settings/server/tr
 const page = {items: [], detailUntil: new Date(Date.now() + 600_000).toISOString()};
 const transport = {request: async <T>(path: string) => (path.includes('/settings/') ? {name: 'logs', values: {keepDays: 30}, defaults: {keepDays: 30}, etag: '"1"'} : page) as T};
 
-test('a tier may call a route as routes.ts publishes it: the log reads are administrators\', the debug window and log settings changes the owner\'s', () => {
-  for (const id of ['get_admin_logs', 'get_admin_logs_events', 'get_admin_logs_settings'] as const) {
+test('a tier may call a route as routes.ts publishes it: log reads are administrators\', app logs and capabilities are the owner\'s', () => {
+  for (const id of ['get_admin_logs', 'get_admin_logs_events'] as const) {
     assert.equal(serverTierMayCall(id, 'admin'), true, id);
     assert.equal(serverTierMayCall(id, 'owner'), true, id);
   }
-  for (const id of ['post_admin_logs_debug_window', 'patch_admin_logs_settings', 'get_client_logs', 'get_capability_report'] as const) {
+  for (const id of ['get_client_logs', 'get_capability_report'] as const) {
     assert.equal(serverTierMayCall(id, 'admin'), false, id);
     assert.equal(serverTierMayCall(id, 'owner'), true, id);
   }
