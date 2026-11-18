@@ -5,7 +5,6 @@ import {ApiError} from './http.ts';
 import {CodedError} from './server-messages.ts';
 import {parsePersistedRemoteConfiguration, type PersistedRemoteConfiguration} from './linear-api.ts';
 import {parseInventorySource,type InventorySource} from './library-inventory.ts';
-import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 import type {Alert} from './console.ts';
 import {firstOfEach,keepReadable,noteSkipped,oneOf,oneOfOr} from './tolerant.ts';
@@ -507,22 +506,4 @@ export function versionDeletionService(request:<T>(path:string,method?:string,bo
     receipts:[{itemId:target.itemId,title:target.title,removed:!kept,filesDeleted:out.filesDeleted,filesKept:out.kept.length,bytes:out.bytes,code:kept?'file_not_removed':''}]});
   },
  });
-}
-
-export type LiveSourceChoicePage=Readonly<{sourceId:string;generation:string;kind:'groups'|'channels';total:number;items:readonly Readonly<{id:string;name:string;group:string;channels:number}>[];nextCursor:string}>;
-export function parseLiveSourceChoicePage(v:unknown):LiveSourceChoicePage{
- if(!object(v)||!filled(v.sourceId,128)||!text(v.generation,128)||!count(v.total)||!text(v.nextCursor,4096))invalid('source choices');
- const kind=choice(v.kind,['groups','channels'] as const,'source choice kind');
- const items=readable(v.items,200,'source choices',e=>{if(!object(e)||!filled(e.id,256)||!text(e.name,512)||!text(e.group,256)||!count(e.channels))invalid('source choice');return Object.freeze({id:e.id,name:e.name,group:e.group,channels:e.channels});});
- return Object.freeze({sourceId:v.sourceId,generation:v.generation,kind,total:v.total,items:Object.freeze(items),nextCursor:v.nextCursor});
-}
-export function liveSourceChoicesService(request:<T>(path:string,method?:string,body?:unknown)=>Promise<T>,source:string){return Object.freeze({
- async list(kind:'groups'|'channels',cursor='',limit=50,q=''){return parseLiveSourceChoicePage(await request<unknown>(encodedRoutePath(kind==='groups'?'list_live_source_groups':'list_live_source_channels',{id:encodeURIComponent(source)})+`?cursor=${encodeURIComponent(cursor)}&limit=${limit}&q=${encodeURIComponent(q)}`));},
-});}
-
-/** One revision-fenced persisted source document, shared by owner clients. */
-export function liveSourceConfigurationService(request:<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal)=>Promise<T>,serverId:string,sourceId:string){
- const path=encodedRoutePath('get_live_source_configuration',{id:encodeURIComponent(sourceId)});
- const checked=(raw:unknown)=>{const doc=parseEnvelope(raw,serverId,parseLiveSourceDocument).result;if(doc.sourceId!==sourceId)invalid('live source identity');return doc;};
- return {async read(signal?:AbortSignal){return checked(await request<unknown>(path,'GET',undefined,signal));},async write(expectedRevision:number,operationId:string,settings:LiveSourceSettings,signal?:AbortSignal){return checked(await request<unknown>(path,'PUT',{expectedRevision,operationId,settings},signal));}};
 }

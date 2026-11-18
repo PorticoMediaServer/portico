@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {parsePersonPage,parsePeopleDirectory,personPath,peopleSearchPath,personPortraitPath,readPerson,personSections,personSectionLabel} from '../src/people.ts';
+import {parsePersonPage,parsePeopleDirectory,personPath,peopleSearchPath,readPerson,personSections,personSectionLabel} from '../src/people.ts';
 import {personalBatchBody,parsePersonalBatchReceipt,parseEntryOutcomes,MAX_PERSONAL_BATCH} from '../src/personal-saved.ts';
 import {skippedParts} from '../src/tolerant.ts';
 const scope={serverId:'server',viewerId:JSON.stringify(['local','account','profile'])};
@@ -52,7 +52,6 @@ test('person paths are server addresses the client only assembles',()=>{
  assert.match(personPath('p1',{department:'Guest stars'}),/role=guest/);
  assert.match(personPath('p1',{department:'Directing'}),/role=director/);
  assert.match(personPath('p1',{department:'Crew'}),/role=crew/);
- assert.equal(personPortraitPath('p1'),'/v1/people/p1/portrait?size=thumbnail');
  assert.match(peopleSearchPath('  Ada   Lovelace '),/^\/v1\/people\?q=Ada\+Lovelace&limit=25$/);
  assert.throws(()=>personPath('p1',{limit:101}));
  assert.throws(()=>personPath('p1',{role:'director' as any}));

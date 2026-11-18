@@ -1,8 +1,6 @@
-import {routePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 import {oneOfOr} from './tolerant.ts';
 /** Versioned, renderer-independent linear feature DTOs. Credentials are write-only. */
-import type {ChannelApi} from './channel-guide';
 export const LINEAR_PROTOCOL='1.0' as const;
 export type SourceKind='m3u'|'xtream'|'hdhomerun';
 export type SourceAccess='owner-only'|'server-members';
@@ -24,7 +22,7 @@ export function parseRemoteSourcePreview(raw:unknown,serverId:string):RemoteSour
  // How the capacity was decided is descriptive: a way this app does not know reads as the default.
  return {...v,capacityMode:oneOfOr('remote-source-preview','capacityMode',v.capacityMode,['defaulted','discovered','configured'] as const,'defaulted')} as unknown as RemoteSourcePreview;
 }
-export async function previewRemoteSource(api:ChannelApi,serverId:string,draft:RemoteSourceDraft,signal?:AbortSignal){return parseRemoteSourcePreview(await api.request(routePath("preview_remote_live_source"),'POST',draft,signal),serverId)}
+
 
 /** CD-06: the local-network roots a preview asks the owner to confirm, when that is why it failed. */
 export function lanConfirmationRoots(error:unknown):readonly string[]|undefined{

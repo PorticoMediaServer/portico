@@ -9,7 +9,7 @@ import {apiRoot, routes} from '../../contracts/src/routes.ts';
  */
 const kinds = {
   personal: ['put_items_itemId_reading_favorite', 'put_items_itemId_reading_mark', 'put_items_itemId_reading_my_list',
-    'post_libraries_libraryId_reading_mark_all', 'post_channels_preferences', 'post_library_channels_preferences'],
+    'post_libraries_libraryId_reading_mark_all'],
   stop: ['stop_playback_session'],
 } as const;
 export type OutboxKind = keyof typeof kinds | 'settings' | 'download' | 'list';
