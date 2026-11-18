@@ -280,15 +280,16 @@ function quickFilters(filters as dynamic) as object
         end for
     end if
     out = []
-    for each q in [{id: "watched", text: "Unplayed", param: "watched=false"}, {id: "inProgress", text: "In progress", param: "inProgress=true"}, {id: "favorite", text: "Favorites", param: "favorite=true"}, {id: "inList", text: "My List", param: "inList=true"}]
+    for each q in [{id: "watched", text: "Unplayed", param: "watched=false"}, {id: "inProgress", text: "In progress", param: "inProgress=true"}, {id: "favorite", text: "Favorites", param: "favorite=true"}, {id: "inList", text: "My List", param: "inList=true"}, {id: "resolution", text: "4K", param: "resolution=4k"}]
         if named[q.id] = true then out.push(q)
     end for
     return out
 end function
 
-' The filters of a library's Filters panel: those its own `filters` list names whose choices the
-' server lists (GET /v1/facets), in the order the other apps show them. Each is {id, label}; the
-' id is both the filter's parameter and its facet.
+' The filters of a library's Filters panel: those its own `filters` list names, in their groups and
+' in the order tv.html frame 4 draws them. Each is {id, label, group, help, one}: the id is the
+' filter's parameter and its facet; `one` allows one choice at a time. A collection's choices are
+' the library's collections; Play state's are its own three.
 function filterSpecs(filters as dynamic) as object
     named = {}
     if filters <> invalid
@@ -297,8 +298,12 @@ function filterSpecs(filters as dynamic) as object
         end for
     end if
     out = []
-    for each spec in [{id: "genre", label: "Genre"}, {id: "year", label: "Year"}, {id: "contentRating", label: "Content rating"}, {id: "studio", label: "Studio"}, {id: "network", label: "Network"}, {id: "label", label: "Tag"}, {id: "resolution", label: "Resolution"}]
+    title = "About the title"
+    for each spec in [{id: "genre", label: "Genre", group: title, help: "Choose one or more genres"}, {id: "year", label: "Year", group: title, help: "Choose one or more decades"}, {id: "contentRating", label: "Content rating", group: title, help: "Choose one or more ratings"}, {id: "studio", label: "Studio", group: title, help: "Choose one or more studios"}, {id: "network", label: "Network", group: title, help: "Choose one or more networks"}, {id: "collection", label: "Collection", group: title, help: "Choose one collection", one: true}, {id: "label", label: "Tag", group: title, help: "Choose one or more tags"}, {id: "watched", label: "Play state", group: "Your activity", help: "Choose one", one: true}, {id: "resolution", label: "Resolution", group: "About the file", help: "Choose one or more"}]
         if named[spec.id] = true then out.push(spec)
+    end for
+    for each spec in out
+        if spec.id = "watched" then spec.id = "playState"
     end for
     return out
 end function
@@ -309,7 +314,10 @@ function filterParams(chosen as object, specs as object) as string
     q = ""
     for each spec in specs
         values = chosen[spec.id]
-        if values <> invalid and values.count() > 0
+        if spec.id = "playState" and values <> invalid and values.count() > 0
+            ' Play state is two of the list's own parameters, not one filter
+            q = q + "&" + values[0].value
+        else if values <> invalid and values.count() > 0
             joined = ""
             for each v in values
                 if joined <> "" then joined = joined + ","
@@ -319,6 +327,11 @@ function filterParams(chosen as object, specs as object) as string
         end if
     end for
     return q
+end function
+
+' Play state's three choices (Your activity), each the list's own parameter.
+function playStates() as object
+    return [{value: "watched=false", label: "Unplayed"}, {value: "inProgress=true", label: "In progress"}, {value: "watched=true", label: "Played"}]
 end function
 
 ' A filter heading's value in the panel: what is chosen under it.
