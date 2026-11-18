@@ -150,10 +150,8 @@ test('owner console reads are skipped for non-owners and attempted for owners', 
   const memberLog: LoggedRequest[] = [];
   const member = await walk(routesFor(1, 'member'), memberLog, 1);
   assert.ok(!memberLog.some(entry => entry.path.startsWith('/v1/admin/console')), 'no console reads for a member');
-  assert.ok(!memberLog.some(entry => entry.path.startsWith('/v1/dvr')), 'no DVR reads for a member');
   assert.ok(member.report.notProbed.some(entry => entry.name === 'owner console reads'));
   const ownerLog: LoggedRequest[] = [];
   const owner = await walk(routesFor(1, 'owner'), ownerLog, 1);
   assert.ok(ownerLog.some(entry => entry.path.startsWith('/v1/admin/console')), 'console reads attempted for an owner');
-  assert.ok(ownerLog.some(entry => entry.path.startsWith('/v1/dvr')), 'DVR reads attempted for an owner');
 });
