@@ -6,7 +6,8 @@ import type {ResetFileLocation} from '../../../../../packages/client-core/src/ac
  * the server's path: the file is always reset-code.txt in its Keys folder. */
 const systems = [
   {kind: 'linux', name: 'Linux', path: '/var/lib/portico/Keys/reset-code.txt', detail: {key: 'accounts.recovery.fileManual', path: '~/.local/share/portico/Keys/reset-code.txt'}},
-  {kind: 'windows', name: 'Windows', path: '%LOCALAPPDATA%\\Portico\\Keys\\reset-code.txt', detail: {key: 'accounts.recovery.fileWindowsService', path: 'C:\\ProgramData\\Portico\\Keys\\reset-code.txt'}}, // lint-strings-allow file path, not copy
+  // Windows runs the server as the signed-in user (owner ruling A12), so there is no service account's folder.
+  {kind: 'windows', name: 'Windows', path: '%LOCALAPPDATA%\\Portico\\Keys\\reset-code.txt'}, // lint-strings-allow file path, not copy
   {kind: 'macos', name: 'macOS', path: '~/Library/Application Support/Portico/Keys/reset-code.txt'},
   {kind: 'docker', name: 'Docker', path: '/config/Keys/reset-code.txt', detail: {key: 'accounts.recovery.fileDocker'}},
 ] as const;

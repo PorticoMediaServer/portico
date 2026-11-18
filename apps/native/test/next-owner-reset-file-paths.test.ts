@@ -11,11 +11,11 @@ test('owner reset names the file and offers every system’s documented location
   assert.equal(paths.systems.find(system => system.kind === 'macos')!.path, '~/Library/Application Support/Portico/Keys/reset-code.txt');
 });
 
-test('Windows help keeps its separators and service folder', () => {
+test('Windows help keeps its separators and names only the signed-in user\'s folder (the server runs as that user, owner ruling A12)', () => {
   const paths = ownerResetFilePaths({fileName: 'reset-code.txt'});
   const windows = paths.systems.find(system => system.kind === 'windows')!;
   assert.equal(windows.path, '%LOCALAPPDATA%\\Portico\\Keys\\reset-code.txt');
-  assert.deepEqual('detail' in windows && windows.detail, {key: 'accounts.recovery.fileWindowsService', path: 'C:\\ProgramData\\Portico\\Keys\\reset-code.txt'});
+  assert.equal('detail' in windows, false, 'no service account folder');
 });
 
 test('no server location was claimed when the answer carried none', () => {
