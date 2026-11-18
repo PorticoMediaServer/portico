@@ -64,7 +64,7 @@ export function createNativeHomeRows(context: NativeShellBootstrapContext, repor
     for (const [route, source] of rows) if (!keep.has(route)) {source.abort.abort(); source.actions.dispose(); source.controller.dispose(); rows.delete(route);}
     for (const route of keep) {
       if (route.kind !== 'home-see-all' || route.destination.type !== 'row' || rows.has(route)) continue;
-      const controller = new NativeHomeRowController({api: context.api, rowId: route.destination.rowId,
+      const controller = new NativeHomeRowController({api: context.api, rowId: route.destination.rowId, libraryId: route.destination.libraryId,
         current: () => alive && context.current() && rows.has(route),
         kinds: context.libraries().filter(library => !Platform.isTV || !hiddenReadingLibraryOnTV(library.kind)).map(library => ({id: library.id, libraryIds: [library.id]}))});
       const actions = createNativeEntryActions(context, {
@@ -78,16 +78,17 @@ export function createNativeHomeRows(context: NativeShellBootstrapContext, repor
   };
   const play = (source: RowLifetime, shuffle: boolean) => {
     if (!current(source)) return;
-    const query = source.controller.wholeGroup();
-    if (!query) return;
-    const pending = new AbortController(), abort = () => pending.abort();
-    source.abort.signal.addEventListener('abort', abort, {once: true});
-    const off = context.navigation.subscribe(() => {if (!current(source)) pending.abort();});
-    void context.playback.runtime.startGroup({query, shuffle, signal: pending.signal, isCurrent: () => current(source)}).catch(error => {
-      if (!pending.signal.aborted && current(source)) reportError(error);
-    }).finally(() => {
-      source.abort.signal.removeEventListener('abort', abort); off();
-    });
+    const homeRow = source.controller.queueSource();
+    if (!homeRow) return;
+    const original = source.controller.getSnapshot();
+    const operation = nativeHomeEntryLifetime(() => {
+      const state = source.controller.getSnapshot();
+      return current(source) && state.phase === 'ready' && state.filters === original.filters && state.selectedKind === original.selectedKind && state.sort === original.sort;
+    }, [context.navigation.subscribe, source.controller.subscribe], source.abort.signal);
+    const {signal, isCurrent} = operation.lifetime;
+    void context.playback.runtime.startGroup({source: {homeRow}, shuffle, signal, isCurrent}).catch(error => {
+      if (isCurrent()) reportError(error);
+    }).finally(operation.dispose);
   };
   /** A recommendation's own Not interested mark, and the same field set back to false
    * with a fresh operation id for Undo. The row is re-read from the server afterwards,

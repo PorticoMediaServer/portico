@@ -3,8 +3,7 @@ import {entryStartDisplay} from '../../platform/playback/subject';
 import {useLocation, useParams, useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {fetchHomeRow, type HomeRow} from '@core/home.ts';
-import type {BrowseSortSelection} from '@core/browse.ts';
-import {acrossCondition, acrossPivot, groupOrderSort} from '@core/presentation/browse-groups.ts';
+import {hasHomeRowQueue, homeRowDefaultSort as bestMatch, homeRowPivot, homeRowSource} from '@core/home-row-browse.ts';
 import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
@@ -26,9 +25,6 @@ import {useBrowseController} from './browse-cache';
 import {queryKeys} from '@core/query/keys.ts';
 import {entryPlayable} from '@core/library-content.ts';
 
-/** Best match is the row's own server order; the frame draws no other default. */
-const bestMatch: readonly BrowseSortSelection[] = [{field: groupOrderSort, direction: 'asc'}];
-
 function LoadedHomeRow({captured, context, row}: {captured: ProtectedLibraryScreen; context: ScreenContext; row: HomeRow}) {
   const width = useShellWidth();
   // Frame 47's toolbar changes are this page's real state, so its own address carries
@@ -43,11 +39,11 @@ function LoadedHomeRow({captured, context, row}: {captured: ProtectedLibraryScre
   const pathname = useLocation({select: location => location.pathname}), runtime = captured.binding.playback?.runtime;
   const owner = useBrowseLease(context, pathname, () => router.state.location.pathname === pathname, runtime);
   const build = addressedQuery(routed, bestMatch);
-  const gridSource: BrowseSource = {libraryId: '*', pivot: acrossPivot('homeRow'), homeRowId: row.id, base: [acrossCondition('homeRow', row.id)],
+  const gridSource: BrowseSource = {libraryId: row.libraryId ?? '*', pivot: homeRowPivot, homeRowId: row.id,
     ...(build.predicates.length ? {predicates: build.predicates} : {}), sorts: build.sorts};
   // A test's or a guarded screen's API may have no raw reader; the grid then reads without one.
   const raw = useMemo(() => (context.api.requestRaw as typeof context.api.requestRaw | undefined)?.bind(context.api), [context]);
-  const {controller} = useBrowseController(context.queries, queryKeys.homeRowBrowse(row.id, addressCacheKey(routed)), gridSource, raw);
+  const {controller} = useBrowseController(context.queries, queryKeys.homeRowBrowse(row.id, JSON.stringify([row.libraryId, addressCacheKey(routed)])), gridSource, raw);
   const presentation = {choice, setChoice, size, setSize};
   return owner && controller ? <CommittedHomeRow key={owner.id} captured={captured} context={context} row={row} owner={owner} controller={controller} routed={routed} presentation={presentation}/>
     : <GridSkeleton elapsedMs={0} window={{width, height: window.innerHeight, scrollTop: 0}} itemCount={1}/>;
@@ -93,9 +89,9 @@ function CommittedHomeRow({captured, context, row, owner, controller, routed, pr
   useLayoutEffect(() => controller.routeQueries(query => {
     const {context} = latest.current;
     if (!owner.life.current() || !context.isCurrent()) return;
-    void router.navigate({to: '/home/rows/$rowId', params: {rowId: row.id}, search: addressedSearch(query, bestMatch), replace: true, resetScroll: false})
+    void router.navigate({to: '/home/rows/$rowId', params: {rowId: row.id}, search: {...addressedSearch(query, bestMatch), libraryId: row.libraryId}, replace: true, resetScroll: false})
       .catch(error => {if (owner.life.current() && context.isCurrent()) context.effects.reportError(error);});
-  }), [controller, owner, row.id]);
+  }), [controller, owner, row.id, row.libraryId]);
   const library = context.identity?.libraries.find(library => library.id === row.libraryId);
   const browse: LibraryBrowseBindings = {menuContext: context, controller: controller, library: {id: '*', name: row.title, kind: library?.kind ?? ''},
     pivot: controller.source.pivot, artwork: context.artwork,
@@ -126,12 +122,12 @@ function CommittedHomeRow({captured, context, row, owner, controller, routed, pr
   // Capture the rendered query and runtime now, never query a successor from a retained click.
   const playback = captured.binding.playback, queryRevision = state.queryRevision, revision = state.revision;
   const query = controllerQuery && controller.query();
-  const play = playback && query && controllerKey === routeKey && state.phase === 'ready' && revision ? (shuffle: boolean) => {
+  const play = playback && query && hasHomeRowQueue(row.id) && controllerKey === routeKey && state.phase === 'ready' && revision ? (shuffle: boolean) => {
     const current = () => openingCurrent() && controllerKey === routeKey && controller.getSnapshot().queryRevision === queryRevision
       && controller.getSnapshot().revision === revision;
     if (!current()) return;
     const command = new AbortController(), off = controller.subscribe(() => {if (!current()) command.abort();});
-    void playback.runtime.playFromQueue({query: {libraryId: '*', pivot: controller.source.pivot, query: query.query, sort: query.sort}},
+    void playback.runtime.playFromQueue({homeRow: homeRowSource(row.id, row.libraryId, query.query ? [query.query] : [], query.sort ?? [])},
       {signal: owner.life.signal(command.signal), isCurrent: current}, {shuffle})
       .catch(context.effects.reportError).finally(off);
   } : undefined;
@@ -147,13 +143,13 @@ function CommittedHomeRow({captured, context, row, owner, controller, routed, pr
   return <HomeRowScreen row={row} browse={browse} ambient={ambient} onBack={backHome}
     onPlay={play ? () => play(false) : undefined} onShuffle={play ? () => play(true) : undefined}/>;
 }
-function BoundHomeRow({captured, rowId}: {captured: ProtectedLibraryScreen; rowId: string}) {
+function BoundHomeRow({captured, rowId, libraryId}: {captured: ProtectedLibraryScreen; rowId: string; libraryId?: string}) {
   const pathname = useLocation({select: location => location.pathname}), width = useShellWidth(), elapsed = useLoadingClock();
   const context = useCommittedLibraryScreenContext(captured, pathname, () => router.state.location.pathname === pathname);
-  return context ? <ContextHomeRow captured={captured} rowId={rowId} context={context}/>
+  return context ? <ContextHomeRow captured={captured} rowId={rowId} libraryId={libraryId} context={context}/>
     : <GridSkeleton elapsedMs={elapsed} window={{width, height: window.innerHeight, scrollTop: 0}} itemCount={1}/>;
 }
-function ContextHomeRow({captured, rowId, context}: {captured: ProtectedLibraryScreen; rowId: string; context: ScreenContext}) {
+function ContextHomeRow({captured, rowId, libraryId, context}: {captured: ProtectedLibraryScreen; rowId: string; libraryId?: string; context: ScreenContext}) {
   const width = useShellWidth(), elapsed = useLoadingClock();
   const pathname = useLocation({select: location => location.pathname}), [attempt, setAttempt] = useState(0);
   type Opening = Readonly<{context: ScreenContext; rowId: string; attempt: number; life: ReturnType<typeof screenLifetime>}>;
@@ -162,10 +158,10 @@ function ContextHomeRow({captured, rowId, context}: {captured: ProtectedLibraryS
     const life = screenLifetime(context), opening: Opening = {context, rowId, attempt, life};
     const current = () => life.current() && router.state.location.pathname === pathname;
     publish({opening});
-    void fetchHomeRow(life.api, rowId, {limit: 1}, life.signal()).then(row => {if (current()) publish({opening, row});})
+    void fetchHomeRow(life.api, rowId, {limit: 1, library: libraryId}, life.signal()).then(row => {if (current()) publish({opening, row: {...row, libraryId: libraryId ?? row.libraryId}});})
       .catch(failure => {if (current()) publish({opening, failure});});
     return life.dispose;
-  }, [context, rowId, attempt, pathname]);
+  }, [context, rowId, libraryId, attempt, pathname]);
   const offered = snapshot?.opening.context === context && snapshot.opening.rowId === rowId && snapshot.opening.attempt === attempt
     && snapshot.opening.life.current() ? snapshot : undefined;
   return offered?.failure ? <ScreenProblem context={context} error={offered.failure} retry={() => {if (offered.opening.life.current()) setAttempt(value => value + 1);}}/>
@@ -174,6 +170,7 @@ function ContextHomeRow({captured, rowId, context}: {captured: ProtectedLibraryS
 }
 function HomeRowRouteScreen() {
   const captured = useProtectedWebScreenContext(), {rowId} = useParams({from: '/home/rows/$rowId'});
-  return captured ? <BoundHomeRow key={rowId} captured={captured} rowId={rowId}/> : null;
+  const {libraryId} = useSearch({from: '/home/rows/$rowId'});
+  return captured ? <BoundHomeRow key={JSON.stringify([rowId, libraryId])} captured={captured} rowId={rowId} libraryId={libraryId}/> : null;
 }
 export default defineWebScreen({id: 'homeRow', component: HomeRowRouteScreen, validateSearch: parseHomeRowScreenSearch});

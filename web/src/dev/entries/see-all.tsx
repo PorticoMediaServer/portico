@@ -3,18 +3,14 @@
  * (`/home/rows/$rowId`) at `design/ui-v1/desktop-browse.html#seeall`, 1440 wide.
  *
  * The screen is the production router, shell and HomeRow route; this module only supplies the
- * server answers a public fixture would send (the drawn row, the across-libraries `titles`
- * vocabulary, its canonical page and its counts) and records the commands the screen issues.
- * Facts come from the frame and from the server's own published vocabulary
- * (server/internal/catalog/browse_across.go, browse_contract.go) and captures
- * (design/ui-v1/raw/caps_movies.json, caps_tv.json, browse_movies.json, browse_tv.json,
- * browse_anime.json). Artwork slots are one neutral inline image: no frame artwork enters source.
+ * Home row answer that the screen reads for its preview and later pages. The titles and reason
+ * come from the frame. Artwork slots are one neutral inline image.
  *
  * The entry fails closed outside a development build and only mounts over a root element, so a
  * node test can read the same fixture documents without a DOM.
  */
 import {defaultI18n} from '@i18n';
-import type {BrowseNode, BrowseSortSelection} from '@core/browse.ts';
+import {serverPath} from '@core/query/server-api.ts';
 import type {HttpLocalApi, Library, LocalSession, Viewer} from '@core/index.ts';
 import type {PreferenceSnapshot} from '@core/preferences.ts';
 
@@ -26,10 +22,8 @@ const serverId = 'specimen-server';
 export const rowId = 'recommended';
 const viewerFence = 'specimen-viewer-fence';
 const revision = {catalog: 1, viewer: 1};
-const revisionToken = 'browse-r46-see-all';
 
 /* ---------- the drawn page: 49 films, 16 shows and 7 anime, in the frame's order ---------- */
-const allKinds = ['movie', 'episode', 'show', 'season', 'collection', 'song', 'album', 'artist', 'audiobook_file', 'book', 'author'];
 const datedKinds = ['movie', 'episode', 'show', 'season', 'album', 'song', 'book', 'audiobook_file'];
 const releasedKinds = ['movie', 'episode', 'show', 'season', 'album', 'book'];
 const videoArtKinds = ['movie', 'episode', 'show', 'season', 'collection'];
@@ -138,183 +132,24 @@ const row = Object.freeze({
   cacheTtlMs: 300_000,
 });
 
-/* ---------- the across-libraries `titles` vocabulary the page is read through ---------- */
-type FieldRow = readonly [id: string, labelKey: string, type: string, operators: readonly string[], hint: string,
-  complexity: string, cost: string, extra: Readonly<{allowed?: readonly string[]; facet?: string; kinds?: readonly string[]}>];
-const fieldRows: readonly FieldRow[] = [
-  ['library', 'browse.field.library', 'enum', ['equals', 'not-equals', 'in', 'not-in'], 'facet-multi-select', 'quick', 'indexed', {facet: 'library'}],
-  ['entityKind', 'browse.field.entityKind', 'enum', ['equals', 'not-equals', 'in', 'not-in'], 'select', 'quick', 'indexed', {allowed: allKinds}],
-  ['search', 'browse.field.search', 'string', ['contains'], 'text', 'quick', 'indexed-join', {}],
-  ['title', 'browse.field.title', 'string', ['equals', 'not-equals', 'contains', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'text', 'quick', 'indexed', {}],
-  ['year', 'browse.field.year', 'number', ['equals', 'not-equals', 'less-than', 'at-most', 'greater-than', 'at-least', 'between', 'in', 'not-in', 'is-present', 'is-missing'], 'number-range', 'quick', 'indexed', {facet: 'year', kinds: datedKinds}],
-  ['decade', 'browse.field.decade', 'number', ['equals', 'not-equals', 'in', 'not-in', 'between'], 'facet-multi-select', 'quick', 'indexed', {facet: 'decade', kinds: datedKinds}],
-  ['releaseDate', 'browse.field.releaseDate', 'date', ['equals', 'not-equals', 'less-than', 'at-most', 'greater-than', 'at-least', 'between', 'is-present', 'is-missing'], 'date-range', 'standard', 'indexed-join', {kinds: releasedKinds}],
-  ['dateAdded', 'browse.field.dateAdded', 'date', ['equals', 'not-equals', 'less-than', 'at-most', 'greater-than', 'at-least', 'between', 'is-present', 'is-missing'], 'date-range', 'quick', 'indexed', {}],
-  ['playState', 'browse.field.playState', 'enum', ['equals', 'not-equals', 'in', 'not-in'], 'select', 'quick', 'indexed-join', {allowed: ['unplayed', 'in-progress', 'played'], kinds: playedKinds}],
-  ['favorite', 'browse.field.favorite', 'boolean', ['equals', 'not-equals'], 'toggle', 'quick', 'indexed-join', {kinds: playedKinds}],
-  ['watchlisted', 'browse.field.watchlisted', 'boolean', ['equals', 'not-equals'], 'toggle', 'quick', 'indexed-join', {kinds: playedKinds}],
-  ['personalRating', 'browse.field.personalRating', 'number', ['equals', 'not-equals', 'less-than', 'at-most', 'greater-than', 'at-least', 'between', 'in', 'not-in', 'is-present', 'is-missing'], 'number-range', 'standard', 'indexed-join', {kinds: playedKinds}],
-  ['lastPlayedAt', 'browse.field.lastPlayedAt', 'date', ['equals', 'not-equals', 'less-than', 'at-most', 'greater-than', 'at-least', 'between', 'is-present', 'is-missing'], 'date-range', 'standard', 'indexed-join', {kinds: playedKinds}],
-  ['genre', 'browse.field.genre', 'identity-set', ['contains', 'contains-any', 'contains-all', 'equals', 'not-equals', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'facet-multi-select', 'quick', 'indexed-join', {facet: 'genre'}],
-  ['tag', 'browse.field.tag', 'identity-set', ['contains', 'contains-any', 'contains-all', 'equals', 'not-equals', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'facet-multi-select', 'standard', 'indexed-join', {facet: 'tag'}],
-  ['label', 'browse.field.label', 'identity-set', ['contains', 'contains-any', 'contains-all', 'equals', 'not-equals', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'facet-multi-select', 'standard', 'indexed-join', {facet: 'label'}],
-  ['contentRating', 'browse.field.contentRating', 'string', ['equals', 'not-equals', 'contains', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'facet-multi-select', 'quick', 'indexed-join', {facet: 'contentRating', kinds: videoArtKinds}],
-  ['communityRating', 'browse.field.communityRating', 'number', ['equals', 'not-equals', 'less-than', 'at-most', 'greater-than', 'at-least', 'between', 'in', 'not-in', 'is-present', 'is-missing'], 'number-range', 'standard', 'indexed-join', {}],
-  ['criticRating', 'browse.field.criticRating', 'number', ['equals', 'not-equals', 'less-than', 'at-most', 'greater-than', 'at-least', 'between', 'in', 'not-in', 'is-present', 'is-missing'], 'number-range', 'standard', 'indexed-join', {kinds: videoArtKinds}],
-  ['availability', 'browse.field.availability', 'enum', ['equals', 'not-equals', 'in', 'not-in'], 'select', 'quick', 'indexed-join', {allowed: ['available', 'partial', 'unavailable'], kinds: playedKinds}],
-  ['resolution', 'browse.field.resolution', 'enum', ['equals', 'not-equals', 'in', 'not-in'], 'facet-multi-select', 'standard', 'indexed-join', {allowed: ['sd', '720p', '1080p', '4k'], facet: 'resolution', kinds: videoArtKinds}],
-  ['dynamicRange', 'browse.field.dynamicRange', 'identity-set', ['contains', 'contains-any', 'contains-all', 'equals', 'not-equals', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'facet-multi-select', 'standard', 'indexed-join', {kinds: videoArtKinds}],
-  ['audioLanguage', 'browse.field.audioLanguage', 'identity-set', ['contains', 'contains-any', 'contains-all', 'equals', 'not-equals', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'facet-multi-select', 'standard', 'indexed-join', {facet: 'audioLanguage'}],
-  ['studio', 'browse.field.studio', 'string', ['equals', 'not-equals', 'contains', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'facet-multi-select', 'standard', 'indexed-join', {facet: 'studio', kinds: videoArtKinds}],
-  ['actor', 'browse.field.actor', 'identity-set', ['contains', 'contains-any', 'contains-all', 'equals', 'not-equals', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'text', 'advanced', 'indexed-join', {kinds: videoArtKinds}],
-  ['director', 'browse.field.director', 'identity-set', ['contains', 'contains-any', 'contains-all', 'equals', 'not-equals', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'text', 'advanced', 'indexed-join', {kinds: videoArtKinds}],
-  ['writer', 'browse.field.writer', 'identity-set', ['contains', 'contains-any', 'contains-all', 'equals', 'not-equals', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'text', 'advanced', 'indexed-join', {kinds: videoArtKinds}],
-  ['durationMs', 'browse.field.durationSeconds', 'number', ['equals', 'not-equals', 'less-than', 'at-most', 'greater-than', 'at-least', 'between', 'in', 'not-in', 'is-present', 'is-missing'], 'number-range', 'standard', 'indexed-join', {kinds: playedKinds}],
-  ['subtitleLanguage', 'browse.field.subtitleLanguage', 'identity-set', ['contains', 'contains-any', 'contains-all', 'equals', 'not-equals', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'facet-multi-select', 'standard', 'indexed-join', {kinds: videoArtKinds}],
-  ['versions', 'browse.field.versions', 'number', ['equals', 'not-equals', 'less-than', 'at-most', 'greater-than', 'at-least', 'between', 'in', 'not-in', 'is-present', 'is-missing'], 'number-range', 'standard', 'indexed-join', {kinds: playedKinds}],
-  ['person', 'browse.field.person', 'identity-set', ['equals', 'in', 'not-in'], 'text', 'standard', 'indexed-join', {kinds: videoArtKinds}],
-  ['cast', 'browse.field.cast', 'identity-set', ['equals', 'in', 'not-in'], 'text', 'standard', 'indexed-join', {kinds: videoArtKinds}],
-  ['crew', 'browse.field.crew', 'identity-set', ['equals', 'in', 'not-in'], 'text', 'standard', 'indexed-join', {kinds: videoArtKinds}],
-  ['savedCollection', 'browse.field.savedCollection', 'identity-set', ['equals', 'in', 'not-in'], 'text', 'standard', 'indexed-join', {kinds: playedKinds}],
-  ['homeRow', 'browse.field.homeRow', 'string', ['equals'], 'text', 'standard', 'indexed-join', {}],
-  ['list', 'browse.field.list', 'identity-set', ['equals', 'in', 'not-in'], 'text', 'standard', 'indexed-join', {kinds: playedKinds}],
-  ['network', 'browse.field.network', 'string', ['equals', 'not-equals', 'contains', 'starts-with', 'in', 'not-in', 'is-present', 'is-missing'], 'facet-multi-select', 'standard', 'indexed-join', {facet: 'network', kinds: airedKinds}],
-];
-const fields = fieldRows.map(([id, labelKey, type, operators, controlHint, complexity, cost, extra]) => Object.freeze({id, labelKey, type, operators,
-  controlHint, complexity, cost, applicableKinds: extra.kinds ?? allKinds,
-  ...(extra.allowed ? {allowedValues: extra.allowed} : {}),
-  ...(extra.facet ? {facetSource: {endpoint: '/v1/browse/facets', field: extra.facet}} : {})}));
-const sortRows: readonly Readonly<{id: string; labelKey: string; defaultDirection: 'asc' | 'desc'; seeded?: boolean; requiresGroup?: boolean; kinds?: readonly string[]}>[] = [
-  {id: 'title', labelKey: 'sort.title', defaultDirection: 'asc'},
-  {id: 'added', labelKey: 'sort.added', defaultDirection: 'desc'},
-  {id: 'year', labelKey: 'sort.year', defaultDirection: 'desc', kinds: datedKinds},
-  {id: 'duration', labelKey: 'sort.duration', defaultDirection: 'desc'},
-  {id: 'communityRating', labelKey: 'sort.communityRating', defaultDirection: 'desc'},
-  {id: 'personalRating', labelKey: 'sort.personalRating', defaultDirection: 'desc'},
-  {id: 'lastPlayed', labelKey: 'sort.lastPlayed', defaultDirection: 'desc'},
-  {id: 'releaseDate', labelKey: 'sort.releaseDate', defaultDirection: 'desc', kinds: releasedKinds},
-  {id: 'criticRating', labelKey: 'sort.criticRating', defaultDirection: 'desc', kinds: videoArtKinds},
-  {id: 'fileSize', labelKey: 'sort.fileSize', defaultDirection: 'desc'},
-  {id: 'resolution', labelKey: 'sort.resolution', defaultDirection: 'desc', kinds: videoArtKinds},
-  {id: 'random', labelKey: 'sort.random', defaultDirection: 'asc', seeded: true},
-  {id: 'groupOrder', labelKey: 'sort.groupOrder', defaultDirection: 'asc', requiresGroup: true},
-  {id: 'playCount', labelKey: 'sort.playCount', defaultDirection: 'desc'},
-  {id: 'latestAired', labelKey: 'sort.aired', defaultDirection: 'desc', kinds: ['show']},
-  {id: 'episodeCount', labelKey: 'sort.episodeCount', defaultDirection: 'desc', kinds: airedKinds},
-];
-const sorts = sortRows.map(({id, labelKey, defaultDirection, seeded, requiresGroup, kinds}) => Object.freeze({id, labelKey, directions: ['asc', 'desc'],
-  defaultDirection, expensive: false, seeded: seeded === true, requiresGroup: requiresGroup === true, applicableKinds: kinds ?? allKinds}));
-const quickFilters = Object.freeze([
-  {id: 'in-progress', labelKey: 'filter.inProgress', query: {variant: 'predicate', field: 'playState', operator: 'equals', value: 'in-progress'}},
-  {id: 'unwatched', labelKey: 'filter.unwatched', query: {variant: 'predicate', field: 'playState', operator: 'equals', value: 'unplayed'}},
-  {id: 'watched', labelKey: 'filter.watched', query: {variant: 'predicate', field: 'playState', operator: 'equals', value: 'played'}},
-  {id: 'favorites', labelKey: 'filter.favorites', query: {variant: 'predicate', field: 'favorite', operator: 'equals', value: true}},
-  {id: 'watchlist', labelKey: 'filter.watchlist', query: {variant: 'predicate', field: 'watchlisted', operator: 'equals', value: true}},
-  {id: 'available', labelKey: 'filter.available', query: {variant: 'predicate', field: 'availability', operator: 'equals', value: 'available'}},
-  {id: 'missing', labelKey: 'filter.missing', query: {variant: 'predicate', field: 'availability', operator: 'equals', value: 'unavailable'}},
-].map(value => Object.freeze(value)));
-const filterIds = fields.map(field => field.id);
-const pivot = Object.freeze({id: 'titles', labelKey: 'library.titles', entityKinds: ['movie', 'show', 'album', 'book'],
-  defaultSort: [{field: 'title', direction: 'asc' as const}], supportedViews: ['grid', 'list'], sorts: sortRows.map(sort => sort.id), filters: filterIds, paging: 'offset', browsable: true});
-const capabilities = Object.freeze({
-  surfaces: [{id: 'row-titles', endpoint: '/v1/browse', membershipField: 'homeRow', sorts: pivot.sorts, filters: filterIds, paging: 'offset'}],
-  library: {id: '', name: '', kind: '', defaultView: '', pinned: false},
-  pivots: [pivot], resolvedPivot: pivot, fields, sorts, quickFilters,
-  queryLimits: {maximumDepth: 5, maximumClauses: 40, maximumBytes: 65_536, maximumSorts: 1, defaultLimit: 40, maximumLimit: 100, cursorTtlMs: 1_800_000},
-});
-
-/* ---------- the page: the fixture's own semantics over its facts ---------- */
-/** A drawn entry plus the fields a filter or sort may read. */
-type FixtureEntry = Readonly<Record<string, unknown> & {id: string; kind: Kind; libraryId: LibraryId; title: string; year: number}>;
-/** Every drawn entry is available and unwatched, so the facts the fixture carries decide a filter. */
-function matches(candidate: FixtureEntry, node: BrowseNode | null | undefined): boolean {
-  if (!node) return true;
-  if ('all' in node) return node.all.every(child => matches(candidate, child));
-  if ('any' in node) return node.any.some(child => matches(candidate, child));
-  if ('not' in node) return !matches(candidate, node.not);
-  const {field, operator} = node, value = node.value;
-  const one = (expected: unknown) => {
-    switch (field) {
-      case 'homeRow': return true;
-      case 'library': return expected === candidate.libraryId;
-      case 'entityKind': return expected === candidate.kind;
-      case 'title': case 'search': return typeof expected === 'string' && candidate.title.toLowerCase().includes(expected.toLowerCase());
-      case 'playState': return expected === 'unplayed';
-      case 'favorite': case 'watchlisted': return expected === false;
-      case 'availability': return expected === 'available';
-      case 'year': return Number(expected) === candidate.year;
-      case 'decade': return Math.floor(candidate.year / 10) * 10 === Number(expected);
-      default: return false;
-    }
-  };
-  const expected = Array.isArray(value) ? value : [value];
-  switch (operator) {
-    case 'equals': case 'in': case 'contains': case 'contains-any': return expected.some(one);
-    case 'not-equals': case 'not-in': return !expected.some(one);
-    case 'between': return expected.length === 2 && Number(candidate[field]) >= Number(expected[0]) && Number(candidate[field]) <= Number(expected[1]);
-    case 'is-present': return candidate[field] !== undefined;
-    case 'is-missing': return candidate[field] === undefined;
-    default: return false;
-  }
-}
-function sortBy(selection: BrowseSortSelection | undefined) {
-  const key = selection?.field;
-  // The row's own order, a "for you" ranking and a seeded shuffle are the server's; the fixture keeps its drawn order.
-  if (!key || key === 'groupOrder' || key === 'forYou' || key === 'random') return () => 0;
-  const sign = selection?.direction === 'desc' ? -1 : 1;
-  return (a: FixtureEntry, b: FixtureEntry) => {
-    const left = a[key], right = b[key];
-    return (typeof left === 'number' && typeof right === 'number' ? left - right : String(left).localeCompare(String(right))) * sign;
-  };
-}
-export type BrowseRequest = Readonly<{query?: BrowseNode | null; sort?: readonly BrowseSortSelection[]; limit?: number; range?: Readonly<{start: number}>}>;
-
 export function createSeeAllSpecimen() {
   const records: SeeAllRecord[] = [];
   const record = (kind: string, value?: unknown): void => { records.push(Object.freeze({kind, at: Date.now(), ...(value === undefined ? {} : {value})})); };
-  const page = (body: BrowseRequest) => {
-    const start = body.range?.start ?? 0, limit = body.limit ?? 60;
-    const kept = entries.filter(candidate => matches(candidate, body.query ?? null)).sort(sortBy(body.sort?.[0]));
-    const slice = kept.slice(start, start + limit);
-    record('browse', {start, limit, total: kept.length, sort: body.sort?.[0]?.field ?? 'groupOrder'});
-    return {pivot: 'titles', applied: {query: body.query ?? null, sort: body.sort ?? [], seek: null}, entries: slice,
-      pageInfo: {start, total: kept.length, totalIsLowerBound: false, revision: revisionToken, hasMore: start + slice.length < kept.length, nextCursor: ''}, positionIndex: []};
-  };
-  const counts = (body: Readonly<{queries: readonly Readonly<{id: string; query: BrowseNode | null}>[]}>) => ({
-    counts: body.queries.map(group => ({id: group.id, total: entries.filter(candidate => matches(candidate, group.query)).length,
-      totalIsLowerBound: false, revision: revisionToken})),
-  });
-  const facets = (url: URL) => {
-    const field = url.searchParams.get('field') ?? '', values: {value: string; label: string; count: number}[] = [];
-    const tally = (of: (item: Record<string, unknown>) => string | number | undefined) => entries.forEach(candidate => {
-      const key = of(candidate);
-      if (key === undefined) return;
-      const found = values.find(value => value.value === String(key));
-      if (found) found.count += 1; else values.push({value: String(key), label: String(key), count: 1});
-    });
-    if (field === 'library') entries.forEach(candidate => {
-      const id = String(candidate.libraryId), found = values.find(value => value.value === id);
-      if (found) found.count += 1; else values.push({value: id, label: id, count: 1});
-    });
-    else if (field === 'year') tally(candidate => candidate.year as number | undefined);
-    else if (field === 'decade') tally(candidate => Math.floor(Number(candidate.year) / 10) * 10);
-    record('facets', {field});
-    return {field, total: values.reduce((sum, value) => sum + value.count, 0), values};
-  };
-  const request = async <T,>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> => {
+  const rowPath = serverPath('GET /v1/home/rows/{id}', {id: rowId});
+  const request = async <T,>(path: string, method = 'GET', _body?: unknown, signal?: AbortSignal): Promise<T> => {
     if (signal?.aborted) throw Object.assign(new Error('aborted'), {name: 'AbortError'});
-    const route = path.split('?')[0]!, url = new URL(path, 'http://specimen.invalid');
-    record('request', {path: route, method});
-    if (method === 'GET' && route === `/v1/home/rows/${rowId}`) return row as T;
-    if (method === 'GET' && route === '/v1/browse-capabilities') return capabilities as T;
-    if (method === 'POST' && route === '/v1/browse') return page(body as BrowseRequest) as T;
-    if (method === 'POST' && route === '/v1/browse/counts') return counts(body as Parameters<typeof counts>[0]) as T;
-    if (method === 'GET' && route === '/v1/browse/facets') return facets(url) as T;
-    record('request-unanswered', {path: route, method});
-    throw Object.assign(new Error(`the see-all specimen has no answer for ${method} ${route}`), {code: 'not_found', status: 404});
+    const url = new URL(path, 'http://specimen.invalid');
+    record('request', {path: url.pathname, method});
+    if (method === 'GET' && url.pathname === rowPath) {
+      const start = Number(url.searchParams.get('cursor') ?? url.searchParams.get('at') ?? 0);
+      const limit = Number(url.searchParams.get('limit') ?? 60), end = Math.min(entries.length, start + limit);
+      const hasMore = end < entries.length;
+      return {...row, entries: entries.slice(start, end), start, limit, hasMore, nextCursor: hasMore ? String(end) : ''} as T;
+    }
+    record('request-unanswered', {path: url.pathname, method});
+    throw Object.assign(new Error(`the see-all specimen has no answer for ${method} ${url.pathname}`), {code: 'not_found', status: 404});
   };
-  return Object.freeze({serverId, rowId, viewerFence, records, record, request, row, capabilities, page, counts,
-    pageFor: (body: BrowseRequest) => page(body), entries});
+  return Object.freeze({serverId, rowId, viewerFence, records, record, request, row});
 }
 
 
@@ -409,5 +244,5 @@ async function mount(element: HTMLElement) {
     </ShellBindingsProvider>
   </WebScreenProvider>);
   // The fixture and the commands the screen issued are inspectable from the page; no credentials.
-  (window as Window & {__porticoSeeAllSpecimen?: unknown}).__porticoSeeAllSpecimen = {records: specimen.records, row: specimen.row, capabilities: specimen.capabilities};
+  (window as Window & {__porticoSeeAllSpecimen?: unknown}).__porticoSeeAllSpecimen = {records: specimen.records, row: specimen.row};
 }

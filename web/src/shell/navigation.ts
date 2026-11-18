@@ -29,7 +29,7 @@ export function librarySearch(raw: Record<string, unknown>): LibrarySearch {
 export type HomeDestination =
   | {to: '/library/$libraryId'; params: {libraryId: string}; search: LibrarySearch}
   | {to: '/item/$itemId'; params: {itemId: string}}
-  | {to: '/home/rows/$rowId'; params: {rowId: string}}
+  | {to: '/home/rows/$rowId'; params: {rowId: string}; search?: {libraryId: string}}
   | {to: '/saved'; search: {resourceId: string}}
   | {to: '/live'; search: {group?: string; sourceId?: string}};
 export function entryDestination(entry: ContentEntry): HomeDestination {
@@ -47,7 +47,7 @@ export function entryDestination(entry: ContentEntry): HomeDestination {
 export function seeAllDestination(target: HomeSeeAll): HomeDestination {
   switch (target.type) {
     case 'library': return {to: '/library/$libraryId', params: {libraryId: target.libraryId}, search: {pivot: target.pivot, query: target.query, sort: target.sort}};
-    case 'row': return {to: '/home/rows/$rowId', params: {rowId: target.rowId}};
+    case 'row': return {to: '/home/rows/$rowId', params: {rowId: target.rowId}, ...(target.libraryId ? {search: {libraryId: target.libraryId}} : {})};
     case 'saved_view': return {to: '/saved', search: {resourceId: target.resourceId}};
     case 'collection': return {to: '/library/$libraryId', params: {libraryId: target.libraryId}, search: {view: 'collection', entityId: target.resourceId}};
     case 'guide': return {to: '/live', search: {sourceId: target.sourceId, group: target.group}};

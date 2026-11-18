@@ -41,7 +41,7 @@ export function HomeRowFilters({controller, runtime, onClose}: {controller: Nati
     }
   };
   if (!state.capabilities || !state.sort) return null;
-  const model = browseToolbarModel(state.capabilities, 'movies', draft, state.sort, {t: runtime.text.t, locale: runtime.text.locale,
+  const model = browseToolbarModel(state.capabilities, state.capabilities.library.kind || 'movies', draft, state.sort, {t: runtime.text.t, locale: runtime.text.locale,
     owner: runtime.getSnapshot().account.viewerRole === 'owner', scope: 'group', textEntry: !theme.isTV});
   const fields: Record<string, FilterFieldState> = {};
   for (const group of model.groups) for (const field of group.fields) {
@@ -51,7 +51,8 @@ export function HomeRowFilters({controller, runtime, onClose}: {controller: Nati
     if (control === 'values') {
       const facet = facets[field.id];
       fields[field.id] = {...nativeRowFilterValues(field, draft), allowAll: field.operators.includes('contains-all'),
-        showMatchMode: true, values: facet?.page ? orderFilterValues(field, facet.page.values) : [], status: facet?.status ?? 'loading', total: facet?.page?.total,
+        showMatchMode: field.operators.includes('contains-all'), allowNone: false, cycleExclusion: false,
+        values: facet?.page ? orderFilterValues(field, facet.page.values) : [], status: facet?.status ?? 'loading', total: facet?.page?.total,
         search: facet?.search ?? '', active, ...(facet?.error ? {statusLabel: runtime.error(facet.error, () => {void load(field, facet.search);}, 'home').body} : {})};
     } else if (control === 'toggle') fields[field.id] = {kind: 'toggle', value: typeof direct[0]?.value === 'boolean' ? direct[0].value : null, active};
     else if (control === 'choice') fields[field.id] = {kind: 'choice', value: typeof direct[0]?.value === 'string' ? direct[0].value : null,

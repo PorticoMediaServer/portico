@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {acrossCondition, acrossOwnOrder, acrossPivot, episodeGroupCondition, episodeGroupQuery, groupMemoryId, homeRowQuery, groupMemoryScope, groupSort} from '../src/presentation/browse-groups.ts';
+import {acrossCondition, acrossOwnOrder, acrossPivot, episodeGroupCondition, episodeGroupQuery, groupMemoryId, groupMemoryScope, groupSort} from '../src/presentation/browse-groups.ts';
 import {acrossLibraries, browseCapabilitiesPath, browseFacetsPath, browsePath, libraryTabSorts, parseBrowseCapabilities, parseBrowseResult} from '../src/browse.ts';
 import {bucketIndexFor, titleBucketValue} from '../src/browse-buckets.ts';
 
@@ -66,18 +66,6 @@ test('a group is remembered under a short stable name, apart from libraries', ()
   assert.deepEqual(groupMemoryScope({serverId: 's', viewerId: 'v'}), {serverId: 's', viewerId: 'v#groups'});
 });
 
-test('an episode group and a Home row play whole through the server, in their own order', () => {
+test('an episode group plays whole through the server in its own order', () => {
   assert.deepEqual(episodeGroupQuery('tv', 'show1', 'range:100'), {libraryId: 'tv', pivot: 'episodes', query: {variant:'group',all: [{variant:'predicate',field: 'episodeGroup', operator: 'equals', value: 'show1/range:100'}]}, sort: [{field: 'groupOrder', direction: 'asc'}]});
-  assert.equal(homeRowQuery('recent_songs', ['song', 'album']).pivot, 'items');
-  assert.deepEqual(homeRowQuery('trending_now', ['movie', 'show']), {libraryId: '*', pivot: 'titles', query: {variant:'group',all: [{variant:'predicate',field: 'homeRow', operator: 'equals', value: 'trending_now'}]}, sort: [{field: 'groupOrder', direction: 'asc'}]});
-});
-
-test('Home display mode is explicit and bound to a positive row with at most 60 entries',async()=>{
- const {BrowseQueryBuilder}=await import('../src/browse.ts');
- const caps=parseBrowseCapabilities({library:{id:'',kind:'',name:''},pivots:[{id:'titles',labelKey:'library.titles',entityKinds:['show'],defaultSort:[{field:'title',direction:'asc'}],supportedViews:['grid'],browsable:true}],fields:[{id:'homeRow',labelKey:'browse.field.homeRow',type:'identity-set',operators:['equals'],controlHint:'text',complexity:'standard',cost:'indexed-join',applicableKinds:['show']}],sorts:[],quickFilters:[],queryLimits:{maximumDepth:5,maximumClauses:40,maximumBytes:65536,maximumSorts:1,defaultLimit:40,maximumLimit:100,cursorTtlMs:1800000}});
- const generic=new BrowseQueryBuilder(caps,'titles').where('homeRow','equals','new_on_server').limit(37).build();assert.equal(generic.homeRowDisplay,undefined);
- const display=new BrowseQueryBuilder(caps,'titles').where('homeRow','equals','new_on_server').limit(37).displayHomeRow('new_on_server').build();assert.equal(display.homeRowDisplay,'new_on_server');
- assert.throws(()=>new BrowseQueryBuilder(caps,'titles').where('homeRow','equals','different').displayHomeRow('new_on_server').build());
- assert.throws(()=>new BrowseQueryBuilder(caps,'titles').where('homeRow','equals','new_on_server').limit(61).displayHomeRow('new_on_server').build());
- assert.throws(()=>new BrowseQueryBuilder(caps,'titles').add({variant:'group',not:{variant:'predicate',field:'homeRow',operator:'equals',value:'new_on_server'}}).displayHomeRow('new_on_server').build());
 });

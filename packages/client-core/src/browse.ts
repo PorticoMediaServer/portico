@@ -63,7 +63,7 @@ export type BrowseResult=Readonly<{pivot:string;applied:BrowseApplied;entries:re
 export type BrowseDisplayTarget=Readonly<{membershipId:string;entryId:string}>;
 export type BrowseFacetValue=Readonly<{value:string;label:string;count:number;countIsLowerBound?:boolean;seriesId?:string}>;
 export type BrowseFacetPage=Readonly<{field:string;total:number;values:readonly BrowseFacetValue[];totalIsLowerBound?:boolean;revision?:string}>;
-export type BrowseRequestBody=Readonly<{pivot?:string;query?:BrowseNode;sort?:readonly BrowseSortSelection[];limit?:number;cursor?:string;selectionBasis?:string;range?:BrowseRange;seek?:BrowseSeek;homeRowDisplay?:string}>;
+export type BrowseRequestBody=Readonly<{pivot?:string;query?:BrowseNode;sort?:readonly BrowseSortSelection[];limit?:number;cursor?:string;selectionBasis?:string;range?:BrowseRange;seek?:BrowseSeek}>;
 
 const hints:readonly string[]=['toggle','select','number-range','date-range','facet-multi-select','text'];
 const operators:readonly string[]=['equals','not-equals','contains','starts-with','in','not-in','less-than','at-most','greater-than','at-least','within-last-days','between','is-present','is-missing','contains-any','contains-all'];
@@ -481,7 +481,6 @@ export class BrowseQueryBuilder{
  private pageCursor?:string;
  private pageRange?:BrowseRange;
  private pageSeek?:BrowseSeek;
- private displayRow?:string;
  constructor(capabilities:BrowseCapabilities,pivotId?:string){
   this.capabilities=capabilities;
   const wanted=pivotId??capabilities.resolvedPivot?.id??capabilities.pivots.find(p=>p.browsable)?.id;
@@ -547,20 +546,11 @@ export class BrowseQueryBuilder{
   this.pageSeek={prefix};
   return this;
  }
- /** Home-origin See all alone opts into actual episode/season cards. */
- displayHomeRow(rowId:string):this{
-  if(!id(rowId))throw new BrowseQueryError('homeRowDisplay','Choose a Home row.');
-  this.displayRow=rowId;return this;
- }
  build():BrowseRequestBody{
   const limits=this.capabilities.queryLimits;
   const query=this.predicates.length===0?undefined:this.predicates.length===1?this.predicates[0]:{variant:'group' as const,all:[...this.predicates]};
   if(query&&countClauses(query)>limits.maximumClauses)throw new BrowseQueryError('query',`Use at most ${limits.maximumClauses} conditions.`);
-  if(this.displayRow){
-   if(!positiveHomeRow(query,this.displayRow))throw new BrowseQueryError('homeRowDisplay','Use the same positive Home row condition.');
-   if((this.pageLimit??this.capabilities.queryLimits.defaultLimit)>60)throw new BrowseQueryError('limit','Ask for at most 60 Home display entries.');
-  }
-  const body:BrowseRequestBody={pivot:this.pivot.id,...(this.displayRow?{homeRowDisplay:this.displayRow}:{}),...(query?{query}:{}),...(this.sorts.length?{sort:[...this.sorts]}:{}),...(this.pageLimit?{limit:this.pageLimit}:{}),...(this.pageCursor?{cursor:this.pageCursor}:{}),...(this.pageRange?{range:this.pageRange}:{}),...(this.pageSeek?{seek:this.pageSeek}:{})};
+  const body:BrowseRequestBody={pivot:this.pivot.id,...(query?{query}:{}),...(this.sorts.length?{sort:[...this.sorts]}:{}),...(this.pageLimit?{limit:this.pageLimit}:{}),...(this.pageCursor?{cursor:this.pageCursor}:{}),...(this.pageRange?{range:this.pageRange}:{}),...(this.pageSeek?{seek:this.pageSeek}:{})};
   if(JSON.stringify(body).length>limits.maximumBytes)throw new BrowseQueryError('query','That query is too large.');
   return freeze(body);
  }
@@ -574,11 +564,6 @@ export function browseWithin(capabilities:BrowseCapabilities,surfaceId:string,va
  return new BrowseQueryBuilder(capabilities,pivotId).where(surface.membershipField,surfaceId==='search-results'?'contains':'equals',value);
 }
 
-function positiveHomeRow(node:BrowseNode|undefined,rowId:string):boolean{
- if(!node)return false;
- if('field' in node)return node.field==='homeRow'&&node.operator==='equals'&&node.value===rowId;
- return 'all' in node&&node.all.filter(child=>positiveHomeRow(child,rowId)).length===1;
-}
 /** Stable work identity for virtual positions/anchors; Entry.id remains the
  * actual navigation, selection and playback target. Never infer one from another. */
 export function browseMembershipId(page:BrowseResult,index:number):string|undefined{

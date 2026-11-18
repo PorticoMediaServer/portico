@@ -96,16 +96,3 @@ export type WholeGroupQuery = Readonly<{libraryId: string; pivot: string; query:
 export function episodeGroupQuery(libraryId: string, showId: string, group: string): WholeGroupQuery {
   return Object.freeze({libraryId, pivot: 'episodes', query: Object.freeze({variant: 'group' as const, all: Object.freeze([episodeGroupCondition(showId, group)])}), sort: Object.freeze([Object.freeze({field: groupOrderSort, direction: 'asc' as const})])});
 }
-
-/** Kinds played one at a time: a Home row of these plays them, not the titles that hold them. */
-const playedOneAtATime: ReadonlySet<string> = new Set(['song', 'episode', 'audiobook_file', 'chapter']);
-
-/**
- * A Home row played whole: the server reads the row through Home when Play is pressed (at most
- * its first 500 titles) and plays exactly that, in the row's order, across libraries. A row of
- * songs or episodes plays those; a row of titles plays each title's own list.
- */
-export function homeRowQuery(rowId: string, entryKinds: readonly string[]): WholeGroupQuery {
-  const pivot = entryKinds.some(kind => playedOneAtATime.has(kind)) ? 'items' : 'titles';
-  return Object.freeze({libraryId: '*', pivot, query: Object.freeze({variant: 'group' as const, all: Object.freeze([acrossCondition('homeRow', rowId)])}), sort: Object.freeze([Object.freeze({field: groupOrderSort, direction: 'asc' as const})])});
-}

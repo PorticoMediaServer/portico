@@ -42,7 +42,7 @@ const fieldOrder = ['match', 'genre', 'year', 'contentRating', 'studio', 'networ
   'resolution', 'dynamicRange', 'audioLanguage', 'durationMs', 'dateAdded', 'availability'];
 const activity = new Set(['playState', 'favorite', 'watchlisted', 'personalRating', 'lastPlayedAt']);
 const file = new Set(['resolution', 'dynamicRange', 'audioLanguage', 'subtitleLanguage', 'versions', 'durationMs', 'dateAdded', 'availability']);
-const internal = new Set(['title', 'entityKind', 'memberOf', 'person', 'cast', 'crew', 'homeRow', 'list', 'savedCollection']);
+const internal = new Set(['title', 'entityKind', 'memberOf', 'person', 'cast', 'crew', 'homeRow', 'list', 'savedCollection', 'library']);
 const rank = (order: readonly string[], id: string): number => {const index = order.indexOf(id); return index < 0 ? order.length : index;};
 
 /** Only fields whose sole usable control is text require text entry. Facets and ranges do not. */

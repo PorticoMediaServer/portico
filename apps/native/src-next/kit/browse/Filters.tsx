@@ -18,12 +18,12 @@ const focusProps = (prefix: string | undefined, ...identity: string[]) => prefix
   focusId: JSON.stringify([prefix, ...identity]), testID: focusTestID(prefix, JSON.stringify(identity)),
 };
 
-export function MatchMode({value, allowAll, onValueChange, focusPrefix}: {value: MatchModeValue; allowAll: boolean; onValueChange: (value: MatchModeValue) => void; focusPrefix?: string}) {
+export function MatchMode({value, allowAll, allowNone = true, onValueChange, focusPrefix}: {value: MatchModeValue; allowAll: boolean; allowNone?: boolean; onValueChange: (value: MatchModeValue) => void; focusPrefix?: string}) {
   return <Segmented variant="browse" value={value} accessibilityLabel={t('next.browse.native.match')} onValueChange={next => onValueChange(next as MatchModeValue)}
     itemProps={focusPrefix === undefined ? undefined : item => focusProps(focusPrefix, 'match', item.value)} items={[
     {value: 'any', label: t('next.browse.native.anyOf')},
     ...(allowAll ? [{value: 'all', label: t('next.browse.native.allOf')}] : []),
-    {value: 'none', label: t('next.browse.native.noneOf')},
+    ...(allowNone ? [{value: 'none', label: t('next.browse.native.noneOf')}] : []),
   ]}/>;
 }
 
@@ -74,7 +74,7 @@ function FieldControl({id, label, state, platform, onChange, onSearch, onShowAll
   const status = state.status === 'loading' || state.status === 'error';
   return <>
     {state.kind === 'values' && <>
-      {state.showMatchMode && <MatchMode focusPrefix={focusPrefix} value={state.mode} allowAll={state.allowAll} onValueChange={mode => onChange({kind: 'values', mode, included: state.included, excluded: state.excluded})}/>}
+      {state.showMatchMode && <MatchMode focusPrefix={focusPrefix} value={state.mode} allowAll={state.allowAll} allowNone={state.allowNone} onValueChange={mode => onChange({kind: 'values', mode, included: state.included, excluded: state.excluded})}/>}
       {state.search !== undefined && platform !== 'tv' && <TextField {...focusProps(focusPrefix, 'search')} variant="search" leadingIcon="i-search" accessibilityLabel={state.searchLabel ?? t('next.browse.native.find', {field: label.toLocaleLowerCase('en-US')})} placeholder={state.searchLabel ?? t('next.browse.native.find', {field: label.toLocaleLowerCase('en-US')})} value={state.search} onChangeText={onSearch} fieldStyle={{height: platform === 'phone' ? 38 : 40, minHeight: platform === 'phone' ? 38 : 40}}/>}
       {id === 'year' && help && <Text style={[browseType(theme, platform === 'tv' ? 20 : 12.5, 500), {color: theme.colors.textTertiary}]}>{help}</Text>}
       {(!status || state.values.length > 0) && <FacetChips focusPrefix={focusPrefix} platform={platform} values={state.values} included={state.included} excluded={state.excluded} preferredFocusValue={state.preferredFocusValue} cycleExclusion={state.cycleExclusion ?? platform === 'phone'} onValueChange={(value, choice) => onChange({kind: 'values', mode: state.mode, ...changeFacetSelection(value, choice, state.included, state.excluded)})}

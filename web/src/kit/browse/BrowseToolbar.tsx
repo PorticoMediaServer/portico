@@ -119,8 +119,8 @@ export function BrowseToolbar({model, labels, resultCount, platform = 'desktop',
   onSortChange, onReshuffle, view, cardSize, save, applied = [], onRemoveFilter, onClearFilters, onJump, selection, actions, className, sortLabel, quickIds, accepted, acceptedSource, selectionActive}: BrowseToolbarProps) {
   const sortLabels = surfaceSortLabels(labels, sortLabel);
   const quick = quickIds === undefined ? model.quick : model.quick.filter(item => quickIds.includes(item.id));
-  const sort = <SortMenu sorts={model.sorts} value={model.sort} onValueChange={onSortChange} label={sortLabels.sort} onReshuffle={onReshuffle} showOrder={sortLabel === undefined}/>;
-  const filters = <FiltersButton count={applied.length} open={filtersOpen} onClick={onFilters}/>;
+  const sort = model.sorts.length > 0 && <SortMenu sorts={model.sorts} value={model.sort} onValueChange={onSortChange} label={sortLabels.sort} onReshuffle={onReshuffle} showOrder={sortLabel === undefined}/>;
+  const filters = (model.groups.length > 0 || model.filterQuick.length > 0) && <FiltersButton count={applied.length} open={filtersOpen} onClick={onFilters}/>;
   // Frame 6 draws a library's sort beside Filters in the chip row; See all names its own
   // order on the count row instead, so a surface that supplies sortLabel keeps that one.
   const sortInFirstRow = platform === 'phone' && sortLabel === undefined;
