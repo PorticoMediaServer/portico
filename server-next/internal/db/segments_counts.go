@@ -47,6 +47,6 @@ func (d *DB) SegmentChapters(ctx context.Context, media int64) ([]Marker, error)
 }
 
 func (d *DB) SegmentPendingEntries(ctx context.Context, library, mode string, after int64) ([]SegmentEntry, error) {
-	return d.segmentEntries(ctx, ` AND l.public_id=? AND m.id>? AND (a.media_id IS NULL OR a.mode<>? OR a.source_key<>`+segmentSourceKey+`)
+	return d.segmentWalk(ctx, ` AND l.public_id=? AND m.id>? AND (a.media_id IS NULL OR a.mode<>? OR a.source_key<>`+segmentSourceKey+`)
  ORDER BY m.id LIMIT 25`, library, after, mode)
 }
