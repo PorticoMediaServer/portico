@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -132,4 +133,13 @@ func (q ItemQuery) trendingSource(w *query) {
 	w.tagTotal, w.plainKinds, w.plainLibrary, w.whole = "", "", 0, false
 	w.scope = "SELECT id FROM items WHERE id IN " + intList(q.trendingIDs)
 	w.add(` AND i.id IN `+intList(q.trendingIDs)+` AND ifnull(`, ownState("hidden"), `,0)=0`)
+}
+
+// idOrder sorts a list given as ids by each one's place among them.
+func idOrder(ids []int64) string {
+	order := "CASE i.id WHEN -1 THEN -1"
+	for n, id := range ids {
+		order += fmt.Sprintf(" WHEN %d THEN %d", id, n)
+	}
+	return order + " ELSE -1 END"
 }

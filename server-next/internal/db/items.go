@@ -183,15 +183,6 @@ var sortSpecs = map[string]sortSpec{
 // volumes with none by title.
 var seriesOrder = sortSpec{columns: []string{"ifnull(i.index_number, 1e18)", "i.sort_title"}}
 
-// idOrder sorts a list given as ids by each one's place among them.
-func idOrder(ids []int64) string {
-	order := "CASE i.id WHEN -1 THEN -1"
-	for n, id := range ids {
-		order += fmt.Sprintf(" WHEN %d THEN %d", id, n)
-	}
-	return order + " ELSE -1 END"
-}
-
 // sortSpec is how this list is ordered. Its own order means volume order for a series.
 func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {
 	if q.homePopular != 0 && q.Sort == SortOrder {
