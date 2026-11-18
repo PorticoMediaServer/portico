@@ -9,6 +9,9 @@
     <field id="profileColour" type="string" onChange="onProfile"/>
     <!-- Set true to open the rail and give it focus. -->
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- Set before `active` to enter on that item instead of the current page's (Back from the
+         profile menu returns to the profile item). Used once. -->
+    <field id="enterOn" type="string"/>
     <field id="chosen" type="string" alwaysNotify="true"/>
     <!-- True while the rail is open: the scene moves the page right by `pageShift` so nothing is covered. -->
     <field id="isOpen" type="boolean"/>

@@ -20,6 +20,8 @@ sub init()
     m.rail.observeField("left", "onRailLeft")
     m.sheet = m.top.findNode("sheet")
     m.sheet.observeField("chosen", "onSheetChosen")
+    m.confirm = m.top.findNode("confirm")
+    m.confirm.observeField("chosen", "onSignOutAnswer")
     m.sheet.observeField("dismissed", "onSheetClosed")
     m.rail.observeField("isOpen", "onRailOpen")
     if createObject("roAppInfo").isDev()
@@ -127,8 +129,7 @@ sub onSheetChosen(event as object)
         if which = "switch"
             api("GET", "/v1/profiles", invalid, "onProfiles")
         else if which = "signout"
-            ' the server is told this sign-in is over; the TV forgets it either way
-            api("DELETE", "/v1/auth/session", invalid, "onSignedOut")
+            askSignOut()
         end if
         return
     end if
@@ -139,9 +140,32 @@ end sub
 sub onSheetClosed()
     own = (m.sheetIsOwn = true)
     m.sheetIsOwn = false
+    if own
+        ' Back from the profile menu returns to what opened it: the rail's profile item
+        m.sheet.visible = false
+        m.rail.enterOn = "profile"
+        m.rail.active = true
+        return
+    end if
     closeSheet()
     ' the page that asked for the menu hears that it closed (Settings goes back a step)
     if not own and m.screen <> invalid and m.screen.hasField("menuClosed") then m.screen.menuClosed = true
+end sub
+
+' Sign out asks first (tv-more frame 33): focus starts on Cancel, so a stray OK changes nothing.
+sub askSignOut()
+    name = storeRead("serverName")
+    if name = "" then name = "the server"
+    m.confirm.model = {title: "Sign out of " + name + " on this TV?", body: "You’ll need to sign this TV in again.", verb: "Sign out"}
+end sub
+
+sub onSignOutAnswer()
+    if m.confirm.chosen = "confirm"
+        ' the server is told this sign-in is over; the TV forgets it either way
+        api("DELETE", "/v1/auth/session", invalid, "onSignedOut")
+    else if m.screen <> invalid
+        m.screen.active = true
+    end if
 end sub
 
 sub onSignedOut()
@@ -459,6 +483,7 @@ sub onRailChosen(event as object)
     if id = "settings"
         show("SettingsScreen")
         m.screen.observeField("menu", "onMenu")
+        m.screen.observeField("account", "onSettingsAsk")
         m.rail.visible = true
         m.rail.current = id
         m.screen.active = true
@@ -482,6 +507,12 @@ sub onRailChosen(event as object)
     m.screen.active = true     ' a destination not built yet: stay where you were
 end sub
 
+' Settings' Sign out row asks the scene, as the profile menu's does
+sub onSettingsAsk(event as object)
+    m.sheetIsOwn = true
+    onSheetChosen(event)
+end sub
+
 sub onRailLeft()
     if m.screen <> invalid then m.screen.active = true
 end sub
@@ -500,6 +531,11 @@ function onKeyEvent(key as string, press as boolean) as boolean
     ' Back at the top of any other rail page goes to Home's opening state; only Home's own Back
     ' leaves the app (DESIGN.md, "Back, step by step").
     if key = "back" and m.screen <> invalid and m.entered = true and m.rail.visible and m.rail.current <> "home"
+        showHome()
+        return true
+    end if
+    ' Back from Who's watching while someone is signed in with a profile goes to Home too
+    if key = "back" and m.screen <> invalid and m.entered = true and m.screen.subtype() = "ProfilesScreen"
         showHome()
         return true
     end if

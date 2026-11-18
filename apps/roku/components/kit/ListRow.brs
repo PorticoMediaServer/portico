@@ -56,7 +56,7 @@ sub layout()
     help.width = label.width
     scope.width = label.width
     label.text = model.label
-    label.color = c.text
+    if model.danger then label.color = c.danger else label.color = c.text
     help.text = model.help
     scope.text = model.scope
     words = label.boundingRect().height

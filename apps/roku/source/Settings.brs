@@ -14,7 +14,8 @@ function settingsPages() as object
         {id: "profile", title: "Profile & account", icon: "profile", intro: "", sections: [
             {title: "Signed in as", rows: [{type: "info", id: "identity"}]},
             {title: "", rows: [{type: "info", id: "porticoAccount", label: "Portico Account"}]},
-            {title: "Devices", rows: [{type: "info", id: "devices"}]}
+            {title: "Devices", rows: [{type: "info", id: "devices"}]},
+            {title: "", rows: [{type: "action", id: "signout", label: "Sign out", icon: "signOut", danger: true}]}
         ]},
         {id: "privacy", title: "Privacy", icon: "shield", intro: "The owner of this server can always see what is played on it, by whom and on which device. Pausing or clearing your own history does not change that.", sections: [
             {title: "", rows: [

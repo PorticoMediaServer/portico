@@ -8,7 +8,8 @@
     <!-- {label, help, scope, value, control, switchOn, icon}:
          scope: "This device" or "All TVs" under the help, for a value that is not the profile's everywhere;
          control: "" (plain, or an action), "choice" (opens its values), "switch", "expand" or "collapse";
-         icon: a 28 px icon drawn on a tile before the label. -->
+         icon: a 28 px icon drawn on a tile before the label;
+         danger: a destructive action (Sign out), its label red. -->
     <field id="model" type="assocarray" onChange="layout"/>
     <field id="rowWidth" type="float" value="1064"/>
     <field id="on" type="boolean" onChange="paint"/>
