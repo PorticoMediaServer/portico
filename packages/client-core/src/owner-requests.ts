@@ -1,4 +1,4 @@
-import {accessListPath, sendServerMessage} from './server-admin/panel-logic.ts';
+import {sendServerMessage} from './server-admin/panel-logic.ts';
 import {routePath} from '../../contracts/src/route-paths.ts';
 
 /** Raw owner operations. Callers retain their original lifetime guards, parsing,
@@ -53,5 +53,3 @@ export const ownerRecordingRuleRemoval = (id: string, revision: number, operatio
 export const sendOwnerRecordingRuleCommand = <T = unknown>(api: OwnerRequestApi, command: OwnerRecordingRuleCommand, signal?: AbortSignal): Promise<T> => api.request<T>(command.path, command.method, command.body, signal);
 
 export const readOwnerLibraries = <T = unknown>(api: OwnerRequestApi, signal?: AbortSignal): Promise<T> => api.request<T>(routePath('get_libraries'), 'GET', undefined, signal);
-
-export const readOwnerMemberDevices = <T = unknown>(api: OwnerRequestApi, accountId: string, cursor: string, signal?: AbortSignal): Promise<T> => api.request<T>(accessListPath('devices', cursor) + '&account=' + encodeURIComponent(accountId), 'GET', undefined, signal);
