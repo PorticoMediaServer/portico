@@ -364,8 +364,8 @@ sub onLinked(event as object)
     item = result.data
     kind = item.kind
     play = event.getRoSGNode().ctx.mediaType <> invalid and (kind = "movie" or kind = "episode")
-    ' an episode only to look at opens its show's page
-    if kind = "episode" and not play and item.rootId <> invalid then item = {id: item.rootId, kind: "show", title: item.rootTitle}
+    ' an episode only to look at opens its show's page, on its season, at the episode
+    if kind = "episode" and not play and item.rootId <> invalid then item = {id: item.rootId, kind: "show", title: item.rootTitle, seasonId: item.parentId, episodeId: item.id}
     onOpenAsk({item: item, play: play})
 end sub
 
