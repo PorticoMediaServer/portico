@@ -46,8 +46,7 @@ async function stop(dir) {
 }
 
 function api(base, method, path, body) {
-  // node:http, not fetch: undici's fetch adds Sec-Fetch-Mode, and /v1/setup/app refuses any
-  // request that looks like a browser's. This sends JSON and nothing else, as a native client does.
+  // node:http sends JSON and nothing else, as a native client does.
   const payload = body === undefined ? null : Buffer.from(JSON.stringify(body));
   return new Promise((done, fail) => {
     const req = http.request(new URL(path, base), {
@@ -104,8 +103,6 @@ async function start() {
       // 0.0.0.0 so the emulator's 10.0.2.2 alias reaches it. The server permits plain HTTP to
       // private and loopback peers on its own, so there is no TLS or insecure-HTTP switch.
       PORTICO_BIND: `0.0.0.0:${port}`,
-      // No mDNS/SSDP announcements on the CI machine's network.
-      PORTICO_DISCOVERY: '0',
     },
   });
   closeSync(log);
@@ -133,32 +130,26 @@ async function start() {
     const coldStartMs = Date.now() - started;
     if (system.setupRequired !== true) await fail('server is not in first-run state (setupRequired is not true)');
 
-    // 3a. Ask for the one-time setup secret exactly as the Portico app does on a server nobody
-    // has set up: POST /v1/setup/app, with no Origin. (The browser path, /v1/setup/browser,
-    // needs an Origin. This one refuses requests that carry one.) The server also requires the
-    // caller to be a private or loopback peer; this script connects from 127.0.0.1.
-    const app = await api(baseUrl, 'POST', '/v1/setup/app', {});
-    if (app.status !== 200 || !app.json?.setupToken) await fail(`POST /v1/setup/app answered ${app.status}`);
-
-    // 3b. Create the first owner with a local account (authMode "local", so no Portico Account,
-    // hosted claim or browser approval is involved). This answers 201 with a session.
-    const created = await api(baseUrl, 'POST', '/v1/setup', {
-      authMode: 'local',
-      name: 'Smoke',
+    // 3. Make the owner with a local account, as the setup screens do: the setup code the server
+    // wrote to its data folder at first start, the server's name, and remote access off (this
+    // script is a loopback peer, so no refusal needs confirming).
+    const device = name => ({installationId: randomUUID().replaceAll('-', ''), name});
+    const setupCode = readFileSync(join(data, 'setup-code.txt'), 'utf8').trim();
+    const created = await api(baseUrl, 'POST', '/v1/setup/owner', {
+      setupCode,
+      serverName: 'Smoke',
       username,
       password,
-      requestId: randomUUID(),
-      setupToken: app.json.setupToken,
+      remoteAccess: 'off',
+      device: device('release-smoke-setup'),
     });
-    if (created.status !== 201) await fail(`POST /v1/setup answered ${created.status}: ${created.json?.error?.code ?? 'no error code'}`);
-
-    // A local setup is complete as soon as /v1/setup answers.
+    if (created.status !== 200) await fail(`POST /v1/setup/owner answered ${created.status}: ${created.json?.error?.code ?? 'no error code'}`);
     const after = await api(baseUrl, 'GET', '/v1/system');
     if (after.json?.setupRequired !== false) await fail('setupRequired did not clear after setup');
 
     // 4. Prove the credentials work with the request the app makes for a local sign-in.
-    const signIn = await api(baseUrl, 'POST', '/v1/direct/sign-in', {username, password});
-    if (signIn.status !== 200 && signIn.status !== 201) await fail(`POST /v1/direct/sign-in answered ${signIn.status}: ${signIn.json?.error?.code ?? 'no error code'}`);
+    const signIn = await api(baseUrl, 'POST', '/v1/auth/sign-in', {username, password, device: device('release-smoke-check')});
+    if (signIn.status !== 200) await fail(`POST /v1/auth/sign-in answered ${signIn.status}: ${signIn.json?.error?.code ?? 'no error code'}`);
     if (signIn.json?.account?.username !== username) await fail('sign-in answered for a different account');
 
     // 5. Record the fixture, owner-only, then report non-secret facts.
