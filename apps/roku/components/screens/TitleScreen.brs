@@ -132,23 +132,16 @@ end sub
 ' The "..." button and * open the title's menu; Details is left out, as this is its page.
 sub openMenu()
     if m.full = invalid or m.full.state = invalid then return
-    menu = titleMenu(m.full, false)
-    rows = []
-    for each row in menu.rows
-        if row.id <> "details" then rows.push(row)
-    end for
-    menu.rows = rows
-    m.top.menu = menu
+    m.top.menu = cardMenu(m.full, [], ["details"])
 end sub
 
 sub onMenuChosen(event as object)
-    which = event.getData()
-    if which = "play"
-        m.top.open = {item: m.full, play: true, startOver: false}
-        return
-    end if
-    change = titleMenuChange(m.full, which)
-    if change <> invalid then save(m.full, change)
+    cardMenuChosen(event.getData())
+end sub
+
+sub cardMenuChanged(item as object)
+    m.full = item
+    draw()
 end sub
 
 ' The change shows at once; the server is told, and the page takes the state it answers with.

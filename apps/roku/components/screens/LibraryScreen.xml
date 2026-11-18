@@ -25,6 +25,7 @@
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/CardMenu.brs"/>
   <children>
     <Label id="name"/>
     <!-- Beside the name when other libraries hold the same kind: OK on the name lists them. -->

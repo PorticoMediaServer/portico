@@ -25,6 +25,8 @@ sub init()
     m.confirm = m.top.findNode("confirm")
     m.confirm.observeField("chosen", "onSignOutAnswer")
     m.sheet.observeField("dismissed", "onSheetClosed")
+    ' each library's name by id, for the words over a title's menu (kit/CardMenu.brs)
+    m.global.addFields({libraryNames: {}})
     m.rail.observeField("isOpen", "onRailOpen")
     if createObject("roAppInfo").isDev()
         m.frames = 0
@@ -556,6 +558,11 @@ sub onLibraries(event as object)
     m.libraries = invalid
     entries = [{id: "search", icon: "search", label: "Search"}, {id: "home", icon: "home", label: "Home"}]
     if result.ok and result.data.items <> invalid
+        names = {}
+        for each library in result.data.items
+            names[library.id] = library.name
+        end for
+        m.global.libraryNames = names
         for each library in result.data.items
             ' Reading libraries are not on TV (definition, area 10).
             if library.kind <> "books" and library.kind <> "comics"
@@ -627,6 +634,7 @@ sub onRailChosen(event as object)
         show("SearchScreen")
         m.screen.observeField("art", "onArt")
         m.screen.observeField("open", "onOpen")
+        m.screen.observeField("menu", "onMenu")
         m.rail.visible = true
         m.rail.current = id
         m.screen.active = true
