@@ -204,6 +204,11 @@ function BrowseLoading() {
   const header = useLibraryHeader(), {toolbar} = useToolbar(false);
   return <Page current="movies"><BrowseFrame header={header} toolbar={toolbar} state={{kind: 'loading'}} /></Page>;
 }
+/** The library's answer failed: the header stays, the page's failure state fills the room under it. */
+function BrowseFailed() {
+  return <Page current="movies"><BrowseFrame header={useLibraryHeader()} state={{icon: 'i-warn', tone: 'warning', title: t('next.states.pageFailed'), body: t('next.states.pageFailedBody'),
+    primaryAction: {id: 'retry', label: t('next.states.tryAgain'), onPress: none}}} /></Page>;
+}
 function RegionsBrowse() {
   const box = (label: string, height = 'var(--frame-row-two-line)') => <div style={{margin: '0 var(--g)'}}><Region label={label} height={height} /></div>;
   return <Window><BrowseFrame header={{title: f('movies'), switcher: <Region label="header.switcher" height="44px" />, menu: <Region label="header.menu" height="44px" />, tabs: {value: 'browse', onValueChange: none, items: [{value: 'discover', label: 'header.tabs'}, {value: 'browse', label: f('movies')}]}}}
@@ -222,5 +227,6 @@ export default defineGalleryFamily({id: 'frames-library', labelKey: 'next.platfo
   section('browse-empty', 'browseEmpty', BrowseEmpty),
   section('browse-menu', 'browseMenu', () => <BrowseList menuOpen />),
   section('browse-loading', 'browseLoading', BrowseLoading),
+  section('browse-failed', 'browseFailed', BrowseFailed),
   section('regions-browse', 'regionsBrowse', RegionsBrowse),
 ]});

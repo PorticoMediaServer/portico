@@ -15,6 +15,7 @@ export const platformMessages = {
   'next.platform.frame.browseHome': 'Browse: Home',
   'next.platform.frame.browseList': 'Library: the grid',
   'next.platform.frame.browseLoading': 'Browse: loading',
+  'next.platform.frame.browseFailed': 'Browse: could not load',
   'next.platform.frame.libraryFamily': 'Screen frames: library and Home',
   'next.platform.frame.browseDiscover': 'Library: Discover',
   'next.platform.frame.browseFilters': 'Library: Filters open',
