@@ -10,7 +10,7 @@ import {SkippedFiles} from './src/screens/settings/libraries/SkippedFiles';
 import {IconSprite} from './src/kit/Icon';
 import './src/kit/tokens.css';
 const service = {selectLibrary: async () => {}, getSnapshot: () => ({selected: {data: {library: {id: 'test-library', name: 'TV Shows', lastScan: null}}}})};
-createRoot(document.getElementById('root')).render(<><IconSprite/><SkippedFiles libraryId="test-library" api={{}} service={service} isCurrent={() => true} label="See the list"/></>);`;
+createRoot(document.getElementById('root')).render(<><IconSprite/><SkippedFiles libraryId="test-library" api={{request: async () => ({items: []})}} service={service} isCurrent={() => true} label="See the list"/></>);`;
 let server, browser;
 try {
   await writeFile(entry, source);

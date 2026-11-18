@@ -1,4 +1,3 @@
-import {encodedRoutePath} from '../../contracts/src/route-paths.ts';
 import {serverPath} from './query/server-api.ts';
 import type {Job} from '../../contracts/src/next/api.ts';
 import {kindMetadataAgentsPath, metadataAgentPath, writeLibraryMetadataAgent} from './server-admin/metadata-agent.ts';
@@ -6,10 +5,6 @@ import type {LibraryContentApi} from './library-content.ts';
 import type {OwnerRequestApi} from './owner-requests.ts';
 export const readOwnerMetadataAgent = <T = unknown>(api: OwnerRequestApi, id: string, signal?: AbortSignal): Promise<T> => api.request<T>(metadataAgentPath(id), 'GET', undefined, signal);
 export const writeOwnerMetadataAgent = <T = unknown>(api: LibraryContentApi, id: string, body: unknown, signal?: AbortSignal): Promise<T> => writeLibraryMetadataAgent<T>(api, id, body, signal);
-export const readOwnerSkippedFiles = <T = unknown>(api: OwnerRequestApi, id: string, job: string, after: number, signal: AbortSignal): Promise<T> => {
-  const path = encodedRoutePath('get_scan_issues', {id: encodeURIComponent(id), job: encodeURIComponent(job)});
-  return api.request<T>(path + '?' + new URLSearchParams({after: String(after), limit: '40'}), 'GET', undefined, signal);
-};
 /** Starts the library's missing-lyrics job. A lost answer is retried with this same header key. */
 export async function fetchOwnerLibraryLyrics(api: LibraryContentApi, id: string, key: string, signal?: AbortSignal): Promise<Job> {
   if (!api.requestRaw) throw new Error('The lyrics job requires the header-capable transport.');
