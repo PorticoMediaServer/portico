@@ -1,11 +1,11 @@
-import React, {type ReactNode} from 'react';
-import {ScrollView, StyleSheet, Text, View} from 'react-native';
+import React, {useState, type ReactNode} from 'react';
+import {ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {frameSpec} from '@portico/design';
 import {Button, ResumeButton} from '../controls/Button';
 import {Tabs, type TabItem} from '../controls/Tabs';
-import type {IconName} from '../Icon';
+import {Icon, type IconName} from '../Icon';
 import {Lockup} from '../layout/Lockup';
 import {RoundBarButton, type TopBarBack} from '../layout/TopBar';
 import {alpha} from '../shell/visual';
@@ -15,103 +15,158 @@ import {useTheme} from '../theme';
 import {StartFocusScope} from '../focus';
 import {useFrameMetrics} from './metrics';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
+import type {AboutValue} from './title-parts';
 
 export type TitleAction = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; testID?: string;
-  /** Shown with its label where there is room (a tablet and TV): Start over, My List. A round button on a phone. */
+  /** Shown with its label where there is room (a tablet on its side and TV): Start over, My List, Shuffle. Round elsewhere. */
   labelled?: boolean;
-  /** On (in My List, watched): tinted in the accent (phone-detail 1). */
-  active?: boolean}>;
-/** The one flexible button. With `progress` it is Resume. On a tablet and TV the time left is beside its label, the
- * played part runs along its lower edge and Start over is the button after it (detail-desktop 2, detail-tv 2). On a
- * phone the played part, the time left and Start over are one line under the action row (detail-phone 3). */
-export type TitlePrimary = Omit<TitleAction, 'labelled'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>}>;
-/** One part of the credits line: "Directed by" and the names. */
-export type TitleCredit = Readonly<{label: string; names: string}>;
+  /** On (in My List, watched, a favourite): tinted in the accent (phone-detail d1 frame 3). */
+  active?: boolean;
+  /** Also on the collapsed bar, after the primary (desktop-detail f3: Play and +). */
+  pinned?: boolean}>;
+/** The one flexible button. With `progress` it is Resume. On a tablet on its side and TV the time left is beside its
+ * label, the played part runs along its lower edge and Start over is the button after it (detail-desktop 2, detail-tv 2).
+ * On a phone, an upright tablet and a cover page the played part, the time left and Start over are one line under the
+ * action row (detail-phone 3, desktop-listen book). */
+export type TitlePrimary = Omit<TitleAction, 'labelled' | 'pinned'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>}>;
+/** One part of the credits line: "Directed by" and the names; a name with `onPress` opens its page. */
+export type TitleCredit = Readonly<{label: string; names: string | readonly AboutValue[]}>;
+/** The line above the title (desktop-detail f1 "Dune collection · 2 films", f7 "Acting", desktop-listen "Album"). */
+export type TitleKicker = Readonly<{label: string; icon?: IconName; detail?: string; onPress?: () => void}>;
+/** A person's, an artist's, an album's or a book's own picture, beside the words in place of the art box. */
+export type TitleCover = Readonly<{node: ReactNode; shape: 'poster' | 'square' | 'circle'}>;
 export type TitleFrameProps = Readonly<{
-  /** The picture, as the kit's `AmbientArt` with `treatment="title"`; it fades itself into the backdrop, and with no
-   * picture it draws the generated wash. The frame gives it the box. */
-  art: ReactNode;
-  /** Not drawn on TV, where the remote's Back leaves the page. */
+  /** The picture behind the words, as the kit's `AmbientArt` with `treatment="title"`. The frame gives it the box. */
+  art?: ReactNode;
+  /** In place of `art`: the cover beside the words (a poster or square at the left, a circle at the right). */
+  cover?: TitleCover;
+  /** A glass disc over the art. Not drawn on TV, where the remote's Back leaves the page. */
   back: TopBarBack;
-  /** One round glass button opposite Back (Play on). */
+  /** One glass disc opposite Back (Play on). */
   topAction?: TitleAction;
+  kicker?: TitleKicker;
   title: string;
   /** The metadata line (`HeroMetadata`). Its line is kept when there is nothing to show. */
   metadata?: ReactNode;
-  /** The one flexible button: it takes the room the round buttons leave. */
-  primary: TitlePrimary;
-  /** Round buttons after it, in fixed slots from the left of the primary's end. One that the title doesn't support
-   * stays in its slot with `disabled`. */
+  /** The audio and subtitles for the next play (`TrackPicker`), under the synopsis on a phone and an upright tablet. */
+  picker?: ReactNode;
+  /** The one flexible button: it takes the room the round buttons leave. A person has none. */
+  primary?: TitlePrimary;
+  /** The buttons after it, in fixed slots. One that the title doesn't support stays in its slot with `disabled`. */
   actions?: readonly TitleAction[];
-  /** One bold line over the synopsis. Flexible: collapses when absent. */
+  /** One bold line over the synopsis, on a tablet on its side and TV. */
   tagline?: string;
-  /** Flexible: collapses when absent. */
   synopsis?: string;
-  /** "Directed by" and "Starring", one line under the synopsis on a tablet and TV. Flexible: collapses when absent. */
+  /** A biography's Read more and where it is from ("Biography from TMDB"). */
+  readMore?: Readonly<{label: string; onPress: () => void; note?: string}>;
+  /** "Directed by" and "Starring", on a tablet on its side and TV. */
   credits?: readonly TitleCredit[];
+  /** The cast circles on the left page when an open foldable lies on its side (foldable f2). Elsewhere the cast is in Details. */
+  cast?: ReactNode;
   tabs?: Readonly<{items: readonly TabItem[]; value: string; onValueChange: (value: string) => void}>;
   /** The tab panel: the one flexible region. */
   children?: ReactNode;
+  /** Beside the panel on a tablet on its side and TV (a collection's About, an album's Details); under it otherwise. */
+  aside?: ReactNode;
+  /** The bar that replaces the hero (desktop-detail f3, phone-detail d1 frame 2, detail-tv-4). On touch the frame sets
+   * it from the scroll; on TV the screen sets it when focus moves into the panel. */
+  collapsed?: boolean;
   state?: Readonly<{kind: 'loading'}> | PageStateProps;
   testID?: string;
   /** TV: the control the page starts on (R1), by `focusId` or `testID`. Left out, it is the primary (Play or Resume). */
   startFocus?: string;
 }>;
 
-/** Frame 2, a title page: a film, show, person, album or book. Fixed: the art box, Back, the title slot (the title
- * sits on its bottom edge and grows upward over the art), the metadata line, the action row and the tabs bar.
- * Flexible: the synopsis and the tab panel under them. Loading draws the same boxes. */
+/** Frame 2, a title page: a film, show, season, episode, person, collection, album, artist or book. Its regions are
+ * `frameRegions.title` (packages/design). Fixed: the art or cover, Back, the kicker, the title slot (the title sits on
+ * its bottom edge and grows upward over the art), the metadata line, the action row, the tabs and the collapsed bar.
+ * Flexible: the words and the tab panel. Forms: a phone and an upright tablet are one centred column (ruling 6); an open
+ * foldable on its side is two pages; a tablet on its side and TV put the words over the art at the left. The frame
+ * draws no page colour: the layer's backdrop shows through it (R10). Loading draws the same boxes. */
 export function TitleFrame({startFocus, ...props}: TitleFrameProps) {
-  return <StartFocusScope id={startFocus ?? props.primary.testID ?? titlePrimaryId}><TitlePage {...props}/></StartFocusScope>;
+  return <StartFocusScope id={startFocus ?? props.primary?.testID ?? titlePrimaryId}><TitlePage {...props}/></StartFocusScope>;
 }
 /** The primary's own focus id when the screen gives it no test id. */
 const titlePrimaryId = 'title-primary';
-function TitlePage({art, back, topAction, title, metadata, primary, actions = [], tagline, synopsis, credits, tabs, children, state, testID}: Omit<TitleFrameProps, 'startFocus'>) {
-  const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), spec = frameSpec.hero.title;
-  const {form} = frame, tv = form === 'tv', stacked = form === 'phone';
+function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, children, aside, collapsed, state, testID}: Omit<TitleFrameProps, 'startFocus'>) {
+  const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
+  const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
+  const [scrollY, setScrollY] = useState(0), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY);
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   if (failure) return <View testID={testID} style={{flex: 1}}>
     {!tv && <View style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, top: insets.top + theme.space.tight}}><RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/></View>}
     <PageStateFrame {...failure}/>
   </View>;
-  const height = spec.height[form], lockup = spec.lockup[form], actionHeight = theme.spec.button.hero.height[theme.column];
+  const height = split ? spec.height.phone : spec.height[form], lockup = split ? spec.lockup.phone : spec.lockup[form], actionHeight = theme.spec.button.hero.height[theme.column];
+  const discTop = insets.top + theme.space.tight, discRow = discTop + 38 + theme.space.sm;
+  const centre = stacked ? 'center' as const : 'flex-start' as const;
+  const tvCollapsed = tv && !!collapsed;
+
+  const kickerLine = kicker && <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.space.controlGap, marginBottom: theme.space.controlGap}}>
+    <Text accessibilityRole={kicker.onPress ? 'link' : undefined} onPress={kicker.onPress} style={[theme.type.rowHelp, {color: kicker.onPress || kicker.icon ? theme.colors.accentStrong : theme.colors.textSecondary, fontFamily: theme.type.rowLabel.fontFamily}]}>
+      {kicker.icon ? <><Icon name={kicker.icon} size={16} color={theme.colors.accentStrong}/>{' '}</> : null}{kicker.label}</Text>
+    {kicker.detail !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.text, fontFamily: theme.type.rowLabel.fontFamily}]}>{kicker.detail}</Text>}
+  </View>;
   const identity = <>
-    {loading ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
-    <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: stacked ? 'center' : 'flex-start', justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/> : metadata}</View>
+    {kickerLine}
+    {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={tvCollapsed ? spec.lockup.expanded : lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
+    {!tvCollapsed && <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: centre, justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/> : metadata}</View>}
   </>;
-  // Loading keeps the loaded page's boxes (rule 12): a bold line and the synopsis's lines, so the tabs and the row under them do not move when the words arrive.
+  const names = (value: TitleCredit['names']) => typeof value === 'string' ? value : value.map((name, index) => <Text key={index}>{index > 0 ? ', ' : ''}
+    {name.onPress ? <Text accessibilityRole="link" onPress={name.onPress} style={{textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .35)}}>{name.text}</Text> : name.text}</Text>);
+  // Loading keeps the loaded page's boxes (rule 12): the synopsis's lines, so the tabs and the panel do not move when the words arrive.
   const words = loading ? <View style={{gap: spec.creditsGap}}>
-    <SkeletonBlock width="52%" height={theme.type.rowLabel.lineHeight ?? theme.type.rowLabel.fontSize}/>
     {Array.from({length: spec.synopsisLines[form]}, (_, index) => <SkeletonBlock key={index} width={index === 0 ? '96%' : '70%'} height={theme.type.intro.lineHeight ?? theme.type.intro.fontSize}/>)}
-  </View> : (tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{gap: spec.creditsGap}}>
-    {tagline !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{tagline}</Text>}
-    {synopsis !== undefined && <Text numberOfLines={spec.synopsisLines[form]} style={[theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax}]}>{synopsis}</Text>}
-    {!stacked && credits && credits.length > 0 && <Text numberOfLines={1} style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>
-      {credits.map((credit, index) => <Text key={credit.label}>{index > 0 ? '    ' : ''}{credit.label} <Text style={{color: theme.colors.textSecondary}}>{credit.names}</Text></Text>)}</Text>}
+  </View> : (tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{gap: spec.creditsGap, alignItems: stacked ? 'center' : undefined}}>
+    {!stacked && tagline !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{tagline}</Text>}
+    {synopsis !== undefined && <Text numberOfLines={readMore ? 4 : spec.synopsisLines[form]} style={[theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax, textAlign: stacked ? 'center' : 'left'}]}>{synopsis}</Text>}
+    {readMore && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
+      <Button variant="text" size="xs" trailingIcon="i-chdown" onPress={readMore.onPress}>{readMore.label}</Button>
+      {readMore.note !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{readMore.note}</Text>}
+    </View>}
+    {!stacked && credits && credits.length > 0 && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>
+      {credits.map((credit, index) => <Text key={credit.label}>{index > 0 ? '    ' : ''}{credit.label} <Text style={{color: theme.colors.textSecondary}}>{names(credit.names)}</Text></Text>)}</Text>}
   </View> : null;
+
+  // Round on a phone and an upright tablet; labelled on a tablet on its side and TV (tablet f6, detail-tv-2).
   const side = (action: TitleAction) => action.labelled && !stacked
     ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
     : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
-      style={[{width: actionHeight, height: actionHeight}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha)}]}/>;
-  const lead = {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, focusId: primary.testID ?? titlePrimaryId, focusableWhenDisabled: loading, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1} : undefined};
-  const row = <View style={{height: actionHeight, flexDirection: 'row', alignItems: 'center', gap: theme.spec.hero.actions.gap[theme.column]}}>
-    {primary.progress !== undefined && !stacked ? <ResumeButton {...lead} size="hero" progress={primary.progress} remaining={primary.remaining}>{primary.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero">{primary.label}</Button>}
-    {primary.startOver && !stacked && <Button variant="glass" size="hero" icon="i-restart" disabled={loading} onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
+      style={[{width: actionHeight, height: actionHeight}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .55)}]}/>;
+  // While loading the row keeps its buttons but says nothing it does not know yet (the time left).
+  const resume = primary?.progress !== undefined && !loading, lineUnder = resume && (stacked || !!cover);
+  const lead = primary && {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, focusId: primary.testID ?? titlePrimaryId, focusableWhenDisabled: loading, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1, maxWidth: form === 'medium' ? 300 : undefined} : undefined};
+  const row = (primary || actions.length > 0) && <View style={{minHeight: actionHeight, alignSelf: stacked ? 'stretch' : undefined, flexDirection: 'row', flexWrap: stacked ? 'nowrap' : 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.spec.hero.actions.gap[theme.column]}}>
+    {lead && (resume && !lineUnder ? <ResumeButton {...lead} size="hero" progress={primary!.progress!} remaining={primary!.remaining}>{primary!.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero">{primary!.label}</Button>)}
+    {primary?.startOver && !stacked && !loading && <Button variant="glass" size="hero" icon="i-restart" onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
     {actions.map(side)}
   </View>;
   const track = theme.spec.card.progress.height[theme.column];
-  const resumeLine = primary.progress !== undefined && stacked && loading ? <View style={{gap: theme.space.tight}}>
-    <SkeletonBlock width="100%" height={track}/><View style={{minHeight: buttonGeometry('xs', theme.column, 'text').height, justifyContent: 'center'}}><SkeletonBlock width="30%" height={theme.type.rowHelp.fontSize}/></View>
-  </View> : primary.progress !== undefined && stacked ? <View style={{gap: theme.space.tight}}>
-    <View accessibilityRole="progressbar" accessibilityValue={{min: 0, max: 1, now: primary.progress}} style={{height: track, borderRadius: track, overflow: 'hidden', backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
-      <View style={{width: `${primary.progress * 100}%`, height: track, backgroundColor: theme.colors.accentStrong}}/></View>
-    <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}><Text style={[theme.type.rowHelp, {color: theme.colors.text}]}>{primary.remaining}</Text>
-      {primary.startOver && <Button variant="text" size="xs" icon="i-restart" onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}</View>
+  const resumeLine = lineUnder ? <View style={{gap: theme.space.tight, width: '100%', maxWidth: cover && !stacked ? 320 : undefined}}>
+    <View accessibilityRole="progressbar" accessibilityValue={{min: 0, max: 1, now: primary!.progress}} style={{height: track, borderRadius: track, overflow: 'hidden', backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
+      <View style={{width: `${primary!.progress! * 100}%`, height: track, backgroundColor: theme.colors.accentStrong}}/></View>
+    <View style={{minHeight: buttonGeometry('xs', theme.column, 'text').height, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}><Text style={[theme.type.rowHelp, {color: theme.colors.text}]}>{primary!.remaining}</Text>
+      {primary!.startOver && stacked && <Button variant="text" size="xs" icon="i-restart" onPress={primary!.startOver.onPress}>{primary!.startOver.label}</Button>}</View>
   </View> : null;
-  return <ScrollView testID={testID} style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}}>
-    <View style={{height}}>
+  const pickerRow = picker && stacked && !loading ? <View style={{alignSelf: 'stretch'}}>{picker}</View> : null;
+
+  // The head: the art box with the words hanging from its bottom edge, or the cover beside them.
+  const discs = !tv && <View pointerEvents="box-none" style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, right: theme.space.sm, top: discTop, flexDirection: 'row', justifyContent: 'space-between'}}>
+    <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/>
+    {topAction && <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress} disabled={topAction.disabled} testID={topAction.testID}/>}
+  </View>;
+  const body = <View style={{gap: theme.space.sm, alignItems: stacked ? 'center' : 'flex-start', alignSelf: 'stretch'}}>{stacked ? <>{row}{resumeLine}{words}{pickerRow}</> : <>{words}<View style={{marginTop: spec.actionGap[form] - theme.space.sm, gap: theme.space.sm}}>{row}{resumeLine}</View></>}</View>;
+  // R5 interim: the cover sizes drawn per form (phone-app 13 and phone-detail d3: 220 square, 180 poster, 104 circle; tablet f8 larger; desktop-listen 340).
+  const coverSize = {square: forms(220, 280, 300, 400), poster: forms(180, 220, 260, 340), circle: forms(104, 160, 300, 280)}[cover?.shape ?? 'square'][split ? 'phone' : form];
+  const coverBox = cover && <View style={{width: coverSize, height: cover.shape === 'poster' ? coverSize * 1.5 : coverSize, borderRadius: cover.shape === 'circle' ? coverSize / 2 : frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{cover.node}</View>;
+  const head = cover ? stacked
+    ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{discs}{coverBox}<View style={{alignSelf: 'stretch'}}>{identity}</View><View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View></View>
+    : <View style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: theme.space.xl}}>
+      {discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
+    : tvCollapsed ? <View style={{paddingTop: frame.titleTop, paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>{identity}</View>
+    : <><View style={{height}}>
       {art}
-      {/* A tablet's title, facts and synopsis are over the picture, so the picture is shaded behind them (the web's hero does the same; a phone's words are under its picture and a TV's art has its own). */}
+      {/* A tablet's words are over the picture, so the picture is shaded behind them (a phone's words are under its picture and a TV's art has its own). */}
       {!stacked && !tv && <Svg pointerEvents="none" accessible={false} width="100%" height="100%" style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id="title-shade-side" x1="0" y1="0" x2="1" y2="0">{spec.shade.side.map(([opacity, at]) => <Stop key={at} offset={at} stopColor={theme.colors.ink} stopOpacity={opacity}/>)}</LinearGradient>
@@ -119,19 +174,64 @@ function TitlePage({art, back, topAction, title, metadata, primary, actions = []
         </Defs>
         <Rect width="100%" height="100%" fill="url(#title-shade-side)"/><Rect width="100%" height="100%" fill="url(#title-shade-foot)"/>
       </Svg>}
-      {!tv && <View pointerEvents="box-none" style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, right: theme.space.sm, top: insets.top + theme.space.tight, flexDirection: 'row', justifyContent: 'space-between'}}>
-        <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/>
-        {topAction && <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress} disabled={topAction.disabled} testID={topAction.testID}/>}
-      </View>}
+      {discs}
       {/* Everything in the art box hangs from its bottom edge, so a longer title grows upward and the row below never moves. */}
-      {/* The words keep the copy column's width; the action row has the page's, so no label in it is ever squeezed. */}
-      <View pointerEvents="box-none" style={{position: 'absolute', left: frame.gutter, right: stacked ? frame.gutter : frame.rightGutter, bottom: spec.copyBottom[form]}}>
+      <View pointerEvents="box-none" style={{position: 'absolute', left: frame.gutter, right: stacked ? frame.gutter : frame.rightGutter, bottom: split ? 0 : spec.copyBottom[form]}}>
         <View style={stacked || tv ? undefined : {maxWidth: theme.spec.hero.copy.titleWidth.web}}>{identity}</View>
-        {!stacked && <><View style={{marginTop: theme.space.sm, maxWidth: theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>{words}</View><View style={{marginTop: spec.actionGap[form]}}>{row}</View></>}
+        {!stacked && <View style={{marginTop: theme.space.sm, maxWidth: theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>{body}</View>}
       </View>
     </View>
-    {stacked && <View style={{paddingHorizontal: frame.gutter, marginTop: spec.actionGap[form], gap: theme.space.sm}}>{row}{resumeLine}{words}</View>}
-    {tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} disabled={loading} style={{marginTop: stacked ? theme.space.sm : tv ? frame.headerGap : 0}} contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>}
-    <View style={{marginTop: frame.headerGap + frame.headingGap, gap: frame.sectionGap}}>{loading ? null : children}</View>
-  </ScrollView>;
+    {stacked && <View style={{paddingHorizontal: frame.gutter, marginTop: spec.actionGap[form]}}>{body}</View>}</>;
+
+  const posterWidth = theme.spec.card.width.poster[theme.column];
+  const panel = loading ? <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{flexDirection: 'row', gap: theme.space.sm, paddingLeft: frame.gutter, overflow: 'hidden'}}>
+    {Array.from({length: 6}, (_, index) => <SkeletonBlock key={index} width={posterWidth} height={posterWidth * 1.5} shine={index === 0}/>)}</View> : children;
+  const besideAside = !!aside && !stacked && !loading;
+  const content = <View style={{marginTop: tabs ? frame.headerGap + frame.headingGap : frame.sectionGap, flexDirection: besideAside ? 'row' : 'column', alignItems: 'flex-start', gap: besideAside ? theme.space.xl : frame.sectionGap}}>
+    <View style={{flex: besideAside ? 1 : undefined, alignSelf: besideAside ? undefined : 'stretch', minWidth: 0, gap: frame.sectionGap}}>{panel}</View>
+    {aside && !loading && <View style={{width: besideAside ? 360 : undefined, alignSelf: besideAside ? undefined : 'stretch', marginRight: besideAside ? frame.rightGutter : 0, paddingHorizontal: besideAside ? 0 : frame.gutter, gap: frame.sectionGap}}>{aside}</View>}{/* R5 interim: desktop-listen's 360 side column */}
+  </View>;
+  const tabBar = (style?: object) => tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} disabled={loading} style={style} contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
+
+  // The collapsed bar (touch): it shows once the tabs pass under it. A phone and an upright tablet: Back, the title
+  // centred and Play on, with the tabs under it; a tablet on its side: the title, the tabs, the primary and the pinned actions.
+  const barHeight = insets.top + 56; // R5 interim: rule 3's 56 bar under the status bar
+  const shown = !tv && !split && (collapsed ?? scrollY > tabsY - barHeight);
+  const pinned = actions.filter(action => action.pinned);
+  const bar = shown && <View style={{position: 'absolute', left: 0, right: 0, top: 0, zIndex: theme.layers.sticky, backgroundColor: alpha(theme.colors.ink, .92), borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>
+    {stacked ? <>
+      <View style={{height: barHeight, paddingTop: insets.top, paddingHorizontal: theme.space.sm, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>
+        <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress}/>
+        <Text accessibilityRole="header" style={[theme.type.barTitle, {flex: 1, textAlign: 'center', color: theme.colors.text}]}>{title}</Text>
+        {topAction ? <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress}/> : <View style={{width: 38}}/>}
+      </View>
+      {tabBar()}
+    </> : <View style={{minHeight: barHeight, paddingTop: insets.top, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
+      <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress}/>
+      <Text accessibilityRole="header" style={[theme.type.barTitle, {color: theme.colors.text, paddingRight: theme.space.md, borderRightWidth: 1, borderRightColor: theme.colors.line}]}>{title}</Text>
+      <View style={{flex: 1, minWidth: 0}}>{tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange}/>}</View>
+      {primary && <Button variant="primary" size="small" icon={primary.icon} disabled={primary.disabled || loading} onPress={primary.onPress}>{primary.label}</Button>}
+      {pinned.map(action => <Button key={action.label} variant="glass" size="small" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} disabled={action.disabled || loading} onPress={action.onPress}/>)}
+    </View>}
+  </View>;
+
+  if (split) return <View testID={testID} style={{flex: 1, flexDirection: 'row'}}>
+    {/* An open foldable on its side (foldable f2): the title on the left page, the tabs and their panel on the right; each scrolls on its own, and the crease is the divider. */}
+    <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} showsVerticalScrollIndicator={false}>
+      {head}
+      {cast && <View style={{paddingHorizontal: frame.gutter, marginTop: frame.sectionGap}}>{cast}</View>}
+    </ScrollView>
+    <View style={{width: 1, backgroundColor: theme.colors.line}}/>
+    <ScrollView style={{flex: 1}} contentContainerStyle={{paddingTop: insets.top, paddingBottom: frame.bottomClear}}>{tabBar()}{content}</ScrollView>
+  </View>;
+  return <View testID={testID} style={{flex: 1}}>
+    <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)}>
+      {head}
+      {tabs && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>}
+      {content}
+    </ScrollView>
+    {bar}
+  </View>;
 }
+
+const forms = (phone: number, medium: number, expanded: number, tv: number) => ({phone, medium, expanded, tv});

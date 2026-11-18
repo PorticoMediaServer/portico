@@ -63,7 +63,9 @@ export const frame = {
     title: {
       height: {...forms(330, 420, 420, 628), web: 560, mobileWeb: 290},
       lockup: {...forms(40, 52, 52, 100), web: 72},
-      copyBottom: {...forms(0, 36, 36, 0), web: 64},
+      // R5 interim (family C): TV's action row ends about 72 above the art box's edge, and its tabs start a double header gap under it (detail-tv-2).
+      copyBottom: {...forms(0, 36, 36, 72), web: 64},
+      tabsGap: forms(0, 0, 0, 56),
       synopsisLines: forms(2, 2, 2, 2),
       /** A tablet's words sit on the artwork: a shade of the ink behind their column, strongest at the gutter and gone by `end` of the width, and one rising from the bottom edge. Stops are alpha, then share. */
       shade: {side: [[.94, 0], [.78, .32], [0, .68]], foot: [[.9, 0], [0, .5]]},

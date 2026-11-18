@@ -76,7 +76,7 @@ function FiltersFields() {
 /** The poster grid: the kit's WindowedGrid of PosterCards with title and year, and the A–Z rail beside it. */
 function useGrid(items: readonly Poster[] = posters) {
   const theme = useTheme(), frame = useFrameMetrics(), [visible, setVisible] = useState({first: 0, last: 0}), grid = useRef<React.ComponentRef<typeof WindowedGrid>>(null);
-  const width = theme.spec.card.width.poster[theme.platform], caption = cardCaptionHeight(theme);
+  const width = theme.spec.card.width.poster[theme.column], caption = cardCaptionHeight(theme, 2);
   const positionIndex = useMemo(() => Object.fromEntries([...new Set(items.map(item => /^\d/.test(item.title) ? '#' : item.title[0]!.toUpperCase()))].map(key => [key, items.findIndex(item => (/^\d/.test(item.title) ? '#' : item.title[0]!.toUpperCase()) === key)])), [items]);
   const collection = useMemo(() => createWindowedCollection({pageSize: 40, maxResidentPages: 4, maxConcurrent: 1, keyOf: (item: Poster) => item.id,
     fetchPage: async (start, size) => ({items: items.slice(start, start + size), total: items.length, positionIndex})}), [items, positionIndex]);
@@ -89,7 +89,7 @@ function useGrid(items: readonly Poster[] = posters) {
 }
 
 function PosterRow({title, subtitle, fresh = false, start = 0}: {title: string; subtitle?: string; fresh?: boolean; start?: number}) {
-  const theme = useTheme(), width = theme.spec.card.width.poster[theme.platform], caption = cardCaptionHeight(theme), items = posters.slice(start, start + 10);
+  const theme = useTheme(), width = theme.spec.card.width.poster[theme.column], caption = cardCaptionHeight(theme, 2), items = posters.slice(start, start + 10);
   return <Row title={title} subtitle={subtitle} onSeeAll={none} items={items} getKey={item => item.id} itemWidth={width} itemHeight={width * 1.5 + caption} captionHeight={caption} selection={selection}
     renderItem={(item, context) => <PosterCard {...card(context)} title={item.title} caption={year(item)} artwork={item.art} width={width} isNew={fresh && items.indexOf(item) < 3} onNavigate={none}/>}/>;
 }
@@ -103,7 +103,7 @@ const continuing = [
 ];
 type Continuing = typeof continuing[number];
 function ContinueRow({onFocusEntry}: {onFocusEntry?: (entry: Continuing) => void}) {
-  const theme = useTheme(), width = theme.spec.card.width.wide[theme.platform];
+  const theme = useTheme(), width = theme.spec.card.width.wide[theme.column];
   return <Row title={f('continueWatching')} items={continuing} getKey={item => item.id} itemWidth={width} itemHeight={width * 9 / 16} selection={selection}
     renderItem={(item, context) => <WideCard {...card(context)} onFocus={() => {context.onFocus?.(); onFocusEntry?.(item);}} preferredFocus={continuing.indexOf(item) === 0} title={item.title} artwork={item.art} width={width} progress={item.progress}
       caption={item.caption} detail={[{id: 'remaining', text: item.left, role: 'context'}]} primaryAction="play" onPlay={none} onNavigate={none}/>}/>;
@@ -119,7 +119,7 @@ function LiveRow() {
 }
 
 function ListeningRow() {
-  const theme = useTheme(), width = theme.spec.card.width.square[theme.platform], caption = cardCaptionHeight(theme);
+  const theme = useTheme(), width = theme.spec.card.width.square[theme.column], caption = cardCaptionHeight(theme, 2);
   const items = [{id: 'hobbit', title: l('next.libraryFrames.fixture.hobbit'), by: l('next.libraryFrames.fixture.tolkien'), art: asset('sq-hobbit.jpg'), progress: .3, detail: l('next.libraryFrames.fixture.chapter')},
     {id: 'after-hours', title: l('next.libraryFrames.fixture.afterHours'), by: l('next.libraryFrames.fixture.weeknd'), art: asset('sq-afterhours.jpg'), progress: .6, detail: undefined},
     {id: 'hail-mary', title: l('next.libraryFrames.fixture.poster.oppenheimer'), by: l('next.libraryFrames.fixture.tolkien'), art: asset('sq-hailmary.jpg'), progress: .1, detail: undefined}];
@@ -182,7 +182,7 @@ function BrowseCollections() {
   const width = theme.isTV ? 520 : Math.min(350, frame.width - frame.gutter - frame.rightGutter);
   const tiles = ([['dune', 'collectionDune', 'twoFilms', ['dune', 'dune-part-two']], ['alien', 'collectionAlien', 'twoFilms', ['alien', 'aliens']], ['avengers', 'collectionAvengers', 'fourFilms', ['avengers-endgame', 'avengers-infinity-war']], ['pixar', 'collectionToyStory', 'sixFilms', ['inside-out', 'incredibles-2', 'monsters-inc']]] as const);
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-collections" header={header}>
-    <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.spec.shelf.gap[theme.platform], paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
+    <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.spec.shelf.gap[theme.column], paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
       {tiles.map(([id, name, films, covers]) => <CollectionTile key={id} width={width} title={l(`next.libraryFrames.fixture.${name}`)} covers={covers.map(cover => asset(`pool/movies/${cover}.jpg`))} backdrop={asset(`pool/movies/${covers[0]}--bd.jpg`)}
         caption={[{id: 'count', text: l(`next.libraryFrames.fixture.${films}`), role: 'identity'}]} onNavigate={none}/>)}
     </View>

@@ -4,6 +4,7 @@ import {screenModule, hooks} from './helpers/screen-harness.mjs';
 import {cardText, episodeLabel, playbackIdentity, titleFactParts} from '../../../packages/client-core/src/presentation/kit-model/facts.ts';
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import {tvTitleRegionMap} from '../src-next/screens/watch/tv-title-focus.ts';
+import * as design from '../../../packages/design/src/index.ts';
 
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];
 const style = (node: any) => Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean));
@@ -15,7 +16,7 @@ async function fixture() {
   const react = {...host.react, useLayoutEffect() {}, createContext: (value: unknown) => ({_currentValue: value})};
   const fontFamilies = {regular: 'Manrope-Regular', medium: 'Manrope-Medium', semibold: 'Manrope-SemiBold', bold: 'Manrope-Bold', extraBold: 'Manrope-ExtraBold'};
   const {nativeType} = await screenModule(new URL('../src-next/kit/theme.ts', import.meta.url), {
-    react: {...react, default: react}, 'react-native': {}, '@portico/design': {typography: fontFamilies},
+    react: {...react, default: react}, 'react-native': {Platform: {OS: 'ios'}}, '@portico/design': {...design, typography: fontFamilies},
   });
   const viewport = {width: 390, height: 844}, insets = {top: 50, bottom: 34, left: 0, right: 0};
   const theme = {isTV: false, platform: 'phone', textScale: 1, colors: {ink: '#071018', text: '#edf5fa', textSecondary: '#bdccd6', textTertiary: '#96a9b5', line: '#28404f', lineStrong: '#3b5668'},

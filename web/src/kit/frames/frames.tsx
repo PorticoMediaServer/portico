@@ -3,7 +3,7 @@ import {defaultI18n} from '@i18n';
 import {overlayForm, type OverlayTask} from '@design';
 import {AuthError, AuthKicker, AuthStage} from '../accounts';
 import type {ArtworkSource} from '../artwork';
-import {Button, ResumeButton, Tabs, type ChoiceItem} from '../controls';
+import {Button, Tabs, type ChoiceItem} from '../controls';
 import type {IconName} from '../Icon';
 import {BottomSheet, Dialog, Popover, SidePanel, useFrameForm, type OverlayChange} from '../overlays';
 import {usePhone} from '../overlays/shared';
@@ -50,83 +50,6 @@ export type PageStateProps = Readonly<{
 /** Frame 9: the whole page can't load, or is waiting the first time. Once per screen, in place of the page. */
 export function PageStateFrame({primaryAction, secondaryAction, downloads, ...state}: PageStateProps) {
   return <StateLayout {...state} primary={primaryAction} secondary={secondaryAction}>{downloads}</StateLayout>;
-}
-
-export type TitleAction = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean;
-  /** Shown with its label where there is room (from tablet width): Start over, My List. A round button on a phone. */
-  labelled?: boolean}>;
-/** The one flexible button. With `progress` it is Resume. From tablet width the time left is beside its label, the
- * played part runs along its lower edge and Start over is the button after it (detail-desktop 2). On a phone the
- * played part, the time left and Start over are one line under the action row (detail-phone 3). */
-export type TitlePrimary = Omit<TitleAction, 'labelled'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>}>;
-/** One part of the credits line: "Directed by" and the names. */
-export type TitleCredit = Readonly<{label: string; names: string}>;
-export type TitleFrameProps = Readonly<{
-  /** The picture, as the kit's `AmbientArt` with `treatment="title"`; it fades itself into the backdrop. */
-  art: ReactNode;
-  /** Phone width only: the glass circle over the art. Wider, the nav is the way back. */
-  back: FrameBack;
-  topAction?: TitleAction;
-  title: string;
-  /** The metadata line (`HeroFacts`). Its line is kept when there is nothing to show. */
-  metadata?: ReactNode;
-  /** The one flexible button: at phone width it takes the room the round buttons leave. */
-  primary: TitlePrimary;
-  /** The buttons after it, in order: labelled ones first (Start over, My List), then round ones (watched, More). One
-   * that the title doesn't support stays in its slot with `disabled`. */
-  actions?: readonly TitleAction[];
-  /** One bold line over the synopsis. Flexible: collapses when absent. */
-  tagline?: string;
-  /** Flexible: collapses when absent. */
-  synopsis?: string;
-  /** "Directed by" and "Starring", one line under the synopsis from tablet width. Flexible: collapses when absent. */
-  credits?: readonly TitleCredit[];
-  tabs?: Readonly<{items: readonly ChoiceItem[]; value: string; onValueChange: (value: string) => void}>;
-  /** The tab panel: the one flexible region. */
-  children?: ReactNode;
-  state?: Readonly<{kind: 'loading'}> | PageStateProps;
-}>;
-
-/** Frame 2, a title page. Fixed: the art box, Back, the title slot (the title sits on its bottom edge and grows
- * upward over the art), the metadata line, the action row and the tabs bar. Flexible: the synopsis and the tab panel. */
-export function TitleFrame({art, back, topAction, title, metadata, primary, actions = [], tagline, synopsis, credits, tabs, children, state}: TitleFrameProps) {
-  const phone = usePhone(), failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
-  const glass = (action: TitleAction) => <Button variant="glass" size="small" iconOnly icon={action.icon} aria-label={action.label} disabled={action.disabled} onClick={action.onPress} />;
-  const backButton = glass({icon: 'i-left', label: back.label, onPress: back.onPress});
-  if (failure) return <div className={styles.frame}>{phone && <div className={styles.titleTop}>{backButton}</div>}<PageStateFrame {...failure} /></div>;
-  return <div className={`${styles.frame} ${styles.title}`}>
-    <div className={styles.titleHead}>
-      <div className={styles.titleArt}>{art}</div>
-      <div className={styles.titleTop}>{backButton}{topAction && glass(topAction)}</div>
-      <div className={styles.titleCopy}>
-        {loading ? <Skeleton width="70%" height="var(--frame-hero-title-lockup)" /> : <h1 className={styles.titleLockup}>{title}</h1>}
-        <div className={styles.titleMeta}>{loading ? <Skeleton line small width="40%" /> : metadata}</div>
-      </div>
-      <div className={styles.titleBody}>
-        <div className={styles.titleActions}>
-          {primary.progress !== undefined && !phone
-            ? <ResumeButton icon={primary.icon} progress={primary.progress} remaining={primary.remaining} disabled={primary.disabled || loading} onClick={primary.onPress}>{primary.label}</ResumeButton>
-            : <Button variant="primary" phone={phone} icon={primary.icon} disabled={primary.disabled || loading} onClick={primary.onPress}>{primary.label}</Button>}
-          {primary.startOver && !phone && <Button variant="glass" icon="i-restart" disabled={loading} onClick={primary.startOver.onPress}>{primary.startOver.label}</Button>}
-          {actions.map(action => action.labelled && !phone
-            ? <Button key={action.label} variant="glass" icon={action.icon} disabled={action.disabled || loading} onClick={action.onPress}>{action.label}</Button>
-            : <Button key={action.label} variant="glass" phone={phone} iconOnly icon={action.icon} aria-label={action.label} title={action.label} disabled={action.disabled || loading} onClick={action.onPress} className={styles.titleRound} />)}
-        </div>
-        {primary.progress !== undefined && phone && !loading && <div className={styles.titleProgress}>
-          <span role="progressbar" aria-valuemin={0} aria-valuemax={1} aria-valuenow={primary.progress} aria-label={primary.remaining}><i style={{width: `${primary.progress * 100}%`}} /></span>
-          <b className={styles.rowHelp}>{primary.remaining}</b>
-          {primary.startOver && <Button variant="text" size="xs" icon="i-restart" onClick={primary.startOver.onPress}>{primary.startOver.label}</Button>}
-        </div>}
-        {!loading && (tagline !== undefined || synopsis !== undefined || credits?.length) && <div className={styles.titleWords}>
-          {tagline !== undefined && <p className={styles.rowLabel}>{tagline}</p>}
-          {synopsis !== undefined && <p className={`${styles.intro} ${styles.synopsis}`}>{synopsis}</p>}
-          {credits && credits.length > 0 && <p className={`${styles.rowHelp} ${styles.titleCredits}`}>{credits.map(credit => <span key={credit.label}>{credit.label} <b>{credit.names}</b></span>)}</p>}
-        </div>}
-      </div>
-    </div>
-    {tabs && <Tabs className={styles.titleTabs} listClassName={styles.tabsInset} phone={phone} items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} />}
-    <div className={styles.titlePanel}>{loading ? null : children}</div>
-  </div>;
 }
 
 export type SheetBarProps = Readonly<{

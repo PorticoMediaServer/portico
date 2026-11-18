@@ -337,7 +337,7 @@ export {emphasis, iconClass, formSizes, byForm} from './scale.ts';
 export type {ScaleForm, ByForm, EmphasisLevel, IconClass} from './scale.ts';
 export type {FrameSpec, FrameForm} from './frames.ts';
 export {overlayForms, overlayForm} from './overlay-forms.ts';
-export {frameRegions, type FrameRegion, type RegionForm} from './frame-regions.ts';
+export {frameRegions, titleKinds, type FrameRegion, type RegionForm, type TitleRegion, type TitleKind} from './frame-regions.ts';
 export type {OverlayTask, OverlayForm, OverlayFormKind, OverlayBar, OverlayFoot} from './overlay-forms.ts';
 
 /** Named surface roles, including the exact 6/10/12/14/16 px kit radii. */

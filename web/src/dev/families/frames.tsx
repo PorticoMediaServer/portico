@@ -4,12 +4,12 @@ import {ArtworkScheduler} from '@core/artwork';
 import type {FactPart} from '@portico/client-core/kit-model';
 import {framesFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/frames-fixtures.ts';
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
-import {AmbientArt, type ArtworkImage, type ArtworkSource} from '../../kit/artwork';
-import {PosterCard, SquareCard, WideCard} from '../../kit/cards';
+import type {ArtworkImage, ArtworkSource} from '../../kit/artwork';
+import {PosterCard, SquareCard} from '../../kit/cards';
 import {Button, Switch, TextField} from '../../kit/controls';
 import {ArtBox, BrowseFrame, PageStateFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame} from '../../kit/frames';
 import {Icon} from '../../kit/Icon';
-import {HeroFacts, Shelf} from '../../kit/layout';
+import {Shelf} from '../../kit/layout';
 import {usePhone} from '../../kit/overlays/shared';
 import {SettingsNav, SettingsRow, TopBarActivity, type ActivityPanelView} from '../../kit/shell';
 import {DesktopNavigationUnderline} from '../../shell/DesktopNavigationUnderline';
@@ -82,26 +82,6 @@ export function PosterRow({title, fresh = false}: {title: string; /** The first 
   const art = useReferenceArtwork(), phone = usePhone();
   return <Shelf heading={title} platform={phone ? 'phone-web' : 'desktop'} items={posters} getKey={item => item.id}
     renderItem={item => <PosterCard isNew={fresh && posters.indexOf(item) < 3} model={{title: item.title, caption: []}} artwork={art(`pool/movies/${item.id}.jpg`)} style={{width: 'var(--card-poster-width)'}} onNavigate={none} />} />;
-}
-function WideRow() {
-  const art = useReferenceArtwork(), phone = usePhone();
-  return <Shelf heading={f('continueWatching')} platform={phone ? 'phone-web' : 'desktop'} items={wides} getKey={item => item.id}
-    renderItem={item => <WideCard model={{title: item.title, caption: [{id: 'episode-label', text: f('wideEpisode'), role: 'identity'}], detail: [{id: 'remaining', text: f('wideLeft'), role: 'context'}], progress: .4}} artwork={art(item.art)} style={{width: 'var(--card-wide-width)'}} onNavigate={none} />} />;
-}
-
-function Title({variant}: {variant: 'full' | 'missing' | 'loading'}) {
-  const art = useReferenceArtwork(), [tab, setTab] = useState('more'), full = variant !== 'missing', phone = usePhone();
-  return <Page current="movies"><TitleFrame back={{label: f('back'), onPress: none}} topAction={{icon: 'i-cast', label: f('playOn'), onPress: none}}
-    art={<AmbientArt treatment={phone ? 'phone' : 'title'} foreground={full ? art('bd-insideout.jpg') : undefined} />}
-    title={full ? f('insideOut') : f('longTitle')} metadata={<HeroFacts parts={full ? [...fact(f('insideOutFacts')), {id: 'content-rating', text: f('insideOutRating'), role: 'context'}] : fact(f('longFacts'))} platform={phone ? 'phone-web' : 'desktop'} />}
-    primary={full ? {icon: 'i-play', label: f('resume'), progress: .09, remaining: f('resumeLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none} : {icon: 'i-play', label: f('play'), onPress: none}}
-    actions={full ? [{icon: 'i-plus', label: f('myList'), labelled: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}] : []}
-    tagline={full ? f('insideOutTagline') : undefined} synopsis={full ? f('insideOutSynopsis') : undefined}
-    credits={full ? [{label: f('directedBy'), names: f('insideOutDirector')}, {label: f('starring'), names: f('insideOutCast')}] : undefined}
-    tabs={{items: [{value: 'more', label: f('moreLikeThis')}, {value: 'details', label: f('details')}], value: tab, onValueChange: setTab}}
-    state={variant === 'loading' ? {kind: 'loading'} : undefined}>
-    <PosterRow title={f('moreLikeInsideOut')} />
-  </TitleFrame></Page>;
 }
 
 const value = (text: string) => <span className={frame.rowHelp} style={{display: 'inline-flex', alignItems: 'center', gap: 4}}>{text}<Icon name="i-right" size={18} /></span>;
@@ -206,9 +186,6 @@ const RegionsState = () => <Window><PageStateFrame icon="i-info" title={f('ownSt
 const section = (id: string, label: string, render: ComponentType, height = 900): GalleryCase => ({id, labelKey: `next.platform.frame.${label}` as MessageId, width: 1440, height, render});
 export default defineGalleryFamily({id: 'frames', labelKey: 'next.platform.frame.family', cases: [
   section('backdrop', 'backdrop', () => <Window><div /></Window>),
-  section('title', 'title', () => <Title variant="full" />),
-  section('title-missing', 'titleMissing', () => <Title variant="missing" />),
-  section('title-loading', 'titleLoading', () => <Title variant="loading" />),
   section('settings-list', 'settingsList', SettingsList),
   section('settings-page', 'settingsPage', SettingsPage),
   section('sheet', 'sheet', Sheet),

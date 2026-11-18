@@ -1,0 +1,167 @@
+/* Frame 2, the title page (TitleFrame.tsx). Its regions are `frameRegions.title` (packages/design/src/frame-regions.ts).
+   Forms: a phone and a tablet upright are one centred column (phone-detail d1, tablet f8, foldable f2 frame 2); from
+   600 on its side the window is two pages (foldable f2 frame 1); from 1024 the words sit over the art at the left
+   (desktop-detail f1). Every gap is the frame's (--frame-*) or the spacing scale; a number with no token yet is marked
+   `R5 interim`, for the rules hand to name. */
+
+.title { --g: var(--shell-gutter, var(--page-gutter)); padding-bottom: var(--frame-bottom-clear); color: var(--color-text); font-family: var(--font); }
+.pages, .page { display: contents; }
+
+/* The head: the art box, the discs over it, and the title hanging from its bottom edge so it grows upward. */
+.head { position: relative; isolation: isolate; display: grid; grid-template-rows: var(--frame-hero-title-height) auto; }
+.art { grid-area: 1 / 1; position: relative; z-index: -1; }
+.art > * { position: absolute; inset: 0; }
+.top { grid-area: 1 / 1; align-self: start; display: flex; justify-content: space-between; padding: var(--space-px-12) var(--space-sm) 0; }
+.disc { border-radius: 50%; }
+.copy { display: contents; }
+.ident { grid-area: 1 / 1; align-self: end; padding: 0 var(--g) var(--frame-hero-title-copy-bottom); text-align: center; min-width: 0; }
+.kicker { margin: 0 0 var(--space-control-gap); display: flex; flex-wrap: wrap; align-items: center; justify-content: inherit; gap: var(--space-control-gap); font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-row-label-weight); color: var(--color-text-secondary); }
+.ident .kicker { justify-content: center; }
+.kicker > :first-child { display: inline-flex; align-items: center; gap: var(--space-tight); padding: 0; border: 0; background: none; color: inherit; font: inherit; }
+/* A kicker that opens something, or carries its kind's glyph, is in the accent (desktop-detail f1, f8). */
+.kicker > button:first-child, .kicker > :first-child:has(svg) { color: var(--color-accent-strong); }
+.kicker > button:first-child { cursor: pointer; }
+.kicker > button:first-child:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 2px; border-radius: 4px; }
+.kickerDetail { color: var(--color-text); }
+.lockup { margin: 0; font-size: var(--frame-hero-title-lockup); line-height: var(--frame-hero-lockup-line); font-weight: var(--type-lockup-weight); letter-spacing: var(--frame-hero-lockup-tracking); text-wrap: balance; text-shadow: 0 2px 30px color-mix(in srgb, var(--color-ink) 50%, transparent); }
+.meta { min-height: var(--type-row-label-line); margin-top: var(--space-control-gap); display: flex; justify-content: center; align-items: center; }
+.meta > * { margin: 0; flex-wrap: wrap; justify-content: inherit; }
+
+/* The body: the action row, the played line, the words, the picker. Centred under the art up to 1024. */
+.body { grid-row: 2; display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--frame-title-action-gap) var(--g) 0; min-width: 0; }
+.actions { display: flex; align-items: center; gap: var(--spec-hero-actions-gap-phone); min-height: var(--button-hero-height); }
+.actions > .primary, .actions > .resume { flex: 1; min-width: 0; }
+.round { width: var(--button-hero-height); padding: 0; flex: none; }
+.round[data-active], .labelled[data-active] { color: var(--color-accent-strong); background: color-mix(in srgb, var(--color-accent-strong) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 55%, transparent); }
+.startOver { display: none; }
+.labelled { display: none; }
+.resume { display: none; }
+.progress { display: grid; grid-template-columns: 1fr auto; align-items: center; row-gap: var(--space-tight); }
+.progress > span { grid-column: 1 / -1; height: var(--spec-card-progress-height-phone); border-radius: var(--spec-card-progress-height-phone); overflow: hidden; background: color-mix(in srgb, var(--color-text) 22%, transparent); }
+.progress i { display: block; height: 100%; background: var(--color-accent-strong); }
+.progress b { font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-row-help-weight); color: var(--color-text); }
+.words { display: flex; flex-direction: column; gap: var(--frame-title-credits-gap); }
+.tagline { display: none; margin: 0; font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-row-label-weight); }
+.synopsis { margin: 0; font-size: var(--type-intro-size); line-height: var(--type-intro-line); font-weight: var(--type-intro-weight); color: var(--color-text-secondary); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--frame-hero-title-synopsis-lines); overflow: hidden; max-width: var(--spec-hero-synopsis-max-width-web); }
+.synopsis[data-read-more] { -webkit-line-clamp: 4; }
+.readMore { margin: 0; display: flex; align-items: center; gap: var(--space-md); font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-tertiary); }
+.readMore button { display: inline-flex; align-items: center; gap: var(--space-tight); padding: 0; border: 0; background: none; color: var(--color-text); font: inherit; font-weight: var(--type-row-label-weight); cursor: pointer; }
+.credits { display: none; margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-tertiary); }
+.credits > span { margin-inline-end: var(--space-md); }
+.credits b { color: var(--color-text-secondary); font-weight: inherit; }
+.link { border: 0; padding: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--color-text) 35%, transparent); text-underline-offset: 3px; }
+.link:hover { text-decoration-color: var(--color-text); }
+.cast { display: none; }
+
+/* A cover page (a person, an album, an artist, a book): the cover centred above the words, no art box. */
+.title[data-cover] .head { grid-template-rows: auto auto; padding-top: calc(var(--space-px-12) + var(--button-hero-height) + var(--space-sm)); }
+.cover { grid-row: 1; justify-self: center; position: relative; overflow: hidden; border-radius: var(--frame-card-radius); background: var(--color-raised); box-shadow: 0 24px 60px -20px color-mix(in srgb, var(--color-ink) 80%, transparent); }
+.cover > * { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cover[data-shape=square] { width: min(220px, 60vw); aspect-ratio: 1; } /* R5 interim: the phone cover sizes (phone-app 13, phone-detail d3 frame 7) */
+.cover[data-shape=poster] { width: min(180px, 48vw); aspect-ratio: 2 / 3; }
+.cover[data-shape=circle] { width: 104px; aspect-ratio: 1; border-radius: 50%; }
+.title[data-cover] .top { grid-row: 1; position: absolute; inset: 0 0 auto; }
+.title[data-cover] .ident { grid-area: auto; grid-row: 2; padding-top: var(--space-sm); padding-bottom: 0; }
+.title[data-cover] .body { grid-row: 3; }
+
+/* The tabs and the panel. */
+.inset { padding-left: var(--g); padding-right: var(--g); }
+.tabsTop { height: 0; }
+.tabs { margin-top: var(--space-sm); }
+.content { margin-top: calc(var(--frame-header-gap) + var(--frame-heading-gap)); display: flex; flex-direction: column; gap: var(--frame-section-gap); }
+.title[data-panel=bare] .content { margin-top: var(--frame-section-gap); }
+.panel { display: flex; flex-direction: column; gap: var(--frame-section-gap); min-width: 0; }
+.aside { display: flex; flex-direction: column; gap: var(--frame-section-gap); padding: 0 var(--g); min-width: 0; }
+.skeletonRow { display: flex; gap: var(--space-sm); padding: 0 var(--g); overflow: hidden; }
+.skeletonCard { flex: none; width: var(--card-poster-width); aspect-ratio: 2 / 3; border-radius: var(--frame-card-radius); }
+
+/* The collapsed bar: sticky under the shell's bar, taking no room, shown once the tabs pass under it. On a phone it is
+   Back, the title centred and Play on, with the tabs under it (phone-detail d1 frame 2); from 600 the title, the tabs
+   beside it, and the primary with the pinned actions at the end (desktop-detail f3, f4). */
+.barSlot { position: sticky; top: var(--shell-top, 0px); height: 0; z-index: var(--layer-sticky); }
+.bar { position: absolute; inset: 0 0 auto; background: color-mix(in srgb, var(--color-ink) 88%, transparent); -webkit-backdrop-filter: blur(22px) saturate(1.2); backdrop-filter: blur(22px) saturate(1.2); box-shadow: 0 1px 0 color-mix(in srgb, var(--color-text) 8%, transparent); opacity: 0; visibility: hidden; transform: translateY(-6px); transition: opacity var(--motion-fast, 160ms) var(--ease-out), transform var(--motion-fast, 160ms) var(--ease-out), visibility 0s linear var(--motion-fast, 160ms); }
+.title[data-collapsed] .bar { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.barRow { display: grid; grid-template-columns: var(--button-hero-height) minmax(0, 1fr) var(--button-hero-height); align-items: center; gap: var(--space-control-gap); min-height: var(--frame-header-bar, 56px); padding: 0 var(--space-sm); } /* R5 interim: the bar is rule 3's 56 */
+.barTitle { grid-column: 2; text-align: center; font-size: var(--type-bar-title-size); line-height: var(--type-bar-title-line); font-weight: var(--type-bar-title-weight); }
+.barBack { grid-column: 1; }
+.barTabs { display: none; }
+.barEnd { grid-column: 3; display: flex; justify-content: flex-end; align-items: center; gap: var(--space-control-gap); }
+.barEnd > button { display: none; }
+.barCast { display: contents; }
+.barTabsUnder { margin-top: 0; }
+
+/* A tablet upright keeps the phone's column, larger. */
+@media (min-width: 600px) {
+  .actions { gap: var(--spec-hero-actions-gap-tablet); }
+  .actions > .primary, .actions > .resume { flex: 0 1 300px; } /* R5 interim: the upright tablet's primary (tablet f8, foldable f2 frame 2) */
+  .actions { justify-content: center; }
+  .synopsis { text-align: center; align-self: center; }
+  .cover[data-shape=square] { width: 280px; }
+  .cover[data-shape=poster] { width: 220px; }
+  .cover[data-shape=circle] { width: 160px; }
+  .barRow { display: flex; gap: var(--space-md); min-height: 64px; padding: 0 var(--g); } /* R5 interim: desktop-detail f3's bar */
+  .barBack { display: contents; }
+  .barTitle { flex: none; text-align: left; padding-right: var(--space-md); border-right: 1px solid var(--color-line); }
+  .barTabs { display: flex; align-items: flex-end; flex: 1; min-width: 0; margin: 0; align-self: stretch; }
+  .barTabs > * { border: 0; box-shadow: none; }
+  .barTabs > *::before, .barTabs > *::after { display: none; }
+  .barTabsUnder { display: none; }
+  .barEnd { margin-left: auto; }
+  .barEnd > button { display: inline-flex; }
+  .barCast { display: none; }
+}
+
+/* On its side up to 1024: two pages (foldable f2 frame 1). The left page is the title, sticky as the right one scrolls;
+   the right page is the tabs and their panel. */
+@media (min-width: 600px) and (max-width: 1023px) and (orientation: landscape) {
+  .pages { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .page { display: block; min-width: 0; }
+  .page:first-child { position: sticky; top: var(--shell-top, 0px); max-height: calc(100dvh - var(--shell-top, 0px)); overflow-y: auto; scrollbar-width: none; border-right: 1px solid var(--color-line); padding-bottom: var(--frame-bottom-clear); }
+  .head { grid-template-rows: calc(var(--frame-hero-title-height) * .82) auto; }
+  .cast { display: block; padding: var(--frame-section-gap) var(--g) 0; }
+  .tabs { margin-top: 0; }
+  .barSlot { display: none; }
+}
+
+/* From 1024: the words sit over the art at the left; the action row follows the words (desktop-detail f1, f2). */
+@media (min-width: 1024px) {
+  .head { display: flex; flex-direction: column; justify-content: flex-end; min-height: var(--frame-hero-title-height); padding-bottom: var(--frame-hero-title-copy-bottom); box-sizing: border-box; }
+  .art { position: absolute; inset: 0; }
+  .top { display: none; }
+  .copy { display: flex; flex-direction: column; gap: var(--space-sm); padding: 0 var(--g); text-align: left; }
+  .ident { padding: 0; text-align: left; align-self: stretch; max-width: calc(var(--spec-hero-copy-title-width-web) * 1.3); }
+  .ident .kicker { justify-content: flex-start; }
+  .meta { justify-content: flex-start; }
+  .body { padding: 0; gap: var(--space-sm); }
+  .words { order: 1; }
+  .credits { max-width: calc(var(--spec-hero-copy-title-width-web) * 1.3); }
+  .actions { order: 2; margin-top: calc(var(--frame-title-action-gap) - var(--space-sm)); justify-content: flex-start; flex-wrap: wrap; gap: var(--spec-hero-actions-gap-web); }
+  .progress { order: 3; }
+  .synopsis { text-align: left; align-self: auto; }
+  .tagline, .credits { display: block; }
+  .actions > .primary, .actions > .resume { flex: none; }
+  .labelled, .startOver, .resume { display: inline-flex; }
+  .round[data-labelled], .primary[data-paired] { display: none; }
+  .title:not([data-cover]) .progress { display: none; }
+  .progress > button { display: none; }
+  .picker { display: none; }
+  .tabs { margin-top: 0; }
+  .barBack { display: none; }
+
+  /* A cover page: the cover and the words side by side; a square or poster at the left, a circle at the right. */
+  .title[data-cover] .head { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: none; align-items: center; column-gap: 56px; min-height: 0; padding: var(--frame-title-top) var(--g) 0; } /* R5 interim: desktop-listen's 56 between cover and words */
+  .title[data-cover] .cover { grid-row: 1; grid-column: 1; justify-self: start; }
+  .title[data-cover] .copy { grid-row: 1; grid-column: 2; padding: 0; }
+  .title[data-cover] .ident, .title[data-cover] .body { grid-row: auto; padding: 0; }
+  .title[data-cover=circle] .head { grid-template-columns: minmax(0, 1fr) auto; }
+  .title[data-cover=circle] .cover { grid-column: 2; }
+  .title[data-cover=circle] .copy { grid-column: 1; }
+  .cover[data-shape=square], .cover[data-shape=poster] { width: 340px; } /* R5 interim: desktop-listen album and book */
+  .cover[data-shape=circle] { width: 340px; box-shadow: 0 0 0 32px color-mix(in srgb, var(--color-text) 3%, transparent), 0 0 0 33px color-mix(in srgb, var(--color-text) 8%, transparent), 0 30px 80px -24px color-mix(in srgb, var(--color-ink) 90%, transparent); overflow: visible; }
+  .cover[data-shape=circle] > * { border-radius: 50%; overflow: hidden; }
+
+  /* The panel and its side (desktop-detail f8, desktop-listen). */
+  .content { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 64px; align-items: start; }
+  .content:has(> .aside) { grid-template-columns: minmax(0, 1fr) 360px; padding-right: var(--g); } /* R5 interim: desktop-listen's side column */
+  .content:has(> .aside) .aside { padding: 0; }
+}

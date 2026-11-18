@@ -7,8 +7,8 @@ import {playerFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
 import type {ArtworkImage, ArtworkSource} from '../../kit/artwork';
 import {EpisodeTile} from '../../kit/cards';
-import {Button, Tabs, TextField} from '../../kit/controls';
-import {AudioPlayerFrame, EpisodeRows, PlayerChromeFrame, SeasonBar, type AudioControl} from '../../kit/frames';
+import {Button, Chip, Tabs, TextField} from '../../kit/controls';
+import {AudioPlayerFrame, EpisodeList, PlayerChromeFrame, SeasonBar, episodeRowClass, type AudioControl} from '../../kit/frames';
 import {HeroFacts} from '../../kit/layout';
 import {SeekLine, type TrackChoice} from '../../kit/media';
 import {Dialog} from '../../kit/overlays';
@@ -89,10 +89,10 @@ function WatchPage({paused = false}: {paused?: boolean}) {
       {([['i-plus', 'myList'], ['i-more', 'more']] as const).map(([icon, name]) => <Button key={name} phone iconOnly icon={icon} aria-label={f(name)} />)}</div>
     <Tabs phone items={[{value: 'episodes', label: f('episodes')}, {value: 'more', label: f('moreLikeThis')}, {value: 'details', label: f('details')}]} value={tab} onValueChange={setTab} listClassName={frame.tabsInset} />
     <div style={{display: 'grid', gap: 'var(--space-sm)', margin: '0 var(--g)'}}>
-      <SeasonBar label={f('episodesSeason')} count={f('episodesCount')} onSeasons={none} hideWatched={hide} hideWatchedLabel={f('hideWatched')} onHideWatched={setHide} />
-      <EpisodeRows>{episodes.map(episode => <EpisodeTile key={episode.name} context="detail" artworkKind="still" artwork={episode.art ? art('bd-tlou.jpg') : undefined} playing={episode.playing} watched={episode.watched}
+      <SeasonBar season={<Chip variant="toolbar" trailingIcon="i-down">{f('episodesSeason')}</Chip>} count={f('episodesCount')} hideWatched={{label: f('hideWatched'), checked: hide, onCheckedChange: setHide}} />
+      <EpisodeList layout="list">{episodes.map(episode => <EpisodeTile key={episode.name} className={episodeRowClass} context="detail" artworkKind="still" artwork={episode.art ? art('bd-tlou.jpg') : undefined} playing={episode.playing} watched={episode.watched}
         model={{title: f(episode.name), caption: [{id: 'episode', text: f(episode.number), role: 'context'}], detail: [], progress: episode.progress}}
-        playback={[{id: 'state', text: f(episode.status), role: 'identity'}, {id: 'length', text: f(episode.length), role: 'context'}]} description={f('tlouSynopsis')} onNavigate={none} />)}</EpisodeRows>
+        playback={[{id: 'state', text: f(episode.status), role: 'identity'}, {id: 'length', text: f(episode.length), role: 'context'}]} description={f('tlouSynopsis')} onNavigate={none} />)}</EpisodeList>
     </div>
   </div>;
 }

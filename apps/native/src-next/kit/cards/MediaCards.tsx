@@ -167,10 +167,13 @@ export type EpisodeTileProps = CardProps & Media & {
 
 export function EpisodeTile(props: EpisodeTileProps) {
   const t = useTheme(), row = props.layout === 'row' || (!t.isTV && props.layout !== 'tile');
+  // Rule R7: a row on a tablet is its own layout, not the phone's widened: the synopsis beside the picture under the
+  // title, the length on the picture (tablet f8, tablet-play 3; tablets.md SC-5).
+  const wide = row && t.column === 'tablet';
   const width = props.width ?? (row ? 350 : t.spec.episode.width[t.column]), artWidth = row ? props.artWidth ?? 136 : width, height = artWidth * 9 / 16;
   const art = (focused: boolean, hovered: boolean, holding: boolean) => <ArtFrame width={artWidth} height={height} radius={row ? 8 : undefined} focused={focused} hovered={hovered} holding={holding} hoverScale={t.spec.card.hover.episodeScale} selected={props.selection?.selected || props.open}>
     <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="still" backdropFallback={props.backdropFallback} source={props.artwork} fallback={fallbackFor(props, 'still', artWidth, height)} width={artWidth} height={height} />
-    {props.length && !row && <View style={{position: 'absolute', right: t.spec.episode.duration.inset[t.column], top: t.spec.episode.duration.inset[t.column]}}><Badge>{props.length}</Badge></View>}
+    {props.length && (!row || wide) && <View style={{position: 'absolute', right: t.spec.episode.duration.inset[t.column], top: t.spec.episode.duration.inset[t.column]}}><Badge>{props.length}</Badge></View>}
     {props.status && !row && <View style={{position: 'absolute', left: t.isTV ? 16 : 8, top: t.isTV ? 14 : 8}}><Badge kind="new">{props.status}</Badge></View>}
     <Marks watched={props.watched} progress={props.progress} />
     {/* The episode that is playing carries the playing mark on its picture (phone-player 4). */}
@@ -182,9 +185,10 @@ export function EpisodeTile(props: EpisodeTileProps) {
     <Parts parts={props.label} fit={row && !t.isTV ? 'wrap' : 'cut'} style={row ? titleStyle(t, 12.5, 600) : undefined} />
     {row && (props.length || props.status) && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12}}>
       {props.status && <Text style={[titleStyle(t, 12.5, 700), {color: t.colors.accentStrong}]}>{props.status}</Text>}
-      {props.length && <Text style={[titleStyle(t, 12.5, 600), {color: t.colors.textTertiary}]}>{props.length}</Text>}
+      {props.length && !wide && <Text style={[titleStyle(t, 12.5, 600), {color: t.colors.textTertiary}]}>{props.length}</Text>}
     </View>}
     <Parts parts={props.caption} /><Parts parts={props.detail} />
+    {wide && props.synopsis && <Text numberOfLines={3} style={[titleStyle(t, 13, 600), {color: t.colors.textSecondary, marginTop: 4, lineHeight: 18.85 * t.textScale}]}>{props.synopsis}</Text>}
   </View>;
   return <CardFrame {...props} width={width}
     accessibilityDetails={[...(props.accessibilityDetails ?? []), ...props.label.map(part => part.text), props.status, props.length]}
@@ -194,8 +198,8 @@ export function EpisodeTile(props: EpisodeTileProps) {
     <View pointerEvents="box-none" style={{width: artWidth, height}}><Overlays props={{...props, onMore: undefined}} hovered={s.hovered} holding={s.holding} height={height} playSize={48} centered episode /></View>
     {!props.disabled && !props.selection?.active && (props.onDownload || props.onMore) && <CardAction name={props.onDownload ? 'i-dl' : 'i-more'} label={props.onDownload ? defaultI18n.t('next.cards.download') : defaultI18n.t('card.more', {title: props.title})} onPress={props.onDownload ?? props.onMore!} size={t.isTV ? 38 : 44} color={t.colors.textTertiary} style={{position: 'absolute', right: 0, top: (height - (t.isTV ? 38 : 44)) / 2, backgroundColor: 'transparent'}} />}
   </View> : <Overlays props={props} hovered={s.hovered} holding={s.holding} height={height} playSize={48} persistentPlay={!t.isTV} episode />}>
-    {s => <><View style={{flexDirection: row ? 'row' : 'column', gap: row ? 14 : 0, alignItems: row ? 'center' : undefined}}>{art(s.focused, s.hovered, s.holding)}{text}</View>
-      {props.synopsis && <Text numberOfLines={row ? 2 : 3} style={[row ? titleStyle(t, 13, 600) : t.type.episodeBody, {color: t.colors.textSecondary, marginTop: row ? 9 : 8, lineHeight: row ? 18.85 * t.textScale : undefined}]}>{props.synopsis}</Text>}
+    {s => <><View style={{flexDirection: row ? 'row' : 'column', gap: row ? wide ? 18 : 14 : 0, alignItems: wide ? 'flex-start' : row ? 'center' : undefined}}>{art(s.focused, s.hovered, s.holding)}{text}</View>
+      {props.synopsis && !wide && <Text numberOfLines={row ? 2 : 3} style={[row ? titleStyle(t, 13, 600) : t.type.episodeBody, {color: t.colors.textSecondary, marginTop: row ? 9 : 8, lineHeight: row ? 18.85 * t.textScale : undefined}]}>{props.synopsis}</Text>}
     </>}
   </CardFrame>;
 }

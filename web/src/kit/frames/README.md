@@ -20,9 +20,7 @@ player has three forms: shoot `player*` at 1440 by 900, 390 by 844 and 844 by 39
 | `backdrop` | The window's backdrop alone |
 | `frames-library` family: `browse-home` | Home: the hero with its pager thumbnails, Continue Watching, New on your server (New badges, subtitle, See all), On now, Continue Listening, People on this server are watching |
 | `frames-library`: `browse-list`, `-discover`, `-music`, `-filters`, `-collections`, `-see-all`, `-empty`, `-menu`, `-loading`, `regions-browse` | The library: the grid with its rail; Discover's rows; Music's tabs; Filters open; Collections; See all; no titles match; the More menu (owner); loading in the loaded page's boxes; the regions outlined |
-| `title` | Title page with artwork, three round buttons, a synopsis and tabs |
-| `title-missing` | Title page with no artwork, a long title, no round buttons, no synopsis |
-| `title-loading` | Title page loading |
+| `title*` | Moved to the `frames-title` family (`dev/families/frames-title.tsx`, `?family=frames-title&case=<id>`): `title-film`, `-film-resume`, `-film-more`, `-film-details`, `-show`, `-show-seasons`, `-show-episode`, `-season`, `-episode`, `-person`, `-collection`, `-album`, `-artist`, `-book`, `-missing`, `-loading` |
 | `settings-list` | Settings list (from 600 beside a page; at phone width under the compact bar) |
 | `settings-page` | A settings page with an in-section error, kept data marked old, loading and empty |
 | `sheet` | A sheet (a dialog from 600 wide) |

@@ -147,7 +147,7 @@ function RowsSkeleton() {
 /** A library grid loading: posters at their real size with their two caption lines, in the grid's own columns. */
 function GridSkeleton() {
   const theme = useTheme(), frame = useFrameMetrics();
-  const width = theme.spec.card.width.poster[theme.platform], grid = frameSpec.browse.grid, gap = grid.columnGap[frame.form], line = theme.type.cardTitle.fontSize ?? 13;
+  const width = theme.spec.card.width.poster[theme.column], grid = frameSpec.browse.grid, gap = grid.columnGap[frame.form], line = theme.type.cardTitle.fontSize ?? 13;
   const columns = Math.max(1, Math.floor((frame.width - frame.gutter - frame.rightGutter + gap) / (width + gap)));
   return <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: gap, rowGap: grid.rowGap[frame.form], paddingLeft: frame.gutter, paddingRight: frame.rightGutter, overflow: 'hidden'}}>
     {Array.from({length: columns * 3}, (_, index) => <View key={index} style={{width, gap: theme.space.tight}}>

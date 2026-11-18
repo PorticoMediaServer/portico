@@ -2,14 +2,14 @@ import React, {useRef, useState, type ReactNode} from 'react';
 import {Text, View, useWindowDimensions} from 'react-native';
 import {formatMessage} from '../../../../../../packages/i18n/src';
 import {framesFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/frames-fixtures';
-import {AmbientArt, type ArtworkSource} from '../../../kit/artwork/index';
-import {PosterCard, SquareCard, WideCard} from '../../../kit/cards';
+import type {ArtworkSource} from '../../../kit/artwork/index';
+import {PosterCard, SquareCard} from '../../../kit/cards';
 import {cardCaptionHeight} from '../../../kit/cards/caption-metrics';
 import {Button, KeyHints, Switch, TextField} from '../../../kit/controls';
 import {ArtBox, BrowseFrame, PageStateFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame} from '../../../kit/frames';
 import {frameSpec} from '@portico/design';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
-import {HeroMetadata, Row, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
+import {Row, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
 import {LargeTitleHeader, SettingsNav, SettingsRow, ShortcutTiles} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -74,26 +74,7 @@ export function PosterRow({title, fresh = false, testID}: {title: string; /** Th
   return <Row testID={testID} title={title} items={posters} getKey={item => item.id} itemWidth={width} itemHeight={width * 1.5 + caption} selection={selection}
     renderItem={(item, context) => <PosterCard {...card(context)} title={item.title} artwork={item.art} width={width} isNew={fresh && posters.indexOf(item) < 3} onNavigate={none}/>}/>;
 }
-function WideRow({testID}: {testID?: string}) {
-  const theme = useTheme(), width = theme.spec.card.width.wide[theme.column];
-  return <Row testID={testID} title={f('continueWatching')} items={wides} getKey={item => item.id} itemWidth={width} itemHeight={width * 9 / 16} selection={selection}
-    renderItem={(item, context) => <WideCard {...card(context)} title={item.title} artwork={item.art} width={width} progress={.4} caption={[{id: 'episode-label', text: f('wideEpisode'), role: 'identity'}, {id: 'remaining', text: f('wideLeft'), role: 'context'}]} primaryAction="play" onPlay={none} onNavigate={none}/>}/>;
-}
 
-function Title({variant}: {variant: 'full' | 'missing' | 'loading'}) {
-  const [tab, setTab] = useState('more'), full = variant !== 'missing', {form} = useFrameMetrics();
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID={`frames-title-${variant}`} back={{label: f('back'), onPress: none}} topAction={{icon: 'i-cast', label: f('playOn'), onPress: none}}
-    art={<AmbientArt treatment="title" foreground={full ? asset('bd-insideout.jpg') : undefined}/>}
-    title={full ? f('insideOut') : f('longTitle')} metadata={<HeroMetadata facts={fact(full ? `${f('insideOutFacts')} · ${f('insideOutRating')}` : f('longFacts'))} centered={form === 'phone'}/>}
-    primary={full ? {icon: 'i-play', label: f('resume'), progress: .09, remaining: f('resumeLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none} : {icon: 'i-play', label: f('play'), onPress: none}}
-    actions={full ? [{icon: 'i-check', label: f('myList'), labelled: true, active: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}] : []}
-    tagline={full ? f('insideOutTagline') : undefined} synopsis={full ? f('insideOutSynopsis') : undefined}
-    credits={full ? [{label: f('directedBy'), names: f('insideOutDirector')}, {label: f('starring'), names: f('insideOutCast')}] : undefined}
-    tabs={{items: [{value: 'more', label: f('moreLikeThis')}, {value: 'details', label: f('details')}], value: tab, onValueChange: setTab}}
-    state={variant === 'loading' ? {kind: 'loading'} : undefined}>
-    <PosterRow title={f('moreLikeInsideOut')}/><WideRow/><PosterRow title={f('newOnServer')}/>
-  </TitleFrame></Page>;
-}
 
 function PlaybackSections() {
   const [autoplay, setAutoplay] = useState(true);
@@ -208,9 +189,6 @@ const RegionsState = () => <Window><PageStateFrame icon="i-info" title={f('ownSt
 const whole = {screen: true} as const;
 const galleries: readonly Gallery[] = [
   {id: 'frames-backdrop', title: 'next.platform.frame.backdrop', render: () => <Window><View/></Window>, ...whole},
-  {id: 'frames-title', title: 'next.platform.frame.title', render: () => <Title variant="full"/>, ...whole},
-  {id: 'frames-title-missing', title: 'next.platform.frame.titleMissing', render: () => <Title variant="missing"/>, ...whole},
-  {id: 'frames-title-loading', title: 'next.platform.frame.titleLoading', render: () => <Title variant="loading"/>, ...whole},
   {id: 'frames-settings-list', title: 'next.platform.frame.settingsList', render: SettingsList, ...whole},
   {id: 'frames-settings-page', title: 'next.platform.frame.settingsPage', render: SettingsPage, ...whole},
   {id: 'frames-sheet', title: 'next.platform.frame.sheet', render: Sheet, ...whole},
