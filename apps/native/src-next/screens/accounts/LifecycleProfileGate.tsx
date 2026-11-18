@@ -39,7 +39,7 @@ export function LifecycleProfileGate() {
   const snapshot = useSyncExternalStore(lifecycle.subscribe, lifecycle.getSnapshot, lifecycle.getSnapshot);
   const pick = useSyncExternalStore(lifecycle.actions.pickProfile.subscribe, lifecycle.actions.pickProfile.getSnapshot, lifecycle.actions.pickProfile.getSnapshot);
   const submit = useSyncExternalStore(lifecycle.actions.submitPin.subscribe, lifecycle.actions.submitPin.getSnapshot, lifecycle.actions.submitPin.getSnapshot);
-  const [code, setCode] = useState(''), [remember, setRemember] = useState(false), [forgot, setForgot] = useState(false);
+  const [code, setCode] = useState(''), [remember, setRemember] = useState(true), [forgot, setForgot] = useState(false);
   const [recovery, setRecovery] = useState<{controller: NativeProfileRecovery; id: string; name: string}>();
   const state = snapshot.state;
   const profileId = state.kind === 'enteringPin' ? state.profile.id : undefined;
@@ -57,7 +57,7 @@ export function LifecycleProfileGate() {
     return () => clearTimeout(timer);
   }, [refused]);
   const choosing = state.kind === 'choosingProfile' || state.kind === 'enteringPin';
-  useEffect(() => {if (!choosing) setRemember(false);}, [choosing]);
+  useEffect(() => {if (!choosing) setRemember(true);}, [choosing]);
   useEffect(() => () => recovery?.controller.dispose(), [recovery]);
   const back = () => {
     afterEntry.clear();

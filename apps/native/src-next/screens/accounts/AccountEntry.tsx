@@ -129,7 +129,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const [setupPasswordConfirm, setSetupPasswordConfirm] = useState(''), [name, setName] = useState(''), [email, setEmail] = useState(''), [masked, setMasked] = useState('');
   const [server, setServer] = useState<ServerSignIn>(), [profiles, setProfiles] = useState<readonly ManagedProfile[]>([]), [profile, setProfile] = useState<ManagedProfile>();
   // "Remember this profile on this device": offered only where the server allows it; the tick carries from the faces to a PIN page and applies after a correct PIN.
-  const [canRemember, setCanRemember] = useState(false), [remember, setRemember] = useState(false);
+  const [canRemember, setCanRemember] = useState(false), [remember, setRemember] = useState(true);
   const profileFocus = useRef(new WeakMap<NativeServerSignIn, string>()).current;
   const [identityCode, setIdentityCode] = useState(''), [identityWrong, setIdentityWrong] = useState(false), [identityAddress, setIdentityAddress] = useState('');
   const invitationIntent = useRef<(NonNullable<ReturnType<typeof NativeServerSignIn.parseInvitationEntry>> & Partial<Pick<NativeInvitationEntry, 'fingerprint' | 'signIn' | 'expiresAt'>> & {publicPreview?: boolean}) | undefined>(undefined);
@@ -464,7 +464,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const consume = useCallback((result: Result) => {
     if (!lifetime.current) return;
     if (result.kind === 'required-setup') {
-      setPassword(''); setCode(''); setRecoveryCode(''); setRecovery(false); setProfiles([]); setProfile(undefined); setCanRemember(false); setRemember(false);
+      setPassword(''); setCode(''); setRecoveryCode(''); setRecovery(false); setProfiles([]); setProfile(undefined); setCanRemember(false); setRemember(true);
       setTransaction(undefined); setOptions(undefined); setName(''); setEmail(''); setMasked('');
       setIdentityCode(''); setIdentityWrong(false); setIdentityAddress(''); identityOrigin.current = undefined;
       accountScope.current = undefined; contact.current = undefined;
@@ -476,7 +476,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
         });
       }
     }
-    else if (result.kind === 'profiles') {setServer(operation.current!.serverDescriptor()); setProfiles(result.profiles); setCanRemember(result.canRemember === true); setRemember(false); setStage('profiles');}
+    else if (result.kind === 'profiles') {setServer(operation.current!.serverDescriptor()); setProfiles(result.profiles); setCanRemember(result.canRemember === true); setRemember(true); setStage('profiles');}
     else if (result.kind === 'challenge') {factorKind.current = 'local'; setCode(''); setRecovery(false); setStage('factor');}
     else onComplete();
   }, [onComplete]);

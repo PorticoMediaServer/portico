@@ -1,37 +1,28 @@
-/**
- * "Remember this profile": the device opens this profile at launch, with no picker or PIN, while it
- * still holds the sign-in that remembered it. The marker is not a secret. The server decides what
- * a sign-in may do; this only says which launch the person chose.
- *
- * Native keeps one marker per server inside the protected session record. Web keeps it in
- * localStorage, so it lasts for this browser ("Remember this profile on this device").
- */
 import {serverNow} from './server-clock.ts';
-export type RememberMarker = Readonly<{serverId: string; familyId: string; profileId: string; expiresAt: string}>;
 
-export interface RememberStore {
-  read(serverId: string): Promise<RememberMarker | undefined>;
-  write(marker: RememberMarker): Promise<void>;
-  clear(serverId: string): Promise<void>;
-}
+/** The choice belongs to one profile of one saved sign-in. A PIN grant stays with the
+ * sign-in credentials. For non-PIN profiles only, the client tracks any owner-set idle limit. */
+export type RememberMarker = Readonly<{familyId: string; profileId: string} & (
+  {pinToken: string; lastUsedAt?: never; pinRememberDays?: never} |
+  {pinToken?: never; lastUsedAt: number; pinRememberDays: number}
+)>;
 
-const text = (value: unknown, max = 256): value is string =>
+const text = (value: unknown, max: number): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= max && !/[\p{Cc}\p{Cf}]/u.test(value);
 
-/** Reads a saved marker. Fields another version added are set aside; anything unreadable is
- *  simply not a marker (the picker shows), and is never thrown or erased here (R-23). */
 export function parseRememberMarker(raw: unknown): RememberMarker | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
-  const value = raw as Record<string, unknown>;
-  if (!text(value.serverId) || !text(value.familyId, 128) || !text(value.profileId) || !text(value.expiresAt, 64)
-    || !Number.isFinite(Date.parse(value.expiresAt))) return undefined;
-  return Object.freeze({serverId: value.serverId, familyId: value.familyId, profileId: value.profileId, expiresAt: value.expiresAt});
+  const {familyId, profileId, pinToken, lastUsedAt, pinRememberDays} = raw as Record<string, unknown>;
+  if (!text(familyId, 128) || !text(profileId, 256)) return undefined;
+  if (pinToken !== undefined) return text(pinToken, 16384) ? Object.freeze({familyId, profileId, pinToken}) : undefined;
+  if (typeof lastUsedAt !== 'number' || !Number.isSafeInteger(lastUsedAt) || lastUsedAt <= 0 ||
+      typeof pinRememberDays !== 'number' || !Number.isSafeInteger(pinRememberDays) || pinRememberDays === 0 || pinRememberDays < -1) return undefined;
+  return Object.freeze({familyId, profileId, lastUsedAt, pinRememberDays});
 }
 
-/** The marker counts only for the exact sign-in that remembered it, and only until it expires.
- *  A pick by another tab or a successor family makes it stale, never wrong. */
-export function rememberedFor(marker: RememberMarker | undefined, held: Readonly<{serverId: string; familyId: string; profileId: string}>,
-  wallNowMs: number = serverNow()): boolean {
-  return !!marker && marker.serverId === held.serverId && marker.familyId === held.familyId && marker.profileId === held.profileId
-    && Date.parse(marker.expiresAt) > wallNowMs;
+/** Timed choices count from successful use. The default has no client-side deadline. */
+export function rememberedFor(marker: RememberMarker | undefined, held: Readonly<{familyId: string; profileId: string}>,
+  days = marker?.pinRememberDays ?? -1, now = serverNow()): marker is RememberMarker {
+  return !!marker && marker.familyId === held.familyId && marker.profileId === held.profileId && days !== 0
+    && (marker.pinToken !== undefined || days === -1 || now < marker.lastUsedAt + days * 86_400_000);
 }

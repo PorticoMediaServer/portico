@@ -8,7 +8,7 @@ import {ServerSignInProbe, parseServerSignIn, type ServerSignIn} from '../../../
 import {negotiateNativeServer} from './negotiation';
 import {boundedPick, type PickTrace} from './pick-deadline';
 import {logPickFailure, provenIdentityMismatch} from './pick-failure';
-import {directSignIn, directSignInContinuation, completeDirectSignInChallenge, keepSignInRenewal, selectDirectProfile, parseDirectSnapshot, type DirectSignIn, type DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
+import {directSignIn, directSignInContinuation, completeDirectSignInChallenge, keepSignInRenewal, profileRememberMarker, selectDirectProfile, parseDirectSnapshot, type DirectSignIn, type DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
 import {connectHostedServer, connectPairedServer, inspectDirectServer} from '../../../../packages/client-core/src/server-connections';
 import {knownServerRoutes, type NewServerConnection, type AppServerSession} from '../../../../packages/client-core/src/app-sessions';
 import {challengeNotProven} from '../../../../packages/client-core/src/portico-servers';
@@ -475,7 +475,7 @@ export class NativeServerSignIn {
         // After the new family is published, in its own write: a failure here leaves the profile not remembered (the picker shows next launch).
         // A pick that isn't remembered drops any marker the replaced sign-in left, as a pick on the launch picker does.
         await nativeAppSessions.setRemembered(snapshot.serverId, result.session.sessionFamilyId,
-          result.remembered ? {profileId: result.session.viewer.profileId, expiresAt: result.remembered.expiresAt} : undefined).catch(() => {});
+          profileRememberMarker(result, snapshot, remember), result.session.viewer.profileId).catch(() => {});
       }, this.controller.signal);
     });
   }

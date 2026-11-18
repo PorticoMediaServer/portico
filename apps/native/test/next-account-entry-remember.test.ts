@@ -109,7 +109,7 @@ test('the sign-in picker offers Remember this profile on this device under the f
     const f = await entry(allowed);
     try {
       assert.equal(!!f.remember(), allowed);
-      if (allowed) assert.equal(f.remember().props.checked, false, 'unticked until chosen');
+      if (allowed) assert.equal(f.remember().props.checked, true, 'checked by default');
     } finally {await f.host.unmount();}
   }
 });
@@ -118,7 +118,7 @@ test('a ticked no-PIN profile is remembered when chosen; unticked it is not', as
   for (const ticked of [true, false]) {
     const f = await entry(true);
     try {
-      if (ticked) await act(() => f.remember().props.onChange(true));
+      if (!ticked) await act(() => f.remember().props.onChange(false));
       await act(() => f.picker().props.onSelect('open'));
       assert.deepEqual(f.calls.filter(call => call.startsWith('select:')), [`select:open::${ticked}`]);
       assert.equal(f.complete(), 1);
@@ -129,7 +129,6 @@ test('a ticked no-PIN profile is remembered when chosen; unticked it is not', as
 test('a ticked PIN profile sends nothing until its PIN: the tick carries to the PIN page and goes with a correct PIN only', async () => {
   const f = await entry(true);
   try {
-    await act(() => f.remember().props.onChange(true));
     await act(() => f.picker().props.onSelect('locked'));
     assert.deepEqual(f.calls.filter(call => call.startsWith('select:')), [], 'choosing a PIN profile sends nothing');
     assert.equal(f.remember().props.checked, true, 'the PIN page arrives ticked');

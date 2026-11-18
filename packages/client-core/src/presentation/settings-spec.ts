@@ -11771,7 +11771,7 @@ export const settingsSpec: readonly SettingsSection[] = [
               "help": "next.settingsSpec.server.signin.advanced.groups.0.rows.1.help",
               "control": {
                 "type": "select",
-                "default": "30",
+                "default": "-1",
                 "options": [
                   {
                     "value": "0",
@@ -11788,6 +11788,10 @@ export const settingsSpec: readonly SettingsSection[] = [
                   {
                     "value": "90",
                     "label": "next.settingsSpec.server.signin.advanced.groups.0.rows.1.control.options.3.label"
+                  },
+                  {
+                    "value": "-1",
+                    "label": "next.settingsSpec.server.signin.advanced.groups.0.rows.1.control.options.4.label"
                   }
                 ]
               }

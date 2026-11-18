@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {withUnknownFields} from './unknown-fields.ts';
 import {setInstallationIdentity} from '../src/installation.ts';
-import {ManagedProfilesClient, completeDirectSignInChallenge, completeOwnerSetup, directSignIn, directSignInContinuation, keepSignInRenewal, parseDirectSnapshot, parseManagedProfiles, selectDirectProfile, type ProfileAPI} from '../src/profile-management.ts';
+import {ManagedProfilesClient, completeDirectSignInChallenge, completeOwnerSetup, directSignIn, directSignInContinuation, keepSignInRenewal, parseDirectSnapshot, parseManagedProfiles, profileRememberMarker, resumeRememberedProfile, selectDirectProfile, type ProfileAPI} from '../src/profile-management.ts';
 import {IdentityClient} from '../src/identity-client.ts';
 import {parseDevices} from '../src/identity-devices.ts';
 import {ApiError} from '../src/http.ts';
@@ -59,6 +59,25 @@ test('signing in to an account with several profiles asks who is watching: nothi
   assert.deepEqual(result.snapshot.profiles.map(p => [p.id, p.primary, p.pinRequired]), [['main', true, false], ['kid', false, true]]);
   assert.equal(s.calls.length, 1);
   assert.deepEqual(s.calls[0]!.body, {username: 'sam', password: 'a password', device: {installationId: INSTALLATION, name: 'Test browser', platform: 'web', app: 'portico', appVersion: '1'}});
+});
+
+test('the profile picker follows the owner policy from sign-in and the current account read', async () => {
+  for (const [policy, allowed, days] of [
+    [{rememberProfiles: true, pinRememberDays: -1}, true, -1],
+    [{rememberProfiles: true, pinRememberDays: 7}, true, 7],
+    [{rememberProfiles: false, pinRememberDays: 0}, false, 0],
+    [{}, false, undefined],
+  ] as const) {
+    const profiles = [profile('main'), profile('kid')];
+    const s = server({'POST /v1/auth/sign-in': {session: session(), account: account(), profiles, ...policy}});
+    const signedIn = await directSignIn(s.api, 'sam', 'unused');
+    assert.equal(signedIn.kind, 'signed-in');
+    const me = {account: account(), role: 'account', canManageAccount: false, ...policy};
+    for (const snapshot of [signedIn.snapshot, parseDirectSnapshot({me, profiles: {items: profiles}}, {serverId: 'srv'})]) {
+      assert.equal(snapshot.rememberProfiles, allowed);
+      assert.equal(snapshot.pinRememberDays, days);
+    }
+  }
 });
 
 test('an account\'s only profile opens by itself when it has no PIN, with the sign-in just given, and keeps its refresh token', async () => {
@@ -125,18 +144,43 @@ test('profiles: a colour this app does not know reads as blue; an unreadable pro
   assert.deepEqual(parseManagedProfiles(withUnknownFields([profile('main')]) as unknown[]).map(p => p.id), ['main']);
 });
 
-test('choosing a profile sends its PIN only when one was typed, and the answer must be for that profile', async () => {
+test('choosing a profile requests a PIN grant only with the checked choice, and keeps the server answer', async () => {
   const scope = {authority: 'local' as const, accountId: 'acct', serverId: 'srv'};
-  const s = server({'POST /v1/profiles/kid/select': session({profileId: 'kid', role: 'member', refreshToken: null})});
+  const s = server({'POST /v1/profiles/kid/select': {...session({profileId: 'kid', role: 'member', refreshToken: null}), pinToken: 'pin-grant'}});
   await assert.rejects(selectDirectProfile(s.api, scope, 'kid', {pin: '12a4'}), {code: 'pin_format'});
   assert.equal(s.calls.length, 0, 'a malformed PIN is refused before anything is sent');
   const chosen = await selectDirectProfile(s.api, scope, 'kid', {pin: '4821', remember: true});
   assert.equal(chosen.session.viewer.profileId, 'kid'); assert.equal(chosen.session.refreshToken, undefined);
-  assert.deepEqual(s.calls[0]!.body, {pin: '4821'});
-  await selectDirectProfile(s.api, scope, 'kid', {});
-  assert.deepEqual(s.calls[1]!.body, {});
+  assert.equal(chosen.pinToken, 'pin-grant');
+  assert.deepEqual(s.calls[0]!.body, {pin: '4821', rememberPin: true});
+  await selectDirectProfile(s.api, scope, 'kid', {pin: '4821', remember: false});
+  assert.deepEqual(s.calls[1]!.body, {pin: '4821'});
+  await selectDirectProfile(s.api, scope, 'kid', {remember: true});
+  assert.deepEqual(s.calls[2]!.body, {}, 'no-PIN selection is ordinary');
   const other = server({'POST /v1/profiles/kid/select': session({profileId: 'main', role: 'owner', refreshToken: null})});
   await assert.rejects(selectDirectProfile(other.api, scope, 'kid', {}), /does not match/);
+});
+
+test('a remembered PIN is replayed for its own sign-in and owner policy only', async () => {
+  const profiles = [profile('main'), profile('kid', {pinRequired: true})];
+  const snapshot = parseDirectSnapshot({me: {account: account(), role: 'member', canManageAccount: false, rememberProfiles: true, pinRememberDays: -1},
+    profiles: {items: profiles}}, {serverId: 'srv'});
+  const scope = {authority: 'local' as const, serverId: 'srv', accountId: 'acct'};
+  const s = server({'POST /v1/profiles/kid/select': (call: Call) => ({
+    ...session({profileId: 'kid', role: 'member', ...(call.body && 'pinToken' in (call.body as object) ? {refreshToken: null, accessToken: 'resumed'} : {})}),
+    ...((call.body as {rememberPin?: boolean})?.rememberPin ? {pinToken: 'grant'} : {}),
+  })});
+  const picked = await selectDirectProfile(s.api, scope, 'kid', {pin: '1234', remember: true});
+  const marker = profileRememberMarker(picked, snapshot, true);
+  assert.deepEqual(marker, {familyId: 'ses_1', profileId: 'kid', pinToken: 'grant'});
+  assert.equal(profileRememberMarker({session: picked.session}, snapshot, true), undefined, 'a PIN needs a server grant');
+  assert.equal(await resumeRememberedProfile(s.api, {...picked.session, sessionFamilyId: 'another'}, snapshot, marker), undefined);
+  assert.equal(await resumeRememberedProfile(s.api, picked.session, {...snapshot, rememberProfiles: false}, marker), undefined);
+  assert.equal(s.calls.length, 1);
+  const resumed = await resumeRememberedProfile(s.api, picked.session, snapshot, marker);
+  assert.equal(resumed?.accessToken, 'resumed');
+  assert.equal(resumed?.refreshToken, picked.session.refreshToken);
+  assert.deepEqual(s.calls.at(-1)!.body, {pinToken: 'grant'});
 });
 
 test('profile edits: the later save wins; an empty PIN removes it; a deleted profile is gone when the server answers', async () => {

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {serverPath} from '../src/query/server-api.ts';
 import {ApiError, HttpLocalApi, type ProfileGateRefusal} from '../src/index.ts';
 
 // Android walk, 31 Oct: after a PIN change elsewhere, a screen's own read (Saved) answered
@@ -98,6 +99,14 @@ test('a playback v1 read refused with profile_pin_manage still reaches the manag
   assert.equal(manage.length, 1);
   assert.equal(manage[0]!.error.code, 'profile_pin_manage');
   assert.equal(manage[0]!.accessToken, 'token-a');
+});
+
+test('the server’s sensitive-setting refusal uses the existing management PIN prompt', async () => {
+  const api = new HttpLocalApi('http://127.0.0.1:19447', 'token-a', reply(403, 'profile_pin_required'));
+  const heard: ProfileGateRefusal[] = [];
+  api.subscribeManageGate(value => heard.push(value));
+  await assert.rejects(api.request(serverPath('PUT /v1/admin/settings/{name}', {id: 'sign-in'}), 'PUT', {}), {code: 'profile_pin_manage'});
+  assert.deepEqual(heard.map(event => event.accessToken), ['token-a']);
 });
 
 test('other refusals are not a management gate', async () => {

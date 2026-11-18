@@ -63,10 +63,11 @@ for (const [label, skew] of SKEWS) {
 
   test(`stored and displayed server instants read against the server's clock when the device clock is ${label}`, async t => {
     const truth = skewed(t, skew);
-    // the remembered profile is the server's expiry against the server's now
-    const held = {serverId: 's', familyId: 'f', profileId: 'p'};
-    assert.equal(rememberedFor({...held, expiresAt: iso(truth + 60_000)}, held), true);
-    assert.equal(rememberedFor({...held, expiresAt: iso(truth - 60_000)}, held), false);
+    // Timed non-PIN memory counts inactivity on the server clock.
+    const held = {familyId: 'f', profileId: 'p'};
+    const weekAgo = truth - 7 * 86_400_000;
+    assert.equal(rememberedFor({...held, lastUsedAt: weekAgo + 60_000, pinRememberDays: 7}, held), true);
+    assert.equal(rememberedFor({...held, lastUsedAt: weekAgo - 60_000, pinRememberDays: 7}, held), false);
     // a move offer counts its days from the server's calendar, and a report is captured for the server's now
     assert.equal(moveOfferDays(iso(truth + 3 * 86_400_000 + 3_600_000)) !== undefined, true);
     assert.ok(Math.abs(Date.parse(captureReportContext('UTC').until) - truth) <= 15 * 60_000);

@@ -111,9 +111,9 @@ const cases: readonly Case[] = [
   {name: 'row 7: a remembered main profile without a PIN → manageLocked false', row: 7,
     from: snap(connecting({held: held({remembered: true})})), event: {type: 'connected', facts: facts([SOLO, KIDS])},
     state: {kind: 'ready', remembered: true, manageLocked: false}, effects: [drain]},
-  {name: 'row 7: canRemember follows rememberProfiles (off)', row: 7,
+  {name: 'row 9: a saved marker does not admit a profile when the server turns remembering off', row: 9,
     from: snap(connecting({held: held({remembered: true})})), event: {type: 'connected', facts: facts(PROFILES, false)},
-    state: {kind: 'ready', canRemember: false}, effects: [drain]},
+    state: {kind: 'choosingProfile', canRemember: false}, effects: [drain]},
   {name: 'row 8: connected, the only profile has no PIN → ready, not remembered', row: 8,
     from: snap(connecting()), event: {type: 'connected', facts: facts([SOLO])},
     state: {kind: 'ready', remembered: false, manageLocked: false}, effects: [drain]},
@@ -440,7 +440,7 @@ test('canRemember follows rememberProfiles on every path out of connecting (rows
   ];
   for (const rememberProfiles of [true, false]) for (const [row, from, profiles] of paths) {
     const t = nextLifecycle(snap(from), {type: 'connected', facts: facts(profiles, rememberProfiles)});
-    assert.equal(t?.row, row);
+    assert.equal(t?.row, row === 7 && !rememberProfiles ? 9 : row);
     assert.equal((t?.snapshot.state as {canRemember: boolean}).canRemember, rememberProfiles, `row ${row}, rememberProfiles ${rememberProfiles}`);
   }
 });

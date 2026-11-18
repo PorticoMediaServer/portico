@@ -24,7 +24,7 @@ test('every restore step before Home is traced, and queued sign-outs wait until 
   // Queued sign-outs are the lifecycle's: they start after a delay, on the route it opened.
   const ports = source('platform/session-lifecycle-native.ts');
   assert.match(ports, /void wait\(deps\.drainDelayMs, /);
-  assert.match(ports, /await connect\(serverId, signal\);\n\s+\/\/ .*\n\s+drainRevocations\(serverId\);/);
+  assert.match(ports, /await connect\(serverId, signal, true\);\n\s+\/\/ .*\n\s+drainRevocations\(serverId\);/);
   assert.match(source('platform/installation-host.ts'), /if \(!valid && !invalidWarned && !disposed && !signal\?\.aborted\) \{/);
 });
 

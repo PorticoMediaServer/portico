@@ -2424,6 +2424,7 @@ export const settingsSpecMessages = {
   "next.settingsSpec.server.signin.advanced.groups.0.rows.1.control.options.1.label": "7 days",
   "next.settingsSpec.server.signin.advanced.groups.0.rows.1.control.options.2.label": "30 days",
   "next.settingsSpec.server.signin.advanced.groups.0.rows.1.control.options.3.label": "90 days",
+  "next.settingsSpec.server.signin.advanced.groups.0.rows.1.control.options.4.label": "As long as this device stays signed in",
   "next.settingsSpec.server.signin.advanced.groups.1.title": "Wrong guesses",
   "next.settingsSpec.server.signin.advanced.groups.1.rows.0.label": "Password attempts",
   "next.settingsSpec.server.signin.advanced.groups.1.rows.0.help": "The right password is refused during a wait.",

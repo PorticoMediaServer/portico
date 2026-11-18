@@ -46,7 +46,7 @@ export type LifecycleSnapshot = Readonly<{generation: number; state: LifecycleSt
 
 /** A connection to the held server succeeded and its account was read. `manageLocked`: the server's `managePinRequired`
  *  (a remembered main profile that must enter its PIN before it manages the account); never assumed from the profile. */
-export type ConnectedFacts = Readonly<{profiles: readonly PickerProfile[]; rememberProfiles: boolean; manageLocked?: boolean}>;
+export type ConnectedFacts = Readonly<{profiles: readonly PickerProfile[]; rememberProfiles: boolean; remembered?: boolean; manageLocked?: boolean}>;
 /** A profile choice the server accepted: the new sign-in, and whether it remembers. */
 export type SelectedFacts = Readonly<{viewer: ViewerRef; remembered: boolean}>;
 export type ConnectFailure =
@@ -127,9 +127,9 @@ function afterConnect(server: ServerRef, held: HeldSignIn, facts: ConnectedFacts
   const canRemember = facts.rememberProfiles;
   // Row 33: a sign-in that already chose its profile (one profile, no PIN; or the server picked it) opens it.
   if (admitted && profile)
-    return {row: 33, state: freeze({kind: 'ready', server, viewer: held.viewer, profiles: facts.profiles, remembered: held.remembered,
+    return {row: 33, state: freeze({kind: 'ready', server, viewer: held.viewer, profiles: facts.profiles, remembered: canRemember && held.remembered,
       manageLocked: false, canRemember}), effects: [freeze({kind: 'drainRevocations', serverId: server.serverId})]};
-  if (held.remembered && profile)
+  if (canRemember && (facts.remembered ?? held.remembered) && profile)
     return {row: 7, state: freeze({kind: 'ready', server, viewer: held.viewer, profiles: facts.profiles, remembered: true,
       manageLocked: facts.manageLocked === true, canRemember}), effects: [freeze({kind: 'drainRevocations', serverId: server.serverId})]};
   if (facts.profiles.length === 1 && profile && !profile.pinRequired)
@@ -206,8 +206,9 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     if (profile.pinRequired) return to({kind: 'enteringPin', server: s.server, viewer: s.viewer, profiles: s.profiles, profile,
       reason: s.switching || profile.id !== s.viewer.profileId ? 'switch' : 'pick', canRemember: s.canRemember, switching: s.switching,
       ...(s.resume ? {resume: s.resume} : {})}, 17);
-    // A tick on the current profile still needs a fresh sign-in (the server writes the remembering on it); an untouched tap just returns.
-    if (profile.id === s.viewer.profileId && !(event.remember === true && s.canRemember)) return to({kind: 'ready', server: s.server, viewer: s.viewer, profiles: s.profiles,
+    // A checked current profile still goes through selection so this device saves the choice.
+    const rememberingChanged = s.canRemember && (event.remember === true || event.remember === false && s.resume?.remembered);
+    if (profile.id === s.viewer.profileId && !rememberingChanged) return to({kind: 'ready', server: s.server, viewer: s.viewer, profiles: s.profiles,
       remembered: s.resume?.remembered ?? false, manageLocked: s.resume?.manageLocked ?? false, canRemember: s.canRemember}, 15);
     return busy('pick', [{kind: 'select', serverId: s.server.serverId, profileId: profile.id, remember: event.remember === true && s.canRemember}], 16);
   }

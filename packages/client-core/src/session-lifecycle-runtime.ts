@@ -28,7 +28,7 @@ export type LifecyclePorts = Readonly<{
   /** Re-read what the record holds now (after a switch, or when another owner changed it). */
   readHeld(): Promise<HeldRead>;
   /** Connect to the held server, prove its identity, and read the account's profiles. */
-  connect(serverId: string, signal: AbortSignal): Promise<ConnectedFacts>;
+  connect(serverId: string, signal: AbortSignal, admitted?: boolean): Promise<ConnectedFacts>;
   /** Choose a profile. The adapter persists the successor sign-in (and its marker when
    *  remembered) before resolving, then ends the replaced sign-in in the background. */
   select(input: SelectInput, signal: AbortSignal): Promise<SelectedFacts>;
@@ -87,7 +87,7 @@ export class SessionLifecycle implements AuthoritySource {
     const action = <A extends readonly unknown[]>(run: (signal: AbortSignal, ...args: A) => Promise<void>) =>
       createUserAction<void, A>({run: (context, ...args) => run(context.signal, ...args), scheduler: this.scheduler});
     this.actions = Object.freeze({
-      pickProfile: action<[string, boolean?]>(async (signal, profileId, remember) => this.command({type: 'profileTapped', profileId, ...(remember ? {remember: true} : {})}, signal)),
+      pickProfile: action<[string, boolean?]>(async (signal, profileId, remember) => this.command({type: 'profileTapped', profileId, ...(remember === undefined ? {} : {remember})}, signal)),
       submitPin: action<[string, boolean]>(async (signal, pin, remember) => this.command({type: 'pinSubmitted', pin, remember}, signal)),
       forgetRemembered: action<[]>(async signal => this.command({type: 'forgetRemembered'}, signal)),
       unlockManagement: action<[string]>(async (signal, pin) => this.command({type: 'unlockSubmitted', pin}, signal)),
@@ -253,7 +253,8 @@ export class SessionLifecycle implements AuthoritySource {
     const deadline = new Promise<never>((_, reject) => {expire = () => {controller.abort(); reject(Object.assign(new Error('connect_deadline'), {code: 'timeout'}));};});
     const timer = this.scheduler.setTimeout(() => expire(), CONNECT_DEADLINE_MS);
     try {
-      const attempt = this.ports.connect(serverId, controller.signal);
+      const state = this.snapshot.state;
+      const attempt = this.ports.connect(serverId, controller.signal, state.kind === 'connecting' && state.admitted === true);
       attempt.catch(() => {});
       const facts = await Promise.race([attempt, deadline]);
       if (this.current(generation) && !controller.signal.aborted) await this.dispatch({type: 'connected', facts});
