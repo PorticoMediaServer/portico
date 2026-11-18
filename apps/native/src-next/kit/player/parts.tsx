@@ -57,7 +57,7 @@ export type PlayerControlProps = Readonly<{
   testID?: string;
 }>;
 /** R4 and R6: the transport's icon classes for this form (frameSpec.player.transport): the strip's own in the upright form. */
-export function usePlayerTransport() {
+function usePlayerTransport() {
   const {form} = useFrameMetrics(), compact = useContext(PlayerCompact), spec = frameSpec.player.transport;
   if (compact) return spec.upright[form === 'phone' ? 'phone' : 'tablet'];
   return {primary: spec.primary[form], primaryIcon: spec.primaryIcon[form], control: spec.control[form], skipIcon: spec.skipIcon[form], stepIcon: spec.stepIcon[form], numeral: spec.numeral[form], gap: spec.gap[form]};

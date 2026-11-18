@@ -126,8 +126,8 @@ export const frame = {
       titleGap: {...forms(0, 26, 26, 0), web: 30}, scrubberGap: {...forms(0, 18, 18, 0), web: 20}, transportGap: {...forms(0, 16, 16, 0), web: 18}, belowGap: {...forms(0, 18, 18, 0), web: 12},
       transportSpacing: {...forms(0, 18, 18, 0), web: 24}, timesWidth: 34, bookTimesWidth: 58, volume: 160,
       bookColumn: {...forms(0, 600, 600, 0), web: 660}, bookArt: {...forms(0, 250, 250, 0), web: 300}, bookArtGap: 30, chapterGap: 34, rowsGap: 22, rowLabel: 132,
-      /** The panel's corners and inset from the window, the segmented tabs, a queue row and its artwork, a group label's padding. */
-      panelRadius: 20, panelInset: {...forms(0, 20, 20, 0), web: 32}, tabs: 38, row: 60, rowArt: 44, rowArtRadius: 6, handle: 22, foot: 70,
+      /** The panel's corners and inset from the window, a queue row and its artwork, a group label's padding. */
+      panelRadius: 20, panelInset: {...forms(0, 20, 20, 0), web: 32}, row: 60, rowArt: 44, rowArtRadius: 6, handle: 22, foot: 70,
     },
     /** R4 interim: the music transport's classes. Play or Pause's disc, Previous and Next (primary, white), shuffle and
      * repeat (secondary: smaller and dimmer), on each form. A phone's are the owner's 76 (phone-app 14). */
@@ -152,7 +152,7 @@ export const frame = {
     /** The glyph in a pill and in a prompt. */
     pillIcon: 16, promptIcon: 20,
     /** A phone held upright (phone-player 4): the picture is a 16:9 strip under the status bar with the watch page below it. */
-    portrait: {aspect: 16 / 9, top: 4, edge: 6, bottom: 8, timeInset: 14, scrubber: 3, shade: .44, control: 46, controlIcon: 24, primary: 58, primaryIcon: 26,
+    portrait: {aspect: 16 / 9, top: 4, edge: 6, bottom: 8, timeInset: 14, scrubber: 3, shade: .44,
       promptHeight: 34, promptPaddingX: 12,
       /** The web places the prompt from the strip's right edge, clear of the quality pill and full screen. */
       promptRight: 168},

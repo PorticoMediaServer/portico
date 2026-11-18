@@ -5,7 +5,7 @@ import type {FactPart} from '@portico/client-core/kit-model';
 import {framesFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/frames-fixtures.ts';
 import {playerFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/player-fixtures.ts';
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
-import type {ArtworkImage, ArtworkSource} from '../../kit/artwork';
+import {ArtworkGlow, type AmbientArtSource, type ArtworkImage, type ArtworkSource} from '../../kit/artwork';
 import {EpisodeTile} from '../../kit/cards';
 import {Button, Chip, Tabs, TextField} from '../../kit/controls';
 import {AudioPlayerFrame, EpisodeList, PlayerChromeFrame, SeasonBar, episodeRowClass, type AudioControl} from '../../kit/frames';
@@ -55,14 +55,14 @@ function useQuery(query: string) {
 const useSideways = () => useQuery('(max-height: 500px) and (min-width: 600px)');
 const useWide = () => useQuery('(min-width: 1024px)');
 
-/** The window's layer, which the frames never draw (R10): the video player's is black; the audio player's is the glow
- * worked out from its artwork, here the cover blurred as the mock-ups draw it (desktop-listen "now"), and with no
- * artwork the one backdrop. The shell's gutter is the page's. */
+/** The window's layer, which the frames never draw (R10): the one cover (`portico-cover`), black for the video player,
+ * and for the audio player the kit's own glow from its artwork (`ArtworkGlow`, as NowPlaying draws it); with no artwork
+ * the one backdrop. The shell's gutter is the page's. */
 function Layer({children, video = false, glow}: {children: ReactNode; video?: boolean; glow?: string}) {
-  return <div style={{position: 'relative', height: '100%', overflow: 'hidden', background: video ? 'var(--color-shadow)' : undefined, '--shell-gutter': 'var(--page-gutter)'} as CSSProperties}>
-    {glow && <div aria-hidden="true" style={{position: 'absolute', inset: 0, overflow: 'hidden', background: 'var(--color-ink)'}}>
-      <img src={reference(glow)} alt="" style={{position: 'absolute', inset: '-20%', width: '140%', height: '140%', objectFit: 'cover', filter: 'blur(130px) saturate(1.9)', opacity: .75}} />
-      <div style={{position: 'absolute', inset: 0, background: 'radial-gradient(60% 80% at 33% 46%, transparent, color-mix(in srgb, var(--color-ink) 50%, transparent)), linear-gradient(180deg, color-mix(in srgb, var(--color-ink) 30%, transparent), transparent 30%, color-mix(in srgb, var(--color-ink) 55%, transparent))'}} /></div>}
+  const art = useReferenceArtwork(), phone = usePhone();
+  return <div className="portico-cover" data-cover={video ? 'player' : glow ? 'audio' : undefined} style={{position: 'relative', height: '100%', overflow: 'hidden', '--shell-gutter': 'var(--page-gutter)'} as CSSProperties}>
+    {/* The reference cover stands in for the server's 64-edge ambient wash (the kit draws only that variant). */}
+    {glow && <ArtworkGlow source={{...art(glow), variant: 'ambient-v1', maxEdge: 64, version: '0'.repeat(64)} as AmbientArtSource} phone={phone} />}
     <div style={{position: 'relative', height: '100%', overflowY: 'auto'}}>{children}</div>
   </div>;
 }
