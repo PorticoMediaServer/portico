@@ -111,9 +111,11 @@
    the player's controls the shell names; inside the player a wider form starts it --toast-player-inset in. A confirmation
    with no action is the pill at the top centre. */
 .toastHost { position: fixed; z-index: var(--layer-notice); bottom: var(--overlay-toast-bottom, var(--shell-toast-bottom, var(--toast-bottom))); left: 50%; translate: -50% 0; max-width: calc(100vw - 32px); }
-.toastHost[data-shape="pill"] { top: calc(var(--toast-pill-top) + env(safe-area-inset-top, 0px)); bottom: auto; left: 50%; translate: -50% 0; }
+/* The pill stands --toast-pill-top under the page's top bar, never over it: the mobile bar below 1024, the desktop bar from
+   1024; the player has no bar. */
+.toastHost[data-shape="pill"] { top: calc(var(--spec-navigation-mobile-web-top-height) + var(--toast-pill-top) + env(safe-area-inset-top, 0px)); bottom: auto; left: 50%; translate: -50% 0; }
+.toastHost[data-shape="pill"][data-placement="player"] { top: calc(var(--toast-pill-top) + env(safe-area-inset-top, 0px)); }
 @media (min-width: 600px) { .toastHost[data-placement="player"][data-shape="card"] { left: var(--toast-player-inset); translate: none; } }
-/* Under the desktop top bar, not over its links; the player has none. */
 @media (min-width: 1024px) { .toastHost[data-shape="pill"]:not([data-placement="player"]) { top: calc(var(--spec-navigation-top-height) + var(--toast-pill-top)); } }
 .toast { display: flex; align-items: center; gap: var(--toast-gap); padding: var(--toast-padding); border-radius: var(--toast-radius); font-size: 14.5px; line-height: normal; color: var(--color-text-secondary); background: rgba(29,56,72,.95); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 24px 50px -18px var(--color-shadow), inset 0 0 0 1px rgba(237,245,250,.1); touch-action: none; }
 .toast[data-shape="pill"] { gap: 8px; min-height: var(--toast-pill-height); padding: 0 var(--toast-pill-padding-x); border-radius: var(--toast-pill-radius); font-size: 14px; font-weight: 600; }
