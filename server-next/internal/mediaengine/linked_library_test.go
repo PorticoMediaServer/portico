@@ -22,14 +22,14 @@ func TestFilmsThroughLinksPlay(t *testing.T) {
 	h, d := newHouse(t, ffmpeg, ffprobe)
 	ctx := context.Background()
 	root := t.TempDir()
-	real := filepath.Join(root, "disk", "Films")
+	disk := filepath.Join(root, "disk", "Films")
 	elsewhere := filepath.Join(root, "elsewhere")
-	for _, dir := range []string{real, elsewhere} {
+	for _, dir := range []string{disk, elsewhere} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	make := func(path string) {
+	makeFilm := func(path string) {
 		t.Helper()
 		if out, err := exec.Command(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
 			"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
@@ -37,13 +37,13 @@ func TestFilmsThroughLinksPlay(t *testing.T) {
 			t.Fatalf("making %s: %v\n%s", path, err, out)
 		}
 	}
-	make(filepath.Join(real, "Linked Folder (2021).mp4"))
-	make(filepath.Join(elsewhere, "kept.mp4"))
-	if err := os.Symlink(filepath.Join(elsewhere, "kept.mp4"), filepath.Join(real, "Linked File (2022).mp4")); err != nil {
+	makeFilm(filepath.Join(disk, "Linked Folder (2021).mp4"))
+	makeFilm(filepath.Join(elsewhere, "kept.mp4"))
+	if err := os.Symlink(filepath.Join(elsewhere, "kept.mp4"), filepath.Join(disk, "Linked File (2022).mp4")); err != nil {
 		t.Fatal(err)
 	}
 	library := filepath.Join(root, "Films")
-	if err := os.Symlink(real, library); err != nil {
+	if err := os.Symlink(disk, library); err != nil {
 		t.Fatal(err)
 	}
 	lib, err := d.CreateLibrary(ctx, "Films", db.LibraryMovies, "en", []string{library})
