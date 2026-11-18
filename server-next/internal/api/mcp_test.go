@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -58,7 +59,7 @@ func TestAssistant(t *testing.T) {
 	}
 	slices.Sort(names)
 	want := []string{"get_title", "list_children", "list_libraries", "list_recordings", "list_titles", "list_unmatched", "mark_watched", "now_playing",
-		"recent_messages", "search_titles", "server_status", "server_storage", "start_scan", "tv_guide"}
+		"recent_messages", "report_changed_files", "search_titles", "server_status", "server_storage", "start_scan", "tv_guide"}
 	if !slices.Equal(names, want) {
 		t.Errorf("an administrator key's assistant has tools %v, want only %v", names, want)
 	}
@@ -73,10 +74,23 @@ func TestAssistant(t *testing.T) {
 			t.Errorf("%s failed: %s", tool.name, text)
 		}
 	}
+	// A changed file scans the library folder that holds it; a path in no library scans nothing.
+	movies := th.libs["movies"]
+	changed := filepath.Join(movies.Paths[0].Path, "New Film (2024)", "New Film (2024).mkv") + "\n/nowhere/else.mkv"
+	if text, failed := toolCall(t, s, admin.Secret, "report_changed_files", map[string]any{"paths": changed}); failed || !strings.Contains(text, `"foldersScanned":1`) {
+		t.Errorf("report_changed_files answered %s", text)
+	}
+	var st ScanStatus
+	if w := call(t, s, "GET", "/v1/admin/libraries/"+movies.PublicID+"/scan", owner, nil, &st); w.Code != 200 || st.Job == nil {
+		t.Errorf("after a changed film the films library has no scan: %d %+v", w.Code, st)
+	}
 	var looker KeyCreated
 	call(t, s, "POST", "/v1/admin/api-keys", owner, KeyCreate{Name: "Reader", Scopes: []string{"read"}}, &looker)
 	if _, failed := toolCall(t, s, looker.Secret, "start_scan", map[string]any{"library": th.libs["shows"].PublicID}); !failed {
 		t.Error("a read-only key started a scan")
+	}
+	if _, failed := toolCall(t, s, looker.Secret, "report_changed_files", map[string]any{"paths": changed}); !failed {
+		t.Error("a read-only key reported changed files")
 	}
 	if code, _ := rpc(t, s, owner, "tools/list", nil); code != 403 {
 		t.Errorf("a signed-in app at the assistant address answered %d, want 403", code)

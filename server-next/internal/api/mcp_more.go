@@ -6,12 +6,13 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/mcp"
 )
 
 // mcpMoreTools are the rest of what outside-tools rule 34 gives an assistant: start a scan,
-// list unmatched titles, read the guide and the recordings, and with Administer the storage and
+// report changed files, list unmatched titles, read the guide and the recordings, and with Administer the storage and
 // the recent messages. Each calls the ordinary route as the key, so the key's scopes and its
 // person's access decide, and each answers that route's own reply.
 func (s *Server) mcpMoreTools(r *http.Request, c Caller, get func(string, url.Values, any) error, args func(json.RawMessage, any) error) []mcp.Tool {
@@ -38,6 +39,22 @@ func (s *Server) mcpMoreTools(r *http.Request, c Caller, get func(string, url.Va
 				var job Job
 				err = s.callAsWith(r, c, "POST", "/v1/admin/libraries/"+id+"/scan", nil, ScanRequest{}, &job)
 				return map[string]any{"library": id, "job": job.ID, "state": job.State}, toolError(err)
+			}},
+		{Name: "report_changed_files", Description: "Say which files or folders changed on the server's disk, so the library folders that hold them are scanned now. Needs a key with Library.",
+			InputSchema: mcp.Schema([]string{"paths"}, map[string]string{"paths": "The changed files or folders, one full path on the server per line."}),
+			Run: func(_ context.Context, raw json.RawMessage) (any, error) {
+				var a struct{ Paths string }
+				if err := args(raw, &a); err != nil || strings.TrimSpace(a.Paths) == "" {
+					return nil, errors.New("give the changed paths, one per line")
+				}
+				var paths []string
+				for _, line := range strings.Split(a.Paths, "\n") {
+					if line = strings.TrimSpace(line); line != "" {
+						paths = append(paths, line)
+					}
+				}
+				folders, err := s.scanChanged(r, c, paths)
+				return map[string]any{"foldersScanned": folders}, toolError(err)
 			}},
 		{Name: "list_unmatched", Description: "The titles of a library no provider has matched, with why and the closest matches.",
 			InputSchema: mcp.Schema([]string{"library"}, map[string]string{"library": "The library's id, from list_libraries.", "cursor": "From the previous answer."}),
