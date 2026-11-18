@@ -9,14 +9,14 @@
 01-gettext | GNU gettext's libintl | LGPL-2.1-or-later | linked (macOS only) | gettext-runtime/intl/COPYING.LIB
 04-brotli | Brotli | MIT | linked (macOS only)
 05-libpng | libpng | libpng-2.0 | linked (macOS only)
-20-libiconv | GNU libiconv | LGPL-2.1-or-later | linked
+20-libiconv | GNU libiconv | LGPL-2.1-or-later | linked (on macOS the system's own libiconv)
 20-zlib | zlib | Zlib | linked
 25-fftw3f | FFTW | GPL-2.0-or-later | linked (through chromaprint)
 25-freetype | FreeType | FTL OR GPL-2.0-or-later | linked
 25-fribidi | FriBidi | LGPL-2.1-or-later | linked
 25-gmp | GMP | LGPL-3.0-or-later OR GPL-2.0-or-later | linked
 25-libogg | libogg | BSD-3-Clause | linked
-25-libxml2 | libxml2 | MIT | linked
+25-libxml2 | libxml2 | MIT | linked (on macOS the system's own libxml2)
 25-openssl | OpenSSL | Apache-2.0 | linked
 25-xz | XZ Utils (liblzma) | 0BSD | linked
 35-fontconfig | Fontconfig | HPND-sell-variant AND MIT | linked
