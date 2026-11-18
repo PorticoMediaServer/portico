@@ -264,6 +264,10 @@ func (s *Streams) Start(ctx context.Context, r StartRequest) (Stream, error) {
 		return Stream{}, err
 	}
 	probe.Close()
+	if r.Disc != nil {
+		// What is read out of the stream's source (a subtitle track) is read from the title.
+		source = discSource(r.Disc)
+	}
 	plan := r.Plan
 	if plan.SourceSize == 0 && !r.Modified.IsZero() {
 		plan.SourceSize, plan.SourceModifiedNS = r.Size, r.Modified.UnixNano()
