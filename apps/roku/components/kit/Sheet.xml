@@ -14,7 +14,10 @@
          keys at the foot ([{keys, text}], kit/KeyHints), and the rows stop above them. -->
     <field id="model" type="assocarray" onChange="onModel"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
-    <!-- A row may also say `dot`: a recording's red dot in place of its icon (Record). -->
+    <!-- A row may also say `dot`: a recording's red dot in place of its icon (Record). A programme's
+         sheet (tv.html frame 6) adds to the model: `mark`, a channel ({name, logo}) whose badge goes
+         before the eyebrow; `live`, the red Live tag at the right of that line; `progress` (0 to 1),
+         how far in, under the status; `later` {heading, lines: [{time, title}]}, what follows it. -->
     <!-- The row chosen with OK. -->
     <field id="chosen" type="string" alwaysNotify="true"/>
     <!-- Set true when Back closes the sheet without a choice. -->
@@ -26,11 +29,17 @@
   <children>
     <Rectangle id="scrim" width="1920" height="1080" opacity="0.5"/>
     <Rectangle id="panel" height="1080"/>
+    <ChannelMark id="mark" visible="false"/>
     <Label id="eyebrow"/>
+    <Poster id="liveDot" uri="pkg:/images/disc.png" width="10" height="10" visible="false"/>
+    <Label id="liveTag" text="Live" visible="false"/>
+    <Rectangle id="progressTrack" height="6" visible="false"/>
+    <Rectangle id="progressBar" height="6" visible="false"/>
     <Label id="title" wrap="true" maxLines="2"/>
     <Label id="status" wrap="true" maxLines="5"/>
     <!-- Optional words under the status, such as a programme's summary. -->
     <Label id="body" wrap="true" maxLines="6"/>
+    <Group id="later"/>
     <Group id="window">
       <Group id="groups"/>
       <Poster id="plate" uri="pkg:/images/round-14.9.png"/>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A channel's badge (the guide's channel cells, a programme's sheet, the live player): the
+     channel's logo when the server has one, else its initials on a tint picked from its name. -->
+<component name="ChannelMark" extends="Group">
+  <interface>
+    <!-- {name, logo}: a channel as the server sends it. -->
+    <field id="channel" type="assocarray" onChange="draw"/>
+    <field id="size" type="float" value="56" onChange="draw"/>
+  </interface>
+  <script type="text/brightscript" uri="ChannelMark.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <children>
+    <Poster id="plate" uri="pkg:/images/round-14.9.png"/>
+    <Label id="initials" horizAlign="center" vertAlign="center"/>
+    <Poster id="logo" loadDisplayMode="scaleToFit"/>
+  </children>
+</component>

@@ -241,14 +241,6 @@ function nowSeconds() as integer
     return createObject("roDateTime").asSeconds()
 end function
 
-function badgeText(name as string) as string
-    out = ""
-    for each word in name.trim().split(" ")
-        if word <> "" and len(out) < 3 then out = out + ucase(left(word, 1))
-    end for
-    return out
-end function
-
 ' Lays out the time header and every row from m.from; the cells of each row are kept with their
 ' times so focus can find them again.
 sub draw()
@@ -270,27 +262,15 @@ sub draw()
     end for
     m.rows.removeChildrenIndex(m.rows.getChildCount(), 0)
     m.cells = []
-    palette = c.channelTints
     for r = 0 to m.guide.count() - 1
         row = m.guide[r]
         y = r * g.pitch
         cells = []
         ' the channel cell
         plate = cellPlate(g.channelX, y, g.channelWidth)
-        badge = m.rows.createChild("Poster")
-        badge.uri = "pkg:/images/round-14.9.png"
-        badge.blendColor = palette[coverTint(row.channel.name)]
-        badge.width = 56
-        badge.height = 56
+        badge = m.rows.createChild("ChannelMark")
+        badge.channel = row.channel
         badge.translation = [g.channelX + 16, y + 17]
-        initials = m.rows.createChild("Label")
-        initials.text = badgeText(row.channel.name)
-        initials.width = 56
-        initials.height = 56
-        initials.horizAlign = "center"
-        initials.vertAlign = "center"
-        initials.translation = [g.channelX + 16, y + 17]
-        setType(initials, "keycap", c.text)
         name = m.rows.createChild("Label")
         name.text = row.channel.name
         name.width = g.channelWidth - 104
@@ -629,7 +609,26 @@ sub openSheet()
         end for
     end if
     m.sheetCell = cell
-    model = {eyebrow: row.channel.name + "   " + row.channel.number, title: row.channel.name, status: "", rows: [{id: "watch", text: "Watch live", icon: "play"}]}
+    now = nowSeconds()
+    onNow = (cell.programme <> invalid and cell.start <= now and now < cell.ends)
+    watch = "Watch channel"
+    if onNow or cell.programme = invalid then watch = "Watch live"
+    model = {mark: row.channel, eyebrow: row.channel.name + "   " + row.channel.number, live: onNow, title: row.channel.name, status: "", rows: [{id: "watch", text: watch, icon: "play"}]}
+    if cell.programme <> invalid
+        p = cell.programme
+        model.title = p.title
+        ' its episode, then its times, how long is left of one on now, and its rating
+        status = guideTime(cell.start, false) + " to " + guideTime(cell.ends, true)
+        minsLeft = int((cell.ends - now) / 60)
+        if onNow and minsLeft > 0 then status = status + "   " + durationText(minsLeft * 60000) + " left"
+        if p.rating <> invalid and p.rating <> "" then status = status + "   " + p.rating
+        episode = episodeLine(p)
+        if episode <> "" then status = episode + chr(10) + status
+        model.status = status
+        if onNow then model.progress = (now - cell.start) / (cell.ends - cell.start)
+        if p.summary <> invalid then model.body = p.summary
+        model.later = laterOn(row, cell.ends)
+    end if
     ' Record and Record series: a source's channel (a Library Channel plays the library), a
     ' programme the profile may see that has not ended, and a profile allowed to record
     p = cell.programme
@@ -644,19 +643,14 @@ sub openSheet()
         end if
         model.rows.push({id: "series", text: "Record series…", icon: "repeat"})
     end if
+    ' a Library Channel's programme is a title of the library: its page is a press away
+    if p <> invalid and p.itemId <> invalid and p.itemId <> ""
+        if p.episode <> invalid then model.rows.push({id: "title", text: "Go to show", icon: "info"}) else model.rows.push({id: "title", text: "Go to title", icon: "info"})
+    end if
     if row.channel.favorite
         model.rows.push({id: "favorite", text: "Remove channel from Favorites", icon: "heartFilled"})
     else
         model.rows.push({id: "favorite", text: "Add channel to Favorites", icon: "heart"})
-    end if
-    if cell.programme <> invalid
-        p = cell.programme
-        model.title = p.title
-        status = guideTime(cell.start, false) + " to " + guideTime(cell.ends, true)
-        minsLeft = int((cell.ends - nowSeconds()) / 60)
-        if cell.start <= nowSeconds() and minsLeft > 0 then status = status + "   " + durationText(minsLeft * 60000) + " left"
-        model.status = status
-        if p.summary <> invalid then model.body = p.summary
     end if
     m.top.menu = model
 end sub
@@ -706,6 +700,10 @@ sub onMenuChosen(event as object)
     end if
     if chosen = "rule:this" or chosen = "rule:any"
         api("POST", "/v1/dvr/rules", {programme: m.sheetCell.programme.id, anyChannel: chosen = "rule:any"}, "onRecordAnswer", {seq: m.seq})
+        return
+    end if
+    if chosen = "title"
+        api("GET", "/v1/items/" + m.sheetCell.programme.itemId, invalid, "onTitle")
         return
     end if
     if chosen <> "watch" then return
@@ -761,4 +759,31 @@ sub onConfirm()
     path = "/v1/dvr/recordings/" + booking.id
     if m.asked = "stoprec" then path = path + "?action=stop"
     api("DELETE", path, invalid, "onRecordAnswer", {seq: m.seq})
+end sub
+
+' "S1 E3   Homecoming", or what the guide has of it.
+function episodeLine(p as object) as string
+    code = ""
+    if p.season <> invalid and p.episode <> invalid then code = "S" + p.season.toStr() + " E" + p.episode.toStr()
+    if p.episodeTitle <> invalid and p.episodeTitle <> "" then code = (code + "   " + p.episodeTitle).trim()
+    return code
+end function
+
+' The next two programmes on the channel after one that ends at `ends` (tv.html frame 6, Later on).
+function laterOn(row as object, ends as integer) as object
+    lines = []
+    for each p in row.programmes
+        s = secondsOf(p.startsAt)
+        if s >= ends and lines.count() < 2 and p.title <> invalid then lines.push({time: guideTime(s, false), title: p.title})
+    end for
+    return {heading: "Later on " + row.channel.name, lines: lines}
+end function
+
+' An episode opens its show's page; anything else, its own.
+sub onTitle(event as object)
+    result = event.getData()
+    if not result.ok then return
+    item = result.data
+    if item.kind = "episode" and item.rootId <> invalid then item = {id: item.rootId, kind: "show", title: item.rootTitle, libraryId: item.libraryId}
+    m.top.open = {item: item}
 end sub
