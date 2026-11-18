@@ -492,7 +492,8 @@ func (s *Server) networkRoutes() {
 		_, saved, err := s.db.SettingDocument(r.Context(), networkSettingsKey)
 		return s.networkSettings(saved), err
 	})
-	Handle(s, "PUT /v1/admin/settings/network", Owner, s.saveNetworkSettings)
+	// A person, never a key: these say who is at home and who may sign in from outside.
+	Handle(s, "PUT /v1/admin/settings/network", Owner, s.saveNetworkSettings).Scope = ScopeSession
 	Handle(s, "GET /v1/admin/blocked-networks", Admin, s.blockedNetworks)
 	Handle(s, "DELETE /v1/admin/blocked-networks/{id}", Admin, s.unblockNetwork)
 }

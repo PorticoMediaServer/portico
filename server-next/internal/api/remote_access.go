@@ -633,7 +633,7 @@ func (s *Server) remoteAccessRoutes() {
 		v.Warning, v.IPv6Note = s.dlnaWarning(v.DLNA), s.ipv6OpeningNote(v)
 		return v, err
 	})
-	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess)
+	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess).Scope = ScopeSession // a person, never a key
 	Handle(s, "GET /v1/admin/remote-access", Owner, func(r *http.Request, _ None) (RemoteAccessStatus, error) {
 		return s.remoteStatus(r), nil
 
