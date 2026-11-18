@@ -67,7 +67,15 @@ func TestSubtitlesAreBurnedIntoThePicture(t *testing.T) {
 	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
 	h, d := newHouse(t, ffmpeg, ffprobe)
 	ctx := context.Background()
-	library := filepath.Join(t.TempDir(), "Films")
+	// The library folder is reached through a link, as every folder under /var is on macOS:
+	// the subtitle is read out of the film by the path the scan recorded.
+	disk, library := filepath.Join(t.TempDir(), "Films"), filepath.Join(t.TempDir(), "Films")
+	if err := os.MkdirAll(disk, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(disk, library); err != nil {
+		t.Fatal(err)
+	}
 	folder := filepath.Join(library, "Burned (2022)")
 	film := filepath.Join(folder, "Burned (2022).mkv")
 	if err := os.MkdirAll(folder, 0o755); err != nil {
