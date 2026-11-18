@@ -181,8 +181,10 @@ type DeliveryInput struct {
 	// original to hand the device. JoinedPartsDiffer says its files are not encoded alike,
 	// so they cannot be copied into one stream.
 	Joined, JoinedPartsDiffer bool
-	BurnIn                    bool
-	Server                    *decoder.ToolchainFacts
+	// Live is a live channel's endless stream. A player that says liveNeedsHls gets it as HLS.
+	Live   bool
+	BurnIn bool
+	Server *decoder.ToolchainFacts
 	// Source and Client are the full facts. When Source is nil the flat fields
 	// below describe a source whose detail was never observed, and a zero Client
 	// is the built-in baseline; both are how older call sites and tests read.
@@ -553,6 +555,9 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 		}
 		if in.Joined {
 			rejections = append(rejections, RouteRejection{RejectContainer, "parts_joined_by_server"})
+		}
+		if in.Live && client.LiveNeedsHLS {
+			rejections = append(rejections, RouteRejection{RejectContainer, "live_needs_hls"})
 		}
 		rejections = append(rejections, audioRules...)
 		rejections = append(rejections, pictureRules...)

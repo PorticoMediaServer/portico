@@ -201,6 +201,10 @@ type EngineCapabilities struct {
 	// engine always does; a second engine that does not say so is never
 	// given a channel.
 	LiveChannels bool `json:"liveChannels,omitempty"`
+	// LiveNeedsHLS is true when the engine plays MPEG-TS files but cannot pause or go back
+	// in a live channel's endless MPEG-TS: a channel then comes to it as HLS, with the
+	// channel's rewind stretch.
+	LiveNeedsHLS bool `json:"liveNeedsHls,omitempty"`
 }
 
 // CapabilityEngines holds one profile per engine. A document without Native is
@@ -268,6 +272,7 @@ type ClientProfile struct {
 	MaxBitrateBPS          int                      `json:"maxBitrateBps"`
 	EmbeddedAudioSwitching bool                     `json:"embeddedAudioSwitching"`
 	LiveChannels           bool                     `json:"liveChannels,omitempty"`
+	LiveNeedsHLS           bool                     `json:"liveNeedsHls,omitempty"`
 	Overrides              CapabilityOverrides      `json:"overrides"`
 	AudioDecode            []ClientAudioDecode      `json:"audioDecode,omitempty"`
 
@@ -769,7 +774,7 @@ func (d CapabilityDocument) Profile(name string) ClientProfile {
 		Display: d.Display, AudioOutput: d.AudioOutput, MaxBitrateBPS: d.MaxBitrateBPS, Overrides: d.Overrides, AudioDecode: d.AudioDecode,
 		Video: append([]ClientVideoCodec{}, e.Video...), Audio: append([]ClientAudioCodec{}, e.Audio...), AudioPassthrough: append([]ClientAudioPassthrough{}, e.AudioPassthrough...),
 		Transports: e.Transports, SubtitleRendering: e.SubtitleRendering, ToneMapsHDR: e.ToneMapsHDR, EmbeddedAudioSwitching: e.EmbeddedAudioSwitching,
-		LiveChannels: e.LiveChannels || name == EngineNative, Revision: d.Revision,
+		LiveChannels: e.LiveChannels || name == EngineNative, LiveNeedsHLS: e.LiveNeedsHLS, Revision: d.Revision,
 	}
 	p.applyOverrides()
 	return p

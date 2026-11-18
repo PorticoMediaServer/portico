@@ -76,6 +76,9 @@ export type EngineCapabilities={
  /** A second engine (mpv) plays live channels: a timeshift window on the channel's own clock. The
   * native engine always does; a second engine that does not say so is never given a channel. */
  liveChannels?:boolean;
+ /** The engine plays MPEG-TS files but cannot pause or go back in a live channel's endless MPEG-TS:
+  * the server sends it a channel as HLS, with the channel's rewind stretch. */
+ liveNeedsHls?:boolean;
 };
 export type CapabilityDocument={
  version:typeof capabilityDocumentVersion;client:ClientIdentity;
@@ -364,7 +367,7 @@ export function rokuDeclaredProfile(options:{osVersion?:string;model?:string;uhd
     {transport:'hls_ts',containers:['mpegts'],video:names,audio:['aac','mp3','ac3','eac3']},
     {transport:'hls_fmp4',containers:['fmp4'],video:names,audio:['aac','ac3','eac3']},
    ],
-   subtitleRendering:[...textOnly],
+   subtitleRendering:[...textOnly],liveNeedsHls:true,
   }},
  };
 }

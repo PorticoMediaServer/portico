@@ -266,7 +266,8 @@
     ],
     "subtitleRendering": [
      "text"
-    ]
+    ],
+    "liveNeedsHls": true
    }
   }
  }

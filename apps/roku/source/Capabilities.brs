@@ -91,7 +91,10 @@ function rokuProfile(options as object) as object
                 {transport: "hls_ts", containers: ["mpegts"], video: copyOf(names), audio: ["aac", "mp3", "ac3", "eac3"]},
                 {transport: "hls_fmp4", containers: ["fmp4"], video: copyOf(names), audio: ["aac", "ac3", "eac3"]}
             ],
-            subtitleRendering: ["text"]
+            subtitleRendering: ["text"],
+            ' it plays .ts files but cannot pause or go back in a channel's endless stream, so the
+            ' server sends a channel as HLS with its rewind stretch
+            liveNeedsHls: true
         }}
     }
 end function

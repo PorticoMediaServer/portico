@@ -46,7 +46,7 @@ func (e *Engine) StartLive(ctx context.Context, r live.Conversion) (*live.Play, 
 		File: streaming.FileFacts{ID: "live", Container: "mpegts", VideoCodec: facts.VideoCodec, AudioCodec: facts.AudioCodec,
 			Width: facts.Width, Height: facts.Height, DetailVersion: mediafacts.StreamDetailVersion, StreamsCurrent: true, Streams: facts.Streams},
 		Settings: owner, TranscodingEnabled: owner.ConversionMode != "never", FragmentedOutput: fragmented, NoConverter: !converter,
-		Preferences: saved(r.Preferences),
+		Preferences: saved(r.Preferences), Live: true,
 	}
 	connection(&request.Connection, playback.PlanRequest{Network: r.Network})
 	if len(r.Capabilities) > 0 {
