@@ -294,7 +294,6 @@ export const accountMessages = {
   'accounts.recovery.fileLocation': 'The reset file is',
   'accounts.recovery.fileFolder': 'Open reset-code.txt at the top of the server’s data folder.',
   'accounts.recovery.fileManual': 'When run by hand: {path}',
-  'accounts.recovery.fileWindowsService': 'For a Windows service: {path}',
   'accounts.recovery.fileDocker': 'Inside the container, in its mapped data folder.',
   'accounts.recovery.rewrite': 'Write a new file',
   'accounts.recovery.invalidTitle': 'That code didn’t work.',
