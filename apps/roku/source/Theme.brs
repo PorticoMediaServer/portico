@@ -30,6 +30,7 @@ function colours() as object
         labelPlate: "0x071018E6"            ' over a picture: the dark plate under a focus label
         line: "0x28404FFF"                  ' line
         lineStrong: "0x3B5668FF"            ' line
+        miniGuide: "0x0B1720DB"             ' the live player's guide panel over the picture
         noticeEdge: "0xE8BC6A66"            ' the edge of a Watch Together notice's amber strip (the host away)
         noticePlate: "0xE8BC6A1F"           ' a Watch Together notice's amber strip
         onArt: "0x071018D9"                 ' laid over a card's picture: the plate under its length and tick
@@ -107,16 +108,20 @@ function frames() as object
         guide: {headerY: 244, rowsY: 296, pitch: 100, cell: 90, channelWidth: 300, chipsY: 144, gridX: 520, perMinute: 8, shown: 7, toolbarX: 380, toolbarY: 56}
         ' Every page beside the rail: its content starts at `gutter`.
         gutter: 200
+        ' The live player's guide (tv-player frame 11, second): the panel's corner and width, the
+        ' first channel's row `rowsY` under its top, rows `row` apart.
+        miniGuide: {x: 1144, y: 80, width: 680, rowsY: 72, row: 116}
         ' An album or artist page (tv-more frames 6 and 8): the album's cover on the left with its words and
         ' track list beside it; the artist's words and top songs on the left, the circle and albums on the right.
         music: {coverX: 200, coverY: 150, cover: 480, wordsX: 760, eyebrowY: 150, titleY: 186, metaY: 340, buttonsY: 410, listY: 520, listWidth: 1064, row: 84,
             artistX: 200, artistEyebrowY: 170, artistTitleY: 206, artistMetaY: 352, artistButtonsY: 420, songsY: 620, songsWidth: 880, circleX: 1268, circleY: 140, circle: 412, albumsX: 1240, albumsY: 616}
         ' The now-playing card at the empty end of every page's header row: its corner, its size at rest and open.
         nowPlaying: {right: 1824, top: 44, width: 440, height: 84, openWidth: 700, openHeight: 470}
-        ' The video player: the picture is the page. The top row hangs from `top`; the seek bar,
+        ' The video player: the picture is the page. The top row hangs from `top` (on live its words from
+        ' `liveTextX`, after the channel's badge); the seek bar,
         ' the time row and the button row sit on their own lines; everything runs from `left` to `right`.
         ' Over it: the waiting spinner's line, how far below a page notice Playback failed sits, the foot of the prompts at the lower right, and the Finished page's lines.
-        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470, noticeDrop: 40, promptBottom: 796, finished: {top: 84, titleY: 120, metaY: 326, buttonsY: 372, rateY: 474, rowY: 578}}
+        player: {left: 96, right: 1824, top: 80, liveTextX: 184, barY: 828, timeY: 862, buttonsY: 912, waitY: 470, noticeDrop: 40, promptBottom: 796, finished: {top: 84, titleY: 120, metaY: 326, buttonsY: 372, rateY: 474, rowY: 578}}
         ' Recordings (from Live TV): the list's sections from `listY`, `width` wide, a section's heading
         ' `headingGap` above its card and `sectionGap` after it; the row in focus is kept above `bottom`.
         recordings: {listY: 176, width: 1300, headingGap: 52, sectionGap: 44, bottom: 1024}

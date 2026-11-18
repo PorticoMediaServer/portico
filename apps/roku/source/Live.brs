@@ -1,5 +1,6 @@
-' Live TV's pure rules: the guide's time grid, which toolbar entries and filter chips show, what a
-' programme's red dot means, and how a recording is described. tests/rules.brs checks them.
+' Live TV's rules: the guide's time grid, which toolbar entries and filter chips show, what a
+' programme's red dot means, how a recording is described, and the programme's side sheet the
+' guide and the live player both open. tests/rules.brs checks the pure ones.
 
 ' The guide's first half hour: the half hour before now, today; the same half hour a day on, tomorrow.
 function guideStart(now as integer, day as integer) as integer
@@ -103,7 +104,7 @@ function recordingState(r as object) as string
     return ""
 end function
 
-' A recording's size on disk as people read it: "640 MB", "1.2 GB" (named for recordings: Present.brs gets a file's own sizeText).
+' A recording's size on disk as people read it: "640 MB", "1.2 GB" (named for recordings: Present.brs gets a file's own recordingSizeText).
 function recordingSizeText(bytes as dynamic) as string
     if bytes = invalid or bytes < 1000000 then return "under 1 MB"
     if bytes < 1000000000 then return int(bytes / 1000000).toStr() + " MB"
@@ -139,3 +140,54 @@ function secondsOf(iso as string) as integer
     return t.asSeconds()
 end function
 
+' "S1 E3   Homecoming", or what the guide has of it.
+function episodeLine(p as object) as string
+    code = ""
+    if p.season <> invalid and p.episode <> invalid then code = "S" + p.season.toStr() + " E" + p.episode.toStr()
+    if p.episodeTitle <> invalid and p.episodeTitle <> "" then code = (code + "   " + p.episodeTitle).trim()
+    return code
+end function
+
+' A programme's side sheet without its rows (tv.html frame 6): the channel's badge, name and number
+' with Live while it is on, the title, its episode, times, time left and rating, how far in, the
+' description, and Later on with the next two programmes of `row` (the channel's guide row).
+function programmeSheet(row as object, p as dynamic, now as integer) as object
+    model = {mark: row.channel, eyebrow: row.channel.name + "   " + row.channel.number, title: row.channel.name, status: "", live: false, rows: []}
+    if p = invalid then return model
+    s = secondsOf(p.startsAt)
+    e = secondsOf(p.endsAt)
+    model.live = (s <= now and now < e)
+    if p.title <> invalid then model.title = p.title
+    status = guideTime(s, false) + " to " + guideTime(e, true)
+    minsLeft = int((e - now) / 60)
+    if model.live and minsLeft > 0 then status = status + "   " + durationText(minsLeft * 60000) + " left"
+    if p.rating <> invalid and p.rating <> "" then status = status + "   " + p.rating
+    episode = episodeLine(p)
+    if episode <> "" then status = episode + chr(10) + status
+    model.status = status
+    if model.live then model.progress = (now - s) / (e - s)
+    if p.summary <> invalid then model.body = p.summary
+    lines = []
+    for each other in row.programmes
+        starts = secondsOf(other.startsAt)
+        if starts >= e and lines.count() < 2 and other.title <> invalid then lines.push({time: guideTime(starts, false), title: other.title})
+    end for
+    model.later = {heading: "Later on " + row.channel.name, lines: lines}
+    return model
+end function
+
+' Record series (Record series…): which channels a rule for this programme follows, with how many
+' airings it would record now (`rule`, the server's preview). A guide that names no series matches
+' by title on this channel only, so there is nothing to choose there.
+function seriesSheet(rule as object, channelName as string, title as string) as object
+    status = ""
+    if rule.preview <> invalid then status = countText(rule.preview.matches, "airing in the guide now", "airings in the guide now")
+    rows = [{id: "rule:this", text: "On " + channelName, icon: "repeat"}]
+    if rule.byTitle <> true then rows.push({id: "rule:any", text: "On any channel", icon: "repeat"})
+    return {eyebrow: "Record series", title: title, status: status, rows: rows}
+end function
+
+' What the server said when it would not record.
+function notRecordedSheet(message as string) as object
+    return {title: "This program wasn’t recorded", body: message, rows: [{id: "ok", text: "OK"}]}
+end function

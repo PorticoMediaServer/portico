@@ -14,7 +14,11 @@ sub onChange()
     c = colours()
     m.label.text = m.top.text
     x = 38
-    if m.top.icon <> ""
+    if m.top.dot
+        m.icon.uri = "pkg:/images/disc.png"
+        m.icon.visible = true
+        x = 80
+    else if m.top.icon <> ""
         m.icon.uri = "pkg:/images/i-" + m.top.icon + "-28.png"
         m.icon.visible = true
         x = 80
@@ -26,6 +30,13 @@ sub onChange()
     w = x + m.label.boundingRect().width + 38
     if m.top.text = "" then w = 72 + (x - 38)      ' an icon alone is a square button
     if m.top.text = "" and m.top.icon <> "" then m.icon.translation = [22, 22] else m.icon.translation = [36, 22]
+    m.icon.width = 28
+    m.icon.height = 28
+    if m.top.dot
+        m.icon.width = 18
+        m.icon.height = 18
+        m.icon.translation = [41, 27]
+    end if
     hasBar = m.top.progress >= 0
     m.track.visible = hasBar
     m.bar.visible = hasBar
@@ -84,4 +95,5 @@ sub onChange()
     m.ring.width = w + out * 2
     m.ring.height = 72 + out * 2
     m.ring.visible = m.top.on
+    if m.top.dot then m.icon.blendColor = c.danger      ' the red dot stays red in focus
 end sub

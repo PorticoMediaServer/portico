@@ -609,26 +609,10 @@ sub openSheet()
         end for
     end if
     m.sheetCell = cell
-    now = nowSeconds()
-    onNow = (cell.programme <> invalid and cell.start <= now and now < cell.ends)
+    model = programmeSheet(row, cell.programme, nowSeconds())
     watch = "Watch channel"
-    if onNow or cell.programme = invalid then watch = "Watch live"
-    model = {mark: row.channel, eyebrow: row.channel.name + "   " + row.channel.number, live: onNow, title: row.channel.name, status: "", rows: [{id: "watch", text: watch, icon: "play"}]}
-    if cell.programme <> invalid
-        p = cell.programme
-        model.title = p.title
-        ' its episode, then its times, how long is left of one on now, and its rating
-        status = guideTime(cell.start, false) + " to " + guideTime(cell.ends, true)
-        minsLeft = int((cell.ends - now) / 60)
-        if onNow and minsLeft > 0 then status = status + "   " + durationText(minsLeft * 60000) + " left"
-        if p.rating <> invalid and p.rating <> "" then status = status + "   " + p.rating
-        episode = episodeLine(p)
-        if episode <> "" then status = episode + chr(10) + status
-        model.status = status
-        if onNow then model.progress = (now - cell.start) / (cell.ends - cell.start)
-        if p.summary <> invalid then model.body = p.summary
-        model.later = laterOn(row, cell.ends)
-    end if
+    if model.live or cell.programme = invalid then watch = "Watch live"
+    model.rows.push({id: "watch", text: watch, icon: "play"})
     ' Record and Record series: a source's channel (a Library Channel plays the library), a
     ' programme the profile may see that has not ended, and a profile allowed to record
     p = cell.programme
@@ -728,27 +712,21 @@ sub onRecordAnswer(event as object)
     result = event.getData()
     if event.getRoSGNode().ctx.seq <> m.seq then return
     if not result.ok
-        m.top.menu = {title: "This program wasn’t recorded", body: result.error.message, rows: [{id: "ok", text: "OK"}]}
+        m.top.menu = notRecordedSheet(result.error.message)
         return
     end if
     loadBookings()
 end sub
 
-' Record series (tv.html frame 6, Record series…): which channels the rule follows. A guide that
-' names no series matches by title, on this channel only, so there is nothing to choose there.
+' Record series: the rule's channel choice, once the server has said what it would record.
 sub onSeriesPreview(event as object)
     result = event.getData()
     if event.getRoSGNode().ctx.seq <> m.seq then return
     if not result.ok
-        m.top.menu = {title: "This program wasn’t recorded", body: result.error.message, rows: [{id: "ok", text: "OK"}]}
+        m.top.menu = notRecordedSheet(result.error.message)
         return
     end if
-    rule = result.data
-    status = ""
-    if rule.preview <> invalid then status = countText(rule.preview.matches, "airing in the guide now", "airings in the guide now")
-    rows = [{id: "rule:this", text: "On " + m.sheetRow.channel.name, icon: "repeat"}]
-    if rule.byTitle <> true then rows.push({id: "rule:any", text: "On any channel", icon: "repeat"})
-    m.top.menu = {eyebrow: "Record series", title: m.sheetCell.programme.title, status: status, rows: rows}
+    m.top.menu = seriesSheet(result.data, m.sheetRow.channel.name, m.sheetCell.programme.title)
 end sub
 
 sub onConfirm()
@@ -760,24 +738,6 @@ sub onConfirm()
     if m.asked = "stoprec" then path = path + "?action=stop"
     api("DELETE", path, invalid, "onRecordAnswer", {seq: m.seq})
 end sub
-
-' "S1 E3   Homecoming", or what the guide has of it.
-function episodeLine(p as object) as string
-    code = ""
-    if p.season <> invalid and p.episode <> invalid then code = "S" + p.season.toStr() + " E" + p.episode.toStr()
-    if p.episodeTitle <> invalid and p.episodeTitle <> "" then code = (code + "   " + p.episodeTitle).trim()
-    return code
-end function
-
-' The next two programmes on the channel after one that ends at `ends` (tv.html frame 6, Later on).
-function laterOn(row as object, ends as integer) as object
-    lines = []
-    for each p in row.programmes
-        s = secondsOf(p.startsAt)
-        if s >= ends and lines.count() < 2 and p.title <> invalid then lines.push({time: guideTime(s, false), title: p.title})
-    end for
-    return {heading: "Later on " + row.channel.name, lines: lines}
-end function
 
 ' An episode opens its show's page; anything else, its own.
 sub onTitle(event as object)

@@ -5,6 +5,8 @@
     <field id="text" type="string" onChange="onChange"/>
     <!-- A button that opens a menu (Live TV's All channels, Today): a down chevron after the label. -->
     <field id="menu" type="boolean" onChange="onChange"/>
+    <!-- Record in the live player: a recording's red dot in the icon's place, red in focus or not. -->
+    <field id="dot" type="boolean" onChange="onChange"/>
     <!-- Name of a 28 px icon (images/i-<name>-28.png), or "". -->
     <field id="icon" type="string" onChange="onChange"/>
     <field id="on" type="boolean" onChange="onChange"/>

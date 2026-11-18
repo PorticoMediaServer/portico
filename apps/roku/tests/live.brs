@@ -33,6 +33,8 @@ sub main()
     same("recording playable", [recordingPlayable({itemId: "i", state: "recorded"}).toStr(), recordingPlayable({itemId: "i", state: "scheduled"}).toStr(), recordingPlayable({state: "recorded"}).toStr()], ["true", "false", "false"])
     same("recording state", [recordingState({state: "scheduled"}), recordingState({state: "scheduled", conflict: true}), recordingState({state: "recording"}), recordingState({state: "recorded"})], ["", "Tuner conflict", "Recording now", ""])
     same("day word", [dayWord(0, "November 18"), dayWord(1, "November 19"), dayWord(-1, "November 17"), dayWord(5, "November 23")], ["Today", "Tomorrow", "Yesterday", "November 23"])
+    ' Record series offers Any channel only when the guide names the series (a rule by title stays on its channel)
+    same("series sheet", [seriesSheet({byTitle: false, preview: {matches: 4}}, "Summit Sports", "Cycling").rows.count().toStr(), seriesSheet({byTitle: true, preview: {matches: 1}}, "Summit Sports", "Cycling").rows.count().toStr(), seriesSheet({byTitle: true, preview: {matches: 1}}, "Summit Sports", "Cycling").status], ["2", "1", "1 airing in the guide now"])
     same("size", [recordingSizeText(500), recordingSizeText(640000000), recordingSizeText(1200000000), recordingSizeText(3000000000)], ["under 1 MB", "640 MB", "1.2 GB", "3 GB"])
 
     print "PASSED " + m.passed.toStr() + " FAILED " + m.failed.toStr()

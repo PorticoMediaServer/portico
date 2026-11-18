@@ -144,6 +144,22 @@ sub init()
     m.top.findNode("pillPlate").blendColor = c.pillPlate
     setType(m.top.findNode("pillName"), "cardTitle", c.text)
     setType(m.top.findNode("pillState"), "tag", c.healthy)
+    ' live: Record and More at the top right, the guide beside the picture, captions the stream carries
+    m.tools = m.top.findNode("tools")
+    m.toolSpecs = []     ' [{kind, node, focusable}], left to right; m.focus -2 is this row
+    m.toolFocus = 0
+    m.miniGuide = m.top.findNode("miniGuide")
+    m.miniGuide.observeField("chosen", "onMiniGuide")
+    m.miniGuide.observeField("dismissed", "closeMiniGuide")
+    m.confirm = m.top.findNode("confirm")
+    m.confirm.observeField("chosen", "onLiveConfirm")
+    m.top.findNode("noteTimer").observeField("fire", "hideNote")
+    m.top.findNode("recNotePlate").blendColor = c.promptPlate
+    m.top.findNode("recNoteDot").blendColor = c.danger
+    setType(m.top.findNode("recNoteText"), "bodyStrong", c.text)
+    m.liveCaptions = false
+    m.captionsOn = false
+    m.video.observeField("availableSubtitleTracks", "onLiveTracks")
     makeButtons(false, false)
     makeHints()
 end sub
@@ -168,25 +184,29 @@ sub makeButtons(hasPrevious as boolean, hasNext as boolean)
         if down <> invalid then specs.unshift({kind: "chdown", icon: "chevronDown-20", size: 64, channel: down.channel.number})
         if up <> invalid then specs.push({kind: "chup", icon: "chevronUp-20", size: 64, channel: up.channel.number})
     end if
-    ' an episode played from its show has Episodes at the left end of the row (tv-player frame 1)
-    if m.top.item <> invalid and m.top.item.kind = "episode" and m.queue <> invalid and m.queue.current <> invalid
+    ' an episode played from its show has Episodes at the left end of the row (tv-player frame 1);
+    ' a channel tuned from the guide has Guide there (frame 11), which opens the guide beside the picture
+    slot = invalid
+    if m.top.item <> invalid and m.top.item.kind = "episode" and m.queue <> invalid and m.queue.current <> invalid then slot = {kind: "episodes", icon: "collection", text: "Episodes"}
+    if m.live = true and m.top.item.lineup <> invalid and m.top.item.lineup.count() > 1 then slot = {kind: "guide", icon: "list", text: "Guide"}
+    if slot <> invalid
         plate = m.buttons.createChild("Poster")
         plate.uri = "pkg:/images/round-14.9.png"
         plate.height = 64
         plate.translation = [m.f.left, 12]
         icon = m.buttons.createChild("Poster")
-        icon.uri = "pkg:/images/i-collection-28.png"
+        icon.uri = "pkg:/images/i-" + slot.icon + "-28.png"
         icon.width = 28
         icon.height = 28
         icon.translation = [m.f.left + 22, 30]
         label = m.buttons.createChild("Label")
-        label.text = "Episodes"
+        label.text = slot.text
         label.height = 64
         label.vertAlign = "center"
         label.translation = [m.f.left + 64, 12]
         setType(label, "button")
         plate.width = 64 + label.boundingRect().width + 26
-        m.row.push({kind: "episodes", plate: plate, icon: icon, label: label, x: m.f.left, width: plate.width})
+        m.row.push({kind: slot.kind, plate: plate, icon: icon, label: label, x: m.f.left, width: plate.width})
     end if
     m.firstTransport = m.row.count()
     ' Play/Pause stays in the middle of the screen whatever flanks it
@@ -238,9 +258,11 @@ sub makeButtons(hasPrevious as boolean, hasNext as boolean)
         x = x + spec.size + gap
     end for
     m.firstPill = m.row.count()
-    ' live has no subtitle, audio or quality choices the server can change: none are drawn
+    ' live has no subtitle, audio or quality choices the server can change; Captions shows when the
+    ' channel's stream carries them (Roku reads them from the stream itself)
     names = ["Subtitles", "Audio", "Quality"]
     if m.live = true then names = []
+    if m.live = true and m.liveCaptions then names = ["Captions"]
     for each name in names
         plate = m.buttons.createChild("Poster")
         plate.uri = "pkg:/images/round-14.9.png"
@@ -259,19 +281,18 @@ end sub
 ' Lays the three labelled buttons out from the right edge, each as wide as its words (a long
 ' value ends in an ellipsis; Quality's never does).
 sub placePills(values as object)
-    if m.live = true then return
     key = values.join("|")
     if key = m.pillValues then return
     m.pillValues = key
     right = m.f.right
-    for i = 2 to 0 step -1
+    for i = m.row.count() - 1 - m.firstPill to 0 step -1
         pill = m.row[m.firstPill + i]
         pill.value.text = values[i]
         pill.value.width = 0
         inner = pill.head.boundingRect().width
         valueWidth = pill.value.boundingRect().width
         most = 164
-        if i = 2 then most = 400
+        if m.row[m.firstPill + i].name = "Quality" then most = 400
         if valueWidth > most then valueWidth = most
         if valueWidth > inner then inner = valueWidth
         pill.value.width = valueWidth
@@ -468,6 +489,10 @@ end function
 
 ' What each of the three says now: [subtitles, audio, quality].
 function currentChoices() as object
+    if m.live = true
+        if m.captionsOn then return ["On"]
+        return ["Off"]
+    end if
     out = ["Off", "", ""]
     p = m.presentation
     version = currentVersion()
@@ -485,6 +510,10 @@ end function
 ' The one options panel (tv-player frame 4): Subtitles, Audio and Quality as headings, the one
 ' asked for open in place with focus on its current choice. Changes last for this playback only.
 sub openOptions(which as integer)
+    if m.live = true
+        toggleCaptions()      ' live's one labelled button
+        return
+    end if
     version = currentVersion()
     p = m.presentation
     if version = invalid or p = invalid then return
@@ -629,6 +658,7 @@ end sub
 sub onMenuChosen(event as object)
     if m.session = invalid then return
     id = event.getData()
+    if m.live = true and liveChoice(id) then return
     kind = left(id, 4)
     value = mid(id, 5)
     if kind = "slp:"
@@ -1252,8 +1282,9 @@ end sub
 
 ' --- Live TV: the normal player with a channel in it ----------------------------------------
 
-' A channel from the guide: the programme on now, the channel's name and number with Live, and
-' the times with what follows. There is no queue, no versions and no tracks to choose on live.
+' A channel from the guide (tv-player frame 11): the channel's badge, the programme on now, the
+' channel's name and number with Live, and the times with what follows; Record and More where the
+' clock would be. There is no queue, no versions and no tracks to choose on live.
 sub startLive()
     c = colours()
     item = m.top.item
@@ -1275,16 +1306,35 @@ sub startLive()
         times = timeOfDay(isoSeconds(m.liveProgramme.startsAt) - now) + " to " + timeOfDay(isoSeconds(m.liveProgramme.endsAt) - now)
         if following <> invalid then times = times + "   Then " + following.title
     end if
+    ' the words start after the badge
+    mark = m.top.findNode("liveMark")
+    mark.size = 64
+    mark.channel = item.channel
+    mark.translation = [m.f.left, m.f.top - 2]
+    mark.visible = true
+    x = m.f.liveTextX
     m.top.findNode("title").text = title
+    m.top.findNode("title").translation = [x, m.f.top]
+    m.top.findNode("title").width = 1300 - (x - m.f.left)
     code = m.top.findNode("code")
     code.text = item.channel.name + "   " + item.channel.number
+    code.translation = [x, m.f.top + 54]
     setType(code, "metaStrong", c.text)
     live = m.top.findNode("sub")
     live.text = "Live"
     live.color = c.danger
-    live.translation = [m.f.left + code.boundingRect().width + 16, m.f.top + 54]
+    live.translation = [x + code.boundingRect().width + 16, m.f.top + 54]
     setType(m.top.findNode("times"), "meta", c.textSecondary)
     m.top.findNode("times").text = times
+    m.top.findNode("times").translation = [x, m.f.top + 90]
+    m.top.findNode("clock").visible = false
+    m.top.findNode("ends").visible = false
+    m.liveChannel = item.channel
+    m.liveBooking = invalid
+    m.liveCanRecord = false
+    drawTools()
+    ' whether this programme can be recorded here, and whether it already is
+    if m.liveProgramme <> invalid then api("GET", "/v1/live/programmes/" + m.liveProgramme.id, invalid, "onLiveProgramme", {id: m.liveProgramme.id})
     m.top.findNode("waitTitle").text = item.channel.name
     setType(m.top.findNode("goLiveText"), "nav", c.text)
     m.top.findNode("goLivePlate").width = m.top.findNode("goLiveText").boundingRect().width + 60
@@ -1312,9 +1362,14 @@ function neighbour(stepBy as integer) as dynamic
 end function
 
 sub changeChannel(stepBy as integer)
-    row = neighbour(stepBy)
+    tune(neighbour(stepBy))
+end sub
+
+sub tune(row as dynamic)
     if row = invalid then return
     stopSession()
+    m.liveCaptions = false
+    hideNote()
     lineup = m.top.item.lineup
     m.top.item = {kind: "channel", id: row.channel.id, title: row.channel.name, channel: row.channel, programmes: row.programmes, lineup: lineup}
     fresh()
@@ -1350,10 +1405,19 @@ sub paintLive()
     e = isoSeconds(m.liveProgramme.endsAt)
     behind = liveBehind()
     at = now - behind
-    x = barX(at - s, e - s)
-    m.played.width = x - m.f.left
-    m.knob.translation = [x - m.knob.width / 2, m.f.barY + 4 - m.knob.height / 2]
     m.knobRing.visible = false
+    ' a skip waiting to land shows where it will land
+    if m.pending >= 0 and m.video.duration > 0 then at = now - (m.video.duration - m.pending)
+    x = barX(at - s, e - s)
+    m.knob.translation = [x - m.knob.width / 2, m.f.barY + 4 - m.knob.height / 2]
+    ' with a window to go back in, the blue stretch runs from the window's oldest moment to the picture
+    from = m.f.left
+    if m.liveWindow = true and m.video.duration > 0 then from = barX(now - m.video.duration - s, e - s)
+    if from > x then from = x
+    m.played.translation = [from, m.played.translation[1]]
+    m.played.width = x - from
+    m.ahead.visible = false
+    m.was.visible = false
     edge = m.top.findNode("edge")
     edge.translation = [barX(now - s, e - s) - 2, m.f.barY - 7]
     edge.visible = true
@@ -1364,8 +1428,8 @@ sub paintLive()
     m.top.findNode("ends").text = "Ends " + timeOfDay(e - now)
     goLiveNode = m.top.findNode("goLive")
     goLiveNode.visible = behind > 30
-    if not goLiveNode.visible and m.focus < 0 then m.focus = m.playIndex
-    on = (m.focus < 0)
+    if not goLiveNode.visible and m.focus = -1 then m.focus = m.playIndex
+    on = (m.focus = -1)
     if on then m.top.findNode("goLivePlate").blendColor = c.glassOn else m.top.findNode("goLivePlate").blendColor = c.glass
     pillRing = m.top.findNode("pillRing")
     if on
@@ -1376,6 +1440,219 @@ sub paintLive()
         pillRing.height = 48 + out * 2
         pillRing.visible = true
     end if
+    paintTools()
+end sub
+
+' Record (Recording once booked) and More, from the right edge on the top line. Recording can be
+' pressed only when this profile may cancel or stop it; More always opens the programme's sheet.
+sub drawTools()
+    m.tools.removeChildrenIndex(m.tools.getChildCount(), 0)
+    m.toolSpecs = []
+    if m.liveCanRecord
+        b = m.liveBooking
+        if b = invalid
+            m.toolSpecs.push({kind: "record", text: "Record", focusable: true})
+        else
+            m.toolSpecs.push({kind: "booked", text: "Recording", focusable: (b.state = "scheduled" and b.mayCancel = true) or (b.state = "recording" and b.mayChange = true)})
+        end if
+    end if
+    m.toolSpecs.push({kind: "more", text: "", focusable: true})
+    right = m.f.right
+    for i = m.toolSpecs.count() - 1 to 0 step -1
+        spec = m.toolSpecs[i]
+        node = m.tools.createChild("Button")
+        if spec.kind = "more" then node.icon = "more" else node.dot = true
+        node.text = spec.text
+        right = right - node.buttonWidth
+        node.translation = [right, m.f.top - 6]
+        right = right - 16
+        spec.node = node
+    end for
+    if m.toolFocus >= m.toolSpecs.count() or not m.toolSpecs[m.toolFocus].focusable then m.toolFocus = m.toolSpecs.count() - 1
+end sub
+
+sub paintTools()
+    for i = 0 to m.toolSpecs.count() - 1
+        m.toolSpecs[i].node.on = (m.focus = -2 and i = m.toolFocus)
+    end for
+end sub
+
+sub onLiveProgramme(event as object)
+    result = event.getData()
+    if not result.ok or m.liveProgramme = invalid or event.getRoSGNode().ctx.id <> m.liveProgramme.id then return
+    m.liveCanRecord = (result.data.canRecord = true and m.liveChannel.kind = "source")
+    m.liveBooking = result.data.recording
+    if m.liveBooking <> invalid and m.liveBooking.state <> "scheduled" and m.liveBooking.state <> "recording" then m.liveBooking = invalid
+    drawTools()
+    paint()
+end sub
+
+sub pressTool(kind as string)
+    p = m.liveProgramme
+    if kind = "record"
+        api("POST", "/v1/dvr/recordings", {programme: p.id}, "onLiveRecorded", {id: p.id})
+    else if kind = "booked"
+        m.hide.control = "stop"       ' the controls stay up under the question
+        if m.liveBooking.state = "scheduled"
+            m.confirm.model = {title: "Cancel recording " + p.title + "?", body: "It won’t be recorded. A series rule, if there is one, stays in place.", verb: "Cancel recording"}
+        else
+            m.confirm.model = {title: "Stop recording " + p.title + "?", body: "What has been recorded so far is kept.", verb: "Stop recording"}
+        end if
+    else
+        openMore()
+    end if
+end sub
+
+' Booked (tv-player frame 11, below): the button says Recording and a note drops under it.
+sub onLiveRecorded(event as object)
+    result = event.getData()
+    if m.liveProgramme = invalid or event.getRoSGNode().ctx.id <> m.liveProgramme.id then return
+    if not result.ok
+        showNote(result.error.message)
+        return
+    end if
+    m.liveBooking = result.data
+    drawTools()
+    showNote("Recording scheduled: " + m.liveProgramme.title)
+    raise()
+end sub
+
+sub showNote(text as string)
+    note = m.top.findNode("recNote")
+    label = m.top.findNode("recNoteText")
+    label.text = text
+    w = 52 + label.boundingRect().width + 24
+    m.top.findNode("recNotePlate").width = w
+    note.translation = [m.f.right - w, m.f.top + 88]
+    note.visible = true
+    timer = m.top.findNode("noteTimer")
+    timer.control = "stop"
+    timer.control = "start"
+end sub
+
+sub hideNote()
+    m.top.findNode("recNote").visible = false
+end sub
+
+sub onLiveConfirm()
+    m.top.setFocus(true)
+    raise()
+    if m.confirm.chosen <> "confirm" or m.liveBooking = invalid then return
+    path = "/v1/dvr/recordings/" + m.liveBooking.id
+    if m.liveBooking.state = "recording" then path = path + "?action=stop"
+    api("DELETE", path, invalid, "onLiveCancelled", {id: m.liveBooking.id})
+end sub
+
+sub onLiveCancelled(event as object)
+    if not event.getData().ok or m.liveBooking = invalid or event.getRoSGNode().ctx.id <> m.liveBooking.id then return
+    m.liveBooking = invalid
+    drawTools()
+    paint()
+end sub
+
+' More (tv-player frame 11): the programme's sheet as the guide opens it, with Record series… and
+' the channel's place in Favorites.
+sub openMore()
+    m.hide.control = "stop"
+    row = {channel: m.liveChannel, programmes: m.top.item.programmes}
+    model = programmeSheet(row, m.liveProgramme, createObject("roDateTime").asSeconds())
+    if m.liveCanRecord and m.liveProgramme <> invalid then model.rows.push({id: "series", text: "Record series…", icon: "repeat"})
+    if m.liveChannel.favorite = true
+        model.rows.push({id: "favorite", text: "Remove channel from Favorites", icon: "heartFilled"})
+    else
+        model.rows.push({id: "favorite", text: "Add channel to Favorites", icon: "heart"})
+    end if
+    m.top.menu = model
+end sub
+
+' A choice from More: a series rule (its channel choice first), or the channel's Favorites mark.
+function liveChoice(id as string) as boolean
+    if id = "series"
+        api("POST", "/v1/dvr/rules?preview=true", {programme: m.liveProgramme.id}, "onLiveSeries")
+    else if id = "rule:this" or id = "rule:any"
+        api("POST", "/v1/dvr/rules", {programme: m.liveProgramme.id, anyChannel: id = "rule:any"}, "onLiveRule")
+    else if id = "favorite"
+        api("PUT", "/v1/live/channels/" + m.liveChannel.id + "/state", {favorite: m.liveChannel.favorite <> true, hidden: m.liveChannel.hidden = true}, "onLiveFavorite", {id: m.liveChannel.id})
+    else
+        return id = "ok"
+    end if
+    return true
+end function
+
+sub onLiveSeries(event as object)
+    result = event.getData()
+    if m.liveProgramme = invalid then return
+    if result.ok then m.top.menu = seriesSheet(result.data, m.liveChannel.name, m.liveProgramme.title) else m.top.menu = notRecordedSheet(result.error.message)
+end sub
+
+sub onLiveRule(event as object)
+    result = event.getData()
+    if not result.ok
+        m.top.menu = notRecordedSheet(result.error.message)
+        return
+    end if
+    showNote("Series recording set up: " + result.data.title)
+    if m.liveProgramme <> invalid then api("GET", "/v1/live/programmes/" + m.liveProgramme.id, invalid, "onLiveProgramme", {id: m.liveProgramme.id})
+    raise()
+end sub
+
+sub onLiveFavorite(event as object)
+    result = event.getData()
+    if result.ok and event.getRoSGNode().ctx.id = m.liveChannel.id then m.liveChannel.favorite = result.data.favorite
+end sub
+
+' Guide (tv-player frame 11, second): the lineup beside the picture, over Record and More.
+sub openMiniGuide()
+    m.hide.control = "stop"
+    m.tools.visible = false
+    m.miniGuide.lineup = m.top.item.lineup
+    m.miniGuide.current = ""
+    m.miniGuide.current = m.liveChannel.id
+    m.miniGuide.visible = true
+    m.miniGuide.active = true
+end sub
+
+sub closeMiniGuide()
+    m.miniGuide.visible = false
+    m.tools.visible = true
+    m.top.setFocus(true)
+    raise()
+end sub
+
+' OK on a channel tunes it; Open the full guide leaves the player for the guide.
+sub onMiniGuide(event as object)
+    id = event.getData()
+    closeMiniGuide()
+    if id = "guide"
+        leave(true)
+        return
+    end if
+    if id = m.liveChannel.id then return
+    for each row in m.top.item.lineup
+        if row.channel.id = id then tune(row)
+    end for
+end sub
+
+' Roku reads captions carried in the channel's stream itself: Captions shows once it has found some.
+sub onLiveTracks()
+    if m.live <> true then return
+    has = (m.video.availableSubtitleTracks <> invalid and m.video.availableSubtitleTracks.count() > 0)
+    if has = m.liveCaptions then return
+    m.liveCaptions = has
+    makeButtons(false, false)
+    paint()
+end sub
+
+sub toggleCaptions()
+    m.captionsOn = not m.captionsOn
+    if m.captionsOn
+        m.video.subtitleTrack = m.video.availableSubtitleTracks[0].TrackName
+        m.video.globalCaptionMode = "On"
+    else
+        m.video.globalCaptionMode = "Off"
+    end if
+    m.pillValues = ""
+    raise()
 end sub
 
 ' --- the queue: Previous, Next, Up next and the end of a title ------------------------------
@@ -1687,7 +1964,15 @@ sub raise()
     paint()
 end sub
 
+' Any key with the controls hidden raises them with focus on Play/Pause, wherever focus was when
+' they went (tv-focus F-PLAYER-1): a key never lands on Record or More unseen.
+sub showControls()
+    m.focus = m.playIndex
+    raise()
+end sub
+
 sub lower()
+    if m.miniGuide.visible then return       ' the guide beside the picture keeps the controls up
     if m.video.state = "paused" or m.scrub or m.failed then return     ' paused, a scrub waiting, or failed: the controls stay
     ' still catching up after a jump: the controls stay, and their time runs again once the picture plays
     if m.video.state = "buffering" or m.pending >= 0 then return
@@ -1932,6 +2217,9 @@ sub nudge(seconds as float)
         return
     end if
     duration = m.duration
+    ' live moves only in its window, which grows as live goes on; a stream without one cannot move
+    if m.live = true and m.liveWindow <> true then return
+    if m.live = true then duration = m.video.duration
     if duration <= 0 then return
     if m.pending < 0 then m.pending = m.video.position
     m.pending = m.pending + seconds
@@ -2047,12 +2335,33 @@ function onKeyEvent(key as string, press as boolean) as boolean
         return true
     end if
     if key = "options"
-        ' * is the remote's options key: it opens the options panel at Subtitles, as Roku's own does
-        openOptions(0)
+        ' * is the remote's options key: it opens the options panel at Subtitles, as Roku's own does.
+        ' On live, More (the programme's sheet) is the options, and like the other controls of the
+        ' top row it waits for the controls: with them hidden, * only raises them (tv-focus F-PLAYER-1)
+        if m.live <> true
+            openOptions(0)
+            return true
+        end if
+        if m.controls.visible then openMore() else showControls()
         return true
     end if
     if not m.controls.visible
-        raise()          ' any other key raises the controls, on Play/Pause
+        showControls()
+        return true
+    end if
+    if m.focus = -2 and m.live = true
+        ' Record and More, at the top right (a group never plays live, so its pill is not here)
+        if key = "OK"
+            pressTool(m.toolSpecs[m.toolFocus].kind)
+        else if key = "left" or key = "right"
+            stepBy = 1
+            if key = "left" then stepBy = -1
+            i = m.toolFocus + stepBy
+            if i >= 0 and i < m.toolSpecs.count() and m.toolSpecs[i].focusable then m.toolFocus = i
+        else if key = "down"
+            if m.top.findNode("goLive").visible then m.focus = -1 else m.focus = m.playIndex
+        end if
+        raise()
         return true
     end if
     if key = "OK" and m.focus = -2
@@ -2087,6 +2396,9 @@ function onKeyEvent(key as string, press as boolean) as boolean
         else if kind = "episodes"
             openEpisodes()
             return true
+        else if kind = "guide"
+            openMiniGuide()
+            return true
         else
             openOptions(m.focus - m.firstPill)
             return true
@@ -2108,12 +2420,14 @@ function onKeyEvent(key as string, press as boolean) as boolean
             m.focus = m.focus + 1
         end if
     else if key = "up"
-        ' on live, Up reaches Go to live when the picture is behind; there is no scrubbing.
-        ' In a group, Up from the seek bar reaches the pill.
-        if m.focus = -1 and m.top.findNode("pill").visible
+        ' on live, Up reaches Go to live when the picture is behind, then Record and More; there is no scrubbing.
+        ' In a group (never live: a group's queue holds titles), Up from the seek bar reaches the pill.
+        if m.live = true
+            if m.focus >= 0 and m.top.findNode("goLive").visible then m.focus = -1 else m.focus = -2
+        else if m.focus = -1 and m.top.findNode("pill").visible
             if m.scrub then cancelScrub()
             m.focus = -2
-        else if m.focus <> -2 and (m.live <> true or m.top.findNode("goLive").visible)
+        else if m.focus <> -2
             m.focus = -1
         end if
     else if key = "down"
