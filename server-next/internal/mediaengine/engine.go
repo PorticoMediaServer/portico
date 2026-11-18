@@ -740,7 +740,9 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 		return playback.Stream{}, errors.New("the plan was not made by this engine")
 	}
 	request := p.request
-	start := streaming.StartRequest{SessionID: r.SessionID, Plan: p.plan, Request: &request, Path: p.path, Size: p.place.Size,
+	// The stream opens the file itself, by the path the scan recorded, following links
+	// (package libraryfile); the real path is only for handing to a sandboxed tool.
+	start := streaming.StartRequest{SessionID: r.SessionID, Plan: p.plan, Request: &request, Path: p.place.Path, Size: p.place.Size,
 		Modified: time.Unix(0, p.place.ModifiedNS), PositionMs: r.PositionMs, Parts: p.parts}
 	if p.audio != nil {
 		start.Request, start.Audio, start.SeekIndex = nil, p.audio, p.index

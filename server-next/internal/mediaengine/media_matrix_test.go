@@ -741,6 +741,10 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 	if refused != "" {
 		m.note(fmt.Sprintf("%-18s %-11s refused: %s", name, profile, refused))
 		t.Logf("%s: refused, %s", where, refused)
+		// A plan may rightly refuse a file; a file this test just made is never out of reach.
+		if strings.Contains(refused, "source_unavailable") {
+			t.Errorf("%s: the server could not reach the file", where)
+		}
 		return
 	}
 	defer m.stop(session)
