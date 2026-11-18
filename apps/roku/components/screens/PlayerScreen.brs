@@ -41,6 +41,7 @@ sub init()
     setType(m.top.findNode("waitText"), "body", c.textSecondary)
     m.tries = 0          ' reloads since the picture last ran
     m.last = 0           ' the last place the picture was seen at, in seconds
+    m.loadedAt = 0       ' where the stream now playing was started from
     m.notice.observeField("pressed", "onNotice")
     m.session = invalid
     m.options = invalid  ' the title's versions, tracks and qualities (playback-options)
@@ -48,6 +49,7 @@ sub init()
     m.scrub = false      ' true while a scrub waits for OK (held, or moved while paused)
     m.duration = 0
     m.ended = false
+    m.failed = false     ' the Playback failed page is up
     ' every fixed line of the overlay and of what sits over the picture comes from the player's frame
     f = frames().player
     m.f = f
@@ -71,6 +73,8 @@ sub init()
     m.top.findNode("spinner").blendColor = c.focus
     m.top.findNode("waitTitle").translation = [260, f.waitY + 96]
     m.top.findNode("waitText").translation = [260, f.waitY + 142]
+    ' Playback failed sits under the title row, at the player's left line
+    m.notice.translation = [f.left - frames().gutter, f.noticeDrop]
     makeButtons()
     makeHints()
 end sub
@@ -473,7 +477,8 @@ end sub
 
 ' A stream the server is still making can answer "not there yet" for a moment, and Roku's player
 ' gives up at once. So a stop that is not the end of the title is tried again from where the
-' picture was, a few times, before it is called a failure.
+' picture was, a few times, before it is called a failure. The session is read first: the server
+' may already have moved this title to another stream, which is then played, and nothing is blamed.
 sub again()
     if m.session = invalid or m.ended then return
     if m.tries >= 6
@@ -483,8 +488,24 @@ sub again()
     m.tries = m.tries + 1
     m.video.control = "stop"
     busy("Getting ready…")
-    ' The server is told the player could not play this. It may answer with another way for the
-    ' title to reach this TV, which is then what is played.
+    api("GET", "/v1/playback/sessions/" + m.session.id, invalid, "onRecheck", {id: m.session.id, failed: true})
+end sub
+
+' The session as the server has it now. A newer stream than the one loaded is played from where
+' the picture was. Otherwise, after a failure, the server is told the player could not play this;
+' it may answer with another way for the title to reach this TV.
+sub onRecheck(event as object)
+    result = event.getData()
+    ctx = event.getRoSGNode().ctx
+    if m.session = invalid or m.ended or ctx.id <> m.session.id then return
+    if result.ok and result.data <> invalid and result.data.presentation <> invalid and result.data.presentation.generation <> m.presentation.generation
+        m.session = result.data
+        p = m.session.presentation
+        p.startPositionMs = int(m.last * 1000)
+        load(p)
+        return
+    end if
+    if ctx.failed <> true then return
     detail = ""
     if m.video.errorMsg <> invalid then detail = m.video.errorMsg
     api("PATCH", "/v1/playback/sessions/" + m.session.id, {failure: {code: "player_error", detail: detail}, positionMs: int(m.last * 1000)}, "onFailureAnswer", {id: m.session.id})
@@ -525,6 +546,7 @@ sub load(p as object)
         content.playStart = p.startPositionMs / 1000
         m.last = p.startPositionMs / 1000
     end if
+    m.loadedAt = m.last
     ' every text subtitle the server offers beside this stream, as WebVTT
     tracks = []
     if p.subtitles <> invalid
@@ -551,7 +573,10 @@ end sub
 sub onProgress(event as object)
     result = event.getData()
     if m.session = invalid or event.getRoSGNode().ctx.id <> m.session.id then return
-    if result.status = 410
+    if result.ok and result.data <> invalid and result.data.generation <> invalid and result.data.generation <> m.presentation.generation
+        ' the server moved this title to another stream by itself: read the session and play that
+        api("GET", "/v1/playback/sessions/" + m.session.id, invalid, "onRecheck", {id: m.session.id, failed: false})
+    else if result.status = 410
         ' The server ended this session (stopped from another device, or a limit).
         leave(false)
     else if result.status = 404
@@ -602,30 +627,42 @@ sub onVideoState()
     end if
 end sub
 
+' Playback failed (states frame 11): the title and where it stopped stay on screen, focus starts on
+' Try again, which picks up at the saved place; Back leaves the player.
 sub fail(message as string)
     busy(invalid)
-    for each timer in [m.report, m.tick, m.hide, m.retry]
+    for each timer in [m.report, m.tick, m.hide, m.retry, m.again, m.settle]
         timer.control = "stop"
     end for
     m.video.control = "stop"
-    m.controls.visible = false
+    m.failed = true
+    cancelScrub()
+    m.controls.visible = true
+    paint()
+    if m.last > 0 then message = message + " Your place is saved at " + clockText(m.last) + ", so Try again picks up right there."
     m.notice.icon = "warning"
     m.notice.title = "Playback failed"
     m.notice.body = message
-    m.notice.buttons = [{id: "retry", text: "Try again", icon: "refresh"}, {id: "leave", text: "Go back", icon: ""}]
+    m.notice.buttons = [{id: "retry", text: "Try again", icon: "refresh"}]
     m.notice.visible = true
     m.notice.active = true
 end sub
 
 sub onNotice(event as object)
-    if event.getData() = "retry"
-        m.notice.visible = false
+    if event.getData() <> "retry" then return
+    m.notice.visible = false
+    m.failed = false
+    m.controls.visible = false
+    m.tries = 0
+    if m.session <> invalid
+        ' the failed session is ended with where it got to; a new one starts there
+        sendProgress()
+        api("DELETE", "/v1/playback/sessions/" + m.session.id, {positionMs: int(m.last * 1000)}, "onStopped")
         m.session = invalid
-        m.top.setFocus(true)
-        start()
-    else
-        leave(m.session <> invalid)
     end if
+    if m.last > 0 then m.resumeAt = int(m.last * 1000)
+    m.top.setFocus(true)
+    start()
 end sub
 
 ' --- the controls ---------------------------------------------------------------------------
@@ -638,7 +675,7 @@ sub raise()
 end sub
 
 sub lower()
-    if m.video.state = "paused" or m.scrub then return     ' paused, or a scrub waiting: the controls stay
+    if m.video.state = "paused" or m.scrub or m.failed then return     ' paused, a scrub waiting, or failed: the controls stay
     m.controls.visible = false
     m.focus = m.playIndex
 end sub
@@ -677,7 +714,7 @@ sub onPosition()
     at = m.video.position
     if at > 0
         ' the picture has run on from where it was last started: it is healthy again
-        if at > m.last + 8 then m.tries = 0
+        if at > m.loadedAt + 8 then m.tries = 0
         if m.pending < 0 then m.last = at
     end if
     if m.controls.visible then paint()
@@ -778,6 +815,13 @@ sub paint()
         end if
         pill.head.color = c.text
     end for
+    ' Playback failed keeps the title and where it stopped; its own buttons are the only ones
+    if m.failed
+        m.buttons.visible = false
+        m.ring.visible = false
+        pillRing.visible = false
+        flab.visible = false
+    end if
 end sub
 
 ' Where a time falls on the seek bar.
@@ -876,7 +920,11 @@ end sub
 function onKeyEvent(key as string, press as boolean) as boolean
     holdKey(key, press and m.focus < 0 and m.controls.visible and (key = "left" or key = "right"))
     if not press then return false
-    if m.notice.visible then return key <> "back"
+    if m.notice.visible
+        ' Back from Playback failed leaves the player, as everywhere else in it
+        if key = "back" then leave(m.session <> invalid)
+        return true
+    end if
     if key = "back"
         if m.scrub
             cancelScrub()
