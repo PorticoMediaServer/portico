@@ -35,6 +35,8 @@ export const servicesMessages = {
   'services.signup.details': 'Check the username, email and password: each one needs to be filled in, and the password needs to be at least 8 characters.',
   'services.signup.agreement': 'By continuing, you agree to the {terms} and {privacy}.',
   'services.signup.terms': 'Terms',
+  'services.signup.ageTerms': 'I am 13 or older and I agree to the {terms}',
+  'services.signup.termsOfUse': 'Terms of Use',
   'services.signup.privacy': 'Privacy Policy',
   'services.signin.credentials': 'That username or email and password didn’t match a Portico Account. Check them and try again.',
   'services.signin.ended': 'Your Portico Account sign-in has ended. Sign in again.',

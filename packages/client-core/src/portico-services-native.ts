@@ -2,7 +2,7 @@
  * in the private repository), in the shapes the apps' sign-in screens and their sign-in store
  * already use. The apps keep both tokens in their own store (`CredentialSessionService`); there is
  * no cookie. The calls themselves are `porticoAccount`'s, in token mode. */
-import {porticoAccount, ServicesError, type Device, type HeldSignIn, type Tokens, type Provider} from './portico-account.ts';
+import {porticoAccount, ServicesError, type Device, type HeldSignIn, type Tokens, type Provider, type ProviderChoices} from './portico-account.ts';
 import {ApiError, type HostedSession} from './http.ts';
 import type {CredentialApi} from './credentials.ts';
 import {MFARequiredError, parseSecurityState, type AccountScope, type SecurityState, type IdentityOptions, type MFAChallenge, type Registration} from './hosted-security.ts';
@@ -96,8 +96,8 @@ export class PorticoServicesAccountClient {
     return this.session((await refused(this.anyone.finishTwoStep(challenge.challengeId, code.trim()))).tokens);
   }
   /** Sign-up: the code is emailed to `contactAddress`, which is the account's email address. */
-  async register(input: {username: string; displayName: string; password: string; contactAddress: string}): Promise<Registration> {
-    const answer = await refused(this.anyone.signUp({email: input.contactAddress, username: input.username, password: input.password, displayName: input.displayName}));
+  async register(input: {username: string; displayName: string; password: string; contactAddress: string; acceptTerms: boolean}): Promise<Registration> {
+    const answer = await refused(this.anyone.signUp({email: input.contactAddress, username: input.username, password: input.password, displayName: input.displayName, acceptTerms: input.acceptTerms}));
     return pending(answer.accountId, answer.email);
   }
   async resendRegistration(original: Registration): Promise<Registration> {
@@ -116,7 +116,7 @@ export class PorticoServicesAccountClient {
     return refused<{id: string; expiresAt: string; nonce?: string; authorizeUrl?: string}>(nativeApple ? client.startAppleSignIn() : client.startProvider(provider, secretHash));
   }
   /** Completion runs inside the app's existing credential owner, including late-result cleanup. */
-  async completeProvider(proof: PorticoProviderProof, chosen: {username?: string; displayName?: string}, signal: AbortSignal): Promise<HostedSession> {
+  async completeProvider(proof: PorticoProviderProof, chosen: ProviderChoices, signal: AbortSignal): Promise<HostedSession> {
     const client = porticoAccountForCall('', this.origin, this.fetcher ?? fetch, signal);
     const answer = await refused('identityToken' in proof
       ? client.completeAppleSignIn(proof.id, proof.identityToken, this.device, chosen)

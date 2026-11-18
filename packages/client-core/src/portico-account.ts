@@ -30,6 +30,9 @@ export type Approval = Readonly<{id: string; serverId: string; serverName: strin
 export type ApprovalDecision = Readonly<{state: 'approved' | 'declined'; returnUrl: string; approval?: string}>;
 export type ListedServer = Readonly<{serverId: string; name: string; role: string; owner: boolean}>;
 export type ProviderCompletion = Readonly<{tokens?: Tokens; twoStep?: {challengeId: string}; connected?: Provider; created?: boolean}>;
+/** What a first Google or Apple sign-in that makes a new account sends: the username, a name, and the
+ * ticked "I am 13 or older and I agree to the Terms of Use" box (Services answers `terms_required` without it). */
+export type ProviderChoices = Readonly<{username?: string; displayName?: string; acceptTerms?: boolean}>;
 export type TVCode = Readonly<{id: string; device: Device}>;
 
 /** The sign-in this device holds. `forget(held)` forgets it only if it is still the one held.
@@ -129,7 +132,8 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, f
 
   return {
     capabilities: () => anyone<{capabilities?: string[]}>('system').then(value => value.capabilities ?? []),
-    signUp: (details: {email: string; username: string; password: string; displayName: string}) =>
+    /** `acceptTerms`: the person ticked "I am 13 or older and I agree to the Terms of Use" (definition 01 rule 55). */
+    signUp: (details: {email: string; username: string; password: string; displayName: string; acceptTerms: boolean}) =>
       anyone<{accountId: string; email: string}>('signUp', {}, details, {create: true}),
     confirmSignUp: (accountId: string, code: string, device: Device) =>
       anyone<{tokens: Tokens}>('confirm', {}, {accountId, code, device}).then(tokensKept),
@@ -145,10 +149,10 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, f
     startProvider: (provider: Provider, secretHash: string, proof?: Proof) => proof
       ? person<{id: string; authorizeUrl: string; expiresAt: string}>('providerStart', {}, {provider, secretHash, ...proof})
       : anyone<{id: string; authorizeUrl: string; expiresAt: string}>('providerStart', {}, {provider, secretHash}),
-    completeProvider: (flow: string, code: string, secret: string, device: Device, chosen: {username?: string; displayName?: string} = {}) =>
+    completeProvider: (flow: string, code: string, secret: string, device: Device, chosen: ProviderChoices = {}) =>
       anyone<ProviderCompletion>('providerComplete', {}, {id: flow, code, secret, device, ...chosen}, {create: true}).then(tokensKept),
     startAppleSignIn: () => anyone<{id: string; nonce: string; expiresAt: string}>('providerStart', {}, {provider: 'apple', kind: 'app'}),
-    completeAppleSignIn: (id: string, identityToken: string, device: Device, chosen: {username?: string; displayName?: string} = {}) =>
+    completeAppleSignIn: (id: string, identityToken: string, device: Device, chosen: ProviderChoices = {}) =>
       anyone<ProviderCompletion>('providerApple', {}, {id, identityToken, device, ...chosen}, {create: true}).then(tokensKept),
     /** A fresh provider flow bound to this PIN request. It never starts/adopts an account session. */
     startPINProvider: (provider: Provider, secretHash: string, pin: {serverId: string; challenge: string}, signal?: AbortSignal) =>

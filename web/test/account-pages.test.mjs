@@ -74,8 +74,16 @@ test('sign-up, then the code confirms the account this tab signed up and signs i
   let page = h.render(() => h.react.createElement(signUp.AccountSignUp, {next: '/account'}));
   type(page, 'email', 'ada@example.test'); type(page, 'username', 'ada'); type(page, 'new-password', 'long enough password');
   page = h.render(() => h.react.createElement(signUp.AccountSignUp, {next: '/account'}));
+  // Definition 01 rule 55: the 13-or-older and Terms of Use box starts unticked and Create stays off until it is ticked.
+  const create = () => nodes(page).find(node => node.props?.type === 'submit');
+  const box = () => nodes(page).find(node => node.type === 'ServicesAgeTerms');
+  assert.equal(box().props.checked, false); assert.equal(create().props.disabled, true);
+  box().props.onChange(true);
+  page = h.render(() => h.react.createElement(signUp.AccountSignUp, {next: '/account'}));
+  assert.equal(create().props.disabled, false);
   await submit(page); await tick();
   assert.equal(calls[0].route, 'POST /v1/accounts');
+  assert.equal(calls[0].body.acceptTerms, true);
   assert.ok(calls[0].headers['Idempotency-Key'], 'sign-up makes something, so it carries an Idempotency-Key');
   assert.match(went.at(-1), /^\/sign-up\/confirm/);
 

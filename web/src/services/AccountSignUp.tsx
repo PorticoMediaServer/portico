@@ -1,6 +1,6 @@
 import {useState, type FormEvent} from 'react';
 import {AuthLinks, AuthPasswordField} from '../kit/accounts/AuthStage';
-import {ServicesActions, ServicesAuthStage, ServicesHeading, ServicesLabel, ServicesLead, ServicesNotice, ServicesHint, ServicesPair, ServicesQuiet, ServicesStateIcon, ServicesStrength, ServicesTerms} from '../kit/accounts/ServicesAuth';
+import {ServicesActions, ServicesAuthStage, ServicesHeading, ServicesLabel, ServicesLead, ServicesNotice, ServicesHint, ServicesPair, ServicesQuiet, ServicesStateIcon, ServicesStrength, ServicesTerms, ServicesAgeTerms} from '../kit/accounts/ServicesAuth';
 import {Button, TextField} from '../kit/controls';
 import {goTo} from '../platform/hosted-navigation';
 import {servicesI18n} from './i18n';
@@ -32,12 +32,12 @@ export function useAction() {
 
 export function AccountSignUp({next}: {next: string}) {
   const {t} = servicesI18n();
-  const [email, setEmail] = useState(''), [username, setUsername] = useState(''), [name, setName] = useState(''), [password, setPassword] = useState('');
+  const [email, setEmail] = useState(''), [username, setUsername] = useState(''), [name, setName] = useState(''), [password, setPassword] = useState(''), [accepted, setAccepted] = useState(false);
   const {busy, error, run} = useAction();
   const field = problemField(error);
   const fieldError = (name: string) => field === name ? t(problemMessage(error, 'signUp')) : undefined;
   const submit = run(async () => {
-    const answer = await account.signUp({email, username, password, displayName: name});
+    const answer = await account.signUp({email, username, password, displayName: name, acceptTerms: accepted});
     rememberSignUp({accountId: answer.accountId, email: answer.email, next});
     goTo(`/sign-up/confirm?next=${encodeURIComponent(next)}`);
   });
@@ -54,7 +54,8 @@ export function AccountSignUp({next}: {next: string}) {
       </ServicesPair>
       <ServicesHint>{t('next.account.signUp.usernameHelp')}</ServicesHint>
       <div><AuthPasswordField label={<ServicesLabel detail={t('next.account.signUp.passwordRule')}>{t('next.account.signUp.password')}</ServicesLabel>} name="new-password" autoComplete="new-password" value={password} onChange={event => setPassword(event.currentTarget.value)} error={fieldError('password')} disabled={busy} required aria-describedby={password ? 'signup-strength' : undefined} /><ServicesStrength password={password} id="signup-strength" /></div>
-      <ServicesActions><Button variant="primary" type="submit" loading={busy} disabled={!email.trim() || username.trim().length < 3 || [...password].length < 8}>{t('next.account.signUp.submit')}</Button></ServicesActions>
+      <ServicesAgeTerms checked={accepted} disabled={busy} onChange={setAccepted} />
+      <ServicesActions><Button variant="primary" type="submit" loading={busy} disabled={!accepted || !email.trim() || username.trim().length < 3 || [...password].length < 8}>{t('next.account.signUp.submit')}</Button></ServicesActions>
     </form>
     <AuthLinks><button type="button" disabled={busy} onClick={() => goTo(signInPath(next))}>{t('next.account.signUp.haveAccount')}</button></AuthLinks>
     <ServicesTerms />

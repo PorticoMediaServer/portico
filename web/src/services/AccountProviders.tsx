@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState, type FormEvent} from 'react';
 import {AuthLinks} from '../kit/accounts/AuthStage';
-import {ServicesActions, ServicesAuthStage, ServicesDivider, ServicesHeading, ServicesLabel, ServicesLead, ServicesNotice, ServicesProviderButton, ServicesProviderContext, ServicesQuiet, ServicesTerms} from '../kit/accounts/ServicesAuth';
+import {ServicesActions, ServicesAuthStage, ServicesDivider, ServicesHeading, ServicesLabel, ServicesLead, ServicesNotice, ServicesProviderButton, ServicesProviderContext, ServicesQuiet, ServicesTerms, ServicesAgeTerms} from '../kit/accounts/ServicesAuth';
 import {Button, TextField} from '../kit/controls';
 import {goTo} from '../platform/hosted-navigation';
 import {returnToOpener} from '../platform/pin-provider-popup';
@@ -118,8 +118,8 @@ function ProviderSignInReturn({arrival}: {arrival: {id?: string; code?: string; 
   }
   const flow = started.current;
   const [state, setState] = useState<{phase: 'working' | 'username' | 'twoStep' | 'failed'; error?: unknown; challenge?: string}>(() => arrival.failed || !flow || !arrival.code ? {phase: 'failed'} : {phase: 'working'});
-  const [username, setUsername] = useState(''), [name, setName] = useState(''), [busy, setBusy] = useState(false);
-  const finish = async (extra: {username?: string; displayName?: string} = {}) => {
+  const [username, setUsername] = useState(''), [name, setName] = useState(''), [accepted, setAccepted] = useState(false), [busy, setBusy] = useState(false);
+  const finish = async (extra: {username?: string; displayName?: string; acceptTerms?: boolean} = {}) => {
     if (!flow || !arrival.id || !arrival.code) return;
     try {
       const answer = await account.completeProvider(arrival.id, arrival.code, flow.secret, thisDevice(), extra);
@@ -127,8 +127,9 @@ function ProviderSignInReturn({arrival}: {arrival: {id?: string; code?: string; 
       if (answer.twoStep) { setState({phase: 'twoStep', challenge: answer.twoStep.challengeId}); return; }
       goTo(answer.connected ? `/account?tab=security&connected=${answer.connected}` : flow.next, {replace: true});
     } catch (caught) {
-      if (caught instanceof ServicesError && (caught.code === 'username_needed' || caught.code === 'username_taken' || caught.code === 'invalid')) {
-        setState({phase: 'username', error: caught.code === 'username_needed' ? undefined : caught});
+      if (caught instanceof ServicesError && (caught.code === 'username_needed' || caught.code === 'terms_required' || caught.code === 'username_taken' || caught.code === 'invalid')) {
+        // A new account's first sign-in asks for a username and the 13-or-older box on the same form.
+        setState({phase: 'username', error: caught.code === 'username_needed' || caught.code === 'terms_required' && !extra.acceptTerms ? undefined : caught});
         return;
       }
       sessionStorage.removeItem(startedKey(arrival.id));
@@ -141,7 +142,7 @@ function ProviderSignInReturn({arrival}: {arrival: {id?: string; code?: string; 
     event.preventDefault();
     if (busy) return;
     setBusy(true);
-    try { await finish({username, displayName: name}); } finally { setBusy(false); }
+    try { await finish({username, displayName: name, acceptTerms: accepted}); } finally { setBusy(false); }
   };
   if (state.phase === 'twoStep' && state.challenge) return <AccountTwoStep challenge={state.challenge} next={flow?.next ?? '/account'} onGone={() => setState({phase: 'failed', error: new ServicesError(410, 'challenge_gone')})} />;
   if (state.phase === 'username' && flow) {
@@ -155,7 +156,8 @@ function ProviderSignInReturn({arrival}: {arrival: {id?: string; code?: string; 
           error={field === 'username' ? t(problemMessage(state.error, 'signUp')) : undefined} value={username} onChange={event => setUsername(event.currentTarget.value)} minLength={3} maxLength={64} required disabled={busy} autoFocus />
         <TextField variant="auth" label={<ServicesLabel detail={t('next.account.signUp.optional')}>{t('next.account.signUp.name')}</ServicesLabel>} name="name" autoComplete="name"
           error={field === 'displayName' ? t(problemMessage(state.error, 'signUp')) : undefined} value={name} onChange={event => setName(event.currentTarget.value)} maxLength={120} disabled={busy} />
-        <ServicesActions><Button variant="primary" type="submit" loading={busy} disabled={username.trim().length < 3}>{t('action.continue')}</Button></ServicesActions>
+        <ServicesAgeTerms checked={accepted} disabled={busy} onChange={setAccepted} />
+        <ServicesActions><Button variant="primary" type="submit" loading={busy} disabled={!accepted || username.trim().length < 3}>{t('action.continue')}</Button></ServicesActions>
       </form>
       <ServicesQuiet>{t('next.account.provider.usernameTime')}</ServicesQuiet>
       <ServicesTerms provider={flow.provider} />
