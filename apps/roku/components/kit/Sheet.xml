@@ -6,10 +6,11 @@
 <component name="Sheet" extends="Group">
   <interface>
     <!-- {eyebrow, title, status, body, open, rows: [{id, text, icon, current, gapBefore, detail,
-         heading, value, under, focus}]}: `heading` rows carry their current `value` on the right
+         heading, value, under, focus, label}]}: `heading` rows carry their current `value` on the right
          (any other row may carry one too: a language's place in its list); a row with `under` set
          to a heading's id shows only while that heading is open; `open` names the heading open at
-         the start; `focus` starts focus on a row that is not the current choice; `hints`, the remote's
+         the start; `focus` starts focus on a row that is not the current choice; `label` is a group's
+         name or a line of help, words only, which focus passes over; `hints`, the remote's
          keys at the foot ([{keys, text}], kit/KeyHints), and the rows stop above them. -->
     <field id="model" type="assocarray" onChange="onModel"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>

@@ -118,7 +118,7 @@ sub build(focusId as string)
         back.blendColor = c.raisedBright
         back.width = m.width
         back.height = 64
-        back.visible = (spec.heading <> true and spec.under = invalid)
+        back.visible = (spec.heading <> true and spec.under = invalid and spec.label <> true)
         x = 30
         if spec.under <> invalid then x = 70
         if spec.icon <> invalid and spec.icon <> ""
@@ -138,6 +138,11 @@ sub build(focusId as string)
         label.height = 64
         label.vertAlign = "center"
         setType(label, "button", c.textSecondary)
+        if spec.label = true
+            ' a group's name or a line of help: words only, never a stop for focus
+            setType(label, "groupLabel", c.textTertiary)
+            label.height = 44
+        end if
         side = row.createChild("Label")       ' a heading's value, or a choice's second line
         setType(side, "help", c.textTertiary)
         if spec.heading = true
@@ -173,9 +178,10 @@ sub build(focusId as string)
         if spec.id = focusId then m.focus = m.shown.count()
         m.shown.push(spec)
         m.ys.push(y)
-        y = y + 74
+        if spec.label = true then y = y + 44 else y = y + 74
     end for
     if groupTop >= 0 then closeGroup(groupTop, y - 10)
+    if m.shown.count() > 0 and m.shown[m.focus].label = true then pressKey("down")
     paint()
 end sub
 
@@ -211,8 +217,9 @@ sub paint()
         row = m.rows.getChild(i)
         on = (i = m.focus)
         spec = m.shown[i]
-        row.getChild(0).visible = not on and spec.heading <> true and spec.under = invalid
+        row.getChild(0).visible = not on and spec.heading <> true and spec.under = invalid and spec.label <> true
         tint = c.textSecondary
+        if spec.label = true then tint = c.textTertiary
         if spec.current = true or spec.heading = true then tint = c.text
         if on then tint = c.actionInk
         row.getChild(2).color = tint
@@ -227,13 +234,17 @@ sub paint()
 end sub
 
 function pressKey(key as string) as boolean
-    if key = "down" and m.focus < m.ys.count() - 1
-        m.focus = m.focus + 1
-    else if key = "up" and m.focus > 0
-        m.focus = m.focus - 1
-    else
-        return false
-    end if
+    ' the next row that can take focus; a label row is passed over
+    by = 0
+    if key = "down" then by = 1
+    if key = "up" then by = -1
+    if by = 0 then return false
+    at = m.focus + by
+    while at >= 0 and at < m.ys.count() and m.shown[at].label = true
+        at = at + by
+    end while
+    if at < 0 or at >= m.ys.count() then return false
+    m.focus = at
     paint()
     return true
 end function

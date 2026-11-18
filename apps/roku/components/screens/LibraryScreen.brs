@@ -651,6 +651,10 @@ sub onMenuChosen(event as object)
         chooseFilter(id)
         return
     end if
+    if id = "show"
+        m.panelOpen = false      ' the panel closes on the list it has narrowed
+        return
+    end if
     m.panelOpen = false
     for each sort in m.detail.sorts
         if sort.id = id then m.sort = sort
@@ -692,8 +696,17 @@ sub askFacets()
     m.facetsWaiting = m.filterSpecs.count()
     path = listPath()
     for each spec in m.filterSpecs
-        api("GET", "/v1/facets" + mid(path, len("/v1/items") + 1) + "&facet=" + spec.id, invalid, "onFacets", {generation: m.generation, id: spec.id})
+        if spec.id = "collection"
+            ' the server has no facet for collections: its choices are the library's collections
+            api("GET", "/v1/items?library=" + m.top.library.id + "&kind=collection&sort=title&limit=200", invalid, "onFacets", {generation: m.generation, id: spec.id})
+        else if spec.id = "playState"
+            m.nextFacets.playState = playStates()
+            m.facetsWaiting = m.facetsWaiting - 1
+        else
+            api("GET", "/v1/facets" + mid(path, len("/v1/items") + 1) + "&facet=" + spec.id, invalid, "onFacets", {generation: m.generation, id: spec.id})
+        end if
     end for
+    if m.facetsWaiting = 0 then m.facets = m.nextFacets
 end sub
 
 sub onFacets(event as object)
@@ -703,6 +716,14 @@ sub onFacets(event as object)
     m.nextFacets[ctx.id] = []
     if result.ok and result.data.values <> invalid then m.nextFacets[ctx.id] = result.data.values
     if ctx.id = "year" then m.nextFacets.year.reverse()      ' decades oldest first, as tv.html frame 4 lists them
+    if result.ok and result.data.items <> invalid
+        ' a library's collections as choices, with how many titles each holds
+        for each item in result.data.items
+            n = 0
+            if item.counts <> invalid and item.counts.children <> invalid then n = item.counts.children
+            m.nextFacets[ctx.id].push({value: item.id, label: item.title, count: n})
+        end for
+    end if
     m.facetsWaiting = m.facetsWaiting - 1
     if m.facetsWaiting = 0 then m.facets = m.nextFacets
     refreshPanel()
@@ -716,24 +737,35 @@ end sub
 
 sub showFilters(heading as string, focus as string)
     rows = []
+    group = ""
     for each spec in m.filterSpecs
         values = m.facets[spec.id]
         chosen = m.chosen[spec.id]
         if (values <> invalid and values.count() > 0) or (chosen <> invalid and chosen.count() > 0)
+            if spec.group <> group
+                ' each group of filters under its name (About the title, Your activity, About the file)
+                group = spec.group
+                rows.push({id: "g:" + group, text: group, label: true, gapBefore: rows.count() > 0})
+            end if
             rows.push({id: "h:" + spec.id, text: spec.label, heading: true, value: filterSummary(chosen)})
+            rows.push({id: "help:" + spec.id, text: spec.help, label: true, under: "h:" + spec.id})
             if values <> invalid
                 for i = 0 to values.count() - 1
                     v = values[i]
                     label = v.value
                     if v.label <> invalid then label = v.label
-                    rows.push({id: "f:" + spec.id + ":" + i.toStr(), text: label, value: v.count.toStr(), under: "h:" + spec.id, current: isChosen(spec.id, v.value)})
+                    count = ""
+                    if v.count <> invalid then count = v.count.toStr()
+                    rows.push({id: "f:" + spec.id + ":" + i.toStr(), text: label, value: count, under: "h:" + spec.id, current: isChosen(spec.id, v.value)})
                 end for
             end if
         end if
     end for
-    if chosenCount() > 0 then rows.push({id: "clear", text: "Clear all", gapBefore: true})
     ' until the new count arrives, the panel says the last one
     if m.total <> invalid then m.matching = kindCount(m.total, m.detail.views[m.view].kind) + " match"
+    ' the panel's foot: show what matches (closes the panel), and Clear all (tv.html frame 4)
+    if m.total <> invalid then rows.push({id: "show", text: "Show " + kindCount(m.total, m.detail.views[m.view].kind), gapBefore: true})
+    if chosenCount() > 0 then rows.push({id: "clear", text: "Clear all", gapBefore: m.total = invalid})
     status = ""
     if m.matching <> invalid then status = m.matching
     for each row in rows
@@ -743,6 +775,13 @@ sub showFilters(heading as string, focus as string)
     if heading <> "" then model.open = heading
     m.top.menu = model
 end sub
+
+function oneChoice(id as string) as boolean
+    for each spec in m.filterSpecs
+        if spec.id = id then return spec.one = true
+    end for
+    return false
+end function
 
 function isChosen(id as string, value as string) as boolean
     values = m.chosen[id]
@@ -773,6 +812,8 @@ sub chooseFilter(id as string)
             if one.value <> v.value then kept.push(one)
         end for
         if kept.count() = values.count() then kept.push({value: v.value, label: label})
+        ' a filter of one choice at a time keeps only the newest
+        if kept.count() > 1 and oneChoice(filter) then kept = [kept[kept.count() - 1]]
         if kept.count() > 0 then m.chosen[filter] = kept else m.chosen.delete(filter)
         m.panelHeading = "h:" + filter
         m.panelFocus = id
