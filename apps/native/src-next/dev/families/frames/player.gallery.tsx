@@ -105,9 +105,9 @@ function Player({state = 'playing', panel, card, opened, id = `frames-player-${s
       labels={scrubbing && tv ? [{at: 0, text: f('markRecap')}, {at: .05, text: f('markIntro')}, {at: 1, text: f('markCredits'), end: true}] : undefined}/>}
     hints={<KeyHints hints={[{key: f('keyMove'), label: f('hintMove')}, {key: f('keyHold'), label: f('hintFaster')}, {key: f('keyOk'), label: f('hintPlayFrom')}, {key: f('keyBack'), label: f('hintReturn')}]}/>}
     times={{position: f(scrubbing ? 'previewTime' : 'elapsed'), remaining: f('remaining'), duration: f('duration'), endsAt: f('endsAt'), clock: f('clock')}}
-    transport={<><PlayerControl testID={`${id}-previous`} icon="i-prev" label={f('previous')} disabled={missing} onPress={none}/><PlayerControl testID={`${id}-rewind`} icon="i-rew" skip={10} label={f('rewind')} onPress={none}/>
+    transport={<><PlayerControl testID={`${id}-previous`} icon="i-prev" label={f('previous')} detail={f('episode1')} disabled={missing} onPress={none}/><PlayerControl testID={`${id}-rewind`} icon="i-rew" skip={10} label={f('rewind')} onPress={none}/>
       <PlayerControl testID={`${id}-toggle`} primary icon={state === 'paused' ? 'i-play' : 'i-pause'} busy={state === 'buffering'} label={f(state === 'paused' ? 'play' : 'pause')} onPress={none}/>
-      <PlayerControl testID={`${id}-forward`} icon="i-ffw" skip={30} label={f('forward')} onPress={none}/><PlayerControl testID={`${id}-next`} icon="i-next" label={f('next')} disabled={missing} onPress={none}/></>}
+      <PlayerControl testID={`${id}-forward`} icon="i-ffw" skip={30} label={f('forward')} onPress={none}/><PlayerControl testID={`${id}-next`} icon="i-next" label={f('next')} detail={f('episode3')} disabled={missing} onPress={none}/></>}
     leading={<PlayerPill testID={`${id}-episodes`} icon="i-stack" name={f('episodesButton')} label={f('episodesButton')} open={opened === 'episodes'} onPress={none}/>}
     trailing={upright ? <>{quality}{bar('i-full', 'fullScreen')}</>
       : tablet ? <>{bar('i-subs', 'subtitles', {disabled: missing, open: opened === 'subtitles'})}{quality}<PlayerPill testID={`${id}-speed`} spare value={f('speedShort')} label={f('optSpeed')} onPress={none}/>{bar('i-pip', 'pictureInPicture')}</>

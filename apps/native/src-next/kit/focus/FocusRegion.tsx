@@ -155,13 +155,15 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
     if (asked.current || disabled || preferredBlocked) return;
     asked.current = true; landed.current = false; if (native.current) registry?.notePreferred?.(native.current); requestNativeFocus(native.current);
     // Android TV drops an ask made before the view (or the layer it is in) can take focus natively, and then nothing is
-    // focused at all. Ask again on the next frames, for at most about half a second, until focus lands here; any other
-    // focus in the app (the person moved, a newer ask) ends it, so it never pulls focus back.
+    // focused at all. Ask again on the next frames, for at most about half a second, until focus lands here. Android
+    // TV also gives a page with nothing focused its first focusable view by itself (a library's Discover tab above
+    // the start poster), so that one arrival elsewhere is passed over; a second (the person moved, a newer ask) ends
+    // it, so it never pulls focus back.
     if (typeof requestAnimationFrame !== 'function') return;
     const serial = focusSerial;
     let frames = 0, live = true;
     const again = () => {
-      if (!live || landed.current || focusSerial !== serial || ++frames > 30) return;
+      if (!live || landed.current || focusSerial - serial > 1 || ++frames > 30) return;
       requestNativeFocus(native.current); requestAnimationFrame(again);
     };
     requestAnimationFrame(again);

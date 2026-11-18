@@ -59,7 +59,7 @@ const tvMenuForm = overlayForm('actions', 'tv');
  * tv-focus 9) is the TV side sheet: the right-hand panel over the dimmed page with its eyebrow (`headerContext`), title,
  * full-width rows and the Back/Close key hints at its foot (detail-tv 5c, tv-focus 4 and 43, tv-more 23). */
 export function Popover({open, onOpenChange, anchorRef, title, headerContext, description, children, footer, initialFocusRef, returnFocusRef, restoreFocus = true, accessibilityLabel, testID, style, contentStyle, titleType, titleTextStyle, descriptionTextStyle, width = 282, modal = false, holdFocus: suppliedHoldFocus, showTitle = false, backdropOpacity = 0, placement = 'bottom-end', offset = 6, alignOffset = 0, dismissOnOutsidePress = true, touchContext = false}: PopoverProps & {touchContext?: boolean}) {
-  const theme = useTheme(), paint = useOverlayPaintMode(), tvSide = theme.isTV && placement !== 'right-end' && tvMenuForm?.kind === 'side';
+  const theme = useTheme(), paint = useOverlayPaintMode(), tvSide = theme.isTV && placement !== 'right-end' && tvMenuForm.kind === 'side';
   // TV: an open popover holds the remote's focus (as the kit Menu does), so Down can't walk into the page behind it.
   const holdFocus = suppliedHoldFocus ?? (modal || theme.isTV);
   const viewport = useWindowDimensions();
@@ -90,7 +90,7 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
     measure();
     return () => {live = false; if (frame !== undefined) cancelAnimationFrame(frame);};
   }, [open, anchorRef, viewport.width, viewport.height, insets.top, insets.bottom, insets.left, insets.right, touchContext, placement, tvSide, modal]);
-  if (tvSide) return <BottomSheet open={open} onOpenChange={onOpenChange} title={title} headerContext={headerContext} description={description} footer={footer ?? (tvMenuForm?.foot === 'hints' ? <BackCloseHints/> : undefined)} showClose={false} fitContent
+  if (tvSide) return <BottomSheet open={open} onOpenChange={onOpenChange} title={title} headerContext={headerContext} description={description} footer={footer ?? (tvMenuForm.foot === 'hints' ? <BackCloseHints/> : undefined)} showClose={false} fitContent
     initialFocusRef={initialFocusRef} returnFocusRef={returnFocusRef ?? anchorRef} restoreFocus={restoreFocus} accessibilityLabel={accessibilityLabel} testID={testID}>
     <View style={[{gap: menuSpec.tvSheetRowGap}, contentStyle]}>{children}</View>
   </BottomSheet>;
@@ -131,7 +131,7 @@ export function Menu({items, open, onOpenChange, title, description, footer, ini
   const theme = useTheme(), viewport = useWindowDimensions(), insets = useSafeAreaInsets();
   const first = useRef<View>(null);
   // R9, TV column: a TV menu is the side sheet whatever the caller asked for; only the rail's flyout stays anchored.
-  const actualPresentation = theme.isTV && tvMenuForm?.kind === 'side' ? presentation === 'anchored' && placement === 'right-end' ? 'anchored' : 'sideSheet'
+  const actualPresentation = theme.isTV && tvMenuForm.kind === 'side' ? presentation === 'anchored' && placement === 'right-end' ? 'anchored' : 'sideSheet'
     : touchContext ? viewport.width < 600 ? 'sheet' : 'anchored' : presentation ?? (anchorRef ? 'anchored' : 'sheet');
   const tvFlyout = theme.isTV && actualPresentation === 'anchored' && placement === 'right-end';
   const compactTouch = touchContext && !theme.isTV && actualPresentation === 'sheet';

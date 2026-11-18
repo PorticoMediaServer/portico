@@ -120,6 +120,11 @@ export const tvAccount = {column: 900, fieldsWidth: 860, titleGap: 22, ledeGap: 
   /** connect24 .sgr .si: a server or certificate row's glyph sits in its own tile. */
   rowIcon: {box: 52, radius: 14, glyph: 28}} as const;
 
+/** R11, TV key hints (tv.html, tv-detail, tv-player, tv-more `.key-cap` and `.hint`): a key cap 36 high with its key in
+ * the badge role, then what the key does in the caption role, quieter than the cap. */
+export const keyHints = {cap: {height: 36, minWidth: 44, paddingX: 10, radius: 9, border: 1.5, borderAlpha: .3, role: 'badge' as TypeRole, color: 'textSecondary' as ColorToken},
+  label: {role: 'captionStrong' as TypeRole, color: 'textTertiary' as ColorToken}, keyGap: 12} as const;
+
 /** Drawn switch geometry; focus/interaction belongs to the containing row on TV. */
 export const toggle = {
   track: {width: all(38, 48, 48, 56), height: all(22, 29, 29, 32)},

@@ -182,8 +182,8 @@ export const frame = {
     tile: {radius: 14, paddingX: 16},
     /** With a panel open the TV picture is dimmed by this much of the dim colour. */
     panelDim: .5,
-    /** Tints of the text colour: the scrubber's track, what has buffered and a marked stretch; a pill's fill; a preview's ring. */
-    tint: {track: .16, buffered: .26, mark: .5, pill: .1, open: .2, previewRing: .9, previewBand: .6},
+    /** Tints of the text colour: the scrubber's track, what has buffered and a marked stretch; a pill's fill; a preview's ring; `tag` is the ink under a TV control's name tag, `tagEdge` its edge. */
+    tint: {track: .16, buffered: .26, mark: .5, pill: .1, open: .2, previewRing: .9, previewBand: .6, tag: .9, tagEdge: .12},
     /** The thumbnail over the scrubber while scrubbing, and how far above the bar it sits. */
     preview: {width: forms(178, 256, 256, 400), height: forms(100, 144, 144, 225), radius: forms(9, 10, 10, 14), lift: forms(22, 40, 30, 44)},
     /** The player's own panels (options, Subtitles, Audio, Quality, Speed, Episodes): a column on the picture's right edge from

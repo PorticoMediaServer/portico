@@ -80,18 +80,18 @@ export function SheetFrame(props: SheetFrameProps) {
   const {open, onOpenChange, testID} = props, frame = useFrameMetrics(), children = <StartFocusScope id={props.startFocus}>{props.children}</StartFocusScope>;
   if (props.kind === 'task') {
     const form = overlayForm(props.task, frame.form), close = () => onOpenChange(false, 'close-button'), t = defaultI18n.t;
-    const bar = form?.bar ?? {leading: 'none', title: 'start', trailing: 'none', subtitle: false} as const;
+    const bar = form.bar;
     const primary = props.action && <Button variant="primary" disabled={props.action.disabled} onPress={props.action.onPress}>{props.action.label}</Button>;
     const buttons = props.foot ?? (props.action && bar.trailing !== 'action' ? <>{bar.leading !== 'cancel' && <Button variant="glass" onPress={close}>{t('next.overlays.cancel')}</Button>}{primary}</> : null);
-    const footer = buttons ? <OverlayFootRow layout={form?.foot ?? 'halves'}>{buttons}</OverlayFootRow> : undefined;
+    const footer = buttons ? <OverlayFootRow layout={form.foot}>{buttons}</OverlayFootRow> : undefined;
     const body = <InSheet.Provider value>{children}</InSheet.Provider>;
     const header = <OverlayBarRow bar={bar} title={props.title} subtitle={props.subtitle} action={props.action} onClose={close}/>;
     // R9, TV: Back closes and the foot says so. The kit sheet's TV form is the side sheet; key hints stand where buttons would.
-    if (form?.foot === 'hints') return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.title} description={bar.subtitle ? props.subtitle : undefined} footer={props.hints ?? <BackCloseHints/>} showClose={false}>{body}</BottomSheet>;
-    if (form?.kind === 'popover' && props.anchorRef) return <Popover open={open} onOpenChange={onOpenChange} anchorRef={props.anchorRef} title={props.title} modal={form.modal} backdropOpacity={form.modal ? .5 : 0}
+    if (form.foot === 'hints') return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.title} description={bar.subtitle ? props.subtitle : undefined} footer={props.hints ?? <BackCloseHints/>} showClose={false}>{body}</BottomSheet>;
+    if (form.kind === 'popover' && props.anchorRef) return <Popover open={open} onOpenChange={onOpenChange} anchorRef={props.anchorRef} title={props.title} modal={form.modal} backdropOpacity={form.modal ? .5 : 0}
       placement={frame.form === 'phone' ? 'bottom-start' : 'right-end'} width={320} testID={testID}>{bar.title === 'start' ? header : null}{body}</Popover>;
-    if (form?.kind === 'dialog') return <Dialog open={open} onOpenChange={onOpenChange} title={props.title} description={bar.subtitle ? props.subtitle : undefined} footer={footer} testID={testID}>{body}</Dialog>;
-    return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.title} headerContent={header} footer={footer} showClose={false} fitContent={form?.kind === 'sheet'}>{body}</BottomSheet>;
+    if (form.kind === 'dialog') return <Dialog open={open} onOpenChange={onOpenChange} title={props.title} description={bar.subtitle ? props.subtitle : undefined} footer={footer} testID={testID}>{body}</Dialog>;
+    return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.title} headerContent={header} footer={footer} showClose={false} fitContent={form.kind === 'sheet'}>{body}</BottomSheet>;
   }
   return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.bar?.title ?? ''} accessibilityLabel={props.bar?.title} scrollable={false}
     detents={[height - Math.max(insets.top, spec.fullTop)]} headerContent={props.bar ? <SheetBar {...props.bar}/> : null}

@@ -71,8 +71,8 @@ const tvBar = bar('none', 'start', 'none', true);
  * task is the right-hand side sheet (640) over the dimmed page, with an eyebrow, a title, full-width rows and key hints at
  * its foot; Filters is the side panel with Clear all and Show N; a confirmation is a centred dialog, Cancel first; File
  * info is a full-height side sheet with Done; the profile menu is the one anchored TV menu, a flyout right of the rail;
- * Settings is a page. No mock-up draws Notifications on TV: that cell is `null` and the kit keeps its own TV form. */
-export const overlayForms: Readonly<Record<OverlayTask, Readonly<Record<FrameForm, OverlayForm | null>>>> = {
+ * Settings is a page. No mock-up draws the Notifications list on TV (it is a row in the profile menu): the side sheet. */
+export const overlayForms: Readonly<Record<OverlayTask, Readonly<Record<FrameForm, OverlayForm>>>> = {
   actions: {
     phone: form('sheet', true, bar('none', 'start', 'done', true), 'none'),
     medium: form('popover', true, bar('none', 'start', 'none', true), 'none'),
@@ -129,11 +129,12 @@ export const overlayForms: Readonly<Record<OverlayTask, Readonly<Record<FrameFor
     phone: form('fullSheet', true, bar('back', 'centre', 'action'), 'none'),
     medium: form('popover', true, bar('none', 'start', 'action'), 'none'),
     expanded: form('popover', true, bar('none', 'start', 'action'), 'none'),
-    tv: null,
+    /** No TV mock-up draws the list; it opens from the rail's profile menu (tv-more 10), so it is a side sheet like every list a TV menu opens. */
+    tv: form('side', true, tvBar, 'hints'),
   },
 };
 
-/** The form a task takes on a form; `null` only where no form is drawn (Notifications on TV). */
-export function overlayForm(task: OverlayTask, frameForm: FrameForm): OverlayForm | null {
+/** The form a task takes on a form. */
+export function overlayForm(task: OverlayTask, frameForm: FrameForm): OverlayForm {
   return overlayForms[task][frameForm];
 }

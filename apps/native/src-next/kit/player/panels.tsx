@@ -5,6 +5,7 @@ import {frameSpec} from '@portico/design';
 import {Button} from '../controls/Button';
 import {Focusable} from '../controls/Focusable';
 import {BackCloseHints} from '../controls/KeyHints';
+import {ListEdgeFade, useListEdges} from '../layout/ListEdgeFade';
 import {useFrameMetrics, usePlayerUpright} from '../frames/metrics';
 import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
@@ -20,7 +21,7 @@ type PanelAction = Readonly<{label: string; onPress: () => void}>;
  * `back` is for a list opened from Playback options; its title is then that list's name. A TV closes with the
  * remote's Back, so it draws no close button. */
 export function PlayerPanel({title, note, back, close, footer, children, testID}: {title: string; /** Under the title: what a change here lasts for. */ note?: string; back?: PanelAction; close: PanelAction; /** Pinned under the list (the Episodes note; TV's Back hint, R11). */ footer?: ReactNode; children: ReactNode; testID?: string}) {
-  const theme = useTheme(), {form} = useFrameMetrics(), upright = usePlayerUpright(), insets = useSafeAreaInsets(), tv = form === 'tv', pad = spec.padding[form], sheet = upright;
+  const theme = useTheme(), {form} = useFrameMetrics(), upright = usePlayerUpright(), insets = useSafeAreaInsets(), edges = useListEdges(), tv = form === 'tv', pad = spec.padding[form], sheet = upright;
   return <View testID={testID} accessibilityViewIsModal style={[{flex: 1, backgroundColor: theme.colors.raised}, sheet && {borderTopLeftRadius: frameSpec.sheet.fullRadius, borderTopRightRadius: frameSpec.sheet.fullRadius}]}>
     {sheet && <View style={{alignSelf: 'center', marginTop: spec.grab.top, width: spec.grab.width, height: spec.grab.height, borderRadius: spec.grab.height / 2, backgroundColor: alpha(theme.colors.text, frameSpec.player.tint.buffered)}}/>}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, paddingHorizontal: pad, paddingTop: sheet ? theme.space.xs : pad, minHeight: theme.targets.touch + (sheet ? theme.space.xs : pad)}}>
@@ -32,7 +33,12 @@ export function PlayerPanel({title, note, back, close, footer, children, testID}
     {note !== undefined && <View style={{flexDirection: 'row', gap: theme.space.xs, paddingHorizontal: pad, paddingTop: theme.space.tight}}>
       <Icon name="i-clock" size={frameSpec.player.pillIcon} color={theme.colors.accentStrong}/><Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textSecondary}]}>{note}</Text>
     </View>}
-    <ScrollView style={{flex: 1}} contentContainerStyle={{paddingHorizontal: pad, paddingTop: theme.space.sm, paddingBottom: pad, gap: theme.space.sm}}>{children}</ScrollView>
+    {/* A list that runs past the panel fades into it at that edge instead of being cut at the foot (player-tv 4). */}
+    <View style={{flex: 1}}>
+      <ScrollView style={{flex: 1}} {...edges.scroll} contentContainerStyle={{paddingHorizontal: pad, paddingTop: theme.space.sm, paddingBottom: pad, gap: theme.space.sm}}>{children}</ScrollView>
+      {edges.edges.top && <ListEdgeFade edge="top" length={theme.space.xl} opacity={1} color={theme.colors.raised}/>}
+      {edges.edges.bottom && <ListEdgeFade edge="bottom" length={theme.space.xl} opacity={1} color={theme.colors.raised}/>}
+    </View>
     {/* The footer clears the home indicator and Android's navigation bar. */}
     {footer !== undefined && <View style={{flexDirection: 'row', gap: theme.space.xs, padding: pad, paddingBottom: Math.max(pad, sheet ? insets.bottom + theme.space.xs : 0), borderTopWidth: theme.space.hairline, borderTopColor: theme.colors.line}}>
       {typeof footer === 'string' ? <><Icon name="i-info" size={frameSpec.player.pillIcon} color={theme.colors.accentStrong}/><Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textSecondary}]}>{footer}</Text></> : footer}

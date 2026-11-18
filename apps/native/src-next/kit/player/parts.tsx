@@ -1,5 +1,5 @@
 import React, {createContext, useContext, useState, type ReactNode} from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {frameSpec} from '@portico/design';
 import {Button} from '../controls/Button';
 import {Focusable} from '../controls/Focusable';
@@ -33,6 +33,9 @@ export function PlayerTitle({title, lead, subtitle, mark, live, detail}: {title:
 export const PlayerCompact = createContext(false);
 /** Set by `PlayerChromeFrame` while a panel is open beside the picture (tablet-play 2): a part marked `spare` makes way, so the bar never overlaps (SC-10). */
 export const PlayerBeside = createContext(false);
+/** Set by `PlayerChromeFrame` around a TV's transport: a focused control names itself in a tag above it (player-tv 1
+ * and 12). The audio player and its card draw no tags (tv 7, player-tv 10). */
+export const PlayerNameTags = createContext(false);
 
 export type PlayerControlProps = Readonly<{
   icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean;
@@ -54,6 +57,8 @@ export type PlayerControlProps = Readonly<{
   open?: boolean;
   /** Dropped from the bar while a panel is open beside the picture (tablet-play 2). */
   spare?: boolean;
+  /** TV: where Previous or Next goes, after the label in the focused control's name tag (player-tv 1: "Previous  The Fellowship of the Ring"). */
+  detail?: string;
   testID?: string;
 }>;
 /** R4 and R6: the transport's icon classes for this form (frameSpec.player.transport): the strip's own in the upright form. */
@@ -66,8 +71,9 @@ export function usePlayerTransport() {
  * others are plain white glyphs on a phone and a tablet, and sit on a disc only where the mock-ups draw one: a TV's
  * controls and a tablet's top bar. The 10 and 30 arrows are drawn larger than Previous and Next, with a legible
  * numeral (R6); a tool is the secondary class. A control the title doesn't support stays in its place with `disabled`. */
-export function PlayerControl({icon, label, onPress, disabled, active, primary = false, onPicture = false, plain = false, tool = false, skip, busy = false, size: boxSize, iconSize, tone, open = false, spare = false, testID}: PlayerControlProps) {
+export function PlayerControl({icon, label, onPress, disabled, active, primary = false, onPicture = false, plain = false, tool = false, skip, busy = false, size: boxSize, iconSize, tone, open = false, spare = false, detail, testID}: PlayerControlProps) {
   const theme = useTheme(), {form} = useFrameMetrics(), compact = useContext(PlayerCompact), beside = useContext(PlayerBeside), classes = usePlayerTransport();
+  const tags = useContext(PlayerNameTags) && !tool && !plain, [focused, setFocused] = useState(false), window = useWindowDimensions();
   if (spare && beside) return null;
   const disc = form === 'tv' ? !plain && !tool : onPicture && form !== 'phone' && !compact;
   const top = onPicture || tool, size = boxSize ?? (top ? undefined : primary ? classes.primary : classes.control);
@@ -75,14 +81,25 @@ export function PlayerControl({icon, label, onPress, disabled, active, primary =
   const colour = primary ? undefined : active ? theme.colors.accentStrong : tone === 'secondary' || tool ? theme.colors.textSecondary : theme.colors.text;
   const button = <Button testID={testID} variant={primary ? 'primary' : disc ? 'glass' : 'text'} size="transport" iconOnly icon={icon} loading={busy}
     iconSize={glyph} iconColor={colour} style={size === undefined ? undefined : {width: size, height: size, borderRadius: size / 2}} align="center"
-    accessibilityLabel={label} accessibilityState={{selected: active, expanded: open || undefined}} disabled={disabled} onPress={onPress} focusableWhenDisabled={busy}/>;
+    accessibilityLabel={label} accessibilityState={{selected: active, expanded: open || undefined}} disabled={disabled} onPress={onPress} focusableWhenDisabled={busy}
+    onFocus={tags ? () => setFocused(true) : undefined} onBlur={tags ? () => setFocused(false) : undefined}/>;
+  // The name tag rides above the focused disc, centred on it, at its words' width (its box spans the window so the disc's
+  // width never squeezes it), and never takes focus or space (player-tv 1).
+  const tag = tags && focused && <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+    style={{position: 'absolute', bottom: (size ?? classes.control) + theme.space.sm, left: -window.width, right: -window.width, alignItems: 'center'}}>
+    <View style={{flexDirection: 'row', alignItems: 'baseline', gap: theme.space.controlGap, paddingVertical: theme.space.tight, paddingHorizontal: theme.space.sm,
+      borderRadius: theme.baseRadii.surface, borderWidth: theme.space.hairline, borderColor: alpha(theme.colors.text, tint.tagEdge), backgroundColor: alpha(theme.colors.ink, tint.tag)}}>
+      <Text style={[theme.type.listLabel, {color: theme.colors.text}]}>{label}</Text>
+      {detail !== undefined && <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{detail}</Text>}
+    </View>
+  </View>;
   if (open) return <View style={{alignItems: 'center'}}>
     <View style={{borderRadius: theme.targets.touch, backgroundColor: alpha(theme.colors.text, tint.open)}}>{button}</View>
     <View style={{position: 'absolute', bottom: theme.space.hairline * 3, width: theme.space.hairline * 4, height: theme.space.hairline * 4, borderRadius: theme.space.hairline * 2, backgroundColor: theme.colors.accentStrong}}/>
   </View>;
-  if (skip === undefined) return button;
-  return <View>{button}<View pointerEvents="none" style={[StyleSheet.absoluteFill, {alignItems: 'center', justifyContent: 'center', paddingTop: theme.space.hairline * 2, opacity: disabled ? theme.spec.button.disabledOpacity : 1}]}>
-    <Text style={[theme.type.playerSkip, {fontSize: classes.numeral, color: theme.colors.text, includeFontPadding: false}]}>{skip}</Text></View></View>;
+  if (skip === undefined) return tags ? <View style={{alignItems: 'center'}}>{button}{tag}</View> : button;
+  return <View style={{alignItems: 'center'}}>{button}<View pointerEvents="none" style={[StyleSheet.absoluteFill, {alignItems: 'center', justifyContent: 'center', paddingTop: theme.space.hairline * 2, opacity: disabled ? theme.spec.button.disabledOpacity : 1}]}>
+    <Text style={[theme.type.playerSkip, {fontSize: classes.numeral, color: theme.colors.text, includeFontPadding: false}]}>{skip}</Text></View>{tag}</View>;
 }
 
 /** The scrubber as it is drawn: the track, what has buffered, what has played, the knob, and the marked stretches
