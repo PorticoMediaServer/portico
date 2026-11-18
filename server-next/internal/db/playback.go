@@ -885,14 +885,17 @@ func (d *DB) KeepAudioExact(ctx context.Context, fileID int64, file FileOnDisk, 
 	})
 }
 
+// soundShape is FileOnDisk.AudioShape read from a file's first sound track (kind bound by the caller).
+const soundShape = `ifnull((SELECT ifnull(s.codec, '') || '|' || ifnull(s.sample_rate, 0) || '|' || ifnull(s.channels, 0) || '|' || ifnull(s.channel_layout, '')
+			FROM media_streams s WHERE s.file_id = f.id AND s.kind = ? ORDER BY s.stream_index LIMIT 1), '')`
+
 // FileOnDisk returns where a local file is on disk. A file of remote storage, or one that
 // has gone missing, is ErrNotFound.
 func (d *DB) FileOnDisk(ctx context.Context, fileID int64) (FileOnDisk, error) {
 	var out FileOnDisk
 	err := d.read.QueryRowContext(ctx, `SELECT rtrim(lp.path, '/') || '/' || CASE WHEN dir.rel_path = '' THEN '' ELSE dir.rel_path || '/' END || f.name,
 		f.size, f.modified_ns, f.probed_at IS NOT NULL, ifnull(f.audio_exact, ''), ifnull(f.duration_ms, 0), ifnull(json_extract(f.extra, '$.packets.lengthUs'), 0),
-		ifnull((SELECT ifnull(s.codec, '') || '|' || ifnull(s.sample_rate, 0) || '|' || ifnull(s.channels, 0) || '|' || ifnull(s.channel_layout, '')
-			FROM media_streams s WHERE s.file_id = f.id AND s.kind = ? ORDER BY s.stream_index LIMIT 1), '')
+		`+soundShape+`
 		FROM files f JOIN directories dir ON dir.id = f.directory_id
 		JOIN library_paths lp ON lp.id = dir.library_path_id
 		WHERE f.id = ? AND f.missing_since_at IS NULL AND lp.remote_source_id IS NULL`, StreamAudio, fileID).Scan(&out.Path, &out.Size, &out.ModifiedNS, &out.Read, &out.AudioExact,

@@ -178,10 +178,13 @@ func (d *DB) SetRemoteSourceState(ctx context.Context, id int64, state, lastErro
 func (d *DB) RemoteFileOf(ctx context.Context, fileID int64) (int64, FileOnDisk, error) {
 	var source int64
 	var out FileOnDisk
+	// The length, packet clock and sound a part of a book is joined by, as FileOnDisk reads them.
 	err := d.read.QueryRowContext(ctx, `SELECT lp.remote_source_id, ltrim(rtrim(lp.path, '/') || '/' || CASE WHEN dir.rel_path = '' THEN '' ELSE dir.rel_path || '/' END || f.name, '/'),
-		f.size, f.modified_ns FROM files f JOIN directories dir ON dir.id = f.directory_id
+		f.size, f.modified_ns, ifnull(f.duration_ms, 0), ifnull(json_extract(f.extra, '$.packets.lengthUs'), 0), `+soundShape+`
+		FROM files f JOIN directories dir ON dir.id = f.directory_id
 		JOIN library_paths lp ON lp.id = dir.library_path_id
-		WHERE f.id = ? AND f.missing_since_at IS NULL AND lp.remote_source_id IS NOT NULL`, fileID).Scan(&source, &out.Path, &out.Size, &out.ModifiedNS)
+		WHERE f.id = ? AND f.missing_since_at IS NULL AND lp.remote_source_id IS NOT NULL`, StreamAudio, fileID).Scan(&source, &out.Path, &out.Size, &out.ModifiedNS,
+		&out.DurationMS, &out.PacketLengthUS, &out.AudioShape)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, out, ErrNotFound
 	}

@@ -10,8 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
 	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
+	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitles"
 )
 
@@ -21,6 +23,9 @@ type JoinedPart struct {
 	Path     string
 	Size     int64
 	Modified time.Time
+	// Remote is the remote source a part on remote storage is read from, by range, with Path
+	// its path there; nil for a file on a disk here.
+	Remote remote.Storage
 	// DurationUS is the part's packet length. Converted parts fill the encoder
 	// padding with silence so that the clock is the same whichever route plays.
 	DurationUS int64
@@ -81,7 +86,7 @@ func joinedBatchEnd(parts []JoinedPart, first int, offset, position float64) (un
 }
 
 // joinedInput opens one bounded batch, on the whole book's clock.
-func joinedInput(parts []JoinedPart, roots func() []string) inputOpener {
+func joinedInput(parts []JoinedPart, roots func() []string, h *HLS) inputOpener {
 	return func(ctx context.Context, position float64) (*PlaybackInput, subtitles.WindowInput, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
@@ -93,6 +98,9 @@ func joinedInput(parts []JoinedPart, roots func() []string) inputOpener {
 			first++
 		}
 		until, last := joinedBatchEnd(parts, first, offset, position)
+		if parts[0].Remote != nil {
+			return joinedRemote(ctx, parts[first:last], PartsDiffer(parts), offset, position, until, h)
+		}
 		var files []*os.File
 		closeAll := func() {
 			for _, f := range files {
@@ -176,4 +184,51 @@ func joinedInput(parts []JoinedPart, roots func() []string) inputOpener {
 		}
 		return input, nil, nil
 	}
+}
+
+// joinedRemote opens a batch of parts on remote storage as joinedInput opens local ones: the
+// converter reads every part through one bridge on the decoder's isolated bridge, by range, as
+// it reads a single remote file, and never learns an address of the source or its sign-in.
+// Parts not encoded alike are inputs of their own; parts alike are read through the concat
+// list the bridge serves. offset is where the batch's first part starts in the whole title.
+func joinedRemote(ctx context.Context, batch []JoinedPart, differ bool, offset, position, until float64, h *HLS) (*PlaybackInput, subtitles.WindowInput, error) {
+	libraries, err := mediaexec.ResolveLibraries(h.binary, h.ffprobe, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	var readers []*sequentialReaderAt
+	closeAll := func() error {
+		for _, reader := range readers {
+			reader.Close()
+		}
+		return nil
+	}
+	var served []inputbridge.Part
+	for _, part := range batch {
+		file, err := remoteFile{storage: part.Remote, path: part.Path, size: part.Size, modified: part.Modified}.open(ctx)
+		if err != nil {
+			closeAll()
+			return nil, nil, err
+		}
+		readers = append(readers, &sequentialReaderAt{file: file})
+		served = append(served, inputbridge.Part{Source: readers[len(readers)-1], Size: file.Size(), Duration: float64(part.DurationUS) / 1e6})
+	}
+	bridge, err := inputbridge.OpenParts(ctx, served)
+	if err != nil {
+		closeAll()
+		return nil, nil, ErrSourceUnavailable
+	}
+	window := &bridgeWindow{bridge: bridge, readers: readers, ffmpeg: h.binary, ffprobe: h.ffprobe, processes: h.processes, libraries: libraries}
+	input := &PlaybackInput{ReleaseSource: closeAll, Positioned: true, Until: until}
+	if !differ {
+		input.Options, input.Skip = []string{"-f", "concat", "-safe", "0", "-format_whitelist", mediaexec.LocalInputFormats + ",concat"}, position-offset
+		return input, window, nil
+	}
+	input.Options = []string{"-format_whitelist", mediaexec.LocalInputFormats}
+	at := offset
+	for n, part := range batch {
+		input.Joined = append(input.Joined, JoinedInput{Path: bridge.PartURL(n), Offset: at, Duration: float64(part.DurationUS) / 1e6})
+		at += float64(part.DurationUS) / 1e6
+	}
+	return input, window, nil
 }

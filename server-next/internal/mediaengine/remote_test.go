@@ -27,7 +27,9 @@ func TestAFilmOnRemoteStoragePlays(t *testing.T) {
 	testRemoteFilm(t, 1)
 }
 
-func TestASplitRemoteFilmKeepsFirstPart(t *testing.T) {
+// A film in two files on remote storage plays as one film, as it would from a disk here: both
+// parts copied into one stream on the film's clock, and both converted at a lower quality.
+func TestASplitRemoteFilmPlaysBothParts(t *testing.T) {
 	testRemoteFilm(t, 2)
 }
 
@@ -37,19 +39,21 @@ func testRemoteFilm(t *testing.T, partCount int) {
 	if decoder.ProbeConfinement(context.Background()) == nil {
 		t.Setenv("PORTICO_DECODER_SANDBOX", "required")
 	}
-	film := filepath.Join(t.TempDir(), "film.mp4")
-	if out, err := exec.Command(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
-		"-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=24", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
-		"-t", "12", "-pix_fmt", "yuv420p", "-g", "48", "-ac", "2", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac",
-		"-movflags", "+faststart", film).CombinedOutput(); err != nil {
-		t.Fatalf("making the film: %v\n%s", err, out)
-	}
-	original, err := os.ReadFile(film)
-	if err != nil {
-		t.Fatal(err)
-	}
 	files := map[string]string{}
+	var original []byte
 	for n := 1; n <= partCount; n++ {
+		// Each part its own tone, so which part is playing can be heard.
+		film := filepath.Join(t.TempDir(), "film.mp4")
+		if out, err := exec.Command(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+			"-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=24", "-f", "lavfi", "-i", fmt.Sprintf("sine=frequency=%d:sample_rate=48000", 600*n-300),
+			"-t", "12", "-pix_fmt", "yuv420p", "-g", "48", "-ac", "2", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac",
+			"-movflags", "+faststart", film).CombinedOutput(); err != nil {
+			t.Fatalf("making the film: %v\n%s", err, out)
+		}
+		var err error
+		if original, err = os.ReadFile(film); err != nil {
+			t.Fatal(err)
+		}
 		name := "Small Film (2020).mp4"
 		if partCount > 1 {
 			name = fmt.Sprintf("Small Film (2020) - pt%d.mp4", n)
@@ -93,16 +97,23 @@ func testRemoteFilm(t *testing.T, partCount int) {
 		t.Fatalf("the version is %+v", v)
 	}
 
-	var session api.PlaybackSession
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID}, &session, 201)
+	session := h.startPlayback(api.PlaybackStart{ItemID: page.Items[0].ID})
 	first := session.Presentation
-	if first.Mode != "direct" || first.Route != playback.RouteOriginal {
-		t.Fatalf("the film should play as it is: %+v", first)
-	}
-	code, header, body := h.media(first.URL, "Range", "bytes=1000-1999")
-	if code != http.StatusPartialContent || !bytes.Equal(body, original[1000:2000]) ||
-		header.Get("Content-Range") != fmt.Sprintf("bytes 1000-1999/%d", len(original)) {
-		t.Fatalf("a byte range answered %d %v with %d bytes", code, header, len(body))
+	if partCount > 1 {
+		// Two files are one stream: copied as they are into it, not played as two.
+		if first.Route != playback.RouteRepackaged || first.Decision.Video.Action != "copy" || first.Decision.Audio.Action != "copy" {
+			t.Fatalf("the parts should be copied into one stream: %+v", first)
+		}
+		assertBothRemoteParts(t, h.listen(t, first.URL, ffmpeg, ffprobe), ffmpeg, "copied")
+	} else {
+		if first.Mode != "direct" || first.Route != playback.RouteOriginal {
+			t.Fatalf("the film should play as it is: %+v", first)
+		}
+		code, header, body := h.media(first.URL, "Range", "bytes=1000-1999")
+		if code != http.StatusPartialContent || !bytes.Equal(body, original[1000:2000]) ||
+			header.Get("Content-Range") != fmt.Sprintf("bytes 1000-1999/%d", len(original)) {
+			t.Fatalf("a byte range answered %d %v with %d bytes", code, header, len(body))
+		}
 	}
 
 	position := int64(0)
@@ -135,15 +146,115 @@ func testRemoteFilm(t *testing.T, partCount int) {
 	if code != 200 || segment == "" {
 		t.Fatalf("the picture's playlist answered %d:\n%s", code, playlist)
 	}
-	if code, _, body = h.media(base + segment); code != 200 || len(body) == 0 {
+	if code, _, body := h.media(base + segment); code != 200 || len(body) == 0 {
 		t.Fatalf("the first converted segment answered %d with %d bytes", code, len(body))
 	}
-	// A multipart remote version keeps main's first-file playback until the
-	// remote join follow-up: direct bytes above, and the same 12 s converted.
 	played := h.listen(t, second.URL, ffmpeg, ffprobe)
-	if played.seconds < 11.8 || played.seconds > 12.4 {
-		t.Fatalf("delivered %.3f seconds, want the first file's 12 seconds", played.seconds)
+	if partCount > 1 {
+		assertBothRemoteParts(t, played, ffmpeg, "converted")
+	} else if played.seconds < 11.8 || played.seconds > 12.4 {
+		t.Fatalf("delivered %.3f seconds, want the film's 12 seconds", played.seconds)
 	}
-	t.Logf("%d parts: original bytes unchanged; converted %.6f s", partCount, played.seconds)
+	t.Logf("%d parts: converted %.6f s", partCount, played.seconds)
 	h.call("DELETE", "/v1/playback/sessions/"+session.ID, nil, nil, 204)
+}
+
+// assertBothRemoteParts checks a stream of the two-part film lasts both parts' 24 seconds and
+// plays the first part's tone, then the second's.
+func assertBothRemoteParts(t *testing.T, played heard, ffmpeg, route string) {
+	t.Helper()
+	if played.seconds < 23.7 || played.seconds > 24.4 {
+		t.Fatalf("%s: delivered %.3f seconds, want both parts' 24 seconds", route, played.seconds)
+	}
+	for at, tone := range map[float64]int{3: 300, 18: 900} {
+		if got := toneAt(t, ffmpeg, played.file, at); got != tone {
+			t.Fatalf("%s: %.0f s in plays %d Hz, want %d Hz", route, at, got, tone)
+		}
+	}
+}
+
+// Books in several files on remote storage play as one book each, as from a disk here (rule 60
+// of playback): parts encoded alike are copied into one stream, parts that differ are converted
+// into one, and a place in either is a place in the whole book, from its start and from inside
+// a later part. The sandbox is required where this host has it.
+func TestBooksInPartsOnRemoteStoragePlayAsOneBook(t *testing.T) {
+	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
+	if decoder.ProbeConfinement(context.Background()) == nil {
+		t.Setenv("PORTICO_DECODER_SANDBOX", "required")
+	}
+	files := map[string]string{}
+	part := func(book, name string, tone int, codec ...string) {
+		file := filepath.Join(t.TempDir(), name)
+		args := append([]string{"-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi",
+			"-i", fmt.Sprintf("sine=frequency=%d:duration=20", tone), "-ac", "2"}, codec...)
+		args = append(args, "-metadata", "album="+book, "-metadata", "artist=Ann Author", file)
+		if out, err := exec.Command(ffmpeg, args...).CombinedOutput(); err != nil {
+			t.Fatalf("making %s: %v\n%s", name, err, out)
+		}
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files["Media/Audiobooks/Ann Author/"+book+"/"+name] = string(data)
+	}
+	mp3 := []string{"-c:a", "libmp3lame", "-b:a", "128k", "-ar", "44100"}
+	part("Three Parts", "01.mp3", 300, mp3...)
+	part("Three Parts", "02.mp3", 600, mp3...)
+	part("Three Parts", "03.mp3", 900, mp3...)
+	part("Two Kinds", "01.mp3", 300, mp3...)
+	part("Two Kinds", "02.m4a", 600, "-c:a", "aac", "-b:a", "128k", "-ar", "48000")
+	dav := remotetest.NewDAV(t, files)
+	h, d, sources := newHouseWith(t, ffmpeg, ffprobe)
+	ctx := context.Background()
+	var source api.RemoteSource
+	h.call("POST", "/v1/admin/remote-sources", api.RemoteSourceCreate{Kind: "webdav", Name: "NAS",
+		WebDAV: &api.WebDAVSettings{Address: dav.URL, User: dav.User, Password: dav.Password}}, &source, 200)
+	row, err := d.RemoteSource(ctx, source.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lib, err := d.NewLibrary(ctx, db.NewLibrary{Name: "Audiobooks", Kind: db.LibraryAudiobooks, Language: "en",
+		RemoteFolders: []db.RemoteFolder{{SourceID: row.ID, Path: "Media/Audiobooks"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	libraries, err := d.AllLibraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats, err := (&scan.Scanner{DB: d, Remote: sources.Open, ReaderProber: scan.RemoteProber{}}).Scan(ctx, libraries[0]); err != nil || stats.ItemsNew != 2 {
+		t.Fatalf("scan: %+v, %v", stats, err)
+	}
+	var page api.ItemPage
+	h.call("GET", "/v1/items?library="+lib.PublicID+"&kind=audiobook", nil, &page, 200)
+	if len(page.Items) != 2 {
+		t.Fatalf("the library lists %+v", page.Items)
+	}
+	for _, item := range page.Items {
+		length, converted := 60.0, false
+		if item.Title == "Two Kinds" {
+			length, converted = 40, true
+		}
+		for _, start := range []int64{0, 25_000} {
+			session := h.startPlayback(api.PlaybackStart{ItemID: item.ID, StartPositionMs: &start})
+			p := session.Presentation
+			if !strings.HasSuffix(p.URL, ".m3u8") || p.StartPositionMs != start || (p.Route == playback.RouteConverted) != converted {
+				t.Fatalf("%s from %d ms: %+v", item.Title, start, p)
+			}
+			// The segment holding the start, fetched first, is the part holding it.
+			h.segmentTone(t, p.URL, ffmpeg, int(start/6000), 300*(1+int(start/20_000)))
+			played := h.listen(t, p.URL, ffmpeg, ffprobe)
+			if played.seconds < length-1 || played.seconds > length+1 {
+				t.Fatalf("%s from %d ms: what plays lasts %.1f s, want the whole book's %.0f s", item.Title, start, played.seconds, length)
+			}
+			for at, tone := range map[float64]int{0.5: 300, 19: 300, 21: 600, 38.5: 600, 41: 900} {
+				if at < length {
+					if got := toneAt(t, ffmpeg, played.file, at); got != tone {
+						t.Errorf("%s from %d ms: %.1f s in plays %d Hz, want %d Hz", item.Title, start, at, got, tone)
+					}
+				}
+			}
+			h.call("DELETE", "/v1/playback/sessions/"+session.ID, nil, nil, 204)
+		}
+	}
 }

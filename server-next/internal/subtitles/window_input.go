@@ -12,6 +12,8 @@ type WindowCommand struct {
 	// Stderr, when set, receives what the converter writes to standard error, as a local
 	// run's does: a converter that exits 0 having said something did not simply finish.
 	Stderr io.Writer
+	// Stdout, when set, receives what the converter prints, as a local run's does.
+	Stdout io.Writer
 }
 
 // Window inputs retain the existing observed source and private endpoint
