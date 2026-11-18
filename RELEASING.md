@@ -26,16 +26,14 @@ Until v0.1.0, every product (the server, the apps on every platform and the desk
    - The server-next default merge suite runs over the full module as a gate, both with default tags and with the CBR/CB7 capability tags. Separate media-tier and hardware qualification is not claimed by this gate. The macOS server build also runs it on macOS. Cross-compiled builds run no tests of their own. A separate nightly run checks for data races.
    - A pull request that changes the release machinery runs the same builds as a proof: version 0.0.0, with no signing, no seal and no draft.
 2. **Seal.** Two steps wait for the maintainer's approval in the `release-seal` environment, the only place the release key is available. That's two approvals per release:
-   - **The server builds**, one approval for every platform at once. Each build's own `manifest.json` and `manifest.sig` are signed. This step arrives with the qualified FFmpeg toolchain; internal builds skip it.
+   - **The server builds**, one approval for every platform at once. Each build's own `manifest.json` and `manifest.sig` are signed. Not built yet: internal builds skip it.
    - **The inventory**, after everything is built. `release-manifest.json` and `.sig` list exactly the files of the release. The inventory never makes a server build trusted: each build is trusted only through its own sealed manifest.
 3. **Draft.** The workflow ends at a draft GitHub release that names its commit. Publishing it creates the tag, and `release-published.yml` then pushes the attached container image to `ghcr.io/porticomediaserver/portico-server`. Nothing is pushed or published before the maintainer publishes.
 
-**Internal builds (0.0.N)** carry a development FFmpeg engine: upstream jellyfin-ffmpeg 8.1.3-1, pinned by hash in `scripts/development-engine.py`, with its source attached.
-- That makes every server build unsealed.
-- Its files say `UNSEALED-NOT-FOR-USE-ENGINE`.
-- Its update feed lists no build, so no server offers it as an update.
-- Its gate runs server-next’s default tier against the engine it ships, with the four rebuilt equivalents of the approved development-engine exceptions in `ci/quarantine.json` (expiry 1 December). The tests run; only those named failures can be accepted on that engine. Qualified-engine runs require them to pass. The development engine still lacks libsoxr; SoXr-dependent media-tier proofs require the qualified engine.
-- Sealed releases need the qualified toolchain below.
+**Internal builds (0.0.N)** are unsealed:
+- Their files say `UNSEALED-NOT-FOR-USE`.
+- Their update feed lists no build, so no server offers one as an update.
+- Their gate runs server-next's default tier with the media tools the release ships (below), disc tests included.
 - The server doesn't install updates today. When an updater exists, it must verify the sealed manifest.
 
 **Signing:**
@@ -43,15 +41,15 @@ Until v0.1.0, every product (the server, the apps on every platform and the desk
 - Apple: App Store Connect automatic signing for iPhone, iPad and Apple TV, and Developer ID plus notarisation for the macOS server app, its installer package and its disk image.
 - Each signing step skips, and the file names say so, when its credentials aren't configured.
 
-## FFmpeg is released separately
+## The media tools (FFmpeg)
 
-Portico and its FFmpeg build are released on their own schedules.
+The server runs three programs beside it: `ffmpeg`, `ffprobe` and `portico-disc`, Portico's Blu-ray and DVD reader. A release builds them from its own commit (`.github/workflows/media-tools.yml`, stage `bundle`, called by the release workflow) with `third_party/ffmpeg/build.sh`:
 
-- **A normal Portico release** reuses the currently approved FFmpeg build.
-- **FFmpeg only changes** when I pick and test a new stable upstream version and start the **Qualified FFmpeg toolchain** workflow by hand. That workflow builds and checks FFmpeg, then publishes it as its own GitHub release, along with its source. The release is named after the `releaseTag` in `third_party/ffmpeg/sources.lock.json`.
-- **On macOS**, the qualified engine also carries a Vulkan loader, MoltenVK and MoltenVK's ICD JSON, with their loader-relative Mach-O paths already rewritten. Two things follow for the Mac server package:
-  - Code signing and notarisation happen after that rewrite, and the sealed macOS manifest records the hashes after signing.
-  - The Vulkan loader doesn't find a bundled driver by itself. When the server starts the engine inside the app, it must point the loader at the bundled ICD JSON (`VK_DRIVER_FILES`, or `VK_ICD_FILENAMES` for older loaders, set to its bundle-relative path), or the package must place the JSON where the loader looks.
+- **What they are.** FFmpeg from jellyfin-ffmpeg at the tag in `third_party/ffmpeg/upstream.lock`, built with jellyfin-ffmpeg's own builder, plus Portico's four FFmpeg patches, four library recipes and two patches that stop the disc libraries loading a decryption module. FDK AAC is removed, and the build refuses `--enable-nonfree`. The result is GPL-3.0-or-later. Nothing in it can decrypt a commercial disc.
+- **Where.** Linux x64 and ARM64 and the container image carry them today. Windows and macOS still carry a development engine (upstream jellyfin-ffmpeg 8.1.3-1, pinned in `scripts/development-engine.py`, no disc reading) until their build exists.
+- **What travels with them.** Each server package has `third_party/ffmpeg/` whole: the three programs, `NOTICE.md`, `LICENSES/` (the GPL text and every built-in library's own licence text) and `manifest.json` (every library, its licence and exact source, and each file's SHA-256). The release builder refuses a bundle whose files differ from its manifest.
+- **The source offer.** Every release that carries them attaches their complete source: `jellyfin-ffmpeg-8.1.3-1-source.tar.gz` (the tagged source, its builder included), `portico-media-tools-<platform>-library-sources.tar.zst` (every library's source as built), and this repository's `third_party/ffmpeg` and `third_party/portico-disc` at the release commit (the patches, recipes, helper source and the build script). `build.sh prepare <platform>` lays them out the way they were built.
+- **Changing FFmpeg** means changing `upstream.lock` (and the patches if they stop applying), then proving the build with `media-tools.yml` before a release takes it.
 
 ## The desktop app's bundled mpv
 
@@ -64,16 +62,16 @@ The Windows installer and the macOS app carry mpv, so they play files the app's 
 
 ## What a release builds
 
-A Portico release starts from a reviewed `vMAJOR.MINOR.PATCH` Git tag. The release workflow runs the server and web tests again, downloads the exact pinned FFmpeg build, and produces:
+A Portico release is built from one commit on `main`; publishing its draft creates the `v0.0.N` tag. The release workflow builds the media tools, runs the server and web tests again, and produces:
 
-- Windows x64 and ARM64 installers, plus portable ZIPs
+- A Windows x64 installer, plus a portable ZIP (no Windows ARM64 build yet)
 - An Apple Silicon macOS PKG, and a DMG that contains it
 - Linux x64 and ARM64 `.tar.gz` bundles, DEB files and RPM files
 - A Linux amd64/arm64 container image on GitHub Container Registry
 
 Each server binary is built from an isolated copy of `server-next/` (`github.com/PorticoMediaServer/portico/server-next`, command `./cmd/portico-server`) and sealed with a signed manifest by [the release builder](scripts/build-server-release.py). The verifier checks its linked build identity and the Hosted Services root the binary uses. Every shipped build uses the same Go build tags from `scripts/release-build-tags.py`: `release`, plus the `portico_rar7z` and `portico_cb7` reader tags. The release is built and tested with those tags, and the verifier rejects any binary built with a different set.
 
-The workflow then writes SHA-256 checksums, an SBOM, build provenance and a small update manifest, and publishes the GitHub release. A final signed inventory covers every finished archive and installer, including the web files.
+The workflow then writes SHA-256 checksums, an SBOM and a small update manifest, and leaves a draft GitHub release; build provenance is written when it is published. A final signed inventory covers every finished archive and installer, including the web files.
 
 ## Download links
 
@@ -91,7 +89,7 @@ These signatures are separate from Windows Authenticode, Apple notarization and 
 
 ## Container image
 
-The Docker build uses the same pinned FFmpeg build. It fetches npm and Go dependencies, copies in the bundled subtitle files and installs the runtime packages listed in the `Dockerfile`. The full inventory is in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+The release's container image is the two Linux packages' contents, media tools included, on the runtime base in the `Dockerfile` (its `unsealed` stage), which installs the runtime packages listed there. The full inventory is in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 Passing the release tests doesn't prove a build works on physical Apple or Android devices, or with a particular GPU.
 

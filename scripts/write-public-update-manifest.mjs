@@ -4,7 +4,7 @@ import {writeFileSync} from 'node:fs';
 // unsealed: an internal NOT-FOR-USE build. Its feed lists no build, so no server ever offers it as an update.
 const [version, repository = 'PorticoMediaServer/portico', mode = ''] = process.argv.slice(2);
 if (mode !== '' && mode !== 'unsealed') throw new Error('The third argument is unsealed or nothing.');
-const unsealed = mode === 'unsealed', suffix = unsealed ? '-UNSEALED-NOT-FOR-USE-ENGINE' : '';
+const unsealed = mode === 'unsealed', suffix = unsealed ? '-UNSEALED-NOT-FOR-USE' : '';
 if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version ?? '')) throw new Error('A semantic version is required.');
 const tag = `v${version}`;
 const base = `https://github.com/${repository}/releases/download/${tag}`;
@@ -33,6 +33,6 @@ writeFileSync('dist/portico-update-manifest.json', `${JSON.stringify({
   channels: {[channel]: unsealed ? [] : [{version, channel, url: `https://github.com/${repository}/releases/tag/${tag}`}]},
   signed: false,
   automaticInstallationAllowed: false,
-  warning: unsealed ? 'Internal build, NOT FOR USE: unsealed, with a development FFmpeg engine. Never offered as an update.' : 'Unsigned development release. Verify checksums and install manually.',
+  warning: unsealed ? 'Internal build, NOT FOR USE: unsealed. Never offered as an update.' : 'Unsigned development release. Verify checksums and install manually.',
   assets: Object.fromEntries(Object.entries(assets).map(([key, name]) => [key, {name, url: `${base}/${name}`}]))
 }, null, 2)}\n`);
