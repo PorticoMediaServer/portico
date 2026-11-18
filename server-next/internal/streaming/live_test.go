@@ -38,9 +38,16 @@ func (c *testChannel) ReadFrom(ctx context.Context, at time.Time, w io.Writer, b
 	if c.started.IsZero() {
 		c.started = time.Now()
 	}
+	start := time.Now()
+	if !at.IsZero() {
+		start = at
+		if start.Before(c.started) {
+			start = c.started
+		}
+	}
 	c.mu.Unlock()
 	if began != nil {
-		began(time.Now())
+		began(start)
 	}
 	const chunk = 188 * 64
 	rate := float64(len(c.data)) / 60 * c.speed // the file is a minute of channel
@@ -284,6 +291,52 @@ func TestALiveChannelTheBrowserPlaysIsRepackaged(t *testing.T) {
 	p := rig.livePlaylistUntil("lvs_web", "", func(p livePlaylist) bool { return len(p.segments) >= 2 })
 	rig.requirePlays("lvs_web", p, "h264")
 	rig.streams.StopLive("lvs_web")
+}
+
+func TestRokuLivePlaylistStartsWithTheChannelWindow(t *testing.T) {
+	rig := newMediaRig(t)
+	path := rig.broadcast("internet.ts", true)
+	plan := rig.livePlan(path)
+	channel := rig.channel(path, 4, true)
+	oldest := time.Now().UTC().Truncate(time.Millisecond).Add(-21 * time.Second)
+	channel.started = oldest
+	const session = "lvs_roku"
+	if err := rig.streams.StartLive(context.Background(), LiveRequest{SessionID: session, Plan: plan, Input: channel, ChannelWindow: true}); err != nil {
+		t.Fatal(err)
+	}
+	first := rig.liveGet(session, LivePlaylist)
+	if first.Code != http.StatusOK {
+		t.Fatalf("the first playlist answered %d: %s", first.Code, first.Body.String())
+	}
+	p := parseLive(t, first.Body.String())
+	if len(p.segments) < 4 || p.dates[0] != oldest.Format("2006-01-02T15:04:05.000Z07:00") || p.ended {
+		t.Fatalf("the first playlist must cover the retained history through the tune: %s", first.Body.String())
+	}
+	rig.requirePlays(session, p, "h264")
+
+	// A paused player can go quiet. Its live window still advances and discards
+	// expired segments as the channel's oldest retained moment moves forward.
+	h := rig.streams.hls
+	h.mu.Lock()
+	view := rig.streams.live[session]
+	view.fetched = time.Now().Add(-liveIdle)
+	channel.mu.Lock()
+	channel.started = oldest.Add(3 * HLSSegmentSeconds * time.Second)
+	channel.mu.Unlock()
+	changed := view.changed
+	h.mu.Unlock()
+	select {
+	case <-changed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("a quiet player stopped getting new segments")
+	}
+	h.mu.Lock()
+	sliding := view.sequence > 0 && view.cancel != nil && view.runs == 1
+	h.mu.Unlock()
+	if !sliding {
+		t.Fatal("the quiet player's rolling playlist stopped advancing")
+	}
+	rig.streams.StopLive(session)
 }
 
 // A second device converting a channel goes through the same limit as any conversion: on a

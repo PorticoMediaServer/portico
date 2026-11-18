@@ -43,6 +43,9 @@ type LiveRequest struct {
 	// Plan is from Plan, made from what was measured of the channel: an HLS plan.
 	Plan  DeliveryPlan
 	Input LiveInput
+	// ChannelWindow is for a player that seeks within the playlist itself. It needs
+	// the channel's retained history and a window that moves even when paused.
+	ChannelWindow bool
 }
 
 // LiveStatus is where a live conversion stands.
@@ -89,8 +92,11 @@ type liveConversion struct {
 	done   chan struct{}
 	// asked is the last at= this device asked for. Its player asks the same address again and
 	// again; only a new moment restarts the conversion.
-	asked   string
-	fetched time.Time
+	asked         string
+	fetched       time.Time
+	channelWindow bool
+	// joinAt holds the first playlist until it reaches the live edge at tune time.
+	joinAt time.Time
 	// deaths counts the runs in a row that ended without a new segment.
 	deaths  int
 	ended   bool
@@ -150,7 +156,8 @@ func (s *Streams) StartLive(ctx context.Context, r LiveRequest) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return ErrConversionSpace
 	}
-	l := &liveConversion{session: r.SessionID, input: r.Input, dir: dir, plan: &plan, fetched: time.Now(), changed: make(chan struct{})}
+	l := &liveConversion{session: r.SessionID, input: r.Input, dir: dir, plan: &plan, fetched: time.Now(),
+		channelWindow: r.ChannelWindow, changed: make(chan struct{})}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	err := h.ctx.Err()
@@ -168,7 +175,11 @@ func (s *Streams) StartLive(ctx context.Context, r LiveRequest) error {
 		s.live = map[string]*liveConversion{}
 	}
 	s.live[r.SessionID] = l
-	s.runLiveLocked(l, time.Time{})
+	var from time.Time
+	if r.ChannelWindow {
+		from, l.joinAt = l.input.Window()
+	}
+	s.runLiveLocked(l, from)
 	return nil
 }
 
@@ -298,7 +309,17 @@ func (s *Streams) liveConvert(ctx context.Context, l *liveConversion, run int, f
 		threads, release = decoder.ReservePlaybackEncode()
 	}
 	defer release()
-	args, stages, err := liveArgs(plan, run, l.dir, threads)
+	listSize := 10
+	if l.channelWindow && !from.IsZero() {
+		// Catch-up can fill the converter's playlist between two collector polls.
+		// Leave room for the backlog as well as the normal live output.
+		oldest, edge := l.input.Window()
+		if from.Before(oldest) {
+			from = oldest
+		}
+		listSize += int(max(0, edge.Sub(from)) / (HLSSegmentSeconds * time.Second))
+	}
+	args, stages, err := liveArgs(plan, run, l.dir, threads, listSize)
 	if err != nil {
 		return err, sanitizeConverterOutput(err.Error(), h.root), 0
 	}
@@ -339,7 +360,7 @@ func (s *Streams) liveConvert(ctx context.Context, l *liveConversion, run int, f
 			}
 			collect()
 			h.mu.Lock()
-			idle := s.live[l.session] == l && l.runs == run && time.Since(l.fetched) >= liveIdle
+			idle := !l.channelWindow && s.live[l.session] == l && l.runs == run && time.Since(l.fetched) >= liveIdle
 			if idle && l.cancel != nil {
 				l.cancel()
 				l.cancel = nil
@@ -495,7 +516,7 @@ func liveRunSegments(path string) []runSegment {
 
 // liveArgs is the converter for one run: the channel's MPEG-TS on descriptor 3, converted or
 // repackaged as the plan says, into HLS segments of the run's own.
-func liveArgs(plan *DeliveryPlan, run int, dir string, threads int) ([]string, []decoder.HardwareStage, error) {
+func liveArgs(plan *DeliveryPlan, run int, dir string, threads, listSize int) ([]string, []decoder.HardwareStage, error) {
 	graph, err := plan.conversionGraph(nil, threads)
 	if err != nil {
 		return nil, nil, err
@@ -543,9 +564,9 @@ func liveArgs(plan *DeliveryPlan, run int, dir string, threads int) ([]string, [
 		return nil, nil, err
 	}
 	args = append(args, packagingArgs...)
-	// The run's own playlist keeps its last few segments: the conversion's playlist is made
+	// The run's own playlist keeps its recent segments: the conversion's playlist is made
 	// from it as segments finish, and segment files are removed only by the rewind stretch.
-	args = append(args, "-f", "hls", "-hls_time", strconv.Itoa(HLSSegmentSeconds), "-hls_list_size", "10",
+	args = append(args, "-f", "hls", "-hls_time", strconv.Itoa(HLSSegmentSeconds), "-hls_list_size", strconv.Itoa(listSize),
 		"-hls_flags", "independent_segments+temp_file", "-hls_segment_filename", filepath.Join(dir, "segment-"+name+"-%06d."+ext),
 		filepath.Join(dir, "run-"+name+".m3u8"))
 	return args, graph.Stages, nil
@@ -632,7 +653,7 @@ func (s *Streams) ServeLive(w http.ResponseWriter, r *http.Request, sessionID, f
 		// Stopped while nobody fetched: it carries on from where it stopped.
 		s.runLiveLocked(l, l.resume())
 	}
-	for len(l.segments) == 0 && !l.ended && l.failure == nil && s.live[sessionID] == l {
+	for (len(l.segments) == 0 || asked == "" && l.resume().Before(l.joinAt)) && !l.ended && l.failure == nil && s.live[sessionID] == l {
 		changed := l.changed
 		h.mu.Unlock()
 		select {
@@ -649,6 +670,7 @@ func (s *Streams) ServeLive(w http.ResponseWriter, r *http.Request, sessionID, f
 	var body []byte
 	failed := l.failure != nil
 	if !failed && s.live[sessionID] == l {
+		l.joinAt = time.Time{}
 		body = l.playlist()
 	}
 	h.mu.Unlock()
