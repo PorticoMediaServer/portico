@@ -50,9 +50,10 @@ sub onLaunchArgs()
     end if
     m.task.unobserveField("ready")
     args = m.top.launchArgs
+    ' A deep link: Roku started the app to open one title (contentId is the item's id on this server).
+    if args <> invalid and args.contentId <> invalid then m.linked = args
     if createObject("roAppInfo").isDev() and args <> invalid
         ' Development builds only: scripts can hand the app a sign-in, or clear it.
-        if args.devOpen <> invalid then m.devOpen = args.devOpen
         if args.devSignOut <> invalid then storeWrite({origin: "", refreshToken: "", profileId: "", renewalId: ""})
         if args.devOrigin <> invalid and args.devRefresh <> invalid
             storeWrite({origin: args.devOrigin, refreshToken: args.devRefresh, installationId: args.devInstallation, profileId: args.devProfile, renewalId: ""})
@@ -159,7 +160,10 @@ end sub
 
 ' A page asks for a title to be opened or played.
 sub onOpen(event as object)
-    ask = event.getData()
+    onOpenAsk(event.getData())
+end sub
+
+sub onOpenAsk(ask as object)
     kind = ask.item.kind
     if ask.play = true and (kind = "movie" or kind = "episode" or kind = "channel")
         player = push("PlayerScreen")
@@ -297,23 +301,34 @@ sub showHome()
     m.rail.visible = true
     m.rail.current = "home"
     m.screen.active = true
-    if m.devOpen <> invalid
-        api("GET", "/v1/items/" + m.devOpen, invalid, "onDevOpen")
-        m.devOpen = invalid
-    end if
+    openLinked()
 end sub
 
-' Development builds only: a script asked for a title's page to be opened at start.
-sub onDevOpen(event as object)
+' The same while the app is running. Before anyone is signed in it waits for Home.
+sub onDeepLink()
+    link = m.top.deepLink
+    if link = invalid or link.contentId = invalid then return
+    m.linked = link
+    if m.entered = true and m.rail.visible then openLinked()
+end sub
+
+sub openLinked()
+    if m.linked = invalid then return
+    api("GET", "/v1/items/" + m.linked.contentId, invalid, "onLinked", {mediaType: m.linked.mediaType})
+    m.linked = invalid
+end sub
+
+' A film or an episode asked for by its media type plays at once, as Roku expects; anything
+' else opens its page.
+sub onLinked(event as object)
     result = event.getData()
     if not result.ok then return
-    page = invalid
-    if result.data.kind = "movie" then page = push("TitleScreen")
-    if result.data.kind = "show" then page = push("ShowScreen")
-    if page <> invalid
-        page.item = result.data
-        page.active = true
-    end if
+    item = result.data
+    kind = item.kind
+    play = event.getRoSGNode().ctx.mediaType <> invalid and (kind = "movie" or kind = "episode")
+    ' an episode only to look at opens its show's page
+    if kind = "episode" and not play and item.rootId <> invalid then item = {id: item.rootId, kind: "show", title: item.rootTitle}
+    onOpenAsk({item: item, play: play})
 end sub
 
 ' A page names its art as a picture path, or "poster|<path>" for a title with only a poster, or

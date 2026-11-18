@@ -9,3 +9,4 @@ splash_screen_fhd=pkg:/images/splash-fhd.jpg
 splash_color=#071018
 splash_min_time=0
 rsg_version=1.3
+supports_input_launch=1
