@@ -9,8 +9,8 @@
 @media (max-width: 599px) { .page { columns: 1; padding: var(--space-px-72) var(--space-md); } }
 /* A bounded card grid in the page's flow (My List): the library grid's column width and gaps come from frameSpec.browse.grid. */
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--grid-card), 1fr)); padding: 0 var(--g); }
-/* Recently played: the gallery sets the column count (--columns) from the tile's width. */
-.tiles { display: grid; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); gap: var(--space-sm); padding: 0 var(--g); }
+/* Recently played: the gallery sets the column count (--columns) from the tile's width; the gap is the quick tile's (frameSpec.quickTile.gap). */
+.tiles { display: grid; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); gap: var(--frame-quick-tile-gap); padding: 0 var(--g); }
 .tiles > * { width: auto; min-width: 0; }
 /* A list of rows from the gutter. */
 .list, .inset { padding: 0 var(--g); }

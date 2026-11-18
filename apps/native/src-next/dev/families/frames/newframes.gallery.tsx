@@ -403,7 +403,7 @@ const albums = [['after-hours', 'aAfterHours', 'rWeeknd'], ['damn', 'aDamn', 'rK
   ['hit-me-hard-and-soft', 'aHitMe', 'rBillie'], ['random-access-memories', 'aRam', 'rDaftPunk'], ['1989-taylor-s-version-deluxe', 'a1989', 'rTaylor'], ['thriller', 'aThriller', 'rJackson'], ['the-wall', 'aWall', 'rFloyd']] as const;
 /** Recently played: quick tiles two lines deep, as many across as tiles of about their own width fit, two to four (final3-desktop-12, phone-app 15a). */
 function RecentlyPlayed() {
-  const {theme, frame} = useScale(), gap = theme.space.sm, [room, measure] = useRoom();
+  const {frame} = useScale(), gap = frameSpec.quickTile.gap[frame.form], [room, measure] = useRoom();
   const columns = Math.min(4, Math.max(2, Math.round((room + gap) / (frameSpec.quickTile.width[frame.form] + gap)))), width = (room - gap * (columns - 1)) / columns;
   return <Section title={f('recentlyPlayed')}><View onLayout={measure} style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
     {albums.slice(0, columns * 2).map(([id, name, by], index) => index === 0
