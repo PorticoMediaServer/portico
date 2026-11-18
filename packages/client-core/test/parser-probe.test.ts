@@ -109,7 +109,6 @@ function routesFor(libraryCount: number, role: string): Map<string, RouteBody> {
     get(`/v1/libraries/lib-${index}/browse-capabilities`, capabilities(`lib-${index}`));
     post(`/v1/libraries/lib-${index}/browse`, browseResult());
     get(`/v1/libraries/lib-${index}/facets?field=title&limit=20`, {field: 'title', values: []});
-    get(`/v1/libraries/lib-${index}/inventory-status`, {serverId: 'srv', inventory: {libraryId: `lib-${index}`, revision: 1, sources: []}});
   }
   return routes;
 }
