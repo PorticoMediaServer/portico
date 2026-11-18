@@ -1,8 +1,7 @@
 import {supportZipSavePort} from '../../../../platform/diagnostics-save';
 import React,{useCallback,useEffect,useLayoutEffect,useState,useSyncExternalStore} from 'react';
 import {Text,View} from 'react-native';
-import {SUPPORT_COMPONENTS,type SupportComponent} from '../../../../../../../packages/client-core/src/server-admin/support-source';
-import {fixOwnerSupportPermissions,OWNER_SUPPORT_DEFAULT_COMPONENTS,OWNER_SUPPORT_WINDOWS,prepareOwnerSupportExport,readOwnerSupport,SUPPORT_CAPABILITY_STATES,supportCapabilityName,type OwnerSupportFacts,type OwnerSupportOptions} from '../../../../../../../packages/client-core/src/server-admin/support-next';
+import {SUPPORT_COMPONENTS,type SupportComponent,fixOwnerSupportPermissions,OWNER_SUPPORT_DEFAULT_COMPONENTS,OWNER_SUPPORT_WINDOWS,prepareOwnerSupportExport,readOwnerSupport,SUPPORT_CAPABILITY_STATES,supportCapabilityName,type OwnerSupportFacts,type OwnerSupportOptions} from '../../../../../../../packages/client-core/src/server-admin/support-next';
 import {skippedParts,resetSkippedParts,skippedVersion,subscribeSkipped} from '../../../../../../../packages/client-core/src/tolerant';
 import {defaultI18n,type MessageId} from '../../../../../../../packages/i18n/src';
 import type {NativeShellBootstrapContext} from '../../../../shell/bootstrap';

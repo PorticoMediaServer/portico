@@ -1,7 +1,7 @@
 import type {HttpLocalApi} from '@core/index.ts';
 import {fixOwnerSupportPermissions, prepareOwnerSupportExport, readOwnerSupport, type OwnerSupportFacts, type OwnerSupportOptions} from '@core/server-admin/support-next.ts';
 import {skippedParts, type SkippedPart} from '@core/tolerant.ts';
-export {SUPPORT_COMPONENTS, type SupportComponent} from '@core/server-admin/support-source.ts';
+export {SUPPORT_COMPONENTS, type SupportComponent} from '@core/server-admin/support-next.ts';
 
 export type SupportSnapshot = Readonly<{
   phase: 'idle' | 'loading' | 'ready' | 'error';
