@@ -48,3 +48,24 @@ test('a replaced native channel menu cannot invoke or dismiss its predecessor',a
  old.props.onOpenChange(false);tree=render();nodes(tree).find(v=>v.props.testID==='channel-second').props.onPress();tree=render();old.props.onOpenChange(false);edit();tree=render();assert.equal(menu(tree).props.title,'Second');assert.equal(menu(tree).props.open,true);assert.deepEqual(calls,[]);
  nodes(menu(tree)).find(v=>v.type==='MenuRow'&&v.props.label==='web.selection.edit').props.onPress();assert.deepEqual(calls,['second']);
 });
+
+test('the native channel preview requests the server-projected sample poster', async () => {
+ const {hooks,screenModule}=await import('./helpers/screen-harness.mjs'),host=hooks(),paths:unknown[]=[];
+ const {NativeChannelEditor}=await screenModule(new URL('../src-next/screens/settings-live/server/channels/ChannelEditor.tsx',import.meta.url),{
+  react:host.react,'react-native':{Modal:'Modal',Text:'Text',View:'View'},
+  'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:0,bottom:0})},
+  '../../../../../../../packages/client-core/src/server-admin/owner-channel-draft':{validBuilder},
+  '../../../../../../../packages/i18n/src':{defaultI18n:{t:(value:string)=>value}},
+  '../../../../kit/artwork':{Artwork:'Artwork',StandardBackdrop:'Backdrop'},
+  '../../../../kit/controls':{Button:'Button',Select:'Select',Switch:'Switch',TextField:'TextField'},
+  '../../../../kit/shell/visual':{shellType:()=>({})},'../../../../kit/theme':{useTheme:()=>({colors:{}})},
+  '../../../../kit/useMotion':{useMotion:()=>({reduce:true})},'../../../../platform/keyboard':{FormScrollView:'ScrollView'},
+  './ChannelSelection':{NativeChannelSelection:'Selection'},'./ChannelHours':{NativeChannelHours:'Hours'},
+ });
+ const draft={name:'',description:'',timeZone:'UTC',on:true,builder},editor={draft};
+ const poster='/v1/images/'+'a'.repeat(64),sample={id:'episode',title:'Show',images:{poster}};
+ const state={editor,previewFor:draft,preview:{titles:1,unplaceable:0,hours:1,sample:[sample],today:[]}};
+ const source={subscribe:()=>()=>{},getSnapshot:()=>state};
+ host.render(()=>NativeChannelEditor({group:{source,current:()=>true},editor,runtime:{artwork:(path:unknown)=>{paths.push(path);}}}));
+ assert.deepEqual(paths,[poster]);
+});

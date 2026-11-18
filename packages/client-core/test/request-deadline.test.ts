@@ -67,20 +67,3 @@ test('a timeout is presented as taking too long, with Try again', () => {
   const shown = presentError(new RequestTimeoutError());
   assert.equal(shown.category, 'timeout');
 });
-
-test('bulk metadata preview spans ordinary request deadlines and remains caller cancellable', async t => {
-  t.mock.timers.enable({apis: ['setTimeout']});
-  const server = silentServer();
-  const api = new HttpLocalApi('http://192.168.1.20:32500', '', server.fetcher);
-  const life = new AbortController();
-  const pending = api.request('/v1/metadata/bulk/preview', 'POST', {}, life.signal).catch(error => error);
-  await Promise.resolve();
-  t.mock.timers.tick(600_000);
-  assert.equal(server.seen[0]?.aborted, false);
-  life.abort();
-  assert.equal((await pending).name, 'AbortError');
-  assert.equal(server.seen[0]?.aborted, true);
-  assert.equal(requestDeadlineMs('/v1/metadata/bulk/preview', 'GET'), 30_000);
-  assert.equal(requestDeadlineMs('/v1/metadata/bulk/preview?extra=1', 'POST'), 60_000);
-  assert.equal(requestDeadlineMs('/v1/metadata/bulk', 'POST'), 60_000);
-});

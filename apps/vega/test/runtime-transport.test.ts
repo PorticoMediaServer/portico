@@ -41,7 +41,7 @@ test('remembered viewer credentials are origin bound; exposure quarantines them 
   assert.equal(Request.made.length, before);
   exposeCredentials(record.serverUrl + '/v1/me');
   assert.equal(Request.made.at(-1)!.method, 'DELETE');
-  assert.equal(Request.made.at(-1)!.url, record.serverUrl + '/v1/sessions/current');
+  assert.equal(Request.made.at(-1)!.url, record.serverUrl + '/v1/auth/session');
   Request.made.at(-1)!.respond();
   assert.equal(await PorticoRuntime.loadSelectedViewer(), null);
   await assert.rejects(PorticoRuntime.saveSelectedViewer(JSON.stringify(record)), 'late persistence cannot restore exposed credentials');

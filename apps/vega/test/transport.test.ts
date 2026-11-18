@@ -129,7 +129,7 @@ test('same-origin path changes fail; 304 validators remain valid and byte limits
 
 test('revocation uses only the issuer, no cookies, five-second deadline and no redirected success', async () => {
   const revocation = revokeExposedSessions({origin: 'http://issuer.test', sessions: [{accessToken: 'revoke-token', hosted: false}]});
-  assert.equal(last().url, 'http://issuer.test/v1/sessions/current'); assert.equal(last().method, 'DELETE');
+  assert.equal(last().url, 'http://issuer.test/v1/auth/session'); assert.equal(last().method, 'DELETE');
   assert.equal(last().withCredentials, false); assert.equal(last().timeout, 5000);
   last().respond(204, ''); assert.equal(await revocation, true);
   const redirected = revokeExposedSessions({origin: 'https://issuer.test', sessions: [{accessToken: 'old', refreshToken: 'hosted-refresh', hosted: true}]});
@@ -147,8 +147,8 @@ test('revocation waits for SDK URL metadata, then still requires the final exact
   assert.equal(settled, false); assert.equal(request.aborted, false);
   request.readyState = 4; request.onreadystatechange?.(); request.onload?.();
   assert.equal(await pending, true); assert.equal(Request.made.length, count + 1);
-  for (const [status, url] of [[204, ''], [200, 'https://other.test/v1/sessions/current'],
-    [200, 'https://revoke-order.test/v1/other'], [302, 'https://revoke-order.test/v1/sessions/current']] as const) {
+  for (const [status, url] of [[204, ''], [200, 'https://other.test/v1/auth/session'],
+    [200, 'https://revoke-order.test/v1/other'], [302, 'https://revoke-order.test/v1/auth/session']] as const) {
     const before = Request.made.length;
     const refusal = revokeExposedSessions({origin: 'https://revoke-order.test', sessions: [{accessToken: 'fixture-token', hosted: false}]});
     const rejected = last(); rejected.respond(status, '', url);

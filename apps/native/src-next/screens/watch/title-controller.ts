@@ -1,5 +1,5 @@
 import {DetailService, readCreditPage, type DetailApi, type DetailScope, type PersonalIntent} from '../../../../../packages/client-core/src/detail';
-import {ShowWorkspaceService, saveShowSettings, type ShowSettings, type ShowWorkspaceData} from '../../../../../packages/client-core/src/show-workspace';
+import {ShowWorkspaceService, type ShowWorkspaceData} from '../../../../../packages/client-core/src/show-workspace';
 import {getContainerState, setContainerFlag, setContainerState, type ContainerState} from '../../../../../packages/client-core/src/container-state';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {sameFence, type PlaybackFence} from '../../../../../packages/player-core/src';
@@ -63,7 +63,6 @@ export class NativeTitleController {
   private listeners = new Set<() => void>();
   private off: (() => void)[] = [];
   /** Owner-settings writes still on the wire, each with the lease it belongs to. */
-  private saves = new Set<Readonly<{request: AbortController; lease: NativeTitlePageLease}>>();
   private readonly offHost: () => void;
   private retired = false;
   /** W-8: the show's own My List (and favourite) state, read for the show a show, season or
@@ -83,7 +82,6 @@ export class NativeTitleController {
     this.snapshot = this.read();
     this.off = [this.detail.subscribe(this.changed), this.workspace.subscribe(this.changed), options.subscribeCurrent(() => {if (!this.current()) this.dispose();})];
     this.offHost = options.subscribeHost?.(() => {
-      for (const save of this.saves) if (!this.hostOf(save.lease)) save.request.abort();
       if (this.creditReadHost && !this.sameHost(this.creditReadHost)) this.credits?.cancel();
     }) ?? (() => {});
   }
@@ -278,27 +276,6 @@ export class NativeTitleController {
   moreRelated = (id: string, expected: NativeRelatedRowSnapshot): void => {if (this.current()) (this.related.get(id) ?? this.recommended.get(id))?.next(expected);};
   moreEpisodes = async (): Promise<void> => {if (this.current() && this.workspace.getSnapshot().phase === 'ready') await this.workspace.nextEpisodes();};
   moreSeasons = async (): Promise<void> => {if (this.current() && this.workspace.getSnapshot().phase === 'ready') await this.workspace.nextSeasons();};
-  /** Owner show settings, bound to the exact page and host the sheet opened on.
-   * A replaced page, a left route or session, or a retirement refuses the write;
-   * a host that moves mid-write aborts it on the wire. */
-  saveSettings = async (lease: NativeTitlePageLease, settings: ShowSettings): Promise<boolean> => {
-    if (!this.onLease(lease)) return false;
-    const data = lease.page;
-    const request = new AbortController(), entry = Object.freeze({request, lease});
-    this.saves.add(entry);
-    const api = {request: <T,>(path: string, method?: string, body?: unknown) => this.options.api.request<T>(path, method, body, request.signal)};
-    try {
-      await saveShowSettings(api, data.scope.libraryId, data.show.id, settings);
-      // Its page is still the one on screen: a refresh or replacement that happened
-      // meanwhile is never overwritten or refreshed again from this write.
-      if (!this.current() || request.signal.aborted || !this.hostOf(lease) || this.workspace.getSnapshot().data !== lease.page) return false;
-      await this.workspace.refresh();
-      // Its own refresh replaces the page, so the host is what must still hold.
-      if (!this.current() || request.signal.aborted || !this.hostOf(lease)) return false;
-      this.changed();
-      return true;
-    } finally {this.saves.delete(entry);}
-  };
   play = async (entry = this.entry, fromStart = false, presentation?: NativeStartArtworkOffer): Promise<void> => {
     if (!this.current()) return;
     const data = this.detail.getSnapshot().data;
@@ -315,8 +292,6 @@ export class NativeTitleController {
     if (this.retired) return;
     this.retired = true;
     this.offHost();
-    for (const save of this.saves) save.request.abort();
-    this.saves.clear();
     for (const off of this.off) off(); this.off = [];
     this.credits?.dispose(); this.credits = undefined;
     for (const row of this.related.values()) row.dispose();

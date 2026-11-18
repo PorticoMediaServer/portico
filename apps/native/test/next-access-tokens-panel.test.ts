@@ -23,15 +23,14 @@ async function fixture(options: {hosted?: boolean} = {}) {
     navigation: {getSnapshot: () => navigation, subscribe: () => () => {}}, api: {request: async () => ({})},
   };
   const lifetime = new NativeScreenLifetime(context), calls: any[] = [], copied: string[] = [];
-  const token = {id: 'token-1', kind: 'token', name: 'Laptop script', scopes: ['read'], hint: '9f2a', createdAt: '2026-10-01T09:00:00Z', lastUsedAt: '2026-10-20T10:00:00Z', state: 'active',
-    member: {accountId: 'account', username: 'justin', profileId: 'main', profile: 'Justin'}};
-  let page: any = {items: [token], limit: 100};
+  const token = {id: 'token-1', name: 'Laptop script', scopes: ['read'], createdAt: '2026-10-01T09:00:00Z', lastUsedAt: '2026-10-20T10:00:00Z'};
+  let page = {items: [token]};
   const apiAccess = {
     apiScopes: scopes,
-    getApiAccessOptions: async () => ({scopes, maximumKeys: 10, maximumTokens: 10, tokensAllowed: true, requestsPerMinute: 60, queryParameter: 'api_key'}),
+    getApiAccessOptions: async () => undefined,
     listAccessTokens: async () => page,
-    createAccessToken: async (_transport: unknown, input: any) => {calls.push(['createAccessToken', input]); return {credential: {...token, id: 'token-2', name: input.name, scopes: input.scopes}, secret: 'pat.fixture-secret'};},
-    revokeAccessToken: async (_transport: unknown, id: string) => {calls.push(['revokeAccessToken', id]); page = {items: [], limit: 100}; return {...token, id, state: 'revoked'};},
+    createAccessToken: async (_transport: unknown, input: any) => {calls.push(['createAccessToken', input]); return {key: {...token, id: 'token-2', name: input.name, scopes: input.scopes}, secret: 'pk_fixture-secret'};},
+    revokeAccessToken: async (_transport: unknown, id: string) => {calls.push(['revokeAccessToken', id]); page = {items: []};},
   };
   let sequence = 0, current: {key: string; id: string} | undefined;
   const theme = {isTV: false, platform: 'phone', width: 390, colors: new Proxy({}, {get: (_t, key) => String(key)})};
@@ -43,7 +42,6 @@ async function fixture(options: {hosted?: boolean} = {}) {
     '../../../../../packages/client-core/src/playback-v1/http': {idempotencyKey: () => 'fixture-operation'},
     '../../../../../packages/client-core/src/server-admin/api-words': {EXPIRY_DAYS: [0, 30, 90, 365],
       chosenScopes: (ticked: ReadonlySet<string>) => ticked.has('admin') ? ['admin'] : scopes.filter(scope => ticked.has(scope)),
-      credentialWorks: (value: any) => value.state === 'active',
       expiryInstant: (days: number, now: number) => days > 0 ? new Date(now + days * 86_400_000).toISOString() : undefined,
       expiryLabel: (_t: unknown, days: number) => `expiry-${days}`, scopeTicked: (ticked: ReadonlySet<string>, scope: string) => ticked.has(scope)},
     '../../../../../packages/client-core/src/server-admin/server-forms': {createOperationIds: () => ({
@@ -92,8 +90,8 @@ test('Creating a token needs a name and a scope, then shows the one-time token i
     const sheet = f.find('access-tokens');
     assert.equal(sheet.props.title, 'api.tokens.copyTitle');
     assert.equal(sheet.props.dismissOnBack, false); assert.equal(sheet.props.dismissOnGesture, false); assert.equal(sheet.props.dismissOnOutsidePress, false); assert.equal(sheet.props.showClose, false);
-    assert.deepEqual(f.find('access-token-secret').props.children, ['pat.fixture-secret']);
-    await f.press('access-token-copy'); assert.deepEqual(f.copied, ['pat.fixture-secret']);
+    assert.deepEqual(f.find('access-token-secret').props.children, ['pk_fixture-secret']);
+    await f.press('access-token-copy'); assert.deepEqual(f.copied, ['pk_fixture-secret']);
     await f.press('access-token-copied');
     assert.equal(f.find('access-tokens').props.open, false); assert.equal(f.find('access-token-secret'), undefined);
   } finally {f.dispose();}

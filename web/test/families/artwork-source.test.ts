@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ArtworkScheduler} from '../../../packages/client-core/src/artwork/index.ts';
 import {ambientArtworkSource} from '../../../packages/client-core/src/artwork/ambient.ts';
-import {routePath} from '../../../packages/contracts/src/routes.ts';
 import {createArtworkRuntime, observeArtwork, scheduledAmbientSource, type ArtworkRead} from '../../src/kit/artwork/source.ts';
 import type {ArtworkImage} from '../../src/kit/artwork/types.ts';
 
@@ -105,7 +104,7 @@ test('replacing a wrapper keeps one real interest until the last original mount 
 });
 
 test('accepted ambient helper provenance and foreground identity remain separate', async () => {
-  const url = routePath('get_items_id_art_kind', {id: 'selected', kind: 'poster'}) + '?v=' + 'a'.repeat(64) + '&w=800';
+  const url = '/v1/images/' + 'a'.repeat(64) + '?w=800&h=450';
   const ambient = ambientArtworkSource(url, {serverId: 'server', viewerId: 'profile', authorityKey: 'authority'}); assert.ok(ambient);
   const scheduler = new ArtworkScheduler<ArtworkImage>({load: async () => ({src: 'blob:ambient'})});
   const scheduled = scheduledAmbientSource(scheduler, ambient);

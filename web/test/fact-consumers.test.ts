@@ -138,6 +138,18 @@ test('channel admission notifies current choices while upload keeps its original
   assert.equal(denied.calls(), 0);denied.source.dispose();
 });
 
+test('channel previews schedule the poster supplied by the server', () => {
+  const f = fixture(), requests: unknown[][] = [];
+  f.context.artwork.foreground = (...args) => {requests.push(args);return undefined;};
+  const ports = libraryChannelAdmission(f.context, {current: f.context.isCurrent, serverId: 'server', api: f.api, reportError() {}} as never);
+  const poster = '/v1/images/' + 'a'.repeat(64);
+  ports.sampleArt(poster);
+  f.retire();
+  ports.sampleArt(poster);
+  assert.deepEqual(requests, [[poster, 80, 2 / 3]]);
+  f.source.dispose();
+});
+
 test('switch proof excludes display names/art/ordering but includes the target, its access and whether it has a PIN', () => {
   const f = fixture(), original = switchOfferKey(f.context.facts.identity), target = f.context.facts.identity.profiles[1]!;
   f.rename();assert.equal(switchOfferKey(f.context.facts.identity), original);

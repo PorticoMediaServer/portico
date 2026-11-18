@@ -1,9 +1,8 @@
 import {throwIfAborted} from './abort-lifetime.ts';
-import {routePattern} from "../../contracts/src/routes.ts";
-import {routePath} from "../../contracts/src/route-paths.ts";
+import {serverPath} from './query/server-api.ts';
 
 /** The server's Chinese, Japanese and Korean font for a subtitle drawn on the device (the one burned-in subtitles use). Public; cached by its ETag. */
-export const SUBTITLE_CJK_FONT_PATH = routePath("get_subtitle_fonts_cjk");
+export const SUBTITLE_CJK_FONT_PATH = serverPath('GET /v1/subtitle-fonts/cjk');
 /**
  * Subtitles a device draws itself: reading what the server offers and fetching it.
  *
@@ -43,10 +42,9 @@ export function forcedChoiceOf(lines: SubtitleLines | undefined): boolean {
 }
 
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-const base = routePattern("get_v1_media_subtitles_grant_resource_revision")
-  .replace("{grant}", "[A-Za-z0-9_-]{1,256}")
-  .replace("{resource}", "[A-Za-z0-9_-]{1,128}")
-  .replace("{revision}", "[1-9]\\d{0,17}");
+// The media router reserves the first segment 'subtitles' for grant-scoped subtitle files.
+const base = serverPath('GET /v1/media/{grant}/{file...}', {id: 'subtitles'})
+  .replace('{file...}', '[A-Za-z0-9_-]{1,256}/[A-Za-z0-9_-]{1,128}/[1-9]\\d{0,17}');
 const originalPath = new RegExp('^' + base + '/original\\.(?:ass|ssa|sup|idx|sub|mks)$');
 const fontListPath = new RegExp('^' + base + '/fonts$');
 const suffixes: Record<DrawnSubtitleFormat, readonly string[]> = {ass: ['ass', 'ssa'], pgs: ['sup'], vobsub: ['idx'], dvb: ['mks']};
