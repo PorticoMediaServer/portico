@@ -55,7 +55,7 @@ function createSettingsAccountScope(context: NativeShellBootstrapContext, lifeti
   lifetime.signal.addEventListener('abort', dispose, {once: true});
   cleanups.push(() => lifetime.signal.removeEventListener('abort', dispose));
   changed();
-  const request = async <T,>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> => {
+  const request = async <T,>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal, options?: Readonly<{headers?: Readonly<Record<string, string>>}>): Promise<T> => {
     if (!current() || signal?.aborted) throw retired();
     const round = new AbortController(), stop = () => round.abort();
     abort.signal.addEventListener('abort', stop, {once: true}); signal?.addEventListener('abort', stop, {once: true});
@@ -63,7 +63,7 @@ function createSettingsAccountScope(context: NativeShellBootstrapContext, lifeti
       if (!current() || signal?.aborted) throw retired();
       const value = await lifetime.request(next => {
         if (!current() || signal?.aborted) throw retired();
-        return context.api.request<T>(path, method, body, next);
+        return context.api.request<T>(path, method, body, next, options);
       }, round.signal);
       if (!current() || signal?.aborted) throw retired();
       return value;
