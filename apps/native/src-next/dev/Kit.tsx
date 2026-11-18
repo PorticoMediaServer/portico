@@ -1,5 +1,6 @@
 import React, {useEffect, useState, type ComponentType} from 'react';
 import {Dimensions, Linking, LogBox, Platform, Pressable, ScrollView, Settings, Text, View} from 'react-native';
+import {OverlaysProvider} from '../kit/overlays';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../packages/i18n/src/index';
 import {Icon} from '../kit/Icon';
@@ -58,7 +59,10 @@ export function Kit({initialGallery, presentation = 'catalogue', captured = fals
   // The private compiled evidence entry injects this Kit through App's normal
   // KitHost shell slot. Families keep the catalogue gutter they were authored in;
   // Canvas's negative gutter therefore cancels exactly once, at the window edge.
-  if (presentation === 'window' && Screen) return <SafeAreaView testID="native-kit-window" edges={(captured || Platform.OS === 'android') && !theme.isTV && !current?.screen ? ['top'] : []} style={{flex: 1}}><View style={{flex: 1, paddingHorizontal: theme.gutter}}><Screen /></View></SafeAreaView>;
+  // The overlay host at the window's root, as the app's shell has it (NativeShell): an anchored popover is placed in window
+  // coordinates, so without it a case's popover rendered inline inside a page that sits beside the rail and landed a rail's
+  // width too far right.
+  if (presentation === 'window' && Screen) return <OverlaysProvider><SafeAreaView testID="native-kit-window" edges={(captured || Platform.OS === 'android') && !theme.isTV && !current?.screen ? ['top'] : []} style={{flex: 1}}><View style={{flex: 1, paddingHorizontal: theme.gutter}}><Screen /></View></SafeAreaView></OverlaysProvider>;
   // A section asked for as a window that this kind of device does not have (a phone-only sheet on a TV) says so. Falling through
   // to the catalogue drew every family at once, and a shot of that was read as the section's own fault.
   if (presentation === 'window' && initialGallery && !Screen) return <SafeAreaView testID="native-kit-absent" style={{flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.gutter}}>
