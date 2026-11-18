@@ -270,7 +270,7 @@ function liveChannel(): HomeChannel {
   return {source: {id: 'source', name: 'Source', generation: 'g', publishedAt: '2026-10-22T00:00:00Z', availableStart: '2026-10-22T00:00:00Z', availableEnd: '2026-10-23T00:00:00Z', provenance: 'live-source', refreshState: 'ready'}, channel: {id: 'channel', sourceId: 'source', provenance: 'live-source', name: 'Channel', number: '1', group: '', generation: 'g', programmes: [], tuneAvailable: true, tuneUnavailableReason: '', recordAvailable: false, recordUnavailableReason: '', favorite: false, hidden: false, preferenceRevision: 1, mark: {text: 'C', seed: 'channel'}}, actions: {play: true, favorite: true}};
 }
 test('reconcile: Live expiry blocks dispatch and registration; a genuine refreshed window admits current channel only', async () => {
-  let writes = 0; const h = harness(undefined, async () => {writes++; throw new Error('Expired channel must not write');}), clock = Date.now, channel = liveChannel(); let now = Date.parse('2026-10-22T12:00:00Z'); Date.now = () => now;
+  const writes: unknown[] = []; const h = harness(undefined, async (path, method, body) => {writes.push([method, path, body]); return {favorite: true, hidden: false} as never;}), clock = Date.now, channel = liveChannel(); let now = Date.parse('2026-10-22T12:00:00Z'); Date.now = () => now;
   try {
     const live = {revision: 'live-1', observedAt: new Date(now).toISOString(), expiresAt: new Date(now + 1000).toISOString(), sort: 'favorites' as const, group: '', groups: [], channels: [channel]};
     h.replace({...h.document, rows: [{...h.document.rows[0], entries: [], live}]});
@@ -284,8 +284,12 @@ test('reconcile: Live expiry blocks dispatch and registration; a genuine refresh
     h.replace({...h.document, rows: [{...h.document.rows[0], live: {...live, revision: 'live-2', expiresAt: new Date(now + 1000).toISOString(), channels: [fresh]}}]});
     h.controller.setContext(nextContext(h)); h.controller.registerWindow({id: 'window', row: h.document.rows[0], sectionOrder: 0}); h.controller.openMenu('window', key); await h.controller.executeMenu('play');
     assert.equal(tuned, 1);
-    h.controller.openMenu('window', key); const pending = h.controller.executeMenu('favorite'); now += 1001; await pending;
-    assert.equal(writes, 0, 'expiry during async command preparation cannot dispatch a stale Live action'); assert.equal(h.controller.getSnapshot().action.phase, 'cancelled'); assert.deepEqual(h.errors, []); h.controller.dispose();
+    // Favorite on a current channel is this profile's channel marks on the rebuilt server.
+    h.controller.openMenu('window', key); await h.controller.executeMenu('favorite');
+    assert.deepEqual(writes, [['PUT', '/v1/live/channels/channel/state', {favorite: true, hidden: false}]]); assert.deepEqual(h.errors, []);
+    h.controller.openMenu('window', key); now += 1001;
+    await assert.rejects(h.controller.executeMenu('favorite'), /stale-home-live-window|home-offers-changed|menu-action-not-offered/);
+    assert.equal(writes.length, 1, 'an expired Live window never sends a favourite'); h.controller.dispose();
   } finally {Date.now = clock; h.controller.dispose();}
 });
 
@@ -638,4 +642,19 @@ test('a rebuilt Home with a spotlight whose title is also a row card registers b
   assert.deepEqual(await menuFor(lit), await menuFor(plain), 'the card\'s hold menu offers what it did without a spotlight');
   // The hero keeps its own Play and My List.
   assert.deepEqual([lit.spotlight[0]!.entry.homeActions?.play, lit.spotlight[0]!.entry.homeActions?.myList], [true, true]);
+});
+
+test('Favorite on a selected Home channel (selection bar, More) saves that channel\'s marks on the rebuilt server', async () => {
+  const writes: unknown[] = [];
+  const h = harness(undefined, async (path, method, body) => {writes.push([method, path, body]); return {favorite: true, hidden: false} as never;}), clock = Date.now, channel = liveChannel();
+  const now = Date.parse('2026-10-22T12:00:00Z'); Date.now = () => now;
+  try {
+    const live = {revision: 'live-1', observedAt: new Date(now).toISOString(), expiresAt: new Date(now + 60_000).toISOString(), sort: 'favorites' as const, group: '', groups: [], channels: [channel]};
+    h.replace({...h.document, rows: [{...h.document.rows[0], entries: [], live}]});
+    h.controller.registerWindow({id: 'window', row: h.document.rows[0], sectionOrder: 0});
+    h.controller.toggle('window', h.controller.key({kind: 'channel', sourceId: 'source', channelId: 'channel'}));
+    await h.controller.execute('favorite');
+    assert.deepEqual(writes, [['PUT', '/v1/live/channels/channel/state', {favorite: true, hidden: false}]]);
+    assert.deepEqual(h.errors, []);
+  } finally {Date.now = clock; h.controller.dispose();}
 });

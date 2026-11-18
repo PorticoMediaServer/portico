@@ -1,6 +1,6 @@
-import {routeBody} from "../../contracts/src/routes.ts";
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath} from "../../contracts/src/route-paths.ts";
+import {markChannel} from './live-tv.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {GUIDE_RATE_LIMIT_ATTEMPTS, isRateLimited, rateLimitDelay} from './guide/rate-limit.ts';
 import {HOUR_MS, MINUTE_MS, localDayStart, zoneOffset} from './guide/time.ts';
@@ -223,17 +223,10 @@ const serverWideReasons: ReadonlySet<string> = new Set(['delivery-unavailable', 
 export function unavailableIsServerWide(reason: LinearUnavailableReason | string): boolean {
  return serverWideReasons.has(reason);
 }
-/** A retry uses the same request ID and expected revision, never an optimistic local toggle. */
-export async function saveChannelPreference(api: ChannelApi, serverId: string, channel: GuideChannel, requestId: string, values: {favorite: boolean; hidden: boolean}, signal?: AbortSignal): Promise<number> {
- const raw = await api.request<unknown>(channel.provenance === 'live-source' ? routePath("post_channels_preferences") : routePath("post_library_channels_preferences"), 'POST', routeBody("post_channels_preferences", {requestId, sourceId: channel.sourceId, channelId: channel.id, expectedRevision: channel.preferenceRevision, ...values}), signal);
- if (!object(raw) || raw.protocolVersion !== GUIDE_PROTOCOL || raw.serverId !== serverId || !Number.isSafeInteger(raw.revision) || Number(raw.revision) <= channel.preferenceRevision) invalid();
- return Number(raw.revision);
-}
-/** Native's secure UUID generator supplies the same 192-bit-shaped operation key as web. */
-export async function channelOperationId(uuid: () => Promise<string>): Promise<string> {
- const values = [await uuid(), await uuid()];
- if (values.some(v => !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(v))) throw new Error('Could not create an operation identifier.');
- return values.map(v => v.replace(/-/g, '').toLowerCase()).join('').slice(0, 48);
+/** Favourite or hide one channel for this profile (`PUT /v1/live/channels/{id}/state`), as the Live TV screen does. The
+ * same marks sent again land the same, so a retry needs no operation id or revision. */
+export async function saveChannelPreference(api: ChannelApi, channel: GuideChannel, values: {favorite: boolean; hidden: boolean}, signal?: AbortSignal): Promise<void> {
+ await markChannel(api, channel.id, values, signal);
 }
 export class ChannelGuideService{
  private snapshot:GuideSnapshot={phase:'idle',guide:null,route:null,error:null,hasPrevious:false};private listeners=new Set<()=>void>();private epoch=0;private disposed=false;private request:AbortController|null=null;private pages=[''];/** One re-read of the window's first page after a refused cursor, until a continuation answers. */private reread=false;

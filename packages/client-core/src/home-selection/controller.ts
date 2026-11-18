@@ -6,7 +6,7 @@ import {homeChannelSelection, homeCollectionCapabilities, homeCollectionSelectio
 import {entryActions, type EntryActionId} from '../presentation/entry-actions.ts';
 import type {HomeDocument, HomeEntry, HomeRow, HomeSpotlight} from '../home.ts';
 import {DetailService} from '../detail.ts';
-import {channelOperationId, saveChannelPreference} from '../channel-guide.ts';
+import {saveChannelPreference} from '../channel-guide.ts';
 import {getContainerState, setContainerFlag, setContainerState, containerKinds, type ContainerKind} from '../container-state.ts';
 import {deletionAllowed} from '../administration.ts';
 import {deleteCatalogueTitles, readCatalogueDeletion} from '../query/catalogue-actions.ts';
@@ -384,8 +384,8 @@ export class HomeSelectionController {
           if (identity.kind !== 'channel') {jobKeys.add(this.key(identity)); continue;}
           if (identity.kind === 'channel') {
             if (action !== 'favorite' || !member.channel) throw selectionExecutionError('channel-action-unavailable');
-            const channel = member.channel, requestId = await channelOperationId(this.options.requestId); this.check(ticket);
-            this.personalCommands.push({done: false, run: async () => {await saveChannelPreference(this.options.api, ticket.context.scope.serverId, channel.channel, requestId, {favorite: true, hidden: channel.channel.hidden}, ticket.controller.signal);}});
+            const channel = member.channel;
+            this.personalCommands.push({done: false, run: async () => {await saveChannelPreference(this.options.api, channel.channel, {favorite: true, hidden: channel.channel.hidden}, ticket.controller.signal);}});
           }
         }
         if (ticket.target.mode !== 'explicit') throw selectionExecutionError('home-explicit-selection-required');
@@ -511,9 +511,8 @@ export class HomeSelectionController {
     if (mapped[action]) return this.executeTarget(ticket, mapped[action]!, action === 'playFromStart' ? 'start-over' : action === 'resume' ? 'resume' : undefined);
     await this.guarded(ticket, action, async () => {
       if (member.channel && action === 'favorite') {
-        const requestId = await channelOperationId(this.options.requestId); this.check(ticket);
         const channel = member.channel;
-        const run = async () => {await saveChannelPreference(this.options.api, ticket.context.scope.serverId, channel.channel, requestId, {favorite: !channel.channel.favorite, hidden: channel.channel.hidden}, ticket.controller.signal);};
+        const run = async () => {await saveChannelPreference(this.options.api, channel.channel, {favorite: !channel.channel.favorite, hidden: channel.channel.hidden}, ticket.controller.signal);};
         this.retry = () => this.guarded(ticket, action, run); await run(); return;
       }
       if (!member.entry || member.item.kind === 'channel' || member.item.kind === 'person') throw selectionExecutionError('personal-action-unavailable');
