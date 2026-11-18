@@ -2616,10 +2616,6 @@
   --frame-player-portrait-bottom: 8px;
   --frame-player-portrait-time-inset: 14px;
   --frame-player-portrait-scrubber: 3px;
-  --frame-player-portrait-control: 46px;
-  --frame-player-portrait-control-icon: 24px;
-  --frame-player-portrait-primary: 58px;
-  --frame-player-portrait-primary-icon: 26px;
   --frame-title-credits-gap: 6px;
   --frame-player-prompt-gap: 10px;
   --frame-player-upright-primary: 58px;
@@ -2664,7 +2660,6 @@
   --frame-audio-wide-row-label: 132px;
   --frame-audio-wide-panel-radius: 20px;
   --frame-audio-wide-panel-inset: 0px;
-  --frame-audio-wide-tabs: 38px;
   --frame-audio-wide-row: 60px;
   --frame-audio-wide-row-art: 44px;
   --frame-audio-wide-row-art-radius: 6px;
@@ -2732,7 +2727,6 @@
   --frame-audio-transport: 80px;
   --frame-audio-next-line: 22px;
   --frame-audio-bottom-row: 64px;
-  --frame-audio-controls: 0px;
   --frame-audio-up-next: 0px;
   --frame-audio-gap: 24px;
   --frame-state-row-tile: 30px;
@@ -3648,7 +3642,6 @@
   --frame-audio-wide-row-label: 132px;
   --frame-audio-wide-panel-radius: 20px;
   --frame-audio-wide-panel-inset: 20px;
-  --frame-audio-wide-tabs: 38px;
   --frame-audio-wide-row: 60px;
   --frame-audio-wide-row-art: 44px;
   --frame-audio-wide-row-art-radius: 6px;
@@ -3716,7 +3709,6 @@
   --frame-audio-transport: 80px;
   --frame-audio-next-line: 22px;
   --frame-audio-bottom-row: 64px;
-  --frame-audio-controls: 0px;
   --frame-audio-up-next: 366px;
   --frame-audio-gap: 20px;
   --frame-state-row-tile: 30px;
@@ -4633,7 +4625,6 @@
   --frame-audio-wide-row-label: 132px;
   --frame-audio-wide-panel-radius: 20px;
   --frame-audio-wide-panel-inset: 32px;
-  --frame-audio-wide-tabs: 38px;
   --frame-audio-wide-row: 60px;
   --frame-audio-wide-row-art: 44px;
   --frame-audio-wide-row-art-radius: 6px;
@@ -4701,7 +4692,6 @@
   --frame-audio-transport: 80px;
   --frame-audio-next-line: 22px;
   --frame-audio-bottom-row: 64px;
-  --frame-audio-controls: 0px;
   --frame-audio-up-next: 452px;
   --frame-audio-gap: 32px;
   --frame-state-row-tile: 30px;
@@ -5617,7 +5607,6 @@
   --frame-audio-wide-row-label: 132px;
   --frame-audio-wide-panel-radius: 20px;
   --frame-audio-wide-panel-inset: 0px;
-  --frame-audio-wide-tabs: 38px;
   --frame-audio-wide-row: 60px;
   --frame-audio-wide-row-art: 44px;
   --frame-audio-wide-row-art-radius: 6px;
@@ -5685,7 +5674,6 @@
   --frame-audio-transport: 120px;
   --frame-audio-next-line: 32px;
   --frame-audio-bottom-row: 90px;
-  --frame-audio-controls: 540px;
   --frame-audio-up-next: 384px;
   --frame-audio-gap: 80px;
   --frame-state-row-tile: 40px;

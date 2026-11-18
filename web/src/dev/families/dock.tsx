@@ -21,7 +21,6 @@ const f = (id: keyof typeof dockFixtureMessages) => formatMessage(dockFixtureMes
 const scope = {serverId: 'private-design', authority: 'local' as const, accountId: 'reference', profileId: 'reference', controllerId: 'gallery', controllerEpoch: 'launch', commandLaneId: 'dock'};
 type FixtureKind = DockPlayback['kind'];
 type Variant = 'default' | 'paused' | 'finished' | 'ask' | 'auto' | 'next' | 'long' | 'notice-audio' | 'notice-video' | 'restored' | 'film';
-export type DockGalleryOptions = Options;
 type Options = {kind?: FixtureKind; layout?: DockLayout; variant?: Variant; remote?: RemoteDock['phase']; remoteKind?: RemoteDock['kind']; expanded?: boolean; web?: boolean; reduced?: boolean; morph?: boolean};
 type DockEvidence = {videoSource?: string; artwork?: ArtworkSource; ambient?: AmbientArtSource};
 declare global { var __porticoDockEvidence: DockEvidence | undefined; }

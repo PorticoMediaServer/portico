@@ -48,8 +48,6 @@ export type AudioPlayerFrameProps = Readonly<{
   scrubber: ReactNode; times: AudioTimes;
   /** Five fixed slots; the middle one is Play or Pause. Music's ends are shuffle and repeat (the secondary class). */
   transport: readonly [AudioControl, AudioControl, AudioControl, AudioControl, AudioControl];
-  /** The web's volume, under the transport. */
-  volume?: ReactNode;
   /** A phone only: what plays next ("Next" / "Scared To Live"). Its line is kept, blank, when there is nothing to say. */
   next?: Readonly<{label: string; title: string}>;
   /** Lyrics and Up next: the bottom row's ends on a phone, the pill row on an upright tablet. The panel's tabs on the
@@ -76,7 +74,7 @@ const spec = frameSpec.audio, wideSpec = spec.wide, icons = spec.icons, tvSpec =
  * - A phone (phone-app 14 and 15) is one column: the bar, the artwork, the title, the scrubber and transport, then
  *   the next line and the bottom row; what is left of the height is shared under the transport and under the next line.
  * - A tablet and the web (desktop-listen "now", tablet-play 9 and 10) put a column as wide as the cover (title with the
- *   heart and More, the scrubber with its times at its ends, a compact transport, volume or the pill row) beside a
+ *   heart and More, the scrubber with its times at its ends, a compact transport, the pill row) beside a
  *   raised queue panel, under a bar with Close, the context, the device and More. An audiobook (book-player,
  *   tablet-play 12) has its cover beside its title, the chapter line, a book-long scrubber, and Speed and Sleep timer rows.
  * - TV (final3-tv-12): the cover, then the title column at the mock-up's places, then the queue to the safe edge. */
@@ -102,9 +100,10 @@ function Transport({transport, loading, gap}: {transport: AudioPlayerFrameProps[
 
 function Context({context, source, loading, centred}: {context?: string; source?: string; loading: boolean; centred: boolean}) {
   const theme = useTheme();
-  return <View style={{flex: 1, minWidth: 0, alignItems: centred ? 'center' : 'flex-start', flexDirection: centred ? 'column' : 'row', gap: centred ? 0 : theme.space.tight}}>
-    <Text numberOfLines={1} style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{loading ? '' : context}</Text>
-    {source !== undefined && !loading && <Text numberOfLines={1} style={[centred ? theme.type.rowLabel : theme.type.rowHelp, {flexShrink: 1, color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{source}</Text>}
+  // Rule 10: "Playing from" and its source wrap to another line; nothing is cut.
+  return <View style={{flex: 1, minWidth: 0, alignItems: centred ? 'center' : 'flex-start', flexDirection: centred ? 'column' : 'row', flexWrap: centred ? undefined : 'wrap', columnGap: theme.space.tight}}>
+    <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary, textAlign: centred ? 'center' : undefined}]}>{loading ? '' : context}</Text>
+    {source !== undefined && !loading && <Text style={[centred ? theme.type.rowLabel : theme.type.rowHelp, {flexShrink: 1, color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily, textAlign: centred ? 'center' : undefined}]}>{source}</Text>}
   </View>;
 }
 
@@ -186,7 +185,7 @@ function PhoneAudio({close, more, context, source, device, artwork, icon, title,
   </View>;
 }
 
-function WideAudio({close, more, context, source, device, notice, artwork, icon, title, badge, byline = [], favourite, titleMore, chapter, scrubber, times, transport, volume, lyrics, queue, speed, sleep, panel, loading = false, testID}: AudioPlayerFrameProps) {
+function WideAudio({close, more, context, source, device, notice, artwork, icon, title, badge, byline = [], favourite, titleMore, chapter, scrubber, times, transport, lyrics, queue, speed, sleep, panel, loading = false, testID}: AudioPlayerFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), form = frame.form === 'medium' ? 'medium' as const : 'expanded' as const;
   // An upright tablet (tablet-play 10) keeps the device with Lyrics and Up next in a pill row under the transport; a tablet on its side and the web put it at the top right.
   const upright = window.height > window.width, book = chapter !== undefined, edge = wideSpec.panelInset[form], panelWidth = panel !== undefined ? spec.upNextWidth[form] : 0;
@@ -222,7 +221,7 @@ function WideAudio({close, more, context, source, device, notice, artwork, icon,
     {chapter && <View style={{marginTop: wideSpec.chapterGap}}><ChapterLine chapter={chapter} loading={loading} wide/></View>}
     <View style={{marginTop: chapter ? theme.space.xs : wideSpec.scrubberGap[form]}}><Times times={times} loading={loading} ends={scrubber}/></View>
     <View style={{marginTop: wideSpec.transportGap[form]}}><Transport transport={transport} loading={loading} gap={wideSpec.transportSpacing[form]}/></View>
-    {(volume || pills || options) && <View style={{marginTop: book ? wideSpec.rowsGap : wideSpec.belowGap[form], gap: wideSpec.belowGap[form]}}>{options}{pills}{volume !== undefined && <View style={{alignItems: 'center'}}>{volume}</View>}</View>}
+    {(pills || options) && <View style={{marginTop: book ? wideSpec.rowsGap : wideSpec.belowGap[form], gap: wideSpec.belowGap[form]}}>{options}{pills}</View>}
   </View>;
   return <View testID={testID} style={{flex: 1, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, edge)}}>
     {top}

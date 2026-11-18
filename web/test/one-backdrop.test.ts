@@ -17,8 +17,10 @@ const COVERS: Record<string, string> = {
   'screens/dashboard/phone.tsx': 'the owner dashboard as a whole phone page',
   'dev/entries/live-player.tsx': 'the live player specimen, standing in for a picture',
   'dev/families/artwork.tsx': 'the Kit gallery case that shows the backdrop',
+  'dev/families/frames-player.tsx': 'the player frames gallery standing in for the players\' layer (black, or the audio glow)',
 };
-const GLOW = ['kit/artwork/AmbientArt.tsx', 'kit/artwork/artwork-glow.module.css', 'kit/artwork/index.ts', 'screens/watch/music/NowPlaying.tsx', 'screens/watch/listening/AudiobookListening.tsx'];
+// The player frames gallery draws the kit's own glow as the audio player's layer (desk r1 6: no inline copy).
+const GLOW = ['dev/families/frames-player.tsx', 'kit/artwork/AmbientArt.tsx', 'kit/artwork/artwork-glow.module.css', 'kit/artwork/index.ts', 'screens/watch/music/NowPlaying.tsx', 'screens/watch/listening/AudiobookListening.tsx'];
 
 function sources(dir = ''): string[] {
   return readdirSync(new URL(dir, root), {withFileTypes: true}).flatMap(entry => entry.isDirectory() ? sources(`${dir}${entry.name}/`)
