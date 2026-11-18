@@ -17108,7 +17108,7 @@
         ],
         "x-access": "owner",
         "x-audience": "Integrations",
-        "x-scope": "library"
+        "x-scope": "admin"
       }
     },
     "/v1/admin/items/deletion": {
@@ -17203,7 +17203,7 @@
         ],
         "x-access": "owner",
         "x-audience": "Integrations",
-        "x-scope": "library"
+        "x-scope": "admin"
       }
     },
     "/v1/admin/items/{id}/artwork": {
@@ -22698,7 +22698,7 @@
         ],
         "x-access": "owner",
         "x-audience": "Integrations",
-        "x-scope": "library"
+        "x-scope": "admin"
       }
     },
     "/v1/admin/versions/{id}/deletion": {

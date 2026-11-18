@@ -126,7 +126,7 @@ const (
 	ScopeRead Scope = "read"
 	// ScopePlayback: play, and change the account's own watch state and lists.
 	ScopePlayback Scope = "playback"
-	// ScopeLibrary: scan, match, edit and delete what is in the libraries.
+	// ScopeLibrary: scan, match and edit what is in the libraries. Deleting files is ScopeAdmin.
 	ScopeLibrary Scope = "library"
 	// ScopeAdmin: everything else the account behind the key may administer.
 	ScopeAdmin Scope = "admin"

@@ -46,7 +46,7 @@ type SelectionDeleted struct {
 
 func (s *Server) selectionRoutes() {
 	Handle(s, "POST /v1/admin/items/deletion", Owner, s.previewSelectionDeletion)
-	Handle(s, "POST /v1/admin/items/delete", Owner, s.deleteSelection).with(ScopeLibrary).Confirm = "Type the number of selected titles from the deletion preview."
+	Handle(s, "POST /v1/admin/items/delete", Owner, s.deleteSelection).Confirm = "Type the number of selected titles from the deletion preview."
 }
 
 // selection gathers what deleting each selected title would take. It refuses a selection

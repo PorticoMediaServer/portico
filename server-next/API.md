@@ -637,7 +637,7 @@ A source is `webdav` (an address, user and password), `rclone` (one remote paste
 
 ### Libraries, scans and files (15 so far)
 
-Only the owner. A key made for a tool needs the `library` scope to scan and delete.
+Only the owner. A key made for a tool needs the `library` scope to scan, and the `admin` scope to delete files.
 
 | Route | Purpose |
 |---|---|
