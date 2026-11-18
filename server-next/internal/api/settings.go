@@ -66,6 +66,10 @@ func (s *Server) settingsRoutes() {
 			return SettingsDocument{}, ErrInvalid("Send the settings to change.")
 		}
 		if CallerFrom(r.Context()).SessionID == 0 {
+			// No key changes the sign-in settings: one that leaked could turn required two-step off.
+			if r.PathValue("name") == "sign-in" {
+				return SettingsDocument{}, refusal(http.StatusForbidden, "session_required", "A key cannot change the sign-in settings: sign in as a person to do this.", false)
+			}
 			var fields map[string]json.RawMessage
 			_ = json.Unmarshal(change, &fields)
 			for _, field := range personOnly[r.PathValue("name")] {
