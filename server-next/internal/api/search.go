@@ -3,9 +3,12 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/searchtext"
 )
 
 // The shapes and routes of search. A search matches whole words and the beginnings of words
@@ -15,6 +18,16 @@ import (
 // SearchResults is the answer of GET /v1/search: the groups in the order to show them.
 type SearchResults struct {
 	Groups []SearchGroup `json:"groups"`
+	// TopResult is the one result to show above the groups, when every kind is asked for and
+	// one title clearly is what was typed. It is one of the results in Groups.
+	TopResult *SearchTopResult `json:"topResult,omitempty"`
+}
+
+// SearchTopResult is a movie, show, artist, album or audiobook (Item) or a person (Person).
+type SearchTopResult struct {
+	Kind   string  `json:"kind"`
+	Item   *Item   `json:"item,omitempty"`
+	Person *Person `json:"person,omitempty"`
 }
 
 // SearchGroup is the results of one kind: "movie", "show", "episode", "person", "artist",
@@ -152,6 +165,9 @@ func (s *Server) searchRoutes() {
 				out.Groups = append(out.Groups, group)
 			}
 		}
+		if q.Kind == "" {
+			out.TopResult = topResult(q.Text, out.Groups)
+		}
 		return out, nil
 	})
 	// The few best titles and names for what has been typed so far (q), matching in the
@@ -183,6 +199,49 @@ func (s *Server) searchRoutes() {
 	Handle(s, "DELETE /v1/search/history", WithProfile, func(r *http.Request, _ None) (None, error) {
 		return None{}, s.db.ForgetSearches(r.Context(), viewer(r), r.URL.Query().Get("query"))
 	})
+}
+
+// topKinds are the kinds a Top result can be: things with a page of their own.
+var topKinds = map[string]bool{"movie": true, "show": true, "artist": true, "album": true, "audiobook": true, "person": true}
+
+// topResult picks, from the results already found for this profile, the one title that equals
+// what was typed or, from three characters, the only one that begins with those whole words.
+// Two candidates give none: a block that guesses wrong is worse than none.
+func topResult(typed string, groups []SearchGroup) *SearchTopResult {
+	plain := func(text string) string {
+		words, _ := searchtext.Words(text)
+		return strings.Join(words, " ")
+	}
+	words := plain(typed)
+	if utf8.RuneCountInString(words) < 2 {
+		return nil
+	}
+	var exact, starts []*SearchTopResult
+	consider := func(title string, found *SearchTopResult) {
+		if title = plain(title); title == words {
+			exact = append(exact, found)
+		} else if utf8.RuneCountInString(words) >= 3 && strings.HasPrefix(title, words+" ") {
+			starts = append(starts, found)
+		}
+	}
+	for _, g := range groups {
+		if !topKinds[g.Kind] {
+			continue
+		}
+		for n := range g.Items {
+			consider(g.Items[n].Title, &SearchTopResult{Kind: g.Kind, Item: &g.Items[n]})
+		}
+		for n := range g.People {
+			consider(g.People[n].Name, &SearchTopResult{Kind: g.Kind, Person: &g.People[n]})
+		}
+	}
+	switch {
+	case len(exact) == 1:
+		return exact[0]
+	case len(exact) == 0 && len(starts) == 1:
+		return starts[0]
+	}
+	return nil
 }
 
 func refShape(above map[string]db.ItemRef, id string) *ItemRef {

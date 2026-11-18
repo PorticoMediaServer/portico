@@ -68,6 +68,14 @@ func TestSearch(t *testing.T) {
 		t.Fatalf("the limited profile was shown %v (%d of %d)", fewer, fewerTotal, total)
 	}
 
+	// The film named exactly is the Top result for a profile that may see it, never for one that may not.
+	if top := get[SearchResults](t, s, token, search).TopResult; top == nil || top.Item == nil || top.Item.ID != hidden.ID {
+		t.Fatalf("the Top result for %q: %+v", hidden.Title, top)
+	}
+	if top := get[SearchResults](t, s, limited, search).TopResult; top != nil && top.Item != nil && top.Item.ID == hidden.ID {
+		t.Fatal("the limited profile's Top result is a film it may not see")
+	}
+
 	// One kind, a result at a time, to its end; an episode says which show it is from.
 	word := strings.Fields(hidden.Title)[0]
 	page := "/v1/search?kind=episode&limit=1&q=" + url.QueryEscape(word[:2])
@@ -129,6 +137,48 @@ func TestSearch(t *testing.T) {
 	} {
 		if w := call(t, s, "GET", c.path, c.token, nil, nil); w.Code != c.status {
 			t.Errorf("GET %s answered %d, want %d: %s", c.path, w.Code, c.status, w.Body)
+		}
+	}
+}
+
+// The Top result is the one title equal to what was typed or, from three characters, the only
+// one beginning with those whole words; two candidates, or a kind without a page, give none.
+func TestSearchTopResult(t *testing.T) {
+	groups := func(movies []string, people ...string) []SearchGroup {
+		g := []SearchGroup{{Kind: "movie"}, {Kind: "episode", Items: []Item{{ID: "e", Title: "Alien"}}}, {Kind: "person"}}
+		for _, title := range movies {
+			g[0].Items = append(g[0].Items, Item{ID: title, Title: title})
+		}
+		for _, name := range people {
+			g[2].People = append(g[2].People, Person{ID: name, Name: name})
+		}
+		return g
+	}
+	for _, c := range []struct {
+		typed  string
+		groups []SearchGroup
+		want   string
+	}{
+		{"the last of us", groups([]string{"The Last of Us Part II", "The Last of Us"}), "The Last of Us"},
+		{"Amélie", groups([]string{"Amelie!"}), "Amelie!"},
+		{"spider man", groups([]string{"Spider-Man: Homecoming"}), "Spider-Man: Homecoming"},
+		{"spi", groups([]string{"Spider-Man: Homecoming"}), ""},
+		{"al", groups([]string{"Al Pacino Story"}), ""},
+		{"alien", groups(nil), ""},
+		{"alien", groups([]string{"Alien"}, "Alien"), ""},
+		{"alien", groups([]string{"Aliens", "Alien Covenant", "Alien Resurrection"}), ""},
+		{"alien", groups([]string{"Alien Covenant"}), "Alien Covenant"},
+		{"tom hanks", groups([]string{"Tom Hanks Sings"}, "Tom Hanks"), "Tom Hanks"},
+		{"m", groups([]string{"M"}), ""},
+	} {
+		got := ""
+		if top := topResult(c.typed, c.groups); top != nil && top.Item != nil {
+			got = top.Item.Title
+		} else if top != nil {
+			got = top.Person.Name
+		}
+		if got != c.want {
+			t.Errorf("typing %q: Top result %q, want %q", c.typed, got, c.want)
 		}
 	}
 }

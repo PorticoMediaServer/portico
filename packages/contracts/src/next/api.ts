@@ -3840,6 +3840,7 @@ export interface SearchHistoryEntry {
 
 export interface SearchResults {
   groups: SearchGroup[];
+  topResult?: SearchTopResult;
 }
 
 export interface SearchSuggestion {
@@ -3850,6 +3851,12 @@ export interface SearchSuggestion {
 
 export interface SearchSuggestions {
   items: SearchSuggestion[];
+}
+
+export interface SearchTopResult {
+  kind: string;
+  item?: Item;
+  person?: Person;
 }
 
 export interface SegmentApprove {
