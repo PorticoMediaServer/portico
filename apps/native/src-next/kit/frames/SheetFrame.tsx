@@ -9,7 +9,6 @@ import {TopBar, type TopBarBack} from '../layout/TopBar';
 import {BottomSheet} from '../overlays/BottomSheet';
 import {Popover} from '../overlays/Menu';
 import {Dialog, OverlayFootRow} from '../overlays/surface';
-export {OverlayFootRow};
 import type {OverlayReason} from '../overlays/types';
 import {StartFocusScope} from '../focus';
 import {useTheme} from '../theme';

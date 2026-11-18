@@ -7,7 +7,8 @@ import {colors, profileArtColors, spacing, spacingGrid, radii, platformRadii, mo
 export const tokenCssPath = fileURLToPath(new URL('../../../web/src/kit/tokens.css', import.meta.url));
 const kebab = value => value.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase());
 const rem = px => `${Number((px / 16).toFixed(6))}rem`;
-const px = value => `${value}px`;
+// A length is a finite number; anything else is a fault in a table, so the script stops instead of writing `[object Object]px`.
+const px = value => {if (!Number.isFinite(value)) throw new Error(`tokens.mjs: not a length: ${JSON.stringify(value)}`); return `${value}px`;};
 const ms = value => `${value}ms`;
 const scalar = value => String(value);
 const rgba = (color, alpha) => `rgba(${[1, 3, 5].map(i => parseInt(colors[color].slice(i, i + 2), 16)).join(', ')}, ${alpha})`;
@@ -96,9 +97,10 @@ function frameTokens(form, web) {
     `--frame-hero-${name}-copy-bottom: ${px(pick(value.copyBottom))}`,
     `--frame-hero-${name}-synopsis-lines: ${value.synopsisLines[form]}`,
   ];
-  // The audio player's wide forms, its icon classes and the video transport's (R4 and R6), each leaf a number or a per-form table.
+  // The audio player's wide forms, its icon classes and the video transport's (R4 and R6): a number, or a per-form table of
+  // numbers. Anything else (the transport's `upright` block, read by native only) has no web token.
   const nested = (prefix, object) => Object.entries(object).flatMap(([key, value]) => typeof value === 'number' ? [`--${prefix}-${kebab(key)}: ${px(value)}`]
-    : value && typeof value === 'object' && form in value ? [`--${prefix}-${kebab(key)}: ${px(pick(value))}`] : []);
+    : value && typeof value === 'object' && typeof pick(value) === 'number' ? [`--${prefix}-${kebab(key)}: ${px(pick(value))}`] : []);
   return [
     ...nested('frame-audio-wide', f.audio.wide), ...nested('frame-audio-icon', f.audio.icons), ...nested('frame-player-transport', f.player.transport),
     `--frame-player-track: ${px(f.player.track[form])}`, `--frame-player-panel-width: ${px(f.player.panel.width[form])}`, `--frame-player-knob: ${px(pick(f.player.knob))}`, `--frame-player-knob-held: ${px(f.player.knobHeld[form])}`,
