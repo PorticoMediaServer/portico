@@ -12,7 +12,7 @@ import (
 // tried from the video. They are the episodes a picture is made for (definition area 4, rule
 // 46: "Provider, then made").
 func (d *DB) EpisodesWithoutPicture(ctx context.Context, library string, after int64) ([]SegmentEntry, error) {
-	return d.segmentEntries(ctx, ` AND i.kind=? AND l.public_id=? AND m.id>? AND m.video_codec IS NOT NULL
+	return d.segmentWalk(ctx, ` AND i.kind=? AND l.public_id=? AND m.id>? AND m.video_codec IS NOT NULL
  AND NOT EXISTS (SELECT 1 FROM images x WHERE x.item_id=i.id AND x.role=?) ORDER BY m.id LIMIT 25`,
 		KindEpisode, library, after, ImageThumb)
 }

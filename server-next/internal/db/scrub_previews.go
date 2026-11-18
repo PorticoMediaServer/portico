@@ -16,7 +16,7 @@ type ScrubPreview struct {
 
 // ScrubPreviewEntries reads only video sources not yet tried in their current form.
 func (d *DB) ScrubPreviewEntries(ctx context.Context, library string, after int64) ([]SegmentEntry, error) {
-	return d.segmentEntries(ctx, ` AND l.public_id=? AND m.id>? AND m.video_codec IS NOT NULL
+	return d.segmentWalk(ctx, ` AND l.public_id=? AND m.id>? AND m.video_codec IS NOT NULL
  AND (lp.remote_source_id IS NULL OR EXISTS (SELECT 1 FROM remote_sources rs WHERE rs.id=lp.remote_source_id AND json_extract(rs.config,'$.preset')='everything'))
  AND NOT EXISTS (SELECT 1 FROM scrub_previews sp WHERE sp.media_id=m.id AND sp.source_key=`+segmentSourceKey+`)
  ORDER BY m.id LIMIT 25`, library, after)

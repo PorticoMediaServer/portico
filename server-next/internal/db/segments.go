@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -34,13 +35,22 @@ const segmentJoins = ` FROM media m JOIN items i ON i.id=m.item_id JOIN librarie
  LEFT JOIN segment_analysis a ON a.media_id=m.id `
 const segmentTop = `coalesce(g.public_id,p.public_id,i.public_id)`
 
+// segmentWalkJoins are segmentJoins for a walk through a whole library a page at a time, by
+// version id: CROSS JOIN makes SQLite read versions in id order from the cursor and stop at
+// the page's end. Joined as segmentJoins are, it would read and sort every title of the
+// library for every page, so a walk over 180,000 episodes cost half an hour of a processor.
+var segmentWalkJoins = strings.Replace(segmentJoins, " JOIN items i ON", " CROSS JOIN items i ON", 1)
+
 // SegmentEntries pages by version ID, also when one show contains many episodes.
 func (d *DB) SegmentEntries(ctx context.Context, library, title string, after int64, limit int) ([]SegmentEntry, error) {
 	if limit < 1 || limit > 4096 {
 		return nil, ErrInvalid
 	}
-	return d.segmentEntries(ctx, ` AND l.public_id=? AND (?='' OR `+segmentTop+`=?) AND m.id>? ORDER BY m.id LIMIT ?`,
-		library, title, title, after, limit)
+	if title == "" {
+		return d.segmentWalk(ctx, ` AND l.public_id=? AND m.id>? ORDER BY m.id LIMIT ?`, library, after, limit)
+	}
+	return d.segmentEntries(ctx, ` AND l.public_id=? AND `+segmentTop+`=? AND m.id>? ORDER BY m.id LIMIT ?`,
+		library, title, after, limit)
 }
 
 func (d *DB) SegmentNeighbours(ctx context.Context, e SegmentEntry, mode string) ([]SegmentEntry, error) {
@@ -50,20 +60,22 @@ func (d *DB) SegmentNeighbours(ctx context.Context, e SegmentEntry, mode string)
 }
 
 func (d *DB) segmentEntries(ctx context.Context, where string, args ...any) ([]SegmentEntry, error) {
+	return d.segmentQuery(ctx, segmentJoins, where, args...)
+}
+
+// segmentWalk is segmentEntries for a walk through a library by version id (segmentWalkJoins).
+func (d *DB) segmentWalk(ctx context.Context, where string, args ...any) ([]SegmentEntry, error) {
+	return d.segmentQuery(ctx, segmentWalkJoins, where, args...)
+}
+
+func (d *DB) segmentQuery(ctx context.Context, joins, where string, args ...any) ([]SegmentEntry, error) {
 	args = append([]any{KindMovie, KindSeason, KindMovie, KindEpisode}, args...)
 	tx, err := d.read.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
-	return queryAll(ctx, tx, `SELECT m.id,f.id,f.size,f.modified_ns,ifnull(m.duration_ms,0),ifnull(mp.start_ms,0),ifnull(mp.end_ms,0),
- ifnull(lp.remote_source_id,0),i.public_id,i.title,CASE WHEN i.kind=? THEN 'movie' ELSE 'episode' END,`+segmentTop+`,
- coalesce(g.title,p.title,i.title),l.public_id,lp.path,dir.rel_path || CASE WHEN dir.rel_path='' THEN '' ELSE '/' END || f.name,
- CASE WHEN p.kind=? THEN ifnull(p.index_number,-1) ELSE -1 END,ifnull(i.index_number,0),
- (SELECT count(*) FROM media_parts WHERE media_id=m.id),m.video_codec IS NOT NULL,m.audio_codec IS NOT NULL,
- ifnull(m.width,0),ifnull(m.height,0),ifnull(m.hdr,''),ifnull(a.mode,''),ifnull(a.state,'pending'),ifnull(a.problem,''),
- ifnull(a.source_key,''),a.evidence,ifnull(a.revision,0),ifnull(a.updated_at,0),m.public_id,ifnull(m.name,'')`+segmentJoins+`
- WHERE i.kind IN (?,?) AND i.missing_since_at IS NULL AND f.missing_since_at IS NULL`+where, args, func(e *SegmentEntry) []any {
+	return queryAll(ctx, tx, segmentSQL(joins, where), args, func(e *SegmentEntry) []any {
 		return []any{&e.MediaID, &e.FileID, &e.Size, &e.ModifiedNS, &e.DurationMS, &e.StartMS, &e.EndMS, &e.RemoteID, &e.ItemID, &e.Title, &e.Kind,
 			&e.TopID, &e.TopTitle, &e.LibraryID, &e.Root, &e.Relative, &e.Season, &e.Number, &e.Parts, &e.Video, &e.Audio, &e.Width, &e.Height, &e.HDR,
 			&e.Mode, &e.State, &e.Problem, &e.SourceKey, &e.Evidence, &e.Revision, &e.UpdatedAt, &e.VersionID, &e.VersionName}
@@ -158,4 +170,16 @@ func segmentCurrentKey(tx *sql.Tx, e SegmentEntry) (string, error) {
  JOIN files f ON f.id=mp.file_id WHERE m.id=? AND m.item_id=(SELECT id FROM items WHERE public_id=?)
  AND f.missing_since_at IS NULL`, e.MediaID, e.ItemID).Scan(&key)
 	return key, err
+}
+
+// segmentSQL is the one reading of versions for analysis, previews and episode pictures.
+func segmentSQL(joins, where string) string {
+	return `SELECT m.id,f.id,f.size,f.modified_ns,ifnull(m.duration_ms,0),ifnull(mp.start_ms,0),ifnull(mp.end_ms,0),
+ ifnull(lp.remote_source_id,0),i.public_id,i.title,CASE WHEN i.kind=? THEN 'movie' ELSE 'episode' END,` + segmentTop + `,
+ coalesce(g.title,p.title,i.title),l.public_id,lp.path,dir.rel_path || CASE WHEN dir.rel_path='' THEN '' ELSE '/' END || f.name,
+ CASE WHEN p.kind=? THEN ifnull(p.index_number,-1) ELSE -1 END,ifnull(i.index_number,0),
+ (SELECT count(*) FROM media_parts WHERE media_id=m.id),m.video_codec IS NOT NULL,m.audio_codec IS NOT NULL,
+ ifnull(m.width,0),ifnull(m.height,0),ifnull(m.hdr,''),ifnull(a.mode,''),ifnull(a.state,'pending'),ifnull(a.problem,''),
+ ifnull(a.source_key,''),a.evidence,ifnull(a.revision,0),ifnull(a.updated_at,0),m.public_id,ifnull(m.name,'')` + joins + `
+ WHERE i.kind IN (?,?) AND i.missing_since_at IS NULL AND f.missing_since_at IS NULL` + where
 }
