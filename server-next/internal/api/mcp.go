@@ -188,6 +188,7 @@ func (s *Server) mcpTools(r *http.Request, c Caller) []mcp.Tool {
 				return map[string]any{"id": a.ID, "watched": *a.Watched}, toolError(err)
 			}},
 	}
+	tools = append(tools, s.mcpMoreTools(r, c, get, args)...)
 	if compatSeesEveryone(c) {
 		tools = append(tools, mcp.Tool{Name: "server_status", Description: "The server's name, version and how many streams are playing.",
 			InputSchema: mcp.Schema(nil, nil),
