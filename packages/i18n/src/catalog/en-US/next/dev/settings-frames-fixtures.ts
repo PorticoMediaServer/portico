@@ -84,7 +84,6 @@ export const settingsFramesFixtureMessages = {
   'next.settingsFrames.fixture.retryIn': 'Trying again in 26 seconds',
   'next.settingsFrames.fixture.homeAddress': 'Home address',
   'next.settingsFrames.fixture.secureAddress': 'Secure address',
-  'next.settingsFrames.fixture.thisComputer': 'This computer',
   'next.settingsFrames.fixture.noAnswer': 'No answer',
   'next.settingsFrames.fixture.online': 'Online',
   'next.settingsFrames.fixture.ownerHelp': 'The server stopped answering at 4:12 PM. Its last report said it was running normally.',
