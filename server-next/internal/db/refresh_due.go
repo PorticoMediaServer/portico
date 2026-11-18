@@ -19,12 +19,13 @@ const (
 	refreshFilm = 30 * day
 )
 
-// scheduleRefresh sets when a top-level title is next due a refresh, counted from now, and
-// forgets the provider's failures on it: it has just answered.
+// scheduleRefresh sets when a top-level title or an album is next due a refresh, counted from
+// now, and forgets the provider's failures on it: it has just answered. An album is what a music
+// provider is asked about; kind 6 is written out so the items_due index is used.
 func (b *batchTx) scheduleRefresh(itemID, now int64) error {
 	_, err := b.exec(`UPDATE items SET refresh_due = ?2 + CASE WHEN ifnull(extra ->> '$.continuing', 0) OR added_at > ?2 - ?3 THEN ?4
 		WHEN kind = ?5 THEN ?6 ELSE ?7 END, extra = json_remove(extra, '$.providerTries', '$.lookupAfter')
-		WHERE id = ?1 AND parent_id IS NULL`, itemID, now, justAdded, refreshSoon, KindShow, refreshShow, refreshFilm)
+		WHERE id = ?1 AND (parent_id IS NULL OR kind = 6)`, itemID, now, justAdded, refreshSoon, KindShow, refreshShow, refreshFilm)
 	return err
 }
 
@@ -43,7 +44,7 @@ func (d *DB) ProviderFailed(ctx context.Context, itemID int64, now time.Time) er
 	})
 }
 
-// DueForRefresh lists a library's matched top-level titles due a refresh at a time, in the
+// DueForRefresh lists a library's matched top-level titles and albums due a refresh at a time, in the
 // order they fell due, a page at a time: pass the last line of one page to get the next. It
 // reads along the items_due index and nothing that is not due.
 func (d *DB) DueForRefresh(ctx context.Context, libraryID, now int64, after *RefreshItem, limit int) ([]RefreshItem, error) {
@@ -52,7 +53,7 @@ func (d *DB) DueForRefresh(ctx context.Context, libraryID, now int64, after *Ref
 		return nil, err
 	}
 	defer tx.Rollback()
-	where, args := `library_id = ? AND match_state IN (1, 2) AND parent_id IS NULL AND refresh_due <= ?`, []any{libraryID, now}
+	where, args := `library_id = ? AND match_state IN (1, 2) AND (parent_id IS NULL OR kind = 6) AND refresh_due <= ?`, []any{libraryID, now}
 	if after != nil {
 		where += ` AND (refresh_due, id) > (?, ?)`
 		args = append(args, after.Due, after.ID)
@@ -68,12 +69,12 @@ func (d *DB) DueForRefresh(ctx context.Context, libraryID, now int64, after *Ref
 func (d *DB) ScheduleUnscheduled(ctx context.Context, libraryID int64) error {
 	var found bool
 	if err := d.read.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM items WHERE library_id = ? AND match_state IN (1, 2)
-		AND parent_id IS NULL AND refresh_due IS NULL)`, libraryID).Scan(&found); err != nil || !found {
+		AND (parent_id IS NULL OR kind = 6) AND refresh_due IS NULL)`, libraryID).Scan(&found); err != nil || !found {
 		return err
 	}
 	return d.write(ctx, Background, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `UPDATE items SET refresh_due = 0 WHERE library_id = ? AND match_state IN (1, 2)
-			AND parent_id IS NULL AND refresh_due IS NULL`, libraryID)
+			AND (parent_id IS NULL OR kind = 6) AND refresh_due IS NULL`, libraryID)
 		return err
 	})
 }

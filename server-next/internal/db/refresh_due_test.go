@@ -10,14 +10,18 @@ import (
 
 // A matched title falls due a refresh by its kind and age, counted from when it was last
 // refreshed: two days for a title added in the last fourteen or a show still running, fourteen
-// for a show, thirty for a film. Finding what is due reads the items_due index, so it costs
-// what is due and not the library.
+// for a show, thirty for a film or an album (what a music provider is asked about, below its
+// artist). Finding what is due reads the items_due index, so it costs what is due and not the
+// library.
 func TestARefreshFallsDueByKindAndAge(t *testing.T) {
 	l := newLibrary(t, 300)
 	day := 24 * time.Hour
-	var film, show db.Item
+	var film, show, album db.Item
 	for _, lib := range l.libs {
-		for _, it := range everything(t, l.d, l.all, db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{db.KindMovie, db.KindShow}, Limit: 200}) {
+		for _, it := range everything(t, l.d, l.all, db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{db.KindMovie, db.KindShow, db.KindAlbum}, Limit: 200}) {
+			if it.Kind == db.KindAlbum && album.ID == 0 {
+				album = it
+			}
 			if it.Kind == db.KindMovie && film.ID == 0 {
 				film = it
 			}
@@ -75,6 +79,17 @@ func TestARefreshFallsDueByKindAndAge(t *testing.T) {
 	if d := due(show); d != 14*day {
 		t.Errorf("an older show that has ended falls due in %v; want 14 days", d)
 	}
+	// A matched album is refreshed too, as a film is: it used to be matched once and never again.
+	if album.ID == 0 {
+		t.Fatal("the seeded library has no album")
+	}
+	if err := l.d.ExecForTest(ctx, `UPDATE items SET added_at = added_at - ? WHERE id = ?`, (15 * day).Milliseconds(), album.ID); err != nil {
+		t.Fatal(err)
+	}
+	match(album, false)
+	if d := due(album); d != 30*day {
+		t.Errorf("a matched album falls due in %v; want 30 days", d)
+	}
 	// A matched title with no due time, as in a database made before due times were kept, is due at once.
 	if err := l.d.ExecForTest(ctx, `UPDATE items SET refresh_due = NULL WHERE id = ?`, film.ID); err != nil {
 		t.Fatal(err)
@@ -98,7 +113,7 @@ func TestARefreshFallsDueByKindAndAge(t *testing.T) {
 	if page, err := l.d.DueForRefresh(ctx, library, time.Now().UnixMilli(), nil, 100); err != nil || len(page) != 0 {
 		t.Errorf("due now: %v, %v", page, err)
 	}
-	plan, err := db.PlanForTest(l.d, `SELECT id FROM items WHERE library_id = ? AND match_state IN (1, 2) AND parent_id IS NULL AND refresh_due <= ?
+	plan, err := db.PlanForTest(l.d, `SELECT id FROM items WHERE library_id = ? AND match_state IN (1, 2) AND (parent_id IS NULL OR kind = 6) AND refresh_due <= ?
 		ORDER BY refresh_due, id LIMIT 200`, library, time.Now().UnixMilli())
 	if err != nil || !strings.Contains(plan, "items_due") || strings.Contains(plan, "TEMP B-TREE") {
 		t.Errorf("finding what is due does not read the items_due index in order: %q, %v", plan, err)

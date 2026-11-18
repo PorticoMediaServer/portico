@@ -572,3 +572,8 @@ CREATE TABLE tmdb_trending (
   position INTEGER NOT NULL UNIQUE,
   PRIMARY KEY (kind, external_id)
 ) STRICT, WITHOUT ROWID;
+
+-- A library's titles of one kind in id order, ending with rating_age as the other list indexes
+-- do: the run of titles a viewer has no value for under a sort by their own state (their
+-- rating, last play, plays), read in id order and stopped at a page, not sorted whole.
+CREATE INDEX items_by_id ON items (library_id, kind, id, rating_age);
