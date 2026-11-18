@@ -40,6 +40,9 @@ sub init()
     hint.translation = [f.gutter, l.hintY]
     m.state = m.top.findNode("state")
     m.state.observeField("pressed", "load")
+    m.undo = m.top.findNode("undo")
+    m.undo.observeField("pressed", "onUndo")
+    m.removed = invalid   ' what the last Remove took out, while its Undo is offered
     m.items = []
     m.focus = -1          ' -1 the buttons, otherwise a row
     m.list = invalid
@@ -281,7 +284,7 @@ end sub
 sub paint()
     f = frames()
     l = m.l
-    on = (m.focus >= 0 and m.top.isInFocusChain())
+    on = (m.focus >= 0 and m.top.isInFocusChain() and not m.undo.isInFocusChain())     ' Undo holds the ring while it has focus
     m.plate.visible = on
     m.ring.visible = on
     if not on
@@ -327,6 +330,11 @@ function pressKey(key as string) as boolean
 end function
 
 function onKeyEvent(key as string, press as boolean) as boolean
+    if press and m.undo.isInFocusChain()
+        ' any key but OK leaves Undo for the page; the note stays until its time is up
+        focusPage()
+        return true
+    end if
     holdKey(key, press and m.focus >= 0 and (key = "up" or key = "down"))
     if not press or m.state.visible then return false
     if key = "up" or key = "down" then return pressKey(key)
@@ -431,7 +439,12 @@ sub onMenuChosen()
         if what = "go"
             m.top.open = {item: item, play: false}
         else if what = "remove"
-            api("DELETE", "/v1/lists/" + m.list.id + "/entries/" + item.entryId, invalid, "onChanged", {at: m.rowAt, reopen: false}, false, "", "", m.list.revision)
+            ' Undo puts the title back after the entry in front of it; the first goes back after the
+            ' one that followed it and is then moved in front of it (client-core restoreEntry)
+            removed = {itemId: item.id, title: item.title, after: "", before: ""}
+            if m.rowAt > 0 then removed.after = m.items[m.rowAt - 1].entryId
+            if m.rowAt = 0 and m.items.count() > 1 then removed.before = m.items[1].entryId
+            api("DELETE", "/v1/lists/" + m.list.id + "/entries/" + item.entryId, invalid, "onChanged", {at: m.rowAt, reopen: false, removed: removed}, false, "", "", m.list.revision)
         else
             ' Move up: before the row above; Move down: after the row below
             body = {before: m.items[m.rowAt - 1].entryId}
@@ -450,6 +463,12 @@ sub onChanged(event as object)
     result = event.getData()
     ctx = event.getRoSGNode().ctx
     if result.ok and result.data <> invalid and result.data.revision <> invalid then m.list.revision = result.data.revision
+    if result.ok and ctx.removed <> invalid
+        m.removed = ctx.removed
+        m.undo.text = "Removed “" + ctx.removed.title + "” from the " + noun() + "."
+        m.undo.show = true
+        m.offerUndo = true     ' focus goes to Undo once the rows are drawn again
+    end if
     m.focus = ctx.at
     if m.focus >= m.items.count() - 1 and not ctx.reopen then m.focus = m.items.count() - 2
     m.reopen = ctx.reopen
@@ -470,4 +489,58 @@ sub onReread(event as object)
     end if
     paint()
     if m.reopen = true and m.focus >= 0 then rowMenu(m.focus)
+    if m.offerUndo = true
+        m.undo.active = true
+        paint()
+    end if
+    m.offerUndo = false
+end sub
+
+' Undo: the title goes back where it was.
+sub onUndo()
+    removed = m.removed
+    m.removed = invalid
+    if removed = invalid then return
+    body = {items: [removed.itemId]}
+    if removed.after <> "" then body.after = removed.after
+    if removed.before <> "" then body.after = removed.before
+    api("POST", "/v1/lists/" + m.list.id + "/entries", body, "onRestored", removed, false, createObject("roDeviceInfo").getRandomUUID(), "", m.list.revision)
+    focusPage()
+end sub
+
+sub onRestored(event as object)
+    result = event.getData()
+    removed = event.getRoSGNode().ctx
+    if result.ok and result.data.list <> invalid then m.list.revision = result.data.list.revision
+    api("GET", itemsPath(), invalid, "onRestoreRead", removed)
+end sub
+
+' The restored title is read back; one that was first is now second, and moves in front again.
+sub onRestoreRead(event as object)
+    result = event.getData()
+    removed = event.getRoSGNode().ctx
+    if not result.ok then return
+    m.items = result.data.items
+    if removed.before <> "" and m.items.count() > 1 and m.items[0].entryId = removed.before and m.items[1].id = removed.itemId
+        api("PATCH", "/v1/lists/" + m.list.id + "/entries/" + m.items[1].entryId, {before: removed.before}, "onChanged", {at: 0, reopen: false}, false, "", "", m.list.revision)
+        return
+    end if
+    for i = 0 to m.items.count() - 1
+        if m.items[i].id = removed.itemId then m.focus = i
+    end for
+    drawRows()
+    drawWords()
+    focusPage()
+end sub
+
+' Focus back on the page where it was: the row, or the buttons.
+sub focusPage()
+    if m.focus >= 0 and m.items.count() > 0
+        m.rows.setFocus(true)
+    else if m.actions.visible
+        m.actions.active = true
+    else
+        m.top.setFocus(true)
+    end if
+    paint()
 end sub

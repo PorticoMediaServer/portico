@@ -1,12 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- A short note that drops in at the top right and goes by itself, taking no focus: the live
-     player's "Recording scheduled" (tv-player frame 11, below) and a reminder coming due. -->
+     player's "Recording scheduled" (tv-player frame 11, below) and a reminder coming due. With an
+     `action` it carries one button after its words (a list's Undo, collections frame 19): the page
+     gives it focus with `active`, OK sets `pressed`, and any other key goes on to the page. -->
 <component name="Toast" extends="Group">
   <interface>
     <field id="text" type="string" onChange="layout"/>
     <!-- A recording's red dot before the words. -->
     <field id="dot" type="boolean" onChange="layout"/>
     <field id="seconds" type="float" value="4"/>
+    <field id="action" type="string" onChange="layout"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="pressed" type="boolean" alwaysNotify="true"/>
+    <!-- Set true when it goes, by itself or pressed. -->
+    <field id="gone" type="boolean" alwaysNotify="true"/>
     <!-- Set true to show it (again) for `seconds`; false puts it away now. -->
     <field id="show" type="boolean" alwaysNotify="true" onChange="onShow"/>
   </interface>
@@ -17,6 +24,7 @@
       <Poster id="plate" uri="pkg:/images/round-14.9.png" height="64"/>
       <Poster id="mark" uri="pkg:/images/disc.png" width="14" height="14" translation="[24,25]"/>
       <Label id="words" height="64" vertAlign="center"/>
+      <Button id="act" visible="false"/>
     </Group>
     <Timer id="timer"/>
   </children>
