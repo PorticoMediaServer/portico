@@ -4,7 +4,7 @@ import {peopleStreamLimits} from '../src/presentation/settings-bindings.ts';
 import {parseMemberLimits,type AccessMember} from '../src/server-administration.ts';
 import {SettingsPeopleClient} from '../src/settings-people.ts';
 
-const limits=parseMemberLimits({accessTokens:false,maxProfiles:3,allowRemote:false,conversion:'audio',maxStreamsMode:'inherit',maxStreams:0,remoteBitrateKbps:1280,schedule:{timezone:'America/Halifax',windows:[{days:[1,2],startMinute:60,endMinute:120}]},channelPolicy:{mode:'allow',channels:['real-channel']},tagPolicy:{deniedLabels:['real-label']}});
+const limits=parseMemberLimits({accessTokens:false,maxProfiles:3,allowRemote:false,conversion:'audio',maxStreamsMode:'inherit',maxStreams:0,schedule:{timezone:'America/Halifax',windows:[{days:[1,2],startMinute:60,endMinute:120}]},channelPolicy:{mode:'allow',channels:['real-channel']},tagPolicy:{deniedLabels:['real-label']}});
 const person:AccessMember={accountId:'real-person',username:'realperson',profileId:'main-profile',role:'member',disabled:false,revision:8,allowedLibraries:['real-library'],limitsRevision:12,limits,serverMaxStreams:2,effectiveMaxStreams:2};
 
 test('inherit and explicit unlimited retain different choices even with identical zero/count facts',()=>{

@@ -120,14 +120,14 @@ test('authority handover rejects late private data and disposal aborts pending r
 });
 
 test('the account permission boundary preserves false token and away permissions and refuses invented defaults', () => {
-  const limits = {accessTokens: false, maxProfiles: 2, allowRemote: false, conversion: 'none', maxStreams: 1, maxStreamsMode: 'limit', remoteBitrateKbps: 0, allowUnrated: true};
+  const limits = {accessTokens: false, maxProfiles: 2, allowRemote: false, conversion: 'none', maxStreams: 1, maxStreamsMode: 'limit', allowUnrated: true};
   assert.equal(parseMemberLimits(limits).accessTokens, false); assert.equal(parseMemberLimits(limits).allowRemote, false);
   for (const key of ['accessTokens', 'maxProfiles', 'allowRemote', 'conversion', 'maxStreams', 'maxStreamsMode']) {const raw = {...limits} as Record<string, unknown>; delete raw[key]; assert.throws(() => parseMemberLimits(raw));}
 });
 
 test('an account the server holds to limits shows them, and a save names only what changed', async () => {
   const read = {homeOnly: true, viewingHours: {timezone: 'America/Halifax', windows: [{days: [1, 2], startMinute: 960, endMinute: 1260}]}, maxRatingAge: 10, allowUnrated: false,
-    blockedLabels: ['tag-horror'], remoteMaxBitrateKbps: 4000, maxProfiles: 3, allowWatchTogether: true, allowTokens: false};
+    blockedLabels: ['tag-horror'], maxProfiles: 3, allowWatchTogether: true, allowTokens: false};
   // The account's Downloads switch is on the member itself, not among its limits.
   const held = {...member('dee'), allowDownloads: false, limits: read};
   const calls: Call[] = [];
@@ -141,8 +141,9 @@ test('an account the server holds to limits shows them, and a save names only wh
   const rows = (await client.read(query)).items;
   assert.deepEqual(rows.map(row => [row.accountId, row.accountLimits]), [['dee', true], ['eli', false]]);
   const dee = await client.person('dee');
-  assert.deepEqual([dee.limits.allowRemote, dee.limits.maxContentRating, dee.limits.maximumAge, dee.limits.accessTokens, dee.limits.conversion, dee.limits.remoteBitrateKbps, dee.limits.maxProfiles],
-    [false, 'PG', 10, false, 'server', 4000, 3]);
+  assert.deepEqual([dee.limits.allowRemote, dee.limits.maxContentRating, dee.limits.maximumAge, dee.limits.accessTokens, dee.limits.conversion, dee.limits.maxProfiles],
+    [false, 'PG', 10, false, 'server', 3]);
+  assert.equal('remoteBitrateKbps' in dee.limits, false, 'an account keeps no away-from-home quality of its own (owner ruling A5)');
   assert.deepEqual(dee.limits.schedule, read.viewingHours); assert.deepEqual(dee.limits.tagPolicy.deniedLabels, ['tag-horror']);
   calls.length = 0;
   const saved = await client.limits(dee, {...dee.limits, allowRemote: true});

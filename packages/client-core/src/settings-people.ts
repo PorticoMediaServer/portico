@@ -2,7 +2,6 @@ import type {Member, MemberEdit, NowPlayingPage, StreamLimits} from '../../contr
 import type {AccessMember, AccessTier, AccountLimits, MemberLimits, LimitsDocument, StreamLimitMode} from './server-administration.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
 import {CodedError, unreadableServerResponse} from './server-messages.ts';
-import {canonicalQualityLadder} from '../../contracts/src/types.ts';
 
 /** One row of People's table. `revision` and `limitsRevision` are always 1: on the rebuilt server the later save wins.
  * `streamsKnown` is false when this viewer may not read the owner's stream limits (an administrator), so the stream
@@ -31,24 +30,8 @@ const roleOrder: Readonly<Record<AccessTier, number>> = {owner: 0, admin: 1, mem
 
 /** What an account is held to when the server keeps no whole-account limits: nothing but the owner's stream limits. */
 const noAccountLimits: Omit<MemberLimits, 'maxStreams' | 'maxStreamsMode'> = Object.freeze({accessTokens: true, maxProfiles: 0, allowRemote: true, conversion: 'server',
-  remoteBitrateKbps: 0, ratingSystem: '', maxContentRating: '', maximumAge: -1, allowUnrated: true,
+  ratingSystem: '', maxContentRating: '', maximumAge: -1, allowUnrated: true,
   schedule: Object.freeze({timezone: '', windows: Object.freeze([])}), channelPolicy: Object.freeze({mode: 'all', channels: Object.freeze([])}), tagPolicy: Object.freeze({deniedLabels: Object.freeze([])})});
-/** People › Access › Quality away from home: the person's own cap on away streams (`remoteMaxBitrateKbps`), as the
- * row's choices. "server" keeps no cap of their own, so the server's limit applies; a stored number that is no rung
- * shows as the rung at or below it. */
-const awayRungs: Readonly<Record<string, string>> = {'4k': '2160p', '1080h': '1080p-high', '1080l': '1080p-low', '720h': '720p-high', '720l': '720p-low', '480': '480p', '240': '240p'};
-const rungKbps = (choice: string) => canonicalQualityLadder.find(q => q.id === awayRungs[choice])?.videoKbps;
-export function awayQualityChoice(kbps: number): string {
-  if (!(kbps > 0)) return 'server';
-  const at = Object.keys(awayRungs).filter(choice => (rungKbps(choice) ?? Infinity) <= kbps).sort((a, b) => rungKbps(b)! - rungKbps(a)!)[0];
-  return at ?? '240';
-}
-export function awayQualityKbps(choice: string): number {
-  if (choice === 'server') return 0;
-  const kbps = rungKbps(choice);
-  if (kbps === undefined) throw new Error('Invalid setting value.');
-  return kbps;
-}
 /** The highest-rating choices People offers, each the age the server keeps for it (13 shows PG-13 and below). */
 const ratingAges: Readonly<Record<string, number>> = {G: 0, PG: 8, 'PG-13': 13, R: 17};
 /** The choice that shows a stored age: the highest whose age is at or below it. */
@@ -59,7 +42,7 @@ const ratingOf = (age: number) => Object.entries(ratingAges).filter(([, at]) => 
 function screenLimits(a: AccountLimits): Omit<MemberLimits, 'maxStreams' | 'maxStreamsMode'> {
   const age = a.maxRatingAge ?? null;
   return Object.freeze({accessTokens: a.allowTokens, maxProfiles: a.maxProfiles ?? 0, allowRemote: !a.homeOnly, conversion: 'server',
-    remoteBitrateKbps: a.remoteMaxBitrateKbps ?? 0, ratingSystem: age === null ? '' : 'age', maxContentRating: age === null ? '' : ratingOf(age), maximumAge: age ?? -1,
+    ratingSystem: age === null ? '' : 'age', maxContentRating: age === null ? '' : ratingOf(age), maximumAge: age ?? -1,
     allowUnrated: a.allowUnrated, schedule: Object.freeze({timezone: a.viewingHours?.timezone || deviceZone(), windows: Object.freeze([...(a.viewingHours?.windows ?? [])])}),
     channelPolicy: noAccountLimits.channelPolicy, tagPolicy: Object.freeze({deniedLabels: Object.freeze([...a.blockedLabels])})});
 }
@@ -81,7 +64,6 @@ function limitChanges(before: MemberLimits, next: MemberLimits): LimitChanges {
     out.maxRatingAge = age;
   }
   if (JSON.stringify(next.tagPolicy.deniedLabels) !== JSON.stringify(before.tagPolicy.deniedLabels)) out.blockedLabels = [...next.tagPolicy.deniedLabels];
-  if (next.remoteBitrateKbps !== before.remoteBitrateKbps) out.remoteMaxBitrateKbps = next.remoteBitrateKbps > 0 ? next.remoteBitrateKbps : null;
   if (next.maxProfiles !== before.maxProfiles) out.maxProfiles = next.maxProfiles > 0 ? next.maxProfiles : null;
   if (JSON.stringify(next.schedule) !== JSON.stringify(before.schedule))
     out.viewingHours = next.schedule.windows.length ? {timezone: next.schedule.timezone || deviceZone(), windows: next.schedule.windows.map(w => ({...w, days: [...w.days]}))} : null;

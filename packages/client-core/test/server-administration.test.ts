@@ -7,7 +7,7 @@ import {
  previewMemberDeletion,deleteMember,readMemberDevices,signOutMemberDevice,signOutMemberDevices,
 } from '../src/server-administration.ts';
 
-const limits={accessTokens:true,maxProfiles:8,allowRemote:true,conversion:'server',maxStreams:1,maxStreamsMode:'limit',remoteBitrateKbps:4000,maxContentRating:'PG-13',allowUnrated:true,
+const limits={accessTokens:true,maxProfiles:8,allowRemote:true,conversion:'server',maxStreams:1,maxStreamsMode:'limit',maxContentRating:'PG-13',allowUnrated:true,
  schedule:{timezone:'UTC',windows:[{days:[1,3],startMinute:600,endMinute:780}]},
  channelPolicy:{mode:'deny',channels:['news']},tagPolicy:{deniedLabels:['Spoilers']}};
 
