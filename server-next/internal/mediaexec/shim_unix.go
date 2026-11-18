@@ -46,11 +46,14 @@ func execShim(spec shimSpec, inner []string) error {
 	}
 	if spec.Background {
 		// Background work yields to viewers; it is never paused.
-		_ = unix.Setpriority(unix.PRIO_PROCESS, 0, 10)
+		_ = unix.Setpriority(unix.PRIO_PROCESS, 0, backgroundNice)
 	} else {
 		// A viewer's conversion yields to the server itself: with the processor full of
 		// conversions, pages, sign-ins and played-as-is files must not wait behind them.
 		// The server needs little, so a conversion loses almost nothing (load proof, 18 Nov).
+		// A nice level only weighs threads against each other, and ten conversions have many
+		// threads to the server's few, so the gap must be wide: at 4, ten software
+		// conversions still left Home 15 s on a full 4-processor machine.
 		_ = unix.Setpriority(unix.PRIO_PROCESS, 0, playbackNice)
 	}
 	// Publication MUST precede this check. Configure changes the guard before
@@ -67,8 +70,12 @@ func execShim(spec shimSpec, inner []string) error {
 	return execInPlace(inner)
 }
 
-// playbackNice is a viewer's media job's priority: below the server (0), above background work (10).
-const playbackNice = 4
+// playbackNice is a viewer's media job's priority: well below the server (0), above background
+// work, which runs only on what nothing else wants, as the server's other background work does.
+const (
+	playbackNice   = 10
+	backgroundNice = 19
+)
 
 func execInPlace(argv []string) error {
 	if len(argv) == 0 || !filepath.IsAbs(argv[0]) {
