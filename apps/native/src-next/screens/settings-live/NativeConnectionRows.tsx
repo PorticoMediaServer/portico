@@ -6,6 +6,7 @@ import {Button, Select} from '../../kit/controls';
 import {SettingsRow} from '../../kit/shell';
 import {StateView} from '../../kit/states';
 import {nativeConnectionPolicy} from '../../platform/connection-preference';
+import {callServer} from '../../../../../packages/client-core/src/query/server-api';
 import {nativeDeviceSettings} from '../../platform/device-settings';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeSettingsPanelDeps} from './settings-panels';
@@ -52,7 +53,8 @@ export function NativeTestConnectionRow({context, t, lifetime, runtime}: NativeS
     setBusy(true); setResult(undefined); setError(undefined);
     const started = Date.now();
     try {
-      await lifetime.request(signal => context.api.connection(signal));
+      // The server's public answer (`GET /v1/system`), over the route in use: an answer is the test passing.
+      await lifetime.request(signal => callServer(context.api, 'GET /v1/system', {signal}));
       if (live.current) setResult(t('next.settingsSpec.account.device.advanced.groups.4.rows.2.control.result', {server: context.serverName, ms: Date.now() - started}));
     } catch (failure) {if (live.current) setError(failure);}
     finally {if (live.current) setBusy(false);}

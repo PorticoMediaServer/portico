@@ -82,11 +82,11 @@ test('an administrator\'s People reads are the exact paths, GET only, before any
 });
 
 
-test('G35 keeps server logs and coded troubleshooting events off TV for every role', async () => {
+test('G35 keeps Troubleshooting off TV for every role: messages and their live feed, problem reports and the activity record', async () => {
   for (const role of ['owner', 'admin'] as const) {
     const lifetime = scope(); let reads = 0;
     const reader = createTVServerReader({account: {...account, account: {...account.account, role}}, api: {request: async <T,>() => {reads++; return {} as T;}}}, lifetime);
-    for (const path of [routePath('get_admin_logs'), routePath('get_admin_logs') + '?limit=8', '/v1/admin/access/events']) await assert.rejects(reader.request(path), /native_tv_server_read_denied/);
+    for (const path of [routePath('get_admin_logs'), routePath('get_admin_logs') + '?limit=8', '/v1/admin/logs/events', '/v1/admin/reports', '/v1/admin/reports/rep_1/log', '/v1/admin/audit?cursor=2']) await assert.rejects(reader.request(path), /native_tv_server_read_denied/);
     assert.equal(reads, 0);
     lifetime.dispose();
   }

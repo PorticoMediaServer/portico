@@ -12,7 +12,6 @@ import {routePath as hostedRoutePath} from "../../contracts/src/hosted/routes.ts
 import {routePrefix, apiRoot} from "../../contracts/src/routes.ts";
 import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {parseMediaItem} from './media-item.ts';
-import {parseConnectionFacts, type ConnectionFacts} from './server-administration.ts';
 import {randomId} from './random-id.ts';
 import {routeOrigin} from './route-identity.ts';
 import {parseMoveCollisionDetails, type MoveCollisionDetails} from './account-move.ts';
@@ -827,9 +826,6 @@ export class HttpLocalApi {
       throw error;
     }
     return response.status === 204 ? (undefined as T) : response.json();
-  }
-  connection(signal?:AbortSignal):Promise<ConnectionFacts> {
-    return this.request<RouteResponse<"get_connection">>(routePath("get_connection"),"GET",undefined,signal).then(parseConnectionFacts);
   }
   system() {
     return this.request<SystemInfo>(routePath("get_system"));
