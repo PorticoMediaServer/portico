@@ -58,6 +58,28 @@ func (s *Server) compatRefresh(r *http.Request, c Caller, op string, values []st
 	return nil
 }
 
+// ChangedPaths is a tool's report that files changed on the server's disk (Sonarr and Radarr
+// after an import, or a script): full paths of files or folders.
+type ChangedPaths struct {
+	Paths []string `json:"paths"`
+}
+
+// ChangedScans says how many library folders the report asked to scan; a path in no library
+// is passed over.
+type ChangedScans struct {
+	Folders int `json:"folders"`
+}
+
+// changedPaths answers POST /v1/libraries/changed (definition 13 rule 19): the folders holding
+// the paths are scanned, as the caller.
+func (s *Server) changedPaths(r *http.Request, req ChangedPaths) (ChangedScans, error) {
+	if len(req.Paths) == 0 || len(req.Paths) > 1000 {
+		return ChangedScans{}, ErrField("paths", "Name between 1 and 1,000 changed paths.")
+	}
+	folders, err := s.scanChanged(r, CallerFrom(r.Context()), req.Paths)
+	return ChangedScans{Folders: folders}, err
+}
+
 // scanChanged scans each library folder that holds one of the changed paths, as the caller,
 // and says how many folders it asked to scan. A path in no library's folder is passed over.
 // The compatible change report and the assistant's report_changed_files both use it.
