@@ -104,7 +104,10 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
   // Back and the large title at the gutter (tablets SC-8, r7 S6 on TV), like any pushed page.
   const header = inSheet ? <SheetBar title={title} back={back} action={action}/>
     : beside ? <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm, marginTop: server ? frame.headerGap : frame.titleTop || frame.headerGap, marginBottom: frame.headerGap}}>
-      <Text accessibilityRole="header" style={[theme.type.pageTitle, {flex: 1, color: theme.colors.text}]}>{title}</Text>{trailing}</View>
+      {/* "✓ Saved" follows the title, the page's own buttons keep the far end (desktop-settings f1, final3-tv-15). */}
+      <Text accessibilityRole="header" style={[theme.type.pageTitle, {flexShrink: 1, color: theme.colors.text}]}>{title}</Text>
+      {saved && <View style={{marginBottom: theme.space.xs}}>{saved}</View>}<View style={{flex: 1}}/>
+      {(actions || own) && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>{actions}{own}</View>}</View>
     : <PageHeader title={title} back={back} trailing={trailing}/>;
   const strip = server && <View style={{marginHorizontal: beside ? 0 : frame.cardInset, marginTop: beside ? frame.titleTop || frame.headerGap : 0}}>{server}</View>;
   const body = <>
