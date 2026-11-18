@@ -209,6 +209,27 @@ func (d *DB) SaveAnnotations(ctx context.Context, v Viewer, edits []AnnotationEd
 	return out, refusals, err
 }
 
+// RemoveOldAnnotationMarkers removes the markers of annotations deleted more than 70 days before
+// now, in every book: a write to a book removes its own (openAnnotatedBook), this the daily
+// tidy-up's part for books nobody writes to again. It reads only old markers, by their index, a
+// thousand a write.
+func (d *DB) RemoveOldAnnotationMarkers(ctx context.Context, now time.Time) error {
+	for {
+		var n int64
+		err := d.write(ctx, Background, func(tx *sql.Tx) error {
+			res, err := tx.Exec(`DELETE FROM annotations WHERE id IN (SELECT id FROM annotations WHERE deleted_at < ? ORDER BY deleted_at LIMIT 1000)`,
+				now.Add(-annotationsKept).UnixMilli())
+			if err == nil {
+				n, err = res.RowsAffected()
+			}
+			return err
+		})
+		if err != nil || n == 0 {
+			return err
+		}
+	}
+}
+
 // openAnnotatedBook reads a book once for a batch: whether the viewer may see it, and how many
 // annotations it holds after markers too old to matter are removed.
 func openAnnotatedBook(ctx context.Context, tx *sql.Tx, v Viewer, acc access, publicID string, now time.Time) (*annotatedBook, error) {
