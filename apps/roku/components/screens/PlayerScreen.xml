@@ -50,6 +50,9 @@
       <!-- While a scrub waits for OK, these key hints stand in the button row's place. -->
       <Group id="hints" visible="false"/>
     </Group>
+    <!-- Skip intro, Skip credits: at the lower right, above where the overlay goes, so it never
+         moves when the overlay comes up. It takes focus only while the overlay is down. -->
+    <ButtonRow id="prompt" visible="false"/>
     <!-- While a stream is being made ready or is catching up: the screen is never plain black. -->
     <Group id="wait" visible="false">
       <Poster id="spinner" uri="pkg:/images/i-spinner-64.png" width="64" height="64"/>
