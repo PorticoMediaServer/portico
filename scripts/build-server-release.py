@@ -260,6 +260,8 @@ def main():
     cast_id=os.environ.get('PORTICO_CAST_APPLICATION_ID','')
     if cast_id and not re.fullmatch(r'[0-9A-Fa-f]{8}',cast_id):raise SystemExit('Cast application id must be the registered eight hexadecimal digits')
     if cast_id:flags+=' -X github.com/PorticoMediaServer/portico/server-next/receiver.ApplicationID='+cast_id
+    # On Windows the server has no console of its own, so started at sign-in it opens no window (terminal_windows.go).
+    if args.os=='windows' and args.component=='server':flags+=' -H windowsgui'
     env=controlled_env();env.update({'GOWORK':'off','GOOS':args.os,'GOARCH':args.arch,'CGO_ENABLED':'0'})
     # -trimpath: the binary names module paths, never this machine's folders (the snapshot, the module cache, Go's own).
     subprocess.run([str(ROOT/'scripts/env.sh'),'go','build','-tags',build_tags(args.component),'-buildvcs=false','-mod=readonly','-trimpath','-ldflags',flags,'-o',str(stage/('portico-'+args.component+('.exe' if args.os=='windows' else ''))),'./cmd/portico-server'],cwd=source,env=env,check=True)

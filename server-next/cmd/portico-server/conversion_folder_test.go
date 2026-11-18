@@ -28,9 +28,6 @@ func TestSeparateConversionDefaultsKeepGeneratedOutputOutsideData(t *testing.T) 
 	if got := separateConversions("linux", service, "", false); got != "/var/cache/portico" {
 		t.Fatal(got)
 	}
-	if got := separateConversions("windows", service, "", false); got != `C:\ProgramData\Portico Transcode` {
-		t.Fatal(got)
-	}
 	if got := separateConversions("linux", env, "", true); got != "/transcode/portico-conversions" {
 		t.Fatal(got)
 	}

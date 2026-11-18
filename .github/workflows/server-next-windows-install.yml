@@ -1,0 +1,203 @@
+name: New server's Windows installer
+# Builds the new server (server-next) for Windows and its installer (packaging/windows), and on a
+# real Windows machine: installs it, checks it started as the signed-in user (here the runner's)
+# with no console window, keeps its data in that user's %LOCALAPPDATA%\Portico and serves;
+# installs again over the running server; starts it the way a sign-in does; uninstalls it while
+# it runs; and checks a server that refuses to start says why in its log file. An earlier
+# install's Windows service is removed by the installer.
+# What a runner cannot show: a real sign-out and sign-in, a standard user elevating with someone
+# else's administrator password, and a network share that needs the user's own sign-in.
+# Not part of ci/required: it reports.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/server-next-windows-install.yml
+      - server-next/cmd/portico-server/**
+      - server-next/internal/childprocess/**
+      - packaging/windows/**
+permissions:
+  contents: read
+concurrency:
+  group: server-next-windows-install-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  install:
+    name: Install, start, upgrade and remove
+    if: github.repository == 'PorticoMediaServer/portico'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      # Where the installer puts the program by default: a path with spaces in it.
+      INSTALL: C:\Program Files\Portico Media Server
+      RUN_KEY: HKCU:\Software\Microsoft\Windows\CurrentVersion\Run
+    steps:
+      - run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
+      - name: Build the server as the release does on Windows, with no console of its own
+        working-directory: server-next
+        run: |
+          $env:CGO_ENABLED = '0'
+          go build -ldflags '-H windowsgui' -o "$env:RUNNER_TEMP\stage\portico-server.exe" ./cmd/portico-server
+          if ($LASTEXITCODE) { throw "build" }
+          New-Item -ItemType Directory "$env:RUNNER_TEMP\stage\web" | Out-Null
+          Set-Content "$env:RUNNER_TEMP\stage\web\index.html" "<!doctype html><title>Portico</title>"
+          # What the later steps use.
+          Set-Content "$env:RUNNER_TEMP\steps.ps1" @'
+          function Ready($seconds) {
+            foreach ($i in 1..$seconds) {
+              try { if ((Invoke-WebRequest -UseBasicParsing http://127.0.0.1:32500/v1/health/ready -TimeoutSec 2).StatusCode -eq 200) { "ready after $i s"; return } } catch {}
+              Start-Sleep 1
+            }
+            throw "not ready after $seconds s"
+          }
+          function Server { (Get-NetTCPConnection -LocalPort 32500 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1).OwningProcess }
+          function Installed { @(Get-Process portico-server -ErrorAction SilentlyContinue | Where-Object Path -eq "$env:INSTALL\portico-server.exe") }
+          function Stopped {
+            foreach ($i in 1..30) { if (-not (Server)) { return }; Start-Sleep 1 }
+            throw "still serving"
+          }
+          # Started by Explorer, which is what starts the Run key's programs at sign-in: no console, no outputs.
+          function SignIn($command) { Start-Process "$env:WINDIR\explorer.exe" -ArgumentList $command }
+          # Waits for the installer or uninstaller only, not for what it starts.
+          function Setup($program) {
+            $run = Start-Process -PassThru $program -ArgumentList '/S'
+            $null = $run.Handle
+            $run.WaitForExit()
+            if ($run.ExitCode) { throw "$program failed: $($run.ExitCode)" }
+          }
+          $data = "$env:LOCALAPPDATA\Portico"
+          '@
+      - name: A tool the server starts has no console of its own
+        working-directory: server-next
+        run: go test ./internal/childprocess -run TestAStartedToolHasNoConsole -count=1 -v
+      - name: Given outputs, the program still writes to them; the health check fails while nothing runs
+        run: |
+          $version = & "$env:RUNNER_TEMP\stage\portico-server.exe" --version | Out-String
+          if ($LASTEXITCODE -or -not $version.Trim()) { throw "--version printed nothing" }
+          $version
+          & "$env:RUNNER_TEMP\stage\portico-server.exe" --health-check 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) { throw "passed with no server" }
+          exit 0
+      - name: Build the installer
+        run: |
+          $nsis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
+          if (-not $nsis) { $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
+          if (-not (Test-Path $nsis)) { choco install nsis -y --no-progress | Out-Null; $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
+          & $nsis -V2 "-DOUTPUT_FILE=$env:RUNNER_TEMP\Setup.exe" "-DSTAGE_DIR=$env:RUNNER_TEMP\stage" "-DPRODUCT_VERSION=0.0.0" packaging/windows/installer.nsi
+          if ($LASTEXITCODE) { throw "makensis" }
+      - name: A Windows service left by an earlier install
+        run: |
+          sc.exe create PorticoMediaServer binPath= "`"$env:INSTALL\portico-server.exe`" --service" start= demand
+          if ($LASTEXITCODE) { throw "sc create" }
+      - name: Install
+        run: |
+          . "$env:RUNNER_TEMP\steps.ps1"
+          Setup "$env:RUNNER_TEMP\Setup.exe"
+      - name: No service; started at sign-in from the Run key; a firewall rule and Start menu entries
+        run: |
+          sc.exe query PorticoMediaServer
+          if (-not $LASTEXITCODE) { throw "the earlier install's service is still there" }
+          $run = (Get-ItemProperty $env:RUN_KEY).'Portico Media Server'
+          "Run: $run"
+          if ($run -ne "`"$env:INSTALL\portico-server.exe`"") { throw "the Run key does not start the installed program from a quoted path" }
+          netsh.exe advfirewall firewall show rule name="Portico Media Server"
+          if ($LASTEXITCODE) { throw "no firewall rule" }
+          $menu = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Portico Media Server"
+          foreach ($entry in 'Portico Media Server.url', 'Start Portico Media Server.lnk') { if (-not (Test-Path "$menu\$entry")) { throw "no Start menu entry $entry" } }
+          # PE subsystem 2 is a Windows program, which Windows starts with no console window.
+          $bytes = [IO.File]::ReadAllBytes("$env:INSTALL\portico-server.exe")
+          $subsystem = [BitConverter]::ToUInt16($bytes, [BitConverter]::ToInt32($bytes, 0x3C) + 0x5C)
+          if ($subsystem -ne 2) { throw "the installed program would open a console window (subsystem $subsystem)" }
+      - name: The installer started the server as the runner's user, and it serves
+        run: |
+          . "$env:RUNNER_TEMP\steps.ps1"
+          Ready 60
+          & "$env:INSTALL\portico-server.exe" --health-check
+          if ($LASTEXITCODE) { throw "--health-check" }
+          $process = Get-CimInstance Win32_Process -Filter "ProcessId=$(Server)"
+          $owner = Invoke-CimMethod -InputObject $process -MethodName GetOwner
+          "serving: $($process.ExecutablePath), process $($process.ProcessId), as $($owner.Domain)\$($owner.User)"
+          if ($owner.User -ne $env:USERNAME) { throw "the server runs as $($owner.User), not $env:USERNAME" }
+          if ($process.ExecutablePath -ne "$env:INSTALL\portico-server.exe") { throw "not the installed program" }
+      - name: The data is in the user's %LOCALAPPDATA%\Portico
+        run: |
+          . "$env:RUNNER_TEMP\steps.ps1"
+          Get-ChildItem $data | Format-Table Name, Length
+          foreach ($name in 'main.db', 'setup-code.txt') { if (-not (Test-Path "$data\$name")) { throw "no $name in $data" } }
+          if (-not (Get-Content "$data\setup-code.txt")) { throw "the setup code is empty" }
+          # Started with no console, the log file is the only place it can say anything. Read the
+          # file: while the server holds it open, Windows lists its size as 0.
+          if (-not (Get-ChildItem "$data\logs" -File -Filter *.log | Where-Object { Get-Content -Raw -LiteralPath $_.FullName })) { throw "no log file is being written" }
+          if (Test-Path "$env:ProgramData\Portico") { throw "something was made in ProgramData" }
+          if (Test-Path "$env:INSTALL\data") { throw "something was made beside the program" }
+      - name: Installing again over the running server stops it, replaces it and starts it again
+        run: |
+          . "$env:RUNNER_TEMP\steps.ps1"
+          $before = Server
+          Setup "$env:RUNNER_TEMP\Setup.exe"
+          Ready 60
+          if ((Server) -eq $before) { throw "the same process is still serving" }
+          "process $before before, $(Server) after"
+      - name: Started as a sign-in starts it, the server uses the same data
+        run: |
+          . "$env:RUNNER_TEMP\steps.ps1"
+          $setup = (Get-Item "$data\setup-code.txt").LastWriteTimeUtc
+          Installed | Stop-Process -Force
+          Stopped
+          SignIn (Get-ItemProperty $env:RUN_KEY).'Portico Media Server'
+          Ready 60
+          if (-not (Test-Path "$data\main.db")) { throw "the database is gone" }
+          if (Test-Path "$env:INSTALL\data") { throw "something was made beside the program" }
+      - name: Uninstall while it runs
+        run: |
+          . "$env:RUNNER_TEMP\steps.ps1"
+          # The uninstaller copies itself to a temporary folder and runs from there: wait for its work.
+          Setup "$env:INSTALL\Uninstall.exe"
+          foreach ($i in 1..60) { if (-not (Test-Path $env:INSTALL)) { break }; Start-Sleep 1 }
+          if (Test-Path $env:INSTALL) { Get-ChildItem -Recurse $env:INSTALL | Select-Object FullName; throw "the program folder is still there" }
+          Stopped
+          if (Get-Process portico-server -ErrorAction SilentlyContinue) { throw "a Portico process is still running" }
+          if ((Get-ItemProperty $env:RUN_KEY).'Portico Media Server') { throw "the Run key still starts it" }
+          netsh.exe advfirewall firewall show rule name="Portico Media Server" | Out-Null
+          if (-not $LASTEXITCODE) { throw "the firewall rule is still there" }
+          if (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Portico Media Server") { throw "the Start menu entries are still there" }
+          if (-not (Test-Path "$data\main.db")) { throw "the uninstall removed the data" }
+          exit 0
+      - name: A server that refuses to start says why in its log file
+        run: |
+          . "$env:RUNNER_TEMP\steps.ps1"
+          # The data folder of the server before this one, which this server refuses.
+          Get-ChildItem $data -Filter "main.db*" | Remove-Item -Force
+          New-Item -ItemType Directory "$data\Database" | Out-Null
+          Set-Content "$data\Database\server.sqlite" "x"
+          SignIn "`"$env:RUNNER_TEMP\stage\portico-server.exe`""
+          $said = $false
+          foreach ($i in 1..30) {
+            Start-Sleep 1
+            if (Select-String -Path "$data\logs\*.log" -Pattern "earlier Portico server" -Quiet) { $said = $true; "the refusal was in the log file after $i s"; break }
+          }
+          if (-not $said) { throw "the log file does not say why the server did not start" }
+          if (Test-Path "$data\main.db") { throw "the server started a new database beside the old one" }
+          if (Server) { throw "a server that refused to start is serving" }
+      - name: What Windows says, when a step failed
+        if: failure()
+        run: |
+          Get-CimInstance Win32_Process -Filter "Name='portico-server.exe' OR Name='explorer.exe'" | Format-Table ProcessId, ParentProcessId, SessionId, CommandLine -AutoSize
+          Get-ItemProperty $env:RUN_KEY -ErrorAction SilentlyContinue
+          Get-ChildItem -Recurse -ErrorAction SilentlyContinue "$env:LOCALAPPDATA\Portico" | Select-Object -First 60 FullName, Length
+          Get-ChildItem -ErrorAction SilentlyContinue "$env:LOCALAPPDATA\Portico\logs" | ForEach-Object { Get-Content $_.FullName -Tail 60 }
+      - name: Leave nothing behind
+        if: always()
+        run: |
+          Get-Process portico-server -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (Test-Path "$env:INSTALL\Uninstall.exe") { (Start-Process -PassThru "$env:INSTALL\Uninstall.exe" -ArgumentList '/S').WaitForExit() }
+          sc.exe delete PorticoMediaServer | Out-Null
+          exit 0

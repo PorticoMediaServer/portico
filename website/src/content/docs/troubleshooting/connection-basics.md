@@ -46,7 +46,7 @@ The active file is `logs/messages.log` inside the server data folder. Rotated fi
 | Linux package | `/var/lib/portico-media-server/logs/messages.log` |
 | Docker | `/var/lib/portico/logs/messages.log` inside the container's persistent state volume |
 | macOS package | `/Library/Application Support/Portico Media Server/logs/messages.log` |
-| Windows service | `%ProgramData%\Portico Media Server\logs\messages.log` |
+| Windows installer | the newest file in `%LOCALAPPDATA%\Portico\logs` |
 | Portable package | `state/logs/messages.log` beside the launcher |
 
 `PORTICO_STATE_DIR` changes the data folder. For service startup failures on Linux, run `journalctl -u portico-media-server -n 100`. For a container named `portico`, run `docker logs --tail 100 portico`.
