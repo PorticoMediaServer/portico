@@ -464,6 +464,9 @@ sub openMenu()
     if item = invalid then return
     extras = []
     if m.rows[m.focus].row.id = "continue" then extras.push({id: "dismiss", text: "Remove from Continue Watching", icon: "close"})
+    ' the row's See all ends its cards' menu (tv-focus frame 4)
+    m.menuRow = m.rows[m.focus].row
+    extras.push({id: "seeall", text: "See all " + m.menuRow.title, icon: "forward", last: true})
     m.top.menu = cardMenu(item, extras, [])
 end sub
 
@@ -472,6 +475,8 @@ sub onMenuChosen(event as object)
     which = event.getData()
     if cardMenuChosen(which) then return
     if which = "dismiss" then api("PUT", "/v1/items/" + m.cardItem.id + "/state", {continueDismissed: true, madeAgoMs: 0}, "onMenuSaved")
+    ' See all: every one of the row's titles, read where the row itself goes on, as the list page
+    if which = "seeall" then m.top.open = {item: {kind: "list", title: m.menuRow.title, path: rowItemsPath(m.menuRow, invalid) + "?", view: ""}, play: false}
 end sub
 
 sub cardMenuChanged(item as object)

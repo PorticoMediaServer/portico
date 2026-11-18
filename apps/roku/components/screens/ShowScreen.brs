@@ -490,7 +490,15 @@ function focusedEpisode() as dynamic
 end function
 
 sub onMenuChosen(event as object)
-    cardMenuChosen(event.getData())
+    which = event.getData()
+    if which = "card:season"
+        ' this page already: focus goes to the season list, at the episode's season
+        m.stop = 0
+        m.inRow = false
+        focusStop()
+        return
+    end if
+    cardMenuChosen(which)
 end sub
 
 sub cardMenuChanged(item as object)

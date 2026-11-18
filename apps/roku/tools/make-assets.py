@@ -315,6 +315,7 @@ ICONS = {
     'heartFilled': [28],
     'home': [32],
     'info': [28],
+    'list': [28],
     'listPlus': [28],
     'live': [32],
     'lock': [28],
