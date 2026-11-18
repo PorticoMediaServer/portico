@@ -91,7 +91,7 @@ jobs:
           $nsis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
           if (-not $nsis) { $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
           if (-not (Test-Path $nsis)) { choco install nsis -y --no-progress | Out-Null; $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
-          & $nsis -V2 "-DOUTPUT_FILE=$env:RUNNER_TEMP\Setup.exe" "-DSTAGE_DIR=$env:RUNNER_TEMP\stage" -DPRODUCT_VERSION=0.0.0 packaging/windows/installer.nsi
+          & $nsis -V2 "-DOUTPUT_FILE=$env:RUNNER_TEMP\Setup.exe" "-DSTAGE_DIR=$env:RUNNER_TEMP\stage" "-DPRODUCT_VERSION=0.0.0" packaging/windows/installer.nsi
           if ($LASTEXITCODE) { throw "makensis" }
       - name: A Windows service left by an earlier install
         run: |
