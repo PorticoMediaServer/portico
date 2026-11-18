@@ -27,12 +27,9 @@ export function HomeRowScreen({row, browse, onBack, onPlay, onShuffle, ambient}:
   if (state.phase === 'error') return <StateView variant="page" title={defaultI18n.t('next.states.pageFailed')} body={defaultI18n.t('next.states.pageFailedBody')} primary={{id: 'retry', label: defaultI18n.t('next.states.tryAgain'), onPress: controller.retry}}/>;
   return <section className={styles.homeRow} data-home-row={row.id}>
     {ambientView && <AmbientArt className={compact ? styles.ambientPhone : styles.ambient} {...ambientView} width="100%" height={compact ? 760 : 560}/>}
-    <header className={styles.header}>
-      <Button variant="text" size="small" icon="i-left" className={styles.back} onClick={onBack}>{defaultI18n.t('next.home.shell.home')}</Button>
-      <h1 className={styles.title}>{serverTextLabel(defaultI18n, row.titleText, row.title)}</h1>
-      {row.why && <p className={styles.why}>{homeRowReasonParts(row, defaultI18n).map((part, index) => part.titleId ? <strong key={index}>{part.text}</strong> : part.text)}</p>}
-      {(onPlay || onShuffle) && <div className={styles.actions}>{onPlay && <Button variant="primary" size="hero" icon="i-play" onClick={onPlay}>{defaultI18n.t('action.play')}</Button>}{onShuffle && <Button variant="glass" size="hero" icon="i-shuffle" onClick={onShuffle}>{defaultI18n.t('title.shuffle')}</Button>}</div>}
-    </header>
-    <LibraryBrowse {...browse} showSaveView={false}/>
+    {/* See all on the library frame: Back to Home, the row's title, why these titles are here, Play and Shuffle (desktop-browse seeall). */}
+    <LibraryBrowse {...browse} showSaveView={false} header={{title: serverTextLabel(defaultI18n, row.titleText, row.title), back: {label: defaultI18n.t('next.home.shell.home'), onPress: onBack},
+      intro: row.why ? homeRowReasonParts(row, defaultI18n).map((part, index) => part.titleId ? <strong key={index}>{part.text}</strong> : part.text) : undefined,
+      actions: onPlay || onShuffle ? <>{onPlay && <Button variant="primary" size="hero" icon="i-play" onClick={onPlay}>{defaultI18n.t('action.play')}</Button>}{onShuffle && <Button variant="glass" size="hero" icon="i-shuffle" onClick={onShuffle}>{defaultI18n.t('title.shuffle')}</Button>}</> : undefined}}/>
   </section>;
 }

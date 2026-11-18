@@ -15,7 +15,7 @@ test('E-web-20: phone settings rows stack a typed field under its label', () => 
 
 test('E-web-20: the browse page clips the rail hit areas and gives the phone rail its own gutter', () => {
   const browse = css('../src/screens/browse/browse.module.css');
-  assert.match(browse, /\.browseContent \{[^}]*overflow-x: clip;/);
+  assert.match(css('../src/kit/frames/browse.module.css'), /\.content \{[^}]*overflow-x: clip;/);
   assert.match(browse, /@media \(max-width: 599px\) \{ \.results:has\(> \.rail\) \{ margin-right: calc\(30px - var\(--grid-overflow, 0px\)\); \} \.rail \{ right: calc\(-26px \+ var\(--grid-overflow, 0px\)\); \} \}/);
   assert.match(css('../src/screens/browse/BrowseResults.tsx'), /<AlphabetRail [^\n]*platform=\{phone \? 'phone' : 'desktop'\}/);
 });

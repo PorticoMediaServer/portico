@@ -22,6 +22,8 @@ export type BrowseHeaderProps = PageHeaderProps & Readonly<{
   menu?: ReactNode;
   /** The library's counts under its title ("10 artists  10 albums  40 songs"): wide headers only, never the phone bar. */
   counts?: readonly FactPart[];
+  /** The library's own wash behind its wide header (its latest artwork); the phone bar and TV draw none. */
+  ambient?: ReactNode;
   /** The page's tabs: Discover / Movies / Collections (Music: Discover / Artists / Albums / Songs / Genres). The frame draws
    * the kit `Tabs` from the gutter, its rule across the page. */
   tabs?: Readonly<{items: readonly TabItem[]; value: string; onValueChange: (value: string) => void}>;
@@ -98,7 +100,7 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, chil
 
 /** The header per form (frameRegions.browse `header.*`). A library: the phone's top bar with the switcher centred and ⋯, the
  * upright tablet's 24 pt name, the landscape tablet's large title, TV's title with its tabs beside it. A plain page: rule 3's header. */
-function BrowseHeader({title, back, trailing, switcher, menu, counts, tabs: tabItems, intro, actions}: BrowseHeaderProps) {
+function BrowseHeader({title, back, trailing, switcher, menu, counts, ambient, tabs: tabItems, intro, actions}: BrowseHeaderProps) {
   const frame = useFrameMetrics(), form = frame.form;
   // TV sets the tabs beside the title, in the header's own row; elsewhere they run from the gutter under it.
   const tabs = tabItems && <Tabs items={tabItems.items} value={tabItems.value} onValueChange={tabItems.onValueChange} style={form === 'tv' ? undefined : {marginTop: form === 'phone' ? 0 : frame.headerGap}}
@@ -109,8 +111,8 @@ function BrowseHeader({title, back, trailing, switcher, menu, counts, tabs: tabI
     {actions && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.controlGap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, marginTop: frame.headerGap}}>{actions}</View>}
     {tabs}</>;
   if (form === 'phone') return <StickyBrowseHeader name={title} switcher={switcher} menu={menu} back={back}>{tabs}</StickyBrowseHeader>;
-  if (form === 'medium') return <LibraryMediumHeader name={title} counts={counts} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryMediumHeader>;
-  if (form === 'expanded') return <LibraryExpandedHeader name={title} counts={counts} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryExpandedHeader>;
+  if (form === 'medium') return <LibraryMediumHeader name={title} counts={counts} ambient={ambient} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryMediumHeader>;
+  if (form === 'expanded') return <LibraryExpandedHeader name={title} counts={counts} ambient={ambient} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryExpandedHeader>;
   return <LibraryHeader name={title} counts={counts} switcher={switcher}>{tabs}</LibraryHeader>;
 }
 
