@@ -1103,7 +1103,7 @@ test('Selection footer recipes reach actual buttons without changing other size 
             if (state.theme.textScale > 1) {
               assert.equal(style.height, undefined, 'enlarged labels can grow the footer button');
               assert.equal(style.minHeight, phone ? 48 : tv ? 64 : 46, 'the authored face remains the minimum');
-            } else assert.equal(style.height, phone ? 48 : tv ? 64 : 46);
+            } else {assert.equal(style.height, undefined, 'a label may take a second line at any text size'); assert.equal(style.minHeight, phone ? 48 : tv ? 64 : 46);}
             assert.equal(style.paddingHorizontal, phone ? 20 : 26);
             assert.equal(style.borderRadius, phone ? 10 : tv ? 14 : 12);
             const content = host.props.children({pressed: false});

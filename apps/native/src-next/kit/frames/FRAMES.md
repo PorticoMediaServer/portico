@@ -132,6 +132,16 @@ Changed in the second fix round (r5):
 - `TitleFrame` loading reserves the progress line and the words' lines, so the tabs do not move when the page arrives.
 - The Settings index in the gallery is the shell's own `SettingsNav` and `ShortcutTiles`, passed as the frame's `list`.
 
+Live screens whose look changes with this foundation (they are in the app today, not only in the Kit):
+
+- every native hero's metadata line: the rating, runtime and season count are outlined chips;
+- every native `Tabs`: the rule runs the page's full width;
+- every native labelled `Button`: a label that does not fit on one line wraps to a second, and the button grows; none shrinks or is cut;
+- the glass icon-only buttons on `BookScreen`, `AuthorSeriesScreen` and `CollectionScreen`: a rounded square, not a circle;
+- TV scrubbing: the strip is the kit `PlayerFilmstrip` (no tile shadows; its times in the player's type roles);
+- native TV Live: Record's glyph is red;
+- an episode row that is playing has its title in the accent.
+
 Left for Stage 2, listed so it is not forgotten:
 
 - `screens/watch/WatchPanels.tsx` (options, Subtitles, Audio, Quality, Speed, sleep timer, subtitle style) and
@@ -154,7 +164,7 @@ Left for Stage 2, listed so it is not forgotten:
 - **TV playback options open in place** under their headings, as the TV mock-up and today's TV app do. This is a requirement on the shared panel: it is built into `PlayerPanelGroup` when the TV player moves onto it in Stage 2. Until then the gallery's TV panel shows one list at a time.
 - **Episodes panel:** a drawer on the web, a column on a tablet. Both stay.
 - **Tablet title page:** the hero layout, the same as the web and a phone. tablet.html frame 7's header-bar layout is not used.
-- **Button labels are never shrunk and never cut.** Buttons are sized so standard labels fit on every form; a long translation makes the button wider or takes a second line. An ellipsis on a button label is a fault. In the kit: no label is shrunk to fit; a button in a place that can be too narrow for its label passes `labelLines={2}` (the frames' action rows and the prompt do).
+- **Button labels are never shrunk and never cut.** Buttons are sized so standard labels fit on every form; a long translation makes the button wider or takes a second line. An ellipsis on a button label is a fault. In the kit: no label is shrunk to fit, and every labelled `Button` lets its label take a second line, its height being a minimum (the face every button already had at larger text). `labelLines` raises the limit.
 - Also settled: the Watch Together pill comes in Stage 2; phone transport is 76 / 76 / 58; TV player type takes the nearest roles; Start over is a button on a tablet; the synopsis is two lines; both missing-art looks stay; the tablet gutter is 28; web Settings is a full page at phone width; the audio queue uses the kit's song row; web cards carry their second line; the native backdrop comes in Stage 2.
 
 ## What a screen may do

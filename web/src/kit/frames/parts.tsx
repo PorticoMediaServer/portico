@@ -50,8 +50,9 @@ export function StateRow(props: StateRowProps) {
   </div>;
 }
 
-/** The episodes bar under a show's tabs (phone-player 4, tablet-play 3): the season chip, the season's count, and
- * Hide watched at the end. The native kit has the same part with the same props. */
+/** The episodes bar under a show's tabs (phone-player 4, tablet-play 3): the season trigger, the season's count, and
+ * Hide watched at the end. A stand-in for the gallery's watch page: the live show page draws its own bar (a toolbar Chip
+ * with the season menu and the owner's menu), which Stage 2 moves into the kit in this part's place (FRAMES.md). */
 export function SeasonBar({label, count, onSeasons, hideWatched, hideWatchedLabel, onHideWatched}: {label: string; count?: string; onSeasons: () => void; hideWatched: boolean; hideWatchedLabel: string; onHideWatched: (value: boolean) => void}) {
   return <div className={styles.seasonBar}>
     <Button size="small" onClick={onSeasons}>{label}<Icon name="i-chdown" size={16} /></Button>

@@ -117,6 +117,15 @@ Changed in the second fix round (r5):
 - The gallery's top bar uses the shell's own `DesktopNavigationUnderline` and `TopBarActivity`: the shell already drew both; the gallery's stand-in bar had left them out.
 - The Settings index in the gallery is the shell's own `SettingsNav`, passed as the frame's `list`.
 
+Live screens whose look changes with this foundation:
+
+- web Live TV: plain side controls with the seconds inside the arrows, a red Record glyph, and at phone width the programme's name on its own row (up to two lines).
+
+For Stage 2, so two drawings are not inherited:
+
+- `SeasonBar` here is a stand-in for the gallery's watch page, not the native part's equal: it has no owner `settings` menu, takes its Hide watched label as a prop, and draws the season trigger as a small Button. The live show page draws it as `Chip variant="toolbar"` with `SeasonMenu` (`screens/detail/Show.tsx`), which is also what the mock-up's `ep-bar` draws. Stage 2 moves the show page's bar into the kit with the owner variant and deletes this one.
+- `EpisodeRows` lays `EpisodeTile` out by the order of its children (`:nth-child`), so a change inside the tile breaks it silently. Stage 2 gives the web tile a `layout="row"` prop, as the native kit has, when it moves `show.module.css` `.episodeRow`, and deletes these rules.
+
 Left for Stage 2, listed so it is not forgotten:
 
 - `PlayerLive` draws its own top bar, bar and controls row instead of filling `PlayerChromeFrame`. It matches the
@@ -136,7 +145,7 @@ Left for Stage 2, listed so it is not forgotten:
 - **TV playback options open in place** under their headings, as the TV mock-up and today's TV app do. This is a requirement on the shared panel: it is built into `PlayerPanelGroup` when the TV player moves onto it in Stage 2. Until then the gallery's TV panel shows one list at a time.
 - **Episodes panel:** a drawer on the web, a column on a tablet. Both stay.
 - **Tablet title page:** the hero layout, the same as the web and a phone. tablet.html frame 7's header-bar layout is not used.
-- **Button labels are never shrunk and never cut.** Buttons are sized so standard labels fit on every form; a long translation makes the button wider or takes a second line. An ellipsis on a button label is a fault. In the kit: no label is shrunk to fit; a button in a place that can be too narrow for its label passes `labelLines={2}` (the frames' action rows and the prompt do).
+- **Button labels are never shrunk and never cut.** Buttons are sized so standard labels fit on every form; a long translation makes the button wider or takes a second line. An ellipsis on a button label is a fault. In the native kit: no label is shrunk to fit, and every labelled `Button` lets its label take a second line, its height being a minimum.
 - Also settled: the Watch Together pill comes in Stage 2; phone transport is 76 / 76 / 58; TV player type takes the nearest roles; Start over is a button on a tablet; the synopsis is two lines; both missing-art looks stay; the tablet gutter is 28; web Settings is a full page at phone width; the audio queue uses the kit's song row; web cards carry their second line; the native backdrop comes in Stage 2.
 
 ## What a screen may do

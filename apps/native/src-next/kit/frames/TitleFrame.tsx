@@ -79,13 +79,13 @@ export function TitleFrame({art, back, topAction, title, metadata, primary, acti
       {credits.map((credit, index) => <Text key={credit.label}>{index > 0 ? '    ' : ''}{credit.label} <Text style={{color: theme.colors.textSecondary}}>{credit.names}</Text></Text>)}</Text>}
   </View> : null;
   const side = (action: TitleAction) => action.labelled && !stacked
-    ? <Button key={action.label} variant="glass" size="hero" labelLines={2} icon={action.icon} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
+    ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
     : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
       style={{width: actionHeight, height: actionHeight}}/>;
   const lead = {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, preferredFocus: true, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1} : undefined};
   const row = <View style={{height: actionHeight, flexDirection: 'row', alignItems: 'center', gap: theme.spec.hero.actions.gap[theme.platform]}}>
-    {primary.progress !== undefined && !stacked ? <ResumeButton {...lead} size="hero" progress={primary.progress} remaining={primary.remaining}>{primary.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero" labelLines={2}>{primary.label}</Button>}
-    {primary.startOver && !stacked && <Button variant="glass" size="hero" labelLines={2} icon="i-restart" disabled={loading} onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
+    {primary.progress !== undefined && !stacked ? <ResumeButton {...lead} size="hero" progress={primary.progress} remaining={primary.remaining}>{primary.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero">{primary.label}</Button>}
+    {primary.startOver && !stacked && <Button variant="glass" size="hero" icon="i-restart" disabled={loading} onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
     {actions.map(side)}
   </View>;
   const track = theme.spec.card.progress.height[theme.platform];
