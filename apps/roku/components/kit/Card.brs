@@ -98,6 +98,7 @@ sub onContent()
         part.text = item.sub
         ' a name is a card title: one line, ending in an ellipsis, so the part always sits under it
         part.translation = [-10, 194]
+        onFocus()
         return
     end if
     ' A row's next page is on its way: one still card of the row's shape stands at its end
@@ -121,7 +122,7 @@ sub onContent()
     if under and item.artHeight <> invalid and item.artHeight > 0 then m.h = item.artHeight
     ' An audiobook or album with no cover gets a square generated one, as its real covers are square.
     m.shiftY = 0
-    if item.art = "" and not item.overlay and m.fullH > m.w and (item.kind = "audiobook" or item.kind = "album" or item.kind = "track")
+    if item.art = "" and not item.overlay and not under and m.fullH > m.w and (item.kind = "audiobook" or item.kind = "album" or item.kind = "track")
         m.h = m.w
         m.shiftY = (m.fullH - m.w) / 2
     end if
@@ -248,6 +249,18 @@ sub onFocus()
     ring = m.top.findNode("ownRing")
     inGrid = (m.top.gridHasFocus and p > 0)
     ring.visible = inGrid
+    item = m.top.itemContent
+    if inGrid and item <> invalid and item.kind = "person"
+        ' a round ring round the face (an artist in a music grid), which sits centred at the card's top
+        across = 150 * k.focusScale * 296 / 216
+        ring.uri = "pkg:/images/focus-disc.png"
+        ring.opacity = p
+        ring.width = across
+        ring.height = across
+        ring.translation = [(m.w - across) / 2, m.person.translation[1] + 75 - across / 2]
+        return
+    end if
+    ring.uri = "pkg:/images/focus-14.9.png"
     if inGrid
         out = k.focusSpread + 6
         w = m.w * k.focusScale
