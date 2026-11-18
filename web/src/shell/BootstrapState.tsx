@@ -6,6 +6,8 @@ import {ServerStarting} from '../kit/states/ServerStarting';
 import {LaunchUnreachableScreen} from './LaunchUnreachable';
 import {router} from '../router';
 import {rememberRequestedPath} from '../platform/requested-path';
+import {currentWebEnvironment} from '../platform/environment';
+import {currentServedServerOrigin} from '../platform/served-origin';
 import {BootProgress} from './Boot';
 import {DocumentBootReady} from './DocumentBootReady';
 import type {ShellBootstrapSnapshot} from './bootstrap';
@@ -25,7 +27,9 @@ export function BootstrapContent({children}: {children: ReactNode}) {
   useEffect(() => {
     // The page asked for opens once a profile does (sign-in and Who's watching come first).
     if (needsSignIn || needsProfile) rememberRequestedPath(router.state.location.href);
-    if (needsSignIn) void router.navigate({to: '/sign-in', replace: true});
+    // Sign-in is for a server: this page's own, or web.getportico.tv's Portico Account. A page no
+    // server served (the desktop app) has neither and starts at the server chooser.
+    if (needsSignIn) void router.navigate({to: currentWebEnvironment().hostedWeb || currentServedServerOrigin() ? '/sign-in' : '/servers', replace: true});
     else if (needsProfile) void router.navigate({to: '/profiles', replace: true, ...(focus ? {search: {profileId: focus}} : {})});
   }, [needsSignIn, needsProfile, focus]);
   if (needsSignIn || needsProfile) return null;

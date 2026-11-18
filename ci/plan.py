@@ -11,7 +11,7 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPONENTS = ['web', 'packages', 'apps/native', 'apps/vega', 'apps/desktop', 'website']
+COMPONENTS = ['web', 'packages', 'apps/native', 'apps/vega', 'website']
 # Full (merge/nightly) Go shards are planned from measured parent weights so no
 # single `go test` batch approaches its -timeout. A shard runs one complete-package
 # command (-p=GO_PACKAGE_WORKERS) and then its split packages in a worker pool.

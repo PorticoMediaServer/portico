@@ -81,7 +81,11 @@ export const routeTree = rootRoute.addChildren([...destinations, ...devRoutes]);
 // The shell's real-render listener enables native transitions for later routes.
 // The global catch boundary would consume a root rethrow before App's last resort; per-child
 // errorComponents still catch their own destinations.
-export const router = createRouter({routeTree, rewrite: serverScope.rewrite, defaultViewTransition: false, scrollRestorationBehavior: 'instant', disableGlobalCatchBoundary: true});
+// The desktop app's page on macOS and Linux is tauri://localhost. TanStack Router treats every
+// address that is not http or https as another site whenever a rewrite is set, and then draws
+// nothing; the rewrite only reads web.getportico.tv's /s/<server>/ links, which never reach it.
+const pageIsWeb = typeof location === 'undefined' || location.protocol === 'http:' || location.protocol === 'https:';
+export const router = createRouter({routeTree, rewrite: pageIsWeb ? serverScope.rewrite : undefined, defaultViewTransition: false, scrollRestorationBehavior: 'instant', disableGlobalCatchBoundary: true});
 declare module '@tanstack/react-router' { interface Register { router: typeof router } }
 
 // Settings' Done (shell/settings-return.ts) goes back to the last page outside Settings, under the same authority.
