@@ -174,10 +174,13 @@ function titleMenu(item as object, inContinue as boolean) as object
     if playable
         if progressOf(item) >= 0 then rows.push({id: "play", text: "Resume", icon: "play"}) else rows.push({id: "play", text: "Play", icon: "play"})
     end if
+    ' films and shows are watched (the mock-ups' word); books and music are played
+    word = "played"
+    if item.kind = "movie" or item.kind = "episode" or item.kind = "show" or item.kind = "season" then word = "watched"
     if item.state <> invalid and item.state.watched = true
-        rows.push({id: "unplayed", text: "Mark as unplayed", icon: "refresh"})
+        rows.push({id: "unplayed", text: "Mark as un" + word, icon: "refresh"})
     else
-        rows.push({id: "played", text: "Mark as played", icon: "check"})
+        rows.push({id: "played", text: "Mark as " + word, icon: "check"})
     end if
     if inContinue then rows.push({id: "dismiss", text: "Remove from Continue Watching", icon: "close"})
     if item.state <> invalid and item.state.inList = true
@@ -317,7 +320,7 @@ function episodeCard(item as object, upNext as boolean) as object
     return card
 end function
 
-' What a season says under its name: "7 of 13 played", or "13 episodes" when none or all... is played.
+' What a season says under its name: "7 of 13 watched", or "13 episodes" when none of it is.
 function seasonLine(season as object) as object
     total = 0
     left = 0
@@ -327,5 +330,5 @@ function seasonLine(season as object) as object
     end if
     played = total - left
     if played <= 0 or total = 0 then return {text: countText(total, "episode", "episodes"), progress: -1}
-    return {text: played.toStr() + " of " + total.toStr() + " played", progress: played / total}
+    return {text: played.toStr() + " of " + total.toStr() + " watched", progress: played / total}
 end function

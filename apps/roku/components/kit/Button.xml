@@ -11,6 +11,9 @@
     <!-- For Resume: how far through (0 to 1, below 0 for none) and the time left, drawn after the label. -->
     <field id="progress" type="float" value="-1" onChange="onChange"/>
     <field id="detail" type="string" onChange="onChange"/>
+    <!-- At least this wide (a title page's Play widening into a slot a neighbour left): what the
+         button holds is centred in it. 0 for its own width. -->
+    <field id="minWidth" type="float" value="0" onChange="onChange"/>
     <field id="buttonWidth" type="float"/>
   </interface>
   <script type="text/brightscript" uri="Button.brs"/>

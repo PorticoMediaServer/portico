@@ -101,6 +101,7 @@ sub showSeason()
         cards.createChild("ContentNode").addFields(card)
     end for
     m.episodes.cards = cards
+    m.newest = newestPlayed(episodes).when
     at = m.kept[season.id]
     if at = invalid
         at = 0
@@ -171,6 +172,16 @@ sub placeEpisodes(t as object, gutter as integer)
     m.credits.translation = [t.creditsX, t.creditsY]
     m.bandHint.translation = [t.creditsX, t.bandHintMid]
 end sub
+
+' The episode of a season played last: {at, when} (when is the ISO time, "" for none).
+function newestPlayed(episodes as object) as object
+    out = {at: -1, when: ""}
+    for i = 0 to episodes.count() - 1
+        state = episodes[i].state
+        if state <> invalid and state.lastPlayedAt <> invalid and state.lastPlayedAt > out.when then out = {at: i, when: state.lastPlayedAt}
+    end for
+    return out
+end function
 
 ' The band under the row describes whatever has focus: the season, or the episode. Its heading,
 ' meta line, synopsis, Resume line and credits column each keep their place when empty (rule 12).
@@ -371,6 +382,7 @@ sub focusStop()
     if atTop then m.top.findNode("lower").translation = [0, m.tabsY - frames().title.foldedTabsY] else m.top.findNode("lower").translation = [0, 0]
     m.top.quiet = not atTop
     m.part.visible = (m.stop <= 0)
+    m.top.findNode("band").visible = (m.stop = 0)
     if atTop
         m.sections.section = "lead"
         m.hero.active = true
@@ -388,11 +400,10 @@ end sub
 
 sub onActive()
     if not m.top.active then return
-    if m.started
-        ' back from the player: the season's ticks, progress and Up next are read again
-        if m.shownOnce = true then reread()
-        m.shownOnce = true
-    end if
+    ' back from the player (or a page opened from here): the season's ticks, progress and Up next
+    ' are read again; the first time the page is shown counts even before its episodes arrive
+    if m.shownOnce = true and m.started then reread()
+    m.shownOnce = true
     focusStop()
 end sub
 
@@ -533,6 +544,11 @@ sub onEpisodesAgain(event as object)
     m.loaded = {}                  ' other seasons are read again when they are next shown
     m.loaded[id] = ctx.items
     at = m.episodes.focusedIndex
+    ' back from the player after it played on (Up next): the row is at the episode last played,
+    ' the one that was playing, not the one first opened
+    newest = newestPlayed(ctx.items)
+    if newest.at >= 0 and m.newest <> invalid and newest.when > m.newest then at = newest.at
+    m.newest = newest.when
     m.kept[id] = at
     m.shown = ""
     showSeason()

@@ -95,7 +95,8 @@ sub onContent()
         part = m.top.findNode("facePart")
         part.width = m.w + 20
         part.text = item.sub
-        if name.boundingRect().height > 40 then part.translation = [-10, 222] else part.translation = [-10, 194]
+        ' a name is a card title: one line, ending in an ellipsis, so the part always sits under it
+        part.translation = [-10, 194]
         return
     end if
     ' A cover is shown whole, in its own shape; other art fills the card.
