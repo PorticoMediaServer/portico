@@ -782,7 +782,8 @@ follows its libraries).
 | `DELETE /v1/admin/upgrade-copy` | Owner | Remove the copy kept before the last upgrade |
 | `GET /v1/admin/updates`, `POST /v1/admin/updates/check` | Owner | This version, the newest, and how to update this kind of install; check now. Nothing is installed |
 | `POST /v1/admin/restart` | Owner | Restart; answers how many are playing unless `confirm=true` |
-| `GET /v1/admin/logs`, `GET /v1/admin/logs/events`, `PUT /v1/admin/logs/detail` | Owner and administrators | Messages, newest first, by level and kind; follow live; start or end "Record more detail" |
+| `GET /v1/admin/logs`, `GET /v1/admin/logs/events` | Owner and administrators | Messages, newest first, by level and kind; follow live |
+| `PUT /v1/admin/logs/detail` | Owner | Start or end "Record more detail" |
 | `GET /v1/admin/audit` | Owner | The activity record, kept a year |
 | `GET /v1/admin/reports`, `GET /v1/admin/reports/{id}`, `PATCH /v1/admin/reports/{id}`, `DELETE /v1/admin/reports/{id}`, `GET /v1/admin/reports/{id}/log` | Owner | Problem and crash reports: read, set the status and reply (the reply arrives as a notice), delete, download the app's log |
 | `GET /v1/admin/capabilities`, `POST /v1/admin/permissions/fix` | Owner | What this server can do and why not; fix the data folder's permissions |

@@ -4911,7 +4911,7 @@ export interface Routes {
   'DELETE /v1/admin/backups/restore': {access: 'owner'; request: undefined; response: undefined};
   'POST /v1/admin/restart': {access: 'owner'; request: undefined; response: Restart};
   'GET /v1/admin/logs': {access: 'admin'; request: undefined; response: LogPage};
-  'PUT /v1/admin/logs/detail': {access: 'admin'; request: LogDetail; response: LogDetailState};
+  'PUT /v1/admin/logs/detail': {access: 'owner'; request: LogDetail; response: LogDetailState};
   'GET /v1/admin/logs/events': {access: 'admin'; request: undefined; response: undefined};
   'POST /v1/admin/support-export': {access: 'owner'; request: SupportExportRequest; response: undefined};
   'GET /v1/admin/play-history': {access: 'admin'; request: undefined; response: PlayEntryPage};

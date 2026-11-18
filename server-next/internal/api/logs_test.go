@@ -13,7 +13,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/serverlog"
 )
 
-// The owner and administrators read Messages and can record more detail; a member cannot. The
+// The owner and administrators read Messages and only the owner records more detail; a member does neither. The
 // owner's support export holds the messages with file paths replaced, the settings without
 // secrets and the activity record, and no password.
 func TestMessagesAndSupportExport(t *testing.T) {
@@ -69,11 +69,15 @@ func TestMessagesAndSupportExport(t *testing.T) {
 			}
 		}
 	}
+	// Record more detail is the owner's: an administrator who reads Messages cannot start it.
+	if code := status(t, s, "PUT", "/v1/admin/logs/detail", admin, LogDetail{Minutes: 30}); code != 403 {
+		t.Errorf("an administrator started Record more detail: %d", code)
+	}
 	var detail LogDetailState
-	if call(t, s, "PUT", "/v1/admin/logs/detail", admin, LogDetail{Minutes: 30}, &detail); detail.DetailUntil == nil {
+	if call(t, s, "PUT", "/v1/admin/logs/detail", owner.AccessToken, LogDetail{Minutes: 30}, &detail); detail.DetailUntil == nil {
 		t.Errorf("Record more detail did not start")
 	}
-	call(t, s, "PUT", "/v1/admin/logs/detail", admin, LogDetail{}, &detail)
+	call(t, s, "PUT", "/v1/admin/logs/detail", owner.AccessToken, LogDetail{}, &detail)
 
 	if code := status(t, s, "POST", "/v1/admin/support-export", admin, SupportExportRequest{}); code != 403 {
 		t.Errorf("an administrator made a support export: %d", code)
