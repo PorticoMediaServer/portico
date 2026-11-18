@@ -24,7 +24,7 @@
   <children>
     <Group id="page" translation="[0,830]"/>
     <Hero id="hero" visible="false"/>
-    <Notice id="notice" visible="false"/>
+    <PageState id="notice" visible="false"/>
     <Animation id="slide" duration="0.28" easeFunction="outCubic">
       <Vector2DFieldInterpolator id="slideTo" key="[0.0, 1.0]" fieldToInterp="page.translation"/>
     </Animation>

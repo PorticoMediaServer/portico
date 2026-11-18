@@ -13,8 +13,15 @@ function colours() as object
         ' that marks where the picture still is
         glass: "0xEDF5FA24", glassOn: "0xEDF5FA47", labelPlate: "0x071018E6",
         barTrack: "0xEDF5FA38", barAhead: "0x5CB3E26B", barTick: "0xEDF5FAE6",
-        ' the pale plate under the row in focus in a side sheet, and the faint plate behind its open heading and choices
-        plateOn: "0xD8E6EEFF", openGroup: "0xEDF5FA14"
+        ' the faint plate behind a side sheet's open heading and its choices
+        openGroup: "0xEDF5FA14",
+        ' the plates under buttons, chips and keys: the one in focus, one at rest, a chip that is
+        ' switched on, a key at rest; a progress track on a pale plate
+        plateOn: "0xD8E6EEFF", plate: "0x1D3848E6", chipOn: "0x2F86BBFF", key: "0x10212DE6", trackOn: "0x03121C40",
+        ' the icon of a page that could not load, and the tile of a section that could not
+        warning: "0xE8BC6AFF", dangerTint: "0xF38B8833",
+        ' laid over a card's picture: the plate under its length and tick, its progress track, a generated cover's rule
+        onArt: "0x071018D9", trackOnArt: "0xEDF5FA40", coverRule: "0xEDF5FA8C"
     }
 end function
 
@@ -29,7 +36,26 @@ function frames() as object
         ' The video player: the picture is the page. The top row hangs from `top`; the seek bar,
         ' the time row and the button row sit on their own lines; everything runs from `left` to `right`.
         ' Over it: the waiting spinner's line.
-        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470}
+        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470},
+        ' Every page beside the rail: its content starts at `gutter` and ends at `rightEdge`.
+        gutter: 200, rightEdge: 1824,
+        ' A library or Search (frame "Browse"): the page title's line.
+        browse: {titleY: 64},
+        ' A library (tv.html frame 4): the toolbar under the page title, the count, then the grid's first cards.
+        grid: {toolsY: 144, countY: 236, cardsY: 318},
+        ' Search (tv.html frame 5): the box on the page title's line, the keys under it, the results
+        ' column from `resultsX`; the row in focus is brought up level with the keys.
+        search: {boxWidth: 500, boxHeight: 80, keysY: 176, resultsX: 780},
+        ' A title page (frame "Title page"): its words start at `copyTop`, `copyWidth` wide.
+        title: {copyTop: 80, copyWidth: 960},
+        ' A person or a collection (tv-detail frames 9 and 10): the words in fixed slots from the title
+        ' frame's copyTop (a person's beside a face `face` across); between a collection's description
+        ' and `rowsY` lies the place of its action row; the first row's heading is fixed at `rowsY`, and
+        ' once focus goes down the row in focus sits at `scrolledY`.
+        group: {face: 280, nameY: 112, factsY: 252, aboutY: 298, rowsY: 470, scrolledY: 164},
+        ' The whole page could not load (frame "Page states"): icon, title and one sentence from `y`,
+        ' `width` wide, then buttons on `buttonsY`.
+        state: {y: 300, width: 1000, buttonsY: 760}
     }
 end function
 
@@ -47,7 +73,8 @@ function typeRoles() as object
         cardTitle: [600, 22, 0], cardSubtitle: [400, 20, 0], wideTitle: [700, 26, 0],
         meta: [400, 24, 0], metaStrong: [700, 24, 0], eyebrow: [600, 24, 0], synopsis: [400, 24, 35],
         button: [700, 26, 0], tag: [600, 20, 0], badge: [800, 18, 0], body: [400, 24, 33], caption: [400, 20, 27],
-        keycap: [700, 18, 0], skipSeconds: [800, 14, 0], chip: [700, 24, 0], micro: [500, 17, 0], episodeTitle: [700, 24, 30], seasonName: [700, 26, 0], personInitials: [700, 44, 0], section: [700, 26, 0], factLabel: [400, 22, 0], about: [400, 24, 35], listLabel: [600, 25, 0], help: [500, 19, 0], groupLabel: [700, 20, 0], padKey: [700, 44, 0], code: [800, 92, 0], welcome: [800, 88, 0], pageTitle: [800, 64, 0], faceInitial: [700, 84, 0], bodyStrong: [700, 24, 33], ledeStrong: [700, 30, 42], coverTitle: [800, 26, 29]
+        keycap: [700, 18, 0], skipSeconds: [800, 14, 0], micro: [500, 17, 0], episodeTitle: [700, 24, 30], seasonName: [700, 26, 0], personInitials: [700, 44, 0], section: [700, 26, 0], factLabel: [400, 22, 0], about: [400, 24, 35], listLabel: [600, 25, 0], help: [500, 19, 0], groupLabel: [700, 20, 0], padKey: [700, 44, 0], code: [800, 92, 0], welcome: [800, 88, 0], pageTitle: [800, 64, 0], faceInitial: [700, 84, 0], bodyStrong: [700, 24, 33], ledeStrong: [700, 30, 42], coverTitle: [800, 26, 29],
+        tab: [700, 26, 0], keyLetter: [600, 32, 0], personFace: [800, 96, 0]
     }
 end function
 
@@ -73,8 +100,8 @@ function shelfMetrics(shape as string) as object
     card = [214, 320]
     if shape = "landscape" then card = [400, 225]
     if shape = "square" then card = [214, 214]
-    if shape = "episode" then card = [384, 340]
-    if shape = "gridPoster" then card = [200, 396]     ' a poster 200 x 300 with its title (two lines at most) and year under it    ' a 16:9 still with the episode's name and number under it
+    if shape = "episode" then card = [384, 340]     ' a 16:9 still with the episode's name and number under it
+    if shape = "gridPoster" then card = [200, 372]     ' a poster 200 x 300 with its title and year under it, one line each
     if shape = "person" then card = [190, 250]     ' a round face 150 across with a name and a part under it
     return {card: card, headingGap: 60, block: 60 + card[1] + 52}
 end function

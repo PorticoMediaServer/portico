@@ -22,7 +22,7 @@
     <!-- In a grid, focus moves from card to card, so the card draws its own ring (a row draws one at its slot). -->
     <Poster id="ownRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
     <Group id="under">
-      <Poster id="plate" uri="pkg:/images/round-14.9.png" blendColor="0x10212DFF"/>
+      <Poster id="plate" uri="pkg:/images/round-14.9.png"/>
     </Group>
     <MaskGroup id="clip">
       <Poster id="art" loadDisplayMode="scaleToZoom"/>
@@ -30,7 +30,7 @@
     </MaskGroup>
     <!-- A person: a round face (a portrait, or initials on a disc) with the name and part under it. -->
     <Group id="person" visible="false" translation="[0,16]">
-      <Poster id="faceDisc" uri="pkg:/images/disc.png" blendColor="0x1D3848FF" width="150" height="150"/>
+      <Poster id="faceDisc" uri="pkg:/images/disc.png" width="150" height="150"/>
       <Label id="faceInitials" width="150" height="150" horizAlign="center" vertAlign="center"/>
       <MaskGroup id="faceClip" maskUri="pkg:/images/disc.png" maskSize="[150,150]">
         <Poster id="facePhoto" width="150" height="150" loadWidth="150" loadHeight="150" loadDisplayMode="scaleToZoom"/>
@@ -42,19 +42,19 @@
       <!-- A title with no picture gets a cover made from its name: one of eight tints, the same in every Portico app. -->
       <Group id="made" visible="false">
         <Label id="madeGlyph" horizAlign="right" opacity="0.085"/>
-        <Rectangle id="madeRule" height="3" color="0xEDF5FA8C"/>
+        <Rectangle id="madeRule" height="3"/>
         <Label id="madeTitle" wrap="true" maxLines="5"/>
       </Group>
       <Label id="title" visible="false"/>
       <Label id="sub" visible="false"/>
-      <Rectangle id="track" height="6" color="0xEDF5FA40" visible="false"/>
-      <Rectangle id="bar" height="6" color="0x409FD4FF" visible="false"/>
+      <Rectangle id="track" height="6" visible="false"/>
+      <Rectangle id="bar" height="6" visible="false"/>
       <!-- An episode's still carries its length, and a tick once it has been played. -->
-      <Poster id="cornerPlate" uri="pkg:/images/round-6.9.png" blendColor="0x071018D9" height="36" visible="false"/>
+      <Poster id="cornerPlate" uri="pkg:/images/round-6.9.png" height="36" visible="false"/>
       <Label id="corner" height="36" vertAlign="center" visible="false"/>
-      <Poster id="tickPlate" uri="pkg:/images/disc.png" blendColor="0x071018D9" width="40" height="40" translation="[14,14]" visible="false"/>
+      <Poster id="tickPlate" uri="pkg:/images/disc.png" width="40" height="40" translation="[14,14]" visible="false"/>
       <Poster id="tick" uri="pkg:/images/i-check-28.png" width="24" height="24" translation="[22,22]" visible="false"/>
-      <Poster id="badgePlate" uri="pkg:/images/round-6.9.png" blendColor="0x409FD4FF" visible="false"/>
+      <Poster id="badgePlate" uri="pkg:/images/round-6.9.png" visible="false"/>
       <Label id="badge" visible="false"/>
     </Group>
     </Group>

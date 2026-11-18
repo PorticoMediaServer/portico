@@ -44,17 +44,18 @@ sub onChange()
     m.plate.width = w
     m.top.buttonWidth = w
     if m.top.on
-        m.plate.blendColor = "0xD8E6EEFF"
+        m.plate.blendColor = c.plateOn
         m.label.color = c.actionInk
         m.icon.blendColor = c.actionInk
         m.detail.color = c.actionInk
-        m.track.color = "0x03121C40"
+        m.track.color = c.trackOn
         m.bar.color = c.accent
     else
         m.detail.color = c.text
         m.track.color = c.track
         m.bar.color = c.accent
-        m.plate.blendColor = "0x1D3848E6"
+        m.plate.blendColor = c.plate
+        if m.top.switchedOn then m.plate.blendColor = c.chipOn
         m.label.color = c.text
         m.icon.blendColor = c.text
     end if

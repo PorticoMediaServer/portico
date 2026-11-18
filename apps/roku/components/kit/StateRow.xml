@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A section that could not load, or has nothing in it (system-rules rule 9, "inside a section"): one
+     row in the section's place, under its heading. A tile, one bold line saying what happened, one
+     line of reason, and its button on the right (Try again), which is what takes focus. -->
+<component name="StateRow" extends="Group">
+  <interface>
+    <!-- "error" (the red-tinted tile) or "empty". -->
+    <field id="kind" type="string" value="error" onChange="onChange"/>
+    <field id="title" type="string" onChange="onChange"/>
+    <field id="reason" type="string" onChange="onChange"/>
+    <!-- The button's words ("Try again"), or "" for a row with nothing to press. -->
+    <field id="action" type="string" onChange="onChange"/>
+    <field id="width" type="float" value="1000" onChange="onChange"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="pressed" type="boolean" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="StateRow.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Poster id="plate" uri="pkg:/images/round-14.9.png" height="96"/>
+    <Poster id="tile" uri="pkg:/images/round-10.9.png" width="48" height="48" translation="[24,24]"/>
+    <Poster id="icon" width="28" height="28" translation="[34,34]"/>
+    <Label id="title" translation="[96,18]"/>
+    <Label id="reason" translation="[96,54]"/>
+    <Button id="button" translation="[0,12]" visible="false"/>
+  </children>
+</component>
