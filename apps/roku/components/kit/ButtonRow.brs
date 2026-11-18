@@ -83,6 +83,7 @@ end sub
 function onKeyEvent(key as string, press as boolean) as boolean
     if not press then return false
     if key = "right"
+        if m.focused >= m.nodes.count() - 1 and m.top.passRight then return false
         if m.focused < m.nodes.count() - 1 then m.focused = m.focused + 1
         paint()
         return true   ' the end of the row: nothing moves

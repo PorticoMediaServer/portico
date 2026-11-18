@@ -134,6 +134,10 @@ sub init()
     m.finRelated.slotX = f.left
     m.finRelated.translation = [0, f.finished.rowY]
     m.finRelated.observeField("selectedIndex", "onFinishedRelated")
+    m.group = invalid    ' the Watch Together group while this play follows it
+    m.top.findNode("pillPlate").blendColor = c.pillPlate
+    setType(m.top.findNode("pillName"), "cardTitle", c.text)
+    setType(m.top.findNode("pillState"), "tag", c.healthy)
     makeButtons(false, false)
     makeHints()
 end sub
@@ -358,6 +362,18 @@ sub start()
     end if
     m.top.findNode("waitTitle").text = title
     busy("Getting ready…")
+    if m.top.together and m.group = invalid and (m.global.together.phase = "live" or m.global.together.phase = "reconnecting") then startTogether()
+    if m.group <> invalid
+        ' the group's queue is the queue: the play starts where the group is
+        entry = roomEntry(m.group.room)
+        if m.followed = invalid
+            if entry = invalid or entry.itemId <> item.id then return     ' Watch with group: not on it yet
+            m.followed = entry.entryId
+        end if
+        m.queueAsked = true
+        room = m.group.room
+        m.resumeAt = int(groupPlaceMs(room.clock, (UpTime(0) - room.receivedAt) * 1000))
+    end if
     if not m.queueAsked
         ' every play is a queue on the server, so what comes next is known
         m.queueAsked = true
@@ -896,6 +912,11 @@ sub leave(tell as boolean)
         timer.control = "stop"
     end for
     busy(invalid)
+    if m.group <> invalid
+        ' this member is no longer watching along: the group hears where they stopped
+        m.group.report = {state: "paused", positionMs: m.last * 1000}
+        stopFollowing()
+    end if
     if tell then stopSession()
     m.video.control = "stop"
     m.session = invalid
@@ -993,7 +1014,7 @@ end function
 
 ' Shows, changes or puts away the prompt for where the picture is.
 sub updatePrompt()
-    if m.live = true then return
+    if m.live = true or m.group <> invalid then return     ' a skip would take one member out of step
     if m.failed or m.ended or m.session = invalid then return
     at = m.video.position
     if m.cardMode = "end" or m.cardMode = "count" or m.cardMode = "still" then return
@@ -1467,6 +1488,16 @@ end sub
 ' The end of the title: the next entry plays; a film with nothing after it gets Finished.
 sub ended()
     closeOptions()
+    if m.group <> invalid
+        ' the group's end of a title: only the host moves it on, to the next in its queue or a pause
+        m.atEnd = true
+        room = m.group.room
+        if room.you.host = true and room.clock.playing = true
+            after = entryAfter(room, m.followed)
+            if after <> invalid then m.group.ask = {do: "watchEntry", entryId: after.entryId} else m.group.ask = {do: "pause"}
+        end if
+        return
+    end if
     if m.next <> invalid
         m.promptKey = ""
         m.controls.visible = false
@@ -1625,7 +1656,7 @@ sub paint()
     now = m.video.position
     position = now
     if m.pending >= 0 then position = m.pending
-    seeking = (m.focus < 0)
+    seeking = (m.focus = -1)      ' -2 is the Watch Together pill
     ' the seek bar: played, and while a scrub waits the stretch it would skip, lighter, with a tick where the picture is
     trackY = m.f.barY
     height = 8
@@ -1736,6 +1767,18 @@ sub paint()
         pillRing.visible = false
         flab.visible = false
     end if
+    if m.group <> invalid
+        paintPill()
+        if m.focus = -2
+            out = metrics().focusSpread + 6
+            pillRing.translation = [m.top.findNode("pill").translation[0] - out, m.top.findNode("pill").translation[1] - out]
+            pillRing.width = m.pillWidth + out * 2
+            pillRing.height = 64 + out * 2
+            pillRing.visible = true
+        end if
+        ' a member's Play, Pause or seek, refused: the room's sentence over the transport
+        if UpTime(0) < m.refusedUntil then showLabel(flab, "The host controls playback", 960, m.f.buttonsY - 12)
+    end if
     if m.live = true then paintLive()
 end sub
 
@@ -1766,6 +1809,19 @@ sub showLabel(flab as object, text as string, centre as float, bottom as float)
 end sub
 
 sub togglePause()
+    if m.group <> invalid
+        ' Play and Pause are the group's: the player follows once the group has moved
+        room = m.group.room
+        if room.you.mayControl <> true
+            refuse()
+        else if roomMoving(room.clock)
+            m.group.ask = {do: "pause"}
+        else
+            m.group.ask = {do: "play"}
+        end if
+        raise()
+        return
+    end if
     if m.live = true and m.liveWindow <> true and m.video.state = "paused"
         goLive()        ' nothing was kept while paused: Play rejoins the channel live
         return
@@ -1782,6 +1838,10 @@ end sub
 ' Move the place the picture will go to. A tap while playing jumps once the presses rest; a held
 ' key, or any move while paused, is a scrub that waits for OK (Back puts it away).
 sub nudge(seconds as float)
+    if m.group <> invalid and m.group.room.you.mayControl <> true
+        refuse()
+        return
+    end if
     duration = m.duration
     if duration <= 0 then return
     if m.pending < 0 then m.pending = m.video.position
@@ -1803,7 +1863,7 @@ end sub
 ' A held Left or Right on the seek bar (from Hold.brs): each repeat is a scrub step.
 function pressKey(key as string) as boolean
     if m.live = true then return false
-    if m.focus >= 0 or not m.controls.visible then return false
+    if m.focus <> -1 or not m.controls.visible then return false
     m.scrub = true
     if key = "left" then nudge(-10) else if key = "right" then nudge(10) else return false
     return true
@@ -1814,6 +1874,18 @@ sub applySeek()
     target = m.pending
     m.pending = -1
     m.scrub = false
+    if m.group <> invalid
+        ' the group moves, and the player with it
+        m.group.ask = {do: "seek", positionMs: target * 1000}
+        raise()
+        return
+    end if
+    seekTo(target)
+    sendProgress()
+    raise()
+end sub
+
+sub seekTo(target as float)
     m.last = target
     if m.presentation.mode = "direct" or m.presentation.mode = "live"
         m.video.seek = target
@@ -1821,8 +1893,6 @@ sub applySeek()
         ' A converted stream is the server's: it is told, and answers with where to play from.
         api("PATCH", "/v1/playback/sessions/" + m.session.id, {seek: {positionMs: int(target * 1000), id: createObject("roDeviceInfo").getRandomUUID()}}, "onSeekAnswer", {target: target})
     end if
-    sendProgress()
-    raise()
 end sub
 
 sub onSeekAnswer(event as object)
@@ -1838,7 +1908,7 @@ sub onSeekAnswer(event as object)
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
-    holdKey(key, press and m.focus < 0 and m.controls.visible and (key = "left" or key = "right"))
+    holdKey(key, press and m.focus = -1 and m.controls.visible and (key = "left" or key = "right"))
     if not press then return false
     if m.finished.visible
         if key = "back" then leave(false)
@@ -1882,6 +1952,14 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
     if not m.controls.visible
         raise()          ' any other key raises the controls, on Play/Pause
+        return true
+    end if
+    if key = "OK" and m.focus = -2
+        openGroupSheet()
+        return true
+    end if
+    if (key = "left" or key = "right") and m.focus = -2
+        raise()
         return true
     end if
     if key = "OK"
@@ -1929,10 +2007,18 @@ function onKeyEvent(key as string, press as boolean) as boolean
             m.focus = m.focus + 1
         end if
     else if key = "up"
-        ' on live, Up reaches Go to live when the picture is behind; there is no scrubbing
-        if m.live <> true or m.top.findNode("goLive").visible then m.focus = -1
+        ' on live, Up reaches Go to live when the picture is behind; there is no scrubbing.
+        ' In a group, Up from the seek bar reaches the pill.
+        if m.focus = -1 and m.top.findNode("pill").visible
+            if m.scrub then cancelScrub()
+            m.focus = -2
+        else if m.focus <> -2 and (m.live <> true or m.top.findNode("goLive").visible)
+            m.focus = -1
+        end if
     else if key = "down"
-        if m.focus < 0
+        if m.focus = -2
+            m.focus = -1
+        else if m.focus < 0
             if m.scrub then cancelScrub()
             m.focus = m.playIndex
         end if
@@ -1940,3 +2026,214 @@ function onKeyEvent(key as string, press as boolean) as boolean
     raise()
     return true
 end function
+
+' --- Watch Together: the picture held to the group's clock (tv-more frame 18) ------------------
+' As the other apps' follower does (packages/client-core room-session.ts RoomFollower): it plays
+' and pauses with the group, leaves a small drift alone and jumps beyond it, lets each jump of its
+' own land before judging again, and tells the group how this member is doing. It never commands
+' the group, except that the host's player moves it on at the end of a title.
+
+sub startTogether()
+    m.group = m.global.together
+    m.group.observeFieldScoped("room", "follow")
+    m.group.observeFieldScoped("answer", "onGroupAnswer")
+    m.pillKey = ""
+    m.followed = invalid    ' the group's entry this play is, once the group is on it
+    m.offSince = -1         ' since when (UpTime) the picture has been out of step; -1 while in step
+    m.jumpedAt = -1         ' when the player last jumped to the group's place; -1 once it has landed
+    m.atEnd = false         ' the title ran to its end here
+    m.refusedUntil = 0      ' "The host controls playback" shows until then
+    follower = m.top.findNode("follow")
+    follower.observeField("fire", "follow")
+    follower.control = "start"
+end sub
+
+' The group ended, or this TV left it: playback carries on by itself, as on the other apps.
+sub stopFollowing()
+    if m.group = invalid then return
+    m.group.unobserveFieldScoped("room")
+    m.group.unobserveFieldScoped("answer")
+    m.group = invalid
+    m.top.findNode("follow").control = "stop"
+    m.top.findNode("pill").visible = false
+    if m.focus = -2 then m.focus = -1
+end sub
+
+' Watch with group asked the group to put this title on; if that was refused, the player says why.
+sub onGroupAnswer()
+    answer = m.group.answer
+    if answer.ok or m.followed <> invalid then return
+    if answer.do = "watch" or answer.do = "watchEntry" or answer.do = "add" then fail(answer.message)
+end sub
+
+sub follow()
+    if m.ended or m.group = invalid then return
+    phase = m.group.phase
+    if phase <> "live" and phase <> "reconnecting"
+        stopFollowing()
+        return
+    end if
+    room = m.group.room
+    if m.controls.visible then paintPill()
+    entry = roomEntry(room)
+    if entry = invalid then return
+    if m.followed = invalid
+        if entry.itemId = m.top.item.id then start()     ' the group is on this title now
+        return
+    end if
+    if entry.entryId <> m.followed
+        if entry.available = true then switchTo(entry) else m.video.control = "pause"
+        return
+    end if
+    if m.session = invalid or m.presentation = invalid or m.failed then return
+    moving = roomMoving(room.clock)
+    target = groupPlaceMs(room.clock, (UpTime(0) - room.receivedAt) * 1000) / 1000
+    if m.duration > 0 and target > m.duration then target = m.duration
+    state = m.video.state
+    ' a jump of its own has landed once the picture runs again (or after 20 seconds, whatever it says)
+    if m.jumpedAt >= 0 and ((state = "playing" or state = "paused") or UpTime(0) - m.jumpedAt > 20) then m.jumpedAt = -1
+    busyHere = m.loading = true or m.jumpedAt >= 0 or m.pending >= 0
+    if m.atEnd
+        m.group.report = {state: "paused", positionMs: m.duration * 1000}
+        return
+    end if
+    if not busyHere and state <> "buffering"
+        if moving and state = "paused" then m.video.control = "resume"
+        if not moving and state = "playing" then m.video.control = "pause"
+        drift = (target - m.video.position) * 1000
+        if abs(drift) < room.inStepMs
+            m.offSince = -1
+        else if m.offSince < 0
+            m.offSince = UpTime(0)
+        end if
+        off = 0
+        if m.offSince >= 0 then off = (UpTime(0) - m.offSince) * 1000
+        if keepInStep(moving, drift, room.inStepMs, room.jumpMs, off) = "seek"
+            m.offSince = -1
+            m.jumpedAt = UpTime(0)
+            seekTo(target)
+            busyHere = true
+        end if
+    end if
+    m.group.report = {state: reportState(busyHere, state, room.clock.waitUntil <> invalid), positionMs: m.video.position * 1000}
+end sub
+
+' The group moved on to another title: it is read, then played from where the group is.
+sub switchTo(entry as object)
+    m.followed = invalid
+    m.atEnd = false
+    stopSession()
+    hideAll()
+    busy("Getting ready…")
+    api("GET", "/v1/items/" + entry.itemId, invalid, "onGroupItem")
+end sub
+
+sub onGroupItem(event as object)
+    result = event.getData()
+    if m.ended or m.group = invalid then return
+    if not result.ok
+        fail("This title could not be played on this TV.")
+        return
+    end if
+    m.top.item = result.data
+    m.top.startOver = false
+    fresh()
+    start()
+end sub
+
+' A member's Play, Pause or seek when only the host controls playback: refused with the room's sentence.
+sub refuse()
+    m.refusedUntil = UpTime(0) + 4
+    cancelScrub()
+end sub
+
+' The pill: up to three faces, the group's name and whether everyone is in step.
+sub paintPill()
+    c = colours()
+    pill = m.top.findNode("pill")
+    room = m.group.room
+    pill.visible = (room.members <> invalid)
+    if not pill.visible then return
+    words = pillText(room, m.group.phase = "reconnecting")
+    ' drawn again only when what it says changes (the player paints on every move of the picture)
+    key = room.name + "|" + words.text + "|" + room.members.count().toStr() + "|" + m.top.findNode("title").text
+    for each member in room.members
+        key = key + "|" + memberName(member)
+    end for
+    if key = m.pillKey then return
+    m.pillKey = key
+    faces = m.top.findNode("pillFaces")
+    faces.removeChildrenIndex(faces.getChildCount(), 0)
+    order = ["blue", "violet", "coral"]
+    shown = room.members.count()
+    if shown > 3 then shown = 3
+    for i = 0 to shown - 1
+        disc = faces.createChild("Poster")
+        disc.uri = "pkg:/images/disc.png"
+        disc.width = 42
+        disc.height = 42
+        disc.blendColor = c.faces[order[i]]
+        disc.translation = [10 + i * 31, 11]
+        letter = faces.createChild("Label")
+        letter.text = ucase(left(memberName(room.members[i]), 1))
+        letter.width = 42
+        letter.height = 42
+        letter.horizAlign = "center"
+        letter.vertAlign = "center"
+        letter.translation = [10 + i * 31, 11]
+        setType(letter, "keycap", c.white)
+    end for
+    x = 10 + 42 + (shown - 1) * 31 + 14
+    name = m.top.findNode("pillName")
+    name.text = room.name
+    name.width = 0
+    nameWidth = name.boundingRect().width
+    if nameWidth > 240 then nameWidth = 240
+    name.width = nameWidth
+    name.translation = [x, 6]
+    tint = c.healthy
+    if words.wait then tint = c.warning
+    state = m.top.findNode("pillState")
+    state.text = words.text
+    state.color = tint
+    state.width = 0
+    stateWidth = state.boundingRect().width
+    if stateWidth > 240 then stateWidth = 240
+    state.width = stateWidth
+    state.translation = [x + 17, 33]
+    m.top.findNode("pillDot").blendColor = tint
+    m.top.findNode("pillDot").translation = [x, 41]
+    width = x + 17 + stateWidth + 26
+    if x + nameWidth + 26 > width then width = x + nameWidth + 26
+    m.top.findNode("pillPlate").width = width
+    m.pillWidth = width
+    ' beside the title, on the top row's line, clear of the clock at the right: a long title gives way
+    title = m.top.findNode("title")
+    title.width = 0
+    titleWidth = title.boundingRect().width
+    most = m.f.right - 520 - width - 28 - m.f.left
+    if titleWidth > most then titleWidth = most
+    title.width = titleWidth
+    pill.translation = [m.f.left + titleWidth + 28, m.f.top + 8]
+end sub
+
+' OK on the pill: the group's name, how many are watching and each person with their part or state.
+sub openGroupSheet()
+    room = m.group.room
+    rows = []
+    for each member in room.members
+        value = ""
+        if member.host = true
+            value = "Host"
+        else if member.status <> "in_step"
+            value = memberState(member.status).text
+        end if
+        rows.push({id: "group:" + member.id, text: memberName(member), icon: "", value: value})
+    end for
+    count = room.members.count()
+    status = count.toStr() + " people watching"
+    if count = 1 then status = "1 person watching"
+    body = ""
+    if room.you.mayControl <> true then body = "The host controls playback"
+    m.top.menu = {eyebrow: "Watch Together", title: room.name, status: status, body: body, rows: rows, hints: [{keys: ["Back"], text: "Close"}]}
+end sub

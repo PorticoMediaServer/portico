@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A text field in a sheet (tv-more frames 12 and 13, .fld): its label above, the box with what
+     is typed (or a quieter placeholder), and a help line or a refusal under it. In focus the box
+     has the ring; while Portico's keyboard types into it, an accent edge and a caret. The sheet
+     that holds it moves focus; OK on a field is the sheet's to answer. -->
+<component name="Field" extends="Group">
+  <interface>
+    <field id="label" type="string" onChange="onChange"/>
+    <field id="text" type="string" onChange="onChange"/>
+    <field id="placeholder" type="string" onChange="onChange"/>
+    <!-- The line under the box: help ("Shown to the others"), or a refusal when `refused` is set. -->
+    <field id="note" type="string" onChange="onChange"/>
+    <field id="refused" type="boolean" onChange="onChange"/>
+    <field id="fieldWidth" type="float" value="440" onChange="onChange"/>
+    <field id="on" type="boolean" onChange="onChange"/>
+    <field id="typing" type="boolean" onChange="onChange"/>
+  </interface>
+  <script type="text/brightscript" uri="Field.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Label id="name"/>
+    <Poster id="ring" uri="pkg:/images/focus-14.9.png" visible="false"/>
+    <Poster id="box" uri="pkg:/images/round-14.9.png" height="72"/>
+    <Poster id="edge" uri="pkg:/images/line-14.9.png" height="72" visible="false"/>
+    <Label id="value" height="72" vertAlign="center"/>
+    <Rectangle id="caret" width="3" height="38" visible="false"/>
+    <Label id="under" wrap="true" maxLines="2"/>
+  </children>
+</component>

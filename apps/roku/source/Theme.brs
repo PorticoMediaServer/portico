@@ -24,14 +24,18 @@ function colours() as object
         glassOn: "0xEDF5FA47"               ' over a picture: a control's glass plate in focus
         handoffCard: "0x0C1A25F2"           ' the card a hand-off to a phone is printed on (its QR code, address and code)
         handoffEdge: "0x1C3341FF"           ' the edge of that card
+        healthy: "0x86CFB3FF"               ' a state that is well (In step, Playing in Watch Together)
         ink: "0x071018FF"                   ' surface
         key: "0x10212DE6"                   ' the plate under a key at rest
         labelPlate: "0x071018E6"            ' over a picture: the dark plate under a focus label
         line: "0x28404FFF"                  ' line
         lineStrong: "0x3B5668FF"            ' line
+        noticeEdge: "0xE8BC6A66"            ' the edge of a Watch Together notice's amber strip (the host away)
+        noticePlate: "0xE8BC6A1F"           ' a Watch Together notice's amber strip
         onArt: "0x071018D9"                 ' laid over a card's picture: the plate under its length and tick
         openGroup: "0xEDF5FA14"             ' the faint plate behind a side sheet's open heading and its choices
         overlay: "0x132634FF"               ' surface
+        pillPlate: "0x07101880"             ' the player's Watch Together pill over the picture
         plate: "0x1D3848E6"                 ' the plate under a button, chip or key at rest
         plateOn: "0xD8E6EEFF"               ' the plate under a button, chip or key in focus
         promptPlate: "0x09131BD6"           ' the dark card under a prompt over the picture (Up next, the Undo note)
@@ -148,6 +152,25 @@ function frames() as object
             ' heading at `peekY`
             episodesX: 600, episodesY: 248, bandHeadBottom: 648, bandMetaMid: 680, bandTextY: 708,
             bandResumeMid: 848, creditsX: 1264, creditsY: 616, bandHintMid: 878, peekY: 944}
+        ' Watch Together (tv-more frames 11 to 17). The lobby: its card from `cardY` (`cardWidth` x
+        ' `cardHeight`, words `cardPad` inside) with its headline on `ledeY`, words on `wordsY` and
+        ' buttons on `cardButtonsY`; "Groups you're in" on `groupsHeadY`, its rows from `groupsY`.
+        ' The room: the eyebrow and the group's name on `eyebrowY` and `titleY`; what is on in the card
+        ' from `nowY` (`nowWidth` x `nowHeight`), the buttons on `actionsY`, the queue's heading and
+        ' rows from `queueHeadY` and `queueY`, down to the foot's buttons on `footY`; the people from
+        ' `peopleX` (`peopleWidth` across), heading on `peopleHeadY`, rows from `peopleY`; the
+        ' invitation's heading and card on `inviteHeadY` and `inviteY`. A notice takes the strip at
+        ' `noticeY` and moves both columns down by `noticeShift` (frame 15). The sheets: Join with a
+        ' code from `joinX`, its fields `fieldWidth` across and Portico's keyboard at `keysX`, `keysY`;
+        ' Start a group from `startX`; their words `sheetPad` inside, from `sheetTop`; the fields from
+        ' `joinFieldsY` or `startFieldsY`, `fieldPitch` apart, Join on `joinSubmitY`; Start's "who
+        ' controls" on `startWhoY`, a refusal on `startNoteY` and Start on `startSubmitY`.
+        together: {cardY: 150, cardWidth: 1180, cardHeight: 512, cardPad: 56, ledeY: 276, wordsY: 430, cardButtonsY: 538,
+            groupsHeadY: 702, groupsY: 744, eyebrowY: 52, titleY: 80, nowY: 196, nowWidth: 840, nowHeight: 290, actionsY: 512,
+            queueHeadY: 624, queueY: 664, footY: 962, peopleX: 1136, peopleWidth: 688, peopleHeadY: 196, peopleY: 236,
+            inviteHeadY: 544, inviteY: 584, noticeY: 176, noticeShift: 120, joinX: 680, startX: 1160, sheetPad: 56,
+            sheetTop: 64, fieldWidth: 440, fieldPitch: 135, keysX: 1224, keysY: 94, joinFieldsY: 228, joinSubmitY: 540,
+            startFieldsY: 266, startWhoY: 574, startNoteY: 820, startSubmitY: 888}
     }
 end function
 
@@ -186,9 +209,11 @@ function typeRoles() as object
         episodeTitle: [700, 24, 30]
         eyebrow: [600, 24, 0]               ' the small line above a title
         faceInitial: [800, 84, 0]           ' the initial on a profile's face
+        faceLetter: [800, 26, 0]            ' a person's letter on a small face (Watch Together's people and the pill)
         faceName: [700, 30, 0]              ' before a profile is chosen: a face's name
         faceNote: [600, 22, 0]              ' before a profile is chosen: the line under a face's name
         factLabel: [400, 22, 0]             ' a fact's label in Details (Released, Directed by...)
+        field: [700, 30, 0]                 ' what is typed in a sheet's field (kit/Field)
         finishedTitle: [800, 84, 0]         ' the Finished page's title, two lines above its year line (tv-player frame 7)
         groupLabel: [700, 20, 0]            ' a group's heading in the player's menus
         heading: [600, 32, 0]

@@ -16,6 +16,14 @@ sub init()
     paint()
 end sub
 
+sub onCapitals()
+    for i = 0 to 25
+        letter = mid(m.letters, i + 1, 1)
+        if m.top.capitals then letter = ucase(letter)
+        m.keys.getChild(i).text = letter
+    end for
+end sub
+
 sub makeKey(text as string, glyph as string, x as integer, y as integer, w as integer, role as string)
     key = m.keys.createChild("Key")
     key.role = role

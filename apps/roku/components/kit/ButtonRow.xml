@@ -13,6 +13,9 @@
     <!-- A button's spec may also say switchedOn (a filter chip that is on) or menu (it opens a menu).
          Set by the row: the button in focus, for a page that slides a long row of chips. -->
     <field id="focusedIndex" type="integer"/>
+    <!-- Right from the last button goes on to the page (a column beside the row, as in Watch
+         Together's room) instead of stopping there. -->
+    <field id="passRight" type="boolean"/>
   </interface>
   <script type="text/brightscript" uri="ButtonRow.brs"/>
 </component>

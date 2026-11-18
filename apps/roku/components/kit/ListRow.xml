@@ -5,11 +5,13 @@
      and grows with its words; it draws the separator above itself and the TV focus look (rule 11). -->
 <component name="ListRow" extends="Group">
   <interface>
-    <!-- {label, help, scope, value, control, switchOn, icon}:
+    <!-- {label, help, scope, value, control, switchOn, icon, initial, face, tone}:
          scope: "This device" or "All TVs" under the help, for a value that is not the profile's everywhere;
          control: "" (plain, or an action), "choice" (opens its values), "switch", "expand" or "collapse";
          icon: a 28 px icon drawn on a tile before the label;
-         danger: a destructive action (Sign out), its label red. -->
+         danger: a destructive action (Sign out), its label red;
+         initial: a person's letter on a round face 64 across in place of the tile, `face` its colour
+         (Watch Together's people); tone: "good" or "wait" colours the value green or amber (In step, Catching up). -->
     <field id="model" type="assocarray" onChange="layout"/>
     <field id="rowWidth" type="float" value="1064"/>
     <field id="on" type="boolean" onChange="paint"/>
@@ -26,6 +28,8 @@
     <Rectangle id="line" height="1"/>
     <Poster id="tile" uri="pkg:/images/round-10.9.png" width="44" height="44"/>
     <Poster id="icon" width="28" height="28"/>
+    <Poster id="face" uri="pkg:/images/disc.png" width="64" height="64" visible="false"/>
+    <Label id="initial" width="64" height="64" horizAlign="center" vertAlign="center" visible="false"/>
     <Label id="label" wrap="true" maxLines="2"/>
     <Label id="help" wrap="true" maxLines="2"/>
     <Label id="scope"/>

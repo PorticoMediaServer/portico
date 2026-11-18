@@ -17,6 +17,10 @@ sub main()
     fresh({label: "Autoplay", help: "", scope: "This device", value: "", control: "switch", switchOn: true, icon: ""})
     layout()
     check("a switch row lays out with its switch on", m.nodes.switch.uri = "pkg:/images/switch-on.png")
+    ' a person in Watch Together's room: a face with their letter, their state in green
+    fresh({label: "Kids", help: "Host", scope: "", value: "In step", control: "", switchOn: false, icon: "", initial: "K", face: "faceBlue", tone: "good"})
+    layout()
+    check("a person's row has their face and a green state", m.nodes.face.visible = true and m.nodes.initial.text = "K" and m.nodes.value.color = "healthy" and m.top.rowHeight >= 88)
     print "PASSED " + m.passed.toStr() + " FAILED " + m.failed.toStr()
 end sub
 
@@ -32,7 +36,7 @@ end sub
 ' A row with stand-in nodes: each node is an object whose words measure 12 px a letter, 30 px a line.
 sub fresh(model as object)
     m.nodes = {}
-    for each id in ["label", "help", "scope", "value", "tile", "icon", "chevron", "switch", "line", "plate", "ring"]
+    for each id in ["label", "help", "scope", "value", "tile", "icon", "chevron", "switch", "line", "plate", "ring", "face", "initial"]
         m.nodes[id] = {text: "", width: 0, boundingRect: function() as object
             if m.text = "" then return {width: 0, height: 0}
             return {width: len(m.text) * 12, height: 30}
@@ -46,7 +50,7 @@ end sub
 ' --- stand-ins for what the row's other scripts give it -------------------------------------------
 
 function colours() as object
-    return {text: "text", danger: "danger", textSecondary: "textSecondary", textTertiary: "textTertiary", raisedBright: "raisedBright", separator: "separator"}
+    return {text: "text", danger: "danger", textSecondary: "textSecondary", textTertiary: "textTertiary", raisedBright: "raisedBright", separator: "separator", healthy: "healthy", warning: "warning"}
 end function
 
 function frames() as object
