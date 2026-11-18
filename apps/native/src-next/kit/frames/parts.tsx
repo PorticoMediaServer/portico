@@ -74,9 +74,12 @@ export function StateRow(props: StateRowProps) {
   const theme = useTheme(), frame = useFrameMetrics();
   const spec = frameSpec.stateRow, tile = spec.tile[frame.form];
   const row = {minHeight: frame.rowTwoLine, paddingHorizontal: frame.cardPadding, paddingVertical: theme.space.xs, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap} as const;
+  // The row sits inside a section's raised card, so its placeholders take the step above it, without the shine (its stripe
+  // repaints the card's colour, so on a card only the stripe showed).
+  const on = {backgroundColor: theme.colors.raisedHigh};
   if (props.kind === 'loading') return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={row}>
-    <SkeletonBlock width={tile} height={tile} radius={theme.baseRadii.control} shine/>
-    <View style={{flex: 1, gap: theme.space.xs}}><SkeletonBlock width="46%" height={theme.type.rowHelp.fontSize}/><SkeletonBlock width="72%" height={theme.type.rowHelp.fontSize}/></View>
+    <SkeletonBlock width={tile} height={tile} radius={theme.baseRadii.control} style={on}/>
+    <View style={{flex: 1, gap: theme.space.xs}}><SkeletonBlock width="46%" height={theme.type.rowHelp.fontSize} style={on}/><SkeletonBlock width="72%" height={theme.type.rowHelp.fontSize} style={on}/></View>
   </View>;
   const error = props.kind === 'error', tint = error ? theme.colors.record : theme.colors.textSecondary;
   return <View style={row}>
