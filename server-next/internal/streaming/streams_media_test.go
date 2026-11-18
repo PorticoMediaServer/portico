@@ -922,8 +922,13 @@ func TestAConversionTheSandboxRefusesSaysWhyInTheLog(t *testing.T) {
 		t.Fatal("the session layer was not told the stream failed")
 	}
 	line := said.String()
+	// The streams keep their folder where it really is (on macOS /var is a link).
+	real, err := filepath.EvalSymlinks(folder)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(line, "failed ("+FailureNotStarted+")") || !strings.Contains(line, "sandbox refused") || !strings.Contains(line, "not a full path") ||
-		!strings.Contains(line, "Program: "+rig.ffmpeg) || !strings.Contains(line, "Conversion folder: "+folder) {
+		!strings.Contains(line, "Program: "+rig.ffmpeg) || !strings.Contains(line, "Conversion folder: "+real) {
 		t.Fatalf("the server log says:\n%s", line)
 	}
 }
