@@ -48,16 +48,6 @@
       "testTimeoutSeconds": 30
     },
     {
-      "path": "fixtures/test-library-v3/test_video_identity.py",
-      "timeoutSeconds": 60,
-      "testTimeoutSeconds": 10
-    },
-    {
-      "path": "fixtures/test-library-v3/test_live_source.py",
-      "timeoutSeconds": 60,
-      "testTimeoutSeconds": 10
-    },
-    {
       "path": "scripts/test-macos-dependency-cache.py",
       "timeoutSeconds": 120,
       "testTimeoutSeconds": 60
