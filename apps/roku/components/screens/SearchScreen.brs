@@ -106,7 +106,7 @@ end sub
 sub onForgotten(event as object)
     if not event.getData().ok or m.asked <> "" then return
     moveTo(-1)
-    showGroups([])
+    showGroups([], invalid)
 end sub
 
 ' A search the viewer acted on (opened a result or a kind's list) goes to the top of the recent ones.
@@ -133,7 +133,7 @@ sub askSearch()
     if text = m.asked then return
     m.asked = text
     if text = ""
-        showGroups([])
+        showGroups([], invalid)
         showPrompt()
         return
     end if
@@ -152,7 +152,7 @@ sub onResults(event as object)
     m.note.text = ""
     if not result.ok
         ' the results are the one part of the page that failed: the keyboard still works (rule 9)
-        showGroups([])
+        showGroups([], invalid)
         m.failed.title = "Couldn't search"
         m.failed.reason = whyFailed(result)
         m.failed.action = "Try again"
@@ -160,7 +160,7 @@ sub onResults(event as object)
         m.rows.push({kind: "failed", items: [], node: m.failed, y: 0})
         return
     end if
-    showGroups(result.data.groups)
+    showGroups(result.data.groups, result.data.topResult)
     if m.rows.count() = 0
         m.none.text = "No matches for “" + m.asked + "”"
         m.note.text = "Check the spelling or try a shorter search."
@@ -192,18 +192,19 @@ sub onGenres(event as object)
 end sub
 
 function groupName(kind as string) as string
-    names = {movie: "Movies", show: "Shows", episode: "Episodes", person: "People", artist: "Artists", album: "Albums", track: "Songs", audiobook: "Audiobooks", collection: "Collections"}
+    names = {movie: "Movies", show: "Shows", episode: "Episodes", person: "People", artist: "Artists", album: "Albums", track: "Songs", audiobook: "Audiobooks", collection: "Collections", channel: "Live TV"}
     if names[kind] <> invalid then return names[kind]
     return ""
 end function
 
 ' One shelf for each kind with something found. Typing never moves focus: it stays on the keyboard.
-sub showGroups(groups as object)
+sub showGroups(groups as object, top as dynamic)
     m.page.removeChildrenIndex(m.page.getChildCount(), 0)
     m.failed.visible = false
     m.rows = []
     s = frames().search
     y = 0
+    if showTop(top) then y = s.topHeight
     for each group in groups
         name = groupName(group.kind)
         items = []
@@ -213,11 +214,14 @@ sub showGroups(groups as object)
                 if face = "" then face = invalid
                 items.push({id: person.id, kind: "person", name: person.name, image: face})
             end for
+        else if group.kind = "channel" and group.channels <> invalid
+            items = group.channels
         else if group.items <> invalid
             items = withoutReading(group.items)
         end if
         if name <> "" and items.count() > 0
             shape = "gridPoster"
+            if group.kind = "channel" then shape = "landscape"
             if group.kind = "episode" then shape = "episode"
             if group.kind = "person" then shape = "person"
             square = (group.kind = "track" or group.kind = "album" or group.kind = "audiobook" or group.kind = "artist")
@@ -230,12 +234,14 @@ sub showGroups(groups as object)
             cards = createObject("roSGNode", "ContentNode")
             size = shelfMetrics(shape).card
             copies = []
-            if group.kind <> "person" then copies = copyNames(items, m.libraryNames)
+            if group.kind <> "person" and group.kind <> "channel" then copies = copyNames(items, m.libraryNames)
             for n = 0 to items.count() - 1
                 item = items[n]
                 card = invalid
                 if group.kind = "person"
                     card = personCard({personId: item.id, name: item.name, role: "", image: item.image})
+                else if group.kind = "channel"
+                    card = channelCard(item)
                 else if group.kind = "episode"
                     card = episodeCard(item, false)
                     if item.rootTitle <> invalid then card.sub = item.rootTitle + "   " + episodeCode(item)
@@ -260,7 +266,8 @@ sub showGroups(groups as object)
     ' On TV each kind's chip is the See all for its row: its whole list as a grid (people have no grid)
     chips = []
     for each row in m.rows
-        if row.kind <> "person" then chips.push({id: row.kind, text: groupName(row.kind), detail: row.total, icon: ""})
+        ' people and channels have no grid of their own, and a Top result is not a kind
+        if row.kind <> "person" and row.kind <> "channel" and row.kind <> "top" then chips.push({id: row.kind, text: groupName(row.kind), detail: row.total, icon: ""})
     end for
     if chips.count() > 0
         bar = m.page.createChild("ButtonRow")
@@ -275,6 +282,86 @@ sub showGroups(groups as object)
 end sub
 
 ' How tall a card's picture is in each shelf shape (its words are under it).
+' A channel found by name: its logo whole on the card, its name and number; OK plays it.
+function channelCard(channel as object) as object
+    sub_ = channel.number
+    if channel.matchedProgramme <> invalid and channel.matchedProgramme.title <> invalid then sub_ = sub_ + "   " + channel.matchedProgramme.title
+    art = ""
+    if channel.logo <> invalid then art = channel.logo     ' made a picture address with the row's others
+    return {id: channel.id, kind: "channel", art: art, whole: true, title: channel.name, sub: sub_, progress: -1, badge: "", overlay: true}
+end function
+
+' The Top result (tv.html frame 5): the one title the server says is clearly what was typed, its
+' 16:9 picture as a one-card row with its words beside it; true when there is one to show. Only
+' the kinds this app opens a page for are shown, so OK on it always goes somewhere.
+function showTop(top as dynamic) as boolean
+    if top = invalid then return false
+    item = top.item
+    if top.kind = "person" and top.person <> invalid then item = {id: top.person.id, kind: "person", title: top.person.name, images: top.person.images}
+    if item = invalid or not opensPage(top.kind) then return false
+    c = colours()
+    s = frames().search
+    g = shelfMetrics("landscape")
+    shelf = m.page.createChild("Shelf")
+    shelf.slotX = s.resultsX
+    shelf.shape = "landscape"
+    shelf.translation = [0, -g.headingGap]      ' the picture's top on the row's line, with no heading
+    card = cardFor(item, "landscape")
+    card.overlay = false
+    if card.art = "" then card.art = pick(item.images, ["portrait", "photo", "poster", "cover"])
+    card.art = imageUrl(card.art, g.card[0], g.card[1])
+    cards = createObject("roSGNode", "ContentNode")
+    cards.createChild("ContentNode").addFields(card)
+    shelf.cards = cards
+    shelf.observeField("selectedIndex", "onSelected")
+    words = m.page.createChild("Group")
+    words.translation = [s.resultsX + g.card[0] + 40, 0]
+    width = frames().rightEdge - words.translation[0]
+    label = words.createChild("Label")
+    setType(label, "eyebrow", c.accentStrong)
+    label.text = "Top result"
+    label.translation = [0, 30]
+    title = words.createChild("Label")
+    setType(title, "title", c.text)
+    title.text = item.title
+    title.width = width
+    title.wrap = true
+    title.maxLines = 2
+    title.translation = [0, 66]
+    y = 66 + title.boundingRect().height + 10
+    meta = words.createChild("Label")
+    setType(meta, "metaStrong", c.text)
+    year = ""
+    if item.year <> invalid then year = item.year.toStr() + "   "
+    meta.text = year + topKindName(top.kind)
+    meta.translation = [0, y]
+    left = timeLeftText(item)
+    if progressOf(item) >= 0 and left <> ""
+        ' part-way through: how far, and how long is left (tv.html frame 5)
+        track = words.createChild("Rectangle")
+        track.color = c.track
+        track.width = 160
+        track.height = 6
+        track.translation = [0, y + 54]
+        bar = words.createChild("Rectangle")
+        bar.color = c.accent
+        bar.width = 160 * progressOf(item)
+        bar.height = 6
+        bar.translation = [0, y + 54]
+        note = words.createChild("Label")
+        setType(note, "metaStrong", c.text)
+        note.text = left
+        note.translation = [176, y + 40]
+    end if
+    m.rows.push({kind: "top", items: [item], node: shelf, y: 0})
+    return true
+end function
+
+' The kinds a Top result can open here: each has its page in this app.
+function opensPage(kind as string) as boolean
+    return kind = "movie" or kind = "show" or kind = "person"
+end function
+
 function pictureHeight(shape as string) as integer
     if shape = "gridPoster" then return 300
     if shape = "gridSquare" then return 200
@@ -333,6 +420,10 @@ sub onSelected(event as object)
         return
     end if
     recordSearch()
+    if row.kind = "channel"
+        m.top.open = {item: {kind: "channel", id: item.id, title: item.name, channel: item}, play: true}
+        return
+    end if
     if row.kind = "person" then item = {kind: "person", id: item.id, title: item.name}
     m.top.open = {item: item, play: (row.kind = "episode")}
 end sub
