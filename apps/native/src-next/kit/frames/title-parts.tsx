@@ -193,9 +193,10 @@ export function EpisodeDisplay({title, mark, intro, rows, preview}: Readonly<{ti
       </View>
       <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{intro}</Text>
     </View>
-    {rows.map((row, index) => <View key={row.label} style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.sm}}>
+    {rows.map((row, index) => <View key={row.label} style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm}}>
       <Text style={[theme.type.rowHelp, {width: sizes.choiceLabel, color: theme.colors.text, fontFamily: theme.type.rowLabel.fontFamily}]}>{row.label}</Text>
-      {/* The choices keep their own width (so a popover measures the part at its natural size) and take the line under the label when they do not fit. */}
+      {/* Beside the label at their own width, so a popover measures the part at its natural size; where the popover is
+          narrower (a phone) the choices shrink and their labels take a second line, never cut. */}
       <View style={{flexShrink: 1, minWidth: sizes.choiceMin}}><Segmented testID={`episode-display-${index}`} accessibilityLabel={row.label} items={row.items} value={row.value} onValueChange={row.onValueChange}/></View>
     </View>)}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap, padding: rowPad, borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised}}>
