@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {transformSync} from 'rolldown/utils';
 import {createRenderer, tree} from '../helpers/interaction-harness.mjs';
-import {parseBrowseCapabilities, browseCapabilitiesPath} from '../../../packages/client-core/src/browse.ts';
+import {parseBrowseCapabilities} from '../../../packages/client-core/src/browse.ts';
 import {libraryTabs, readingTabModel} from '../../../packages/client-core/src/presentation/library-tabs.ts';
 import {routePath} from '../../../packages/contracts/src/routes.ts';
 
@@ -22,7 +22,7 @@ async function loadActual(h, reads) {
   }
   const modules = {
     react: h.react, '@i18n': {defaultI18n: {t: key => key}},
-    '@core/browse.ts': {parseBrowseCapabilities, browseCapabilitiesPath},
+    '@core/browse.ts': {parseBrowseCapabilities},
     '@core/presentation/library-tabs.ts': {readingTabModel, libraryTabs},
     '@core/library-management.ts': {LibraryManagementService},
     '../../shell/viewport': {useShellWidth: () => 1440}, './screen-preferences': {useScreenAppearance: () => ({libraryView: 'grid', showBackdrops: false})},

@@ -12,7 +12,6 @@ import {createWatchBodyBindings} from '../src/screens/detail/watch-body.ts';
 import {createScreenPlayEffect} from '../src/screens/browse/playback-effect.ts';
 import type {SelectionContext} from '@core/selection-model/index.ts';
 import type {ContentEntry} from '@core/library-content.ts';
-import {browseCapabilitiesPath} from '@core/browse.ts';
 import {titleCreditsWindow} from '../src/screens/detail/credits-window.ts';
 import {setImmediate} from 'node:timers/promises';
 import type {PreferenceSnapshot} from '@core/preferences.ts';

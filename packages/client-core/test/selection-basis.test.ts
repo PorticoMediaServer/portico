@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseWholeSelection, type BrowseWholeSelection} from '../src/browse.ts';
-import {parsePreparedBrowseSelection} from '../src/browse-preparation.ts';
 import {browseWholeSelectionQuery} from '../src/browse-whole-selection.ts';
 import {BrowseSelectionModel} from '../src/selection-model/index.ts';
 import {jobRequestBody, type JobCommand, type JobArgs} from '../src/bulk-jobs.ts';
@@ -17,7 +16,9 @@ function wire(selectionBasis: unknown = proof) {return {selector: {query: {libra
 const page = {revision, pivot: 'movies', query: null, sort};
 const context = {scope: {serverId: 'server', authority: 'local' as const, accountId: 'account', profileId: 'profile', viewId: 'view'}, revision: {pageRevision: revision}};
 function selected(selectionBasis = proof) {
-  const whole = parsePreparedBrowseSelection(wire(selectionBasis), 'lib', page), query = browseWholeSelectionQuery(whole)!;
+  const whole = parseWholeSelection(wire(selectionBasis), page);
+  assert.ok(whole);
+  const query = browseWholeSelectionQuery(whole)!;
   const model = new BrowseSelectionModel(context);
   assert.equal(model.registerQuery(model.captureContext(), query).ok, true); assert.equal(model.selectWholeQuery(query.id).ok, true);
   const target = model.getSnapshot().target; assert.ok(target?.mode === 'query'); assert.ok('query' in target.selector);
@@ -38,14 +39,12 @@ test('the opaque full witness survives parsing and distinguishes held selections
   } finally {first.model.dispose(); second.model.dispose();}
 });
 
-test('legacy ordinary descriptors may omit the proof; prepared ready descriptors must carry it', () => {
+test('ordinary descriptors may omit the proof or supply a valid one', () => {
   const legacy = wire(); delete (legacy.selector.query as {selectionBasis?: unknown}).selectionBasis;
   const parsed = parseWholeSelection(legacy, page); assert.ok(parsed); assert.equal(parsed.selectionBasis, undefined);
   assert.ok(browseWholeSelectionQuery(parsed));
-  assert.throws(() => parsePreparedBrowseSelection(legacy, 'lib', page), {code: 'stale_continuation'});
   for (const invalid of [null, '', 'A'.repeat(64), 'a'.repeat(63), 'g'.repeat(64), 'a'.repeat(65), 1, {}]) {
     assert.equal(parseWholeSelection(wire(invalid), page), undefined);
-    assert.throws(() => parsePreparedBrowseSelection(wire(invalid), 'lib', page), {code: 'stale_continuation'});
     assert.equal(browseWholeSelectionQuery({...parsed, selectionBasis: invalid} as BrowseWholeSelection), undefined);
   }
 });

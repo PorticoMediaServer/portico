@@ -1,16 +1,15 @@
 import {validSelectionUnavailableActions} from './selection-model/unavailable-actions.ts';
 import {validSelectionBasis} from './selection-basis.ts';
 import {unreadableServerResponse} from './server-messages.ts';
-import {routePattern} from '../../contracts/src/routes.ts';
-import {routePath} from '../../contracts/src/route-paths.ts';
-const readingFacetRoute=routePattern('get_library_facets');
-const readingPeriodicalRoute=routePattern('get_reading_periodical_groups');
 /** Browse engine contract. The server owns the vocabulary, the query grammar and
  * every count; this module only parses what it publishes and refuses to send a
  * query the published capabilities cannot execute. No client-side filtering,
  * sorting or facet inference lives here. */
 import {validateContentEntry,type ContentEntry} from './library-content.ts';
 import {firstOfEach,keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
+
+export const readingPeopleFacetSource='people';
+export const readingPeriodicalFacetSource='periodicals';
 
 export type BrowseValueType='string'|'enum'|'number'|'date'|'boolean'|'identity-set';
 export type BrowseControlHint='toggle'|'select'|'number-range'|'date-range'|'facet-multi-select'|'text';
@@ -79,24 +78,9 @@ const finite=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v);
 /**
  * The library a browse reads, or `acrossLibraries` for a group that spans the viewer's libraries
  * (a person's titles, a playlist, a personal collection, a Home row, My List, Favorites, the
- * history): those are read from `/v1/browse`, with the same vocabulary.
+ * history).
  */
 export const acrossLibraries='*';
-/** Where a browse page is read. */
-export const browsePath=(libraryId:string):string=>libraryId===acrossLibraries?routePath('browse_across'):routePath('browse_library',{id:libraryId});
-/** Where a browse vocabulary is read, narrowed to one pivot. */
-export const browseCapabilitiesPath=(libraryId:string,pivot:string):string=>`${libraryId===acrossLibraries?routePath('get_browse_capabilities'):routePath('get_libraries_id_browse_capabilities',{id:libraryId})}?pivot=${encodeURIComponent(pivot)}`;
-/** Where a filter's counted values are read (`?field=…`). */
-export const browseFacetsPath=(libraryId:string):string=>libraryId===acrossLibraries?routePath('get_browse_facets'):routePath('get_library_facets',{id:libraryId});
-/** The group a list across libraries is (a person, playlist, collection, Home row, My List, Favorites, the history), from the conditions it always applies: its filter choices are counted over that list's own titles (`?group=…&value=…` on the facets path). */
-export function facetGroupOf(base:readonly BrowseNode[]):Readonly<{group:string;value:string}>|undefined{
-  for(const node of base){
-    if(!('field' in node))continue;
-    if(['person','cast','crew','list','savedCollection'].includes(node.field)&&typeof node.value==='string')return {group:node.field,value:node.value};
-    if(['watchlisted','favorite','lastPlayedAt'].includes(node.field))return {group:node.field,value:''};
-  }
-  return undefined;
-}
 /** The sorts a library tab offers: every published sort but a group's own order. */
 export const libraryTabSorts=<S extends Readonly<{requiresGroup?:boolean}>>(sorts:readonly S[]):S[]=>sorts.filter(sort=>!sort.requiresGroup);
 
@@ -201,7 +185,7 @@ export function parseBrowseCapabilities(raw:unknown):BrowseCapabilities{
  const pivot=(v:unknown):BrowsePivotCapability=>{
   if(!obj(v)||!id(v.id)||!id(v.labelKey))bad();
   // A pivot that does not say it can be queried is not queried.
-  const facetSource=v.facetSource==null?undefined:obj(v.facetSource)&&((v.facetSource.endpoint===readingFacetRoute&&(v.facetSource.field==='author'||v.facetSource.field==='series'))||(v.facetSource.endpoint===readingPeriodicalRoute&&v.facetSource.field==='publicationType'&&(v.id==='magazines'||v.id==='newspapers')&&v.browsable===false))?{endpoint:v.facetSource.endpoint,field:v.facetSource.field}:bad();
+  const facetSource=v.facetSource==null?undefined:obj(v.facetSource)&&((v.facetSource.endpoint===readingPeopleFacetSource&&(v.facetSource.field==='author'||v.facetSource.field==='series'))||(v.facetSource.endpoint===readingPeriodicalFacetSource&&v.facetSource.field==='publicationType'&&(v.id==='magazines'||v.id==='newspapers')&&v.browsable===false))?{endpoint:v.facetSource.endpoint,field:v.facetSource.field}:bad();
   return {...(facetSource?{facetSource}:{}),id:v.id,labelKey:v.labelKey,entityKinds:known('pivot.entityKinds',v.entityKinds,32),defaultSort:keepReadable('browse','pivot.defaultSort',rows(v.defaultSort??[],3),sortSelection),supportedViews:known('pivot.supportedViews',v.supportedViews,8),sorts:known('pivot.sorts',v.sorts,64),filters:known('pivot.filters',v.filters,128),...(v.paging==='keyset'||v.paging==='offset'?{paging:v.paging}:{}),browsable:v.browsable===true,...(v.members===true?{members:true}:{}),...(v.aggregate===undefined?{}:{aggregate:id(v.aggregate)?v.aggregate:bad()})};
  };
  const pivots=firstOfEach('browse','pivots',keepReadable('browse','pivots',rows(raw.pivots,32),pivot),p=>p.id);
@@ -410,8 +394,8 @@ export function formatBrowseAnchor(key:string,sortField:string,noValue=''):strin
 }
 
 /** The values of one facet. The field asked for and the bound of 200 are exact; a value that cannot be read is left out alone, a repeated one keeps its first appearance, a value without a label is labelled by itself, and a missing count is 0. */
-export function parseBrowseFacets(raw:unknown,expected?:string,variant?:'page'):BrowseFacetPage{
- if(!obj(raw)||(variant!==undefined&&raw.variant!==variant)||!count(raw.total)||!id(raw.field)||(expected!==undefined&&raw.field!==expected))bad();
+export function parseBrowseFacets(raw:unknown,expected?:string):BrowseFacetPage{
+ if(!obj(raw)||!count(raw.total)||!id(raw.field)||(expected!==undefined&&raw.field!==expected))bad();
  const values=firstOfEach('browse','facets',keepReadable('browse','facets',rows(raw.values,200),v=>{
   const attribution=raw.field==='author'||raw.field==='series';
   if(!obj(v)||!(attribution?str(v.value,4096)&&v.value.length>0&&!/[\r\n]/.test(v.value):id(v.value))||!str(v.label??'',attribution?4096:512))bad();
@@ -577,7 +561,6 @@ export function browseMembershipAnchor(page:Pick<BrowseResult,'entries'|'display
 }
 export type BrowseCount=Readonly<{id:string;total:number;totalIsLowerBound:boolean;revision:string}>;
 export type BrowseCountQuery=Readonly<{id:string;query:BrowseNode|null}>;
-export const browseCountsPath=(libraryId:string):string=>libraryId===acrossLibraries?routePath('browse_across_counts'):routePath('browse_library_counts',{id:libraryId});
 /** One request for the empty state's candidates. UI callers debounce/cancel it
  * with the panel lifecycle; it does not run another full browse for counts. */
 export function browseCountsRequest(pivot:string,queries:readonly BrowseCountQuery[]):Readonly<{pivot:string;queries:readonly BrowseCountQuery[]}>{
@@ -587,16 +570,6 @@ export function browseCountsRequest(pivot:string,queries:readonly BrowseCountQue
 export function parseBrowseCounts(raw:unknown,expected:readonly string[]):readonly BrowseCount[]{
  if(!obj(raw))bad();const sent=rows(raw.counts,8);if(sent.length!==expected.length)bad();
  return freeze(sent.map((v,index)=>{if(!obj(v)||v.id!==expected[index]||!count(v.total)||typeof v.totalIsLowerBound!=='boolean'||!id(v.revision))bad();return {id:v.id as string,total:v.total,totalIsLowerBound:v.totalIsLowerBound,revision:v.revision};}));
-}
-/** Contextual facet URL; query includes current filters and immutable group.
- * The server leaves the counted field out and rechecks current authority. */
-export function browseContextFacetsPath(libraryId:string,field:string,pivot:string,query?:BrowseNode,q='',limit=200,offset=0):string{
- if(!id(field)||!id(pivot)||!count(limit)||limit<1||limit>200||q.length>100||!count(offset)||(offset>0&&libraryId===acrossLibraries))bad();
- const params=new URLSearchParams({field,pivot,limit:String(limit)});
- if(offset>0)params.set('offset',String(offset));
- if(query)params.set('query',JSON.stringify(parseBrowseNode(query)));
- if(q)params.set('q',q);
- return browseFacetsPath(libraryId)+'?'+params.toString();
 }
 export type BrowseRememberedTotal=Readonly<{total:number;totalIsLowerBound:boolean}>;
 /** Last authoritative unfiltered total, scoped to the caller's viewer/library

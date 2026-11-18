@@ -8,10 +8,9 @@
  */
 import type {GenreEntry, Library as WireLibrary} from '../../contracts/src/next/api.ts';
 import type {ContentEntry} from './library-content.ts';
-import {acrossLibraries, BrowseQueryError, type BrowseNode, type BrowseSortSelection} from './browse.ts';
+import {acrossLibraries, BrowseQueryError, readingPeopleFacetSource, readingPeriodicalFacetSource, type BrowseNode, type BrowseSortSelection} from './browse.ts';
 import {itemKindOf, libraryKind, type ItemListQuery} from './items.ts';
 import {serverPath} from './query/server-api.ts';
-import {routePattern} from '../../contracts/src/routes.ts';
 
 /** Each tab's name in the app, the kind of item it lists and its label. */
 const pivots: readonly Readonly<{id: string; kind: string; labelKey: string; views: readonly string[]; /** The kinds the list asks for, when more than the tab's own. */ lists?: string}>[] = [
@@ -93,14 +92,14 @@ export function libraryBrowseCapabilities(library: WireLibrary, pivotId: string)
       filters: named ? [] : filters.map(filter => filter.id), paging: 'keyset'};
   });
   const list = (id: string, field: string) => ({id, labelKey: 'library.tab.' + id, entityKinds: [field], supportedViews: ['grid', 'list'], browsable: false,
-    defaultSort: [], sorts: [], filters: [], facetSource: {endpoint: routePattern('get_library_facets'), field}});
+    defaultSort: [], sorts: [], filters: [], facetSource: {endpoint: readingPeopleFacetSource, field}});
   // A Books or Comics library's Authors and Series are browsable tabs, as an audiobook library's are
   // (the read-web frames): Books, then Authors and Series; Comics lead with Series.
   const pick = (id: string) => shaped.filter(pivot => pivot.id === id), rest = shaped.filter(pivot => pivot.id !== 'authors' && pivot.id !== 'series');
   // Magazines and Newspapers, where this profile may see some (10-reading rule 43): each lists its
   // periodicals, opening their issues by year or editions by date.
   const periodicals = library.kind !== 'books' ? [] : (['magazine', 'newspaper'] as const).filter(kind => library.views?.some(view => view.kind === kind))
-    .map(kind => ({...list(kind + 's', 'publicationType'), facetSource: {endpoint: routePattern('get_reading_periodical_groups'), field: 'publicationType'}}));
+    .map(kind => ({...list(kind + 's', 'publicationType'), facetSource: {endpoint: readingPeriodicalFacetSource, field: 'publicationType'}}));
   const all = library.kind === 'comics' ? [...pick('series'), ...rest, ...pick('authors')] : library.kind === 'books' ? [...rest, ...periodicals, ...pick('authors'), ...pick('series')] : shaped;
   return {library: {id: library.id, name: library.name, kind: libraryKind(library.kind), defaultView: ''}, pivots: all, resolvedPivot: shaped.find(pivot => pivot.id === pivotId) ?? null,
     fields: filters, sorts, quickFilters: quick.filter(each => (each.id !== 'in-progress' || progress) && filters.some(filter => filter.id === each.field)).map(each => ({id: each.id, labelKey: each.labelKey, query: {variant: 'predicate', field: each.field, operator: 'equals', value: each.value}})),

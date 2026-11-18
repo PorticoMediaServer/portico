@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {parseBrowseNode, parseBrowseCapabilities, completeBrowseNode, parseBrowseResult, browseCondition, browseNot} from '../src/browse.ts';
 import {parseSimpleFacetPage, parseSimpleFacetPreparing} from '../src/facet-windows.ts';
-import {readReadingFacet} from '../src/browse-preparation.ts';
 import {refuseUnknownVariant} from '../src/tolerant.ts';
 
 // R-09b: every response union carries a required `variant`. A variant this app has no name for is
@@ -52,21 +51,12 @@ test('browse expression: the condition builders tag exactly as completeBrowseNod
   for (const node of [predicate, list, relative, browseNot(predicate), browseNot(relative)]) assert.deepEqual(parseBrowseNode(node), node);
 });
 
-test('library facets: the window parses; an unknown variant is the update state', async () => {
+test('library facets parse tagged windows and preparing replies', () => {
   const page = {variant: 'window', kind: 'simple-keyset', field: 'genre', revision: 'b1', total: 1, totalIsLowerBound: false,
     values: [{value: 'Drama', label: 'Drama', count: 1, countIsLowerBound: false}], window: {queryId: 'q1', basis: 'b1', limit: 2, returned: 1, reload: 'r1'}};
   assert.equal(parseSimpleFacetPage(page).window.queryId, 'q1');
   assert.throws(() => parseSimpleFacetPage({...page, variant: undefined}), {code: 'invalid_facet_window'}, 'an untagged window is not read');
   assert.equal(parseSimpleFacetPreparing({variant: 'preparing', kind: 'facet-preparing', state: 'preparing', queryId: 'q', retryAfterMs: 5}).variant, 'preparing');
-  const api = {request: async <T>() => ({variant: 'sharded', field: 'genre'}) as T};
-  await assert.rejects(readReadingFacet(api as never, 'lib', '/v1/libraries/lib/facets?field=author', 'author', {isCurrent: () => true}), unsupported);
-});
-
-test('reading facets: the page parses and an untagged page is not read', async () => {
-  const page = {variant: 'page', field: 'author', total: 1, values: [{value: 'A', label: 'A', count: 1}]};
-  const api = {request: async <T>() => page as T};
-  assert.equal((await readReadingFacet(api as never, 'lib', '/p', 'author', {isCurrent: () => true})).field, 'author');
-  await assert.rejects(readReadingFacet({request: async <T>() => ({...page, variant: undefined}) as T} as never, 'lib', '/p', 'author', {isCurrent: () => true}));
 });
 
 test('refuseUnknownVariant names only the unknown, and leaves an untagged body to its parser', () => {

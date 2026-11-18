@@ -14,7 +14,7 @@ test('Reading browse leaves retain item navigation without audio playback semant
 });
 
 test('Reading Authors is a reachable facet surface rather than entity cards',()=>{
-  const pivot={id:'authors',labelKey:'library.authors',entityKinds:[],defaultSort:[],supportedViews:['list'],browsable:false,sorts:[],filters:['author'],paging:'offset',facetSource:{endpoint:'/v1/libraries/{id}/facets',field:'author'}};
+  const pivot={id:'authors',labelKey:'library.authors',entityKinds:[],defaultSort:[],supportedViews:['list'],browsable:false,sorts:[],filters:['author'],paging:'offset',facetSource:{endpoint:'people',field:'author'}};
   const caps=parseBrowseCapabilities({library:{id:'reading',name:'Reading',kind:'book'},pivots:[pivot],resolvedPivot:pivot,fields:[],sorts:[],quickFilters:[],queryLimits:{maximumDepth:5,maximumClauses:40,maximumBytes:65536,maximumSorts:1,defaultLimit:40,maximumLimit:100,cursorTtlMs:1800000}});
   assert.equal(caps.resolvedPivot?.browsable,false);assert.equal(caps.resolvedPivot?.facetSource?.field,'author');assert.equal(caps.pivots[0].entityKinds.length,0);
 });
