@@ -19,6 +19,8 @@ export type BrowseHeaderProps = PageHeaderProps & Readonly<{
   menu?: ReactNode;
   /** The library's counts under its title ("10 artists  10 albums  40 songs"): wide headers only, never the phone bar. */
   counts?: readonly FactPart[];
+  /** The library's own wash behind its wide header (its latest artwork, kit `AmbientArt`); the phone bar draws none. */
+  ambient?: ReactNode;
   /** The page's tabs, Discover / Movies / Collections (Music: Discover / Artists / Albums / Songs / Genres), from the gutter with their rule across the page. */
   tabs?: Readonly<{items: readonly ChoiceItem[]; value: string; onValueChange: (value: string) => void}>;
   /** A pushed list's one line saying why these titles are here (desktop-browse seeall). */
@@ -80,11 +82,11 @@ export function BrowseFrame({header, hero, toolbar, grid, alphabet, filters, sta
 
 /** The header (frameRegions.browse `header.*`): a library is the phone's compact bar (‹ Libraries, the switcher centred, ⋯, the
  * tabs inside it) or the wide title with its switcher, Select and ⋯ at the right, and the tabs under it; a plain page is rule 3's header. */
-function BrowseHeader({title, back, trailing, switcher, menu, counts, tabs: tabItems, intro, actions, phone}: BrowseHeaderProps & {phone: boolean}) {
+function BrowseHeader({title, back, trailing, switcher, menu, counts, ambient, tabs: tabItems, intro, actions, phone}: BrowseHeaderProps & {phone: boolean}) {
   const tabs = tabItems && <Tabs items={tabItems.items} value={tabItems.value} onValueChange={tabItems.onValueChange} phone={phone} listClassName={styles.tabsInset} />;
   if (!switcher) return <><PageHeader title={title} back={back} trailing={trailing} />{intro && <p className={`${frames.intro} ${styles.intro}`}>{intro}</p>}{actions && <div className={styles.actions}>{actions}</div>}{tabs}</>;
   if (phone) return <StickyBrowseHeader name={title} switcher={switcher} menu={menu} onLibraries={back?.onPress ?? (() => {})} sticky={false}>{tabs}</StickyBrowseHeader>;
-  return <LibraryHeader name={title} counts={counts} switcher={switcher} menu={trailing || menu ? <>{trailing}{menu}</> : undefined}>{tabs}</LibraryHeader>;
+  return <LibraryHeader name={title} counts={counts} ambient={ambient} switcher={switcher} menu={trailing || menu ? <>{trailing}{menu}</> : undefined}>{tabs}</LibraryHeader>;
 }
 
 /** Loading holds the loaded page's boxes (rule 12): two rows, each a heading and a line of cards at their real size. */

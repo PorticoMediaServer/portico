@@ -5,16 +5,19 @@ import type {BrowseNode} from '@core/browse.ts';
 import {fieldSelectionSummary, filterControlOf, filterValuesField, rangePresets, activeRangePreset} from '@core/presentation/browse-toolbar.ts';
 import type {BrowseToolbarModel} from '@portico/client-core/kit-model';
 import {createInputCadence} from './input-cadence';
-import {FilterBuilder, FiltersSurface, type BrowseLabels, type FilterFieldChange, type FilterFieldState} from '../../kit/browse';
+import {FilterBuilder, type BrowseLabels, type FilterFieldChange, type FilterFieldState} from '../../kit/browse';
 import type {BrowseController, BrowseState} from './controller';
+import type {BrowseFiltersProps} from '../../kit/frames';
 
-export type BrowseFiltersProps = Readonly<{controller: BrowseController; model: BrowseToolbarModel; labels: BrowseLabels; compact: boolean; medium?: boolean; docked?: boolean; open: boolean; resultCount?: string; canSaveView: boolean; onSaveView?: () => void; onClose: () => void; reportError: (error: unknown) => void}>;
+export type LibraryFiltersOptions = Readonly<{controller: BrowseController; model: BrowseToolbarModel; labels: BrowseLabels; compact: boolean; open: boolean; resultCount?: string; canSaveView: boolean; onSaveView?: () => void; onClose: () => void; reportError: (error: unknown) => void}>;
 const t = defaultI18n.t;
 const valueLabel = (value: string) => {const key = `filter.value.${value}`;return defaultI18n.has(key) ? t(key) : value;};
 const simple = (nodes: readonly BrowseNode[]) => nodes.flatMap(node => 'field' in node ? [node] : []);
 type FilterOpening = {controller: BrowseController; cadence: ReturnType<typeof createInputCadence>; live: boolean; abort: AbortController; query?: BrowseState; pending?: Readonly<{id: string; raw: string}>};
 type FacetFields = Readonly<Record<string, Extract<FilterFieldState, {kind: 'values'}>>>;
-export function BrowseFilters({controller, model, labels, compact, medium = false, docked = false, open, resultCount, canSaveView, onSaveView, onClose, reportError}: BrowseFiltersProps) {
+/** The library's Filters region for `BrowseFrame`: the fields and what Clear all, Done and Save view do. The frame picks the
+ * surface for the form (a sheet at phone width, a side panel, docked on a touch tablet). */
+export function useLibraryFilters({controller, model, labels, compact, open, resultCount, canSaveView, onSaveView, onClose, reportError}: LibraryFiltersOptions): BrowseFiltersProps {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const yearAsRange = controller.source.homeRowId !== undefined;
   const [openFields, setOpenFields] = useState<readonly string[]>([]), [queries, setQueries] = useState<Readonly<Record<string, string>>>({});
@@ -173,6 +176,5 @@ export function BrowseFilters({controller, model, labels, compact, medium = fals
     onFieldOpenChange={(id, opened) => {if (drawn()) setOpenFields(before => opened ? [...before.filter(value => value !== id), id] : before.filter(value => value !== id));}}
     onFieldChange={change} onSearchChange={(id, query) => {if (drawn()) setQueries(before => ({...before, [id]: query}));}} onShowAll={id => {if (drawn()) setExpandedValues(before => [...before.filter(value => value !== id), id]);}}
     onRetry={id => {if (drawn()) setQueries(before => ({...before, [id]: before[id] ?? ''}));}}/>;
-  return <FiltersSurface form={docked ? 'docked' : compact ? 'sheet' : 'panel'} medium={medium} open={open} onClose={closeFilters} onClear={clearAll} count={resultCount}
-    save={compact && onSaveView ? {canSave: canSaveView, onSave: saveView} : undefined}>{body}</FiltersSurface>;
+  return {open, onClose: closeFilters, onClear: clearAll, count: resultCount, save: onSaveView ? {canSave: canSaveView, onSave: saveView} : undefined, children: body};
 }

@@ -108,7 +108,7 @@ test('the public specimen carries no credentials, private frame artwork or produ
   assert.deepEqual(production.filter(path => readFileSync(path, 'utf8').includes('__porticoSeeAllSpecimen')), []);
 });
 
-test('the row screen is the drawn see-all header over the kit page, seven columns at 1440', () => {
+test('the row screen is See all on the library frame over its own wash, seven columns at 1440', () => {
   const screen = read('../src/screens/browse/HomeRow.tsx'), route = read('../src/screens/browse/HomeRow.route.tsx'), css = read('../src/screens/browse/home-row-r46.module.css');
   assert.match(screen, /import styles from '\.\/home-row-r46\.module\.css'/);
   assert.match(screen, /homeRowReasonParts/);
@@ -120,8 +120,9 @@ test('the row screen is the drawn see-all header over the kit page, seven column
   // The frame draws seven fluid columns at 1440 on Medium; 170 is that column's card size.
   assert.match(route, /cardWidth: \(width < 600 \? 103 : 170\)/);
   assert.match(route, /ambient=\{ambient\}/);
-  assert.match(css, /\.title \{ margin: 14px 0 12px; font-size: var\(--type-lockup-long-size\)/);
-  assert.match(css, /\.why \{ max-width: 760px; margin: 0 0 26px;/);
+  // The library frame draws the header: Back to Home, the title, the why line as its intro, Play and Shuffle.
+  assert.match(screen, /<LibraryBrowse \{\.\.\.browse\} showSaveView=\{false\} header=\{\{title: serverTextLabel/);
+  assert.doesNotMatch(css, /\.why \{|\.title \{/);
   assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?)\(/);
 });
 
