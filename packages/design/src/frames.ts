@@ -44,7 +44,7 @@ export const frame = {
       copyTop: {tv: 110},
       synopsisLines: forms(0, 0, 2, 2),
       /** Where the first row's heading starts after the hero's bottom edge. The web's first row rides up over the art's fade. */
-      rowOffset: {...forms(18, 18, 18, 20), web: -40},
+      rowOffset: {...forms(18, 18, 18, 56), web: -40},
     },
     title: {
       height: {...forms(330, 420, 420, 628), web: 560, mobileWeb: 290},
@@ -56,7 +56,8 @@ export const frame = {
       /** The fixed action row: 18 under the art box on a phone, under the synopsis inside it elsewhere. Its height is the hero button's. */
       actionGap: forms(18, 24, 24, 26),
     },
-    lockupLine: .94, lockupTracking: -.045,
+    /** A lockup's line box. The mock-ups' one-line lockups are set at .94; at that a title that wraps has its descenders in the next line's capitals, so the frames use 1.04. */
+    lockupLine: 1.04, lockupTracking: -.045,
   },
   /** Settings list and page (frames 3 and 4). */
   settings: {listWidth: forms(0, 280, 280, 480), webListWidth: 296, gap: forms(0, 28, 32, 80), webGap: 64, pageMax: 952, paragraphMax: 720},
@@ -68,10 +69,10 @@ export const frame = {
   /** Frame 8 and rule 12: every region is placed from the frame's edges, so nothing moves when content is missing. */
   audio: {
     topBar: forms(46, 46, 46, 40),
-    artwork: {...forms(334, 334, 460, 600), web: 520},
-    inset: forms(28, 28, 80, 200),
+    artwork: {...forms(334, 400, 460, 600), web: 520},
+    inset: forms(28, 40, 56, 200),
     /** Two title lines and a byline, bottom-aligned. */
-    titleSlot: forms(104, 104, 130, 330),
+    titleSlot: forms(96, 104, 104, 330),
     /** The scrubber line and the time read-outs under it. */
     scrubber: forms(48, 48, 48, 72),
     transport: forms(80, 80, 80, 120),
@@ -79,7 +80,7 @@ export const frame = {
     bottomRow: forms(64, 64, 64, 90),
     /** Wide forms: the title, scrubber and controls column beside the artwork. */
     controlsWidth: {...forms(0, 0, 300, 500), web: 420},
-    upNextWidth: {...forms(0, 0, 210, 360), web: 256},
+    upNextWidth: {...forms(0, 280, 340, 360), web: 360},
     gap: {...forms(12, 12, 30, 80), web: 56},
   },
   /** Frame 7, the video player's chrome (desktop-player, tablet-play, phone-player and tv-player mock-ups; the web
@@ -87,21 +88,31 @@ export const frame = {
   player: {
     edge: forms(14, 32, 40, 96), top: forms(4, 26, 30, 64), bottom: forms(8, 32, 24, 56),
     /** Scrubber to the time read-outs, read-outs to the controls row, and between controls at either end. */
-    timesGap: forms(8, 8, 8, 10), controlsGap: forms(10, 8, 10, 22), endGap: forms(2, 6, 6, 18), titleGap: forms(6, 16, 18, 24),
+    timesGap: forms(8, 8, 8, 10), controlsGap: forms(10, 8, 10, 22), endGap: forms(2, 6, 6, 12), titleGap: forms(6, 16, 18, 24),
     scrim: {top: [[.84, 0], [.38, 130], [0, 240]], bottom: [[.94, 0], [.62, 150], [0, 340]]},
     pill: {height: forms(34, 44, 34, 56), paddingX: forms(12, 16, 12, 22)},
     volumeWidth: 84,
     /** The glyph in a pill and in a prompt. */
     pillIcon: 16, promptIcon: 20,
     /** A phone held upright (phone-player 4): the picture is a 16:9 strip under the status bar with the watch page below it. */
-    portrait: {aspect: 16 / 9, top: 4, edge: 6, bottom: 8, timeInset: 14, scrubber: 3, shade: .44, control: 38, controlIcon: 22, primary: 58, primaryIcon: 26},
+    portrait: {aspect: 16 / 9, top: 4, edge: 6, bottom: 8, timeInset: 14, scrubber: 3, shade: .44, control: 38, controlIcon: 22, primary: 58, primaryIcon: 26,
+      /** A window narrower than this for its height is upright: a phone, a tablet in portrait, an open foldable (tablet-play 3). */
+      maxAspect: 4 / 3, promptHeight: 34, promptPaddingX: 12,
+      /** The web places the prompt from the strip's right edge, clear of the quality pill and full screen. */
+      promptRight: 168},
+    /** The scrubber's knob: a small dot. The numeral inside a skip arrow is `typeScale.playerSkip`. */
+    knob: forms(12, 14, 14, 20),
+    /** TV: an options entry is a two-line tile (its name over its value) with the card's corners (tv-player 1). */
+    tile: {radius: 14, paddingX: 16},
+    /** With a panel open the TV picture is dimmed by this much of the dim colour. */
+    panelDim: .5,
     /** Tints of the text colour: the scrubber's track, what has buffered and a marked stretch; a pill's fill; a preview's ring. */
     tint: {track: .16, buffered: .26, mark: .5, pill: .1, previewRing: .9, previewBand: .6},
     /** The thumbnail over the scrubber while scrubbing, and how far above the bar it sits. */
     preview: {width: forms(178, 256, 256, 400), height: forms(100, 144, 144, 225), radius: forms(9, 10, 10, 14), lift: forms(22, 40, 30, 44)},
     /** The player's own panels (options, Subtitles, Audio, Quality, Speed, Episodes): a column on the picture's right edge from
      * tablet width (tablet-play 2, tv-player 4), a sheet from the bottom on a phone (phone-player 3). `still` is an episode row's picture. */
-    panel: {width: forms(0, 380, 380, 680), padding: forms(16, 24, 24, 56), row: forms(52, 48, 48, 54), still: forms(112, 132, 132, 200), sheetShare: .62},
+    panel: {width: forms(356, 380, 380, 680), padding: forms(16, 24, 24, 56), row: forms(52, 52, 52, 64), still: forms(112, 132, 132, 200), iconTile: forms(30, 30, 30, 44), grab: {width: 36, height: 5, top: 8}},
     /** Skip intro and Up next: the white prompt and the round dismiss beside it, and how far the corner sits above the bottom edge. */
     prompt: {height: forms(44, 52, 52, 72), radius: forms(10, 12, 12, 14), paddingX: forms(18, 24, 24, 36), dismiss: forms(0, 48, 44, 0), gap: 10, bottom: forms(26, 64, 64, 96)},
   },

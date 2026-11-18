@@ -20,3 +20,4 @@ export {useFocusAnchor, focusAnchorOffset} from './FocusAnchor';
 export {usePreviewDebounce, createPreviewDebounce} from './PreviewDebounce';
 export type {HeroCandidate, ArtworkRenderContext, ThumbnailRenderContext, LayoutVariant, LayoutItemContext, LayoutSelection, CardSelection} from './types';
 export {ListEdgeFade} from './ListEdgeFade';
+export {SeasonBar} from './SeasonBar';

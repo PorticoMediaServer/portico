@@ -6,6 +6,7 @@ export const platformMessages = {
   'next.platform.appName': 'Portico',
   'next.platform.galleryTitle': 'Kit',
   'next.platform.kitTitle': 'Component kit',
+  'next.platform.kitAbsent': '{id} is not drawn on this kind of device.',
   'next.platform.allFamilies': 'All components',
   'next.platform.galleryFamily': 'Component family',
   'next.platform.galleryCase': 'State',

@@ -64,7 +64,7 @@ export function TitleFrame({art, back, topAction, title, metadata, primary, acti
   </View>;
   const height = spec.height[form], lockup = spec.lockup[form], actionHeight = theme.spec.button.hero.height[theme.platform];
   const identity = <>
-    {loading ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 2 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
+    {loading ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
     <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: stacked ? 'center' : 'flex-start', justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/> : metadata}</View>
   </>;
   const words = !loading && (tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{gap: spec.creditsGap}}>
@@ -98,13 +98,14 @@ export function TitleFrame({art, back, topAction, title, metadata, primary, acti
         {topAction && <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress} disabled={topAction.disabled} testID={topAction.testID}/>}
       </View>}
       {/* Everything in the art box hangs from its bottom edge, so a longer title grows upward and the row below never moves. */}
-      <View pointerEvents="box-none" style={{position: 'absolute', left: frame.gutter, right: stacked ? frame.gutter : undefined, width: stacked ? undefined : theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web'], bottom: spec.copyBottom[form]}}>
-        {identity}
-        {!stacked && <><View style={{marginTop: theme.space.sm}}>{words}</View><View style={{marginTop: spec.actionGap[form]}}>{row}</View></>}
+      {/* The words keep the copy column's width; the action row has the page's, so no label in it is ever squeezed. */}
+      <View pointerEvents="box-none" style={{position: 'absolute', left: frame.gutter, right: stacked ? frame.gutter : frame.rightGutter, bottom: spec.copyBottom[form]}}>
+        <View style={stacked || tv ? undefined : {maxWidth: theme.spec.hero.copy.titleWidth.web}}>{identity}</View>
+        {!stacked && <><View style={{marginTop: theme.space.sm, maxWidth: theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>{words}</View><View style={{marginTop: spec.actionGap[form]}}>{row}</View></>}
       </View>
     </View>
     {stacked && <View style={{paddingHorizontal: frame.gutter, marginTop: spec.actionGap[form], gap: theme.space.sm}}>{row}{resumeLine}{words}</View>}
-    {tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} disabled={loading} style={{marginTop: stacked ? theme.space.sm : 0}} contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>}
+    {tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} disabled={loading} style={{marginTop: stacked ? theme.space.sm : tv ? frame.headerGap : 0}} contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>}
     <View style={{marginTop: frame.headerGap + frame.headingGap, gap: frame.sectionGap}}>{loading ? null : children}</View>
   </ScrollView>;
 }
