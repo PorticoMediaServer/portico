@@ -8,25 +8,8 @@ import type {ShowWorkspaceData} from '@core/show-workspace.ts';
  * and every other row keeps the catalogue's saved progress. A row without a real playback target
  * is not drawn, and "Up next" comes from the queue's own next entry, never from adjacency.
  */
-export type WatchEpisodeSeason = Readonly<{id: string | null; number: number; title: string}>;
-export type WatchEpisodeRow = Readonly<{
-  itemId: string;
-  title: string;
-  number?: number;
-  stillUrl?: string;
-  overview?: string;
-  airDate?: string;
-  durationSeconds?: number;
-  progressSeconds?: number;
-  watched: boolean;
-  playing: boolean;
-  next: boolean;
-}>;
-export type WatchEpisodes = Readonly<{
-  seasons: readonly WatchEpisodeSeason[];
-  seasonId: string | null;
-  rows: readonly WatchEpisodeRow[];
-}>;
+export type {PlayerEpisodeSeason as WatchEpisodeSeason, PlayerEpisodeRow as WatchEpisodeRow, PlayerEpisodeList as WatchEpisodes} from '../../kit/player/panel-types';
+import type {PlayerEpisodeSeason as WatchEpisodeSeason, PlayerEpisodeRow as WatchEpisodeRow, PlayerEpisodeList as WatchEpisodes} from '../../kit/player/panel-types';
 export type WatchEpisodesInput = Readonly<{
   data: ShowWorkspaceData;
   queue: QueuePlaybackView | null;

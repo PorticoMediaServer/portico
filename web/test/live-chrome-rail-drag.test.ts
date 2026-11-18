@@ -63,12 +63,12 @@ const loader = registerHooks({load(url, context, next) {
   if (url.endsWith('/kit/overlays/index.ts')) return module("export const PanelPresence = ({children}) => children; export const useLeavingPresence = value => ({shown: value ?? undefined, leaving: false});");
   if (url.endsWith('.tsx')) {
     let source = transformTsx(url);
-    if (url.endsWith('/screens/live/LiveChrome.tsx')) source = source.replace(/from (['"])react\1/g, `from ${JSON.stringify(hookModule)}`);
+    if (url.endsWith('/kit/player/PlayerLive.tsx')) source = source.replace(/from (['"])react\1/g, `from ${JSON.stringify(hookModule)}`);
     return module(source);
   }
   return next(url, context);
 }});
-const {LiveChrome} = await import('../src/screens/live/LiveChrome.tsx');
+const {PlayerLive: LiveChrome} = await import('../src/kit/player/PlayerLive.tsx');
 test.after(() => {loader.deregister(); delete (globalThis as Record<string, unknown>)[bridgeKey];});
 
 function byRole(tree: ReactNode, role: string): any {

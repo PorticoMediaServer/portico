@@ -1,11 +1,10 @@
 import {useLayoutEffect, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
-import {Artwork} from '../../kit/artwork';
-import type {ArtworkSource} from '../../kit/artwork/types';
-import {Icon} from '../../kit/Icon';
-import {Menu, type MenuEntry} from '../../kit/overlays';
-import type {WatchPanelContext} from './types';
-import type {WatchEpisodeRow, WatchEpisodes} from './episodes';
+import {Artwork} from '../artwork';
+import type {ArtworkSource} from '../artwork/types';
+import {Icon} from '../Icon';
+import {Menu, type MenuEntry} from '../overlays';
+import type {PlayerEpisodeList, PlayerEpisodeRow, PlayerPanelContext} from './panel-types';
 import styles from './episodes.module.css';
 
 const t = defaultI18n.t;
@@ -25,12 +24,12 @@ function airDate(value: string, locale: string | undefined): string | undefined 
 /** desktop-player f6. The Episodes drawer over the paused picture: the season's own 16:9 cards,
  * the playing episode's live progress, the queue's real next entry, and a season picker that
  * re-reads the same retained title page. Choosing an episode stays inside the current queue. */
-export function WatchEpisodesDrawer({episodes, context, locale, artwork, onPlay, onSeason, reportError}: {
-  episodes: WatchEpisodes;
-  context: WatchPanelContext;
+export function PlayerEpisodes({episodes, context, locale, artwork, onPlay, onSeason, reportError}: {
+  episodes: PlayerEpisodeList;
+  context: PlayerPanelContext;
   locale?: string;
   artwork: (url: string) => ArtworkSource | undefined;
-  onPlay: (row: WatchEpisodeRow) => void | Promise<void>;
+  onPlay: (row: PlayerEpisodeRow) => void | Promise<void>;
   onSeason: (seasonId: string | null) => void | Promise<void>;
   reportError: (error: unknown) => void;
 }) {

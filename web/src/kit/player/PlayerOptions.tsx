@@ -1,13 +1,12 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import type {I18n} from '@i18n';
-import {Segmented,Switch} from '../../kit/controls';
-import {TrackChoices} from '../../kit/media';
-import {Icon, type IconName} from '../../kit/Icon';
-import {BottomSheet,Dialog,Menu} from '../../kit/overlays';
-import type {WatchPanelContext} from './types';
-import {phoneOptionRows,type WatchPanelModel,type WatchRadioChoice} from './panel-model';
+import {Segmented,Switch} from '../controls';
+import {TrackChoices} from '../media';
+import {Icon, type IconName} from '../Icon';
+import {BottomSheet,Dialog,Menu} from '../overlays';
+import {phoneOptionRows,type PlayerOptionsModel,type PlayerPanelContext,type PlayerRadioChoice} from './panel-types';
 import {videoChapterOffer, videoChapters} from '@core/presentation/video-chapters.ts';
-import styles from './panels.module.css';
+import styles from './options.module.css';
 
 type Section = 'subtitles' | 'audio' | 'quality' | 'speed';
 const SUBTITLE_SIZES = ['small','medium','large','extra-large'] as const;
@@ -16,9 +15,9 @@ const SIZE_LABEL = {small:'settings.subtitleSize.small',medium:'settings.subtitl
 const BACKGROUND_LABEL = {none:'settings.subtitleBackground.none',translucent:'settings.subtitleBackground.translucent',opaque:'settings.subtitleBackground.opaque'} as const;
 const sectionOf = (panel: string | null): Section | undefined => panel === 'subtitles-audio' ? undefined : panel === 'subtitles' || panel === 'audio' || panel === 'quality' || panel === 'speed' ? panel : undefined;
 
-function RadioRows({rows,select,reportError,label}:{rows:readonly WatchRadioChoice[];select(id:string):void|Promise<void>;reportError(error:unknown):void;label:string}){
+function RadioRows({rows,select,reportError,label}:{rows:readonly PlayerRadioChoice[];select(id:string):void|Promise<void>;reportError(error:unknown):void;label:string}){
  const buttons=useRef(new Map<string,HTMLButtonElement>()),selected=rows.find(row=>row.selected),first=rows.find(row=>row.enabled);
- const act=(row:WatchRadioChoice)=>{if(!row.enabled)return;try{void Promise.resolve(select(row.id)).catch(reportError);}catch(error){reportError(error);}};
+ const act=(row:PlayerRadioChoice)=>{if(!row.enabled)return;try{void Promise.resolve(select(row.id)).catch(reportError);}catch(error){reportError(error);}};
  return <div role="radiogroup" aria-label={label}>{rows.map(row=><button key={row.id} type="button" role="radio"
   ref={node=>{if(node)buttons.current.set(row.id,node);else buttons.current.delete(row.id);}} aria-checked={row.selected} aria-disabled={!row.enabled||undefined}
   tabIndex={row.selected||!selected&&row.id===first?.id?0:-1} className={styles.row} data-selected={row.selected||undefined}
@@ -28,12 +27,12 @@ function RadioRows({rows,select,reportError,label}:{rows:readonly WatchRadioChoi
    const next=enabled[(at+direction+enabled.length)%enabled.length];if(next){buttons.current.get(next.id)?.focus();act(next);}
   }}><span>{row.label}{row.detail&&<small>{row.detail}</small>}</span><Icon name="i-check" size={20}/></button>)}</div>;
 }
-function RadioColumn({title,rows,select,reportError}:{title:string;rows:readonly WatchRadioChoice[];select(id:string):void|Promise<void>;reportError(error:unknown):void}){
+function RadioColumn({title,rows,select,reportError}:{title:string;rows:readonly PlayerRadioChoice[];select(id:string):void|Promise<void>;reportError(error:unknown):void}){
  return <section className={styles.column} aria-label={title}><h3>{title}</h3>
   <RadioRows rows={rows} select={select} reportError={reportError} label={title}/></section>;
 }
 /** desktop-player f3: the selected track's own correction, a tenth of a second at a time. */
-function TimingRow({timing,reportError,t}:{timing:NonNullable<WatchPanelModel['subtitleTiming']>;reportError(error:unknown):void;t:I18n['t']}){
+function TimingRow({timing,reportError,t}:{timing:NonNullable<PlayerOptionsModel['subtitleTiming']>;reportError(error:unknown):void;t:I18n['t']}){
  const shift=(delta:number)=>{try{void timing.shift(delta).catch(reportError);}catch(error){reportError(error);}};
  return <div className={styles.timing}><span>{t('player.opt.timing')}</span>
   <div className={styles.timingStep} role="group" aria-label={t('player.opt.timingHelp')}>
@@ -46,7 +45,7 @@ function TimingRow({timing,reportError,t}:{timing:NonNullable<WatchPanelModel['s
 /** desktop-player f3 (07 rules 65 to 68): Search for subtitles. When it cannot run here it stays visible, off, with
  * the server's reason. Otherwise it lists results with Download, under the provider's credit; choosing one downloads
  * it and turns it on. */
-function SubtitleSearch({search,reportError,t}:{search:NonNullable<WatchPanelModel['subtitleSearch']>;reportError(error:unknown):void;t:I18n['t']}){
+function SubtitleSearch({search,reportError,t}:{search:NonNullable<PlayerOptionsModel['subtitleSearch']>;reportError(error:unknown):void;t:I18n['t']}){
  const run=(action:()=>Promise<void>)=>{if(search.busy)return;try{void action().catch(reportError);}catch(error){reportError(error);}};
  if(search.reason)return <div className={styles.searchRow} aria-disabled="true"><span className={styles.searchLabel}><Icon name="i-dl" size={18}/>{t('player.opt.findSubtitles')}</span><p className={styles.searchWhy}>{search.reason}</p></div>;
  const offerSearch=!search.searched||!!search.error&&search.canRetry;
@@ -65,7 +64,10 @@ function SubtitleSearch({search,reportError,t}:{search:NonNullable<WatchPanelMod
 /** The drawn single options panel. Every visible radio row has actual source membership and
  * every action calls that same runtime with its captured full fence. No optimistic selection.
  * On a phone the drawn sheet lists one row per control; each row opens its own panel. */
-export function WatchOptions({model,context,i18n,reportError,openSettings,info}:{openSettings():void|Promise<void>;model:WatchPanelModel;context:WatchPanelContext;i18n:I18n;reportError(error:unknown):void;/** Playback info f2: the phone reaches the same panel from its own options sheet. */info?:boolean}){
+/** The player's own options: Subtitles, Audio, Quality, Speed, subtitle style and the sleep timer, in the form each
+ * mock-up draws (desktop-player 3: one panel of columns over the picture; phone-player 3: a list of rows that open
+ * one choice each, in a bottom sheet upright and a side sheet on its side). Moved from the player screen. */
+export function PlayerOptions({model,context,i18n,reportError,openSettings,info}:{openSettings():void|Promise<void>;model:PlayerOptionsModel;context:PlayerPanelContext;i18n:I18n;reportError(error:unknown):void;/** Playback info f2: the phone reaches the same panel from its own options sheet. */info?:boolean}){
  const root=useRef<HTMLDivElement>(null),rowRefs=useRef(new Map<string,HTMLButtonElement>()),lastSection=useRef<Section|null>(null),t=i18n.t;
  const sleepRoot=useRef<HTMLDivElement>(null);
  const [sleepOpen,setSleepOpen]=useState(false),sleepAnchor=useRef<HTMLButtonElement|null>(null);
@@ -100,7 +102,7 @@ export function WatchOptions({model,context,i18n,reportError,openSettings,info}:
  },[context.panel,context.returnFocusRef,context.layout]);
  useEffect(()=>()=>{const button=context.returnFocusRef.current;if(button?.isConnected)button.focus({preventScroll:true});},[context.returnFocusRef]);
  if(!model.isCurrent())return null;
- const sectionRows=(id:Section):readonly WatchRadioChoice[] => id==='subtitles'?model.subtitles.map(row=>({id:row.id,label:row.primary,detail:row.secondary,selected:row.selected,enabled:!row.unavailable}))
+ const sectionRows=(id:Section):readonly PlayerRadioChoice[] => id==='subtitles'?model.subtitles.map(row=>({id:row.id,label:row.primary,detail:row.secondary,selected:row.selected,enabled:!row.unavailable}))
   :id==='audio'?model.audio.map(row=>({id:row.id,label:row.primary,detail:row.secondary,selected:row.selected,enabled:!row.unavailable}))
   :id==='quality'?model.quality:[];
  const chooseAudio=(id:string)=>{setAudioFailed(undefined);return Promise.resolve(model.selectAudio(id)).catch(()=>{if(model.isCurrent())setAudioFailed(id);});};
