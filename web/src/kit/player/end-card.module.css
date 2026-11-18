@@ -57,3 +57,10 @@
  .card[data-layout='phone'] .left { position: relative; left: auto; top: auto; transform: none; margin: 64px 24px 24px; width: auto; }
  .card[data-layout='phone'] .row { position: relative; right: auto; top: auto; transform: none; width: auto; padding: 0 24px 32px; }
 }
+/* An upright phone (phone-player 6d draws only a phone on its side): the card takes the watch page under the picture
+   strip, and its words and the row stack, as the native end card does; nothing is cut. */
+@media (max-width: 599px) {
+  .card[data-layout='phone'] { display: flex; flex-direction: column; justify-content: center; gap: 28px; padding: 24px var(--page-gutter, 20px); background: var(--color-ink); }
+  .card[data-layout='phone'] .left, .card[data-layout='phone'] .row { position: static; transform: none; width: auto; }
+  .card[data-layout='phone'] .track { overflow-x: auto; scrollbar-width: none; }
+}
