@@ -26,6 +26,11 @@
 .control[data-main]:hover { background: var(--color-white); }
 .control[data-channel] { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; }
 .control[data-channel] svg { margin-top: -2px; }
+.control[data-plain], .control[data-plain]:hover { background: none; backdrop-filter: none; }
+.control[data-plain]:hover { color: var(--color-white); }
+.control[data-skip] small { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding-top: var(--space-hairline); font-size: var(--type-player-skip-size); font-weight: var(--type-player-skip-weight); }
+/* Record is the red mark (desktop-live "live-player", tv-player 11). */
+.record svg { color: var(--color-record); }
 .control small { font-size: var(--type-live-chrome-number-size); font-weight: var(--type-live-chrome-number-weight); letter-spacing: var(--type-live-chrome-number-tracking); color: inherit; font-variant-numeric: tabular-nums; margin-top: -3px; }
 .control:focus-visible, .rail:focus-visible, .guideButton:focus-visible, .goLive:focus-visible, .miniRow:focus-visible, .miniAll:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 .bottom { position: absolute; z-index: var(--layer-live-chrome); left: 0; right: 0; bottom: 0; padding: 0 40px 24px; }
@@ -55,7 +60,7 @@
 /* One word on one line at any width: the kit label balances its lines, which would otherwise break "Guide" by the letter beside a full right cluster. */
 .guideButton.guideButton span { white-space: nowrap; }
 .miniGuide { position: absolute; z-index: var(--layer-live-guide); right: 40px; top: 112px; width: 440px; padding: 14px; border-radius: 18px; background: color-mix(in srgb, var(--color-player-notice) 80%, transparent); backdrop-filter: blur(28px) saturate(1.3); box-shadow: 0 30px 60px -20px color-mix(in srgb, var(--color-shadow) 80%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--color-text) 8%, transparent); pointer-events: auto; }
-@media (prefers-reduced-transparency: reduce) { .control, .control:hover, .goLive, .goLive:hover { background: var(--color-raised-high); backdrop-filter: none; } .control[data-main], .control[data-main]:hover { background: var(--color-text); } .miniGuide { background: var(--color-raised); backdrop-filter: none; } }
+@media (prefers-reduced-transparency: reduce) { .control:not([data-plain]), .control:not([data-plain]):hover, .goLive, .goLive:hover { background: var(--color-raised-high); backdrop-filter: none; } .control[data-main], .control[data-main]:hover { background: var(--color-text); } .miniGuide { background: var(--color-raised); backdrop-filter: none; } }
 .miniHead { display: flex; align-items: baseline; justify-content: space-between; padding: 2px 8px 6px; }
 .miniHead b { font-size: var(--type-subheading-size); }
 .miniHead span { font-size: var(--type-report-detail-size); color: var(--color-text-tertiary); }
@@ -81,7 +86,12 @@
   .center { gap: 8px; }
 }
 @media (max-width: 599px) {
-  .top { padding: 14px 14px; }
+  /* At phone width the title block takes its own row under the buttons, so the programme's name is never cut to make room for them. */
+  .top { padding: 14px 14px; flex-wrap: wrap; }
+  .tools { flex: 1 0 calc(100% - 60px); justify-content: flex-end; }
+  .mark { order: 4; }
+  .identity { order: 5; flex: 1 1 0; }
+  .identity h2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
   .mark { width: 38px; height: 38px; }
   .identity h2 { font-size: var(--type-live-chrome-phone-title-size); line-height: var(--type-live-chrome-phone-title-line); }
   .identity p { font-size: var(--type-label-size); }

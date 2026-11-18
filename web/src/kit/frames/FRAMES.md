@@ -109,6 +109,14 @@ Changed in the fix round after the first captures:
 - Skip arrows weigh the same as Previous and Next. `AudioPlayerFrame` is re-laid: the title follows the artwork, and
   from 1024 the column sits centred beside the Up next panel under a bar across the window.
 
+Changed in the second fix round (r5):
+
+- `PlayerLive`: the transport's side controls are plain glyphs, the skip seconds are drawn inside the arrows, Record carries the red mark, and at phone width the title block has its own row so the programme's name is not cut.
+- The tab rule runs the page's full width (`tabsInset` pads the tabs, not the strip). `PlayerOptions` keeps its place: its CSS anchors it 40 from the right and 156 from the bottom, which is where desktop-player 3 draws it at the mock-up's height; the button that opened it shows as active.
+- `AudioPlayerFrame` matches native: `source`, `favourite`, `chapter`, `next`, tiles, `inline`, skip seconds. The queue in the gallery is the kit `SongRow`.
+- The gallery's top bar uses the shell's own `DesktopNavigationUnderline` and `TopBarActivity`: the shell already drew both; the gallery's stand-in bar had left them out.
+- The Settings index in the gallery is the shell's own `SettingsNav`, passed as the frame's `list`.
+
 Left for Stage 2, listed so it is not forgotten:
 
 - `PlayerLive` draws its own top bar, bar and controls row instead of filling `PlayerChromeFrame`. It matches the
@@ -119,6 +127,17 @@ Left for Stage 2, listed so it is not forgotten:
 - An episode with no still shows the drawer's own blank, not the rule 12 placeholder.
 - Still in `screens/watch`: Chapters (`ChaptersDrawer.tsx`, which shares the Episodes drawer's styles), the queue
   (`QueueList.tsx`), Playback info, the version chooser, Still watching and the end card.
+
+## Decided by the owner (Justin, 18 Nov)
+
+- **Skip intro on an upright phone** sits in the picture's bottom row between the time and the options. It never covers the transport and is hidden while a panel or Up next is open.
+- **Scrubbing on a phone:** the transport hides while the scrubber is held, and the knob follows the previewed time.
+- **Live TV on an upright phone:** Guide, Record and More are icons in the top row; channel down and up sit either side of the transport; the time, how far behind live, Go to live and quality are in the bottom row.
+- **TV playback options open in place** under their headings, as the TV mock-up and today's TV app do. This is a requirement on the shared panel: it is built into `PlayerPanelGroup` when the TV player moves onto it in Stage 2. Until then the gallery's TV panel shows one list at a time.
+- **Episodes panel:** a drawer on the web, a column on a tablet. Both stay.
+- **Tablet title page:** the hero layout, the same as the web and a phone. tablet.html frame 7's header-bar layout is not used.
+- **Button labels are never shrunk and never cut.** Buttons are sized so standard labels fit on every form; a long translation makes the button wider or takes a second line. An ellipsis on a button label is a fault. In the kit: no label is shrunk to fit; a button in a place that can be too narrow for its label passes `labelLines={2}` (the frames' action rows and the prompt do).
+- Also settled: the Watch Together pill comes in Stage 2; phone transport is 76 / 76 / 58; TV player type takes the nearest roles; Start over is a button on a tablet; the synopsis is two lines; both missing-art looks stay; the tablet gutter is 28; web Settings is a full page at phone width; the audio queue uses the kit's song row; web cards carry their second line; the native backdrop comes in Stage 2.
 
 ## What a screen may do
 

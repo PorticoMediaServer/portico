@@ -12,10 +12,11 @@ import {tunerHandover, tunerHandoverLines, tunerHandoverNow, tunerHandoverTick} 
 const t = defaultI18n.t;
 const time = (ms: number) => new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {hour: 'numeric', minute: '2-digit', timeZone: defaultI18n.region.timeZone ?? undefined}).format(ms);
 
-function LiveControl({icon, label, onClick, main, small, disabled}: {icon: IconName; label: string; onClick: () => void; main?: boolean; small?: string; disabled?: boolean}) {
-  return <button type="button" className={styles.control} data-main={main || undefined} data-channel={small !== undefined || undefined}
+/** `small` under the glyph is a channel step's number; `skip` is the seconds drawn inside a back or forward arrow. The transport's side controls are `plain` glyphs (desktop-live "live-player"). */
+function LiveControl({icon, label, onClick, main, small, skip, plain, disabled}: {icon: IconName; label: string; onClick: () => void; main?: boolean; small?: string; skip?: number; plain?: boolean; disabled?: boolean}) {
+  return <button type="button" className={styles.control} data-main={main || undefined} data-channel={small !== undefined || undefined} data-plain={plain || undefined} data-skip={skip !== undefined || undefined}
     aria-label={label} title={label} disabled={disabled} onClick={onClick}>
-    <Icon name={icon} size={main ? 28 : small !== undefined ? 22 : 24}/>{small !== undefined && <small>{small}</small>}
+    <Icon name={icon} size={main ? 28 : skip !== undefined ? 32 : small !== undefined ? 22 : 24}/>{small !== undefined && <small>{small}</small>}{skip !== undefined && <small aria-hidden="true">{skip}</small>}
   </button>;
 }
 
@@ -191,12 +192,12 @@ export function PlayerLive({port, playing, onCollapse, onStop, onPlayPause, onSk
           onClick={() => {run(() => openGuide(!miniGuide));}}>{t('player.live.guide')}</Button></div>
         <div className={styles.center}>
           <LiveControl icon="i-chdown" label={port.down ? t('next.live.channelDown', {channel: port.down.channel.name, number: port.down.channel.number}) : t('web.player.channelDown')}
-            small={port.down?.channel.number} disabled={!port.down} onClick={() => act(() => port.tune(-1))}/>
-          <LiveControl icon="i-back" label={t('next.dock.back', {seconds: port.skipBackSeconds})} small={String(port.skipBackSeconds)} disabled={!canSeek} onClick={() => run(() => onSkip(-port.skipBackSeconds))}/>
+            plain small={port.down?.channel.number} disabled={!port.down} onClick={() => act(() => port.tune(-1))}/>
+          <LiveControl plain icon="i-rew" label={t('next.dock.back', {seconds: port.skipBackSeconds})} skip={port.skipBackSeconds} disabled={!canSeek} onClick={() => run(() => onSkip(-port.skipBackSeconds))}/>
           <LiveControl main icon={playing ? 'i-pause' : 'i-play'} label={t(playing ? 'next.dock.pause' : 'next.dock.play')} disabled={!canPlayPause} onClick={() => run(onPlayPause)}/>
-          <LiveControl icon="i-fwd" label={t('next.dock.forward', {seconds: port.skipForwardSeconds})} small={String(port.skipForwardSeconds)} disabled={!canSeek} onClick={() => run(() => onSkip(port.skipForwardSeconds))}/>
+          <LiveControl plain icon="i-ffw" label={t('next.dock.forward', {seconds: port.skipForwardSeconds})} skip={port.skipForwardSeconds} disabled={!canSeek} onClick={() => run(() => onSkip(port.skipForwardSeconds))}/>
           <LiveControl icon="i-chup" label={port.up ? t('next.live.channelUp', {channel: port.up.channel.name, number: port.up.channel.number}) : t('web.player.channelUp')}
-            small={port.up?.channel.number} disabled={!port.up} onClick={() => act(() => port.tune(1))}/>
+            plain small={port.up?.channel.number} disabled={!port.up} onClick={() => act(() => port.tune(1))}/>
         </div>
         <div className={styles.right}>{right}</div>
       </div>

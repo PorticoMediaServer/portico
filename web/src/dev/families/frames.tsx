@@ -6,6 +6,7 @@ import {framesFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
 import {AmbientArt, type ArtworkImage, type ArtworkSource} from '../../kit/artwork';
 import {EpisodeTile, PosterCard, SquareCard, WideCard} from '../../kit/cards';
+import {SongRow} from '../../kit/browse';
 import {Button, Switch, Tabs, TextField} from '../../kit/controls';
 import {ArtBox, AudioPlayerFrame, BrowseFrame, EpisodeRows, HomeHero, SeasonBar, PageStateFrame, PlayerChromeFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame,
   type AudioControl, type AudioOption} from '../../kit/frames';
@@ -17,7 +18,9 @@ import {PlayerControl, PlayerEpisodes, PlayerLive, PlayerOptions, PlayerPill, Pl
 import type {TrackChoice} from '../../kit/media';
 import {livePlayerPort} from '../live-player-fixture';
 import {usePhone} from '../../kit/overlays/shared';
-import {SettingsRow} from '../../kit/shell';
+import {SettingsNav, SettingsRow, TopBarActivity, type ActivityPanelView} from '../../kit/shell';
+import {DesktopNavigationUnderline} from '../../shell/DesktopNavigationUnderline';
+import {shellFixtures, shellReference as shellSample} from '../../../../packages/i18n/src/catalog/en-US/next/dev/shell-fixtures';
 import {ProfileAvatarFace} from '../../kit/shell';
 import frame from '../../kit/frames/frames.module.css';
 import shell from '../../shell/shell.module.css';
@@ -52,14 +55,19 @@ function Window({children}: {children: ReactNode}) {
 }
 /** A page as the app shows it: inside the shell's own top bar (from 1024) or wordmark bar and tab bar (phone width),
  * drawn with the shell's stylesheet so the frame is judged where it lives. Between 600 and 1023 the shell's rail is not drawn here. */
+/** The owner's server activity in the top bar, with two people watching (mock.html home). Only what the closed button reads. */
+const activityView = {phase: 'ready', serverName: '', health: 'normal', streamCount: 2, taskCount: 0, streams: [], scans: [], tasks: []} as unknown as ActivityPanelView;
 function Page({children, current, home = false}: {children: ReactNode; current: 'home' | 'movies' | 'settings'; home?: boolean}) {
   const phone = usePhone(), wide = useWide(), tools = (name: 'i-search' | 'i-bookmark' | 'i-bell', label: FixtureName) => <a className={shell.icon} aria-label={f(label)}><Icon name={name} size={22} /></a>;
+  // The shell's underline measures the list it is in, so it is mounted once that list exists.
+  const destinations = useRef<HTMLUListElement>(null), [listed, setListed] = useState(false);
+  useEffect(() => setListed(true), []);
   const avatar = <span className={shell.avatar}><ProfileAvatarFace initial={f('profileInitial')} /></span>, page = (id: typeof current) => current === id ? 'page' as const : undefined;
   return <div className={`portico-backdrop ${shell.shell}`} data-desktop={wide} data-navigation={wide ? 'topbar' : phone ? 'tabs' : undefined} style={{position: 'relative', height: '100%', overflowY: 'auto', boxSizing: 'border-box'}}>
     <div className={shell.navigation}>{wide ? <nav className={shell.topnav}>
       <a className={shell.brand}><img src={wordmark} alt="" /></a>
-      <ul className={shell.destinations}><li><a aria-current={page('home')}>{f('home')}</a></li><li><a aria-current={page('movies')}>{f('movies')}</a></li>{(['tvShows', 'anime', 'music', 'audiobooks', 'liveTvShort'] as const).map(name => <li key={name}><a>{f(name)}</a></li>)}</ul>
-      <div className={shell.tools}>{tools('i-search', 'search')}{tools('i-bookmark', 'saved')}{tools('i-bell', 'notifications')}{avatar}</div>
+      <ul ref={destinations} className={shell.destinations}><li><a aria-current={page('home')}>{f('home')}</a></li><li><a aria-current={page('movies')}>{f('movies')}</a></li>{(['tvShows', 'anime', 'music', 'audiobooks', 'liveTvShort'] as const).map(name => <li key={name}><a>{f(name)}</a></li>)}{listed && <DesktopNavigationUnderline list={destinations} />}</ul>
+      <div className={shell.tools}>{tools('i-search', 'search')}{tools('i-bookmark', 'saved')}{tools('i-bell', 'notifications')}<TopBarActivity viewerRole="owner" view={activityView} open={false} onOpenChange={none} />{avatar}</div>
     </nav> : phone ? <>
       {home && <header className={shell.phoneHeader}><a className={shell.brand}><img src={wordmark} alt="" /></a><div className={shell.phoneTools}>{avatar}</div></header>}
       <nav className={shell.tabbar}>{([['i-home', 'home', 'home'], ['i-search', 'search', ''], ['i-grid', 'libraries', 'movies'], ['i-tv', 'liveTvShort', ''], ['i-bookmark', 'saved', '']] as const).map(([icon, name, id]) =>
@@ -71,15 +79,15 @@ function Page({children, current, home = false}: {children: ReactNode; current: 
 
 const posters = ['spirited-away', 'inside-out', 'alien', 'blade-runner', 'dune', 'barbie', 'back-to-the-future', 'the-dark-knight', 'avatar', 'aliens'].map(id => ({id, title: id.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ')}));
 const wides = [{id: 'tlou', title: f('tlou'), art: 'bd-tlou.jpg'}, {id: 'inside-out', title: f('insideOut'), art: 'bd-insideout.jpg'}, {id: 'spirited', title: f('spirited'), art: 'bd-spirited.jpg'}];
-function PosterRow({title}: {title: string}) {
+function PosterRow({title, fresh = false}: {title: string; /** The first few are new. */ fresh?: boolean}) {
   const art = useReferenceArtwork(), phone = usePhone();
   return <Shelf heading={title} platform={phone ? 'phone-web' : 'desktop'} items={posters} getKey={item => item.id}
-    renderItem={item => <PosterCard model={{title: item.title, caption: []}} artwork={art(`pool/movies/${item.id}.jpg`)} style={{width: 'var(--card-poster-width)'}} onNavigate={none} />} />;
+    renderItem={item => <PosterCard isNew={fresh && posters.indexOf(item) < 3} model={{title: item.title, caption: []}} artwork={art(`pool/movies/${item.id}.jpg`)} style={{width: 'var(--card-poster-width)'}} onNavigate={none} />} />;
 }
 function WideRow() {
   const art = useReferenceArtwork(), phone = usePhone();
   return <Shelf heading={f('continueWatching')} platform={phone ? 'phone-web' : 'desktop'} items={wides} getKey={item => item.id}
-    renderItem={item => <WideCard model={{title: item.title, caption: [], progress: .4}} artwork={art(item.art)} style={{width: 'var(--card-wide-width)'}} onNavigate={none} />} />;
+    renderItem={item => <WideCard model={{title: item.title, caption: [{id: 'episode-label', text: f('wideEpisode'), role: 'identity'}], detail: [{id: 'remaining', text: f('wideLeft'), role: 'context'}], progress: .4}} artwork={art(item.art)} style={{width: 'var(--card-wide-width)'}} onNavigate={none} />} />;
 }
 
 const heroes = [
@@ -91,7 +99,7 @@ function BrowseHome() {
   return <Page current="home" home><BrowseFrame hero={<HomeHero candidates={heroes} activeIndex={index} onIndexChange={setIndex}
     renderArtwork={(entry, context) => <AmbientArt treatment={phone ? 'phone' : 'hero'} foreground={art(entry.art)} visible={context.visible} onReady={context.onReady} onError={context.onError} />}
     renderActions={() => <><Button variant="primary" phone={phone} icon="i-play">{f('play')}</Button><Button phone={phone} icon="i-plus">{f('myList')}</Button></>} />}>
-    <WideRow /><PosterRow title={f('newOnServer')} />
+    <WideRow /><PosterRow fresh title={f('newOnServer')} />
   </BrowseFrame></Page>;
 }
 const BrowseList = () => <Page current="movies"><BrowseFrame header={{title: f('movies'), back: {label: f('libraries'), onPress: none}, trailing: <Button size="small" icon="i-filter">{f('filters')}</Button>}}>
@@ -156,11 +164,12 @@ function StateSections() {
     <SectionCard label={f('recordings')}><StateRow kind="empty" icon="i-rec" title={f('noRecordings')} reason={f('noRecordingsReason')} action={{label: f('openGuide'), onPress: none}} /></SectionCard>
   </>;
 }
+/** The Settings index is the shell's own `SettingsNav` (search, the account's pages, the server's pages, the current
+ * page marked), passed as the frame's list: the frame places it and the page beside it (desktop-settings 1, phone-web 3). */
 function SettingsList() {
-  const [page, setPage] = useState<string>(), wide = !usePhone();
-  const list = <SectionCard label={f('account')}>
-    {(['playback', 'audioSubtitles', 'quality', 'music', 'appearance', 'liveTv'] as const).map(name => <div key={name} onClick={() => setPage(name)}><SettingsRow label={f(name)}>{value('')}</SettingsRow></div>)}
-  </SectionCard>;
+  const [page, setPage] = useState<string | undefined>(), phone = usePhone(), wide = !phone, [query, setQuery] = useState('');
+  const list = <SettingsNav layout={phone ? 'phone' : 'desktop'} accountName={shellSample.current.name} serverName={shellFixtures['next.dev.shell.serverName']} viewerRole="owner" account={shellSample.accountNav} server={shellSample.serverNav}
+    selectedId={page ?? (wide ? 'playback' : '')} onNavigate={setPage} query={query} onQueryChange={setQuery} onSearchResult={none} />;
   return <Page current="settings"><SettingsListFrame bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
     page={page || wide ? <SettingsPageFrame title={f('playback')} back={{label: f('settings'), onPress: () => setPage(undefined)}} intro={f('playbackIntro')}><PlaybackSections /></SettingsPageFrame> : undefined} /></Page>;
 }
@@ -205,7 +214,7 @@ function WatchPage({paused = false}: {paused?: boolean}) {
     <div style={{margin: '0 var(--g)', display: 'flex', gap: 'var(--spec-hero-actions-gap-phone)'}}><Button variant="primary" phone icon={paused ? 'i-play' : 'i-pause'} style={{flex: 1}}>{f(paused ? 'play' : 'pause')}</Button>
       {/* The web has no downloads, so its row is Add and More. */}
       {([['i-plus', 'myList'], ['i-more', 'more']] as const).map(([icon, name]) => <Button key={name} phone iconOnly icon={icon} aria-label={f(name)} />)}</div>
-    <Tabs phone items={[{value: 'episodes', label: f('episodes')}, {value: 'more', label: f('moreLikeThis')}, {value: 'details', label: f('details')}]} value={tab} onValueChange={setTab} style={{padding: '0 var(--g)'}} />
+    <Tabs phone items={[{value: 'episodes', label: f('episodes')}, {value: 'more', label: f('moreLikeThis')}, {value: 'details', label: f('details')}]} value={tab} onValueChange={setTab} listClassName={frame.tabsInset} />
     <Episodes />
   </div>;
 }
@@ -231,7 +240,7 @@ function Player({state = 'playing', panel, panelCovers, card}: {state?: 'playing
       <PlayerControl primary icon={state === 'paused' ? 'i-play' : 'i-pause'} busy={state === 'buffering'} label={f(state === 'paused' ? 'play' : 'pause')} onPress={none} />
       <PlayerControl icon={desktop ? 'i-fwd' : 'i-ffw'} skip={30} label={f('forward')} disabled={live} onPress={none} /><PlayerControl icon="i-next" label={f('next')} disabled={live || missing} onPress={none} /></>}
     leading={<Button size="small" icon="i-stack" disabled={live}>{f('episodesButton')}</Button>}
-    trailing={desktop ? <><PlayerVolume value={volume} muted={false} label={f('volume')} muteLabel={f('volume')} onChange={setVolume} onMute={none} /><PlayerControl icon="i-cc" label={f('subtitles')} disabled={missing} onPress={none} />{quality}
+    trailing={desktop ? <><PlayerVolume value={volume} muted={false} label={f('volume')} muteLabel={f('volume')} onChange={setVolume} onMute={none} /><PlayerControl icon="i-cc" label={f('subtitles')} disabled={missing} active={!!panel && panelCovers === undefined} onPress={none} />{quality}
         <PlayerPill value={f('speedShort')} label={f('speed')} disabled={live} onPress={none} /><PlayerControl icon="i-pip" label={f('pictureInPicture')} onPress={none} /><PlayerControl icon="i-full" label={f('fullScreen')} onPress={none} /></>
       : upright ? <>{quality}<PlayerControl icon="i-full" label={f('fullScreen')} onPress={none} /></> : <>{subtitles}{audio}{quality}</>}
     prompts={state === 'playing' ? <PlayerPrompt label={f('skipIntro')} onPress={none} dismiss={{label: f('dismiss'), onPress: none}} /> : undefined}
@@ -283,26 +292,31 @@ function PlayerLiveCase({guide = false}: {guide?: boolean}) {
   return <div style={{position: 'relative', height: '100%', overflow: 'hidden', background: 'var(--color-ink)'}}>
     <div style={{position: 'absolute', inset: 0, display: 'grid'}}><Still /></div>
     <PlayerLive port={livePlayerPort} playing initialMiniGuideOpen={guide} onCollapse={none} onStop={none} onPlayPause={none} onSkip={none} onSeek={none} onMore={none} reportError={none}
-      right={<>{pointer && <PlayerVolume value={volume} muted={false} label={f('volume')} muteLabel={f('volume')} onChange={setVolume} onMute={none} />}<PlayerControl onPicture icon="i-cc" label={f('subtitles')} onPress={none} />
-        <PlayerPill qualifier={f('qualityAuto')} value={f('qualityValue')} label={f('qualityShort')} onPress={none} /><PlayerControl onPicture icon="i-pip" label={f('pictureInPicture')} onPress={none} /><PlayerControl onPicture icon="i-full" label={f('fullScreen')} onPress={none} /></>} />
+      right={<>{pointer && <PlayerVolume value={volume} muted={false} label={f('volume')} muteLabel={f('volume')} onChange={setVolume} onMute={none} />}<PlayerControl icon="i-cc" label={f('subtitles')} onPress={none} />
+        <PlayerPill qualifier={f('qualityAuto')} value={f('qualityValue')} label={f('qualityShort')} onPress={none} /><PlayerControl icon="i-pip" label={f('pictureInPicture')} onPress={none} /><PlayerControl icon="i-full" label={f('fullScreen')} onPress={none} /></>} />
   </div>;
 }
 
 function Audio({variant}: {variant: 'music' | 'missing' | 'book' | 'loading'}) {
   const art = useReferenceArtwork();
-  const control = (icon: AudioControl['icon'], name: FixtureName, disabled = false): AudioControl => ({icon, label: f(name), onPress: none, disabled});
+  const control = (icon: AudioControl['icon'], name: FixtureName, disabled = false, extra: Partial<AudioControl> = {}): AudioControl => ({icon, label: f(name), onPress: none, disabled, ...extra});
   const option = (name: FixtureName, icon?: AudioOption['icon'], shown?: FixtureName, disabled = false): AudioOption => ({label: f(name), icon, value: shown && f(shown), onPress: none, disabled});
   const book = variant === 'book', missing = variant === 'missing';
-  const music = [control('i-shuffle', 'shuffle'), control('i-prev', 'previous'), control('i-pause', 'pause'), control('i-next', 'next', missing), control('i-repeat', 'repeat')] as const;
-  const reading = [control('i-prev', 'previous'), control('i-rew', 'rewind'), control('i-pause', 'pause'), control('i-ffw', 'forward'), control('i-next', 'next')] as const;
-  const queue = <div style={{display: 'grid', gap: 'var(--space-sm)'}}><h3 className={frame.groupLabel}>{f('upNext')}</h3>{(['queue1', 'queue2', 'queue3', 'queue4', 'queue5', 'queue6'] as const).map(name => <span key={name} className={frame.rowLabel}>{f(name)}</span>)}</div>;
+  const music = [control('i-shuffle', 'shuffle'), control('i-prev', 'previous'), control('i-pause', 'pause'), control('i-next', 'next', missing), control('i-repeat', 'repeat', false, {active: true})] as const;
+  const reading = [control('i-prev', 'previous'), control('i-rew', 'rewind', false, {skip: 10}), control('i-pause', 'pause'), control('i-ffw', 'forward', false, {skip: 30}), control('i-next', 'next')] as const;
+  // The queue is the screen's content: here the kit's song rows under their group labels (desktop-listen "now").
+  const song = (key: string, title: string, duration: FixtureName, playing = false) => <SongRow key={key} context="search" onPlay={none}
+    row={{id: key, playing, artwork: <ArtBox kind="square" icon="i-music" source={art('pool/albums/after-hours.jpg')} />, duration: {id: 'duration', text: f(duration), role: 'context'}, text: {id: key, title, caption: [{id: 'artist', text: f('queueArtist'), role: 'context'}], detail: []}}} />;
+  const queue = <div><h3 className={frame.rowHelp}>{f('queueNow')}</h3>{song('now', f('songTitle'), 'queueDurationNow', true)}<h3 className={frame.rowHelp}>{f('queueNextFrom')}</h3>
+    {(['queue1', 'queue2', 'queue3', 'queue4', 'queue5', 'queue6'] as const).map((name, index) => song(name, f(name), `queueDuration${index + 1}` as FixtureName))}</div>;
   return <Window><AudioPlayerFrame loading={variant === 'loading'}
-    close={control('i-down', 'close')} more={control('i-more', 'more')} context={book ? f('playingFromListening') : missing ? f('playingFromField') : f('playingFrom')}
+    close={control('i-down', 'close')} more={control('i-more', 'more')} context={book ? f('playingFromListening') : missing ? f('playingFromField') : f('playingFrom')} source={book ? f('playingSourceListening') : missing ? f('playingSourceField') : f('playingSource')}
+    favourite={{icon: 'i-heart', label: f('favourite'), onPress: none}}
     artwork={missing ? undefined : art(book ? 'pool/books/the-hobbit.jpg' : 'pool/albums/after-hours.jpg')} icon={book ? 'i-book' : 'i-music'}
-    title={book ? f('hobbit') : missing ? f('longSong') : f('songTitle')} byline={book ? f('tolkien') : missing ? f('choir') : f('songArtist')} detail={book ? f('chapter') : undefined}
-    scrubber={<><SeekLine variant="player" value={.34} input={{min: 0, max: 1, step: .001, value: .34, onChange: none, 'aria-label': f('seek')}} /><PlayerTimes position={f(book ? 'bookElapsed' : 'audioElapsed')} remaining={f(book ? 'bookRemaining' : 'audioRemaining')} /></>} transport={book ? reading : music} nextLine={book ? f('timeLeft') : missing ? undefined : f('songNext')}
-    options={book ? [option('speed', undefined, 'speedValue'), option('sleep', undefined, 'sleepValue'), option('chapters', undefined, 'chaptersValue'), option('thisBrowser', 'i-cast')]
-      : [option('lyrics', 'i-lyrics', undefined, missing), option('thisBrowser', 'i-cast'), option('upNext', 'i-queue')]}
+    title={book ? f('hobbit') : missing ? f('longSong') : f('songTitle')} byline={book ? f('tolkien') : missing ? f('choir') : f('songArtist')} chapter={book ? {label: f('chapter'), of: f('chapterOf')} : undefined}
+    scrubber={<><SeekLine variant="player" value={.34} input={{min: 0, max: 1, step: .001, value: .34, onChange: none, 'aria-label': f('seek')}} /><PlayerTimes position={f(book ? 'bookElapsed' : 'audioElapsed')} middle={book ? f('timeLeft') : undefined} remaining={f(book ? 'bookRemaining' : 'audioRemaining')} /></>} transport={book ? reading : music} next={book || missing ? undefined : {label: f('nextLabel'), title: f('nextTitle')}}
+    options={book ? [option('speed', undefined, 'speedValue'), {...option('sleep', undefined, 'sleepValue'), active: true}, option('chapters', undefined, 'chaptersValue'), option('thisBrowser', 'i-cast')]
+      : [option('lyrics', 'i-lyrics', undefined, missing), {...option('thisBrowser', 'i-cast'), inline: true}, option('upNext', 'i-queue')]}
     upNext={missing ? undefined : queue} /></Window>;
 }
 
@@ -323,7 +337,7 @@ function Elements() {
       {boxes.map(([kind, icon, name, source], index) => <div key={index} style={{width: kind === 'wide' ? 'calc(var(--card-poster-width) * 1.6)' : kind === 'square' ? 'var(--card-square-width)' : 'var(--card-poster-width)'}}>
         <ArtBox kind={kind} icon={icon} source={source ? art(source) : undefined} /><p className={frame.rowHelp}>{f(name)}</p></div>)}
     </div></Section>
-    <Section title={f('newOnServer')}><div style={{display: 'flex', gap: 'var(--space-sm)', margin: '0 var(--g)'}}>
+    <Section title={f('newOnServer')}><div style={{display: 'flex', flexWrap: 'wrap', gap: 'var(--space-sm)', margin: '0 var(--g)'}}>
       <PosterCard model={{title: f('spirited'), caption: fact('2001')}} artwork={art('pool/movies/spirited-away.jpg')} style={{width: 'var(--card-poster-width)'}} onNavigate={none} />
       <PosterCard model={{title: f('longTitle'), caption: fact('1974')}} style={{width: 'var(--card-poster-width)'}} onNavigate={none} />
       <SquareCard model={{title: f('songTitle'), caption: fact(f('songArtist'))}} style={{width: 'var(--card-square-width)'}} onNavigate={none} />
@@ -359,7 +373,7 @@ const RegionsPlayer = () => <PlayerChromeFrame chromeVisible picture={<Region na
 function RegionsAudio() {
   const slot = (icon: AudioControl['icon']): AudioControl => ({icon, label: f('ownAction') + icon, onPress: none});
   return <Window><AudioPlayerFrame close={slot('i-down')} more={slot('i-more')} context={f('ownContext')} icon="i-music" title={f('ownTitle')} byline={f('ownByline')} scrubber={<Region name="regionScrubber" height="var(--frame-audio-scrubber)" />}
-    transport={[slot('i-shuffle'), slot('i-prev'), slot('i-pause'), slot('i-next'), slot('i-repeat')]} nextLine={f('ownNext')}
+    transport={[slot('i-shuffle'), slot('i-prev'), slot('i-pause'), slot('i-next'), slot('i-repeat')]} next={{label: f('ownNext'), title: f('ownNext')}}
     options={[{label: f('ownOption'), icon: 'i-lyrics', onPress: none}, {label: f('ownOption') + ' ', icon: 'i-cast', onPress: none}, {label: f('ownOption') + '  ', icon: 'i-queue', onPress: none}]} upNext={<Region name="regionUpNext" flexible />} /></Window>;
 }
 const RegionsState = () => <Window><PageStateFrame icon="i-info" title={f('ownStateTitle')} body={f('ownStateBody')} primaryAction={{id: 'primary', label: f('ownPrimary'), onPress: none}} secondaryAction={{id: 'secondary', label: f('ownSecondary'), onPress: none}} /></Window>;
