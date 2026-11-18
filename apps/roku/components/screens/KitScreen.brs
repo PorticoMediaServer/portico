@@ -27,7 +27,18 @@ function kitPages() as object
             {c: "Button", at: [520, 260], f: {text: "Sign out", danger: true, on: true}}, {c: "Button", at: [860, 260], f: {text: "My List", icon: "plus"}},
             {c: "Button", at: [1200, 260], f: {icon: "more"}}, {c: "Button", at: [200, 400], f: {text: "Resume", icon: "play", progress: 0.4, detail: "1 h 4 min left"}},
             {c: "Button", at: [200, 540], f: {text: "Resume", icon: "play", progress: 0.4, detail: "1 h 4 min left", on: true}},
-            {c: "ButtonRow", at: [200, 680], f: {buttons: [{id: "a", text: "A button row", icon: ""}, {id: "b", text: "Its second", icon: ""}]}}]}
+            {c: "Button", at: [860, 540], f: {text: "Play", icon: "play", minWidth: 320}},
+            {c: "ButtonRow", at: [200, 680], f: {buttons: [{id: "a", text: "A button row", icon: ""}, {id: "b", text: "Its second", icon: ""}]}}]},
+        {title: "List rows of each kind", parts: [
+            {c: "ListRow", at: [200, 100], f: {model: listRow({label: "A plain row"})}},
+            {c: "ListRow", at: [200, 190], f: {model: listRow({label: "With help and scope", help: "Help under the label", scope: "This device"})}},
+            {c: "ListRow", at: [200, 300], f: {model: listRow({label: "A choice", value: "Automatic", control: "choice"}), on: true}},
+            {c: "ListRow", at: [200, 400], f: {model: listRow({label: "A switch, on", control: "switch", switchOn: true})}},
+            {c: "ListRow", at: [200, 490], f: {model: listRow({label: "A switch, off", control: "switch"})}},
+            {c: "ListRow", at: [200, 580], f: {model: listRow({label: "A group that opens", control: "expand"})}},
+            {c: "ListRow", at: [200, 670], f: {model: listRow({label: "A group that closes", control: "collapse"})}},
+            {c: "ListRow", at: [200, 760], f: {model: listRow({label: "With an icon", icon: "server"})}},
+            {c: "ListRow", at: [200, 850], f: {model: listRow({label: "A destructive action", icon: "signOut", danger: true})}}]}
     ])
     for each pair in [["portrait", "landscape"], ["square", "episode"], ["gridPoster", "person"]]
         parts = []
@@ -41,6 +52,10 @@ function kitPages() as object
     pages.append([
         {title: "The side sheet", parts: [{c: "Sheet", at: [0, 0], f: {visible: true, model: {eyebrow: "An eyebrow", title: "A sheet's title", status: "Its status line", rows: [
             {id: "a", text: "A choice", icon: "", current: true}, {id: "b", text: "Another", icon: "", detail: "Its detail"}, {id: "c", text: "After a gap", icon: "", gapBefore: true}]}}}]},
+        {title: "The side sheet: headings with their values, a heading open, the key hints", parts: [{c: "Sheet", at: [0, 0], f: {visible: true, model: {eyebrow: "Playback", title: "Options", status: "", open: "quality", rows: [
+            {id: "quality", text: "Quality", icon: "", heading: true, value: "Automatic"}, {id: "q1", text: "Automatic", icon: "", under: "quality", current: true},
+            {id: "q2", text: "1080p High", icon: "", under: "quality"}, {id: "subtitles", text: "Subtitles", icon: "", heading: true, value: "Off"}],
+            hints: [{keys: ["OK"], text: "Choose"}, {keys: ["Back"], text: "Close"}]}}}]},
         {title: "In a section: error and empty rows (the kit has no loading row: a section waits in its own place)", parts: [
             {c: "StateRow", at: [200, 200], f: {kind: "error", title: "Couldn't load this row", reason: "The server didn't answer.", action: "Try again"}},
             {c: "StateRow", at: [200, 480], f: {kind: "empty", title: "Nothing here yet", reason: "What you add shows here."}}]},
@@ -54,17 +69,25 @@ function kitPages() as object
         {title: "Number pads: a PIN with Forgot PIN?, and a two-step code", parts: [
             {c: "PinPad", at: [200, 220], f: {digits: 4, extra: "Forgot PIN?", boxesAt: [0, 700]}},
             {c: "PinPad", at: [1176, 220], f: {digits: 6, boxesAt: [-400, 700]}}]},
-        {title: "Key hints: on a page, and small", parts: [
+        {title: "Key hints: on a page, small, and with words ahead", parts: [
             {c: "KeyHints", at: [200, 200], f: {hints: [{keys: ["OK"], text: "Play"}, {keys: ["Up", "Down"], text: "Choose a page"}]}},
-            {c: "KeyHints", at: [200, 320], f: {small: true, hints: [{keys: ["Play/Pause"], text: "Delete a digit"}, {keys: ["Back"], text: "Other profiles"}]}}]},
+            {c: "KeyHints", at: [200, 320], f: {small: true, hints: [{keys: ["Play/Pause"], text: "Delete a digit"}, {keys: ["Back"], text: "Other profiles"}]}},
+            {c: "KeyHints", at: [200, 440], f: {small: true, hints: [{before: "Press", keys: ["Back"], text: "to change the server address."}]}}]},
         {title: "QR cards: with a code, and without", parts: [
             {c: "QrCard", at: [120, 212], f: {link: "https://web.getportico.tv/tv?code=7KQM-4TXP", address: "web.getportico.tv/tv", code: "7KQM-4TXP", note: "This code refreshes by itself."}},
             {c: "QrCard", at: [1060, 212], f: {link: "https://demo.getportico.tv/settings/profile", address: "demo.getportico.tv/settings/profile", note: "Scan the code with your phone, or go to this address on a computer."}}]},
         {title: "The season list (five whole, the next peeking)", parts: [{c: "SeasonList", at: [200, 160], f: {seasons: sampleSeasons()}}]},
+        {title: "The confirm dialog (focus starts on Cancel)", parts: [{c: "Confirm", at: [0, 0], f: {model: {title: "Sign out of Portico Demo on this TV?", body: "You'll need to sign this TV in again.", verb: "Sign out"}}}]},
         {title: "The rail, closed", parts: [{c: "Rail", at: [0, 0], f: sampleRail()}]},
         {title: "The rail, open (drawn open; the page keeps the focus)", parts: [{c: "Rail", at: [0, 0], f: sampleRail(), open: true}]}
     ])
     return pages
+end function
+
+function listRow(fields as object) as object
+    row = {label: "", help: "", scope: "", value: "", control: "", switchOn: false, icon: "", danger: false}
+    row.append(fields)
+    return row
 end function
 
 ' Three cards of a shape: with its art, without (the made cover, or a person's initials), and in progress.
