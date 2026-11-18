@@ -43,6 +43,18 @@ export const focus = {
   exactlyOneOnTv: true,
 } as const;
 
+/** R1, TV: the room a focused control needs round its own box so no scroller or clipping card cuts its focus: its growth
+ * on focus, plus the wider of its ring and its glow on each side. The glow reaches blur + spread past the box, shifted down
+ * by its offset (78 below, 26 above, 52 at the sides with today's token). Every TV scroller or card that holds focusables
+ * gives this room and takes it back with negative margins, so the layout does not move. A row (`kind: 'row'`) draws its
+ * ring inside itself and does not grow, so only its glow needs room. */
+export function tvFocusRoom(width: number, height: number, kind: keyof typeof focus.scale): Readonly<{side: number; top: number; bottom: number}> {
+  const scale = kind === 'row' ? 1 : focus.scale[kind].tv, ring = kind === 'row' ? 0 : (focus.offsetOuter.tv + focus.ringWidth.tv) * scale;
+  const reach = focus.glow.blur + focus.glow.spread, growX = width * (scale - 1) / 2, growY = height * (scale - 1) / 2;
+  return {side: Math.ceil(growX + Math.max(ring, reach + Math.abs(focus.glow.x))), top: Math.ceil(growY + Math.max(ring, reach - focus.glow.y)),
+    bottom: Math.ceil(growY + Math.max(ring, reach + focus.glow.y))};
+}
+
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'link';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 export type ButtonState = 'rest' | 'hover' | 'pressed' | 'selected' | 'disabled';
