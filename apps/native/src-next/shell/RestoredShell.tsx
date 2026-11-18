@@ -1,9 +1,6 @@
 import React, {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
-import {StateLayout} from '../kit/states';
-import {CoverFan} from '../kit/artwork';
-import {Focusable} from '../kit/controls';
+import {DownloadsStillPlay, StateLayout} from '../kit/states';
 import {TVDesignCanvas} from '../kit/overlays/TVDesignCanvas';
-import {Icon} from '../kit/Icon';
 import {useTheme} from '../kit/theme';
 import {presentError} from '../../../../packages/client-core/src/presentation/errors';
 import {deviceOnline, onNetworkChange} from '../platform/server-connections';
@@ -408,7 +405,7 @@ type RecoveryPresented = ReturnType<typeof presentError>;
 
 /** The drawn "Your downloads still play" row: real retained entries, the root's own opening. */
 function RecoveryDownloads({source}: {source: RememberedDownloadsOpening}) {
-  const theme = useTheme(), t = defaultI18n.t;
+  const t = defaultI18n.t;
   const subscribe = useCallback((listener: () => void) => {
     try {return source.current() ? source.device.subscribe(listener) : () => {};} catch {return () => {};}
   }, [source]);
@@ -426,20 +423,8 @@ function RecoveryDownloads({source}: {source: RememberedDownloadsOpening}) {
   const covers = entries.slice(0, 3).flatMap(entry => entry.artworkUrl
     ? [{uri: entry.artworkUrl, cacheKey: JSON.stringify([downloadEntryIdentity(entry), entry.artworkUrl])}] : []);
   const first = entries[0]!, more = entries.length - 1;
-  return <Focusable testID="recovery-downloads" accessibilityRole="button" accessibilityLabel={t('next.states.native.downloadsPlay')} focusRadius={14}
-    onPress={() => {if (source.current()) source.entry.open();}}
-    style={{minHeight: 74, width: '100%', marginBottom: 14, paddingHorizontal: 14, justifyContent: 'center', borderRadius: 14,
-      backgroundColor: `${theme.colors.raised}D9`, borderWidth: 1, borderColor: `${theme.colors.text}14`}}>
-    <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
-      <View style={{width: 64, height: 50}}>{covers.length ? <CoverFan covers={covers} shape="poster" width={64} height={50}/> : null}</View>
-      <View style={{flex: 1}}>
-        <Text numberOfLines={1} style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{t('next.states.native.downloadsPlay')}</Text>
-        <Text numberOfLines={1} style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{more > 0
-          ? t('next.states.native.downloadsMore', {title: first.title, count: more}) : first.title}</Text>
-      </View>
-      <Icon name="i-right" size={20} color={theme.colors.textTertiary}/>
-    </View>
-  </Focusable>;
+  return <DownloadsStillPlay testID="recovery-downloads" covers={covers} title={t('next.states.native.downloadsPlay')}
+    detail={more > 0 ? t('next.states.native.downloadsMore', {title: first.title, count: more}) : first.title} onPress={() => {if (source.current()) source.entry.open();}}/>;
 }
 
 /** states.html 4a and 7a, compact phone only. The server name is the saved display; no version line

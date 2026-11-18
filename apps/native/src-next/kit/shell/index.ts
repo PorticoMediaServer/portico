@@ -13,3 +13,4 @@ export {StatTiles, Sparkline, BarList, PersonRow, DeviceRow, WaitingNotice} from
 export type {StatTile, PersonRowProps, DeviceRowProps} from './Diagnostics';
 export {SegmentWindows, MarkerWindow} from './SegmentWindows';
 export type {SegmentWindowsProps, SegmentWindow} from './SegmentWindows';
+export {SettingsProfileCard} from './SettingsProfileCard';

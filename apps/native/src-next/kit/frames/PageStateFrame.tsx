@@ -13,12 +13,16 @@ export type PageStateProps = Readonly<{
   retry?: StateRetry;
   /** The owner-only Details block. */
   details?: React.ReactNode;
+  /** What still works: the kit `DownloadsStillPlay` row, before the buttons (states 4a). */
+  downloads?: React.ReactNode;
+  /** One paragraph under the buttons ("If the server is asleep…", states 4a, 5). */
+  help?: React.ReactNode;
   testID?: string;
 }>;
 
 /** Frame 9: the whole page can't load, or is waiting the first time. Once per screen, in place of the page: the icon
  * in a glass circle, a large title, one sentence, a white primary and a glass secondary; centred on a phone, at the
  * gutter elsewhere. The other frames draw it for their `state`; a screen with no frame of its own uses it directly. */
-export function PageStateFrame(props: PageStateProps) {
-  return <StateLayout {...props} backdropShape="none" style={{backgroundColor: 'transparent'}}/>;
+export function PageStateFrame({downloads, ...props}: PageStateProps) {
+  return <StateLayout {...props} beforeActions={downloads} backdropShape="none" style={{backgroundColor: 'transparent'}}/>;
 }

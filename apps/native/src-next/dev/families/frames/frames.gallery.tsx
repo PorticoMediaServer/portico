@@ -28,7 +28,7 @@ import type {Gallery} from '../../gallery-registry';
 type FixtureName = keyof typeof framesFixtureMessages extends `next.frames.fixture.${infer Name}` ? Name : never;
 const f = (name: FixtureName) => formatMessage(framesFixtureMessages[`next.frames.fixture.${name}`]);
 /** The reference artwork the capture run serves (the same files the mock-ups use). */
-const asset = (path: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${path}`, cacheKey: `frames-reference:${path}`});
+export const asset = (path: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${path}`, cacheKey: `frames-reference:${path}`});
 const none = () => {};
 /** A stand-in signed-in scope for the shell's TV rail, which names its focus stops by it. */
 const galleryAuthority = {serverId: 'gallery', userId: 'gallery', profileId: 'gallery', epoch: '1', viewerFence: '1'} as never;
@@ -45,14 +45,14 @@ const posters = ['spirited-away', 'inside-out', 'alien', 'blade-runner', 'dune',
 const wides = [{id: 'tlou', title: f('tlou'), art: asset('bd-tlou.jpg')}, {id: 'inside-out', title: f('insideOut'), art: asset('bd-insideout.jpg')}, {id: 'spirited', title: f('spirited'), art: asset('bd-spirited.jpg')}];
 
 /** One whole window for a frame: frames keep their own safe areas and gutters, so the Kit page's gutter is undone. */
-function Window({children}: {children: ReactNode}) {
+export function Window({children}: {children: ReactNode}) {
   const theme = useTheme(), window = useWindowDimensions();
   return <View style={{height: window.height, marginHorizontal: -theme.gutter}}>{children}</View>;
 }
 
 /** A page as the app shows it: with the shell's own tab bar on a phone and its rail on a tablet, so the frame is judged
  * where it lives. The TV rail needs a signed-in session and is not drawn here. */
-function Page({children, destination}: {children: ReactNode; destination: ShellDestination}) {
+export function Page({children, destination}: {children: ReactNode; destination: ShellDestination}) {
   const theme = useTheme(), window = useWindowDimensions(), insets = useSafeAreaInsets(), {form} = useFrameMetrics();
   const landscape = window.width > window.height, rail = form === 'medium' || form === 'expanded', sidebar = theme.layoutMode === 'desktop';
   const inset = rail ? sidebar ? sidebarWidth : mediumRailMetrics.width : 0;
@@ -68,7 +68,7 @@ function Page({children, destination}: {children: ReactNode; destination: ShellD
   </View>;
 }
 
-function PosterRow({title, fresh = false}: {title: string; /** The first few are new. */ fresh?: boolean}) {
+export function PosterRow({title, fresh = false}: {title: string; /** The first few are new. */ fresh?: boolean}) {
   const theme = useTheme(), width = theme.spec.card.width.poster[theme.column];
   return <Row title={title} items={posters} getKey={item => item.id} itemWidth={width} itemHeight={width * 1.5} selection={selection}
     renderItem={(item, context) => <PosterCard {...card(context)} title={item.title} artwork={item.art} width={width} isNew={fresh && posters.indexOf(item) < 3} onNavigate={none}/>}/>;
@@ -159,7 +159,7 @@ function StateSections() {
 }
 /** The Settings index is the shell's own parts, passed as the frame's list: the quick tiles and `SettingsNav` (the
  * account's pages, then the server's, the current page marked). The frame places it and the page beside it. */
-const settingsPages = {
+export const settingsPages = {
   account: ([['profile', 'i-person', 'settingsProfile'], ['playback', 'i-play', 'playback'], ['audio', 'i-subs', 'audioSubtitles'], ['quality', 'i-sliders', 'quality'], ['music', 'i-music', 'music'], ['appearance', 'i-image', 'appearance']] as const).map(([id, icon, name]) => ({id, icon, label: f(name)})),
   server: ([['dashboard', 'i-activity', 'settingsDashboard'], ['libraries', 'i-library', 'libraries'], ['live', 'i-live', 'liveTv']] as const).map(([id, icon, name]) => ({id, icon, label: f(name)})),
 };
@@ -174,7 +174,7 @@ function SettingsList() {
 const SettingsPage = () => <Window><SettingsPageFrame testID="frames-settings-page" title={f('liveTv')} back={{label: f('settings'), onPress: none}} intro={f('playbackIntro')}><StateSections/></SettingsPageFrame></Window>;
 
 const Sheet = () => <Window><BrowseFrame header={{title: f('liveTv')}}><View/></BrowseFrame>
-  <SheetFrame kind="bottom" testID="frames-sheet" open onOpenChange={none} title={f('addSource')} footer={<Button testID="frames-sheet-cancel" variant="glass" align="stretch" onPress={none}>{f('cancel')}</Button>}>
+  <SheetFrame kind="task" task="task" testID="frames-sheet" open onOpenChange={none} title={f('addSource')}>
     <SettingsRow testID="frames-sheet-playlist" first icon="i-link" label={f('playlist')} description={f('playlistMeta')} navigates onPress={none}/>
     <SettingsRow testID="frames-sheet-tuners" icon="i-wifi" label={f('findTuners')} description={f('findTunersMeta')} navigates onPress={none}/>
   </SheetFrame></Window>;
@@ -383,7 +383,7 @@ function RegionsSettings() {
   const page = <SettingsPageFrame title={f('ownTitle')} back={own.back} action={own.action} intro={f('ownIntro')}><Block name="regionSections" flexible/><Block name="regionSections" flexible/></SettingsPageFrame>;
   return <Window><SettingsListFrame open onOpenChange={none} bar={{title: f('ownBarTitle'), action: own.action}} list={<Block name="regionList" flexible rows={5}/>} page={form === 'phone' ? undefined : page}/></Window>;
 }
-const RegionsSheet = () => <Window><SheetFrame kind="bottom" open onOpenChange={none} title={f('ownBarTitle')} footer={<Region name="regionFooter" height={frameSpec.sheet.footerClear}/>}><Block name="regionSheetRows" flexible/></SheetFrame></Window>;
+const RegionsSheet = () => <Window><SheetFrame kind="task" task="task" open onOpenChange={none} title={f('ownBarTitle')} foot={<Region name="regionFooter" height={frameSpec.sheet.footerClear}/>}><Block name="regionSheetRows" flexible/></SheetFrame></Window>;
 const RegionsSignIn = () => <Window><SignInFrame back={own.back} title={f('ownTitle')} lede={f('ownLede')} terms={<Text style={{color: 'transparent'}}>{f('terms')}</Text>}><Region name="regionForm" flexible height={frameSpec.signIn.column.medium}/></SignInFrame></Window>;
 const RegionsPlayer = () => <Window><PlayerChromeFrame chromeVisible picture={<Region name="regionPicture"/>} close={<Region name="regionClose" height={frameSpec.header.backRow}/>} title={<Region name="regionPlayerTitle" height={frameSpec.header.backRow}/>}
   tools={<Region name="regionTools" height={frameSpec.header.backRow}/>} scrubber={<Region name="regionScrubber" height={frameSpec.player.portrait.control}/>} times={{position: f('elapsed'), remaining: f('remaining'), duration: f('duration')}}
