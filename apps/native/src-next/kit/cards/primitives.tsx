@@ -166,8 +166,10 @@ export function ArtFrame({children, width, height, radius, focused, selected, ho
 export function Parts({parts = [], style, gap = 8, strong = false, fit = 'cut'}: {parts?: readonly FactPart[]; style?: StyleProp<TextStyle>; gap?: number; strong?: boolean; fit?: 'cut' | 'wrap' | 'drop'}) {
   const t = useTheme();
   if (!parts.length) return null;
+  // On one line the longest fact gives way: a year or an episode number ("S1 E1") is never cut for an episode's name.
+  const longest = parts.reduce((a, b) => b.text.length > a.text.length ? b : a);
   const textStyle = (part: FactPart): StyleProp<TextStyle> => [
-    t.type.cardSubtitle, {color: t.colors.textTertiary, flexShrink: part.role === 'context' ? 0 : 1},
+    t.type.cardSubtitle, {color: t.colors.textTertiary, flexShrink: part === longest ? 1 : 0},
     (strong || part.role === 'identity' || part.role === 'status') && {fontFamily: t.type.captionStrong.fontFamily, color: part.role === 'status' ? t.colors.accentStrong : t.colors.textSecondary}, style,
   ];
   if (fit === 'drop') {

@@ -165,7 +165,7 @@ test('H10: on large screens an open field opens in a popover anchored to its til
     assert.equal(open.length, 1, 'exactly the open field has an open popover');
     assert.equal(open[0].props.title, 'genre');
     assert.ok(text(open[0]).includes('Shared value'), 'the field options live in the popover');
-    const tiles = tree.nodes.filter(node => node.type === 'View' && node.props.style?.width === '48.8%' && node.children.some(child => typeof child === 'object' && child.type === 'Popover'));
+    const tiles = tree.nodes.filter(node => node.type === 'View' && node.props.style?.flexBasis === '40%' && node.props.style?.maxWidth === '50%' && node.children.some(child => typeof child === 'object' && child.type === 'Popover'));
     assert.ok(tiles.length >= 6, 'every desktop field, open or not, keeps its half-width tile in the grid');
     assert.ok(!tree.nodes.some(node => node.type === 'View' && node.props.style?.width === '100%' && text(node).startsWith('genre')), 'no field expands inline to full width');
   } finally {await tree.dispose();}

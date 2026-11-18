@@ -72,7 +72,8 @@ export type BrowseFrameProps = Readonly<{
  * `frameRegions.browse` and `.home` (packages/design). The frame owns the header, the safe area, the space between regions
  * and rows and the clearance at the bottom; the shell owns the tab bar, sidebar or rail, and the window owns the backdrop. */
 export function BrowseFrame({startFocus, ...props}: BrowseFrameProps) {
-  return <StartFocusScope id={startFocus}><BrowsePage {...props}/></StartFocusScope>;
+  // While the TV Filters sheet is open the page starts in it, on its primary (Show 6 movies), never on a card behind it.
+  return <StartFocusScope id={props.filters?.open ? 'apply' : startFocus}><BrowsePage {...props}/></StartFocusScope>;
 }
 function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, children, testID}: Omit<BrowseFrameProps, 'startFocus'>) {
   const frame = useFrameMetrics(), insets = useSafeAreaInsets(), form = frame.form;

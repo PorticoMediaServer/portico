@@ -29,7 +29,9 @@ test('a toolbar with a view toggle, a card size and Save draws no bare text betw
       labels: {sort: () => '', quick: () => ''}, resultCount: '8 books', onQuickChange() {}, onFilters() {}, onSortChange() {},
       view: {value: 'grid', onValueChange() {}}, cardSize: {value: 'medium', options: [], onValueChange() {}}, save: {canSave: true, onSave() {}}}));
     const nodes = elements(tree), drawn = nodes.map(node => node.type);
-    assert.ok(drawn.some(type => (type as {name?: string})?.name === 'ViewToggle') && drawn.some(type => (type as {name?: string})?.name === 'CardSizeButton'), `${width}: both controls are drawn`);
+    assert.ok(drawn.some(type => (type as {name?: string})?.name === 'ViewToggle'), `${width}: the view toggle is drawn`);
+    // phone-app 5: a phone draws the count and grid / list only (its Save view is in the Filters sheet).
+    assert.equal(drawn.some(type => (type as {name?: string})?.name === 'CardSizeButton'), width >= 600, `${width}: card size only on a wide toolbar`);
     for (const node of nodes) assert.deepEqual(bareText(node), [], `${width}: ${String((node.type as {name?: string})?.name ?? node.type)} holds no bare text`);
   }
 });

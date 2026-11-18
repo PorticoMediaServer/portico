@@ -193,7 +193,7 @@ test('song rows speak their artist/album/state and enlarged rows release fixed v
     const frame = nodes(song).find(node => node.type === 'CardFrame');
     assert.equal(frame.props.accessibilityLabel, 'next.browse.native.play: Song, Artist, Album, 3:32, next.kit.session.playing');
     frame.props.onPlay(); assert.deepEqual(calls, ['song']);
-    assert.equal(flatten(song.props.style).height, scale === 1 ? 58 : undefined);
+    assert.equal(flatten(song.props.style).height, undefined); // rule 10: a two-line title grows the row
     assert.equal(flatten(song.props.style).minHeight, 58);
     const snapshot = {generation: 1, total: 1}, collection = {subscribe: () => () => {}, getSnapshot: () => snapshot};
     const table = f.host.render(() => tracks.TrackTable({variant: 'songs', collection, selection: {}, onPlay() {}}));
@@ -325,7 +325,7 @@ test('card facts: drop is one fixed line of whole facts, wrap moves whole facts 
   assert.deepEqual([wrap.flexWrap, wrap.height], ['wrap', undefined]);
   const cut = f.host.render(() => Parts({parts}));
   assert.equal(flatten(cut.props.style).flexWrap, undefined);
-  assert.equal(flatten(nodes(cut).find(node => node.type === 'Text').props.style).flexShrink, 0, 'cut keeps main\'s never-shrinking context fact');
+  assert.deepEqual(nodes(cut).filter(node => node.type === 'Text').map(node => flatten(node.props.style).flexShrink), [1, 0, 0], 'cut: the longest fact gives way; a year or an episode number is never cut');
   const caption = nodes(f.host.render(() => Caption({title: 'Twelve Winters at the Observatory', caption: parts})));
   assert.equal(caption.find(node => node.type === Parts)?.props.fit, 'drop', 'a poster caption drops whole facts on phone');
 });

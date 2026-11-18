@@ -67,7 +67,7 @@ function useToolbar(filtered: boolean, total = filtered ? 6 : 80) {
 function FiltersFields() {
   const theme = useTheme(), [fields, setFields] = useState<Record<string, FilterFieldState>>(initialFields), [openFields, setOpenFields] = useState<readonly string[]>([theme.isTV ? 'year' : 'genre']);
   const model = useMemo(() => browseToolbarModel(capability, 'movie', [], {field: 'title', direction: 'asc'}, {t, owner: true, textEntry: !theme.isTV}), [theme.isTV]);
-  return <FilterBuilder model={model} labels={labels} openFields={openFields} fields={fields} onFieldChange={(id, value) => setFields(previous => updateField(previous, id, value))}
+  return <FilterBuilder focusPrefix="library-filters" model={model} labels={labels} openFields={openFields} fields={fields} onFieldChange={(id, value) => setFields(previous => updateField(previous, id, value))}
     onFieldOpenChange={(id, next) => setOpenFields(previous => next ? [...new Set([...previous, id])] : previous.filter(value => value !== id))}
     onSearchChange={(id, search) => setFields(previous => ({...previous, [id]: {...previous[id], search} as FilterFieldState}))} onShowAll={undefined}
     onRetry={() => setFields(clearedFields)}/>;
