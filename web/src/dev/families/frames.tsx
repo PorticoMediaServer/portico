@@ -1,5 +1,5 @@
-import {useEffect, useMemo, useState, type ComponentType, type CSSProperties, type ReactNode} from 'react';
-import {formatMessage, type MessageId} from '@i18n';
+import {useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type ReactNode} from 'react';
+import {defaultI18n, formatMessage, type MessageId} from '@i18n';
 import {ArtworkScheduler} from '@core/artwork';
 import type {FactPart} from '@portico/client-core/kit-model';
 import {framesFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/frames-fixtures.ts';
@@ -12,7 +12,10 @@ import {ArtBox, AudioPlayerFrame, BrowseFrame, HomeHero, PageStateFrame, PlayerC
 import {Icon} from '../../kit/Icon';
 import {HeroFacts, Shelf} from '../../kit/layout';
 import {SeekLine} from '../../kit/media';
-import {PlayerControl, PlayerPill, PlayerPrompt, PlayerScrubPreview, PlayerTimes, PlayerTitle, PlayerVolume} from '../../kit/player';
+import {PlayerControl, PlayerEpisodes, PlayerLive, PlayerOptions, PlayerPill, PlayerPrompt, PlayerScrubPreview, PlayerTimes, PlayerTitle, PlayerUpNext, PlayerVolume,
+  type PlayerEpisodeList, type PlayerOptionsModel, type PlayerPanel, type PlayerPanelContext, type PlayerRadioChoice} from '../../kit/player';
+import type {TrackChoice} from '../../kit/media';
+import {livePlayerPort} from '../live-player-fixture';
 import {usePhone} from '../../kit/overlays/shared';
 import {SettingsRow} from '../../kit/shell';
 import {ProfileAvatarFace} from '../../kit/shell';
@@ -171,7 +174,7 @@ function SignIn() {
 }
 
 /** A still frame standing in for the video surface (a plain picture: the player's surface is a video element, not kit artwork). */
-const Still = () => <img src="http://100.120.50.24:8787/assets/bd-tlou.jpg" alt="" style={{objectFit: 'cover'}} />;
+const Still = () => <img src="http://100.120.50.24:8787/assets/bd-tlou.jpg" alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} />;
 /** The players' own scrubber and read-outs (kit/media SeekLine, kit/player PlayerTimes) at a still position. */
 function Scrubber({scrubbing = false, live = false, chapters = true}: {scrubbing?: boolean; live?: boolean; chapters?: boolean}) {
   return <SeekLine variant="player" value={live ? .96 : .2} buffered={[{start: .2, end: live ? 1 : .34}]}
@@ -204,13 +207,13 @@ function useLandscapePhone() {
 }
 /** The video player filled with the kit's player parts, with what each mock-up puts in each place for its form
  * (desktop-player 1, phone-player 2c on its side, phone-player 4 upright). Nothing moves between the states. */
-function Player({state = 'playing'}: {state?: 'playing' | 'paused' | 'buffering' | 'scrubbing' | 'live' | 'missing'}) {
+function Player({state = 'playing', over}: {state?: 'playing' | 'paused' | 'buffering' | 'scrubbing' | 'live' | 'missing'; /** A panel or prompt of the player's own, drawn over it as the player screen does. */ over?: ReactNode}) {
   const [volume, setVolume] = useState(.7), upright = usePhone(), sideways = useLandscapePhone(), desktop = useWide() && !sideways, live = state === 'live', missing = state === 'missing';
   const tool = (icon: AudioControl['icon'], name: FixtureName, disabled = false) => <PlayerControl onPicture icon={icon} label={f(name)} disabled={disabled} onPress={none} />;
   const subtitles = <PlayerPill icon="i-cc" name={f('subtitles')} value={f('english')} label={f('subtitles')} disabled={missing} onPress={none} />;
   const audio = <PlayerPill icon="i-audio" name={f('audio')} value={f('english')} label={f('audio')} disabled={missing} onPress={none} />;
   const quality = <PlayerPill icon={desktop ? undefined : 'i-quality'} qualifier={f('qualityAuto')} value={f('qualityValue')} label={f('qualityShort')} onPress={none} />;
-  return <PlayerChromeFrame chromeVisible picture={<Still />} close={tool('i-down', 'close')} title={<PlayerTitle title={f('tlou')} lead={f('videoLead')} subtitle={f('videoSubtitle')} />}
+  return <div data-mode={upright ? 'portrait' : undefined} style={{position: 'relative', height: '100%'}}><PlayerChromeFrame chromeVisible picture={<Still />} close={tool('i-down', 'close')} title={<PlayerTitle title={f('tlou')} lead={f('videoLead')} subtitle={f('videoSubtitle')} />}
     tools={desktop ? <>{tool('i-cast', 'playOn')}{tool('i-more', 'more')}{tool('i-x', 'dismiss')}</> : <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{upright && tool('i-cc', 'subtitles', missing)}{tool('i-settings', 'playerSettings')}</>}
     scrubber={<Scrubber scrubbing={state === 'scrubbing'} live={live} chapters={!missing} />}
     times={{position: f('elapsed'), remaining: f('remaining'), duration: f('duration'), endsAt: live ? undefined : f('endsAt'), live: live ? f('live') : undefined}}
@@ -221,8 +224,58 @@ function Player({state = 'playing'}: {state?: 'playing' | 'paused' | 'buffering'
     trailing={desktop ? <><PlayerVolume value={volume} muted={false} label={f('volume')} muteLabel={f('volume')} onChange={setVolume} onMute={none} /><PlayerControl icon="i-cc" label={f('subtitles')} disabled={missing} onPress={none} />{quality}
         <PlayerPill value={f('speedShort')} label={f('speed')} disabled={live} onPress={none} /><PlayerControl icon="i-pip" label={f('pictureInPicture')} onPress={none} /><PlayerControl icon="i-full" label={f('fullScreen')} onPress={none} /></>
       : upright ? <>{quality}<PlayerControl icon="i-full" label={f('fullScreen')} onPress={none} /></> : <>{subtitles}{audio}{quality}</>}
-    prompts={state === 'playing' ? <PlayerPrompt label={f('skipIntro')} onPress={none} dismiss={{label: f('dismiss'), onPress: none}} /> : undefined}
-    body={<WatchPage />} />;
+    prompts={state === 'playing' && !over ? <PlayerPrompt label={f('skipIntro')} onPress={none} dismiss={{label: f('dismiss'), onPress: none}} /> : undefined}
+    body={<WatchPage />} />{over}</div>;
+}
+
+/** The player's own panels (kit/player), each over the player as the player screen draws it, with a fixed sample of
+ * what a playing title offers. The form follows the window: one panel of columns on the desktop (desktop-player 3), a
+ * bottom sheet on an upright phone and a side sheet on a phone on its side (phone-player 3). */
+const track = (id: string, primary: FixtureName, secondary: FixtureName | undefined, extra: Partial<TrackChoice> = {}): TrackChoice => ({id, primary: f(primary), secondary: secondary && f(secondary), fullName: f(primary), selected: false, ...extra});
+const choice = (id: string, label: FixtureName, detail: FixtureName | undefined, selected = false): PlayerRadioChoice => ({id, label: f(label), detail: detail && f(detail), selected, enabled: true});
+const optionsModel: PlayerOptionsModel = {
+  fence: {} as PlayerOptionsModel['fence'], automatic: true, qualityLabel: f('qualityValue'), qualityAccessibleLabel: f('qualityValue'), audioLabel: f('english'), subtitleLabel: f('english'),
+  subtitles: [track('off', 'optOff', undefined), track('en', 'english', 'optSrt', {selected: true}), track('en-sdh', 'optEnglishSdh', 'optSrt'), track('es', 'optSpanish', 'optSrt'), track('fr', 'optFrench', 'optSrtBeside')],
+  subtitleAdditions: [track('de', 'optGerman', 'optNotAdded', {addable: true})],
+  audio: [track('en', 'english', 'optAac51', {selected: true}), track('es', 'optSpanish', 'optAacStereo'), track('commentary', 'optCommentary', 'optAacStereo', {unavailable: true})],
+  audioNotes: [f('optAudioNote')],
+  quality: [choice('original', 'optOriginal', 'optOriginalDetail'), choice('auto', 'optAutomatic', 'optAutomaticDetail', true), choice('720', 'opt720', 'opt720Detail'), choice('480', 'opt480', 'opt480Detail')],
+  qualityNotes: [f('optQualityNote')],
+  speed: [['0.5', 'optSpeed05'], ['0.75', 'optSpeed075'], ['1', 'optNormal'], ['1.25', 'optSpeed125'], ['1.5', 'optSpeed15'], ['2', 'optSpeed2']].map(([id, label]) => ({id, label: f(label as FixtureName), selected: id === '1', enabled: true})),
+  subtitleTiming: {offsetSeconds: 0, shift: async () => {}}, subtitleStyle: {size: 'medium', background: 'translucent', set: none}, sleepTimer: {minutes: 0, set: none}, subtitleForced: {only: false, set: none},
+  isCurrent: () => true, selectAudio: async () => {}, selectSubtitle: async () => {}, selectQuality: async () => {}, selectSpeed: none,
+};
+function PlayerPanelCase({panel}: {panel: PlayerPanel}) {
+  const upright = usePhone(), sideways = useLandscapePhone(), anchor = useRef<HTMLButtonElement>(null);
+  const context: PlayerPanelContext = {panel, snapshot: {queueView: {remainingCount: 3}} as unknown as PlayerPanelContext['snapshot'], layout: upright || sideways ? 'phone' : 'desktop', landscape: sideways,
+    phoneTop: 220, available: ['options', 'subtitles', 'audio', 'quality', 'speed', 'episodes', 'queue'], close: none, show: none, returnFocusRef: anchor};
+  return <Player state="paused" over={<PlayerOptions model={optionsModel} context={context} i18n={defaultI18n} reportError={none} openSettings={none} />} />;
+}
+const episodeList: PlayerEpisodeList = {seasonId: 's1', seasons: [{id: 's1', number: 1, title: ''}, {id: 's2', number: 2, title: ''}],
+  rows: (['episode1', 'episode2', 'episode3'] as const).map((name, index) => ({itemId: name, title: f(name), number: index + 1, stillUrl: 'bd-tlou.jpg', overview: f('tlouSynopsis'),
+    durationSeconds: [4860, 3180, 4560][index], progressSeconds: index === 1 ? 842 : index === 0 ? 4860 : undefined, watched: index === 0, playing: index === 1, next: index === 2}))};
+function PlayerEpisodesCase() {
+  const art = useReferenceArtwork(), upright = usePhone(), sideways = useLandscapePhone(), anchor = useRef<HTMLButtonElement>(null);
+  const context: PlayerPanelContext = {panel: 'episodes', snapshot: {} as PlayerPanelContext['snapshot'], layout: upright || sideways ? 'phone' : 'desktop', landscape: sideways, phoneTop: 220, close: none, show: none, returnFocusRef: anchor};
+  return <Player state="paused" over={<PlayerEpisodes episodes={episodeList} context={context} artwork={art} onPlay={none} onSeason={none} reportError={none} />} />;
+}
+function PlayerUpNextCase() {
+  const upright = usePhone(), sideways = useLandscapePhone(), wide = useWide();
+  return <Player state="playing" over={<PlayerUpNext layout={upright || sideways ? 'phone' : wide ? 'desktop' : 'tablet'} heading={f('upNextHeading')} still={<Still />} title={f('episode3')} facts={[f('upNextCode'), f('upNextDuration')]}
+    when={f('upNextWhen')} progress={.4} actions={[{id: 'play', label: f('upNextPlayNow'), primary: true, glyph: 'play', onPress: none}, {id: 'credits', label: f('upNextWatchCredits'), onPress: none}]} />} />;
+}
+
+/** The Live TV player's own chrome (kit/player `PlayerLive`; desktop-live "live-player", phone-player 1): the channel
+ * and programme lockup, Record, the programme-long bar with the live edge and Go to live, channel down and up, and
+ * Guide with its short guide. It is drawn from one port of channel facts, here a fixed sample. */
+function PlayerLiveCase({guide = false}: {guide?: boolean}) {
+  const [volume, setVolume] = useState(.7), pointer = useWide() && !useLandscapePhone();
+  return <div style={{position: 'relative', height: '100%', overflow: 'hidden', background: 'var(--color-ink)'}}>
+    <div style={{position: 'absolute', inset: 0, display: 'grid'}}><Still /></div>
+    <PlayerLive port={livePlayerPort} playing initialMiniGuideOpen={guide} onCollapse={none} onStop={none} onPlayPause={none} onSkip={none} onSeek={none} onMore={none} reportError={none}
+      right={<>{pointer && <PlayerVolume value={volume} muted={false} label={f('volume')} muteLabel={f('volume')} onChange={setVolume} onMute={none} />}<PlayerControl onPicture icon="i-cc" label={f('subtitles')} onPress={none} />
+        <PlayerPill qualifier={f('qualityAuto')} value={f('qualityValue')} label={f('qualityShort')} onPress={none} /><PlayerControl onPicture icon="i-pip" label={f('pictureInPicture')} onPress={none} /><PlayerControl onPicture icon="i-full" label={f('fullScreen')} onPress={none} /></>} />
+  </div>;
 }
 
 function Audio({variant}: {variant: 'music' | 'missing' | 'book' | 'loading'}) {
@@ -314,7 +367,11 @@ export default defineGalleryFamily({id: 'frames', labelKey: 'next.platform.frame
   section('settings-page', 'settingsPage', SettingsPage),
   section('sheet', 'sheet', Sheet),
   section('sign-in', 'signIn', SignIn),
-  section('player', 'player', Player), {...section('player-landscape', 'player', Player), width: 844, height: 390},
+  section('player', 'player', Player),
+  section('player-options', 'playerOptions', () => <PlayerPanelCase panel="options" />), section('player-subtitles', 'playerSubtitles', () => <PlayerPanelCase panel="subtitles" />), section('player-audio', 'playerAudio', () => <PlayerPanelCase panel="audio" />),
+  section('player-quality', 'playerQuality', () => <PlayerPanelCase panel="quality" />), section('player-speed', 'playerSpeed', () => <PlayerPanelCase panel="speed" />),
+  section('player-episodes', 'playerEpisodes', PlayerEpisodesCase), section('player-up-next', 'playerUpNext', PlayerUpNextCase),
+  section('player-live-controls', 'playerLiveControls', PlayerLiveCase), section('player-live-guide', 'playerLiveGuide', () => <PlayerLiveCase guide />), {...section('player-landscape', 'player', Player), width: 844, height: 390},
   ...(['paused', 'buffering', 'scrubbing', 'live', 'missing'] as const).map(state => section(`player-${state}`, 'player', () => <Player state={state} />)),
   section('audio', 'audio', () => <Audio variant="music" />),
   section('audio-missing', 'audioMissing', () => <Audio variant="missing" />),

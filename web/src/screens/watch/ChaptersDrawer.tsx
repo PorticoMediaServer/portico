@@ -3,7 +3,7 @@ import {defaultI18n} from '@i18n';
 import type {VideoChapter} from '@core/presentation/video-chapters.ts';
 import {Icon} from '../../kit/Icon';
 import {watchClock} from './model';
-import styles from './episodes.module.css';
+import styles from '../../kit/player/episodes.module.css';
 
 const t = defaultI18n.t;
 

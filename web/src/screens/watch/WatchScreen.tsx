@@ -26,7 +26,7 @@ import {WatchPictureInput} from './picture';
 import {watchQueueNeighbours} from './queue-neighbours';
 import {WatchDockPanelOpening, type WatchDockPanel} from './dock-panel-opening';
 import {WatchEndCardView} from './EndCard';
-import {LiveChrome} from '../live/LiveChrome';
+import {PlayerLive} from '../../kit/player/PlayerLive';
 import type {LiveChromePort} from '../live/live-chrome-types';
 import {WatchPromptFocus, type PromptFocusHost} from './prompt-focus';
 import {bufferedSegments} from './buffered-ranges';
@@ -436,7 +436,7 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
         <span>{t('duration.long.seconds', {seconds: tapFeedback.seconds})}</span>
       </div>}
       {liveChrome ? (open || closing) && <div className={styles.liveOverlay} data-visible={chromeVisible} inert={!chromeVisible || videoGesture?.active || undefined}>
-        <LiveChrome port={liveChrome} playing={!!presentation?.playing} onCollapse={onCollapse} onStop={() => send({kind: 'stop'})}
+        <PlayerLive port={liveChrome} playing={!!presentation?.playing} onCollapse={onCollapse} onStop={() => send({kind: 'stop'})}
           onPlayPause={() => send({kind: mainKind})} onSkip={skip} onSeek={seconds => {if (can('seek')) send({kind: 'seek', seconds});}}
           onMore={anchor => {moreAnchor.current = anchor;setPanel(null);setMore(value => !value);}}
           right={liveRight} onMiniGuideOpenChange={setLiveGuideOpen}
