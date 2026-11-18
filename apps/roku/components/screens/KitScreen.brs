@@ -53,6 +53,8 @@ function kitPages() as object
         {title: "A saved view's wide tile (Saved > Saved views): at rest, and in focus", parts: [
             {c: "ViewTile", at: [200, 200], f: {itemContent: {title: "90s unwatched", library: "Films", words: "Year 1990s, Unwatched. Newest first.", covers: [art, art, art, art], found: "19 titles right now"}}},
             {c: "ViewTile", at: [200 + frames().savedView.width + frames().savedView.gap, 200], f: {itemContent: {title: "By genre", library: "Films", words: "", covers: [art], found: "1 title right now"}, gridHasFocus: true, focusPercent: 1}}]},
+        {title: "A list's or saved view's mosaic (kit/Mosaic): four covers, and one cover filling the square", parts: [
+            {c: "Mosaic", at: [200, 200], f: {covers: [art, art, art, art]}}, {c: "Mosaic", at: [560, 200], f: {covers: [art]}}]},
         {title: "The side sheet", parts: [{c: "Sheet", at: [0, 0], f: {visible: true, model: {eyebrow: "An eyebrow", title: "A sheet's title", status: "Its status line", rows: [
             {id: "a", text: "A choice", icon: "", current: true}, {id: "b", text: "Another", icon: "", detail: "Its detail"}, {id: "c", text: "After a gap", icon: "", gapBefore: true}]}}}]},
         {title: "The side sheet: headings with their values, a heading open, the key hints", parts: [{c: "Sheet", at: [0, 0], f: {visible: true, model: {eyebrow: "Playback", title: "Options", status: "", open: "quality", rows: [

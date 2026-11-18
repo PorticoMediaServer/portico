@@ -22,15 +22,7 @@
   <script type="text/brightscript" uri="pkg:/components/kit/Pins.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
-    <Group id="cover">
-      <Poster id="coverPlate" uri="pkg:/images/round-14.9.png"/>
-      <Group id="tiles">
-        <Poster loadDisplayMode="scaleToZoom"/>
-        <Poster loadDisplayMode="scaleToZoom"/>
-        <Poster loadDisplayMode="scaleToZoom"/>
-        <Poster loadDisplayMode="scaleToZoom"/>
-      </Group>
-    </Group>
+    <Mosaic id="cover"/>
     <Label id="eyebrow"/>
     <Label id="name"/>
     <Label id="factsStrong"/>

@@ -9,6 +9,11 @@
     <!-- Or one list as a grid with its title and count, no toolbar: {kind: "list", title, path,
          view}. Search's "See all" for one kind (path is that search with kind) and a genre's titles. -->
     <field id="item" type="assocarray" onChange="onItem"/>
+    <!-- A saved view to open the library on: {id, title, query}, set before `library`. The grid then
+         starts with the view's kind, sort and quick filters, on the library's own toolbar, under the
+         view's own header: its mosaic, name, count and what it asks for in words, then Play,
+         Shuffle, Pin (Pinned once it is) and More, which holds Pin or Unpin only (collections frame 21). -->
+    <field id="view" type="assocarray"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="art" type="string"/>
     <!-- Set to the id of another library of the same kind chosen from the name's menu: the scene opens it. -->
@@ -26,6 +31,7 @@
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/CardMenu.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Pins.brs"/>
   <children>
     <Label id="name"/>
     <!-- Beside the name when other libraries hold the same kind: OK on the name lists them. -->
@@ -33,6 +39,14 @@
     <Group id="views"/>
     <Rectangle id="viewMark" height="3" visible="false"/>
     <Poster id="viewRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
+    <Group id="viewHead" visible="false">
+      <Mosaic id="viewCover"/>
+      <Label id="viewEyebrow" text="Saved view"/>
+      <Label id="viewName"/>
+      <Label id="viewStrong"/>
+      <Label id="viewFacts"/>
+      <ButtonRow id="viewActions"/>
+    </Group>
     <Group id="tools"/>
     <Group id="chips"/>
     <Label id="count"/>

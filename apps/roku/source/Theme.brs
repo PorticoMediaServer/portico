@@ -141,7 +141,8 @@ function frames() as object
         ' Saved (tv-more frames 1 to 5), on Browse's lines: its groups `rowGap` apart, a heading `headingGap` over its rows, and what scrolls stops `bottom` above the foot.
         saved: {rowGap: 44, headingGap: 22, bottom: 56}
         ' Saved > Saved views (collections frame 17): a view's wide tile, `width` x `height` with its words `pad` inside and its covers `cover` wide, `gap` between tiles; three across.
-        savedView: {width: 528, height: 300, pad: 28, cover: 60, gap: 20}
+        ' A saved view's own page (frame 21): the list page's header, then the library's toolbar on `toolsY` and its cards from `cardsY`.
+        savedView: {width: 528, height: 300, pad: 28, cover: 60, gap: 20, toolsY: 392, cardsY: 490}
         ' Search (tv.html frame 5): the box on the page title's line, the keys under it, the results
         ' column from `resultsX` with the kinds' chips on the title line; the row in focus is
         ' brought up level with the keys. Under the words of an empty box or of no matches, the
