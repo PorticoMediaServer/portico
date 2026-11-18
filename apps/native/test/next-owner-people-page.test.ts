@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
-import {bindingModule, lifecycleHooks, nodes, content, t, i18n, theme} from './helpers/owner-server-settings.mjs';
+import {bindingModule, lifecycleHooks, nodes, content, t, i18n, theme, specification} from './helpers/owner-server-settings.mjs';
+import {createStorageForms} from '../src-next/screens/settings-live/server/storage/forms.ts';
 
-async function fixture() {
+async function fixture(forms = {}) {
   const bindings = await bindingModule(), host = lifecycleHooks();
   const person = {accountId: 'member-fixture', username: 'member', role: 'member', revision: 2, limitsRevision: 3, disabled: false, notes: '', allowedLibraries: [], limits: {allowRemote: true, maxStreamsMode: 'limit', maxStreams: 5, maxBitrateKbps: 8000}, accountLimits: {homeOnly: false}};
   const device = {id: 'device-fixture', accountId: person.accountId, name: 'Tablet', lastSeenAt: '2026-10-28T12:00:00Z'};
@@ -15,14 +16,14 @@ async function fixture() {
     react: host.react, 'react-native': {FlatList: 'FlatList', ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     '../../../../../../packages/client-core/src/server-admin/people-words': {roleLabel: (_: unknown, role: string) => role},
     '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
-    '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsSpec: []},
+    '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
     '../../../../../../packages/i18n/src': {defaultI18n: {...i18n, date: (value: string) => value}},
     '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', Tabs: 'Tabs', TextField: 'TextField'},
     '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'},
     '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'}, './page-layout': {settingsPageInset: () => ({}), settingsPageHeading: () => ({})}, '../../../kit/shell/visual': {shellType: () => ({})},
     '../../../kit/states': {StateView: 'StateView'}, '../../../kit/theme': {useTheme: () => theme},
     './AdvancedSection': {NativeAdvancedSection: 'Advanced'}, './SettingControl': {NativeSettingControl: 'Setting'},
-    './storage/forms': {}, './people-source': {NativePeopleSource: class {constructor() {return source;}}}, './InvitationReadySheet': {InvitationReadySheet: 'InvitationReadySheet'}, './PeopleMemberProfiles': {PeopleMemberProfiles: 'PeopleMemberProfiles'},
+    './storage/forms': forms, './people-source': {NativePeopleSource: class {constructor() {return source;}}}, './InvitationReadySheet': {InvitationReadySheet: 'InvitationReadySheet'}, './PeopleMemberProfiles': {PeopleMemberProfiles: 'PeopleMemberProfiles'},
   });
   const ports = {context, requestId: () => 'operation-fixture'};
   // Render the private details component reached through the public page.
@@ -35,6 +36,31 @@ async function fixture() {
   render();host.flush();assert.ok(render());host.flush();
   return {render, page: () => frames().page, host, writes, person, device, source, state};
 }
+
+test('People Advanced reads the default stream limit from the rebuilt server', async () => {
+  const authority = {serverId: 'server', accountId: 'owner', profileId: 'main', epoch: '1', viewerFence: 'fence'};
+  const reads: unknown[] = [];
+  const context = {current: () => true, authority: () => authority, subscribeAuthority: () => () => {},
+    account: {serverId: 'server', account: {id: 'owner', role: 'owner', disabled: false, primaryProfileId: 'main'}, capabilities: {manageServer: true}},
+    api: {request: async (path: string, method: string) => {reads.push([method, path]);return {perPerson: 3};}},
+  };
+  let group: ReturnType<typeof createStorageForms> | undefined;
+  const f = await fixture({
+    useStorageForms: (_ports: unknown, ids: Parameters<typeof createStorageForms>[1]) => group ??= createStorageForms(context as never, ids, error => {throw error;}),
+    useFormState: (form: ReturnType<typeof createStorageForms>['forms']['streamLimits']) => form.getSnapshot(),
+    useStorageSet: (value: ReturnType<typeof createStorageForms>) => value.set.getSnapshot(),
+  });
+  try {
+    const advanced = nodes(f.page()).find((node: any) => node.type?.name === 'PeopleAdvanced');
+    assert.ok(advanced);
+    f.host.render(() => advanced.type(advanced.props));
+    assert.deepEqual(Object.keys(group!.forms), ['streamLimits']);
+    await group!.forms.streamLimits.load();
+    const tree = f.host.render(() => {const panel = advanced.type(advanced.props);return panel.type(panel.props);});
+    assert.equal(nodes(tree).find((node: any) => node.props.row?.id === 'people.maxStreamsEach')?.props.value, '3');
+    assert.deepEqual(reads, [['GET', '/v1/admin/playback/stream-limits']]);
+  } finally {group?.dispose();f.host.dispose();}
+});
 
 test('People keeps a saved non-preset stream limit visible and unchanged when another limit is edited', async () => {
   const {render, host, writes, person} = await fixture();

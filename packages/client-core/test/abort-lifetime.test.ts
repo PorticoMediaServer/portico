@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {linkAbortSignals, throwIfAborted} from '../src/abort-lifetime.ts';
 import {HttpLocalApi} from '../src/index.ts';
-import type {ConsoleAPI} from '../src/console.ts';
 
 function tracked() {
   const controller = new AbortController(), signal = controller.signal, listeners = new Set<unknown>();
