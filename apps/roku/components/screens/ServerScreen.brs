@@ -37,6 +37,9 @@ sub init()
     m.plate.height = f.listRow
     m.top.findNode("listBar").color = c.accent
     m.ring = m.top.findNode("listRing")
+    m.listMove = m.top.findNode("listMove")
+    out = metrics().focusSpread + 6
+    m.top.findNode("listWindow").clippingRect = [0, m.listTop - out, f.pageX - 20, f.foot - m.listTop + out]
 
     m.region = "list"
     m.at = 0
@@ -287,6 +290,10 @@ sub paint()
     end for
     y = m.listY[m.at]
     x = m.f.listX
+    ' the list moves only to keep the page in focus clear of the foot
+    scroll = 0
+    if y + m.f.listRow > m.f.foot then scroll = y + m.f.listRow - m.f.foot
+    m.listMove.translation = [0, -scroll]
     m.plate.translation = [x, y]
     m.top.findNode("listBar").translation = [x, y + 14]
     out = metrics().focusSpread + 6
