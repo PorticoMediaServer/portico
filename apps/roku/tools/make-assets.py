@@ -315,7 +315,7 @@ ICONS = {
     'grip': [26],
     'heart': [28],
     'heartFilled': [28],
-    'home': [32],
+    'home': [28, 32],
     'info': [28],
     'keyboard': [28],
     'list': [28],
