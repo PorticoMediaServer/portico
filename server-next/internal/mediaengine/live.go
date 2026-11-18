@@ -69,8 +69,13 @@ func (e *Engine) StartLive(ctx context.Context, r live.Conversion) (*live.Play, 
 	if old := e.liveIn(r.SessionID, in); old != nil {
 		old.streams.StopLive(r.SessionID)
 	}
+	// A Roku seeks only inside the playlist it is given (apps/roku PlayerScreen.brs, the live window
+	// gate), so it gets the channel's retained stretch from its first playlist. Only when nothing is
+	// converted: repackaging the stretch takes seconds, converting it could hold the first picture for
+	// minutes (DEFERRED 322). A converted channel starts at the tune point, with rewind from there.
+	window := request.Device != nil && request.Device.Client.Family == "roku" && plan.VideoAction == "copy" && plan.AudioAction == "copy"
 	err = in.streams.StartLive(ctx, streaming.LiveRequest{SessionID: r.SessionID, Plan: plan, Input: live.ViewingInput{Input: r.Input},
-		ChannelWindow: request.Device != nil && request.Device.Client.Family == "roku"})
+		ChannelWindow: window})
 	switch {
 	case errors.Is(err, streaming.ErrConversionCapacity), errors.Is(err, streaming.ErrConversionSpace):
 		e.leave(r.SessionID, in)
