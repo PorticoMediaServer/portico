@@ -517,7 +517,7 @@ sub onPlay(event as object)
     end for
     first = items[0]
     queue = {source: {items: ids}}
-    ' a list or saved view from Saved: the server builds the whole run, not only the 200 titles read here
+    ' a saved view from Saved: the server plays everything it finds, not only the 200 titles read here
     item = m.top.item
     if item.kind = "savedList" and item.listKind = "saved_view" then queue = {source: {homeRow: {id: "view:" + item.id}}}
     if event.getData() = "shuffle"
