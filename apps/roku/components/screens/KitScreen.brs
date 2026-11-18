@@ -91,6 +91,8 @@ function kitPages() as object
         {title: "The confirm dialog (focus starts on Cancel)", parts: [{c: "Confirm", at: [0, 0], f: {model: {title: "Sign out of Portico Demo on this TV?", body: "You'll need to sign this TV in again.", verb: "Sign out"}}}]},
         {title: "The side panel a panel or picker opens on (Customize Home, File info): the scrim and the panel from x", parts: [
             {c: "SidePanel", at: [0, 0], f: {x: 1060}}]},
+        {title: "File info: a title's versions in a table (a sample with two)", parts: [
+            {c: "FileInfo", at: [0, 0], f: {item: {kind: "movie", title: "A film", year: 2024, versions: [{edition: "Director's Cut", width: 3840, height: 2160, videoCodec: "hevc", size: 61400000000, durationMs: 9960000}, {width: 1920, height: 1080, videoCodec: "h264", audioCodec: "ac3", audioChannels: 6, size: 9800000000, durationMs: 9960000}]}}}]},
         {title: "The rail, closed", parts: [{c: "Rail", at: [0, 0], f: sampleRail()}]},
         {title: "The rail, open (drawn open; the page keeps the focus)", parts: [{c: "Rail", at: [0, 0], f: sampleRail(), open: true}]}
     ])

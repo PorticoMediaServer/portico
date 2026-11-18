@@ -243,6 +243,131 @@ function dateText(iso as dynamic) as string
     return months[month - 1] + " " + mid(iso, 9, 2).toInt().toStr() + ", " + left(iso, 4)
 end function
 
+' A file's picture in words, as the player names its tracks: "4K Dolby Vision", "1080p", "720p HDR10".
+function versionPicture(version as object) as string
+    w = 0
+    h = 0
+    if version.width <> invalid then w = version.width
+    if version.height <> invalid then h = version.height
+    words = ""
+    if w >= 3800 or h >= 2100
+        words = "4K"
+    else if w >= 1900 or h >= 1060
+        words = "1080p"
+    else if w >= 1260 or h >= 700
+        words = "720p"
+    else if h > 0
+        words = h.toStr() + "p"
+    end if
+    names = {dolby_vision: "Dolby Vision", hdr10: "HDR10", hdr10plus: "HDR10+", hlg: "HLG"}
+    if version.hdr <> invalid and names[version.hdr] <> invalid then words = (words + " " + names[version.hdr]).trim()
+    return words
+end function
+
+' A file's main audio track in words: "AAC 5.1", "Dolby TrueHD 7.1".
+function versionAudio(version as object) as string
+    stream = invalid
+    if version.parts <> invalid
+        for each part in version.parts
+            if stream = invalid and part.streams <> invalid
+                for each s in part.streams
+                    if stream = invalid and s.kind = "audio" then stream = s
+                end for
+            end if
+        end for
+    end if
+    codec = version.audioCodec
+    channels = version.audioChannels
+    if stream <> invalid
+        codec = stream.codec
+        channels = stream.channels
+    end if
+    if codec = invalid then return ""
+    names = {aac: "AAC", ac3: "Dolby Digital", eac3: "Dolby Digital Plus", truehd: "Dolby TrueHD", dts: "DTS", flac: "FLAC", opus: "Opus", mp3: "MP3"}
+    words = ucase(codec)
+    if names[codec] <> invalid then words = names[codec]
+    layouts = {"1": "mono", "2": "2.0", "6": "5.1", "8": "7.1"}
+    if channels <> invalid and layouts[channels.toStr()] <> invalid then words = words + " " + layouts[channels.toStr()]
+    return words
+end function
+
+' A file's picture format in words: "H.264 High", "HEVC Main 10".
+function versionVideo(version as object) as string
+    profile = ""
+    if version.parts <> invalid
+        for each part in version.parts
+            if part.streams <> invalid
+                for each s in part.streams
+                    if profile = "" and s.kind = "video" and s.profile <> invalid then profile = s.profile
+                end for
+            end if
+        end for
+    end if
+    if version.videoCodec = invalid then return ""
+    names = {h264: "H.264", hevc: "HEVC", av1: "AV1", vp9: "VP9", mpeg2video: "MPEG-2"}
+    words = ucase(version.videoCodec)
+    if names[version.videoCodec] <> invalid then words = names[version.videoCodec]
+    return (words + " " + profile).trim()
+end function
+
+' A size in bytes as people say it: "1.6 GB", "42 MB", "43 KB".
+function sizeText(bytes as dynamic) as string
+    if bytes = invalid or bytes <= 0 then return ""
+    if bytes >= 1000000000 then return (int(bytes / 100000000 + 0.5) / 10).toStr() + " GB"
+    if bytes >= 1000000 then return int(bytes / 1000000 + 0.5).toStr() + " MB"
+    return int(bytes / 1000 + 0.5).toStr() + " KB"
+end function
+
+' A version's two lines in Play a different version (tv-detail frame 8b): its edition when the file
+' has one, else its picture; then the rest (picture, audio, size).
+function versionRow(version as object) as object
+    picture = versionPicture(version)
+    rest = []
+    label = picture
+    if version.edition <> invalid and version.edition <> ""
+        label = version.edition
+        if picture <> "" and picture <> label then rest.push(picture)
+    end if
+    if label = "" then label = "Version"
+    audio = versionAudio(version)
+    if audio <> "" then rest.push(audio)
+    size = sizeText(version.size)
+    if size <> "" then rest.push(size)
+    return {text: label, detail: rest.join(", ")}
+end function
+
+' The playable versions of a title in full (GET /v1/items/{id}).
+function playableVersions(item as object) as object
+    out = []
+    if item.versions = invalid then return out
+    for each version in item.versions
+        if version.available <> false then out.push(version)
+    end for
+    return out
+end function
+
+' The rows a title page gives CardMenu for the foot of a film's or an episode's menu (tv-detail
+' frame 7): Play a different version only when more than one can play, File info when it has a file.
+function fileMenuRows(item as object) as object
+    rows = []
+    if playableVersions(item).count() > 1 then rows.push({id: "versions", text: "Play a different version…", icon: "collection", last: true})
+    if item.versions <> invalid and item.versions.count() > 0 then rows.push({id: "fileinfo", text: "File info", icon: "info", last: true})
+    return rows
+end function
+
+' Play a different version (tv-detail frame 8b): one row of two lines per version, in File info's
+' order; OK plays it at once, from where the title was left.
+function versionsMenu(item as object) as object
+    rows = []
+    for each version in playableVersions(item)
+        words = versionRow(version)
+        rows.push({id: "version:" + version.id, text: words.text, detail: words.detail, icon: ""})
+    end for
+    title = item.title
+    if item.kind = "episode" and item.rootTitle <> invalid then title = item.rootTitle + "   " + episodeCode(item)
+    return {eyebrow: "", title: "Play a different version", status: title, rows: rows}
+end function
+
 ' A title in a library's grid: its picture with its name and year under it.
 function gridCard(item as object) as object
     card = cardFor(item, "poster")

@@ -48,6 +48,7 @@
         </Group>
       </Group>
     </Group>
+    <FileInfo id="fileInfo"/>
     <Timer id="rest" duration="0.15"/>
     <!-- An episode's synopsis is read once focus rests on it (a season's list carries none). -->
     <Timer id="bandRest" duration="0.35"/>

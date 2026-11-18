@@ -9,6 +9,8 @@ sub init()
     m.hero.translation = [f.gutter, f.title.copyTop]
     m.sections = m.top.findNode("sections")
     m.hero.observeField("pressed", "onPressed")
+    m.fileInfo = m.top.findNode("fileInfo")
+    m.fileInfo.observeField("closed", "focusStop")
     m.sections.observeField("chosen", "onRelatedChosen")
     m.sections.observeField("hasRelated", "place")
     m.stop = 0            ' 0 the hero, 1 More like this, 2 Details
@@ -160,16 +162,32 @@ end sub
 ' The "..." button and * open the title's menu; Details is left out, as this is its page.
 sub openMenu()
     if m.full = invalid or m.full.state = invalid then return
-    m.top.menu = cardMenu(m.full, [], ["details"])
+    m.top.menu = cardMenu(m.full, fileMenuRows(m.full), ["details"])
 end sub
 
 sub onMenuChosen(event as object)
-    cardMenuChosen(event.getData())
+    which = event.getData()
+    if cardMenuChosen(which) then return
+    fileMenuChosen(m.full, which)
 end sub
 
 sub cardMenuChanged(item as object)
     m.full = item
     draw()
+end sub
+
+' Play a different version and File info (the menu's last group, tv-detail frame 7).
+sub fileMenuChosen(item as object, which as string)
+    if which = "versions"
+        m.top.menu = versionsMenu(item)
+    else if left(which, 8) = "version:"
+        ' this version, this once: the next ordinary Play is automatic again
+        item.versionId = mid(which, 9)
+        m.top.open = {item: item, play: true, startOver: false}
+        item.delete("versionId")
+    else if which = "fileinfo"
+        m.fileInfo.item = item
+    end if
 end sub
 
 ' The change shows at once; the server is told, and the page takes the state it answers with.

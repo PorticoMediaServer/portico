@@ -10,6 +10,9 @@ sub init()
     m.hero = m.top.findNode("hero")
     m.hero.translation = [f.gutter, f.title.copyTop]
     m.hero.observeField("pressed", "onPressed")
+    m.fileInfo = m.top.findNode("fileInfo")
+    m.fileInfo.observeField("closed", "focusStop")
+    m.top.observeField("menuChosen", "onFileMenuChosen")
     m.sections = m.top.findNode("sections")
     m.part = m.top.findNode("episodesPart")
     m.seasons = m.top.findNode("seasons")
@@ -204,7 +207,6 @@ sub placeEpisodes(t as object, gutter as integer)
     m.bandResume = m.top.findNode("bandResume")
     m.credits = m.top.findNode("credits")
     m.bandHint = m.top.findNode("bandHint")
-    m.bandHint.hints = [{keys: ["*"], text: "Episode options"}]
     m.band = {x: t.episodesX, headBottom: t.bandHeadBottom, width: t.creditsX - t.episodesX - 24}
     setType(m.bandHead, "rowHeading", c.text)
     setType(m.bandCode, "metaStrong", c.text)
@@ -291,7 +293,8 @@ sub describe()
         m.top.findNode("resumeLeft").translation = [236 + m.top.findNode("resumeWord").boundingRect().width, -18]
     end if
     drawCredits(credits)
-    m.bandHint.visible = (credits <> invalid or code <> "")    ' an episode has a menu; a season has none yet
+    ' an episode's menu, or with a season in focus the season's own
+    if code <> "" or credits <> invalid then m.bandHint.hints = [{keys: ["*"], text: "Episode options"}] else m.bandHint.hints = [{keys: ["*"], text: "Season options"}]
 end sub
 
 ' The credits column: up to three guest stars with their parts, then who directed and wrote it.
@@ -478,7 +481,24 @@ end sub
 ' The * menu (and the "..." button) for the show, or for the episode in focus.
 sub openMenu(item as object)
     if item = invalid or item.state = invalid then return
-    m.top.menu = cardMenu(item, [], ["details", "show"])     ' Details and Go to show are this page
+    ' an episode's versions and File info come from the episode read in full
+    extras = []
+    if item.kind = "episode"
+        if m.details[item.id] <> invalid then item = m.details[item.id]
+        extras = fileMenuRows(item)
+    end if
+    m.menuFor = item
+    m.top.menu = cardMenu(item, extras, ["details", "show"])     ' Details and Go to show are this page
+end sub
+
+' A season's own menu (tv-detail frame 5, "Season options"): the season as watched or unwatched.
+sub openSeasonMenu()
+    if m.list.count() = 0 then return
+    season = m.list[m.seasons.index]
+    m.menuFor = season
+    row = {id: "season:watched", text: "Mark season as watched", icon: "check"}
+    if season.counts <> invalid and season.counts.leaves > 0 and season.counts.unwatchedLeaves = 0 then row = {id: "season:unwatched", text: "Mark season as unwatched", icon: "refresh"}
+    m.top.menu = {eyebrow: m.full.title, title: season.title, status: "", rows: [row], hints: [{keys: ["Back"], text: "Close"}]}
 end sub
 
 function focusedEpisode() as dynamic
@@ -493,6 +513,25 @@ sub onMenuChosen(event as object)
     cardMenuChosen(event.getData())
 end sub
 
+' The page's own menu rows (heard beside the card menu's): a season marked, a version, File info.
+sub onFileMenuChosen(event as object)
+    which = event.getData()
+    item = m.menuFor
+    if item = invalid then return
+    if which = "season:watched" or which = "season:unwatched"
+        api("PUT", "/v1/items/" + item.id + "/state", {watched: (which = "season:watched"), madeAgoMs: 0}, "onSaved")
+    else if which = "versions"
+        m.top.menu = versionsMenu(item)
+    else if left(which, 8) = "version:"
+        ' this version, this once: the next ordinary Play is automatic again
+        item.versionId = mid(which, 9)
+        m.top.open = {item: item, play: true, startOver: false}
+        item.delete("versionId")
+    else if which = "fileinfo"
+        m.fileInfo.item = item
+    end if
+end sub
+
 sub cardMenuChanged(item as object)
     reread()
 end sub
@@ -500,6 +539,10 @@ end sub
 function onKeyEvent(key as string, press as boolean) as boolean
     if not press then return false
     if key = "options"
+        if m.stop = 0 and not m.inRow
+            openSeasonMenu()
+            return true
+        end if
         item = m.full
         if m.stop = 0 and focusedEpisode() <> invalid then item = focusedEpisode()
         openMenu(item)
