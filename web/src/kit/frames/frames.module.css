@@ -118,15 +118,35 @@
 .pageHead { display: none; }
 .sheetBar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-xs); height: var(--frame-header-bar); padding: 0 var(--space-control-gap); }
 .sheetBar > :first-child { justify-self: start; } .sheetBar > :last-child { justify-self: end; }
+/* Rule 3: Back and the title share the bar's centre line. */
+.sheetBar > .back { align-self: center; }
+/* R9: Done and a bar's own action are the accent; a task's Cancel is the plain text colour. */
+.barAction.barAction { color: var(--color-accent-strong); }
+.barCancel.barCancel { color: var(--color-text); padding-inline: 0; }
+.popoverHead { display: flex; flex-direction: column; gap: 2px; padding-bottom: var(--space-xs); color: var(--color-text-tertiary); font-weight: 600; }
+.popoverHead > b { color: var(--color-text); font-size: var(--type-row-label-size); font-weight: 700; }
+.pageBack { display: none; }
+.pageStatus { display: inline-flex; align-items: center; gap: 6px; font-size: var(--type-row-help-size); font-weight: 600; color: var(--color-text-secondary); white-space: nowrap; }
+.pageActions { margin-left: auto; display: flex; gap: var(--space-control-gap); align-self: center; }
+.page > .pageServer, .page > .pageTabs { margin: 0 var(--g); }
+/* The frame owns the space round the strip (rule 5): the part's own margin is taken back. */
+.pageServer > * { margin-bottom: 0; }
 @media (min-width: 600px) {
   .settingsFrame { display: flex; gap: var(--frame-settings-gap); padding: 0 var(--g); }
   .settingsMaster, .settingsMaster[data-covered] { display: flex; flex: none; width: var(--frame-settings-list); padding-top: var(--frame-title-top); position: sticky; top: 0; align-self: flex-start; max-height: 100dvh; overflow-y: auto; box-sizing: border-box; }
   .settingsMaster, .settingsDetail .page { --g: 0px; --card: 0px; }
   .settingsDetail { flex: 1; min-width: 0; max-width: var(--frame-settings-page-max); }
   .settingsBar, .pageBar { display: none; }
-  .pageHead { display: flex; align-items: baseline; gap: var(--space-sm); padding: var(--frame-title-top) var(--g) 0; margin-bottom: calc(var(--frame-header-gap) - var(--frame-section-gap)); }
+  .pageHead { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm); padding: var(--frame-title-top) var(--g) 0; margin-bottom: calc(var(--frame-header-gap) - var(--frame-section-gap)); }
+  /* A page shown alone (an owner page opened on its own, a form): Back above its title and the page's column limit. */
+  .page:not(.settingsDetail .page) { max-width: calc(var(--frame-settings-page-max) + 2 * var(--g)); }
+  /* The first of Back (alone), the server strip and the head starts at the title line; the others follow it. */
+  .page:not(.settingsDetail .page) > .pageBack { display: block; padding: var(--frame-title-top) var(--g) 0; margin-bottom: calc(-1 * var(--frame-section-gap)); }
+  .page > .pageServer { padding-top: var(--frame-title-top); }
+  .page:not(.settingsDetail .page) > .pageBack ~ .pageServer, .page:not(.settingsDetail .page) > .pageBack ~ .pageHead, .page > .pageServer + .pageHead { padding-top: 0; }
 }
 .signInForm { display: grid; gap: var(--space-px-12); }
+
 
 /* Frame 7: the one frame with no backdrop, in three forms. The bar is one grid whose areas move with the form, so
    each part is drawn once. The prompt corner rides on the bar's box, which keeps its size while the chrome is hidden,

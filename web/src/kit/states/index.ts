@@ -1,5 +1,6 @@
 export {CountdownRing, DetailsPanel, StateLayout, StateSteps, StateView} from './State';
 export type {CountdownRingProps, DetailsFact, DetailsPanelProps, OwnerDiagnostics, StateAction, StateBackdrop, StateContentProps, StateDetails, StateLayoutProps, StateRetry, StateStep, StateTone, StateViewProps} from './State';
+export {DownloadsStillPlay} from './DownloadsStillPlay';
 export {GridSkeleton, HomeSkeleton, Skeleton, TitleSkeleton} from './Skeletons';
 export type {GridSkeletonProps, HomeSkeletonProps, PressedTitle, SkeletonArtwork, SkeletonProps, SkeletonRow, TitleSkeletonProps} from './Skeletons';
 export {KeyboardShortcuts} from './KeyboardShortcuts';

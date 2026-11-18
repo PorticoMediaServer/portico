@@ -5,6 +5,7 @@ import {defaultI18n} from '@i18n';
 import {Button} from '../controls/Button';
 import {BottomSheet} from './BottomSheet';
 import {classes, useDismissReason, useOverlayKeys, usePhone, usePresence, useSurfaceFocus, useSurfaceMotion} from './shared';
+import type {OverlayFoot} from '@design';
 import type {OverlayContentSlots, OverlayStyle, OverlaySurfaceProps} from './types';
 import styles from './overlays.module.css';
 
@@ -27,6 +28,8 @@ export type DialogProps = OverlaySurfaceProps & OverlayContentSlots & {
   stackFooter?: boolean;
   /** The footer holds the way out (a Cancel, Close or Done): a phone sheet then shows no header Done. Off by default. */
   footerDismisses?: boolean;
+  /** R9: how the foot lays out its buttons (`end` at their own width, primary last; `halves` equal). */
+  foot?: OverlayFoot;
 };
 
 export function Dialog({responsive = true, ...props}: DialogProps) {
@@ -35,7 +38,7 @@ export function Dialog({responsive = true, ...props}: DialogProps) {
   return <DesktopDialog {...props} />;
 }
 
-function DesktopDialog({open, onOpenChange, title, headerAction, children, description, footer, initialFocusRef, returnFocusRef, accessibilityLabel, className, testID, headerClassName, bodyClassName, footerClassName, size = 'md', placement = 'center', width, dismissOnOutsidePress = true, dismissOnBack = true, showCloseButton = true, closeIconSize = 20, closeLabel, role = 'dialog'}: DialogProps) {
+function DesktopDialog({open, onOpenChange, title, headerAction, children, description, footer, initialFocusRef, returnFocusRef, accessibilityLabel, className, testID, headerClassName, bodyClassName, footerClassName, size = 'md', placement = 'center', width, dismissOnOutsidePress = true, dismissOnBack = true, showCloseButton = true, closeIconSize = 20, closeLabel, role = 'dialog', foot}: DialogProps) {
   const portalTarget = useOverlayPortalTarget();
   const id = useId(), reason = useDismissReason(), focus = useSurfaceFocus(open, initialFocusRef, returnFocusRef);
   const present = usePresence(open, 160), contentRef = useSurfaceMotion(open, placement === 'right' ? 'panel' : 'dialog'), scrimRef = useSurfaceMotion(open, 'fade');
@@ -59,7 +62,7 @@ function DesktopDialog({open, onOpenChange, title, headerAction, children, descr
         {showCloseButton && <Button variant="icon" size="small" iconOnly icon="i-x" iconSize={closeIconSize} aria-label={closeLabel ?? defaultI18n.t('next.overlays.close')} className={styles.dialogClose} onClick={() => onOpenChange(false, 'close-button')} />}</header>
         {description !== undefined && <RadixDialog.Description id={`${id}-description`} className={styles.dialogDescription}>{description}</RadixDialog.Description>}
         <div className={classes(styles.dialogBody, bodyClassName)}>{children}</div>
-        {footer !== undefined && footer !== null && footer !== false && <footer className={classes(styles.dialogFooter, footerClassName)}>{footer}</footer>}
+        {footer !== undefined && footer !== null && footer !== false && <footer className={classes(styles.dialogFooter, footerClassName)} data-foot={foot}>{footer}</footer>}
       </RadixDialog.Content>
     </RadixDialog.Portal>}
   </RadixDialog.Root>;

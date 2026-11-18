@@ -2,7 +2,7 @@ export {OwnerTag, ServerHeader, ServerMark, ServerAudienceTag, EditorHeader} fro
 export type {ServerRole, ServerAudience, ServerHeaderProps, ServerMarkProps, OwnerTagProps, ShellTranslate, EditorAudience, ServerAudienceTagProps, EditorHeaderProps} from './ServerIdentity';
 export {ProfileAvatar, ProfileAvatarFace, AccountMenu, NotificationItem, WatchTogetherPill} from './AccountSurfaces';
 export type {ProfileAvatarProps, ProfileAvatarSize, ProfileTone, ProfileIdentity, AccountMenuActions, AccountMenuProps, NotificationSubject, NotificationItemProps, TogetherParticipant} from './AccountSurfaces';
-export {SettingsNav, SettingsSheet, ShortcutTiles, LargeTitleHeader, PushedNavBar, SettingsRow, DefaultHint, ChoiceMatrix, ChoiceCards, LanguageList, SubtitlePreview, MatchText} from './SettingsSurfaces';
+export {SettingsNav, SettingsNavLead, SettingsProfileCard, SettingsSheet, ShortcutTiles, LargeTitleHeader, PushedNavBar, SettingsRow, DefaultHint, ChoiceMatrix, ChoiceCards, LanguageList, SubtitlePreview, MatchText} from './SettingsSurfaces';
 export type {ShellAction, SettingsNavEntry, SettingsSearchGroup, SettingsSheetProps, SettingOption, LanguageValue} from './SettingsSurfaces';
 export {StatTiles, Sparkline, BarList} from './Statistics';
 export type {StatTile} from './Statistics';

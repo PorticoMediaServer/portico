@@ -41,7 +41,7 @@ export function Popover({open, onOpenChange, title, children, description, trigg
   return <RadixPopover.Root open={open} onOpenChange={value => { if (value === open) return; onOpenChange(value, reason.current); reason.current = 'action'; }} modal={modal}>
     {trigger ? <RadixPopover.Trigger asChild ref={triggerElement} aria-haspopup={role} aria-controls={open ? `${id}-content` : undefined}>{trigger}</RadixPopover.Trigger> : <RadixPopover.Anchor virtualRef={anchor} />}
     {/* Exit presence must not leave the positioning wrapper as a pointer target. */}
-    {present && !superseded && <RadixPopover.Portal forceMount container={portalTarget}><div style={{pointerEvents: 'none'}}><RadixPopover.Content forceMount ref={attachContent}
+    {present && !superseded && <RadixPopover.Portal forceMount container={portalTarget}><div style={{pointerEvents: 'none'}}>{modal && open && <div className={styles.popoverScrim} aria-hidden="true" />}<RadixPopover.Content forceMount ref={attachContent}
       side={placement.startsWith('top') ? 'top' : 'bottom'} align={placement.endsWith('start') ? 'start' : 'end'} sideOffset={sideOffset} alignOffset={alignOffset} collisionPadding={8}
       id={`${id}-content`} className={classes(styles.popover, className)} style={{'--overlay-width': `${width}px`, pointerEvents: open ? 'auto' : 'none'} as OverlayStyle} role={role} aria-modal={modal && role === 'dialog' && open || undefined}
       aria-label={accessibilityLabel} aria-labelledby={accessibilityLabel ? undefined : `${id}-title`} aria-describedby={description === undefined ? undefined : `${id}-description`}

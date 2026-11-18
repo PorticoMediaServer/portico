@@ -26,6 +26,8 @@ export function AuthStage({children, layout = 'column', service = false, topRigh
     {legal && <footer className={styles.legal}><a href="https://getportico.tv/terms">{t('auth.terms')}</a><a href="https://getportico.tv/privacy">{t('accounts.legal.privacy')}</a></footer>}
   </section>;
 }
+/** The accent line over a sign-in title ("Sign in to", auth-4, auth-6). */
+export function AuthKicker({children}: {children: ReactNode}) { return <p className={styles.eyebrow}>{children}</p>; }
 export function AuthLinks({children}: {children: ReactNode}) { return <div className={styles.links}>{children}</div>; }
 /** The one button stack of the sign-in and Portico Account pages (design/ui-v1 `.btnrow`: 12 apart, full width). */
 export function AuthActions({children, className}: {children: ReactNode; className?: string}) {
