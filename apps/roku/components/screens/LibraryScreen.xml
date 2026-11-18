@@ -12,6 +12,8 @@
     <field id="menu" type="assocarray" alwaysNotify="true"/>
     <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
     <field id="toTop" type="boolean" alwaysNotify="true" onChange="onToTop"/>
+    <!-- Set when an empty library's Browse Home is pressed. -->
+    <field id="goHome" type="boolean" alwaysNotify="true"/>
   </interface>
   <script type="text/brightscript" uri="LibraryScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>

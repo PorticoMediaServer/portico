@@ -26,6 +26,7 @@ sub init()
     m.gridState.translation = [f.gutter, f.grid.cardsY]
     m.gridState.width = f.state.width
     m.grid.observeField("itemFocused", "onCardFocused")
+    m.page.observeField("pressed", "onEmptyPressed")     ' an empty library's Browse Home (a failed page's Try again is onLibrary)
     m.grid.observeField("itemSelected", "onCardSelected")
     m.gridState.observeField("pressed", "loadList")
     m.page.observeField("pressed", "onLibrary")
@@ -70,6 +71,49 @@ sub onDetail(event as object)
 end sub
 
 ' Nothing on the page could load: the whole-page state, in place of the page (rule 9).
+' A library (or a view of it) with no titles at all (tv-focus frame 46): the toolbar and the grid
+' give way to one state with one action, which has focus; the name and views stay above it.
+' Titles that arrive later never take focus.
+sub showEmpty(on as boolean)
+    was = (m.empty = true)
+    m.empty = on
+    m.tools.visible = not on
+    m.top.findNode("count").visible = not on
+    if not on
+        if was then m.page.visible = false
+        return
+    end if
+    m.grid.visible = false
+    m.gridState.visible = false
+    m.page.icon = ""
+    m.page.title = "Nothing here yet"
+    m.page.body = "Titles appear in this library as the server finds them."
+    m.page.buttons = [{id: "home", text: "Browse Home", icon: "home"}]
+    m.page.visible = true
+    if m.region <> "views" then m.region = "page"
+    if m.top.isInFocusChain() then focusRegion()     ' never takes focus from the rail or a sheet
+end sub
+
+sub onEmptyPressed(event as object)
+    if event.getData() = "home" and m.empty = true then m.top.goHome = true
+end sub
+
+' A view that showed nothing: is it empty in itself, or only narrowed to nothing? The view's own
+' count, with nothing narrowing it, says which.
+sub askEmpty()
+    if m.top.library.id = invalid then return       ' a list that is not a library's (Search's See all) has no empty page
+    view = m.detail.views[m.view]
+    path = "/v1/items?library=" + m.top.library.id
+    if view.kind <> "" then path = path + "&kind=" + view.kind
+    api("GET", path + "&limit=1&total=true", invalid, "onEmptyCount", {generation: m.generation})
+end sub
+
+sub onEmptyCount(event as object)
+    result = event.getData()
+    if event.getRoSGNode().ctx.generation <> m.generation or not result.ok or result.data.total <> 0 then return
+    showEmpty(true)
+end sub
+
 sub showPageState(result as object)
     m.grid.visible = false
     m.gridState.visible = false
@@ -144,6 +188,7 @@ sub loadList()
     if m.detail = invalid then return
     m.gridState.visible = false
     m.grid.visible = true
+    showEmpty(false)
     m.generation = m.generation + 1
     m.items = []
     m.cursor = invalid
@@ -192,6 +237,7 @@ sub onPage(event as object)
             gridSays("empty", "Nothing here", reason, "")
         end if
         if m.items.count() > 0 then m.grid.jumpToItem = 0
+        if m.items.count() = 0 then askEmpty()
         focusRegion()
     end if
 end sub
@@ -248,6 +294,7 @@ sub onCardSelected(event as object)
 end sub
 
 sub focusRegion()
+    if m.region = "tools" and m.empty = true then m.region = "page"     ' an empty library has no toolbar: Browse Home
     if m.region = "page"
         m.page.active = true
     else if m.region = "grid" and m.grid.visible
@@ -311,6 +358,11 @@ sub onMenuChosen(event as object)
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
+    if press and key = "up" and m.region = "page" and m.empty = true and m.detail.views.count() > 1
+        m.region = "views"      ' Up from an empty library's Browse Home reaches its views
+        focusRegion()
+        return true
+    end if
     if not press or m.detail = invalid or m.region = "page" then return false
     if m.region = "grid"
         if key = "up"
