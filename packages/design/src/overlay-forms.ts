@@ -179,6 +179,6 @@ export const toastPill: ToastPill = {height: 40, radius: 20, paddingX: 16, top: 
 export const toastCards: Readonly<Record<FrameForm, ToastCard | null>> = {phone: phoneCard, medium: wideCard, expanded: wideCard, tv: null};
 
 /** An anchored popover from a task (R9 `actions`, `choice`, `account` on medium and wide forms) takes its content's width
- * between `min` (web, native) and `max`, so a choice is never cut (desktop-detail f4's Episode display is drawn ~460); on a
- * phone, at most the window less the gutters. */
-export const popoverWidth = {min: {web: 340, native: 320}, max: 460} as const;
+ * between `min` (web, native) and `max`, so a choice is never cut (desktop-detail f4's Episode display is drawn ~540 at 1440,
+ * its content 16 in from the edge); on a phone, at most the window less the gutters. */
+export const popoverWidth = {min: {web: 340, native: 320}, max: 540} as const;

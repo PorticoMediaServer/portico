@@ -51,8 +51,11 @@
 .credits { display: none; margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-tertiary); }
 .credits > span { margin-inline-end: var(--space-md); }
 .credits b { color: var(--color-text-secondary); font-weight: inherit; }
-.link { border: 0; padding: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--color-text) 35%, transparent); text-underline-offset: 3px; }
-.link:hover { text-decoration-color: var(--color-text); }
+/* The hero's names and genres read as plain words until hovered or focused (detail-desktop 1); a touch screen keeps the
+   underline, since nothing else says they open something (tablet-detail 1). */
+.link { border: 0; padding: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: none; text-decoration-color: color-mix(in srgb, var(--color-text) 35%, transparent); text-underline-offset: 3px; }
+.link:hover, .link:focus-visible { text-decoration-line: underline; text-decoration-color: var(--color-text); }
+@media (pointer: coarse) { .link { text-decoration-line: underline; } }
 .cast { display: none; }
 
 /* A cover page (a person, an album, an artist, a book): the cover centred above the words, no art box. */
@@ -130,7 +133,9 @@
 
 /* From 1024: the words sit over the art at the left; the action row follows the words (desktop-detail f1, f2). */
 @media (min-width: 1024px) {
-  .head { display: flex; flex-direction: column; justify-content: flex-end; min-height: var(--frame-hero-title-height); padding-bottom: var(--frame-hero-title-copy-bottom); box-sizing: border-box; }
+  /* The art box is at least 560 and grows with its words (kicker, tagline, credits): they start no higher than the page's
+     title top under the shell's bar, so a fuller title pushes the tabs down instead of rising under the bar (detail-desktop-1). */
+  .head { display: flex; flex-direction: column; justify-content: flex-end; min-height: var(--frame-hero-title-height); padding-top: calc(var(--shell-top, 0px) + var(--frame-title-top)); padding-bottom: var(--frame-hero-title-copy-bottom); box-sizing: border-box; }
   .art { position: absolute; inset: 0; }
   .top { display: none; }
   .copy { display: flex; flex-direction: column; gap: var(--space-sm); padding: 0 var(--g); text-align: left; }

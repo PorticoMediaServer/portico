@@ -185,12 +185,15 @@
   .version > svg { display: none; }
 }
 /* The owner's Episode display (desktop-detail f4). */
-.display { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--frame-card-padding); }
+.display { display: flex; flex-direction: column; gap: var(--space-sm); } /* the surface pads it */
 .display header { display: flex; align-items: center; gap: var(--space-sm); }
 .display header b { font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-row-label-weight); }
 .display header span { margin-left: auto; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--color-line); font-size: var(--type-row-help-size); color: var(--color-text-secondary); }
 .display > p { margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-secondary); }
-.displayRow { display: grid; grid-template-columns: var(--frame-title-choice-label) minmax(var(--frame-title-choice-min), 1fr); align-items: center; gap: var(--space-sm); }
-.displayRow > span { font-size: var(--type-row-help-size); font-weight: var(--type-row-label-weight); }
+/* A choice row: the label, then the choices at their own width (never cut); where they do not fit beside the label they
+   take the line under it. The popover takes the content's width up to its limit. */
+.displayRow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-control-gap) var(--space-sm); }
+.displayRow > span { flex: 0 0 var(--frame-title-choice-label); font-size: var(--type-row-help-size); font-weight: var(--type-row-label-weight); }
+.displayRow > :last-child { flex: 1 0 auto; min-width: var(--frame-title-choice-min); }
 .readsAs { margin: 0; padding: 12px; border-radius: var(--frame-card-radius); background: var(--color-raised); font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
 .readsAs b { color: var(--color-text); }

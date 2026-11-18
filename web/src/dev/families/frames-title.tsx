@@ -157,7 +157,7 @@ function showFrame(art: ReturnType<typeof useReferenceArtwork>, tab: string, set
 }
 function Show({opened}: {opened?: string}) {
   const art = useReferenceArtwork(), [tab, setTab] = useState('episodes'), wide = useWide();
-  return <Page current="movies"><TitleFrame {...showFrame(art, tab, setTab)}>
+  return <Page current="tvShows"><TitleFrame {...showFrame(art, tab, setTab)}>
     <PanelBlock label={f('episodes')}><ShowBar season={f('season1')} count={f('episodeCount')} progress={{watched: 1, total: 4, label: f('seasonProgress')}} />
       <EpisodeTiles episodes={tlouEpisodes} layout={wide ? 'grid' : 'list'} opened={opened} /></PanelBlock>
   </TitleFrame></Page>;
@@ -169,7 +169,7 @@ function ShowSeasons() {
     {id: 's3', label: f('season3'), years: f('seasonYears3'), count: f('season3Count'), progress: 4 / 24}, {id: 's4', label: f('season4'), years: f('seasonYears4'), count: f('count22')},
     {id: 's5', label: f('season5'), years: f('seasonYears5'), count: f('count22')}, {id: 's0', label: f('specials'), count: f('count12'), special: true}];
   const episodes = (['simpsonsEp1', 'simpsonsEp2', 'simpsonsEp3', 'simpsonsEp4'] as const).map((name, index): Episode => ({id: name, title: f(name), label: f((['episodeN1', 'episodeN2', 'episodeN3', 'episodeN4'] as const)[index]!), length: f('simpsonsEpLength'), date: `Sep ${19 + 7 * index}, 1991`, synopsis: f('simpsonsEpSynopsis'), watched: index > 1, art: 'pool/tv/the-simpsons--bd.jpg'}));
-  return <Page current="movies"><TitleFrame back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={art('pool/tv/the-simpsons--bd.jpg')} />} title={f('simpsons')} metadata={<Meta text={f('simpsonsFacts')} tags={[f('simpsonsSeasons')]} />}
+  return <Page current="tvShows"><TitleFrame back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={art('pool/tv/the-simpsons--bd.jpg')} />} title={f('simpsons')} metadata={<Meta text={f('simpsonsFacts')} tags={[f('simpsonsSeasons')]} />}
     primary={{icon: 'i-play', label: f('playS3E5'), onPress: none}} actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     synopsis={f('simpsonsSynopsis')} tabs={tabs(tab, setTab, true)}>
     <PanelBlock label={f('episodes')}><ShowBar season={f('season3')} count={f('season3Count')} progress={{watched: 4, total: 24, label: f('season3Progress')}}
@@ -181,7 +181,7 @@ function ShowSeasons() {
 /** A season's own page: the show as its kicker, its episodes. */
 function Season() {
   const art = useReferenceArtwork(), [tab, setTab] = useState('episodes');
-  return <Page current="movies"><TitleFrame back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={art('bd-tlou.jpg')} />} kicker={{icon: 'i-tv', label: f('seasonKicker'), onPress: none}} title={f('season1')}
+  return <Page current="tvShows"><TitleFrame back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={art('bd-tlou.jpg')} />} kicker={{icon: 'i-tv', label: f('seasonKicker'), onPress: none}} title={f('season1')}
     metadata={<Meta text={f('seasonFacts')} />} primary={{icon: 'i-play', label: f('resumeEpisode'), progress: .67, remaining: f('ep1Left'), onPress: none}}
     actions={[{icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]} synopsis={f('seasonSynopsis')} tabs={tabs(tab, setTab, true)}>
     <PanelBlock label={f('episodes')}><ShowBar season={f('season1')} count={f('episodeCount')} progress={{watched: 1, total: 4, label: f('seasonProgress')}} /><EpisodeTiles episodes={tlouEpisodes} layout="list" /></PanelBlock>
@@ -190,7 +190,7 @@ function Season() {
 /** An episode on a page of its own (from Search or a link): the show and season as its kicker, the picker, its guests and neighbours in the panel. */
 function EpisodePage() {
   const art = useReferenceArtwork();
-  return <Page current="movies"><TitleFrame back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={art('pool/tv/the-last-of-us--bd.jpg')} />} kicker={{icon: 'i-tv', label: f('tlou'), detail: f('season1'), onPress: none}} title={f('ep3')}
+  return <Page current="tvShows"><TitleFrame back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={art('pool/tv/the-last-of-us--bd.jpg')} />} kicker={{icon: 'i-tv', label: f('tlou'), detail: f('season1'), onPress: none}} title={f('ep3')}
     metadata={<Meta text={f('episodeFacts')} tags={[f('ep3Rating')]} />} primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     synopsis={f('ep3Synopsis')} credits={[{label: f('directedBy'), names: [link(f('ep3Director'))]}, {label: f('writtenBy'), names: [link(f('ep3Writer'))]}]}
