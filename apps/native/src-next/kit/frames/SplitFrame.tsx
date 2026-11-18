@@ -5,6 +5,7 @@ import {frameSpec} from '@portico/design';
 import {Button} from '../controls/Button';
 import {BottomSheet} from '../overlays/BottomSheet';
 import {useTheme} from '../theme';
+import {FiltersOver} from '../browse';
 import {FrameColumn, useFrameMetrics} from './metrics';
 
 export type FramePane = Readonly<{
@@ -43,6 +44,11 @@ export function SplitFrame({children, pane, testID}: SplitFrameProps) {
       <View style={{paddingHorizontal: frame.gutter, gap: frame.headingGap}}><FrameColumn.Provider value>{pane.children}</FrameColumn.Provider></View>
     </BottomSheet>}
   </View>;
+  // An upright tablet keeps its page whole: the pane comes in over the dimmed page from the right, as Filters does (tablet 5).
+  if (frame.form === 'medium') return <View testID={testID} style={{flex: 1}}>
+    {children}
+    {pane && <FiltersOver open onDismiss={pane.close.onPress} onExited={pane.close.onPress}><PaneColumn pane={pane} over/></FiltersOver>}
+  </View>;
   return <View testID={testID} style={{flex: 1, flexDirection: 'row'}}>
     <View style={{flex: 1, minWidth: 0}}>{children}</View>
     {pane && <PaneColumn pane={pane}/>}
@@ -71,9 +77,9 @@ function PaneFoot({children}: {children: ReactNode}) {
 }
 
 /** From tablet width: a raised column on the right edge, its header, its scrolling body and its foot. */
-function PaneColumn({pane}: {pane: FramePane}) {
+function PaneColumn({pane, over = false}: {pane: FramePane; /** Inside the over-the-page surface, which sets the width. */ over?: boolean}) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), padding = frame.cardPadding;
-  return <View style={{width: frameSpec.pane.width[frame.form], backgroundColor: theme.colors.raised, paddingTop: Math.max(insets.top, frame.headerGap)}}>
+  return <View style={{width: over ? undefined : frameSpec.pane.width[frame.form], flex: over ? 1 : undefined, backgroundColor: theme.colors.raised, paddingTop: Math.max(insets.top, frame.headerGap)}}>
     <View style={{paddingHorizontal: padding, paddingTop: padding}}><PaneHeader pane={pane}/></View>
     <ScrollView style={{flex: 1}} contentContainerStyle={{padding, gap: frame.headingGap, paddingBottom: pane.footer ? padding : Math.max(insets.bottom, frameSpec.sheet.footerClear)}}><FrameColumn.Provider value>{pane.children}</FrameColumn.Provider></ScrollView>
     {pane.footer && <View style={{paddingHorizontal: padding, paddingTop: theme.space.sm, paddingBottom: Math.max(insets.bottom, padding)}}><PaneFoot>{pane.footer}</PaneFoot></View>}

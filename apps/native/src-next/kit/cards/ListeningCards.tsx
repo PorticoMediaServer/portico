@@ -48,7 +48,7 @@ export type QuickTileProps = CardProps & {artwork?: ArtworkSource | null; artwor
 /** A quick tile at its form's height (frameSpec.quickTile); on a phone only the playing tile keeps room for its Pause, the
  * others none (phone-app 15a, two across). */
 export function QuickTile(props: QuickTileProps) {
-  const t = useTheme(), phone = t.form === 'phone', width = props.width ?? (t.isTV ? 420 : 350), height = props.height ?? frameSpec.quickTile[t.form];
+  const t = useTheme(), phone = t.form === 'phone', width = props.width ?? frameSpec.quickTile.width[t.form], height = props.height ?? frameSpec.quickTile.height[t.form];
   return <CardFrame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered || !!props.playing} holding={s.holding} height={height} playSize={36} pause={props.playing ? props.onPause : undefined} />}>
     {s => <ArtFrame height={height} radius={10} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={1} selected={props.selection?.selected} style={{backgroundColor: props.playing ? t.colors.raisedHigh : t.colors.raised}}>
       <View style={{flexDirection: 'row', gap: phone ? 12 : 16, alignItems: 'center', flex: 1}}>

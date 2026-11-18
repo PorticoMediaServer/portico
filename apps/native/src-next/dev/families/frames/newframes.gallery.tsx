@@ -23,6 +23,7 @@ import {NativeTVKeyboard} from '../../../screens/search/TVKeyboard';
 import type {Gallery} from '../../gallery-registry';
 import {capability, labels} from '../browse/browse.gallery';
 import {Page, asset, libraries} from './frames.gallery';
+import {frameSpec} from '@portico/design';
 import {posters as libraryPosters, useGrid} from './library.gallery';
 
 /** Round 8: the kinds of screen that had no frame (Search, Live TV, Saved, Downloads, music, audiobooks), each drawn
@@ -186,9 +187,9 @@ function ProgrammeBody() {
     <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{f('storySynopsis')}</Text>
     <View style={{gap: theme.space.xs}}>
       <Button icon="i-play" align="stretch" preferredFocus={tv} onPress={none}>{f('watchLive')}</Button>
-      <View style={{flexDirection: tv ? 'column' : 'row', gap: theme.space.xs}}>
-        <Button variant="glass" icon="i-rec" iconColor={theme.colors.record} align="stretch" style={{flex: tv ? undefined : 1}} onPress={none}>{f('recording')}</Button>
-        <Button variant="glass" icon="i-repeat" align="stretch" style={{flex: tv ? undefined : 1}} onPress={none}>{f('recordSeries')}</Button>
+      <View style={{flexDirection: tv ? 'column' : 'row', flexWrap: 'wrap', gap: theme.space.xs}}>
+        <Button variant="glass" icon="i-rec" iconColor={theme.colors.record} align={tv ? 'stretch' : undefined} onPress={none}>{f('recording')}</Button>
+        <Button variant="glass" icon="i-repeat" align={tv ? 'stretch' : undefined} onPress={none}>{f('recordSeries')}</Button>
       </View>
       {tv && <Button variant="glass" icon="i-heart" align="stretch" onPress={none}>{f('favourite')}</Button>}
     </View>
@@ -378,10 +379,10 @@ function useListenHeader(kind: 'music' | 'audiobook', tab: string) {
 }
 const albums = [['after-hours', 'aAfterHours', 'rWeeknd'], ['damn', 'aDamn', 'rKendrick'], ['rumours', 'aRumours', 'rFleetwood'], ['abbey-road-2019-mix', 'aAbbey', 'rBeatles'],
   ['hit-me-hard-and-soft', 'aHitMe', 'rBillie'], ['random-access-memories', 'aRam', 'rDaftPunk'], ['1989-taylor-s-version-deluxe', 'a1989', 'rTaylor'], ['thriller', 'aThriller', 'rJackson'], ['the-wall', 'aWall', 'rFloyd']] as const;
-/** Recently played: quick tiles two lines deep, four across from tablet width and two on a phone (final3-desktop-12, phone-app 15a). */
+/** Recently played: quick tiles two lines deep, as many across as tiles of about their own width fit, two to four (final3-desktop-12, phone-app 15a). */
 function RecentlyPlayed() {
-  const {theme, frame, phone} = useScale(), columns = phone ? 2 : 4, gap = theme.space.sm;
-  const width = (frame.width - frame.gutter - frame.rightGutter - gap * (columns - 1)) / columns;
+  const {theme, frame} = useScale(), gap = theme.space.sm, room = frame.width - frame.gutter - frame.rightGutter;
+  const columns = Math.min(4, Math.max(2, Math.round((room + gap) / (frameSpec.quickTile.width[frame.form] + gap)))), width = (room - gap * (columns - 1)) / columns;
   return <Section title={f('recentlyPlayed')}><View style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
     {albums.slice(0, columns * 2).map(([id, name, by], index) => index === 0
       ? <QuickTile key={id} focusId={`frames-music-tile-${id}`} title={f(name)} artwork={album(id)} caption={[fact('by', f(by), 'identity')]} width={width} playing onPause={none} onNavigate={none}/>
@@ -421,7 +422,8 @@ function Audiobooks() {
     ['pride-and-prejudice', 'bPride', 'wAusten'], ['harry-potter-and-the-philosopher-s-stone', 'bPotter', 'wRowling'], ['dune', 'bDune', 'wHerbert']] as const;
   const authors = [['iWeir', 'wWeir', 'twoBooks'], ['iHerbert', 'wHerbert', 'oneBook'], ['iRowling', 'wRowling', 'oneBook'], ['iTolkien', 'wTolkien', 'oneBook']] as const;
   // Continue listening: the wide resume card from tablet width (desktop-listen books), square covers with time left on a phone (phone-app 15c).
-  const resume = theme.isTV ? 560 : 296;
+  // desktop-listen books draws the resume card 456 wide; at the kit's narrower default its chapter line is cut.
+  const resume = theme.isTV ? 560 : 456;
   return <Page destination={{kind: 'libraries'}}><BrowseFrame testID="frames-audiobooks" header={header}>
     {phone ? <Row title={f('continueListening')} items={going} getKey={item => item[0]} itemWidth={width} itemHeight={width + caption} captionHeight={caption} selection={selection}
       renderItem={([id, name, , , left, progress], context) => <SquareCard {...card(context)} title={f(name)} artwork={book(id)} progress={progress} caption={[fact('left', f(left))]} width={width} onNavigate={none}/>}/>

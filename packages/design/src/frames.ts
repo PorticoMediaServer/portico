@@ -221,8 +221,9 @@ export const frame = {
   },
   /** The picture beside a row's words: a recording's 16:9 (a phone's row has none, phone-app 12) and a download's poster (tablet 11b, collections-34). */
   rowArt: {recording: forms(0, 132, 160, 220), download: forms(44, 48, 48, 72)},
-  /** A quick tile's height, its square cover the same (Recently played: phone-app 15a 58, final3-desktop-12 76, final3-tv-11 112). */
-  quickTile: forms(58, 76, 76, 112),
+  /** A quick tile's height (its square cover the same) and width (Recently played: phone-app 15a 58 x 190, final3-desktop-12 76 x 354,
+   * final3-tv-11 112 x 420). A grid of them takes as many columns, two to four, as tiles of about that width fit. */
+  quickTile: {height: forms(58, 76, 76, 112), width: forms(190, 350, 350, 420)},
   /** Rule 9: the in-section state row's tile, and the error tile's tint of the record colour. */
   stateRow: {tile: forms(30, 30, 30, 40), iconShare: .6, errorTint: .16},
   /** Rule 12: the no-artwork placeholder's icon is a third of the box's short side. */
