@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Recordings, from Live TV's toolbar: what is booked to record (soonest first), then what has been
+     recorded (newest first), each a list row on a raised card. OK on a row opens its side sheet:
+     Play a recording, Cancel a booking, Stop one recording now, Delete one recorded; the last three
+     ask first with the red-verb dialog. Back returns to the guide. -->
+<component name="RecordingsScreen" extends="Group">
+  <interface>
+    <field id="item" type="assocarray"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="art" type="string"/>
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+  </interface>
+  <script type="text/brightscript" uri="RecordingsScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Live.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Label id="pageTitle" text="Recordings"/>
+    <Group id="box">
+      <Group id="list"/>
+    </Group>
+    <PageState id="page" visible="false"/>
+    <Confirm id="confirm" visible="false"/>
+  </children>
+</component>

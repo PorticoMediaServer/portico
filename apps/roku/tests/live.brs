@@ -16,7 +16,7 @@ sub main()
     same("guide span later", [span.x.toStr(), span.width.toStr(), span.earlier.toStr()], ["760", "110", "false"])
     same("guide span off", [(guideSpan(-600, 0, 0, g) = invalid).toStr(), (guideSpan(3 * 3600, 4 * 3600, 0, g) = invalid).toStr(), (guideSpan(0, 120, 0, g) = invalid).toStr()], ["true", "true", "true"])
     ' the toolbar offers the channel source only when there is a choice to make
-    same("live toolbar", [liveToolbar(1).join(","), liveToolbar(2).join(",")], ["day,now", "source,day,now"])
+    same("live toolbar", [liveToolbar(1, false).join(","), liveToolbar(2, true).join(",")], ["day,now", "source,day,now,recordings"])
     ' the groups: each once, counted across the sources shown, the biggest first then by name; past
     ' the first few, behind More groups (never a More groups of one)
     sources = [{id: "a", groups: [{name: "News", count: 2}, {name: "Kids", count: 1}, {name: "Sports", count: 3}]}, {id: "b", groups: [{name: "Kids", count: 4}, {name: "Music", count: 1}]}]
@@ -26,6 +26,14 @@ sub main()
     groups = liveGroups(sources, "", 2)
     same("live groups capped", [groups.shown.join(","), groups.more.join(",")], ["Kids,Sports", "News,Music"])
     same("live groups one over", [liveGroups(sources, "", 3).shown.join(",")], ["Kids,Sports,News,Music"])
+    ' the red dot: a booking still to record or recording now, found by channel and start; a recording
+    ' whose channel is gone marks nothing
+    booked = liveBookings([{channelId: "c1", starts: 100, state: "scheduled"}, {channelId: "c1", starts: 200, state: "recorded"}, {channelId: "c2", starts: 100, state: "recording"}, {channelId: "", starts: 300, state: "scheduled"}])
+    same("live bookings", [(booked[bookingKey("c1", 100)] <> invalid).toStr(), (booked[bookingKey("c1", 200)] <> invalid).toStr(), (booked[bookingKey("c2", 100)] <> invalid).toStr(), booked.count().toStr()], ["true", "false", "true", "2"])
+    same("recording playable", [recordingPlayable({itemId: "i", state: "recorded"}).toStr(), recordingPlayable({itemId: "i", state: "scheduled"}).toStr(), recordingPlayable({state: "recorded"}).toStr()], ["true", "false", "false"])
+    same("recording state", [recordingState({state: "scheduled"}), recordingState({state: "scheduled", conflict: true}), recordingState({state: "recording"}), recordingState({state: "recorded"})], ["", "Tuner conflict", "Recording now", ""])
+    same("day word", [dayWord(0, "November 18"), dayWord(1, "November 19"), dayWord(-1, "November 17"), dayWord(5, "November 23")], ["Today", "Tomorrow", "Yesterday", "November 23"])
+    same("size", [recordingSizeText(500), recordingSizeText(640000000), recordingSizeText(1200000000), recordingSizeText(3000000000)], ["under 1 MB", "640 MB", "1.2 GB", "3 GB"])
 
     print "PASSED " + m.passed.toStr() + " FAILED " + m.failed.toStr()
 end sub

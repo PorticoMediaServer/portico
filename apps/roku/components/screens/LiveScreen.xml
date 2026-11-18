@@ -32,5 +32,6 @@
     <Poster id="nowPill" uri="pkg:/images/round-10.9.png" height="34" visible="false"/>
     <Label id="nowText" height="34" vertAlign="center" horizAlign="center" visible="false"/>
     <Timer id="minute" duration="60" repeat="true"/>
+    <Confirm id="confirm" visible="false"/>
   </children>
 </component>

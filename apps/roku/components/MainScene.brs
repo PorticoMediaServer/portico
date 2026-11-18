@@ -328,6 +328,7 @@ sub onOpenAsk(ask as object)
     if kind = "movie" then page = push("TitleScreen")
     if kind = "show" then page = push("ShowScreen")
     if kind = "collection" or kind = "person" then page = push("GroupScreen")
+    if kind = "recordings" then page = push("RecordingsScreen")    ' Live TV's Recordings
     if page <> invalid
         page.item = ask.item
         setArt(page.art)          ' a page with no art of its own clears the one before it

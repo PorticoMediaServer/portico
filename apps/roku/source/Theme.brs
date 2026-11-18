@@ -87,6 +87,9 @@ function frames() as object
         ' the time row and the button row sit on their own lines; everything runs from `left` to `right`.
         ' Over it: the waiting spinner's line, how far below a page notice Playback failed sits, the foot of the prompts at the lower right, and the Finished page's lines.
         player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470, noticeDrop: 40, promptBottom: 720, finished: {top: 84, titleY: 120, metaY: 326, buttonsY: 372, rowY: 560}}
+        ' Recordings (from Live TV): the list's sections from `listY`, `width` wide, a section's heading
+        ' `headingGap` above its card and `sectionGap` after it; the row in focus is kept above `bottom`.
+        recordings: {listY: 176, width: 1300, headingGap: 52, sectionGap: 44, bottom: 1024}
         ' Every page beside the rail: its content ends at `rightEdge`.
         rightEdge: 1824
         ' Search (tv.html frame 5): the box on the page title's line, the keys under it, the results

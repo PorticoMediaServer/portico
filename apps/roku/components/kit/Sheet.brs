@@ -121,7 +121,15 @@ sub build(focusId as string)
         back.visible = (spec.heading <> true and spec.under = invalid and spec.label <> true)
         x = 30
         if spec.under <> invalid then x = 70
-        if spec.icon <> invalid and spec.icon <> ""
+        if spec.dot = true
+            ' a recording's red dot in the icon's place (Record, Cancel recording)
+            icon = row.createChild("Poster")
+            icon.uri = "pkg:/images/disc.png"
+            icon.width = 18
+            icon.height = 18
+            icon.translation = [33, 23]
+            x = 70
+        else if spec.icon <> invalid and spec.icon <> ""
             icon = row.createChild("Poster")
             icon.uri = "pkg:/images/i-" + spec.icon + "-28.png"
             icon.width = 28
@@ -230,6 +238,7 @@ sub paint()
         if on then side = c.actionInk
         row.getChild(3).color = side
         if row.getChild(1).subtype() = "Poster" then row.getChild(1).blendColor = tint
+        if spec.dot = true then row.getChild(1).blendColor = c.danger
     end for
 end sub
 
