@@ -2746,7 +2746,7 @@
   --frame-quick-tile: 58px;
   --frame-quick-tile-width: 190px;
   --frame-quick-tile-gap: 12px;
-  --frame-browse-grid-gap: 4px;
+  --frame-browse-grid-gap: 12px;
   --frame-browse-grid-card: 100px;
   --frame-browse-grid-column-gap: 10px;
   --frame-browse-grid-row-gap: 16px;
