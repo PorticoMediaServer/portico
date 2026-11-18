@@ -138,6 +138,7 @@ func Command(job Job) (*exec.Cmd, error) {
 	}
 	cmd := exec.Command(argv[0], argv[1:]...)
 	finish(cmd, job.Files, job.Fonts)
+	lowerPriority(cmd, job.Background)
 	return cmd, nil
 }
 
@@ -150,6 +151,7 @@ func CommandContext(ctx context.Context, job Job) (*exec.Cmd, error) {
 	}
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	finish(cmd, job.Files, job.Fonts)
+	lowerPriority(cmd, job.Background)
 	return cmd, nil
 }
 
