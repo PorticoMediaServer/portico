@@ -31,12 +31,13 @@ end function
 ' here with the first screen that uses it.
 function frames() as object
     return {
+        gutter: 200,
         ' The side panel every menu and picker opens in, its words from `top` and its rows from `rowsX`. Back closes it.
         sheet: {x: 1200, width: 720, top: 64, rowsX: 1260, rowsWidth: 600},
         ' The video player: the picture is the page. The top row hangs from `top`; the seek bar,
         ' the time row and the button row sit on their own lines; everything runs from `left` to `right`.
-        ' Over it: the waiting spinner's line.
-        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470},
+        ' Over it: the waiting spinner's line, how far below a page notice Playback failed sits.
+        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470, noticeDrop: 40},
         ' Every page beside the rail: its content starts at `gutter` and ends at `rightEdge`.
         gutter: 200, rightEdge: 1824,
         ' A library or Search (frame "Browse"): the page title's line; Home's moderate hero with its
