@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"runtime/pprof"
 	"slices"
 	"strconv"
 	"strings"
@@ -311,7 +312,8 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return Home{}, err
 		}
-		spotlight, err := s.homeSpotlight(r, continuing)
+		var spotlight []HomeSpotlight
+		lab("spotlight", func() { spotlight, err = s.homeSpotlight(r, continuing) })
 		return Home{Rows: shownRows(rows), Spotlight: spotlight}, err
 	})
 	Handle(s, "PUT /v1/items/{id}/state", WithProfile, func(r *http.Request, req StateRequest) (StateReply, error) {
@@ -355,7 +357,9 @@ func (s *Server) catalogueRoutes() {
 // homeRows is Home's rows in the profile's order, with the hidden ones when withHidden, and
 // the Continue Watching titles the spotlight starts from. The Top Shelf reads the same rows.
 func (s *Server) homeRows(r *http.Request, withHidden bool) ([]HomeRow, []db.Item, error) {
-	moods, err := s.db.MoodRows(r.Context(), viewer(r))
+	var moods []db.MoodRow
+	var err error
+	lab("moods", func() { moods, err = s.db.MoodRows(r.Context(), viewer(r)) })
 	if err != nil {
 		return nil, nil, err
 	}
@@ -372,7 +376,8 @@ func (s *Server) homeRows(r *http.Request, withHidden bool) ([]HomeRow, []db.Ite
 	if err != nil {
 		return nil, nil, err
 	}
-	collections, err := s.addedCollectionHomeRows(r)
+	var collections []HomeRow
+	lab("collections", func() { collections, err = s.addedCollectionHomeRows(r) })
 	if err != nil {
 		return nil, nil, err
 	}
@@ -381,23 +386,27 @@ func (s *Server) homeRows(r *http.Request, withHidden bool) ([]HomeRow, []db.Ite
 		home = append(home, HomeRow{ID: mood.Key, Title: moodRowTitle(mood.Label), Reason: because(mood.Because),
 			Shape: "poster", Items: itemShapes(mood.Items), NextCursor: mood.NextCursor})
 	}
-	becauseRows, err := s.becauseHomeRows(r, "")
+	var becauseRows []HomeRow
+	lab("because", func() { becauseRows, err = s.becauseHomeRows(r, "") })
 	if err != nil {
 		return nil, nil, err
 	}
 	home = append(home, becauseRows...)
-	views, err := s.savedViewRows(r)
+	var views []HomeRow
+	lab("views", func() { views, err = s.savedViewRows(r) })
 	if err != nil {
 		return nil, nil, err
 	}
-	onNow, err := s.initialOnNowHomeRow(r)
+	var onNow HomeRow
+	lab("onnow", func() { onNow, err = s.initialOnNowHomeRow(r) })
 	if err != nil {
 		return nil, nil, err
 	}
 	home = append(home, onNow)
-	rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, append(home, views...), withHidden)
+	var rows []HomeRow
+	lab("layout", func() { rows, err = s.homeLayout(r.Context(), viewer(r).ProfileID, append(home, views...), withHidden) })
 	if err == nil {
-		err = s.fillViewRows(r, rows)
+		lab("fillviews", func() { err = s.fillViewRows(r, rows) })
 	}
 	if err != nil {
 		return nil, nil, err
@@ -805,4 +814,9 @@ func shownRows(rows []HomeRow) []HomeRow {
 		}
 	}
 	return out
+}
+
+// SCRATCH: labels Home's parts in the CPU profile.
+func lab(name string, fn func()) {
+	pprof.Do(context.Background(), pprof.Labels("homerow", name), func(context.Context) { fn() })
 }
