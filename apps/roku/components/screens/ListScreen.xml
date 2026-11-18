@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- A playlist or a collection from Saved (collections frames 18 to 20): the mosaic, its name, how
      many and how long, who made it; Play all, Shuffle, Pin (Pinned once it is) and More, which holds
-     the list's order, which titles show, and Pin or Unpin; then its titles as rows.
+     the list's order, which titles show, and Pin or Unpin; then its titles as rows. A removal can be
+     undone from the note that follows it.
      OK on a row plays from it; * on a row opens its menu: Go to item, and for a list the viewer may
      change, Move up, Move down and Remove (a collection: Remove only). Renaming and deleting a list
      stay on a phone, tablet or computer (collections frame 20). -->
@@ -45,5 +46,7 @@
     </Group>
     <KeyHints id="hint"/>
     <PageState id="state" visible="false"/>
+    <!-- After Remove: "Removed “Titanic” from the playlist." with Undo, for 30 seconds (collections frame 19). -->
+    <Toast id="undo" seconds="30" action="Undo"/>
   </children>
 </component>
