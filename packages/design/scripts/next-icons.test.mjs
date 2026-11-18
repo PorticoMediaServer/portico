@@ -16,7 +16,7 @@ const symbol = '<symbol id="i-test" viewBox="0 0 24 24"><path fill="currentColor
 
 test('every canonical symbol has the same faithful ID and geometry in both outputs', () => {
   const web = renderShared(icons), native = renderNative(icons);
-  assert.equal(icons.length, 261);
+  assert.equal(icons.length, 262);
   assert.equal(new Set(icons.map(i => i.attrs.id)).size, icons.length);
   assert.equal((native.match(/case "/g) || []).length, icons.length);
   for (const icon of icons) {
@@ -185,6 +185,6 @@ test('generation is deterministic and check detects stale or missing native outp
     writeFileSync(target, renderNative(icons) + '\n');
     assert.notEqual(run([]).status, 0);
     assert.match(run([]).stderr, /Stale icon output/);
-    assert.equal(execFileSync(process.execPath, [path.join(here, 'next-icons.mjs'), '--check'], {encoding: 'utf8'}).trim(), 'next-icons: 261 symbols; 1 output(s) verified');
+    assert.equal(execFileSync(process.execPath, [path.join(here, 'next-icons.mjs'), '--check'], {encoding: 'utf8'}).trim(), 'next-icons: 262 symbols; 1 output(s) verified');
   } finally { rmSync(temp, {recursive: true, force: true}); }
 });

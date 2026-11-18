@@ -13,6 +13,7 @@ async function tabs(isTV: boolean) {
     '../theme': {useTheme: () => ({isTV, platform: isTV ? 'tv' : 'phone', gutter: 0, textScale: 1, fontScale: 1, type: {tab: {}}, colors: {line: 'l', text: 't', textTertiary: 't3', accent: 'a', raisedBright: 'r', textSecondary: 's'}})},
     './Focusable': {Focusable: 'Focusable'}, './control-model': {colorAlpha: (c: string) => c, enabledChoice: (items: any[]) => items[0]?.value, minimumHitSlop: () => 0},
     './useControlValue': {useControlValue: (value: string) => [value, () => {}]},
+    '../Icon': {Icon: 'Icon'},
   });
   return (passive: boolean) => h.render(() => Tabs({testID: 'strip', value: 'related', passive, items: [{value: 'related', label: 'More like this'}, {value: 'details', label: 'Details'}]})) as any;
 }
