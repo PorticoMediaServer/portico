@@ -134,7 +134,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   // Loading keeps the loaded page's boxes (rule 12): the synopsis's lines, so the tabs and the panel do not move when the words arrive.
   const words = loading ? <View style={{gap: spec.creditsGap}}>
     {Array.from({length: spec.synopsisLines[form]}, (_, index) => <SkeletonBlock key={index} width={index === 0 ? '96%' : '70%'} height={theme.type.intro.lineHeight ?? theme.type.intro.fontSize}/>)}
-  </View> : (tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{gap: spec.creditsGap, alignItems: stacked ? 'center' : undefined}}>
+  </View> : (tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{gap: spec.creditsGap, alignItems: stacked ? 'center' : undefined, maxWidth: stacked ? undefined : theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>
     {!stacked && tagline !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{tagline}</Text>}
     {synopsis !== undefined && <Text numberOfLines={readMore ? 4 : spec.synopsisLines[form]} style={[theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax, textAlign: stacked ? 'center' : 'left'}]}>{synopsis}</Text>}
     {readMore && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
@@ -181,8 +181,10 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     : <View style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: theme.space.xl}}>
       {discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
     : tvCollapsed ? <View style={{paddingTop: frame.titleTop, paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>{identity}</View>
-    : <><View style={{height}}>
-      {art}
+    // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
+    // second line of buttons pushes the panel down rather than rising under Back (the words never overlap the discs).
+    : <><View style={stacked ? {height} : {minHeight: height, justifyContent: 'flex-end', paddingTop: tv ? frame.titleTop : discRow, paddingBottom: spec.copyBottom[form]}}>
+      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>{art}</View>
       {/* A tablet's words are over the picture, so the picture is shaded behind them (a phone's words are under its picture and a TV's art has its own). */}
       {!stacked && !tv && <Svg pointerEvents="none" accessible={false} width="100%" height="100%" style={StyleSheet.absoluteFill}>
         <Defs>
@@ -193,9 +195,10 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
       </Svg>}
       {discs}
       {/* Everything in the art box hangs from its bottom edge, so a longer title grows upward and the row below never moves. */}
-      <View pointerEvents="box-none" style={{position: 'absolute', left: frame.gutter, right: stacked ? frame.gutter : frame.rightGutter, bottom: split ? 0 : spec.copyBottom[form]}}>
+      <View pointerEvents="box-none" style={stacked ? {position: 'absolute', left: frame.gutter, right: frame.gutter, bottom: split ? 0 : spec.copyBottom[form]} : {paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
         <View style={stacked || tv ? undefined : {maxWidth: theme.spec.hero.copy.titleWidth.web}}>{identity}</View>
-        {!stacked && <View style={{marginTop: theme.space.sm, maxWidth: theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>{body}</View>}
+        {/* The words keep the copy width; the action row takes the page's width, so its buttons stay on one line (tablet f6, detail-tv-2). */}
+        {!stacked && <View style={{marginTop: theme.space.sm}}>{body}</View>}
       </View>
     </View>
     {stacked && <View style={{paddingHorizontal: frame.gutter, marginTop: spec.actionGap[form]}}>{body}</View>}</>;

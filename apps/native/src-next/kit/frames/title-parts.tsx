@@ -1,7 +1,7 @@
 import React, {type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {Artwork, PersonCircle, type ArtworkSource} from '../artwork';
-import {Button, Focusable} from '../controls';
+import {Button, Focusable, Segmented} from '../controls';
 import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
 import {TVRow} from '../layout/TVRow';
@@ -159,3 +159,45 @@ export function SeasonListRow({label, detail, progress, current, focusId, testID
 /** R5 interim: detail-tv-5a's season rows, 84 high and 6 apart; the column is 330 wide, 70 from the episodes. */
 const rowHeight = 84;
 export const seasonColumn = {width: 330, gap: 70, rowGap: 6} as const;
+
+/** "Play a different version" (detail-phone 9b, desktop-detail 9b, detail-tv-8b): one row of two lines per version, in
+ * File info's order: the edition or the picture summary, then the rest. The whole row is the button and plays that
+ * version at once. On a phone the rows sit on one raised card with hairlines; on TV each is a full-width row. */
+export function VersionRows({rows, onChoose}: Readonly<{rows: readonly Readonly<{id: string; heading: string; detail: string}>[]; onChoose: (id: string) => void}>) {
+  const theme = useTheme(), frame = useFrameMetrics(), card = !theme.isTV;
+  return <View style={[{marginHorizontal: frame.gutter}, card && {borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised, overflow: 'hidden'}]}>
+    {rows.map((row, index) => <Focusable key={row.id} focusId={`version-${row.id}`} focusKind="row" focusRadius={card ? 0 : frame.cardRadius} accessibilityRole="button" onPress={() => onChoose(row.id)}
+      style={{paddingHorizontal: theme.space.sm, paddingVertical: rowPad, borderTopWidth: card && index > 0 ? 1 : 0, borderTopColor: theme.colors.line, borderRadius: card ? 0 : frame.cardRadius}}>
+      <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{row.heading}</Text>
+      <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{row.detail}</Text>
+    </Focusable>)}
+  </View>;
+}
+
+/** The owner's Episode display (desktop-detail f4): how a show's episodes are grouped, numbered and ordered, for everyone
+ * on the server. Its heading and the "For everyone" mark, a line on what it does, one choice per row, and how an
+ * episode will read. It commits as you choose (R9 `choice`). */
+export function EpisodeDisplay({title, mark, intro, rows, preview}: Readonly<{title: string; mark: string; intro: string;
+  rows: readonly Readonly<{label: string; items: readonly Readonly<{value: string; label: string}>[]; value: string; onValueChange: (value: string) => void}>[];
+  /** "Reads as" and the episode as it will read ("S1 E3", "Long, Long Time"). */
+  preview: Readonly<{label: string; code: string; title: string}>}>) {
+  const theme = useTheme(), frame = useFrameMetrics();
+  return <View style={{gap: theme.space.sm, padding: frame.cardPadding}}>
+    <View style={{gap: theme.space.tight}}>
+      <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm}}>
+        <Text accessibilityRole="header" style={[theme.type.rowLabel, {flex: 1, color: theme.colors.text}]}>{title}</Text>
+        <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1, borderColor: theme.colors.line}]}>{mark}</Text>
+      </View>
+      <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{intro}</Text>
+    </View>
+    {rows.map(row => <View key={row.label} style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.sm}}>
+      <Text style={[theme.type.rowHelp, {width: 120, color: theme.colors.text, fontFamily: theme.type.rowLabel.fontFamily}]}>{row.label}</Text>
+      <View style={{flex: 1, minWidth: 200}}><Segmented fill accessibilityLabel={row.label} items={row.items} value={row.value} onValueChange={row.onValueChange}/></View>
+    </View>)}
+    <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap, padding: rowPad, borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised}}>
+      <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{preview.label}</Text>
+      <Text style={[theme.type.rowHelp, {color: theme.colors.text, fontFamily: theme.type.bodyStrong.fontFamily}]}>{preview.code}</Text>
+      <Text style={[theme.type.rowHelp, {color: theme.colors.text}]}>{preview.title}</Text>
+    </View>
+  </View>;
+}
