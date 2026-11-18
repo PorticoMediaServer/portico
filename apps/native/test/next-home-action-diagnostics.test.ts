@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {serverPath} from '../../../packages/client-core/src/query/server-api.ts';
 import {
   createHomeActionDiagnostics,
   HOME_DIAGNOSTIC_LIMIT,
@@ -44,10 +45,10 @@ test('library menu receipts compare only local reference numbers and fixed descr
 });
 test('passive receipts classify canonical routes and correlate only local numeric request IDs', () => {
   const f = records();
-  const ticket = f.logger.request(
-    'GET',
-    'https://private-user:private-password@private-host/v1/items/private-item/playback-options?token=private-token',
-  );
+  const route = 'POST /v1/queues/{id}/advance';
+  const path = serverPath(route, {id: 'private/queue', query: {token: 'private-token'}});
+  const url = `https://private-user:private-password@private-host${path}`;
+  const ticket = f.logger.request('POST', url);
   f.logger.response(ticket, 200);
   const receipts = f.read();
   assert.equal(receipts.length, 2, 'one dispatch and its single response are the entire receipt stream');
@@ -58,7 +59,7 @@ test('passive receipts classify canonical routes and correlate only local numeri
     origin: 'native-http',
     operation: 'dispatch',
     request: 1,
-    route: 'get_playback_options',
+    route,
   });
   const {elapsedMs, ...classified} = response;
   assert.deepEqual(classified, {
@@ -67,7 +68,7 @@ test('passive receipts classify canonical routes and correlate only local numeri
     origin: 'native-http',
     operation: 'response',
     request: 1,
-    route: 'get_playback_options',
+    route,
     status: 200,
   });
   assert.ok(
@@ -84,13 +85,7 @@ test('passive receipts classify canonical routes and correlate only local numeri
     undefined,
   );
   assert.equal(f.logger.request('GET', 'invalid URL private-token'), undefined);
-  assert.equal(
-    f.logger.request(
-      'DELETE',
-      'https://private/v1/items/private-item/playback-options',
-    ),
-    undefined,
-  );
+  assert.equal(f.logger.request('GET', url), undefined);
   assert.equal(f.lines.length, 2);
 });
 test('known safe errors retain class/code/status and stripped frame coordinates without raw messages, paths or identifiers', () => {

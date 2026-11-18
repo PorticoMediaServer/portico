@@ -1,49 +1,42 @@
-import {
-  routePattern,
-  type RouteId,
-} from '../../../../packages/contracts/src/routes';
+import type {Routes} from '../../../../packages/contracts/src/next/api';
 import type {RouteProbeFailure} from '../../../../packages/client-core/src/route-connection';
 
 // Only fixed protocol names cross this boundary. Dynamic route parameters, query
 // strings, native request IDs and request/response payloads never enter a record.
 const routeRules = [
-  ['GET', 'get_home'],
-  ['GET', 'get_home_row'],
-  ['GET', 'get_me'],
-  ['GET', 'get_capabilities'],
-  ['POST', 'prove_network_identity'],
-  ['GET', 'get_playback_options'],
-  ['PUT', 'put_device_capabilities'],
-  ['GET', 'get_listening_preferences'],
-  ['POST', 'create_queue'],
-  ['GET', 'get_queue'],
-  ['GET', 'get_queue_window'],
-  ['GET', 'list_queue_entries'],
-  ['POST', 'prepare_queue_next'],
-  ['POST', 'commit_queue_next'],
-  ['POST', 'advance_queue'],
-  ['POST', 'start_playback_session'],
-  ['GET', 'get_playback_session'],
-  ['PATCH', 'change_playback_session'],
-  ['DELETE', 'stop_playback_session'],
-] as const satisfies readonly (readonly [string, RouteId])[];
-type SafeRoute = (typeof routeRules)[number][1];
-const compiled = routeRules.map(([method, route]) => ({
-  method,
-  route,
-  pattern: new RegExp(
-    '^' +
-      routePattern(route)
-        .split(/(\{[^}]+\})/)
-        .map(part =>
-          part.startsWith('{')
-            ? '[^/?#]+'
-            : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-        )
-        .join('') +
-      '$',
-  ),
-}));
+  'GET /v1/home',
+  'GET /v1/home/rows/{id}',
+  'GET /v1/me',
+  'GET /v1/items/{id}/playback-options',
+  'POST /v1/queues',
+  'GET /v1/queues/{id}',
+  'GET /v1/queues/{id}/entries',
+  'POST /v1/queues/{id}/advance',
+  'POST /v1/playback/sessions',
+  'GET /v1/playback/sessions/{id}',
+  'PATCH /v1/playback/sessions/{id}',
+  'DELETE /v1/playback/sessions/{id}',
+] as const satisfies readonly (keyof Routes)[];
+type SafeRoute = (typeof routeRules)[number];
+const compiled = routeRules.map(route => {
+  const [method, path] = route.split(' ');
+  return {
+    method,
+    route,
+    pattern: new RegExp(
+      '^' +
+        path
+          .split(/(\{[^}]+\})/)
+          .map(part =>
+            part.startsWith('{')
+              ? '[^/?#]+'
+              : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+          )
+          .join('') +
+        '$',
+    ),
+  };
+});
 const codes = new Set([
   'unoffered_home_playback',
   'native_home_authority_required',
