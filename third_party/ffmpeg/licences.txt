@@ -74,4 +74,8 @@
 50-zimg | zimg | WTFPL | linked
 50-zvbi | ZVBI | GPL-2.0-or-later AND LGPL-2.0-or-later | linked
 99-rpath | (no library: a link setting) | none | build only
+10-mingw | mingw-w64 runtime (C runtime start-up code, winpthreads) | ZPL-2.1 AND MIT AND BSD-3-Clause | linked (Windows only)
+10-mingw-std-threads | mingw-std-threads | BSD-2-Clause | linked (Windows only; C++ thread headers)
+50-dxva | (no library: switches on Windows' own DXVA2, D3D11, D3D12 and Media Foundation) | none | build only
+50-schannel | (no library: switches on Windows' own TLS, Schannel) | none | build only
 10-xorg-macros | xorg util-macros | MIT | build only
