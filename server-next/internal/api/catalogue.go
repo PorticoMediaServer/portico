@@ -379,8 +379,9 @@ func browseBy(kind string) ([]View, []Sort, []Filter) {
 	videoSorts := append([]Sort{{db.SortDuration, "desc"}, {db.SortCommunityRating, "desc"}, {db.SortResolution, "desc"}}, ownSorts...)
 	mine := []Filter{{ID: "watched", Type: "boolean"}, {ID: "inProgress", Type: "boolean"}, {ID: "favorite", Type: "boolean"},
 		{ID: "inList", Type: "boolean"}, {ID: "userRating", Type: "number"}, {ID: "lastPlayed", Type: "day"}, {ID: "playCount", Type: "number"}}
-	filters := append([]Filter{{ID: "genre", Type: "tag"}, {ID: "label", Type: "tag"}, {ID: "year", Type: "year"}, {ID: "added", Type: "day"},
-		{ID: "available", Type: "boolean"}}, mine...)
+	// Any library can hold collections, so every kind is filtered by them.
+	filters := append([]Filter{{ID: "genre", Type: "tag"}, {ID: "label", Type: "tag"}, {ID: "collection", Type: "collection"}, {ID: "year", Type: "year"},
+		{ID: "added", Type: "day"}, {ID: "available", Type: "boolean"}}, mine...)
 	video := []Filter{{ID: "contentRating", Type: "text"}, {ID: "released", Type: "day"}, {ID: "communityRating", Type: "number"},
 		{ID: "durationMs", Type: "number"}, {ID: "studio", Type: "tag"},
 		{ID: "actor", Type: "person"}, {ID: "director", Type: "person"}, {ID: "writer", Type: "person"},

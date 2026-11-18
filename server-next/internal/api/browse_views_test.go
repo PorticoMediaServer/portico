@@ -10,7 +10,8 @@ import (
 )
 
 // Each kind of library offers the lists its tabs read: a film or show library its collections,
-// an anime library a show library's, and a comic library its comics and their series.
+// an anime library a show library's, and a comic library its comics and their series. Every
+// kind is filtered by collection.
 func TestBrowseViews(t *testing.T) {
 	for kind, want := range map[string][]View{
 		db.LibraryMovies:     {{"movie"}, {"collection"}},
@@ -21,8 +22,13 @@ func TestBrowseViews(t *testing.T) {
 		db.LibraryBooks:      {{"book"}, {"series"}},
 		db.LibraryComics:     {{"comic"}, {"series"}},
 	} {
-		if views, _, _ := browseBy(kind); !slices.Equal(views, want) {
+		views, _, filters := browseBy(kind)
+		if !slices.Equal(views, want) {
 			t.Errorf("a %s library offers %v, want %v", kind, views, want)
+		}
+		// Any library can hold collections, and its filters say so.
+		if !slices.ContainsFunc(filters, func(f Filter) bool { return f.ID == "collection" && f.Type == "collection" }) {
+			t.Errorf("a %s library does not offer the collection filter", kind)
 		}
 	}
 	// An anime library sorts and filters as a show library does, Recently aired included.

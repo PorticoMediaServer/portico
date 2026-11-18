@@ -45,7 +45,8 @@ type Sort struct {
 
 // Filter is a filter GET /v1/items accepts for this library. Type says what a value looks
 // like: "boolean"; "tag" (an id, or for a genre its name; GET /v1/facets lists the choices);
-// "person" (an id); "year" ("1999" or "1990..1999"); "number" ("7", "7..9", "7..", "..9");
+// "person" (an id); "collection" (a collection's id; GET /v1/items?library={id}&kind=collection
+// lists the choices); "year" ("1999" or "1990..1999"); "number" ("7", "7..9", "7..", "..9");
 // "day" ("2024-03-01" or a range of days, either end open); "text"; or "choice" (one of
 // Values). Every filter but a boolean takes several values, as "v1,v2", and says how they
 // combine with "any:", "all:" or "none:" in front (any, when it says nothing). It can be
