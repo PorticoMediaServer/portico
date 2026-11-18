@@ -12,7 +12,9 @@ function colours() as object
         ' label, the seek bar's track, the lighter stretch a waiting scrub would skip, and the tick
         ' that marks where the picture still is
         glass: "0xEDF5FA24", glassOn: "0xEDF5FA47", labelPlate: "0x071018E6",
-        barTrack: "0xEDF5FA38", barAhead: "0x5CB3E26B", barTick: "0xEDF5FAE6"
+        barTrack: "0xEDF5FA38", barAhead: "0x5CB3E26B", barTick: "0xEDF5FAE6",
+        ' the pale plate under the row in focus in a side sheet, and the faint plate behind its open heading and choices
+        plateOn: "0xD8E6EEFF", openGroup: "0xEDF5FA14"
     }
 end function
 
@@ -22,9 +24,12 @@ end function
 ' here with the first screen that uses it.
 function frames() as object
     return {
+        ' The side panel every menu and picker opens in, its words from `top` and its rows from `rowsX`. Back closes it.
+        sheet: {x: 1200, width: 720, top: 64, rowsX: 1260, rowsWidth: 600},
         ' The video player: the picture is the page. The top row hangs from `top`; the seek bar,
         ' the time row and the button row sit on their own lines; everything runs from `left` to `right`.
-        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912}
+        ' Over it: the waiting spinner's line.
+        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470}
     }
 end function
 
@@ -42,7 +47,7 @@ function typeRoles() as object
         cardTitle: [600, 22, 0], cardSubtitle: [400, 20, 0], wideTitle: [700, 26, 0],
         meta: [400, 24, 0], metaStrong: [700, 24, 0], eyebrow: [600, 24, 0], synopsis: [400, 24, 35],
         button: [700, 26, 0], tag: [600, 20, 0], badge: [800, 18, 0], body: [400, 24, 33], caption: [400, 20, 27],
-        keycap: [700, 18, 0], skipSeconds: [800, 14, 0], chip: [700, 24, 0], micro: [500, 17, 0], episodeTitle: [700, 24, 30], seasonName: [700, 26, 0], personInitials: [700, 44, 0], section: [700, 26, 0], factLabel: [400, 22, 0], about: [400, 24, 35], groupLabel: [700, 20, 0], padKey: [700, 44, 0], code: [800, 92, 0], welcome: [800, 88, 0], pageTitle: [800, 64, 0], faceInitial: [700, 84, 0], bodyStrong: [700, 24, 33], ledeStrong: [700, 30, 42], coverTitle: [800, 26, 29]
+        keycap: [700, 18, 0], skipSeconds: [800, 14, 0], chip: [700, 24, 0], micro: [500, 17, 0], episodeTitle: [700, 24, 30], seasonName: [700, 26, 0], personInitials: [700, 44, 0], section: [700, 26, 0], factLabel: [400, 22, 0], about: [400, 24, 35], listLabel: [600, 25, 0], help: [500, 19, 0], groupLabel: [700, 20, 0], padKey: [700, 44, 0], code: [800, 92, 0], welcome: [800, 88, 0], pageTitle: [800, 64, 0], faceInitial: [700, 84, 0], bodyStrong: [700, 24, 33], ledeStrong: [700, 30, 42], coverTitle: [800, 26, 29]
     }
 end function
 

@@ -26,25 +26,6 @@ sub init()
     setType(m.top.findNode("at"), "metaStrong", c.text)
     setType(m.top.findNode("left"), "metaStrong", c.textSecondary)
     setType(m.top.findNode("flabText"), "nav", c.text)
-    ' every fixed line of the overlay comes from the player's frame
-    f = frames().player
-    m.f = f
-    m.top.findNode("title").translation = [f.left, f.top]
-    m.top.findNode("title").width = 1300
-    m.top.findNode("code").translation = [f.left, f.top + 54]
-    m.top.findNode("sub").translation = [f.left, f.top + 54]
-    m.top.findNode("clock").translation = [f.right - 500, f.top]
-    m.top.findNode("ends").translation = [f.right - 500, f.top + 44]
-    m.top.findNode("track").width = f.right - f.left
-    m.top.findNode("track").color = c.barTrack
-    m.ahead.color = c.barAhead
-    m.played.color = c.accentStrong
-    m.was.color = c.barTick
-    m.top.findNode("at").translation = [f.left, f.timeY]
-    m.top.findNode("left").translation = [f.right - 500, f.timeY]
-    m.buttons.translation = [0, f.buttonsY]
-    m.top.findNode("hints").translation = [f.left, f.buttonsY + 26]
-    m.top.findNode("flabPlate").blendColor = c.labelPlate
     m.video.observeField("state", "onVideoState")
     m.video.observeField("position", "onPosition")
     m.hide.observeField("fire", "lower")
@@ -67,6 +48,29 @@ sub init()
     m.scrub = false      ' true while a scrub waits for OK (held, or moved while paused)
     m.duration = 0
     m.ended = false
+    ' every fixed line of the overlay and of what sits over the picture comes from the player's frame
+    f = frames().player
+    m.f = f
+    m.top.findNode("title").translation = [f.left, f.top]
+    m.top.findNode("title").width = 1300
+    m.top.findNode("code").translation = [f.left, f.top + 54]
+    m.top.findNode("sub").translation = [f.left, f.top + 54]
+    m.top.findNode("clock").translation = [f.right - 500, f.top]
+    m.top.findNode("ends").translation = [f.right - 500, f.top + 44]
+    m.top.findNode("track").width = f.right - f.left
+    m.top.findNode("track").color = c.barTrack
+    m.ahead.color = c.barAhead
+    m.played.color = c.accentStrong
+    m.was.color = c.barTick
+    m.top.findNode("at").translation = [f.left, f.timeY]
+    m.top.findNode("left").translation = [f.right - 500, f.timeY]
+    m.buttons.translation = [0, f.buttonsY]
+    m.top.findNode("hints").translation = [f.left, f.buttonsY + 26]
+    m.top.findNode("flabPlate").blendColor = c.labelPlate
+    m.top.findNode("spinner").translation = [960 - 32, f.waitY]
+    m.top.findNode("spinner").blendColor = c.focus
+    m.top.findNode("waitTitle").translation = [260, f.waitY + 96]
+    m.top.findNode("waitText").translation = [260, f.waitY + 142]
     makeButtons()
     makeHints()
 end sub
@@ -248,7 +252,7 @@ end sub
 ' --- Subtitles, Audio, Quality --------------------------------------------------------------
 
 function languageName(code as dynamic) as string
-    if code = invalid or code = "" or code = "und" then return "Unknown"
+    if code = invalid or code = "" or code = "und" or code = "mul" then return ""
     names = {en: "English", eng: "English", fr: "French", fre: "French", fra: "French", es: "Spanish", spa: "Spanish", de: "German", ger: "German", deu: "German", it: "Italian", ita: "Italian", pt: "Portuguese", por: "Portuguese", ja: "Japanese", jpn: "Japanese", ko: "Korean", kor: "Korean", zh: "Chinese", chi: "Chinese", zho: "Chinese", nl: "Dutch", nld: "Dutch", dut: "Dutch", sv: "Swedish", swe: "Swedish", da: "Danish", dan: "Danish", no: "Norwegian", nor: "Norwegian", fi: "Finnish", fin: "Finnish", pl: "Polish", pol: "Polish", ru: "Russian", rus: "Russian", ar: "Arabic", ara: "Arabic", hi: "Hindi", hin: "Hindi", tr: "Turkish", tur: "Turkish"}
     if names[lcase(code)] <> invalid then return names[lcase(code)]
     return ucase(code)
@@ -263,32 +267,40 @@ function currentVersion() as dynamic
     return invalid
 end function
 
-function subtitleLabel(track as object) as string
+' A track's name (VIDEO.md VS-3e): the language, or the track's own title for a commentary or a
+' track with no language, then SDH or forced in brackets. The format goes on the line under it.
+function trackName(track as object, number as integer) as string
     text = languageName(track.language)
+    if track.title <> invalid and track.title <> "" and (text = "" or track.commentary = true) then text = track.title
+    if text = "" then text = "Track " + number.toStr()
     if track.sdh = true then text = text + " (SDH)"
     if track.forced = true then text = text + " (forced)"
     return text
 end function
 
-function audioLabel(track as object) as string
-    text = languageName(track.language)
+function formatName(codec as dynamic) as string
+    if codec = invalid then return ""
+    names = {aac: "AAC", ac3: "Dolby Digital", eac3: "Dolby Digital Plus", dts: "DTS", truehd: "Dolby TrueHD", flac: "FLAC", mp3: "MP3", opus: "Opus", vorbis: "Vorbis", pcm: "PCM", subrip: "SRT", srt: "SRT", ass: "ASS", ssa: "SSA", webvtt: "WebVTT", vtt: "WebVTT", mov_text: "Text", hdmv_pgs_subtitle: "PGS", pgs: "PGS", dvd_subtitle: "VobSub", vobsub: "VobSub", idx: "VobSub"}
+    if names[lcase(codec)] <> invalid then return names[lcase(codec)]
+    return ucase(codec)
+end function
+
+function audioDetail(track as object) as string
+    text = formatName(track.codec)
+    channels = ""
     if track.channels <> invalid
-        if track.channels = 1 then text = text + ", mono" else if track.channels = 2 then text = text + ", stereo" else if track.channels = 6 then text = text + ", 5.1" else if track.channels = 8 then text = text + ", 7.1" else text = text + ", " + track.channels.toStr() + " channels"
+        if track.channels = 1 then channels = "mono" else if track.channels = 2 then channels = "stereo" else if track.channels = 6 then channels = "5.1" else if track.channels = 8 then channels = "7.1" else channels = track.channels.toStr() + " channels"
     end if
-    if track.commentary = true then text = text + " (commentary)"
-    return text
+    if text <> "" and channels <> "" then return text + ", " + channels
+    return text + channels
 end function
 
 function qualityLabel(q as object) as string
     if q.mode = "original" then return "Original"
     if q.mode = "automatic" then return "Automatic"
-    text = ""
-    if q.id <> invalid then text = q.id
-    if q.maxVideoBitrateKbps <> invalid
-        mbps = q.maxVideoBitrateKbps / 1000
-        if mbps >= 1 then text = text + ", " + str(int(mbps * 10) / 10).trim() + " Mbps" else text = text + ", " + q.maxVideoBitrateKbps.toStr() + " kbps"
-    end if
-    return text
+    ' the server's own name for a step ("720p-high" reads "720p high"): two steps can share a height
+    if q.id <> invalid then return q.id.replace("-", " ")
+    return ""
 end function
 
 ' What each of the three says now: [subtitles, audio, quality].
@@ -297,42 +309,45 @@ function currentChoices() as object
     p = m.presentation
     version = currentVersion()
     if p = invalid or version = invalid then return out
-    if p.subtitle <> invalid
-        for each track in version.subtitles
-            if track.id = p.subtitle.trackId then out[0] = subtitleLabel(track)
-        end for
-    end if
-    for each track in version.audio
-        if p.audioTrackId <> invalid and track.id = p.audioTrackId then out[1] = audioLabel(track)
+    for i = 0 to version.subtitles.count() - 1
+        if p.subtitle <> invalid and version.subtitles[i].id = p.subtitle.trackId then out[0] = trackName(version.subtitles[i], i + 1)
+    end for
+    for i = 0 to version.audio.count() - 1
+        if p.audioTrackId <> invalid and version.audio[i].id = p.audioTrackId then out[1] = trackName(version.audio[i], i + 1)
     end for
     if p.quality <> invalid then out[2] = qualityLabel(p.quality)
     return out
 end function
 
+' The one options panel (tv-player frame 4): Subtitles, Audio and Quality as headings, the one
+' asked for open in place with focus on its current choice. Changes last for this playback only.
 sub openOptions(which as integer)
     version = currentVersion()
     p = m.presentation
     if version = invalid or p = invalid then return
-    rows = []
-    if which = 0
-        rows.push({id: "sub:", text: "Off", current: p.subtitle = invalid})
-        for each track in version.subtitles
-            rows.push({id: "sub:" + track.id, text: subtitleLabel(track), current: p.subtitle <> invalid and p.subtitle.trackId = track.id})
-        end for
-    else if which = 1
-        for each track in version.audio
-            rows.push({id: "aud:" + track.id, text: audioLabel(track), current: p.audioTrackId <> invalid and p.audioTrackId = track.id})
-        end for
-    else
-        for i = 0 to m.options.qualities.count() - 1
-            q = m.options.qualities[i]
-            same = (p.quality <> invalid and p.quality.mode = q.mode and (q.mode <> "fixed" or p.quality.id = q.id))
-            rows.push({id: "qua:" + i.toStr(), text: qualityLabel(q), current: same})
-        end for
-    end if
-    if rows.count() = 0 then return
+    now = currentChoices()
+    rows = [{id: "h:sub", text: "Subtitles", heading: true, value: now[0]}]
+    rows.push({id: "sub:", text: "Off", under: "h:sub", current: p.subtitle = invalid})
+    for i = 0 to version.subtitles.count() - 1
+        track = version.subtitles[i]
+        rows.push({id: "sub:" + track.id, text: trackName(track, i + 1), detail: formatName(track.format), under: "h:sub", current: p.subtitle <> invalid and p.subtitle.trackId = track.id})
+    end for
+    rows.push({id: "h:aud", text: "Audio", heading: true, value: now[1]})
+    for i = 0 to version.audio.count() - 1
+        track = version.audio[i]
+        rows.push({id: "aud:" + track.id, text: trackName(track, i + 1), detail: audioDetail(track), under: "h:aud", current: p.audioTrackId <> invalid and p.audioTrackId = track.id})
+    end for
+    rows.push({id: "h:qua", text: "Quality", heading: true, value: now[2]})
+    for i = 0 to m.options.qualities.count() - 1
+        q = m.options.qualities[i]
+        same = (p.quality <> invalid and p.quality.mode = q.mode and (q.mode <> "fixed" or p.quality.id = q.id))
+        detail = ""
+        if q.mode = "original" then detail = "Plays the file as is"
+        if q.mode = "fixed" and q.maxHeight <> invalid then detail = "Up to " + q.maxHeight.toStr() + "p; converted only when the file is larger"
+        rows.push({id: "qua:" + i.toStr(), text: qualityLabel(q), detail: detail, under: "h:qua", current: same})
+    end for
     m.hide.control = "stop"
-    m.top.menu = {eyebrow: m.top.findNode("title").text, title: ["Subtitles", "Audio", "Quality"][which], status: "", rows: rows}
+    m.top.menu = {title: "Playback options", status: "Changes here last until you stop watching. Your defaults stay as they are in Settings.", open: ["h:sub", "h:aud", "h:qua"][which], rows: rows}
 end sub
 
 sub onMenuChosen(event as object)
@@ -349,13 +364,15 @@ sub onMenuChosen(event as object)
         q = m.options.qualities[value.toInt()]
         change.quality = {mode: q.mode}
         if q.id <> invalid then change.quality.id = q.id
+    else
+        return
     end if
     change.positionMs = int(m.video.position * 1000)
-    api("PATCH", "/v1/playback/sessions/" + m.session.id, change, "onChanged", {at: m.video.position})
+    api("PATCH", "/v1/playback/sessions/" + m.session.id, change, "onChanged", {at: m.video.position, subtitles: kind = "sub:"})
 end sub
 
 ' The server answers a change with how the title reaches this TV now: a new stream is loaded where
-' the picture was; the same stream only changes which subtitle is drawn.
+' the picture was; on the same stream the subtitle or the audio track is switched in place.
 sub onChanged(event as object)
     result = event.getData()
     if m.session = invalid then return
@@ -371,23 +388,40 @@ sub onChanged(event as object)
         load(p)
     else
         m.presentation = p
-        drawSubtitle(p)
+        if event.getRoSGNode().ctx.subtitles = true then drawSubtitle(p, true)
+        if p.audioTrackId <> before.audioTrackId then switchAudio(p.audioTrackId)
     end if
     raise()
 end sub
 
-' Roku draws a text subtitle from its file beside the stream; one burned into the picture needs nothing here.
-sub drawSubtitle(p as object)
-    chosen = ""
-    if p.subtitle <> invalid and p.subtitles <> invalid
-        for each file in p.subtitles
-            if file.trackId = p.subtitle.trackId then chosen = m.global.origin + file.url
-        end for
-    end if
-    if chosen <> ""
-        m.video.subtitleTrack = chosen
+' Roku lists a file's audio tracks in the file's order, as the server does.
+sub switchAudio(trackId as dynamic)
+    version = currentVersion()
+    tracks = m.video.availableAudioTracks
+    if version = invalid or tracks = invalid then return
+    for i = 0 to version.audio.count() - 1
+        if version.audio[i].id = trackId and i < tracks.count() then m.video.audioTrack = tracks[i].Track
+    end for
+end sub
+
+' The WebVTT copy of the chosen text subtitle (the server also lists an ASS track's original file,
+' which Roku cannot draw). One burned into the picture needs nothing here.
+function subtitleUrl(p as object) as string
+    if p.subtitle = invalid or p.subtitles = invalid then return ""
+    for each file in p.subtitles
+        if file.trackId = p.subtitle.trackId and file.format = "vtt" then return m.global.origin + file.url
+    end for
+    return ""
+end function
+
+' Roku draws the chosen text subtitle. Its caption setting is the viewer's for the whole TV, so it
+' is turned off only when they choose Off here, never just because a title starts without one.
+sub drawSubtitle(p as object, chosenHere as boolean)
+    url = subtitleUrl(p)
+    if url <> ""
+        m.video.subtitleTrack = url
         m.video.globalCaptionMode = "On"
-    else
+    else if chosenHere
         m.video.globalCaptionMode = "Off"
     end if
 end sub
@@ -491,17 +525,19 @@ sub load(p as object)
         content.playStart = p.startPositionMs / 1000
         m.last = p.startPositionMs / 1000
     end if
+    ' every text subtitle the server offers beside this stream, as WebVTT
     tracks = []
     if p.subtitles <> invalid
         for each file in p.subtitles
-            tracks.push({TrackName: m.global.origin + file.url, Language: "", Description: file.trackId})
+            if file.format = "vtt" then tracks.push({TrackName: m.global.origin + file.url, Language: "", Description: file.trackId})
         end for
     end if
     content.subtitleTracks = tracks
     m.presentation = p
+    m.loading = true        ' until the picture runs, a wait is "Getting ready", not "Catching up"
     m.video.content = content
     m.video.control = "play"
-    drawSubtitle(p)
+    drawSubtitle(p, false)
 end sub
 
 sub sendProgress()
@@ -554,11 +590,12 @@ sub onVideoState()
     else if state = "error"
         again()
     else if state = "playing"
+        m.loading = false
         if m.video.duration > 0 then m.duration = m.video.duration
         busy(invalid)
         paint()
     else if state = "buffering"
-        busy("Catching up…")
+        if m.loading = true then busy("Getting ready…") else busy("Catching up…")
         paint()
     else
         paint()
@@ -861,6 +898,11 @@ function onKeyEvent(key as string, press as boolean) as boolean
         return true
     else if key = "fastforward"
         nudge(30)
+        return true
+    end if
+    if key = "options"
+        ' * is the remote's options key: it opens the options panel at Subtitles, as Roku's own does
+        openOptions(0)
         return true
     end if
     if not m.controls.visible
