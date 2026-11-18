@@ -1,4 +1,4 @@
-import React, {type ReactNode} from 'react';
+import React, {useEffect, useState, type ReactNode} from 'react';
 import {ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
@@ -239,7 +239,8 @@ function WideAudio({close, more, context, source, device, notice, artwork, icon,
 /** TV (final3-tv-12): the regions at the mock-up's places from the cover's top edge, so nothing moves with the title's length. */
 function TVAudio({more, context, source, artwork, icon, title, byline = [], chapter, scrubber, times, transport, lyrics, playlist, speed, sleep, chapters, panel, loading = false, testID}: AudioPlayerFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), form = 'tv' as const, art = spec.artwork[form];
-  const titleStyle = theme.type.audioTitle;
+  const titleStyle = theme.type.audioTitle, [long, setLong] = useState(false);
+  useEffect(() => setLong(false), [title]);
   const label = (item: AudioControl | AudioOption) => 'value' in item && item.value !== undefined ? `${item.value}  ${item.label}` : item.label;
   const buttons = [...(chapter ? [speed, sleep, chapters] : [lyrics, playlist])].filter((item): item is AudioControl => item !== undefined);
   return <View testID={testID} style={{flex: 1, paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
@@ -251,8 +252,10 @@ function TVAudio({more, context, source, artwork, icon, title, byline = [], chap
       <Art artwork={artwork} icon={icon} title={title} size={art} loading={loading}/>
       <View style={{width: spec.controlsWidth[form]}}>
         <View style={{position: 'absolute', top: tvSpec.titleTop, left: 0, right: 0, height: tvSpec.scrubberTop - tvSpec.titleTop - theme.space.md}}>{loading ? <SkeletonBlock width="70%" height={titleStyle.fontSize}/> : <>
-          {/* A long title shrinks to fit its fixed box rather than being cut or pushing the scrubber down. */}
-          <Text accessibilityRole="header" numberOfLines={3} adjustsFontSizeToFit minimumFontScale={.4} style={[titleStyle, {color: theme.colors.text}]}>{title}</Text>
+          {/* A title that needs more than two lines at its role takes the page title's role, so it is never cut and never
+              squeezed (Android keeps the full line height when it shrinks text, which spread the lines over the scrubber). */}
+          <Text accessibilityRole="header" onTextLayout={event => {if (!long && event.nativeEvent.lines.length > 2) setLong(true);}}
+            style={[long ? theme.type.pageTitle : titleStyle, {color: theme.colors.text}]}>{title}</Text>
           {byline[0] !== undefined && <Text numberOfLines={1} style={[theme.type.audioByline, {marginTop: theme.space.sm}]}>{byline[0]}</Text>}
           {byline[1] !== undefined && <Text numberOfLines={1} style={[theme.type.meta, {marginTop: theme.space.xs, color: theme.colors.textTertiary}]}>{byline[1]}</Text>}
         </>}</View>

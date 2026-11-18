@@ -62,7 +62,8 @@ function TvComparison({comparison, title, restoreOffset = 0, canRestore, onScrol
     {!!title && <Text style={[nativeType({size: 22, weight: 400, tracking: 0, lineHeight: 31.9}, theme.textScale), {color: theme.colors.textSecondary, marginTop: 10, marginBottom: 14}]}>
       <Text style={{fontFamily: theme.type.bodyStrong.fontFamily}}>{title}</Text></Text>}
     <View style={{paddingVertical: 20, paddingHorizontal: 24, borderRadius: 18, backgroundColor: 'rgba(237,245,250,.05)', marginBottom: 22}}>
-      <View style={{flexDirection: 'row', alignItems: 'center'}}>
+      {/* The network drops under the route when the panel is narrower than the route and it together. */}
+      <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', rowGap: 10}}>
         <View style={{flexDirection: 'row', alignItems: 'center', gap: 14}}>
           {routes.map((route, index) => <React.Fragment key={route}>
             {index > 0 && <View style={{width: 60, height: 2, backgroundColor: 'rgba(237,245,250,.16)'}}/>}
