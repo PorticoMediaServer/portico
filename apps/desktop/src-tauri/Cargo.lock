@@ -2571,12 +2571,14 @@ dependencies = [
 name = "portico-desktop"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
  "ureq",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
