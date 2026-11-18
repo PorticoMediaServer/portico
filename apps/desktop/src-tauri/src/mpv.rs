@@ -66,11 +66,24 @@ fn binary() -> std::path::PathBuf {
     shipped.filter(|path| path.exists()).unwrap_or_else(|| name.into())
 }
 
+/// The command that starts mpv. The macOS app ships MoltenVK, the only Vulkan driver a Mac has,
+/// beside its mpv; the Vulkan loader never looks there by itself, so it is told where the
+/// driver's manifest is, or mpv has nothing to draw with.
+fn command(binary: &std::path::Path) -> Command {
+    let mut command = Command::new(binary);
+    let manifest = binary.parent().filter(|_| binary.is_absolute()).map(|dir| dir.join("lib").join("MoltenVK_icd.json"));
+    if let Some(manifest) = manifest.filter(|path| path.is_file()) {
+        // VK_ICD_FILENAMES is the same setting under the name older loaders read.
+        command.env("VK_DRIVER_FILES", &manifest).env("VK_ICD_FILENAMES", &manifest);
+    }
+    command
+}
+
 /// Whether mpv runs here. The capability document names mpv only when it does, so a computer
 /// without mpv is never sent a file only mpv could play.
 pub fn available() -> bool {
     static FOUND: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *FOUND.get_or_init(|| Command::new(binary()).arg("--version").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
+    *FOUND.get_or_init(|| command(&binary()).arg("--version").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
         .status().is_ok_and(|status| status.success()))
 }
 
@@ -108,7 +121,7 @@ fn connect(address: &str) -> std::io::Result<(Pipe, Pipe)> {
 impl Mpv {
     fn start(extra: &[&str]) -> Result<Running, String> {
         let (address, folder) = ipc_address()?;
-        let mut child = Command::new(binary())
+        let mut child = command(&binary())
             .args(["--idle=yes", "--force-window=no", "--keep-open=yes", "--no-config", "--no-terminal", "--ytdl=no", "--title=Portico",
                 "--fullscreen", "--vo=gpu-next,gpu", "--hwdec=auto-safe", "--target-colorspace-hint=yes"])
             .args(extra)
@@ -299,6 +312,18 @@ mod tests {
         assert!(first.len() < 104, "{first}");
         std::fs::remove_dir_all(folder).unwrap();
         std::fs::remove_dir_all(other.unwrap()).unwrap();
+    }
+
+    #[test]
+    fn a_shipped_vulkan_driver_is_named_to_mpv_and_nothing_else_is() {
+        let dir = std::env::temp_dir().join(format!("portico-mpv-test-{}", random_name()));
+        std::fs::create_dir_all(dir.join("lib")).unwrap();
+        let driver = |command: &Command| command.get_envs().find(|(key, _)| *key == "VK_DRIVER_FILES").and_then(|(_, value)| value.map(std::path::PathBuf::from));
+        assert_eq!(driver(&command(&dir.join("mpv"))), None, "no manifest shipped");
+        std::fs::write(dir.join("lib").join("MoltenVK_icd.json"), "{}").unwrap();
+        assert_eq!(driver(&command(&dir.join("mpv"))), Some(dir.join("lib").join("MoltenVK_icd.json")));
+        assert_eq!(driver(&command(std::path::Path::new("mpv"))), None, "mpv on the PATH brings its own setup");
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

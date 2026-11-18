@@ -141,8 +141,16 @@ jobs:
             brew install mpv dylibbundler
             cp "$(brew --prefix)/bin/mpv" mpv/mpv && chmod u+w mpv/mpv
             dylibbundler -od -b -x mpv/mpv -d mpv/lib -p @executable_path/lib/ > /dev/null
+            # mpv draws through Vulkan, which a Mac has only through MoltenVK: its driver, and the
+            # manifest the Vulkan loader reads, pointing at the copy beside it. The app names that
+            # manifest to mpv when it starts it.
+            vk=$(brew --prefix molten-vk)
+            cp "$vk/lib/libMoltenVK.dylib" mpv/lib/ && chmod u+w mpv/lib/libMoltenVK.dylib
+            install_name_tool -id @loader_path/libMoltenVK.dylib mpv/lib/libMoltenVK.dylib
+            codesign --force -s - mpv/lib/libMoltenVK.dylib
+            jq '.ICD.library_path = "./libMoltenVK.dylib"' "$vk/etc/vulkan/icd.d/MoltenVK_icd.json" > mpv/lib/MoltenVK_icd.json
             if otool -L mpv/mpv mpv/lib/*.dylib | grep -q "$(brew --prefix)"; then echo "mpv still points into Homebrew"; exit 1; fi
-            brew unlink mpv
+            brew unlink mpv molten-vk
           fi
           ls -la mpv | head
       - name: Installer
@@ -166,6 +174,13 @@ jobs:
             node scripts/smoke.mjs src-tauri/target/debug/portico-desktop.exe
           else
             node scripts/smoke.mjs "src-tauri/target/debug/bundle/macos/Portico.app/Contents/MacOS/portico-desktop"
+            # The bundled mpv opens its Vulkan picture output on the shipped driver alone (nothing of
+            # Homebrew's is linked now). The runner's virtual GPU then crashes MoltenVK at the first
+            # frame, as it does Homebrew's own mpv, so the check is that the output opened, not the exit.
+            mpv=src-tauri/target/debug/bundle/macos/Portico.app/Contents/Resources/mpv
+            VK_DRIVER_FILES="$PWD/$mpv/lib/MoltenVK_icd.json" "$mpv/mpv" --no-config --vo=gpu-next --ao=null --length=1 \
+              av://lavfi:testsrc2 > "$RUNNER_TEMP/mpv.log" 2>&1 || true
+            if ! grep -q "VO: \[gpu-next\]" "$RUNNER_TEMP/mpv.log"; then cat "$RUNNER_TEMP/mpv.log"; echo "the bundled mpv found no Vulkan driver"; exit 1; fi
           fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
