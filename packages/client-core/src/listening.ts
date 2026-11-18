@@ -63,27 +63,6 @@ function listeningItemOf(v:unknown,itemId:string):ListeningItem {
  if(v.kind==='track')return Object.freeze({itemId,libraryId:v.libraryId,kind:'song',...(id(v.parentId)?{albumId:v.parentId}:{}),...(id(v.rootId)?{artistId:v.rootId}:{})});
  return Object.freeze({itemId,libraryId:v.libraryId,kind:v.kind});
 }
-/** Expands the server's complete selection through signed, revision-bound pages.
- * Refuses an over-capacity selection rather than silently using its first page. */
-export async function loadListeningSelection(request:ListeningRequest,scope:QueueScope,target:ListeningTarget,options:{mix?:boolean;resume?:boolean;capacity?:number;startItem?:string;signal?:AbortSignal}={}) {
- const entries:QueueItemInput[]=[],seen=new Set<string>(),cursors=new Set<string>();let cursor='',seed='',total=-1,unavailable=0,startSeconds:number|undefined;
- const capacity=Math.max(0,Math.min(1000,options.capacity??1000));
- do {
-  if(options.signal?.aborted)throw new Error('Listening action cancelled.');
-  const q=new URLSearchParams({kind:target.kind,entityId:target.id,mode:options.mix?'mix':'ordered',resume:String(options.resume??false),limit:'100'});if(options.startItem)q.set('startItem',options.startItem);if(cursor)q.set('cursor',cursor);if(seed)q.set('seed',seed);
-  const d=listeningData(await request(encodedRoutePath("get_libraries_id_listening_selection", {"id": encodeURIComponent(target.libraryId)}) + "?" + (q),undefined,'GET',options.signal),scope);
-  if(!object(d)||!object(d.target)||d.target.libraryId!==target.libraryId||d.target.kind!==target.kind||d.target.id!==target.id||!counter(d.totalCount)||!counter(d.unavailableCount)||!Array.isArray(d.entries)||d.entries.length>100||typeof d.nextCursor!=='string'||d.nextCursor.length>4096||typeof d.seed!=='string'||d.seed.length>128)bad();
-  if(total!==-1&&(total!==d.totalCount||seed!==d.seed||unavailable!==d.unavailableCount))bad();
-  total=d.totalCount;seed=d.seed;unavailable=d.unavailableCount;
-  if(total>capacity)throw new Error(`This selection has ${total.toLocaleString()} available items; this device queue has room for ${capacity.toLocaleString()}. Use the page actions or remove queue entries first (1,000 maximum).`);
-  if(d.resume!==undefined){d.resume=wireDurations(d.resume,{positionSeconds:'positionMs'});if(!object(d.resume)||!id(d.resume.itemId)||!finite(d.resume.positionSeconds))bad();if(!entries.length)startSeconds=d.resume.positionSeconds;}
-  for(const raw of d.entries){const row=parseQueueItem(raw);if(seen.has(row.itemId))bad();seen.add(row.itemId);entries.push(row);}
-  cursor=d.nextCursor;if(cursor){if(!d.entries.length||cursors.has(cursor))bad();cursors.add(cursor);}
- }while(cursor);
- if(entries.length!==total)bad();
- if(!entries.length)throw new Error('No available listening items were found. Check the library source or choose another item.');
- return Object.freeze({entries:Object.freeze(entries),seed,unavailableCount:unavailable,startSeconds});
-}
 
 export class ListeningService {
  private state:ListeningSnapshot=Object.freeze({eqApplied:false,levelingApplied:false,phase:'loading',preferences:null,context:null,rate:1,timer:null,timerLoading:false,stopped:false,message:null,error:null});
@@ -301,23 +280,6 @@ export function parseBookProgress(v:unknown):BookProgress{
  if(out.durationMs!==undefined&&out.positionMs!==undefined&&out.positionMs>out.durationMs)bad();
  if(v.chapter!==undefined){const c=v.chapter;if(!object(c)||!counter(c.index)||!Number.isSafeInteger(c.number)||(c.number as number)<1||typeof c.title!=='string'||c.title.length>2048||/[\x00-\x1f\x7f]/.test(c.title)||!counter(c.startMs)||!counter(c.endMs)||c.endMs<=c.startMs||out.partPositionMs<c.startMs||out.partPositionMs>=c.endMs)bad();out.chapter=Object.freeze({index:c.index,number:c.number as number,title:c.title,startMs:c.startMs,endMs:c.endMs});}
  return Object.freeze(out);
-}
-export type BookTimelinePart=Readonly<{itemId:string;title:string;discNumber?:number;partNumber?:number;offsetMs?:number;durationMs?:number}>;
-export type BookTimeline=Readonly<{bookId:string;libraryId:string;revision:Readonly<{catalog:number;viewer:number}>;parts:readonly BookTimelinePart[];totalCount:number;nextCursor:string;durationMs?:number;progress?:BookProgress;seek?:Readonly<{itemId:string;startMs:number}>}>;
-export function parseBookTimeline(v:unknown,bookId:string):BookTimeline{
- if(!object(v)||v.bookId!==bookId||!id(v.libraryId)||!object(v.revision)||!counter(v.revision.catalog)||!counter(v.revision.viewer)||!counter(v.totalCount)||!Array.isArray(v.parts)||v.parts.length>100||v.parts.length>v.totalCount||typeof v.nextCursor!=='string'||v.nextCursor.length>4096)bad();
- const ids=new Set<string>();let previousEnd:number|undefined;
- const parts=v.parts.map(raw=>{if(!object(raw)||!id(raw.itemId)||ids.has(raw.itemId)||typeof raw.title!=='string'||raw.title.length>2048||/[\x00-\x1f\x7f]/.test(raw.title))bad();ids.add(raw.itemId);const p:{-readonly[K in keyof BookTimelinePart]:BookTimelinePart[K]}={itemId:raw.itemId,title:raw.title};for(const k of ['discNumber','partNumber','offsetMs','durationMs'] as const){if(raw[k]!==undefined){if(!counter(raw[k]))bad();p[k]=raw[k];}}if(previousEnd!==undefined&&p.offsetMs!==undefined&&p.offsetMs<previousEnd)bad();previousEnd=p.offsetMs!==undefined&&p.durationMs!==undefined?p.offsetMs+p.durationMs:undefined;return Object.freeze(p);});
- const out:{-readonly[K in keyof BookTimeline]:BookTimeline[K]}={bookId,libraryId:v.libraryId,revision:Object.freeze({catalog:v.revision.catalog,viewer:v.revision.viewer}),parts:Object.freeze(parts),totalCount:v.totalCount,nextCursor:v.nextCursor};
- if(v.durationMs!==undefined){if(!counter(v.durationMs))bad();out.durationMs=v.durationMs;}
- if(v.progress!==undefined){out.progress=parseBookProgress(v.progress);if(out.progress.bookId!==bookId)bad();}
- if(v.seek!==undefined){if(!object(v.seek)||!id(v.seek.itemId)||!counter(v.seek.startMs))bad();out.seek=Object.freeze({itemId:v.seek.itemId,startMs:v.seek.startMs});}
- return Object.freeze(out);
-}
-export async function readBookTimeline(request:ListeningRequest,scope:QueueScope,bookId:string,options:{cursor?:string;limit?:number;positionMs?:number;signal?:AbortSignal}={}):Promise<BookTimeline>{
- const q=new URLSearchParams();if(options.cursor)q.set('cursor',options.cursor);if(options.limit!==undefined)q.set('limit',String(options.limit));if(options.positionMs!==undefined){if(!counter(options.positionMs))bad();q.set('positionMs',String(options.positionMs));}
- const raw=await request(encodedRoutePath('get_books_id_timeline',{id:encodeURIComponent(bookId)})+(q.size?'?'+q:''),undefined,'GET',options.signal);
- return parseBookTimeline(listeningData(raw,scope),bookId);
 }
 
 /** Screen choices follow the media boundary; a file part is never labelled as a book. */

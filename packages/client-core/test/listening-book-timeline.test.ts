@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseBookProgress,parseBookTimeline,readBookTimeline,listeningSleepChoices} from '../src/listening.ts';
+import {parseBookProgress,listeningSleepChoices} from '../src/listening.ts';
 import {validateContentEntry} from '../src/library-content.ts';
 
 const progress={bookId:'book',itemId:'part',partPositionMs:15000,positionMs:75000,durationMs:150000,remainingMs:75000,chapter:{index:0,number:3,title:'Actual chapter',startMs:10000,endMs:60000}};
@@ -12,15 +12,6 @@ test('nested book progress stays in integer milliseconds while outer legacy disp
  assert.equal(validateContentEntry({id:'another',kind:'book',title:'Other',bookProgress:progress}).bookProgress,undefined);
  for(const patch of [{partPositionMs:1.5},{positionMs:-1},{remainingMs:1},{chapter:{...progress.chapter,index:-1}},{chapter:{...progress.chapter,number:0}},{chapter:{...progress.chapter,number:undefined}},{chapter:{...progress.chapter,startMs:15001}},{chapter:{...progress.chapter,endMs:15000}}])assert.throws(()=>parseBookProgress({...progress,...patch}));
  assert.deepEqual(parseBookProgress({bookId:'book',itemId:'part',partPositionMs:15}),{bookId:'book',itemId:'part',partPositionMs:15},'missing totals and chapter marks stay absent');
-});
-test('book timelines preserve exact targets, bounded pages and scope while dropping private extras',async()=>{
- const out=parseBookTimeline({...timeline,privatePath:'/private',parts:[{...timeline.parts[0],path:'/private/book'}]},'book');
- assert.equal(out.seek?.itemId,'part');assert.equal(out.parts[0].offsetMs,60000);assert.equal((out.parts[0] as any).path,undefined);assert.ok(Object.isFrozen(out.parts));
- for(const raw of [{...timeline,bookId:'other'},{...timeline,parts:Array(101).fill(timeline.parts[0])},{...timeline,parts:[timeline.parts[0],timeline.parts[0]]},{...timeline,parts:[{...timeline.parts[0],offsetMs:NaN}]}])assert.throws(()=>parseBookTimeline(raw,'book'));
- const scope={serverId:'server',authority:'local' as const,accountId:'a',profileId:'p',controllerId:'c',controllerEpoch:'e',commandLaneId:'l'};
- const calls:string[]=[];await readBookTimeline(async path=>{calls.push(path);return{scope,data:timeline};},scope,'book',{cursor:'next',positionMs:75000,limit:1});
- assert.match(calls[0],/^\/v1\/books\/book\/timeline\?/);assert.match(calls[0],/positionMs=75000/);
- await assert.rejects(readBookTimeline(async()=>({scope:{...scope,profileId:'different'},data:timeline}),scope,'book'));
 });
 test('book and music metadata survive shared content parsing without fabricated facts',()=>{
  const book=validateContentEntry({id:'book',kind:'book',title:'Title (Abridged)',displayTitle:'Title',edition:'Abridged',narrators:['Reader'],series:[{name:'Saga',position:'2.5'}],publisher:'Press',language:'en',publishedYear:2020});

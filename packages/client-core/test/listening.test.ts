@@ -1,7 +1,7 @@
 import test,{type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
 import {legacyListening} from './fixtures/legacy-listening.ts';
-import {ListeningService,loadListeningSelection,listeningItemInput,parseListeningJourney,parseListeningPreferences,readBookTimeline,type ListeningRequest} from '../src/listening.ts';
+import {ListeningService,parseListeningJourney,parseListeningPreferences,type ListeningRequest} from '../src/listening.ts';
 import type {PlaybackService} from '../src/index.ts';
 import {defaultAudiobookPreferences,type AudiobookPreferences} from '../src/audiobook-preferences.ts';
 import {defaultAudioEffects,type AudioEffectsSnapshot} from '../src/audio-effects.ts';
@@ -107,25 +107,6 @@ test('a refused save keeps the actual preference and asks for a reload (the rebu
  assert.equal(f.service.getSnapshot().context,null);failedContext=false;f.service.retryContext();await settle();assert.equal(f.service.getSnapshot().context?.itemId,'song');
  await assert.rejects(f.service.savePreferences({bookRate:2}),/could not be confirmed/);assert.deepEqual(f.service.getSnapshot().preferences,prefs);assert.equal(f.service.getSnapshot().phase,'error');await f.service.refreshPreferences();assert.equal(f.service.getSnapshot().phase,'ready');
 });
-test('full listening action reads every signed page, preserving server order and mix seed',async()=>{
- const items=Array.from({length:205},(_,i)=>listeningItemInput(`song-${i}`,target));let calls=0;
- const result=await loadListeningSelection(async path=>{const q=new URL(path,'https://server.test').searchParams;const at=Number(q.get('cursor')??0);calls++;if(at)assert.equal(q.get('seed'),'server-seed');return wrapped({target,entries:items.slice(at,at+100),totalCount:205,unavailableCount:3,nextCursor:at+100<205?String(at+100):'',seed:'server-seed'});},scope,target,{mix:true});
- assert.equal(calls,3);assert.deepEqual(result.entries,items);assert.equal(result.unavailableCount,3);assert.equal(result.seed,'server-seed');
-});
-test('selection refuses partial lists, repeated cursors, scope changes and queue overflow without a mutation',async()=>{
- const data={target,entries:[listeningItemInput('song',target)],totalCount:2,unavailableCount:0,nextCursor:'cursor',seed:''};
- await assert.rejects(loadListeningSelection(async()=>wrapped(data),scope,target,{capacity:1}),/room for 1/);
- await assert.rejects(loadListeningSelection(async()=>wrapped(data),scope,target));
- await assert.rejects(loadListeningSelection(async()=>wrapped({...data,nextCursor:''}),scope,target));
- await assert.rejects(loadListeningSelection(async()=>wrapped({...data,totalCount:1,nextCursor:''},{accountId:'other'}),scope,target));
- const abort=new AbortController();abort.abort();let calls=0;await assert.rejects(loadListeningSelection(async()=>{calls++;return wrapped(data);},scope,target,{signal:abort.signal}));assert.equal(calls,0);
-});
-test('book resume and explicit chapter selection preserve server part order and absolute source start',async()=>{
- const book={libraryId:'library',kind:'book' as const,id:'book'};let path='';const data={target:book,entries:[listeningItemInput('part-2',book),listeningItemInput('part-3',book)],totalCount:2,unavailableCount:0,nextCursor:'',seed:'',resume:{itemId:'part-2',positionMs:123500}};
- const r=await loadListeningSelection(async p=>{path=p;return wrapped(data);},scope,book,{resume:true});assert.match(path,/resume=true/);assert.equal(r.startSeconds,123.5);assert.equal(r.entries[0].itemId,'part-2');
- await loadListeningSelection(async p=>{path=p;return wrapped({...data,resume:undefined});},scope,book,{startItem:'part-2'});assert.match(path,/startItem=part-2/);
-});
-
 test('native policy has stable timer/activity revisions; observations cannot extend deadlines',async t=>{
  const f=setup(t);await settle();
  await f.service.setTimer(15);const armed=f.engine.policies.at(-1);assert.ok(armed.timer.wallDeadline>Date.now());
@@ -230,12 +211,6 @@ test('a synchronous local replacement during rate publication cannot apply the r
  assert.equal(f.engine.rates.includes(1.5),false);
 });
 
-test('a listening journey keeps millisecond resume and drops only unknown actions',()=>{
- const result=parseListeningJourney({target:{libraryId:'library',kind:'book',id:'book'},actions:['play','future','play'],resume:{itemId:'part',positionMs:123500},resumeUnavailable:false},'library');
- assert.deepEqual(result.actions,['play']);
- assert.deepEqual(result.resume,{itemId:'part',positionSeconds:123.5});
-});
-
 test('listening exposes actual engine processing facts and clears them when the engine clears them',async t=>{
  const f=setup(t);await settle();
  assert.equal(f.service.getSnapshot().eqApplied,false);assert.equal(f.service.getSnapshot().levelingApplied,false);
@@ -329,13 +304,6 @@ test('a misordered part, a new playback run or another native owner clears the b
  await f.service.setTimer('book');
  f.engine.update({nativeListening:{owner:'owner-b'}});
  assert.equal(f.service.getSnapshot().timer,null,'another native owner never inherits the boundary');
-});
-test('the book timeline is read from its real scoped path with the server order',async()=>{
- const paths:string[]=[];
- const timeline=await readBookTimeline(async path=>{paths.push(path);return wrapped(bookTimeline('',{parts:['part-a','part-b'],totalCount:2}));},scope,'book',{limit:100});
- assert.deepEqual(timeline.parts.map(part=>part.itemId),['part-a','part-b']);
- assert.match(paths[0],/^\/v1\/books\/book\/timeline\?/);
- assert.match(paths[0],/limit=100/);
 });
 test('a pending native acknowledgement shows no armed timer and blocks continuation',async t=>{
  const f=setup(t);await settle();
@@ -562,4 +530,10 @@ test('the playing item\'s listening details and chapters come from its own item 
  await service.setTimer('chapter');assert.equal(service.getSnapshot().timer?.label,'End of chapter: Two');assert.equal(service.getSnapshot().timer?.endSeconds,120);
  await service.setTimer('book');assert.equal(service.getSnapshot().timer?.label,'End of this book');
  assert.equal(paths.filter(p=>!p.startsWith('/v1/preferences')).length,1,'no second read for chapters');
+});
+
+test('a listening journey keeps millisecond resume and drops only unknown actions',()=>{
+ const result=parseListeningJourney({target:{libraryId:'library',kind:'book',id:'book'},actions:['play','future','play'],resume:{itemId:'part',positionMs:123500},resumeUnavailable:false},'library');
+ assert.deepEqual(result.actions,['play']);
+ assert.deepEqual(result.resume,{itemId:'part',positionSeconds:123.5});
 });

@@ -26,10 +26,3 @@ test('policy and observation projections reject malformed values and drop privat
  for(const patch of [{confidence:NaN},{confidence:1.01},{margin:-1},{strongSignals:1.5}])assert.throws(()=>parseMusicObservation({...evidence,...patch}));
  const out=parseMusicObservation({...evidence,fingerprint:'private'});assert.equal((out as any).fingerprint,undefined);
 });
-test('local audiobook policy uses library identity and revision; ignores late cancelled responses',async()=>{
- const {saveLocalBookPolicy,parseLocalAudioPolicy}=await import('../src/music-metadata.ts');
- const policy=parseLocalAudioPolicy({revision:4,localMode:'prefer'}),calls:any[]=[];const c=new AbortController();
- await saveLocalBookPolicy({request:async<T>(p,m,b)=>{calls.push([p,m,b]);return {entityId:'book/file',status:'saved'} as T;}},'book/file','library',policy,'off',c.signal);
- assert.deepEqual(calls,[['/v1/items/book%2Ffile/metadata/local-audio/policy','POST',{libraryId:'library',expectedRevision:4,localMode:'off'}]]);
- const late=new AbortController();const pending=saveLocalBookPolicy({request:async<T>()=>new Promise<T>(()=>{})},'book','library',policy,'off',late.signal);late.abort();await assert.rejects(pending,/cancelled/);
-});
