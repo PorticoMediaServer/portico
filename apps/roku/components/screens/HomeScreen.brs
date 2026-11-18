@@ -184,8 +184,8 @@ sub onRowItems(event as object)
     entry = m.rows[ctx.index]
     if entry.row.id <> ctx.id then return
     entry.asked = false
-    dropSkeleton(entry)
     if not result.ok
+        dropSkeleton(entry)
         ' a row that has titles keeps its cursor, and the next card in focus asks again; an unread
         ' row is not asked again and again
         entry.row.deferred = false
@@ -198,7 +198,8 @@ sub onRowItems(event as object)
     entry.row.nextCursor = result.data.nextCursor
     entry.row.deferred = false
     if entry.shelf <> invalid
-        appendCards(entry.shelf.cards, entry.row.shape, more)
+        appendCards(entry.shelf.cards, entry.row.shape, more, entry.skeleton = true)
+        dropSkeleton(entry)
         if ctx.index = m.focus then describe()     ' focus may be waiting where the skeleton was
     else
         place()
@@ -248,12 +249,17 @@ sub onActive()
     end if
 end sub
 
-sub appendCards(cards as object, shape as string, items as object)
+sub appendCards(cards as object, shape as string, items as object, beforeLast = false as boolean)
+    ' With the skeleton at the row's end the cards go in before it, so focus waiting on it is on the
+    ' page's first card once they are in: taking out the card focus is on would send a row back to
+    ' its first card (walk result pages-03, step B4).
     g = shelfMetrics(shape).card
     for each item in items
         card = cardFor(item, shape)
         card.art = imageUrl(card.art, g[0], g[1])
-        cards.createChild("ContentNode").addFields(card)
+        node = createObject("roSGNode", "ContentNode")
+        node.addFields(card)
+        if beforeLast then cards.insertChild(node, cards.getChildCount() - 1) else cards.appendChild(node)
     end for
 end sub
 
@@ -407,7 +413,11 @@ sub dropSkeleton(entry as object)
     if entry.skeleton <> true or entry.shelf = invalid then return
     entry.skeleton = false
     cards = entry.shelf.cards
-    cards.removeChildIndex(cards.getChildCount() - 1)
+    last = cards.getChildCount() - 1
+    onIt = (entry.shelf.focusedIndex >= last)
+    cards.removeChildIndex(last)
+    ' the page did not come and focus was on the skeleton: back to the last card, not the first
+    if onIt and last > 0 then entry.shelf.jumpTo = last - 1
 end sub
 
 sub onCardSelected(event as object)
