@@ -22,7 +22,7 @@ func (stubProber) Probe(context.Context, string) (scan.Facts, error) {
 }
 
 // The owner makes a collection of two films, renames it, adds, removes and orders its titles,
-// and deletes it; a member may not; a film of another library is refused. A collection whose
+// and deletes it; a member may not; a film of another library is refused. Its card counts its titles. A collection whose
 // last film leaves the server goes with it.
 func TestLibraryCollections(t *testing.T) {
 	ctx := context.Background()
@@ -113,6 +113,13 @@ func TestLibraryCollections(t *testing.T) {
 	do("PATCH", "/v1/admin/collections/"+made.ID, "", CollectionEdit{Order: []string{films["Brazil"]}}, nil, 204)
 	if got := held(made.ID); !slices.Equal(got, []string{"Brazil", "Heat"}) {
 		t.Fatalf("after putting Brazil first: %v", got)
+	}
+	// Its card counts the titles it holds, and one the profile has watched is not unwatched.
+	do("PUT", "/v1/items/"+films["Heat"]+"/state", "", map[string]any{"watched": true}, nil, 200)
+	for _, card := range get[ItemPage](t, s, owner, "/v1/items?kind=collection&library="+libs[0].PublicID).Items {
+		if card.ID == made.ID && (card.Counts == nil || *card.Counts != ItemCounts{Children: 2, Leaves: 2, UnwatchedLeaves: 1}) {
+			t.Fatalf("the collection's card counts %+v, want 2 titles, 1 unwatched", card.Counts)
+		}
 	}
 
 	viewers, err := seed.Profiles(ctx, s.db, 1)

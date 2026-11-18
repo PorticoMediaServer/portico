@@ -8,15 +8,17 @@ import (
 // loadLeafCounts fills Leaves and WatchedLeaves for the items that hold others, and from them
 // whether the viewer has watched the whole of each. For a profile with a rating limit or a
 // blocked label it also counts each holder's children again, so a show's seasons or an
-// artist's albums are only those the profile can list.
+// artist's albums are only those the profile can list. A series or a library collection holds
+// its titles as relations, and each title it holds counts once.
 func loadLeafCounts(ctx context.Context, tx *sql.Tx, v Viewer, acc access, items []Item) error {
-	var holders, series []Item
+	var holders, grouping []Item
 	byID := map[int64]*Item{}
 	for n := range items {
-		if items[n].Kind == KindSeries {
-			series = append(series, items[n])
+		related := items[n].Kind == KindSeries || items[n].Kind == KindCollection
+		if related {
+			grouping = append(grouping, items[n])
 		}
-		if !items[n].Kind.Playable() && (items[n].ChildCount > 0 || items[n].Kind == KindSeries) {
+		if !items[n].Kind.Playable() && (items[n].ChildCount > 0 || related) {
 			holders = append(holders, items[n])
 			byID[items[n].ID] = &items[n]
 		}
@@ -79,19 +81,20 @@ func loadLeafCounts(ctx context.Context, tx *sql.Tx, v Viewer, acc access, items
 			return err
 		}
 	}
-	if len(series) == 0 {
+	if len(grouping) == 0 {
 		return nil
 	}
 	// A series page lists both direct children and related volumes. UNION counts a volume
-	// only once when it is held both ways, under the same visibility rules as that page.
-	for _, h := range series {
+	// only once when it is held both ways, under the same visibility rules as that page. A
+	// collection's titles are only related, and one counts as watched when its own mark says so.
+	for _, h := range grouping {
 		it := byID[h.ID]
 		it.ChildCount, it.Leaves, it.WatchedLeaves, it.State.Watched = 0, 0, 0, false
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT g.holder, count(*), count(w.item_id) FROM (
-		SELECT c.parent_id AS holder, c.id FROM items c WHERE c.parent_id IN `+idList(series)+` AND `+acc.visible("c")+`
+		SELECT c.parent_id AS holder, c.id FROM items c WHERE c.parent_id IN `+idList(grouping)+` AND `+acc.visible("c")+`
 		UNION SELECT r.item_id, c.id FROM item_relations r JOIN items c ON c.id = r.related_item_id
-		WHERE r.kind = `+itoa(int64(RelationSeriesMember))+` AND r.item_id IN `+idList(series)+` AND `+acc.visible("c")+`
+		WHERE r.kind IN (`+itoa(int64(RelationSeriesMember))+`, `+itoa(int64(RelationCollectionMember))+`) AND r.item_id IN `+idList(grouping)+` AND `+acc.visible("c")+`
 	) g LEFT JOIN user_item_state w ON w.profile_id = @viewer_profile AND w.item_id = g.id AND w.played = 1 GROUP BY g.holder`, v.args()...)
 	if err != nil {
 		return err
