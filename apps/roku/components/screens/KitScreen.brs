@@ -207,7 +207,8 @@ sub drawFrame(name as string)
     for each key in sortedKeys(numbers)
         value = numbers[key]
         low = lcase(key)
-        if type(value) <> "roInt" and type(value) <> "Integer" and type(value) <> "roFloat" and type(value) <> "Float"
+        ' a number of any kind: a table's numbers come boxed (roInteger) on the TV, so ask what it can do
+        if getInterface(value, "ifInt") = invalid and getInterface(value, "ifFloat") = invalid and getInterface(value, "ifDouble") = invalid
             ' not a number
         else if right(low, 1) = "x" or instr(1, low, "left") > 0 or instr(1, low, "right") > 0 or low = "gutter"
             frameLine(value, 0, 2, 1080, c.accent, key + " " + value.toStr(), [value + 6, 60 + (across mod 24) * 40])
