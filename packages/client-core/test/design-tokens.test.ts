@@ -51,7 +51,7 @@ test('surface radii and platform geometry match the approved kit', () => {
   assert.deepEqual({tag: radii.tag, artwork: radii.artwork, heroButton: radii.heroButton, fallback: radii.fallback, banner: radii.banner}, {tag: 6, artwork: 10, heroButton: 12, fallback: 14, banner: 16});
   assert.equal(platformRadii.tv.artwork, 14);
   assert.equal(platformRadii.phone.heroButton, 10);
-  assert.deepEqual(layout.gutter, {desktop: 64, desktopNarrow: 32, phone: 20, tablet: 20, tv: 200, tvRight: 96, tvAuth: 120, tvPlayer: 96});
+  assert.deepEqual(layout.gutter, {desktop: 64, desktopNarrow: 32, phone: 20, tablet: 28, tv: 200, tvRight: 96, tvAuth: 120, tvPlayer: 96});
   assert.deepEqual(layout.breakpoint, {phone: 600, desktop: 1024});
 });
 
