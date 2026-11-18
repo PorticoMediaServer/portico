@@ -22,7 +22,7 @@ jobs:
       matrix:
         os: [ubuntu-24.04, windows-2025, macos-15]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     defaults:
       run:
         shell: bash
@@ -38,13 +38,21 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - name: System libraries and mpv
-        # A stalled package mirror hung this step for over 30 minutes twice (#4071, #4111);
-        # bounded, it fails within minutes and the job can be run again.
-        timeout-minutes: 10
+        # The package mirror is sometimes slow enough that a 10-minute bound failed the job (#4119,
+        # #4125). apt keeps what it fetched, so each bounded attempt carries on from the last one.
+        # No recommended extras (yt-dlp, speech data, video drivers): only what the build and the
+        # start-up check use, named here where a recommendation used to bring it.
+        timeout-minutes: 40
         run: |
-          apt=(sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30)
           case "$RUNNER_OS" in
-            Linux) "${apt[@]}" update -qq && "${apt[@]}" install -y -qq libwebkit2gtk-4.1-dev xvfb mpv ;;
+            Linux)
+              apt=(sudo DEBIAN_FRONTEND=noninteractive apt-get -q -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=60)
+              for attempt in 1 2 3 4; do
+                if timeout 120 "${apt[@]}" update && timeout 480 "${apt[@]}" install -y --no-install-recommends libwebkit2gtk-4.1-dev xvfb xauth mpv \
+                    libgl1-mesa-dri gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-gl; then break; fi
+                [ "$attempt" = 4 ] && exit 1
+                echo "::warning::package install attempt $attempt failed or stalled; trying again"
+              done ;;
             macOS) brew install mpv ;;
             Windows) choco install mpv -y --no-progress ;;
           esac
