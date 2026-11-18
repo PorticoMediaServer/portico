@@ -32,8 +32,8 @@ export function PlayerControl({icon, label, onPress, disabled, active, primary =
 }
 
 /** The time read-outs under a scrubber: where it is, and how long is left. (The video frame places its own.) */
-export function PlayerTimes({position, remaining}: {position: string; remaining?: string}) {
-  return <div className={styles.times}><b>{position}</b><b>{remaining}</b></div>;
+export function PlayerTimes({position, remaining, middle}: {position: string; remaining?: string; /** Between them: an audiobook's time left in the book. */ middle?: string}) {
+  return <div className={styles.times}><b>{position}</b>{middle !== undefined && <span>{middle}</span>}<b>{remaining}</b></div>;
 }
 
 /** Mute and the volume line beside it. */

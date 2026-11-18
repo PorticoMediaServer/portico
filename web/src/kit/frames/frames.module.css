@@ -88,7 +88,9 @@
 .titleCredits > span { margin-inline-end: var(--space-md); }
 .titleCredits b { color: var(--color-text-secondary); font-weight: inherit; }
 .synopsis { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--frame-hero-title-synopsis-lines); overflow: hidden; max-width: var(--spec-hero-synopsis-max-width-web); }
-.titleTabs { margin-top: var(--space-sm); padding: 0 var(--g); }
+/* The tabs start at the gutter; the rule under them belongs to the strip and runs the page's full width (phone-detail 1, desktop-detail 2). */
+.titleTabs { margin-top: var(--space-sm); }
+.tabsInset { padding-left: var(--g); padding-right: var(--g); }
 .titlePanel { display: flex; flex-direction: column; gap: var(--frame-section-gap); margin-top: calc(var(--frame-header-gap) + var(--frame-heading-gap)); }
 @media (min-width: 600px) {
   .titleHead { display: flex; flex-direction: column; justify-content: flex-end; height: var(--frame-hero-title-height); padding-bottom: var(--frame-hero-title-copy-bottom); box-sizing: border-box; }
@@ -195,14 +197,20 @@
    the only space that changes is between them. From 1024: columns placed from the top; Up next scrolls. */
 .audio { display: flex; flex-direction: column; height: 100%; min-height: 100dvh; box-sizing: border-box; padding: 0 var(--frame-audio-inset) max(var(--frame-sheet-footer-clear), env(safe-area-inset-bottom)); max-width: calc(var(--frame-audio-artwork) + 2 * var(--frame-audio-inset)); margin: 0 auto; }
 .audioTop { display: flex; align-items: center; gap: var(--space-xs); height: var(--frame-audio-top-bar); flex: none; }
-.audioTop > p { flex: 1; text-align: center; color: var(--color-text-secondary); }
+.audioContext { flex: 1; min-width: 0; margin: 0; display: flex; flex-direction: column; align-items: center; color: var(--color-text-secondary); }
+.audioContext > b { font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-group-label-weight); color: var(--color-text); }
 /* The title follows the artwork; what is left of the height sits between the title and the scrubber (phone-app 14). */
 .audioArtSpace { flex: none; padding-top: var(--frame-audio-gap); }
 .audioArt { width: 100%; max-width: var(--frame-audio-artwork); aspect-ratio: 1; }
-.audioWords { height: var(--frame-audio-title-slot); margin-top: var(--space-sm); flex: none; display: flex; flex-direction: column; justify-content: flex-start; gap: var(--space-tight); }
+.audioWords { height: var(--frame-audio-title-slot); margin-top: var(--space-sm); flex: none; display: flex; flex-direction: column; flex-direction: row; align-items: flex-start; gap: var(--space-xs); }
+.audioWords > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-tight); }
+.audioWords .intro { font-weight: var(--type-group-label-weight); }
+.audioChapter { margin: 0 0 var(--space-xs); display: flex; align-items: center; gap: var(--space-xs); color: var(--color-text-secondary); }
+.audioChapter > :nth-child(2) { flex: 1; }
+.audioNext b { color: var(--color-text); font-weight: var(--type-group-label-weight); }
 .audioWords h1 { margin: 0; font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); letter-spacing: var(--type-title-tracking); }
 .audioWords > p { min-height: var(--type-row-help-line); }
-.audioScrubber { height: var(--frame-audio-scrubber); margin-top: auto; flex: none; display: flex; flex-direction: column; justify-content: center; gap: var(--frame-player-times-gap); }
+.audioScrubber { min-height: var(--frame-audio-scrubber); margin-top: auto; flex: none; display: flex; flex-direction: column; justify-content: center; gap: var(--frame-player-times-gap); }
 .audioTransport { height: var(--frame-audio-transport); flex: none; display: flex; align-items: center; justify-content: space-between; }
 .audioActive { color: var(--color-accent-strong); }
 .audioNext { height: var(--frame-audio-next-line); flex: none; text-align: center; }
@@ -211,15 +219,21 @@
 .audioOption { flex: 1; min-width: 0; height: 100%; flex-direction: column; gap: var(--space-tight); color: var(--color-text); }
 /* The kit button lays its label out in a row; a slot stacks it. */
 .audioOption > span { display: flex; flex-direction: column; align-items: center; gap: var(--space-tight); }
-.audioOption small { font-size: var(--type-micro-size); font-weight: var(--type-micro-weight); color: var(--color-text-tertiary); }
+.audioOption small { font-size: var(--type-row-help-size); font-weight: var(--type-group-label-weight); color: var(--color-text); }
+.audioOption[data-inline] > span { flex-direction: row; gap: var(--space-xs); }
+.audioOption.audioOption { padding: 0; }
+.audioOption small { white-space: nowrap; }
+.audioOptions[data-tiles] { gap: var(--space-xs); }
+.audioOptions[data-tiles] .audioOption { border-radius: var(--frame-card-radius); background: var(--color-raised-high); box-shadow: inset 0 0 0 1px transparent; }
+.audioOptions[data-tiles] .audioActive { box-shadow: inset 0 0 0 1px var(--color-accent-strong); }
 .audioUpNext { display: none; }
 @media (min-width: 1024px) {
   /* From 1024 (desktop-listen "now", tablet-play 9): the bar spans the window; the phone's column sits centred in the room beside the Up next panel. */
   .audio { display: grid; grid-template-columns: minmax(0, 1fr) var(--frame-audio-up-next); grid-template-rows: var(--frame-audio-top-bar) auto auto 1fr auto auto auto auto; column-gap: var(--frame-audio-gap); max-width: none; margin: 0; padding: var(--frame-header-gap) var(--g) var(--frame-bottom-clear); }
-  .audioTop { grid-column: 1 / -1; } .audioTop > p { text-align: left; }
+  .audioTop { grid-column: 1 / -1; } .audioContext { flex-direction: row; align-items: baseline; gap: var(--space-tight); } .audioContext > b { font-size: var(--type-row-help-size); }
   .audioArtSpace, .audioWords, .audioScrubber, .audioTransport, .audioNext, .audioOptions { grid-column: 1; justify-self: center; width: min(100%, var(--frame-audio-artwork)); }
   .audioArtSpace { padding-top: 0; display: grid; justify-items: center; }
-  .audioArt { width: min(100%, calc(100dvh - var(--frame-audio-top-bar) - var(--frame-audio-title-slot) - var(--frame-audio-scrubber) - var(--frame-audio-transport) - var(--frame-audio-next-line) - var(--frame-audio-bottom-row) - 2 * var(--frame-audio-gap) - var(--frame-bottom-clear))); }
+  .audioArt { width: min(100%, calc(100dvh - var(--frame-audio-top-bar) - var(--frame-audio-title-slot) - var(--frame-audio-scrubber) - var(--frame-audio-transport) - var(--frame-audio-next-line) - var(--frame-audio-bottom-row) - var(--frame-header-gap) - var(--space-sm) - var(--frame-bottom-clear))); }
   .audioArtSpace { grid-row: 2; } .audioWords { grid-row: 3; } .audioScrubber { grid-row: 5; margin-top: 0; } .audioTransport { grid-row: 6; } .audioNext { grid-row: 7; } .audioOptions { grid-row: 8; }
   .audioUpNext { display: block; grid-column: 2; grid-row: 2 / -1; overflow-y: auto; min-height: 0; }
 }

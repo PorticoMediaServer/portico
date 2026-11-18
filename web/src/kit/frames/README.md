@@ -78,3 +78,5 @@ Not in the kit yet, so not drawn here: Chapters, the queue, Playback info and th
 listed in `FRAMES.md` for Stage 2.
 
 Not sections to shoot: `browse` `sort-menu` and `library-switcher` and `cards` `reference` are measurement cases that need the gallery inputs manifest (`web/scripts/config.mjs`); without it they say "gallery inputs unavailable" or stay empty. The `overlays` `toast` case is 1440 wide; shoot `phone-toast` at 390. Shoot with scrollbars hidden.
+
+The `browse` and `layout` families read their measurement inputs (server responses and mock-up pages) from a manifest outside the repository, named by `PORTICO_GALLERY_INPUT_MANIFEST` when the dev server starts (`web/scripts/config.mjs`, guarded by `test/gallery-inputs.test.ts`). They are not in the repository on purpose.

@@ -154,7 +154,7 @@ export function TitleFrame({art, back, topAction, title, metadata, primary, acti
         </div>}
       </div>
     </div>
-    {tabs && <Tabs className={styles.titleTabs} phone={phone} items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} />}
+    {tabs && <Tabs className={styles.titleTabs} listClassName={styles.tabsInset} phone={phone} items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} />}
     <div className={styles.titlePanel}>{loading ? null : children}</div>
   </div>;
 }
@@ -311,23 +311,28 @@ export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, 
 }
 
 /** One control in a fixed slot. A control the item doesn't support keeps its slot with `disabled`, dimmed. */
-export type AudioControl = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean}>;
-/** A bottom-row slot shows an icon or a short value ("1.25×") over its label. */
-export type AudioOption = Omit<AudioControl, 'icon'> & Readonly<{icon?: IconName; value?: string}>;
+export type AudioControl = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean; /** Back or forward: the seconds it skips, drawn in the arrow. */ skip?: number}>;
+/** A bottom-row slot. Music's are a glyph over its label, or `inline` with the glyph beside it (the device). An
+ * audiobook's are tiles: a short `value` ("1.25×", "28 min") or a glyph over the label, outlined in the accent when `active`. */
+export type AudioOption = Omit<AudioControl, 'icon'> & Readonly<{icon?: IconName; value?: string; inline?: boolean}>;
 export type AudioPlayerFrameProps = Readonly<{
   /** Close (the down arrow) and, opposite it, More. Between them, where this is playing from. */
   close: AudioControl; more: AudioControl; context?: string;
+  /** What it is playing from, said strongly after `context`: under it at phone width, beside it from 1024. */
+  source?: string;
   /** The cover. With none, the placeholder with `icon` (music or book) fills the same box. */
   artwork?: ArtworkSource | null; icon: IconName;
   title: string; byline?: string;
-  /** A third line under the byline (an audiobook's chapter). */
-  detail?: string;
+  /** The heart at the end of the title row. */
+  favourite?: AudioControl;
+  /** An audiobook: the chapter line over the scrubber ("Chapter 8" ... "of 19"). */
+  chapter?: Readonly<{label: string; of: string}>;
   /** The player's scrubber; the frame gives it a fixed box. */
   scrubber: ReactNode;
   /** Five fixed slots; the middle one is Play or Pause. */
   transport: readonly [AudioControl, AudioControl, AudioControl, AudioControl, AudioControl];
-  /** "Next: ..." or the chapter position. Its line is kept, blank, when there is nothing to say. */
-  nextLine?: string;
+  /** What plays next ("Next" / "Scared To Live"). Its line is kept, blank, when there is nothing to say. */
+  next?: Readonly<{label: string; title: string}>;
   /** Three or four fixed slots. */
   options: readonly AudioOption[];
   /** From 1024: the queue, the one flexible region there. It scrolls. */
@@ -336,22 +341,26 @@ export type AudioPlayerFrameProps = Readonly<{
 }>;
 /** Frame 8, now playing for music and audiobooks (rule 12). Every region is placed from the frame's edges, so a
  * missing cover, a long title or a missing control never moves the scrubber, the transport or the bottom row. */
-export function AudioPlayerFrame({close, more, context, artwork, icon, title, byline, detail, scrubber, transport, nextLine, options, upNext, loading = false}: AudioPlayerFrameProps) {
+export function AudioPlayerFrame({close, more, context, source, artwork, icon, title, byline, favourite, chapter, scrubber, transport, next, options, upNext, loading = false}: AudioPlayerFrameProps) {
+  const tiles = options.some(item => item.value !== undefined);
   return <div className={`${styles.frame} ${styles.audio}`}>
     <div className={styles.audioTop}>
       <Button variant="icon" size="small" icon={close.icon} aria-label={close.label} onClick={close.onPress} />
-      <p className={`${styles.rowHelp} ${styles.oneLine}`}>{loading ? '' : context}</p>
+      <p className={styles.audioContext}><span className={`${styles.rowHelp} ${styles.oneLine}`}>{loading ? '' : context}</span>{source !== undefined && !loading && <b className={styles.oneLine}>{source}</b>}</p>
       <Button variant="icon" size="small" icon={more.icon} aria-label={more.label} disabled={more.disabled || loading} onClick={more.onPress} />
     </div>
     <div className={styles.audioArtSpace}><div className={styles.audioArt}>{loading ? <Skeleton width="100%" height="100%" sheen /> : <ArtBox kind="square" source={artwork} icon={icon} alt={title} />}</div></div>
-    <div className={styles.audioWords}>{loading ? <><Skeleton line width="64%" /><Skeleton line small width="40%" /></> : <>
-      <h1 className={styles.clamp2}>{title}</h1><p className={`${styles.intro} ${styles.oneLine}`}>{byline}</p>{detail !== undefined && <p className={`${styles.rowHelp} ${styles.oneLine}`}>{detail}</p>}
-    </>}</div>
-    <div className={styles.audioScrubber}>{scrubber}</div>
-    <div className={styles.audioTransport}>{transport.map((item, index) => <PlayerControl key={item.label} icon={item.icon} label={item.label} primary={index === 2} active={item.active} disabled={item.disabled || loading} onPress={item.onPress} />)}</div>
-    <p className={`${styles.rowHelp} ${styles.oneLine} ${styles.audioNext}`}>{loading ? '' : nextLine}</p>
-    <div className={styles.audioOptions}>{options.map(item => <Button key={item.label} variant="text" className={`${styles.audioOption} ${item.active ? styles.audioActive : ''}`} aria-pressed={item.active} disabled={item.disabled || loading} onClick={item.onPress}>
-      {item.icon ? <Icon name={item.icon} /> : <b className={styles.rowLabel}>{item.value}</b>}<small>{item.label}</small></Button>)}</div>
+    <div className={styles.audioWords}><div>{loading ? <><Skeleton line width="64%" /><Skeleton line small width="40%" /></> : <>
+      <h1 className={styles.clamp2}>{title}</h1><p className={`${styles.intro} ${styles.oneLine}`}>{byline}</p>
+    </>}</div>{favourite && !loading && <Button variant="icon" size="small" icon={favourite.icon} aria-label={favourite.label} aria-pressed={favourite.active} onClick={favourite.onPress} />}</div>
+    <div className={styles.audioScrubber}>
+      {chapter && <p className={styles.audioChapter}><Icon name="i-list" size={16} /><span className={`${styles.rowLabel} ${styles.oneLine}`}>{loading ? '' : chapter.label}</span><span className={styles.rowHelp}>{loading ? '' : chapter.of}</span></p>}
+      {scrubber}
+    </div>
+    <div className={styles.audioTransport}>{transport.map((item, index) => <PlayerControl key={item.label} icon={item.icon} label={item.label} primary={index === 2} skip={item.skip} active={item.active} disabled={item.disabled || loading} onPress={item.onPress} />)}</div>
+    <p className={`${styles.rowHelp} ${styles.oneLine} ${styles.audioNext}`}>{next && !loading && <>{next.label}  <b>{next.title}</b></>}</p>
+    <div className={styles.audioOptions} data-tiles={tiles || undefined}>{options.map(item => <Button key={item.label} variant="text" className={`${styles.audioOption} ${item.active ? styles.audioActive : ''}`} data-inline={item.inline && !tiles || undefined} aria-pressed={item.active} disabled={item.disabled || loading} onClick={item.onPress}>
+      {item.value !== undefined ? <b className={styles.rowLabel}>{item.value}</b> : item.icon && <Icon name={item.icon} />}<small>{item.label}</small></Button>)}</div>
     {upNext !== undefined && <div className={styles.audioUpNext}>{upNext}</div>}
   </div>;
 }

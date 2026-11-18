@@ -3,7 +3,7 @@
 .columns > div + div { position: relative; }
 .columns > div + div::before { content: ''; position: absolute; left: -13px; top: 4px; bottom: 4px; width: 1px; background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .column h3 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 6px; padding: 0 12px; font-size: var(--type-wide-title-size); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-episode-title-tracking); }
-.columns [data-section='quality'] { margin-top: 20px; }
+.columns [data-section='quality'], .columns [data-section='style'] { margin-top: 20px; }
 .column h3 > span { margin-left: auto; font-size: var(--type-caption-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-tertiary); }
 .speeds.speeds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0 12px; padding: 0; border-radius: 11px; background: none; box-shadow: none; }
 .speeds.speeds > button { height: 36px; padding: 0 8px; border-radius: 8px; font-size: var(--type-chip-size); font-weight: var(--type-chip-weight); color: var(--color-text-secondary); background: color-mix(in srgb, var(--color-text) 8%, transparent); }
