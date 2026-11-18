@@ -186,6 +186,21 @@ impl Mpv {
         })
     }
 
+    /// Opens a downloaded title's own files (the download store gives the paths; never the page),
+    /// its parts in order, at `start_ms`.
+    pub fn load_files(&self, files: &[std::path::PathBuf], start_ms: f64, extra: &[&str]) -> Result<(), String> {
+        let (first, rest) = files.split_first().ok_or("download_not_ready")?;
+        self.with(true, extra, |running| {
+            Self::request(running, json!(["set_property", "start", format!("{:.3}", start_ms.max(0.0) / 1000.0)]))?;
+            Self::request(running, json!(["set_property", "pause", false]))?;
+            Self::request(running, json!(["loadfile", first, "replace"]))?;
+            for part in rest {
+                Self::request(running, json!(["loadfile", part, "append"]))?;
+            }
+            Ok(())
+        })
+    }
+
     /// play, pause, seek (milliseconds), rate, volume (0 to 100), mute, stop.
     pub fn command(&self, action: &str, value: f64) -> Result<(), String> {
         let command = match action {

@@ -4,6 +4,7 @@ import type {ShellAssemblyContext} from '../../shell/bootstrap';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import type {ProtectedLibraryScreen} from '../browse/screen-context';
 import {createRetainedSavedOwner, type RetainedSavedOwner} from './retained-owner';
+import {savedDownloadsBinder} from './native-binding';
 
 const owners = new WeakMap<ShellAssemblyContext, RetainedSavedOwner>(), listeners = new Set<() => void>();
 const changed = () => {for (const listener of [...listeners]) listener();};
@@ -40,10 +41,12 @@ function CapturedSavedOwner({captured}: {captured: ProtectedLibraryScreen}) {
   return null;
 }
 /** The registry already retains this protected host across route changes.
- * Its first real Saved visit activates it; no import or unrelated route does I/O. */
+ * Its first real Saved visit activates it; no import or unrelated route does I/O. An app that
+ * keeps downloads itself (the desktop app's binder) activates it at once: its downloads are kept
+ * in step with the server from the moment it opens (`keepDownloadsInStep`). */
 export function SavedHost() {
   const captured = useProtectedWebScreenContext(), match = useMatch({from: '/saved', shouldThrow: false});
-  const [visited, setVisited] = useState(false);
+  const [visited, setVisited] = useState(() => savedDownloadsBinder() !== undefined);
   useLayoutEffect(() => {if (match) setVisited(true);}, [match]);
   return captured && visited ? <CapturedSavedOwner captured={captured}/> : null;
 }
