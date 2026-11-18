@@ -331,7 +331,7 @@ export { icons, iconIds, isIconId } from './icons.ts';
 export type { IconId, IconDefinition } from './icons.ts';
 export { componentSpec, focus as focusSpec, button as buttonSpec, transport as transportSpec, field as fieldSpec, toggle as toggleSpec, chip as chipSpec, segmented as segmentedSpec, row as rowSpec, overlay as overlaySpec, menu as menuSpec, feedback as feedbackSpec, confirmation as confirmationSpec, hero as heroSpec, card as cardSpec, shelf as shelfSpec, banner as bannerSpec, episode as episodeSpec, generatedArt as generatedArtSpec, navigation as navigationSpec, activity as activitySpec, tag as tagSpec, tabs as tabsSpec } from './components.ts';
 export type { ComponentSpec, Fill, ButtonVariant, ButtonSize, ButtonState, RowVariant, OverlayKind, ScrimStop } from './components.ts';
-export {tvAccount as tvAccountSpec} from './components.ts';
+export {tvAccount as tvAccountSpec, keyHints as keyHintsSpec} from './components.ts';
 export {frame as frameSpec, frameForm} from './frames.ts';
 export {emphasis, iconClass, formSizes, byForm} from './scale.ts';
 export type {ScaleForm, ByForm, EmphasisLevel, IconClass} from './scale.ts';

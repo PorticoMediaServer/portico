@@ -86,7 +86,7 @@ export type SheetFrameProps = Readonly<{
 /** Frame 5 and rule 2, by R9: menus, pickers, confirmations, short tasks, details and filters. A plain raised surface
  * with its corners, grab and scrim; it takes no background or header of the content's own. */
 export function SheetFrame({open, onOpenChange, task, title, subtitle, action, children, foot, anchorRef}: SheetFrameProps) {
-  const form = overlayForm(task, useFrameForm())!, {bar} = form, t = defaultI18n.t;
+  const form = overlayForm(task, useFrameForm()), {bar} = form, t = defaultI18n.t;
   const cancel = <Button onClick={() => onOpenChange(false, 'close-button')}>{t('next.overlays.cancel')}</Button>;
   const barAction = action && <Button variant="text" size="small" className={styles.barAction} disabled={action.disabled} onClick={action.onPress}>{action.label}</Button>;
   // Where the bar has no place for the action, it is the foot's primary, after Cancel.

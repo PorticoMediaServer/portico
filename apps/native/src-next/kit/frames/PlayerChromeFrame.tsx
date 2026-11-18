@@ -1,6 +1,6 @@
 import React, {type ReactNode} from 'react';
 import {StyleSheet, Text, View, useWindowDimensions} from 'react-native';
-import {PlayerBeside, PlayerCompact} from '../player/parts';
+import {PlayerBeside, PlayerCompact, PlayerNameTags} from '../player/parts';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {frameSpec} from '@portico/design';
@@ -126,7 +126,7 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
         {/* Three fixed places. The transport is centred on the bar itself, not between the ends, so it stays in the middle whatever each end holds. */}
         <View>
           <View style={[row, scrubbing && {opacity: 0}, {justifyContent: 'space-between', gap: spec.endGap[form], marginTop: spec.controlsGap[form], minHeight: spec.transport.primary[form]}, sideways && {minHeight: spec.pill.height[form]}]}>
-            {!phone && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, row, {justifyContent: 'center', gap: spec.transport.gap[form]}]}>{transport}</View>}
+            {!phone && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, row, {justifyContent: 'center', gap: spec.transport.gap[form]}]}><PlayerNameTags.Provider value={form === 'tv'}>{transport}</PlayerNameTags.Provider></View>}
             <View style={[row, {flexShrink: 0, gap: spec.endGap[form]}]}>{leading}</View>
             <View style={[row, {flexShrink: 1, minWidth: 0, overflow: 'hidden', justifyContent: 'flex-end', gap: spec.endGap[form]}]}>{trailing}</View>
           </View>
