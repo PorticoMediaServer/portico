@@ -414,7 +414,9 @@ func (p *person) browse(ctx context.Context, r *rand.Rand, all []api.AdminLibrar
 
 // counted is a list's count request: its total, with a one-title page. The list already holds
 // limit=50 and the server reads the first limit, so "&limit=1" on the end still sent 50 titles.
-func counted(list string) string { return strings.Replace(list, "limit=50", "limit=1", 1) + "&total=true" }
+func counted(list string) string {
+	return strings.Replace(list, "limit=50", "limit=1", 1) + "&total=true"
+}
 
 func (p *person) get(ctx context.Context, name, path string, out any) bool {
 	if ctx.Err() != nil {
