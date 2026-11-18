@@ -17,6 +17,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,11 +28,19 @@ import (
 // ErrInput says the source cannot be served.
 var ErrInput = errors.New("media input unavailable")
 
+// Playlist is a source the server reads as HLS (a .strm that names a playlist). The bridge
+// serves its playlist at URL, which ends ".m3u8", and the pieces it names beneath that
+// address; token is the address's secret part, piece "" the playlist or the rest of a piece's path.
+type Playlist interface {
+	ServeHLS(w http.ResponseWriter, r *http.Request, token, piece string)
+}
+
 // Bridge serves one source until it is closed.
 type Bridge struct {
 	url      string
 	path     string
 	source   io.ReaderAt
+	playlist Playlist
 	size     int64
 	server   *http.Server
 	ipv4     *net.TCPListener // nil on a host with IPv6 loopback only
@@ -46,9 +55,10 @@ type Bridge struct {
 // nothing else can sit there, unless the host has no IPv6 loopback at all (many
 // containers), where there is nothing to hold. On a host with IPv6 loopback only,
 // the tool is told [::1].
-// The bridge stops when ctx ends or Close is called.
+// The bridge stops when ctx ends or Close is called. A Playlist source has no size.
 func Open(ctx context.Context, source io.ReaderAt, size int64) (*Bridge, error) {
-	if ctx == nil || ctx.Err() != nil || source == nil || size <= 0 {
+	playlist, _ := source.(Playlist)
+	if ctx == nil || ctx.Err() != nil || source == nil || size <= 0 && playlist == nil {
 		return nil, ErrInput
 	}
 	var listeners []net.Listener
@@ -94,11 +104,14 @@ func Open(ctx context.Context, source io.ReaderAt, size int64) (*Bridge, error) 
 		return nil, err
 	}
 	b := &Bridge{
-		source: source, size: size, ipv4: ipv4, ipv6: ipv6,
+		source: source, playlist: playlist, size: size, ipv4: ipv4, ipv6: ipv6,
 		path: "/input/" + hex.EncodeToString(secret[:]), requests: make(chan struct{}, 8), done: make(chan struct{}),
 	}
 	told := listeners[0].Addr().String()
 	b.url = "http://" + told + b.path
+	if playlist != nil {
+		b.url += ".m3u8"
+	}
 	b.server = &http.Server{
 		Handler: b, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 5 * time.Second, MaxHeaderBytes: 4096,
 		BaseContext: func(net.Listener) context.Context { return ctx },
@@ -143,7 +156,17 @@ func (b *Bridge) Close() error {
 }
 
 func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if subtle.ConstantTimeCompare([]byte(r.URL.Path), []byte(b.path)) != 1 || r.URL.RawQuery != "" {
+	path, piece := r.URL.Path, ""
+	if b.playlist != nil {
+		if top, ok := strings.CutSuffix(path, ".m3u8"); ok {
+			path = top
+		} else if len(path) > len(b.path)+1 && path[len(b.path)] == '/' {
+			path, piece = path[:len(b.path)], path[len(b.path)+1:]
+		} else {
+			path = ""
+		}
+	}
+	if subtle.ConstantTimeCompare([]byte(path), []byte(b.path)) != 1 || r.URL.RawQuery != "" {
 		http.NotFound(w, r)
 		return
 	}
@@ -163,7 +186,11 @@ func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "input busy", http.StatusServiceUnavailable)
 		return
 	}
-	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Cache-Control", "no-store")
+	if b.playlist != nil {
+		b.playlist.ServeHLS(w, r, strings.TrimPrefix(b.path, "/input/"), piece)
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
 	http.ServeContent(w, r, "", time.Time{}, io.NewSectionReader(b.source, 0, b.size))
 }

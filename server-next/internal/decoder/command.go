@@ -83,7 +83,12 @@ func ProbeQueryCommand(executable, input string, reservation *EndpointReservatio
 	if entries == "format=start_time" && len(seen) != 2 || entries == "packet=pts_time,flags" && (len(seen) != 4 || !seen["-read_intervals"] || !seen["-select_streams"]) {
 		return nil, ErrInvalidConfiguration
 	}
-	args := []string{"-v", "error", "-threads", "1", "-protocol_whitelist", "http,tcp", "-format_whitelist", ordinaryProbeFormats, "-probesize", "8388608", "-analyzeduration", "10000000"}
+	protocols, formats := "http,tcp", ordinaryProbeFormats
+	if strings.HasSuffix(input, ".m3u8") {
+		// An HLS playlist the bridge serves.
+		protocols, formats = mediaexec.HLSInputProtocols, mediaexec.HLSInputFormats
+	}
+	args := []string{"-v", "error", "-threads", "1", "-protocol_whitelist", protocols, "-format_whitelist", formats, "-probesize", "8388608", "-analyzeduration", "10000000"}
 	args = append(args, query...)
 	args = append(args, input)
 	return confinedProbeCommand(executable, input, reservation, args, libraries...)

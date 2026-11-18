@@ -81,7 +81,7 @@ func TestPointersAndCheckedRanges(t *testing.T) {
 			w.Header().Set("X-Large", strings.Repeat("a", 65<<10))
 			w.WriteHeader(206)
 		case "/playlist":
-			http.ServeContent(w, r, "index.m3u8", time.Time{}, strings.NewReader("#EXTM3U\nhttp://127.0.0.1/private?token=secret"))
+			http.ServeContent(w, r, "index.mpd", time.Time{}, strings.NewReader(`<MPD xmlns="urn:mpeg:dash:schema:mpd:2011"><BaseURL>http://127.0.0.1/private?token=secret</BaseURL></MPD>`))
 		case "/no-range":
 			fmt.Fprint(w, "secret response body")
 		case "/wrong-range":
@@ -116,7 +116,7 @@ func TestPointersAndCheckedRanges(t *testing.T) {
 	if n, err := f.ReadAt(data, 7); err != nil || n != len(data) || !bytes.Equal(data, content[7:37]) {
 		t.Fatalf("range: %d %v", n, err)
 	}
-	body, err := f.Stream(20)
+	body, err := f.(*File).Stream(20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestPointersAndCheckedRanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	shortBody, err := short.Stream(20)
+	shortBody, err := short.(*File).Stream(20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestPointersAndCheckedRanges(t *testing.T) {
 	shortBody.Close()
 	short.Close()
 	f.LimitProbe()
-	f.budget = 1
+	f.(*File).budget = 1
 	if _, err := f.ReadAt(data, 0); err != ErrLimit {
 		t.Fatalf("probe limit: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestPausedSTRMReaderKeepsItsChunk(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer file.Close()
-	chunk, err := file.Stream(0)
+	chunk, err := file.(*File).Stream(0)
 	if err != nil {
 		t.Fatal(err)
 	}

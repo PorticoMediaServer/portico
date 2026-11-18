@@ -98,14 +98,27 @@ type File struct {
 	budget  int64 // -1 for playback
 }
 
-func (c *Client) Open(ctx context.Context, address string) (*File, error) {
+// Target is what a .strm names, as the server reads it: a File, or a Playlist.
+type Target interface {
+	io.ReaderAt
+	io.Closer
+	Size() int64
+	LimitProbe()
+}
+
+func (c *Client) Open(ctx context.Context, address string) (Target, error) {
 	u, err := url.Parse(address)
 	if err != nil || !allowedURL(u) {
 		return nil, ErrPointer
 	}
-	ctx, cancel := context.WithCancel(ctx)
-	f := &File{client: c, ctx: ctx, cancel: cancel, address: address, budget: -1}
+	held, cancel := context.WithCancel(ctx)
+	f := &File{client: c, ctx: held, cancel: cancel, address: address, budget: -1}
 	resp, done, err := f.request(0, 0, false)
+	if errors.Is(err, ErrRange) {
+		// A playlist is often written as it is asked for, with no byte ranges.
+		cancel()
+		return c.openPlaylist(ctx, address)
+	}
 	if err != nil {
 		cancel()
 		return nil, err
@@ -127,8 +140,11 @@ func (c *Client) Open(ctx context.Context, address string) (*File, error) {
 		return nil, ErrUnavailable
 	}
 	prefix = bytes.TrimSpace(bytes.TrimPrefix(prefix, []byte("\xef\xbb\xbf")))
-	if bytes.HasPrefix(prefix, []byte("#EXTM3U")) || bytes.HasPrefix(prefix, []byte("<MPD")) ||
-		bytes.HasPrefix(prefix, []byte("<?xml")) && bytes.Contains(prefix, []byte("<MPD")) {
+	if bytes.HasPrefix(prefix, []byte("#EXTM3U")) {
+		cancel()
+		return c.openPlaylist(ctx, address)
+	}
+	if bytes.HasPrefix(prefix, []byte("<MPD")) || bytes.HasPrefix(prefix, []byte("<?xml")) && bytes.Contains(prefix, []byte("<MPD")) {
 		cancel()
 		return nil, ErrRange
 	}
@@ -156,15 +172,10 @@ func (f *File) request(start, end int64, streaming bool) (*http.Response, contex
 	if f.etag != "" {
 		req.Header.Set("If-Match", f.etag)
 	}
-	resp, err := f.client.http.Do(req)
+	resp, err := f.client.do(req)
 	if err != nil {
 		cancel()
-		for _, safe := range []error{ErrRefused, ErrRedirects} {
-			if errors.Is(err, safe) {
-				return nil, nil, safe
-			}
-		}
-		return nil, nil, ErrUnavailable
+		return nil, nil, err
 	}
 	if resp.StatusCode != http.StatusPartialContent || resp.Header.Get("Content-Encoding") != "" {
 		resp.Body.Close()
@@ -187,6 +198,20 @@ func (f *File) request(start, end int64, streaming bool) (*http.Response, contex
 		}
 	}
 	return resp, cancel, nil
+}
+
+// do sends a request and answers a failure with one of the fixed errors.
+func (c *Client) do(req *http.Request) (*http.Response, error) {
+	resp, err := c.http.Do(req)
+	if err != nil {
+		for _, safe := range []error{ErrRefused, ErrRedirects} {
+			if errors.Is(err, safe) {
+				return nil, safe
+			}
+		}
+		return nil, ErrUnavailable
+	}
+	return resp, nil
 }
 
 func contentRange(value string, start, end, size int64) (int64, error) {

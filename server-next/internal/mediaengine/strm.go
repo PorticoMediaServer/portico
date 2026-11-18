@@ -12,7 +12,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/strm"
 )
 
-func (e *Engine) openSTRM(ctx context.Context, id int64, place db.FileOnDisk, remoteID int64) (*strm.File, error) {
+func (e *Engine) openSTRM(ctx context.Context, id int64, place db.FileOnDisk, remoteID int64) (strm.Target, error) {
 	enabled, err := e.db.STRMEnabled(ctx, id)
 	if err != nil || !enabled {
 		return nil, strm.ErrUnavailable
