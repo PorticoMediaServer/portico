@@ -10,7 +10,6 @@ import {useTheme} from '../../kit/theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeSearchGenreList} from './explore';
 import type {NativeSearchGenre} from './types';
-import {StandardBackdrop} from '../../kit/artwork';
 import {TopBar} from '../../kit/layout/TopBar';
 
 /** The same canonical genre read, including genres without tile artwork. This
@@ -31,7 +30,7 @@ export function AllGenresScreen({focusScope, explore, runtime, visible, current,
     const start = Date.now(), timer = setTimeout(() => setElapsed(Math.max(300, Date.now() - start)), 300);
     return () => clearTimeout(timer);
   }, [state.phase]);
-  return <View testID="native-search-all-genres" style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
+  return <View testID="native-search-all-genres" style={{flex: 1}}>
     <View style={{marginBottom: 8}}>
       <TopBar back={{label: t('web.shell.search'), onPress: onBack, testID: 'search-all-genres-back'}}/>
       <Text accessibilityRole="header" style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, marginHorizontal: 20}]}>{t('next.search.browseByGenre')}</Text>

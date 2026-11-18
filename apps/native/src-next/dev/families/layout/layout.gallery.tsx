@@ -44,7 +44,7 @@ const cardContext = ({selection, onFocus, onBlur, focusId, testID}: LayoutItemCo
 
 function Stage({height, children}: {height?: number; children: React.ReactNode}) {
   const theme = useTheme();
-  return <View style={{width: theme.isTV ? 1920 : theme.layoutMode === 'desktop' ? theme.width : 390, height, marginLeft: -theme.gutter, position: 'relative', backgroundColor: theme.colors.ink}}>{children}</View>;
+  return <View style={{width: theme.isTV ? 1920 : theme.layoutMode === 'desktop' ? theme.width : 390, height, marginLeft: -theme.gutter, position: 'relative'}}>{children}</View>;
 }
 
 function useGallerySelection() {

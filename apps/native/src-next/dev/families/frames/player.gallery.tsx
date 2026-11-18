@@ -1,9 +1,9 @@
 import React, {useState, type ReactNode} from 'react';
-import {Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {Platform, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {formatMessage} from '../../../../../../packages/i18n/src';
 import {framesFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/frames-fixtures';
 import {playerFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/player-fixtures';
-import {AmbientArt, Artwork, ChannelMark, type ArtworkSource} from '../../../kit/artwork/index';
+import {Artwork, ChannelMark, type ArtworkSource} from '../../../kit/artwork/index';
 import {livePlayerFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/live-player-fixtures';
 import type {PlaybackComparisonProjection, PlaybackInfoField} from '../../../../../../packages/client-core/src/playback-info-projection';
 import {MiniGuideAll, MiniGuideHead, MiniGuideRow} from '../../../kit/live';
@@ -18,6 +18,7 @@ import {AudioPanel, NativeStillWatchingCard, PlayerChannelStep, PlayerEndCard, P
 import {HeroMetadata, SeasonBar} from '../../../kit/layout';
 import {Icon} from '../../../kit/Icon';
 import {useTheme} from '../../../kit/theme';
+import {Layer} from '../../../kit/shell/Layer';
 import type {Gallery} from '../../gallery-registry';
 
 /** Frame 7 (the video player) and frame 8 (the audio player), each case full, on every form the window gives it:
@@ -32,14 +33,12 @@ const none = () => {};
 const chip = (part: string) => /^\d+ h( \d+ min)?$|^\d+ min$/.test(part) ? 'duration' : / seasons?$/.test(part) ? 'season-count' : /^(G|PG|PG-13|R|TV-[A-Z0-9]+)$/.test(part) ? 'content-rating' : undefined;
 const fact = (text: string) => text.split(' · ').map((part, index) => ({id: chip(part) ?? (index === 0 ? 'year' : `fact-${index}`), text: part, role: index === 0 ? 'identity' as const : 'context' as const}));
 
-/** One whole window. The audio player's layer draws the glow from its artwork (R10: `Layer kind="audio"`); the
- * gallery stands in for that host here, and the frame draws no backdrop of its own. The video player's layer is black. */
+/** One whole window, on the layer the real player stands on (R10): the audio player's `Layer kind="audio"` with the glow
+ * from its artwork, the video player's black `Layer kind="player"`. The gallery stands in for those hosts here; the frame
+ * draws no backdrop of its own. */
 function Window({children, glow, video = false}: {children: ReactNode; glow?: ArtworkSource | null; video?: boolean}) {
   const theme = useTheme(), window = useWindowDimensions();
-  return <View style={{height: window.height, marginHorizontal: -theme.gutter, backgroundColor: video ? theme.colors.shadow : theme.colors.ink}}>
-    {glow && <View pointerEvents="none" style={[StyleSheet.absoluteFill, {overflow: 'hidden'}]}><AmbientArt source={glow as never} treatment="music" style={StyleSheet.absoluteFill}/></View>}
-    {children}
-  </View>;
+  return <Layer kind={video ? 'player' : 'audio'} art={glow as never} style={{flex: 0, height: window.height, marginHorizontal: -theme.gutter}}>{children}</Layer>;
 }
 
 /** A show's episodes as the watch page and the player's Episodes panel and band draw them (tablet-play 2a, tv-player p1 frame 3). */

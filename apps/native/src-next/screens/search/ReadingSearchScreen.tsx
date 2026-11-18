@@ -2,7 +2,7 @@ import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {FlatList, Text, View, type TextInput} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ReadingIndexedSearchHit} from '../../../../../packages/client-core/src/reading-indexed-search';
-import {Artwork, StandardBackdrop} from '../../kit/artwork';
+import {Artwork} from '../../kit/artwork';
 import {Focusable, TextField} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {GridSkeleton, StateView} from '../../kit/states';
@@ -38,7 +38,7 @@ export function ReadingSearchScreen({port, opening, runtime, query, onBack}: Rea
     list.current?.scrollToOffset({offset: 0, animated: false});
   };
   const rows = state.phase === 'loading' ? undefined : state.hits;
-  return <View testID="native-reading-search" style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
+  return <View testID="native-reading-search" style={{flex: 1}}>
     <View>
       <TopBar back={{label: t('action.back'), onPress: onBack, testID: 'reading-search-back'}}/>
       <Text accessibilityRole="header" numberOfLines={1} style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, marginHorizontal: 20}]}>{t('next.reader.searchAll')}</Text>

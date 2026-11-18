@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Modal, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {StandardBackdrop} from '../../kit/artwork';
+import {Layer} from '../../kit/shell/Layer';
 import {FocusRegion, holdTVPageModal, type TVPageModalHold} from '../../kit/focus';
 import {useNativeDismissal} from '../../kit/overlays/native-dismissal';
 import {useOverlayLifecycle} from '../../kit/overlays/OverlayHost';
@@ -47,13 +47,12 @@ export function NativeContentLinks({runtime, online}: {runtime: RestoredNativeSh
     : unavailable === 'old-invite' ? ['next.states.linkOldInvite', 'next.states.linkOldInviteBody'] as const
       : ['next.states.linkNoAccess', 'next.states.linkNoAccessBody'] as const;
   if (tv) return <TVContentLinkUnavailable title={defaultI18n.t(title)} body={defaultI18n.t(body)} onHome={() => setUnavailable(undefined)}/>;
-  return <View testID="content-link-unavailable" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
-    <StandardBackdrop/>
+  return <Layer testID="content-link-unavailable" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
     <View style={{flex: 1, justifyContent: 'center'}}>
       <StateView variant="centered" title={defaultI18n.t(title)} body={defaultI18n.t(body)}
         primaryAction={{id: 'home', label: defaultI18n.t('web.shell.home'), onPress: () => setUnavailable(undefined)}}/>
     </View>
-  </View>;
+  </Layer>;
 }
 
 const TV_LINK_REGION = 'content-link-unavailable';
@@ -77,10 +76,9 @@ function TVContentLinkPage({title, body, close}: {title: string; body: string; c
   // Back (and the Menu key), entry on Home, and the opener's capture and return.
   useOverlayLifecycle(true, true, close, undefined, undefined, 0, TV_LINK_REGION);
   // A Modal is its own window, so it scales into the TV design canvas itself.
-  return <View testID="content-link-unavailable" style={{flex: 1}}>
-    <StandardBackdrop/>
+  return <Layer testID="content-link-unavailable">
     <TVDesignCanvas><FocusRegion id={TV_LINK_REGION} entry="home" hold style={{flex: 1}}>
       <StateLayout title={title} body={body} primaryAction={{id: 'home', label: defaultI18n.t('web.shell.home'), onPress: close}}/>
     </FocusRegion></TVDesignCanvas>
-  </View>;
+  </Layer>;
 }

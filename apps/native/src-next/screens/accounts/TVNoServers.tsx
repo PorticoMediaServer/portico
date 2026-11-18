@@ -4,7 +4,6 @@ import QRCode from 'react-native-qrcode-svg';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {FocusProvider, FocusRegion} from '../../kit/focus';
 import {NativeTVKeyboard} from '../search/TVKeyboard';
-import {ColourBackdrop} from '../../kit/artwork';
 import {Button, Focusable, TextField} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {nativeType, useTheme} from '../../kit/theme';
@@ -83,8 +82,7 @@ export function TVNoServers(props: Props) {
     <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{props.notice.body}</Text>
     {props.notice.onRetry && <Button variant="text" disabled={props.busy} onPress={() => {if (current()) props.notice?.onRetry?.();}}>{t('web.chooser.tryAgain')}</Button>}
   </View>;
-  return <FocusProvider><View testID="tv-no-servers" style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <ColourBackdrop shape="top"/>
+  return <FocusProvider><View testID="tv-no-servers" style={{flex: 1}}>
     {joining ? <View style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height,
       transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
       {/* Frame 36's 1920x1080 canvas: the header at 96, the address and code fields at 330 and 470,

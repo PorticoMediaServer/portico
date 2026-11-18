@@ -1,7 +1,7 @@
 import React, {useRef} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {ProfileFace, StandardBackdrop} from '../../kit/artwork';
+import {ProfileFace} from '../../kit/artwork';
 import {Button, NumberPad} from '../../kit/controls';
 import {TopBar} from '../../kit/layout/TopBar';
 import {useTheme} from '../../kit/theme';
@@ -42,8 +42,7 @@ export function PhoneProfilePIN({testID, profile, value, onChange, onSubmit, bus
     onChange(digits);
     if (digits.length === 4 && submitted.current !== digits) {submitted.current = digits; onSubmit(digits);}
   };
-  return <View testID={testID} style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <StandardBackdrop/>
+  return <View testID={testID} style={{flex: 1}}>
     <TopBar back={{label: t('profiles.title'), onPress: onBack, disabled: busy, testID: `${testID}-back`}}/>
     <ScrollView style={{flex: 1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{alignItems: 'center', paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24}}>
       <ProfileFace {...profile.face} size={92}/>

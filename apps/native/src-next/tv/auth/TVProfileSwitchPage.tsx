@@ -4,6 +4,7 @@ import {createFocusRegistry, FocusProvider, holdTVPageModal, UncoveredWindow, ty
 import {useNativeDismissal} from '../../kit/overlays/native-dismissal';
 import {useOverlayLifecycle} from '../../kit/overlays/OverlayHost';
 import {OVERLAY_PAINT_LIVE, OverlayPaintProvider} from '../../kit/overlays/OverlayPaintContext';
+import {Layer} from '../../kit/shell/Layer';
 
 /**
  * TV: the in-app Switch profile picker, its PIN page and the forgotten-PIN page, as one full-screen page `Modal` over the
@@ -33,7 +34,7 @@ export function TVProfileSwitchPage({leave, onBack, onGone, children}: {
   const [registry] = useState(createFocusRegistry);
   return <Modal visible={dismissal.visible} transparent={false} animationType="none" onRequestClose={onBack} onDismiss={dismissal.onDismiss}>
     <OverlayPaintProvider mode={OVERLAY_PAINT_LIVE} returnCurrent={pageCurrent}>
-      <UncoveredWindow><TVProfileSwitchLifecycle onBack={onBack}><FocusProvider registry={registry}>{children}</FocusProvider></TVProfileSwitchLifecycle></UncoveredWindow>
+      <Layer><UncoveredWindow><TVProfileSwitchLifecycle onBack={onBack}><FocusProvider registry={registry}>{children}</FocusProvider></TVProfileSwitchLifecycle></UncoveredWindow></Layer>
     </OverlayPaintProvider>
   </Modal>;
 }

@@ -92,7 +92,7 @@ function specimen(scale: boolean, expanded: boolean, move = false) {
     const theme = useTheme(), env = {t, locale: defaultI18n.region.formatLocale}, health = ownerHealthLine(undefined, t);
     const list = scale ? scaleSessions : sessions;
     // The page is drawn edge to edge in the frames; the dev host's gutter is cancelled here, once.
-    return <View style={{height, backgroundColor: theme.colors.ink, marginHorizontal: -theme.gutter}}>
+    return <View style={{height, marginHorizontal: -theme.gutter}}>
         <OwnerDashboardPage t={t} role="owner" serverName="Portico demo" topInset={0}
           health={{degraded: false, status: health.status, line: 'Up for 6 days · 1.2 TB free · Database 412 MB'}} updated={t('next.dashboard.updatedNow')} loading={false}
           streams={list.slice(0, 10).map(value => ({view: ownerStreamView(value, env)}))} streamTotals={scale ? scaleTotals : {streams: 2, paused: 0, converting: 1, bandwidthKbps: 8000, people: 2, atHome: 1, away: 1}}

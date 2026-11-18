@@ -12,7 +12,6 @@ import {Button, Focusable, Segmented, TextField} from '../../kit/controls';
 import {FocusRegion} from '../../kit/focus';
 import {Dialog, Banner, Menu} from '../../kit/overlays';
 import {AmbientArt, Artwork, ProfileFace} from '../../kit/artwork';
-import {SettingsBackdrop} from '../../kit/shell/SettingsBackdrop';
 import {Icon} from '../../kit/Icon';
 import {StateView} from '../../kit/states';
 import {alpha, shellType} from '../../kit/shell/visual';
@@ -171,7 +170,7 @@ function TogetherLobbyRegion({controller, region, rail, children}: {controller: 
 
 function TogetherPage({children, onBack, title, settingsBack = false}: {children: React.ReactNode; onBack?: () => void; title?: string; settingsBack?: boolean}) {
   const theme = useTheme(), insets = useSafeAreaInsets(), phone = theme.platform === 'phone';
-  return <View style={{flex: 1}}><SettingsBackdrop/>
+  return <View style={{flex: 1}}>
     {phone && <TopBar title={title} back={onBack ? {label: settingsBack ? defaultI18n.t('next.shell.settings') : defaultI18n.t('action.back'), onPress: onBack, testID: 'together-page-back'} : undefined}/>}
     {children}
     {!theme.isTV && !phone && onBack && <Button variant="icon" icon="i-left" iconOnly accessibilityLabel={defaultI18n.t('action.back')} testID="together-page-back" onPress={onBack} style={{position: 'absolute', top: insets.top + 6, left: 10, zIndex: 10, height: 44, width: 44}}/>}

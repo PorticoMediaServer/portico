@@ -10,7 +10,7 @@ import {presentError} from '../../../../../packages/client-core/src/presentation
 import {PosterCard, SquareCard, type CardSelection} from '../../kit/cards';
 import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import {CardFrame, Parts} from '../../kit/cards/primitives';
-import {Artwork, StandardBackdrop} from '../../kit/artwork';
+import {Artwork} from '../../kit/artwork';
 import {Chip, Focusable, Tabs} from '../../kit/controls';
 import {Menu} from '../../kit/overlays';
 import {SelectionCircle} from '../../kit/selection';
@@ -180,7 +180,7 @@ export function SavedScreen({destination, runtime, device, actions, selection, o
   const track = {paddingHorizontal: theme.gutter, paddingTop: theme.spec.shelf.phonePaddingTop, paddingBottom: theme.spec.shelf.phonePaddingBottom, gap: theme.spec.shelf.gap[theme.column]};
   const pinKind = (kind: PinnedResource['kind']) => kind === 'view' ? t('title.savedView') : t('title.kind', {kind});
   return <View testID="native-saved-screen" pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
-    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
+    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}>
     {tablet && <View style={{paddingTop: Math.max(insets.top, 10)}}>
       <Text accessibilityRole="header" style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, marginHorizontal: theme.gutter}]}>{t('saved.title')}</Text>
       <Tabs items={tabItems} value={savedTab} onValueChange={chooseTab} accessibilityLabel={t('saved.title')} testID="saved-tablet-tabs" style={{marginTop: 8}}/>

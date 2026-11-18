@@ -138,7 +138,8 @@ test('DEV TV heading records only native text events, invalidates changed layout
     assert.equal(registry.read(root)?.kind, 'view');
     assert.equal(registry.read(root)?.semanticId, 'tv-front-door');
     assert.equal(registry.read(root)?.declaredStyleComplete, true);
-    assert.deepEqual(registry.read(root)?.flattenedStyle, {backgroundColor: tree.props.style.backgroundColor}, 'the root declares its actual theme background, not observed paint');
+    assert.deepEqual(registry.read(root)?.flattenedStyle, {}, 'the root declares no paint of its own');
+    assert.equal(tree.props.style.backgroundColor, undefined, 'the page is transparent on its layer: the layer host draws the one backdrop');
     assert.deepEqual(registry.read(root)?.measuredStyle, {});
     tree.props.ref(replacementRoot);
     assert.equal(registry.read(root), undefined);
@@ -168,8 +169,7 @@ test('DEV TV heading records only native text events, invalidates changed layout
     heading().props.onTextLayout(event(replacement.tag));
     assert.deepEqual(registry.read(replacement)?.lines, observed);
     theme = createTheme({isTV: true, width: 1920, textScale: 1.25}); await act(() => host!.rerender());
-    assert.equal(tree.props.style.backgroundColor, theme.colors.ink);
-    assert.deepEqual(registry.read(replacementRoot)?.flattenedStyle, {backgroundColor: theme.colors.ink});
+    assert.deepEqual(registry.read(replacementRoot)?.flattenedStyle, {});
     assert.deepEqual(registry.read(replacementWordmark)?.flattenedStyle, image().props.style);
     assert.deepEqual(registry.read(replacementRoot)?.measuredStyle, {}, 'declared paint remains separate from native observations');
     assert.equal(registry.read(replacement)?.lines, undefined);

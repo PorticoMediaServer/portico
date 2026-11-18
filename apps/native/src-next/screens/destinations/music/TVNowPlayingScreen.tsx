@@ -3,7 +3,8 @@ import {ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {clockText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
 import {sameFence} from '../../../../../../packages/player-core/src';
-import {AmbientArt, Artwork, StandardBackdrop} from '../../../kit/artwork';
+import {AmbientArt, Artwork} from '../../../kit/artwork';
+import {Layer} from '../../../kit/shell/Layer';
 import {Button} from '../../../kit/controls';
 import {provideTVLayerClaim, requestNativeFocus} from '../../../kit/focus';
 import {Icon} from '../../../kit/Icon';
@@ -91,12 +92,10 @@ function TVNowPlayingContent({occupant, queue, artwork, width, height, onAction,
   const act = (action: Parameters<typeof dockCommand>[1]) => {if (page.open && page.ready && !panel && !more && commandAllowed(occupant, action)) onAction(dockCommand(occupant, action));};
   const close = () => setPanel(null);
   return <TVMusicFocus id={id} visible={page.open && !panel && !more} interactive={page.ready} entry="toggle" onClose={onClose}>
-    <View testID={testID} pointerEvents={page.ready ? 'auto' : 'none'} accessibilityElementsHidden={!page.ready} importantForAccessibility={page.ready ? 'auto' : 'no-hide-descendants'} style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink}}>
+    <View testID={testID} pointerEvents={page.ready ? 'auto' : 'none'} accessibilityElementsHidden={!page.ready} importantForAccessibility={page.ready ? 'auto' : 'no-hide-descendants'} style={{position: 'absolute', inset: 0}}>
+      <Layer kind="audio" art={p.ambient} style={{position: 'absolute', inset: 0}}/>
       <View style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height,
         transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
-        {p.ambient ? <View pointerEvents="none" style={{position: 'absolute', inset: 0, overflow: 'hidden'}}>
-          <AmbientArt source={p.ambient} treatment="music" style={{position: 'absolute', inset: 0}}/>
-        </View> : <StandardBackdrop/>}
         {fromAlbum && <TVPageGroup index={0} style={{position: 'absolute', left: 200, top: 124, flexDirection: 'row', alignItems: 'center', gap: 14}}>
           <Icon name="i-music" size={26} color={theme.colors.textSecondary}/>
           <Text style={[type(22), {color: theme.colors.textSecondary}]}>{t('next.music.playingFrom', {source: fromAlbum})}</Text>
@@ -157,14 +156,13 @@ function TVNowPlayingContent({occupant, queue, artwork, width, height, onAction,
         items={equalizer.supported ? [{id: 'eq', label: t('next.media.eq.title'), icon: 'i-gauge', onSelect: () => {setMore(false); setPanel('eq');}}] : []}/>
       {panel === 'signal' && signal && <MusicSignalSheet view={signal} contextTitle={p.identity.title} onClose={close} returnFocusRef={signalRef}/>}
       {panel === 'lyrics' && lyrics && <SidePanel testID={`${id}.lyrics`} open title={t('player.lyrics')} width={640} topInset={0} onOpenChange={open => {if (!open) close();}} returnFocusRef={lyricsRef}>{lyrics}</SidePanel>}
-      {panel === 'eq' && <View style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink}}>
+      {panel === 'eq' && <Layer style={{position: 'absolute', inset: 0}}>
         <View style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height,
           transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
-          <StandardBackdrop/>
           <NativeWatchEqualizer focusScope={`${id}.eq`} onBack={closeEqualizer}
             copy={equalizerCopy} reportError={reportError} store={nativeEqualizer}/>
         </View>
-      </View>}
+      </Layer>}
       {notice && <NativeListeningNotice notice={notice} persistent/>}
     </View>
   </TVMusicFocus>;

@@ -21,7 +21,7 @@ export type GeneratedArtProps = Readonly<{
  * walk W-1), so a New badge never covers the title. 0 when nothing sits on the art. */
 export const GeneratedCoverClearance = createContext(0);
 
-/** This title-art fallback is never used by auth/state/Server bands; those use ColourBackdrop. */
+/** This title-art fallback is never used by auth/state/Server bands; those stand on their layer's backdrop. */
 export function GeneratedArt({glyph, palette, width, height, style, testID}: GeneratedArtProps) {
   const theme = useTheme();
   return <View testID={testID} accessible={false} style={[StyleSheet.absoluteFillObject, {width, height, overflow: 'hidden'}, style]}>

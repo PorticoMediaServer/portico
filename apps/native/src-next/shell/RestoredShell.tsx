@@ -382,14 +382,14 @@ export function RestoredShell() {
     // on the platform's first focusable after a failed restore.
     const restore = error.action === 'try-again' || error.action === 'refresh';
     const connection = error.category === 'offline' || error.category === 'unreachable' || error.category === 'timeout';
-    if (connection) return withDownloads(<View style={{flex: 1, backgroundColor: theme.colors.ink}}><TVDesignCanvas><StateLayout testID="native-recovery-connection" titleRef={recoveryTitle} backdropShape="side" shell={<RecoveryBrand/>}
+    if (connection) return withDownloads(<View style={{flex: 1}}><TVDesignCanvas><StateLayout testID="native-recovery-connection" titleRef={recoveryTitle} shell={<RecoveryBrand/>}
       title={error.category === 'offline' ? theme.isTV ? defaultI18n.t('next.boot.tvOffline') : defaultI18n.t('next.states.offlinePhone')
         : serverName ? defaultI18n.t('next.states.cantReach', {server: serverName}) : defaultI18n.t('next.states.cantReachServer')}
       icon={error.category === 'offline' ? 'i-wifioff' : 'i-srvoff'} tone="warning"
       beforeActions={recoveryWait ? <RecoveryRetry waiting={recoveryWait}/> : undefined}
       primaryAction={{id: 'restore', label: defaultI18n.t('next.states.tryNow'), icon: 'i-retry', onPress: retry, preferredFocus: theme.isTV}}
       secondaryAction={{id: 'accounts', label: defaultI18n.t('next.states.switchServer'), icon: 'i-server', onPress: chooseAccounts}}/></TVDesignCanvas></View>);
-    return withDownloads(<View style={{flex: 1, backgroundColor: theme.colors.ink}}><TVDesignCanvas><StateLayout testID="native-recovery-error" titleRef={recoveryTitle} backdropShape="side" shell={<RecoveryBrand/>}
+    return withDownloads(<View style={{flex: 1}}><TVDesignCanvas><StateLayout testID="native-recovery-error" titleRef={recoveryTitle} shell={<RecoveryBrand/>}
       title={error.title} body={error.body} tone="error"
       primaryAction={restore ? {id: 'restore', label: error.actionLabel, onPress: retry, preferredFocus: theme.isTV} : undefined}
       secondaryAction={{id: 'accounts', label: defaultI18n.t('portico.landing.chooseAnother'), onPress: chooseAccounts, preferredFocus: theme.isTV && !restore}}/></TVDesignCanvas></View>);

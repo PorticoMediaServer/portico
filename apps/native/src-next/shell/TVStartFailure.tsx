@@ -8,6 +8,7 @@ import {Button} from '../kit/controls';
 import {FocusRegion, useOptionalFocusRegistry} from '../kit/focus';
 import {StateLayout} from '../kit/states';
 import {useTheme} from '../kit/theme';
+import {Layer} from '../kit/shell/Layer';
 import type {NativeShellRuntime} from './runtime';
 
 /** A refusal has no admitted output/frozen frame. All commands belong to the held
@@ -71,7 +72,7 @@ export function TVStartFailure({failure, wait, runtime}: {failure?: NativePlayba
   const seconds = wait ? Math.max(0, Math.ceil((wait.retryAt - now) / 1000)) : 0;
   return <Modal visible transparent={false} animationType="none" onRequestClose={close} supportedOrientations={['landscape']}>
     <FocusRegion id="native-start-refusal" entry={report ? 'native-start-report-cancel' : retryable ? 'native-start-retry' : 'native-start-back'} entryPolicy="entry" hold style={{flex: 1}} accessibilityViewIsModal>
-      <StateLayout variant="player" frozenPicture={<View style={{flex: 1, backgroundColor: theme.colors.ink}}/>}
+      <StateLayout variant="player" frozenPicture={<Layer kind="player"/>}
         testID="native-start-refusal" title={title} body={body} icon={wait || conversion ? 'i-clock' : failure?.scope === 'account' || failure?.scope === 'server' ? 'i-monitor' : 'i-info'}
         tone={wait || conversion || failure?.scope === 'account' || failure?.scope === 'server' ? 'warning' : 'neutral'}
         retry={wait ? {progress: Math.min(1, Math.max(0, 1 - (wait.retryAt - now) / Math.max(1, wait.retryAt - began.current))), label: t('next.states.retryIn', {seconds})} : undefined}

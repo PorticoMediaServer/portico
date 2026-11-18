@@ -5,7 +5,6 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, FormError} from '../../kit/controls';
 import {BottomSheet} from '../../kit/overlays';
 import {useTheme} from '../../kit/theme';
-import {ColourBackdrop} from '../../kit/artwork';
 import type {NativeAccountWorkspace, AccountWorkspacePage, AccountWorkspaceSnapshot} from '../../platform/account-workspace';
 import {accountSessionDevice} from '../../../../../packages/client-core/src/account-sessions';
 import type {PorticoSessionRow} from '../../../../../packages/client-core/src/portico-services-native';
@@ -57,8 +56,7 @@ export function PhoneAccountWorkspace({createSource, username, onDone, onFind, o
       if (ticket?.active && source?.current()) setCommandFailure(presentError(error, 'portico-account').body);
     });
   };
-  return <View testID="phone-serverless-settings" style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <ColourBackdrop shape="top"/>
+  return <View testID="phone-serverless-settings" style={{flex: 1}}>
     <ScrollView ref={scroll} contentContainerStyle={{paddingTop: insets.top + 20, paddingBottom: Math.max(24, insets.bottom + 16), paddingHorizontal: 24, gap: 18}}>
       <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
         <Text accessibilityRole="header" style={[theme.type.title, {color: theme.colors.text}]}>{heading}</Text>

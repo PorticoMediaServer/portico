@@ -30,7 +30,7 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
     'react-native-safe-area-context': {SafeAreaProvider: 'SafeAreaProvider'},
     './platform/keyboard': {KeyboardProvider: 'KeyboardProvider'},
     './kit/theme': {ThemeProvider: 'ThemeProvider', useTheme: () => ({colors: {ink: '#010203'}})},
-    './shell/AppErrorBoundary': {AppErrorBoundary: 'AppErrorBoundary'}, './platform/boot-host': {reportFirstFrame},
+    './shell/AppErrorBoundary': {AppErrorBoundary: 'AppErrorBoundary'}, './kit/shell/Layer': {Layer: 'Layer'}, './platform/boot-host': {reportFirstFrame},
     './platform/server-clock-store': {}, './shell': {NativeShell: leaf}, './shell/RestoredShell': {RestoredShell: leaf}, './shell/settings-mount': {},
     './screens/watch': {registerNativeWatch: (factory: unknown) => {assert.equal(factory, leaf);}, createNativeWatchBindings: leaf},
     './dev/Kit': {KitHost: leaf}, './dev/public-measurement': {NativePublicMeasurementGate: leaf},
@@ -58,6 +58,6 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
   assert.equal(root.props.testID, 'native-root');
   assert.equal(root.props.collapsable, dev ? false : undefined);
   assert.equal(root.props.ref !== undefined, dev);
-  assert.deepEqual(root.props.style, {flex: 1, backgroundColor: '#010203'});
-  assert.equal(root.props.children.length, 2, 'no measurement wrapper or extra root was added');
+  assert.deepEqual(root.props.style, {flex: 1});
+  assert.equal([root.props.children].flat().length, 1, 'no measurement wrapper or extra root was added: the shell is its only child');
 });

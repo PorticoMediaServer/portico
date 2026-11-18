@@ -22,7 +22,6 @@ test('W-2: a title that couldn\'t load is the full-page state, below Back and th
   const drawn = await page(false);
   assert.equal(drawn.type, 'StateLayout');
   assert.equal(drawn.props.contentTop, 250);
-  assert.equal(drawn.props.backdropHeight, 420);
   assert.equal(drawn.props.title, 'detail failed');
   assert.equal(drawn.props.primaryAction.label, 'Try again');
 });
@@ -31,5 +30,4 @@ test('W-2: on TV the same state keeps its side backdrop and sits centred', async
   const drawn = await page(true);
   assert.equal(drawn.type, 'StateLayout');
   assert.equal(drawn.props.contentTop, undefined);
-  assert.equal(drawn.props.backdropHeight, undefined);
 });

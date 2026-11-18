@@ -21,15 +21,15 @@ function ServerIdentityGallery() {
     <View style={{width: theme.isTV ? 1070 : 358, overflow: 'hidden', borderRadius: 14, borderWidth: 1, borderColor: theme.colors.accentStrong}}>
       <ServerHeader serverName={fixture.serverName} viewerRole="owner" audience="owner" variant={theme.isTV ? 'group' : 'phone'}/>
     </View>
-    <View style={{minHeight: theme.isTV ? 260 : 210, width: theme.isTV ? 1728 : 700, padding: 20, overflow: 'hidden', backgroundColor: theme.colors.ink}}>
+    <View style={{minHeight: theme.isTV ? 260 : 210, width: theme.isTV ? 1728 : 700, padding: 20, overflow: 'hidden'}}>
       <ServerBand viewerRole="owner" audience="owner"/>
       <ServerHeader serverName={fixture.serverName} viewerRole="owner" audience="owner" facts={facts}/>
     </View>
-    <View style={{minHeight: theme.isTV ? 260 : 210, width: theme.isTV ? 1728 : 700, padding: 20, overflow: 'hidden', backgroundColor: theme.colors.ink}}>
+    <View style={{minHeight: theme.isTV ? 260 : 210, width: theme.isTV ? 1728 : 700, padding: 20, overflow: 'hidden'}}>
       <ServerBand viewerRole="owner" audience="administrators"/>
       <ServerHeader serverName={fixture.serverName} viewerRole="owner" audience="administrators" facts={facts}/>
     </View>
-    <View style={{minHeight: theme.isTV ? 260 : 210, width: theme.isTV ? 1728 : 700, padding: 20, overflow: 'hidden', backgroundColor: theme.colors.ink}}>
+    <View style={{minHeight: theme.isTV ? 260 : 210, width: theme.isTV ? 1728 : 700, padding: 20, overflow: 'hidden'}}>
       <ServerBand viewerRole="administrator" audience="administrators"/>
       <ServerHeader serverName={fixture.serverName} viewerRole="administrator" audience="administrators" facts={facts}/>
     </View>

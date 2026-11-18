@@ -37,6 +37,6 @@ test('every stack page sits on the one standard backdrop, and the Settings modal
   const tree = h.render(() => expand(module.TouchStacks({port, slots: {}, tier: 'full', background: '#071018', renderShell: () => 'Shell'})));
   const items: any[] = [], walk = (node: any) => {if (Array.isArray(node)) node.forEach(walk); else if (node && typeof node === 'object') {if (node.type === 'ScreenStackItem') items.push(node); walk(node.props?.children);}};
   walk(tree);
-  const drawsBackdrop = (item: any) => JSON.stringify(item.props.children).includes('"StandardBackdrop"');
+  const drawsBackdrop = (item: any) => JSON.stringify(item.props.children).includes('"Layer"');
   assert.deepEqual(items.map(item => [item.props.screenId, drawsBackdrop(item)]), [['home:base:root', true], ['title', true], ['home:modal:root', false]]);
 });

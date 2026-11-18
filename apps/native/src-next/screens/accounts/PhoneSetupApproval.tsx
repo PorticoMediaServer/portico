@@ -4,14 +4,13 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {BottomSheet} from '../../kit/overlays';
 import {Button} from '../../kit/controls';
 import {useTheme} from '../../kit/theme';
-import {StandardBackdrop} from '../../kit/artwork';
 
 export function PhoneSetupApproval({display, busy, error, onClose, onApprove}: {
   display: {serverName: string; address: string; accountName: string}; busy: boolean; error?: React.ReactNode;
   onClose: () => void; onApprove: () => void;
 }) {
   const theme = useTheme(), t = defaultI18n.t;
-  return <View style={{flex: 1}}><StandardBackdrop/><BottomSheet open title={t('accounts.setup.approveTitle', {server: display.serverName})}
+  return <View style={{flex: 1}}><BottomSheet open title={t('accounts.setup.approveTitle', {server: display.serverName})}
     testID="accounts-setup-approval" fitContent dismissOnOutsidePress={!busy} dismissOnBack={!busy}
     onOpenChange={open => {if (!open && !busy) onClose();}}
     footer={<View style={{flexDirection: 'row', gap: 12}}>
