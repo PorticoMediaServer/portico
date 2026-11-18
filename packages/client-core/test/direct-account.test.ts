@@ -105,3 +105,17 @@ test('invitations on the rebuilt server: one list, filtered and sorted here, cod
  assert.equal(revoked.state,'revoked');assert.equal(calls[1].method,'DELETE');
  await assert.rejects(client.link({id:'inv_a',revision:1,state:'pending'}),/no longer usable/);
 });
+
+test('an invitation carries away from home, tokens and highest rating as the limits the account starts with (owner ruling A16)', async () => {
+ const {PeopleInvitationsClient}=await import('../src/direct-account.ts');
+ const calls:{method?:string;body?:any}[]=[];
+ const open={id:'inv_n',code:'K7QP-2MXD-9HRT-4WNC',role:'member',state:'open',allLibraries:true,libraries:[],createdAt:'2026-11-18T00:00:00Z',expiresAt:'2026-11-25T00:00:00Z'};
+ const client=new PeopleInvitationsClient({request:async<T>(_path:string,method?:string,body?:unknown)=>{calls.push({method,body});
+  return {...open,limits:{homeOnly:true,allowUnrated:true,blockedLabels:[],allowWatchTogether:true,allowTokens:false,allowLiveTv:true,maxRatingAge:13}} as T;}});
+ const access={maxStreamsMode:'inherit' as const,maxStreams:0,allowRemote:false,accessTokens:false,maxContentRating:'PG-13'};
+ const made=await client.create({operationId:'op',role:'member',allowedLibraries:[],expiresInHours:168,access});
+ assert.deepEqual(calls[0].body.limits,{homeOnly:true,allowTokens:false,maxRatingAge:13});
+ assert.deepEqual(made.access,access,'read back as the form drew it');
+ await client.edit('inv_n',{operationId:'op',expectedRevision:1,role:'member',allowedLibraries:[],expiresAt:open.expiresAt,access:{...access,allowRemote:true,maxContentRating:''}});
+ assert.deepEqual(calls[1].body.limits,{homeOnly:false,allowTokens:false,maxRatingAge:null},'an edit lifts a rating it no longer has');
+});

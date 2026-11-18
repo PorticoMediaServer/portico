@@ -12,6 +12,7 @@ import {identityCode} from './route-identity.ts';
 import {callServer} from './query/server-api.ts';
 import type {Invitation as NextInvitation} from '../../contracts/src/next/api.ts';
 import {formatShortInvitationCode,parseShortInvitationCode} from './short-invitation-code.ts';
+import {ratingAges,ratingOf} from './settings-people.ts';
 
 export type ServerInvitation=RouteResponse<'get_admin_access_invitation'>;
 export type ServerInvitationLink=Readonly<{code:string;expiresAt:string;serverId?:string}>;
@@ -58,15 +59,28 @@ export function parsePeopleInvitationPage(raw:unknown):PeopleInvitationPage{
 const defaultAccess=Object.freeze({maxStreamsMode:'inherit',maxStreams:0,allowRemote:true,accessTokens:true,maxContentRating:''});
 const invitationStates:Readonly<Record<string,ServerInvitation['state']>>={open:'pending',accepted:'accepted',revoked:'revoked',expired:'expired'};
 const notOnServerYet=():never=>{throw new CodedError('not_available','This is not available on this server yet.');};
+/** An invitation's away-from-home, tokens and highest-rating choices as the account limits it carries (owner ruling A16:
+ * the account is held to them from its first sign-in). Streams at once are the owner's stream limits, not an
+ * invitation's, so a choice other than the server's default is refused, never dropped; so is a rating with no age. */
+type InviteAccess=NonNullable<RouteRequest<'post_admin_access_invitations'>['access']>;
+function invitationLimits(access:InviteAccess,edit:boolean){
+ if(access.maxStreamsMode!=='inherit'||access.maxStreams)notOnServerYet();
+ const age=access.maxContentRating?ratingAges[access.maxContentRating]:undefined;
+ if(access.maxContentRating&&age===undefined)notOnServerYet();
+ // An edit names the rating either way: null lifts one the invitation had.
+ return {homeOnly:!access.allowRemote,allowTokens:access.accessTokens,...(age!==undefined?{maxRatingAge:age}:edit?{maxRatingAge:null as unknown as number}:{})};
+}
 /** An invitation on the rebuilt server, in the shape the People screens read. `revision` is always 1: the later save
- * wins. What the person gets on joining is the default every account has today, since the server keeps no access
- * limits on an invitation yet. The code is kept only when `withCode` (a list never carries it, as before). */
+ * wins. What the person gets on joining is the limits it carries. The code is kept only when `withCode` (a list never
+ * carries it, as before). */
 export function serverInvitationOf(raw:NextInvitation,withCode=false):ServerInvitation{
  const state=invitationStates[raw?.state];
  if(!object(raw)||!bounded(raw.id,128)||!state||!['member','admin'].includes(raw.role)||!timestamp(raw.createdAt)||!timestamp(raw.expiresAt)||typeof raw.allLibraries!=='boolean'||!Array.isArray(raw.libraries))invalidPeople();
  if(raw.acceptedAt!==undefined&&!timestamp(raw.acceptedAt))invalidPeople();
  return Object.freeze({id:raw.id,revision:1,role:raw.role,state,createdAt:raw.createdAt,expiresAt:raw.expiresAt,allowedLibraries:Object.freeze(raw.allLibraries?[]:[...raw.libraries]),
-  ...(raw.note?{notes:raw.note}:{}),...(raw.acceptedAt?{acceptedAt:raw.acceptedAt}:{}),...(withCode&&raw.code?{code:raw.code}:{}),access:defaultAccess}) as ServerInvitation;
+  ...(raw.note?{notes:raw.note}:{}),...(raw.acceptedAt?{acceptedAt:raw.acceptedAt}:{}),...(withCode&&raw.code?{code:raw.code}:{}),
+  access:object(raw.limits)?Object.freeze({...defaultAccess,allowRemote:raw.limits.homeOnly!==true,accessTokens:raw.limits.allowTokens!==false,
+   maxContentRating:typeof raw.limits.maxRatingAge==='number'?ratingOf(raw.limits.maxRatingAge):''}):defaultAccess}) as ServerInvitation;
 }
 const stateOrder:Readonly<Record<string,number>>={pending:0,accepted:1,expired:2,revoked:3};
 /** Invitations on the rebuilt server. It answers with every invitation (at most a few hundred are kept waiting), so
@@ -93,19 +107,20 @@ export class PeopleInvitationsClient{
    .sort((a,b)=>direction*(query.sort==='status'?stateOrder[a.state]-stateOrder[b.state]||a.createdAt.localeCompare(b.createdAt):a.createdAt.localeCompare(b.createdAt)));
   return Object.freeze({items:Object.freeze(items),limit:Math.max(1,items.length),nextCursor:'',totalCount:all.length,matchedCount:items.length});
  }
- /** Access limits and a named Portico Account are not kept on an invitation yet: asking for them is refused, never dropped. */
+ /** A named Portico Account is not kept on an invitation: asking for one is refused, never dropped. */
  async create(input:RouteRequest<'post_admin_access_invitations'>,signal?:AbortSignal):Promise<ServerInvitation>{
-  if(input.porticoUsername||input.access&&JSON.stringify({...defaultAccess,...input.access})!==JSON.stringify(defaultAccess))notOnServerYet();
+  if(input.porticoUsername)notOnServerYet();
+  const limits=input.access?invitationLimits(input.access,false):undefined;
   const days=input.expiresInHours/24,note=privatePersonNotes(input.notes)??undefined;
-  const raw=await callServer(this.api,'POST /v1/admin/invitations',{body:{role:input.role,allLibraries:input.allowedLibraries.length===0,libraries:[...input.allowedLibraries],...(note?{note}:{}),expiresInDays:days},signal});
+  const raw=await callServer(this.api,'POST /v1/admin/invitations',{body:{role:input.role,allLibraries:input.allowedLibraries.length===0,libraries:[...input.allowedLibraries],...(note?{note}:{}),expiresInDays:days,...(limits?{limits}:{})},signal});
   return serverInvitationOf(raw,true);
  }
  async read(id:string,signal?:AbortSignal):Promise<ServerInvitation>{return serverInvitationOf(await this.find(id,signal));}
  /** Changes who it is for and what it shares. The expiry stays as it is. */
  async edit(id:string,input:RouteRequest<'put_admin_access_invitation'>,signal?:AbortSignal):Promise<ServerInvitation>{
-  if(input.access&&JSON.stringify({...defaultAccess,...input.access})!==JSON.stringify(defaultAccess))notOnServerYet();
+  const limits=input.access?invitationLimits(input.access,true):undefined;
   const note=privatePersonNotes(input.notes);
-  return serverInvitationOf(await callServer(this.api,'PATCH /v1/admin/invitations/{id}',{id,body:{role:input.role,allLibraries:input.allowedLibraries.length===0,libraries:[...input.allowedLibraries],note:note??''},signal}));
+  return serverInvitationOf(await callServer(this.api,'PATCH /v1/admin/invitations/{id}',{id,body:{role:input.role,allLibraries:input.allowedLibraries.length===0,libraries:[...input.allowedLibraries],note:note??'',...(limits?{limits}:{})},signal}));
  }
  /** The code a link carries: the invitation's own code, while it is waiting. */
  async link(invitation:Pick<ServerInvitation,'id'|'revision'|'state'>,signal?:AbortSignal):Promise<ServerInvitationLink>{

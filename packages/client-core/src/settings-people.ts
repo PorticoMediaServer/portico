@@ -50,9 +50,9 @@ export function awayQualityKbps(choice: string): number {
   return kbps;
 }
 /** The highest-rating choices People offers, each the age the server keeps for it (13 shows PG-13 and below). */
-const ratingAges: Readonly<Record<string, number>> = {G: 0, PG: 8, 'PG-13': 13, R: 17};
+export const ratingAges: Readonly<Record<string, number>> = {G: 0, PG: 8, 'PG-13': 13, R: 17};
 /** The choice that shows a stored age: the highest whose age is at or below it. */
-const ratingOf = (age: number) => Object.entries(ratingAges).filter(([, at]) => at <= age).pop()?.[0] ?? 'G';
+export const ratingOf = (age: number) => Object.entries(ratingAges).filter(([, at]) => at <= age).pop()?.[0] ?? 'G';
 
 /** The server's whole-account limits in the shape People's rows read. Live TV channels are not among them yet, and the
  * server keeps no limit on converting, so that row is not shown. */
