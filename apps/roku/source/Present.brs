@@ -46,6 +46,27 @@ function withoutReading(items as dynamic) as object
     return out
 end function
 
+' A row read again keeps the order it had (`ids`, the titles it showed): those still there first, in
+' that order, then any new ones in the server's order (tv-focus frame 6).
+function keptOrder(ids as object, items as object) as object
+    byId = {}
+    for each item in items
+        byId[item.id] = item
+    end for
+    out = []
+    seen = {}
+    for each id in ids
+        if byId[id] <> invalid and seen[id] = invalid
+            out.push(byId[id])
+            seen[id] = true
+        end if
+    end for
+    for each item in items
+        if seen[item.id] = invalid then out.push(item)
+    end for
+    return out
+end function
+
 ' A book, comic, audiobook or album cover is always shown whole (ruling of 13 Nov).
 function isCover(kind as string) as boolean
     return kind = "book" or kind = "audiobook" or kind = "comic" or kind = "album" or kind = "series" or kind = "track" or kind = "magazine"

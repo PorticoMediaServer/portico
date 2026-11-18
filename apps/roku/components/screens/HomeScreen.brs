@@ -52,6 +52,8 @@ sub onHome(event as object)
         row.items = withoutReading(row.items)
         ' A row is kept if it has titles, or will read them as it comes near (`deferred`).
         if row.hidden <> true and row.id <> "continue_reading" and (row.items.count() > 0 or row.deferred = true)
+            ' the row in focus keeps its order, whatever the server now says (tv-focus frame 6)
+            if m.keep <> invalid and m.keep.row = row.id and m.keep.order <> invalid then row.items = keptOrder(m.keep.order, row.items)
             fitShape(row)
             m.rows.push({row: row, shelf: invalid, y: 0, asked: false})
         end if
@@ -469,7 +471,10 @@ end sub
 ' next card, or the last one, when the card in focus has gone).
 sub refresh()
     if m.focus < 0 then return
-    m.keep = {row: m.rows[m.focus].row.id, after: []}
+    m.keep = {row: m.rows[m.focus].row.id, after: [], order: []}
+    for each item in m.rows[m.focus].row.items
+        m.keep.order.push(item.id)
+    end for
     ' every row's card, and the rows after the one in focus: if that row has gone (its last
     ' card went), focus moves to the row below it at the card it remembers (tv-focus frame 49)
     m.memory = {}

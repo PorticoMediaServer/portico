@@ -45,6 +45,8 @@ sub main()
     same("episode", [episodeCode({parentIndex: 1, index: 3}), episodeCode({index: 3})], ["S1 E3", ""])
     same("time left", [timeLeftText({durationMs: 7200000, state: {positionMs: 3360000}}), timeLeftText({durationMs: 7200000, state: {}})], ["1 h 4 min left", ""])
     same("reading left out", [withoutReading([{kind: "movie"}, {kind: "book"}, {kind: "series", publicationType: "book"}, {kind: "audiobook"}]).count().toStr()], ["2"])
+    kept = keptOrder(["b", "a", "c"], [{id: "a"}, {id: "d"}, {id: "b"}])
+    same("kept order", [kept[0].id, kept[1].id, kept[2].id], ["b", "a", "d"])
     ' a library's toolbar offers only the quick filters its own filters list names
     quick = []
     for each q in quickFilters([{id: "genre"}, {id: "inList"}, {id: "watched"}])
