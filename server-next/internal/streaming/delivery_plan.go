@@ -173,8 +173,10 @@ const DownmixITULimited = "itu_limited"
 // the viewer's resolved position. Planning is a pure function of it, which is
 // what makes the decision matrix testable without a database.
 type DeliveryInput struct {
-	// Disc is one title of a film disc: never the original, and its picture is converted.
-	Disc bool
+	// Disc is one title of a film disc: never the original. Its picture is converted unless
+	// DiscKeyframes says the disc reader listed the title's keyframes (a Blu-ray's entry points),
+	// which the copied picture is then cut on.
+	Disc, DiscKeyframes bool
 	// Joined is a title in several files that the server plays as one: there is no single
 	// original to hand the device. JoinedPartsDiffer says its files are not encoded alike,
 	// so they cannot be copied into one stream.
@@ -538,9 +540,10 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 		audioRules = append(audioRules, RouteRejection{ReasonBitrateExceedsPolicy, fmt.Sprintf("audio %d>%d", max(audio.BitRate, audio.MaxBitRate), in.Target.MaxAudioBitrateBPS)})
 	}
 
-	// A disc title's picture is converted. A copied picture is cut on its keyframes, and a disc
-	// title has no index of them: finding them reads the whole title (hls_copy_timeline.go).
-	discPictureConverted := RouteRejection{RejectContainer, "disc_picture_converted"}
+	// A copied picture is cut on its keyframes (hls_copy_timeline.go). A disc title has no index
+	// of them FFmpeg can ask, and finding them reads the whole title: only a title whose keyframes
+	// the disc reader listed is copied.
+	discPictureConverted := in.Disc && !in.DiscKeyframes
 
 	// Route 1: the original file.
 	{
@@ -626,8 +629,8 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 		if in.JoinedPartsDiffer {
 			rejections = append(rejections, RouteRejection{RejectAudioCodec, "joined_parts_differ"})
 		}
-		if in.Disc {
-			rejections = append(rejections, discPictureConverted)
+		if discPictureConverted {
+			rejections = append(rejections, RouteRejection{RejectContainer, "disc_picture_converted"})
 		}
 		// remuxable describes the source and the device, not the preferences:
 		// it is what decides which refusal a closed policy is reported as.
@@ -659,8 +662,8 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 		if !conversionAllowed {
 			rejections = append(rejections, RouteRejection{RejectTranscodingDisabled, ""})
 		}
-		if in.Disc {
-			rejections = append(rejections, discPictureConverted)
+		if discPictureConverted {
+			rejections = append(rejections, RouteRejection{RejectContainer, "disc_picture_converted"})
 		}
 		if audio == nil {
 			rejections = append(rejections, RouteRejection{RejectNoAudio, ""})
