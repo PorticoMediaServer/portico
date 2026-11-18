@@ -27,11 +27,11 @@ test('a copied preset owns its selection and overnight blocks refuse weekly over
  const copied=copyBlockPreset(preset,'tv','block');assert.equal(copied.to,'01:00');assert.equal(copied.fromPreset,undefined);assert.equal(copied.selection?.sort,'recent');preset.recipe.clauses[0]!.values[0]='Comedy';assert.deepEqual(copied.selection?.conditions?.[0]?.values,['Drama']);
  const next={id:'next',name:'Early',days:['sun'],from:'00:30',to:'02:00'};assert.deepEqual(blockOverlap([copied,next]),[copied,next]);assert.equal(validBuilder({...builder,blocks:[copied,next]}),false);assert.equal(blockOverlap([copied,{...next,from:'01:00'}]),undefined);
 });
-test('title search is scoped, selected conditions have labels, and logo upload uses authenticated raw PUT',async()=>{
+test('title search is scoped, selected conditions have labels, and logo upload uses the renewing picture PUT',async()=>{
  const calls:any[]=[];const api={async request<T>(path:string){calls.push(path);return path.includes('/search')?{groups:[{kind:'movie',items:[{id:'mov',title:'Film'}],nextCursor:'next'}]} as T:{items:[{id:'tag_one',name:'Drama',kind:'genre'}]} as T;}};
  assert.equal((await findChannelTitles(api,'lib_one','a b','movie')).items[0]?.title,'Film');assert.match(calls[0],/library=lib_one/);assert.match(calls[0],/q=a\+b/);assert.deepEqual(await channelConditionNames(api,'genre',['tag_one','Thriller']),{tag_one:'Drama',Thriller:'Thriller'});
  const file=new File(['picture'],'logo.gif',{type:'image/gif'}),signal=new AbortController().signal;
- await uploadOwnerChannelLogo({baseUrl:'https://server.invalid',routeFetch:async(url:string,options:RequestInit)=>{assert.equal(url,'https://server.invalid/v1/admin/library-channels/chn_one/logo');assert.equal(options.method,'PUT');assert.equal(options.body,file);assert.equal(options.signal,signal);assert.equal((options.headers as Record<string,string>).Authorization,'Bearer captured');return new Response('{}');}},'chn_one','captured',file,signal);
+ await uploadOwnerChannelLogo({uploadPicture:async(path:string,method:string,body:unknown,contentType:string,sent?:AbortSignal)=>{assert.equal(path,'/v1/admin/library-channels/chn_one/logo');assert.equal(method,'PUT');assert.equal(body,file);assert.equal(contentType,'image/gif');assert.equal(sent,signal);return new Response('{}');}},'chn_one',file,signal);
  const html=renderToStaticMarkup(createElement(OwnerSelection,{lookup:{api,current:()=>true,report:()=>{}},libraries:[{id:'films',name:'Films',kind:'movie'}],value:builder,locked:false,change:()=>{}}));assert.match(html,/Play order/);assert.match(html,/Always include/);assert.match(html,/conditions the builder can/);assert.doesNotMatch(html,/futureField|keep me/);
 });
 
