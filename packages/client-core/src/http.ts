@@ -19,7 +19,7 @@ import {sessionRoute, bindSessionRoute, type RouteConnection} from './route-conn
 import {playableAudio, type AudioRenderV2} from './playback-v1/audio-render.ts';
 import type {PlayerFailureCode} from './client-profile.ts';
 import {normalizeTransportClass, transportClassHeader, deviceClassHeader, deliveryContextHeaders, setDeliveryContext, type TransportClass} from './delivery.ts';
-import {readConsoleJson, consoleUTF8Size} from './console-transport.ts';
+import {readConsoleJson, consoleUTF8Size, normalizeManagementPin} from './console-transport.ts';
 import {readLyricsResponse} from "./lyrics-http.ts";
 import {readBoundedJson} from './bounded-json.ts';
 import {unreadableServerResponse} from './server-messages.ts';
@@ -731,7 +731,7 @@ export class HttpLocalApi {
       }
       // Playback v1 callers read their own errors; a management refusal still reaches the session's holder.
       const code = response.status === 403 ? (body as {error?: {code?: unknown}} | undefined)?.error?.code : undefined;
-      if (code === 'profile_pin_manage') this.announceGate(new ApiError(403, code, 'Enter this profile\'s PIN to manage this account.', false), response);
+      if (normalizeManagementPin(code) === 'profile_pin_manage') this.announceGate(new ApiError(403, 'profile_pin_manage', 'Enter this profile\'s PIN to manage this account.', false), response);
       return {status: response.status, headers, body};
     });
   }
@@ -769,7 +769,7 @@ export class HttpLocalApi {
       throwIfAborted(signal);
       const error = new ApiError(
         response.status,
-        data?.error?.code ?? data?.code ?? "request_failed",
+        normalizeManagementPin(data?.error?.code ?? data?.code ?? "request_failed") as string,
         data?.error?.message ?? `Request failed (${response.status}).`,
         // Two envelopes: the older `retryable` boolean, and the registry's `retry` class, where
         // only "send the same request again" is a retry of this request.

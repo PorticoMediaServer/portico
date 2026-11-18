@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as core from '../../../packages/client-core/src';
 import * as cleanup from '../../../packages/client-core/src/cleanup';
+import * as profileManagement from '../../../packages/client-core/src/profile-management';
 import * as rememberMarker from '../../../packages/client-core/src/remember-marker';
 import * as serverConnections from '../../../packages/client-core/src/server-connections';
 import * as timer from '../../../packages/client-core/src/timer';
@@ -15,7 +16,7 @@ import {screenModule} from './helpers/screen-harness.mjs';
 // C2a: the native LifecyclePorts, over an in-memory envelope (a real AppSessionStore) and fakes for
 // every platform dependency. Nothing here touches the device, the network or a native module.
 
-const FUTURE = '2099-01-01T00:00:00Z', PAST = '2001-01-01T00:00:00Z';
+const FUTURE = '2099-01-01T00:00:00Z';
 const server = (id: string, profileId = 'p1', family = 'family-' + id): AppServerSession => ({signIn: 'local', connection: {version: '1',
   selectionId: id.padEnd(32, '_'), logicalOrigin: `https://${id}.test`, pin: {serverId: id, publicKey: 'p', fingerprint: 'fingerprint-' + id},
   routes: {paired: [`https://${id}.test`]},
@@ -33,7 +34,7 @@ const flush = async () => {for (let i = 0; i < 8; i++) await new Promise(resolve
 type Options = {
   entries?: AppServerSession[]; selected?: string; displays?: boolean; prepare?: () => Promise<boolean>; hint?: object | undefined;
   restore?: (signal: AbortSignal) => Promise<unknown>; account?: unknown; accountError?: unknown; remember?: boolean; mismatch?: boolean;
-  assertCurrent?: () => Promise<void>; marker?: AppServerSession['remembered'];
+  assertCurrent?: () => Promise<void>; marker?: AppServerSession['remembered']; resumeError?: unknown;
   /** Ending the replaced family never settles (R-12: it must not hold up the pick). */
   revokeNever?: boolean;
   /** A profile selection the server refuses (a wrong PIN), per call. */
@@ -55,10 +56,15 @@ async function fixture(options: Options = {}) {
     const live = route();
     const api = {baseUrl: 'https://a.test', route: live, token, requests: [] as string[], logouts: 0, tokens: [] as string[],
       getRouteConnection: () => live, useRoutes() {}, setAccessToken(value: string) {api.tokens.push(value); api.token = value;},
-      async request(path: string) {
+      async request(path: string, _method?: string, body?: unknown) {
         api.requests.push(path);
+        if (path.endsWith('/select')) {
+          if (options.resumeError) throw options.resumeError;
+          assert.deepEqual(body, {pinToken: 'pin-grant'});
+          return issuedSession('p1', 'family-a');
+        }
         if (options.accountError && api.token === 'tok') throw options.accountError;
-        return api.token === 'issued-token' ? snapshot(false, options.account as object) : options.account ?? snapshot(true);
+        return api.token === 'issued-token' ? snapshot(true, options.account as object) : options.account ?? snapshot(true);
       },
       async logout() {api.logouts++;}};
     apis.push(api); return api;
@@ -73,9 +79,9 @@ async function fixture(options: Options = {}) {
     '../../../../packages/client-core/src': core,
     '../../../../packages/client-core/src/cleanup': cleanup,
     '../../../../packages/client-core/src/installation': {installationIdentity: () => ({installationId: 'install'})},
-    '../../../../packages/client-core/src/profile-management': {parseDirectSnapshot: (raw: {me: unknown}) => raw.me, selectDirectProfile: async () => ({})},
+    '../../../../packages/client-core/src/profile-management': {...profileManagement, parseDirectSnapshot: (raw: {me: unknown}) => raw.me},
     '../../../../packages/client-core/src/remember-marker': rememberMarker,
-    '../../../../packages/client-core/src/server-connections': {restoreNativeSession: serverConnections.restoreNativeSession},
+    '../../../../packages/client-core/src/server-connections': serverConnections,
     '../../../../packages/client-core/src/timer': timer,
     '../../../../packages/contracts/src/routes': {routePath: (name: string) => name},
     '../../platform/offline-downloads': {offlineDownloads: {}, offlineOwnerKey: () => 'owner'},
@@ -104,7 +110,7 @@ async function fixture(options: Options = {}) {
       : values.map(value => ({serverId: value.connection.pin.serverId, name: 'Server ' + value.connection.pin.serverId}))) as any,
     readSignInHint: (async () => hint) as any,
     beginInstallation: (() => ({prepare: async () => ({saved: {viewer: {serverUrl: old().viewer.serverId === 'a' ? 'https://a.test' : '', session: old()}},
-      connection: entry()!.connection, env: {}}), current: () => true, dispose: () => {log.push('installation.dispose');}})) as any,
+      connection: entry()!.connection, env: {storage: sessions.connectionStorage('a')}}), current: () => true, dispose: () => {log.push('installation.dispose');}})) as any,
     installationIdentity: (() => installation) as any,
     restoreConnection: (async (_origin: string, _creds: unknown, _expected: unknown, _env: unknown, signal: AbortSignal) => {
       if (options.restore) await options.restore(signal);
@@ -117,7 +123,7 @@ async function fixture(options: Options = {}) {
     selectProfile: (async (_api: unknown, _scope: unknown, profileId: string, input: unknown) => {
       selectArgs.push({profileId, input});
       const refused = options.selectError?.(); if (refused) throw refused;
-      return {session: issuedSession(profileId), ...(options.remember && (input as {remember?: boolean}).remember ? {remembered: {expiresAt: FUTURE}} : {})};
+      return {session: issuedSession(profileId), ...(options.remember && (input as {remember?: boolean; pin?: string}).pin ? {pinToken: 'pin-grant'} : {})};
     }) as any,
     logoutIssued: async (_api, issued) => {issuedLogouts.push(issued.accessToken);},
     revokeInBackground: ((record: unknown, live: unknown) => {revokes.push({record, live}); return options.revokeNever ? new Promise(() => {}) : Promise.resolve();}) as any,
@@ -172,10 +178,9 @@ test('readRecords reports a lost secure-records key as lost, and a missing displ
   assert.equal(read.outcome, 'ok'); assert.equal(read.held?.server.name, '');
 });
 
-test('remembered is true only for the exact family and profile before expiry', async () => {
-  const good = {profileId: 'p1', familyId: 'family-a', expiresAt: FUTURE};
+test('default remembering follows the exact family and profile without a clock deadline', async () => {
+  const good = {profileId: 'p1', familyId: 'family-a', pinToken: 'pin-grant'};
   assert.equal((await (await fixture({marker: good})).ports.readRecords()).held?.remembered, true);
-  assert.equal((await (await fixture({marker: {...good, expiresAt: PAST}})).ports.readRecords()).held?.remembered, false);
   assert.equal((await (await fixture({marker: {...good, familyId: 'family-other'}})).ports.readRecords()).held?.remembered, false);
   assert.equal((await (await fixture({marker: {...good, profileId: 'p2'}})).ports.readRecords()).held?.remembered, false);
   const pin = await fixture(); await pin.sessions.setProfilePinRequired('a', 'family-a', true);
@@ -185,7 +190,7 @@ test('remembered is true only for the exact family and profile before expiry', a
 test('connect restores the held sign-in, maps the profiles, and keeps the PIN state and connection', async () => {
   const fx = await fixture();
   const facts = await fx.ports.connect('a', new AbortController().signal);
-  assert.deepEqual(facts, {rememberProfiles: true, manageLocked: false, profiles: [{id: 'p1', name: 'Main', primary: true, pinRequired: true}, {id: 'p2', name: 'Kids', primary: false, pinRequired: false}]});
+  assert.deepEqual(facts, {rememberProfiles: true, remembered: false, manageLocked: false, profiles: [{id: 'p1', name: 'Main', primary: true, pinRequired: true}, {id: 'p2', name: 'Kids', primary: false, pinRequired: false}]});
   assert.deepEqual(fx.apis[0].requests, ['/v1/me', '/v1/profiles']);
   assert.equal(fx.entry()!.profilePinRequired, true);
   assert.equal(fx.ports.connection('a')?.api, fx.apis[0]); assert.equal(fx.ports.connection('b'), undefined);
@@ -242,7 +247,7 @@ test('classifyConnect: sign-in ended, identity codes, PIN re-entry, anything els
 });
 
 test('select without remembered: no marker, replaced family ended, nothing remembered', async () => {
-  const fx = await fixture({marker: {profileId: 'p1', familyId: 'family-a', expiresAt: FUTURE}, remember: false});
+  const fx = await fixture({marker: {profileId: 'p1', familyId: 'family-a', pinToken: 'pin-grant'}, remember: false});
   await fx.ports.connect('a', new AbortController().signal);
   const facts = await fx.ports.select({serverId: 'a', profileId: 'p2', pin: '1234', remember: false}, new AbortController().signal);
   assert.deepEqual(facts, {viewer: {accountId: 'membership-a', profileId: 'p2', role: 'owner', familyId: 'family-new'}, remembered: false});
@@ -278,21 +283,43 @@ test('a published pick resolves even when ending the replaced family never finis
   assert.equal(fx.issuedLogouts.length, 0, 'no direct logout on the path to Home');
 });
 
-test('select with remembered: the marker is written for the new family, with the server\'s expiry', async () => {
-  const fx = await fixture({remember: true});
+test('a checked non-PIN pick stores the choice without a server PIN grant', async () => {
+  const fx = await fixture();
   await fx.ports.connect('a', new AbortController().signal);
   const facts = await fx.ports.select({serverId: 'a', profileId: 'p2', remember: true}, new AbortController().signal);
   assert.equal(facts.remembered, true);
-  assert.deepEqual(fx.entry()!.remembered, {profileId: 'p2', familyId: 'family-new', expiresAt: FUTURE});
-  assert.deepEqual(fx.selectArgs[0], {profileId: 'p2', input: {pin: undefined, installationId: 'install', remember: true}});
+  const marker = fx.entry()!.remembered;
+  assert.equal(marker?.familyId, 'family-new');
+  assert.equal(marker?.profileId, 'p2');
+  assert.equal(marker?.pinRememberDays, -1);
+  assert.equal(marker?.pinToken, undefined);
   const held = (await fx.ports.readHeld()).held!;
   assert.equal(held.remembered, true); assert.equal(held.viewer.profileId, 'p2');
-  // Asked to remember but the server did not say so: no marker.
-  const declined = await fixture({remember: false});
-  await declined.ports.connect('a', new AbortController().signal);
-  assert.equal((await declined.ports.select({serverId: 'a', profileId: 'p2', remember: true}, new AbortController().signal)).remembered, false);
-  assert.equal(declined.entry()!.remembered, undefined);
 });
+
+test('launch replays the saved PIN grant, and falls back to PIN re-entry if the server rejects it', async () => {
+  const marker = {profileId: 'p1', familyId: 'family-a', pinToken: 'pin-grant'};
+  const fx = await fixture({marker});
+  const signal = new AbortController().signal;
+  assert.equal((await fx.ports.connect('a', signal)).remembered, true);
+  assert.deepEqual(fx.apis[0].requests, ['/v1/me', '/v1/profiles', '/v1/profiles/p1/select']);
+  assert.equal(fx.entry()?.connection.session.accessToken, 'issued-token');
+  assert.deepEqual(fx.entry()?.remembered, marker);
+  fx.ports.releaseConnection();
+
+  const refusal = new core.ApiError(403, 'profile_pin_reentry', 'Enter the PIN.');
+  const rejected = await fixture({marker, resumeError: refusal});
+  const life = new SessionLifecycle(rejected.ports);
+  life.start();
+  await flush();
+  assert.equal(life.getSnapshot().state.kind, 'enteringPin');
+  assert.equal(rejected.entry()?.remembered, undefined);
+  assert.equal(rejected.entry()?.connection.session.sessionFamilyId, 'family-a');
+  assert.equal(rejected.ports.connection('a')?.api, rejected.apis[0], 'PIN recovery keeps its proved route');
+  assert.equal(rejected.apis[0].route.disposed, 0);
+  life.dispose(); rejected.ports.releaseConnection();
+});
+
 
 test('select refuses an identity mismatch and ends the picked session only then', async () => {
   const mismatch = await fixture({mismatch: true});
@@ -321,7 +348,7 @@ test('select refuses an identity mismatch and ends the picked session only then'
 });
 
 test('clearMarker removes only the held family\'s marker', async () => {
-  const fx = await fixture({marker: {profileId: 'p1', familyId: 'family-a', expiresAt: FUTURE}});
+  const fx = await fixture({marker: {profileId: 'p1', familyId: 'family-a', pinToken: 'pin-grant'}});
   assert.equal((await fx.ports.readHeld()).held?.remembered, true);
   await fx.ports.clearMarker('a');
   assert.equal(fx.entry()!.remembered, undefined);
@@ -371,7 +398,7 @@ test('log writes codes only', async () => {
 });
 
 test('a SessionLifecycle over these ports: remembered launch reaches ready, unremembered reaches choosingProfile', async () => {
-  const remembered = await fixture({marker: {profileId: 'p1', familyId: 'family-a', expiresAt: FUTURE}});
+  const remembered = await fixture({marker: {profileId: 'p1', familyId: 'family-a', pinToken: 'pin-grant'}});
   const lifecycle = new SessionLifecycle(remembered.ports as LifecyclePorts);
   lifecycle.start(); await flush();
   assert.equal(lifecycle.getSnapshot().state.kind, 'ready');
@@ -393,7 +420,7 @@ test('a SessionLifecycle over these ports: remembered launch reaches ready, unre
 
 // ---- J-31: Remember this profile on this device ------------------------------------------------
 
-const marker = {profileId: 'p1', familyId: 'family-a', expiresAt: FUTURE};
+const marker = {profileId: 'p1', familyId: 'family-a', pinToken: 'pin-grant'};
 const wrongPin = () => new core.ApiError(401, 'profile_pin_invalid', 'That PIN is not right.');
 
 test('Forget remembered profile: the remembered launch opens straight in, Forget clears the marker and keeps the profile open, and the next launch shows the picker', async () => {
@@ -464,7 +491,7 @@ test('a marker whose sign-in is gone is ignored: another family, no sign-in at a
 
 test('a ticked no-PIN profile is remembered when chosen; unticked it is not, and a server that does not remember writes nothing', async () => {
   for (const [ticked, serverRemembers] of [[true, true], [false, true], [true, false]] as const) {
-    const fx = await fixture({remember: serverRemembers});
+    const fx = await fixture({account: snapshot(true, {rememberProfiles: serverRemembers})});
     const life = new SessionLifecycle(fx.ports as LifecyclePorts);
     life.start(); await flush();
     assert.equal(life.getSnapshot().state.kind, 'choosingProfile');
@@ -472,10 +499,11 @@ test('a ticked no-PIN profile is remembered when chosen; unticked it is not, and
     const state = life.getSnapshot().state as any;
     assert.equal(state.kind, 'ready');
     assert.equal(fx.selectArgs.length, 1);
-    assert.equal((fx.selectArgs[0] as any).input.remember, ticked, 'the tick is what the server is asked');
+    assert.equal((fx.selectArgs[0] as any).input.remember, ticked && serverRemembers, 'the picker follows the server policy');
     const expected = ticked && serverRemembers;
     assert.equal(state.remembered, expected);
-    assert.deepEqual(fx.entry()!.remembered, expected ? {profileId: 'p2', familyId: 'family-new', expiresAt: FUTURE} : undefined);
+    assert.equal(fx.entry()!.remembered?.profileId, expected ? 'p2' : undefined);
+    assert.equal(fx.entry()!.remembered?.pinRememberDays, expected ? -1 : undefined);
     life.dispose(); fx.ports.releaseConnection();
   }
 });
@@ -506,7 +534,7 @@ test('a PIN profile is remembered only after a correct PIN: not on the pick, a w
   refuse = false;
   await life.actions.submitPin.start('1234', true); await flush();
   assert.equal(life.getSnapshot().state.kind, 'ready');
-  assert.deepEqual(fx.entry()!.remembered, {profileId: 'p1', familyId: 'family-new', expiresAt: FUTURE});
+  assert.deepEqual(fx.entry()!.remembered, {profileId: 'p1', familyId: 'family-new', pinToken: 'pin-grant'});
   life.dispose(); fx.ports.releaseConnection();
 });
 

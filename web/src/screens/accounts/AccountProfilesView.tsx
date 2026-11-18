@@ -42,8 +42,8 @@ type RecoveryOpening = {flow: ProfileRecoveryView; binding: ProfilePickerViewBin
 /** auth13/14/18. The route supplies the actual captured entry/domain helpers,
  * retains their authority and owns their disposal. No renderer creates auth. */
 export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {binding: ProfilePickerViewBinding; onSwitchServer: () => void; focusProfileId?: string}) {
-  const state = useSyncExternalStore(binding.subscribe, binding.getSnapshot);
-  const [selection, setSelection] = useState<Selection>(), [remember, setRemember] = useState(false), [recovery, setRecovery] = useState<RecoveryOpening>();
+  const state = useSyncExternalStore(binding.subscribe, binding.getSnapshot, binding.getSnapshot);
+  const [selection, setSelection] = useState<Selection>(), [remember, setRemember] = useState(true), [recovery, setRecovery] = useState<RecoveryOpening>();
   const activeRecovery = useRef<RecoveryOpening | undefined>(undefined), selectedNow = useRef(selection);
   const owner = useMemo<ViewOwner>(() => { /* Preserve the original ownership/invalidation keys. */ void binding; void state.snapshot; void state.phase; void state.server; return ({retired: false}); }, [binding, state.snapshot, state.server, state.phase]);
   const rendered = useRef(owner), [flight, setFlight] = useState<{live: boolean}>();
@@ -55,7 +55,7 @@ export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {
   };
   useLayoutEffect(() => {
     const own = {live: true}; owner.active = own; setFlight(own);
-    selectedNow.current = undefined; setSelection(undefined); setRemember(false);
+    selectedNow.current = undefined; setSelection(undefined); setRemember(true);
     return () => {
       own.live = false; if (owner.active === own) owner.active = undefined;
       const opening = activeRecovery.current;

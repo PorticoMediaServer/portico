@@ -96,7 +96,7 @@ test('a rendered server choice consumes only its original saved-record revision'
   await assert.rejects(store.select('a', () => true, -1));
   assert.deepEqual(await store.read(), accepted);
 });
-const marker = {profileId: 'profile-a', expiresAt: '2099-01-01T00:00:00Z'};
+const marker = {profileId: 'profile-a', familyId: 'family-a', pinToken: 'remembered-pin-grant'};
 test('remember marker and PIN flag are written only for the exact family, and advance the revision', async () => {
   const store = storage([entry('a'), entry('b')]);
   const revision = async () => (await store.read()).revision;
@@ -170,7 +170,7 @@ test('an unreadable saved record is never overwritten or erased by a new sign-in
   await assert.rejects(store.read(), (error: {code?: string}) => error.code === 'invalid_saved_connection');
   const fresh = entry('fresh');
   await assert.rejects(store.connectionStorage('fresh', {signIn: 'local', expectedRevision: 4}).change(() => fresh.connection));
-  await assert.rejects(store.setRemembered('a', 'family-a', {profileId: 'profile-a', expiresAt: '2099-01-01T00:00:00Z'}));
+  await assert.rejects(store.setRemembered('a', 'family-a', marker));
   await assert.rejects(store.signOutServer('a', 'family-a'));
   await assert.rejects(store.select('a'));
   assert.deepEqual(raw, unreadable, 'the record is exactly as it was');
@@ -210,4 +210,24 @@ test('a reset-file owner session renews locally without a Hosted account', async
   assert.equal(current?.connection.session.accessToken, 'renewed'); assert.equal(current?.connection.session.refreshToken, 'refresh-token-long-enough');
   assert.throws(() => parseAppSessionRecord({version: 1, revision: 0, servers: [{...saved, connection: {...saved.connection, hosted}}]}));
   assert.throws(() => parseAppSessionRecord({version: 1, revision: 0, servers: [{...saved, connection: {...saved.connection, session: {...saved.connection.session, viewer: {...saved.connection.session.viewer, role: 'member'}}}}]}));
+});
+
+
+test('non-PIN remembering rolls on renewal and a timed idle gap ends it', async t => {
+  const day = 86_400_000, start = Date.now();
+  let now = start;
+  t.mock.method(Date, 'now', () => now);
+  const store = storage([entry('a')]), adapter = store.connectionStorage('a');
+  const remembered = {profileId: 'profile-a', familyId: 'family-a', pinRememberDays: 7, lastUsedAt: start};
+  await store.setRemembered('a', 'family-a', remembered);
+  const renew = (tokenGeneration: string) => adapter.change(value => ({...value!, session: {...value!.session, tokenGeneration}}));
+  now = start + 6 * day;
+  await renew('2');
+  now = start + 12 * day;
+  await renew('3');
+  assert.deepEqual((await store.selected())?.remembered, {...remembered, lastUsedAt: start + 12 * day});
+  now = start + 19 * day;
+  await renew('4');
+  assert.equal((await store.selected())?.remembered, undefined);
+  assert.equal((await store.selected())?.connection.session.tokenGeneration, '4', 'only the remember choice ends');
 });

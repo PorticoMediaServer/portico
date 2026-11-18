@@ -3,13 +3,13 @@ import {readDirectAccount} from '../../../packages/client-core/src/query/connect
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import {AppSessionStore, type AppServerSession, type PorticoAccountScope} from '@core/app-sessions.ts';
 import {ServerSignInProbe} from '@core/sign-in.ts';
-import {parseDirectSnapshot, selectDirectProfile} from '@core/profile-management.ts';
+import {parseDirectSnapshot, profileRememberMarker, selectDirectProfile} from '@core/profile-management.ts';
 import {rememberNativeSession, restoreNativeSession, type ConnectionEnvironment, type RememberedServer} from '@core/server-connections.ts';
 import {browserAppSessions, browserConnectionEnvironment} from './server-connections';
 import {porticoAccountHolder} from './portico-account-holder';
 import {installationIdentity} from '@core/installation.ts';
 import {routePath} from '../../../packages/contracts/src/routes.ts';
-import {forgetTabServer, recordTabPick} from './tab-session-gate';
+import {admitProfile, forgetTabServer} from './tab-session-gate';
 
 /** Browser account actions share the canonical protected record. The caller retires its mounted
  * UI/player before switching/signing out. No account-service request is made for Local actions. */
@@ -55,12 +55,12 @@ export class BrowserAppSessionActions {
   const installation=installationIdentity();
   if(!installation)throw new Error('This browser installation is no longer available.');
   const scope={authority:'local' as const,serverId:session.viewer.serverId,accountId:session.viewer.accountId,profileId,installationId:installation.installationId};
-  const chosen=await selectDirectProfile(api,scope,profileId,{pin,installationId:scope.installationId,...(remember?{remember:true}:{})},signal);
+  const chosen=await selectDirectProfile(api,scope,profileId,{pin,installationId:scope.installationId,remember:remember&&snapshot.rememberProfiles===true},signal);
   const env={...this.environment(session.viewer.serverId),storage:this.store.connectionStorage(session.viewer.serverId,{signIn:entry.signIn,hostedAccount:entry.connection.hosted,expectedRevision:state.revision})};
   // Choosing a profile keeps the same sign-in: if saving it fails, the sign-in saved before still stands.
   await rememberNativeSession(api,chosen.session,env,entry.connection.hosted,()=>isCurrent()&&!signal.aborted);
-  // "Remember this profile on this device": only when asked for and the server agreed.
-  recordTabPick(session.viewer.serverId,profileId,remember&&chosen.remembered?{serverId:session.viewer.serverId,familyId:chosen.session.sessionFamilyId,profileId,expiresAt:chosen.remembered.expiresAt}:undefined);
+  await this.store.setRemembered(scope.serverId,chosen.session.sessionFamilyId,profileRememberMarker(chosen,snapshot,remember),profileId).catch(()=>{});
+  if(isCurrent()&&!signal.aborted)admitProfile(scope.serverId,profileId);
   return chosen.session;
  }
  dispose(){this.probe.dispose();}
