@@ -44,7 +44,7 @@ func TestSTRMPlaysThroughExistingSessionPath(t *testing.T) {
 		http.ServeContent(w, r, "target.mp4", time.Time{}, bytes.NewReader(content))
 	}))
 	defer outside.Close()
-	client, address := strm.TestClient(t, outside.URL)
+	client, address := strm.New(), outside.URL
 	h, d, _ := newHouseWithSTRM(t, ffmpeg, ffprobe, client)
 	root := t.TempDir()
 	os.WriteFile(filepath.Join(root, "Small Film (2020).strm"), []byte(address+"/target?token=secret"), 0600)

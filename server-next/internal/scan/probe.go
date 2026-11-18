@@ -230,7 +230,7 @@ func (r *run) probeSTRM(src Source, rel string) (Facts, error) {
 	}
 	client := r.s.STRM
 	if client == nil {
-		client = strm.New(nil)
+		client = strm.New()
 	}
 	target, err := client.Open(ctx, address)
 	if err != nil {

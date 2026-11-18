@@ -1,5 +1,7 @@
-// Package strm reads untrusted URL pointers. Only this reader fetches their targets;
-// decoders receive bytes through inputbridge, never these URLs.
+// Package strm reads what a `.strm` file names, for a library the owner switched `.strm`
+// files on for. The server, not the app, fetches the target, on the home network or the
+// internet (Justin, 18 Nov 2026); only this reader fetches it, and decoders receive bytes
+// through inputbridge, never these URLs. Apps are never given the address.
 package strm
 
 import (
@@ -9,7 +11,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -31,7 +32,7 @@ var ReadTimeout = 30 * time.Second
 // transport/decoder error: it may include a URL, redirect, token or response text.
 var (
 	ErrPointer     = errors.New("not a single HTTP or HTTPS URL")
-	ErrRefused     = errors.New("refused address")
+	ErrRefused     = errors.New("refused redirect")
 	ErrUnavailable = errors.New("not reachable")
 	ErrRedirects   = errors.New("too many redirects")
 	ErrRange       = errors.New("not seekable")
@@ -54,131 +55,33 @@ func Parse(raw []byte) (string, error) {
 	return u.String(), nil
 }
 
+// A name and password in the address (a NAS that asks for one) are sent as ffmpeg would.
 func allowedURL(u *url.URL) bool {
-	return u != nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil && u.Fragment == "" && !strings.Contains(u.Hostname(), "%")
+	return u != nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.Fragment == "" && !strings.Contains(u.Hostname(), "%")
 }
 
-// Client has no proxy, cookies or shared credentials. Own returns the server's
-// published public addresses, including a router's outside address. Interface
-// addresses are checked independently. Tests inject lookup/dial within this package.
+// Client has no proxy, cookies or shared credentials.
 type Client struct {
-	http   *http.Client
-	own    func() []netip.Addr
-	lookup func(context.Context, string, string) ([]netip.Addr, error)
-	dial   func(context.Context, string, string) (net.Conn, error)
+	http *http.Client
 }
 
-func New(own func() []netip.Addr) *Client {
-	c := &Client{own: own, lookup: net.DefaultResolver.LookupNetIP}
-	// A bounded chunk has its own deadline. Closing each connection also prevents
-	// pooled connections bypassing a newly changed own-address refusal.
-	tr := &http.Transport{Proxy: nil, DialContext: c.connect, DisableKeepAlives: true,
+func New() *Client {
+	// A bounded chunk has its own deadline; connections are not kept between chunks.
+	tr := &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 10 * time.Second}).DialContext, DisableKeepAlives: true,
 		TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 15 * time.Second,
 		MaxResponseHeaderBytes: 64 << 10, DisableCompression: true}
-	c.http = &http.Client{Transport: tr, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	return &Client{http: &http.Client{Transport: tr, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 5 {
 			return ErrRedirects
 		}
+		// An https address never goes on over plain http, where its name and password,
+		// if it has them, would travel in the clear.
 		if !allowedURL(req.URL) || via[len(via)-1].URL.Scheme == "https" && req.URL.Scheme != "https" {
 			return ErrRefused
 		}
 		req.Header.Del("Referer")
-		return nil // connect checks the actual destination on every hop
-	}}
-	return c
-}
-
-var blockedPrefixes = []netip.Prefix{
-	netip.MustParsePrefix("0.0.0.0/8"), netip.MustParsePrefix("100.64.0.0/10"),
-	netip.MustParsePrefix("192.0.0.0/24"), netip.MustParsePrefix("192.0.2.0/24"),
-	netip.MustParsePrefix("198.18.0.0/15"), netip.MustParsePrefix("198.51.100.0/24"),
-	netip.MustParsePrefix("203.0.113.0/24"), netip.MustParsePrefix("240.0.0.0/4"),
-	// Refuse transition mechanisms entirely, including encodings of forbidden IPv4.
-	netip.MustParsePrefix("::/96"), netip.MustParsePrefix("64:ff9b::/96"),
-	netip.MustParsePrefix("64:ff9b:1::/48"), netip.MustParsePrefix("2002::/16"),
-	netip.MustParsePrefix("2001::/32"), netip.MustParsePrefix("2001:db8::/32"),
-}
-
-func public(ip netip.Addr) bool {
-	ip = ip.Unmap()
-	if ip.Is6() && !netip.MustParsePrefix("2000::/3").Contains(ip) {
-		return false
-	}
-	if !ip.IsValid() || ip.Zone() != "" || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
-		return false
-	}
-	for _, p := range blockedPrefixes {
-		if p.Contains(ip) {
-			return false
-		}
-	}
-	return true
-}
-
-func (c *Client) refused(ip netip.Addr) bool {
-	if !public(ip) {
-		return true
-	}
-	ip = ip.Unmap()
-	if c.own != nil {
-		for _, own := range c.own() {
-			if own.Unmap() == ip {
-				return true
-			}
-		}
-	}
-	addresses, err := net.InterfaceAddrs()
-	if err != nil {
-		return true
-	}
-	for _, address := range addresses {
-		prefix, err := netip.ParsePrefix(address.String())
-		if err != nil {
-			continue
-		}
-		if prefix.Addr().Unmap() == ip {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *Client) connect(ctx context.Context, network, address string) (net.Conn, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	host, port, err := net.SplitHostPort(address)
-	if err != nil {
-		return nil, ErrRefused
-	}
-	var ips []netip.Addr
-	if ip, err := netip.ParseAddr(host); err == nil {
-		ips = []netip.Addr{ip}
-	} else {
-		ips, err = c.lookup(ctx, "ip", host)
-		if err != nil {
-			return nil, ErrUnavailable
-		}
-	}
-	if len(ips) == 0 {
-		return nil, ErrUnavailable
-	}
-	for _, ip := range ips {
-		if c.refused(ip) {
-			return nil, ErrRefused
-		}
-	}
-	for _, ip := range ips {
-		// The checked numeric address is the address dialled: no second DNS lookup.
-		dial := c.dial
-		if dial == nil {
-			dial = (&net.Dialer{Timeout: 10 * time.Second}).DialContext
-		}
-		conn, err := dial(ctx, network, net.JoinHostPort(ip.String(), port))
-		if err == nil {
-			return conn, nil
-		}
-	}
-	return nil, ErrUnavailable
+		return nil
+	}}}
 }
 
 // File holds one finite target, fetched by checked byte ranges. Size comes from

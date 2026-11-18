@@ -34,7 +34,7 @@ type LibraryOptions struct {
 	Trash TrashRule `json:"trash"`
 	// AllowDelete lets the owner delete files of this library from disk. It starts off.
 	AllowDelete bool `json:"allowDelete"`
-	// STRM follows .strm URL files in this library. It starts off.
+	// STRM follows .strm URL files in this library: the server reads whatever they name, on the home network or the internet. It starts off.
 	STRM bool `json:"strm"`
 	// Watch is whether the library's folders are watched for changes, which are then picked
 	// up within about ten seconds. It starts on; leaving it out of an edit keeps it on.
@@ -286,7 +286,7 @@ var skippedMessages = map[db.FileProblem]string{
 	db.ProblemDamaged:         "This file is damaged.",
 	db.ProblemUnsupported:     "This file is not supported.",
 	db.ProblemEncryptedDisc:   "This disc is copy-protected. Portico can't read copy-protected discs.",
-	db.ProblemSTRMRefused:     "The stream address is refused.",
+	db.ProblemSTRMRefused:     "The stream address moves from HTTPS to plain HTTP, which is refused.",
 	db.ProblemSTRMUnavailable: "The stream cannot be reached.",
 	db.ProblemSTRMRange:       "The stream is not seekable. Playlists and live streams are not supported.",
 	db.ProblemSTRMRedirects:   "The stream sent too many redirects.",

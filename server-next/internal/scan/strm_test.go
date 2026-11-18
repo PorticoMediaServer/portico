@@ -41,7 +41,7 @@ func TestSTRMOptInNamesSidecarsAndRescans(t *testing.T) {
 		http.ServeContent(w, r, "different-target-name.mp4", time.Time{}, bytes.NewReader(content))
 	}))
 	defer outside.Close()
-	client, address := strm.TestClient(t, outside.URL)
+	client, address := strm.New(), outside.URL
 	f.s.STRM, f.s.ReaderProber = client, strmProber{t, content}
 	pointer := filepath.Join(f.root, "Heat (1995).strm")
 	if err := os.WriteFile(pointer, []byte(address+"/different-target-name?token=secret"), 0600); err != nil {

@@ -3,88 +3,47 @@ package strm
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/netip"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 )
 
-// Every refused class is checked at the dial boundary, including numeric hosts
-// and DNS answers. None may reach even a test dialer.
-func TestRefusedAddressesNeverDial(t *testing.T) {
-	refused := []string{
-		"0.0.0.0",
-		"0.1.2.3",
-		"::",
-		"127.0.0.1",
-		"10.1.2.3",
-		"172.16.1.2",
-		"192.168.1.2",
-		"fc00::1",
-		"fec0::1",
-		"100::1",
-		"169.254.169.254",
-		"fe80::1",
-		"100.100.100.200",
-		"100.64.1.2",
-		"255.255.255.255",
-		"224.0.0.1",
-		"ff02::1",
-		"::ffff:127.0.0.1",
-		"::127.0.0.1",
-		"::ffff:0.0.0.0",
-		"::192.168.1.2",
-		"64:ff9b::a00:1",
-		"64:ff9b:1::a00:1",
-		"2002:a00:1::1",
-		"2001:0:4136:e378:8000:63bf:f5ff:fffe",
-		"93.184.216.34",
+// A `.strm` may name the owner's own network as well as the internet (Justin, 18 Nov
+// 2026): a NAS web server or a stream proxy on this machine is the usual case. Only the
+// server reads it.
+func TestHomeNetworkTargetsOpen(t *testing.T) {
+	content := bytes.Repeat([]byte("film"), 300)
+	nas := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if user, pass, ok := r.BasicAuth(); r.URL.Path == "/locked" && (!ok || user != "nas" || pass != "word") {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		http.ServeContent(w, r, "film.mkv", time.Time{}, bytes.NewReader(content))
+	}))
+	defer nas.Close()
+	c := New()
+	locked := strings.Replace(nas.URL, "http://", "http://nas:word@", 1) + "/locked"
+	for _, address := range []string{nas.URL + "/film.mkv", locked} {
+		if _, err := Parse([]byte(address)); err != nil {
+			t.Fatalf("%s: pointer refused: %v", address, err)
+		}
+		f, err := c.Open(context.Background(), address)
+		if err != nil {
+			t.Fatalf("%s: %v", address, err)
+		}
+		got := make([]byte, 8)
+		if _, err := f.ReadAt(got, 4); err != nil || !bytes.Equal(got, content[4:12]) {
+			t.Fatalf("%s: read %q, %v", address, got, err)
+		}
+		f.Close()
 	}
-	originals := append([]string(nil), refused...)
-	for _, raw := range originals {
-		ip := netip.MustParseAddr(raw)
-		if !ip.Is4() {
-			continue
-		}
-		refused = append(refused, "::ffff:"+raw, "::"+raw)
-		ipv4 := ip.As4()
-		for _, prefix := range []string{"64:ff9b::", "64:ff9b:1::"} {
-			encoded := netip.MustParseAddr(prefix).As16()
-			copy(encoded[12:], ipv4[:])
-			refused = append(refused, netip.AddrFrom16(encoded).String())
-		}
-		six := netip.MustParseAddr("2002::").As16()
-		copy(six[2:6], ipv4[:])
-		refused = append(refused, netip.AddrFrom16(six).String())
-		teredo := netip.MustParseAddr("2001::").As16()
-		for i, b := range ipv4 {
-			teredo[12+i] = ^b
-		}
-		refused = append(refused, netip.AddrFrom16(teredo).String())
-	}
-
-	for _, raw := range refused {
-		t.Run(raw, func(t *testing.T) {
-			c := New(func() []netip.Addr { return []netip.Addr{netip.MustParseAddr("93.184.216.34")} })
-			ip := netip.MustParseAddr(raw)
-			c.lookup = func(context.Context, string, string) ([]netip.Addr, error) { return []netip.Addr{ip}, nil }
-			c.dial = func(context.Context, string, string) (net.Conn, error) {
-				t.Fatal("refused address was dialled")
-				return nil, nil
-			}
-			for _, address := range []string{net.JoinHostPort(raw, "32500"), "untrusted.test:32500"} {
-				if _, err := c.connect(context.Background(), "tcp", address); !errors.Is(err, ErrRefused) {
-					t.Fatalf("%s: %v", address, err)
-				}
-			}
-		})
+	if _, err := c.Open(context.Background(), nas.URL+"/locked"); err != ErrUnavailable {
+		t.Fatalf("a refused sign-in at the NAS answered %v", err)
 	}
 }
 
@@ -95,7 +54,6 @@ func TestPointersAndCheckedRanges(t *testing.T) {
 		"ftp://host/movie",
 		"rtsp://host/video",
 		"data:video/mkv;base64,abc",
-		"http://u:p@host/movie",
 		"http://host/movie#token",
 		"http://host/a\nhttp://host/b",
 		strings.Repeat("a", PointerLimit+1),
@@ -117,8 +75,6 @@ func TestPointersAndCheckedRanges(t *testing.T) {
 			} else {
 				http.ServeContent(w, r, "film.mkv", time.Time{}, bytes.NewReader(content))
 			}
-		case "/inward":
-			http.Redirect(w, r, "http://127.0.0.1/private?token=secret", 302)
 		case "/loop":
 			http.Redirect(w, r, "/loop", 302)
 		case "/headers":
@@ -138,11 +94,11 @@ func TestPointersAndCheckedRanges(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	c, base := TestClient(t, server.URL)
+	c, base := New(), server.URL
 	for _, test := range []struct {
 		path string
 		want error
-	}{{"/inward", ErrRefused}, {"/loop", ErrRedirects}, {"/headers", ErrUnavailable}, {"/no-range", ErrRange}, {"/wrong-range", ErrRange}, {"/playlist", ErrRange}} {
+	}{{"/loop", ErrRedirects}, {"/headers", ErrUnavailable}, {"/no-range", ErrRange}, {"/wrong-range", ErrRange}, {"/playlist", ErrRange}} {
 		_, err := c.Open(context.Background(), base+test.path+"?token=secret")
 		if err != test.want {
 			t.Errorf("%s: %v, want %v", test.path, err, test.want)
@@ -193,26 +149,6 @@ func TestPointersAndCheckedRanges(t *testing.T) {
 	}
 }
 
-func TestDNSRebindingCannotChangeADial(t *testing.T) {
-	c := New(nil)
-	c.lookup = func(context.Context, string, string) ([]netip.Addr, error) {
-		return []netip.Addr{netip.MustParseAddr("93.184.216.34")}, nil
-	}
-	c.dial = func(_ context.Context, _ string, address string) (net.Conn, error) {
-		if address != "93.184.216.34:80" {
-			t.Fatalf("unresolved/unchecked dial %q", address)
-		}
-		return nil, ErrUnavailable
-	}
-	c.connect(context.Background(), "tcp", "changes.test:80")
-	c.lookup = func(context.Context, string, string) ([]netip.Addr, error) {
-		return []netip.Addr{netip.MustParseAddr("127.0.0.1")}, nil
-	}
-	if _, err := c.connect(context.Background(), "tcp", "changes.test:80"); err != ErrRefused {
-		t.Fatal(err)
-	}
-}
-
 func TestPausedSTRMReaderKeepsItsChunk(t *testing.T) {
 	before := ReadTimeout
 	ReadTimeout = 100 * time.Millisecond
@@ -222,7 +158,7 @@ func TestPausedSTRMReaderKeepsItsChunk(t *testing.T) {
 		http.ServeContent(w, r, "video.mp4", time.Time{}, bytes.NewReader(content))
 	}))
 	defer outside.Close()
-	client, address := TestClient(t, outside.URL)
+	client, address := New(), outside.URL
 	file, err := client.Open(context.Background(), address)
 	if err != nil {
 		t.Fatal(err)
@@ -245,7 +181,7 @@ func TestPausedSTRMReaderKeepsItsChunk(t *testing.T) {
 }
 
 func TestSTRMRedirectsNeverDowngrade(t *testing.T) {
-	client := New(nil)
+	client := New()
 	for _, addresses := range [][]string{
 		{"https://media.test/start", "http://media.test/end"},
 		{"http://media.test/start", "https://media.test/middle", "http://media.test/end"},
