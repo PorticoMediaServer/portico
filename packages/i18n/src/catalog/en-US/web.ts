@@ -2246,7 +2246,7 @@ export const webMessages = {
   'web.metadata.creditRoleName.guest': 'Guest star',
   'web.metadata.creditRoleName.crew': 'Crew',
   'web.metadata.recentChanges': 'Recent changes',
-  'web.metadata.undoToHere': 'Undo to before this',
+  'web.metadata.undoThisChange': 'Undo this change',
   'web.metadata.noHistory': 'Nothing has been changed by an owner yet.',
   'web.metadata.lockAll': 'Lock everything',
   'web.metadata.unlockAll': 'Unlock everything',
