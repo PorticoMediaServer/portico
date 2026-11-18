@@ -90,8 +90,7 @@ test('direct and retained Playlist picker callbacks refuse the excluded query be
     assert.equal(calls, 0);
   } finally {producer.close();}
 });
-test('Delete exclusion disables only an offered bounded action and refuses retained conversion before Browse', async () => {
-  const {resolveQueryDelete} = await import('../src/screens/browse/selection-delete-query');
+test('Delete exclusion disables only an offered bounded action', () => {
   const {onEdit, onMyList, onCollection} = {onEdit() {}, onMyList() {}, onCollection() {}};
   const reason = defaultI18n.t('next.selection.unsupportedSort'), limit = defaultI18n.t('next.selection.tooMany');
   const actions = selectionUnavailableActions({onDelete() {}, onEdit, onMyList, onCollection}, {delete: 'unsupported-sort'});
@@ -100,13 +99,5 @@ test('Delete exclusion disables only an offered bounded action and refuses retai
   assert.deepEqual(selectionUnavailableActions({}, {delete: 'unsupported-sort'}), {});
   assert.equal(selectionUnavailableActions({onDelete() {}, deleteExplanation: limit}, {delete: 'unsupported-sort'}).deleteExplanation, limit);
   assert.equal(selectionUnavailableActions({deleteDisabledReason: limit}, {delete: 'unsupported-sort'}).deleteDisabledReason, limit);
-  const query = wholeViewQuery({...descriptor, total: 200, unavailableActions: {delete: 'unsupported-sort'}} as never);
-  const target = {mode: 'query', selector: query.selector, total: 200, sourceTotal: 200, summary: {count: 200, types: [{kind: 'movie', count: 200}], every, library: {kind: 'single', libraryId: 'lib'}, unavailableActions: {delete: 'unsupported-sort'}}, refinement: {kind: null, excludedItems: []}, expected: {catalogRevision: revision}};
-  let calls = 0;const captured: any[] = [], stop = new Error('legacy-proof-conversion');
-  const ports = {api: {request: async (...args: any[]) => {calls++;captured.push(args);throw stop;}}, isCurrent: () => true};
-  const retained = () => resolveQueryDelete(target as never, ports as never, new AbortController().signal);
-  await assert.rejects(retained, /query-delete-unavailable/);assert.equal(calls, 0);
-  const legacy = {...target, summary: {...target.summary, unavailableActions: undefined}};
-  await assert.rejects(resolveQueryDelete(legacy as never, ports as never, new AbortController().signal), /query-delete-unavailable/);
-  assert.equal(calls, 0);
+
 });

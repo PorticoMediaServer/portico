@@ -55,6 +55,6 @@ export function selectionCallbacks(snapshot: HomeSelectionSnapshot, controller: 
     ...(ready('favorite') ? {onFavorite: () => execute('favorite')} : {}),
     ...(ready('remove-my-list') ? {onRemoveFromMyList: () => execute('remove-my-list')} : {}),
     ...(ready('refresh') ? {onRefresh: () => execute('refresh')} : {}),
-    ...(ready('delete') || snapshot.actions.delete.state === 'disabled' && snapshot.actions.delete.reason !== 'unsupported-sort' ? {onDelete: () => runSelectionCommand(() => controller.openDelete(), reportError)} : {}),
+    ...(snapshot.selection.target?.mode !== 'query' && (ready('delete') || snapshot.actions.delete.state === 'disabled' && snapshot.actions.delete.reason !== 'unsupported-sort') ? {onDelete: () => runSelectionCommand(() => controller.openDelete(), reportError)} : {}),
   };
 }

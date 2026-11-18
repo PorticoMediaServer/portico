@@ -1,7 +1,6 @@
 import {serverNow} from '@core/server-clock.ts';
 import type {ReactNode} from 'react';
 import {subscribeFacts} from './fact-source';
-import {createBrowserQueryActions} from '../screens/browse/selection-action-host';
 import {defaultI18n} from '@i18n';
 import {HomeSelectionController, homeSelectionContext, type HomeSelectionPlaybackPort} from '@core/home-selection/index.ts';
 import {homeChannelSelection, homeCollectionSelection, homeEntryCapabilities, homeEntrySelection, type HomeActionPlatform} from '@core/home-selection.ts';
@@ -61,17 +60,8 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
     // An unread or empty directory is unknown, never "no library is visible" (that would drop every pick).
     visibleLibraries: () => {const identity = context.facts?.identity;return !identity || identity.librariesUnavailable || !identity.libraries.length ? undefined : identity.libraries.map(library => library.id);},
     subscribeVisibleLibraries: listener => subscribeFacts(context, listener)});
-  const queryLife = new AbortController();
-  const queryActions = createBrowserQueryActions({subscribe: controller.selection.subscribe, captureOperation: () => controller.selection.captureOperation(),
-    isOperationCurrent: operation => controller.selection.isOperationCurrent(operation)}, {api: context.api, requestId: async () => crypto.randomUUID(),
-    deviceId: originalSession.deviceId ?? '', sourceIdentity: () => context.home.getSnapshot().document,
-    owner: viewer.role === 'owner' && viewer.authority === 'local', signal: queryLife.signal,
-    scopeKey: () => {const session = context.session(), actor = session.viewer; return JSON.stringify([router.state.location.href,
-      session.sessionFamilyId, session.deviceId, actor.serverId, actor.authority, actor.accountId, actor.profileId, actor.role]);},
-    isCurrent: () => !retired && context.isCurrent() && router.state.location.pathname === '/',
-    subscribe: listener => {const a = context.home.subscribe(listener), b = subscribeFacts(context, listener), c = router.subscribe('onResolved', listener); return () => {a();b();c();};}});
   const anchor: {current: HTMLElement | null} = {current: null};
-  const source: SelectionRendererSource = {controller, queryActions,
+  const source: SelectionRendererSource = {controller,
     metadata: {api: {request: context.api.request.bind(context.api), requestRaw: context.api.requestRaw.bind(context.api), requestMetadataUpload: context.api.requestMetadataUpload.bind(context.api)}, scope: {serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId])},
       // Ruling A: the editor's preview is never compared with another domain's fence. The selection's Home context gates
       // the write, and SelectionSurfaces checks the preview itself is still the one shown.
@@ -183,6 +173,6 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
     }),
     phoneSelection: (): ReactNode => controller.getSnapshot().selection.active ? <SelectionPhoneBar source={source} /> : undefined,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    dispose: () => { retired = true;retireEntryMetadata(entryPorts);queryLife.abort();queryActions.dispose(); interactions.dispose();controller.dispose(); for (const cleanup of off) cleanup(); window.removeEventListener('resize', sync); window.removeEventListener('keyup', releasePreview);window.removeEventListener('blur', clearPreview);preview = undefined;anchor.current = null; listeners.clear(); },
+    dispose: () => { retired = true;retireEntryMetadata(entryPorts);interactions.dispose();controller.dispose(); for (const cleanup of off) cleanup(); window.removeEventListener('resize', sync); window.removeEventListener('keyup', releasePreview);window.removeEventListener('blur', clearPreview);preview = undefined;anchor.current = null; listeners.clear(); },
   };
 }

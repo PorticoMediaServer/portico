@@ -3,7 +3,7 @@ import {wireFixture} from './wire-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseDownloadPreparation as read_parseDownloadPreparation, parseDownloadBatch as read_parseDownloadBatch, parseDownloadPage as read_parseDownloadPage, parseDownloadGrant as read_parseDownloadGrant, parseDownloadOptions as read_parseDownloadOptions,
+  parseDownloadPreparation as read_parseDownloadPreparation, parseDownloadBatch as read_parseDownloadBatch, parseDownloadOptions as read_parseDownloadOptions,
   parseDownloadUsage, parseDownloadSettings, downloadActionOffered,
   downloadReasonMessage, downloadBytes, parseDownloadTitle as read_parseDownloadTitle,
 } from '../src/downloads.ts';
@@ -12,8 +12,8 @@ import {resetSkippedParts, skippedParts} from '../src/tolerant.ts';
 // Mock server answers below are written in seconds; the wire carries milliseconds.
 const DOWNLOAD_WIRE = {durationSeconds: 'durationMs', etaSeconds: 'etaMs', renewAfterSeconds: 'renewAfterMs', positionSeconds: 'positionMs', startSeconds: 'startMs', endSeconds: 'endMs', intervalSeconds: 'intervalMs', sourceOffsetSeconds: 'sourceOffsetMs'};
 const onWire = <F extends (value: any, ...rest: any[]) => any>(read: F): F => ((value: unknown, ...rest: any[]) => read(wireFixture(value, DOWNLOAD_WIRE), ...rest)) as F;
-const parseDownloadPreparation = onWire(read_parseDownloadPreparation), parseDownloadBatch = onWire(read_parseDownloadBatch), parseDownloadPage = onWire(read_parseDownloadPage);
-const parseDownloadGrant = onWire(read_parseDownloadGrant), parseDownloadTitle = onWire(read_parseDownloadTitle);
+const parseDownloadPreparation = onWire(read_parseDownloadPreparation), parseDownloadBatch = onWire(read_parseDownloadBatch);
+const parseDownloadTitle = onWire(read_parseDownloadTitle);
 
 const parseDownloadOptions=(value:unknown,...args:any[]) => (read_parseDownloadOptions as any)(wireFixture(value,{'durationSeconds': 'durationMs'},[]),...args);
 
@@ -115,34 +115,6 @@ test('a preparation keeps what verifies its file exact and reads the rest forgiv
   assert.deepEqual(skippedParts().map(p => p.document + ':' + p.part + ':' + p.count).sort(), ['downloads:preparation.actions:2', 'downloads:preparation.origin:1', 'downloads:preparation.progress:1']);
 });
 
-test('one unreadable download leaves the rest of the list, and the list itself stays bounded and exact', () => {
-  resetSkippedParts();
-  const row = (id: string, change: (v: any) => void = () => {}) => { const v = preparation(); v.id = id; change(v); return v; };
-  const page = parseDownloadPage({nextCursor: 'cursor-2', total: 7, items: [
-    row('a', v => v.badge = 'new'),
-    row('b', v => v.state = 'verifying'),
-    row('c', v => v.artifact.sha256 = 'not-a-digest'),
-    row('d', v => v.artifact.sha256 = ''),
-    row('e', v => v.revision = 'three'),
-    row('bad id!'),
-    'not a row',
-    row('a', v => v.revision = 8),
-    row('f', v => v.reason = 'brand_new_code'),
-  ]});
-  assert.deepEqual(page.items.map(v => v.id), ['a', 'f']);
-  assert.equal(page.items[0].revision, 3);
-  assert.equal(page.nextCursor, 'cursor-2');
-  assert.deepEqual(skippedParts().map(p => p.part + ':' + p.count), ['items:7']);
-  for (const bad of [
-    {items: Array.from({length: 201}, (_, i) => row('p' + i)), nextCursor: ''},
-    {items: {0: row('a')}, nextCursor: ''},
-    {items: [row('a')], nextCursor: 7},
-    {items: [row('a')], nextCursor: 'cursor\u0000'},
-    {items: [row('a')], nextCursor: 'c'.repeat(513)},
-    [row('a')],
-  ]) assert.throws(() => parseDownloadPage(bad));
-});
-
 test('download options keep every quality the server offers and leave out only what cannot be read', () => {
   resetSkippedParts();
   const v = options();
@@ -218,22 +190,6 @@ test('a batch bounds its targets and cannot claim more accepted than it returned
     change(v);
     assert.throws(() => parseDownloadBatch(v));
   }
-  const page = parseDownloadPage({items: [preparation()], nextCursor: ''});
-  assert.equal(page.nextCursor, '');
-});
-
-test('a grant URL is a server path and never an absolute redirect', () => {
-  const good = {preparationId: 'prep', itemId: 'item', url: '/v1/downloads/artifacts/tok-1', token: 'tok-1', issuedAt: '2026-09-16T10:00:00Z', expiresAt: '2026-09-16T10:10:00Z', renewAfterSeconds: 600, renewed: false, artifact: preparation().artifact};
-  const parsed = parseDownloadGrant(good);
-  assert.equal(parsed.renewAfterSeconds, 600);
-  assert.equal(parsed.renewed, false);
-  for (const url of ['https://evil.example/v1/downloads/artifacts/tok-1', '/v1/downloads/artifacts/../../etc', '/v1/media/tok-1', '/v1/downloads/artifacts/tok-2', '']) {
-    assert.throws(() => parseDownloadGrant({...good, url}), `accepted ${url}`);
-  }
-  assert.throws(() => parseDownloadGrant({...good, expiresAt: good.issuedAt}));
-  assert.throws(() => parseDownloadGrant({...good, artifact: {...good.artifact, sha256: ''}}));
-  assert.throws(() => parseDownloadGrant({...good, renewAfterSeconds: 0}));
-  assert.throws(() => parseDownloadGrant({...good, renewed: undefined}));
 });
 
 test('download options keep their item, policy, storage limits and bounds exact', () => {

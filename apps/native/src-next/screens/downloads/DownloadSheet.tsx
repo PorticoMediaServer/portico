@@ -1,5 +1,4 @@
 import {NativeReadingDownloadSheet} from './ReadingDownloadSheet';
-import {NativeQueryDownloadSheet} from '../library/SelectionActionSurface';
 import React, {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {NativeModules, Platform, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -36,7 +35,6 @@ const noSubscribe = (_listener: () => void) => () => {};
  * until a measured storage fact is available. */
 export function NativeDownloadSheet({context}: {context: NativeShellBootstrapContext}) {
   const request = useSyncExternalStore(subscribeNativeDownload, getNativeDownloadSnapshot);
-  if (request?.queryAction) return <NativeQueryDownloadSheet key={nativeDownloadRequestKey(request)} action={request.queryAction} onClose={() => {closeNativeDownload(request);}}/>;
   return request?.reading ? <NativeReadingDownloadSheet context={context} request={request}/> : request ? <NativeDownloadSheetBody context={context} request={request} key={nativeDownloadRequestKey(request)}/> : null;
 }
 

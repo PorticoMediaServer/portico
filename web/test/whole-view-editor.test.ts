@@ -3,8 +3,6 @@ import assert from 'node:assert/strict';
 import {BrowseSelectionModel} from '../../packages/client-core/src/selection-model/index.ts';
 import {wholeViewQuery} from '../src/screens/browse/selection-query.ts';
 import {createQuerySelectionEditor} from '../src/screens/browse/selection-query-editor.ts';
-import {browserQueryActionOffered} from '../src/screens/browse/selection-action-host.tsx';
-import {resolveQueryDelete} from '../src/screens/browse/selection-delete-query.ts';
 import {catalogueQuerySelectionSegments} from '../../packages/client-core/src/catalogue-query-selection.ts';
 import {queueSource} from '../../packages/client-core/src/playback-v1/queue.ts';
 import type {SelectionKind} from '../../packages/client-core/src/selection-model/types.ts';
@@ -44,16 +42,6 @@ test('a whole-view editor opens unchanged fields, and saves the view without enu
     assert.deepEqual(fake.reads, ['one']);
   } finally {selected.model.dispose();}
 });
-
-test('whole-view Delete and Download refuse before any preparation or enumeration', async () => {
-  const selected = held(); let calls = 0;
-  try {
-    for (const action of ['delete', 'download'] as const) assert.equal(browserQueryActionOffered(selected.operation.target as never, action, {isCurrent: () => true} as never), false);
-    await assert.rejects(resolveQueryDelete(selected.operation.target as never, {api: {request: async () => {calls++;}}} as never, new AbortController().signal), /query-delete-unavailable/);
-    assert.equal(calls, 0);
-  } finally {selected.model.dispose();}
-});
-
 
 test('Refresh of a whole selection submits one server job for the view, not its loaded cards', async () => {
   const selected = held(), sent: unknown[] = [];
