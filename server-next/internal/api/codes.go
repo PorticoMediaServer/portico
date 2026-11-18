@@ -118,14 +118,8 @@ func (s *Server) decideCode(r *http.Request, req CodeDecision) (None, error) {
 	// requires two-step of this account, it must be set up first: a phone signed in before
 	// the owner required it would otherwise sign a new device in that never had it.
 	if !req.Deny {
-		if account, err := s.db.Account(r.Context(), caller.UserID); err != nil {
+		if err := s.twoStepOwed(r, caller.UserID, "Set up two-step sign-in before you approve a TV."); err != nil {
 			return None{}, err
-		} else if s.signInSettings().TwoStepRequired(account.Role) {
-			if two, err := s.db.TwoFactor(r.Context(), caller.UserID); err != nil {
-				return None{}, err
-			} else if !two.Enabled {
-				return None{}, refusal(http.StatusForbidden, "two_step_setup_required", "Set up two-step sign-in before you approve a TV.", false)
-			}
 		}
 	}
 	// Only the main profile carries the account's role, so only an approval from there
@@ -153,4 +147,18 @@ func (s *Server) collectCode(r *http.Request, req CodeCollect) (CodeResult, erro
 	}
 	signIn, err := s.signedIn(ctx, st, now, refresh)
 	return CodeResult{Status: "approved", SignIn: &signIn}, err
+}
+
+// twoStepOwed refuses, with message, a person the owner requires two-step of who has not set
+// it up. Their sign-in is from before the owner required it and may carry on, but it may not
+// make a sign-in or a key that would never be asked for the second step.
+func (s *Server) twoStepOwed(r *http.Request, userID int64, message string) error {
+	account, err := s.db.Account(r.Context(), userID)
+	if err != nil || !s.signInSettings().TwoStepRequired(account.Role) {
+		return err
+	}
+	if two, err := s.db.TwoFactor(r.Context(), userID); err != nil || two.Enabled {
+		return err
+	}
+	return refusal(http.StatusForbidden, "two_step_setup_required", message, false)
 }

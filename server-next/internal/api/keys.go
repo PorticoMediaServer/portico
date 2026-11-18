@@ -121,6 +121,11 @@ func (s *Server) createKey(r *http.Request, k keyKind, req KeyCreate) (KeyCreate
 	if err != nil {
 		return KeyCreated{}, err
 	}
+	// A key outlives a password change and signing out everywhere, so it is not made by a
+	// sign-in that still owes the two-step the owner requires.
+	if err := s.twoStepOwed(r, caller.UserID, "Set up two-step sign-in before you make a key."); err != nil {
+		return KeyCreated{}, err
+	}
 	now := s.now()
 	if !auth.ValidName(req.Name) {
 		return KeyCreated{}, ErrField("name", "Give the key a name of at most 120 characters.")

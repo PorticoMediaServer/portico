@@ -291,3 +291,24 @@ func TestATVApprovalNeedsTwoStepWhereTheOwnerRequiresIt(t *testing.T) {
 		t.Errorf("with two-step set up the phone's approval answered %d, want 204", code)
 	}
 }
+
+// A token or app password outlives a password change and signing out everywhere, so where the
+// owner requires two-step of an account, a sign-in from before that, which never set it up,
+// cannot make one: the requirement would never reach it.
+func TestAKeyNeedsTwoStepWhereTheOwnerRequiresIt(t *testing.T) {
+	s, owner, _, _ := twoMembers(t)
+	phone := signInAs(t, s, "max", testPassword, 2)
+	saveSignIn(t, s, owner, `{"requireTwoStep":"everyone"}`, 200)
+	for _, c := range []struct {
+		path string
+		body KeyCreate
+	}{
+		{"/v1/me/tokens", KeyCreate{Name: "Script", Scopes: []string{"read"}}},
+		{"/v1/me/app-passwords", KeyCreate{Name: "Tool"}},
+	} {
+		var refused errorBody
+		if w := call(t, s, "POST", c.path, phone.AccessToken, c.body, &refused); w.Code != 403 || refused.Error.Code != "two_step_setup_required" {
+			t.Errorf("POST %s from a sign-in without the required two-step answered %d %s, want 403 two_step_setup_required", c.path, w.Code, refused.Error.Code)
+		}
+	}
+}
