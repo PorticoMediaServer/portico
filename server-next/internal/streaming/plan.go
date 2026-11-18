@@ -19,9 +19,11 @@ type PlanRequest struct {
 	// File is the catalogue's facts for the chosen version of the title.
 	File FileFacts
 	// Measured replaces File's streams for a source the server measured itself:
-	// the media behind a STRM, or one title of a disc. Disc says which.
-	Measured *DeliverySource
-	Disc     bool
+	// the media behind a STRM, or one title of a disc. Disc says which, and DiscKeyframes that
+	// the disc reader listed the title's keyframes (DeliveryInput.DiscKeyframes).
+	Measured      *DeliverySource
+	Disc          bool
+	DiscKeyframes bool
 	// Device is the capability document the device last published. Nil plans from
 	// the baseline document, as for a device that has published nothing yet.
 	Device *CapabilityDocument
@@ -101,7 +103,7 @@ func (r PlanRequest) deliveryInput() DeliveryInput {
 	}
 	if r.Measured != nil {
 		input.Source = r.Measured
-		input.Disc = r.Disc
+		input.Disc, input.DiscKeyframes = r.Disc, r.DiscKeyframes
 		if r.Measured.Video != nil {
 			input.Height = r.Measured.Video.Height
 		}
