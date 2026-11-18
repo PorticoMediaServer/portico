@@ -1,7 +1,5 @@
-import {routeBody} from "../../contracts/src/routes.ts";
-import {encodedRoutePath, routePath} from "../../contracts/src/route-paths.ts";
+import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
-import {keepReadable} from './tolerant.ts';
 import {wireDurations} from './wire-units.ts';
 import type { ContentScope, LibraryContentApi } from './library-content.ts';
 import {lyricsView} from './playback-v1/track-lists.ts';
@@ -92,17 +90,6 @@ export type LyricsSnapshot = Readonly<{
 }>;
 /** The exact drawn snapshot and the original drawer command, never a later opening. */
 export type LyricsChooseContext = Readonly<{ snapshot: LyricsSnapshot; signal: AbortSignal; isCurrent: () => boolean }>;
-export type LyricUpload = Readonly<{
-    text?: string;
-    contentBase64?: string;
-    format?: 'text' | 'lrc';
-    language: string;
-    scope: 'private' | 'library';
-    rights?: string;
-    candidateId?: string;
-    resourceId?: string;
-    expectedRevision?: number;
-}>;
 type LyricsApi = LibraryContentApi & {
     requestLyrics?<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>;
 };
@@ -210,8 +197,6 @@ export class LyricsService {
     private path(suffix = '') { return encodedRoutePath("get_items_id_lyrics", {"id": encodeURIComponent(this.target.itemId)}) + (suffix); }
     private query() { return ''; }
     private request(path: string, method: string, body: unknown, signal: AbortSignal) { return this.api.requestLyrics ? this.api.requestLyrics<unknown>(path, method, body, signal) : this.api.request<unknown>(path, method, body, signal); }
-    private bound() { const source = this.state.data?.source; if (!source)
-        throw new Error('No verified song source is selected.'); return { sourceId: source.id, sourceVersion: source.version, sessionId: this.target.sessionId ?? '' }; }
     /** The server lists a song's lyrics (`items`); `lyricsView` makes the screen's view of them. */
     private check(raw: unknown) {
         const data = lyricsView(raw, this.scope, this.target);
@@ -292,28 +277,9 @@ export class LyricsService {
         this.publish({data: Object.freeze({...data, selection: Object.freeze({...data.selection, resource})}), error: '', preview: null});
         return Promise.resolve();
     };
-    private mutate(suffix: string, method: string, body: unknown) { return this.run(async (signal) => { await this.request(this.path(suffix), method, body, signal); const raw = await this.request(this.path() + this.query(), 'GET', undefined, signal); return { data: this.check(raw), candidates: [], preview: null }; }, true); }
-    upload = (input: LyricUpload) => !this.state.data?.source ? Promise.resolve() : this.mutate('', 'POST', { ...this.bound(), ...input, resourceId: input.resourceId ?? '', expectedRevision: input.expectedRevision ?? 0 });
-    setOffset = (resource: LyricRevision, milliseconds: number) => !this.state.data?.source ? Promise.resolve() : this.mutate('/' + encodeURIComponent(resource.id) + '/offset', 'PATCH', { ...this.bound(), expectedRevision: resource.revision, offsetMs: milliseconds });
-    remove = (resource: LyricRevision) => !this.state.data?.source ? Promise.resolve() : this.mutate('/' + encodeURIComponent(resource.id), 'DELETE', { ...this.bound(), expectedRevision: resource.revision });
-    search = (provider: 'local' | 'lrclib', query: string, language: string, replacement?: LyricRevision) => {
-        if (!this.state.data?.source)
-            return Promise.resolve();
-        this.publish({ candidates: [], warnings: [] });
-        const body = { ...this.bound(), provider, query, language, resourceId: replacement?.id ?? '', expectedRevision: replacement?.revision ?? 0 };
-        return this.run(async (signal) => { const raw = await this.request(this.path('/search'), 'POST', body, signal); if (!obj(raw) || !Array.isArray(raw.candidates) || raw.candidates.length > 24 || !Array.isArray(raw.warnings) || raw.warnings.length > 12 || !raw.warnings.every(v => str(v, 512)))
-            invalid(); // A candidate this app cannot read (a format or source newer than it) is left out; the rest are offered.
-            const candidates = keepReadable('lyrics', 'candidates', raw.candidates, (v: unknown) => { if (!obj(v) || !id(v.id) || !languageTag(v.language) || !['text', 'lrc'].includes(String(v.format)) || !str(v.preview, 512))
-            invalid(); return Object.freeze({ ...v, provenance: provenance(v.provenance) }) as LyricCandidate; }); return { candidates: Object.freeze(candidates), warnings: Object.freeze(raw.warnings as string[]) }; });
-    };
-    preview = (resource: LyricRevision) => this.run(async (signal) => { const raw = await this.request(this.path('/' + encodeURIComponent(resource.id) + '/revisions/' + resource.revision) + this.query(), 'GET', undefined, signal); const r = revision(raw, true); if (r.id !== resource.id || r.revision !== resource.revision)
-        invalid(); return { preview: r }; });
-    configureProvider = (enabled: boolean) => { const revision = this.state.data?.providers.revision; if (revision === undefined)
-        return Promise.resolve(); return this.run(async (signal) => { await this.request(routePath("put_lyrics_provider"), 'PUT', routeBody("put_lyrics_provider", { enabled, expectedRevision: revision }), signal); const raw = await this.request(this.path() + this.query(), 'GET', undefined, signal); return { data: this.check(raw), candidates: [] }; }, true); };
     cancel = () => {
         this.generation++; const controller = this.controller; this.controller = undefined; this.fence = undefined; this.chosen = undefined;
         try { this.publish({ data: null, preview: null, candidates: [], warnings: [], busy: false, error: '' }); } finally { controller?.abort(); }
     };
     dispose = () => { this.disposed = true; this.generation++; const controller = this.controller; this.controller = undefined; this.listeners.clear(); controller?.abort(); };
 }
-const languageTag = language;

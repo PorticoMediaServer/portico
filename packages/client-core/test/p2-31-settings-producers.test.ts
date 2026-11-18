@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {settingsBinding,readSettingsBinding,settingsBindingPatch} from '../src/presentation/settings-bindings.ts';
 import {alertsForm} from '../src/server-admin/server-forms.ts';
-import {parseMetadataSettings,metadataSettingsService} from '../src/metadata-settings.ts';
+import {parseMetadataSettings} from '../src/metadata-settings.ts';
 import {hardwareSelectionChoices} from '../src/presentation/hardware-selection.ts';
 
 const audience={scan:'both',storage:'owner',certificate:'both',recording:'off',feedback:'both'} as const;
@@ -48,7 +48,7 @@ test('Device offers Automatic, Processor only and each found adapter by its opaq
 const metadata={revision:4,localArtworkLimitBytes:2**31,localArtworkUsedBytes:0,includeAdult:false,artworkMaxEdge:1920,tmdbCredentialConfigured:false,tvdbCredentialConfigured:false,
  openSubtitlesKeyConfigured:false,openSubtitlesUsername:'',openSubtitlesPasswordConfigured:false,openSubtitles:{keySource:'none',accountSource:'none',account:'none',downloadsRemaining:-1,downloadsAllowed:-1}};
 
-test('metadata Advanced fields are read one by one, never carry the AcoustID key, and Refresh all posts',async()=>{
+test('metadata Advanced fields are read one by one, never carry the AcoustID key',async()=>{
  const advanced={refreshPolicy:'recent',fallbackLanguage:'original',animeTitles:'romaji',castPhotos:false,acoustidKeyConfigured:true,acoustidKeySource:'owner',refreshAll:{running:true,requestedAt:'2026-10-28T10:00:00Z'}};
  const parsed=parseMetadataSettings({...metadata,...advanced,acoustidKey:'secret'});
  assert.deepEqual(parsed.advanced,{...advanced});
@@ -57,8 +57,4 @@ test('metadata Advanced fields are read one by one, never carry the AcoustID key
  assert.deepEqual(parseMetadataSettings({...metadata,...advanced,refreshPolicy:'weekly'}).advanced,others,'an unreadable field is left out, and only its row is not offered');
  assert.deepEqual(parseMetadataSettings({...metadata,castPhotos:true}).advanced,{castPhotos:true,acoustidKeySource:'none'},'a server with only cast photos offers that one row');
  assert.equal(parseMetadataSettings(metadata).advanced,undefined,'a server with none of them has no Advanced document');
- const calls:[string,string|undefined][]=[];
- const service=metadataSettingsService(async<T,>(path:string,method?:string)=>{calls.push([path,method]);return {...metadata,...advanced} as T;});
- await service.refreshAll();
- assert.deepEqual(calls,[['/v1/admin/metadata/settings/refresh-all','POST']]);
 });

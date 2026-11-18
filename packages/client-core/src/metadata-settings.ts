@@ -101,8 +101,6 @@ export function openSubtitlesSummary(status:OpenSubtitlesStatus,i18n:I18n,now=se
 }
 type Request=<T>(path:string,method?:string,body?:unknown)=>Promise<T>;
 export function metadataSettingsService(request:Request){const path=routePath("get_metadata_settings");return Object.freeze({async read(){return parseMetadataSettings(await request<unknown>(path));},async save(change:MetadataSettingsChange){if(change.artworkMaxEdge!==undefined&&!isArtworkMaxEdge(change.artworkMaxEdge))throw new Error(unreadableServerResponse);return parseMetadataSettings(await request<unknown>(path,'PUT',change));},
- /** Refresh all: every title is refreshed from the providers in the background, within the daily allowance. */
- async refreshAll(){return parseMetadataSettings(await request<unknown>(routePath("refresh_all_metadata"),'POST'));},
  /** Test connection: OpenSubtitles is asked now whether the saved key and account work. */
  async checkOpenSubtitles(){return parseOpenSubtitlesStatus(await request<unknown>(routePath("check_opensubtitles"),'POST'));}});}
 const GIBIBYTE=2**30;

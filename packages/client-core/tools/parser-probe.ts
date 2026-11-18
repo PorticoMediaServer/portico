@@ -404,7 +404,7 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
   await rec.check('entities', 'listening preferences', 'GET', '/v1/listening/preferences', () =>
     // The apps read `data` after checking the viewer scope (listeningData); the probe unwraps it.
     api.request<unknown>('/v1/listening/preferences').then(raw => parseListeningPreferences((raw as {data?: unknown}).data)));
-  rec.skip('listening selection pages', 'loadListeningSelection pages a whole selection (listening.ts); unbounded for large libraries');
+  rec.skip('listening selection pages', 'the rebuilt server plays a selection as a queue source (POST /v1/queues)');
   // Playback options for the first playable item of each library.
   const optionsClient = new PlaybackOptionsClient(localV1Http(api));
   const seenLibs = new Set<string>();

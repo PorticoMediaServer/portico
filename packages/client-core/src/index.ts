@@ -76,8 +76,8 @@ export * from "./lyrics.ts";
 
 export {type MusicPolicy,type MusicPolicyInput,type MusicMatchObservation,type MusicEvidenceDetails,type LocalBookMetadata,musicEvidenceLabel,fingerprintStatusLabel} from "./music-metadata.ts";
 
-export {saveLocalBookPolicy,parseLocalAudioPolicy,type LocalAudioPolicy} from './music-metadata.ts';
-export {MetadataRepairService,validateRepair} from "./metadata-repair.ts";
+export {parseLocalAudioPolicy,type LocalAudioPolicy} from './music-metadata.ts';
+export {MetadataRepairService} from "./metadata-repair.ts";
 export type {RepairTarget,RepairScope,RepairData,RepairCommand,RepairView,RepairPreview,RepairField,RepairFieldSpec} from "./metadata-repair.ts";
 export {validBulkEdit,validBulkListEntry,validateBulkReceipt,bulkConflicts,bulkTargetLimit} from './metadata-bulk.ts';
 export type {BulkEdit,BulkTarget,BulkListEdit,BulkFieldEdit,BulkResult,BulkReceipt} from './metadata-bulk.ts';

@@ -1,6 +1,6 @@
 import type {QueuePlaylistSave} from './playback-v1/queue.ts';
 import type {AudioEffectsSettings} from './audio-effects.ts';
-import type {ListeningService, ListeningTarget} from './listening.ts';
+import type {ListeningService} from './listening.ts';
 import type {QueueAdvanceMode, QueuePostPlay} from './post-play.ts';
 import type {PreparedChoice} from './prepared-media.ts';
 import type {PlaybackChoices} from './playback-v1/choices.ts';
@@ -46,7 +46,6 @@ export interface QueueController {
   playEpisode(showId:string,episodeId:string,startSeconds?:number):Promise<void>;
   selectEpisode(episodeId:string):Promise<void>;
   playEntries(entries: readonly QueueItemInput[], options?: {shuffle?: boolean; startSeconds?: number}): Promise<void>;
-  journey(target: ListeningTarget, action: 'play' | 'shuffle' | 'mix' | 'enqueue', resume?: boolean, options?: {signal?: AbortSignal; startItem?: string; startSeconds?: number}): Promise<unknown>;
   enqueue(item: QueueItemInput, next?: boolean): Promise<void>;
   enqueueMany(entries: readonly QueueItemInput[], next?: boolean): Promise<void>;
   playEntry(queueId: string, entryId: string, expectedRevision: string): Promise<void>;
