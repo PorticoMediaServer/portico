@@ -5,6 +5,7 @@ sub init()
     m.window = m.top.findNode("window")
     m.rows = m.top.findNode("rows")
     m.plate = m.top.findNode("plate")
+    m.plate.blendColor = colours().raisedHigh
     m.ring = m.top.findNode("ring")
     m.window.clippingRect = [-60, 0, 460, 540]
     m.scroll = 0

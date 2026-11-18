@@ -21,10 +21,14 @@
   <script type="text/brightscript" uri="Shelf.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <children>
-    <Label id="heading" translation="[200,0]"/>
+    <Label id="heading"/>
     <Label id="subheading"/>
-    <RowList id="list" numRows="1" rowFocusAnimationStyle="fixedFocus" drawFocusFeedback="false"
-             itemComponentName="Card" focusXOffset="[200]" showRowLabel="[false]" showRowCounter="[false]"/>
+    <!-- The cut left of the focus slot is on this group: a RowList given a clippingRect of its own
+         stops moving its focus. -->
+    <Group id="window">
+      <RowList id="list" numRows="1" rowFocusAnimationStyle="fixedFocus" drawFocusFeedback="false"
+               itemComponentName="Card" focusXOffset="[200]" showRowLabel="[false]" showRowCounter="[false]"/>
+    </Group>
     <Poster id="ring" uri="pkg:/images/focus-14.9.png" visible="false"/>
   </children>
 </component>

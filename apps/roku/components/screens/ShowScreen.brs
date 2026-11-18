@@ -3,22 +3,25 @@
 ' returns to the row at the episode that season remembers.
 sub init()
     c = colours()
+    f = frames()
+    m.tabsY = f.title.tabsY
+    m.hero = m.top.findNode("hero")
+    m.hero.translation = [f.gutter, f.title.copyTop]
+    m.hero.observeField("pressed", "onPressed")
     m.sections = m.top.findNode("sections")
     m.part = m.top.findNode("episodesPart")
     m.seasons = m.top.findNode("seasons")
     m.episodes = m.top.findNode("episodes")
     m.rest = m.top.findNode("rest")
-    setType(m.top.findNode("title"), "pageTitle", c.text)
-    setType(m.top.findNode("bandHead"), "bodyStrong", c.text)
-    setType(m.top.findNode("bandFacts"), "body", c.textSecondary)
-    setType(m.top.findNode("bandText"), "about", c.textSecondary)
+    placeEpisodes(f.title, f.gutter)
     m.seasons.observeField("index", "onSeasonFocused")
     m.episodes.observeField("focusedIndex", "describe")
     m.episodes.observeField("selectedIndex", "onEpisodeSelected")
     m.sections.observeField("chosen", "onRelatedChosen")
     m.rest.observeField("fire", "showSeason")
-    m.buttons = m.top.findNode("buttons")
-    m.buttons.observeField("pressed", "onPressed")
+    m.details = {}        ' episode id -> the episode in full, for the band's synopsis
+    m.bandRest = m.top.findNode("bandRest")
+    m.bandRest.observeField("fire", "readEpisode")
     m.stop = -1
     m.inRow = true        ' focus is in the episode row (not the season list)
     m.list = []           ' the seasons as the server lists them
@@ -30,7 +33,6 @@ end sub
 
 sub onItem()
     item = m.top.item
-    m.top.findNode("title").text = item.title
     m.full = item
     drawTop()
     m.sections.item = item
@@ -82,7 +84,7 @@ sub showSeason()
     if m.list.count() = 0 then return
     season = m.list[m.seasons.index]
     if m.loaded[season.id] = invalid
-        api("GET", "/v1/items?parent=" + season.id + "&limit=100", invalid, "onEpisodes", {id: season.id})
+        api("GET", episodesPath(season.id, invalid), invalid, "onEpisodes", {id: season.id, items: []})
         return
     end if
     if m.shown = season.id then return
@@ -107,62 +109,192 @@ sub showSeason()
     if at > 0 then m.episodes.jumpTo = at
     if not m.started
         m.started = true
-        focusStop()
+        if m.top.isInFocusChain() then focusStop()   ' never from the rail, opened while this was loading
     end if
     drawTop()
     describe()
 end sub
 
+' A season's episodes, a page at a time: a long season (a daily show, a long anime) is read to
+' its end before the row shows, as the season list is.
+function episodesPath(seasonId as string, cursor as dynamic) as string
+    path = "/v1/items?parent=" + seasonId + "&limit=200"
+    if cursor <> invalid then path = path + "&cursor=" + cursor
+    return path
+end function
+
 sub onEpisodes(event as object)
     result = event.getData()
-    id = event.getRoSGNode().ctx.id
+    ctx = event.getRoSGNode().ctx
     if not result.ok then return
-    m.loaded[id] = result.data.items
-    if m.list.count() > 0 and m.list[m.seasons.index].id = id then showSeason()
+    ctx.items.append(result.data.items)
+    if result.data.nextCursor <> invalid
+        api("GET", episodesPath(ctx.id, result.data.nextCursor), invalid, "onEpisodes", ctx)
+        return
+    end if
+    m.loaded[ctx.id] = ctx.items
+    if m.list.count() > 0 and m.list[m.seasons.index].id = ctx.id then showSeason()
 end sub
 
-' The band under the row describes whatever has focus: the season, or the episode.
+' The folded page's parts on the frame's lines (the lower group is at 0 once the page folds).
+sub placeEpisodes(t as object, gutter as integer)
+    c = colours()
+    m.sections.translation = [0, t.foldedTabsY]
+    m.seasons.translation = [gutter, t.episodesY]
+    m.episodes.slotX = t.episodesX
+    m.episodes.translation = [0, t.episodesY - shelfMetrics("episode").headingGap]
+    m.bandHead = m.top.findNode("bandHead")
+    m.bandCode = m.top.findNode("bandCode")
+    m.bandFacts = m.top.findNode("bandFacts")
+    m.bandText = m.top.findNode("bandText")
+    m.bandResume = m.top.findNode("bandResume")
+    m.credits = m.top.findNode("credits")
+    m.bandHint = m.top.findNode("bandHint")
+    m.bandHint.hints = [{keys: ["*"], text: "Episode options"}]
+    m.band = {x: t.episodesX, headBottom: t.bandHeadBottom, width: t.creditsX - t.episodesX - 24}
+    setType(m.bandHead, "rowHeading", c.text)
+    setType(m.bandCode, "metaStrong", c.text)
+    setType(m.bandFacts, "meta", c.textSecondary)
+    setType(m.bandText, "about", c.textSecondary)
+    setType(m.top.findNode("resumeWord"), "metaStrong", c.text)
+    setType(m.top.findNode("resumeLeft"), "meta", c.textSecondary)
+    m.bandHead.width = m.band.width
+    m.bandText.width = m.band.width
+    m.bandCode.translation = [t.episodesX, t.bandMetaMid - 18]
+    m.bandText.translation = [t.episodesX, t.bandTextY]
+    m.bandResume.translation = [t.episodesX, t.bandResumeMid]
+    m.top.findNode("resumeTrack").color = c.track
+    m.top.findNode("resumeTrack").translation = [0, -3]
+    m.top.findNode("resumeBar").color = c.accent
+    m.top.findNode("resumeBar").translation = [0, -3]
+    m.top.findNode("resumeWord").translation = [236, -18]
+    m.credits.translation = [t.creditsX, t.creditsY]
+    m.bandHint.translation = [t.creditsX, t.bandHintMid]
+end sub
+
+' The band under the row describes whatever has focus: the season, or the episode. Its heading,
+' meta line, synopsis, Resume line and credits column each keep their place when empty (rule 12).
 sub describe()
     if m.list.count() = 0 then return
     season = m.list[m.seasons.index]
-    head = m.top.findNode("bandHead")
-    facts = m.top.findNode("bandFacts")
-    text = m.top.findNode("bandText")
     episodes = m.loaded[season.id]
+    head = ""
+    code = ""
+    facts = []
+    text = ""
+    progress = -1
+    left = ""
+    credits = invalid
     if m.inRow and m.shown = season.id and episodes <> invalid and episodes.count() > 0
         at = m.episodes.focusedIndex
         if at < 0 or at >= episodes.count() then at = 0
         m.kept[season.id] = at
         episode = episodes[at]
-        head.text = episode.title
-        line = ""
-        if episodeCode(episode) <> "" then line = episodeCode(episode)
-        if episode.releaseDate <> invalid then line = line + "      " + dateText(episode.releaseDate)
-        if episode.durationMs <> invalid then line = line + "      " + durationText(episode.durationMs)
-        facts.text = line.trim()
-        text.text = ""
-        if episode.summary <> invalid then text.text = episode.summary
+        full = m.details[episode.id]
+        if full = invalid
+            m.bandRest.control = "stop"
+            m.bandRest.control = "start"
+            full = episode
+        end if
+        head = episode.title
+        code = episodeCode(episode)
+        if episode.releaseDate <> invalid then facts.push(dateText(episode.releaseDate))
+        if episode.durationMs <> invalid then facts.push(durationText(episode.durationMs))
+        if full.contentRating <> invalid then facts.push(full.contentRating)
+        if full.summary <> invalid then text = oneParagraph(full.summary)
+        progress = progressOf(episode)
+        left = timeLeftText(episode)
+        credits = full.credits
     else
-        head.text = season.title
-        line = ""
-        if season.year <> invalid then line = season.year.toStr() + "      "
-        if season.counts <> invalid then line = line + countText(season.counts.leaves, "episode", "episodes")
-        facts.text = line
-        text.text = ""
-        if season.summary <> invalid then text.text = season.summary
+        head = season.title
+        if season.year <> invalid then facts.push(season.year.toStr())
+        if season.counts <> invalid then facts.push(countText(season.counts.leaves, "episode", "episodes"))
+        if season.summary <> invalid then text = oneParagraph(season.summary)
     end if
-    ' the facts follow the name on its line; a name too long for that takes the line, and the facts go
-    head.width = 0
-    across = head.boundingRect().width
-    if across > 760
-        head.width = 1220
-        facts.text = ""
+    ' the heading sits on the bottom of its two-line slot; a long one takes the second line
+    m.bandHead.text = head
+    m.bandHead.translation = [m.band.x, m.band.headBottom - m.bandHead.boundingRect().height]
+    m.bandCode.text = code
+    m.bandFacts.text = facts.join("      ")
+    x = m.band.x
+    if code <> "" then x = x + m.bandCode.boundingRect().width + 24
+    m.bandFacts.translation = [x, m.bandCode.translation[1]]
+    m.bandText.text = text
+    m.bandResume.visible = (progress >= 0)
+    if progress >= 0
+        m.top.findNode("resumeBar").width = 220 * progress
+        m.top.findNode("resumeLeft").text = ", " + left
+        m.top.findNode("resumeLeft").translation = [236 + m.top.findNode("resumeWord").boundingRect().width, -18]
     end if
-    facts.translation = [600 + across + 28, 640]
+    drawCredits(credits)
+    m.bandHint.visible = (credits <> invalid or code <> "")    ' an episode has a menu; a season has none yet
 end sub
 
-' The episode Play starts: the first unplayed one of the season the page opens on.
+' The credits column: up to three guest stars with their parts, then who directed and wrote it.
+sub drawCredits(credits as dynamic)
+    c = colours()
+    m.credits.removeChildrenIndex(m.credits.getChildCount(), 0)
+    if credits = invalid then return
+    guests = []
+    for each credit in credits
+        if credit.role = "guest" then guests.push(credit)
+    end for
+    rows = []
+    for i = 0 to guests.count() - 1
+        if i < 3
+            part = ""
+            if guests[i].character <> invalid then part = guests[i].character
+            label = ""
+            if i = 0 then label = "Guest stars"
+            rows.push({label: label, name: guests[i].name, part: part, gap: 0})
+        end if
+    end for
+    if guests.count() > 3 then rows.push({label: "", name: "", part: "and " + (guests.count() - 3).toStr() + " more", gap: 0})
+    director = creditNames(credits, "director", 2)
+    writer = creditNames(credits, "writer", 2)
+    if director <> "" then rows.push({label: "Directed by", name: director, part: "", gap: 8})
+    if writer <> "" then rows.push({label: "Written by", name: writer, part: "", gap: 8})
+    y = 0
+    for each row in rows
+        if y > 0 then y = y + row.gap
+        addCreditLabel(row.label, "factLabel", c.textTertiary, 0, y, 136)
+        nameWidth = 0
+        if row.name <> "" then nameWidth = addCreditLabel(row.name, "factLabel", c.text, 144, y, 512) + 10
+        if row.part <> "" then addCreditLabel(row.part, "factLabel", c.textTertiary, 144 + nameWidth, y, 512 - nameWidth)
+        y = y + 35
+    end for
+end sub
+
+' One label of the credits column; answers its drawn width.
+function addCreditLabel(text as string, role as string, colour as string, x as integer, y as integer, most as integer) as integer
+    if text = "" then return 0
+    label = m.credits.createChild("Label")
+    setType(label, role, colour)
+    label.text = text
+    if label.boundingRect().width > most then label.width = most
+    label.translation = [x, y]
+    return label.boundingRect().width
+end function
+
+sub readEpisode()
+    episode = focusedEpisode()
+    if episode = invalid or m.details[episode.id] <> invalid then return
+    api("GET", "/v1/items/" + episode.id, invalid, "onEpisodeDetail", {id: episode.id})
+end sub
+
+sub onEpisodeDetail(event as object)
+    result = event.getData()
+    if not result.ok then return
+    m.details[event.getRoSGNode().ctx.id] = result.data
+    episode = focusedEpisode()
+    if episode <> invalid and episode.id = event.getRoSGNode().ctx.id then describe()
+end sub
+
+' The episode Play starts: the server's next episode for this viewer (the one in progress, else the
+' next unplayed), from the show's detail. Until the detail arrives, the first unplayed one of the
+' season the page opens on.
 function playTarget() as dynamic
+    if m.full <> invalid and m.full.nextEpisode <> invalid then return m.full.nextEpisode
     if m.list.count() = 0 or m.startSeason = invalid then return invalid
     episodes = m.loaded[m.list[m.startSeason].id]
     if episodes = invalid or episodes.count() = 0 then return invalid
@@ -177,8 +309,11 @@ sub drawTop()
     model = heroFor(item)
     model.left = ""
     model.progress = -1
-    m.top.findNode("hero").model = model
-    m.top.art = model.art
+    stars = creditNames(item.credits, "actor", 3)
+    if stars <> "" then model.credits = "Starring " + stars
+    m.hero.model = model
+    ' a page opened from an episode knows only the show's name until its detail arrives
+    if item.images <> invalid then m.top.art = model.art
     target = playTarget()
     buttons = []
     if target <> invalid
@@ -191,9 +326,12 @@ sub drawTop()
     else
         buttons.push({id: "play", text: "Play", icon: "play"})
     end if
+    if item.state = invalid then item.state = {inList: false, watched: false}
     if item.state.inList then buttons.push({id: "list", text: "My List", icon: "check"}) else buttons.push({id: "list", text: "My List", icon: "plus"})
-    if item.state.watched then buttons.push({id: "watched", text: "Played", icon: "check"}) else buttons.push({id: "watched", text: "Mark as played", icon: ""})
-    m.buttons.buttons = buttons
+    ' the round buttons: played (the eye; a ticked circle once played), and the show's menu
+    if item.state.watched then buttons.push({id: "watched", text: "", icon: "success"}) else buttons.push({id: "watched", text: "", icon: "watched"})
+    buttons.push({id: "more", text: "", icon: "more"})
+    m.hero.buttons = buttons
 end sub
 
 sub onPressed(event as object)
@@ -202,6 +340,10 @@ sub onPressed(event as object)
     if which = "play"
         target = playTarget()
         if target <> invalid then m.top.open = {item: target, play: true, startOver: false}
+        return
+    end if
+    if which = "more"
+        openMenu(item)
         return
     end if
     change = {madeAgoMs: 0}
@@ -219,20 +361,19 @@ end sub
 
 ' A whole show marked played changes every season's count: the page reads itself again.
 sub onSaved(event as object)
-    api("GET", "/v1/items/" + m.top.item.id, invalid, "onDetail", {id: m.top.item.id})
     reread()
 end sub
 
 sub focusStop()
     atTop = (m.stop = -1)
-    m.top.findNode("top").visible = atTop
-    m.top.findNode("title").visible = not atTop
-    if atTop then m.top.findNode("lower").translation = [0, 536] else m.top.findNode("lower").translation = [0, 0]
+    m.hero.folded = not atTop
+    m.sections.folded = not atTop
+    if atTop then m.top.findNode("lower").translation = [0, m.tabsY - frames().title.foldedTabsY] else m.top.findNode("lower").translation = [0, 0]
     m.top.quiet = not atTop
     m.part.visible = (m.stop <= 0)
     if atTop
         m.sections.section = "lead"
-        m.buttons.active = true
+        m.hero.active = true
         return
     end if
     if m.stop = 0
@@ -266,8 +407,50 @@ sub onRelatedChosen(event as object)
     m.top.open = {item: event.getData(), play: false}
 end sub
 
+' The * menu (and the "..." button) for the show, or for the episode in focus.
+sub openMenu(item as object)
+    if item = invalid or item.state = invalid then return
+    m.menuFor = item
+    menu = titleMenu(item, false)
+    rows = []
+    for each row in menu.rows
+        if row.id <> "details" then rows.push(row)     ' Details is this page
+    end for
+    menu.rows = rows
+    m.top.menu = menu
+end sub
+
+function focusedEpisode() as dynamic
+    if m.list.count() = 0 or not m.inRow then return invalid
+    episodes = m.loaded[m.list[m.seasons.index].id]
+    at = m.episodes.focusedIndex
+    if episodes = invalid or at < 0 or at >= episodes.count() then return invalid
+    return episodes[at]
+end function
+
+sub onMenuChosen(event as object)
+    item = m.menuFor
+    which = event.getData()
+    if item = invalid then return
+    if which = "play"
+        if item.kind = "show" then item = playTarget()
+        if item <> invalid then m.top.open = {item: item, play: true, startOver: false}
+        return
+    end if
+    change = titleMenuChange(item, which)
+    if change = invalid then return
+    change.madeAgoMs = 0
+    api("PUT", "/v1/items/" + item.id + "/state", change, "onSaved")
+end sub
+
 function onKeyEvent(key as string, press as boolean) as boolean
     if not press then return false
+    if key = "options"
+        item = m.full
+        if m.stop = 0 and focusedEpisode() <> invalid then item = focusedEpisode()
+        openMenu(item)
+        return true
+    end if
     hasRelated = m.sections.hasRelated
     if m.stop = -1
         if key = "down" and m.started
@@ -316,10 +499,11 @@ function onKeyEvent(key as string, press as boolean) as boolean
     return false
 end function
 
-' Read the seasons and the shown season's episodes again, keeping focus where it is.
+' Read the show (its next episode), the seasons and the shown season's episodes again, keeping focus where it is.
 sub reread()
+    api("GET", "/v1/items/" + m.top.item.id, invalid, "onDetail", {id: m.top.item.id})
     api("GET", "/v1/items?parent=" + m.top.item.id + "&limit=100", invalid, "onSeasonsAgain", {id: m.top.item.id})
-    if m.shown <> "" then api("GET", "/v1/items?parent=" + m.shown + "&limit=100", invalid, "onEpisodesAgain", {id: m.shown})
+    if m.shown <> "" then api("GET", episodesPath(m.shown, invalid), invalid, "onEpisodesAgain", {id: m.shown, items: []})
 end sub
 
 sub onSeasonsAgain(event as object)
@@ -338,10 +522,16 @@ end sub
 
 sub onEpisodesAgain(event as object)
     result = event.getData()
-    id = event.getRoSGNode().ctx.id
+    ctx = event.getRoSGNode().ctx
+    id = ctx.id
     if not result.ok or id <> m.shown then return
+    ctx.items.append(result.data.items)
+    if result.data.nextCursor <> invalid
+        api("GET", episodesPath(id, result.data.nextCursor), invalid, "onEpisodesAgain", ctx)
+        return
+    end if
     m.loaded = {}                  ' other seasons are read again when they are next shown
-    m.loaded[id] = result.data.items
+    m.loaded[id] = ctx.items
     at = m.episodes.focusedIndex
     m.kept[id] = at
     m.shown = ""

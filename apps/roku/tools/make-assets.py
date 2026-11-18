@@ -215,6 +215,17 @@ def generated_cover(first, second, w=216, h=324):
     return to_pil(s)
 
 
+def generated_backdrop(first, second, w=672, h=378):
+    """kit.css .fb .gen: the backdrop of a title page or hero for a title with no picture, drawn in
+    the art window's own shape (the cover's portrait picture, stretched, showed its glow as a band)."""
+    s, ctx = surface(w, h)
+    ctx.set_source_rgb(*rgb('#0c1a25'))
+    ctx.paint()
+    glow(ctx, w, h, 0.85, 0.10, 0.70, 1.20, first, [(0, 1), (0.60, 0)])
+    glow(ctx, w, h, 0.60, 1.10, 0.60, 0.90, second, [(0, 1), (0.65, 0)])
+    return to_pil(s)
+
+
 def corner_mask(r, colour):
     """Four corner wedges in the page colour, for rounding a picture Roku cannot clip."""
     size = r * 2 + 4
@@ -269,6 +280,7 @@ def read_ts(expr, imports):
 ICONS = {
     'search': [32], 'home': [32], 'film': [32], 'tv': [32], 'book': [32], 'music': [32], 'folder': [32],
     'live': [32], 'bookmark': [32], 'settings': [32], 'warning': [32], 'refresh': [28], 'server': [28], 'play': [28, 40], 'pause': [40], 'lock': [28], 'plus': [28], 'check': [28], 'info': [28], 'close': [28], 'forward': [28],
+    'collection': [28], 'more': [28], 'watched': [28], 'success': [28],
 }
 
 
@@ -295,6 +307,7 @@ def main():
 
     for i, (first, second) in enumerate(COVER_TINTS):
         generated_cover(first, second).convert('RGB').save(os.path.join(OUT, 'cover-%d.jpg' % i), quality=88)
+        dither(generated_backdrop(first, second)).save(os.path.join(OUT, 'tint-%d.jpg' % i), quality=90)
 
     icons = read_ts('icons', "import {icons} from './packages/design/src/icons.ts';")
     for name, sizes in ICONS.items():

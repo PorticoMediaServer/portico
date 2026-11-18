@@ -1,18 +1,17 @@
-' Three stops down the page: the buttons, More like this, Details. Down and Up move between them.
+' Three stops down the page: the hero (its action row, and above it the collection link when the
+' film has one), More like this, Details. Down and Up move between them.
 sub init()
     c = colours()
-    m.top_ = m.top.findNode("top")
+    f = frames()
+    m.tabsY = f.title.tabsY
+    m.foldedTabsY = f.title.foldedTabsY
     m.hero = m.top.findNode("hero")
-    m.credits = m.top.findNode("credits")
-    m.buttons = m.top.findNode("buttons")
-    m.smallTitle = m.top.findNode("smallTitle")
+    m.hero.translation = [f.gutter, f.title.copyTop]
     m.sections = m.top.findNode("sections")
-    setType(m.credits, "caption", c.textSecondary)
-    setType(m.smallTitle, "pageTitle", c.text)
-    m.buttons.observeField("pressed", "onPressed")
+    m.hero.observeField("pressed", "onPressed")
     m.sections.observeField("chosen", "onRelatedChosen")
     m.sections.observeField("hasRelated", "place")
-    m.stop = 0            ' 0 the buttons, 1 More like this, 2 Details
+    m.stop = 0            ' 0 the hero, 1 More like this, 2 Details
     m.full = invalid
 end sub
 
@@ -34,15 +33,19 @@ sub draw()
     item = m.full
     model = heroFor(item)
     model.left = ""
-    model.progress = -1
-    if item.kind = "movie" and item.durationMs <> invalid
+    model.progress = -1         ' Resume carries the progress
+    if item.durationMs <> invalid
         if model.facts <> "" then model.facts = durationText(item.durationMs) + "      " + model.facts else model.facts = durationText(item.durationMs)
     end if
     if item.contentRating <> invalid then model.tag = item.contentRating else model.tag = ""
-    m.hero.model = model
-    m.top.art = model.art
-    m.smallTitle.text = model.title
-
+    ' a film in a collection names it above the title, and Up from the buttons opens it
+    group = collectionOf(item)
+    if group <> invalid
+        model.eyebrow = group.name
+        if lcase(group.name).instr("collection") < 0 then model.eyebrow = group.name + " collection"
+        model.eyebrowMore = countText(group.memberCount, "film", "films")
+        model.link = true
+    end if
     line = ""
     director = creditNames(item.credits, "director", 2)
     stars = creditNames(item.credits, "actor", 3)
@@ -51,8 +54,12 @@ sub draw()
         if line <> "" then line = line + "      "
         line = line + "Starring " + stars
     end if
-    m.credits.text = line
+    model.credits = line
+    m.hero.model = model
+    m.top.art = model.art
 
+    state = item.state
+    if state = invalid then state = {}
     buttons = []
     p = progressOf(item)
     if p >= 0
@@ -61,25 +68,32 @@ sub draw()
     else
         buttons.push({id: "play", text: "Play", icon: "play"})
     end if
-    if item.state.inList then buttons.push({id: "list", text: "My List", icon: "check"}) else buttons.push({id: "list", text: "My List", icon: "plus"})
-    if item.state.watched then buttons.push({id: "watched", text: "Played", icon: "check"}) else buttons.push({id: "watched", text: "Mark as played", icon: ""})
-    m.buttons.buttons = buttons
+    if state.inList = true then buttons.push({id: "list", text: "My List", icon: "check"}) else buttons.push({id: "list", text: "My List", icon: "plus"})
+    ' the round buttons: played (the eye; a ticked circle once played), and the title's menu
+    if state.watched = true then buttons.push({id: "watched", text: "", icon: "success"}) else buttons.push({id: "watched", text: "", icon: "watched"})
+    buttons.push({id: "more", text: "", icon: "more"})
+    m.hero.buttons = buttons
     m.sections.item = item
     place()
 end sub
+
+function collectionOf(item as object) as dynamic
+    if item.collections = invalid or item.collections.count() = 0 then return invalid
+    return item.collections[0]
+end function
 
 ' Lay the page out for the stop focus is on.
 sub place()
     atTop = (m.stop = 0)
     m.top.quiet = not atTop
-    m.top_.visible = atTop
-    m.smallTitle.visible = not atTop
-    if atTop then m.sections.translation = [0, 700] else m.sections.translation = [0, 164]
+    m.hero.folded = not atTop
+    m.sections.folded = not atTop
+    if atTop then m.sections.translation = [0, m.tabsY] else m.sections.translation = [0, m.foldedTabsY]
     if m.stop = 2 then m.sections.section = "details" else m.sections.section = "related"
 end sub
 
 sub focusStop()
-    if m.stop = 0 then m.buttons.active = true else m.sections.active = true
+    if m.stop = 0 then m.hero.active = true else m.sections.active = true
 end sub
 
 sub onActive()
@@ -104,17 +118,47 @@ sub onPressed(event as object)
     else if which = "startover"
         m.top.open = {item: item, play: true, startOver: true}
     else if which = "list"
-        item.state.inList = not item.state.inList
-        save(item, {inList: item.state.inList})
+        save(item, {inList: not (item.state <> invalid and item.state.inList = true)})
     else if which = "watched"
-        item.state.watched = not item.state.watched
-        if item.state.watched then item.state.positionMs = invalid
-        save(item, {watched: item.state.watched})
+        save(item, {watched: not (item.state <> invalid and item.state.watched = true)})
+    else if which = "more"
+        openMenu()
+    else if which = "link"
+        group = collectionOf(item)
+        if group <> invalid then m.top.open = {item: {id: group.id, kind: "collection", title: group.name}, play: false}
     end if
+end sub
+
+' The "..." button and * open the title's menu; Details is left out, as this is its page.
+sub openMenu()
+    if m.full = invalid or m.full.state = invalid then return
+    menu = titleMenu(m.full, false)
+    rows = []
+    for each row in menu.rows
+        if row.id <> "details" then rows.push(row)
+    end for
+    menu.rows = rows
+    m.top.menu = menu
+end sub
+
+sub onMenuChosen(event as object)
+    which = event.getData()
+    if which = "play"
+        m.top.open = {item: m.full, play: true, startOver: false}
+        return
+    end if
+    change = titleMenuChange(m.full, which)
+    if change <> invalid then save(m.full, change)
 end sub
 
 ' The change shows at once; the server is told, and the page takes the state it answers with.
 sub save(item as object, change as object)
+    if item.state = invalid then item.state = {}
+    if change.inList <> invalid then item.state.inList = change.inList
+    if change.watched <> invalid
+        item.state.watched = change.watched
+        if change.watched then item.state.positionMs = invalid
+    end if
     m.full = item
     draw()
     change.madeAgoMs = 0
@@ -140,6 +184,10 @@ end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
     if not press then return false
+    if key = "options"
+        openMenu()
+        return true
+    end if
     hasRelated = m.sections.hasRelated
     if key = "down"
         if m.stop = 0 and hasRelated

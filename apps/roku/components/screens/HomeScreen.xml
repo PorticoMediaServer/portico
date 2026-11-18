@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Home: the spotlight (the opening state), then the server's rows. The hero describes the card
-     in focus on the first row; further down the rows have the screen. -->
+<!-- Home, on the Browse frame with the moderate hero (rule 14): the hero describes the card in
+     focus on every row, and the row in focus holds the slot under it, its heading at
+     frames().browse.rowsY. The first row shows whole and about half the next one shows below. -->
 <component name="HomeScreen" extends="Group">
   <interface>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
@@ -22,12 +23,19 @@
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <children>
-    <Group id="page" translation="[0,830]"/>
-    <Hero id="hero" visible="false"/>
+    <Hero id="hero" mode="preview" visible="false"/>
+    <!-- Rows above the one in focus slide up out of this window, under the hero's words. -->
+    <Group id="window">
+      <Group id="page"/>
+    </Group>
     <PageState id="notice" visible="false"/>
+    <!-- The hero's description is read once focus rests on a card (a row's titles carry no synopsis). -->
+    <Timer id="rest" duration="0.35"/>
+    <!-- Nothing shows for the first 300 ms of loading; then outlines of the real sizes (rule 9). -->
+    <Timer id="loadingDelay" duration="0.3"/>
+    <Group id="loadingRow" visible="false"/>
     <Animation id="slide" duration="0.28" easeFunction="outCubic">
       <Vector2DFieldInterpolator id="slideTo" key="[0.0, 1.0]" fieldToInterp="page.translation"/>
     </Animation>
-    <Timer id="turn" duration="9" repeat="true"/>
   </children>
 </component>
