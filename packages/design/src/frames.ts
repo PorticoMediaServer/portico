@@ -195,8 +195,8 @@ export const frame = {
   /** A page's second pane (`SplitFrame`): its width beside the page from tablet width (tablet-play 6 and 7, final3-tv-10;
    * the web from 1024 is desktop-live live-sheet). A phone draws the pane as a sheet. */
   pane: {width: {...forms(0, 380, 420, 640), web: 600}},
-  /** TV Search: the keyboard column beside the results (final3-tv-09: 416 of 1600). */
-  search: {keyboardWidth: 500},
+  /** TV Search: the keyboard column beside the results (final3-tv-09: 416 of 1600) and the Top result's 16:9 picture (400 of 1600). */
+  search: {keyboardWidth: 500, topResultArt: 480},
   /** The Live TV guide grid: minutes to points (phone-guide g1, tablet-play 6, desktop-live live-guide, final3-tv-10), the
    * channel column, a row, a channel's mark, the time column of a list of airings, the ruler, the gap between cells. */
   guide: {

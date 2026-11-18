@@ -266,12 +266,15 @@ function DeleteRule() {
   return <Button variant="text" size="small" textStyle={{color: theme.colors.record}} onPress={none}>{f('deleteRule')}</Button>;
 }
 function RuleBody() {
-  const {theme} = useScale(), [on, setOn] = useState(true);
+  const {theme, tv} = useScale(), [on, setOn] = useState(true);
+  // TV, as its Settings: the switch is the whole row and a choice is a value row that opens its side sheet.
   return <>
-    <SectionCard><SettingsRow first label={f('ruleOn')} description={f('ruleOnHelp')} control={<Switch checked={on} onCheckedChange={setOn} accessibilityLabel={f('ruleOn')}/>}/></SectionCard>
+    <SectionCard>{tv ? <SettingsRow first label={f('ruleOn')} description={f('ruleOnHelp')} toggle={{checked: on, visual: <Switch checked={on} focusable={false} accessibilityLabel={f('ruleOn')}/>}} onPress={() => setOn(!on)}/>
+      : <SettingsRow first label={f('ruleOn')} description={f('ruleOnHelp')} control={<Switch checked={on} onCheckedChange={setOn} accessibilityLabel={f('ruleOn')}/>}/>}</SectionCard>
     <SectionCard>
-      <SettingsRow first label={f('recordLabel')} control={<Segmented value="all" onValueChange={none} items={[{value: 'new', label: f('newEpisodes')}, {value: 'all', label: f('allEpisodes')}]}/>}/>
-      <SettingsRow label={f('channelLabel')} control={<Segmented value="any" onValueChange={none} items={[{value: 'this', label: f('thisChannel')}, {value: 'any', label: f('anyChannel')}]}/>}/>
+      {tv ? <><SettingsRow first label={f('recordLabel')} value={f('allEpisodes')} onPress={none}/><SettingsRow label={f('channelLabel')} value={f('anyChannel')} onPress={none}/></> : <>
+        <SettingsRow first label={f('recordLabel')} control={<Segmented value="all" onValueChange={none} items={[{value: 'new', label: f('newEpisodes')}, {value: 'all', label: f('allEpisodes')}]}/>}/>
+        <SettingsRow label={f('channelLabel')} control={<Segmented value="any" onValueChange={none} items={[{value: 'this', label: f('thisChannel')}, {value: 'any', label: f('anyChannel')}]}/>}/></>}
       <SettingsRow label={f('keep')} value={f('keepEvery')} onPress={none}/>
       <SettingsRow label={f('startEarly')} value={f('twoMinutes')} onPress={none}/>
       <SettingsRow label={f('endLate')} value={f('none')} onPress={none}/>
