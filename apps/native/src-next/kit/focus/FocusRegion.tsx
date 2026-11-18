@@ -1,5 +1,5 @@
 import React, {createContext, forwardRef, useCallback, useContext, useLayoutEffect, useMemo, useRef, useSyncExternalStore} from 'react';
-import {findNodeHandle, TVFocusGuideView, View, type FocusGuideMethods, type ViewProps} from 'react-native';
+import {findNodeHandle, Platform, TVFocusGuideView, View, type FocusGuideMethods, type ViewProps} from 'react-native';
 import {useTheme} from '../theme';
 import {createFocusHandleResolver, createFocusRegistry, focusTestID, requestNativeFocus, type FocusAddress, type FocusHost, type FocusRegionConfig, type FocusRegistry} from './registry';
 import type {FocusCell} from './cell-navigation';
@@ -157,13 +157,13 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
     // Android TV drops an ask made before the view (or the layer it is in) can take focus natively, and then nothing is
     // focused at all. Ask again on the next frames, for at most about half a second, until focus lands here. Android
     // TV also gives a page with nothing focused its first focusable view by itself (a library's Discover tab above
-    // the start poster), so that one arrival elsewhere is passed over; a second (the person moved, a newer ask) ends
-    // it, so it never pulls focus back.
+    // the start poster), so there that one arrival elsewhere is passed over. Any other arrival (the person moved, a
+    // newer ask; on tvOS the first) ends it, so it never pulls focus back.
     if (typeof requestAnimationFrame !== 'function') return;
-    const serial = focusSerial;
+    const serial = focusSerial, passOver = Platform.OS === 'android' ? 1 : 0;
     let frames = 0, live = true;
     const again = () => {
-      if (!live || landed.current || focusSerial - serial > 1 || ++frames > 30) return;
+      if (!live || landed.current || focusSerial - serial > passOver || ++frames > 30) return;
       requestNativeFocus(native.current); requestAnimationFrame(again);
     };
     requestAnimationFrame(again);
