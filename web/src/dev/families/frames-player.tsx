@@ -159,9 +159,9 @@ function PlayerUpNextCase({variant}: {variant: 'plain' | 'credits' | 'countdown'
 }
 /** The end of a film (desktop-player 4b, phone-player 6d): the kit's end card over the picture. */
 function PlayerEndCase() {
-  const art = useReferenceArtwork(), upright = usePhone();
+  const art = useReferenceArtwork(), phone = !useWide(); // the screen's own test: under 1024 wide is the phone layout (WatchScreen)
   const related = (['spirited-away', 'inside-out', 'alien', 'blade-runner', 'dune', 'barbie'] as const).map(id => ({id, title: id.split('-').map(word => word[0]!.toUpperCase() + word.slice(1)).join(' '), poster: art(`pool/movies/${id}.jpg`)}));
-  return <Player card={<div style={{position: 'absolute', inset: 0}}><PlayerEndCard layout={upright ? 'phone' : 'desktop'} canReplay onReplay={none} onClose={none} reportError={none} artwork={() => undefined}
+  return <Player card={<div style={{position: 'absolute', inset: 0}}><PlayerEndCard layout={phone ? 'phone' : 'desktop'} canReplay onReplay={none} onClose={none} reportError={none} artwork={() => undefined}
     card={{title: f('insideOut'), year: 2015, genres: ['Animation', 'Family'], related, rating: {value: null, set: async () => {}}, back: none, openRelated: none}} /></div>} />;
 }
 
