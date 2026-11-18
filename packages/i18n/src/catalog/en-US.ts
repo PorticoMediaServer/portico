@@ -1227,7 +1227,7 @@ export const enUS = {
   'about.report.help': 'Sends this app’s recent warnings and errors to the owner of {server}, to help find a problem.',
   'about.report.afterCrash': 'Portico closed unexpectedly last time. A report would include what went wrong.',
   'about.report.confirmTitle': 'Send a report to the owner of {server}?',
-  'about.report.confirmBody': 'It holds what this app logged while something went wrong. That can include the names of titles and of this device. It never includes your password or sign-in.',
+  'about.report.confirmBody': 'It holds this app’s version and the warnings and errors it logged recently. It never includes your password, your sign-in or this device’s name.',
   'about.report.send': 'Send',
   'about.report.sent': 'The report was sent to the owner of {server}.',
 
