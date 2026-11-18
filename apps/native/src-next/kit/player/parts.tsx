@@ -146,7 +146,7 @@ export function PlayerPrompt({label, icon = 'i-next', onPress, dismiss, testID}:
   const theme = useTheme(), {form} = useFrameMetrics(), compact = useContext(PlayerCompact), spec = frameSpec.player.prompt, small = frameSpec.player.portrait, height = compact ? small.promptHeight : spec.height[form], round = compact ? 0 : spec.dismiss[form];
   return <View style={{flexDirection: 'row', alignItems: 'center', gap: spec.gap}}>
     {dismiss && round > 0 && <Button variant="icon" icon="i-x" accessibilityLabel={dismiss.label} onPress={dismiss.onPress} style={{height: round}}/>}
-    <Button testID={testID} variant="primary" labelLines={2} trailingIcon={icon} iconSize={compact ? frameSpec.player.pillIcon : undefined} onPress={onPress} textStyle={compact ? theme.type.playerPill : theme.type.playerPrompt}
+    <Button testID={testID} variant="primary" trailingIcon={icon} iconSize={compact ? frameSpec.player.pillIcon : undefined} onPress={onPress} textStyle={compact ? theme.type.playerPill : theme.type.playerPrompt}
       style={{height, paddingHorizontal: compact ? small.promptPaddingX : spec.paddingX[form], borderRadius: compact ? height / 2 : spec.radius[form]}}>{label}</Button>
   </View>;
 }
