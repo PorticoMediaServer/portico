@@ -138,7 +138,7 @@ function BrowseHome() {
     renderReason={entry => entry.reason}
     renderArtwork={(entry, context) => <AmbientArt foreground={art(entry.id)} visible={context.visible} foregroundStyle={context.foregroundStyle} onReady={context.onReady} onError={context.onError}/>}
     renderActions={() => <><Button icon="i-play" onPress={none}>{t('next.home.resume')}</Button><Button variant="glass" icon="i-plus" onPress={none}>{f('myList')}</Button></>}/>;
-  return <Page destination={{kind: 'home'}}>
+  return <>
     <BrowseFrame testID="frames-browse-home" startFocus={continuing[0]!.id} hero={hero}>
       <ContinueRow onFocusEntry={entry => setFocused(heroes.find(item => item.id === entry.id) as HeroEntry)}/>
       <PosterRow fresh title={f('newOnServer')} subtitle={l('next.libraryFrames.fixture.newSubtitle')} start={20}/>
@@ -149,52 +149,53 @@ function BrowseHome() {
     {/* The shell's own wordmark bar over the hero on a phone (phone-app 1): wordmark, Play on and the avatar with its dot. */}
     {form === 'phone' && <PhoneHomeHeader profile={{id: 'gallery', name: f('profileInitial'), initial: f('profileInitial'), color: 'blue'}} unread avatarRef={profileRef} onProfile={none} viewerRole="member"
       castControl={<Button variant="icon" iconOnly icon="i-cast" accessibilityLabel={f('playOn')} onPress={none}/>}/>}
-  </Page>;
+  </>;
 }
 
 /** The Movies tab: the grid with its rail under the Filters bar. */
 function BrowseList({menuOpen = false}: {menuOpen?: boolean}) {
   const header = useLibraryHeader({menuOpen}), {toolbar} = useToolbar(false), {grid, alphabet, start} = useGrid();
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-list" startFocus={start} header={header} toolbar={toolbar} grid={grid} alphabet={alphabet}/></Page>;
+  return <BrowseFrame testID="frames-browse-list" startFocus={start} header={header} toolbar={toolbar} grid={grid} alphabet={alphabet}/>;
 }
 
 /** The Discover tab: Continue Watching, then rows with New badges, See all and their grey subtitle. */
 function BrowseDiscover({kind = 'movie'}: {kind?: string}) {
   const header = useLibraryHeader({tab: 'discover', kind});
-  return <Page destination={{kind: 'library', libraryId: kind}}><BrowseFrame testID={`frames-browse-${kind === 'music' ? 'music' : 'discover'}`} startFocus={kind === 'music' ? 'hobbit' : continuing[0]!.id} header={header}>
+  return <BrowseFrame testID={`frames-browse-${kind === 'music' ? 'music' : 'discover'}`} startFocus={kind === 'music' ? 'hobbit' : continuing[0]!.id} header={header}>
     {kind === 'music' ? <ListeningRow/> : <ContinueRow/>}
     <PosterRow fresh title={l('next.libraryFrames.fixture.recentlyAdded')} subtitle={l('next.libraryFrames.fixture.newSubtitle')} start={20}/>
     <PosterRow title={l('next.libraryFrames.fixture.recommended')} start={4}/>
-  </BrowseFrame></Page>;
+  </BrowseFrame>;
 }
 
 /** Filters open over (or docked beside) a filtered grid: applied chips with Clear all, and the count. */
 function BrowseFilters() {
   const header = useLibraryHeader(), {toolbar, open, setOpen} = useToolbar(true), {form} = useFrameMetrics();
   const {grid, alphabet, start} = useGrid(animated, open && form === 'expanded');
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-filters" startFocus={start} header={header} toolbar={toolbar} grid={grid} alphabet={alphabet}
-    filters={{open, onClose: () => setOpen(false), onClear: none, onDone: () => setOpen(false), count: count(6), save: {canSave: true, onSave: none}, children: <FiltersFields/>}}/></Page>;
+  return <BrowseFrame testID="frames-browse-filters" startFocus={start} header={header} toolbar={toolbar} grid={grid} alphabet={alphabet}
+    filters={{open, onClose: () => setOpen(false), onClear: none, onDone: () => setOpen(false), count: count(6), save: {canSave: true, onSave: none}, children: <FiltersFields/>}}/>;
 }
 
 /** The Collections tab: a grid of wide collection tiles with their film counts. */
 function BrowseCollections() {
   const theme = useTheme(), frame = useFrameMetrics(), header = useLibraryHeader({tab: 'collections'});
-  const room = frame.width - frame.gutter - frame.rightGutter, width = frame.form === 'phone' ? room : theme.isTV ? 520 : Math.min(350, room);
+  // As many columns of at least 300 (TV 520) as fit, stretched to both gutters, as the poster grid's are.
+  const room = frame.width - frame.gutter - frame.rightGutter, gap = theme.spec.shelf.gap[theme.column], columns = Math.max(1, Math.floor((room + gap) / ((theme.isTV ? 520 : 300) + gap))), width = Math.floor((room - gap * (columns - 1)) / columns);
   const tiles = ([['dune', 'collectionDune', 'twoFilms', ['dune', 'dune-part-two']], ['alien', 'collectionAlien', 'twoFilms', ['alien', 'aliens']], ['avengers', 'collectionAvengers', 'fourFilms', ['avengers-endgame', 'avengers-infinity-war']], ['pixar', 'collectionToyStory', 'sixFilms', ['inside-out', 'incredibles-2', 'monsters-inc']]] as const);
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-collections" startFocus="dune" header={header}>
+  return <BrowseFrame testID="frames-browse-collections" startFocus="dune" header={header}>
     <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.spec.shelf.gap[theme.column], paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
       {tiles.map(([id, name, films, covers]) => <CollectionTile key={id} focusId={id} width={width} title={l(`next.libraryFrames.fixture.${name}`)} covers={covers.map(cover => asset(`pool/movies/${cover}.jpg`))} backdrop={asset(`pool/movies/${covers[0]}--bd.jpg`)}
         caption={[{id: 'count', text: l(`next.libraryFrames.fixture.${films}`), role: 'identity'}]} onNavigate={none}/>)}
     </View>
-  </BrowseFrame></Page>;
+  </BrowseFrame>;
 }
 
 /** See all: a pushed page with Back and a plain title, Play and Shuffle beside it, the Filters bar and the grid. */
 function BrowseSeeAll() {
   const {toolbar} = useToolbar(false, recent.length), {grid, alphabet, start} = useGrid(recent);
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-see-all" startFocus={start} header={{title: f('newOnServer'), back: {label: f('movies'), onPress: none}, intro: l('next.libraryFrames.fixture.seeAllBody'),
+  return <BrowseFrame testID="frames-browse-see-all" startFocus={start} header={{title: f('newOnServer'), back: {label: f('movies'), onPress: none}, intro: l('next.libraryFrames.fixture.seeAllBody'),
     actions: <><Button icon="i-play" onPress={none}>{f('play')}</Button><Button variant="glass" icon="i-shuffle" onPress={none}>{l('next.libraryFrames.fixture.shuffle')}</Button></>}}
-    toolbar={toolbar} grid={grid} alphabet={alphabet}/></Page>;
+    toolbar={toolbar} grid={grid} alphabet={alphabet}/>;
 }
 
 /** Filters that match nothing: the toolbar and its chips stay; the grid's place says so and offers what would match. */
@@ -202,13 +203,13 @@ function BrowseEmpty() {
   const header = useLibraryHeader(), {toolbar} = useToolbar(true), movies = f('movies');
   const empty = <FilteredEmpty description={t('next.browse.native.filteredEmptyDescription', {library: movies, genre: l('next.libraryFrames.fixture.animation').toLocaleLowerCase('en-US'), decade: '2010'})} onClearFilters={none}
     suggestionsLabel={t('next.browse.native.orTry')} suggestions={[{id: 'year', label: l('next.libraryFrames.fixture.withoutYear'), count: 6, onSelect: none}, {id: 'genre', label: l('next.libraryFrames.fixture.withoutGenre'), count: 11, onSelect: none}]}/>;
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-empty" startFocus="clear-filters" header={header} toolbar={toolbar} grid={empty}/></Page>;
+  return <BrowseFrame testID="frames-browse-empty" startFocus="clear-filters" header={header} toolbar={toolbar} grid={empty}/>;
 }
 
 /** Loading keeps the header, tabs and toolbar the loaded page has, and draws the grid's boxes. */
 function BrowseLoading() {
   const header = useLibraryHeader(), {toolbar} = useToolbar(false);
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-loading" header={header} toolbar={toolbar} state={{kind: 'loading'}}/></Page>;
+  return <BrowseFrame testID="frames-browse-loading" header={header} toolbar={toolbar} state={{kind: 'loading'}}/>;
 }
 
 /** Each region of the library frame, outlined: the screen's in blue, the flexible region in amber. */
@@ -218,18 +219,19 @@ function RegionsBrowse() {
     toolbar={box('toolbar')} grid={<Block name="regionRows" flexible rows={6}/>} alphabet={<Region label="alphabet" height={frame.rowTwoLine * 4}/>}/></Window>;
 }
 
+/** Each case is drawn inside the gallery's `Page` (the shell's rail and its page inset), so its hooks measure the page, not the window. */
 const whole = {screen: true} as const;
 const galleries: readonly Gallery[] = [
-  {id: 'frames-browse-home', title: 'next.platform.frame.browseHome', render: BrowseHome, ...whole},
-  {id: 'frames-browse-list', title: 'next.platform.frame.browseList', render: () => <BrowseList/>, ...whole},
-  {id: 'frames-browse-discover', title: 'next.platform.frame.browseDiscover', render: () => <BrowseDiscover/>, ...whole},
-  {id: 'frames-browse-music', title: 'next.platform.frame.browseMusic', render: () => <BrowseDiscover kind="music"/>, ...whole},
-  {id: 'frames-browse-filters', title: 'next.platform.frame.browseFilters', render: BrowseFilters, ...whole},
-  {id: 'frames-browse-collections', title: 'next.platform.frame.browseCollections', render: BrowseCollections, ...whole},
-  {id: 'frames-browse-see-all', title: 'next.platform.frame.browseSeeAll', render: BrowseSeeAll, ...whole},
-  {id: 'frames-browse-empty', title: 'next.platform.frame.browseEmpty', render: BrowseEmpty, ...whole},
-  {id: 'frames-browse-menu', title: 'next.platform.frame.browseMenu', render: () => <BrowseList menuOpen/>, platforms: ['phone', 'tablet', 'web'], ...whole},
-  {id: 'frames-browse-loading', title: 'next.platform.frame.browseLoading', render: BrowseLoading, ...whole},
+  {id: 'frames-browse-home', title: 'next.platform.frame.browseHome', render: () => <Page destination={{kind: 'home'}}><BrowseHome/></Page>, ...whole},
+  {id: 'frames-browse-list', title: 'next.platform.frame.browseList', render: () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseList/></Page>, ...whole},
+  {id: 'frames-browse-discover', title: 'next.platform.frame.browseDiscover', render: () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseDiscover/></Page>, ...whole},
+  {id: 'frames-browse-music', title: 'next.platform.frame.browseMusic', render: () => <Page destination={{kind: 'library', libraryId: 'music'}}><BrowseDiscover kind="music"/></Page>, ...whole},
+  {id: 'frames-browse-filters', title: 'next.platform.frame.browseFilters', render: () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFilters/></Page>, ...whole},
+  {id: 'frames-browse-collections', title: 'next.platform.frame.browseCollections', render: () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseCollections/></Page>, ...whole},
+  {id: 'frames-browse-see-all', title: 'next.platform.frame.browseSeeAll', render: () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseSeeAll/></Page>, ...whole},
+  {id: 'frames-browse-empty', title: 'next.platform.frame.browseEmpty', render: () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseEmpty/></Page>, ...whole},
+  {id: 'frames-browse-menu', title: 'next.platform.frame.browseMenu', render: () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseList menuOpen/></Page>, platforms: ['phone', 'tablet', 'web'], ...whole},
+  {id: 'frames-browse-loading', title: 'next.platform.frame.browseLoading', render: () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseLoading/></Page>, ...whole},
   {id: 'frames-regions-browse', title: 'next.platform.frame.regionsBrowse', render: RegionsBrowse, ...whole},
 ];
 export default galleries;

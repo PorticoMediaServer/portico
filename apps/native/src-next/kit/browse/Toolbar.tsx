@@ -15,6 +15,8 @@ import MaskedView from '@react-native-masked-view/masked-view';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 
 const t = defaultI18n.t;
+/** A tablet toolbar narrower than this (beside a docked Filters pane) keeps only Filters, sort and grid / list in its bar. */
+const narrowToolbar = 700;
 
 export function FiltersButton({count = 0, onPress, open = false}: {count?: number; onPress: () => void; open?: boolean}) {
   const theme = useTheme(), tv = theme.isTV, phone = theme.platform === 'phone';
@@ -114,20 +116,25 @@ export function ChipRail({children}: {children: ReactNode}) {
 /** The host pins this measured block above its windowed grid; it never owns scrolling data. */
 export function BrowseToolbar({model, platform, sticky = false, resultCount, onQuickChange, onFilters, filtersOpen = false, onSortChange, onReshuffle, labels, applied = [], onRemoveFilter, onClearFilters, view, cardSize, save, onJump, onSelect, selection, children, testID}: BrowseToolbarProps) {
   const theme = useTheme(), {width} = useWindowDimensions(), target = browsePlatform(theme, platform), phone = target === 'phone', tv = target === 'tv';
+  // Beside a docked Filters pane (tablet 4) the bar is Filters, sort and grid / list; the count moves to the applied filters'
+  // line, and the quick chips, card size and Save view (also in ⋯ and the pane) step out, so nothing is cut.
+  const [room, setRoom] = useState(0), narrow = !phone && !tv && room > 0 && room < narrowToolbar;
   if (applied.length > 0 && !onRemoveFilter) throw new Error('Applied browse filters need a real remove callback.');
   if (selection) return <View testID={testID}>{selection}</View>;
   const sort = <SortMenu sorts={model.sorts} value={model.sort} label={labels.sort} onValueChange={onSortChange} onReshuffle={onReshuffle}/>;
   const filters = <FiltersButton count={model.applied.length} open={filtersOpen} onPress={onFilters}/>;
   const quick = model.quick.map(item => <QuickToggle key={item.id} checked={item.active} onCheckedChange={checked => onQuickChange(item.id, checked)}>{item.label?.text ?? labels.quick(item)}</QuickToggle>);
   const count = <Text accessibilityLiveRegion="polite" style={[browseType(theme, tv ? 22 : phone ? 13 : 14.5, 600), {color: phone || tv ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{resultCount}</Text>;
-  return <View testID={testID} accessibilityLabel={t('next.browse.native.toolbar')} style={{zIndex: sticky ? theme.layers.sticky : undefined, backgroundColor: sticky ? alpha(theme.colors.ink, .86) : undefined, paddingTop: phone ? 10 : sticky ? 12 : 20, paddingBottom: sticky ? 12 : 0}}>
+  return <View testID={testID} onLayout={event => setRoom(event.nativeEvent.layout.width)} accessibilityLabel={t('next.browse.native.toolbar')} style={{zIndex: sticky ? theme.layers.sticky : undefined, backgroundColor: sticky ? alpha(theme.colors.ink, .86) : undefined, paddingTop: phone ? 10 : sticky ? 12 : 20, paddingBottom: sticky ? 12 : 0}}>
     {phone ? <>
       <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 20, gap: 8, alignItems: 'center'}}>{filters}{sort}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}{quick}{children}</ScrollView></TVRow>
       <View style={{paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 10}}>
         {/* phone-app 5: the count and grid / list only; a phone's Save view is in the Filters sheet, and three columns fill the width at any card size. */}
         {count}<View style={{marginLeft: 'auto'}}>{view && <ViewToggle {...view}/>}</View>
       </View>
-    </> : <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 14 : 8, paddingHorizontal: theme.gutter}}>
+    </> : narrow ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: theme.gutter}}>
+      {filters}{sort}<View style={{marginLeft: 'auto'}}>{view && <ViewToggle {...view}/>}</View>
+    </View> : <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 14 : 8, paddingHorizontal: theme.gutter}}>
       {tv ? <>{sort}{filters}{onJump && <Chip onPress={onJump}>{t('next.browse.native.jumpTo')}</Chip>}</> : <>{filters}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}</>}
       <View style={{height: tv ? 40 : 24, width: tv ? 1.5 : 1, marginHorizontal: 6, backgroundColor: theme.colors.line}}/>
       {tv ? <>{quick}{children}</> : <ChipRail>{quick}{children}</ChipRail>}
@@ -136,8 +143,8 @@ export function BrowseToolbar({model, platform, sticky = false, resultCount, onQ
         {save && <SaveViewButton {...save}/>}
       </View>
     </View>}
-    {(applied.length > 0 || tv) && <View style={{paddingHorizontal: phone ? 20 : theme.gutter, paddingTop: tv ? 24 : 10}}>
-      <AppliedFilterChips platform={target} filters={applied} onRemove={id => onRemoveFilter!(id)} onClear={onClearFilters}>{tv && count}</AppliedFilterChips>
+    {(applied.length > 0 || tv || narrow) && <View style={{paddingHorizontal: phone ? 20 : theme.gutter, paddingTop: tv ? 24 : 10}}>
+      <AppliedFilterChips platform={target} filters={applied} onRemove={id => onRemoveFilter!(id)} onClear={onClearFilters}>{tv ? count : narrow && <View style={{marginLeft: 'auto'}}>{count}</View>}</AppliedFilterChips>
     </View>}
   </View>;
 }
