@@ -1,10 +1,10 @@
-import {buttonSpec, chipSpec, focusSpec, targets, typeScale} from '@portico/design';
+import {buttonSpec, chipSpec, focusSpec, targets, transportSpec, typeScale} from '@portico/design';
 
 export type ControlPlatform = 'phone' | 'tablet' | 'web' | 'tv';
 /** `link`: a sentence link (design/ui-v1 `.links a`), bare text on the content edge that wraps; `text`
  * stays the padded text action that footers and toolbars size themselves. */
 export type ButtonVariant = 'primary' | 'glass' | 'text' | 'link' | 'icon' | 'danger';
-export type ButtonSize = 'hero' | 'compact' | 'small' | 'xs' | 'episode' | 'dock';
+export type ButtonSize = 'hero' | 'compact' | 'small' | 'xs' | 'episode' | 'dock' | 'transport';
 export type FocusKind = 'button' | 'row' | 'chip' | 'card' | 'field';
 export type ChipVariant = 'default' | 'quick' | 'facet' | 'applied' | 'pill';
 
@@ -17,6 +17,11 @@ export type ButtonGeometry = Readonly<{height: number; radius: number; paddingX:
 export function buttonGeometry(size: ButtonSize, platform: ControlPlatform, variant: ButtonVariant = 'primary'): ButtonGeometry {
   // A TV link keeps the text recipe's padding for its focus face.
   if (variant === 'link') return platform === 'tv' ? buttonGeometry(size, platform, 'text') : {...buttonGeometry(size, platform, 'text'), paddingX: 0};
+  // Player transport (componentSpec.transport): round and icon-only. The white primary is Play or Pause.
+  if (size === 'transport') {
+    const spec = variant === 'primary' ? transportSpec.primary : transportSpec.control, height = spec.size[platform];
+    return {height, radius: height / 2, paddingX: 0, gap: 0, icon: spec.icon[platform], fontSize: 0};
+  }
   if (platform === 'web' && variant === 'icon') return {height: 40, radius: 20, paddingX: 0, gap: 0, icon: 22, fontSize: 15};
   if (platform === 'web' && variant === 'text') return {height: 32, radius: 8, paddingX: 10, gap: 6, icon: 16, fontSize: 13.5};
   if (size === 'hero') return {
