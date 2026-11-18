@@ -90,3 +90,15 @@ func TestAFileInTheServersDataFolderIsNeverALibraryFile(t *testing.T) {
 		}
 	}
 }
+
+func TestADiscFolderCannotExposeServerDataInsideIt(t *testing.T) {
+	folder := t.TempDir()
+	ServerData = filepath.Join(folder, "Server Data")
+	t.Cleanup(func() { ServerData = "" })
+	if err := os.Mkdir(ServerData, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ResolveReadPath(folder, true); !errors.Is(err, ErrOutside) {
+		t.Fatalf("disc folder containing server data: %v", err)
+	}
+}

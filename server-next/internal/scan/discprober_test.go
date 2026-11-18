@@ -50,17 +50,19 @@ func TestADiscIsItsMainFeature(t *testing.T) {
 	if _, err := discFacts(disc.Probe{Kind: "dvd", Encryption: "none", Titles: []disc.Title{}}); err != ErrNotMedia {
 		t.Fatalf("a disc with no title: %v", err)
 	}
-	if folder, ok := discOf("/films/Heat (1995)/BDMV/index.bdmv"); !ok || folder != "/films/Heat (1995)/BDMV" {
+	film := filepath.Join("films", "Heat (1995)")
+	bdmv, videoTS := filepath.Join(film, "BDMV"), filepath.Join(film, "VIDEO_TS")
+	if folder, ok := discOf(filepath.Join(bdmv, "index.bdmv")); !ok || folder != bdmv {
 		t.Fatalf("the disc a file stands for: %q %v", folder, ok)
 	}
 	// The reader is handed the folder that holds BDMV, and a DVD's VIDEO_TS folder itself.
-	if got := readerFolder("/films/Heat (1995)/BDMV"); got != "/films/Heat (1995)" {
+	if got := readerFolder(bdmv); got != film {
 		t.Fatalf("the folder the reader is handed for a Blu-ray: %q", got)
 	}
-	if got := readerFolder("/films/Heat (1995)/VIDEO_TS"); got != "/films/Heat (1995)/VIDEO_TS" {
+	if got := readerFolder(videoTS); got != videoTS {
 		t.Fatalf("the folder the reader is handed for a DVD: %q", got)
 	}
-	if _, ok := discOf("/films/Heat (1995)/BDMV/STREAM/00001.m2ts"); ok {
+	if _, ok := discOf(filepath.Join(bdmv, "STREAM", "00001.m2ts")); ok {
 		t.Fatal("a clip inside a disc was taken for the disc")
 	}
 }

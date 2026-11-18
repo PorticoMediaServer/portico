@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"runtime"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -24,7 +23,7 @@ import (
 // A film disc, kept as a folder (BDMV or VIDEO_TS) or as an image, plays its main feature, the
 // title the scan listed (scanning rule 40), always as the server's stream: no app can play the
 // disc itself. FFmpeg reads the title with its own Blu-ray and DVD reading, handed the image or
-// the folder itself and never its path, the way the scan's disc reader is.
+// the folder the same way as the scan's disc reader.
 
 // measuredDisc is a disc's main feature: the disc as the disc reader found it, the title it
 // plays, and what ffprobe finds in that title. keyframes, for a Blu-ray, are its entry points
@@ -40,11 +39,10 @@ type measuredDisc struct {
 	keyframes []float64
 }
 
-// discPlayable says this server can play discs: its media tools came with the disc reader, and
-// it runs on Linux, the one sandbox that can hand a converter a folder.
+// discPlayable says this server's media tools came with the disc reader.
 func discPlayable() bool {
 	_, err := exec.LookPath(mediatools.Resolve("portico-disc"))
-	return err == nil && runtime.GOOS == "linux"
+	return err == nil
 }
 
 // measureDisc reads a disc's main feature, once until the image or the folder's index file changes.
@@ -76,12 +74,12 @@ func (e *Engine) measureDisc(ctx context.Context, index string, place db.FileOnD
 func (e *Engine) readDisc(ctx context.Context, index string) (*measuredDisc, error) {
 	d := &measuredDisc{}
 	d.input, d.directory = scan.DiscInput(index)
-	file, err := os.Open(d.input)
+	source, err := disc.OpenLocalInput(d.input, d.directory)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
-	found, err := disc.Tool{}.ProbeDescriptor(ctx, file, d.directory)
+	defer source.Close()
+	found, err := disc.Tool{}.ProbeInput(ctx, source)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +87,7 @@ func (e *Engine) readDisc(ctx context.Context, index string) (*measuredDisc, err
 	if !ok {
 		return nil, disc.ErrProtocol
 	}
-	input, err := found.FFmpegInput(disc.DescriptorPath(d.directory), title, 0, nil)
+	input, err := found.FFmpegInput(source.Path(), title, 0, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +98,7 @@ func (e *Engine) readDisc(ctx context.Context, index string) (*measuredDisc, err
 	args := append(append([]string{"-v", "error"}, input.Options...), "-show_format", "-show_streams", "-of", "json", input.URL)
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	cmd, err := mediaexec.CommandContext(ctx, d.job(mediaexec.Job{Executable: ffprobe, Args: args, Files: []*os.File{file}, MaxFileBytes: mediaexec.NoOutputFiles}))
+	cmd, err := mediaexec.CommandContext(ctx, source.Job(mediaexec.Job{Executable: ffprobe, Args: args, MaxFileBytes: mediaexec.NoOutputFiles}))
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +117,7 @@ func (e *Engine) readDisc(ctx context.Context, index string) (*measuredDisc, err
 	if found.Kind == "bluray" {
 		// Where a copied picture can be cut. A disc reader without the list (an older bundle)
 		// leaves the picture converted, as before.
-		if points, err := (disc.Tool{}).EntryPointsDescriptor(ctx, file, d.directory, title, streaming.HLSSegmentSeconds*1000); err == nil {
+		if points, err := (disc.Tool{}).EntryPointsInput(ctx, source, title, streaming.HLSSegmentSeconds*1000); err == nil {
 			for _, ms := range points.EntryPointsMs {
 				d.keyframes = append(d.keyframes, float64(ms)/1000)
 			}
@@ -128,51 +126,46 @@ func (e *Engine) readDisc(ctx context.Context, index string) (*measuredDisc, err
 	return d, nil
 }
 
-// job has the sandbox mount the folder, descriptor 3, for a disc kept as a folder. An image is
-// read through descriptor 3 itself.
-func (d *measuredDisc) job(job mediaexec.Job) mediaexec.Job {
-	if d.directory {
-		job.InputFD, job.InputMount = 3, disc.DescriptorPath(true)
-	}
-	return job
-}
-
-// open hands one converter run the main feature: the image or the folder (which the sandbox
-// mounts) on descriptor 3, the title's chapters on descriptor 4, and the title's input from the
-// run's start.
+// open hands a converter the main feature and the title's chapters.
 func (d *measuredDisc) open() (*streaming.PlaybackInput, error) {
-	file, err := os.Open(d.input)
+	source, err := disc.OpenLocalInput(d.input, d.directory)
 	if err != nil {
 		return nil, streaming.ErrSourceUnavailable
 	}
-	chapters, err := d.chapters()
-	if err != nil {
-		file.Close()
-		return nil, err
-	}
 	// The title from its start, for reading a subtitle track out of it.
-	start, err := d.probe.FFmpegInput(disc.DescriptorPath(d.directory), d.title, 0, nil)
+	start, err := d.probe.FFmpegInput(source.Path(), d.title, 0, nil)
 	if err != nil {
-		file.Close()
-		chapters.Close()
+		source.Close()
 		return nil, err
 	}
-	mount := d.job(mediaexec.Job{})
-	return &streaming.PlaybackInput{File: file, Inherit: true, MountFD: mount.InputFD, MountPath: mount.InputMount, Extra: []*os.File{chapters}, Keyframes: d.keyframes,
-		Options: start.Options, Argument: start.URL,
-		InputAt: func(ctx context.Context, ms int64) ([]string, string, int64, error) {
-			var seek *disc.Seek
-			if ms > 0 && d.probe.Kind == "bluray" {
-				// A Blu-ray title is found at a time by the disc reader, which knows where its clips are.
-				found, err := disc.Tool{}.SeekDescriptor(ctx, file, d.directory, *d.title.Playlist, ms)
-				if err != nil {
-					return nil, "", 0, err
-				}
-				seek = &found
+	job := source.Job(mediaexec.Job{})
+	input := &streaming.PlaybackInput{File: source.File, Inherit: len(job.Files) != 0, MountFD: job.InputFD, MountPath: job.InputMount,
+		Keyframes: d.keyframes, Options: start.Options, Argument: start.URL}
+	if input.Inherit {
+		var chapters *os.File
+		chapters, err = d.chapters()
+		input.Extra = []*os.File{chapters}
+	} else {
+		input.ChapterMetadata, err = d.title.ChapterMetadata()
+	}
+	if err != nil {
+		input.Close()
+		return nil, err
+	}
+	input.InputAt = func(ctx context.Context, ms int64) ([]string, string, int64, error) {
+		var seek *disc.Seek
+		if ms > 0 && d.probe.Kind == "bluray" {
+			// A Blu-ray title is found at a time by the disc reader, which knows where its clips are.
+			found, err := disc.Tool{}.SeekInput(ctx, source, *d.title.Playlist, ms)
+			if err != nil {
+				return nil, "", 0, err
 			}
-			input, err := d.probe.FFmpegInput(disc.DescriptorPath(d.directory), d.title, ms, seek)
-			return input.Options, input.URL, input.TimestampOffsetMs, err
-		}}, nil
+			seek = &found
+		}
+		at, err := d.probe.FFmpegInput(source.Path(), d.title, ms, seek)
+		return at.Options, at.URL, at.TimestampOffsetMs, err
+	}
+	return input, nil
 }
 
 // chapters is the title's chapters as the converter reads them, in a file of its own that is

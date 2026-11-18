@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -12,7 +13,7 @@ import (
 // On Unix the server opens the file itself and the child inherits it as
 // descriptor 3, so the sandboxed converter never needs authority over a library
 // path. On Windows the server holds it open and the child opens the same path
-// by name. Callers therefore ask what to put after `-i` and whether to inherit.
+// by name, as it does for discs on macOS too.
 type PlaybackInput struct {
 	// File must stay open until the child exits. On Unix it is the inherited
 	// descriptor; on Windows it is the handle that keeps the file in place.
@@ -29,6 +30,8 @@ type PlaybackInput struct {
 	MountPath string
 	Validate  func(context.Context) error
 	Extra     []*os.File
+	// ChapterMetadata is read through stdin when a disc is opened by path.
+	ChapterMetadata []byte
 	// Lifetime is the original retained source's revocable lifetime. A converter
 	// borrows it as well as its own operation context; possession of File does not
 	// extend source or actor authority.
@@ -79,13 +82,16 @@ func (p *PlaybackInput) ExtraFiles() []*os.File {
 }
 
 // ReadPaths is what a sandboxed converter must be allowed to read by name: the
-// source path where it is not handed over as a descriptor (Windows, and tests
-// that pass a plain path).
+// source path where it is opened by name.
 func (p *PlaybackInput) ReadPaths() []string {
-	if p == nil || p.Inherit || !filepath.IsAbs(p.Argument) || filepath.Clean(p.Argument) != p.Argument {
+	if p == nil || p.Inherit {
 		return nil
 	}
-	return []string{p.Argument}
+	path := strings.TrimPrefix(p.Argument, "bluray:")
+	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return nil
+	}
+	return []string{path}
 }
 
 // Close releases the source. It is safe on a nil input, so a caller can defer it

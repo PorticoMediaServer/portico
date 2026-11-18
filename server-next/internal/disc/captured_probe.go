@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediasource"
 )
 
@@ -68,7 +69,7 @@ func (t Tool) ProbeCapturedISO(ctx context.Context, source CapturedDiscReader) (
 	if err != nil || !info.Mode().IsRegular() || info.Size() != version.Evidence().Size {
 		return nil, mediasource.ErrSourceChanged
 	}
-	probe, probeErr := t.ProbeDescriptor(run, file, false)
+	probe, probeErr := t.probeInput(run, mediaexec.Job{Args: []string{"probe", imageDescriptorPath}, Files: []*os.File{file}})
 	if probeErr != nil && !errors.Is(probeErr, ErrEncrypted) {
 		return nil, probeErr
 	}
