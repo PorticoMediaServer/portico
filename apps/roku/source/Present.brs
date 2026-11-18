@@ -415,6 +415,21 @@ function sortName(id as string) as string
     return ucase(left(id, 1)) + mid(id, 2)
 end function
 
+' A sort with its direction in words ("Newest first"), by the server's sort ids as sortName has them;
+' "" for one with no such words.
+function sortOrderName(id as string, order as string) as string
+    newest = ["Oldest first", "Newest first"]
+    rated = ["Lowest first", "Highest first"]
+    words = {added: newest, year: newest, release: newest, latest: newest, title: ["Title A to Z", "Title Z to A"],
+        communityRating: rated, criticRating: rated, userRating: rated, duration: ["Shortest first", "Longest first"],
+        lastPlayed: ["Played longest ago first", "Last played first"], plays: ["Least played first", "Most played first"],
+        playCount: ["Least played first", "Most played first"]}
+    pair = words[id]
+    if pair = invalid then return ""
+    if order = "asc" then return pair[0]
+    return pair[1]
+end function
+
 ' The quick filters a library's toolbar offers: only those its own `filters` list names, in this order.
 ' Each is {id, text, param}: `param` is what the item list is asked with when the chip is on.
 function quickFilters(filters as dynamic) as object
@@ -686,22 +701,22 @@ function savedViewWords(query as string) as string
             params[left(pair, at - 1)] = mid(pair, at + 1).decodeUriComponent()
         end if
     end for
+    ' a quick filter or play state reads as the library's toolbar and Filters panel name it
+    named = {}
+    for each q in quickFilters([{id: "watched"}, {id: "inProgress"}, {id: "favorite"}, {id: "inList"}, {id: "resolution"}])
+        named[q.param] = q.text
+    end for
+    for each state in playStates()
+        named[state.value] = state.label
+    end for
     said = []
     for each pair in pairs
         key = pair[0]
         value = pair[1]
         if key = "kind" or key = "sort" or key = "order" or key = "library"
             ' said below, or not a condition
-        else if key = "watched" and value = "false"
-            said.push("Unwatched")
-        else if key = "watched" and value = "true"
-            said.push("Watched")
-        else if key = "inProgress" and value = "true"
-            said.push("In progress")
-        else if key = "favorite" and value = "true"
-            said.push("Favorites")
-        else if key = "inList" and value = "true"
-            said.push("On My List")
+        else if named[key + "=" + value] <> invalid
+            said.push(named[key + "=" + value])
         else if key = "year" and right(value, 1) = "9" and instr(1, value, "..") = 5 and right(left(value, 4), 1) = "0"
             said.push("Year " + left(value, 4) + "s")
         else if key = "year" and instr(1, value, "..") > 0
@@ -714,13 +729,10 @@ function savedViewWords(query as string) as string
     end for
     order = params.order
     if order = invalid then order = "desc"
-    sorts = {added: ["Oldest first", "Newest first"], year: ["Oldest first", "Newest first"], title: ["Title A to Z", "Title Z to A"],
-        rating: ["Lowest first", "Highest first"], duration: ["Shortest first", "Longest first"], lastPlayed: ["Played longest ago first", "Last played first"]}
     sentence = ""
     if params.sort <> invalid
-        words = sorts[params.sort]
-        if words = invalid then return ""
-        if order = "asc" then sentence = words[0] else sentence = words[1]
+        sentence = sortOrderName(params.sort, order)
+        if sentence = "" then return ""
     end if
     line = said.join(", ")
     if line <> "" then line = line + "."
