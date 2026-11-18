@@ -31,6 +31,7 @@ sub onShape()
     pictureHeight = size[1]
     if m.top.shape = "episode" then pictureHeight = size[0] * 9 / 16     ' the ring goes round the still, not its caption
     if m.top.shape = "gridPoster" then pictureHeight = 300
+    if m.top.shape = "gridSquare" then pictureHeight = 200     ' the ring goes round the square cover, not its words
     m.ring.translation = [m.top.slotX - size[0] * grow - out, g.headingGap - pictureHeight * grow - out]
     m.ring.width = size[0] * k.focusScale + out * 2
     m.ring.height = pictureHeight * k.focusScale + out * 2

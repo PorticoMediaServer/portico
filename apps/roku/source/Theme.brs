@@ -215,6 +215,7 @@ function shelfMetrics(shape as string) as object
     if shape = "square" then card = [214, 214]
     if shape = "episode" then card = [384, 340]     ' a 16:9 still with the episode's name and number under it
     if shape = "gridPoster" then card = [200, 372]     ' a poster 200 x 300 with its title and year under it, one line each
+    if shape = "gridSquare" then card = [200, 272]     ' a square cover 200 across (music, audiobooks) with its title and year under it
     if shape = "person" then card = [190, 250]     ' a round face 150 across with a name and a part under it
     return {card: card, headingGap: 60, block: 60 + card[1] + 52}
 end function

@@ -20,10 +20,7 @@ sub init()
     count = m.top.findNode("count")
     setType(count, "meta", c.textSecondary)
     count.translation = [f.gutter, f.grid.countY]
-    ' The grid's cells hold the card with headroom for the one in focus to grow (metrics().cardPad).
-    card = shelfMetrics("gridPoster").card
     m.grid.translation = [f.gutter, f.grid.cardsY - k.cardPad]
-    m.grid.itemSize = [card[0], card[1] + k.cardPad * 2]
     m.grid.itemSpacing = [k.cardGap, 10]
     m.grid.clippingRect = [-60, -40, 1840, 1080 - f.grid.cardsY + 56]
     m.gridState.translation = [f.gutter, f.grid.cardsY]
@@ -170,6 +167,9 @@ end function
 ' Read the list from its start (a new view, sort or filter). The page never waits for the count.
 sub loadList()
     if m.detail = invalid then return
+    ' the grid's cells hold the card with headroom for the one in focus to grow (metrics().cardPad)
+    card = shelfMetrics(gridShape()).card
+    m.grid.itemSize = [card[0], card[1] + metrics().cardPad * 2]
     m.gridState.visible = false
     m.grid.visible = true
     m.generation = m.generation + 1
@@ -214,8 +214,8 @@ sub onPage(event as object)
         item = fresh[i]
         card = cardOf(item, "")
         m.grid.content.createChild("ContentNode").addFields(card)
-        ' a collection with no picture of its own borrows one from what it holds
-        if card.art = "" and item.kind = "collection" then askArt(m.items.count() + i, item)
+        ' a collection or an artist with no picture of its own borrows one from what it holds
+        if card.art = "" and (item.kind = "collection" or item.kind = "artist") then askArt(m.items.count() + i, item)
     end for
     m.items.append(fresh)
     if ctx.first = true
@@ -229,17 +229,38 @@ sub onPage(event as object)
     end if
 end sub
 
-' A card for the grid; `art` is a picture borrowed from what the title holds, "" for its own.
+' Music and audiobooks are square covers (an artist too); films and shows are posters.
+function gridShape() as string
+    kind = m.detail.views[m.view].kind
+    if kind = "artist" or isCover(kind) then return "gridSquare"
+    return "gridPoster"
+end function
+
+' A card for the grid: a poster, a square cover (music, audiobooks), or an artist's circle; `art`
+' is a picture borrowed from what the title holds, "" for its own.
 function cardOf(item as object, art as string) as object
+    if item.kind = "artist"
+        if art = "" then art = pick(item.images, ["photo", "portrait", "cover", "poster"])
+        if art <> "" then art = imageUrl(art, 150, 150)
+        return personCard({personId: item.id, name: item.title, role: "", image: art})
+    end if
     card = gridCard(item)
     if art <> "" then card.art = art
-    card.art = imageUrl(card.art, 200, 300)
+    if gridShape() = "gridSquare"
+        card.artHeight = 200
+        card.art = imageUrl(card.art, 200, 200)
+    else
+        card.art = imageUrl(card.art, 200, 300)
+    end if
     return card
 end function
 
-' A collection shows its first title's poster when it has none of its own.
+' A collection shows its first title's poster, an artist a circle cut from their first album's cover
+' (tv-more frame 9), when they have none of their own.
 sub askArt(at as integer, item as object)
-    api("GET", "/v1/items?collection=" + item.id + "&sort=order&limit=1", invalid, "onArtFound", {generation: m.generation, at: at})
+    path = "/v1/items?collection=" + item.id + "&sort=order&limit=1"
+    if item.kind = "artist" then path = "/v1/items?parent=" + item.id + "&kind=album&limit=1"
+    api("GET", path, invalid, "onArtFound", {generation: m.generation, at: at})
 end sub
 
 sub onArtFound(event as object)

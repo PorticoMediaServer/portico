@@ -137,6 +137,8 @@ sub showGroups(groups as object)
             shape = "gridPoster"
             if group.kind = "episode" then shape = "episode"
             if group.kind = "person" then shape = "person"
+            square = (group.kind = "track" or group.kind = "album" or group.kind = "audiobook" or group.kind = "artist")
+            if square then shape = "gridSquare"
             shelf = m.page.createChild("Shelf")
             shelf.slotX = s.resultsX
             shelf.shape = shape
@@ -156,9 +158,9 @@ sub showGroups(groups as object)
                     if item.rootTitle <> invalid then card.sub = item.rootTitle + "   " + episodeCode(item)
                 else
                     card = gridCard(item)
-                    if group.kind = "track" or group.kind = "album" or group.kind = "audiobook" then card.artHeight = 200
+                    if square then card.artHeight = 200
                 end if
-                card.art = imageUrl(card.art, size[0], 300)
+                card.art = imageUrl(card.art, size[0], pictureHeight(shape))
                 if n < copies.count() and copies[n] <> ""
                     ' an episode keeps its show and number and adds the library; any other title says only the library
                     if group.kind = "episode" then card.sub = card.sub + "   " + copies[n] else card.sub = copies[n]
@@ -180,6 +182,7 @@ end sub
 ' How tall a card's picture is in each shelf shape (its words are under it).
 function pictureHeight(shape as string) as integer
     if shape = "gridPoster" then return 300
+    if shape = "gridSquare" then return 200
     if shape = "person" then return 150
     return shelfMetrics(shape).card[0] * 9 / 16       ' an episode's still
 end function
