@@ -26,6 +26,8 @@ function colours() as object
         promptPlate: "0x09131BD6", stillDim: "0x707070FF",
         ' the guide's channel badges, one picked from the channel's name
         channelTints: ["0x8A3B3BFF", "0x8A5A2BFF", "0x7A6A2AFF", "0x3E6B3AFF", "0x2D6B6BFF", "0x34558AFF", "0x5B3F8AFF", "0x7A3A6BFF"],
+        ' the open rail's panel
+        railPanel: "0x0B1822FF",
         ' the card a hand-off to a phone is printed on (its QR code, address and code), and its edge
         handoffCard: "0x0C1A25F2", handoffEdge: "0x1C3341FF",
         ' a profile's face, by the colour name the server gives it (packages/design profileArtColors)
