@@ -531,3 +531,34 @@ func TestChangeOwnerStartsAnApprovalOnPorticoAccounts(t *testing.T) {
 		t.Fatalf("a local change of owner with nobody chosen answered %d, want 400", code)
 	}
 }
+
+// A person who finishes the move to local sign-in on a server that requires two-step of
+// everyone is held to setting it up, as at any other first sign-in.
+func TestMovingToLocalSignInKeepsRequiredTwoStep(t *testing.T) {
+	s, owner, _ := porticoServer(t)
+	s.hosted = hosted.NotConnected{}
+	var switched SignInResponse
+	body := SignInSwitchRequest{To: "local", Username: "justin", Password: testPassword, Device: device(1)}
+	if w := call(t, s, "POST", "/v1/admin/sign-in/switch", owner, body, &switched); w.Code != 200 {
+		t.Fatalf("the switch answered %d: %s", w.Code, w.Body)
+	}
+	owner = onMain(t, s, switched).AccessToken
+	saveSignIn(t, s, owner, `{"requireTwoStep":"everyone"}`, 200)
+	var state SignInState
+	call(t, s, "GET", "/v1/admin/sign-in", owner, nil, &state)
+	var code MoveCodeOut
+	if w := call(t, s, "POST", "/v1/admin/members/"+state.Waiting[1].ID+"/move-code", owner, nil, &code); w.Code != 200 || code.Code == "" {
+		t.Fatalf("a move code answered %d: %s", w.Code, w.Body)
+	}
+	var moved SignInResponse
+	done := MoveCompleteRequest{Code: code.Code, Username: "Samuel", Password: "a new password", Device: device(7)}
+	if w := call(t, s, "POST", "/v1/auth/move/complete", "", done, &moved); w.Code != 200 {
+		t.Fatalf("finishing the move answered %d: %s", w.Code, w.Body)
+	}
+	if !moved.Session.TwoStepSetupRequired {
+		t.Error("the moved person's sign-in is not held to setting two-step up")
+	}
+	if got := status(t, s, "GET", "/v1/profiles", moved.Session.AccessToken, nil); got != 403 {
+		t.Errorf("the moved person read their profiles before setting two-step up: %d, want 403", got)
+	}
+}

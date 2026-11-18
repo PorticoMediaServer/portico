@@ -591,6 +591,7 @@ func (s *Server) moveComplete(r *http.Request, req MoveCompleteRequest) (SignInR
 	if err != nil {
 		return SignInResponse{}, err
 	}
+	session.TwoStepRequired = s.signInSettings().TwoStepRequired
 	limits := s.moveLimits(r)
 	if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
 		return SignInResponse{}, err
