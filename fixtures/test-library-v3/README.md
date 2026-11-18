@@ -35,46 +35,11 @@ guessing metadata from raw HEVC. Folder-disc ingestion requires the qualified
 FFmpeg output enables bitexact flags. Compare bytes using the same pinned
 Python/font/FFmpeg environment; different encoder versions can change bytes.
 
-## Register and seed
-
-Run the operator scripts against the private tunnel. The root is a path on
-the server, while `--manifest` is a local downloaded file. Credentials must
-be owned by the operator with mode 0600 and remain outside Git.
-
-Hardening is exact-file only: the private parent directory is 0700 and each
-credential or report file is 0600. Never `chmod -R` through the fixture library,
-media roots or hardlink aliases: recursive changes traverse shared inodes and
-rewrite the source ctime every copy records. A local QA helper did exactly that
-at 12:34:22.711Z on 29 October (`chmod -R go-rwx`), changing all fixture source
-ctimes. Do not "repair" that with copies or timestamps; a separate server P0
-fix removes ctime's content meaning. No operator or private file is edited here.
-
-```sh
-python3 fixtures/test-library-v3/seed_state.py \
-  --base http://localhost:49300 \
-  --root /home/runner/portico-test-library-v3 \
-  --manifest /private/manifest.json \
-  --live-base http://127.0.0.1:32511/ \
-  --report /private/seed-state.json
-python3 fixtures/test-library-v3/verify.py \
-  --manifest /private/manifest.json --reading --report /private/verify.json
-python3 fixtures/test-library-v3/reading_smoke.py --report /private/reading.json
-python3 fixtures/test-library-v3/playback_smoke.py --report /private/playback.json
-```
-
-The seeder uses real API calls only. All libraries have the `Synthetic `
-prefix and local metadata agents. Read reports before treating a run as ready.
-The presence of a generator is not evidence that state and playback passed.
-
 `serve_live.py` serves the generated playlist, XMLTV and rolling HLS on
 loopback 32511 and a local webhook sink on 32512. Run it on the media host.
 Live registration uses the real URL preview/approval flow, allowing only the
 explicit loopback stream root. The XMLTV fixture starts on 27 October 2026;
 regenerate its date anchor when using it for a later campaign.
-
-The ten-client smoke is a bounded service check: JSON browsing, actual media
-decoding and session timeline reports for ten minutes. It does not substitute
-for device acceptance or the full load test.
 
 CBR ingestion requires a server built with the official reader capability,
 `portico_rar7z`, which every official build takes from
