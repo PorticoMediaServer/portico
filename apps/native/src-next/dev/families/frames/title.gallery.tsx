@@ -152,7 +152,9 @@ function TVEpisodes({band}: {band: {title: Name; count: Name; synopsis: Name}}) 
       {tlouEpisodes.map((episode, index) => <EpisodeTile key={episode.id} width={width} focusId={`title-episode-${episode.id}`} title={episode.title} label={[{id: 'episode', text: f(`ep${index + 1}Label` as Name), role: 'context'}]}
         length={episode.length} status={episode.status} watched={episode.watched} progress={episode.progress} artwork={asset(episode.art)} onNavigate={none}/>)}
     </ScrollView></TVRow>
-    <View><PanelHeading title={f(band.title)} count={f(band.count)}/><Text numberOfLines={2} style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{f(band.synopsis)}</Text></View>
+    {/* The band is one line of facts over the synopsis, not a heading (detail-tv-5a: "Season 2  2009  13 episodes"). */}
+    <View style={{gap: theme.space.xs}}><Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{f(band.title)}<Text style={{color: theme.colors.textSecondary}}>{'   '}{f(band.count)}</Text></Text>
+      <Text numberOfLines={2} style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{f(band.synopsis)}</Text></View>
   </View>;
 }
 const moreLikeShows = [['pool/tv/severance.jpg', 'Severance', '2022'], ['pool/tv/silo.jpg', 'Silo', '2023'], ['pool/tv/stranger-things.jpg', 'Stranger Things', '2016'], ['pool/tv/the-walking-dead.jpg', 'The Walking Dead', '2010'],
