@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The live player's guide (tv-player frame 11, second): a panel beside the picture with five
+     channels of the lineup, each with what is on, how far in and what is next, the one playing
+     marked Watching, then Open the full guide. Up and Down move (the five follow focus), OK tunes,
+     Back closes it. It holds focus while open. -->
+<component name="MiniGuide" extends="Group">
+  <interface>
+    <!-- The guide's rows ([{channel, programmes}]) and the channel playing. Setting `current` draws it. -->
+    <field id="lineup" type="array"/>
+    <field id="current" type="string" onChange="onOpen"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- A channel's id chosen with OK, or "guide" for Open the full guide. -->
+    <field id="chosen" type="string" alwaysNotify="true"/>
+    <field id="dismissed" type="boolean" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="MiniGuide.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Live.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Poster id="panel" uri="pkg:/images/round-20.9.png"/>
+    <Label id="heading" text="Guide"/>
+    <Label id="hint" text="Up and down to move, OK to watch" horizAlign="right"/>
+    <Group id="rows"/>
+    <Poster id="ring" uri="pkg:/images/focus-14.9.png"/>
+  </children>
+</component>

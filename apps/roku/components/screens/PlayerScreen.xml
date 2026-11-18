@@ -28,6 +28,7 @@
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Queue.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Together.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Live.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
     <Rectangle width="1920" height="1080" color="0x000000FF"/>
@@ -44,6 +45,15 @@
       <Label id="ends" width="500" horizAlign="right"/>
       <!-- Live: the programme's times and what follows it, under the channel line. -->
       <Label id="times"/>
+      <!-- Live: the channel's badge before the title, Record and More at the top right (frame 11),
+           and the note that drops under Record once a recording is booked. -->
+      <ChannelMark id="liveMark" visible="false"/>
+      <Group id="tools"/>
+      <Group id="recNote" visible="false">
+        <Poster id="recNotePlate" uri="pkg:/images/round-14.9.png" height="64"/>
+        <Poster id="recNoteDot" uri="pkg:/images/disc.png" width="14" height="14" translation="[24,25]"/>
+        <Label id="recNoteText" height="64" vertAlign="center" translation="[52,0]"/>
+      </Group>
       <Rectangle id="track" height="8"/>
       <Rectangle id="ahead" height="8" visible="false"/>
       <Rectangle id="played" height="8"/>
@@ -137,6 +147,9 @@
       </Animation>
     </Group>
     <PageState id="notice" visible="false"/>
+    <MiniGuide id="miniGuide" visible="false"/>
+    <Confirm id="confirm" visible="false"/>
+    <Timer id="noteTimer" duration="4"/>
     <Timer id="hide" duration="5"/>
     <Timer id="report" duration="10" repeat="true"/>
     <Timer id="tick" duration="1" repeat="true"/>
