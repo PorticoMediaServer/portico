@@ -169,7 +169,7 @@ test('Playback Info missing comparison settles on a named, focused Retry and ret
   const {NativePlaybackInfoPanel} = await screenModule(new URL('../src-next/screens/watch/PlaybackInfoPanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
     react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../../../../packages/player-core/src': playerCore,
     '../../../../../packages/client-core/src/video-track-labels': {videoTrackWords: () => ({})}, '../../../../../packages/client-core/src/presentation/playback-info': {codecName: String},
-    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, './playback-info': {lossSentence: () => undefined},
+    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, '../../kit/player/PlaybackInfo': {PlaybackInfoComparison: 'PlaybackInfoComparison'}, './playback-info': {lossSentence: () => undefined},
   });
   const context: any = {fence, source: {lease: 'lease', fence}, state: {panel: 'playback-info', fence}, runtime: {}, panelCurrent: () => true};
   const read = async () => {reads++; return undefined;};
@@ -186,7 +186,7 @@ test('Playback Info timeout settles on the same focused recovery without a rende
   const {NativePlaybackInfoPanel} = await screenModule(new URL('../src-next/screens/watch/PlaybackInfoPanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
     react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../../../../packages/player-core/src': playerCore,
     '../../../../../packages/client-core/src/video-track-labels': {videoTrackWords: () => ({})}, '../../../../../packages/client-core/src/presentation/playback-info': {codecName: String},
-    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, './playback-info': {lossSentence: () => undefined},
+    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, '../../kit/player/PlaybackInfo': {PlaybackInfoComparison: 'PlaybackInfoComparison'}, './playback-info': {lossSentence: () => undefined},
   });
   const host: any = {fence, source: {lease: 'lease', fence}, state: {panel: 'playback-info', fence}, runtime: {}, panelCurrent: () => true};
   const read = () => new Promise(() => {});
@@ -202,14 +202,20 @@ test('post-play rows stay horizontal, preserve card widths, connect both directi
   for (const compact of [false, true]) {
     const h = watchHooks(), entry: any = {id: 'item', title: 'Movie', duration: 600, year: 2026};
     const data = {item: entry, personal: {rating: null}, related: {rows: [{entries: [{id: 'a', title: 'A'}, {id: 'b', title: 'B'}]}]}};
-    const {NativeWatchPostPlay} = await screenModule(new URL('../src-next/screens/watch/PostPlayScreen.tsx', import.meta.url), {
+    // The screen reads the title; the kit's PlayerEndCard draws it.
+    const {PlayerEndCard} = await screenModule(new URL('../src-next/kit/player/PlayerEndCard.tsx', import.meta.url), {
       react: h.react, 'react-native': nativeAtoms, 'react-native-svg': svg, '../../../../../packages/i18n/src': i18n,
+      '../artwork': {Artwork: 'Artwork'}, '../controls': controlsAtoms, '../focus': {FocusRegion: 'FocusRegion'}, '../Icon': {Icon: 'Icon'}, '../theme': themed,
+    });
+    const {NativeWatchPostPlay} = await screenModule(new URL('../src-next/screens/watch/PostPlayScreen.tsx', import.meta.url), {
+      react: h.react, '../../../../../packages/i18n/src': i18n,
       '../../../../../packages/client-core/src/detail': {DetailService: class {getSnapshot = () => ({data}); subscribe = () => () => {}; dispose() {}}},
-      '../../shell/freshness': {viewerQueriesFor: () => ({})},
-      '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/controls': controlsAtoms, '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': themed,
+      '../../shell/freshness': {viewerQueriesFor: () => ({})}, '../../kit/player': {PlayerEndCard},
     });
     try {
-      const tree = h.render(() => NativeWatchPostPlay({entry, compact, current: () => true, artwork() {}, onReplay() {}, onClose() {}, onOpen() {}, reportError: assert.fail}));
+      const card = h.render(() => NativeWatchPostPlay({entry, compact, current: () => true, artwork() {}, onReplay() {}, onClose() {}, onOpen() {}, reportError: assert.fail}));
+      assert.equal(card.type, PlayerEndCard);
+      const tree = h.render(() => PlayerEndCard(card.props));
       const actions = find(tree, 'watch-post'), row = find(tree, 'watch-post-related');
       assert.equal(actions.props.edges.down, row.props.id); assert.equal(row.props.edges.up, actions.props.id);
       assert.deepEqual(row.props.style, {flexDirection: 'row', gap: compact ? 10 : 28});

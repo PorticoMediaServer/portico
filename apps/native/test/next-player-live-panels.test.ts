@@ -54,15 +54,23 @@ test('the handheld guide renders actual now/next rows and rejects retained actio
   let snapshot: any = {fence, phase: 'ready', open: true, busy: false, timezone: 'UTC', rows: [{channel, step: 0, programmes}, {channel: {...channel, id: 'unavailable', tuneAvailable: false}, step: 1, programmes: []}]};
   const guide = {getSnapshot: () => snapshot, close: (expected: unknown) => {calls.push(['close', expected]);}, fullGuide: (expected: unknown) => {calls.push(['all', expected]);}, tune: async (row: unknown, expected: unknown) => {calls.push(['tune', row, expected]);}};
   const lifecycle: unknown[][] = [];
-  const {NativeHandheldMiniGuide} = await screenModule(new URL('../src-next/screens/watch/HandheldMiniGuide.tsx', import.meta.url), {
-    react: h.react, 'react-native': {View: 'View', Text: 'Text', ScrollView: 'ScrollView', StyleSheet: {absoluteFill: {}, absoluteFillObject: {}}},
-    '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../../../../packages/client-core/src/guide/now-next': {nowNext},
-    '../../../../../packages/client-core/src/presentation/kit-model/index': {channelTint: (seed: unknown) => seed}, '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: String},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays/OverlayHost': {useOverlayLifecycle: (...args: unknown[]) => lifecycle.push(args)},
-    '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': {nativeType: () => ({fontFamily: 'Manrope-Regular'}), useTheme: () => theme}, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: true})},
+  const reactNative = {View: 'View', Text: 'Text', ScrollView: 'ScrollView', StyleSheet: {absoluteFill: {}, absoluteFillObject: {}}}, i18n = {defaultI18n: {t}};
+  const themed = {nativeType: () => ({fontFamily: 'Manrope-Regular'}), useTheme: () => theme};
+  // The rows are the kit's (kit/live/MiniGuide); the shallow tree is expanded through them.
+  const kit = await screenModule(new URL('../src-next/kit/live/MiniGuide.tsx', import.meta.url), {
+    react: h.react, 'react-native': reactNative, '../../../../../packages/i18n/src': i18n, '../../../../../packages/client-core/src/presentation/kit-model/index': {channelTint: (seed: unknown) => seed},
+    '../controls': {Button: 'Button', Focusable: 'Focusable'}, '../artwork/Artwork': {Artwork: 'Artwork'}, '../Icon': {Icon: 'Icon'}, '../theme': themed,
   });
+  const {NativeHandheldMiniGuide} = await screenModule(new URL('../src-next/screens/watch/HandheldMiniGuide.tsx', import.meta.url), {
+    react: h.react, 'react-native': reactNative, '../../../../../packages/i18n/src': i18n, '../../../../../packages/client-core/src/guide/now-next': {nowNext},
+    '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: String},
+    '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays/OverlayHost': {useOverlayLifecycle: (...args: unknown[]) => lifecycle.push(args)},
+    '../../kit/live/MiniGuide': kit, '../../kit/theme': themed, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: true})},
+  });
+  const expand = (value: any): any => Array.isArray(value) ? value.map(expand) : !value?.props ? value
+    : typeof value.type === 'function' ? expand(value.type(value.props)) : {...value, props: {...value.props, children: expand(value.props.children)}};
   const context = {layout: resolvePlayerPresentation({window, posture, docked: false, panelOpen: true}), renderer: {...window}, runtime: {text: {t, locale: 'en-CA'}, artwork: () => undefined, reportError: assert.fail}};
-  const render = () => h.render(() => NativeHandheldMiniGuide({context, guide, snapshot}));
+  const render = () => expand(h.render(() => NativeHandheldMiniGuide({context, guide, snapshot})));
   const tree = render(), all = nodes(tree), row = all.find(node => node.props.testID === 'watch-mini-guide-live/source/channel'), unavailable = all.find(node => node.props.testID === 'watch-mini-guide-live/source/unavailable');
   assert.equal(tree.props.accessibilityViewIsModal, true);assert.equal(lifecycle.at(-1)![0], true);assert.equal(lifecycle.at(-1)![6], 'watch-mini-guide');
   assert.match(strings(row), /Mountain Stage/);assert.match(strings(row), /The Locker Room/);assert.match(strings(row), /SSE/);assert.match(strings(row), /202/);assert.match(strings(row), /next.live.watching/);

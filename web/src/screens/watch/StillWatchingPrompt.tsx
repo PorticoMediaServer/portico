@@ -1,12 +1,8 @@
-import {MetadataFacts} from '../../kit/MetadataFacts';
 import {useLayoutEffect, useRef, useState} from 'react';
-import {defaultI18n} from '@i18n';
 import type {WebPlaybackRuntimeSnapshot} from '../../platform/playback';
-import {Button} from '../../kit/controls/Button';
-import {Dialog} from '../../kit/overlays';
+import {PlayerStillWatching} from '../../kit/player';
 import {watchStillWatching, type WatchStillWatchingBinding, type WatchStillWatchingOffer} from './still-watching';
 import type {WatchBindings} from './types';
-import styles from './still-watching.module.css';
 
 type Action = 'continue' | 'replay' | 'stop';
 /** This layout's own opening. Only the cleanup that owns it may retire it, and only
@@ -20,9 +16,9 @@ type Opening = {
 };
 type Pending = Readonly<{opening: Opening; op: Readonly<{kind: Action}>}>;
 
-/** phone-player f6e. One committed opening for one exact held occurrence; the kit's
- * modal owns the scrim, focus trap and input, so the live chrome underneath is neither
- * visible through it nor able to take a click or shortcut. */
+/** phone-player f6e. One committed opening for one exact held occurrence, drawn by the kit's
+ * `PlayerStillWatching`; its modal owns the scrim, focus trap and input, so the live chrome
+ * underneath is neither visible through it nor able to take a click or shortcut. */
 export function WatchStillWatchingPrompt({binding, snapshot, environment, expanded, layout}: {
   binding: WatchStillWatchingBinding; snapshot: WebPlaybackRuntimeSnapshot; environment: WatchBindings['environment'];
   expanded: boolean; layout: 'desktop' | 'tablet' | 'phone';
@@ -61,7 +57,7 @@ export function WatchStillWatchingPrompt({binding, snapshot, environment, expand
   }, [binding, environment, tuple, generation]);
   const drawn = opening && opening.live && openingRef.current === opening && opening.tuple === tuple ? opening : null;
   if (!drawn) return null;
-  const {next} = drawn.offer, t = defaultI18n.t, busy = drawn.spent || pending?.opening === drawn;
+  const {next} = drawn.offer, busy = drawn.spent || pending?.opening === drawn;
   const episode = next.episode ? environment.t('next.kit.episodeCode', {season: next.episode.seasonNumber, episode: next.episode.number}) : undefined;
   const act = (kind: Action) => {
     const held = openingRef.current;
@@ -89,15 +85,6 @@ export function WatchStillWatchingPrompt({binding, snapshot, environment, expand
       : op.kind === 'replay' ? binding.replay(held.offer.fence) : binding.stop(held.offer.fence);
     void command.then(() => settle(), settle);
   };
-  return <Dialog footerDismisses open onOpenChange={() => {}} title={t('player.post.stillWatching')} responsive={false} width={400}
-    showCloseButton={false} dismissOnOutsidePress={false} dismissOnBack={false}
-    className={styles.dialog} headerClassName={styles.header} bodyClassName={styles.body} footerClassName={styles.footer}
-    footer={<>
-      <Button variant="primary" size="small" disabled={busy} onClick={() => act('continue')}>{t('player.post.stillWatchingAction')}</Button>
-      {drawn.offer.replayOffered && <Button variant="glass" size="small" icon="i-restart" disabled={busy} onClick={() => act('replay')}>{t('player.post.replay')}</Button>}
-      <Button variant="glass" size="small" disabled={busy} onClick={() => act('stop')}>{t('player.post.close')}</Button>
-    </>}>
-    <p className={styles.next}><MetadataFacts parts={[t('player.post.upNext'), episode && <b>{episode}</b>, <b>{next.title}</b>]} /></p>
-    <p>{t('player.post.pausedAfterEpisodes')}</p>
-  </Dialog>;
+  return <PlayerStillWatching episode={episode} title={next.title} busy={busy} onContinue={() => act('continue')}
+    onReplay={drawn.offer.replayOffered ? () => act('replay') : undefined} onClose={() => act('stop')} />;
 }
