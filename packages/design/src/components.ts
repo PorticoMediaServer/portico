@@ -78,9 +78,9 @@ export const button = {
  * is everything beside it (skip, previous/next, captions). TV: 72 px with 40 px icons, 88 px Play/Pause.
  */
 export const transport = {
-  control: {size: all(44, 44, 48, 72), icon: all(24, 24, 26, 40)},
-  primary: {size: all(64, 64, 72, 88), icon: all(32, 32, 36, 48)},
-  gap: all(16, 16, 20, 32),
+  control: {size: all(48, 48, 48, 72), icon: all(22, 30, 26, 40)},
+  primary: {size: all(62, 76, 72, 88), icon: all(28, 34, 36, 48)},
+  gap: all(14, 16, 20, 32),
 } as const;
 
 /** Text fields (X-11, PC-VISUAL §11). */
