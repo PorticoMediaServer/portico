@@ -1,4 +1,4 @@
-import {readOwnerOptionalConfiguration} from '../../../../../packages/client-core/src/owner-settings-policy';
+import {readOwnerAwayLimit} from '../../../../../packages/client-core/src/owner-settings-policy';
 import {readServerUpdates, updatePillShown} from '../../../../../packages/client-core/src/server-admin/server-updates';
 import {useTVVoiceSearch} from './use-tv-voice-search';
 import {tvGroupEdges, tvSettingsResultGroups} from './tv-settings-focus';
@@ -45,7 +45,6 @@ import {Screen, useScreenBack, useScreenEntry} from './Screen';
 import {registerBack} from '../../kit/navigation/back';
 import {nativeSettingsActionTarget} from './settings-actions';
 import type {NativeShellRoute} from '../../shell/routes';
-import {parseSettingsConfiguration} from '../../../../../packages/client-core/src/settings-configuration';
 import {readSettingsBinding, settingsBinding, type SettingsBindingValue} from '../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsSpec} from '../../../../../packages/client-core/src/presentation/settings-spec';
 import {NativeOwnerLibrariesPanel} from './owner-libraries/OwnerLibrariesPanel';
@@ -108,11 +107,6 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   const accountPages = useMemo(() => structure.headings.find(heading => heading.id === 'account')?.pages ?? [], [structure]);
   const managesServer = ports.context.account.account.role === 'owner';
   const compact = theme.platform === 'phone';
-  // quality.awayLimit is the owner's own server limit, read from the same
-  // settings-configuration document the Streaming page reads. The route decides
-  // who may see it; a refusal or an unreadable answer leaves the rows out, and an optional
-  // read never asks for the management PIN (an owner past their management hour opening
-  // their own Quality page: #595's rule, `manageGate: false`).
   // What the television itself reports, read live: HDR from the display's own modes
   // and surround from the audio output's channels. It only fills the drawn choice
   // until the viewer overrides it; it is never written to the device record.
@@ -138,14 +132,16 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
     const subscription = AppState.addEventListener('change', value => {if (value === 'active') void read();});
     return () => {alive = false; subscription.remove();};
   }, []);
+  // The Streaming document supplies the owner's away limit. A refused optional read
+  // leaves the status out without asking for the management PIN (#595).
   const [awayLimit, setAwayLimit] = useState<SettingsBindingValue>();
   useEffect(() => {
     if (!managesServer) return;
     let alive = true;
-    void controller.lifetime.request(next => readOwnerOptionalConfiguration<unknown>(ports.context.api, next))
-      .then(parseSettingsConfiguration).then(configuration => {
-        const binding = settingsBinding('streaming.awayQuality');
-        const value = binding ? readSettingsBinding(binding, {configuration}) : undefined;
+    void controller.lifetime.request(next => readOwnerAwayLimit(ports.context.api, next))
+      .then(({value: awayLimit}) => {
+        const binding = settingsBinding('quality.awayLimit');
+        const value = binding ? readSettingsBinding(binding, {forms: {awayLimit}}) : undefined;
         if (alive && controller.lifetime.current()) setAwayLimit(value);
       }).catch(() => {});
     return () => {alive = false;};
