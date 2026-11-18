@@ -16,6 +16,7 @@
   <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Server.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/ServerPages.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
     <Label id="heading" text="Server settings"/>

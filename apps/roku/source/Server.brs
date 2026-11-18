@@ -1,21 +1,36 @@
-' Server settings on TV (tv-more frames 35 to 39): the pages a TV shows and the words of their
-' rows, from the owner's routes. View only. The web has fourteen pages; the TV has the ones its
-' frames draw and the server's routes read in words: Dashboard, Libraries, People and Remote access
-' (in the words of the web's owner page, web/src/screens/settings/server-remote/OwnerRemotePage.tsx).
+' Server settings on TV (tv-more frames 35 to 39): view-only pages in the web's order.
 
-' The pages for a role: an administrator sees the Dashboard's Now playing and People (frame 39).
+' Dashboard's administrator view is limited to Now playing.
 function serverPages(role as string) as object
-    pages = [{id: "dashboard", title: "Dashboard", icon: "home"}]
-    if role = "owner" then pages.push({id: "libraries", title: "Libraries", icon: "collection"})
-    pages.push({id: "people", title: "People", icon: "profile"})
-    if role = "owner" then pages.push({id: "remote", title: "Remote access", icon: "server"})
-    return pages
+    dashboard = {id: "dashboard", title: "Dashboard", icon: "info"}
+    people = {id: "people", title: "People", icon: "profile"}
+    troubleshooting = {id: "troubleshooting", title: "Troubleshooting", icon: "warning"}
+    if role = "admin" then return [dashboard, people, troubleshooting]
+    if role <> "owner" then return []
+    return [
+        {id: "general", title: "General", icon: "server"}
+        dashboard
+        {id: "history", title: "Play history", icon: "list"}
+        {id: "libraries", title: "Libraries", icon: "collection"}
+        {id: "remote-sources", title: "Remote sources", icon: "globe"}
+        {id: "metadata", title: "Metadata", icon: "listPlus"}
+        {id: "segments", title: "Intros and credits", icon: "forward"}
+        {id: "live", title: "Live TV & Channels", icon: "tvDevice"}
+        people
+        {id: "signin", title: "Sign-in", icon: "lock"}
+        {id: "remote", title: "Remote access", icon: "server"}
+        {id: "integrations", title: "Integrations", icon: "browser"}
+        {id: "streaming", title: "Streaming", icon: "quality"}
+        {id: "storage", title: "Storage & backups", icon: "dvr"}
+        troubleshooting
+    ]
 end function
 
 ' Who sees the page, for the band over it.
 function serverWho(role as string, page as string) as string
-    if role = "owner" and (page = "libraries" or page = "remote") then return "Only you see this page"
-    return "Only you and administrators see this page"
+    if role = "admin" then return "Only administrators and the owner see this page"
+    if page = "dashboard" or page = "people" or page = "troubleshooting" then return "Only you and administrators see this page"
+    return "Only you see this page"
 end function
 
 ' An alert as the web says it (packages/client-core dashboard-alert-words.ts): {title, detail}.

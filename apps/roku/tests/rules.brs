@@ -122,14 +122,116 @@ sub main()
     upload = serverAlertWords({code: "upload_budget_exhausted", params: {}, count: 2})
     other = serverAlertWords({code: "something_new", params: {message: "Check the disk"}})
     scan = serverTaskWords({libraryName: "Movies", phase: "reading", analyzed: 51, total: 80}, true)
+    playing = serverNowPlayingWords([{username: "sam", away: false}, {username: "priya", away: true}])
+    same("server words", [upload.title, other.title, playing, serverNowPlayingWords([]), scan.help, scan.value],
+        ["Upload speed is holding back 2 streams", "Check the disk", "2 people, 1 at home, 1 away", "Nothing is playing", "Library scan   51 of 80 files", "64%"])
+    remote = serverRemoteRows({
+        outside: {checkedAt: "2026-11-18T10:00:00Z", addresses: [{address: "203.0.113.5", port: 32500, reachable: true}]}
+        managedCertificate: {ready: true, name: "x.direct.getportico.tv"}
+        router: {state: "open", protocol: "UPnP"}
+        routerIPv6: {state: "off"}
+        warnings: []
+    })
+    same("server remote", [remote.count(), remote[0].value, remote[1].label, remote[2].value, remote[3].value, serverRemoteRows({})[0].value],
+        [4, "Reachable from outside", "203.0.113.5:32500", "Serving", "Port opened", "Not checked from outside"])
+
     pages = []
-    for each page in serverPages("admin")
+    sharedPages = []
+    for each page in serverPages("owner")
         pages.push(page.id)
+        if serverWho("owner", page.id) = "Only you and administrators see this page" then sharedPages.push(page.id)
     end for
-    same("server words", [upload.title, other.title, serverNowPlayingWords([{username: "sam", away: false}, {username: "priya", away: true}]), serverNowPlayingWords([]), scan.help, scan.value, pages.join(",")],
-        ["Upload speed is holding back 2 streams", "Check the disk", "2 people, 1 at home, 1 away", "Nothing is playing", "Library scan   51 of 80 files", "64%", "dashboard,people"])
-    remote = serverRemoteRows({outside: {checkedAt: "2026-11-18T10:00:00Z", addresses: [{address: "203.0.113.5", port: 32500, reachable: true}]}, managedCertificate: {ready: true, name: "x.direct.getportico.tv"}, router: {state: "open", protocol: "UPnP"}, routerIPv6: {state: "off"}, warnings: []})
-    same("server remote", [remote.count(), remote[0].value, remote[1].label, remote[2].value, remote[3].value, serverRemoteRows({})[0].value], [4, "Reachable from outside", "203.0.113.5:32500", "Serving", "Port opened", "Not checked from outside"])
+    same("server owner page order", pages, ["general", "dashboard", "history", "libraries", "remote-sources", "metadata", "segments",
+        "live", "people", "signin", "remote", "integrations", "streaming", "storage", "troubleshooting"])
+    adminPages = []
+    for each page in serverPages("admin")
+        adminPages.push(page.id)
+    end for
+    same("server role access", [adminPages.join(","), sharedPages.join(","), serverPages("member").count(),
+        serverWho("owner", "history"), serverWho("admin", "troubleshooting")],
+        ["dashboard,people,troubleshooting", "dashboard,people,troubleshooting", 0, "Only you see this page", "Only administrators and the owner see this page"])
+
+    ' Response projections from server-next's Go types. Every page checks the route and all visible row words.
+    ' settings.GeneralSettings in api.SettingsDocument and updates.State.
+    general = {values: {name: "Living Room", updateCheck: "address", updateAddress: "https://updates.example/private",
+        backgroundSpeed: "gentle", heavyWork: {hours: "overnight"}}}
+    sameServerPage("general", {general: general, updates: {version: "2.4.0", newer: false, install: "binary"}},
+        ["general /v1/admin/settings/general", "updates /v1/admin/updates"],
+        ["Name", "Server name | Living Room", "Updates", "Portico Server | 2.4.0", "Update checks | My own address",
+            "Background work", "Heavy background work | Overnight only (1–6 am)", "Background speed | Gentle"])
+
+    ' api.Page[PlayEntry] uses playedAt, username, optional profile and subtitle.
+    playedAt = "2026-11-18T12:00:00Z"
+    timeWords = serverDayWords(playedAt) + " · " + guideTime(1795003200, true)
+    play = {playedAt: playedAt, username: "sam", profile: "Family", deviceName: "Bedroom TV", title: "A series",
+        subtitle: "Episode one", kind: "episode", watchedMs: 1200000, away: false}
+    sameServerPage("history", {history: {items: [play]}}, ["history /v1/admin/play-history"],
+        ["Plays", "A series | " + timeWords + " | Episode one · sam (Family) · Bedroom TV"])
+
+    ' api.Page[RemoteSource] and WebDAVShown.
+    remoteSource = {id: "r1", name: "My cloud", kind: "webdav", state: "sign_in", folders: 1,
+        webdav: {address: "https://storage.example/private", user: "cloud-user", passwordSet: true}}
+    sameServerPage("remote-sources", {remoteSources: {items: [remoteSource]}}, ["remoteSources /v1/admin/remote-sources"],
+        ["Sources", "My cloud | Needs its sign-in again | WebDAV source"])
+
+    ' api.MetadataSettings reports credential presence.
+    metadata = {revision: 4, includeAdult: false, tmdbCredentialConfigured: true, tvdbCredentialConfigured: false,
+        openSubtitlesKeyConfigured: true, openSubtitlesUsername: "subtitle-user", openSubtitlesPasswordConfigured: true}
+    sameServerPage("metadata", {metadata: metadata}, ["metadata /v1/admin/metadata/settings"],
+        ["Looking titles up", "Include adult titles when matching | Off", "Providers", "Your TMDB read token | Your own key is in use",
+            "Your TheTVDB project key | Not set up"])
+
+    ' api.SegmentDetectionStatus and SegmentFileCounts.
+    segments = {mode: "thorough", files: {complete: 8, pending: 2, failed: 1, unsupported: 0}, showsWaiting: 1, catchUpComplete: false}
+    sameServerPage("segments", {segments: segments}, ["segments /v1/admin/segments"],
+        ["Detection", "Find intros and credits | By listening and reading the picture", "Status | Working in the background",
+            "Files measured | 8", "Waiting | 2", "Couldn't be read | 1"])
+
+    ' api.Page[LiveSource] and live.LiveSettings in a settings document.
+    tuner = {id: "tv1", kind: "hdhomerun", name: "Antenna", state: "up_to_date", paused: false, report: {channels: 12, programmes: 30}}
+    liveSettings = {values: {guideDays: 7, rewindMinutes: 60, importImages: true}}
+    sameServerPage("live", {liveSources: {items: [tuner]}, liveSettings: liveSettings},
+        ["liveSources /v1/admin/live/sources", "liveSettings /v1/admin/settings/live"],
+        ["Sources", "Antenna | Up to date | 12 channels", "Playback and guide", "Guide length | A week",
+            "Live rewind | 1 hour", "Logos and program pictures | On"])
+
+    ' api.SignInState, api.Account and settings.SignInSettings.
+    signin = {kind: "local", owner: {username: "sam"}, waiting: []}
+    policy = {values: {staySignedInDays: 365, requireTwoStep: "admins", pinRememberDays: 0}}
+    sameServerPage("signin", {signin: signin, signinPolicy: policy}, ["signin /v1/admin/sign-in", "signinPolicy /v1/admin/settings/sign-in"],
+        ["Method", "Sign-in | Local accounts", "Owner | sam", "Staying signed in", "Stay signed in for | 1 year", "Remember PIN for | Always ask",
+            "Two-step verification", "Require two-step verification | The owner and administrators"])
+
+    ' api.IntegrationSettings is flat, alongside Page[Key] and Page[Webhook].
+    integrations = {integrations: {assistants: true, compatibleRoutes: false},
+        apiKeys: {items: [{id: "k1", name: "A key", state: "active"}]},
+        webhooks: {items: [{id: "w1", name: "A hook", url: "https://example.test/webhook/private"}]}}
+    sameServerPage("integrations", integrations,
+        ["integrations /v1/admin/settings/integrations", "apiKeys /v1/admin/api-keys", "webhooks /v1/admin/webhooks"],
+        ["API keys", "API keys | 1", "Webhooks", "Webhooks | 1", "Assistants", "Assistants | On"])
+
+    ' settings.StreamingSettings exposes speeds in kbps.
+    streaming = {values: {awayVideoKbps: 8000, awayMusicKbps: 1411, uploadSpeedKbps: 12500, convertWhenNeeded: "sound", conversionFolder: "/private/convert"}}
+    sameServerPage("streaming", {streaming: streaming}, ["streaming /v1/admin/settings/streaming"],
+        ["Away from home", "Quality away from home | 1080p Low", "Music away from home | CD quality", "Upload speed | 12.5 Mbps",
+            "Conversion", "Convert when needed | Sound only, never the picture"])
+
+    ' api.Backups and backup.Settings. Go sorts the schedule's weekdays, Sunday first.
+    backupSettings = {values: {days: [0, 6], hour: 3, keep: 7, folder: "/private/backups", includeArtwork: false}}
+    backups = {items: [{id: "b1", createdAt: playedAt, mark: "backup-mark", protected: true}], folder: "/private/backups", protected: true}
+    sameServerPage("storage", {backups: backups, backupSettings: backupSettings},
+        ["backups /v1/admin/backups", "backupSettings /v1/admin/settings/backups"],
+        ["Backups", "Back up automatically | Weekends", "Backups to keep | 7", "Your backups | 1", "Protect backups with a passphrase | On"])
+
+    ' api.LogPage and LogLine. Message and attributes can contain details that stay off TV.
+    log = {time: playedAt, kind: "playback", level: "warn", message: "Couldn't open /private/media/movie.mkv", attrs: {path: "/private/media/movie.mkv"}}
+    sameServerPage("troubleshooting", {logs: {items: [log]}}, ["logs /v1/admin/logs"],
+        ["Messages", "Playback | Warn | " + timeWords])
+
+    failedRead = serverPageGroups("general", {updates: {failed: true}})
+    emptyHistory = serverPageGroups("history", {history: {items: []}})
+    same("server read states", [serverPageGroups("general", {general: general}).count(), failedRead.count(), failedRead[0].rows.count(),
+        failedRead[0].rows[0].label, emptyHistory[0].rows.count(), emptyHistory[0].empty], [0, 1, 1, "Couldn't read general just now.", 0, "No plays match."])
 
     ' Settings' two composite choices write what packages/client-core compositePatch writes, and read back the same
     same("playback method", [formatJson(sorted(compositePatch("playbackMethod", "original"))), formatJson(sorted(compositePatch("playbackMethod", "convert"))), compositeValue("playbackMethod", compositePatch("playbackMethod", "original")), compositeValue("playbackMethod", compositePatch("playbackMethod", "convert")), compositeValue("playbackMethod", compositePatch("playbackMethod", "automatic"))], [formatJson(sorted({"delivery.directPlay": "require", "delivery.directStream": "never", "delivery.transcode": "never"})), formatJson(sorted({"delivery.directPlay": "never", "delivery.directStream": "never", "delivery.transcode": "require"})), "original", "convert", "automatic"])
@@ -145,6 +247,25 @@ sub main()
     same("settings search", [found.count(), settingsPages()[found[0].page].id, labels.join("|"), settingsMatches(settingsPages(), "  ").count(), settingsMatches(settingsPages(), "privacy")[0].rows.count(), settingsPages()[found[1].page].id], [2, "languages", "Show subtitles|Preferred subtitle languages|Size|Background", 0, 0, "region"])
 
     print "PASSED " + m.passed.toStr() + " FAILED " + m.failed.toStr()
+end sub
+
+sub sameServerPage(page as string, data as object, wantReads as object, wantWords as object)
+    reads = []
+    for each read in serverPageReads(page)
+        reads.push(read.part + " " + read.path)
+    end for
+    same(page + " reads", reads, wantReads)
+    words = []
+    for each group in serverPageGroups(page, parseJson(formatJson(data)))
+        words.push(group.label)
+        for each row in group.rows
+            line = row.label + " | " + row.value
+            if row.help <> "" then line = line + " | " + row.help
+            if row.scope <> "" then line = line + " | " + row.scope
+            words.push(line)
+        end for
+    end for
+    same(page + " words", words, wantWords)
 end sub
 
 sub same(name as string, got as dynamic, want as object)
