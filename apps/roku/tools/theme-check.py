@@ -14,7 +14,7 @@ for key, inner in re.findall(r'^\s{8}(\w+): \{(.*?)\}\s*,?\s*$', frames, re.M | 
     tree[key] = set(re.findall(r'(\w+):', inner))
 for key in re.findall(r'(\w+): -?\d+', re.sub(r'\{.*?\}', '', frames, flags=re.S)):
     tree.setdefault(key, None)
-colours = set(re.findall(r'(\w+): (?:"0x|\[")', body('colours')))
+colours = set(re.findall(r'(\w+): (?:"0x|\["|\{)', body('colours')))
 roles = set(re.findall(r'(\w+): \[\d+, \d+, \d+\]', body('typeRoles')))
 bad = []
 # A name given twice in one table: BrightScript keeps the later one without a word.

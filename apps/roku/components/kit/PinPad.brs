@@ -3,6 +3,8 @@ sub init()
     m.boxes = m.top.findNode("boxes")
     m.keys = m.top.findNode("keys")
     m.ring = m.top.findNode("ring")
+    m.cursor = m.top.findNode("cursor")
+    m.cursor.color = colours().accentStrong
     m.clear = m.top.findNode("clear")
     m.clear.observeField("fire", "onClear")
     m.value = ""
@@ -12,10 +14,13 @@ sub init()
     reset()
 end sub
 
-' Setting `digits` (even to the same number) starts the pad afresh: nothing typed, nothing marked wrong.
+' Setting `digits` (even to the same number) starts the pad afresh: nothing typed, nothing marked
+' wrong, focus on its first key (tv-focus-40).
 sub reset()
     m.value = ""
     m.bad = false
+    m.row = 0
+    m.col = 0
     m.clear.control = "stop"
     m.keys.removeChildrenIndex(m.keys.getChildCount(), 0)
     labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0"]
@@ -34,6 +39,7 @@ sub reset()
         key.height = 72
         key.translation = [0, 572]
         key.text = m.top.extra
+        key.glass = true
     end if
     m.boxes.removeChildrenIndex(m.boxes.getChildCount(), 0)
     m.boxes.translation = m.top.boxesAt
@@ -64,7 +70,7 @@ sub paint()
         dot = m.boxes.getChild(i * 2 + 1)
         if frame <> invalid
             tint = c.line
-            if i = len(m.value) then tint = c.accent
+            if i = len(m.value) then tint = c.accentStrong
             if m.bad = true then tint = c.danger
             frame.blendColor = tint
             dot.visible = i < len(m.value)
@@ -72,6 +78,8 @@ sub paint()
         end if
     end for
     has = m.top.hasFocus()
+    m.cursor.visible = (has and m.bad <> true and len(m.value) < m.top.digits)
+    m.cursor.translation = [m.top.boxesAt[0] + len(m.value) * 122 + 50, m.top.boxesAt[1] + 32]
     at = m.row * 3 + m.col     ' the keys in drawn order: digits and delete, then the extra button
     if m.row = 4 then at = 11
     for i = 0 to m.keys.getChildCount() - 1

@@ -19,6 +19,8 @@
   <children>
     <Group id="boxes"/>
     <Group id="keys"/>
+    <!-- the typing cursor in the box the next digit goes into (auth-04) -->
+    <Rectangle id="cursor" width="3" height="52"/>
     <Poster id="ring" uri="pkg:/images/focus-14.9.png"/>
     <Timer id="clear" duration="0.4"/>
   </children>

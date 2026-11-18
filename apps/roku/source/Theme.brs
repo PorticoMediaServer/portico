@@ -25,7 +25,11 @@ function colours() as object
         ' the dark card under a prompt over the picture (Up next, the Undo note), and the dimming on its picture
         promptPlate: "0x09131BD6", stillDim: "0x707070FF",
         ' the guide's channel badges, one picked from the channel's name
-        channelTints: ["0x8A3B3BFF", "0x8A5A2BFF", "0x7A6A2AFF", "0x3E6B3AFF", "0x2D6B6BFF", "0x34558AFF", "0x5B3F8AFF", "0x7A3A6BFF"]
+        channelTints: ["0x8A3B3BFF", "0x8A5A2BFF", "0x7A6A2AFF", "0x3E6B3AFF", "0x2D6B6BFF", "0x34558AFF", "0x5B3F8AFF", "0x7A3A6BFF"],
+        ' the card a hand-off to a phone is printed on (its QR code, address and code), and its edge
+        handoffCard: "0x0C1A25F2", handoffEdge: "0x1C3341FF",
+        ' a profile's face, by the colour name the server gives it (packages/design profileArtColors)
+        faces: {blue: "0x28587AFF", violet: "0x685294FF", mint: "0x28665DFF", coral: "0x985243FF", gold: "0x796120FF", slate: "0x4A596AFF", rose: "0x854D73FF", sky: "0x376F8CFF"}
     }
 end function
 
@@ -77,7 +81,15 @@ function frames() as object
         group: {face: 280, nameY: 112, factsY: 252, aboutY: 298, rowsY: 470, scrolledY: 164},
         ' The whole page could not load (frame "Page states"): icon, title and one sentence from `y`,
         ' `width` wide, then buttons on `buttonsY`.
-        state: {y: 300, width: 1000, buttonsY: 760}
+        state: {y: 300, width: 1000, buttonsY: 760},
+        ' Before a profile is chosen (frame "Sign-in"): a hand-off to a phone (the TV code page, Forgot
+        ' PIN?): words from `pageX`, the eyebrow, title, body and buttons on their lines, the QR card's
+        ' corner; the wordmark's corner; Who's watching (auth.html frame 16): the title's bottom line,
+        ' the faces' row and its pitch, a refusal's line; a PIN (frame 17): the column from `pinX`, its
+        ' face, title, name, boxes and note lines, the number pad's corner, the key hints' line
+        signIn: {pageX: 120, eyebrowY: 354, titleY: 385, bodyY: 494, buttonsY: 656, cardX: 1060, cardY: 212,
+            markX: 120, markY: 72, whoTitleBottom: 391, facesY: 470, facePitch: 296, whoNoteY: 860,
+            pinX: 240, pinWidth: 640, pinFaceY: 238, pinTitleY: 462, pinNameY: 540, boxesY: 619, pinNoteY: 775, keysX: 1176, keysY: 219, hintsY: 988}
     }
 end function
 
@@ -95,8 +107,11 @@ function typeRoles() as object
         cardTitle: [600, 22, 0], cardSubtitle: [400, 20, 0], wideTitle: [700, 26, 0],
         meta: [400, 24, 0], metaStrong: [700, 24, 0], eyebrow: [600, 24, 0], synopsis: [400, 24, 35],
         button: [700, 26, 0], tag: [600, 20, 0], badge: [800, 18, 0], body: [400, 24, 33], caption: [400, 20, 27],
-        keycap: [700, 18, 0], skipSeconds: [800, 14, 0], micro: [500, 17, 0], episodeTitle: [700, 24, 30], seasonName: [700, 26, 0], personInitials: [700, 44, 0], section: [700, 26, 0], factLabel: [400, 22, 0], about: [400, 24, 35], listLabel: [600, 25, 0], help: [500, 19, 0], groupLabel: [700, 20, 0], padKey: [700, 44, 0], code: [800, 92, 0], welcome: [800, 88, 0], pageTitle: [800, 64, 0], faceInitial: [700, 84, 0], bodyStrong: [700, 24, 33], ledeStrong: [700, 30, 42], coverTitle: [800, 26, 29],
-        tab: [700, 26, 0], keyLetter: [600, 32, 0], personFace: [800, 96, 0]
+        keycap: [700, 18, 0], skipSeconds: [800, 14, 0], micro: [500, 17, 0], episodeTitle: [700, 24, 30], seasonName: [700, 26, 0], personInitials: [700, 44, 0], section: [700, 26, 0], factLabel: [400, 22, 0], about: [400, 24, 35], listLabel: [600, 25, 0], help: [500, 19, 0], groupLabel: [700, 20, 0], padKey: [700, 44, 0], code: [800, 92, 0], welcome: [800, 88, 0], pageTitle: [800, 64, 0], faceInitial: [800, 84, 0], bodyStrong: [700, 24, 33], ledeStrong: [700, 30, 42], coverTitle: [800, 26, 29],
+        tab: [700, 26, 0], keyLetter: [600, 32, 0], personFace: [800, 96, 0],
+        ' Before a profile is chosen: a page's title (auth.html .tvl h1, Who's watching), a face's
+        ' name and its line, the PIN page's title
+        authTitle: [800, 72, 0], faceName: [700, 30, 0], faceNote: [600, 22, 0], pinTitle: [800, 52, 0]
     }
 end function
 
@@ -126,4 +141,11 @@ function shelfMetrics(shape as string) as object
     if shape = "gridPoster" then card = [200, 372]     ' a poster 200 x 300 with its title and year under it, one line each
     if shape = "person" then card = [190, 250]     ' a round face 150 across with a name and a part under it
     return {card: card, headingGap: 60, block: 60 + card[1] + 52}
+end function
+
+' A profile's face colour from the name the server gives it; blue when it names none we know.
+function faceColour(name as dynamic) as string
+    faces = colours().faces
+    if name <> invalid and faces[name] <> invalid then return faces[name]
+    return faces.blue
 end function

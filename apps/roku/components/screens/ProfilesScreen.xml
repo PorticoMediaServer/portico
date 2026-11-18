@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Who's watching: one row of faces, then the PIN pad for a profile that has a PIN. -->
+<!-- Who's watching: one row of faces, then the PIN pad for a profile that has a PIN
+     (auth.html frames 16 and 17), and from its Forgot PIN? the hand-off to a phone or computer.
+     Every part is placed from frames().signIn in init(). -->
 <component name="ProfilesScreen" extends="Group">
   <interface>
     <field id="serverName" type="string"/>
@@ -15,33 +17,32 @@
   <script type="text/brightscript" uri="ProfilesScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Address.brs"/>
   <children>
-    <Poster uri="pkg:/images/wordmark.png" width="176" height="40" translation="[120,72]"/>
+    <Poster id="mark" uri="pkg:/images/wordmark.png" width="176" height="40"/>
     <Group id="faces">
-      <Label id="title" translation="[0,296]" width="1920" horizAlign="center"/>
-      <Poster id="ring" uri="pkg:/images/focus-disc.png" width="296" height="296"/>
+      <!-- bottom-aligned, so a long server name wraps upward and the faces never move -->
+      <Label id="title" height="200" horizAlign="center" vertAlign="bottom" wrap="true" maxLines="2"/>
       <Group id="row"/>
-      <Label id="note" translation="[0,860]" width="1920" horizAlign="center"/>
+      <Label id="note" width="1920" horizAlign="center"/>
     </Group>
     <Group id="pin" visible="false">
-      <Poster id="pinFace" uri="pkg:/images/disc.png" width="196" height="196" translation="[462,292]"/>
-      <Label id="pinInitial" width="196" height="196" translation="[462,292]" horizAlign="center" vertAlign="center"/>
-      <Label id="pinTitle" text="Enter profile PIN" translation="[160,520]" width="800" horizAlign="center"/>
-      <Label id="pinName" translation="[160,596]" width="800" horizAlign="center"/>
-      <PinPad id="pad" digits="4" extra="Forgot PIN?" translation="[1176,220]" boxesAt="[-851,452]"/>
-      <Label id="pinNote" translation="[160,820]" width="800" horizAlign="center" wrap="true" maxLines="3"/>
-      <LayoutGroup translation="[960,988]" layoutDirection="horiz" horizAlignment="center" vertAlignment="center" itemSpacings="[12, 44, 12]">
-        <Group>
-          <Poster uri="pkg:/images/line-10.9.png" blendColor="0x3B5668FF" width="124" height="36"/>
-          <Label id="playKey" text="Play/Pause" width="124" height="36" horizAlign="center" vertAlign="center"/>
-        </Group>
-        <Label id="playText" text="Delete a digit"/>
-        <Group>
-          <Poster uri="pkg:/images/line-10.9.png" blendColor="0x3B5668FF" width="62" height="36"/>
-          <Label id="backKey" text="Back" width="62" height="36" horizAlign="center" vertAlign="center"/>
-        </Group>
-        <Label id="backText" text="Other profiles"/>
-      </LayoutGroup>
+      <Poster id="pinFace" uri="pkg:/images/disc.png" width="196" height="196"/>
+      <Poster id="pinShade" uri="pkg:/images/face-shade.png" width="196" height="196"/>
+      <Label id="pinInitial" width="196" height="196" horizAlign="center" vertAlign="center"/>
+      <Label id="pinTitle" text="Enter profile PIN" horizAlign="center"/>
+      <Label id="pinName" horizAlign="center"/>
+      <PinPad id="pad" digits="4" extra="Forgot PIN?"/>
+      <Label id="pinNote" horizAlign="center" wrap="true" maxLines="3"/>
+      <KeyHints id="hints" small="true" horizAlignment="center"/>
+    </Group>
+    <!-- Forgot PIN?: a new PIN is set on a phone or computer, as on the other TV apps -->
+    <Group id="forgot" visible="false">
+      <Label id="forgotName"/>
+      <Label id="forgotTitle" text="Forgot PIN?"/>
+      <Label id="forgotBody" width="820" wrap="true" maxLines="4"/>
+      <ButtonRow id="forgotButtons"/>
+      <QrCard id="forgotCard" note="Scan the code with your phone, or go to this address on a computer."/>
     </Group>
   </children>
 </component>

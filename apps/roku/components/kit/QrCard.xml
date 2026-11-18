@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The card on the right of a hand-off to a phone or computer (auth-01, and Forgot PIN? on TV, as the
+     other TV apps draw it): a QR code, the address printed under it, a code to type when there is one,
+     and a short note. A 720 x 656 box. -->
+<component name="QrCard" extends="Group">
+  <interface>
+    <!-- What the QR code opens. -->
+    <field id="link" type="string" onChange="onChange"/>
+    <!-- The address as printed (no scheme). -->
+    <field id="address" type="string" onChange="onChange"/>
+    <!-- The sign-in code, big under the address, or "" for none. -->
+    <field id="code" type="string" onChange="onChange"/>
+    <field id="note" type="string" onChange="onChange"/>
+  </interface>
+  <script type="text/brightscript" uri="QrCard.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Poster id="fill" uri="pkg:/images/round-20.9.png" width="720" height="656"/>
+    <Poster id="edge" uri="pkg:/images/line-20.9.png" width="720" height="656"/>
+    <QrCode id="qr"/>
+    <Label id="address" width="720" horizAlign="center"/>
+    <Label id="code" width="720" horizAlign="center"/>
+    <Label id="note" width="600" horizAlign="center" wrap="true" maxLines="2"/>
+  </children>
+</component>

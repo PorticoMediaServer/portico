@@ -9,6 +9,8 @@ sub init()
     m.codeNote = m.top.findNode("codeNote")
     m.factorPad = m.top.findNode("factorPad")
     m.poll = m.top.findNode("poll")
+    m.card = m.top.findNode("card")
+    m.card.translation = [frames().signIn.cardX, frames().signIn.cardY]
     setType(m.top.findNode("welcome"), "welcome", c.text)
     setType(m.doorNote, "body", c.danger)
     setType(m.top.findNode("eyebrow"), "eyebrow", c.accentStrong)
@@ -17,9 +19,6 @@ sub init()
     setType(m.top.findNode("press"), "caption", c.textTertiary)
     setType(m.top.findNode("pressRest"), "caption", c.textTertiary)
     setType(m.top.findNode("backKey"), "keycap", c.text)
-    setType(m.top.findNode("where"), "ledeStrong", c.textSecondary)
-    setType(m.top.findNode("digits"), "code", c.text)
-    setType(m.top.findNode("keep"), "caption", c.textTertiary)
     setType(m.top.findNode("factorTitle"), "pageTitle", c.text)
     setType(m.top.findNode("factorBody"), "lede", c.textSecondary)
     how = m.top.findNode("how")
@@ -183,9 +182,9 @@ sub showCode()
     shown = addressShown(m.origin)
     m.top.findNode("server").text = m.system.name
     m.top.findNode("how").text = "On a phone signed in to " + m.system.name + ", open <b>Portico › Settings › Link a TV</b>, or on a computer open <b>" + shown + "/device</b>."
-    m.top.findNode("where").text = shown + "/device"
-    m.top.findNode("digits").text = ""
-    m.top.findNode("qr").text = ""
+    m.card.address = shown + "/device"
+    m.card.code = ""
+    m.card.link = ""
     m.codeNote.text = ""
     buttons = []
     for each method in m.system.signInMethods
@@ -213,8 +212,8 @@ sub onCode(event as object)
     end if
     m.pending = result.data
     if createObject("roAppInfo").isDev() then ? "PORTICO code "; m.pending.code
-    m.top.findNode("digits").text = m.pending.code
-    m.top.findNode("qr").text = m.origin + "/device#code=" + m.pending.code
+    m.card.code = m.pending.code
+    m.card.link = m.origin + "/device#code=" + m.pending.code
     seconds = 3
     if m.pending.intervalMs <> invalid then seconds = m.pending.intervalMs / 1000
     if seconds < 1 then seconds = 1

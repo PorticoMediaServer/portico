@@ -248,6 +248,24 @@ def shade(w, h, stops, horizontal=False):
     return to_pil(s)
 
 
+def face_shade(size=216):
+    """The light and shade over a profile's round face (auth.html .face: a 140-degree gradient from
+    the colour mixed with 18% white, through the colour at 55%, to 60% colour and 40% ink), as a
+    layer over the tinted disc, so one picture serves every face colour."""
+    s, ctx = surface(size, size)
+    half = size / 2 * 1.409          # the gradient line of 140 degrees across a square
+    dx, dy = 0.6428 * half, 0.7660 * half
+    g = cairo.LinearGradient(size / 2 - dx, size / 2 - dy, size / 2 + dx, size / 2 + dy)
+    g.add_color_stop_rgba(0, 1, 1, 1, 18 / 118)
+    g.add_color_stop_rgba(0.55, 1, 1, 1, 0)
+    g.add_color_stop_rgba(0.55, *rgb(INK), 0)
+    g.add_color_stop_rgba(1, *rgb(INK), 0.4)
+    ctx.arc(size / 2, size / 2, size / 2, 0, 6.2832)
+    ctx.set_source(g)
+    ctx.fill()
+    return to_pil(s)
+
+
 def svg_png(svg, w, h):
     handle = Rsvg.Handle.new_from_data(svg.encode())
     s, ctx = surface(w, h)
@@ -309,6 +327,8 @@ def main():
     # the same fades in white, for tinting to whatever they lie on (the rail's panel)
     save_png(shade(8, 64, [(0, '#ffffff', 1), (1, '#ffffff', 0)]), 'fade-white-up.png')
     save_png(shade(8, 64, [(0, '#ffffff', 0), (1, '#ffffff', 1)]), 'fade-white-down.png')
+    # the light and shade over a profile's face (Who's watching)
+    save_png(face_shade(), 'face-shade.png')
 
     for i, (first, second) in enumerate(COVER_TINTS):
         generated_cover(first, second).convert('RGB').save(os.path.join(OUT, 'cover-%d.jpg' % i), quality=88)

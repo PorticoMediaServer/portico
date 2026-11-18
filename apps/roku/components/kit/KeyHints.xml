@@ -5,6 +5,8 @@
   <interface>
     <!-- [{keys: ["Up", "Down"], text: "Choose a page"}] -->
     <field id="hints" type="array" onChange="onHints"/>
+    <!-- The smaller line under a sign-in page (auth-04): words 20 px in the quieter colour, hints closer. Set before `hints`. -->
+    <field id="small" type="boolean"/>
   </interface>
   <script type="text/brightscript" uri="KeyHints.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>

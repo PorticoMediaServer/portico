@@ -1,58 +1,94 @@
 sub init()
     c = colours()
+    f = frames().signIn
     m.faces = m.top.findNode("faces")
     m.row = m.top.findNode("row")
-    m.ring = m.top.findNode("ring")
     m.pin = m.top.findNode("pin")
     m.pad = m.top.findNode("pad")
     m.note = m.top.findNode("note")
     m.pinNote = m.top.findNode("pinNote")
-    setType(m.top.findNode("title"), "welcome", c.text)
+    m.top.findNode("mark").translation = [f.markX, f.markY]
+    title = m.top.findNode("title")
+    title.translation = [frames().gutter, f.whoTitleBottom - title.height]
+    title.width = 1920 - frames().gutter * 2
+    setType(title, "authTitle", c.text)
+    m.note.translation = [0, f.whoNoteY]
     setType(m.note, "body", c.danger)
-    setType(m.top.findNode("pinTitle"), "pageTitle", c.text)
+    ' the PIN's column on the left, the pad on the right; the boxes centred in the column
+    faceX = f.pinX + (f.pinWidth - 196) / 2
+    for each id in ["pinFace", "pinShade", "pinInitial"]
+        m.top.findNode(id).translation = [faceX, f.pinFaceY]
+    end for
+    lines = {pinTitle: f.pinTitleY, pinName: f.pinNameY, pinNote: f.pinNoteY}
+    for each id in lines
+        label = m.top.findNode(id)
+        label.translation = [f.pinX, lines[id]]
+        label.width = f.pinWidth
+    end for
+    m.pad.translation = [f.keysX, f.keysY]
+    m.pad.boxesAt = [f.pinX + (f.pinWidth - 470) / 2 - f.keysX, f.boxesY - f.keysY]     ' four boxes are 470 across
+    hints = m.top.findNode("hints")
+    hints.translation = [960, f.hintsY]
+    hints.hints = [{keys: ["Play/Pause"], text: "Delete a digit"}, {keys: ["Back"], text: "Other profiles"}]
+    m.forgot = m.top.findNode("forgot")
+    m.forgotButtons = m.top.findNode("forgotButtons")
+    lines = {forgotName: f.eyebrowY, forgotTitle: f.titleY, forgotBody: f.bodyY, forgotButtons: f.buttonsY}
+    for each id in lines
+        m.top.findNode(id).translation = [f.pageX, lines[id]]
+    end for
+    m.top.findNode("forgotCard").translation = [f.cardX, f.cardY]
+    setType(m.top.findNode("forgotName"), "eyebrow", c.accentStrong)
+    setType(m.top.findNode("forgotTitle"), "authTitle", c.text)
+    setType(m.top.findNode("forgotBody"), "lede", c.textSecondary)
+    m.forgotButtons.buttons = [{id: "back", text: "Back", icon: ""}]
+    m.forgotButtons.observeField("pressed", "onForgotBack")
+    setType(m.top.findNode("pinTitle"), "pinTitle", c.text)
     setType(m.top.findNode("pinName"), "lede", c.textSecondary)
     setType(m.top.findNode("pinInitial"), "faceInitial", c.text)
     setType(m.pinNote, "body", c.textSecondary)
-    for each id in ["playKey", "backKey"]
-        setType(m.top.findNode(id), "keycap", c.text)
-    end for
-    for each id in ["playText", "backText"]
-        setType(m.top.findNode(id), "caption", c.textTertiary)
-    end for
     m.pad.observeField("entered", "onPin")
     m.pad.observeField("extraPressed", "onForgot")
+    m.cells = []
+    m.shift = 0
     m.focus = 0
     m.stage = "faces"
     m.busy = false
     m.top.observeField("focusedChild", "paint")
 end sub
 
-' packages/design profileArtColors
-function faceColour(name as dynamic) as string
-    colours_ = {blue: "0x28587AFF", violet: "0x685294FF", mint: "0x28665DFF", coral: "0x985243FF", gold: "0x796120FF", slate: "0x4A596AFF", rose: "0x854D73FF", sky: "0x376F8CFF"}
-    if name <> invalid and colours_[name] <> invalid then return colours_[name]
-    return colours_.blue
-end function
-
+' Each face (auth.html frame 16): the colour with its light and shade, the initial, a lock for a
+' profile with a PIN, the name and the line under it. The one in focus grows and takes the ring.
 sub onProfiles()
     c = colours()
+    f = frames().signIn
     profiles = m.top.profiles
     m.top.findNode("title").text = "Who’s watching on " + m.top.serverName + "?"
     m.row.removeChildrenIndex(m.row.getChildCount(), 0)
+    m.cells = []
     count = profiles.count()
-    pitch = 296
-    left0 = (1920 - (count * 216 + (count - 1) * 80)) / 2
-    m.left0 = left0
+    m.rowWidth = count * f.facePitch - 80      ' faces are 216 across, 80 apart
+    m.left0 = (1920 - m.rowWidth) / 2
+    m.shift = 0
     for i = 0 to count - 1
         profile = profiles[i]
         if profile.id = m.top.last then m.focus = i
         cell = m.row.createChild("Group")
-        cell.translation = [left0 + i * pitch, 470]
+        cell.translation = [m.left0 + i * f.facePitch, f.facesY]
+        cell.scaleRotateCenter = [108, 160]
+        ring = cell.createChild("Poster")
+        ring.uri = "pkg:/images/focus-disc.png"
+        ring.width = 296
+        ring.height = 296
+        ring.translation = [-40, -40]
         face = cell.createChild("Poster")
         face.uri = "pkg:/images/disc.png"
         face.width = 216
         face.height = 216
         face.blendColor = faceColour(profile.color)
+        shade = cell.createChild("Poster")
+        shade.uri = "pkg:/images/face-shade.png"
+        shade.width = 216
+        shade.height = 216
         initial = cell.createChild("Label")
         initial.width = 216
         initial.height = 216
@@ -60,33 +96,75 @@ sub onProfiles()
         initial.vertAlign = "center"
         initial.text = ucase(left(profile.name, 1))
         setType(initial, "faceInitial", c.text)
+        if profile.pinRequired = true then addLock(cell)
         name = cell.createChild("Label")
         name.width = 296
-        name.translation = [-40, 244]
+        name.translation = [-40, 242]
         name.horizAlign = "center"
         name.text = profile.name
-        setType(name, "heading", c.textSecondary)
+        setType(name, "faceName", c.textSecondary)
         under = cell.createChild("Label")
         under.width = 296
-        under.translation = [-40, 290]
+        under.translation = [-40, 289]
         under.horizAlign = "center"
-        if profile.pinRequired then under.text = "Protected by a PIN" else if profile.isPrimary then under.text = "Main profile"
-        setType(under, "caption", c.textTertiary)
+        if profile.pinRequired = true then under.text = "Protected by a PIN" else if profile.isPrimary = true then under.text = "Main profile"
+        setType(under, "faceNote", c.textTertiary)
+        m.cells.push({node: cell, ring: ring, name: name})
     end for
     paint()
+end sub
+
+' The lock at the face's lower right: a raised disc with the ink round it, a quarter of the face across.
+sub addLock(cell as object)
+    c = colours()
+    for each part in [[151, 60, c.ink], [155, 52, c.raisedBright]]
+        disc = cell.createChild("Poster")
+        disc.uri = "pkg:/images/disc.png"
+        disc.translation = [part[0], part[0]]
+        disc.width = part[1]
+        disc.height = part[1]
+        disc.blendColor = part[2]
+    end for
+    lock = cell.createChild("Poster")
+    lock.uri = "pkg:/images/i-lock-28.png"
+    lock.translation = [167, 167]
+    lock.width = 28
+    lock.height = 28
+    lock.blendColor = c.text
 end sub
 
 sub onActive()
     if not m.top.active then return
     ' The faces take focus, not the screen: the screen holds the pad, so Roku would leave focus on
     ' the hidden pad and the next OK would type a digit into it.
-    if m.stage = "pin" then m.pad.active = true else m.faces.setFocus(true)
+    if m.stage = "pin"
+        m.pad.active = true
+    else if m.stage = "forgot"
+        m.forgotButtons.active = true
+    else
+        m.faces.setFocus(true)
+    end if
     paint()
 end sub
 
 sub paint()
-    m.ring.visible = (m.stage = "faces" and m.top.isInFocusChain())
-    if m.left0 <> invalid then m.ring.translation = [m.left0 + m.focus * 296 - 40, 430]
+    c = colours()
+    ' Seven or eight faces are wider than the screen: the row moves with focus (as the other TV
+    ' apps' row does), keeping the face in focus between the gutter and the right edge.
+    if m.rowWidth <> invalid and m.rowWidth > 1920
+        x = m.left0 + m.focus * frames().signIn.facePitch
+        if x + m.shift < frames().gutter then m.shift = frames().gutter - x
+        if x + m.shift + 216 > frames().rightEdge then m.shift = frames().rightEdge - 216 - x
+    end if
+    m.row.translation = [m.shift, 0]
+    shown = (m.stage = "faces" and m.top.isInFocusChain())
+    for i = 0 to m.cells.count() - 1
+        cell = m.cells[i]
+        on = (shown and i = m.focus)
+        if on then cell.node.scale = [metrics().focusScale, metrics().focusScale] else cell.node.scale = [1, 1]
+        cell.ring.visible = on
+        if on then cell.name.color = c.text else cell.name.color = c.textSecondary
+    end for
 end sub
 
 sub choose(pin as dynamic)
@@ -132,13 +210,52 @@ sub onPin(event as object)
     choose(event.getData())
 end sub
 
-' On a TV, a forgotten PIN is put right on a phone or computer (definition, sign-in rule 30).
+' Forgot PIN? on a TV hands over to a phone or computer, as the other TV apps do: setting a new PIN
+' needs the account's password. A server of its own resets it on its profile page; a server people
+' sign in to with a Portico Account, at web.getportico.tv, which opens this server from the list.
 sub onForgot()
-    m.pinNote.text = "To set a new PIN, open Portico on a phone or computer and go to Settings › Profiles. It asks for the account's password."
+    m.pinNote.text = ""
+    api("GET", "/v1/system", invalid, "onForgotSystem")
+end sub
+
+sub onForgotSystem(event as object)
+    result = event.getData()
+    if not result.ok or result.data = invalid
+        m.pinNote.text = result.error.message
+        return
+    end if
+    card = m.top.findNode("forgotCard")
+    body = m.top.findNode("forgotBody")
+    if result.data.signIn = "portico"
+        card.link = "https://web.getportico.tv/servers?open=" + result.data.id
+        card.address = "web.getportico.tv/servers"
+        body.text = "Reset this PIN on your phone or computer: sign in to your Portico Account, choose this profile, then Forgot PIN?"
+    else
+        card.link = m.global.origin + "/settings/profile"
+        card.address = addressShown(m.global.origin) + "/settings/profile"
+        body.text = "Manage profiles, PINs and two-step verification on your phone or computer."
+    end if
+    m.top.findNode("forgotName").text = m.top.profiles[m.focus].name
+    m.stage = "forgot"
+    m.pin.visible = false
+    m.forgot.visible = true
+    onActive()
+end sub
+
+' Back returns to the PIN pad as it was left, on Forgot PIN?.
+sub onForgotBack()
+    m.stage = "pin"
+    m.forgot.visible = false
+    m.pin.visible = true
+    onActive()
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
     if not press then return false
+    if m.stage = "forgot"
+        if key = "back" then onForgotBack()
+        return true
+    end if
     if m.stage = "pin"
         if key = "back"
             showPin(false)
