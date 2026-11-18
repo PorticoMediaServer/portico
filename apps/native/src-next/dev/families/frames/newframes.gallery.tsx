@@ -45,7 +45,7 @@ const book = (id: string) => asset(`pool/books/${id}.jpg`);
 function useScale() { const theme = useTheme(), frame = useFrameMetrics(); return {theme, frame, tv: frame.form === 'tv', phone: frame.form === 'phone'}; }
 function SearchField({value}: {value?: string}) {
   const {theme, tv} = useScale();
-  const field = <TextField variant="search" value={value ?? ''} placeholder={f('searchPlaceholder')} accessibilityLabel={f('search')} onChangeText={none}
+  const field = <TextField variant="search" leadingIcon="i-search" value={value ?? ''} placeholder={f('searchPlaceholder')} accessibilityLabel={f('search')} onChangeText={none}
     trailing={value ? <Button variant="icon" size="small" icon="i-x" iconOnly accessibilityLabel={f('clearText')} onPress={none}/> : undefined}/>;
   return tv ? <View style={{gap: theme.space.sm}}>{field}</View> : field;
 }
