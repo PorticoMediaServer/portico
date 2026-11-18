@@ -86,7 +86,7 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
     ...(hasLiveTV ? [{key: 'live', icon: 'i-live' as const, label: defaultI18n.t('search.chip.liveTV'), destination: {kind: 'live' as const}}] : []),
     {key: 'saved', icon: 'i-bookmark', label: defaultI18n.t('saved.title'), destination: {kind: 'saved'}},
   ];
-  const entries = [...pinnedTop, ...libraryEntries, ...pinnedBottom], {edges, scroll} = useListEdges();
+  const entries = [...pinnedTop, ...libraryEntries, ...pinnedBottom], {edges, scroll} = useListEdges(spec.itemSize);
   const item = (entry: RailEntry) => {
     const selected = sameDestination(entry.destination, destination);
     return <Focusable key={entry.key} {...returnProps} focusId={entry.key} testID={focusTestID(ids.rail, entry.key)} accessibilityRole="button" accessibilityLabel={entry.label} accessibilityState={{selected}} onPress={() => onNavigate(entry.destination)} focusRadius={spec.itemRadius} focusKind="button"
