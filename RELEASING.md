@@ -53,6 +53,15 @@ Portico and its FFmpeg build are released on their own schedules.
   - Code signing and notarisation happen after that rewrite, and the sealed macOS manifest records the hashes after signing.
   - The Vulkan loader doesn't find a bundled driver by itself. When the server starts the engine inside the app, it must point the loader at the bundled ICD JSON (`VK_DRIVER_FILES`, or `VK_ICD_FILENAMES` for older loaders, set to its bundle-relative path), or the package must place the JSON where the loader looks.
 
+## The desktop app's bundled mpv
+
+The Windows installer and the macOS app carry mpv, so they play files the app's web view can't (the CI's `installers` job builds them). Before a desktop release ships:
+
+- **Licence and source.** mpv is GPL-2.0-or-later. The release must include mpv's licence text and a written offer of its source (or the exact source beside the release), covering mpv and every library bundled with it: on macOS that is everything in `Portico.app/Contents/Resources/mpv/lib`, MoltenVK included.
+- **Not Portico's FFmpeg.** The bundled mpv uses the FFmpeg its package came with (Chocolatey on Windows, Homebrew on macOS), not Portico's own qualified FFmpeg build. Its codecs and fixes can differ from the server's.
+- **Versions aren't pinned yet.** The job installs whatever Chocolatey and Homebrew offer that day (seen on 18 November 2026: mpv 0.41.0 from Chocolatey, and 0.41.0 or 0.42.0 from Homebrew), so two proof builds can carry different mpv. A release must pin the versions, or at least record them.
+- **On macOS**, mpv draws through Vulkan, which a Mac only has through MoltenVK. The app ships MoltenVK and its manifest in `mpv/lib`, and sets `VK_DRIVER_FILES` (and `VK_ICD_FILENAMES`) when it starts mpv. Signing the app must cover those libraries too. The CI only proves that mpv's picture output opens on that driver: GitHub's macOS runners crash MoltenVK at the first frame, Homebrew's own mpv included. A picture on a real Mac still needs checking by hand.
+
 ## What a release builds
 
 A Portico release starts from a reviewed `vMAJOR.MINOR.PATCH` Git tag. The release workflow runs the server and web tests again, downloads the exact pinned FFmpeg build, and produces:
