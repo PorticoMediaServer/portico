@@ -104,15 +104,32 @@ func (d *DB) TrendingPage(ctx context.Context, v Viewer, q ItemQuery) (ItemPage,
 	if after != nil && after.Version != q.trendingVersion {
 		return ItemPage{}, ErrCursorExpired
 	}
+	if q.trendingIDs, err = d.trendingIDs(ctx); err != nil || len(q.trendingIDs) == 0 {
+		return ItemPage{Items: []Item{}}, err
+	}
 	return d.Items(ctx, v, q)
 }
 
+// trendingIDs are this server's titles on TMDB's trending lists, in TMDB's order. The joins
+// are written in the order to read them: the few dozen trending rows first, each looked up by
+// its id. Left to choose, SQLite read every TMDB id of the library for each Home (84 ms at
+// 400,000 items with an empty list; 110 ms with forty titles in it).
+func (d *DB) trendingIDs(ctx context.Context) ([]int64, error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	return ids(ctx, tx, trendingIDsSQL)
+}
+
+const trendingIDsSQL = `SELECT matched.id FROM tmdb_trending trending
+	CROSS JOIN item_external_ids x ON x.provider='tmdb' AND x.external_id=trending.external_id
+	CROSS JOIN items matched ON matched.id=x.item_id AND matched.kind=trending.kind
+	CROSS JOIN libraries l ON l.id=matched.library_id AND ` + tmdbLibrary + ` ORDER BY trending.position`
+
 func (q ItemQuery) trendingSource(w *query) {
-	source := `tmdb_trending trending JOIN item_external_ids x ON x.provider='tmdb' AND x.external_id=trending.external_id
-  JOIN libraries l ON ` + tmdbLibrary + ` JOIN items matched ON matched.id=x.item_id AND matched.kind=trending.kind AND matched.library_id=l.id`
 	w.tagTotal, w.plainKinds, w.plainLibrary, w.whole = "", "", 0, false
-	w.scope = "SELECT matched.id FROM " + source
-	w.from += " JOIN (" + source + ") ON matched.id=i.id"
-	w.countFrom += " JOIN (" + source + ") ON matched.id=i.id"
-	w.add(` AND ifnull(`, ownState("hidden"), `,0)=0`)
+	w.scope = "SELECT id FROM items WHERE id IN " + intList(q.trendingIDs)
+	w.add(` AND i.id IN `+intList(q.trendingIDs)+` AND ifnull(`, ownState("hidden"), `,0)=0`)
 }

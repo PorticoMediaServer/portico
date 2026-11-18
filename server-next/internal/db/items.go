@@ -130,6 +130,7 @@ type ItemQuery struct {
 
 	trendingVersion          int64
 	homeTrending             bool
+	trendingIDs              []int64 // with homeTrending: the trending titles, in TMDB's order
 	homeIDs                  []int64 // a Continue row, in its own order; nil for other lists
 	homeBecause              int64
 	homeRecent, homeReleased bool
@@ -182,6 +183,15 @@ var sortSpecs = map[string]sortSpec{
 // volumes with none by title.
 var seriesOrder = sortSpec{columns: []string{"ifnull(i.index_number, 1e18)", "i.sort_title"}}
 
+// idOrder sorts a list given as ids by each one's place among them.
+func idOrder(ids []int64) string {
+	order := "CASE i.id WHEN -1 THEN -1"
+	for n, id := range ids {
+		order += fmt.Sprintf(" WHEN %d THEN %d", id, n)
+	}
+	return order + " ELSE -1 END"
+}
+
 // sortSpec is how this list is ordered. Its own order means volume order for a series.
 func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {
 	if q.homePopular != 0 && q.Sort == SortOrder {
@@ -191,17 +201,13 @@ func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {
 		return sortSpec{columns: []string{"because.score"}}, true
 	}
 	if q.homeTrending && q.Sort == SortOrder {
-		return sortSpec{columns: []string{"trending.position"}}, true
+		return sortSpec{columns: []string{idOrder(q.trendingIDs)}}, true
 	}
 	if q.homeRecent && q.Sort == SortAdded {
 		return sortSpec{columns: []string{"max(i.added_at, ifnull(i.last_child_added_at, 0))"}}, true
 	}
 	if q.homeIDs != nil && q.Sort == SortOrder {
-		order := "CASE i.id WHEN -1 THEN -1"
-		for n, id := range q.homeIDs {
-			order += fmt.Sprintf(" WHEN %d THEN %d", id, n)
-		}
-		return sortSpec{columns: []string{order + " ELSE -1 END"}}, true
+		return sortSpec{columns: []string{idOrder(q.homeIDs)}}, true
 	}
 	if q.Sort == SortOrder && q.Collection != "" {
 		return sortSpec{columns: []string{`(SELECT r.position FROM item_relations r WHERE r.item_id =
