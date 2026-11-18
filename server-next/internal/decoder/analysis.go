@@ -48,6 +48,9 @@ type AnalysisSpec struct {
 	AudioSourceRate                   int
 	AudioPriming                      int64
 	AudioBitDepth, AudioBitrate       int
+	// Joined says the input is a title in several files: the concat list inputbridge.OpenParts
+	// serves, read as one title on the title's own clock.
+	Joined bool
 }
 
 func AnalysisArgs(input string, s AnalysisSpec) ([]string, error) {
@@ -91,12 +94,17 @@ func AnalysisArgs(input string, s AnalysisSpec) ([]string, error) {
 		// Every decoded frame, priming included: the facts' trim is relative to it.
 		args = append(args, "-flags2", "+skip_manual")
 	}
+	formats := "mov,matroska,mp3,flac,ogg,wav,aac,mpegts,avi,aiff,asf,ape,wv,tta,amr,w64,caf,dsf,iff,mpc,mpc8,mpeg,mpegvideo"
+	if s.Joined {
+		formats += ",concat"
+		args = append(args, "-f", "concat", "-safe", "0")
+	}
 	args = append(
 		args,
 		"-protocol_whitelist",
 		"http,tcp",
 		"-format_whitelist",
-		"mov,matroska,mp3,flac,ogg,wav,aac,mpegts,avi,aiff,asf,ape,wv,tta,amr,w64,caf,dsf,iff,mpc,mpc8,mpeg,mpegvideo",
+		formats,
 		"-probesize",
 		"8388608",
 		"-analyzeduration",

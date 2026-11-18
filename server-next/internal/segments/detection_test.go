@@ -50,6 +50,7 @@ func TestDetectionJobFindsSharedIntrosAndCredits(t *testing.T) {
 	}
 	intro, credits := segmentsynth.Theme(11), segmentsynth.Theme(12)
 	colds, bodies, tails := []float64{0, 75, 130}, []float64{110, 100, 200}, []float64{0, 20, 0}
+	const splitAt = 150 // seconds into the second episode, in its body
 	for i := range 3 {
 		programme := segmentsynth.Programme{}
 		if colds[i] > 0 {
@@ -62,16 +63,25 @@ func TestDetectionJobFindsSharedIntrosAndCredits(t *testing.T) {
 		} else {
 			programme = append(programme, segmentsynth.Part{Signal: segmentsynth.Silence(), Length: 2})
 		}
-		pcm := filepath.Join(root, "episode.pcm")
-		if err := os.WriteFile(pcm, programme.Render(16000), 0600); err != nil {
-			t.Fatal(err)
+		// The second episode is in two files, cut in its body: it is measured as one episode, and
+		// its markers are places in the whole episode.
+		sound := programme.Render(16000)
+		files := map[string][]byte{fmt.Sprintf("Example Show S01E%02d.mkv", i+1): sound}
+		if i == 1 {
+			cut := splitAt * 16000 * 2
+			files = map[string][]byte{"Example Show S01E02 - pt1.mkv": sound[:cut], "Example Show S01E02 - pt2.mkv": sound[cut:]}
 		}
-		file := filepath.Join(season, fmt.Sprintf("Example Show S01E%02d.mkv", i+1))
-		args := []string{"-nostdin", "-v", "error", "-f", "lavfi", "-i", fmt.Sprintf("testsrc2=size=320x180:rate=5:duration=%.3f", programme.Duration()),
-			"-f", "s16le", "-ar", "16000", "-ac", "1", "-i", pcm, "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "38",
-			"-g", "50", "-c:a", "aac", "-b:a", "96k", "-ac", "2", "-ar", "48000", "-shortest", file}
-		if out, err := exec.Command(ffmpeg, args...).CombinedOutput(); err != nil {
-			t.Fatalf("fixture: %v %s", err, out)
+		for name, pcm := range files {
+			raw := filepath.Join(root, "episode.pcm")
+			if err := os.WriteFile(raw, pcm, 0600); err != nil {
+				t.Fatal(err)
+			}
+			args := []string{"-nostdin", "-v", "error", "-f", "lavfi", "-i", fmt.Sprintf("testsrc2=size=320x180:rate=5:duration=%.3f", float64(len(pcm))/32000),
+				"-f", "s16le", "-ar", "16000", "-ac", "1", "-i", raw, "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "38",
+				"-g", "50", "-c:a", "aac", "-b:a", "96k", "-ac", "2", "-ar", "48000", "-shortest", filepath.Join(season, name)}
+			if out, err := exec.Command(ffmpeg, args...).CombinedOutput(); err != nil {
+				t.Fatalf("fixture: %v %s", err, out)
+			}
 		}
 	}
 	d, err := db.Open(ctx, filepath.Join(root, "main.db"))
@@ -83,7 +93,7 @@ func TestDetectionJobFindsSharedIntrosAndCredits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stats, err := (&scan.Scanner{DB: d, Prober: scan.FileProber{}}).Scan(ctx, lib); err != nil || stats.Probed != 3 {
+	if stats, err := (&scan.Scanner{DB: d, Prober: scan.FileProber{}}).Scan(ctx, lib); err != nil || stats.Probed != 4 {
 		t.Fatal(stats, err)
 	}
 	docs, _, err := settings.Open(ctx, d)
@@ -100,6 +110,9 @@ func TestDetectionJobFindsSharedIntrosAndCredits(t *testing.T) {
 		t.Fatal(entries, err)
 	}
 	for _, e := range entries {
+		if parts := map[bool]int{true: 2, false: 1}[e.Number == 2]; e.Parts != parts {
+			t.Fatal("episode", e.Number, "is in", e.Parts, "files, want", parts)
+		}
 		markers, err := d.SegmentMarkers(ctx, e.MediaID)
 		if err != nil || e.State != "complete" {
 			t.Fatal(e, markers, err)
@@ -112,6 +125,10 @@ func TestDetectionJobFindsSharedIntrosAndCredits(t *testing.T) {
 			kinds[m.Kind] = true
 			if m.Kind == db.MarkerIntro && math.Abs(float64(m.StartMS)-colds[e.Number-1]*1000) > 1000 {
 				t.Fatal("intro outside the known opening", e.Number, m)
+			}
+			// Credits start after the cold open, the 50 s intro, a second of silence and the body.
+			if credits := (colds[e.Number-1] + 51 + bodies[e.Number-1]) * 1000; m.Kind == db.MarkerCredits && math.Abs(float64(m.StartMS)-credits) > 2000 {
+				t.Fatal("credits outside the known closing", e.Number, m)
 			}
 		}
 		if !kinds[db.MarkerIntro] || !kinds[db.MarkerCredits] {
