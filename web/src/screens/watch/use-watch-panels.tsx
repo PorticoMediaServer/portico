@@ -137,7 +137,11 @@ export function useWatchPanels(binding:WatchBindings|undefined,snapshot:WebPlayb
  if(infoReady)available.push('info');
  // Frame 6: one note per playback for Dolby Vision, HDR or Atmos lost here, unless
  // this device's own "Picture and sound notices" setting is off.
- const loss=snapshot?.session?.playbackInfo?watchLossNotice(i18n,snapshot.session.playbackInfo,snapshot.session.observedPlayback,String(snapshot.fence?.playback??snapshot.session.id)):undefined;
+ // A film split into parts that cannot be joined plays its first part only: the server says so, and the note is
+ // shown even with those notices off, because the viewer would otherwise see the film stop part-way without a word.
+ const partNotice=snapshot?.session?.presentation.notice;
+ const loss=snapshot?.session&&partNotice?Object.freeze({playbackId:String(snapshot.fence?.playback??snapshot.session.id),cause:'automatic' as const,kind:'picture' as const,loss:partNotice,replacement:''})
+  :snapshot?.session?.playbackInfo?watchLossNotice(i18n,snapshot.session.playbackInfo,snapshot.session.observedPlayback,String(snapshot.fence?.playback??snapshot.session.id)):undefined;
  return {available,render:panel=>{
    const live=panel.snapshot;
    if(panel.panel==='info'&&live.fence?.kind==='queue'&&live.session?.playbackInfo&&live.subject)
@@ -154,7 +158,7 @@ export function useWatchPanels(binding:WatchBindings|undefined,snapshot:WebPlayb
   ...(snapshot?.playback.phase==='error'&&canManage&&ownerContext?{failureOwner:playingFailureOwner(snapshot,i18n,snapshot.subject?playbackIdentity(snapshot.subject,'full',i18n).title:'')}:{}),
   ...(failureBody==='web.player.error.streamLimit'
     ?{streamLimit:<WatchStreamLimitSessions api={context.api} isCurrent={failedCurrent} excludeSessionId={snapshot.session?.id} reportError={binding.reportError}/>}:{}),
-  ...(loss?{loss:{notice:loss,enabled:deviceDocument?.values['lossNotices']!==false}}:{}),
+  ...(loss?{loss:{notice:loss,enabled:!!partNotice||deviceDocument?.values['lossNotices']!==false}}:{}),
   together:<WatchRoomPill binding={together} runtime={binding.runtime} snapshot={snapshot} reportError={binding.reportError}/>,
   more:canStartRoom&&together?[{id:'watch-together',label:i18n.t('web.settings.together'),action:()=>setStartRoom(true)}]:[],
   prompts:canStartRoom&&together?<WatchStartRoom binding={together} open={startRoom} onOpenChange={setStartRoom}/>:undefined,

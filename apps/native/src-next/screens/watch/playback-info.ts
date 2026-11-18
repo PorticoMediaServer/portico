@@ -7,7 +7,9 @@ import type {NativePlaybackAdapter, NativePlaybackReadLifetime} from '../../plat
 
 /** tv-player/phone-player 5 and 13: one quiet note about what the committed plan lost.
  * `message` is the plain one-line union; `lead`/`detail` are its two drawn halves. */
-export type NativeWatchNotice = Readonly<{message: string; lead: string; detail: string; icon: 'picture' | 'sound'}>;
+/** `required`: the server's own sentence about what cannot play (a film in parts that cannot be joined), shown even
+ * with "Picture and sound notices" off, since the viewer would otherwise see the film stop part-way without a word. */
+export type NativeWatchNotice = Readonly<{message: string; lead: string; detail: string; icon: 'picture' | 'sound'; required?: true}>;
 
 const featureKeys: Readonly<Record<PlaybackLoss['feature'], MessageId>> = {
   dolbyVision: 'next.kit.hdr.dolbyVision', hdr10plus: 'next.kit.hdr.hdr10Plus', hdr: 'next.kit.hdr',
@@ -93,7 +95,9 @@ export async function readNativePlaybackInfo(
     const comparison = playbackInfoProjection(session.playbackInfo, session.observedPlayback, words);
     if (!current()) return;
     // FMT-22: the notice and the comparison share one reconciliation of this occurrence's losses.
-    const notice = nativeWatchLossNotice({losses: reconciledPlaybackLosses(session.playbackInfo, session.observedPlayback)});
+    const part = session.presentation.notice;
+    const notice = part ? Object.freeze({message: part, lead: part, detail: '', icon: 'picture' as const, required: true as const})
+      : nativeWatchLossNotice({losses: reconciledPlaybackLosses(session.playbackInfo, session.observedPlayback)});
     return Object.freeze({fence: captured, revision: String(session.presentation.generation), comparison, ...(notice ? {notice} : {})});
   } catch (error) {
     if (!current()) return;
