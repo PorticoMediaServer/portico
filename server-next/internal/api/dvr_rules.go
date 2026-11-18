@@ -256,13 +256,15 @@ func applyRule(rule *db.RecordingRule, req DvrRuleSave) error {
 	if req.Priority != nil {
 		rule.Priority = max(min(*req.Priority, 1), -1)
 	}
-	if req.PadBeforeMs != nil {
-		d := time.Duration(max(*req.PadBeforeMs, 0)) * time.Millisecond
-		rule.PadBefore = &d
+	before, after, err := padding(req.PadBeforeMs, req.PadAfterMs)
+	if err != nil {
+		return err
 	}
-	if req.PadAfterMs != nil {
-		d := time.Duration(max(*req.PadAfterMs, 0)) * time.Millisecond
-		rule.PadAfter = &d
+	if before != nil {
+		rule.PadBefore = before
+	}
+	if after != nil {
+		rule.PadAfter = after
 	}
 	if req.Paused != nil {
 		rule.Paused = *req.Paused
