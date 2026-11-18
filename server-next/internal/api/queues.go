@@ -43,6 +43,10 @@ type Queue struct {
 	// AutomaticAdvances counts the entries that played to their end one after another without
 	// the person touching the queue: what "Still watching?" goes by.
 	AutomaticAdvances int `json:"automaticAdvances"`
+	// PassoutCheckDue: ask "Still watching?" before the next entry. A video queue's, when the
+	// profile has it on (playback.passoutProtection) and automaticAdvances has reached the
+	// episodes it names (playback.passoutAfterEpisodes).
+	PassoutCheckDue bool `json:"passoutCheckDue,omitempty"`
 }
 
 func etag(h http.Header, revision string) { h.Set("ETag", `"`+revision+`"`) }
@@ -216,10 +220,13 @@ func queueError(err error) error {
 	return playbackError(err)
 }
 
-func (s *Server) queueOut(q db.Queue) Queue {
+func (s *Server) queueOut(r *http.Request, q db.Queue) Queue {
 	out := Queue{ID: q.PublicID, Revision: strconv.FormatInt(q.Revision, 10), Medium: q.Medium, Total: q.Total,
 		RemainingCount: q.Remaining, RemainingMs: q.RemainingMS, Repeat: q.Repeat, Shuffle: q.Shuffled, Refills: q.Selection != "",
 		AutomaticAdvances: s.queues.Advances(q.PublicID)}
+	if q.Medium == "video" {
+		out.PassoutCheckDue = s.passoutDue(r, out.AutomaticAdvances)
+	}
 	if q.CurrentEntry != 0 {
 		out.Current = &QueueCurrent{EntryID: playqueue.EntryID(q.CurrentEntry), Position: q.CurrentIndex}
 	}
@@ -294,7 +301,7 @@ func (s *Server) createQueue(r *http.Request, req QueueCreate) (QueueCreated, er
 		return QueueCreated{}, queueError(err)
 	}
 	window, _, err := s.window(r, q, windowBefore, windowAfter)
-	return QueueCreated{Queue: s.queueOut(q), Window: window}, err
+	return QueueCreated{Queue: s.queueOut(r, q), Window: window}, err
 }
 
 // listQueues answers the queues this profile has on the device asking: what an app shows
@@ -308,14 +315,14 @@ func (s *Server) listQueues(r *http.Request, _ None) (Page[Queue], error) {
 	queues, err := s.db.DeviceQueues(r.Context(), c.Viewer, device.ID)
 	out := Page[Queue]{Items: make([]Queue, 0, len(queues))}
 	for _, q := range queues {
-		out.Items = append(out.Items, s.queueOut(q))
+		out.Items = append(out.Items, s.queueOut(r, q))
 	}
 	return out, err
 }
 
 func (s *Server) getQueue(r *http.Request, _ None) (Queue, error) {
 	q, err := s.db.Queue(r.Context(), s.playbackCaller(r).Viewer, r.PathValue("id"))
-	return s.queueOut(q), queueError(err)
+	return s.queueOut(r, q), queueError(err)
 }
 
 // queueEntries pages through a queue: from and limit, or around=current with before and after.
@@ -357,7 +364,7 @@ func (s *Server) addToQueue(r *http.Request, req QueueAdd) (Queue, error) {
 		place.After = playqueue.ParseEntryID(req.After)
 	}
 	q, err := s.queues.Add(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, req.Source, place)
-	return s.queueOut(q), queueError(err)
+	return s.queueOut(r, q), queueError(err)
 }
 
 func (s *Server) removeFromQueue(r *http.Request, _ None) (Queue, error) {
@@ -366,7 +373,7 @@ func (s *Server) removeFromQueue(r *http.Request, _ None) (Queue, error) {
 		return Queue{}, err
 	}
 	q, err := s.queues.Remove(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, playqueue.ParseEntryID(r.PathValue("entryId")))
-	return s.queueOut(q), queueError(err)
+	return s.queueOut(r, q), queueError(err)
 }
 
 func (s *Server) moveInQueue(r *http.Request, req QueueMove) (Queue, error) {
@@ -384,7 +391,7 @@ func (s *Server) moveInQueue(r *http.Request, req QueueMove) (Queue, error) {
 		after = playqueue.ParseEntryID(req.After)
 	}
 	q, err := s.queues.Move(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, playqueue.ParseEntryID(r.PathValue("entryId")), before, after)
-	return s.queueOut(q), queueError(err)
+	return s.queueOut(r, q), queueError(err)
 }
 
 func (s *Server) changeQueue(r *http.Request, req QueueChange) (Queue, error) {
@@ -393,7 +400,7 @@ func (s *Server) changeQueue(r *http.Request, req QueueChange) (Queue, error) {
 		return Queue{}, err
 	}
 	q, err := s.queues.Change(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, req.Repeat, req.Shuffle)
-	return s.queueOut(q), queueError(err)
+	return s.queueOut(r, q), queueError(err)
 }
 
 func (s *Server) advanceQueue(r *http.Request, req QueueAdvance) (Queue, error) {
@@ -416,7 +423,7 @@ func (s *Server) advanceQueue(r *http.Request, req QueueAdvance) (Queue, error) 
 		}
 	}
 	q, err := s.queues.Advance(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, req.Reason, entry, from, req.SessionID)
-	return s.queueOut(q), queueError(err)
+	return s.queueOut(r, q), queueError(err)
 }
 
 func (s *Server) deleteQueue(r *http.Request, _ None) (None, error) {
@@ -438,7 +445,7 @@ func (s *Server) commitNext(r *http.Request, req QueueCommit) (QueueCommitted, e
 	if err != nil {
 		return QueueCommitted{}, queueError(err)
 	}
-	return QueueCommitted{Queue: s.queueOut(q), Session: s.sessionOut(session)}, nil
+	return QueueCommitted{Queue: s.queueOut(r, q), Session: s.sessionOut(session)}, nil
 }
 
 func (s *Server) saveQueue(r *http.Request, req QueueSave) (SavedPlaylist, error) {

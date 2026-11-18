@@ -3254,6 +3254,7 @@ export interface Queue {
   nextEntryId?: string;
   refills?: boolean;
   automaticAdvances: number;
+  passoutCheckDue?: boolean;
 }
 
 export interface QueueAdd {

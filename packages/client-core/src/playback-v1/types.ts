@@ -353,8 +353,9 @@ export function consecutiveOnAlbum(current: QueueEntry | undefined, next: QueueE
 }
 
 /** A queue as the server sends it. What the server does not send (segments, a shuffle seed) is
- * filled with what an app needs from it: the next entry from `nextEntryId`, and the count of
- * automatic advances that "Still watching?" goes by. */
+ * filled with what an app needs from it: the next entry from `nextEntryId`, the count of
+ * automatic advances, and whether "Still watching?" is due before the next entry, which the
+ * server works out from the profile's settings. */
 export function parseQueue(v: unknown): QueueHeader {
   if (!obj(v)) throw new ContractError('queue');
   const total = v.total;
@@ -370,7 +371,7 @@ export function parseQueue(v: unknown): QueueHeader {
     segments: Object.freeze([]),
     next: Object.freeze(next ? {entryId: next, available: true, reason: 'ready' as const} : {entryId: null, available: false, reason: 'end' as const}),
     // The rest of what happens at the end is the player's, from the profile's settings.
-    postPlay: Object.freeze({autoplay: true, countdownSeconds: 10, passoutCheckDue: false, automaticAdvances: num(v.automaticAdvances), startDuringCredits: false}),
+    postPlay: Object.freeze({autoplay: true, countdownSeconds: 10, passoutCheckDue: v.passoutCheckDue === true, automaticAdvances: num(v.automaticAdvances), startDuringCredits: false}),
   });
 }
 
