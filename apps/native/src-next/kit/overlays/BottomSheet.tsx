@@ -4,7 +4,7 @@ import {Modal, ScrollView, StyleSheet, TextInput, View, useWindowDimensions} fro
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {cancelAnimation, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {focusSpec, spacing} from '@portico/design';
+import {focusSpec, menuSpec, spacing, tvFocusRoom} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Button} from '../controls/Button';
 import {ListEdgeFade, useListEdges} from '../layout/ListEdgeFade';
@@ -129,11 +129,14 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
   const close = <Button testID={testID ? `${testID}-close` : undefined} focusId="close" ref={closeRef} variant="text" size="small" style={theme.isTV ? undefined : {height: 24, paddingHorizontal: 0}} textStyle={{color: theme.colors.textSecondary}} hitSlop={theme.isTV ? undefined : 10} onPress={() => dismiss('close-button')}>{defaultI18n.t('action.done')}</Button>;
   const edges = useListEdges(spacing.xl);
   if (!present || !paint.visible) return null;
-  // R1: a TV side sheet's rows grow on focus and draw the ring outside them (detail-tv 5c); the scroll box leaves room
-  // for both so neither is cut.
-  const tvRing = theme.isTV && side ? Math.ceil((sideWidth - tvPadding.left - tvPadding.right) * (focusSpec.scale.button.tv - 1) / 2) + focusSpec.offsetOuter.tv + focusSpec.ringWidth.tv : 0;
+  // R1: a TV side sheet's rows grow on focus and draw the ring and its glow outside them (detail-tv 5c); the scroll box
+  // gives a focused row that room (`tvFocusRoom`), as far as the sheet's own inset allows, and takes it back.
+  const focusRoom = theme.isTV && side ? tvFocusRoom(sideWidth - tvPadding.left - tvPadding.right, menuSpec.row.minHeight.tv, 'button') : undefined;
+  const tvRing = focusRoom ? focusRoom.side : 0;
+  // The first row keeps its place: the ring's gap it always had under the header stays; the rest is taken back.
+  const room = {left: Math.min(tvRing, tvPadding.left), right: Math.min(tvRing, tvPadding.right), top: focusRoom?.top ?? 0}, ringGap = focusSpec.offsetOuter.tv + focusSpec.ringWidth.tv;
   // A TV side sheet's list that runs past the sheet fades into it at that edge, as the player panel's does (tv-focus 36).
-  const body = <View style={[styles.body, contentStyle]}>{scrollable ? <ScrollView ref={scrollRef} fadingEdgeLength={tvRing ? edges.scroll.fadingEdgeLength : undefined} onLayout={event => {revealFocusedInput(); if (tvRing) edges.scroll.onLayout?.(event);}} onScroll={event => {scrollOffset.current = event.nativeEvent.contentOffset.y; if (tvRing) edges.scroll.onScroll?.(event);}} scrollEventThrottle={16} onContentSizeChange={(width, height) => {setBodyHeight(Math.max(0, height - contentPadding)); if (tvRing) edges.scroll.onContentSizeChange?.(width, height);}} scrollEnabled={page || side || settled === heights.length - 1} keyboardShouldPersistTaps="handled" style={tvRing ? {marginHorizontal: -tvRing} : undefined} contentContainerStyle={{paddingBottom: page ? 0 : contentPadding, ...(tvRing ? {paddingHorizontal: tvRing, paddingTop: tvRing} : {})}}>{children}</ScrollView> : <View style={fitContent ? undefined : [styles.body, {paddingBottom: page || side ? 0 : contentPadding}]} onLayout={event => setBodyHeight(event.nativeEvent.layout.height)}>{children}</View>}
+  const body = <View style={[styles.body, contentStyle]}>{scrollable ? <ScrollView ref={scrollRef} fadingEdgeLength={tvRing ? edges.scroll.fadingEdgeLength : undefined} onLayout={event => {revealFocusedInput(); if (tvRing) edges.scroll.onLayout?.(event);}} onScroll={event => {scrollOffset.current = event.nativeEvent.contentOffset.y; if (tvRing) edges.scroll.onScroll?.(event);}} scrollEventThrottle={16} onContentSizeChange={(width, height) => {setBodyHeight(Math.max(0, height - contentPadding)); if (tvRing) edges.scroll.onContentSizeChange?.(width, height);}} scrollEnabled={page || side || settled === heights.length - 1} keyboardShouldPersistTaps="handled" style={tvRing ? {marginLeft: -room.left, marginRight: -room.right, marginTop: ringGap - room.top} : undefined} contentContainerStyle={{paddingBottom: page ? 0 : contentPadding, ...(tvRing ? {paddingLeft: room.left, paddingRight: room.right, paddingTop: room.top} : {})}}>{children}</ScrollView> : <View style={fitContent ? undefined : [styles.body, {paddingBottom: page || side ? 0 : contentPadding}]} onLayout={event => setBodyHeight(event.nativeEvent.layout.height)}>{children}</View>}
     {tvRing > 0 && edges.edges.top && <ListEdgeFade edge="top" length={spacing.xl} opacity={1} color={theme.colors.raised}/>}
     {tvRing > 0 && edges.edges.bottom && <ListEdgeFade edge="bottom" length={spacing.xl} opacity={1} color={theme.colors.raised}/>}</View>;
   const surface = <TVDesignCanvas><View pointerEvents={paint.interactive ? 'auto' : 'none'} accessibilityElementsHidden={!paint.interactive} importantForAccessibility={paint.interactive ? 'auto' : 'no-hide-descendants'} style={styles.root} onLayout={event => setWindowHeight(event.nativeEvent.layout.height)}><View testID={testID ? `${testID}-keyboard-boundary` : undefined} style={[styles.root, {marginBottom: keyboardInset}]} accessibilityViewIsModal={!page} onAccessibilityEscape={() => {if (!page) dismiss('escape');}}>

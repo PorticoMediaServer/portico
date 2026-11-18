@@ -10,7 +10,7 @@ import {reconcileRowSlots, indexRowSlots, visibleRowSlots, rowNeedsPage, type Ro
 import {useRowPageBoundary} from '../focus/page-boundary';
 import {useReplacementRefocus} from '../focus/replacement-refocus';
 import {useFocusAnchor} from './FocusAnchor';
-import {frameSpec} from '@portico/design';
+import {frameSpec, tvFocusRoom} from '@portico/design';
 import {FrameRhythm} from '../frames/metrics';
 import {captionItemHeight} from './model';
 import {MotionItem} from './MotionItem';
@@ -131,8 +131,13 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
   // of its own: its box is its heading, `rowHeadingGap`, and its cards with their captions. A screen not yet on a frame
   // keeps the padding its own spacing was written against, until Stage 2 moves it.
   const framed = useContext(FrameRhythm), bleed = framed ? frameSpec.rhythm.rowBleed[theme.form] : undefined;
-  const top = theme.isTV ? Math.ceil(itemHeight * (theme.spec.focus.scale.card.tv - 1) / 2 + (theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv) * theme.spec.focus.scale.card.tv) : bleed ?? theme.spec.shelf.phonePaddingTop;
-  const bottom = theme.isTV ? Math.max(bleed ?? 14, top) : bleed ?? theme.spec.shelf.phonePaddingBottom;
+  // R1, TV: the track gives a focused card its growth, ring and glow (`tvFocusRoom`), so the scroller never cuts them.
+  // An unframed TV screen keeps the bottom its spacing was written against (the growth and ring room, at least 14) and
+  // the scroller takes back the rest.
+  const room = theme.isTV ? tvFocusRoom(itemWidth, itemHeight, 'card') : undefined;
+  const kept = room ? Math.max(bleed ?? 14, Math.ceil(itemHeight * (theme.spec.focus.scale.card.tv - 1) / 2 + (theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv) * theme.spec.focus.scale.card.tv)) : 0;
+  const top = room ? room.top : bleed ?? theme.spec.shelf.phonePaddingTop;
+  const bottom = room ? room.bottom : bleed ?? theme.spec.shelf.phonePaddingBottom;
   const naturalExtent = leading + Math.max(0, rowIndex.length * stride - (stride - itemWidth)) + trailing;
   // Every real TV slot, including a short row's last card, must be able to
   // reach the left safe edge. This is blank track space, never a focus target.
@@ -229,7 +234,7 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
     </View>}
     <RowRegion focus={theme.isTV ? focus : undefined} order={activeOrder} entry={activeEntry}
       enabled={isFocusable && activeOrder.length === 0 ? false : undefined}>
-    <TVRow><Animated.ScrollView horizontal ref={anchor.scrollRef} style={[framed ? {marginTop: -top, marginBottom: -bottom} : theme.isTV ? {marginTop: -top} : undefined, anchor.scrollStyle]} onLayout={event => setWidth(event.nativeEvent.layout.width)}
+    <TVRow><Animated.ScrollView horizontal ref={anchor.scrollRef} style={[framed ? {marginTop: -top, marginBottom: -bottom} : theme.isTV ? {marginTop: -top, marginBottom: kept - bottom} : undefined, anchor.scrollStyle]} onLayout={event => setWidth(event.nativeEvent.layout.width)}
       onScroll={onScroll} scrollEventThrottle={16} showsHorizontalScrollIndicator={false} onScrollBeginDrag={anchor.stop}
       contentOffset={scrollMemory ? {x: initialOffset.current, y: 0} : undefined}
       onScrollEndDrag={scrollMemory ? event => publishOffset(event.nativeEvent.contentOffset.x) : undefined}
