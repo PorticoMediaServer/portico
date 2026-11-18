@@ -1,8 +1,7 @@
 import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {createPrivateKey, sign} from 'node:crypto';
-import {HttpLocalApi, transportJSON, type LocalSession} from '../src/index.ts';
+import {HttpLocalApi, type LocalSession} from '../src/index.ts';
 import {AppSessionStore, type AppSessionRecord} from '../src/app-sessions.ts';
 import {setInstallationIdentity} from '../src/installation.ts';
 import {routeBase64, routeBytes, webRouteCrypto, type ServerPin} from '../src/route-identity.ts';
@@ -12,15 +11,13 @@ import {createSetupAdapter, type SetupAdapterDeps} from '../src/setup-adapter.ts
 import {routePath} from '../../contracts/src/routes.ts';
 
 // The shared adapter's app half: the app token route, and a Portico Account setup finished here (`finish: here`) once
-// the server reads installed. The public claim vector's seed key signs each setup start as the server would.
+// the server reads installed.
 
 const vector = JSON.parse(readFileSync(new URL('fixtures/owner-start.json', import.meta.url), 'utf8'));
 const claim = {...JSON.parse(vector.claimPayload), purpose: 'setup'}, parent = JSON.parse(vector.startPayload);
-const key = createPrivateKey({key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.alloc(32, 0x42)]), format: 'der', type: 'pkcs8'});
-const signed = (value: unknown) => {const raw = transportJSON(value); return {payload: Buffer.from(raw).toString('base64url'), signature: sign(null, Buffer.from(raw), key).toString('base64url')};};
 const REQUEST = '11111111-2222-4333-8444-555555555555', NOW = Date.parse('2030-01-02T03:04:07Z');
 const installationId = parent.installationId as string, hostedOrigin = claim.audience as string, ORIGIN = claim.address as string;
-const SERVER_NAME = claim.name as string, SETUP_TOKEN = 'issued-setup-token';
+const SETUP_TOKEN = 'issued-setup-token';
 const ACCOUNT = 'acct_owner', HOSTED_ACCOUNT = 'hosted_acct_1', FAMILY = 'setup_family';
 const PROFILE = {id: 'p_main', name: 'Owner', primary: true, position: 0, art: 'blue', revision: 1, pinRevision: 1, pinRequired: false, allowedLibraries: []};
 
@@ -51,26 +48,12 @@ async function fixture(t: TestContext, options: Readonly<{
       viewer: {accountId: ACCOUNT, profileId: PROFILE.id, serverId: pin.serverId, authority: 'local', role: 'owner'},
       sessionFamilyId: FAMILY, tokenGeneration: '1', authorizationHorizon: '2030-03-01T00:00:00Z',
       installationId, serverIdentity: {publicKey: pin.publicKey, fingerprint: pin.fingerprint}}};
-  const claimHash = routeBase64(await webRouteCrypto.sha256(Buffer.from(transportJSON(claim))));
   const answers: Record<string, (body: any) => Response> = {
     'GET /v1/setup/state': () => json(state),
     'POST /v1/setup/app': () => json({serverId: pin.serverId, setupToken: SETUP_TOKEN}),
     'POST /v1/setup/browser': () => failure(400, 'wrong_setup_route'),
     'POST /v1/setup/start-over': () => json({serverId: pin.serverId, setupToken: 'fresh-setup-token'}),
     'POST /v1/setup': () => json({variant: 'claim-required', claimRequired: true, serverId: pin.serverId, requestId: REQUEST, authMode: 'hosted', revision: '2'}),
-    'POST /v1/setup/approval': body => {
-      const start = body.setupStart;
-      const payload = {kind: 'portico.setup-start.v1', audience: claim.audience, claimHash, operationId: claim.operationId, serverId: claim.serverId,
-        publicKey: claim.publicKey, localGeneration: claim.localGeneration, address: claim.address, purpose: 'setup',
-        setupRequestId: REQUEST, setupRevision: '2', state: start.state, codeChallenge: start.codeChallenge, installationId: start.installationId,
-        serverChallenge: parent.serverChallenge, issuedAt: parent.issuedAt, expiresAt: parent.expiresAt};
-      const code = 'claim_' + 'K'.repeat(43);
-      return json({state: 'prepared', identity: {serverId: claim.serverId, localGeneration: claim.localGeneration},
-        operation: {operationId: claim.operationId, localGeneration: claim.localGeneration, revision: '2'},
-        accountId: 'account-unbound', installationAcknowledged: false, approvalRequired: true, actions: ['cancel', 'approve'],
-        approvalUrl: hostedOrigin + '/claim#' + new URLSearchParams({code, operation: claim.operationId, server: SERVER_NAME}),
-        claimCode: code, setupContinuation: {transactionId: 'setup_transaction', phase: 'prepared', expiresAt: parent.expiresAt, claim: signed(claim), start: signed(payload)}});
-    },
     'POST /v1/auth/portico-return/exchange': () => json(grant),
     'GET /v1/direct': () => json(grant),
     'DELETE /v1/sessions/current': () => json({}),

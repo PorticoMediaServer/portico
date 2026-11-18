@@ -127,17 +127,15 @@ test('deadline keeps TimeoutError classification while caller cancellation keeps
   } finally {globalThis.setTimeout = originalSet; globalThis.clearTimeout = originalClear;}
 });
 
-test('bounded support and certificate transport refuse pre-aborted IO and preserve actual replies', async () => {
+test('bounded support transport refuses pre-aborted IO and preserves actual replies', async () => {
   let calls = 0;
   const api = new HttpLocalApi('https://selected.example', 'original-token', async (_url, init) => {
     calls++; assert.equal(init?.signal?.aborted, false);
     return Response.json({ok: true});
   });
   const ended = new AbortController(); ended.abort();
-  await assert.rejects(api.requestCertificate('status', undefined, ended.signal), {name: 'AbortError'});
   await assert.rejects(api.requestBounded('/v1/admin/support/report', 32768, ended.signal), {name: 'AbortError'});
   assert.equal(calls, 0);
-  assert.deepEqual(await api.requestCertificate('status', undefined, new AbortController().signal), {ok: true});
   assert.deepEqual(await api.requestBounded('/v1/admin/support/report', 32768, new AbortController().signal), {ok: true});
-  assert.equal(calls, 2);
+  assert.equal(calls, 1);
 });

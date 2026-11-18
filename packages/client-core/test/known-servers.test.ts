@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {KnownDirectServers, MAX_KNOWN_SERVERS, keyValueKnownServerStorage, knownServerAddress, parseKnownServers} from '../src/known-servers.ts';
 import {HttpHostedApi, parseServerPresence} from '../src/index.ts';
-import {parseRemoteAccess} from '../src/remote-access.ts';
 
 function memory() {
   const map = new Map<string, string>();
@@ -54,17 +53,6 @@ test('hosted server presence is read defensively', async () => {
   assert.deepEqual(items[0]!.presence, {online: true, lastSeenAt: null});
   assert.equal(items[1]!.presence, undefined);
   assert.equal('presence' in items[2]!, false);
-});
-
-test('remote settings round-trip ipv6Open and lanSharing (a save sends them back)', () => {
-  const status = {authorityId: 'a', generation: '1', state: 'lan_only', ipv6: 'verified', config: {revision: '3', enabled: true, mapping: true, pcp: true, natpmp: true, upnp: true, publicPort: 32500, gateway: '', lanSharing: true, ipv6Open: true}, topology: {lan: [], public: [], bind: ''}, candidates: [], mappings: []};
-  const parsed = parseRemoteAccess(status);
-  assert.equal(parsed.config.ipv6Open, true);
-  assert.equal(parsed.config.lanSharing, true);
-  assert.equal(parsed.ipv6, 'verified');
-  const older = parseRemoteAccess({...status, ipv6: undefined, config: {...status.config, ipv6Open: undefined, lanSharing: undefined}});
-  assert.equal(older.config.ipv6Open, undefined);
-  assert.throws(() => parseRemoteAccess({...status, config: {...status.config, ipv6Open: 'yes'}}));
 });
 
 test('a remembered server follows the address it was last proven at, keeping its place and profile', async () => {

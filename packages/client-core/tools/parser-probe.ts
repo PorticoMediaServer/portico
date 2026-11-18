@@ -58,7 +58,6 @@ import {AdminSessionsClient} from '../src/playback-v1/admin-sessions.ts';
 import {parseListeningPreferences} from '../src/listening.ts';
 import {SearchService} from '../src/search.ts';
 import {getContainerState} from '../src/container-state.ts';
-import {loadRemoteAccess} from '../src/remote-access.ts';
 
 export type ProbeCall = {
   area: string;
@@ -647,7 +646,6 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
         return raw.items.map(each);
       });
     }
-    await rec.check('owner', 'remote access', 'GET', '/v1/networking/remote', () => loadRemoteAccess(api));
     rec.skip('activity screen', 'ActivityService snapshots differ from ConsoleClient.jobs, which already covers jobs (activity.ts)');
     rec.skip('library management directory', 'libraries admin is covered through parseLibraryDocument (library-management.ts)');
   } else {

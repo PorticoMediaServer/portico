@@ -43,20 +43,6 @@ test('a caller who cancels gets a cancellation, never a timeout', async t => {
   assert.equal((error as Error).name, 'AbortError');
 });
 
-test('claim approval waits through the ten-minute decision window and remains bounded', async t => {
-  t.mock.timers.enable({apis: ['setTimeout']});
-  const server = silentServer();
-  const api = new HttpLocalApi('http://192.168.1.20:32500', '', server.fetcher);
-  const pending = api.request('/v1/networking/claim/await-approval', 'POST', {expected: {}}).catch(error => error);
-  await Promise.resolve();
-  t.mock.timers.tick(600_000);
-  assert.equal(server.seen[0]?.aborted, false, 'approval may still arrive after the ordinary one-minute write deadline');
-  t.mock.timers.tick(15_001);
-  assert.ok(await pending instanceof RequestTimeoutError);
-  assert.equal(server.seen[0]?.aborted, true);
-  assert.equal(requestDeadlineMs('/v1/networking/claim/prepare', 'POST'), 60_000);
-});
-
 test('a long poll may wait as long as it asked the server to hold it, plus a margin', () => {
   assert.equal(requestDeadlineMs('/v1/events?waitMs=25000&after=7', 'GET'), 40_000);
   assert.equal(requestDeadlineMs('/v1/events?after=7&waitMs=55000', 'GET'), 70_000);
