@@ -1,5 +1,5 @@
 import React, {useMemo, useState} from 'react';
-import {Text, View} from 'react-native';
+import {Text, View, type LayoutChangeEvent} from 'react-native';
 import {defaultI18n, formatMessage} from '../../../../../../packages/i18n/src';
 import {browseToolbarModel} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {libraryTabs} from '../../../../../../packages/client-core/src/presentation/library-tabs';
@@ -62,10 +62,15 @@ const genres = [['genreAnimation', 'titles14', 'p-spirited'], ['genreSciFi', 'ti
 /** phone-app 7: a touch tile fans two posters at its right; TV draws the backdrop. */
 const fans = ['spirited-away', 'inside-out', 'interstellar', 'dune', 'blade-runner', 'alien', 'the-dark-knight', 'barbie'];
 const fan = (index: number) => [poster(fans[index % fans.length]!), poster(fans[(index + 3) % fans.length]!)];
+/** A grid's room: the window's estimate first, then what the row really gets (a tablet's page sits beside its rail). */
+function useRoom() {
+  const {frame} = useScale(), [room, setRoom] = useState(frame.width - frame.gutter - frame.rightGutter);
+  return [room, (event: LayoutChangeEvent) => setRoom(event.nativeEvent.layout.width)] as const;
+}
 function GenreTiles({count = 6}: {count?: number}) {
-  const {theme, frame, tv, phone} = useScale(), columns = phone ? 2 : tv ? 3 : 4, gap = theme.space.sm;
-  const width = (frame.width - frame.gutter - frame.rightGutter - gap * (columns - 1)) / columns;
-  return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
+  const {theme, frame, tv, phone} = useScale(), [room, measure] = useRoom(), columns = phone ? 2 : tv ? 3 : 4, gap = theme.space.sm;
+  const width = (room - gap * (columns - 1)) / columns;
+  return <View onLayout={measure} style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
     {genres.slice(0, count).map(([name, titles, art], index) => <GenreTile key={name} title={f(name)} caption={[fact('count', f(titles), 'supplement')]} variant="video" width={width} height={phone ? 84 : width * .42}
       backdrop={asset(`${art}.jpg`)} covers={fan(index)} onNavigate={none}/>)}
   </View>;
@@ -187,7 +192,7 @@ function ProgrammeBody() {
     <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{f('storySynopsis')}</Text>
     <View style={{gap: theme.space.xs}}>
       <Button icon="i-play" align="stretch" preferredFocus={tv} onPress={none}>{f('watchLive')}</Button>
-      <View style={{flexDirection: tv ? 'column' : 'row', flexWrap: 'wrap', gap: theme.space.xs}}>
+      <View style={{flexDirection: tv ? 'column' : 'row', flexWrap: tv ? undefined : 'wrap', gap: theme.space.xs}}>
         <Button variant="glass" icon="i-rec" iconColor={theme.colors.record} align={tv ? 'stretch' : undefined} onPress={none}>{f('recording')}</Button>
         <Button variant="glass" icon="i-repeat" align={tv ? 'stretch' : undefined} onPress={none}>{f('recordSeries')}</Button>
       </View>
@@ -389,9 +394,9 @@ const albums = [['after-hours', 'aAfterHours', 'rWeeknd'], ['damn', 'aDamn', 'rK
   ['hit-me-hard-and-soft', 'aHitMe', 'rBillie'], ['random-access-memories', 'aRam', 'rDaftPunk'], ['1989-taylor-s-version-deluxe', 'a1989', 'rTaylor'], ['thriller', 'aThriller', 'rJackson'], ['the-wall', 'aWall', 'rFloyd']] as const;
 /** Recently played: quick tiles two lines deep, as many across as tiles of about their own width fit, two to four (final3-desktop-12, phone-app 15a). */
 function RecentlyPlayed() {
-  const {theme, frame} = useScale(), gap = theme.space.sm, room = frame.width - frame.gutter - frame.rightGutter;
+  const {theme, frame} = useScale(), gap = theme.space.sm, [room, measure] = useRoom();
   const columns = Math.min(4, Math.max(2, Math.round((room + gap) / (frameSpec.quickTile.width[frame.form] + gap)))), width = (room - gap * (columns - 1)) / columns;
-  return <Section title={f('recentlyPlayed')}><View style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
+  return <Section title={f('recentlyPlayed')}><View onLayout={measure} style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
     {albums.slice(0, columns * 2).map(([id, name, by], index) => index === 0
       ? <QuickTile key={id} focusId={`frames-music-tile-${id}`} title={f(name)} artwork={album(id)} caption={[fact('by', f(by), 'identity')]} width={width} playing onPause={none} onNavigate={none}/>
       : <QuickTile key={id} focusId={`frames-music-tile-${id}`} title={f(name)} artwork={album(id)} caption={[fact('by', f(by), 'identity')]} width={width} onNavigate={none}/>)}
