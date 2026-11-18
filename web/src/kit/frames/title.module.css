@@ -130,7 +130,9 @@
 
 /* From 1024: the words sit over the art at the left; the action row follows the words (desktop-detail f1, f2). */
 @media (min-width: 1024px) {
-  .head { display: flex; flex-direction: column; justify-content: flex-end; min-height: var(--frame-hero-title-height); padding-bottom: var(--frame-hero-title-copy-bottom); box-sizing: border-box; }
+  /* The art box is at least 560 and grows with its words (kicker, tagline, credits): they start no higher than the page's
+     title top under the shell's bar, so a fuller title pushes the tabs down instead of rising under the bar (detail-desktop-1). */
+  .head { display: flex; flex-direction: column; justify-content: flex-end; min-height: var(--frame-hero-title-height); padding-top: calc(var(--shell-top, 0px) + var(--frame-title-top)); padding-bottom: var(--frame-hero-title-copy-bottom); box-sizing: border-box; }
   .art { position: absolute; inset: 0; }
   .top { display: none; }
   .copy { display: flex; flex-direction: column; gap: var(--space-sm); padding: 0 var(--g); text-align: left; }
