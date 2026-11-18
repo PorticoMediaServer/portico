@@ -32,7 +32,7 @@ func (e *Engine) videoParts(ctx context.Context, r playback.PlanRequest, remoteI
 	for _, part := range r.Version.Parts {
 		version := r.Version
 		version.FileID = part.FileID
-		path, place, partRemoteID, facts, err := e.source(ctx, version)
+		_, place, partRemoteID, facts, err := e.source(ctx, version)
 		if err != nil || partRemoteID != remoteID {
 			return nil, only, nil
 		}
@@ -60,7 +60,7 @@ func (e *Engine) videoParts(ctx context.Context, r playback.PlanRequest, remoteI
 				fmt.Fprintln(&shape, s.ColorTransfer, s.ColorPrimaries, s.Detail.DynamicRange, s.Detail.SampleRate, s.Channels, s.ChannelLayout)
 			}
 		}
-		parts = append(parts, streaming.JoinedPart{Path: path, Size: place.Size, Modified: time.Unix(0, place.ModifiedNS), DurationUS: length * 1000, Shape: shape.String(),
+		parts = append(parts, streaming.JoinedPart{Path: place.Path, Size: place.Size, Modified: time.Unix(0, place.ModifiedNS), DurationUS: length * 1000, Shape: shape.String(),
 			Remote: storage})
 	}
 	// The mixed-part filter joins sound only. Until video conversion supports

@@ -87,7 +87,7 @@ func (e *Engine) bookParts(ctx context.Context, r playback.PlanRequest, remoteID
 		if place.PacketLengthUS > 0 {
 			durationUS = place.PacketLengthUS
 		}
-		parts = append(parts, streaming.JoinedPart{Path: path, Size: place.Size, Modified: time.Unix(0, place.ModifiedNS), DurationUS: durationUS, Shape: shape,
+		parts = append(parts, streaming.JoinedPart{Path: place.Path, Size: place.Size, Modified: time.Unix(0, place.ModifiedNS), DurationUS: durationUS, Shape: shape,
 			Remote: storage})
 	}
 	return parts, nil
