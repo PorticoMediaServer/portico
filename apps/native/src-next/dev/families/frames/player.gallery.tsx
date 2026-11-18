@@ -193,7 +193,7 @@ function PlayerUpNextCase({variant}: {variant: 'plain' | 'credits' | 'countdown'
     countdown={variant === 'countdown' ? {seconds: 8, automatic: true} as never : {seconds: 42, automatic: false} as never} countdownTotal={variant === 'countdown' ? 10 : 60} sceneAfter={variant === 'credits'} onPlayNow={none} onWatchCredits={none} onSkipCredits={none}/>}/>;
 }
 /** Still watching? (phone-player 6e): after the episodes set in Settings, nothing starts until the viewer says so. */
-const PlayerStillWatching = () => <Player id="frames-player-still-watching" state="paused" card={<NativeStillWatchingCard item={{entryId: 'next', title: f('episode3'), episode: {seasonNumber: 1, number: 3}} as never} onConfirm={none} onReplay={none} onClose={none}/>}/>;
+const PlayerStillWatching = () => <Player id="frames-player-still-watching" state="paused" start="watch-still-confirm" card={<NativeStillWatchingCard item={{entryId: 'next', title: f('episode3'), episode: {seasonNumber: 1, number: 3}} as never} onConfirm={none} onReplay={none} onClose={none}/>}/>;
 
 /** Live TV on the player frame, drawn with a channel's data (tv-player 11, tablet-play 8, phone-player 1c and 1f): the
  * channel's mark and the Live mark in the title block, Record and More at the top, Guide, channel down and up either

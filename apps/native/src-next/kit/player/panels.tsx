@@ -108,13 +108,15 @@ export function PlayerChannelStep({direction, number, label, onPress, disabled, 
  * count, the season at the right, then the season's tiles (the kit `EpisodeTile`) in a row that scrolls past the
  * player's edge. `PlayerChromeFrame` places it (its `band`) and hides the controls while it shows. */
 export function PlayerEpisodeBand({title, count, season, children}: Readonly<{title: string; count?: string; season?: ReactNode; children: ReactNode}>) {
-  const theme = useTheme(), edge = frameSpec.player.edge.tv;
+  const theme = useTheme(), edge = frameSpec.player.edge.tv, focus = theme.spec.focus;
+  // The room a focused tile grows into and rings, as the kit Row keeps it (taken back by the margins, so the band's box is its tiles).
+  const tile = theme.spec.episode.width.tv * 9 / 16, room = Math.ceil(tile * (focus.scale.card.tv - 1) / 2 + (focus.offsetOuter.tv + focus.ringWidth.tv) * focus.scale.card.tv);
   return <View style={{gap: theme.space.md}}>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, paddingHorizontal: edge}}>
       <Text accessibilityRole="header" style={[theme.type.rowHeading, {color: theme.colors.text}]}>{title}</Text>
       <Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textTertiary}]}>{count}</Text>
       {season}
     </View>
-    <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: theme.space.md, paddingHorizontal: edge}}>{children}</ScrollView></TVRow>
+    <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginVertical: -room}} contentContainerStyle={{gap: theme.space.md, paddingHorizontal: edge, paddingVertical: room}}>{children}</ScrollView></TVRow>
   </View>;
 }
