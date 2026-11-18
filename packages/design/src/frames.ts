@@ -99,6 +99,9 @@ export const frame = {
     tint: {track: .16, buffered: .26, mark: .5, pill: .1, previewRing: .9, previewBand: .6},
     /** The thumbnail over the scrubber while scrubbing, and how far above the bar it sits. */
     preview: {width: forms(178, 256, 256, 400), height: forms(100, 144, 144, 225), radius: forms(9, 10, 10, 14), lift: forms(22, 40, 30, 44)},
+    /** The player's own panels (options, Subtitles, Audio, Quality, Speed, Episodes): a column on the picture's right edge from
+     * tablet width (tablet-play 2, tv-player 4), a sheet from the bottom on a phone (phone-player 3). `still` is an episode row's picture. */
+    panel: {width: forms(0, 380, 380, 680), padding: forms(16, 24, 24, 56), row: forms(52, 48, 48, 54), still: forms(112, 132, 132, 200), sheetShare: .62},
     /** Skip intro and Up next: the white prompt and the round dismiss beside it, and how far the corner sits above the bottom edge. */
     prompt: {height: forms(44, 52, 52, 72), radius: forms(10, 12, 12, 14), paddingX: forms(18, 24, 24, 36), dismiss: forms(0, 48, 44, 0), gap: 10, bottom: forms(26, 64, 64, 96)},
   },
