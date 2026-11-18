@@ -50,6 +50,9 @@ function kitPages() as object
         pages.push({title: "Cards: " + pair[0] + " and " + pair[1] + " (with art, without, in progress)", parts: parts})
     end for
     pages.append([
+        {title: "A saved view's wide tile (Saved > Saved views): at rest, and in focus", parts: [
+            {c: "ViewTile", at: [200, 200], f: {itemContent: {title: "90s unwatched", library: "Films", words: "Year 1990s, Unwatched. Newest first.", covers: [art, art, art, art], found: "19 titles right now"}}},
+            {c: "ViewTile", at: [200 + frames().savedView.width + frames().savedView.gap, 200], f: {itemContent: {title: "By genre", library: "Films", words: "", covers: [art], found: "1 title right now"}, gridHasFocus: true, focusPercent: 1}}]},
         {title: "The side sheet", parts: [{c: "Sheet", at: [0, 0], f: {visible: true, model: {eyebrow: "An eyebrow", title: "A sheet's title", status: "Its status line", rows: [
             {id: "a", text: "A choice", icon: "", current: true}, {id: "b", text: "Another", icon: "", detail: "Its detail"}, {id: "c", text: "After a gap", icon: "", gapBefore: true}]}}}]},
         {title: "The side sheet: headings with their values, a heading open, the key hints", parts: [{c: "Sheet", at: [0, 0], f: {visible: true, model: {eyebrow: "Playback", title: "Options", status: "", open: "quality", rows: [
@@ -192,7 +195,13 @@ sub show()
                 node = m.page.createChild(part.c)
                 node.translation = part.at
                 for each key in part.f
-                    if key = "cards" then node.cards = contentOf(part.f.cards) else node.setField(key, part.f[key])
+                    if key = "cards"
+                        node.cards = contentOf(part.f.cards)
+                    else if key = "itemContent"
+                        node.itemContent = contentOf([part.f.itemContent]).getChild(0)     ' a grid item's content (ViewTile)
+                    else
+                        node.setField(key, part.f[key])
+                    end if
                 end for
                 if part.open = true then node.active = true      ' the rail opens when it takes focus...
             end if

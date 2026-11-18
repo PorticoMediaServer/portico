@@ -672,6 +672,62 @@ function listBefore(a as object, b as object, sort as string) as boolean
     return aTime > bTime
 end function
 
+' What a saved view asks for in plain words (collections frame 17): "Year 1990s, Unwatched. Newest
+' first." The query is the one the view keeps ("kind=movie&year=1990..1999&watched=false&sort=year&
+' order=desc"). As the web's saved-view summary does, the whole line is left out when any part of
+' the query is one it cannot say (a genre's id has no name here), rather than say part of it.
+function savedViewWords(query as string) as string
+    params = {}
+    pairs = []      ' in the query's own order, so the words come in the order the view was made
+    for each pair in query.split("&")
+        at = instr(1, pair, "=")
+        if at > 0
+            pairs.push([left(pair, at - 1), mid(pair, at + 1).decodeUriComponent()])
+            params[left(pair, at - 1)] = mid(pair, at + 1).decodeUriComponent()
+        end if
+    end for
+    said = []
+    for each pair in pairs
+        key = pair[0]
+        value = pair[1]
+        if key = "kind" or key = "sort" or key = "order" or key = "library"
+            ' said below, or not a condition
+        else if key = "watched" and value = "false"
+            said.push("Unwatched")
+        else if key = "watched" and value = "true"
+            said.push("Watched")
+        else if key = "inProgress" and value = "true"
+            said.push("In progress")
+        else if key = "favorite" and value = "true"
+            said.push("Favorites")
+        else if key = "inList" and value = "true"
+            said.push("On My List")
+        else if key = "year" and right(value, 1) = "9" and instr(1, value, "..") = 5 and right(left(value, 4), 1) = "0"
+            said.push("Year " + left(value, 4) + "s")
+        else if key = "year" and instr(1, value, "..") > 0
+            said.push("Year " + value.replace("..", " to "))
+        else if key = "year"
+            said.push("Year " + value)
+        else
+            return ""
+        end if
+    end for
+    order = params.order
+    if order = invalid then order = "desc"
+    sorts = {added: ["Oldest first", "Newest first"], year: ["Oldest first", "Newest first"], title: ["Title A to Z", "Title Z to A"],
+        rating: ["Lowest first", "Highest first"], duration: ["Shortest first", "Longest first"], lastPlayed: ["Played longest ago first", "Last played first"]}
+    sentence = ""
+    if params.sort <> invalid
+        words = sorts[params.sort]
+        if words = invalid then return ""
+        if order = "asc" then sentence = words[0] else sentence = words[1]
+    end if
+    line = said.join(", ")
+    if line <> "" then line = line + "."
+    if sentence <> "" then line = (line + " " + sentence + ".").trim()
+    return line
+end function
+
 ' An episode in its season's row: {.., under: true (words under the still), corner (its length), played}.
 function episodeCard(item as object, upNext as boolean) as object
     card = cardFor(item, "landscape")
