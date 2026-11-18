@@ -212,8 +212,8 @@ export function decadePresets(minYear: number, maxYear: number): readonly {label
  */
 export type FilterControl = 'values' | 'toggle' | 'choice' | 'range' | 'text';
 
-export function filterControlOf(field: BrowseFieldCapability): FilterControl {
-  if (field.id === 'year') return 'values';
+export function filterControlOf(field: BrowseFieldCapability, yearAsRange = false): FilterControl {
+  if (field.id === 'year') return yearAsRange ? 'range' : 'values';
   if (field.controlHint === 'facet-multi-select' || (field.type === 'enum' && (field.allowedValues?.length ?? 0) > 4)) return 'values';
   if (field.type === 'boolean' || field.controlHint === 'toggle') return 'toggle';
   if (field.type === 'enum' && field.allowedValues) return 'choice';
@@ -233,11 +233,14 @@ export type RangePreset = Readonly<{id: string; label: Readonly<{id: MessageId; 
  * A range as choices a person makes ("Under 90 min", "8 or higher", "In the last 30 days"), never
  * two number boxes. Date recency is evaluated by the server at read time.
  */
-export function rangePresets(field: BrowseFieldCapability, _now: Date): readonly RangePreset[] {
+export function rangePresets(field: BrowseFieldCapability, now: Date): readonly RangePreset[] {
   const id = field.id;
   const atLeast = (value: number | string): ToolbarPredicate => ({field: id, operator: 'at-least', value});
   const atMost = (value: number | string): ToolbarPredicate => ({field: id, operator: 'at-most', value});
   const between = (low: number, high: number): readonly ToolbarPredicate[] => ((field.operators as readonly string[]).includes('between') ? [{field: id, operator: 'between', value: [low, high]}] : [atLeast(low), atMost(high)]);
+  if (id === 'year') return [...decadePresets(1800, now.getFullYear())].reverse().map(({from, to}) => ({
+    id: String(from), label: {id: 'next.kit.filter.decade', values: {year: String(from)}}, predicates: between(from, to),
+  }));
   if (id === 'durationMs') {
     const minutes = (n: number) => n * 60000;
     return [

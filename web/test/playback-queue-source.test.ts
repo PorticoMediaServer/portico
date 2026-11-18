@@ -2,15 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {captureQueueSource, type WebPlaybackQueueSource} from '../src/platform/playback/queue-source.ts';
 
-test('browse capture preserves the exact Home query and sort without retaining mutable caller objects', () => {
-  const input = {query: {libraryId: '*', pivot: 'titles', query: {variant:'group',all: [
-    {variant:'predicate',field: 'homeRow', operator: 'equals' as const, value: 'row_current'},
-    {variant:'predicate',field: 'year', operator: 'at-least' as const, value: 2020},
-  ]}, sort: [{field: 'random', direction: 'asc' as const, seed: 912}, {field: 'title', direction: 'desc' as const}]}};
+test('queue capture preserves the Home row, library, filters and order after the source changes', () => {
+  const input = {homeRow: {id: 'recently_added', library: 'films', genre: 'drama', year: '2020..2029', favorite: false, sort: 'title', order: 'asc'}};
   const expected = structuredClone(input), captured = captureQueueSource(input);
-  input.query.query.all.reverse();input.query.sort[0]!.seed = 1;
+  input.homeRow.genre = 'horror'; input.homeRow.order = 'desc';
   assert.deepEqual(captured, expected);
-  assert.ok(Object.isFrozen(captured) && 'query' in captured && Object.isFrozen(captured.query.sort) && Object.isFrozen(captured.query.query));
+  assert.ok(Object.isFrozen(captured) && 'homeRow' in captured && Object.isFrozen(captured.homeRow));
   assert.deepEqual(captureQueueSource({saved: {id: 'actual_view'}}), {saved: {id: 'actual_view'}});
   assert.deepEqual(captureQueueSource({container: {kind: 'collection', id: 'actual_collection'}}), {container: {kind: 'collection', id: 'actual_collection'}});
 });

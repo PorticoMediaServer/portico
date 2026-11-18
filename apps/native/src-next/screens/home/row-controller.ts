@@ -1,10 +1,9 @@
-import {readBrowseCapabilitiesResponse, readImmediateBrowsePageResponse, readBrowseFacetResponse, readBrowseCountsResponse} from '../../../../../packages/client-core/src/query/browse-reads';
-import {BrowseQueryBuilder, browseMembershipId, parseBrowseCapabilities,
-  parseBrowseCounts, parseBrowseFacets, parseBrowseResult, type BrowseCapabilities, type BrowseCount, type BrowseNode, type BrowseSortSelection} from '../../../../../packages/client-core/src/browse';
+import {type BrowseCapabilities, type BrowseCount, type BrowseNode, type BrowseSortSelection} from '../../../../../packages/client-core/src/browse';
+import {BrowseSession, browseSessionBuilder, browseSessionClosed} from '../../../../../packages/client-core/src/browse-session';
 import {createWindowedCollection, type WindowedCollection} from '../../../../../packages/client-core/src/collections/windowed';
 import {fetchHomeRow, type HomeApi, type HomeRow} from '../../../../../packages/client-core/src/home';
+import {countHomeRow, hasHomeRowQueue, homeRowDefaultSort, homeRowPivot, homeRowSource, isRecentHomeRow, readHomeRowCapabilities, readHomeRowFacetChoices} from '../../../../../packages/client-core/src/home-row-browse';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import {acrossCondition, acrossPivot, groupSort, homeRowQuery, type WholeGroupQuery} from '../../../../../packages/client-core/src/presentation/browse-groups';
 
 export type NativeHomeRowItem = Readonly<{entry: ContentEntry; membershipId: string}>;
 export type NativeHomeRowKind = Readonly<{id: string; libraryIds: readonly string[]}>;
@@ -13,151 +12,112 @@ export type NativeHomeRowSnapshot = Readonly<{
   sort?: BrowseSortSelection; filters: readonly BrowseNode[]; selectedKind?: string;
   counts: readonly BrowseCount[]; error?: unknown;
 }>;
-const cancelled = () => Object.assign(new Error('native_home_row_retired'), {name: 'AbortError'});
-const stale = () => Object.assign(new Error('native_home_row_changed'), {code: 'stale_continuation'});
 
-/** One genuine Home row across the authorized libraries. The server evaluates
- * membership, order, filters, display targets and counts; memory stays sparse. */
+/** One visible Home row with a separate browse session for each applied query. */
 export class NativeHomeRowController {
   readonly collection: WindowedCollection<NativeHomeRowItem>;
-  /** The chips this result may lawfully offer. A row the server bounded to one
-   * library narrows to that library once the row is read. */
-  kinds: readonly NativeHomeRowKind[];
-  private readonly allKinds: readonly NativeHomeRowKind[];
+  kinds: readonly NativeHomeRowKind[] = [];
   private readonly api: HomeApi;
   readonly rowId: string;
-  private readonly current: () => boolean;
+  private libraryId?: string;
   private state: NativeHomeRowSnapshot = Object.freeze({phase: 'loading', filters: [], counts: []});
   private listeners = new Set<() => void>();
   private abort = new AbortController();
-  private generation = 0;
+  private session?: BrowseSession<NativeHomeRowItem>;
   private alive = true;
-  constructor(options: {api: HomeApi; rowId: string; current: () => boolean; kinds: readonly NativeHomeRowKind[]}) {
-    this.api = options.api; this.rowId = options.rowId; this.current = options.current;
-    this.allKinds = Object.freeze(options.kinds.filter(kind => kind.libraryIds.length).map(kind => Object.freeze({id: kind.id, libraryIds: Object.freeze([...kind.libraryIds])})));
-    this.kinds = this.allKinds;
+  constructor(private options: {api: HomeApi; rowId: string; libraryId?: string; current: () => boolean; kinds: readonly NativeHomeRowKind[]}) {
+    this.api = options.api; this.rowId = options.rowId; this.libraryId = options.libraryId;
+    this.kinds = !this.libraryId && isRecentHomeRow(this.rowId) ? options.kinds : [];
     this.collection = createWindowedCollection({pageSize: 60, maxResidentPages: 6, maxConcurrent: 1,
-      keyOf: item => item.membershipId, fetchPage: async () => {throw cancelled();}});
+      keyOf: item => item.membershipId, fetchPage: async () => {throw browseSessionClosed();}});
   }
   getSnapshot = (): NativeHomeRowSnapshot => this.state;
-  isCurrentItem = (item: NativeHomeRowItem, index: number): boolean => this.valid() && this.state.phase === 'ready' && this.collection.itemAt(index) === item;
+  isCurrentItem = (item: NativeHomeRowItem, index: number): boolean => this.current() && this.state.phase === 'ready' && this.collection.itemAt(index) === item;
   subscribe = (listener: () => void): (() => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
-  private valid(generation = this.generation): boolean {return this.alive && this.current() && generation === this.generation;}
+  private current(): boolean {return this.alive && this.options.current();}
   private publish(patch: Partial<NativeHomeRowSnapshot>): void {
-    if (!this.valid()) return;
+    if (!this.current()) return;
     this.state = Object.freeze({...this.state, ...patch}); for (const listener of [...this.listeners]) listener();
   }
-  private async request(path: string, method = 'GET', body?: unknown, signal = this.abort.signal): Promise<unknown> {
-    const generation = this.generation;
-    if (!this.valid(generation) || signal.aborted) throw cancelled();
-    const result = await this.api.request(path, method, body, signal);
-    if (!this.valid(generation) || signal.aborted) throw cancelled();
-    return result;
-  }
   load = async (): Promise<void> => {
-    if (!this.alive || !this.current()) return;
-    this.abort.abort(); this.abort = new AbortController(); const generation = ++this.generation;
+    if (!this.current()) return;
+    this.abort.abort(); this.session?.retire(); this.abort = new AbortController();
+    const {signal} = this.abort, current = () => this.current() && !signal.aborted;
     this.publish({phase: 'loading', error: undefined});
     try {
-      const [raw, row] = await Promise.all([readBrowseCapabilitiesResponse({request: this.request.bind(this)}, '*', acrossPivot('homeRow')), fetchHomeRow(this.api, this.rowId, {limit: 60}, this.abort.signal)]);
-      if (!this.valid(generation)) return;
-      // The row read now is the server's answer for the viewer now; a moved fence is newer, not stale (a refusal is a 401/403).
-      if (row.id !== this.rowId) throw stale();
-      const capabilities = parseBrowseCapabilities(raw), pivot = capabilities.pivots.find(value => value.id === acrossPivot('homeRow'));
-      if (!pivot?.defaultSort[0]) throw stale();
-      const sort = groupSort(this.state.sort, true, capabilities.sorts, pivot.defaultSort[0]);
-      // A library-scoped row belongs to that one library: offering every other
-      // library's chip would promise counts and pages the row cannot contain.
-      const scoped = row.libraryId ? this.allKinds.filter(kind => kind.id === row.libraryId) : this.allKinds;
-      this.kinds = scoped.length ? scoped : this.allKinds;
-      const selectedKind = this.kinds.some(kind => kind.id === this.state.selectedKind) ? this.state.selectedKind : undefined;
-      this.publish({phase: 'ready', row, capabilities, sort, ...(selectedKind === this.state.selectedKind ? {} : {selectedKind})});
+      const row = await fetchHomeRow(this.api, this.rowId, {library: this.libraryId, limit: 1}, signal);
+      const libraryId = this.libraryId ?? row.libraryId;
+      const capabilities = await readHomeRowCapabilities(this.api, this.rowId, libraryId, signal);
+      if (!current()) return;
+      this.libraryId = libraryId;
+      this.kinds = !libraryId && isRecentHomeRow(this.rowId) ? this.options.kinds : [];
+      this.publish({phase: 'ready', row, capabilities, sort: this.state.sort ?? homeRowDefaultSort[0]});
       this.requery();
-    } catch (error) {if (this.valid(generation)) this.publish({phase: 'error', error});}
+    } catch (error) {if (current()) this.publish({phase: 'error', error});}
   };
-  private query(selected = true, filters = this.state.filters): BrowseNode {
-    const kind = selected ? this.kinds.find(value => value.id === this.state.selectedKind) : undefined;
-    return {variant: 'group', all: [acrossCondition('homeRow', this.rowId), ...filters, ...(kind ? [{variant: 'predicate' as const, field: 'library' as const, operator: 'in' as const, value: kind.libraryIds}] : [])]};
+  private nodes(filters: readonly BrowseNode[], kind = this.kinds.find(value => value.id === this.state.selectedKind)): readonly BrowseNode[] {
+    return kind ? [...filters, {variant: 'predicate', field: 'library', operator: 'in', value: kind.libraryIds}] : filters;
   }
-  private builder(query = this.query()): BrowseQueryBuilder {
-    if (!this.state.capabilities || !this.state.sort) throw cancelled();
-    return new BrowseQueryBuilder(this.state.capabilities, acrossPivot('homeRow')).add(query).sort(this.state.sort.field, this.state.sort.direction, this.state.sort.seed).limit(60).displayHomeRow(this.rowId);
+  private query(filters = this.state.filters, sort = this.state.sort!) {
+    return {libraryId: this.libraryId ?? '*', homeRowId: this.rowId, pivot: homeRowPivot,
+      capabilities: this.state.capabilities!, nodes: this.nodes(filters), sorts: [sort]};
   }
   private requery(): void {
-    if (!this.valid() || this.state.phase !== 'ready') return;
-    const generation = this.generation, query = this.query(), sort = this.state.sort!, capabilities = this.state.capabilities!;
-    let revision: string | undefined;
-    this.collection.invalidate(async (start, count, signal) => {
-      if (!this.valid(generation) || count > 60) throw cancelled();
-      const body = new BrowseQueryBuilder(capabilities, acrossPivot('homeRow')).add(query).sort(sort.field, sort.direction, sort.seed)
-        .limit(Math.min(60, count)).displayHomeRow(this.rowId).range({start, ...(revision ? {revision} : {})}).build();
-      const page = parseBrowseResult(await readImmediateBrowsePageResponse({request: this.request.bind(this)}, '*', body, signal));
-      if (!this.valid(generation) || page.pageInfo.start !== start || page.pivot !== acrossPivot('homeRow') || page.entries.length > 0 && !page.displayTargets || revision && revision !== page.pageInfo.revision) throw stale();
-      revision = page.pageInfo.revision;
-      return {items: page.entries.map((entry, index) => {
-        const membershipId = browseMembershipId(page, index); if (!membershipId) throw stale();
-        return Object.freeze({entry, membershipId});
-      }), total: page.pageInfo.total, totalIsLowerBound: page.pageInfo.totalIsLowerBound,
-        positionIndex: Object.fromEntries(page.positionIndex.map(anchor => [anchor.key, anchor.index]))};
+    if (!this.current() || this.state.phase !== 'ready') return;
+    this.session?.retire();
+    const query = this.query(), current = () => this.current() && this.session === session;
+    const session: BrowseSession<NativeHomeRowItem> = new BrowseSession({query, current,
+      request: (path, method, body, signal) => this.api.request(path, method, body, signal),
+      item: entry => Object.freeze({entry, membershipId: entry.id}),
+      onFacts: facts => this.collection.learn?.(session.fetchPage, facts),
     });
-    void this.readCounts(generation);
+    this.session = session;
+    this.collection.invalidate(session.fetchPage);
+    const filters = this.state.filters;
+    const scopes = [undefined, ...this.kinds];
+    const signal = this.abort.signal;
+    void Promise.all(scopes.map(kind => this.count(kind, filters, signal))).then(counts => {
+      if (current()) this.publish({counts});
+    }).catch(error => {if (current()) this.publish({error});});
   }
   facets = async (field: string, search = '', filters = this.state.filters) => {
-    const offered = this.state.capabilities?.fields.some(value => value.id === field || value.facetSource?.field === field || field === 'decade' && value.id === 'year');
-    if (!offered || this.state.phase !== 'ready') throw cancelled();
-    const query = this.query(true, filters), stamp = JSON.stringify(this.query());
-    const raw = await readBrowseFacetResponse({request: this.request.bind(this)}, '*', field, acrossPivot('homeRow'), query, search, 200);
-    if (stamp !== JSON.stringify(this.query())) throw cancelled();
-    return parseBrowseFacets(raw, field);
+    if (!this.current() || this.state.phase !== 'ready' || !this.state.capabilities?.fields.some(value => value.facetSource?.field === field)) throw browseSessionClosed();
+    const session = this.session;
+    const result = await readHomeRowFacetChoices(this.api, homeRowSource(this.rowId, this.libraryId, this.nodes(filters), []), field, search, this.abort.signal);
+    if (!this.current() || this.session !== session) throw browseSessionClosed();
+    return result;
   };
-  /** Draft previews never change the retained grid or its committed filters. */
+  private async count(kind: NativeHomeRowKind | undefined, filters: readonly BrowseNode[], signal: AbortSignal): Promise<BrowseCount> {
+    const nodes = kind ? this.nodes(filters, kind) : filters;
+    const total = await countHomeRow(this.api, homeRowSource(this.rowId, this.libraryId, nodes, []), signal);
+    return {id: kind?.id ?? 'all', total: total ?? 0, totalIsLowerBound: false, revision: 'counted'};
+  }
+  /** Draft counts follow the selected scope while the displayed grid keeps its applied filters. */
   previewCounts = async (filters: readonly BrowseNode[], signal = this.abort.signal): Promise<readonly BrowseCount[]> => {
-    if (!this.valid() || this.state.phase !== 'ready') throw cancelled();
-    this.builder(this.query(true, filters)).build();
-    const base = this.query(false, filters), generation = this.generation, stamp = JSON.stringify(this.query());
-    const queries = [{id: 'all', query: base}, ...this.kinds.map(kind => ({id: kind.id, query: {variant: 'group' as const, all: [base, {variant: 'predicate' as const, field: 'library' as const, operator: 'in' as const, value: kind.libraryIds}]}}))];
-    const counts: BrowseCount[] = [];
-    for (let start = 0; start < queries.length; start += 8) {
-      const batch = queries.slice(start, start + 8);
-      const raw = await readBrowseCountsResponse({request: this.request.bind(this)}, '*', acrossPivot('homeRow'), batch, signal);
-      if (!this.valid(generation) || stamp !== JSON.stringify(this.query())) throw cancelled();
-      counts.push(...parseBrowseCounts(raw, batch.map(query => query.id)));
-    }
-    return Object.freeze(counts);
+    if (!this.current() || this.state.phase !== 'ready' || signal.aborted) throw browseSessionClosed();
+    browseSessionBuilder(this.query(filters)).build();
+    const session = this.session;
+    const count = await this.count(this.kinds.find(value => value.id === this.state.selectedKind), filters, signal);
+    if (!this.current() || this.session !== session || signal.aborted) throw browseSessionClosed();
+    return [count];
   };
   setSort = (sort: BrowseSortSelection): boolean => {
-    if (!this.valid() || !this.state.capabilities) return false;
-    new BrowseQueryBuilder(this.state.capabilities, acrossPivot('homeRow')).add(this.query()).sort(sort.field, sort.direction, sort.seed).limit(60).displayHomeRow(this.rowId).build();
-    this.publish({sort: Object.freeze({...sort}), counts: [], error: undefined}); this.requery(); return true;
+    if (!this.current() || this.state.phase !== 'ready' || !this.state.capabilities?.resolvedPivot?.sorts?.includes(sort.field)) return false;
+    browseSessionBuilder(this.query(this.state.filters, sort)).build();
+    this.publish({sort: Object.freeze({...sort}), error: undefined}); this.requery(); return true;
   };
   setFilters = (filters: readonly BrowseNode[]): boolean => {
-    if (!this.valid() || this.state.phase !== 'ready') return false;
-    const query = this.query(true, filters); this.builder(query).build();
+    if (!this.current() || this.state.phase !== 'ready') return false;
+    browseSessionBuilder(this.query(filters)).build();
     this.publish({filters: Object.freeze([...filters]), counts: [], error: undefined}); this.requery(); return true;
   };
   selectKind = (id: string | undefined): boolean => {
-    if (!this.valid() || this.state.phase !== 'ready' || id !== undefined && !this.kinds.some(kind => kind.id === id)) return false;
+    if (!this.current() || this.state.phase !== 'ready' || id === this.state.selectedKind || id !== undefined && !this.kinds.some(kind => kind.id === id)) return false;
     this.publish({selectedKind: id, error: undefined}); this.requery(); return true;
   };
-  private countTicket = 0;
-  private async readCounts(generation: number): Promise<void> {
-    const ticket = ++this.countTicket, base = this.query(false);
-    const queries = [{id: 'all', query: base}, ...this.kinds.map(kind => ({id: kind.id, query: {variant: 'group' as const, all: [base, {variant: 'predicate' as const, field: 'library' as const, operator: 'in' as const, value: kind.libraryIds}]}}))];
-    try {
-      const counts: BrowseCount[] = [];
-      for (let start = 0; start < queries.length; start += 8) {
-        const batch = queries.slice(start, start + 8);
-        const raw = await readBrowseCountsResponse({request: this.request.bind(this)}, '*', acrossPivot('homeRow'), batch);
-        if (!this.valid(generation) || ticket !== this.countTicket) return;
-        counts.push(...parseBrowseCounts(raw, batch.map(query => query.id)));
-      }
-      this.publish({counts: Object.freeze(counts)});
-    } catch (error) {if (this.valid(generation) && ticket === this.countTicket) this.publish({error});}
-  }
-  wholeGroup = (): WholeGroupQuery | undefined => {
-    if (!this.valid() || this.state.phase !== 'ready' || !this.state.row || !this.state.sort) return;
-    const source = homeRowQuery(this.rowId, this.state.row.entries.map(entry => entry.kind));
-    return Object.freeze({...source, query: this.query(), sort: Object.freeze([this.state.sort])});
+  queueSource = () => {
+    if (!this.current() || this.state.phase !== 'ready' || !this.session?.revision || !hasHomeRowQueue(this.rowId)) return;
+    return homeRowSource(this.rowId, this.libraryId, this.nodes(this.state.filters), [this.state.sort!]);
   };
-  dispose = (): void => {this.alive = false; ++this.generation; ++this.countTicket; this.abort.abort(); this.collection.dispose(); this.listeners.clear();};
+  dispose = (): void => {this.alive = false; this.abort.abort(); this.session?.retire(); this.collection.dispose(); this.listeners.clear();};
 }

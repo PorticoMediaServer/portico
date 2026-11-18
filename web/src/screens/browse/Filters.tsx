@@ -20,6 +20,7 @@ type FilterOpening = {controller: BrowseController; cadence: ReturnType<typeof c
 type FacetFields = Readonly<Record<string, Extract<FilterFieldState, {kind: 'values'}>>>;
 export function BrowseFilters({controller, model, labels, compact, medium = false, docked = false, open, resultCount, canSaveView, onSaveView, onClose, reportError}: BrowseFiltersProps) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
+  const yearAsRange = controller.source.homeRowId !== undefined;
   const [openFields, setOpenFields] = useState<readonly string[]>([]), [queries, setQueries] = useState<Readonly<Record<string, string>>>({});
   const [facetState, setFacetState] = useState<Readonly<{opening: FilterOpening; query: BrowseState; fields: FacetFields}>>();
   const [expandedValues, setExpandedValues] = useState<readonly string[]>([]);
@@ -90,7 +91,7 @@ export function BrowseFilters({controller, model, labels, compact, medium = fals
     const timer = setTimeout(() => {
       if (!current()) return;
       for (const id of openFields) {
-        const field = fields.find(field => field.id === id); if (!field || filterControlOf(field) !== 'values') continue;
+        const field = fields.find(field => field.id === id); if (!field || filterControlOf(field, yearAsRange) !== 'values') continue;
         const query = queries[id] ?? '', descriptor = filterValuesField(field);
         if (!field.facetSource && field.allowedValues) {
           setFacets(before => ({...before, [id]: {kind: 'values', values: field.allowedValues!.filter(value => value.toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(value => ({value, label: valueLabel(value)})), included: [], excluded: [], match: 'any', query, status: 'ready'}}));
@@ -105,9 +106,9 @@ export function BrowseFilters({controller, model, labels, compact, medium = fals
       }
     }, 250);
     return () => {clearTimeout(timer);stop.abort();};
-  }, [controller, opening, signature, fields, predicates, queries, openFields, reportError, state.queryRevision, state.capabilities]);
+  }, [controller, opening, signature, fields, predicates, queries, openFields, reportError, state.queryRevision, state.capabilities, yearAsRange]);
   const displayed = Object.fromEntries(fields.map(field => {
-    const kind = filterControlOf(field), descriptor = filterValuesField(field), own = atomic.filter(node => node.field === field.id || node.field === descriptor.field);
+    const kind = filterControlOf(field, yearAsRange), descriptor = filterValuesField(field), own = atomic.filter(node => node.field === field.id || node.field === descriptor.field);
     const summary = fieldSelectionSummary(field, own, value => facets[field.id]?.values.find(option => option.value === String(value))?.label ?? filterValueName(value) ?? valueLabel(String(value)), t);
     let value: FilterFieldState;
     if (kind === 'values') {

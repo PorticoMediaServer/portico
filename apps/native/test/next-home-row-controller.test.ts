@@ -2,111 +2,91 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {setImmediate} from 'node:timers/promises';
 import {NativeHomeRowController} from '../src-next/screens/home/row-controller';
+import {queueSource} from '../../../packages/client-core/src/playback-v1/queue.ts';
+import type {BrowseNode} from '../../../packages/client-core/src/browse.ts';
 
-const row = {id: 'continue', viewerFence: 'home-viewer', title: 'Continue Watching', kind: 'continue', artworkShape: 'landscape',
-  endpoint: '/v1/home/rows/continue', privacySensitivity: 'viewer', policyState: 'available', priority: 0, required: true, hideable: false, reorderable: true,
-  critical: true, cursorCapable: true, entries: [{id: 'episode-real', libraryId: 'shows', kind: 'episode', title: 'Actual episode', playback: {itemId: 'episode-real'}}],
-  total: 87, start: 0, limit: 60, hasMore: true, nextCursor: 'next', revision: {catalog: 1, viewer: 1}};
-const pivot = {id: 'titles', labelKey: 'library.titles', entityKinds: ['movie', 'show'], defaultSort: [{field: 'title', direction: 'asc'}],
-  supportedViews: ['grid'], browsable: true, sorts: ['groupOrder', 'title'], filters: ['homeRow', 'library', 'playState'], paging: 'offset'};
-const capabilities = {library: {}, pivots: [pivot], resolvedPivot: pivot,
-  fields: [
-    {id: 'homeRow', labelKey: 'browse.field.homeRow', type: 'string', operators: ['equals'], controlHint: 'text', complexity: 'advanced', cost: 'indexed', applicableKinds: ['movie', 'show']},
-    {id: 'library', labelKey: 'browse.field.library', type: 'enum', operators: ['in'], controlHint: 'facet-multi-select', complexity: 'quick', cost: 'indexed', applicableKinds: ['movie', 'show']},
-    {id: 'playState', labelKey: 'browse.field.playState', type: 'enum', operators: ['equals'], allowedValues: ['in-progress'], controlHint: 'select', complexity: 'quick', cost: 'indexed', applicableKinds: ['movie', 'show']},
-  ], sorts: ['groupOrder', 'title'].map(id => ({id, labelKey: `sort.${id}`, directions: ['asc'], defaultDirection: 'asc', expensive: false, applicableKinds: ['movie', 'show'], requiresGroup: id === 'groupOrder'})),
-  quickFilters: [], queryLimits: {maximumDepth: 8, maximumClauses: 32, maximumBytes: 32768, maximumSorts: 3, defaultLimit: 60, maximumLimit: 200, cursorTtlMs: 300000}};
-const settle = async () => {for (let i = 0; i < 10; i++) await setImmediate();};
+const filters: readonly BrowseNode[] = [
+  {variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['drama', 'action']},
+  {variant: 'predicate', field: 'year', operator: 'between', value: [2000, 2009]},
+  {variant: 'predicate', field: 'playState', operator: 'equals', value: 'unplayed'},
+  {variant: 'predicate', field: 'favorite', operator: 'equals', value: true},
+  {variant: 'predicate', field: 'watchlisted', operator: 'equals', value: false},
+];
+const settle = async () => {for (let i = 0; i < 5; i++) await setImmediate();};
 
-function fixture() {
+function fixture(rowId = 'recently_released') {
   let current = true;
-  const calls: {path: string; body: any}[] = [];
-  const api = {async request<T>(path: string, _method?: string, body?: any): Promise<T> {
-    calls.push({path, body});
-    if (path.startsWith('/v1/home/rows/')) return row as T;
-    if (path.startsWith('/v1/browse-capabilities')) return capabilities as T;
-    if (path === '/v1/browse/counts') return {counts: body.queries.map((query: any) => ({id: query.id, total: query.id === 'all' ? 87 : 16, totalIsLowerBound: false, revision: 'count-revision'}))} as T;
-    if (path === '/v1/browse') return {pivot: 'titles', applied: {query: body.query, sort: body.sort}, entries: body.range.start === 0 ? row.entries : [],
-      displayTargets: body.range.start === 0 ? [{membershipId: 'show-membership', entryId: 'episode-real'}] : [],
-      pageInfo: {start: body.range.start, total: 87, totalIsLowerBound: false, revision: 'browse-revision', hasMore: true, nextCursor: 'next'}, positionIndex: []} as T;
-    throw new Error('unexpected_fixture_request');
+  const calls: URL[] = [];
+  const api = {async request<T>(path: string): Promise<T> {
+    const url = new URL(path, 'http://test');
+    calls.push(url);
+    if (url.pathname === `/v1/home/rows/${rowId}`) return {id: rowId, title: 'A row', shape: 'poster',
+      items: [{id: 'episode-real', libraryId: 'shows', kind: 'episode', title: 'Actual episode', state: {}}],
+      ...(url.searchParams.has('total') ? {total: 87} : {}), nextCursor: 'next'} as T;
+    if (url.pathname === '/v1/facets') return {facet: url.searchParams.get('facet'),
+      values: url.searchParams.get('facet') === 'letter' ? [{value: 'A', count: 60}, {value: 'B', count: 27}]
+        : [{value: 'drama', label: 'Drama', count: 2}]} as T;
+    throw new Error(`unexpected_fixture_request: ${path}`);
   }};
-  const controller = new NativeHomeRowController({api, rowId: 'continue', current: () => current,
-    kinds: [{id: 'tv', libraryIds: ['shows']} ]});
+  const controller = new NativeHomeRowController({api, rowId, current: () => current, kinds: [{id: 'tv', libraryIds: ['shows', 'anime']}]});
   return {controller, calls, retire: () => {current = false;}};
 }
 
-test('See all preserves requested Continue membership, actual episode display identity and authoritative counts', async () => {
-  const f = fixture();
+test('the selected row, library, filters and order reach the pages, scoped choices and queue', async () => {
+  const {controller, calls} = fixture();
   try {
-    await f.controller.load(); assert.ifError(f.controller.getSnapshot().error); f.controller.collection.ensureRange(0, 0); await settle();
-    assert.equal(f.controller.getSnapshot().row?.id, 'continue');
-    assert.equal(f.controller.getSnapshot().counts[0].total, 87, 'the one loaded card never becomes the count');
-    assert.deepEqual(f.controller.collection.itemAt(0), {membershipId: 'show-membership', entry: row.entries[0]});
-    const page = f.calls.find(call => call.path === '/v1/browse')!.body;
-    assert.equal(page.homeRowDisplay, 'continue'); assert.equal(page.limit, 60);
-    assert.deepEqual(page.query.all[0], {variant: 'predicate', field: 'homeRow', operator: 'equals', value: 'continue'});
-    assert.equal(page.sort[0].field, 'groupOrder');
-    assert.equal(f.controller.wholeGroup()?.pivot, 'items', 'real episode kinds choose the canonical items queue selector');
-  } finally {f.controller.dispose();}
+    await controller.load();
+    controller.selectKind('tv');
+    controller.setFilters(filters);
+    controller.setSort({field: 'title', direction: 'asc'});
+    controller.collection.ensureRange(0, 0);
+    await settle();
+    assert.equal(controller.collection.itemAt(0)?.membershipId, 'episode-real');
+    assert.equal(controller.collection.itemAt(0)?.entry.id, 'episode-real');
+    const applied = {library: 'any:shows,anime', genre: 'any:drama,action', year: '2000..2009', watched: false, favorite: true, inList: false};
+    const facet = await controller.facets('genre', 'dram');
+    assert.deepEqual(facet.values, [{value: 'drama', label: 'Drama', count: 2}]);
+    const pageRequest = calls.find(url => url.searchParams.get('sort') === 'title')!;
+    const facetRequest = calls.find(url => url.pathname === '/v1/facets')!;
+    for (const [key, value] of Object.entries(applied)) {
+      assert.equal(pageRequest.searchParams.get(key), String(value));
+      assert.equal(facetRequest.searchParams.get(key), String(value));
+    }
+    assert.equal(facetRequest.searchParams.get('homeRow'), 'recently_released');
+    assert.deepEqual(JSON.parse(JSON.stringify(queueSource({homeRow: controller.queueSource()!}))),
+      {homeRow: {id: 'recently_released', ...applied, sort: 'title', order: 'asc'}});
+    assert.equal((await controller.previewCounts([]))[0].total, 87);
+    assert.deepEqual(controller.getSnapshot().filters, filters);
+  } finally {controller.dispose();}
 });
 
-test('sort, filters and kind chips keep the immutable row and use actual authorized library IDs', async () => {
-  const f = fixture();
+test('title order learns letter positions from the same row and scope', async () => {
+  const {controller, calls} = fixture();
   try {
-    await f.controller.load(); assert.ifError(f.controller.getSnapshot().error);
-    assert.equal(f.controller.selectKind('invented-library-kind'), false);
-    f.controller.selectKind('tv');
-    f.controller.setFilters([{variant: 'predicate', field: 'playState', operator: 'equals', value: 'in-progress'}]);
-    f.controller.setSort({field: 'title', direction: 'asc'});
-    const source = f.controller.wholeGroup()!;
-    assert.deepEqual(source.query, {variant: 'group', all: [{variant: 'predicate', field: 'homeRow', operator: 'equals', value: 'continue'}, {variant: 'predicate', field: 'playState', operator: 'equals', value: 'in-progress'}, {variant: 'predicate', field: 'library', operator: 'in', value: ['shows']}]});
-    assert.deepEqual(source.sort, [{field: 'title', direction: 'asc'}]);
-    assert.throws(() => f.controller.setFilters([{variant: 'predicate', field: 'not-offered', operator: 'equals', value: true}]));
-  } finally {f.controller.dispose();}
+    await controller.load();
+    controller.selectKind('tv');
+    controller.setSort({field: 'title', direction: 'asc'});
+    controller.collection.ensureRange(0, 0);
+    await settle();
+    assert.deepEqual(controller.collection.getSnapshot().positionIndex, {A: 0, B: 60});
+    const facet = calls.find(url => url.searchParams.get('facet') === 'letter')!;
+    assert.equal(facet.searchParams.get('homeRow'), 'recently_released');
+    assert.equal(facet.searchParams.get('library'), 'any:shows,anime');
+  } finally {controller.dispose();}
 });
 
-test('retired screens cannot start reads, expose a selector or publish another row', async () => {
-  const f = fixture(); f.retire();
-  await f.controller.load();
-  assert.equal(f.calls.length, 0);
-  assert.equal(f.controller.wholeGroup(), undefined);
-  assert.equal(f.controller.selectKind('tv'), false);
-  f.controller.dispose();
-});
-
-test('filter preview counts the real draft while leaving the retained grid unchanged until Apply', async () => {
-  const f = fixture();
+test('Continue keeps its server order and real episode cards without requesting facets', async () => {
+  const {controller, calls, retire} = fixture('continue');
   try {
-    await f.controller.load(); f.controller.collection.ensureRange(0, 0); await settle();
-    const item = f.controller.collection.itemAt(0), before = f.calls.length;
-    const draft = [{variant: 'predicate' as const, field: 'playState' as const, operator: 'equals' as const, value: 'in-progress'}];
-    const counts = await f.controller.previewCounts(draft);
-    assert.equal(counts[0].total, 87);
-    const requests = f.calls.slice(before);
-    assert.equal(requests.every(call => call.path === '/v1/browse/counts'), true);
-    assert.deepEqual(requests[0].body.queries[0].query, {variant: 'group', all: [{variant: 'predicate', field: 'homeRow', operator: 'equals', value: 'continue'}, ...draft]});
-    assert.deepEqual(f.controller.getSnapshot().filters, []);
-    assert.strictEqual(f.controller.collection.itemAt(0), item, 'closing a draft needs no scroll or collection restoration');
-    f.controller.setFilters(draft);
-    assert.deepEqual(f.controller.getSnapshot().filters, draft);
-    const cancelled = new AbortController(); cancelled.abort();
-    await assert.rejects(f.controller.previewCounts(draft, cancelled.signal), {name: 'AbortError'});
-  } finally {f.controller.dispose();}
-});
-
-test('parity: malformed capabilities wait for the paired row and preserve its transport error', async () => {
-  let resolveCapabilities!: (value: unknown) => void, rejectRow!: (error: unknown) => void;
-  const capabilityReply = new Promise<unknown>(resolve => {resolveCapabilities = resolve;});
-  const rowReply = new Promise<unknown>((_, reject) => {rejectRow = reject;});
-  const rowFailure = Object.assign(new Error('row unavailable'), {code: 'row_unavailable'});
-  const controller = new NativeHomeRowController({api: {request: <T>(path: string) => (path.startsWith('/v1/browse-capabilities') ? capabilityReply : rowReply) as Promise<T>},
-    rowId: 'continue', current: () => true, kinds: []});
-  const pending = controller.load();
-  try {
-    resolveCapabilities(null); await settle();
-    assert.equal(controller.getSnapshot().phase, 'loading');
-    rejectRow(rowFailure); await pending;
-    assert.equal(controller.getSnapshot().error, rowFailure);
-  } finally {rejectRow(rowFailure); await pending; controller.dispose();}
+    await controller.load();
+    assert.equal(controller.setSort({field: 'title', direction: 'asc'}), false);
+    controller.collection.ensureRange(0, 0);
+    await settle();
+    assert.equal(controller.getSnapshot().counts[0].total, 87);
+    assert.equal(controller.collection.itemAt(0)?.entry.id, 'episode-real');
+    assert.equal(controller.queueSource()?.id, 'continue');
+    assert.ok(calls.every(url => !url.searchParams.has('sort') && url.pathname === '/v1/home/rows/continue'));
+    retire();
+    assert.equal(controller.queueSource(), undefined);
+  } finally {controller.dispose();}
 });

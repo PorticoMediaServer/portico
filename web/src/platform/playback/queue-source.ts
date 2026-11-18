@@ -1,12 +1,12 @@
 import {validSelectionBasis} from '@core/selection-basis.ts';
 import {parseBrowseNode} from '@core/browse.ts';
-import type {QueueBrowseSelector} from '@core/playback-v1/types.ts';
+import type {QueueBrowseSelector, Selector} from '@core/playback-v1/types.ts';
 
 /** Whole server resources only. Visible-page item arrays are deliberately a different action. */
 export type WebPlaybackQueueSource = Readonly<
   {query: QueueBrowseSelector} |
   {container: Readonly<{kind: 'playlist' | 'collection' | 'season' | 'artist' | 'album' | 'radio'; id: string}>} |
-  {saved: Readonly<{id: string}>}
+  {saved: Readonly<{id: string}>} | Extract<Selector, {homeRow: unknown}>
 >;
 
 function invalid(): never {throw new Error('invalid_queue_playback_source');}
@@ -34,6 +34,10 @@ export function captureQueueSource(input: WebPlaybackQueueSource): WebPlaybackQu
   if ('saved' in input) {
     if (!object(input.saved) || !id(input.saved.id)) invalid();keys(input.saved, ['id']);
     return freeze({saved: {id: input.saved.id}});
+  }
+  if ('homeRow' in input) {
+    if (!object(input.homeRow) || !id(input.homeRow.id)) invalid();
+    return freeze({homeRow: {...input.homeRow}});
   }
   if (!('query' in input) || !object(input.query)) invalid();
   const value = input.query;

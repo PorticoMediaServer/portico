@@ -41,17 +41,18 @@ export function HomeRowFilters({controller, runtime, onClose}: {controller: Nati
     }
   };
   if (!state.capabilities || !state.sort) return null;
-  const model = browseToolbarModel(state.capabilities, 'movies', draft, state.sort, {t: runtime.text.t, locale: runtime.text.locale,
+  const model = browseToolbarModel(state.capabilities, state.capabilities.library.kind || 'movies', draft, state.sort, {t: runtime.text.t, locale: runtime.text.locale,
     owner: runtime.getSnapshot().account.viewerRole === 'owner', scope: 'group', textEntry: !theme.isTV});
   const fields: Record<string, FilterFieldState> = {};
   for (const group of model.groups) for (const field of group.fields) {
-    const control = filterControlOf(field), mapping = control === 'values' ? filterValuesField(field) : {field: field.id};
+    const control = filterControlOf(field, true), mapping = control === 'values' ? filterValuesField(field) : {field: field.id};
     const selected = draft.filter(node => nativeRowFilterField(node) === mapping.field), direct = selected.flatMap(leaves);
     const active = selected.length > 0;
     if (control === 'values') {
       const facet = facets[field.id];
       fields[field.id] = {...nativeRowFilterValues(field, draft), allowAll: field.operators.includes('contains-all'),
-        showMatchMode: true, values: facet?.page ? orderFilterValues(field, facet.page.values) : [], status: facet?.status ?? 'loading', total: facet?.page?.total,
+        showMatchMode: field.operators.includes('contains-all'), allowNone: false, cycleExclusion: false,
+        values: facet?.page ? orderFilterValues(field, facet.page.values) : [], status: facet?.status ?? 'loading', total: facet?.page?.total,
         search: facet?.search ?? '', active, ...(facet?.error ? {statusLabel: runtime.error(facet.error, () => {void load(field, facet.search);}, 'home').body} : {})};
     } else if (control === 'toggle') fields[field.id] = {kind: 'toggle', value: typeof direct[0]?.value === 'boolean' ? direct[0].value : null, active};
     else if (control === 'choice') fields[field.id] = {kind: 'choice', value: typeof direct[0]?.value === 'string' ? direct[0].value : null,
@@ -66,10 +67,10 @@ export function HomeRowFilters({controller, runtime, onClose}: {controller: Nati
   const footer = selectedCount && !selectedCount.totalIsLowerBound ? <View style={{alignItems: 'stretch'}}><Button focusId="show-results" onPress={() => {if (controller.setFilters(draft)) onClose();}}>{t('next.browse.native.showResults', {results: t('count.titles', {count: selectedCount.total})})}</Button></View> : undefined;
   const body = <FilterBuilder focusPrefix={`home-row-filters:${controller.rowId}`} model={model} labels={{field: value => homeBrowseLabel(value, labels), sort: value => homeBrowseLabel(value, labels), quick: value => homeBrowseLabel(value, labels)}} openFields={open} fields={fields}
     onFieldOpenChange={(id, next) => {setOpen(previous => next ? [...previous.filter(value => value !== id), id] : previous.filter(value => value !== id));
-      const field = state.capabilities!.fields.find(value => value.id === id); if (next && field && filterControlOf(field) === 'values') void load(field, facets[id]?.search ?? '');}}
+      const field = state.capabilities!.fields.find(value => value.id === id); if (next && field && filterControlOf(field, true) === 'values') void load(field, facets[id]?.search ?? '');}}
     onFieldChange={(id, value) => {const field = state.capabilities!.fields.find(candidate => candidate.id === id); if (!field) return;
       try {const next = nativeRowFilterChange(field, value, draft, now); setDraft(next); for (const openId of open) {
-        const other = state.capabilities!.fields.find(candidate => candidate.id === openId); if (other && filterControlOf(other) === 'values') void load(other, facets[openId]?.search ?? '', next);
+        const other = state.capabilities!.fields.find(candidate => candidate.id === openId); if (other && filterControlOf(other, true) === 'values') void load(other, facets[openId]?.search ?? '', next);
       }} catch (error) {runtime.reportError(error);}}}
     onSearchChange={(id, query) => {const field = state.capabilities!.fields.find(value => value.id === id); if (field) void load(field, query);}}
     onRetry={id => {const field = state.capabilities!.fields.find(value => value.id === id); if (field) void load(field, facets[id]?.search ?? '');}}/>;

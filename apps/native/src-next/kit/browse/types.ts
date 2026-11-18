@@ -45,7 +45,7 @@ type FieldPresentation = Readonly<{
   total?: number; search?: string; searchLabel?: string; showAllLabel?: ReactNode; preferredFocusValue?: string;
 }>;
 export type FilterFieldState = FieldPresentation & (
-  | (FilterValueSelection & Readonly<{values: readonly FacetValue[]; allowAll: boolean; cycleExclusion?: boolean; showMatchMode?: boolean}>)
+  | (FilterValueSelection & Readonly<{values: readonly FacetValue[]; allowAll: boolean; allowNone?: boolean; cycleExclusion?: boolean; showMatchMode?: boolean}>)
   | Readonly<{kind: 'choice'; value: string | null; options: readonly Readonly<{value: string; label: string; disabled?: boolean}>[]}>
   | Readonly<{kind: 'toggle'; value: boolean | null}>
   | Readonly<{kind: 'range'; value: string | null; presets: readonly Readonly<{value: string; label: string}>[]}>

@@ -162,8 +162,9 @@ async function discoverFromLanding(api: ServerRequester, route: ContentRoute, bo
     const id = row.id === 'continue' && library.kind === 'audiobook' ? 'continue_listening' : row.id;
     // A heading code the app does not ship shows the server's own title as written.
     const shape = row.shape === 'landscape' || row.shape === 'square' || row.shape === 'poster' ? row.shape : undefined;
+    const seeAll = ['continue', 'recently_added', 'recently_released'].includes(row.id) ? {rowId: row.id} : undefined;
     sections.push(Object.freeze({id, type: 'rail', heading: Object.freeze({key: `library.landing.${row.id}`, fallback: typeof row.title === 'string' ? row.title : ''}),
-      entries: Object.freeze(entries), totalCount: row.total ?? entries.length, nextCursor: sectionCursor(row.id, row.nextCursor ?? ''), ...(shape ? {shape} : {})}));
+      entries: Object.freeze(entries), totalCount: row.total ?? entries.length, nextCursor: sectionCursor(row.id, row.nextCursor ?? ''), ...(shape ? {shape} : {}), ...(seeAll ? {seeAll} : {})}));
   }
   return Object.freeze({
     heading: Object.freeze({key: 'library.tab.discover', fallback: library.name}),

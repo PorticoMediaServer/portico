@@ -157,6 +157,12 @@ export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibr
   // A Books library's Series are its book series: its magazines and newspapers are series on the
   // server too, but they have their own tabs, so they are not listed here twice.
   if (pivot.id === 'series' && (library.kind === 'book' || library.views?.some(view => view.kind === 'book'))) query.publication = 'book';
+  return {...query, ...itemListFilters(nodes, sorts)};
+}
+
+/** The item filters and order shared by a library tab and a Home row. */
+export function itemListFilters(nodes: readonly BrowseNode[], sorts: readonly BrowseSortSelection[]): ItemListQuery {
+  const query: Record<string, unknown> = {};
   const add = (node: BrowseNode): void => {
     if ('all' in node) { node.all.forEach(add); return; }
     if (!('field' in node)) { unsupported(); return; }

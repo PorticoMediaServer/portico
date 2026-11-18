@@ -520,6 +520,7 @@ test('Home See all actual toolbar binds sort/filter/kind/quick leaves without ch
   const direction = await import('../../../packages/client-core/src/presentation/browse-toolbar');
   const value = await import('../src-next/kit/controls/useControlValue');
   const model = await import('../src-next/screens/home/see-all-model');
+  const homeRowBrowse = await import('../../../packages/client-core/src/home-row-browse');
   const {authorityKey} = await import('../src-next/shell/model');
   const {Chip} = await screenModule(new URL('../src-next/kit/controls/Chip.tsx', import.meta.url), {react: b.react, 'react-native': b.native, '@portico/design': design,
     '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme, fontFamilies}, './Focusable': {Focusable: b.Focusable}, './control-model': controlModel, './useControlValue': value});
@@ -527,12 +528,13 @@ test('Home See all actual toolbar binds sort/filter/kind/quick leaves without ch
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/browse-toolbar': direction,
     '../controls': {Button: o.Button, Chip, Focusable: b.Focusable, Segmented: 'Segmented'}, '../overlays': o.menu, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme}, './presentation': presentation});
   const sort = {field: 'title', direction: 'asc'}, quick = [{id: 'unwatched', active: false, query: {variant: 'predicate', field: 'watched', operator: 'equals', value: false}}];
-  const toolbar = {sorts: [{id: 'title', directions: ['asc', 'desc'], defaultDirection: 'asc'}], sort, quick};
+  const toolbar = {sorts: [{id: 'title', directions: ['asc', 'desc'], defaultDirection: 'asc'}], sort, quick, groups: [{id: 'activity', fields: [{id: 'playState'}]}]};
   const {HomeSeeAll} = await screenModule(new URL('../src-next/screens/home/HomeSeeAll.tsx', import.meta.url), {
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
     './generated-poster': {generatedPoster: () => null},
     react: b.react, 'react-native': b.native, '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => toolbar},
+    '../../../../../packages/client-core/src/home-row-browse': homeRowBrowse,
     '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: () => ''}, '../../../../../packages/client-core/src/presentation/home-row-reason': {homeRowReasonParts: () => undefined}, '../../../../../packages/client-core/src/home-selection': {},
     '../../kit/controls': {Button: o.Button, Chip, Focusable: b.Focusable}, '../../kit/browse': browse, '../../kit/cards/primitives': {CardFrame: 'Card', Parts: 'Parts'},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', MediaArt: 'Art', AmbientArt: 'Ambient'}, '../../kit/browse/presentation': presentation, '../../kit/cards': {PosterCard: 'Poster'},
@@ -541,7 +543,7 @@ test('Home See all actual toolbar binds sort/filter/kind/quick leaves without ch
     '../../kit/theme': {useTheme: () => b.theme, nativeType}, '../../shell/model': {authorityKey}, './browse-label': {homeBrowseLabel: (value: any) => value.id},
     './see-all-model': model, './model': {}, './row-controller': {}});
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
-  const state = {phase: 'ready', row: {id: 'original-row', title: 'Row', entries: []}, capabilities: {}, sort, filters: [], counts: [], selectedKind: undefined};
+  const state = {phase: 'ready', row: {id: 'original-row', title: 'Row', entries: []}, capabilities: {library: {kind: 'movie'}}, sort, filters: [], counts: [], selectedKind: undefined};
   const calls: any[] = [], open = () => {}, playEntry = () => {};
   const controller = {rowId: 'original-row', subscribe: () => () => {}, getSnapshot: () => state, collection: {subscribe: () => () => {}, getSnapshot: (() => {const snapshot = {total: 0}; return () => snapshot;})()},
     kinds: [{id: 'movies'}], load: async () => {}, selectKind: (id: string) => calls.push(id), setFilters: (filters: any) => calls.push(filters), setSort() {}};
@@ -657,18 +659,22 @@ test('retained Home Undo uses the shared toast with the original entry command',
 
 test('Home filters footer has an actual named Button host and preserves apply-then-close', async () => {
   const b = await bindings(), o = await overlayBindings(b), filters = await import('../../../packages/client-core/src/presentation/browse-toolbar');
+  const year = {id: 'year', type: 'number', controlHint: 'number-range', operators: ['between']};
   const {HomeRowFilters} = await screenModule(new URL('../src-next/screens/home/HomeRowFilters.tsx', import.meta.url), {react: b.react, 'react-native': b.native,
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/browse-toolbar': filters,
-    '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => ({groups: []})}, '../../kit/browse': {FilterBuilder: 'Builder'},
+    '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => ({groups: [{id: 'title', fields: [year]}]})}, '../../kit/browse': {FilterBuilder: 'Builder'},
     '../../kit/controls': {Button: o.Button}, '../../kit/overlays': {SidePanel: o.surface.SidePanel, BottomSheet: o.sheet.BottomSheet}, '../../kit/theme': {useTheme: () => b.theme},
     './row-controller': {}, './row-filters': {}, './browse-label': {homeBrowseLabel: () => ''}});
-  const state = {filters: [], capabilities: {fields: []}, sort: {field: 'title', direction: 'asc'}};
+  const state = {filters: [], capabilities: {fields: [year], library: {kind: 'movie'}}, sort: {field: 'title', direction: 'asc'}};
   const calls: string[] = []; let tree: any;
   const controller = {rowId: 'row', subscribe: () => () => {}, getSnapshot: () => state, previewCounts: async () => [{id: 'all', total: 4, totalIsLowerBound: false}],
     setFilters: () => {calls.push('apply'); return true;}};
   const runtime = {text: {t: defaultI18n.t}, getSnapshot: (() => {const snapshot = {account: {viewerRole: 'member'}}; return () => snapshot;})(), reportError() {}};
   const source = createFabricHookHost(() => {tree = HomeRowFilters({controller, runtime, onClose: () => calls.push('close')});}); await source.mount(); await flush();
   const footer = nodes(tree.props.footer).find(node => node.type === o.Button);
+  const yearControl = nodes(tree).find(node => node.type === 'Builder').props.fields.year;
+  assert.equal(yearControl.kind, 'range');
+  assert.ok(yearControl.presets.some((preset: {label: string}) => preset.label === '1980s'));
   await b.region(() => ({id: tree.props.testID}));
   const target = await b.target(tree.props.testID, () => {const outer = o.Button.render(footer.props, null); return outer.type.render(outer.props, outer.props.ref).props;});
   try {
