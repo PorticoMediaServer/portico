@@ -2725,6 +2725,11 @@
   --frame-guide-row: 72px;
   --frame-row-art-recording: 0px;
   --frame-row-art-download: 44px;
+  --frame-browse-grid-gap: 4px;
+  --frame-browse-grid-card: 100px;
+  --frame-browse-grid-column-gap: 10px;
+  --frame-browse-grid-row-gap: 16px;
+  --frame-browse-filters: 0px;
   --frame-player-edge: 14px;
   --frame-player-top: 4px;
   --frame-player-bottom: 8px;
@@ -3685,6 +3690,11 @@
   --frame-guide-row: 72px;
   --frame-row-art-recording: 132px;
   --frame-row-art-download: 48px;
+  --frame-browse-grid-gap: 12px;
+  --frame-browse-grid-card: 130px;
+  --frame-browse-grid-column-gap: 16px;
+  --frame-browse-grid-row-gap: 22px;
+  --frame-browse-filters: 420px;
   --frame-player-edge: 32px;
   --frame-player-top: 26px;
   --frame-player-bottom: 32px;
@@ -4646,6 +4656,11 @@
   --frame-guide-row: 76px;
   --frame-row-art-recording: 160px;
   --frame-row-art-download: 48px;
+  --frame-browse-grid-gap: 26px;
+  --frame-browse-grid-card: 160px;
+  --frame-browse-grid-column-gap: 20px;
+  --frame-browse-grid-row-gap: 30px;
+  --frame-browse-filters: 520px;
   --frame-player-edge: 40px;
   --frame-player-top: 30px;
   --frame-player-bottom: 24px;
@@ -5606,6 +5621,11 @@
   --frame-guide-row: 100px;
   --frame-row-art-recording: 220px;
   --frame-row-art-download: 72px;
+  --frame-browse-grid-gap: 24px;
+  --frame-browse-grid-card: 200px;
+  --frame-browse-grid-column-gap: 28px;
+  --frame-browse-grid-row-gap: 36px;
+  --frame-browse-filters: 680px;
   --frame-player-edge: 96px;
   --frame-player-top: 64px;
   --frame-player-bottom: 56px;

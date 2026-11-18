@@ -11,11 +11,15 @@ import styles from './layout.module.css';
 export type RowProps = Omit<HTMLAttributes<HTMLElement>, 'title'> & {heading: ReactNode; subtitle?: ReactNode; actions?: ReactNode; actionsPlacement?: 'trailing' | 'inline'; onSeeAll?: () => void; seeAllHref?: string; seeAllLabel?: string; platform?: LayoutPlatform; sizeClass?: 'medium'};
 export function Row({heading, subtitle, actions, actionsPlacement = 'trailing', onSeeAll, seeAllHref, seeAllLabel = defaultI18n.t('next.layout.seeAll'), platform = 'desktop', sizeClass, children, className, ...props}: RowProps) {
   const id = useId(), type = platformType(platform);
+  // A phone's See all is the chevron after the heading (phone-app 2: "On now ›"); wider rows draw the labelled link at the end.
+  const headingLink = platform.startsWith('phone') && (onSeeAll || seeAllHref);
+  const title = !headingLink ? heading : seeAllHref ? <a className={styles.headingLink} href={seeAllHref} onClick={onSeeAll}>{heading}<Icon name="i-right" size={18} /></a>
+    : <button type="button" className={styles.headingLink} onClick={onSeeAll}>{heading}<Icon name="i-right" size={18} /></button>;
   return <section {...props} className={[styles.row, className].filter(Boolean).join(' ')} data-layout-row data-platform={platform} data-size-class={sizeClass} aria-labelledby={id}>
-    <header className={styles.rowHead}><h2 id={id} style={{...layoutType(type.rowHeading), ...(sizeClass === 'medium' ? {fontSize: 21} : {})}}>{heading}</h2>
+    <header className={styles.rowHead}><h2 id={id} style={{...layoutType(type.rowHeading), ...(sizeClass === 'medium' ? {fontSize: 21} : {})}}>{title}</h2>
       {subtitle && <span className={styles.rowSubtitle} style={layoutType(type.rowSubtitle)}>{subtitle}</span>}
       {actions && <div className={styles.rowActions} data-placement={actionsPlacement}>{actions}</div>}
-      {seeAllHref ? <a className={styles.seeAll} href={seeAllHref} onClick={onSeeAll} style={layoutType(type.seeAll)}>{seeAllLabel}<Icon name="i-right" size={16} /></a>
+      {headingLink ? null : seeAllHref ? <a className={styles.seeAll} href={seeAllHref} onClick={onSeeAll} style={layoutType(type.seeAll)}>{seeAllLabel}<Icon name="i-right" size={16} /></a>
         : onSeeAll && <button type="button" className={styles.seeAll} onClick={onSeeAll} style={layoutType(type.seeAll)}>{seeAllLabel}<Icon name="i-right" size={16} /></button>}
     </header>{children}
   </section>;

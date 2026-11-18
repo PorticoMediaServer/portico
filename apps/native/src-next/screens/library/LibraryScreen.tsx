@@ -1,9 +1,7 @@
 import {TVSparseCardFrame, TVCardPaintFrame, TVPendingCardPaint} from '../../kit/cards/TVSparseCardFrame';
 import type {CardProps} from '../../kit/cards/primitives';
 import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject} from 'react';
-import {Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent, type StyleProp, type TextStyle} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
+import {ScrollView, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent, type StyleProp, type TextStyle} from 'react-native';
 import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
 import type {Library} from '../../../../../packages/client-core/src';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
@@ -19,7 +17,9 @@ import {Button, Focusable} from '../../kit/controls';
 import {FocusItem, FocusRegion, useFocusRegistry, type FocusRegionProps} from '../../kit/focus';
 import {Banner} from '../../kit/overlays';
 import {shareLinkActions} from '../share/share-actions';
-import {LibraryHeader, LibraryMenu, LibrarySwitcher, QuickToggle, ViewToggle, type BrowseLabels} from '../../kit/browse';
+import {FiltersDock, FiltersOver, LibraryExpandedHeader, LibraryHeader, LibraryMediumHeader, LibraryMenu, LibrarySwitcher, QuickToggle, ViewToggle, type BrowseLabels} from '../../kit/browse';
+/** The tablet header forms are the kit's (BrowseFrame draws them); re-exported for this screen's tests. */
+export {LibraryExpandedHeader, LibraryMediumHeader};
 import {browseType, alpha} from '../../kit/browse/presentation';
 import {Icon} from '../../kit/Icon';
 import {usePullRefresh} from '../../kit/states/usePullRefresh';
@@ -28,8 +28,7 @@ import {discoverCell} from './discover-cells';
 import {shapeFor, type ShapeFamily} from '../../../../../packages/client-core/src/presentation/card-shape';
 import {GridSkeleton, SkeletonBlock, StateView, showSkeleton, skeletonTiming} from '../../kit/states';
 import {useTheme, type Theme} from '../../kit/theme';
-import {useMotion} from '../../kit/useMotion';
-import {BarSurface, TopBar} from '../../kit/layout/TopBar';
+import {TopBar} from '../../kit/layout/TopBar';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {homeActionDiagnostics} from '../../platform/home-action-diagnostics';
 import {homeCardText} from '../home/model';
@@ -42,7 +41,7 @@ import type {NativeSelection} from '../selection/native-selection';
 import {LibraryToolbar} from './LibraryToolbar';
 import {LibraryListRow} from './LibraryListRow';
 import {NativeLibraryDirectory} from './directory';
-import {LibraryFilters, libraryFiltersDockWidth, libraryFiltersOverWidth, libraryFiltersTabletPane} from './LibraryFilters';
+import {LibraryFilters, libraryFiltersDockWidth, libraryFiltersTabletPane} from './LibraryFilters';
 import {LibraryJumpSheet} from './LibraryJumpSheet';
 import {libraryAlphabetRail, libraryJumpLetter, libraryJumpLetters} from './jump';
 import type {NativeLibraryFilterDraft, NativeLibraryFilterSnapshot} from './filters';
@@ -123,68 +122,6 @@ export function LibraryCompactHeader({switcher, menu, children, onLibraries, tes
   switcher?: ReactNode; menu?: ReactNode; children?: ReactNode; onLibraries: () => void; testID?: string;
 }) {
   return <TopBar testID={testID} surface back={{label: defaultI18n.t('next.browse.native.libraries'), onPress: onLibraries}} center={switcher} trailing={menu}>{children}</TopBar>;
-}
-
-/** tablet4: the expanded library header is the desktop one at touch size: the
- * 44 pt title with its switcher beside it, then Select and the library menu at
- * the right, and the pivot strip on the drawn hairline. The sidebar already says
- * where you are, so there is no back control. */
-export function LibraryExpandedHeader({name, switcher, menu, ambient, selection, children, testID}: {
-  name: string; switcher?: ReactNode; menu?: ReactNode; ambient?: ReactNode; selection?: ReactNode; children?: ReactNode; testID?: string;
-}) {
-  const theme = useTheme(), insets = useSafeAreaInsets();
-  return <View testID={testID} style={{paddingTop: insets.top, zIndex: theme.layers.sticky}}>
-    {ambient && <View pointerEvents="none" style={StyleSheet.absoluteFill}>{ambient}</View>}
-    <BarSurface/>
-    <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: theme.gutter, paddingTop: 22}}>
-      <Text accessibilityRole="header" numberOfLines={1} style={[browseType(theme, 44, 800, -.045, 44), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text>
-      <View style={{width: 44, height: 44, borderRadius: 22, marginTop: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.text, .12)}}>{switcher}</View>
-      <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{selection}{menu}</View>
-    </View>
-    {children}
-  </View>;
-}
-
-/** tablet5: upright, the rail already says where you are, so the compact header
- * keeps the phone's 24 pt name and switcher but drops its back control; Select
- * and the library menu sit at the right, and the pivots scroll as on a phone. */
-export function LibraryMediumHeader({name, switcher, menu, selection, ambient, wash, children, testID}: {
-  name: string; switcher?: ReactNode; menu?: ReactNode; selection?: ReactNode; ambient?: ReactNode; wash?: boolean; children?: ReactNode; testID?: string;
-}) {
-  const theme = useTheme(), insets = useSafeAreaInsets();
-  return <View testID={testID} style={{paddingTop: insets.top, zIndex: theme.layers.sticky}}>
-    {ambient && <View pointerEvents="none" style={StyleSheet.absoluteFill}>{ambient}</View>}
-    <BarSurface/>
-    <View style={{height: 46, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 28}}>
-      <Text accessibilityRole="header" numberOfLines={1} style={[browseType(theme, 24, 800, -.03), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text>
-      <View style={{width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.text, .12)}}>{switcher}</View>
-      <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{selection}{menu}</View>
-    </View>
-    {children}
-  </View>;
-}
-
-/** tablet5: the 420 pt panel slides in from the right over the dimmed grid and
- * leaves the same way. It keeps the draft alive until the exit lands, then the
- * route disposes exactly that draft. Timings are the kit's side-panel pair
- * (320 in, 240 out); reduced motion keeps only the fade. */
-function LibraryFiltersOverPanel({open, width, onDismiss, onExited, children}: {
-  open: boolean; width: number; onDismiss: () => void; onExited: () => void; children?: ReactNode;
-}) {
-  const theme = useTheme(), motion = useMotion(), progress = useSharedValue(0);
-  const exited = useRef(onExited); exited.current = onExited;
-  useEffect(() => {progress.value = withTiming(open ? 1 : 0, {...motion.timing('slow', open ? 'out' : 'in'), duration: motion.reduce ? motion.duration('standard') : open ? 320 : 240});}, [open, motion, progress]);
-  useEffect(() => {if (open) return; const timer = setTimeout(() => exited.current(), motion.reduce ? motion.duration('standard') : 240); return () => clearTimeout(timer);}, [open, motion]);
-  const pane = useAnimatedStyle(() => ({transform: motion.transforms ? [{translateX: (1 - progress.value) * width}] : [], opacity: motion.reduce ? progress.value : 1}));
-  const scrim = useAnimatedStyle(() => ({opacity: progress.value * .62}));
-  return <View style={{position: 'absolute', inset: 0, zIndex: theme.layers.navigation}}>
-    <Animated.View style={[StyleSheet.absoluteFill, {backgroundColor: '#03080c'}, scrim]}>
-      <Pressable accessible={false} onPress={onDismiss} style={StyleSheet.absoluteFill}/>
-    </Animated.View>
-    <Animated.View testID="library-filters-over" accessibilityViewIsModal importantForAccessibility="yes"
-      style={[{position: 'absolute', top: 0, bottom: 0, right: 0, width, maxWidth: '100%', backgroundColor: theme.colors.raised,
-        shadowColor: '#000', shadowOffset: {width: -20, height: 0}, shadowOpacity: .6, shadowRadius: 40}, pane]}>{children}</Animated.View>
-  </View>;
 }
 
 /** The pivot strip: it scrolls on a phone because Music and Audiobooks have more
@@ -460,11 +397,10 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
             </View> : null}
           </ScrollView> : null}
       </View>
-      {docked && <View testID="library-filters-dock" style={{width: libraryFiltersDockWidth, backgroundColor: theme.colors.raised,
-        borderLeftWidth: 1, borderLeftColor: alpha(theme.colors.text, .07)}}>{panel}</View>}
+      {docked && <FiltersDock testID="library-filters-dock">{panel}</FiltersDock>}
     </View>
-    {over && filterDraft && <LibraryFiltersOverPanel open={!overClosing} width={libraryFiltersOverWidth} onDismiss={() => closeFilters(filterDraft)}
-      onExited={() => dropFilters(filterDraft)}>{panel}</LibraryFiltersOverPanel>}
+    {over && filterDraft && <FiltersOver open={!overClosing} onDismiss={() => closeFilters(filterDraft)}
+      onExited={() => dropFilters(filterDraft)}>{panel}</FiltersOver>}
     {sheet}
   </View>;
 }

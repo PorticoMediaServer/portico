@@ -5,7 +5,6 @@ import {AuthError, AuthKicker, AuthStage} from '../accounts';
 import type {ArtworkSource} from '../artwork';
 import {Button, ResumeButton, Tabs, type ChoiceItem} from '../controls';
 import type {IconName} from '../Icon';
-import {Hero, type HeroCandidate, type HeroProps} from '../layout';
 import {BottomSheet, Dialog, Popover, SidePanel, useFrameForm, type OverlayChange} from '../overlays';
 import {usePhone} from '../overlays/shared';
 import {Skeleton, StateLayout, type StateAction, type StateDetails, type StateRetry, type StateTone} from '../states';
@@ -31,7 +30,7 @@ export type PageHeaderProps = Readonly<{
   trailing?: ReactNode;
 }>;
 /** Rule 3, the one header of a page that is not a title page and not in a sheet. The title wraps and is never cut. */
-function PageHeader({title, back, trailing}: PageHeaderProps) {
+export function PageHeader({title, back, trailing}: PageHeaderProps) {
   return <header className={styles.header} data-back={back ? true : undefined}>{back && <Back back={back} />}<div className={styles.headerRow}><h1 className={styles.pageTitle}>{title}</h1>{trailing}</div></header>;
 }
 
@@ -51,41 +50,6 @@ export type PageStateProps = Readonly<{
 /** Frame 9: the whole page can't load, or is waiting the first time. Once per screen, in place of the page. */
 export function PageStateFrame({primaryAction, secondaryAction, downloads, ...state}: PageStateProps) {
   return <StateLayout {...state} primary={primaryAction} secondary={secondaryAction}>{downloads}</StateLayout>;
-}
-
-export type BrowseFrameProps = Readonly<{
-  /** The rows or the grid: the one flexible region. Each child is a kit `Shelf` (it draws its own heading) or a grid;
-   * the frame spaces them. A row with no items is left out whole. */
-  children?: ReactNode;
-  /** The whole page is loading for the first time, or can't load: drawn in place of the rows. */
-  state?: Readonly<{kind: 'loading'}> | PageStateProps;
-}> & (
-  /** A destination or a pushed list: its title is the header. */
-  | Readonly<{header: PageHeaderProps; hero?: never}>
-  /** Home: the hero leads, under the shell's nav. `null` while Home has nothing to feature. */
-  | Readonly<{hero: ReactNode; header?: never}>);
-
-/** Frame 1, Browse: Home, a library, Live TV, Saved, Search results. */
-export function BrowseFrame({header, hero, state, children}: BrowseFrameProps) {
-  const failure = state && 'title' in state ? state : undefined;
-  return <div className={`${styles.frame} ${styles.browse}`} data-hero={hero ? true : undefined}>
-    {header ? <PageHeader {...header} /> : hero ?? <div className={styles.browseTop} />}
-    {failure ? <PageStateFrame {...failure} /> : <div className={styles.browseRows}>{state ? <RowsSkeleton /> : children}</div>}
-  </div>;
-}
-/** Loading holds the loaded page's boxes (rule 12): two rows, each a heading and a line of cards at their real size. */
-function RowsSkeleton() {
-  const row = (width: string, ratio: string, sheen: boolean) => <div className={styles.skeletonRow}><Skeleton quiet line width="var(--card-poster-width)" />
-    <div className={styles.skeletonCards}>{Array.from({length: 9}, (_, index) => <Skeleton quiet key={index} width={width} sheen={sheen && index === 0} style={{aspectRatio: ratio}} />)}</div></div>;
-  return <div aria-hidden="true" className={styles.browseRows}>{row('var(--card-wide-width)', '16 / 9', true)}{row('var(--card-poster-width)', '2 / 3', false)}</div>;
-}
-
-/** What a screen may say about Home's hero: what to feature and how to draw its art and buttons. Never a size. */
-export type HomeHeroProps<T extends HeroCandidate> = Pick<HeroProps<T>, 'candidates' | 'activeIndex' | 'onIndexChange' | 'active' | 'visible'
-  | 'renderArtwork' | 'renderThumbnail' | 'renderActions' | 'renderMetadata' | 'renderReason' | 'titleLink' | 'onArtworkError' | 'onArtworkReady'>;
-/** Rule 14, the moderate hero, for `BrowseFrame`'s `hero`: the kit's Hero (its cross-fade and drift unchanged) at the rule's fixed sizes. */
-export function HomeHero<T extends HeroCandidate>(props: HomeHeroProps<T>) {
-  return <Hero {...props} moderate platform={usePhone() ? 'phone-web' : 'desktop'} />;
 }
 
 export type TitleAction = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean;

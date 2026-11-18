@@ -7,7 +7,7 @@ import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
 import {AmbientArt, type ArtworkImage, type ArtworkSource} from '../../kit/artwork';
 import {PosterCard, SquareCard, WideCard} from '../../kit/cards';
 import {Button, Switch, TextField} from '../../kit/controls';
-import {ArtBox, BrowseFrame, HomeHero, PageStateFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame} from '../../kit/frames';
+import {ArtBox, BrowseFrame, PageStateFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame} from '../../kit/frames';
 import {Icon} from '../../kit/Icon';
 import {HeroFacts, Shelf} from '../../kit/layout';
 import {usePhone} from '../../kit/overlays/shared';
@@ -23,9 +23,9 @@ import wordmark from '../../shell/wordmark.svg';
  * frame and state, with the native gallery's ids; README.md in kit/frames lists them and how to open each.
  * Every case answers to the window's width, so the same case is captured at 390 and at 1440. Serve-only. */
 type FixtureName = keyof typeof framesFixtureMessages extends `next.frames.fixture.${infer Name}` ? Name : never;
-const f = (name: FixtureName) => formatMessage(framesFixtureMessages[`next.frames.fixture.${name}`]);
-const none = () => {};
-const fact = (text: string): FactPart[] => text.split(' · ').map((part, index) => ({id: index === 0 ? 'year' : `fact-${index}`, text: part, role: index === 0 ? 'identity' : 'context'}));
+export const f = (name: FixtureName) => formatMessage(framesFixtureMessages[`next.frames.fixture.${name}`]);
+export const none = () => {};
+export const fact = (text: string): FactPart[] => text.split(' · ').map((part, index) => ({id: index === 0 ? 'year' : `fact-${index}`, text: part, role: index === 0 ? 'identity' : 'context'}));
 
 /** The reference artwork the capture run serves (the same files the native gallery and the mock-ups use). */
 export function useReferenceArtwork() {
@@ -49,7 +49,7 @@ export function Window({children}: {children: ReactNode}) {
 /** A page as the app shows it: inside the shell's own top bar (from 1024) or wordmark bar and tab bar (phone width),
  * drawn with the shell's stylesheet so the frame is judged where it lives. Between 600 and 1023 the shell's rail is not drawn here. */
 /** From 1024 the shell draws its top bar. */
-function useWide() {
+export function useWide() {
   const [wide, setWide] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
   useEffect(() => {const media = window.matchMedia('(min-width: 1024px)'), update = () => setWide(media.matches); media.addEventListener('change', update); return () => media.removeEventListener('change', update);}, []);
   return wide;
@@ -57,11 +57,11 @@ function useWide() {
 /** The owner's server activity in the top bar, with two people watching (mock.html home). Only what the closed button reads. */
 const activityView = {phase: 'ready', serverName: '', health: 'normal', streamCount: 2, taskCount: 0, streams: [], scans: [], tasks: []} as unknown as ActivityPanelView;
 export function Page({children, current, home = false}: {children: ReactNode; current: 'home' | 'movies' | 'settings' | 'search' | 'saved' | 'music' | 'audiobooks' | 'liveTvShort'; home?: boolean}) {
-  const phone = usePhone(), wide = useWide(), tools = (name: 'i-search' | 'i-bookmark' | 'i-bell', label: FixtureName) => <a className={shell.icon} aria-label={f(label)} aria-current={current === label ? 'page' : undefined}><Icon name={name} size={22} /></a>;
+  const phone = usePhone(), wide = useWide(), tools = (name: 'i-search' | 'i-bookmark' | 'i-bell', label: FixtureName) => <a className={shell.icon} aria-label={f(label)} aria-current={current === label ? 'page' : undefined}><Icon name={name} size={22} />{name === 'i-bell' && <span className={shell.dot} />}</a>;
   // The shell's underline measures the list it is in, so it is mounted once that list exists.
   const destinations = useRef<HTMLUListElement>(null), [listed, setListed] = useState(false);
   useEffect(() => setListed(true), []);
-  const avatar = <span className={shell.avatar}><ProfileAvatarFace initial={f('profileInitial')} /></span>, page = (id: typeof current) => current === id ? 'page' as const : undefined;
+  const avatar = <span className={shell.avatar}><ProfileAvatarFace initial={f('profileInitial')} notificationDot={phone} /></span>, page = (id: typeof current) => current === id ? 'page' as const : undefined;
   return <div className={shell.shell} data-desktop={wide} data-navigation={wide ? 'topbar' : phone ? 'tabs' : undefined} style={{position: 'relative', height: '100%', overflowY: 'auto', boxSizing: 'border-box'}}>
     <div className={shell.navigation}>{wide ? <nav className={shell.topnav}>
       <a className={shell.brand}><img src={wordmark} alt="" /></a>
@@ -77,7 +77,7 @@ export function Page({children, current, home = false}: {children: ReactNode; cu
 }
 
 const posters = ['spirited-away', 'inside-out', 'alien', 'blade-runner', 'dune', 'barbie', 'back-to-the-future', 'the-dark-knight', 'avatar', 'aliens'].map(id => ({id, title: id.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ')}));
-const wides = [{id: 'tlou', title: f('tlou'), art: 'bd-tlou.jpg'}, {id: 'inside-out', title: f('insideOut'), art: 'bd-insideout.jpg'}, {id: 'spirited', title: f('spirited'), art: 'bd-spirited.jpg'}];
+export const wides = [{id: 'tlou', title: f('tlou'), art: 'bd-tlou.jpg'}, {id: 'inside-out', title: f('insideOut'), art: 'bd-insideout.jpg'}, {id: 'spirited', title: f('spirited'), art: 'bd-spirited.jpg'}];
 export function PosterRow({title, fresh = false}: {title: string; /** The first few are new. */ fresh?: boolean}) {
   const art = useReferenceArtwork(), phone = usePhone();
   return <Shelf heading={title} platform={phone ? 'phone-web' : 'desktop'} items={posters} getKey={item => item.id}
@@ -88,23 +88,6 @@ function WideRow() {
   return <Shelf heading={f('continueWatching')} platform={phone ? 'phone-web' : 'desktop'} items={wides} getKey={item => item.id}
     renderItem={item => <WideCard model={{title: item.title, caption: [{id: 'episode-label', text: f('wideEpisode'), role: 'identity'}], detail: [{id: 'remaining', text: f('wideLeft'), role: 'context'}], progress: .4}} artwork={art(item.art)} style={{width: 'var(--card-wide-width)'}} onNavigate={none} />} />;
 }
-
-const heroes = [
-  {id: 'spirited', title: f('spirited'), reason: f('spiritedReason'), overview: f('tlouSynopsis'), facts: fact(f('spiritedFacts')), art: 'bd-spirited.jpg'},
-  {id: 'tlou', title: f('tlou'), overview: f('tlouSynopsis'), facts: fact(f('tlouFacts')), art: 'bd-tlou.jpg'},
-];
-function BrowseHome() {
-  const art = useReferenceArtwork(), [index, setIndex] = useState(0), phone = usePhone();
-  return <Page current="home" home><BrowseFrame hero={<HomeHero candidates={heroes} activeIndex={index} onIndexChange={setIndex}
-    renderArtwork={(entry, context) => <AmbientArt treatment={phone ? 'phone' : 'hero'} foreground={art(entry.art)} visible={context.visible} onReady={context.onReady} onError={context.onError} />}
-    renderActions={() => <><Button variant="primary" phone={phone} icon="i-play">{f('play')}</Button><Button phone={phone} icon="i-plus">{f('myList')}</Button></>} />}>
-    <WideRow /><PosterRow fresh title={f('newOnServer')} />
-  </BrowseFrame></Page>;
-}
-const BrowseList = () => <Page current="movies"><BrowseFrame header={{title: f('movies'), back: {label: f('libraries'), onPress: none}, trailing: <Button size="small" icon="i-filter">{f('filters')}</Button>}}>
-  <PosterRow title={f('newOnServer')} /><PosterRow title={f('moreLikeThis')} />
-</BrowseFrame></Page>;
-const BrowseLoading = () => <Window><BrowseFrame header={{title: f('movies')}} state={{kind: 'loading'}} /></Window>;
 
 function Title({variant}: {variant: 'full' | 'missing' | 'loading'}) {
   const art = useReferenceArtwork(), [tab, setTab] = useState('more'), full = variant !== 'missing', phone = usePhone();
@@ -200,14 +183,13 @@ function Elements() {
 
 /** Decision 4: each frame empty, as the frames page draws it. What the frame owns is drawn by the frame, with stand-in
  * words; what the screen supplies is an outlined box that says so, and the one flexible region is marked. */
-function Region({name, flexible = false, height}: {name: FixtureName; flexible?: boolean; height?: string}) {
+export function Region({name, label, flexible = false, height}: {name?: FixtureName; /** Another family's own region name. */ label?: string; flexible?: boolean; height?: string}) {
   const color = flexible ? 'var(--color-amber)' : 'var(--color-accent-strong)';
   return <div style={{boxSizing: 'border-box', height: height ?? '100%', minHeight: height ? undefined : 'var(--frame-row-two-line)', overflow: 'hidden', border: `2px dashed ${color}`, borderRadius: 'var(--radius-control)', padding: 'var(--space-xs)', display: 'grid', alignContent: 'center'}}>
-    <b className={frame.rowLabel} style={{color}}>{f(name)}</b><span className={frame.rowHelp}>{f(flexible ? 'regionFlexible' : 'regionScreen')}</span></div>;
+    <b className={frame.rowLabel} style={{color}}>{label ?? (name && f(name))}</b><span className={frame.rowHelp}>{f(flexible ? 'regionFlexible' : 'regionScreen')}</span></div>;
 }
 const Block = ({name, flexible, rows = 3}: {name: FixtureName; flexible?: boolean; rows?: number}) => <div style={{margin: '0 var(--g)'}}><Region name={name} flexible={flexible} height={`calc(var(--frame-row-two-line) * ${rows})`} /></div>;
 const own = {back: {label: f('ownBack'), onPress: none}, action: {label: f('ownAction'), onPress: none}};
-const RegionsBrowse = () => <Window><BrowseFrame hero={<div style={{height: 'var(--frame-hero-home-height)'}}><Region name="regionHero" /></div>}><Block name="regionRows" flexible /><Block name="regionRows" flexible /></BrowseFrame></Window>;
 const RegionsTitle = () => <Window><TitleFrame back={own.back} topAction={{icon: 'i-cast', label: f('ownAction'), onPress: none}} art={<Region name="regionArt" />} title={f('ownTitle')}
   metadata={<span className={frame.rowHelp}>{f('ownMeta')}</span>} primary={{icon: 'i-play', label: f('ownPrimary'), onPress: none}}
   actions={[{icon: 'i-plus', label: f('ownAction'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]} synopsis={f('ownSynopsis')}
@@ -224,9 +206,6 @@ const RegionsState = () => <Window><PageStateFrame icon="i-info" title={f('ownSt
 const section = (id: string, label: string, render: ComponentType, height = 900): GalleryCase => ({id, labelKey: `next.platform.frame.${label}` as MessageId, width: 1440, height, render});
 export default defineGalleryFamily({id: 'frames', labelKey: 'next.platform.frame.family', cases: [
   section('backdrop', 'backdrop', () => <Window><div /></Window>),
-  section('browse-home', 'browseHome', BrowseHome),
-  section('browse-list', 'browseList', BrowseList),
-  section('browse-loading', 'browseLoading', BrowseLoading),
   section('title', 'title', () => <Title variant="full" />),
   section('title-missing', 'titleMissing', () => <Title variant="missing" />),
   section('title-loading', 'titleLoading', () => <Title variant="loading" />),
@@ -236,6 +215,6 @@ export default defineGalleryFamily({id: 'frames', labelKey: 'next.platform.frame
   section('sign-in', 'signIn', SignIn),
   section('state', 'state', State),
   section('elements', 'elements', Elements, 1800),
-  section('regions-browse', 'regionsBrowse', RegionsBrowse), section('regions-title', 'regionsTitle', RegionsTitle), section('regions-settings', 'regionsSettings', RegionsSettings), section('regions-sheet', 'regionsSheet', RegionsSheet),
+  section('regions-title', 'regionsTitle', RegionsTitle), section('regions-settings', 'regionsSettings', RegionsSettings), section('regions-sheet', 'regionsSheet', RegionsSheet),
   section('regions-sign-in', 'regionsSignIn', RegionsSignIn), section('regions-state', 'regionsState', RegionsState),
 ]});

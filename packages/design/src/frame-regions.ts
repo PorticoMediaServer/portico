@@ -27,6 +27,34 @@ const touchWeb: readonly RegionForm[] = ['phone', 'medium', 'expanded', 'web'];
 const tabletWeb: readonly RegionForm[] = ['medium', 'expanded', 'web'];
 
 export const frameRegions = {
+  /** `BrowseFrame` with a `header`: a library, and any page of rows or a grid under a title (See all, a collection's grid). */
+  browse: [
+    {id: 'header.title', forms: all, from: ['desktop-browse grid', 'phone-app 4, 5', 'tablet 3, 4, 5', 'final3-tv-08']},
+    {id: 'header.switcher', forms: all, from: ['desktop-browse grid (the round chevron)', 'phone-app 4, 4b (the centred name)', 'tablet 4', 'final3-tv-08 (title ▾)']},
+    {id: 'header.back', forms: touch, from: ['phone-app 4 (‹ Libraries)', 'collections-46, -47 (See all)']},
+    {id: 'header.trailing', forms: ['medium', 'expanded'], from: ['tablet 3, 4 (Select)', 'desktop-listen music (Shuffle)']},
+    {id: 'header.menu', forms: touch, from: ['phone-app 4c', 'desktop-browse grid (⋯)', 'tablet 3']},
+    {id: 'header.intro', forms: touch, from: ['desktop-browse seeall (why these titles are here)', 'collections-46, -47']},
+    {id: 'header.actions', forms: touch, from: ['desktop-browse seeall (Play, Shuffle)', 'collections-46, -47']},
+    {id: 'header.tabs', forms: all, from: ['desktop-browse grid', 'phone-app 4', 'tablet 4', 'final3-tv-08', 'desktop-listen music (Discover / Artists / Albums / Songs / Genres)']},
+    {id: 'toolbar', forms: all, from: ['desktop-browse grid, filters, sort', 'phone-app 5', 'tablet 4', 'final3-tv-08', 'tv-focus 18-21']},
+    {id: 'filters', forms: all, from: ['desktop-browse filters (side panel)', 'phone-app 6 (sheet)', 'tablet 4 (docked), 5 (over the grid)', 'final3-tv-08 (side sheet)']},
+    {id: 'grid', forms: all, flexible: true, from: ['desktop-browse grid, big, list, collections', 'phone-app 5', 'tablet 4, 5', 'final3-tv-08']},
+    {id: 'alphabet', forms: touch, from: ['desktop-browse grid, big (rail and the scroll bubble)', 'phone-app 5', 'tablet 4']},
+    {id: 'children', forms: all, flexible: true, from: ['phone-app 4 (Discover: Continue Watching, Recently added ›, Recommended)', 'desktop-browse recommended, seeall', 'final3-tv-08']},
+    {id: 'state', forms: all, from: ['system-rules 12 (loading keeps the loaded page\'s boxes)', 'states-22b', 'desktop-browse empty']},
+    {id: 'startFocus', forms: ['tv'], drawnBy: 'R1', from: ['tv-focus 18 (the first card; never the rail)']},
+  ],
+  /** `BrowseFrame` with a `hero`: Home. */
+  home: [
+    {id: 'bar', forms: ['phone'], drawnBy: 'shell', from: ['phone-app 1, 2 (wordmark, Cast, avatar; solid once scrolled)', 'final-mobileweb-1 frame 1']},
+    {id: 'hero', forms: all, from: ['mock.html home', 'final-desktop-1 (pager thumbnails)', 'phone-app 1', 'tablet 1, 2', 'final3-tv-01 (follows focus; owner, 18 Nov)']},
+    {id: 'hero.hints', forms: ['tv'], from: ['final3-tv-01 (OK Resume, Hold OK More options)']},
+    {id: 'hero.focusedEntry', forms: ['tv'], from: ['final3-tv-01, tv-focus 2 (the hero shows the focused card)']},
+    {id: 'children', forms: all, flexible: true, from: ['phone-app 1, 2 (Continue Watching, New on your server ›, On now, Continue Listening, Popular)', 'mock.html home', 'tablet 1, 2', 'final3-tv-01']},
+    {id: 'state', forms: all, from: ['system-rules 12', 'states 4b']},
+    {id: 'startFocus', forms: ['tv'], drawnBy: 'R1', from: ['owner, 18 Nov: the first Continue Watching card']},
+  ],
   /** Frame 3, the Settings index (family E). */
   settingsList: [
     {id: 'bar', forms: ['phone'], from: ['phone-app 16', 'phone-web 9']},

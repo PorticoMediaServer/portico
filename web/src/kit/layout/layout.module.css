@@ -80,8 +80,9 @@
 .row { --layout-gutter: var(--shell-gutter); position: relative; margin-top: var(--framed-row-margin, 44px); }
 .row:first-child { margin-top: 0; }
 /* Rows and heroes sit on the shell's one page-edge gutter (20 px on a phone, 28 px beside the rail). */
-.rowHead { display: flex; align-items: baseline; gap: 14px; padding: 0 var(--layout-gutter); margin-bottom: var(--framed-row-heading-gap, 14px); }
-.rowHead h2 { margin: 0; }
+/* A heading is never squeezed by what follows it: its subtitle moves under it when the two do not fit on one line. */
+.rowHead { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 14px; row-gap: 2px; padding: 0 var(--layout-gutter); margin-bottom: var(--framed-row-heading-gap, 14px); }
+.rowHead h2 { margin: 0; flex: 0 1 auto; }
 .rowSubtitle { color: var(--color-text-tertiary); }
 .rowActions { margin-left: auto; display: flex; align-self: center; gap: 12px; }
 .rowActions[data-placement='inline'] { margin-left: 18px; }
@@ -102,6 +103,8 @@
 .row[data-platform^='phone'] .track { padding: var(--framed-row-bleed, 8px) var(--layout-gutter) var(--framed-row-bleed, 10px); gap: 12px; }
 .row[data-platform^='phone'] .rowHead h2 { display: flex; align-items: center; gap: 1px; }
 .row[data-platform^='phone'] .rowHead h2 svg { color: var(--color-text-tertiary); }
+.headingLink { display: inline-flex; align-items: center; gap: 1px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: start; text-decoration: none; cursor: pointer; }
+.headingLink > svg { flex: none; }
 .row[data-platform='tv'] { --layout-gutter: var(--gutter-tv); }
 .row[data-platform='tv'] .rowHead { gap: 18px; margin-bottom: var(--framed-row-heading-gap, 22px); padding-right: 96px; }
 .row[data-platform='tv'] .track { gap: 28px; padding-top: var(--framed-row-bleed, 0px); padding-bottom: var(--framed-row-bleed, 0px); padding-right: 96px; }

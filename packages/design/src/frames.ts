@@ -82,6 +82,18 @@ export const frame = {
   sheet: {fullTop: 62, fullRadius: 16, footerClear: 34},
   /** Frame 6: the centred column on a tablet. A phone uses its width; the web's column and inset are the auth stage's. */
   signIn: {column: forms(0, 380, 380, 0)},
+  /** Frame 1, a library's fixed regions under its header (desktop-browse grid and filters, phone-app 4 to 6, tablet 3 to 5,
+   * final3-tv-08). The regions are `frameRegions.browse`. R5 interim: these numbers move to the rules hand's rhythm table. */
+  browse: {
+    /** The toolbar's last line to the grid's first row. The toolbar's own top padding is the gap under the tabs' rule (kit `BrowseToolbar`). */
+    gridGap: forms(4, 12, 26, 24), // R5 interim (desktop-browse .pgrid: 26 under the toolbar)
+    /** The poster grid: the narrowest a column's card may be (the columns stretch to both gutters), and the gaps between
+     * columns and rows (desktop-browse .pgrid 20 / 30; phone-app 5; tablet 4 and 5). Its loading boxes use the same. */
+    grid: {card: forms(100, 130, 160, 200), columnGap: forms(10, 16, 20, 28), rowGap: forms(16, 22, 30, 36)}, // R2 and R5 interim
+    /** Filters: a sheet on a phone; over the grid on an upright tablet (tablet 5, 420); a column docked beside the grid on a
+     * landscape tablet (tablet 4, 380); the web's side panel (desktop-browse filters, 520); TV's side sheet (680). */
+    filtersWidth: {...forms(0, 420, 380, 680), web: 520},
+  },
   /** Frame 8 and rule 12: every region is placed from the frame's edges, so nothing moves when content is missing.
    * The phone (phone-app 14 and 15) is one column; the wide forms (desktop-listen "now" and "book-player", tablet-play
    * 9, 10 and 12, final3-tv-12) are their own layout: a column of the cover's width (title, scrubber with its times at

@@ -4,13 +4,9 @@ import {defaultI18n} from '@i18n';
 import type {BrowseNode} from '@core/browse.ts';
 import {fieldSelectionSummary, filterControlOf, filterValuesField, rangePresets, activeRangePreset} from '@core/presentation/browse-toolbar.ts';
 import type {BrowseToolbarModel} from '@portico/client-core/kit-model';
-import {BottomSheet, Dialog, SidePanel} from '../../kit/overlays';
-import {Button} from '../../kit/controls';
 import {createInputCadence} from './input-cadence';
-import {Skeleton} from '../../kit/states';
-import {FilterBuilder, type BrowseLabels, type FilterFieldChange, type FilterFieldState} from '../../kit/browse';
+import {FilterBuilder, FiltersSurface, type BrowseLabels, type FilterFieldChange, type FilterFieldState} from '../../kit/browse';
 import type {BrowseController, BrowseState} from './controller';
-import styles from './browse.module.css';
 
 export type BrowseFiltersProps = Readonly<{controller: BrowseController; model: BrowseToolbarModel; labels: BrowseLabels; compact: boolean; medium?: boolean; docked?: boolean; open: boolean; resultCount?: string; canSaveView: boolean; onSaveView?: () => void; onClose: () => void; reportError: (error: unknown) => void}>;
 const t = defaultI18n.t;
@@ -174,13 +170,6 @@ export function BrowseFilters({controller, model, labels, compact, medium = fals
     onFieldOpenChange={(id, opened) => {if (drawn()) setOpenFields(before => opened ? [...before.filter(value => value !== id), id] : before.filter(value => value !== id));}}
     onFieldChange={change} onSearchChange={(id, query) => {if (drawn()) setQueries(before => ({...before, [id]: query}));}} onShowAll={id => {if (drawn()) setExpandedValues(before => [...before.filter(value => value !== id), id]);}}
     onRetry={id => {if (drawn()) setQueries(before => ({...before, [id]: before[id] ?? ''}));}}/>;
-  const footer = <><Button variant="glass" size="hero" onClick={clearAll}>{t('next.browse.clearAll')}</Button><Button variant="primary" size="hero" onClick={closeFilters}>{t('action.done')}</Button></>;
-  if (docked) return <SidePanel open={open} onOpenChange={opened => {if (!opened) closeFilters();}} title={t('next.browse.filters')} width={380} topInset={0} className={styles.dockedFilters}
-    description={resultCount ? <span className={styles.filterCount}><b>{resultCount}</b> {t('next.browse.match')}</span> : undefined} footer={footer}>{body}</SidePanel>;
-  return compact ? <BottomSheet open={open} onOpenChange={opened => {if (!opened) closeFilters();}} showCloseButton={false} detent={1}
-    headerClassName={styles.phoneFilterHeader} title={<span className={styles.filterTitle}>{t('next.browse.filters')}<Button variant="text" size="small" onClick={clearAll}>{t('next.browse.clearAll')}</Button></span>}
-    footerClassName={styles.filterFooter} footer={<>{onSaveView && <Button variant="glass" size="hero" disabled={!canSaveView} onClick={saveView}>{t('next.browse.saveView')}</Button>}<Button variant="primary" size="hero" disabled={!resultCount} aria-label={resultCount ? undefined : t('next.browse.filters')} onClick={closeFilters}>{resultCount ? t('next.browse.showCount', {count: resultCount}) : <Skeleton width={116} height={20}/>}</Button></>}>{body}</BottomSheet> :
-    <Dialog responsive={false} open={open} onOpenChange={opened => {if (!opened) closeFilters();}} title={t('next.browse.filters')} placement="right" width={medium ? 420 : 520} closeIconSize={22} closeLabel={t('next.browse.closeFilters')}
-      headerClassName={styles.filterHeader} bodyClassName={styles.filterBody} footerClassName={styles.filterFooter}
-      description={resultCount ? <span className={styles.filterCount}><b>{resultCount}</b> {t('next.browse.match')}</span> : undefined} footer={footer}>{body}</Dialog>;
+  return <FiltersSurface form={docked ? 'docked' : compact ? 'sheet' : 'panel'} medium={medium} open={open} onClose={closeFilters} onClear={clearAll} count={resultCount}
+    save={compact && onSaveView ? {canSave: canSaveView, onSave: saveView} : undefined}>{body}</FiltersSurface>;
 }

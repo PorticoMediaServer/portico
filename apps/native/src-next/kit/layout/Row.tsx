@@ -218,12 +218,13 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
   });
   const controlStyle = (selected: boolean) => ({borderWidth: selected ? theme.spec.focus.ringWidth[theme.column] : 0, borderColor: theme.colors.focus, borderRadius: theme.baseRadii.control});
   return <View testID={testID} onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)} style={style}>
-    {showHeading && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: theme.spec.shelf.headingGap[theme.column], paddingLeft: leading, paddingRight: trailing, marginBottom: framed ? frameSpec.rhythm.rowHeadingGap[theme.form] : theme.spec.shelf.headingMargin[theme.column]}}>
+    {/* A heading is never cut or squeezed: it wraps, and its subtitle moves under it when the two do not fit on one line. */}
+    {showHeading && <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: theme.spec.shelf.headingGap[theme.column], rowGap: 2, paddingLeft: leading, paddingRight: trailing, marginBottom: framed ? frameSpec.rhythm.rowHeadingGap[theme.form] : theme.spec.shelf.headingMargin[theme.column]}}>
       {onSeeAll && !theme.isTV ? <Pressable testID={testID ? `${testID}-see-all` : undefined} accessibilityRole="button" accessibilityLabel={title} accessibilityHint={defaultI18n.t('shelf.seeAll')} onPress={onSeeAll}
         onFocus={() => setArrowFocus('all')} onBlur={() => setArrowFocus(undefined)} style={[{minHeight: 24, flexDirection: 'row', alignItems: 'center', flexShrink: 1}, controlStyle(arrowFocus === 'all')]}>
-        <Text accessibilityRole="header" numberOfLines={1} style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text><Icon name="i-right" size={18} color={theme.colors.textTertiary} />
-      </Pressable> : <Text accessibilityRole="header" numberOfLines={1} style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text>}
-      {subtitle && <View style={{flexShrink: 1}}>{typeof subtitle === 'string' ? <Text numberOfLines={1} style={[theme.type.rowSubtitle, {color: theme.colors.textTertiary, includeFontPadding: false}]}>{subtitle}</Text> : subtitle}</View>}
+        <Text accessibilityRole="header" style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text><Icon name="i-right" size={18} color={theme.colors.textTertiary} />
+      </Pressable> : <Text accessibilityRole="header" style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text>}
+      {subtitle && <View style={{flexShrink: 1}}>{typeof subtitle === 'string' ? <Text style={[theme.type.rowSubtitle, {color: theme.colors.textTertiary, includeFontPadding: false}]}>{subtitle}</Text> : subtitle}</View>}
 
     </View>}
     <RowRegion focus={theme.isTV ? focus : undefined} order={activeOrder} entry={activeEntry}

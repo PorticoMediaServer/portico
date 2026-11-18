@@ -4,8 +4,9 @@ import {formatMessage} from '../../../../../../packages/i18n/src';
 import {framesFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/frames-fixtures';
 import {AmbientArt, type ArtworkSource} from '../../../kit/artwork/index';
 import {PosterCard, SquareCard, WideCard} from '../../../kit/cards';
+import {cardCaptionHeight} from '../../../kit/cards/caption-metrics';
 import {Button, KeyHints, Switch, TextField} from '../../../kit/controls';
-import {ArtBox, BrowseFrame, HomeHero, PageStateFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame} from '../../../kit/frames';
+import {ArtBox, BrowseFrame, PageStateFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame} from '../../../kit/frames';
 import {frameSpec} from '@portico/design';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {HeroMetadata, Row, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
@@ -24,23 +25,23 @@ import type {Gallery} from '../../gallery-registry';
 /** The screen frames, each drawn whole from the app's own components with reference text and artwork. One section
  * per frame and state; README.md beside this file lists them and how to open each. Development builds only. */
 type FixtureName = keyof typeof framesFixtureMessages extends `next.frames.fixture.${infer Name}` ? Name : never;
-const f = (name: FixtureName) => formatMessage(framesFixtureMessages[`next.frames.fixture.${name}`]);
+export const f = (name: FixtureName) => formatMessage(framesFixtureMessages[`next.frames.fixture.${name}`]);
 /** The reference artwork the capture run serves (the same files the mock-ups use). */
 export const asset = (path: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${path}`, cacheKey: `frames-reference:${path}`});
-const none = () => {};
+export const none = () => {};
 /** A stand-in signed-in scope for the shell's TV rail, which names its focus stops by it. */
 const galleryAuthority = {serverId: 'gallery', userId: 'gallery', profileId: 'gallery', epoch: '1', viewerFence: '1'} as never;
 /** The tablet sidebar's width (shell/NativeShell). */
 const sidebarWidth = 248;
-const libraries = ([['movie', 'movies'], ['tv', 'tvShows'], ['anime', 'anime'], ['music', 'musicLibrary'], ['audiobook', 'audiobooks']] as const).map(([kind, name]) => ({id: kind, name: f(name), kind}));
-const selection: LayoutSelection = {active: false, isSelected: () => false, onToggle: none, onEnter: none};
-const card = ({onFocus, onBlur, focusId, testID}: LayoutItemContext) => ({onFocus, onBlur, focusId, testID});
+export const libraries = ([['movie', 'movies'], ['tv', 'tvShows'], ['anime', 'anime'], ['music', 'musicLibrary'], ['audiobook', 'audiobooks']] as const).map(([kind, name]) => ({id: kind, name: f(name), kind}));
+export const selection: LayoutSelection = {active: false, isSelected: () => false, onToggle: none, onEnter: none};
+export const card = ({onFocus, onBlur, focusId, testID}: LayoutItemContext) => ({onFocus, onBlur, focusId, testID});
 /** Fixture facts: the first is the year; a runtime, a season count and a rating carry the ids the kit draws as chips. */
 const chip = (part: string) => /^\d+ h( \d+ min)?$|^\d+ min$/.test(part) ? 'runtime' : / seasons?$/.test(part) ? 'seasons' : /^(G|PG|PG-13|R|TV-[A-Z0-9]+)$/.test(part) ? 'rating' : undefined;
-const fact = (text: string) => text.split(' · ').map((part, index) => ({id: chip(part) ?? (index === 0 ? 'year' : `fact-${index}`), text: part, role: index === 0 ? 'identity' as const : 'context' as const}));
+export const fact = (text: string) => text.split(' · ').map((part, index) => ({id: chip(part) ?? (index === 0 ? 'year' : `fact-${index}`), text: part, role: index === 0 ? 'identity' as const : 'context' as const}));
 
 const posters = ['spirited-away', 'inside-out', 'alien', 'blade-runner', 'dune', 'barbie', 'back-to-the-future', 'the-dark-knight', 'avatar', 'aliens'].map(id => ({id, title: id.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' '), art: asset(`pool/movies/${id}.jpg`)}));
-const wides = [{id: 'tlou', title: f('tlou'), art: asset('bd-tlou.jpg')}, {id: 'inside-out', title: f('insideOut'), art: asset('bd-insideout.jpg')}, {id: 'spirited', title: f('spirited'), art: asset('bd-spirited.jpg')}];
+export const wides = [{id: 'tlou', title: f('tlou'), art: asset('bd-tlou.jpg')}, {id: 'inside-out', title: f('insideOut'), art: asset('bd-insideout.jpg')}, {id: 'spirited', title: f('spirited'), art: asset('bd-spirited.jpg')}];
 
 /** One whole window for a frame: frames keep their own safe areas and gutters, so the Kit page's gutter is undone. */
 export function Window({children}: {children: ReactNode}) {
@@ -69,8 +70,8 @@ export function Page({children, destination}: {children: ReactNode; destination:
 }
 
 export function PosterRow({title, fresh = false, testID}: {title: string; /** The first few are new. */ fresh?: boolean; testID?: string}) {
-  const theme = useTheme(), width = theme.spec.card.width.poster[theme.column];
-  return <Row testID={testID} title={title} items={posters} getKey={item => item.id} itemWidth={width} itemHeight={width * 1.5} selection={selection}
+  const theme = useTheme(), width = theme.spec.card.width.poster[theme.column], caption = cardCaptionHeight(theme, 2);
+  return <Row testID={testID} title={title} items={posters} getKey={item => item.id} itemWidth={width} itemHeight={width * 1.5 + caption} selection={selection}
     renderItem={(item, context) => <PosterCard {...card(context)} title={item.title} artwork={item.art} width={width} isNew={fresh && posters.indexOf(item) < 3} onNavigate={none}/>}/>;
 }
 function WideRow({testID}: {testID?: string}) {
@@ -78,29 +79,6 @@ function WideRow({testID}: {testID?: string}) {
   return <Row testID={testID} title={f('continueWatching')} items={wides} getKey={item => item.id} itemWidth={width} itemHeight={width * 9 / 16} selection={selection}
     renderItem={(item, context) => <WideCard {...card(context)} title={item.title} artwork={item.art} width={width} progress={.4} caption={[{id: 'episode-label', text: f('wideEpisode'), role: 'identity'}, {id: 'remaining', text: f('wideLeft'), role: 'context'}]} primaryAction="play" onPlay={none} onNavigate={none}/>}/>;
 }
-
-const heroes = [
-  {id: 'spirited', title: f('spirited'), reason: f('spiritedReason'), overview: f('tlouSynopsis'), facts: fact(f('spiritedFacts')), art: asset('bd-spirited.jpg')},
-  {id: 'tlou', title: f('tlou'), overview: f('tlouSynopsis'), facts: fact(f('tlouFacts')), art: asset('bd-tlou.jpg')},
-];
-function BrowseHome() {
-  // The sample hero holds its first title: the real one moves on by itself, and a shot taken mid-change shows a faded hero.
-  const index = 0, setIndex = none, art = (id: string) => heroes.find(entry => entry.id === id)?.art, {form} = useFrameMetrics();
-  // TV (owner, 18 Nov): Home starts on the first Continue Watching card and the hero has no buttons; its hint row says
-  // what OK and Hold OK do on the focused card (final3-tv-01).
-  const actions = () => form === 'tv' ? <KeyHints hints={[{key: f('keyOk'), label: f('hintResume')}, {key: f('keyHoldOk'), label: f('hintMoreOptions')}]}/>
-    : <><Button icon="i-play" onPress={none}>{f('play')}</Button><Button variant="glass" icon="i-plus" onPress={none}>{f('myList')}</Button></>;
-  return <Page destination={{kind: 'home'}}><BrowseFrame testID="frames-browse-home" startFocus={`${homeContinue}-item-tlou`} hero={<HomeHero candidates={heroes} activeIndex={index} onIndexChange={setIndex}
-    renderArtwork={(entry, context) => <AmbientArt foreground={art(entry.id)} visible={context.visible} foregroundStyle={context.foregroundStyle} onReady={context.onReady} onError={context.onError}/>}
-    renderActions={actions}/>}>
-    <WideRow testID={homeContinue}/><PosterRow fresh title={f('newOnServer')}/>
-  </BrowseFrame></Page>;
-}
-const homeContinue = 'frames-browse-home-continue', listFirst = 'frames-browse-list-new';
-const BrowseList = () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-list" startFocus={`${listFirst}-item-spirited-away`} header={{title: f('movies'), back: {label: f('libraries'), onPress: none}, trailing: <Button variant="glass" size="small" icon="i-filter" onPress={none}>{f('filters')}</Button>}}>
-  <PosterRow testID={listFirst} title={f('newOnServer')}/><PosterRow title={f('moreLikeThis')}/>
-</BrowseFrame></Page>;
-const BrowseLoading = () => <Window><BrowseFrame testID="frames-browse-loading" header={{title: f('movies')}} state={{kind: 'loading'}}/></Window>;
 
 function Title({variant}: {variant: 'full' | 'missing' | 'loading'}) {
   const [tab, setTab] = useState('more'), full = variant !== 'missing', {form} = useFrameMetrics();
@@ -201,23 +179,19 @@ function Elements() {
 
 /** Decision 4: each frame empty, as the frames page draws it. What the frame owns is drawn by the frame, with stand-in
  * words; what the screen supplies is an outlined box that says so, and the one flexible region is marked. */
-function Region({name, flexible = false, height}: {name: FixtureName; flexible?: boolean; height?: number}) {
+export function Region({name, label, flexible = false, height}: {name?: FixtureName; /** Another family's own region name. */ label?: string; flexible?: boolean; height?: number}) {
   const theme = useTheme(), frame = useFrameMetrics(), color = flexible ? theme.colors.amber : theme.colors.accentStrong;
   return <View style={{flex: height === undefined ? 1 : undefined, height, minHeight: height === undefined ? frame.rowTwoLine : undefined, overflow: 'hidden', alignSelf: 'stretch', borderWidth: 2, borderStyle: 'dashed', borderColor: color, borderRadius: theme.baseRadii.control, padding: theme.space.xs, justifyContent: 'center'}}>
-    <Text style={[theme.type.rowLabel, {color}]}>{f(name)}</Text>
+    <Text style={[theme.type.rowLabel, {color}]}>{label ?? (name && f(name))}</Text>
     <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{f(flexible ? 'regionFlexible' : 'regionScreen')}</Text>
   </View>;
 }
 /** An outlined region the size of a row of cards, at the frame's gutter. */
-function Block({name, flexible, rows = 3}: {name: FixtureName; flexible?: boolean; rows?: number}) {
+export function Block({name, flexible, rows = 3}: {name: FixtureName; flexible?: boolean; rows?: number}) {
   const frame = useFrameMetrics();
   return <View style={{marginHorizontal: frame.gutter}}><Region name={name} flexible={flexible} height={frame.rowTwoLine * rows}/></View>;
 }
 const own = {back: {label: f('ownBack'), onPress: none}, action: {label: f('ownAction'), onPress: none}};
-const RegionsBrowse = () => {
-  const frame = useFrameMetrics();
-  return <Window><BrowseFrame hero={<View style={{height: frameSpec.hero.home.height[frame.form]}}><Region name="regionHero"/></View>}><Block name="regionRows" flexible/><Block name="regionRows" flexible/></BrowseFrame></Window>;
-};
 const RegionsTitle = () => <Window><TitleFrame back={own.back} topAction={{icon: 'i-cast', label: f('ownAction'), onPress: none}} art={<Region name="regionArt"/>} title={f('ownTitle')}
   metadata={<Text style={{color: 'transparent'}}>{f('ownMeta')}</Text>} primary={{icon: 'i-play', label: f('ownPrimary'), onPress: none}}
   actions={[{icon: 'i-plus', label: f('ownAction'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]} synopsis={f('ownSynopsis')}
@@ -234,9 +208,6 @@ const RegionsState = () => <Window><PageStateFrame icon="i-info" title={f('ownSt
 const whole = {screen: true} as const;
 const galleries: readonly Gallery[] = [
   {id: 'frames-backdrop', title: 'next.platform.frame.backdrop', render: () => <Window><View/></Window>, ...whole},
-  {id: 'frames-browse-home', title: 'next.platform.frame.browseHome', render: BrowseHome, ...whole},
-  {id: 'frames-browse-list', title: 'next.platform.frame.browseList', render: BrowseList, ...whole},
-  {id: 'frames-browse-loading', title: 'next.platform.frame.browseLoading', render: BrowseLoading, ...whole},
   {id: 'frames-title', title: 'next.platform.frame.title', render: () => <Title variant="full"/>, ...whole},
   {id: 'frames-title-missing', title: 'next.platform.frame.titleMissing', render: () => <Title variant="missing"/>, ...whole},
   {id: 'frames-title-loading', title: 'next.platform.frame.titleLoading', render: () => <Title variant="loading"/>, ...whole},
@@ -246,7 +217,6 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-sign-in', title: 'next.platform.frame.signIn', render: SignIn, platforms: ['phone', 'tablet', 'web'], ...whole},
   {id: 'frames-state', title: 'next.platform.frame.state', render: State, ...whole},
   {id: 'frames-elements', title: 'next.platform.frame.elements', render: Elements},
-  {id: 'frames-regions-browse', title: 'next.platform.frame.regionsBrowse', render: RegionsBrowse, ...whole},
   {id: 'frames-regions-title', title: 'next.platform.frame.regionsTitle', render: RegionsTitle, ...whole},
   {id: 'frames-regions-settings', title: 'next.platform.frame.regionsSettings', render: RegionsSettings, ...whole},
   {id: 'frames-regions-sheet', title: 'next.platform.frame.regionsSheet', render: RegionsSheet, ...whole},
