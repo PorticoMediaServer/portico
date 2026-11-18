@@ -292,17 +292,18 @@ test('season caller supplies its actual section root to the real Menu and Back r
   const {TVEpisodeBrowser} = await screenModule(new URL('../src-next/screens/watch/TVEpisodeBrowser.tsx', import.meta.url), {react: b.react, 'react-native': b.native,
     '../../../../../packages/client-core/src/presentation/kit-model': labels, '../../../../../packages/client-core/src/presentation/kit-model/text': words,
     '../../../../../packages/i18n/src': {defaultI18n}, './tv-title-focus': regionMap, '../../kit/focus': b.focus,
-    '../../tv/layout/TVShelf': {TVShelf: 'Shelf', tvItemKey: (entry: any) => entry.id}, '../../kit/controls': {Focusable: b.Focusable},
+    '../../tv/layout/TVShelf': {TVShelf: 'Shelf', tvItemKey: (entry: any) => entry.id}, '../../kit/controls': {Focusable: b.Focusable, KeyHints: 'KeyHints'}, '../../kit/frames/title-parts': {SeasonListRow: 'SeasonListRow'},
     '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, '../../kit/overlays': o.menu, '../../kit/browse/presentation': presentation, '../../kit/theme': {useTheme: () => b.theme}});
   let tree: any, section = {id: 'original-show.episodes'}, commands = 0;
   const props: any = {seasons: [{id: 'season', showId: 'show', number: 1, episodeCount: 3, watchedCount: 1}], selectedSeasonId: 'season', episodes: [], show: {title: 'Show'},
     open: {phase: 'idle'}, text: {t: defaultI18n.t}, artwork: () => undefined, more() {}, onSeasonFocus() {}, onEpisodeFocus() {}, onSelectSeason() {},
     onPlayEpisode() {}, onPlaySeason() {commands++;}, onMarkSeason() {}, onMoreSeasons() {}, onMoreEpisodes() {}, onRetryEpisode() {}, renderError: () => null};
   const source = createFabricHookHost(() => {tree = TVEpisodeBrowser({...props, focus: section});}); await source.mount();
-  const season = () => nodes(tree).find(node => node.type === b.Focusable && node.props.testID === 'tv-season-season');
+  // The row is the kit's SeasonListRow, a Focusable with the row's focus id and commands.
+  const season = () => nodes(tree).find(node => node.type === 'SeasonListRow' && node.props.testID === 'tv-season-season');
   const seasonRegion = nodes(tree).find(node => node.type === b.focus.FocusRegion && node.props.id.endsWith('.seasons'));
   await b.region(() => seasonRegion.props); const opener = await b.target(seasonRegion.props.id, () => season().props); opener.props.onFocus({});
-  season().props.onLongPressAction(); await source.rerender();
+  season().props.onLongPress(); await source.rerender();
   const menu = () => nodes(tree).find(node => node.type === o.menu.Menu).props;
   const mounted = await mountActualMenu(b, o, menu);
   try {

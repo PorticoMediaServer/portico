@@ -52,7 +52,7 @@ function filmFrame(art: (key: string) => ReturnType<ReturnType<typeof useReferen
   return {back, topAction: playOn, art: <AmbientArt treatment="title" foreground={art('pool/movies/dune-part-two--bd.jpg')} />,
     kicker: {icon: 'i-layers', label: f('duneCollection'), detail: f('duneCollectionCount'), onPress: none}, title: f('dune2'), metadata: <Meta text={f('dune2Facts')} tags={[f('dune2Rating')]} />,
     primary: {icon: 'i-play', label: f('play'), onPress: none},
-    actions: [{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}],
+    actions: [{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}],
     tagline: f('dune2Tagline'), synopsis: f('dune2Synopsis'),
     credits: [{label: f('directedBy'), names: [{text: f('dune2Director'), onPress: none}]}, {label: f('starring'), names: (['dune2Cast1', 'dune2Cast2', 'dune2Cast3', 'dune2Cast4'] as const).map(name => ({text: f(name), onPress: none}))}],
     picker: <TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none} />,
@@ -77,7 +77,7 @@ function FilmResume() {
   const art = useReferenceArtwork(), [tab, setTab] = useState('more');
   return <Page current="movies"><TitleFrame back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={art('bd-insideout.jpg')} />} title={f('insideOut')} metadata={<Meta text={f('insideOutFacts')} tags={[f('insideOutRating')]} />}
     primary={{icon: 'i-play', label: f('resume'), progress: .09, remaining: f('insideOutLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none}}
-    actions={[{icon: 'i-check', label: f('myList'), labelled: true, active: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-check', label: f('myList'), labelled: true, active: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     tagline={f('insideOutTagline')} synopsis={f('insideOutSynopsis')} credits={[{label: f('directedBy'), names: 'Pete Docter'}, {label: f('starring'), names: 'Amy Poehler, Phyllis Smith, Richard Kind, Bill Hader'}]}
     picker={<TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none} />} tabs={tabs(tab, setTab)}>
     <Posters title={f('moreLikeInsideOut')} items={moreLikeInsideOut} />
@@ -155,7 +155,7 @@ const showCast: readonly CastPerson[] = [['Pedro Pascal', 'Joel Miller'], ['Bell
 function showFrame(art: ReturnType<typeof useReferenceArtwork>, tab: string, setTab: (value: string) => void): Omit<TitleFrameProps, 'children'> {
   return {back, topAction: playOn, art: <AmbientArt treatment="title" foreground={art('pool/tv/the-last-of-us--bd.jpg')} />, title: f('tlou'), metadata: <Meta text={f('tlouFacts')} tags={[f('tlouSeasons')]} />,
     primary: {icon: 'i-play', label: f('resumeEpisode'), progress: .67, remaining: f('ep1Left'), onPress: none},
-    actions: [{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}],
+    actions: [{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}],
     synopsis: f('tlouSynopsis'), credits: [{label: f('createdBy'), names: [link('Craig Mazin'), link('Neil Druckmann')]}, {label: f('starring'), names: [link('Pedro Pascal'), link('Bella Ramsey')]}],
     cast: <CastRow groups={[showCast]} />, tabs: tabs(tab, setTab, true)};
 }
@@ -187,7 +187,7 @@ function Season() {
   const art = useReferenceArtwork(), [tab, setTab] = useState('episodes');
   return <Page current="movies"><TitleFrame back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={art('bd-tlou.jpg')} />} kicker={{icon: 'i-tv', label: f('seasonKicker'), onPress: none}} title={f('season1')}
     metadata={<Meta text={f('seasonFacts')} />} primary={{icon: 'i-play', label: f('resumeEpisode'), progress: .67, remaining: f('ep1Left'), onPress: none}}
-    actions={[{icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]} synopsis={f('seasonSynopsis')} tabs={tabs(tab, setTab, true)}>
+    actions={[{icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]} synopsis={f('seasonSynopsis')} tabs={tabs(tab, setTab, true)}>
     <PanelBlock label={f('episodes')}><ShowBar season={f('season1')} count={f('episodeCount')} progress={{watched: 1, total: 4, label: f('seasonProgress')}} /><EpisodeTiles episodes={tlouEpisodes} layout="list" /></PanelBlock>
   </TitleFrame></Page>;
 }
@@ -196,7 +196,7 @@ function EpisodePage() {
   const art = useReferenceArtwork();
   return <Page current="movies"><TitleFrame back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={art('pool/tv/the-last-of-us--bd.jpg')} />} kicker={{icon: 'i-tv', label: f('tlou'), detail: f('season1'), onPress: none}} title={f('ep3')}
     metadata={<Meta text={f('episodeFacts')} tags={[f('ep3Rating')]} />} primary={{icon: 'i-play', label: f('play'), onPress: none}}
-    actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     synopsis={f('ep3Synopsis')} credits={[{label: f('directedBy'), names: [link(f('ep3Director'))]}, {label: f('writtenBy'), names: [link(f('ep3Writer'))]}]}
     picker={<TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none} />}>
     <PanelBlock label={f('guestStars')}><PanelHeading title={f('guestStars')} /><CastRow groups={[[{id: 'g1', name: f('guest1'), role: f('guestRole1'), onPress: none}, {id: 'g2', name: f('guest2'), role: f('guestRole2'), onPress: none}]]} /></PanelBlock>
@@ -280,7 +280,7 @@ function Book() {
   return <Page current="movies"><TitleFrame back={back} cover={{shape: 'square', node: <Artwork source={art('pool/books/harry-potter-and-the-philosopher-s-stone.jpg')} alt="" />}}
     kicker={{label: f('bookSeries'), detail: f('bookSeriesDetail'), onPress: none}} title={f('book')} metadata={<Meta text={f('bookFacts')} />}
     primary={{icon: 'i-play', label: f('resumeChapter'), progress: .32, remaining: f('bookLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none}}
-    actions={[{icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-plus', label: f('myList'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-plus', label: f('myList'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     aside={<><div><PanelHeading title={f('aboutBook')} /><PanelText>{f('bookAbout')}</PanelText>
       <AboutTable rows={[{label: f('author'), values: [link(f('authorValue'))]}, {label: f('narrator'), values: [link(f('narratorValue'))]}, {label: f('published'), values: [{text: f('publishedValue')}]}]} /></div>
       <OwnerCard title={f('files')} mark={f('ownerOnly')} body={f('filesBody')} actions={[{icon: 'i-folder', label: f('manage'), onPress: none}]} /></>}>

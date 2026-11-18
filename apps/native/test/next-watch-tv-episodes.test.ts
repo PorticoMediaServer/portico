@@ -18,7 +18,7 @@ const {TVEpisodeBrowser, TVTile, FocusBand, seasonListEdges, seasonListHeight} =
   '../../../../../packages/i18n/src': {defaultI18n},
   './tv-title-focus': {tvEpisodeRegionMap}, '../../kit/focus': {FocusRegion: 'FocusRegion'},
   '../../tv/layout/TVShelf': {TVShelf: 'TVShelf', tvItemKey: (entry: {id: string}) => entry.id},
-  '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/cards': {EpisodeTile: 'EpisodeTile'},
+  '../../kit/controls': {Focusable: 'Focusable', KeyHints: 'KeyHints'}, '../../kit/frames/title-parts': {SeasonListRow: 'SeasonListRow'}, '../../kit/cards': {EpisodeTile: 'EpisodeTile'},
   '../../kit/overlays': {Menu: 'Menu'}, '../../kit/browse/presentation': {browseType: (_theme: unknown, size: number) => ({fontSize: size})},
   '../../kit/theme': themed,
 });
@@ -46,9 +46,9 @@ test('TV episodes draw the season side list, the next-up tile and its focus band
     const nodes = descendants(tree);
     const rows = nodes.filter(node => node.props.testID?.startsWith('tv-season-'));
     assert.deepEqual(rows.map(row => row.props.testID), ['tv-season-s1', 'tv-season-s2']);
-    assert.equal(rows[1].props.accessibilityState.selected, true, 'the open season is marked');
-    assert.ok(descendants(rows[0]).some(node => node.type === 'Text' && node.props.children === defaultI18n.t('title.seasonProgress', {watched: 7, total: 7})));
-    assert.ok(descendants(rows[1]).some(node => node.type === 'Text' && node.props.children === defaultI18n.t('title.seasonProgress', {watched: 2, total: 13})));
+    assert.equal(rows[1].props.current, true, 'the open season is marked');
+    assert.equal(rows[0].props.detail, defaultI18n.t('title.seasonProgress', {watched: 7, total: 7}));
+    assert.equal(rows[1].props.detail, defaultI18n.t('title.seasonProgress', {watched: 2, total: 13}));
     const shelf = nodes.find(node => node.type === 'TVShelf');
     const tiles = shelf.props.items.map((entry: any, index: number) => shelf.props.renderItem(entry, {index, focusId: entry.id, onFocus() {}, onBlur() {}}));
     assert.equal(tiles.length, 3);
@@ -69,7 +69,7 @@ test('TV episodes draw the season side list, the next-up tile and its focus band
     await host.rerender();
     assert.equal(descendants(tree).find(node => node.type === 'TVShelf').props.focus.enabled, false);
     tiles[0].props.onPlay(); assert.equal(calls.some(value => value.startsWith('play:')), false, 'an outgoing season tile cannot play');
-    rows[0].props.onLongPressAction(); await host.rerender();
+    rows[0].props.onLongPress(); await host.rerender();
     const menu = descendants(tree).find(node => node.type === 'Menu');
     assert.deepEqual(menu.props.items.map((item: any) => item.id), ['play-season', 'mark-season']);
     menu.props.items[0].onSelect(); assert.ok(calls.includes('play-season:s1'));
