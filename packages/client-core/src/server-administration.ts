@@ -40,7 +40,7 @@ export type StreamLimitMode='inherit'|'unlimited'|'limit';
 export type StreamLimitFacts=Readonly<{serverMaxStreams:number|null;effectiveMaxStreams:number|null}>;
 export type MemberLimits=Readonly<{
  accessTokens:boolean;maxProfiles:number;allowRemote:boolean;conversion:'server'|'audio'|'none';
- maxStreams:number;maxStreamsMode:StreamLimitMode;remoteBitrateKbps:number;
+ maxStreams:number;maxStreamsMode:StreamLimitMode;
  /** The rating system `maxContentRating` is a value of, or '' when it is a plain rating. */
  ratingSystem:string;maxContentRating:string;
  /** What the limit resolves to: the youngest age the rating admits, or -1 for no limit. Set by the server. */
@@ -50,7 +50,7 @@ export type MemberLimits=Readonly<{
 /** A person's whole-account limits on the rebuilt server (`limits` on a member). A save names only the fields it changes.
  * The account's Downloads switch is `allowDownloads` on the member itself, not one of these. */
 export type AccountLimits=Readonly<{homeOnly:boolean;viewingHours?:Readonly<{timezone?:string;windows:readonly ScheduleWindow[]}>|null;maxRatingAge?:number|null;allowUnrated:boolean;
- blockedLabels:readonly string[];remoteMaxBitrateKbps?:number|null;maxProfiles?:number|null;allowWatchTogether:boolean;allowTokens:boolean}>;
+ blockedLabels:readonly string[];maxProfiles?:number|null;allowWatchTogether:boolean;allowTokens:boolean}>;
 export type LimitsDocument=Readonly<{accountId:string;revision:number;updatedAt?:string;limits:MemberLimits}> & StreamLimitFacts;
 /**
  * `disabledAt` and `disabledReason` are present while the account is off: when it was turned off,
@@ -149,7 +149,6 @@ export function parseMemberLimits(raw:unknown):MemberLimits{
  return Object.freeze({
   accessTokens:bool(raw.accessTokens),maxProfiles:num(raw.maxProfiles,1,8),allowRemote:bool(raw.allowRemote),conversion:oneOf(raw.conversion,['server','audio','none'] as const),
   maxStreams,maxStreamsMode,
-  remoteBitrateKbps:num(raw.remoteBitrateKbps??0,0,200000),
   // The rating is whatever the server stored: a value of the named system, or any rating its
   // table knows. It is bounded here and judged there; the age it resolves to comes back with it.
   ratingSystem:str(raw.ratingSystem??'',32,true),

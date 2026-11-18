@@ -4,7 +4,7 @@ import {mountQuietInput, SettingsOpenContext} from './quiet-refresh';
 import {peopleQuietInputs} from './people-refresh';
 import {useContext, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
-import {SettingsPeopleClient, awayQualityChoice, awayQualityKbps, type SettingsPeoplePage, type SettingsPeopleQuery, type SettingsPersonRow, type SettingsBulkAccess, type SettingsBulkAction} from '@core/settings-people.ts';
+import {SettingsPeopleClient, type SettingsPeoplePage, type SettingsPeopleQuery, type SettingsPersonRow, type SettingsBulkAccess, type SettingsBulkAction} from '@core/settings-people.ts';
 import {personMemberResetCodeRow, settingsRowIndex, settingsSpec, type SettingsRow, type SettingsValue} from '@core/presentation/settings-spec.ts';
 import {managesTier, type AccessMember, type AccessTier, type MemberLimits} from '@core/server-administration.ts';
 import {MemberResetCodeSheet, SettingsAction, SettingsGroup, SettingsHours, SettingsSelectionList, SettingsStringList, SettingsPanel, SettingsRows, SettingsTable, type SettingPresentation, type SettingsTableHandle, type TableQuery} from '../../kit/settings';
@@ -273,9 +273,9 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
   const values: Readonly<Record<string, SettingsValue | undefined>> = person ? {
     'people.username': person.username, ...(bindings.signIn === 'portico' && person.email !== undefined ? {'people.email': person.email} : {}), 'people.notes': person.notes ?? '', 'people.role': person.role === 'admin' ? 'administrator' : person.role,
     'people.libraries': person.allowedLibraries.length || chooseLibraries ? 'some' : 'all', ...(bindings.streamLimits ? {'people.maxStreams': bindings.streamLimits.read(person)} : {}),
-    // The whole-account limit rows show when the server keeps this account's limits. It keeps no limit on converting,
-    // so that row is not shown.
-    ...(person.accountLimits ? {'people.awayAccess': person.limits.allowRemote ? 'allowed' : 'home', 'people.awayQuality': awayQualityChoice(person.limits.remoteBitrateKbps),
+    // The whole-account limit rows show when the server keeps this account's limits. It keeps no limit on converting
+    // and no away-from-home quality of an account's own (the server-wide limits cover it, owner ruling A5), so those rows are not shown.
+    ...(person.accountLimits ? {'people.awayAccess': person.limits.allowRemote ? 'allowed' : 'home',
     'people.hours': person.limits.schedule.windows.length || chooseHours ? 'set' : 'any', 'people.hoursTimezone': person.limits.schedule.timezone,
     'people.maxRating': person.limits.maxContentRating || 'none', 'people.allowUnrated': person.limits.allowUnrated, 'people.accessTokens': person.limits.accessTokens} : {}),
   } : {};
@@ -300,7 +300,6 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
         return;
       }
       else if (row.id === 'people.awayAccess') patch.allowRemote = value === 'allowed';
-      else if (row.id === 'people.awayQuality') patch.remoteBitrateKbps = awayQualityKbps(String(value));
       else if (row.id === 'people.maxRating') patch.maxContentRating = value === 'none' ? '' : String(value);
       else if (row.id === 'people.allowUnrated') patch.allowUnrated = value === true;
       else if (row.id === 'people.accessTokens') patch.accessTokens = value === true;
