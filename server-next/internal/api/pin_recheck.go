@@ -40,10 +40,11 @@ func errPINAgain() *Error {
 }
 
 // sensitiveRoutes are the routes that change something a person would not want changed from
-// a device left on their profile: a profile's PIN and limits, people, a change of owner, the sign-in, network
-// and remote access settings, keys, tokens and webhooks, restoring or deleting a backup, and removing a
-// library. A function narrows a route to some of its requests. Changing the password or
-// two-step sign-in is not here: both already ask for the account's password.
+// a device left on their profile: a profile's PIN and limits, people, a change of owner, the sign-in,
+// network and remote access settings, keys, tokens and webhooks, restoring or deleting a backup, and
+// deleting files (a title, a version, a selection of titles or a whole library). A function narrows a
+// route to some of its requests. Changing the password or two-step sign-in is not here: both already
+// ask for the account's password.
 var sensitiveRoutes = map[string]func(*http.Request) bool{
 	"POST /v1/admin/sign-in/preview":                   nil,
 	"POST /v1/admin/sign-in/switch":                    nil,
@@ -76,6 +77,9 @@ var sensitiveRoutes = map[string]func(*http.Request) bool{
 	"POST /v1/admin/backups/restore":                   nil,
 	"DELETE /v1/admin/backups/{id}":                    nil,
 	"DELETE /v1/admin/libraries/{id}":                  nil,
+	"DELETE /v1/admin/items/{id}":                      nil,
+	"DELETE /v1/admin/versions/{id}":                   nil,
+	"POST /v1/admin/items/delete":                      nil,
 }
 
 // pinRecheck refuses a sensitive route to a main profile that was entered with a remembered
