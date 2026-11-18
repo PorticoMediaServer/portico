@@ -300,7 +300,7 @@ def read_ts(expr, imports):
 ICONS = {
     'bell': [28],
     'book': [32],
-    'bookmark': [32],
+    'bookmark': [28, 32],
     'browser': [28],
     'check': [28],
     'chevronDown': [20, 24, 28],

@@ -43,6 +43,9 @@ sub init()
     m.items = []
     m.focus = -1          ' -1 the buttons, otherwise a row
     m.list = invalid
+    m.pins = invalid      ' the profile's pins ("kind:id"), once read; Pin is left out until then
+    m.sort = ""           ' "" the list's own order, else a server sort ("title", "added")
+    m.show = ""           ' "" every title, else a filter ("watched=false", "inProgress=true")
     m.top.observeField("focusedChild", "paint")
 end sub
 
@@ -56,7 +59,26 @@ end sub
 sub load()
     m.state.visible = false
     api("GET", "/v1/lists/" + m.top.item.id, invalid, "onList")
-    api("GET", "/v1/items?list=" + m.top.item.id + "&limit=200&total=true", invalid, "onItems")
+    api("GET", itemsPath(), invalid, "onItems")
+    readPins()
+end sub
+
+' The list's titles in the order and with the filter chosen under More.
+function itemsPath() as string
+    path = "/v1/items?list=" + m.top.item.id + "&limit=200&total=true"
+    if m.sort = "title" then path = path + "&sort=title&order=asc"
+    if m.sort = "added" then path = path + "&sort=added&order=desc"
+    if m.show <> "" then path = path + "&" + m.show
+    return path
+end function
+
+function pinKey() as string
+    return noun() + ":" + m.top.item.id
+end function
+
+' Pins.brs calls this once the pins are read or saved.
+sub pinsChanged()
+    drawWords()
 end sub
 
 sub onList(event as object)
@@ -151,13 +173,19 @@ sub drawWords()
     m.facts.translation = [l.wordsX + m.strong.boundingRect().width + 26, l.factsY]
     buttons = []
     if m.items.count() > 0 then buttons = [{id: "all", text: "Play all", icon: "play"}, {id: "shuffle", text: "Shuffle", icon: "shuffle"}]
+    if m.pins <> invalid
+        if isPinned() then buttons.push({id: "pin", text: "Pinned", icon: "bookmark"}) else buttons.push({id: "pin", text: "Pin", icon: "bookmark"})
+    end if
+    if m.list <> invalid then buttons.push({id: "more", text: "", icon: "more"})
     m.actions.buttons = buttons
     m.actions.visible = (buttons.count() > 0)
     hint = m.top.findNode("hint")
     if mayChange() and m.items.count() > 0 and noun() = "collection"
         hint.hints = [{keys: ["*"], text: "on a row: Go to item and Remove"}]
-    else if mayChange() and m.items.count() > 0
+    else if mayChange() and m.items.count() > 0 and m.sort = "" and m.show = ""
         hint.hints = [{keys: ["*"], text: "on a row: Go to item, Move up, Move down and Remove"}]
+    else if mayChange() and m.items.count() > 0
+        hint.hints = [{keys: ["*"], text: "on a row: Go to item and Remove"}]
     else if m.items.count() > 0
         hint.hints = [{keys: ["*"], text: "on a row: Go to item"}]
     else
@@ -317,12 +345,21 @@ end function
 
 ' The whole list as one queue from a row, in its order, or shuffled.
 sub playFrom(at as integer, shuffle as boolean)
-    ' the server builds the whole list (not only the 200 titles read here), in its own order
+    ' the server builds the whole list (not only the 200 titles read here), in its own order; sorted or
+    ' filtered under More, it plays what the page shows, in that order
+    source = {list: m.top.item.id}
+    if m.sort <> "" or m.show <> ""
+        ids = []
+        for each item in m.items
+            ids.push(item.id)
+        end for
+        source = {items: ids}
+    end if
     first = m.items[at]
-    queue = {source: {list: m.top.item.id}, startAt: first.id}
+    queue = {source: source, startAt: first.id}
     if shuffle
         first = m.items[rnd(m.items.count()) - 1]
-        queue = {source: {list: m.top.item.id}, shuffle: true, startAt: first.id}
+        queue = {source: source, shuffle: true, startAt: first.id}
     end if
     m.top.open = {item: first, play: true, queue: queue}
 end sub
@@ -331,6 +368,29 @@ sub onAction(event as object)
     which = event.getData()
     if which = "all" then playFrom(0, false)
     if which = "shuffle" then playFrom(0, true)
+    if which = "pin" then togglePin()
+    if which = "more" then moreMenu()
+end sub
+
+' More (collections frame 18): the list's order and which of its titles show, then Pin or Unpin.
+sub moreMenu()
+    sorts = [{id: "", text: ucase(left(noun(), 1)) + mid(noun(), 2) + " order"}, {id: "title", text: sortName("title")}, {id: "added", text: sortName("added")}]
+    shows = [{id: "", text: "All"}, {id: "watched=false", text: "Unplayed"}, {id: "inProgress=true", text: "In progress"}]
+    rows = [{id: "more:h:sort", text: "Sort", heading: true}]
+    for each s in sorts
+        if s.id = m.sort then rows[0].value = s.text
+        rows.push({id: "more:sort:" + s.id, text: s.text, under: "more:h:sort", current: s.id = m.sort})
+    end for
+    head = {id: "more:h:show", text: "Show", heading: true}
+    rows.push(head)
+    for each s in shows
+        if s.id = m.show then head.value = s.text
+        rows.push({id: "more:show:" + s.id, text: s.text, under: "more:h:show", current: s.id = m.show})
+    end for
+    if m.pins <> invalid
+        if isPinned() then rows.push({id: "more:pin", text: "Unpin", icon: "bookmark", gapBefore: true}) else rows.push({id: "more:pin", text: "Pin", icon: "bookmark", gapBefore: true})
+    end if
+    m.top.menu = {eyebrow: m.top.item.eyebrow, title: m.name.text, rows: rows, hints: [{keys: ["OK"], text: "Choose"}, {keys: ["Back"], text: "Close"}]}
 end sub
 
 ' A row's menu (collections frames 19 and 20): Go to item; for a playlist the viewer may change, Move
@@ -341,9 +401,12 @@ sub rowMenu(at as integer)
     rows = [{id: "row:go", text: "Go to item", icon: "info"}]
     if mayChange() and noun() = "collection"
         rows.push({id: "row:remove", text: "Remove from collection", icon: "close", gapBefore: true})
-    else if mayChange()
+    else if mayChange() and m.sort = "" and m.show = ""
         if at > 0 then rows.push({id: "row:up", text: "Move up", icon: "chevronUp"})
         if at < m.items.count() - 1 then rows.push({id: "row:down", text: "Move down", icon: "chevronDown"})
+        rows.push({id: "row:remove", text: "Remove from " + noun(), icon: "close", gapBefore: true})
+    else if mayChange()
+        ' sorted or filtered: moving a row would not say where it lands in the list's own order
         rows.push({id: "row:remove", text: "Remove from " + noun(), icon: "close", gapBefore: true})
     end if
     m.rowAt = at
@@ -352,6 +415,16 @@ end sub
 
 sub onMenuChosen()
     which = m.top.menuChosen
+    if left(which, 10) = "more:sort:" or left(which, 10) = "more:show:"
+        if left(which, 10) = "more:sort:" then m.sort = mid(which, 11) else m.show = mid(which, 11)
+        m.focus = -1
+        api("GET", itemsPath(), invalid, "onItems")
+        return
+    end if
+    if which = "more:pin"
+        togglePin()
+        return
+    end if
     if left(which, 4) = "row:"
         item = m.items[m.rowAt]
         what = mid(which, 5)
@@ -380,7 +453,7 @@ sub onChanged(event as object)
     m.focus = ctx.at
     if m.focus >= m.items.count() - 1 and not ctx.reopen then m.focus = m.items.count() - 2
     m.reopen = ctx.reopen
-    api("GET", "/v1/items?list=" + m.top.item.id + "&limit=200&total=true", invalid, "onReread")
+    api("GET", itemsPath(), invalid, "onReread")
 end sub
 
 sub onReread(event as object)

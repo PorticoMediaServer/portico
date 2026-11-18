@@ -402,6 +402,16 @@ function gridCard(item as object) as object
     return card
 end function
 
+' A profile's pins ("kind:id", every app's `pins` preference) with one pinned (at the end) or unpinned.
+function withPin(pins as object, pin as string, pinned as boolean) as object
+    out = []
+    for each p in pins
+        if p <> pin then out.push(p)
+    end for
+    if pinned then out.push(pin)
+    return out
+end function
+
 ' A library's views, sorts and counts, in words.
 function viewName(kind as string) as string
     names = {discover: "Discover", movie: "Movies", show: "Shows", collection: "Collections", artist: "Artists", album: "Albums", track: "Songs", audiobook: "Audiobooks", season: "Seasons", episode: "Episodes", playlist: "Playlists"}
