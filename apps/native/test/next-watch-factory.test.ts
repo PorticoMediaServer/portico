@@ -41,7 +41,9 @@ const episodeAtoms = {react, 'react-native': {ScrollView: 'ScrollView', Text: 'T
   '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'},
   '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays/TVPanelMotion': {useTVPanelInteractive: () => true},
   '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/theme': {useTheme: () => ({colors: {}, type: {}})}};
-const seasons = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), episodeAtoms);
+const seasonSheet = await screenModule(new URL('../src-next/kit/layout/SeasonSheet.tsx', import.meta.url), {react, 'react-native': episodeAtoms['react-native'],
+  '../../../../../packages/i18n/src': {defaultI18n}, '../controls': episodeAtoms['../../kit/controls'], '../Icon': {Icon: 'Icon'}, '../overlays': {BottomSheet: 'BottomSheet'}, '../theme': episodeAtoms['../../kit/theme']});
+const seasons = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {...episodeAtoms, '../../kit/layout/SeasonSheet': seasonSheet});
 const episodes = await screenModule(new URL('../src-next/screens/watch/EpisodePanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, ...episodeAtoms,
   '../../../../../packages/client-core/src/presentation/kit-model': {episodeLabel},
   '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText}, './SeasonsSheet': seasons,

@@ -1,0 +1,31 @@
+/* Search's own parts. Moved from screens/search/search.module.css with SearchHistory. */
+/* Inside a frame the part takes the frame's gutter (--g); the live Search page pads itself. */
+.recent { width: 100%; padding-inline: var(--g, 0); box-sizing: border-box; }
+.recent header { display: flex; align-items: baseline; gap: var(--space-px-12); margin-bottom: var(--frame-heading-gap); min-height: var(--space-px-30); }
+.recent h2 { font-size: var(--type-row-heading-size); font-weight: var(--type-row-heading-weight); letter-spacing: var(--type-row-heading-tracking); line-height: normal; margin: 0; }
+.recent header > button { margin-left: auto; }
+.recentChips { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.recentChips > button { color: var(--color-text-secondary); font-weight: var(--type-body-strong-weight); }
+.recentList { display: block; overflow: hidden; border-radius: var(--frame-card-radius); background: var(--color-raised); }
+.recentItem { position: relative; }
+.recentRow { position: relative; width: 100%; min-height: var(--target-touch, 48px); display: flex; align-items: center; gap: var(--space-px-12); padding: var(--space-xs) var(--space-px-48) var(--space-xs) var(--frame-card-padding); border: 0; background: transparent; color: var(--color-text-secondary); text-align: left; font-size: var(--type-row-label-size); font-weight: var(--type-body-strong-weight); cursor: pointer; }
+.recentRow > svg { flex: none; color: var(--color-text-tertiary); }
+.recentItem + .recentItem .recentRow::before { content: ''; position: absolute; top: 0; left: var(--space-px-56); right: 0; height: var(--space-hairline); background: var(--color-line); }
+.recentRow:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; }
+.recentRemove { position: absolute; right: var(--space-xs); top: 50%; transform: translateY(-50%); color: var(--color-text-tertiary); }
+
+/* The phone Top result (phone-app 8). Moved from screens/search/search.module.css with TopResultCard. */
+/* The drawn top result: the title's own art behind it, the artist's circle when it has
+   one, its real facts, and Play only where this title really plays. */
+.phoneTop { position: relative; display: flex; align-items: center; gap: 16px; width: 100%; min-height: 148px; margin: 14px 0 2px; padding: 14px 16px; border-radius: 14px; overflow: hidden; background: var(--color-raised); isolation: isolate; }
+.phoneTopBg { position: absolute; inset: 0 0 0 30%; width: 70%; height: 100%; object-fit: cover; z-index: -1; mask-image: linear-gradient(90deg, transparent, #000 55%); }
+.phoneTop[data-ring] .phoneTopBg { inset: -30%; width: 160%; height: 160%; filter: blur(40px) saturate(1.4); opacity: .5; mask-image: none; }
+.phoneTopOpen { position: absolute; inset: 0; z-index: 0; border: 0; background: transparent; cursor: pointer; }
+.phoneTopOpen:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; border-radius: 14px; }
+.phoneTopRing { position: relative; z-index: 1; flex: none; display: grid; pointer-events: none; place-items: center; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; background: var(--color-raised-high); box-shadow: 0 16px 30px -12px var(--color-shadow), 0 0 0 3px color-mix(in srgb, var(--color-text) 14%, transparent); font-size: var(--type-fixed-size-30px); font-weight: var(--type-fixed-weight-800); }
+.phoneTopRing > * { width: 100%; height: 100%; }
+.phoneTopCopy { position: relative; z-index: 1; flex: 1; min-width: 0; pointer-events: none; }
+.phoneTopCopy > small { display: block; font-size: var(--type-fixed-size-12point-5px); font-weight: var(--type-fixed-weight-700); color: var(--color-accent-strong); }
+.phoneTopCopy > b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; margin: 3px 0 4px; font-size: var(--type-fixed-size-25px); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-035em); line-height: var(--type-fixed-line-1point-05); }
+.phoneTopCopy > :last-child { font-size: var(--type-fixed-size-13px); color: var(--color-text-secondary); }
+.phoneTopPlay { position: relative; z-index: var(--layer-content); flex: none; width: 46px; height: 46px; border-radius: 50%; }

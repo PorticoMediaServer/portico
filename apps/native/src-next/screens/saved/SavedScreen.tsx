@@ -177,7 +177,7 @@ export function SavedScreen({destination, runtime, device, actions, selection, o
   ];
   // phone-app9 draws each shelf as the phone row: a 19 heading with its arrow,
   // the count beside it, and a 12-gap track inset by the 20 gutter.
-  const track = {paddingHorizontal: theme.gutter, paddingTop: theme.spec.shelf.phonePaddingTop, paddingBottom: theme.spec.shelf.phonePaddingBottom, gap: theme.spec.shelf.gap[theme.platform]};
+  const track = {paddingHorizontal: theme.gutter, paddingTop: theme.spec.shelf.phonePaddingTop, paddingBottom: theme.spec.shelf.phonePaddingBottom, gap: theme.spec.shelf.gap[theme.column]};
   const pinKind = (kind: PinnedResource['kind']) => kind === 'view' ? t('title.savedView') : t('title.kind', {kind});
   return <View testID="native-saved-screen" pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
     importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
@@ -238,7 +238,7 @@ export function SavedScreen({destination, runtime, device, actions, selection, o
         {(snapshot.phase === 'idle' || snapshot.phase === 'loading') && !items.length && <SavedLoading kind="shelf"/>}
         {!!items.length && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={64}
           onScroll={event => {const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent; const section = posterProjection?.sections.find(value => value.nextCursor);
-            if (section && savedNearEnd(contentOffset.x, layoutMeasurement.width, contentSize.width, theme.spec.shelf.gap[theme.platform] + 118)) nextMyListPage('posters', posterProjection!, section.id);}} contentContainerStyle={track}>
+            if (section && savedNearEnd(contentOffset.x, layoutMeasurement.width, contentSize.width, theme.spec.shelf.gap[theme.column] + 118)) nextMyListPage('posters', posterProjection!, section.id);}} contentContainerStyle={track}>
           {items.map(entry => <SavedMyListCard key={entry.id} entry={entry} runtime={runtime} actions={actions} selection={admitted ? selection?.item(entry) : undefined}/>)}
           {snapshot.myList.phase === 'loading' && <SavedTail width={118}/>}
         </ScrollView></TVRow>}
@@ -271,7 +271,7 @@ export function SavedScreen({destination, runtime, device, actions, selection, o
  * first row sits 2 below the large title's 12 bottom padding. */
 function SavedSection({first = false, children}: {first?: boolean; children: React.ReactNode}) {
   const theme = useTheme();
-  return <View style={{marginTop: first ? 2 : theme.spec.shelf.marginTop[theme.platform]}}>{children}</View>;
+  return <View style={{marginTop: first ? 2 : theme.spec.shelf.marginTop[theme.column]}}>{children}</View>;
 }
 
 function SavedMyListRow({entry, runtime, actions, selection}: {entry: ContentEntry; runtime: NativeShellRuntime; actions: NativeSavedActions; selection?: CardSelection}) {
@@ -299,8 +299,8 @@ function SavedMyListCard({entry, runtime, actions, selection, width}: {entry: Co
 
 function SavedRowHeading({title, detail, onPress, testID}: {title: string; detail?: string; onPress: () => void; testID: string}) {
   const theme = useTheme();
-  return <View style={{flexDirection: 'row', alignItems: 'baseline', gap: theme.spec.shelf.headingGap[theme.platform], marginHorizontal: theme.gutter,
-    marginBottom: theme.spec.shelf.headingMargin[theme.platform]}}>
+  return <View style={{flexDirection: 'row', alignItems: 'baseline', gap: theme.spec.shelf.headingGap[theme.column], marginHorizontal: theme.gutter,
+    marginBottom: theme.spec.shelf.headingMargin[theme.column]}}>
     <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={title} onPress={onPress} focusRadius={8}
       style={{flexDirection: 'row', alignItems: 'center', gap: 1, flexShrink: 1}}>
       <Text accessibilityRole="header" numberOfLines={1} style={[theme.type.rowHeading, {color: theme.colors.text}]}>{title}</Text>

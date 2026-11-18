@@ -16,7 +16,7 @@ import {touchScrub} from '../src-next/platform/siri-remote.ts';
 const fence = playerCore.playbackFence({kind: 'queue', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'version', entryId: 'entry', generation: 1});
 const t = (key: string) => key;
 const i18n = {defaultI18n: {t, number: String, locale: 'en-US'}};
-const theme = {isTV: true, textScale: 1.2, platform: 'tv', colors: {text: 'white', white: 'white', textSecondary: 'grey', textTertiary: 'muted'}, type: {body: {}, bodyStrong: {}, caption: {}}};
+const theme = {isTV: true, textScale: 1.2, platform: 'tv', colors: {text: 'white', white: 'white', textSecondary: 'grey', textTertiary: 'muted'}, type: {body: {}, bodyStrong: {}, caption: {}, captionStrong: {}, heading: {}, display: {fontSize: 62}, cardTitle: {}, cardSubtitle: {}}, space: {xs: 8, sm: 16, md: 24, lg: 32, tight: 6}};
 const themed = {useTheme: () => theme, nativeType: (value: any, scale: number) => ({fontSize: value.size * scale, ...(typeof value.lineHeight === 'number' ? {lineHeight: value.lineHeight * scale} : {}), fontFamily: `weight-${value.weight}`})};
 const controlsAtoms = {Focusable: 'Focusable', Button: 'Button', TextField: 'TextField', Switch: 'Switch'};
 const nativeAtoms = {View: 'View', Text: 'Text', ScrollView: 'ScrollView', ActivityIndicator: 'Spinner', StyleSheet: {absoluteFill: {}}, useWindowDimensions: () => ({width: 1920, height: 1080})};
@@ -123,9 +123,12 @@ test('held seek stops at the retained-window boundary without committing playbac
 
 test('Seasons has a stable sheet, selected-season entry, Done/Go identities and opener restoration', async () => {
   const h = watchHooks(), opener = {current: {}}, selected: string[] = [];
-  const {NativeSeasonsSheet} = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {
-    react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../kit/controls': controlsAtoms, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/theme': themed,
+  // The sheet is the kit's (kit/layout/SeasonSheet.tsx); the screen's wrapper maps the show's seasons to its rows.
+  const kit = await screenModule(new URL('../src-next/kit/layout/SeasonSheet.tsx', import.meta.url), {
+    react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../controls': controlsAtoms, '../Icon': {Icon: 'Icon'}, '../overlays': {BottomSheet: 'BottomSheet'}, '../theme': themed,
   });
+  const wrapper = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {react: h.react, '../../../../../packages/i18n/src': i18n, '../../kit/layout/SeasonSheet': kit});
+  const NativeSeasonsSheet = (props: any) => {const sheet = wrapper.NativeSeasonsSheet(props); return kit.SeasonSheet(sheet.props);};
   const props: any = {open: true, onOpenChange() {}, returnFocusRef: opener, total: 40, seasons: [{id: 'one', number: 1}, {id: 'two', number: 2}], selectedId: 'two', onSelect: (id: string) => selected.push(id), hideWatched: false, onHideWatched() {}};
   try {
     const tree = h.render(() => NativeSeasonsSheet(props));
@@ -166,7 +169,7 @@ test('Playback Info missing comparison settles on a named, focused Retry and ret
   const {NativePlaybackInfoPanel} = await screenModule(new URL('../src-next/screens/watch/PlaybackInfoPanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
     react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../../../../packages/player-core/src': playerCore,
     '../../../../../packages/client-core/src/video-track-labels': {videoTrackWords: () => ({})}, '../../../../../packages/client-core/src/presentation/playback-info': {codecName: String},
-    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, './playback-info': {lossSentence: () => undefined},
+    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, '../../kit/player/PlaybackInfo': {PlaybackInfoComparison: 'PlaybackInfoComparison'}, './playback-info': {lossSentence: () => undefined},
   });
   const context: any = {fence, source: {lease: 'lease', fence}, state: {panel: 'playback-info', fence}, runtime: {}, panelCurrent: () => true};
   const read = async () => {reads++; return undefined;};
@@ -183,7 +186,7 @@ test('Playback Info timeout settles on the same focused recovery without a rende
   const {NativePlaybackInfoPanel} = await screenModule(new URL('../src-next/screens/watch/PlaybackInfoPanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
     react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../../../../packages/player-core/src': playerCore,
     '../../../../../packages/client-core/src/video-track-labels': {videoTrackWords: () => ({})}, '../../../../../packages/client-core/src/presentation/playback-info': {codecName: String},
-    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, './playback-info': {lossSentence: () => undefined},
+    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, '../../kit/player/PlaybackInfo': {PlaybackInfoComparison: 'PlaybackInfoComparison'}, './playback-info': {lossSentence: () => undefined},
   });
   const host: any = {fence, source: {lease: 'lease', fence}, state: {panel: 'playback-info', fence}, runtime: {}, panelCurrent: () => true};
   const read = () => new Promise(() => {});
@@ -199,14 +202,20 @@ test('post-play rows stay horizontal, preserve card widths, connect both directi
   for (const compact of [false, true]) {
     const h = watchHooks(), entry: any = {id: 'item', title: 'Movie', duration: 600, year: 2026};
     const data = {item: entry, personal: {rating: null}, related: {rows: [{entries: [{id: 'a', title: 'A'}, {id: 'b', title: 'B'}]}]}};
-    const {NativeWatchPostPlay} = await screenModule(new URL('../src-next/screens/watch/PostPlayScreen.tsx', import.meta.url), {
+    // The screen reads the title; the kit's PlayerEndCard draws it.
+    const {PlayerEndCard} = await screenModule(new URL('../src-next/kit/player/PlayerEndCard.tsx', import.meta.url), {
       react: h.react, 'react-native': nativeAtoms, 'react-native-svg': svg, '../../../../../packages/i18n/src': i18n,
+      '../artwork': {Artwork: 'Artwork'}, '../controls': controlsAtoms, '../focus': {FocusRegion: 'FocusRegion'}, '../Icon': {Icon: 'Icon'}, '../theme': themed,
+    });
+    const {NativeWatchPostPlay} = await screenModule(new URL('../src-next/screens/watch/PostPlayScreen.tsx', import.meta.url), {
+      react: h.react, '../../../../../packages/i18n/src': i18n,
       '../../../../../packages/client-core/src/detail': {DetailService: class {getSnapshot = () => ({data}); subscribe = () => () => {}; dispose() {}}},
-      '../../shell/freshness': {viewerQueriesFor: () => ({})},
-      '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/controls': controlsAtoms, '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': themed,
+      '../../shell/freshness': {viewerQueriesFor: () => ({})}, '../../kit/player': {PlayerEndCard},
     });
     try {
-      const tree = h.render(() => NativeWatchPostPlay({entry, compact, current: () => true, artwork() {}, onReplay() {}, onClose() {}, onOpen() {}, reportError: assert.fail}));
+      const card = h.render(() => NativeWatchPostPlay({entry, compact, current: () => true, artwork() {}, onReplay() {}, onClose() {}, onOpen() {}, reportError: assert.fail}));
+      assert.equal(card.type, PlayerEndCard);
+      const tree = h.render(() => PlayerEndCard(card.props));
       const actions = find(tree, 'watch-post'), row = find(tree, 'watch-post-related');
       assert.equal(actions.props.edges.down, row.props.id); assert.equal(row.props.edges.up, actions.props.id);
       assert.deepEqual(row.props.style, {flexDirection: 'row', gap: compact ? 10 : 28});
@@ -215,7 +224,8 @@ test('post-play rows stay horizontal, preserve card widths, connect both directi
       const art = descendants(cards[0]).find((node: any) => node.type === 'View' && node.props.style.overflow === 'hidden'); assert.equal(flattenStyle(art.props.style).borderRadius, compact ? 8 : 14);
       if (!compact) {
         const all = descendants(actions); assert.ok(all.findIndex((node: any) => node.props.testID === 'watch-post-replay') < all.findIndex((node: any) => node.props.testID === 'watch-post-star-1'));
-        assert.equal(all.find((node: any) => node.type === 'Text' && node.props.children === 'Movie').props.style.fontSize, 84);
+        // R2: the film's name is the form's `display` role.
+        assert.equal(flattenStyle(all.find((node: any) => node.type === 'Text' && node.props.children === 'Movie').props.style).fontSize, theme.type.display.fontSize);
       }
     } finally {h.unmount();}
   }
@@ -316,7 +326,7 @@ async function chromeFixture(live = false) {
     '../../kit/Icon': {Icon: 'Icon'}, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'}, '../../kit/theme': themed,
     '../../kit/useMotion': {useMotion: () => ({duration: () => 0, timing: () => ({duration: 0})}), useReducedMotion: () => true}, './controls': {NativeWatchControls},
     './WatchTimeline': {NativeWatchTimeline: 'Timeline'}, './useSkipPromptMotion': {useSkipPromptMotion: () => ({value: undefined, interactive: false, bodyStyle: {}, positionStyle: {}})},
-    '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined, usePublishedPlayerMorph: () => undefined}, './UpNextCard': {NativeUpNextCard: 'UpNextCard'}, './StillWatchingCard': {NativeStillWatchingCard: 'StillWatchingCard'}, '../../kit/artwork': {Artwork: 'Artwork'},
+    '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined, usePublishedPlayerMorph: () => undefined}, './UpNextCard': {NativeUpNextCard: 'UpNextCard'}, '../../kit/player/StillWatchingCard': {NativeStillWatchingCard: 'StillWatchingCard'}, '../../kit/artwork': {Artwork: 'Artwork'},
     './live-guide': {emptyLiveGuide: () => ({}), noLiveGuideSubscription: () => () => {}}, './live-actions': {emptyLiveActions: () => ({}), noLiveActionsSubscription: () => () => {}},
     '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})}, '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: () => ''},
     './TVMiniGuide': {NativeMiniGuide: 'MiniGuide'}, './TVLiveActions': {TVLiveActions: 'LiveActions'}, './TVControlLabel': {TVControlLabel: 'Label'}, '../../platform/tv-keys': {useTVKeyEvent() {}},
@@ -424,7 +434,7 @@ test('WEBFIX-A1: while a phone or tablet drags, the card above the knob shows th
   const h = watchHooks();
   const {NativeScrubPreview} = await screenModule(new URL('../src-next/screens/watch/TrickplayStrip.tsx', import.meta.url), {
     react: h.react, 'react-native': {...nativeAtoms, Image: 'Image', StyleSheet: {absoluteFill: {}, create: (value: unknown) => value}}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
-    '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: (seconds: number) => `t${seconds}`}, '../../kit/theme': themed, '../../kit/useMotion': {useMotion: () => ({effects: {shadows: true}})},
+    '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: (seconds: number) => `t${seconds}`}, '../../kit/theme': themed, '../../kit/player/parts': {PlayerFilmstrip: 'Filmstrip'}, '@portico/design': {frameSpec: {player: {filmstrip: {small: {width: 256, height: 144}, large: {width: 480, height: 270}}}}},
     './trickplay-frame': await import('../src-next/screens/watch/trickplay-frame.ts'),
   });
   const set = {id: 's', sourceId: 'src', sourceRevision: 'r', width: 3200, height: 1800, tileWidth: 320, tileHeight: 180, columns: 10, rows: 10, intervalSeconds: 10, durationSeconds: 1000,

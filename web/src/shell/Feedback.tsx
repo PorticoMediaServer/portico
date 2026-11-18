@@ -1,4 +1,5 @@
 import {useLayoutEffect, useSyncExternalStore} from 'react';
+import {toastCards} from '@design';
 import {presentedInPlayer} from '../platform/playback/presented';
 import type {I18n} from '@i18n';
 import {presentError} from '@core/presentation/errors.ts';
@@ -31,9 +32,9 @@ export class ShellFeedback {
   dispose = () => { this.retired = true; this.publish(null); this.listeners.clear(); };
 }
 /** Where a toast rests: above the tab bar, and above the player bar when there is one
- * (motion.html 2.15, 3.10). Phone values clear the home indicator too. */
+ * (motion.html 2.15, 3.10); with neither, R12's gap above the edge (desktop-browse). Phone values clear the home indicator too. */
 export function shellToastBottom(width: number, dockVisible: boolean): string {
-  return width >= 1024 ? `${dockVisible ? 108 : 24}px` : `calc(${dockVisible ? 150 : 80}px + env(safe-area-inset-bottom, 0px))`;
+  return width >= 1024 ? `${dockVisible ? 108 : toastCards.expanded!.bottom}px` : `calc(${dockVisible ? 150 : 80}px + env(safe-area-inset-bottom, 0px))`;
 }
 export function ShellFeedbackHost({source, dockVisible}: {source: ShellFeedback; dockVisible: boolean}) {
   const toast = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot), width = useShellWidth();

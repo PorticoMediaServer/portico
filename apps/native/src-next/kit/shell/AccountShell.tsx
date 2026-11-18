@@ -6,6 +6,8 @@ import type {FactPart} from '../../../../../packages/client-core/src/presentatio
 import {ProfileFace, type ProfileFaceProps, type ProfileOption} from '../artwork/Profiles';
 import {Focusable, type FocusableProps} from '../controls/Focusable';
 import {Popover} from '../overlays/Menu';
+import {SheetFrame} from '../frames/SheetFrame';
+import {useFrameMetrics} from '../frames/metrics';
 import type {PopoverProps} from '../overlays/types';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {Icon, type IconName} from '../Icon';
@@ -61,17 +63,21 @@ export type AccountMenuProps = Pick<PopoverProps, 'open' | 'onOpenChange' | 'anc
   viewerRole: ServerRole;
   serverAction?: AccountAction;
 };
+/** R9 `account`: under the avatar as a popover; on a phone a sheet with "{name}, profile menu · Done" (the table's
+ * phone cell), so the page and the avatar stay in view above it. */
 export function AccountMenu({profile, accountLine, actions, profiles, viewerRole, serverAction, ...surface}: AccountMenuProps) {
-  const theme = useTheme();
+  const theme = useTheme(), {form} = useFrameMetrics();
   const row = (action: AccountAction) => <Focusable key={action.id} testID={controlID(surface.testID, 'action', action.id)} accessibilityRole="button" accessibilityLabel={action.label} onPress={() => {surface.onOpenChange(false, 'action'); action.onPress();}} focusKind="row" focusRadius={10} style={{height: theme.isTV ? 64 : 46, marginHorizontal: 8, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 14}}>
     <Icon name={action.icon} size={theme.isTV ? 28 : 22} color={action.destructive ? theme.colors.record : theme.colors.textSecondary}/><Text style={[shellType(theme.isTV ? 22 : 15), {color: action.destructive ? theme.colors.record : theme.colors.text, flex: 1}]}>{action.label}</Text>{action.trailing}
   </Focusable>;
-  return <Popover {...surface} width={theme.isTV ? 480 : 340} placement="bottom-end" title={profile.name} showTitle={false} modal>
+  const content = <>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 14, padding: 20}}><ProfileFace {...profile} size={48}/><View style={{flex: 1}}><Text style={[shellType(17, 700), {color: theme.colors.text}]}>{profile.name}</Text><Text style={[shellType(13, 400), {color: theme.colors.textTertiary, marginTop: 2}]}>{accountLine}</Text></View></View>
     {!theme.isTV && profiles && <ProfileSwitchRow {...profiles}/>}
     {actions.map(row)}
     {serverAction && theme.isTV && viewerRole !== 'member' && <View style={{marginTop: 6, paddingVertical: 6, borderTopWidth: 1, borderTopColor: alpha(theme.colors.text, .08), backgroundColor: alpha(theme.colors.accentDeep, .16)}}>{row({...serverAction, trailing: <Text style={[shellType(theme.isTV ? 18 : 12, 700), {color: theme.colors.textTertiary}]}>{defaultI18n.t('next.shell.viewOnly')}</Text>})}</View>}
-  </Popover>;
+  </>;
+  if (form === 'phone') return <SheetFrame kind="task" task="account" open={surface.open} onOpenChange={surface.onOpenChange} testID={surface.testID} title={defaultI18n.t('next.shell.profileMenu', {name: profile.name})}>{content}</SheetFrame>;
+  return <Popover {...surface} width={theme.isTV ? 480 : 340} placement="bottom-end" title={profile.name} showTitle={false} modal>{content}</Popover>;
 }
 
 export type NotificationItemProps = {

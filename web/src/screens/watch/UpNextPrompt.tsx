@@ -3,12 +3,11 @@ import {defaultI18n} from '@i18n';
 import {durationText} from '@core/presentation/kit-model/text.ts';
 import type {WebPlaybackRuntimeSnapshot} from '../../platform/playback';
 import {Artwork} from '../../kit/artwork';
-import {WatchPromptGlyph} from './PromptGlyph';
 import type {WatchBindings} from './types';
 import {watchClock} from './model';
 import {dispatchWatchMarker} from './policy';
 import {dispatchWatchNext, watchUpNextOffer, type WatchNextBinding} from './up-next';
-import styles from './up-next.module.css';
+import {PlayerUpNext} from '../../kit/player/PlayerUpNext';
 import motion from './prompt-motion.module.css';
 import {promptScope, promptSnapStyle, usePromptMotion, usePromptPresence, usePromptReducedMotion} from './prompt-motion';
 import {WatchPromptRetirement, useWatchPromptControls} from './prompt-focus';
@@ -39,22 +38,11 @@ export function WatchUpNextPrompt({binding, snapshot, artwork, environment, expa
     : t(scene ? 'player.upNext.startsAfterScene' : 'player.upNext.startsIn', {time: watchClock(countdown.seconds)}) : undefined;
   const act = (kind: 'play-now' | 'watch-credits' | 'not-now') => {void dispatchWatchNext(shownBinding, shownSnapshot, kind).catch(shownBinding.reportError);};
   const skip = () => {if (marker) void dispatchWatchMarker(shownBinding, shownSnapshot, {kind: 'skip', markerId: marker.id}).catch(shownBinding.reportError);};
-  return <WatchPromptRetirement active={presence.phase === 'in'} paintKey={presence.paintKey} element={motionRef}><div key={presence.paintKey} ref={motionRef} role="group" aria-label={t('player.upNext.duringCredits')} className={`${styles.card} ${motion.prompt}`} data-layout={layout} data-controls-visible={drawnControls} data-watch-up-next data-scene-after={scene} data-up-next-end={!prompt || undefined}
-    data-prompt-phase={presence.phase} inert={presence.phase === 'out'} aria-hidden={presence.phase === 'out' || undefined} style={promptSnapStyle}>
-    <div className={styles.row}>
-      <div className={styles.still}><Artwork source={source} alt="" /></div>
-      <div className={styles.content}><small>{t('player.upNext.duringCredits')}</small><b>{next.title}</b>
-        {(episode || duration) && <div className={styles.facts}>{episode}{episode && duration && <i aria-hidden="true" />}{duration}</div>}
-        {when && <div className={styles.when}>{when}</div>}
-      </div>
-    </div>
-    {progress !== undefined && <div className={styles.meter} aria-hidden="true"><i style={{width: `${progress * 100}%`}} /></div>}
-    <div className={styles.actions}>
-      <button type="button" className={styles.play} onClick={() => act('play-now')}><WatchPromptGlyph kind="play" size={18} />{t('player.upNext.playNow')}</button>
-      {scene && marker && <button type="button" onClick={skip}><WatchPromptGlyph kind="next" size={18} />{t('player.skip', {kind: marker.kind})}</button>}
-      {prompt ? <button type="button" onClick={() => act('watch-credits')}>{t('player.upNext.watchCredits')}</button>
-        : <button type="button" onClick={() => act('not-now')}>{t('player.upNext.notNow')}</button>}
-    </div>
-    {scene && marker && <div className={styles.note}>{t('player.upNext.sceneAfterCredits')}</div>}
-  </div></WatchPromptRetirement>;
+  return <WatchPromptRetirement active={presence.phase === 'in'} paintKey={presence.paintKey} element={motionRef}><PlayerUpNext key={presence.paintKey} ref={motionRef} className={motion.prompt} layout={layout} data-controls-visible={drawnControls} data-watch-up-next data-scene-after={scene} data-up-next-end={!prompt || undefined}
+    data-prompt-phase={presence.phase} inert={presence.phase === 'out'} aria-hidden={presence.phase === 'out' || undefined} style={promptSnapStyle}
+    heading={t('player.upNext.duringCredits')} still={<Artwork source={source} alt="" />} title={next.title} facts={[episode, duration].filter((fact): fact is string => !!fact)} when={when} progress={progress}
+    note={scene && marker ? t('player.upNext.sceneAfterCredits') : undefined}
+    actions={[{id: 'play-now', label: t('player.upNext.playNow'), primary: true, glyph: 'play', onPress: () => act('play-now')},
+      ...(scene && marker ? [{id: 'skip', label: t('player.skip', {kind: marker.kind}), glyph: 'next' as const, onPress: skip}] : []),
+      prompt ? {id: 'watch-credits', label: t('player.upNext.watchCredits'), onPress: () => act('watch-credits')} : {id: 'not-now', label: t('player.upNext.notNow'), onPress: () => act('not-now')}]} /></WatchPromptRetirement>;
 }

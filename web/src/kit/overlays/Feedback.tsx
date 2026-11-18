@@ -5,7 +5,7 @@ import {springs} from '@design';
 import {Button} from '../controls/Button';
 import {Icon, type IconName} from '../Icon';
 import {dismissToast, springFrames} from './model';
-import {classes, usePresence, useReducedMotion, useSurfaceMotion} from './shared';
+import {classes, useFrameForm, usePresence, useReducedMotion, useSurfaceMotion} from './shared';
 import type {OverlayChange, OverlayDismissReason, OverlayStyle} from './types';
 import styles from './overlays.module.css';
 
@@ -19,10 +19,12 @@ export function Toast({open, onOpenChange, message, action, icon, artwork, tone 
   const exitTransform = useRef<string | null>(null), motionRef = useSurfaceMotion(open, 'toast', exitTransform), elementRef = useRef<HTMLDivElement | null>(null), animation = useRef<Animation | null>(null);
   const ref = useCallback((element: HTMLDivElement | null) => { elementRef.current = element; motionRef(element); }, [motionRef]);
   const drag = useRef<{pointer: number; startX: number; startY: number; baseX: number; baseY: number; x: number; y: number; time: number; velocityX: number; velocityY: number} | null>(null);
-  const presence = usePresence(open, 160);
+  const presence = usePresence(open, 160), phone = useFrameForm() === 'phone';
   useEffect(() => () => animation.current?.cancel(), []);
   if (!presence) return null;
-  return <div ref={ref} role="status" aria-live="polite" aria-atomic="true" className={classes(styles.toast, className)} data-tone={tone} data-testid={testID} data-state={open ? 'open' : 'closed'}
+  // R12 (packages/design `toastCards`): with an action the form's card (a tinted action on a phone, an accent text action
+  // wider); a confirmation with none is the pill.
+  return <div ref={ref} role="status" aria-live="polite" aria-atomic="true" className={classes(styles.toast, className)} data-shape={action ? 'card' : 'pill'} data-tone={tone} data-testid={testID} data-state={open ? 'open' : 'closed'}
     onPointerDown={event => {
       if (event.button !== 0 || (event.target as HTMLElement).closest('button,a')) return;
       const painted = getComputedStyle(event.currentTarget), matrix = painted.transform === 'none' ? new DOMMatrixReadOnly() : new DOMMatrixReadOnly(painted.transform);
@@ -57,13 +59,15 @@ export function Toast({open, onOpenChange, message, action, icon, artwork, tone 
     }} onPointerCancel={event => { drag.current = null; event.currentTarget.style.transform = 'none'; event.currentTarget.style.opacity = '1'; }} onLostPointerCapture={event => { if (drag.current) { drag.current = null; event.currentTarget.style.transform = 'none'; } }}>
     {artwork && <span className={styles.toastArtwork}>{artwork}</span>}{icon && <Icon name={icon} size={18} className={styles.feedbackIcon} />}
     <span className={styles.toastMessage}>{message}</span>
-    {action && <Button variant={action.variant ?? 'glass'} size="xs" icon={action.icon} iconSize={16} aria-label={action.accessibilityLabel} className={styles.toastAction} onClick={() => { action.onAction(); onOpenChange(false, 'action'); }}>{action.label}</Button>}
+    {action && <Button variant={action.variant ?? (phone ? 'glass' : 'text')} size="xs" icon={action.icon} iconSize={16} aria-label={action.accessibilityLabel} className={styles.toastAction} onClick={() => { action.onAction(); onOpenChange(false, 'action'); }}>{action.label}</Button>}
   </div>;
 }
 
-export type ToastHostProps = {toast: ToastData | null; onDismiss: (id: string, reason: OverlayDismissReason) => void; bottomInset?: number; className?: string; toastClassName?: string; testID?: string};
+export type ToastHostProps = {toast: ToastData | null; onDismiss: (id: string, reason: OverlayDismissReason) => void; bottomInset?: number; className?: string; toastClassName?: string; testID?: string;
+  /** R12: inside the player a wider form stands the card at the start (desktop-player), not centred. */
+  placement?: 'player'};
 /** Controlled single occupant: callers replace `toast`; no global queue or business state. */
-export function ToastHost({toast, onDismiss, bottomInset, className, toastClassName, testID}: ToastHostProps) {
+export function ToastHost({toast, onDismiss, bottomInset, className, toastClassName, testID, placement}: ToastHostProps) {
   const portalTarget = useOverlayPortalTarget();
   const current = useRef(toast), last = useRef(toast), dismiss = useRef(onDismiss), host = useRef<HTMLDivElement | null>(null);
   const replacement = useRef<Animation | null>(null), reduced = useReducedMotion(host);
@@ -95,7 +99,7 @@ export function ToastHost({toast, onDismiss, bottomInset, className, toastClassN
   }, [id, reduced]);
   const value = toast ?? last.current;
   if (!value || !portalTarget) return null;
-  return createPortal(<div ref={host} className={classes(styles.toastHost, className)} data-testid={testID} style={bottomInset === undefined ? undefined : {'--overlay-toast-bottom': `${bottomInset}px`} as OverlayStyle}
+  return createPortal(<div ref={host} className={classes(styles.toastHost, className)} data-testid={testID} data-shape={value.action ? 'card' : 'pill'} data-placement={placement} style={bottomInset === undefined ? undefined : {'--overlay-toast-bottom': `${bottomInset}px`} as OverlayStyle}
     onPointerEnter={() => clock.current?.pause('hover')} onPointerLeave={() => clock.current?.resume('hover')} onPointerDown={() => clock.current?.pause('touch')} onPointerUp={() => clock.current?.resume('touch')} onPointerCancel={() => clock.current?.resume('touch')}
     onFocusCapture={() => clock.current?.pause('focus')} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) clock.current?.resume('focus'); }}>
     <Toast {...value} className={toastClassName} open={toast !== null} onOpenChange={(open, reason) => { if (!open && current.current?.id === value.id) dismiss.current(value.id, reason); }} />

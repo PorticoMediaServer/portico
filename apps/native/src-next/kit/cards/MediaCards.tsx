@@ -42,19 +42,19 @@ function Overlays({props, hovered, height, holding = false, playSize = 40, cente
   </View>;
 }
 
-function Marks({progress, watched, isNew, onNewBadge}: Media & {onNewBadge?: (bottom: number) => void}) {
-  const t = useTheme(), inset = t.spec.card.badge.inset[t.platform];
+function Marks({progress, watched, isNew, onNewBadge, insetProgress = false}: Media & {onNewBadge?: (bottom: number) => void; /** A poster's bar sits inside the art's edges (mock.html cards); a still's runs along its bottom edge. */ insetProgress?: boolean}) {
+  const t = useTheme(), inset = t.spec.card.badge.inset[t.column];
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     {isNew && <View onLayout={event => onNewBadge?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{position: 'absolute', left: inset, top: inset}}><Badge kind="new">{defaultI18n.t('next.kit.new')}</Badge></View>}
     {watched && <View accessibilityLabel={defaultI18n.t('card.watched')} style={{position: 'absolute', right: inset, top: inset}}><Badge kind="watched" /></View>}
-    <Progress value={progress} style={{position: 'absolute', left: 0, right: 0, bottom: 0}} />
+    <Progress value={progress} style={insetProgress ? {position: 'absolute', left: inset, right: inset, bottom: inset} : {position: 'absolute', left: 0, right: 0, bottom: 0}} />
   </View>;
 }
 
 /** Where a card's New badge ends, for a generated cover beneath it (W-1); a small gap below the badge. */
 function useBadgeClearance(isNew: boolean | undefined) {
   const t = useTheme(), [bottom, setBottom] = useState(0);
-  return [isNew && bottom > 0 ? bottom + t.spec.card.badge.inset[t.platform] / 2 : 0, setBottom] as const;
+  return [isNew && bottom > 0 ? bottom + t.spec.card.badge.inset[t.column] / 2 : 0, setBottom] as const;
 }
 
 /** A card with no picture served draws its generated cover (mock.html "No artwork"), unless the surface chose its own
@@ -64,9 +64,9 @@ function fallbackFor(props: Media & {title: string}, shape: MissingArtShape, wid
 }
 
 function Portrait({kind = 'poster', next, titleLines: suppliedLines, ...props}: PosterCardProps & {kind?: 'poster' | 'book' | 'periodical' | 'newspaper'; next?: boolean}) {
-  const t = useTheme(), width = props.width ?? t.spec.card.width.poster[t.platform], height = width / (kind === 'periodical' || kind === 'newspaper' ? 3 / 4 : 2 / 3);
+  const t = useTheme(), width = props.width ?? t.spec.card.width.poster[t.column], height = width / (kind === 'periodical' || kind === 'newspaper' ? 3 / 4 : 2 / 3);
   // A phone poster's title wraps to a second line before it is cut; a TV poster keeps its one line unless asked.
-  const titleLines = suppliedLines ?? (t.isTV ? 1 : 2);
+  const titleLines = suppliedLines ?? 2; // Rule 10 and the owner's no-cut rule: a poster title takes two lines on every form, TV too.
   const [clearance, setBadgeBottom] = useBadgeClearance(props.isNew);
   const Frame = props.frame ?? CardFrame;
   return <Frame {...props} width={width} overlay={state => <Overlays props={props} hovered={state.hovered} holding={state.holding} height={height} />}>
@@ -75,7 +75,7 @@ function Portrait({kind = 'poster', next, titleLines: suppliedLines, ...props}: 
         <GeneratedCoverClearance.Provider value={clearance}>
           <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} source={props.artwork} fallback={fallbackFor(props, kind, width, height)} kind={kind} width={width} height={height} />
         </GeneratedCoverClearance.Provider>
-        <Marks {...props} onNewBadge={setBadgeBottom} />
+        <Marks {...props} onNewBadge={setBadgeBottom} insetProgress />
       </ArtFrame>
       <Caption {...props} selected={props.selection?.selected} focused={state.focused} tvRestingSecondary lines={titleLines} />
     </>}
@@ -90,7 +90,7 @@ export function CoverCard(props: CoverCardProps) {
 }
 
 export function SquareCard(props: SquareCardProps) {
-  const t = useTheme(), width = props.width ?? t.spec.card.width.square[t.platform];
+  const t = useTheme(), width = props.width ?? t.spec.card.width.square[t.column];
   const Frame = props.frame ?? CardFrame;
   // A cover is never cropped (owner's rule): a 2:3 book cover keeps its shape, whole and centred in the square slot, and its
   // frame, ring and marks take that shape too, so no bars are drawn. TV keeps its square tiles.
@@ -116,7 +116,7 @@ export function SquareCard(props: SquareCardProps) {
 export const wideTitleLines = 3;
 
 export function WideCard(props: WideCardProps) {
-  const t = useTheme(), width = props.width ?? t.spec.card.width.wide[t.platform], height = width * 9 / 16;
+  const t = useTheme(), width = props.width ?? t.spec.card.width.wide[t.column], height = width * 9 / 16;
   const handheld = t.layoutMode === 'phone';
   // kit.css draws the on-art fact separator (.gap) at 12 px, 16 px on TV.
   const factsGap = t.isTV ? 16 : 12;
@@ -129,11 +129,11 @@ export function WideCard(props: WideCardProps) {
     {s => <ArtFrame height={height} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected}>
       <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="wide" source={props.artwork} fallback={fallbackFor(props, 'wide', width, height)} width={width} height={height} />
       <Scrim start={scrimStart} />
-      <View onLayout={t.isTV ? undefined : event => {const top = event.nativeEvent.layout.y; if (top !== copyTop) setCopyTop(top);}} style={{position: 'absolute', left: t.spec.card.wide.insetX[t.platform], right: t.spec.card.wide.insetX[t.platform], bottom: t.spec.card.wide.insetBottom[t.platform]}}>
+      <View onLayout={t.isTV ? undefined : event => {const top = event.nativeEvent.layout.y; if (top !== copyTop) setCopyTop(top);}} style={{position: 'absolute', left: t.spec.card.wide.insetX[t.column], right: t.spec.card.wide.insetX[t.column], bottom: t.spec.card.wide.insetBottom[t.column]}}>
         <Text numberOfLines={t.isTV ? 1 : wideTitleLines} style={[t.type.wideTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
         <View style={{marginTop: t.isTV ? 4 : 2}}><Parts parts={handheld ? compactFacts : props.caption} gap={factsGap} style={{color: t.colors.textSecondary}} /></View>
         {!handheld && !t.isTV && <Parts parts={props.detail} gap={factsGap} style={{color: t.colors.textSecondary}} />}
-        <Progress value={props.progress} style={{marginTop: t.spec.card.progress.marginTop[t.platform]}} />
+        <Progress value={props.progress} style={{marginTop: t.spec.card.progress.marginTop[t.column]}} />
       </View>
     </ArtFrame>}
   </CardFrame>;
@@ -167,21 +167,37 @@ export type EpisodeTileProps = CardProps & Media & {
 
 export function EpisodeTile(props: EpisodeTileProps) {
   const t = useTheme(), row = props.layout === 'row' || (!t.isTV && props.layout !== 'tile');
-  const width = props.width ?? (row ? 350 : t.spec.episode.width[t.platform]), artWidth = row ? props.artWidth ?? 136 : width, height = artWidth * 9 / 16;
+  // Rule R7: a row on a tablet is its own layout, not the phone's widened: the synopsis beside the picture under the
+  // title, the length on the picture (tablet f8, tablet-play 3; tablets.md SC-5).
+  const wide = row && t.column === 'tablet';
+  const width = props.width ?? (row ? 350 : t.spec.episode.width[t.column]), artWidth = row ? props.artWidth ?? 136 : width, height = artWidth * 9 / 16;
+  // Where the length sits on the picture (a tile, a tablet row), Playing or Watched is a labelled chip at the picture's
+  // top left (desktop-player f6, tablet-play 2a), so nothing shares the length's corner. A tile's own status keeps its badge.
+  // A row's facts are the form's `meta` role at the row's weight (R2: by form, so a TV row is TV-sized).
+  const meta = (weight: 600 | 700) => {const {fontFamily, fontWeight} = titleStyle(t, 1, weight); return [t.type.meta, {fontFamily, fontWeight}];};
+  const pictured = !row || wide, playingBars = (color: string) => [.55, 1, .38].map((factor, index) => <View key={index} style={{width: 3, height: 12 * factor, borderRadius: 1.5, backgroundColor: color}}/>);
+  const chip = !pictured ? undefined : props.status && !row ? <Badge kind="new">{props.status}</Badge>
+    : props.playing ? <Badge kind="playing">{defaultI18n.t('next.dock.playing')}</Badge> : props.watched ? <Badge kind="watched">{defaultI18n.t('next.cards.watched')}</Badge> : undefined;
   const art = (focused: boolean, hovered: boolean, holding: boolean) => <ArtFrame width={artWidth} height={height} radius={row ? 8 : undefined} focused={focused} hovered={hovered} holding={holding} hoverScale={t.spec.card.hover.episodeScale} selected={props.selection?.selected || props.open}>
     <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="still" backdropFallback={props.backdropFallback} source={props.artwork} fallback={fallbackFor(props, 'still', artWidth, height)} width={artWidth} height={height} />
-    {props.length && !row && <View style={{position: 'absolute', right: t.spec.episode.duration.inset[t.platform], top: t.spec.episode.duration.inset[t.platform]}}><Badge>{props.length}</Badge></View>}
-    {props.status && !row && <View style={{position: 'absolute', left: t.isTV ? 16 : 8, top: t.isTV ? 14 : 8}}><Badge kind="new">{props.status}</Badge></View>}
-    <Marks watched={props.watched} progress={props.progress} />
+    {/* The length's corner is the top right; on a row's small picture a status chip takes the top, so the length sits at the bottom right (tablet-play 2a). */}
+    {props.length && pictured && <View style={[{position: 'absolute', right: t.spec.episode.duration.inset[t.column]}, row && chip
+      ? {bottom: t.spec.episode.duration.inset[t.column] + t.spec.card.progress.height[t.column]} : {top: t.spec.episode.duration.inset[t.column]}]}><Badge>{props.length}</Badge></View>}
+    {chip && <View style={{position: 'absolute', left: t.isTV ? 16 : 8, top: t.isTV ? 14 : 8}}>{chip}</View>}
+    <Marks watched={props.watched && !pictured} progress={props.progress} />
+    {/* A phone's row: the episode that is playing carries the playing mark on its picture (phone-player 4). */}
+    {props.playing && row && !wide && <View pointerEvents="none" style={{position: 'absolute', right: t.spec.card.badge.inset[t.column], top: t.spec.card.badge.inset[t.column], flexDirection: 'row', alignItems: 'flex-end', gap: 2, padding: 5, borderRadius: 6, backgroundColor: 'rgba(7,16,24,.82)'}}>
+      {playingBars(t.colors.accentStrong)}</View>}
   </ArtFrame>;
-  const text = <View style={{flex: row ? 1 : undefined, minWidth: 0, marginTop: row ? 0 : t.spec.episode.titleMargin[t.platform], gap: 3, paddingRight: row && (props.onDownload || props.onMore) ? 40 : 0}}>
-    <Text numberOfLines={row && !t.isTV ? 2 : 1} style={[row ? titleStyle(t, 15) : t.type.episodeTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
-    <Parts parts={props.label} fit={row && !t.isTV ? 'wrap' : 'cut'} style={row ? titleStyle(t, 12.5, 600) : undefined} />
+  const text = <View style={{flex: row ? 1 : undefined, minWidth: 0, marginTop: row ? 0 : t.spec.episode.titleMargin[t.column], gap: 3, paddingRight: row && (props.onDownload || props.onMore) ? 40 : 0}}>
+    <Text numberOfLines={row && !t.isTV ? 2 : 1} style={[t.type.episodeTitle, {color: props.selection?.selected || props.playing ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
+    <Parts parts={props.label} fit={row && !t.isTV ? 'wrap' : 'cut'} style={row ? meta(600) : undefined} />
     {row && (props.length || props.status) && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12}}>
-      {props.status && <Text style={[titleStyle(t, 12.5, 700), {color: t.colors.accentStrong}]}>{props.status}</Text>}
-      {props.length && <Text style={[titleStyle(t, 12.5, 600), {color: t.colors.textTertiary}]}>{props.length}</Text>}
+      {props.status && !(wide && (props.playing || props.watched)) && <Text style={[meta(700), {color: t.colors.accentStrong}]}>{props.status}</Text>}
+      {props.length && !wide && <Text style={[meta(600), {color: t.colors.textTertiary}]}>{props.length}</Text>}
     </View>}
     <Parts parts={props.caption} /><Parts parts={props.detail} />
+    {wide && props.synopsis && <Text numberOfLines={3} style={[t.type.episodeBody, {color: t.colors.textSecondary, marginTop: 4}]}>{props.synopsis}</Text>}
   </View>;
   return <CardFrame {...props} width={width}
     accessibilityDetails={[...(props.accessibilityDetails ?? []), ...props.label.map(part => part.text), props.status, props.length]}
@@ -191,8 +207,9 @@ export function EpisodeTile(props: EpisodeTileProps) {
     <View pointerEvents="box-none" style={{width: artWidth, height}}><Overlays props={{...props, onMore: undefined}} hovered={s.hovered} holding={s.holding} height={height} playSize={48} centered episode /></View>
     {!props.disabled && !props.selection?.active && (props.onDownload || props.onMore) && <CardAction name={props.onDownload ? 'i-dl' : 'i-more'} label={props.onDownload ? defaultI18n.t('next.cards.download') : defaultI18n.t('card.more', {title: props.title})} onPress={props.onDownload ?? props.onMore!} size={t.isTV ? 38 : 44} color={t.colors.textTertiary} style={{position: 'absolute', right: 0, top: (height - (t.isTV ? 38 : 44)) / 2, backgroundColor: 'transparent'}} />}
   </View> : <Overlays props={props} hovered={s.hovered} holding={s.holding} height={height} playSize={48} persistentPlay={!t.isTV} episode />}>
-    {s => <><View style={{flexDirection: row ? 'row' : 'column', gap: row ? 14 : 0, alignItems: row ? 'center' : undefined}}>{art(s.focused, s.hovered, s.holding)}{text}</View>
-      {props.synopsis && <Text numberOfLines={row ? 2 : 3} style={[row ? titleStyle(t, 13, 600) : t.type.episodeBody, {color: t.colors.textSecondary, marginTop: row ? 9 : 8, lineHeight: row ? 18.85 * t.textScale : undefined}]}>{props.synopsis}</Text>}
+    {s => <><View style={[{flexDirection: row ? 'row' : 'column', gap: row ? wide ? 18 : 14 : 0, alignItems: wide ? 'flex-start' : row ? 'center' : undefined},
+      /* A tablet row that is playing is raised (tablet-play 2a). */ wide && props.playing && {padding: t.space.xs, margin: -t.space.xs, borderRadius: t.spec.card.badge.radius[t.column] * 2, backgroundColor: t.colors.raisedHigh}]}>{art(s.focused, s.hovered, s.holding)}{text}</View>
+      {props.synopsis && !wide && <Text numberOfLines={row ? 2 : 3} style={[t.type.episodeBody, {color: t.colors.textSecondary, marginTop: row ? 9 : 8}]}>{props.synopsis}</Text>}
     </>}
   </CardFrame>;
 }

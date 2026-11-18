@@ -23,7 +23,9 @@ const files: readonly FileFacts[] = [
 function Scene({children}: {children: React.ReactNode}) {
   const theme = useTheme();
   // The surface owns its native window; a second Modal here obscures an initially open surface on Android.
-  return <View style={{flex: 1, backgroundColor: theme.colors.ink}}><OverlaysProvider>{children}</OverlaysProvider></View>;
+  // On TV the overlays are placed on the whole 1920 canvas, as in the app, so the scene is the whole window: the Kit page's gutter is undone.
+  // (Inside the gutter the host was inset from the window and a side panel ran off its right edge.)
+  return <View style={{flex: 1, backgroundColor: theme.colors.ink, marginHorizontal: theme.isTV ? -theme.gutter : 0}}><OverlaysProvider>{children}</OverlaysProvider></View>;
 }
 function FileContent() {
   const theme = useTheme();
@@ -63,7 +65,7 @@ function MenuCase({owner = false}: {owner?: boolean}) {
     {id: 'version', label: t('next.overlays.native.playDifferentVersion'), icon: 'i-stack', onSelect: () => setInfo(true)},
     {id: 'info', label: t('next.kit.fileInfo'), icon: 'i-info', onSelect: () => setInfo(true)},
   ] : phoneItems;
-  return <Scene><Button ref={opener} variant="glass" onPress={() => setOpen(true)}>{t('next.overlays.native.menu')}</Button>
+  return <Scene><Button testID="overlays-opener" ref={opener} variant="glass" onPress={() => setOpen(true)}>{t('next.overlays.native.menu')}</Button>
     <Menu open={open} onOpenChange={setOpen} title={theme.isTV ? episode.name : owner ? film.name : memberEpisode.name} description={theme.isTV ? t('next.kit.remaining', {time: t('next.kit.duration.minutes', {minutes: 12})}) : undefined} contentStyle={theme.isTV ? {paddingTop: 24} : undefined} secondaryTitle={theme.isTV ? undefined : owner ? film.year : t('next.kit.episodeCode', {season: memberEpisode.season, episode: memberEpisode.number})} context={theme.isTV ? <Text style={[theme.type.bodyStrong, {color: theme.colors.textSecondary}]}>{episode.show}{'  '}{t('next.kit.episodeCode', {season: episode.season, episode: episode.number})}</Text> : undefined} items={items} returnFocusRef={opener} initialFocusId={theme.isTV ? 'info' : undefined} testID="overlays-menu"/>
     <BottomSheet open={info} onOpenChange={setInfo} title={t('next.kit.fileInfo')} returnFocusRef={opener} detents={[554, 740]} testID="overlays-file-sheet"><FileContent/></BottomSheet>
     <ToastHost toast={toast} onDismiss={() => setToast(null)}/>
@@ -78,7 +80,7 @@ function PopoverCase({modal = false}: {modal?: boolean}) {
   const [selected, setSelected] = useState(0);
   const libraries = [{kind: 'movie', pivot: 'movies', count: 80}, {kind: 'tv', pivot: 'shows', count: 24}, {kind: 'anime', pivot: 'shows', count: 8}, {kind: 'music', pivot: 'albums', count: 10}, {kind: 'audiobook', pivot: 'books', count: 8}];
   const names = libraries.map(library => t('web.libraryKind.plural', {kind: library.kind}));
-  return <Scene><View style={{paddingTop: 54, alignItems: 'center'}}><Button ref={anchor} variant="text" size="compact" style={{height: 36, paddingHorizontal: 6}} textStyle={{fontSize: 14.5}} onPress={() => setOpen(value => !value)}>{names[selected]}</Button></View>
+  return <Scene><View style={{paddingTop: 54, alignItems: 'center'}}><Button testID="overlays-opener" ref={anchor} variant="text" size="compact" style={{height: 36, paddingHorizontal: 6}} textStyle={{fontSize: 14.5}} onPress={() => setOpen(value => !value)}>{names[selected]}</Button></View>
     <Popover open={open} onOpenChange={setOpen} anchorRef={anchor} title={null} accessibilityLabel={t('next.overlays.native.popover')} initialFocusRef={selectedRow} placement="bottom-center" width={252} modal={modal} backdropOpacity={0.62} testID="overlays-popover">{libraries.map((library, index) => <MenuRow ref={selected === index ? selectedRow : undefined} key={library.kind} label={names[index]} selected={selected === index} trailing={t('lib.count', {count: library.count, pivot: library.pivot})} onPress={() => {setSelected(index); setOpen(false);}}/>)}</Popover>
   </Scene>;
 }
@@ -87,7 +89,7 @@ function PanelCase() {
   const opener = useRef<View>(null);
   const [open, setOpen] = useState(true);
   const [background, setBackground] = useState(false);
-  return <Scene><View style={{height: 76, flexDirection: 'row', gap: 20, padding: 16}}><Button ref={opener} variant="text" onPress={() => setOpen(value => !value)}>{t('next.kit.fileInfo')}</Button><Button variant="glass" onPress={() => setBackground(value => !value)}>{t(background ? 'entry.removeFromFavorites' : 'entry.addToFavorites')}</Button></View>
+  return <Scene><View style={{height: 76, flexDirection: 'row', gap: 20, padding: 16}}><Button testID="overlays-opener" ref={opener} variant="text" onPress={() => setOpen(value => !value)}>{t('next.kit.fileInfo')}</Button><Button testID="overlays-button-1" variant="glass" onPress={() => setBackground(value => !value)}>{t(background ? 'entry.removeFromFavorites' : 'entry.addToFavorites')}</Button></View>
     <SidePanel open={open} onOpenChange={setOpen} title={t('next.kit.fileInfo')} returnFocusRef={opener} topInset={76} width={theme.isTV ? 900 : 440} testID="overlays-panel"><ScrollView><FileContent/></ScrollView></SidePanel>
   </Scene>;
 }
@@ -95,8 +97,8 @@ function SheetCase({full = false}: {full?: boolean}) {
   const opener = useRef<View>(null);
   const [open, setOpen] = useState(true);
   const [detent, setDetent] = useState(full ? 1 : 0);
-  return <Scene><Button ref={opener} variant="glass" onPress={() => setOpen(true)}>{t('next.overlays.native.bottomSheet')}</Button>
-    <BottomSheet open={open} onOpenChange={setOpen} title={t('next.kit.fileInfo')} detents={[422, 740]} detent={detent} onDetentChange={setDetent} returnFocusRef={opener} footer={<Button variant="primary" onPress={() => setOpen(false)}>{t('action.done')}</Button>} testID="overlays-detents"><FileContent/></BottomSheet>
+  return <Scene><Button testID="overlays-opener" ref={opener} variant="glass" onPress={() => setOpen(true)}>{t('next.overlays.native.bottomSheet')}</Button>
+    <BottomSheet open={open} onOpenChange={setOpen} title={t('next.kit.fileInfo')} detents={[422, 740]} detent={detent} onDetentChange={setDetent} returnFocusRef={opener} footer={<Button testID="overlays-button-2" variant="primary" onPress={() => setOpen(false)}>{t('action.done')}</Button>} testID="overlays-detents"><FileContent/></BottomSheet>
   </Scene>;
 }
 function DialogCase() {
@@ -105,25 +107,30 @@ function DialogCase() {
   const cancel = useRef<View>(null);
   const [open, setOpen] = useState(true);
   const [removed, setRemoved] = useState(false);
-  return <Scene><Button ref={opener} variant="glass" onPress={() => {setRemoved(false); setOpen(true);}}>{t('next.overlays.native.dialog')}</Button>
-    <Dialog open={open} onOpenChange={setOpen} title={t('confirm.removeDownload.title')} description={t('confirm.removeDownload.body', {title: film.name})} initialFocusRef={cancel} returnFocusRef={opener} footer={<View style={{flexDirection: 'row', gap: 10}}><Button ref={cancel} variant="glass" preferredFocus onPress={() => setOpen(false)}>{t('action.cancel')}</Button><Button variant="text" style={{backgroundColor: `${theme.colors.record}24`}} textStyle={{color: theme.colors.record}} onPress={() => {setRemoved(true); setOpen(false);}}>{t('downloads.removeFromDevice')}</Button></View>} testID="overlays-dialog"><View/></Dialog>
+  // The buttons alone: the dialog lays its foot out by the R9 table (halves on a phone, at the end wider).
+  const buttons = <><Button testID="overlays-button-3" ref={cancel} variant="glass" preferredFocus onPress={() => setOpen(false)}>{t('action.cancel')}</Button><Button testID="overlays-button-4" variant="danger" onPress={() => {setRemoved(true); setOpen(false);}}>{t('downloads.removeFromDevice')}</Button></>;
+  return <Scene><Button testID="overlays-opener" ref={opener} variant="glass" onPress={() => {setRemoved(false); setOpen(true);}}>{t('next.overlays.native.dialog')}</Button>
+    <Dialog open={open} onOpenChange={setOpen} title={t('confirm.removeDownload.title')} description={t('confirm.removeDownload.body', {title: film.name})} initialFocusRef={cancel} returnFocusRef={opener} footer={theme.isTV ? <View style={{flexDirection: 'row', gap: 10}}>{buttons}</View> : buttons} testID="overlays-dialog"><View/></Dialog>
     <ToastHost toast={removed ? {id: 'removed', message: t('downloads.removeFromDevice'), action: {label: t('action.undo'), onPress: () => setRemoved(false)}} : null} onDismiss={() => setRemoved(false)}/>
   </Scene>;
 }
-function ToastCase({artwork = false, withAction = false}: {artwork?: boolean; withAction?: boolean}) {
+/** R12's shapes (packages/design `toastCards`): with Undo the form's card, with none the top pill, `player` the card at the
+ * start inside the player on wider forms. Held for a minute so a look can find it. */
+function ToastCase({artwork = false, withAction = false, player = false}: {artwork?: boolean; withAction?: boolean; player?: boolean}) {
   const [artStatus, setArtStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [toast, setToast] = useState<ToastMessage | null>({id: 'added', message: t('next.overlays.native.addedToMyList'), ...(withAction ? {action: {label: t('action.undo'), onPress: () => setToast(null)}} : {})});
+  const [toast, setToast] = useState<ToastMessage | null>({id: 'added', message: t('next.overlays.native.addedToMyList'), durationMs: 60_000, ...(withAction ? {action: {label: t('action.undo'), onPress: () => setToast(null)}} : {})});
   const [saved, setSaved] = useState(true);
   const update = () => {setSaved(value => !value); setToast({id: `saved-${Date.now()}`, message: t(saved ? 'entry.removeFromWatchlist' : 'next.overlays.native.addedToMyList'), action: {label: t('action.undo'), onPress: () => setSaved(saved)}});};
-  return <Scene><View testID={`overlays-toast-art-status-${artStatus}`}/><Button variant="glass" onPress={update}>{t(saved ? 'entry.removeFromWatchlist' : 'entry.addToWatchlist')}</Button><ToastHost toast={toast ? {...toast, leading: artwork ? <Artwork source={{uri: 'http://100.120.50.24:8787/assets/pool/movies/dune-part-two.jpg', cacheKey: 'reference:dune-part-two:sharp'}} sized width={28} height={42} style={{borderRadius: 5}} onLoad={() => setArtStatus('ready')} onError={() => setArtStatus('error')} testID="overlays-toast-artwork"/> : undefined} : null} onDismiss={() => setToast(null)} testID="overlays-toast"/></Scene>;
+  return <Scene><View testID={`overlays-toast-art-status-${artStatus}`}/><Button testID="overlays-button-5" variant="glass" onPress={update}>{t(saved ? 'entry.removeFromWatchlist' : 'entry.addToWatchlist')}</Button><ToastHost toast={toast ? {...toast, leading: artwork ? <Artwork source={{uri: 'http://100.120.50.24:8787/assets/pool/movies/dune-part-two.jpg', cacheKey: 'reference:dune-part-two:sharp'}} sized width={28} height={42} style={{borderRadius: 5}} onLoad={() => setArtStatus('ready')} onError={() => setArtStatus('error')} testID="overlays-toast-artwork"/> : undefined} : null} onDismiss={() => setToast(null)} placement={player ? 'player' : undefined} testID="overlays-toast"/></Scene>;
 }
 function BannerCase() {
   const [visible, setVisible] = useState(true);
-  return <Scene><Button variant="glass" onPress={() => setVisible(value => !value)}>{t('next.overlays.native.banner')}</Button><Banner visible={visible} message={t('next.overlays.native.stillLoading', {server: fixture('next.overlays.native.fixture.server')})} topInset={96} testID="overlays-banner-quiet"/><Banner visible={visible} variant="notice" tone="info" message={t('next.overlays.native.stillLoading', {server: fixture('next.overlays.native.fixture.server')})} action={{label: t('action.tryAgain'), onPress: () => setVisible(false)}} topInset={160} testID="overlays-banner-notice"/></Scene>;
+  return <Scene><Button testID="overlays-button-6" variant="glass" onPress={() => setVisible(value => !value)}>{t('next.overlays.native.banner')}</Button><Banner visible={visible} message={t('next.overlays.native.stillLoading', {server: fixture('next.overlays.native.fixture.server')})} topInset={96} testID="overlays-banner-quiet"/><Banner visible={visible} variant="notice" tone="info" message={t('next.overlays.native.stillLoading', {server: fixture('next.overlays.native.fixture.server')})} action={{label: t('action.tryAgain'), onPress: () => setVisible(false)}} topInset={160} testID="overlays-banner-notice"/></Scene>;
 }
 function ModalPopoverCase() {return <PopoverCase modal/>;}
 function FullSheetCase() {return <SheetCase full/>;}
 function ActionToastCase() {return <ToastCase withAction/>;}
+function PlayerToastCase() {return <ToastCase withAction player/>;}
 function ArtToastCase() {return <ToastCase artwork withAction/>;}
 function ReducedMenuCase() {return <ThemeProvider reduceMotion><MemberMenu/></ThemeProvider>;}
 function ReducedSheetCase() {return <ThemeProvider reduceMotion><SheetCase/></ThemeProvider>;}
@@ -141,6 +148,7 @@ const galleries: readonly Gallery[] = [
   {id: 'overlays-toast', title: 'next.overlays.native.toast', render: ToastCase, platforms: ['phone', 'tablet', 'tv']},
   {id: 'overlays-toast-action', title: 'next.overlays.native.toast', render: ActionToastCase, platforms: ['phone', 'tablet', 'tv']},
   {id: 'overlays-toast-artwork', title: 'next.overlays.native.toast', render: ArtToastCase, platforms: ['phone', 'tablet', 'tv']},
+  {id: 'overlays-toast-player', title: 'next.overlays.native.toast', render: PlayerToastCase, platforms: ['tablet']},
   {id: 'overlays-banner', title: 'next.overlays.native.banner', render: BannerCase, platforms: ['phone', 'tablet', 'tv']},
 ];
 export default galleries;

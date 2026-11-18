@@ -209,15 +209,23 @@ async function overlayBindings(b: Awaited<ReturnType<typeof bindings>>) {
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})},
     '../../../../../packages/i18n/src/index': {defaultI18n}, '../controls/Button': {Button}, '../controls/Focusable': {Focusable: b.Focusable},
     '../focus': b.focus, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme, nativeType}, '../useMotion': motion,
-    './OverlayHost': host, './OverlayPaintContext': b.paint, './TVDesignCanvas': {TVDesignCanvas: 'DesignCanvas'},
+    './OverlayHost': host, './OverlayPaintContext': b.paint, './TVDesignCanvas': {TVDesignCanvas: 'DesignCanvas'}, '../layout/ListEdgeFade': {ListEdgeFade: () => null, useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}})},
     './native-dismissal': await screenModule(new URL('../src-next/kit/overlays/native-dismissal.ts', import.meta.url), {react: b.react, 'react-native': native, '../focus/layer-stack': {LAYER_FOCUS_WAIT_MS: 1000}})};
   const surface = await screenModule(new URL('../src-next/kit/overlays/surface.tsx', import.meta.url), {...common, '../../platform/layout/tv-canvas': canvas, './BottomSheet': {BottomSheet: 'UnusedTouchSheet'}});
   const pan: any = new Proxy({}, {get: () => () => pan});
   const sheet = await screenModule(new URL('../src-next/kit/overlays/BottomSheet.tsx', import.meta.url), {'../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true}, ...common, './surface': surface, './geometry': geometry,
     'react-native-gesture-handler': {Gesture: {Pan: () => pan}, GestureDetector: 'Gesture'}});
   const menu = await screenModule(new URL('../src-next/kit/overlays/Menu.tsx', import.meta.url), {...common, './surface': surface, './BottomSheet': sheet, './geometry': geometry,
+    // R11: a TV menu's Back/Close hint is words only (aria-hidden); the fixture draws none.
+    '../controls/KeyHints': {BackCloseHints: () => null},
     '../../platform/native-blur': {glassRecipe: () => ({nativeBlur: false}), BlurView: 'Blur'}, './anchored-menu-geometry': anchored, '../browse/touch-menu-geometry': touch});
   return {menu, surface, sheet, host, Button, back};
+}
+
+/** R9: on TV a popover is drawn as the side sheet (`BottomSheet`); its surface is the sheet's own. */
+function tvPopover(o: any, props: any) {
+  const drawn = o.menu.Popover(props);
+  return drawn?.type === o.sheet.BottomSheet ? o.sheet.BottomSheet(drawn.props) : drawn;
 }
 
 for (const kind of ['library', 'home'] as const) test(`${kind} actual sort overlay scopes real rows and returns to its original opener`, async t => {
@@ -242,7 +250,7 @@ for (const kind of ['library', 'home'] as const) test(`${kind} actual sort overl
   let restored = 0; anchor.current = {nativeTag: 800, requestTVFocus() {restored++;}, measureInWindow: (fn: any) => fn(0, 0, 40, 40)};
   nodes(tree).find(node => node.type === b.Focusable).props.onPress(); await source.rerender();
   let popover = nodes(tree).find(node => node.type === o.menu.Popover);
-  const renderer = createFabricHookHost(() => {overlay = o.menu.Popover(popover.props);}); await renderer.mount(); await renderer.flush();
+  const renderer = createFabricHookHost(() => {overlay = tvPopover(o, popover.props);}); await renderer.mount(); await renderer.flush();
   const boundary = nodes(overlay).find(node => node.type === o.surface.FocusBoundary), actual = boundary.type(boundary.props);
   const guide = await b.region(() => actual.props);
   const rows = nodes(tree).filter(node => node.type === o.menu.MenuRow);
@@ -283,17 +291,18 @@ test('season caller supplies its actual section root to the real Menu and Back r
   const {TVEpisodeBrowser} = await screenModule(new URL('../src-next/screens/watch/TVEpisodeBrowser.tsx', import.meta.url), {react: b.react, 'react-native': b.native,
     '../../../../../packages/client-core/src/presentation/kit-model': labels, '../../../../../packages/client-core/src/presentation/kit-model/text': words,
     '../../../../../packages/i18n/src': {defaultI18n}, './tv-title-focus': regionMap, '../../kit/focus': b.focus,
-    '../../tv/layout/TVShelf': {TVShelf: 'Shelf', tvItemKey: (entry: any) => entry.id}, '../../kit/controls': {Focusable: b.Focusable},
+    '../../tv/layout/TVShelf': {TVShelf: 'Shelf', tvItemKey: (entry: any) => entry.id}, '../../kit/controls': {Focusable: b.Focusable, KeyHints: 'KeyHints'}, '../../kit/frames/title-parts': {SeasonListRow: 'SeasonListRow'},
     '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, '../../kit/overlays': o.menu, '../../kit/browse/presentation': presentation, '../../kit/theme': {useTheme: () => b.theme}});
   let tree: any, section = {id: 'original-show.episodes'}, commands = 0;
   const props: any = {seasons: [{id: 'season', showId: 'show', number: 1, episodeCount: 3, watchedCount: 1}], selectedSeasonId: 'season', episodes: [], show: {title: 'Show'},
     open: {phase: 'idle'}, text: {t: defaultI18n.t}, artwork: () => undefined, more() {}, onSeasonFocus() {}, onEpisodeFocus() {}, onSelectSeason() {},
     onPlayEpisode() {}, onPlaySeason() {commands++;}, onMarkSeason() {}, onMoreSeasons() {}, onMoreEpisodes() {}, onRetryEpisode() {}, renderError: () => null};
   const source = createFabricHookHost(() => {tree = TVEpisodeBrowser({...props, focus: section});}); await source.mount();
-  const season = () => nodes(tree).find(node => node.type === b.Focusable && node.props.testID === 'tv-season-season');
+  // The row is the kit's SeasonListRow, a Focusable with the row's focus id and commands.
+  const season = () => nodes(tree).find(node => node.type === 'SeasonListRow' && node.props.testID === 'tv-season-season');
   const seasonRegion = nodes(tree).find(node => node.type === b.focus.FocusRegion && node.props.id.endsWith('.seasons'));
   await b.region(() => seasonRegion.props); const opener = await b.target(seasonRegion.props.id, () => season().props); opener.props.onFocus({});
-  season().props.onLongPressAction(); await source.rerender();
+  season().props.onLongPress(); await source.rerender();
   const menu = () => nodes(tree).find(node => node.type === o.menu.Menu).props;
   const mounted = await mountActualMenu(b, o, menu);
   try {
@@ -731,7 +740,7 @@ test('actual Search registration keeps equal-value retained genre R1/R2 sort roo
       nodes(sortTree).find(node => node.type === b.Focusable).props.onPress(); await sortDriver.rerender();
       const pop = nodes(sortTree).find(node => node.type === o.menu.Popover); scopes.push(pop.props.testID);
       let restored = 0; const anchor = pop.props.anchorRef, original = {nativeTag: 900 + menus.length, requestTVFocus() {restored++;}, measureInWindow: (fn: any) => fn(0, 0, 40, 40)}; anchor.current = original;
-      let surfaceTree: any, popProps = pop.props; const overlay = createFabricHookHost(() => {surfaceTree = o.menu.Popover(popProps);}); await overlay.mount(); await overlay.flush(); drivers.push(overlay);
+      let surfaceTree: any, popProps = pop.props; const overlay = createFabricHookHost(() => {surfaceTree = tvPopover(o, popProps);}); await overlay.mount(); await overlay.flush(); drivers.push(overlay);
       const boundary = nodes(surfaceTree).find(node => node.type === o.surface.FocusBoundary), actual = boundary.type(boundary.props); await b.region(() => actual.props);
       const row = nodes(sortTree).find(node => node.type === o.menu.MenuRow && node.props.focusId === 'sort:added');
       const target = await b.target(actual.props.id, () => row.type.render(row.props, row.props.ref).props); target.props.onPress(); await sortDriver.rerender();
@@ -909,7 +918,7 @@ for (const kind of ['sort', 'filter'] as const) test(`actual Saved directory sup
     assert.equal(opener.props.disabled, true); assert.equal(opener.props.onPress, undefined); assert.deepEqual(routes, [[], []]);
     enabled = true; await source[0]!.rerender(); await drivers[0]!.rerender(); await parent.refresh(); await opener.refresh();
     assert.equal(opener.props.ref, originalRef); opener.props.onFocus({}); opener.props.onPress(); await drivers[0]!.rerender();
-    renderer = createFabricHookHost(() => {overlay = o.menu.Popover(menu());}); await renderer.mount(); await renderer.flush();
+    renderer = createFabricHookHost(() => {overlay = tvPopover(o, menu());}); await renderer.mount(); await renderer.flush();
     const boundary = nodes(overlay).find(node => node.type === o.surface.FocusBoundary), declaration = boundary.type(boundary.props);
     const guide = await b.region(() => declaration.props), rows = nodes(menu().children).filter(node => node.type === o.menu.MenuRow);
     const targets = await mountInOrder(rows, row => b.target(menu().testID, () => row.type.render(row.props, row.props.ref).props));

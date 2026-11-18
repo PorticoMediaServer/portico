@@ -7,10 +7,10 @@ const flat = (style: any): any => Array.isArray(style) ? Object.assign({}, ...st
 
 async function bar(platform: 'phone' | 'tablet' | 'tv') {
   const h = hooks();
-  const {TitleSeasonBar} = await screenModule(new URL('../src-next/screens/watch/TitleSeasonBar.tsx', import.meta.url), {
+  const {SeasonBar: TitleSeasonBar} = await screenModule(new URL('../src-next/kit/layout/SeasonBar.tsx', import.meta.url), {
     react: h.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../kit/controls': {Button: 'Button', Switch: 'Switch'}, '../../kit/overlays': {Menu: 'Menu'},
-    '../../kit/theme': {useTheme: () => ({isTV: platform === 'tv', platform, type: {caption: {}, bodyStrong: {}}, colors: {textTertiary: '#888', textSecondary: '#aaa'}})}});
+    '../controls': {Button: 'Button', Switch: 'Switch'}, '../overlays': {Menu: 'Menu'},
+    '../theme': {useTheme: () => ({isTV: platform === 'tv', platform, type: {caption: {}, bodyStrong: {}}, colors: {textTertiary: '#888', textSecondary: '#aaa'}})}});
   const changes: boolean[] = [], opened: string[] = [];
   const render = (owner: boolean, settingsAction = true) => nodes(h.render(() => TitleSeasonBar({label: 'Unassigned absolute episodes', count: '3 episodes', onSeasons() {}, hideWatched: false, onHideWatched: (value: boolean) => changes.push(value),
     settings: owner ? {label: 'More', ...(settingsAction ? {onPress: () => opened.push('settings')} : {})} : undefined})));

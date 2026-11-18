@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Frame, elements} from './choice-handlers.ts';
-const {WatchEndCardView} = await import('../src/screens/watch/EndCard.tsx');
+const {PlayerEndCard: WatchEndCardView} = await import('../src/kit/player/EndCard.tsx');
 
 test('rating arrows/Home/End preview focus with zero writes; activation commits once', async () => {
   const writes: number[] = [], frame = new Frame();

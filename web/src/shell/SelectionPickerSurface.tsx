@@ -1,5 +1,6 @@
 import {useState} from 'react';
 import {defaultI18n} from '@i18n';
+import {toastCards} from '@design';
 import {isJobTerminal} from '@core/bulk-jobs.ts';
 import type {HomeSelectionPicker, HomeSelectionSnapshot} from '@core/home-selection/index.ts';
 import {presentError} from '@core/presentation/errors.ts';
@@ -59,7 +60,7 @@ function PickerSessionSurface({source, snapshot, picker}: {source: SelectionRend
       result={result} error={picker.error ? reason(picker.error.code) : undefined} />}
     {result && <PickerAddedToast open={succeeded} onOpenChange={open => { if (!open && succeeded) { controller.closePicker(); controller.clear(); } }}
       selection={{count: summary.count}} destination={picker.kind} result={result}
-      bottomInset={width >= 1024 ? source.dockVisible() ? 108 : 24 : source.dockVisible() ? 150 : 80}
+      bottomInset={width >= 1024 ? source.dockVisible() ? 108 : toastCards.expanded!.bottom : source.dockVisible() ? 150 : 80}
       onView={id => run(() => { if (id !== controller.getSnapshot().picker?.destination?.id) throw new Error('stale-picker-destination'); return controller.viewDestination(); })} />}
   </>;
 }

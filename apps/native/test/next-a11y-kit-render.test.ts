@@ -101,9 +101,10 @@ test('text buttons keep authored default geometry and grow/wrap only when text i
     const outer = f.host.render(() => Button({size: 'xs', children: 'A longer action label', style: {height: 28, minHeight: 32}}));
     const button = f.host.render(() => outer.type(outer.props));
     const style = flatten(button.props.style(idle)), content = button.props.children(idle), label = nodes(content).find(node => node.type === 'Text');
-    assert.equal(style.height, scale === 1 ? 28 : undefined);
+    // A labelled button's height is a minimum at every text size: its label wraps to a second line before it is ever cut (owner, 18 Nov).
+    assert.equal(style.height, undefined);
     assert.equal(style.minHeight, 32, 'a caller minimum is retained');
-    assert.equal(label.props.numberOfLines, scale === 1 ? 1 : undefined);
+    assert.equal(label.props.numberOfLines, scale === 1 ? 2 : undefined);
     const iconOuter = f.host.render(() => Button({variant: 'icon', size: 'xs', iconOnly: true, icon: 'i-more'}));
     const icon = f.host.render(() => iconOuter.type(iconOuter.props));
     assert.equal(flatten(icon.props.style(idle)).height, 34, 'decorative glyph geometry does not scale');
@@ -152,7 +153,7 @@ test('Dialog provides bounded scrolling by default and honors a body-owned list 
     const f = fixture(1, width);
     const surface = await screenModule(new URL('../src-next/kit/overlays/surface.tsx', import.meta.url), {
       ...f.common, './OverlayPaintContext': liveOverlayPaint, 'react-native-svg': {default: 'Svg'},
-      '../../platform/layout/tv-canvas': {}, './TVDesignCanvas': {TVDesignCanvas: 'TVDesignCanvas'},
+      '../../platform/layout/tv-canvas': {}, './TVDesignCanvas': {TVDesignCanvas: 'TVDesignCanvas'}, '../layout/ListEdgeFade': {ListEdgeFade: () => null, useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}})},
       '../../../../../packages/i18n/src/index': {defaultI18n}, '../controls/Button': {Button: 'Button'}, '../controls/Focusable': {Focusable: 'Focusable'},
       '../Icon': {Icon: 'Icon'}, './BottomSheet': {BottomSheet: 'BottomSheet'},
       './OverlayHost': {useOverlayLifecycle() {}, OverlayPortal: 'OverlayPortal'}, './native-dismissal': {useNativeModalPresence: (present: boolean, shown = present) => ({mounted: present, visible: shown && present, onDismiss() {}})},
@@ -192,7 +193,7 @@ test('song rows speak their artist/album/state and enlarged rows release fixed v
     const frame = nodes(song).find(node => node.type === 'CardFrame');
     assert.equal(frame.props.accessibilityLabel, 'next.browse.native.play: Song, Artist, Album, 3:32, next.kit.session.playing');
     frame.props.onPlay(); assert.deepEqual(calls, ['song']);
-    assert.equal(flatten(song.props.style).height, scale === 1 ? 58 : undefined);
+    assert.equal(flatten(song.props.style).height, undefined); // rule 10: a two-line title grows the row
     assert.equal(flatten(song.props.style).minHeight, 58);
     const snapshot = {generation: 1, total: 1}, collection = {subscribe: () => () => {}, getSnapshot: () => snapshot};
     const table = f.host.render(() => tracks.TrackTable({variant: 'songs', collection, selection: {}, onPlay() {}}));
@@ -324,7 +325,7 @@ test('card facts: drop is one fixed line of whole facts, wrap moves whole facts 
   assert.deepEqual([wrap.flexWrap, wrap.height], ['wrap', undefined]);
   const cut = f.host.render(() => Parts({parts}));
   assert.equal(flatten(cut.props.style).flexWrap, undefined);
-  assert.equal(flatten(nodes(cut).find(node => node.type === 'Text').props.style).flexShrink, 0, 'cut keeps main\'s never-shrinking context fact');
+  assert.deepEqual(nodes(cut).filter(node => node.type === 'Text').map(node => flatten(node.props.style).flexShrink), [1, 0, 0], 'cut: the longest fact gives way; a year or an episode number is never cut');
   const caption = nodes(f.host.render(() => Caption({title: 'Twelve Winters at the Observatory', caption: parts})));
   assert.equal(caption.find(node => node.type === Parts)?.props.fit, 'drop', 'a poster caption drops whole facts on phone');
 });

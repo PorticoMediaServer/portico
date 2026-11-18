@@ -1,4 +1,4 @@
-/** Real RecentSearches callbacks; kit controls remain React elements, no layout credit. */
+/** Real SearchHistory callbacks (kit/search, moved from screens/search/RecentSearches); kit controls remain React elements, no layout credit. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
@@ -9,7 +9,9 @@ registerHooks({load(url, context, next) {
   if (url.endsWith('.tsx')) return {format: 'module', source: transformTsx(url), shortCircuit: true};
   return next(url, context);
 }});
-const {RecentSearches} = await import('../src/screens/search/RecentSearches.tsx');
+const {SearchHistory} = await import('../src/kit/search/SearchHistory.tsx');
+const history = (queries: readonly string[], compact: boolean, onSelect: (query: string) => void, onClear: () => void) =>
+  SearchHistory({title: 'Recent searches', clear: {label: 'Clear', onPress: onClear}, items: queries.map(query => ({query, onPress: () => onSelect(query)})), compact});
 const {Button, Chip} = await import('../src/kit/controls/index.ts');
 function elements(node: unknown): ReactElement<any>[] {
   if (!isValidElement(node)) return [];
@@ -20,7 +22,7 @@ for (const compact of [false, true]) {
   test(`${compact ? 'phone rows' : 'desktop chips'} select the exact stored query and Clear calls only onClear`, () => {
     const queries = Object.freeze(['Mixed CASE: 2026', 'Amélie & friends']);
     const selected: string[] = []; let clears = 0;
-    const drawn = RecentSearches({queries, compact, onSelect: query => selected.push(query), onClear: () => { clears++; }});
+    const drawn = history(queries, compact, query => selected.push(query), () => { clears++; });
     const nodes = elements(drawn);
     const choices = nodes.filter(node => compact ? node.type === 'button' : node.type === Chip);
     assert.equal(choices.length, queries.length);
@@ -37,7 +39,7 @@ for (const compact of [false, true]) {
 test('empty history supplies no query or Clear control in either layout', () => {
   for (const compact of [false, true]) {
     let calls = 0;
-    assert.equal(RecentSearches({queries: [], compact, onSelect: () => { calls++; }, onClear: () => { calls++; }}), null);
+    assert.equal(history([], compact, () => { calls++; }, () => { calls++; }), null);
     assert.equal(calls, 0);
   }
 });

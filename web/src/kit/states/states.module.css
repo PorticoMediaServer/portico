@@ -31,6 +31,16 @@
 .detailsToggle svg { color: var(--color-text-tertiary); }
 .detailsToggle:hover { color: var(--color-text); }
 .detailsToggle[hidden] { display: none; }
+/* states 4a: what still works, a raised row between the retry line and the buttons. */
+.downloads { display: flex; align-items: center; gap: 12px; width: min(100%, 440px); min-height: 74px; margin: 0 0 22px; padding: 0 14px; border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--color-raised) 85%, transparent); color: var(--color-text); font: inherit; text-align: left; cursor: pointer; }
+.downloads > svg { color: var(--color-text-tertiary); flex: none; }
+.downloadsFan { width: 64px; height: 50px; flex: none; display: grid; place-items: center; }
+.downloadsText { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.downloadsText b { font-size: 15px; font-weight: 700; }
+.downloadsText small { font-size: 13px; color: var(--color-text-tertiary); }
+/* Frame 9 on a wide window: the block starts high under the shell's bar (states 3: the icon about 170 down), so a
+   long block (Details open) grows downwards and never rides up under the bar. */
+@media (min-width: 600px) and (min-height: 500px) { .page .position { top: 170px; transform: none; max-height: calc(100% - 194px); } }
 .help { margin: 26px 0 0; font-size: 14px; line-height: 1.55; color: var(--color-text-tertiary); max-width: 540px; }
 .help b { color: var(--color-text-secondary); }
 .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-size: 15px; font-weight: 700; color: var(--color-text-secondary); }
@@ -64,6 +74,8 @@
 .stepMark { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none; box-shadow: inset 0 0 0 2px var(--color-line-strong); }
 .steps li[data-status=done] .stepMark { color: var(--color-ink); background: var(--color-healthy); box-shadow: none; }
 .steps li[data-status=current] .stepMark { box-shadow: none; }
+/* A player state covers the picture with the one backdrop (the kit cover, kit/backdrop.css). */
+.cover { position: fixed; inset: 0; pointer-events: none; }
 .frozen { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
 .frozen > :first-child { position: absolute; inset: 0; filter: blur(14px) brightness(.34) saturate(.9); transform: scale(1.05); }
 .frozenShade { position: absolute; inset: 0; background: linear-gradient(180deg,rgba(4,9,13,.84),rgba(4,9,13,.38) 130px,transparent 240px),linear-gradient(0deg,rgba(4,9,13,.94),rgba(4,9,13,.62) 150px,transparent 340px); }
@@ -170,4 +182,15 @@
   .player h1 { font-size: 26px; line-height: 1.08; letter-spacing: -.03em; margin-bottom: 8px; }
   .player .body { font-size: 14px; line-height: 1.5; margin-bottom: 14px; }
   .player .actions { gap: 8px; }
+}
+/* The downloads row's fan: three small covers inside the row's 64 x 50 box. */
+.downloadsFan { position: relative; }
+.downloadsFan > span { inset: 0; }
+.downloadsFan > span > span { width: 30px; height: 45px; top: 2px; }
+.downloadsFan > span > span:nth-child(1) { right: 30px; } .downloadsFan > span > span:nth-child(2) { right: 16px; top: 0; } .downloadsFan > span > span:nth-child(3) { right: 2px; }
+/* states 4c at phone width: the title on one line where it fits; the retry line and its tally each on a line of their own. */
+@media (max-width: 599px) {
+  .page h1 { font-size: 26px; }
+  .page .alive { flex-wrap: wrap; row-gap: 4px; }
+  .page .retryDetail { flex-basis: 100%; text-align: center; }
 }

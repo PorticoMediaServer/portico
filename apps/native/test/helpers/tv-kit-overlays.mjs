@@ -39,20 +39,23 @@ export async function tvKitOverlays(kit, {wait = 60} = {}) {
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})},
     '../../../../../packages/i18n/src/index': i18n, '../controls/Button': {Button}, '../controls/Focusable': {Focusable}, '../focus': focus,
     '../Icon': {Icon: none}, '../theme': themed, '../useMotion': motion, './OverlayHost': host, './OverlayPaintContext': paint,
-    './TVDesignCanvas': {TVDesignCanvas: ({children}) => children}, './native-dismissal': dismissal, './geometry': geometry};
+    './TVDesignCanvas': {TVDesignCanvas: ({children}) => children}, '../layout/ListEdgeFade': {ListEdgeFade: () => null, useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}})}, './native-dismissal': dismissal, './geometry': geometry};
   const surface = await screenModule(src('kit/overlays/surface.tsx'), {...common, '../../platform/layout/tv-canvas': tvCanvas, './BottomSheet': {BottomSheet: none}});
   const pan = new Proxy({}, {get: () => () => pan});
   const sheet = await screenModule(src('kit/overlays/BottomSheet.tsx'), {...common, './surface': surface,
     '../../platform/keyboard': {useKeyboardHeight: () => 0}, 'react-native-gesture-handler': {Gesture: {Pan: () => pan}, GestureDetector: ({children}) => children}});
   const menu = await screenModule(src('kit/overlays/Menu.tsx'), {...common, './surface': surface, './BottomSheet': sheet,
+    '../controls/KeyHints': {BackCloseHints: none},
     '../../platform/native-blur': {glassRecipe: () => ({nativeBlur: false}), BlurView: none}, './anchored-menu-geometry': {rightEndMenuRect: () => ({x: 0, y: 0, width: 300, height: 300})},
     '../browse/touch-menu-geometry': {touchMenuRect: () => undefined}});
   const panels = await screenModule(src('kit/overlays/TVPanelMotion.tsx'), {react, 'react-native': native, 'react-native-reanimated': animated,
     '../useMotion': motion, './native-dismissal': dismissal});
+  const guideParts = await screenModule(src('kit/live/MiniGuide.tsx'), {react, 'react-native': native, '../../../../../packages/i18n/src': i18n,
+    '../../../../../packages/client-core/src/presentation/kit-model/index': {channelTint: () => '#123'}, '../controls': {Focusable, Button},
+    '../artwork/Artwork': {Artwork: none}, '../Icon': {Icon: none}, '../theme': themed});
   const guide = await screenModule(src('screens/watch/TVMiniGuide.tsx'), {react, 'react-native': native, 'react-native-reanimated': animated,
-    '../../../../../packages/i18n/src': i18n, '../../../../../packages/client-core/src/presentation/kit-model/index': {channelTint: () => '#123'},
-    '../../shell/model': {shellLayout: () => ({left: 0, top: 0, width: 1920, height: 1080, scale: 1})}, '../../kit/controls': {Focusable},
-    '../../kit/overlays/surface': surface, '../../kit/overlays/OverlayHost': host, '../../kit/Icon': {Icon: none}, '../../kit/artwork/Artwork': {Artwork: none},
+    '../../../../../packages/i18n/src': i18n, '../../shell/model': {shellLayout: () => ({left: 0, top: 0, width: 1920, height: 1080, scale: 1})},
+    '../../kit/overlays/surface': surface, '../../kit/overlays/OverlayHost': host, '../../kit/live/MiniGuide': guideParts,
     '../../platform/native-blur': {glassRecipe: () => ({nativeBlur: false}), BlurView: none}, '../../kit/theme': themed, '../../kit/useMotion': motion,
     '../../kit/overlays/TVPanelMotion': panels, '../../kit/overlays/native-dismissal': dismissal});
   return {Dialog: surface.Dialog, BottomSheet: sheet.BottomSheet, Popover: menu.Popover, Menu: menu.Menu, TVPanelTransition: panels.TVPanelTransition,

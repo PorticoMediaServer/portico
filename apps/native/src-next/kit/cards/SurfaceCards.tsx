@@ -151,7 +151,7 @@ export function SeriesTile(props: SeriesTileProps) {
 
 export type PlaylistMosaicProps = CardProps & {covers: readonly ArtworkSource[]; shape?: CoverShape; renderCoverFallback?: (index: number) => ReactNode; create?: boolean};
 export function PlaylistMosaic(props: PlaylistMosaicProps) {
-  const t = useTheme(), width = props.width ?? t.spec.card.width.square[t.platform];
+  const t = useTheme(), width = props.width ?? t.spec.card.width.square[t.column];
   const Frame = props.frame ?? CardFrame;
   return <Frame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={width} />}>
     {s => <><ArtFrame height={width} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected} style={props.create ? {borderWidth: 2, borderStyle: 'dashed', borderColor: t.colors.lineStrong, backgroundColor: 'transparent'} : undefined}>

@@ -38,7 +38,7 @@ async function libraryScreen(width: number, isTV = false) {
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt'},
     '../../kit/controls': {Focusable: 'Focusable', Button: 'Button'},
     '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
-    '../../kit/browse': {LibraryHeader: 'LibraryHeader', LibraryMenu: 'LibraryMenu', LibrarySwitcher: 'LibrarySwitcher', StickyBrowseHeader: 'StickyBrowseHeader', ViewToggle: 'ViewToggle'},
+    '../../kit/browse': {LibraryHeader: 'LibraryHeader', LibraryExpandedHeader: 'LibraryExpandedHeader', LibraryMediumHeader: 'LibraryMediumHeader', LibraryMenu: 'LibraryMenu', LibrarySwitcher: 'LibrarySwitcher', StickyBrowseHeader: 'StickyBrowseHeader', ViewToggle: 'ViewToggle'},
     '../../kit/overlays': {Menu: 'Menu'},
     '../../kit/browse/presentation': {alpha, browseType: (used: any, size: number, weight = 600, tracking = 0) => ({fontSize: size * used.textScale, fontWeight: weight, letterSpacing: tracking * size})},
     '../../kit/Icon': {Icon: 'Icon'},
@@ -111,7 +111,7 @@ test('a library page renders with no selection port and routes the supplied tabl
     const tree = host.render(() => module.LibraryScreen(props));
     assert.ok(elements(tree).some(node => node.props.testID === 'native-library-movies'));
     if (selection) {
-      const header = elements(tree).find(node => node.type === (width >= 1024 ? module.LibraryExpandedHeader : module.LibraryMediumHeader));
+      const header = elements(tree).find(node => node.type === (width >= 1024 ? 'LibraryExpandedHeader' : 'LibraryMediumHeader'));
       assert.ok(header, `${width} draws the ${width >= 1024 ? 'expanded' : 'medium'} library header`);
       const button = header.props.selection;
       assert.equal(button?.props.testID, 'library-select-header');

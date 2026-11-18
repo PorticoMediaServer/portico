@@ -1,5 +1,5 @@
 import React, {useEffect, useRef} from 'react';
-import {StyleSheet, TextInput, View} from 'react-native';
+import {StyleSheet, Text, TextInput, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {useTheme} from '../../kit/theme';
 
@@ -9,32 +9,35 @@ export type PhonePINEntryProps = Readonly<{
   /** False when the screen draws its own number pad: a hardware keyboard and code autofill still reach the field, the on-screen keyboard stays down
    * (`inputMode` 'none': React Native's TextInput ignores showSoftInputOnFocus whenever an inputMode is given). */
   softKeyboard?: boolean;
+  /** Six boxes in two threes for a two-step code (auth.html frame 6), its digits shown; four dots for a PIN. */
+  length?: 4 | 6;
 }>;
 
 /** Auth15's four boxes over one real numeric input: the platform number pad and
- * password-manager one-time-code fill reach it, and the fourth digit submits once. */
-export function PhonePINEntry({value, onChange, onComplete, busy = false, error = false, label = defaultI18n.t('pin.fourDigit'), autoFocus = true, testID, softKeyboard = true}: PhonePINEntryProps) {
+ * password-manager one-time-code fill reach it, and the last digit submits once. */
+export function PhonePINEntry({value, onChange, onComplete, busy = false, error = false, label = defaultI18n.t('pin.fourDigit'), autoFocus = true, testID, softKeyboard = true, length = 4}: PhonePINEntryProps) {
   const theme = useTheme(), input = useRef<TextInput>(null), submitted = useRef<string | undefined>(undefined);
   // Fewer than four digits forgets what was last sent, so a failed PIN can be sent again after one digit is retyped.
-  useEffect(() => {if (value.length < 4) submitted.current = undefined;}, [value]);
+  useEffect(() => {if (value.length < length) submitted.current = undefined;}, [value, length]);
   const change = (next: string) => {
-    const digits = next.replace(/[^0-9]/g, '').slice(0, 4);
-    if (digits.length < 4) submitted.current = undefined;
+    const digits = next.replace(/[^0-9]/g, '').slice(0, length);
+    if (digits.length < length) submitted.current = undefined;
     onChange(digits);
-    if (digits.length === 4 && submitted.current !== digits) {submitted.current = digits; onComplete?.(digits);}
+    if (digits.length === length && submitted.current !== digits) {submitted.current = digits; onComplete?.(digits);}
   };
-  const shown = Math.min(value.length, 3);
+  const shown = Math.min(value.length, length - 1), code = length === 6;
   return <View testID={testID} style={{alignSelf: 'stretch', height: 68, justifyContent: 'center'}}>
-    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{flexDirection: 'row', justifyContent: 'center', gap: 14}}>
-      {[0, 1, 2, 3].map(index => <View key={index} testID={`${testID ?? 'phone-pin'}-box-${index}`}
-        style={{width: 58, height: 68, borderRadius: 15, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
+    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{flexDirection: 'row', justifyContent: 'center', gap: code ? 8 : 14}}>
+      {Array.from({length}, (_, index) => <View key={index} testID={`${testID ?? 'phone-pin'}-box-${index}`}
+        style={{flex: code ? 1 : undefined, width: code ? undefined : 58, maxWidth: 58, height: 68, borderRadius: 15, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginLeft: code && index === 3 ? 8 : 0,
           backgroundColor: `${theme.colors.ink}9E`, borderColor: error ? theme.colors.danger : index === shown && !busy ? theme.colors.accentStrong : theme.colors.lineStrong}}>
-        {index < value.length && <View style={{width: 11, height: 11, borderRadius: 5.5, backgroundColor: theme.colors.text}}/>}
+        {index < value.length && (code ? <Text style={[theme.type.pageTitle, {color: theme.colors.text}]}>{value[index]}</Text>
+          : <View style={{width: 11, height: 11, borderRadius: 5.5, backgroundColor: theme.colors.text}}/>)}
       </View>)}
     </View>
     <TextInput ref={input} testID={testID ? `${testID}-input` : undefined} accessibilityLabel={label} value={value} onChangeText={change} editable={!busy}
       keyboardType="number-pad" inputMode={softKeyboard ? 'numeric' : 'none'} autoComplete="one-time-code" textContentType="oneTimeCode"
-      maxLength={4} secureTextEntry caretHidden autoFocus={autoFocus} showSoftInputOnFocus={softKeyboard}
+      maxLength={length} secureTextEntry={!code} caretHidden autoFocus={autoFocus} showSoftInputOnFocus={softKeyboard}
       style={[StyleSheet.absoluteFill, {opacity: 0}]}/>
   </View>;
 }

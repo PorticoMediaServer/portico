@@ -12,7 +12,7 @@ import {screenModule} from './helpers/screen-harness.mjs';
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 const flatten = (style: any): any => Array.isArray(style) ? Object.assign({}, ...style.map(flatten)) : style ?? {};
 const copy = {t: (key: string) => key, list: defaultI18n.list};
-const theme = {platform: 'phone', isTV: false, textScale: 1, type: {body: {fontSize: 15}, caption: {}, captionStrong: {}},
+const theme = {platform: 'phone', column: 'phone', isTV: false, textScale: 1, type: {body: {fontSize: 15}, caption: {}, captionStrong: {}},
   colors: {text: '#edf5fa', textSecondary: '#afc4d2', textTertiary: '#7995a6', ink: '#071018', danger: '#f38b88', amber: '#e8bc6a', healthy: '#86cfb3',
     accent: '#2f86bb', focus: '#b8dbe8', lineControl: '#29414f', raised: '#0e1b24', raisedHigh: '#1c3341', placeholder: '#7995a6'}};
 const nativeType = (value: any, scale: number) => ({fontSize: value.size * scale, lineHeight: value.lineHeight * scale});

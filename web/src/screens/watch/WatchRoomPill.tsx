@@ -8,7 +8,7 @@ import type {TogetherBindings} from '../together/bindings';
 import type {WebPlaybackRuntimeSnapshot,WebShellPlaybackRuntime} from '../../platform/playback';
 import {memberName, memberStatusKey} from '../together/together-model';
 import {roomActionAllowed} from './room-guard';
-import styles from './panels.module.css';
+import styles from './room-pill.module.css';
 const noSubscribe=()=>()=>{},noRoom=()=>null;
 /** The current real room only; the pill never creates a room, member, clock or colour fact. */
 export function WatchRoomPill({binding,runtime,snapshot,reportError}:{binding:TogetherBindings|undefined;runtime:WebShellPlaybackRuntime;snapshot:WebPlaybackRuntimeSnapshot;reportError(error:unknown):void}){

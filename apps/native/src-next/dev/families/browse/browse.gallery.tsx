@@ -51,7 +51,7 @@ const songReferences: readonly SongReference[] = [
   {title: 'song.neverGoingBack', artist: 'artist.fleetwoodMac', album: 'album.rumours', asset: 'rumours', seconds: 134, plays: 8},
 ];
 const sourceOrigin = 'http://100.120.50.24:8787';
-const libraryChoices = [
+export const libraryChoices = [
   {id: 'movies', name: movies, count: t('lib.count', {count: 80, pivot: 'movies'})},
   {id: 'shows', name: shows, count: t('lib.count', {count: 24, pivot: 'shows'})},
   {id: 'anime', name: anime, count: t('lib.count', {count: 8, pivot: 'shows'})},
@@ -59,16 +59,16 @@ const libraryChoices = [
   {id: 'audiobooks', name: audiobooks, count: t('lib.count', {count: 8, pivot: 'books'})},
 ];
 const field = (id: string, type: BrowseFieldCapability['type'], controlHint: BrowseFieldCapability['controlHint'], operators: BrowseFieldCapability['operators'], allowedValues?: readonly string[]): BrowseFieldCapability => ({id, type, controlHint, operators, allowedValues, labelKey: `filter.field.${id}`, complexity: 'quick', cost: 'indexed', applicableKinds: ['movie']});
-const capability: BrowseCapabilities = {
+export const capability: BrowseCapabilities = {
   library: {id: 'reference-movies', name: movies, kind: 'movie', defaultView: 'discover', pinned: false}, pivots: [], resolvedPivot: null,
   fields: [field('genre', 'string', 'facet-multi-select', ['contains-any', 'contains-all', 'not-in']), field('year', 'number', 'number-range', ['between', 'at-least', 'at-most']), field('decade', 'enum', 'facet-multi-select', ['in', 'not-in']), field('contentRating', 'enum', 'facet-multi-select', ['in', 'not-in']), field('studio', 'string', 'facet-multi-select', ['in', 'not-in']), field('collection', 'string', 'facet-multi-select', ['contains-any', 'contains-all', 'not-in']), field('tag', 'string', 'facet-multi-select', ['contains-any', 'contains-all', 'not-in']), field('playState', 'enum', 'select', ['equals'], ['unplayed', 'in-progress', 'played']), field('favorite', 'boolean', 'toggle', ['equals']), field('watchlisted', 'boolean', 'toggle', ['equals']), field('dateAdded', 'date', 'date-range', ['at-least', 'at-most', 'between']), field('actor', 'string', 'text', ['contains']), field('resolution', 'enum', 'facet-multi-select', ['in', 'not-in']), field('audioLanguage', 'enum', 'select', ['in', 'not-in'], ['en', 'fr'])],
   sorts: ['title', 'added', 'year', 'duration', 'communityRating', 'personalRating', 'forYou', 'lastPlayed', 'releaseDate', 'criticRating', 'fileSize', 'resolution', 'random', 'playCount'].map(id => ({id, labelKey: `sort.${id}`, directions: id === 'forYou' ? ['desc'] : ['asc', 'desc'], defaultDirection: id === 'title' || id === 'random' ? 'asc' : 'desc', expensive: id === 'forYou', seeded: id === 'random', applicableKinds: ['movie']})),
   quickFilters: [{id: 'unwatched', labelKey: 'filter.quick.unwatched', query: {variant: 'predicate' as const, field: 'playState', operator: 'equals', value: 'unplayed'}}, {id: 'watched', labelKey: 'filter.quick.played', query: {variant: 'predicate' as const, field: 'playState', operator: 'equals', value: 'played'}}, {id: 'in-progress', labelKey: 'filter.quick.inProgress', query: {variant: 'predicate' as const, field: 'playState', operator: 'equals', value: 'in-progress'}}, {id: 'favorites', labelKey: 'filter.quick.favorites', query: {variant: 'predicate' as const, field: 'favorite', operator: 'equals', value: true}}, {id: 'watchlist', labelKey: 'filter.quick.watchlist', query: {variant: 'predicate' as const, field: 'watchlisted', operator: 'equals', value: true}}],
   queryLimits: {maximumDepth: 5, maximumClauses: 40, maximumBytes: 65536, maximumSorts: 1, defaultLimit: 40, maximumLimit: 100, cursorTtlMs: 1800000},
 };
-const fieldNames: Record<string, MessageId> = {genre: 'filter.field.genre', year: 'filter.field.year', decade: 'filter.field.year', contentRating: 'filter.field.contentRating', studio: 'filter.field.studio', collection: 'filter.field.collection', tag: 'filter.field.tag', playState: 'filter.field.playState', favorite: 'filter.field.favorite', watchlisted: 'filter.field.watchlisted', dateAdded: 'filter.field.dateAdded', actor: 'filter.field.actor', resolution: 'filter.field.resolution', audioLanguage: 'filter.field.audioLanguage'};
+export const fieldNames: Record<string, MessageId> = {genre: 'filter.field.genre', year: 'filter.field.year', decade: 'filter.field.year', contentRating: 'filter.field.contentRating', studio: 'filter.field.studio', collection: 'filter.field.collection', tag: 'filter.field.tag', playState: 'filter.field.playState', favorite: 'filter.field.favorite', watchlisted: 'filter.field.watchlisted', dateAdded: 'filter.field.dateAdded', actor: 'filter.field.actor', resolution: 'filter.field.resolution', audioLanguage: 'filter.field.audioLanguage'};
 const sortNames: Record<string, MessageId> = {title: 'filter.field.title', added: 'filter.field.dateAdded', year: 'filter.field.year', duration: 'filter.field.duration', communityRating: 'filter.field.audienceRating', personalRating: 'filter.field.yourRating', forYou: 'sort.forYou', lastPlayed: 'filter.field.lastPlayed', releaseDate: 'sort.releaseDate', criticRating: 'sort.criticRating', fileSize: 'sort.fileSize', resolution: 'sort.resolution', random: 'sort.random', playCount: 'sort.playCount'};
-const labels: BrowseLabels = {field: f => t(fieldNames[f.id]), sort: s => t(sortNames[s.id]), quick: q => t(q.labelKey as MessageId)};
+export const labels: BrowseLabels = {field: f => t(fieldNames[f.id]), sort: s => t(sortNames[s.id]), quick: q => t(q.labelKey as MessageId)};
 
 /** Root binds real versioned ambient sources privately after the contract-server update. */
 declare global {var __porticoBrowseEvidence: {ambient?: readonly AmbientArtSource[]} | undefined;}
@@ -116,7 +116,7 @@ function HeaderCase({initial = 'movies', switchOpen = false, menuOpen = false, o
   return <BrowseStage>{theme.isTV ? <LibraryHeader {...props}/> : <StickyBrowseHeader {...props} safeArea={false} onLibraries={() => setAction(t('next.browse.native.libraries'))}/>}{action && <Dialog open onOpenChange={open => {if (!open) setAction(undefined);}} title={action} footer={<Button onPress={() => setAction(undefined)}>{t('action.done')}</Button>}><Text style={{color: theme.colors.text}}>{action}</Text></Dialog>}</BrowseStage>;
 }
 
-function initialFields(): Record<string, FilterFieldState> {
+export function initialFields(): Record<string, FilterFieldState> {
   return {
     genre: {kind: 'values', values: genres.map((label, index) => ({value: label, label, count: counts[index]})), included: [genres[2], genres[6]], excluded: [genres[8]], mode: 'any', allowAll: true, search: '', active: true, showAllLabel: t('next.browse.native.allValues', {count: 18, field: t('library.tab.genres').toLocaleLowerCase('en-US')})},
     year: {kind: 'values', values: [1950, 1970, 1980, 1990, 2000, 2010, 2020].map((value, index) => ({value: String(value), label: t('next.kit.filter.decade', {year: String(value)}), count: [1, 6, 10, 17, 10, 11, 25][index]})), included: ['1980'], excluded: [], mode: 'any', allowAll: false, summary: t('next.kit.filter.decade', {year: '1980'}), active: true, preferredFocusValue: '1990'},
@@ -127,7 +127,7 @@ function initialFields(): Record<string, FilterFieldState> {
     playState: {kind: 'choice', value: null, options: [{value: 'unplayed', label: t('filter.quick.unplayed')}, {value: 'in-progress', label: t('filter.quick.inProgress')}, {value: 'played', label: t('filter.quick.played')}]}, favorite: {kind: 'toggle', value: null}, watchlisted: {kind: 'toggle', value: null}, dateAdded: {kind: 'range', value: null, presets: [{value: 'last30', label: t('filter.preset.lastDays', {count: 30})}]}, actor: {kind: 'text', value: ''}, resolution: {kind: 'choice', value: null, options: [{value: 'sd', label: t('quality.sd')}, {value: '4k', label: t('next.kit.4k')}]}, audioLanguage: {kind: 'choice', value: null, options: ['en', 'fr'].map(value => ({value, label: defaultI18n.languageName(value)}))},
   };
 }
-function clearedFields(): Record<string, FilterFieldState> {
+export function clearedFields(): Record<string, FilterFieldState> {
   return Object.fromEntries(Object.entries(initialFields()).map(([id, state]): [string, FilterFieldState] => {
     if (state.kind === 'values') return [id, {...state, included: [], excluded: [], mode: 'any', active: false, summary: undefined, search: state.search === undefined ? undefined : ''}];
     if (state.kind === 'text') return [id, {...state, value: '', active: false, summary: undefined}];
@@ -135,7 +135,7 @@ function clearedFields(): Record<string, FilterFieldState> {
   }));
 }
 
-function updateField(previous: Record<string, FilterFieldState>, id: string, value: FilterFieldValue) {
+export function updateField(previous: Record<string, FilterFieldState>, id: string, value: FilterFieldValue) {
   const active = value.kind === 'values' ? value.included.length + value.excluded.length > 0 : value.value !== null && value.value !== '';
   return {...previous, [id]: {...previous[id], ...value, active, summary: undefined} as FilterFieldState};
 }
@@ -181,7 +181,7 @@ function FilterCase({match = false, renderAllValues}: {match?: boolean; renderAl
 }
 
 // This bounded DEV interaction fixture supplies predicates to the real canonical model.
-function fixturePredicates(fields: Record<string, FilterFieldState>): readonly BrowseNode[] {
+export function fixturePredicates(fields: Record<string, FilterFieldState>): readonly BrowseNode[] {
   return Object.entries(fields).flatMap(([id, state]): BrowseNode[] => {
     if (state.kind === 'values') return [
       ...(state.included.length ? [{variant: 'predicate' as const, field: id === 'year' ? 'decade' : id, operator: state.mode === 'all' ? 'contains-all' as const : state.mode === 'none' ? 'not-in' as const : 'in' as const, value: state.included}] : []),
@@ -198,15 +198,15 @@ function ToolbarCase({sticky = false, owner = true, musicMode = false, filtered 
   const theme = useTheme();
   const [sort, setSort] = useState<BrowseSortSelection>({field: 'title', direction: 'asc'}), [predicates, setPredicates] = useState<readonly BrowseNode[]>(filtered ? [{variant: 'predicate' as const, field: 'decade', operator: 'in', value: ['1980']}] : []);
   const [filters, setFilters] = useState(initialFilters), [fields, setFields] = useState(initialFields), [saved, setSaved] = useState(false), [jump, setJump] = useState(false), [letter, setLetter] = useState('A');
-  const [view, setView] = useState<'grid' | 'list'>('grid'), [size, setSize] = useState('medium');
+  const [view, setView] = useState<'grid' | 'list'>('grid');
   const model = useMemo(() => browseToolbarModel(capability, musicMode ? 'music' : 'movie', predicates, sort, {t, owner}), [musicMode, predicates, sort, owner]);
   const applied = model.applied.flatMap((predicate, index) => 'field' in predicate ? [{id: String(index), parts: appliedFilterParts(predicate as AppliedFilter, id => t(fieldNames[id]), {t})}] : []);
   return <BrowseStage height={900}>
-    <BrowseToolbar model={model} labels={labels} sticky={sticky} resultCount={t('lib.count', {count: filtered ? 10 : 80, pivot: musicMode ? 'songs' : 'movies'})}
+    <BrowseToolbar model={model} labels={labels} sticky={sticky} resultCount={t('lib.count', {count: filtered ? 10 : 80, pivot: musicMode ? 'songs' : 'movies'})} resultTotal={filtered ? 10 : 80}
       onFilters={() => setFilters(true)} onSortChange={setSort} onReshuffle={() => setSort(previous => ({...previous, seed: (previous.seed ?? 0) + 1}))}
       onQuickChange={(id, checked) => {const query = model.quick.find(item => item.id === id)!.query; setPredicates(previous => checked ? [...previous, query] : previous.filter(item => item !== query)); setSaved(false);}}
       applied={applied} onRemoveFilter={id => {const target = model.applied[Number(id)]; setPredicates(previous => previous.filter(item => item !== target)); setSaved(false);}} onClearFilters={() => {setPredicates([]); setFields(clearedFields()); setSaved(false);}}
-      view={{value: view, onValueChange: setView}} cardSize={{value: size, options: ['small', 'medium', 'large'].map(value => ({value, label: t(`next.browse.native.${value}` as MessageId)})), onValueChange: setSize}}
+      view={{value: view, onValueChange: setView}}
       save={{canSave: !saved && predicates.length > 0, onSave: () => setSaved(true)}} onJump={() => setJump(true)}/>
     {theme.isTV && <Text style={{color: theme.colors.textTertiary, margin: 56}}>{t('next.browse.native.jumpTo')} {letter}</Text>}
     <FilterSurface open={filters} onOpenChange={setFilters} fields={fields} onFieldsChange={setFields} match={match} renderAllValues={renderAllValues} onApply={() => {setPredicates(fixturePredicates(fields)); setSaved(false); setFilters(false);}} onSave={() => {setPredicates(fixturePredicates(fields)); setSaved(true); setFilters(false);}}/>

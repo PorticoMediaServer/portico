@@ -201,7 +201,7 @@ export function HomeView({service, customization, document, nowMs, onMore, refre
     {candidates.length > 0 && <div ref={hero.ref}><Hero<Spotlight> candidates={candidates} platform={platform} sizeClass={sizeClass} visible={hero.visible} reducedMotion={appearance?.reducedMotion ?? reducedMotion}
       renderReason={slide => slide.reason}
       titleLink={slide => { const href = effects.entryHref?.(slide.entry); return href ? {href, open: () => effects.openEntry(slide.entry)} : undefined; }}
-      renderMetadata={slide => <HeroFacts parts={slide.facts} platform={platform} sizeClass={sizeClass} />}
+      renderMetadata={slide => <HeroFacts parts={slide.facts} platform={platform} sizeClass={sizeClass} runtimeChip />}
       renderArtwork={(slide, context) => <HomeHeroArtwork slide={slide} context={context} platform={platform} artwork={artwork} appearance={appearance} heroPixels={heroPixels} />}
       renderThumbnail={(slide, context) => <Artwork source={artwork.foreground(slide.artwork.backdropUrl ?? slide.artwork.posterUrl, 132 * devicePixelRatio, 16 / 9, {group: 'home-thumbnails', order: context.index})} alt="" visible={context.visible} />}
       renderActions={slide => <>

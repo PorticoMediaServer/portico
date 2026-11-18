@@ -32,7 +32,7 @@ function modules(state: {
     './remembered-downloads-opening': {createRememberedDownloadsOpening: async () => {state.onFallback?.(); return undefined;}},
     '../screens/downloads/RememberedDownloadsScreen': {RememberedDownloadsScreen: 'RememberedDownloadsScreen', RememberedDownloadsShortcut: 'RememberedDownloadsShortcut'},
     '../screens/downloads/presentation': {downloadEntryIdentity},
-    '../kit/states': {HomeSkeleton: 'HomeSkeleton', StateView: 'StateView', StateLayout: 'StateLayout'},
+    '../kit/states': {DownloadsStillPlay: 'DownloadsStillPlay', HomeSkeleton: 'HomeSkeleton', StateView: 'StateView', StateLayout: 'StateLayout'},
     '../kit/artwork': {StandardBackdrop: 'StandardBackdrop', CoverFan: 'CoverFan'},
     '../kit/controls': {Focusable: 'Focusable'},
     '../kit/overlays/TVDesignCanvas': {TVDesignCanvas: 'TVDesignCanvas'},

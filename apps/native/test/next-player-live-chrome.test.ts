@@ -12,7 +12,8 @@ const scope = {serverId: 'server', accountId: 'account', profileId: 'profile', c
 const channelFence = playbackFence({kind: 'channel', playback: {scope, run: 1}, sessionId: 'session', channelKind: 'live-source', sourceId: 'source', channelId: 'channel', channelGeneration: 'generation', generation: 1});
 const queueFence = playbackFence({kind: 'queue', playback: {scope, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'version', entryId: 'entry', generation: 1});
 const t = (key: string, values?: Record<string, unknown>) => `${key}${values ? ` ${Object.values(values).join(' ')}` : ''}`;
-const theme = {isTV: false, textScale: 1, colors: {text: '#edf5fa', textSecondary: '#bdccd6', textTertiary: '#96a9b5', record: '#f17979'}, type: {body: {}, bodyStrong: {}, caption: {}, captionStrong: {}}};
+const theme = {isTV: false, textScale: 1, colors: {text: '#edf5fa', textSecondary: '#bdccd6', textTertiary: '#96a9b5', record: '#f17979'}, type: {body: {fontFamily: 'Manrope-Regular'}, bodyStrong: {fontFamily: 'Manrope-SemiBold'}, caption: {fontFamily: 'Manrope-Regular'}, captionStrong: {fontFamily: 'Manrope-SemiBold'}, heading: {fontFamily: 'Manrope-SemiBold'}},
+  space: {xs: 8, sm: 16, md: 24, lg: 32, tight: 6}};
 
 async function fixture(input: {compact?: boolean; bar?: boolean; tabletop?: 'column' | 'stacked'; queue?: boolean} = {}) {
   const h = hooks(), calls: unknown[][] = [], controlState: any = {fence: input.queue ? queueFence : channelFence, visible: true};
@@ -51,7 +52,7 @@ async function fixture(input: {compact?: boolean; bar?: boolean; tabletop?: 'col
     '../../kit/useMotion': {useMotion: () => ({reduce: true, timing: () => ({}), duration: () => 0}), useReducedMotion: () => true},
     '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined, usePublishedPlayerMorph: () => undefined},
     './TVControlLabel': {TVControlLabel: 'TVControlLabel'}, './landing-store': landingStoreModule, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'}, './controls': {}, './WatchTimeline': {NativeWatchTimeline: 'Timeline'},
-    './useSkipPromptMotion': {useSkipPromptMotion: (value: unknown) => ({value, interactive: !!value, bodyStyle: {}, positionStyle: {}})}, './UpNextCard': {NativeUpNextCard: 'UpNextCard'}, './StillWatchingCard': {NativeStillWatchingCard: 'StillWatchingCard'}, '../../kit/artwork': {Artwork: 'Artwork'},
+    './useSkipPromptMotion': {useSkipPromptMotion: (value: unknown) => ({value, interactive: !!value, bodyStyle: {}, positionStyle: {}})}, './UpNextCard': {NativeUpNextCard: 'UpNextCard'}, '../../kit/player/StillWatchingCard': {NativeStillWatchingCard: 'StillWatchingCard'}, '../../kit/artwork': {Artwork: 'Artwork'},
     './live-guide': {emptyLiveGuide: () => ({}), noLiveGuideSubscription: noopSubscription}, './live-actions': {emptyLiveActions: () => ({}), noLiveActionsSubscription: noopSubscription},
     '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})}, '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: String},
     './TVMiniGuide': {NativeMiniGuide: 'MiniGuide'}, './TVLiveActions': {TVLiveActions: 'LiveActions'},
@@ -128,7 +129,7 @@ test('Chrome renders only supplied policy prompts and dispatches canonical skip,
 });
 
 test('mobile Record/More renderer keeps actual availability, busy and recording state', async () => {
-  const h = hooks(), {TVLiveActions} = await screenModule(new URL('../src-next/screens/watch/TVLiveActions.tsx', import.meta.url), {react: h.react, 'react-native': {View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../kit/controls': {Button: 'Button'}, '../../kit/theme': {useTheme: () => theme}});
+  const h = hooks(), {PlayerLiveActions: TVLiveActions} = await screenModule(new URL('../src-next/kit/player/PlayerLiveActions.tsx', import.meta.url), {react: h.react, 'react-native': {View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../controls': {Button: 'Button'}, '../theme': {useTheme: () => theme}});
   const record = {label: 'Recording', onPress() {}, busy: true, disabled: true, recording: true}, more = {onPress() {}};
   const compact = nodes(h.render(() => TVLiveActions({enabled: true, record, more, size: 46}))), rec = compact.find(node => node.props.testID === 'watch-live-record');
   assert.equal(rec.props.iconOnly, true);assert.equal(rec.props.accessibilityLabel, record.label);assert.equal(rec.props.loading, true);assert.equal(rec.props.disabled, true);assert.equal(rec.props.style.height, 46);
@@ -166,10 +167,10 @@ test('ended and still-watching cards dispatch only their current canonical actio
 
 test('the existing next card renders end actions without a credits action or an invented countdown', async () => {
   const h = hooks(), calls: string[] = [];
-  const {NativeUpNextCard} = await screenModule(new URL('../src-next/screens/watch/UpNextCard.tsx', import.meta.url), {
+  const {PlayerUpNext: NativeUpNextCard} = await screenModule(new URL('../src-next/kit/player/PlayerUpNext.tsx', import.meta.url), {
     react: h.react, 'react-native': {View: 'View', Text: 'Text', StyleSheet: {absoluteFill: {position: 'absolute', inset: 0}}},
     '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`}, '../../../../../packages/i18n/src': {defaultI18n: {t}},
-    '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/controls': {Button: 'Button'}, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})}, '../../kit/theme': {useTheme: () => theme},
+    '../artwork': {Artwork: 'Artwork'}, '../controls': {Button: 'Button'}, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})}, '../theme': {useTheme: () => theme},
   });
   const props = {item: {entryId: 'next', title: 'Next episode'}, compact: true, countdown: null, countdownTotal: 10, sceneAfter: false,
     onPlayNow: () => calls.push('play'), onWatchCredits: () => calls.push('watch'), onSkipCredits: () => calls.push('skip'),
@@ -181,15 +182,15 @@ test('the existing next card renders end actions without a credits action or an 
   nodes(waiting).find(node => node.props.testID === 'watch-up-next-cancel').props.onPress();assert.deepEqual(calls, ['cancel']);
   assert.equal(nodes(waiting).some(node => node.props.testID === 'watch-up-next-watch'), false);
   const scene = h.render(() => NativeUpNextCard({...props, compact: false, postPlay: undefined, sceneAfter: true, countdown: {seconds: 90, automatic: false}}));
-  assert.ok([...nodes(waiting), ...nodes(scene)].filter(node => node.type === 'Text').every(node => typeof node.props.style.fontFamily === 'string'), 'every inline card label carries its native Manrope family');
+  assert.ok([...nodes(waiting), ...nodes(scene)].filter(node => node.type === 'Text').every(node => typeof [node.props.style].flat().reduce((style: any, part: any) => ({...style, ...part}), {}).fontFamily === 'string'), 'every card label carries a type role (R2)');
 });
 
 test('the still-watching check names the next episode and offers only its three actions', async () => {
   const h = hooks(), calls: string[] = [];
-  const {NativeStillWatchingCard} = await screenModule(new URL('../src-next/screens/watch/StillWatchingCard.tsx', import.meta.url), {
+  const {NativeStillWatchingCard} = await screenModule(new URL('../src-next/kit/player/StillWatchingCard.tsx', import.meta.url), {
     react: h.react, 'react-native': {View: 'View', Text: 'Text', StyleSheet: {absoluteFill: {position: 'absolute', inset: 0}}},
-    '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../kit/controls': {Button: 'Button'}, '../../platform/native-blur': {BlurView: 'BlurView'},
-    '../../kit/theme': {useTheme: () => theme, nativeType: (value: any) => ({fontFamily: 'Manrope', fontSize: value.size})},
+    '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../controls': {Button: 'Button'}, '../../platform/native-blur': {BlurView: 'BlurView'},
+    '../theme': {useTheme: () => theme, nativeType: (value: any) => ({fontFamily: 'Manrope', fontSize: value.size})},
   });
   const tree = nodes(h.render(() => NativeStillWatchingCard({item: {entryId: 'next', title: 'Bad Tradecraft', episode: {seasonNumber: 1, number: 3}},
     onConfirm: () => calls.push('confirm'), onReplay: () => calls.push('replay'), onClose: () => calls.push('close')})));

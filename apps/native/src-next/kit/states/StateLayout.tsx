@@ -59,9 +59,10 @@ export function StateLayout({title, body, icon, tone = 'neutral', primaryAction,
   // Android draws a line of exactly the font size with its descenders clipped; give TV headings room and take it back from the margin, so the layout does not move.
   const descenderRoom = tv && Platform.OS === 'android' ? Math.ceil(headingSize * .12) : 0;
   const bodySize = tv ? 28 : player ? 14 : 15;
-  const stacked = !tv && !player;
+  // Frame 9: centred with full-width buttons on a phone; on a tablet at the gutter with buttons at their own width, as on TV (tablets SC-11).
+  const stacked = !tv && !player && theme.platform === 'phone';
   const shape = backdropShape ?? (tv ? 'side' : 'top');
-  const left = tv ? player ? 96 : theme.gutter : player ? 64 : 24;
+  const left = tv ? player ? 96 : theme.gutter : player ? 64 : stacked ? 24 : theme.gutter;
   const buttonStyle: ViewStyle | undefined = stacked ? {width: '100%', height: 50} : player && !tv ? {height: 40, paddingHorizontal: 16} : undefined;
   const action = (item: StateAction, primary: boolean) => <StateActionButton testID={testID} key={item.id} action={visible ? item : {...item, disabled: true}} size={player && !tv ? 'small' : 'hero'} variant={primary ? 'primary' : 'glass'} style={buttonStyle} textStyle={player && !tv ? {fontSize: 14.5 * theme.textScale} : undefined} />;
   return <View testID={testID} style={[{flex: 1, backgroundColor: theme.colors.ink, overflow: 'hidden'}, style]}>

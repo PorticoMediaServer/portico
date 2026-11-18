@@ -98,9 +98,10 @@ test('heroes use frame geometry and continuous masks instead of viewport-height 
 
 test('hero buttons are white, with exact glass material and drawn platform geometry', () => {
   const {button} = componentSpec;
-  assert.deepEqual(button.hero.height, {web: 54, phone: 46, tablet: 46, tv: 72});
-  assert.deepEqual(button.hero.radius, {web: 12, phone: 10, tablet: 10, tv: 14});
-  assert.deepEqual(button.hero.paddingX, {web: 26, phone: 20, tablet: 20, tv: 38});
+  // Round 8 (R2): a tablet has its own column (tablet.html draws the button 48 high).
+  assert.deepEqual(button.hero.height, {web: 54, phone: 46, tablet: 48, tv: 72});
+  assert.deepEqual(button.hero.radius, {web: 12, phone: 10, tablet: 12, tv: 14});
+  assert.deepEqual(button.hero.paddingX, {web: 26, phone: 20, tablet: 22, tv: 38});
   assert.deepEqual(button.variants.primary.rest, {background: 'text', foreground: 'ink'});
   assert.deepEqual(button.variants.primary.hover, {background: 'white', foreground: 'ink'});
   assert.deepEqual(button.variants.secondary.rest, {background: 'text', backgroundAlpha: .14, foreground: 'text'});
@@ -128,7 +129,7 @@ test('cards, rows, badges and fallbacks cover kit shapes without episode numeral
   assert.deepEqual([card.width.poster.web, card.width.wide.web, card.width.poster.phone, card.width.wide.phone, card.width.wide.tv], [190, 316, 118, 262, 400]);
   assert.deepEqual(card.aspect, {poster: 2 / 3, wide: 16 / 9, square: 1, circle: 1, magazine: 3 / 4});
   assert.deepEqual([card.radius.web, card.radius.tv, banner.radius, generatedArt.radius], [10, 14, 16, 14]);
-  assert.deepEqual(shelf.gap, {web: 16, phone: 12, tablet: 12, tv: 28});
+  assert.deepEqual(shelf.gap, {web: 16, phone: 12, tablet: 14, tv: 28});
   assert.deepEqual(shelf.marginTop, {web: 44, phone: 28, tablet: 28, tv: 44});
   assert.equal(episode.fallback.numeral, false);
   assert.equal(episode.fallback.labelBelowTitle, true);

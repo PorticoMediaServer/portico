@@ -6,7 +6,7 @@
 .shell[data-navigation='sidebar'] .avatar { width: 38px; height: 38px; margin: 12px auto 0 12px; }
 .tabs { justify-content: flex-start; }
 .tabs > a { flex: 0 0 20%; }
-.progressLayer { position: fixed; inset: 0; z-index: var(--layer-sticky); pointer-events: none; background: var(--color-ink); }
+.progressLayer { position: fixed; inset: 0; z-index: var(--layer-sticky); pointer-events: none; }
 .waiting { position: absolute; inset: 76px 0 0; }
 .spinner { position: absolute; top: calc(50% - 23px); left: calc(50% - 15px); width: 30px; height: 30px; opacity: 0; transition: opacity var(--motion-slow) var(--ease-out); }
 .spinner i { display: block; width: 100%; height: 100%; border-radius: 50%; border: 3px solid color-mix(in srgb, var(--color-text) 16%, transparent); border-top-color: var(--color-accent-strong); animation: spin 1s linear infinite; }

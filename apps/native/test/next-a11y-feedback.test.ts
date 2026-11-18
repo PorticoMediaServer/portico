@@ -12,7 +12,7 @@ const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(des
   : React.isValidElement<any>(node) ? [node, ...descendants(node.props.children)] : [];
 
 async function feedback(screenReader: {enabled: boolean}, spoken: string[], base: any = FabricReact) {
-  const theme = {isTV: false, textScale: 1, colors: {}, type: {}, layers: {notice: 50},
+  const theme = {isTV: false, form: 'phone', textScale: 1, colors: {}, type: {}, layers: {notice: 50},
     spec: {feedback: {toast: {durationMs: 4000, durationWithActionMs: 8000}}}};
   const motion = {reduce: false, timing: () => ({duration: 0}), duration: () => 0, spring: () => ({})};
   const gesture = () => {

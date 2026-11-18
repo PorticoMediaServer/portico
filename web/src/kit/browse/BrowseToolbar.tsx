@@ -15,10 +15,12 @@ const t = defaultI18n.t;
 export function sortDirectionLabel(field: string, direction: 'asc' | 'desc'): string {
   return t(`next.browse.${direction}.${sortDirectionKind(field)}`);
 }
-export type FiltersButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & Readonly<{count?: number; open?: boolean}>;
-export function FiltersButton({count = 0, open = false, className, ...props}: FiltersButtonProps) {
+/** `matches`: at phone width the toolbar has no count line, so while a filter applies the control reads "Filters · 12" (owner,
+ * 18 Nov) in place of the applied-filter badge. */
+export type FiltersButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & Readonly<{count?: number; matches?: number; open?: boolean}>;
+export function FiltersButton({count = 0, matches, open = false, className, ...props}: FiltersButtonProps) {
   return <Button {...props} variant="glass" size="small" icon="i-filter" className={[styles.filtersButton, className].filter(Boolean).join(' ')} aria-expanded={open}>
-    <span className={styles.filtersLabel}>{t('next.browse.filters')}{count > 0 && <span className={styles.filterBadge} aria-label={t('next.browse.filterCount', {count})}>{defaultI18n.number(count)}</span>}</span>
+    <span className={styles.filtersLabel}>{matches !== undefined ? t('next.browse.filtersMatching', {count: matches}) : t('next.browse.filters')}{count > 0 && matches === undefined && <span className={styles.filterBadge} aria-label={t('next.browse.filterCount', {count})}>{defaultI18n.number(count)}</span>}</span>
   </Button>;
 }
 export type QuickToggleProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onChange'> & Readonly<{
@@ -76,7 +78,7 @@ export function CardSizeButton({value, options, onValueChange}: CardSizeControl)
 export function SaveViewButton({canSave, onSave}: SaveViewControl) {
   return <Button variant="text" size="small" icon="i-save" className={styles.saveView} disabled={!canSave} onClick={onSave}>{t('next.browse.saveView')}</Button>;
 }
-export type AppliedFilterChipsProps = Readonly<{items: readonly AppliedChip[]; onRemove: (id: string) => void; onClear: () => void; className?: string}>;
+export type AppliedFilterChipsProps = Readonly<{items: readonly AppliedChip[]; onRemove: (id: string) => void; onClear?: () => void; className?: string}>;
 /** One applied chip; motion 3.8 fades the chip in when its own identity appears under the toolbar. */
 function AppliedChipButton({chip, onRemove}: {chip: AppliedChip; onRemove: (id: string) => void}) {
   const ref = useRef<HTMLButtonElement>(null), {id, parts} = chip;
@@ -91,11 +93,13 @@ export function AppliedFilterChips({items, onRemove, onClear, className}: Applie
   if (!items.length) return null;
   return <div className={[styles.applied, className].filter(Boolean).join(' ')} aria-label={t('next.browse.applied')}>
     {items.map(chip => <AppliedChipButton key={chip.id} chip={chip} onRemove={onRemove}/>)}
-    <Button variant="text" size="xs" onClick={onClear}>{t('next.browse.clearAll')}</Button>
+    {onClear && <Button variant="text" size="xs" onClick={onClear}>{t('next.browse.clearAll')}</Button>}
   </div>;
 }
 export type BrowseToolbarProps = Readonly<{
-  model: BrowseToolbarModel; labels: BrowseLabels; resultCount: ReactNode; platform?: BrowsePlatform; sticky?: boolean; topInset?: number;
+  model: BrowseToolbarModel; labels: BrowseLabels; resultCount: ReactNode;
+  /** The number behind `resultCount`: at phone width it shows in the Filters control ("Filters · 12") while a filter applies. */
+  resultTotal?: number; platform?: BrowsePlatform; sticky?: boolean; topInset?: number;
   onQuickChange: (id: string, checked: boolean) => void; onFilters: () => void; filtersOpen?: boolean;
   onSortChange: (value: BrowseSortSelection) => void; onReshuffle?: () => void; view?: BrowseView; cardSize?: CardSizeControl;
   save?: SaveViewControl; applied?: readonly AppliedChip[]; onRemoveFilter?: (id: string) => void; onClearFilters?: () => void;
@@ -115,25 +119,30 @@ function ResultCount({children, accepted, source, className}: {children: ReactNo
   useAcceptedArrival(ref, accepted, source);
   return <span ref={ref} className={className}>{children}</span>;
 }
-export function BrowseToolbar({model, labels, resultCount, platform = 'desktop', sticky = false, topInset = 76, onQuickChange, onFilters, filtersOpen,
+export function BrowseToolbar({model, labels, resultCount, resultTotal, platform = 'desktop', sticky = false, topInset = 76, onQuickChange, onFilters, filtersOpen,
   onSortChange, onReshuffle, view, cardSize, save, applied = [], onRemoveFilter, onClearFilters, onJump, selection, actions, className, sortLabel, quickIds, accepted, acceptedSource, selectionActive}: BrowseToolbarProps) {
   const sortLabels = surfaceSortLabels(labels, sortLabel);
   const quick = quickIds === undefined ? model.quick : model.quick.filter(item => quickIds.includes(item.id));
   const sort = model.sorts.length > 0 && <SortMenu sorts={model.sorts} value={model.sort} onValueChange={onSortChange} label={sortLabels.sort} onReshuffle={onReshuffle} showOrder={sortLabel === undefined}/>;
-  const filters = (model.groups.length > 0 || model.filterQuick.length > 0) && <FiltersButton count={applied.length} open={filtersOpen} onClick={onFilters}/>;
-  // Frame 6 draws a library's sort beside Filters in the chip row; See all names its own
-  // order on the count row instead, so a surface that supplies sortLabel keeps that one.
-  const sortInFirstRow = platform === 'phone' && sortLabel === undefined;
+  const phone = platform === 'phone';
+  const filters = (model.groups.length > 0 || model.filterQuick.length > 0) && <FiltersButton count={applied.length} matches={phone && applied.length > 0 ? resultTotal : undefined} open={filtersOpen} onClick={onFilters}/>;
+  const quickChips = quick.map(item => <QuickToggle key={item.id} selected={item.active} onCheckedChange={checked => onQuickChange(item.id, checked)}>{item.label?.text ?? labels.quick(item)}</QuickToggle>);
+  // Phone width (owner, 18 Nov): ONE row under the tabs: Filters, sort, the applied filters and quick chips in a sideways rail
+  // that fades at its end, grid / list pinned at the right. No count line; Filters says how many match while a filter applies.
+  if (phone) return <div className={[styles.toolbar, className].filter(Boolean).join(' ')} data-platform={platform} data-sticky={sticky || undefined} style={{top: topInset}}>
+    {selection}{!(selectionActive ?? selection != null) && <div className={styles.toolbarMain}>{filters}{sort}
+      <div className={styles.chipRail}>{applied.length > 0 && onRemoveFilter && <AppliedFilterChips items={applied} onRemove={onRemoveFilter}/>}{actions}{quickChips}</div>
+      {view && <ViewToggle {...view}/>}</div>}
+  </div>;
   return <div className={[styles.toolbar, className].filter(Boolean).join(' ')} data-platform={platform} data-sticky={sticky || undefined} style={{top: topInset}}>
     {selection}{!(selectionActive ?? selection != null) && <><div className={styles.toolbarMain}>
       {platform === 'tv' ? <>{sort}{filters}{onJump && <Chip onClick={onJump}>{t('next.browse.jump')}<Icon name="i-down" size={16}/></Chip>}</> : filters}
       {/* The divider separates Filters from what follows it; with nothing after it (Comics' Volumes and issues) it is not drawn. */}
-      {(sortInFirstRow || actions != null && actions !== false || quick.length > 0) && <span className={styles.separator} aria-hidden="true"/>}
-      {sortInFirstRow && sort}
-      {actions}{quick.map(item => <QuickToggle key={item.id} selected={item.active} onCheckedChange={checked => onQuickChange(item.id, checked)}>{item.label?.text ?? labels.quick(item)}</QuickToggle>)}
-      {platform !== 'phone' && <div className={styles.toolbarEnd}>{platform === 'desktop' && <ResultCount className={styles.resultCount} accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>}{platform === 'desktop' && sort}
+      {(actions != null && actions !== false || quick.length > 0) && <span className={styles.separator} aria-hidden="true"/>}
+      {actions}{quickChips}
+      {<div className={styles.toolbarEnd}>{platform === 'desktop' && <ResultCount className={styles.resultCount} accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>}{platform === 'desktop' && sort}
         {view && <ViewToggle {...view}/>} {cardSize && <CardSizeButton {...cardSize}/>} {save && <SaveViewButton {...save}/>}</div>}
-    </div>{platform === 'phone' && <div className={styles.phoneCount}><ResultCount accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>{/* phone-app 5: Save this view lives in the ⋯ menu. */}<span className={styles.phoneView}>{!sortInFirstRow && sort}{view && <ViewToggle {...view}/>}</span></div>}
+    </div>
     {applied.length > 0 && onRemoveFilter && onClearFilters && <div className={platform === 'tv' ? styles.tvAppliedRow : undefined}><AppliedFilterChips items={applied} onRemove={onRemoveFilter} onClear={onClearFilters}/>{platform === 'tv' && <ResultCount className={styles.resultCount} accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>}</div>}</>}
   </div>;
 }

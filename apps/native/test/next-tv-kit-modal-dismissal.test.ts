@@ -8,9 +8,14 @@ import {tvKitOverlays} from './helpers/tv-kit-overlays.mjs';
 // it for every other kit overlay drawn as a native Modal on TV: dialogs, sheets (and the TV Menu and Play on, which are
 // sheets), modal popover menus, the player's panels (a modal TVPanelTransition) and the live mini guide. Runs the real
 // overlays, overlay lifecycle and useNativeModalPresence on the fake engine's window model (D12-D16).
-type Kind = 'dialog' | 'sheet' | 'menu' | 'popover' | 'panel' | 'guide';
+// `flyout`: the one anchored TV popover left by R9 (`placement="right-end"`, the rail's profile menu form); every other TV
+// popover is the side sheet.
+type Kind = 'dialog' | 'sheet' | 'menu' | 'popover' | 'flyout' | 'panel' | 'guide';
 const KINDS: readonly Kind[] = ['dialog', 'sheet', 'menu', 'popover', 'panel', 'guide'];
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// The flyout places itself on the next frame; node has no frame clock of its own.
+(globalThis as any).requestAnimationFrame ??= (run: () => void) => setTimeout(run, 0);
+(globalThis as any).cancelAnimationFrame ??= (id: any) => clearTimeout(id);
 
 async function scene(platform: 'android' | 'tvos', options?: {wait: number}) {
   const kit = await tvFocusKit({platform}), {engine, React, e, focus, Stop} = kit, n = engine.native as any;
@@ -30,6 +35,7 @@ async function scene(platform: 'android' | 'tvos', options?: {wait: number}) {
       onExited: () => exits.push('sheet')}, e(Stop, {id: 'sheet-ok', onPress: close}));
     if (kind === 'menu') return e(o.Menu, {open, onOpenChange: change, title: 'Menu', testID: 'menu', items: [{id: 'ok', label: 'OK', onSelect: close}]});
     if (kind === 'popover') return e(o.Popover, {open, onOpenChange: change, anchorRef: anchor, modal: true, title: null, testID: 'popover'}, e(Stop, {id: 'popover-ok', onPress: close}));
+    if (kind === 'flyout') return e(o.Popover, {open, onOpenChange: change, anchorRef: anchor, modal: true, placement: 'right-end', title: null, testID: 'flyout'}, e(Stop, {id: 'flyout-ok', onPress: close}));
     if (kind === 'panel') return e(PanelHost, {open, close});
     return e(o.NativeMiniGuide, {open, onExited: () => exits.push('guide'), onClose: close, onSelect: close, onFullGuide() {}, now: 0, timezone: 'UTC',
       rows: [{channel: {kind: 'live', id: '1', number: '1', name: 'One', tuneAvailable: true}, watching: true}]});
@@ -137,12 +143,13 @@ test('only the top layer takes focus: a dialog opened over a closing sheet keeps
   }
 });
 
-// Sol 8's P2 on #844 (comment 6638349337): each dismissal report belongs to its own presentation. A modal popover hides
+// Sol 8's P2 on #844 (comment 6638349337): each dismissal report belongs to its own presentation. A modal anchored popover
+// (on TV since R9 only the `right-end` flyout: every other TV popover is the side sheet, which keeps its Modal) hides
 // its Modal as soon as it closes, while its exit keeps it present; reopened before tvOS reports that dismissal, it must
 // not ask UIKit to show a view controller that is still being dismissed, and that old report must not end a later close.
 test('Apple TV: a popover reopened while its early hide is still dismissing is shown again only once that dismissal ends', async () => {
   const {engine, opened, exit, open} = await scene('tvos', {wait: 60_000});
-  await opened('popover');
+  await opened('flyout');
   open(false);
   await engine.settle();
   assert.deepEqual(engine.windows().map(window => window.dismissing), [true], 'hidden at once: its dismissal has started');

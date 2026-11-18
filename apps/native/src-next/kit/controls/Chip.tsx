@@ -29,7 +29,7 @@ export const Chip = forwardRef<View, ChipProps>(function Chip({
   icon, trailingIcon, iconSize, disabled, accessibilityState, style, textStyle, hitSlop, onPress, ...props
 }, ref) {
   const theme = useTheme();
-  const geometry = chipGeometry(variant, theme.platform);
+  const geometry = chipGeometry(variant, theme.column);
   const isFacet = variant === 'facet' || variant === 'pill' || variant === 'quick';
   const applied = variant === 'applied';
   const [checked, setChecked] = useControlValue(selected, defaultSelected ?? false, onSelectedChange);
@@ -40,7 +40,7 @@ export const Chip = forwardRef<View, ChipProps>(function Chip({
   const border = dim ? theme.colors.line : desktopChoice ? colorAlpha(checked ? theme.colors.accentStrong : theme.colors.text, checked ? .62 : .16) : checked ? colorAlpha(theme.isTV ? theme.colors.accentStrong : theme.colors.accent, theme.isTV ? .7 : 1) : isFacet || retry ? theme.colors.lineStrong : 'transparent';
   const color = dim ? theme.colors.textTertiary : checked || !theme.isTV && !isFacet ? theme.colors.text : theme.colors.textSecondary;
   const labelWeight = !theme.isTV && (variant === 'facet' || variant === 'pill' || theme.platform === 'web' && variant === 'quick') ? 600 : 700;
-  const glyphSize = iconSize ?? chipSpec.icon[theme.platform];
+  const glyphSize = iconSize ?? chipSpec.icon[theme.column];
   return <Focusable {...props} ref={ref} disabled={disabled} focusKind="chip" focusRadius={geometry.radius}
     accessibilityRole={checkbox ? 'checkbox' : props.accessibilityRole ?? 'button'} accessibilityState={{...accessibilityState, ...(checkbox ? {checked} : toggle ? {selected: checked} : {})}}
     onPress={event => {if (!disabled) {onPress?.(event); if (toggle && !event.defaultPrevented) setChecked(!checked);}}}
@@ -53,7 +53,8 @@ export const Chip = forwardRef<View, ChipProps>(function Chip({
     {state => <>
     {state.hovered && !disabled && !dim && !checked ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, {borderRadius: geometry.radius, backgroundColor: desktop && variant === 'pill' ? colorAlpha(theme.colors.text, .1) : isFacet ? colorAlpha(theme.colors.text, desktop && variant === 'facet' ? .06 : .07) : theme.colors.raisedBright}]} /> : null}
     {icon ? <Icon name={icon} size={glyphSize} color={checked ? theme.colors.accentStrong : color} /> : null}
-    {prefix !== undefined ? <Text numberOfLines={1} style={[theme.type.chip, {color: theme.colors.textTertiary, fontFamily: fontFamilies[600], fontSize: geometry.fontSize * theme.textScale}]}>{prefix}</Text> : null}
+    {/* A face or other drawn prefix (the saved accounts on sign-in, auth 4) sits as itself; words take the chip's quiet type. */}
+    {prefix !== undefined && typeof prefix !== 'string' ? prefix : prefix !== undefined ? <Text numberOfLines={1} style={[theme.type.chip, {color: theme.colors.textTertiary, fontFamily: fontFamilies[600], fontSize: geometry.fontSize * theme.textScale}]}>{prefix}</Text> : null}
     <Text numberOfLines={1} ellipsizeMode="tail" style={[theme.type.chip, styles.label, {color, fontFamily: fontFamilies[labelWeight], fontSize: geometry.fontSize * theme.textScale}, textStyle]}>{children}</Text>
     {count !== undefined && count !== null ? <Text numberOfLines={1} style={[theme.type.captionStrong, {color: theme.isTV ? color : checked ? theme.colors.textSecondary : theme.colors.textTertiary, opacity: theme.isTV && countStyle === 'text' ? .7 : 1, fontSize: (theme.isTV ? geometry.fontSize : theme.platform === 'web' ? 13 : 12) * theme.textScale, fontFamily: fontFamilies[theme.isTV || theme.platform === 'web' ? 600 : 700]},
       countStyle === 'badge' ? {color: theme.colors.actionInk, backgroundColor: theme.colors.accentStrong, minWidth: theme.isTV ? 30 : 21, height: theme.isTV ? 30 : 21, borderRadius: theme.isTV ? 15 : 11, paddingHorizontal: 6, textAlign: 'center', textAlignVertical: 'center', fontFamily: fontFamilies[800]} : undefined]}>{count}</Text> : null}

@@ -72,17 +72,23 @@
 .heroProgress { display: inline-flex; align-items: center; gap: 14px; color: var(--color-text); font-weight: 700; }
 .progressTrack { display: inline-block; width: 160px; height: 6px; border-radius: 6px; background: rgba(237,245,250,.22); overflow: hidden; }
 .progressTrack i { display: block; height: 100%; background: var(--color-accent-strong); border-radius: 6px; transform-origin: left; }
-.row { --layout-gutter: var(--shell-gutter); position: relative; margin-top: 44px; }
+/* R5: on a frame the frame owns the space between rows. A frame's rows container composes `framedRows`; inside it a
+   Shelf has no margin of its own, its heading sits `--frame-row-heading-gap` over its cards, and the room its track
+   keeps for a card's hover growth is taken back by a negative margin. A page not yet on a frame keeps the spacing its
+   own layout was written against. */
+.framedRows { display: flex; flex-direction: column; gap: var(--frame-row-section); --framed-row-margin: 0px; --framed-row-heading-gap: var(--frame-row-heading-gap); --framed-row-bleed: var(--frame-row-bleed); }
+.row { --layout-gutter: var(--shell-gutter); position: relative; margin-top: var(--framed-row-margin, 44px); }
 .row:first-child { margin-top: 0; }
 /* Rows and heroes sit on the shell's one page-edge gutter (20 px on a phone, 28 px beside the rail). */
-.rowHead { display: flex; align-items: baseline; gap: 14px; padding: 0 var(--layout-gutter); margin-bottom: 14px; }
-.rowHead h2 { margin: 0; }
+/* A heading is never squeezed by what follows it: its subtitle moves under it when the two do not fit on one line. */
+.rowHead { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 14px; row-gap: 2px; padding: 0 var(--layout-gutter); margin-bottom: var(--framed-row-heading-gap, 14px); }
+.rowHead h2 { margin: 0; flex: 0 1 auto; }
 .rowSubtitle { color: var(--color-text-tertiary); }
 .rowActions { margin-left: auto; display: flex; align-self: center; gap: 12px; }
 .rowActions[data-placement='inline'] { margin-left: 18px; }
 .seeAll { border: 0; padding: 0; background: none; margin-left: auto; color: var(--color-text-tertiary); text-decoration: none; display: inline-flex; align-items: center; gap: 2px; opacity: 0; cursor: pointer; transition: opacity 200ms var(--ease-out); white-space: nowrap; }
 .row:hover .seeAll, .row:focus-within .seeAll { opacity: 1; }
-.track { display: flex; position: relative; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 var(--layout-gutter); padding: 10px var(--layout-gutter) 14px; scrollbar-width: none; overscroll-behavior-x: contain; }
+.track { display: flex; position: relative; gap: var(--row-gap); overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 var(--layout-gutter); padding: var(--framed-row-bleed, 10px) var(--layout-gutter) var(--framed-row-bleed, 14px); margin-block: calc(-1 * var(--framed-row-bleed, 0px)); scrollbar-width: none; overscroll-behavior-x: contain; }
 .track::-webkit-scrollbar { display: none; }
 .shelfItem { flex: none; scroll-snap-align: start; }
 .shelfItem { animation: layout-arrive var(--motion-quick) var(--ease-out) both; transition: opacity var(--motion-standard) var(--ease-in), transform var(--motion-standard) var(--ease-in); }
@@ -92,14 +98,16 @@
 .arrowRight { right: 0; background: linear-gradient(270deg, rgba(7,16,24,.9), transparent); }
 .row:hover .arrow:not(:disabled), .row:focus-within .arrow:not(:disabled) { opacity: 1; }
 .arrow:disabled { pointer-events: none; visibility: hidden; }
-.row[data-platform^='phone'] { margin-top: 28px; }
-.row[data-platform^='phone'] .rowHead { margin-bottom: 4px; }
-.row[data-platform^='phone'] .track { padding: 8px var(--layout-gutter) 10px; gap: 12px; }
+.row[data-platform^='phone'] { margin-top: var(--framed-row-margin, 28px); }
+.row[data-platform^='phone'] .rowHead { margin-bottom: var(--framed-row-heading-gap, 4px); }
+.row[data-platform^='phone'] .track { padding: var(--framed-row-bleed, 8px) var(--layout-gutter) var(--framed-row-bleed, 10px); gap: 12px; }
 .row[data-platform^='phone'] .rowHead h2 { display: flex; align-items: center; gap: 1px; }
 .row[data-platform^='phone'] .rowHead h2 svg { color: var(--color-text-tertiary); }
+.headingLink { display: inline-flex; align-items: center; gap: 1px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: start; text-decoration: none; cursor: pointer; }
+.headingLink > svg { flex: none; }
 .row[data-platform='tv'] { --layout-gutter: var(--gutter-tv); }
-.row[data-platform='tv'] .rowHead { gap: 18px; margin-bottom: 22px; padding-right: 96px; }
-.row[data-platform='tv'] .track { gap: 28px; padding-top: 0; padding-bottom: 0; padding-right: 96px; }
+.row[data-platform='tv'] .rowHead { gap: 18px; margin-bottom: var(--framed-row-heading-gap, 22px); padding-right: 96px; }
+.row[data-platform='tv'] .track { gap: 28px; padding-top: var(--framed-row-bleed, 0px); padding-bottom: var(--framed-row-bleed, 0px); padding-right: 96px; }
 .grid { position: relative; overflow: auto; overscroll-behavior: contain; overflow-anchor: none; scrollbar-width: thin; }
 .gridExtent { position: relative; width: 100%; }
 .gridItem { position: absolute; min-width: 0; overflow: visible; }
@@ -153,7 +161,7 @@
 .hero[data-size-class='medium'] .facts { gap: 6px 14px; margin-bottom: 20px; }
 .hero[data-size-class='medium'] .actions > button { height: 52px; font-size: 16px; padding: 0 26px; border-radius: 12px; }
 .hero[data-size-class='medium'] .dots { bottom: 44px; }
-.row[data-size-class='medium'] .rowHead { margin-bottom: 8px; }
+.row[data-size-class='medium'] .rowHead { margin-bottom: var(--framed-row-heading-gap, 8px); }
 .row[data-size-class='medium'] .track { gap: 14px; padding-inline: 28px; scroll-padding-inline: 28px; }
 /* Survey 4 Nov: below 1280 the full-size strip (5 × 132 px) runs under My List; 104 px thumbnails keep it clear of the
    actions down to 1024. Narrower windows use the rail layout, whose hero draws dots instead of a strip. */
@@ -162,3 +170,11 @@
   .hero:not([data-platform^='phone']):not([data-platform='tv']) .thumbnailImage img { width: 104px; }
   .hero:not([data-platform^='phone']):not([data-platform='tv']) .thumbnailImage, .hero:not([data-platform^='phone']):not([data-platform='tv']) .thumbnailImage img { height: 58px; }
 }
+/* Rule 14, the moderate hero (Hero `moderate`): the frame tokens' fixed sizes for this width. Last, so it wins over the platform columns above. */
+.hero[data-size='moderate'] { height: var(--frame-hero-home-height); --hero-lockup: var(--frame-hero-home-lockup); }
+.hero[data-size='moderate']:has(.lockup[data-long]) { --hero-lockup: var(--frame-hero-home-lockup-long); }
+.hero[data-size='moderate'] .copy { bottom: var(--frame-hero-home-copy-bottom); }
+/* On a phone the slide dots sit under the buttons: the dots take the copy's place and the copy clears them (6 high, 14 above). */
+.hero[data-size='moderate'] .dots { bottom: var(--frame-hero-home-copy-bottom); }
+.hero[data-size='moderate'][data-platform^='phone'][data-navigation='true'] .copy { bottom: calc(var(--frame-hero-home-copy-bottom) + 20px); }
+.hero[data-size='moderate'] .overview { -webkit-line-clamp: var(--frame-hero-home-synopsis-lines); }

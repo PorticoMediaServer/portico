@@ -11,7 +11,7 @@ registerHooks({load(url, context, next) {
   return next(url, context);
 }});
 const {RadioGroup, RadioItem, Chip} = await import('../src/kit/controls/index.ts');
-const {WatchEndCardView} = await import('../src/screens/watch/EndCard.tsx');
+const {PlayerEndCard: WatchEndCardView} = await import('../src/kit/player/EndCard.tsx');
 const {stopRadioNavigation} = await import('../src/kit/controls/radio-navigation.ts');
 
 test('unstyled Radix choices retain chip drawing with exclusive checked state and disabled choices', () => {

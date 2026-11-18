@@ -23,7 +23,7 @@ async function shell(read: (call: RestoreCall, index: number) => Promise<unknown
     'react-native': {Platform: {OS: 'ios'}, View: 'View', Text: 'Text', Image: 'Image', findNodeHandle: (node: {tag: number}) => node.tag,
       AccessibilityInfo: {setAccessibilityFocus: (tag: number) => {focus.push(tag);}},
       AppState: {currentState: 'active', addEventListener: (_: string, listener: (value: string) => void) => {foreground.add(listener); return {remove: () => foreground.delete(listener)};}}},
-    '../kit/states': {StateView: 'StateView', StateLayout: 'StateLayout'}, '../kit/artwork': {StandardBackdrop: 'StandardBackdrop', CoverFan: 'CoverFan'},
+    '../kit/states': {DownloadsStillPlay: 'DownloadsStillPlay', StateView: 'StateView', StateLayout: 'StateLayout'}, '../kit/artwork': {StandardBackdrop: 'StandardBackdrop', CoverFan: 'CoverFan'},
     '../kit/controls': {Focusable: 'Focusable'}, '../kit/overlays/TVDesignCanvas': {TVDesignCanvas: 'TVDesignCanvas'}, '../kit/Icon': {Icon: 'Icon'},
     '../kit/theme': {useTheme: () => ({platform: 'phone', isTV: false, colors: {ink: '#071018'}, type: {}})},
     '../../../../packages/client-core/src/presentation/errors': {presentError: () => ({category: 'unreachable', action: 'try-again', title: 'Unavailable', body: 'Unavailable'})},

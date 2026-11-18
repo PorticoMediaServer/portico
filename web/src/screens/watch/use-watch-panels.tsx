@@ -16,7 +16,7 @@ import type {WatchBindings,WatchSurfaces,WatchPanel,WatchTrickplay} from './type
 import type {PlaybackTrickplaySelection} from '../../platform/playback';
 import {trickplayFrameAt} from '@core/trickplay.ts';
 import {watchPanelModel} from './panel-model';
-import {WatchOptions} from './WatchOptions';
+import {PlayerOptions} from '../../kit/player';
 import {WatchRoomPill} from './WatchRoomPill';
 import {WatchStartRoom} from './StartRoom';
 import {useTogetherBindings} from '../together/owner';
@@ -148,7 +148,7 @@ export function useWatchPanels(binding:WatchBindings|undefined,snapshot:WebPlayb
     return <WatchInfoPanel runtime={binding.runtime} snapshot={live} fence={live.fence} title={playbackIdentity(live.subject,'full',i18n).title}
       deviceName={castDisplayName()} i18n={i18n} layout={panel.layout} phoneTop={panel.phoneTop} returnFocusRef={panel.returnFocusRef}
       close={panel.close} reportError={binding.reportError}/>;
-   return model&&panel.panel&&available.includes(panel.panel)&&model.isCurrent()?<WatchOptions model={model} context={panel} i18n={i18n} reportError={binding.reportError} info={infoReady} openSettings={()=>{if(!context.isCurrent()||!model.isCurrent())throw new DOMException('Playback source retired','AbortError');return router.navigate({to:'/settings'});}}/>:null;
+   return model&&panel.panel&&available.includes(panel.panel)&&model.isCurrent()?<PlayerOptions model={model} context={panel} i18n={i18n} reportError={binding.reportError} info={infoReady} openSettings={()=>{if(!context.isCurrent()||!model.isCurrent())throw new DOMException('Playback source retired','AbortError');return router.navigate({to:'/settings'});}}/>:null;
   },
   quality:model?.qualityLabel&&model.qualityAccessibleLabel&&available.includes('quality')?{fence:model.fence,automatic:model.automatic,label:model.qualityLabel,accessibleLabel:model.qualityAccessibleLabel}:undefined,
   tracks:model?{fence:model.fence,audio:model.audioLabel,subtitles:model.subtitleLabel}:undefined,

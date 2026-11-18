@@ -9,6 +9,7 @@ import {containsPoint, type Rect} from './geometry';
 import {createOverlayStack} from './overlay-stack';
 import type {FocusRef, FocusTarget, OverlayReason} from './types';
 import {registerBack} from '../navigation/back';
+import {noteTouch} from '../controls/touch-focus';
 
 type Entry = {id: string; node: React.ReactNode; rect?: Rect; outside?: () => void};
 type Portal = {put: (entry: Entry) => void; remove: (id: string) => void; frame: Rect};
@@ -57,7 +58,11 @@ export function useOverlayFrame(): Rect {
   return useContext(HostContext)?.frame ?? {x: 0, y: 0, width: 0, height: 0};
 }
 
+/** The Android line: focus an overlay hands over (its first row or Cancel on open, the opener on close) is placed, not
+ * aimed at, so a phone or tablet draws no ring for it, as for focus a touch hands over. A key moving focus afterwards
+ * draws it. TV always draws it. */
 export function focusTarget(target: FocusTarget | null | undefined) {
+  if (!(Platform as typeof Platform | undefined)?.isTV) noteTouch();
   requestNativeFocus(target);
 }
 

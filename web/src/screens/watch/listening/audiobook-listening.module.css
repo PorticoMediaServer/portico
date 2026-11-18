@@ -1,5 +1,5 @@
 /* desktop-listen frame9's 660px content column, 300px square cover and 452px side. */
-.frame { position: fixed; inset: 0; z-index: var(--layer-art-label); color: var(--color-text); background-color: var(--color-ink); background-image: var(--backdrop-glows); background-size: var(--backdrop-glows-size); background-repeat: no-repeat; overflow: auto; }
+.frame { position: fixed; inset: 0; z-index: var(--layer-art-label); color: var(--color-text); overflow: auto; }
 .top { position: relative; z-index: var(--layer-hero-navigation); display: flex; align-items: center; gap: 16px; min-height: 84px; padding: 0 32px; color: var(--color-text-secondary); font-size: var(--type-fixed-size-14px); }
 .main { position: absolute; left: 0; top: 84px; bottom: 28px; width: 940px; max-width: calc(100% - 484px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
 .bookTop { width: 660px; max-width: 100%; display: flex; align-items: flex-end; gap: 30px; }

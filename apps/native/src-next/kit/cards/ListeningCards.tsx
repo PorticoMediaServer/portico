@@ -4,6 +4,7 @@ import type {ChannelMarkModel, FactPart} from '../../../../../packages/client-co
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {AmbientArt, ChannelMark, MediaArt, type AmbientArtSource, type ArtworkPalette, type ArtworkProps, type ArtworkSource} from '../artwork/index';
 import {Button} from '../controls/index';
+import {frameSpec} from '@portico/design';
 import {useTheme} from '../theme';
 import {CardOverlays} from './MediaCards';
 import {ArtFrame, CardFrame, Parts, Progress, alpha, titleStyle, type CardProps} from './primitives';
@@ -44,13 +45,15 @@ export function ResumeCard(props: ResumeCardProps) {return <Resume {...props} />
 export function ReadResumeCard(props: ReadResumeCardProps) {return <Resume {...props} read />;}
 
 export type QuickTileProps = CardProps & {artwork?: ArtworkSource | null; artworkFallback?: ReactNode; artworkProps?: Omit<ArtworkProps, 'source' | 'fallback' | 'width' | 'height'>; height?: number} & ({playing: true; onPause: () => void} | {playing?: false; onPause?: never});
+/** A quick tile at its form's height (frameSpec.quickTile); on a phone only the playing tile keeps room for its Pause, the
+ * others none (phone-app 15a, two across). */
 export function QuickTile(props: QuickTileProps) {
-  const t = useTheme(), width = props.width ?? (t.isTV ? 420 : 350), height = props.height ?? (t.isTV ? 112 : 76);
+  const t = useTheme(), phone = t.form === 'phone', width = props.width ?? frameSpec.quickTile.width[t.form], height = props.height ?? frameSpec.quickTile.height[t.form];
   return <CardFrame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered || !!props.playing} holding={s.holding} height={height} playSize={36} pause={props.playing ? props.onPause : undefined} />}>
     {s => <ArtFrame height={height} radius={10} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={1} selected={props.selection?.selected} style={{backgroundColor: props.playing ? t.colors.raisedHigh : t.colors.raised}}>
-      <View style={{flexDirection: 'row', gap: 16, alignItems: 'center', flex: 1}}>
+      <View style={{flexDirection: 'row', gap: phone ? 12 : 16, alignItems: 'center', flex: 1}}>
         <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="square" source={props.artwork} fallback={props.artworkFallback} width={height} height={height} />
-        <View style={{flex: 1, minWidth: 0, paddingRight: 58}}>
+        <View style={{flex: 1, minWidth: 0, paddingRight: phone && !props.playing ? 12 : phone ? 48 : 58}}>
           <Text numberOfLines={1} style={[titleStyle(t, t.isTV ? 24 : 15), {color: props.playing || props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
           <View style={{marginTop: 3, flexDirection: 'row', gap: 8, alignItems: 'center'}}>{props.playing && <View accessible={false} style={{height: 14, flexDirection: 'row', alignItems: 'flex-end', gap: 2}}>{[0.55, 1, 0.38, 0.75].map((fraction, index) => <View key={index} style={{height: 14 * fraction, width: 3, borderRadius: 1, backgroundColor: t.colors.accentStrong}} />)}</View>}<Parts parts={props.caption} /></View>
         </View>

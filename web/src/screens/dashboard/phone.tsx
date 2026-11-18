@@ -29,7 +29,7 @@ export function PhonePage({chrome, server, updatedAt, onBack, onRefresh, initial
     navigation.setAttribute('inert', ''); navigation.setAttribute('aria-hidden', 'true');
     return () => {navigation.removeAttribute('inert'); navigation.removeAttribute('aria-hidden');};
   }, []);
-  return <div className={styles.phonePage} data-dashboard-page>
+  return <div className={`portico-cover ${styles.phonePage}`} data-dashboard-page>
     <header className={styles.phoneBar} data-solid={solid || undefined}>
       <button type="button" className={styles.phoneBack} onClick={onBack} aria-label={t('next.states.back')}><Icon name="i-left" size={22} /></button>
       <span className={styles.phoneBarTitle}><b>{t('next.dashboard.title')}</b><small>{chrome.serverName}</small></span>
