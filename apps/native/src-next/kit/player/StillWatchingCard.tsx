@@ -2,9 +2,9 @@ import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import type {QueuePlaybackView} from '../../../../../packages/client-core/src/queue-controller';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Button} from '../../kit/controls';
+import {Button} from '../controls';
 import {BlurView} from '../../platform/native-blur';
-import {nativeType, useTheme} from '../../kit/theme';
+import {nativeType, useTheme} from '../theme';
 
 type Item = QueuePlaybackView['items'][number];
 

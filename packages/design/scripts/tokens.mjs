@@ -75,7 +75,12 @@ function frameTokens(form, web) {
     `--frame-hero-${name}-copy-bottom: ${px(pick(value.copyBottom))}`,
     `--frame-hero-${name}-synopsis-lines: ${value.synopsisLines[form]}`,
   ];
+  // The audio player's wide forms, its icon classes and the video transport's (R4 and R6), each leaf a number or a per-form table.
+  const nested = (prefix, object) => Object.entries(object).flatMap(([key, value]) => typeof value === 'number' ? [`--${prefix}-${kebab(key)}: ${px(value)}`]
+    : value && typeof value === 'object' && form in value ? [`--${prefix}-${kebab(key)}: ${px(pick(value))}`] : []);
   return [
+    ...nested('frame-audio-wide', f.audio.wide), ...nested('frame-audio-icon', f.audio.icons), ...nested('frame-player-transport', f.player.transport),
+    `--frame-player-track: ${px(f.player.track[form])}`, `--frame-player-panel-width: ${px(f.player.panel.width[form])}`, `--frame-player-knob: ${px(pick(f.player.knob))}`, `--frame-player-knob-held: ${px(f.player.knobHeld[form])}`,
     `--frame-card-padding: ${px(f.card.padding[form])}`, `--frame-card-radius: ${px(f.card.radius[form])}`,
     `--frame-section-gap: ${px(f.rhythm.section[form])}`, `--frame-heading-gap: ${px(f.rhythm.headingGap[form])}`, `--frame-header-gap: ${px(f.rhythm.headerGap[form])}`,
     `--frame-title-top: ${px(pick(f.rhythm.titleTop))}`, `--frame-bottom-clear: ${px(f.rhythm.bottomClear[form])}`, `--frame-row-two-line: ${px(f.rhythm.rowTwoLine[form])}`,
@@ -102,6 +107,8 @@ function frameConstants() {
   const scrim = (edge, stops) => `linear-gradient(${edge}, ${stops.map(([alpha, at]) => `${alpha ? `color-mix(in srgb, var(--color-live-player-scrim) ${alpha * 100}%, transparent)` : 'transparent'} ${px(at)}`).join(', ')})`;
   return [`--frame-player-scrim: ${scrim('180deg', f.player.scrim.top)}, ${scrim('0deg', f.player.scrim.bottom)}`, `--frame-player-volume: ${px(f.player.volumeWidth)}`, `--frame-player-pill-icon: ${px(f.player.pillIcon)}`, `--frame-player-prompt-icon: ${px(f.player.promptIcon)}`,
     `--frame-player-portrait-aspect: ${f.player.portrait.aspect}`, `--frame-player-portrait-shade: ${f.player.portrait.shade * 100}%`, `--frame-player-portrait-top: ${px(f.player.portrait.top)}`, `--frame-player-portrait-prompt-height: ${px(f.player.portrait.promptHeight)}`, `--frame-player-portrait-prompt-padding-x: ${px(f.player.portrait.promptPaddingX)}`, `--frame-player-portrait-prompt-right: ${px(f.player.portrait.promptRight)}`, `--frame-player-portrait-edge: ${px(f.player.portrait.edge)}`, `--frame-player-portrait-bottom: ${px(f.player.portrait.bottom)}`, `--frame-player-portrait-time-inset: ${px(f.player.portrait.timeInset)}`, `--frame-player-portrait-scrubber: ${px(f.player.portrait.scrubber)}`, `--frame-player-portrait-control: ${px(f.player.portrait.control)}`, `--frame-player-portrait-control-icon: ${px(f.player.portrait.controlIcon)}`, `--frame-player-portrait-primary: ${px(f.player.portrait.primary)}`, `--frame-player-portrait-primary-icon: ${px(f.player.portrait.primaryIcon)}`, `--frame-title-credits-gap: ${px(f.hero.title.creditsGap)}`, `--frame-player-prompt-gap: ${px(f.player.prompt.gap)}`,
+    ...Object.entries(f.player.transport.upright.phone).map(([key, value]) => `--frame-player-upright-${kebab(key)}: ${px(value)}`), `--frame-player-tint-open: ${f.player.tint.open * 100}%`,
+    `--frame-player-sideways-max-height: ${px(f.player.sidewaysMaxHeight)}`, `--frame-sheet-full-top: ${px(f.sheet.fullTop)}`, `--frame-audio-book-art-share: ${f.audio.bookArtShare}`, `--frame-sheet-full-radius: ${px(f.sheet.fullRadius)}`,
     `--frame-card-inset: ${px(f.card.phoneInset)}`, `--frame-hero-lockup-line: ${f.hero.lockupLine}`, `--frame-hero-lockup-tracking: ${f.hero.lockupTracking}em`,
     `--frame-state-row-icon-share: ${f.stateRow.iconShare}`, `--frame-state-row-error-tint: ${f.stateRow.errorTint * 100}%`,
     `--frame-header-bar: ${px(f.header.bar)}`, `--frame-header-back-row: ${px(f.header.backRow)}`, `--frame-settings-page-max: ${px(f.settings.pageMax)}`, `--frame-paragraph-max: ${px(f.settings.paragraphMax)}`,

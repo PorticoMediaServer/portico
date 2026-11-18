@@ -25,7 +25,7 @@ import {useCoarsePointer} from '../../kit/theme';
 import {WatchPictureInput} from './picture';
 import {watchQueueNeighbours} from './queue-neighbours';
 import {WatchDockPanelOpening, type WatchDockPanel} from './dock-panel-opening';
-import {WatchEndCardView} from './EndCard';
+import {PlayerEndCard as WatchEndCardView} from '../../kit/player/EndCard';
 import {PlayerLive} from '../../kit/player/PlayerLive';
 import type {LiveChromePort} from '../live/live-chrome-types';
 import {WatchPromptFocus, type PromptFocusHost} from './prompt-focus';

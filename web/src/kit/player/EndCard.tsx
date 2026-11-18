@@ -1,20 +1,31 @@
 import {useRef, useState} from 'react';
-import {MetadataFacts} from '../../kit/MetadataFacts';
+import {MetadataFacts} from '../MetadataFacts';
 import {defaultI18n} from '@i18n';
-import {Artwork} from '../../kit/artwork';
-import {Button} from '../../kit/controls';
-import {focusRadioChoice} from '../../kit/controls/radio-navigation';
-import {Icon} from '../../kit/Icon';
-import type {WatchEndCard} from './end-card';
-import type {ArtworkSource} from '../../kit/artwork/types';
+import {Artwork} from '../artwork';
+import {Button} from '../controls';
+import {focusRadioChoice} from '../controls/radio-navigation';
+import {Icon} from '../Icon';
+import type {ArtworkSource} from '../artwork/types';
 import styles from './end-card.module.css';
 
 const t = defaultI18n.t;
 
-/** desktop-player f4b. Drawn parts only: Finished, the title, the viewer's rating, Replay,
- * a way back to the title page and the server's related titles as a full row. */
-export function WatchEndCardView({card, canReplay, onReplay, onClose, reportError, artwork, layout = 'desktop'}: {
-  card: WatchEndCard; canReplay: boolean; onReplay: () => void; onClose?: () => void; reportError: (error: unknown) => void;
+/** What the end card draws (the watch screen's `WatchEndCard` is one). */
+export type PlayerEndCardModel = Readonly<{
+  title: string; year?: number; genres?: readonly string[];
+  related: readonly Readonly<{id: string; title: string; year?: number; poster?: ArtworkSource}>[];
+  rating?: Readonly<{value: number | null; set(value: number | null): Promise<void>}>;
+  collection?: Readonly<{collectionName: string; title: string; year?: number; posterUrl?: string; genres?: readonly string[]; play: () => Promise<void>;
+    myList?: Readonly<{listed: boolean; pending: boolean; set(value: boolean): Promise<void>}>}>;
+  back: () => void | Promise<void>;
+  openRelated: (id: string) => void | Promise<void>;
+}>;
+
+/** The end card after a film (desktop-player f4b, phone-player 6d): Finished, the title, the viewer's rating, Replay,
+ * a way back to the title page, the next film in its collection and the server's related titles as a full row. The
+ * player frame shows it over the picture in its `card` place. Moved from the watch screen. */
+export function PlayerEndCard({card, canReplay, onReplay, onClose, reportError, artwork, layout = 'desktop'}: {
+  card: PlayerEndCardModel; canReplay: boolean; onReplay: () => void; onClose?: () => void; reportError: (error: unknown) => void;
   artwork: (url: string | undefined) => ArtworkSource | undefined; layout?: 'desktop' | 'phone';
 }) {
   const [hover, setHover] = useState<number | null>(null), [pending, setPending] = useState(false);

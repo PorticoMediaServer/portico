@@ -1,6 +1,6 @@
 import React, {type ReactNode} from 'react';
 import {StyleSheet, Text, View, useWindowDimensions} from 'react-native';
-import {PlayerCompact} from '../player/parts';
+import {PlayerBeside, PlayerCompact} from '../player/parts';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {frameSpec} from '@portico/design';
@@ -86,7 +86,7 @@ export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, 
   const row = {flexDirection: 'row', alignItems: 'center'} as const;
   // Buttons keep their own height in a row, so the row is centred by a column around it, not by the row's own alignment.
   const centre = <View pointerEvents={touch} style={[StyleSheet.absoluteFill, {justifyContent: 'center'}, shown, scrubbing && {opacity: 0}]}>
-    <View style={[row, phone && upright ? {justifyContent: 'space-evenly'} : {justifyContent: 'center', gap: theme.space.xl}]}>{transport}</View>
+    <View style={[row, {justifyContent: 'center', gap: upright ? spec.transport.upright[phone ? 'phone' : 'tablet'].gap : spec.transport.gap[form]}]}>{transport}</View>
   </View>;
   const top = <View pointerEvents={touch} style={[row, {position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'flex-start', gap: upright ? 0 : spec.titleGap[form],
     paddingTop: upright ? spec.portrait.top : Math.max(spec.top[form], insets.top), paddingHorizontal: edge}, tv && panel ? {opacity: chromeVisible ? spec.panelDim : 0} : shown]}>
@@ -116,8 +116,8 @@ export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, 
           : <View style={{gap: spec.timesGap[form]}}>{scrubber}<View style={[row, {justifyContent: 'space-between'}, tv && scrubbing && {opacity: 0}]}>{position}{remaining}</View></View>}
         {/* Three fixed places. The transport is centred on the bar itself, not between the ends, so it stays in the middle whatever each end holds. */}
         <View>
-          <View style={[row, scrubbing && {opacity: 0}, {justifyContent: 'space-between', gap: spec.endGap[form], marginTop: spec.controlsGap[form], minHeight: theme.spec.transport.primary.size[theme.platform]}, sideways && {minHeight: spec.pill.height[form]}]}>
-            {!phone && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, row, {justifyContent: 'center', gap: theme.spec.transport.gap[theme.platform]}]}>{transport}</View>}
+          <View style={[row, scrubbing && {opacity: 0}, {justifyContent: 'space-between', gap: spec.endGap[form], marginTop: spec.controlsGap[form], minHeight: spec.transport.primary[form]}, sideways && {minHeight: spec.pill.height[form]}]}>
+            {!phone && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, row, {justifyContent: 'center', gap: spec.transport.gap[form]}]}>{transport}</View>}
             <View style={[row, {flexShrink: 0, gap: spec.endGap[form]}]}>{leading}</View>
             <View style={[row, {flexShrink: 1, minWidth: 0, overflow: 'hidden', justifyContent: 'flex-end', gap: spec.endGap[form]}]}>{trailing}</View>
           </View>
@@ -127,8 +127,9 @@ export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, 
     </View>
   </View>;
   const over = !!panel && !upright && !beside && <View style={{position: 'absolute', top: 0, right: 0, bottom: 0, width: spec.panel.width[form]}}>{panel}</View>;
-  return <View testID={testID} style={{flex: 1, flexDirection: beside ? 'row' : 'column', backgroundColor: upright ? theme.colors.ink : theme.colors.shadow, paddingTop: upright ? insets.top : 0}}>
-    {upright ? <PlayerCompact.Provider value>{stage}</PlayerCompact.Provider> : stage}
+  // The frame draws no backdrop: the player's layer is black (R10). Beside a panel the bar's spare parts make way (SC-10).
+  return <View testID={testID} style={{flex: 1, flexDirection: beside ? 'row' : 'column', paddingTop: upright ? insets.top : 0}}>
+    {upright ? <PlayerCompact.Provider value>{stage}</PlayerCompact.Provider> : <PlayerBeside.Provider value={beside}>{stage}</PlayerBeside.Provider>}
     {upright && <View style={{flex: 1}}>{body}{!!panel && <View style={StyleSheet.absoluteFill}>{panel}</View>}</View>}
     {beside && <View style={{width: spec.panel.width[form]}}>{panel}</View>}
     {over}

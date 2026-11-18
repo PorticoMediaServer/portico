@@ -21,7 +21,7 @@ which never move, and one flexible region, the only place that may change when c
 | An editor that takes the whole phone | `SheetFrame kind="full"` | its page |
 | Welcome, sign in, local server, codes, profiles | `SignInFrame` (TV: the existing `tv/auth/TVAuthLayout`) | the form |
 | The video player | `PlayerChromeFrame` | none |
-| Now playing (music, audiobooks) | `AudioPlayerFrame` | phone: the gap under the artwork; wide and TV: Up next |
+| Now playing (music, audiobooks) | `AudioPlayerFrame` | `panel`: the queue, chapters or Lyrics |
 | The whole page can't load | the frame's own `state`, or `PageStateFrame` | the sentence |
 
 ## Props
@@ -41,10 +41,11 @@ which never move, and one flexible region, the only place that may change when c
 - `SheetFrame`: `open`, `onOpenChange`, `children`, and `kind: 'bottom'` with `title`, `footer?`, or
   `kind: 'full'` with `bar?`.
 - `SignInFrame`: `back?`, `title`, `lede?`, `error?`, `children`, `terms?`.
-- `PlayerChromeFrame`: `picture`, `chromeVisible`, `close`, `title?`, `tools?`, `scrubber`, `times`, `transport`, `leading?`,
-  `trailing?`, `prompts?`, `body?` (the watch page under an upright phone's picture).
-- `AudioPlayerFrame`: `close`, `more`, `context?`, `artwork?`, `icon`, `title`, `byline?`, `detail?`, `scrubber`,
-  `transport` (five slots), `nextLine?`, `options` (three or four slots), `upNext?`, `loading?`.
+- `PlayerChromeFrame`: the regions in `frameRegions.player`: `picture`, `close`, `title?`, `tools?`, `scrubber`, `times`,
+  `transport`, `leading?`, `trailing?`, `prompts?`, `card?`, `panel?`, `hints?`, `body?`; states `chromeVisible`, `scrubbing`.
+- `AudioPlayerFrame`: the regions in `frameRegions.audio`: `close`, `context?` (`source?`), `device?`, `more`, `notice?`,
+  `artwork?` (`icon`), `title`, `badge?`, `byline?` (parts), `favourite?`, `titleMore?`, `chapter?`, `scrubber`, `times`,
+  `transport` (five slots), `volume?`, `next?`, `lyrics?`, `queue?`, `playlist?`, `speed?`, `sleep?`, `chapters?`, `panel?`; `loading?`.
 - `PageStateFrame`: `icon`, `title`, `body?`, `primaryAction?`, `secondaryAction?`, `retry?`, `details?`.
 
 Parts for the flexible regions: `Section` (a heading and a block that is not a row of cards), `SectionCard` (a group label and one raised
@@ -107,8 +108,8 @@ Changed in the fix round after the first device captures (the reviewer's S-1 to 
   upright form, a column beside the picture on a tablet (the picture and its controls take the room left), and lies
   over the picture's right side on a phone on its side and a TV, where the controls hide. `card` (Up next) sits alone
   in the picture's bottom right corner with the controls hidden. `scrubbing` hides the transport for the preview.
-- The upright form is chosen by the window's shape (`usePlayerUpright`: narrower than 4:3), so a tablet in portrait
-  and an open foldable get the 16:9 strip with the watch page under it, not only a phone.
+- The upright form is chosen by the window's shape (`usePlayerUpright`; round 8: taller than wide, so an open foldable
+  gets the full-window player).
 - `PlayerControl` is a plain glyph on a phone and tablet and sits on a disc only where the mock-ups draw one (a TV's
   controls, a tablet's top bar); `skip` draws 10 or 30 inside the arrow; `plain` is TV's bare shuffle and repeat.
 - `PlayerPill` with a `name` is a two-line tile on TV. `PlayerScrubBar` has the spec's small knob, `tone="white"` and
@@ -236,3 +237,56 @@ status bar (light content; hidden only on the full-window video player). `test/n
 - Not built, because nothing calls for it yet: a Saved or Changed mark beside a settings page's title on native.
 - Tablet and TV measurements the pages do not give (the audio player's columns on a tablet, a card's inset on wide
   forms) are filled in `frames.ts` from the nearest drawn form; correct them there, nowhere else.
+
+## The players, round 8 (family D)
+
+Required regions are data: `frameRegions.player` and `frameRegions.audio` in `packages/design/src/frame-regions.ts`
+(each region's id, the forms that draw it and the mock-up frames it comes from). Both apps' `PlayerChromeFrame` and
+`AudioPlayerFrame` take exactly those regions as props. Gallery: `dev/families/frames/player.gallery.tsx` (native),
+`dev/families/frames-player.tsx` (web, family `frames-player`).
+
+Rules this round (frames.ts `player` and `audio` blocks):
+- **R6, R4 (interim): the transport's icon classes per form** (`frameSpec.player.transport`): Play or Pause's disc and
+  glyph, the other buttons' box, the 10/30 arrows drawn larger than Previous and Next (`skipIcon` > `stepIcon`), a
+  legible numeral, the gap. All of the transport is primary (white). The bar's own tools (subtitles, picture in
+  picture, full screen) are `tool`: secondary, smaller and dimmer. The upright strip has its own row (`transport.upright`:
+  a phone's 58 disc, a tablet's 84). The audio player's are `frameSpec.audio.icons` (shuffle and repeat secondary). The
+  web values are the mock-ups' (desktop-player 1, phone-player 1 and 4), not the old built player's.
+- **R6: the scrubber** is one continuous line (`player.track`: 6 on the web and a tablet, 4 on a phone, 8 on TV); the
+  recap, intro and credits are tinted on it; desktop draws no chapter marks. The knob grows while held (`knobHeld`).
+- **R8: the upright form is a window taller than wide** (`player.upright.maxAspect` 1). An open foldable (wider than
+  tall) gets the full-window player. On the web a window 500 or less high is a phone on its side and takes the phone's
+  sideways forms whatever its width (`sidewaysMaxHeight`).
+- **SC-10: beside an open panel the bar drops its spare parts** (`PlayerBeside`; a `PlayerPill` or `PlayerControl`
+  marked `spare`, the speed pill on a tablet), so nothing overlaps.
+- **The button whose panel is open shows it** (`open`): a raised disc with a dot (a control), the raised fill (a pill).
+- **TV playback options open in place under their headings** (owner ruling 4): `PlayerPanelGroup heading` (the list's
+  name and its current value in the accent; its rows follow while open). A tablet beside the picture does the same
+  (tablet-play 2b); a phone and the upright form drill in. Subtitles carry Timing and Search for subtitles (with the
+  reason it cannot search); quality says two lines; More holds Subtitle style, Chapters and Playback info.
+- **The audio player's wide forms are their own layout** (R7): a column as wide as the cover (title with the heart and
+  More, the album after the artist, the scrubber with its times at its ends, a compact transport, volume on the web or
+  the pill row on an upright tablet) beside a raised queue panel; the device at the top right beside More. The
+  audiobook puts its cover beside its title (Unabridged badge, "Read by"), a chapter line, a book-long scrubber and
+  Speed and Sleep timer as rows of choices. TV puts the regions at final3-tv-12's places (96 title, the queue to the
+  safe edge, titles never cut: a title takes its second line). **The frame draws no backdrop**: the audio player's
+  layer is the glow from the artwork (`Layer kind="audio"`; the gallery stands in for that host).
+
+Parts added: `AudioPanel` (tabs, list, footer; TV: heading and count), `QueueGroup`, `QueueRow` (playing / handle /
+done / number lead, two-line title, a chapter's progress, touch More or pointer actions), `AudioChoiceRow`
+(Speed, Sleep timer), `PlayerPrompt note` (Skipped the intro + Undo). Moved into the kit (one copy, the screen imports
+it back): native `StillWatchingCard` (`screens/watch` -> `kit/player`), web `EndCard` (`screens/watch` -> `kit/player`
+as `PlayerEndCard`).
+
+Cases: player (playing, paused, buffering, scrubbing, missing), Skip recap, Skipped + Undo, options / subtitles /
+audio / quality / speed, Episodes (the Episodes button open, "Paused at"), Up next, Up next with Skip credits and the
+scene after the credits, Up next counting down, Still watching? (native), the end of a film (web), live TV at the
+live edge with live data (native), live controls, the short guide (web); audio music, Lyrics (none), choose lyrics
+(web), Save as playlist (web), the queue sheet (phone), missing, audiobook, loading.
+
+Still in the screens, with why: the docked mini player and dock bar, picture in picture and casting are kit `dock`
+parts with their own gallery family (`dock`), drawn from the shell's dock host; a native film end card is
+`screens/watch/PostPlayScreen.tsx`, which loads its own data (Stage 2 splits the drawing from the read); the live
+mini guide on native (`HandheldMiniGuide`, `TVMiniGuide`) and Playback info (`PlaybackInfoPanel`, web `kit/media
+PlaybackInfo`) read the live guide and the runtime directly. The web's Live TV chrome is the kit `PlayerLive`, its
+own chrome rather than this frame.

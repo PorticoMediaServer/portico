@@ -51,7 +51,7 @@ async function fixture(input: {compact?: boolean; bar?: boolean; tabletop?: 'col
     '../../kit/useMotion': {useMotion: () => ({reduce: true, timing: () => ({}), duration: () => 0}), useReducedMotion: () => true},
     '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined, usePublishedPlayerMorph: () => undefined},
     './TVControlLabel': {TVControlLabel: 'TVControlLabel'}, './landing-store': landingStoreModule, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'}, './controls': {}, './WatchTimeline': {NativeWatchTimeline: 'Timeline'},
-    './useSkipPromptMotion': {useSkipPromptMotion: (value: unknown) => ({value, interactive: !!value, bodyStyle: {}, positionStyle: {}})}, './UpNextCard': {NativeUpNextCard: 'UpNextCard'}, './StillWatchingCard': {NativeStillWatchingCard: 'StillWatchingCard'}, '../../kit/artwork': {Artwork: 'Artwork'},
+    './useSkipPromptMotion': {useSkipPromptMotion: (value: unknown) => ({value, interactive: !!value, bodyStyle: {}, positionStyle: {}})}, './UpNextCard': {NativeUpNextCard: 'UpNextCard'}, '../../kit/player/StillWatchingCard': {NativeStillWatchingCard: 'StillWatchingCard'}, '../../kit/artwork': {Artwork: 'Artwork'},
     './live-guide': {emptyLiveGuide: () => ({}), noLiveGuideSubscription: noopSubscription}, './live-actions': {emptyLiveActions: () => ({}), noLiveActionsSubscription: noopSubscription},
     '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})}, '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: String},
     './TVMiniGuide': {NativeMiniGuide: 'MiniGuide'}, './TVLiveActions': {TVLiveActions: 'LiveActions'},
@@ -186,10 +186,10 @@ test('the existing next card renders end actions without a credits action or an 
 
 test('the still-watching check names the next episode and offers only its three actions', async () => {
   const h = hooks(), calls: string[] = [];
-  const {NativeStillWatchingCard} = await screenModule(new URL('../src-next/screens/watch/StillWatchingCard.tsx', import.meta.url), {
+  const {NativeStillWatchingCard} = await screenModule(new URL('../src-next/kit/player/StillWatchingCard.tsx', import.meta.url), {
     react: h.react, 'react-native': {View: 'View', Text: 'Text', StyleSheet: {absoluteFill: {position: 'absolute', inset: 0}}},
-    '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../kit/controls': {Button: 'Button'}, '../../platform/native-blur': {BlurView: 'BlurView'},
-    '../../kit/theme': {useTheme: () => theme, nativeType: (value: any) => ({fontFamily: 'Manrope', fontSize: value.size})},
+    '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../controls': {Button: 'Button'}, '../../platform/native-blur': {BlurView: 'BlurView'},
+    '../theme': {useTheme: () => theme, nativeType: (value: any) => ({fontFamily: 'Manrope', fontSize: value.size})},
   });
   const tree = nodes(h.render(() => NativeStillWatchingCard({item: {entryId: 'next', title: 'Bad Tradecraft', episode: {seasonNumber: 1, number: 3}},
     onConfirm: () => calls.push('confirm'), onReplay: () => calls.push('replay'), onClose: () => calls.push('close')})));

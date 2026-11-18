@@ -1,5 +1,6 @@
 import React, {Children, type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
 import {Button} from '../controls/Button';
 import {Focusable} from '../controls/Focusable';
@@ -17,8 +18,8 @@ type PanelAction = Readonly<{label: string; onPress: () => void}>;
  * (phone-player 3, tv-player 4). The panel fills the box it is given, so its top never moves with what it holds.
  * `back` is for a list opened from Playback options; its title is then that list's name. A TV closes with the
  * remote's Back, so it draws no close button. */
-export function PlayerPanel({title, note, back, close, footer, children, testID}: {title: string; /** Under the title: what a change here lasts for. */ note?: string; back?: PanelAction; close: PanelAction; /** Pinned under the list (the Episodes note). */ footer?: string; children: ReactNode; testID?: string}) {
-  const theme = useTheme(), {form} = useFrameMetrics(), upright = usePlayerUpright(), tv = form === 'tv', pad = spec.padding[form], sheet = upright;
+export function PlayerPanel({title, note, back, close, footer, children, testID}: {title: string; /** Under the title: what a change here lasts for. */ note?: string; back?: PanelAction; close: PanelAction; /** Pinned under the list (the Episodes note; TV's Back hint, R11). */ footer?: ReactNode; children: ReactNode; testID?: string}) {
+  const theme = useTheme(), {form} = useFrameMetrics(), upright = usePlayerUpright(), insets = useSafeAreaInsets(), tv = form === 'tv', pad = spec.padding[form], sheet = upright;
   return <View testID={testID} accessibilityViewIsModal style={[{flex: 1, backgroundColor: theme.colors.raised}, sheet && {borderTopLeftRadius: frameSpec.sheet.fullRadius, borderTopRightRadius: frameSpec.sheet.fullRadius}]}>
     {sheet && <View style={{alignSelf: 'center', marginTop: spec.grab.top, width: spec.grab.width, height: spec.grab.height, borderRadius: spec.grab.height / 2, backgroundColor: alpha(theme.colors.text, frameSpec.player.tint.buffered)}}/>}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, paddingHorizontal: pad, paddingTop: sheet ? theme.space.xs : pad, minHeight: theme.targets.touch + (sheet ? theme.space.xs : pad)}}>
@@ -31,22 +32,34 @@ export function PlayerPanel({title, note, back, close, footer, children, testID}
       <Icon name="i-clock" size={frameSpec.player.pillIcon} color={theme.colors.accentStrong}/><Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textSecondary}]}>{note}</Text>
     </View>}
     <ScrollView style={{flex: 1}} contentContainerStyle={{paddingHorizontal: pad, paddingTop: theme.space.sm, paddingBottom: pad, gap: theme.space.sm}}>{children}</ScrollView>
-    {footer !== undefined && <View style={{flexDirection: 'row', gap: theme.space.xs, padding: pad, borderTopWidth: theme.space.hairline, borderTopColor: theme.colors.line}}>
-      <Icon name="i-info" size={frameSpec.player.pillIcon} color={theme.colors.accentStrong}/><Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textSecondary}]}>{footer}</Text>
+    {/* The footer clears the home indicator and Android's navigation bar. */}
+    {footer !== undefined && <View style={{flexDirection: 'row', gap: theme.space.xs, padding: pad, paddingBottom: Math.max(pad, sheet ? insets.bottom + theme.space.xs : 0), borderTopWidth: theme.space.hairline, borderTopColor: theme.colors.line}}>
+      {typeof footer === 'string' ? <><Icon name="i-info" size={frameSpec.player.pillIcon} color={theme.colors.accentStrong}/><Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textSecondary}]}>{footer}</Text></> : footer}
     </View>}
   </View>;
 }
 
-/** One list inside a panel: an optional label, its rows on one raised card with a hairline between them, and an
- * optional line under the card saying what is happening now ("Converting to 1080p for this connection."). */
-export function PlayerPanelGroup({label, note, children}: {label?: string; note?: string; children: ReactNode}) {
-  const theme = useTheme(), rows = Children.toArray(children);
+/** One list inside a panel: an optional label, its rows on one raised card with a hairline between them, and
+ * optional lines under the card saying what is happening now ("Home network, up to 1080p" / "Playing the original
+ * file"). With `heading` the list opens in place under its heading (owner ruling 4: TV, and a tablet's options,
+ * tablet-play 2b): the heading row names the list and its current value in the accent, and its rows follow while open. */
+export function PlayerPanelGroup({label, note, heading, children}: {label?: string; note?: string | readonly string[];
+  heading?: Readonly<{label: string; value?: string; open: boolean; onPress: () => void; testID: string}>; children: ReactNode}) {
+  const theme = useTheme(), {form} = useFrameMetrics(), rows = Children.toArray(children), notes = note === undefined ? [] : typeof note === 'string' ? [note] : note;
+  const head = heading && <Focusable testID={heading.testID} focusId={heading.testID} focusKind="row" accessibilityRole="button" accessibilityState={{expanded: heading.open}} accessibilityLabel={[heading.label, heading.value].filter(Boolean).join(', ')} onPress={heading.onPress}
+    style={({focused}) => ({minHeight: spec.row[form], paddingHorizontal: frameSpec.card.padding.phone, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap, backgroundColor: focused && theme.isTV ? alpha(theme.colors.text, frameSpec.player.tint.track) : 'transparent'})}>
+    <Text style={[theme.type.rowLabel, {flex: 1, color: theme.colors.text}]}>{heading.label}</Text>
+    {heading.value !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.accentStrong}]}>{heading.value}</Text>}
+    <Icon name={heading.open ? 'i-chup' : 'i-chdown'} size={frameSpec.player.pillIcon} color={theme.colors.textTertiary}/>
+  </Focusable>;
+  const list = heading ? heading.open ? rows : [] : rows;
   return <View style={{gap: theme.space.xs}}>
     {label !== undefined && <Text accessibilityRole="header" style={[theme.type.rowHelp, {color: theme.colors.textSecondary, fontFamily: theme.type.groupLabel.fontFamily}]}>{label}</Text>}
     <View style={{borderRadius: frameSpec.card.radius.phone, overflow: 'hidden', backgroundColor: theme.colors.raisedHigh}}>
-      {rows.map((row, index) => <View key={index} style={index > 0 && {borderTopWidth: theme.space.hairline, borderTopColor: theme.colors.line}}>{row}</View>)}
+      {head}
+      {list.map((row, index) => <View key={index} style={(index > 0 || head) && {borderTopWidth: theme.space.hairline, borderTopColor: theme.colors.line}}>{row}</View>)}
     </View>
-    {note !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{note}</Text>}
+    {(heading ? heading.open : true) && notes.map((line, index) => <Text key={index} style={[theme.type.rowHelp, {color: index === 0 ? theme.colors.textSecondary : theme.colors.textTertiary}]}>{line}</Text>)}
   </View>;
 }
 
@@ -54,21 +67,23 @@ export function PlayerPanelGroup({label, note, children}: {label?: string; note?
  * `icon` on a small tile, its current `value` (with `qualifier` before it, dimmer) and a chevron. A choice the title
  * cannot offer stays in its place, dimmed, with `unavailable`. `trailing` is for a row's own control (Add, a switch). */
 export function PlayerPanelRow({label, detail, icon, value, qualifier, selected = false, unavailable, trailing, onPress, testID}: {label: string; detail?: string; icon?: IconName; value?: string; qualifier?: string; selected?: boolean; /** Why it cannot be chosen, said at the row's end. */ unavailable?: string; trailing?: ReactNode; onPress?: () => void; testID: string}) {
-  const theme = useTheme(), {form} = useFrameMetrics(), tile = spec.iconTile[form];
-  const end = [theme.type.rowHelp, {color: theme.colors.textSecondary}];
+  const theme = useTheme(), {form} = useFrameMetrics(), tile = spec.iconTile[form], tv = form === 'tv';
+  // A value is near-white at the row's size (phone-player 3); on TV the current choice's tick comes before its label (tv-player 4).
+  const end = [theme.type.rowLabel, {color: theme.colors.textSecondary}];
   return <Focusable testID={testID} focusId={testID} focusKind="row" accessibilityRole="button" accessibilityLabel={[label, detail, qualifier, value, unavailable].filter(Boolean).join(', ')} accessibilityState={{selected, disabled: unavailable !== undefined}}
     disabled={unavailable !== undefined || !onPress} onPress={onPress}
     style={({focused}) => ({minHeight: spec.row[form], paddingVertical: theme.space.xs, paddingHorizontal: frameSpec.card.padding.phone, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap,
       backgroundColor: focused && theme.isTV ? alpha(theme.colors.text, frameSpec.player.tint.track) : 'transparent', opacity: unavailable !== undefined ? theme.spec.button.disabledOpacity : 1})}>
+    {tv && value === undefined && <View style={{width: frameSpec.player.promptIcon}}>{selected && <Icon name="i-check" size={frameSpec.player.promptIcon} color={theme.colors.accentStrong}/>}</View>}
     {icon && <View style={{width: tile, height: tile, borderRadius: theme.baseRadii.control, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.raisedSoft}}><Icon name={icon} size={tile * frameSpec.stateRow.iconShare} color={theme.colors.textSecondary}/></View>}
     <View style={{flex: 1, minWidth: 0}}>
       <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{label}</Text>
       {detail !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{detail}</Text>}
     </View>
     {trailing}
-    {unavailable !== undefined ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{unavailable}</Text>
+    {unavailable !== undefined ? <Text style={[theme.type.rowLabel, {color: theme.colors.textTertiary}]}>{unavailable}</Text>
       : value !== undefined ? <><Text style={end}>{qualifier !== undefined && <Text style={{color: theme.colors.text}}>{qualifier}  </Text>}{value}</Text><Icon name="i-right" size={frameSpec.player.pillIcon} color={theme.colors.textTertiary}/></>
-      : selected && <Icon name="i-check" size={frameSpec.player.promptIcon} color={theme.colors.accentStrong}/>}
+      : selected && !tv && <Icon name="i-check" size={frameSpec.player.promptIcon} color={theme.colors.accentStrong}/>}
   </Focusable>;
 }
 

@@ -33,9 +33,10 @@ export function useFrameMetrics(): FrameMetrics {
     bottomClear: rhythm.bottomClear[form], rowTwoLine: rhythm.rowTwoLine[form]};
 }
 
-/** The video player's upright form: a window too narrow for its height to give the picture the whole of it (a phone, a
- * tablet in portrait, an open foldable). The picture is then a 16:9 strip with the watch page under it. */
+/** R8: the video player's upright form is a window taller than wide (a phone, a tablet in portrait). The picture is
+ * then a 16:9 strip with the watch page under it. An open foldable is wider than tall, so it gets the full-window
+ * player (foldable 3), as a tablet on its side does. */
 export function usePlayerUpright(): boolean {
   const theme = useTheme(), window = useWindowDimensions();
-  return !theme.isTV && window.width / window.height < frameSpec.player.portrait.maxAspect;
+  return !theme.isTV && window.width / window.height < frameSpec.player.upright.maxAspect;
 }

@@ -4,6 +4,8 @@ export {CastPlayer, CastTracks, CastTakeover} from './CastPlayer';
 export {CastPlayback} from './CastPlayback';
 export type {CastPlayerProps, CastPlayerTranslate, CastPlayerVisuals, PlayOnPanelProps} from './types';
 export {PlayerTitle, PlayerControl, PlayerTimes, PlayerVolume, PlayerPill, PlayerScrubPreview, PlayerPrompt, type PlayerControlProps} from './parts';
+export {AudioPanel, QueueGroup, QueueRow, AudioChoiceRow} from './Queue';
+export {PlayerEndCard, type PlayerEndCardModel} from './EndCard';
 export {PlayerOptions} from './PlayerOptions';
 export {PlayerEpisodes} from './PlayerEpisodes';
 export {PlayerUpNext, type PlayerUpNextAction, type PlayerUpNextProps} from './PlayerUpNext';

@@ -28,15 +28,12 @@ player has three forms: shoot `player*` at 1440 by 900, 390 by 844 and 844 by 39
 | `settings-page` | A settings page with an in-section error, kept data marked old, loading and empty |
 | `sheet` | A sheet (a dialog from 600 wide) |
 | `sign-in` | Sign-in with an error above the field |
-| `player`, `-paused`, `-buffering`, `-scrubbing`, `-live`, `-missing` | The video player with the kit's player parts, in each state; nothing moves between them |
-| `player-landscape` | The video player on a phone on its side (844 by 390) |
-| `audio` | Audio player: music with artwork and a short title |
-| `audio-missing` | Audio player: no artwork, a long title, unsupported controls dimmed, nothing next |
-| `audio-book` | Audio player: an audiobook |
-| `audio-loading` | Audio player: loading |
+| (family `frames-player`) `player`, `-paused`, `-buffering`, `-scrubbing`, `-missing`, `-skip`, `-undo` | The video player with the kit's player parts, in each state; nothing moves between them. Shoot at 1440 by 900, 390 by 844 and 844 by 390 |
+| (family `frames-player`) `player-options`, `-subtitles`, `-audio`, `-quality`, `-speed`, `-episodes`, `-up-next`, `-up-next-credits`, `-up-next-countdown`, `-end-card`, `-live-controls`, `-live-guide` | The player's panels, cards and live chrome |
+| (family `frames-player`) `audio`, `-lyrics`, `-lyrics-choose`, `-save`, `-queue`, `-missing`, `-book`, `-loading` | The audio player with its queue panel, Lyrics, Save as playlist, an audiobook, no artwork, loading |
 | `state` | The whole-page state |
 | `elements` | Type roles, row kinds, in-section states, artwork boxes with and without a picture, cards (1800 tall) |
-| `regions-browse`, `-title`, `-settings`, `-sheet`, `-sign-in`, `-player`, `-audio`, `-state` | Each frame empty: what the frame owns drawn by the frame, what the screen supplies as outlined boxes (blue), the one flexible region in amber |
+| `regions-browse`, `-title`, `-settings`, `-sheet`, `-sign-in`, `-state` | Each frame empty: what the frame owns drawn by the frame, what the screen supplies as outlined boxes (blue), the one flexible region in amber |
 
 The native Kit page has the same sections as `frames-<case>`. Buttons, fields, switches, chips and cards in every
 state are in the existing families (`controls`, `cards`, `states`, `overlays`).

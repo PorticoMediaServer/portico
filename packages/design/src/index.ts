@@ -294,6 +294,8 @@ export { componentSpec, focus as focusSpec, button as buttonSpec, transport as t
 export type { ComponentSpec, Fill, ButtonVariant, ButtonSize, ButtonState, RowVariant, OverlayKind, ScrimStop } from './components.ts';
 export {tvAccount as tvAccountSpec} from './components.ts';
 export {frame as frameSpec, frameForm} from './frames.ts';
+export {frameRegions} from './frame-regions.ts';
+export type {FrameRegion, FrameRegions, RegionForm} from './frame-regions.ts';
 export type {FrameSpec, FrameForm} from './frames.ts';
 
 /** Named surface roles, including the exact 6/10/12/14/16 px kit radii. */
