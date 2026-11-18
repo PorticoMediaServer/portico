@@ -2,8 +2,8 @@ sub init()
     m.top.functionName = "listen"
 end sub
 
-' One question to the mDNS group (224.0.0.251, port 5353), then every answer that arrives until the
-' time is up; a server also announces itself every 30 seconds, which is caught the same way.
+' The question to the mDNS group (224.0.0.251, port 5353) at 0, 1 and 3 seconds, and every answer that
+' arrives for 10 seconds; each new server is passed on at once, so a row appears as soon as it answers.
 sub listen()
     port = createObject("roMessagePort")
     socket = createObject("roDatagramSocket")
@@ -19,13 +19,17 @@ sub listen()
     socket.setSendToAddress(group)
     socket.notifyReadable(true)
     question = mdnsQuery()
-    socket.send(question, 0, question.count())
+    asks = [0, 1000, 3000]
     found = []
     seen = {}
     clock = createObject("roTimespan")
     buffer = createObject("roByteArray")
     buffer[1499] = 0      ' room for one packet
-    while clock.totalMilliseconds() < 3500
+    while clock.totalMilliseconds() < 10000
+        if asks.count() > 0 and clock.totalMilliseconds() >= asks[0]
+            socket.send(question, 0, question.count())
+            asks.shift()
+        end if
         msg = wait(250, port)
         if type(msg) = "roSocketEvent" and socket.isReadable()
             n = socket.receive(buffer, 0, 1500)
@@ -34,9 +38,10 @@ sub listen()
             if server <> invalid and seen[server.id] = invalid
                 seen[server.id] = true
                 found.push(server)
+                m.top.found = found
             end if
         end if
     end while
     socket.close()
-    m.top.found = found
+    m.top.done = true
 end sub

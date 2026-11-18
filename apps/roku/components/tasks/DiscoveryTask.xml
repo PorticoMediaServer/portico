@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Asks this network once for Portico servers (multicast DNS, source/Mdns.brs) and lists those that
-     answer within 3.5 seconds, as the native apps do. Set control to "run"; read `found`. -->
+<!-- One round of asking this network for Portico servers (multicast DNS, source/Mdns.brs): the question
+     three times (0, 1 and 3 seconds, as multicast DNS repeats itself on a busy network) and every answer
+     for 10 seconds, a server's own 30-second announcement included. Set control to "run". -->
 <component name="DiscoveryTask" extends="Task">
   <interface>
-    <!-- [{id, fp, ip, port}], one per server id, set once when the listening ends. -->
+    <!-- [{id, fp, ip, port}], one per server id, set again each time a new server answers. -->
     <field id="found" type="array"/>
+    <!-- Set when the round ends. -->
+    <field id="done" type="boolean" alwaysNotify="true"/>
   </interface>
   <script type="text/brightscript" uri="DiscoveryTask.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Mdns.brs"/>

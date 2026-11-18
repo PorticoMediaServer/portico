@@ -108,6 +108,26 @@ sub main()
     answer(pending, {ok: true, status: 200, data: {id: "srv_home", name: "Home"}})
     check("a found server's late answer after Back lists nothing", m.listed = invalid or m.listed.count() = 0)
 
+    ' Use a local server: the server last used is asked first, held to its id; an answer already being
+    ' asked about is not asked again; a server found stays listed when Back comes to the page again
+    fresh()
+    m.kept = {origin: "https://192.168.1.30:32500", serverId: "srv_last"}
+    showLocal()
+    check("the server last used is asked first", lastSent().origin = "https://192.168.1.30:32500" and lastSent().path = "/v1/system")
+    answer(lastSent(), {ok: true, status: 200, data: {id: "srv_last", name: "Last"}})
+    check("and is listed as last used", m.listed.count() = 1 and m.listed[0].name = "Last")
+    m.discovery = {isSameNode: function(other as object) as boolean : return true : end function}
+    found = {data: [{id: "srv_home", fp: "f", ip: "192.168.1.20", port: 32500}], getData: function() as object : return m.data : end function, getRoSGNode: function() as object : return {isSameNode: function(o as object) as boolean : return true : end function} : end function}
+    onFound(found)
+    asked = m.sent.count()
+    onFound(found)
+    check("a server already being asked is not asked again", m.sent.count() = asked)
+    answer(lastSent(), {ok: true, status: 200, data: {id: "srv_home", name: "Home"}})
+    go("door")
+    showLocal()
+    check("found servers stay listed when the page is shown again", m.listed.count() = 2)
+    m.kept = invalid
+
     ? "PASSED "; m.passed; " FAILED "; m.failed
 end sub
 
@@ -184,4 +204,10 @@ end sub
 
 function installationId() as string
     return "installation"
+end function
+
+' the store: nothing kept from an earlier sign-in, unless a check puts it there
+function storeRead(key as string) as string
+    if m.kept = invalid or m.kept[key] = invalid then return ""
+    return m.kept[key]
 end function

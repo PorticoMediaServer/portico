@@ -175,25 +175,59 @@ sub showLocal()
     m.doorNote.text = ""
     go("local")
     m.localNote.text = ""
-    m.nearby = []
     m.nearbyAt = -1
-    m.nearbyRows.removeChildrenIndex(m.nearbyRows.getChildCount(), 0)
-    m.top.findNode("nearbyLabel").text = "Looking on this network…"
+    ' servers found earlier stay listed while this page is open (Back to it asks again)
+    if m.nearby = invalid then m.nearby = []
+    kept = []
+    for each entry in m.nearby
+        if entry.origin <> "" then kept.push(entry)
+    end for
+    m.nearby = kept
+    drawNearby()
+    if m.nearby.count() = 0 then m.top.findNode("nearbyLabel").text = "Looking on this network…"
+    ' the server this TV last signed in to is asked first, held to the id it had then
+    lastOrigin = storeRead("origin")
+    lastId = storeRead("serverId")
+    if lastOrigin <> "" and lastId <> "" and nearbyIndex(lastId) < 0
+        m.nearby.push({id: lastId, ip: "", last: true, candidates: [lastOrigin], origin: ""})
+        checkNearby(m.nearby.count() - 1)
+    end if
+    discover()
+end sub
+
+' One round of asking the network (DiscoveryTask); another starts when a round ends with nothing listed.
+sub discover()
     m.discovery = createObject("roSGNode", "DiscoveryTask")
     m.discovery.observeField("found", "onFound")
+    m.discovery.observeField("done", "onDiscoveryDone")
     m.discovery.control = "run"
-    paintNearby()
 end sub
+
+sub onDiscoveryDone(event as object)
+    if m.stage <> "local" or not event.getRoSGNode().isSameNode(m.discovery) then return
+    if m.listed.count() = 0
+        m.top.findNode("nearbyLabel").text = "No Portico server has answered on this network yet. Still looking…"
+        discover()
+    end if
+end sub
+
+function nearbyIndex(id as string) as integer
+    for i = 0 to m.nearby.count() - 1
+        if m.nearby[i].id = id then return i
+    end for
+    return -1
+end function
 
 ' Each answer is only a hint: the server is asked at its own address, and listed under the name it
 ' gives there only when it names the same id.
 sub onFound(event as object)
     if m.stage <> "local" or not event.getRoSGNode().isSameNode(m.discovery) then return
-    found = event.getData()
-    if found.count() = 0 then m.top.findNode("nearbyLabel").text = "No Portico server answered on this network"
-    for each record in found
-        m.nearby.push({id: record.id, ip: record.ip, candidates: addressCandidates(record.ip + ":" + record.port.toStr()), origin: ""})
-        checkNearby(m.nearby.count() - 1)
+    ' each answer as it arrives; a server already listed (or being asked) is not asked again
+    for each record in event.getData()
+        if nearbyIndex(record.id) < 0
+            m.nearby.push({id: record.id, ip: record.ip, candidates: addressCandidates(record.ip + ":" + record.port.toStr()), origin: ""})
+            checkNearby(m.nearby.count() - 1)
+        end if
     end for
 end sub
 
@@ -226,6 +260,7 @@ sub drawNearby()
         if entry.origin <> "" and m.listed.count() < 4      ' four rows fit above Somewhere else
             row = m.nearbyRows.createChild("ListRow")
             help = entry.ip
+            if entry.last = true then help = "Last used on this TV"
             if entry.setupRequired then help = "Nobody has set it up yet"
             row.model = {label: entry.name, help: help, scope: "", value: "", control: "", switchOn: false, icon: "server", danger: false}
             row.translation = [0, y]
