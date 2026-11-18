@@ -342,7 +342,7 @@
 .quickCover { position:relative; display:block; flex:none; width:var(--frame-quick-tile); height:var(--frame-quick-tile); }
 .quickCopy { display:block; flex:1; min-width:0; padding-right:58px; }
 .quickTitle { display:block; font-size:15px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.quickSubtitle { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--color-text-tertiary); margin-top:3px; white-space:nowrap; }
+.quickSubtitle { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--color-text-tertiary); margin-top:3px; white-space:nowrap; overflow:hidden; }
 .quick .play { right:16px; top:calc((var(--frame-quick-tile) - 36px) / 2); bottom:auto; width:36px; height:36px; transform:scale(.9); }
 .quick .more { top:4px; right:4px; }
 .playing { background:rgba(237,245,250,.12); }
