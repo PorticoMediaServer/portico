@@ -39,7 +39,7 @@ export function SplitFrame({children, pane, testID}: SplitFrameProps) {
     {children}
     {/* phone-guide g3: the sheet's own header is the pane's (eyebrow, title, subtitle); its body scrolls and its foot stays. */}
     {pane && <BottomSheet open onOpenChange={open => {if (!open) pane.close.onPress();}} title={pane.title} accessibilityLabel={pane.title} showClose={false}
-      headerContent={<View style={{paddingHorizontal: frame.gutter, paddingBottom: theme.space.sm}}><PaneHeader pane={pane} sheet/></View>} footer={pane.footer}>
+      headerContent={<View style={{paddingHorizontal: frame.gutter, paddingBottom: theme.space.sm}}><PaneHeader pane={pane} sheet/></View>} footer={pane.footer && <PaneFoot>{pane.footer}</PaneFoot>}>
       <View style={{paddingHorizontal: frame.gutter, gap: frame.headingGap}}>{pane.children}</View>
     </BottomSheet>}
   </View>;
@@ -63,12 +63,19 @@ function PaneHeader({pane, sheet = false}: {pane: FramePane; sheet?: boolean}) {
   </View>;
 }
 
+/** The pane's foot: its buttons in one row at their own width; when they do not fit, they wrap to a second line, never
+ * squeezing a label (owner, 18 Nov: a button label never shrinks or cuts). */
+function PaneFoot({children}: {children: ReactNode}) {
+  const theme = useTheme();
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.space.sm}}>{children}</View>;
+}
+
 /** From tablet width: a raised column on the right edge, its header, its scrolling body and its foot. */
 function PaneColumn({pane}: {pane: FramePane}) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), padding = frame.cardPadding;
   return <View style={{width: frameSpec.pane.width[frame.form], backgroundColor: theme.colors.raised, paddingTop: Math.max(insets.top, frame.headerGap)}}>
     <View style={{paddingHorizontal: padding, paddingTop: padding}}><PaneHeader pane={pane}/></View>
     <ScrollView style={{flex: 1}} contentContainerStyle={{padding, gap: frame.headingGap, paddingBottom: pane.footer ? padding : Math.max(insets.bottom, frameSpec.sheet.footerClear)}}>{pane.children}</ScrollView>
-    {pane.footer && <View style={{flexDirection: 'row', gap: theme.space.sm, paddingHorizontal: padding, paddingTop: theme.space.sm, paddingBottom: Math.max(insets.bottom, padding)}}>{pane.footer}</View>}
+    {pane.footer && <View style={{paddingHorizontal: padding, paddingTop: theme.space.sm, paddingBottom: Math.max(insets.bottom, padding)}}><PaneFoot>{pane.footer}</PaneFoot></View>}
   </View>;
 }

@@ -58,12 +58,15 @@ function Keyboard({value}: {value: string}) {
 }
 const genres = [['genreAnimation', 'titles14', 'p-spirited'], ['genreSciFi', 'titles16', 'pool/movies/interstellar--bd'], ['genreDrama', 'titles31', 'p-shawshank'], ['genreCrime', 'titles9', 'p-godfather'],
   ['genreComedy', 'titles12', 'bd-rick'], ['genreAdventure', 'titles18', 'bd-lotr']] as const;
+/** phone-app 7: a touch tile fans two posters at its right; TV draws the backdrop. */
+const fans = ['spirited-away', 'inside-out', 'interstellar', 'dune', 'blade-runner', 'alien', 'the-dark-knight', 'barbie'];
+const fan = (index: number) => [poster(fans[index % fans.length]!), poster(fans[(index + 3) % fans.length]!)];
 function GenreTiles({count = 6}: {count?: number}) {
   const {theme, frame, tv, phone} = useScale(), columns = phone ? 2 : tv ? 3 : 4, gap = theme.space.sm;
   const width = (frame.width - frame.gutter - frame.rightGutter - gap * (columns - 1)) / columns;
   return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
-    {genres.slice(0, count).map(([name, titles, art]) => <GenreTile key={name} title={f(name)} caption={[fact('count', f(titles), 'supplement')]} variant="video" width={width} height={phone ? 84 : width * .42}
-      backdrop={asset(`${art}.jpg`)} covers={[]} onNavigate={none}/>)}
+    {genres.slice(0, count).map(([name, titles, art], index) => <GenreTile key={name} title={f(name)} caption={[fact('count', f(titles), 'supplement')]} variant="video" width={width} height={phone ? 84 : width * .42}
+      backdrop={asset(`${art}.jpg`)} covers={fan(index)} onNavigate={none}/>)}
   </View>;
 }
 const channels = {
@@ -320,7 +323,7 @@ function Saved() {
   return <Page destination={{kind: 'saved'}}><BrowseFrame testID="frames-saved" header={{title: f('saved')}}>
     <PosterRow title={f('myList')} subtitle={f('titles12')}/>
     <Row title={f('downloads')} subtitle={f('onThisPhone')} items={downloads} getKey={item => item[0]} itemWidth={width} itemHeight={width * 9 / 16} selection={selection} onSeeAll={none}
-      renderItem={([id, title, line, progress], context) => <WideCard {...card(context)} title={f(title)} artwork={asset(`pool/${id === 'slow-horses' ? 'tv' : 'movies'}/${id}--bd.jpg`)} progress={progress} caption={[fact('line', f(line))]} width={width} onNavigate={none}/>}/>
+      renderItem={([id, title, line, progress], context) => <WideCard {...card(context)} title={f(title)} artwork={asset(`pool/${id === 'slow-horses' ? 'tv' : 'movies'}/${id}--bd.jpg`)} progress={progress} caption={[fact('line', f(line), 'identity')]} width={width} onNavigate={none}/>}/>
     <SectionCard>
       <SettingsRow first icon="i-heart" label={f('favorites')} value={f('count24')} navigates onPress={none}/>
       <SettingsRow icon="i-queue" label={f('playlists')} value={f('count3')} navigates onPress={none}/>
@@ -388,8 +391,8 @@ function AlbumRow() {
     renderItem={([id, name, by], context) => <SquareCard {...card(context)} title={f(name)} artwork={album(id)} caption={[fact('by', f(by), 'identity')]} width={width} onNavigate={none}/>}/>;
 }
 function ArtistRow() {
-  const {theme} = useScale(), width = theme.isTV ? theme.spec.card.width.artist.tv : 104;
-  return <Row title={f('artists')} items={albums.slice(0, 8)} getKey={item => item[2]} itemWidth={width} itemHeight={width} selection={selection} onSeeAll={none}
+  const {theme} = useScale(), width = theme.isTV ? theme.spec.card.width.artist.tv : 104, caption = cardCaptionHeight(theme, 2);
+  return <Row title={f('artists')} items={albums.slice(0, 8)} getKey={item => item[2]} itemWidth={width} itemHeight={width + caption} captionHeight={caption} selection={selection} onSeeAll={none}
     renderItem={([id, , by], context) => <CircleCard {...card(context)} title={f(by)} art={{covers: [album(id)]}} caption={[fact('albums', f('oneAlbum'))]} width={width} onNavigate={none}/>}/>;
 }
 const songs = [['sHardest', 'd331', 'after-hours', 'rWeeknd'], ['sAlone', 'd410', 'after-hours', 'rWeeknd'], ['sTooLate', 'd359', 'after-hours', 'rWeeknd'], ['sDreams', 'd414', 'rumours', 'rFleetwood']] as const;
@@ -424,7 +427,7 @@ function Audiobooks() {
         detail={[fact('chapter', f(chapter)), fact('remaining', f(left))]} width={resume} onNavigate={none}/>}/>}
     <Row title={f('recentlyAdded')} subtitle={f('books8')} items={added} getKey={item => item[0]} itemWidth={width} itemHeight={width + caption} captionHeight={caption} selection={selection} onSeeAll={none}
       renderItem={([id, name, by], context) => <SquareCard {...card(context)} title={f(name)} artwork={book(id)} caption={[fact('by', f(by), 'identity')]} width={width} onNavigate={none}/>}/>
-    <Row title={f('authors')} items={authors} getKey={item => item[0]} itemWidth={person} itemHeight={person} selection={selection} onSeeAll={none}
+    <Row title={f('authors')} items={authors} getKey={item => item[0]} itemWidth={person} itemHeight={person + caption} captionHeight={caption} selection={selection} onSeeAll={none}
       renderItem={([initials, name, books], context) => <CircleCard {...card(context)} person title={f(name)} art={{initials: f(initials), covers: []}} caption={[fact('books', f(books))]} width={person} onNavigate={none}/>}/>
   </BrowseFrame></Page>;
 }
