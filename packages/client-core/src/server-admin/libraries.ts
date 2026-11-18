@@ -1,6 +1,4 @@
-import {expectedRemoteSource} from '../remote-source-selection.ts';
-import {durationIntent} from '../wire-units.ts';
-import {encodedRoutePath,routePath} from '../../../contracts/src/route-paths.ts';
+import {routePath} from '../../../contracts/src/route-paths.ts';
 import type {LibraryAdminDocument,LibrarySettings} from '../administration.ts';
 import {serverPath} from '../query/server-api.ts';
 import {ownerLibrary, libraryDocument, libraryFolders, libraryAudience} from './library-document.ts';
@@ -8,10 +6,10 @@ import {callServer} from '../query/server-api.ts';
 import type {Member} from '../../../contracts/src/next/api.ts';
 import {CodedError, unreadableServerResponse} from '../server-messages.ts';
 import type {AdminLibrary, LibraryEdit} from '../../../contracts/src/next/api.ts';
-import {parseInventorySource,type InventorySource,type SourceSettings} from '../library-inventory.ts';
+import type {InventorySource,SourceSettings} from '../library-inventory.ts';
 import type {LibraryContentApi} from '../library-content.ts';
-export {listMissingTitles,emptyMissingTitles,removeLibrary} from '../title-identity.ts';
-export {readLibraryInventoryConfig,readOwnerLibraryInventoryConfig} from '../library-inventory.ts';
+export {removeLibrary} from '../title-identity.ts';
+export {readOwnerLibraryInventoryConfig} from '../library-inventory.ts';
 export {LibraryManagementService,browseServerFilesystem} from '../library-management.ts';
 export {setLibraryAnalysis,setLibraryScanDepth,libraryScanDepth,setLibrarySeekPreviews,setLibraryPreviewHours} from './library-policy.ts';
 
@@ -111,18 +109,4 @@ export async function checkLibraryFolder(api:LibraryContentApi,libraryId:string,
  const member=library.folders.find(f=>f.id===folder);if(!member)throw new Error('Library folder identity changed.');
  const path=member.source?serverPath('GET /v1/admin/remote-sources/{id}/folders',{id:member.source}):serverPath('GET /v1/admin/filesystem');
  await api.request(path+'?'+new URLSearchParams({path:member.path}),'GET',undefined,signal);
-}
-
-/** expectedRevision is inventory-config.revision, never settings.revision. */
-export async function saveLibraryFolder(api:LibraryContentApi,libraryId:string,sourceId:string|undefined,input:SourceSettings,signal?:AbortSignal):Promise<InventorySource>{
- if(!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<1||input.intervalSeconds===undefined||!Number.isSafeInteger(input.intervalSeconds)||input.intervalSeconds<0)throw new Error('Invalid folder revision or interval.');
- if(input.scanAfter!==undefined&&typeof input.scanAfter!=='boolean')throw new Error('Invalid folder scan choice.');
- const path=sourceId?encodedRoutePath('patch_admin_libraries_id_sources_source',{id:libraryID(libraryId),source:libraryID(sourceId)}):encodedRoutePath('post_admin_libraries_id_sources',{id:libraryID(libraryId)});
- const source=parseInventorySource(await api.request<unknown>(path,sourceId?'PATCH':'POST',durationIntent({...input,...(input.expectedRemoteSource!==undefined?{expectedRemoteSource:expectedRemoteSource(input.expectedRemoteSource)}:{})},{intervalSeconds:'intervalMs'}),signal),libraryId);
- if(sourceId&&source.id!==sourceId)throw new Error('Library folder identity changed.');
- return source;
-}
-export async function removeLibraryFolder(api:LibraryContentApi,libraryId:string,sourceId:string,expectedRevision:number,signal?:AbortSignal):Promise<void>{
- if(!Number.isSafeInteger(expectedRevision)||expectedRevision<1)throw new Error('Invalid folder revision.');
- await api.request(encodedRoutePath('delete_admin_libraries_id_sources_source',{id:libraryID(libraryId),source:libraryID(sourceId)}),'DELETE',{expectedRevision},signal);
 }

@@ -1,26 +1,19 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {LibraryManagementService, LibraryInventoryService} from '../src/library-management.ts';
+import {LibraryManagementService} from '../src/library-management.ts';
 import {FreshnessHub} from '../src/freshness-hub.ts';
 import {createViewerQueries, type ViewerQueries} from '../src/query/viewer-queries.ts';
 import {queryKeys} from '../src/query/keys.ts';
 
-// Client data step 6: an owner's documents about a library (its management view and its inventory's
-// first page) are read through the viewer's cache, and the client no longer compares viewer fences
-// across reads. The #308 cases (a library administrator's list and library reads carry different
-// fences) stay in library-management.test.ts and library-inventory.test.ts.
 const scope = {serverId: 'server', viewerId: 'owner'};
 const fence = (value: string) => ({serverId: 'server', viewerFence: value});
 // The rebuilt server's library (`AdminLibrary`): the management service maps it to the page's shape.
 const library = (id = 'one', name = 'Named library', revision = 1): any => ({id, name, kind: 'movies', revision: String(revision), folders: [{path: '/owner/source/' + id, available: true, watched: true, scanEveryMinutes: 0}], options: {depth: 'basic', trash: {mode: 'days', days: 30}, allowDelete: false, rescanMinutes: 0}, scanning: false});
 const job = (id = 'job-one', libraryId = 'one'): any => ({id, libraryId, status: 'running', processed: 12, createdAt: '2026-09-05T00:00:00Z', updatedAt: null, finishedAt: null, actions: ['cancel']});
-const config = (viewerFence = 'plain', revision = 1): any => ({scope: fence(viewerFence), libraryId: 'one', revision, sources: [], policy: {tier: 'file_list_only', revision: 1, operations: []}});
-const objects = (viewerFence = 'list', revision = 1, nextCursor = '', sourceId = ''): any => ({scope: fence(viewerFence), libraryId: 'one', sourceId, revision, items: [], nextCursor});
-
 type Handler = (path: string, method: string, body: unknown) => unknown;
 function server(handler: Handler = () => undefined) {
   const reads: string[] = [], writes: string[] = [];
-  const state = {fence: 'plain', listFence: 'list', name: 'Named library', revision: 1, inventoryRevision: 1, nextCursor: 'c2'};
+  const state = {listFence: 'list', name: 'Named library', revision: 1};
   const api = {request: async <T,>(path: string, method = 'GET', body?: unknown): Promise<T> => {
     const custom = handler(path, method, body);
     if (custom !== undefined) return custom as T;
@@ -29,11 +22,9 @@ function server(handler: Handler = () => undefined) {
     reads.push(u.pathname + u.search);
     if (u.pathname === '/v1/admin/libraries') return {items: [library()]} as T;
     if (u.pathname === '/v1/admin/jobs') return {scope: fence(state.listFence), revision: 1, items: [job('job-one', u.searchParams.get('libraryId') ?? 'one')], nextCursor: ''} as T;
-    if (u.pathname.endsWith('/inventory-config')) return config(state.fence, state.inventoryRevision) as T;
-    if (u.pathname.endsWith('/inventory')) return objects(state.listFence, state.inventoryRevision, u.searchParams.get('cursor') ? '' : state.nextCursor, u.searchParams.get('sourceId') ?? '') as T;
     return library(decodeURIComponent(u.pathname.split('/').at(-1)!), state.name, state.revision) as T;
   }};
-  return {api, reads, writes, state};
+  return {api, reads, writes};
 }
 const made: ViewerQueries[] = [];
 test.afterEach(() => { for (const q of made.splice(0)) q.dispose(); });
@@ -44,14 +35,9 @@ function cache(api: ReturnType<typeof server>['api']) {
   return {hub, queries};
 }
 const management = (api: ReturnType<typeof server>['api'], queries?: ViewerQueries) => new LibraryManagementService({scope, api, queries});
-const inventory = (api: ReturnType<typeof server>['api'], queries?: ViewerQueries, libraryId = 'one') => new LibraryInventoryService({scope, api, libraryId, queries});
 const tick = () => new Promise(resolve => setTimeout(resolve, 5));
 const libraryReads = (reads: string[]) => reads.filter(p => p === '/v1/admin/libraries/one').length;
-const inventoryReads = (reads: string[]) => reads.filter(p => p.startsWith('/v1/admin/libraries/one/inventory?')).length;
-const configReads = (reads: string[]) => reads.filter(p => p === '/v1/admin/libraries/one/inventory-config').length;
 const scanned = (libraryId: string, revision: number) => ({id: 'e' + revision, type: 'library.scan.updated', revision: String(revision), resource: {kind: 'library', id: libraryId}, data: {state: 'progress', found: revision}});
-
-// ── No client fence comparison ─────────────────────────────────────────────
 
 test('management: a refused owner ends the view', async () => {
   let denied = false;
@@ -65,37 +51,6 @@ test('management: a refused owner ends the view', async () => {
   assert.equal(owner.getSnapshot().directory.data, null);
   assert.equal(owner.getSnapshot().selected.data, null);
   assert.equal(queries.client.getQueryData(queryKeys.adminLibraryManagement('one')), undefined, 'the refused owner\'s documents leave the viewer\'s cache');
-  owner.dispose();
-});
-
-test('inventory: a viewer fence that moved between reads answers and retires nothing', async () => {
-  const s = server(), service = inventory(s.api);
-  await service.refresh();
-  s.state.fence = 'plain-2'; s.state.listFence = 'list-2';
-  await service.refresh();
-  assert.equal(service.getSnapshot().error, null);
-  assert.equal(service.getSnapshot().config?.scope.viewerFence, 'plain-2');
-  assert.equal(service.getSnapshot().objects?.scope.viewerFence, 'list-2');
-  service.dispose();
-});
-
-test('inventory: another server\'s answer or a refused owner still ends the view', async () => {
-  const other = server((path) => { if (new URL(path, 'https://x').pathname.endsWith('/inventory')) return {...objects(), scope: {serverId: 'another-server', viewerFence: 'f'}}; return undefined; });
-  const service = inventory(other.api);
-  await service.refresh();
-  assert.ok(service.getSnapshot().error); assert.equal(service.getSnapshot().objects, null);
-  service.dispose();
-
-  let denied = false;
-  const s = server((path) => { if (denied) throw Object.assign(new Error('Denied'), {code: 'forbidden'}); return undefined; });
-  const {queries} = cache(s.api);
-  const owner = inventory(s.api, queries);
-  await owner.refresh();
-  assert.ok(queries.client.getQueryData(queryKeys.adminLibraryInventory('one', '', '')));
-  denied = true;
-  await owner.refresh();
-  assert.equal(owner.getSnapshot().config, null); assert.equal(owner.getSnapshot().objects, null);
-  assert.equal(queries.client.getQueryData(queryKeys.adminLibraryInventory('one', '', '')), undefined);
   owner.dispose();
 });
 
@@ -147,28 +102,6 @@ test('management: a rename here reads every cached view of the library again, an
   page.dispose(); other.dispose();
 });
 
-test('a command on a library\'s inventory reads its cached management view again, and a rename reads its cached inventory again', async () => {
-  const s = server(), {queries} = cache(s.api);
-  const m = management(s.api, queries), i = inventory(s.api, queries);
-  await m.selectLibrary('one'); await i.loadObjects();
-  const library = libraryReads(s.reads), pages = inventoryReads(s.reads);
-  // A command made through the inventory: the management view of the same library is owed a read.
-  await i.scanSource('source'); await tick();
-  const afterCommand = libraryReads(s.reads);
-  const other = management(s.api, queries);
-  await other.selectLibrary('one'); await tick();
-  assert.equal(libraryReads(s.reads), afterCommand + 1, 'the management view cached before the command is read again');
-  assert.ok(afterCommand >= library);
-  // A rename made through management: the inventory's cached first page is owed a read.
-  await i.refresh(); const before = inventoryReads(s.reads);
-  await other.rename('Renamed', 1); await tick();
-  const afterRename = inventoryReads(s.reads);
-  await inventory(s.api, queries).loadObjects(); await tick();
-  assert.equal(inventoryReads(s.reads), afterRename + 1, 'the inventory page cached before the rename is read again');
-  assert.ok(afterRename >= before && pages >= 1);
-  m.dispose(); i.dispose(); other.dispose();
-});
-
 test('management: a service without a cache reads the server each time', async () => {
   const s = server(), service = management(s.api);
   await service.selectLibrary('one'); await service.selectLibrary('one');
@@ -215,20 +148,6 @@ test('management: the view that started a shared read closes, and the other view
   second.dispose();
 });
 
-test('inventory: the view that started a shared first page closes, and the other view waiting on it still gets it', async () => {
-  const s = server(), g = gated(s.api, path => path.startsWith('/v1/admin/libraries/one/inventory')), {queries} = cache(g.api);
-  const screenA = screenApi(g.api), screenB = screenApi(g.api);
-  const first = inventory(screenA.api, queries), second = inventory(screenB.api, queries);
-  const a = first.loadObjects(); await tick();
-  const b = second.loadObjects(); await tick();
-  first.dispose(); screenA.close();
-  g.release(); await Promise.allSettled([a, b]); await tick();
-  assert.ok(second.getSnapshot().objects && second.getSnapshot().config, 'the second view is answered');
-  assert.equal(second.getSnapshot().error ?? null, null);
-  assert.equal(inventoryReads(s.reads), 1, 'one read, shared');
-  second.dispose();
-});
-
 test('management: a service reading from one server\'s cache refuses to be moved to another server', () => {
   const s = server(), {queries} = cache(s.api), service = management(s.api, queries);
   assert.throws(() => service.setScope({serverId: 'other', viewerId: 'owner'} as any, s.api), /own server/);
@@ -236,85 +155,14 @@ test('management: a service reading from one server\'s cache refuses to be moved
   service.dispose();
 });
 
-test('inventory: views share the first page; reopening reads nothing while current; each filter is its own document', async () => {
-  const s = server(), {queries} = cache(s.api);
-  const a = inventory(s.api, queries), b = inventory(s.api, queries);
-  await Promise.all([a.loadObjects(), b.loadObjects()]);
-  assert.equal(inventoryReads(s.reads), 1); assert.equal(configReads(s.reads), 1);
-  const c = inventory(s.api, queries);
-  await c.loadObjects();
-  assert.equal(inventoryReads(s.reads), 1, 'reopened: nothing read'); assert.ok(c.getSnapshot().objects && c.getSnapshot().config);
-  await c.loadObjects({state: 'missing'});
-  assert.equal(inventoryReads(s.reads), 2, 'another filter is another document');
-  a.dispose(); b.dispose(); c.dispose();
-});
-
-test('inventory: only the first page is cached; later pages and Back are direct reads', async () => {
-  const s = server(), {queries} = cache(s.api);
-  const a = inventory(s.api, queries);
-  await a.loadObjects();
-  await a.next();
-  assert.equal(inventoryReads(s.reads), 2);
-  assert.equal(a.getSnapshot().canPrevious, true);
-  await a.next().catch(() => undefined);
-  await a.previous();
-  assert.equal(inventoryReads(s.reads), 2, 'Back to the first page: the cached page, nothing read');
-  assert.equal(a.getSnapshot().cursor, '');
-  assert.equal(queries.client.getQueryCache().findAll({queryKey: ['admin', 'library', 'one', 'inventory']}).length, 1, 'one cached page, not one per cursor');
-  a.dispose();
-});
-
-test('inventory: this library\'s scan hint reads the first page again when next asked for; another library\'s does not', async () => {
-  const s = server(), {hub, queries} = cache(s.api);
-  const a = inventory(s.api, queries);
-  await a.loadObjects();
-  hub.accept(scanned('other', 3) as never);
-  await a.loadObjects();
-  assert.equal(inventoryReads(s.reads), 1);
-  hub.accept(scanned('one', 4) as never);
-  await a.loadObjects(); await tick();
-  assert.equal(inventoryReads(s.reads), 2);
-  a.dispose();
-});
-
-test('inventory: a command here reads every cached document of the library again, and a refresh asks the server', async () => {
-  const s = server(), {queries} = cache(s.api);
-  const a = inventory(s.api, queries), b = inventory(s.api, queries);
-  await a.loadObjects(); await b.loadObjects();
-  const before = inventoryReads(s.reads);
-  await a.scanSource('source'); await tick();
-  assert.equal(inventoryReads(s.reads), before + 1, 'the command\'s own reconcile read the server');
-  await b.loadObjects(); await tick();
-  assert.equal(inventoryReads(s.reads), before + 1, 'and that answer is what the other view takes');
-  await b.refresh();
-  assert.equal(inventoryReads(s.reads), before + 2, 'refresh() always asks the server');
-  a.dispose(); b.dispose();
-});
-
-test('inventory: a continuation the server no longer continues starts that list again at its first page', async () => {
-  let refuse = false;
-  const s = server((path) => { if (refuse && new URL(path, 'https://x').searchParams.get('cursor')) throw Object.assign(new Error('Changed'), {code: 'stale_continuation', status: 412}); return undefined; });
-  const service = inventory(s.api);
-  await service.loadObjects(); await service.next();
-  assert.equal(service.getSnapshot().cursor, 'c2');
-  refuse = true;
-  await service.refresh();
-  assert.equal(service.getSnapshot().cursor, '', 'reset to the first page');
-  assert.equal(service.getSnapshot().canPrevious, false);
-  assert.equal(service.getSnapshot().error, null);
-  assert.ok(service.getSnapshot().objects);
-  service.dispose();
-});
-
 test('privacy: owner documents of an ended viewer\'s cache are not shown and read nothing more', async () => {
   const s = server(), {queries} = cache(s.api);
-  const m = management(s.api, queries), i = inventory(s.api, queries);
-  await m.selectLibrary('one'); await i.loadObjects();
+  const m = management(s.api, queries);
+  await m.selectLibrary('one');
   queries.dispose();
-  const owned = () => libraryReads(s.reads) + inventoryReads(s.reads) + configReads(s.reads), reads = owned();
-  await m.selectLibrary('one').catch(() => undefined); await i.loadObjects().catch(() => undefined);
-  assert.equal(owned(), reads, 'no request for these documents after the viewer ended');
+  const reads = libraryReads(s.reads);
+  await m.selectLibrary('one').catch(() => undefined);
+  assert.equal(libraryReads(s.reads), reads, 'no library request after the viewer ended');
   assert.equal(m.getSnapshot().selected.data, null);
-  assert.equal(i.getSnapshot().objects, null);
-  m.dispose(); i.dispose();
+  m.dispose();
 });

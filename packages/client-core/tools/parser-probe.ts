@@ -28,7 +28,6 @@ import {fetchHome, fetchHomeRow} from '../src/home.ts';
 import {fetchItemRecommendations, fetchSuggestions} from '../src/recommendations.ts';
 import {LibraryContentService, type ContentProjection, type ContentRoute, type ContentView} from '../src/library-content.ts';
 import {parseBrowseCapabilities, parseBrowseFacets} from '../src/browse.ts';
-import {fetchInventoryStatus} from '../src/library-inventory.ts';
 import {DetailService} from '../src/detail.ts';
 import {FreshnessHub} from '../src/freshness-hub.ts';
 import {createViewerQueries} from '../src/query/viewer-queries.ts';
@@ -318,8 +317,6 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
           api.request<unknown>(facetsPath).then(raw => parseBrowseFacets(raw, field)));
       }
     }
-    await rec.check('libraries', `inventory status (${lib.id})`, 'GET', `/v1/libraries/${encodeURIComponent(lib.id)}/inventory-status`, () =>
-      fetchInventoryStatus(contentApi, serverId, lib.id, new AbortController().signal));
   }
   // Search uses the same envelope parsers through its own service.
   try {
