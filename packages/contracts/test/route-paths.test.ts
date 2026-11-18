@@ -3,8 +3,6 @@ import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import * as paths from '../src/route-paths.ts';
 import * as metadata from '../src/routes.ts';
-import * as developmentPaths from '../src/development/route-paths.ts';
-import * as developmentMetadata from '../src/development/routes.ts';
 
 test('path-only builders preserve the metadata module API and encoding', () => {
  assert.equal(paths.routePaths, metadata.routePaths);
@@ -30,16 +28,8 @@ test('path-only builders preserve the metadata module API and encoding', () => {
  }
 });
 
-test('development builders share the same path-only module', () => {
- assert.equal(developmentPaths.routePaths, developmentMetadata.routePaths);
- assert.equal(developmentPaths.routePath, developmentMetadata.routePath);
- assert.equal(developmentPaths.routePath('post_dev_e2e_sign_in'), '/v1/dev/e2e/sign-in');
- assert.equal(developmentPaths.routePath('post_dev_e2e_sign_in'), developmentMetadata.routePath('post_dev_e2e_sign_in'));
- assert.equal(developmentPaths.encodedRoutePath('post_dev_e2e_sign_in'), developmentMetadata.encodedRoutePath('post_dev_e2e_sign_in'));
-});
-
 test('path-only modules load and build paths with metadata and DTO runtime imports blocked', () => {
- for(const directory of ['', 'development/']) {
+ for(const directory of ['']) {
   const pathURL=new URL(`../src/${directory}route-paths.ts`,import.meta.url).href;
   const metadataURL=new URL(`../src/${directory}routes.ts`,import.meta.url).href;
   const result=spawnSync(process.execPath,['--experimental-strip-types','--input-type=module','-e',`

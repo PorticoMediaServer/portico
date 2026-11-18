@@ -1153,7 +1153,6 @@ export const webMessages = {
   'web.direct.username': 'Username',
   'web.direct.password': 'Password',
   'web.direct.signIn': 'Sign in',
-  'web.direct.devSignIn': 'Sign in as {username} (development)',
   'web.direct.useAccount': 'Use a Portico Account',
   'web.direct.codeTitle': 'Enter your code',
   'web.direct.codeLede': 'Two-step verification is on for this account. Enter the code from your authenticator app, or a recovery code.',

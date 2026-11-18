@@ -22,5 +22,5 @@ const portico = ({types}) => ({
 
 module.exports = {
   presets: ['module:@react-native/babel-preset'],
-  plugins: ['react-native-worklets/plugin', portico, require('./babel-dev-sign-in')],
+  plugins: ['react-native-worklets/plugin', portico],
 };

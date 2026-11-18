@@ -5,7 +5,6 @@ const svgLite = path.resolve(__dirname, 'metro/svg-lite.js');
 const svgCssStub = path.resolve(__dirname, 'metro/svg-css-stub.js');
 const defaults = getDefaultConfig(__dirname);
 module.exports = mergeConfig(defaults, {
-  cacheVersion: require('./babel-dev-sign-in').cacheVersion,
   watchFolders: [repoRoot],
   transformer: {unstable_allowRequireContext: true},
   resolver: {
