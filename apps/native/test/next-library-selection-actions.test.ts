@@ -4,6 +4,7 @@ import React from 'react';
 import * as actions from '../../../packages/client-core/src/selection-actions.ts';
 import {NativeBulkMedia} from '../src-next/screens/destinations/bulk-media.ts';
 import * as nativeUnavailable from '../src-next/screens/library/selection-unavailable-actions.ts';
+import {closeNativeDownload, getNativeDownloadSnapshot} from '../src-next/screens/downloads/request.ts';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
@@ -21,12 +22,12 @@ const preview = (action = 'delete', preparationId = 'preparation') => ({kind: 's
 const job = (action = 'delete', state = 'complete') => ({operationId: 'stable-operation', action, state, total, admitted: total,
   done: state === 'complete' ? total : 0, failed: 0, bytesDeleted: 0, filesDeleted: 0, retryAfterMs: 250});
 
-test('native Library whole-view Delete resolves the filtered pages into one explicit deletion preview', async () => {
+async function librarySelection({supported = false, isTV = false} = {}) {
   const host = hooks(), held = target();
   const selected = {...held, total: 2, sourceTotal: 2, expected: {catalogRevision: 'reading-1'},
     selector: {query: {libraryId: held.selector.query.libraryId, pivot: held.selector.query.pivot,
       filter: held.selector.query.filter, sort: held.selector.query.sort}},
-    summary: {...held.summary, count: 2, types: [{kind: 'movie', count: 2}], every: {delete: false, download: true}}};
+    summary: {...held.summary, count: 2, types: [{kind: 'movie', count: 2}], every: {delete: false, download: false}}};
   let view = {active: true, summary: selected.summary, selectedKeys: [], target: selected};
   const model = {getSnapshot: () => view, subscribe: () => () => {}, clear() {},
     captureOperation: () => ({target: view.target}), isOperationCurrent: (operation: {target: unknown}) => operation.target === view.target};
@@ -44,12 +45,13 @@ test('native Library whole-view Delete resolves the filtered pages into one expl
     }
     throw new Error(`Unexpected request: ${method} ${path}`);
   }};
-  const context = {api, session: () => ({viewer: {role: 'owner'}}), subscribeAuthority: () => () => {},
+  const context = {api, session: () => ({viewer: {role: 'owner'}, deviceId: 'device'}), subscribeAuthority: () => () => {},
     navigation: {getSnapshot: () => ({revision: 1})}};
   const source = {getSnapshot: () => ({phase: 'ready', library: {id: 'library'}, tab: {id: 'movies'}, revision: 'reading-1', queryRevision: 0, collection: {}}),
     subscribe: () => () => {}, hold: () => () => {}};
   const activation = {getSnapshot: () => ({visible: true}), subscribe: () => () => {}};
   const {createNativeLibrarySelection} = await screenModule(new URL('../src-next/screens/library/selection.tsx', import.meta.url), {
+    '../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported})}},
     react: host.react, 'react-native': {View: 'View', Text: 'Text'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../../../../packages/client-core/src/presentation/errors': {}, '../../../../../packages/client-core/src/catalogue-query-selection': {},
@@ -57,7 +59,7 @@ test('native Library whole-view Delete resolves the filtered pages into one expl
     '../../../../../packages/client-core/src/presentation/selection-notice': {}, '../../../../../packages/client-core/src/media-selection': {},
     '../../shell/selection-display': {selectedItemsLabel: () => '2 movies'},
     '../../kit/selection': {SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'PhoneBar', DeleteMediaDialog: 'DeleteMediaDialog'},
-    '../../kit/theme': {useTheme: () => ({isTV: false, layers: {navigation: 1}, type: {}, colors: {}})}, '../../kit/overlays': {}, '../../kit/controls': {},
+    '../../kit/theme': {useTheme: () => ({isTV, layers: {navigation: 1}, type: {}, colors: {}})}, '../../kit/overlays': {}, '../../kit/controls': {},
     '../destinations/lifetime': {nativeDestinationLifetime: () => ({current: () => true, scope: {serverId: 'server', viewerId: 'owner'}})},
     '../native-screen-services': {nativeScreenServices: () => ({reportError: (error: unknown) => {throw error;}})},
     '../destinations/DestinationPicker': {}, '../search/loaded-destinations': {}, '../destinations/bulk-media': {NativeBulkMedia},
@@ -66,31 +68,70 @@ test('native Library whole-view Delete resolves the filtered pages into one expl
   const port = createNativeLibrarySelection(context, source, activation);
   const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
   const render = () => {const element = port.render(); return nodes(host.render(() => element.type(element.props)));};
-  const bar = () => render().find(node => node.type === 'PhoneBar');
+  const bar = () => render().find(node => node.type === (isTV ? 'SelectionBar' : 'PhoneBar'));
+  const exceedLimit = () => {
+    const large = {...selected, total: 201, sourceTotal: 201, summary: {...selected.summary, count: 201}};
+    view = {...view, target: large, summary: large.summary};
+  };
+  port.start();
+  return {port, render, bar, calls, exceedLimit};
+}
+
+const list = '/v1/items?library=library&kind=movie&year=2000..9999&sort=title&order=asc';
+const listReads = [
+  {path: list + '&limit=2', method: 'GET', body: undefined},
+  {path: list + '&cursor=next&limit=1', method: 'GET', body: undefined},
+];
+
+test('native Library whole-view Delete resolves the filtered pages into one explicit deletion preview', async () => {
+  const {port, render, bar, calls, exceedLimit} = await librarySelection();
   try {
-    port.start();
     assert.deepEqual(bar().props.actions.find((offer: any) => offer.id === 'delete'), {id: 'delete', disabled: false});
     assert.ok(!bar().props.actions.some((offer: any) => offer.id === 'download'));
     bar().props.onAction('delete');
     await tick();
-    const list = '/v1/items?library=library&kind=movie&year=2000..9999&sort=title&order=asc';
     assert.deepEqual(calls, [
-      {path: list + '&limit=2', method: 'GET', body: undefined},
-      {path: list + '&cursor=next&limit=1', method: 'GET', body: undefined},
+      ...listReads,
       {path: '/v1/admin/items/deletion', method: 'POST', body: {ids: ['movie-a', 'movie-b']}},
     ]);
     const dialog = render().find(node => node.type === 'DeleteMediaDialog');
     assert.equal(dialog.props.testID, 'library-delete-media');
     assert.deepEqual(dialog.props.preview.targets.map((item: any) => item.itemId), ['movie-a', 'movie-b']);
     dialog.props.onOpenChange(false);
-    const large = {...selected, total: 201, sourceTotal: 201, summary: {...selected.summary, count: 201}};
-    view = {...view, target: large, summary: large.summary};
+    exceedLimit();
     assert.deepEqual(bar().props.actions.find((offer: any) => offer.id === 'delete'),
       {id: 'delete', disabled: true, wholeQueryUnavailable: true, reason: 'next.selection.tooMany'});
     assert.ok(!bar().props.actions.some((offer: any) => offer.id === 'download'));
     bar().props.onAction('delete');
     assert.equal(calls.length, 3);
   } finally {port.dispose();}
+});
+
+test('native Library whole-view Download hands exact Browse IDs to the native download request', async () => {
+  const {port, bar, calls, exceedLimit} = await librarySelection({supported: true});
+  try {
+    assert.deepEqual(bar().props.actions.find((offer: any) => offer.id === 'download'), {id: 'download', disabled: false});
+    bar().props.onAction('download');
+    await tick();
+    assert.deepEqual(calls, listReads);
+    const request = getNativeDownloadSnapshot();
+    assert.deepEqual(request?.itemIds, ['movie-a', 'movie-b']);
+    assert.equal(request?.title, '2 movies');
+    assert.equal(request?.queryAction, undefined);
+    closeNativeDownload(request);
+
+    exceedLimit();
+    assert.deepEqual(bar().props.actions.find((offer: any) => offer.id === 'download'),
+      {id: 'download', disabled: true, wholeQueryUnavailable: true, reason: 'next.selection.native.downloadLimit'});
+    bar().props.onAction('download');
+    await tick();
+    assert.deepEqual(calls, listReads);
+    assert.equal(getNativeDownloadSnapshot(), undefined);
+  } finally {closeNativeDownload(); port.dispose();}
+
+  const tv = await librarySelection({supported: true, isTV: true});
+  try {assert.ok(!tv.bar().props.actions.some((offer: any) => offer.id === 'download'));}
+  finally {tv.port.dispose();}
 });
 
 test('native aggregate Delete dialog accepts 257 real preview totals and rejects retained callbacks from an older render', async () => {

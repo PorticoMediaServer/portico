@@ -10,7 +10,7 @@ import {saveChannelPreference} from '../channel-guide.ts';
 import {getContainerState, setContainerFlag, setContainerState, containerKinds, type ContainerKind} from '../container-state.ts';
 import {deletionAllowed} from '../administration.ts';
 import {deleteCatalogueTitles, readCatalogueDeletion, type DeletionTarget} from '../query/catalogue-actions.ts';
-import {queryDeleteLimit, queryDeleteSelector, resolveQueryDelete} from '../query/catalogue-query-delete.ts';
+import {catalogueQueryLimit, catalogueQuerySelector, resolveCatalogueQuery} from '../query/catalogue-query-delete.ts';
 import {routePath} from '../../../contracts/src/route-paths.ts';
 import {validBulkEdit, validateBulkReceipt, type BulkEdit} from '../metadata-bulk.ts';
 import {fetchBulkMetadataPreview, metadataPreviewTargets, type BulkMetadataPreviewRequest} from './metadata-preview.ts';
@@ -298,13 +298,13 @@ export class HomeSelectionController {
   selectLoaded(sectionId?: string) {this.active(); return this.selection.selectLoaded(sectionId);}
   keepOnly(kind: SelectionKind) {this.closeDialogs(); return this.selection.keepOnly(kind);}
   clear() {this.closeDialogs(); this.selection.clear();}
-  private begin(target?: SelectionTarget, action?: 'delete'): Ticket {
+  private begin(target?: SelectionTarget, action?: 'delete' | 'download'): Ticket {
     this.active(); const bindings = this.allMembers(); this.cancelAction();
     this.jobHistory.clear();
     if (target && !sameContext(target.context, this.state.context)) throw selectionExecutionError('stale-home-context');
     const model = target ? undefined : this.selection.captureOperation();
     const selected = target ?? model?.target; if (!selected) throw selectionExecutionError('selection-required');
-    if (action !== 'delete') explicitIdentities(selected);
+    if (!action) explicitIdentities(selected);
     const ticket = {document: this.options.home.getSnapshot().document!, epoch: ++this.epoch, context: this.state.context, target: selected, ...(model ? {model} : {}), controller: new AbortController()}; this.ticket = ticket;
     if (selected.mode === 'explicit') for (const pick of selected.items) {const member = bindings.get(pick.key); if (member) this.operationMembers.set(pick.key, member);}
     return ticket;
@@ -347,12 +347,28 @@ export class HomeSelectionController {
       return member;
     });
   }
+  queryDownloadOffered() {
+    const {target} = this.state.selection;
+    return !!this.options.download && this.state.actions.download.state === 'ready' && target?.mode === 'query' && !!catalogueQuerySelector(target);
+  }
   async execute(action: SelectionAction) {
     this.active(); const rule = this.state.actions[action];
     if (rule.state === 'explain') {if (action === 'edit') {this.publish({mixedEdit: true, editExplanation: rule.reason}); return;} if (action === 'delete') return this.openDelete();}
     if (rule.state !== 'ready') throw selectionExecutionError(rule.state === 'disabled' ? rule.reason : 'action-not-offered');
     if (action === 'playlist' || action === 'collection') return this.openPicker(action);
     if (action === 'edit') return this.openEditor(); if (action === 'delete') return this.openDelete();
+    const target = this.state.selection.target, download = this.options.download;
+    if (action === 'download' && target?.mode === 'query') {
+      if (!download || !this.queryDownloadOffered() || target.total > catalogueQueryLimit) throw selectionExecutionError('action-not-offered');
+      const ticket = this.begin(undefined, 'download'), signal = ticket.controller.signal;
+      await this.guarded(ticket, action, async () => {
+        const entries = await resolveCatalogueQuery(this.options.api, target, signal, 'download');
+        this.check(ticket);
+        await download(entries, ticket.context, signal);
+      });
+      if (this.current(ticket)) this.publish({action: idle()});
+      return;
+    }
     const ticket = this.begin(); return this.executeTarget(ticket, action);
   }
   private async executeTarget(ticket: Ticket, action: SelectionAction, startIntent?: 'resume' | 'start-over' | 'explicit') {
@@ -708,7 +724,7 @@ export class HomeSelectionController {
   private async startDelete(target?: SelectionTarget, menuOffered = false) {
     const selected = target ?? this.selection.getSnapshot().target;
     const query = selected?.mode === 'query' ? selected : undefined;
-    if (query && (!this.environment.isOwner || !queryDeleteSelector(query) || query.summary.unavailableActions?.delete && query.total <= queryDeleteLimit)) {
+    if (query && (!this.environment.isOwner || !catalogueQuerySelector(query) || query.summary.unavailableActions?.delete && query.total <= catalogueQueryLimit)) {
       throw selectionExecutionError('delete-not-offered');
     }
     const ticket = this.begin(target, 'delete');
@@ -727,13 +743,13 @@ export class HomeSelectionController {
         return {itemId: id, libraryId: 'libraryId' in identity ? identity.libraryId : '', kind: identity.kind, title: titles.get(id)};
       });
     }
-    const overLimit = (query?.total ?? targets.length) > queryDeleteLimit;
+    const overLimit = (query?.total ?? targets.length) > catalogueQueryLimit;
     this.publish({deletion: {phase: overLimit ? 'limit' : 'loading', preview: null, confirmation: '', removeFiles: true, result: null, error: null}});
     if (overLimit) return;
     if (!menuOffered && !deletesEveryMember) throw selectionExecutionError('delete-not-offered');
     try {
       if (query) {
-        const entries = await resolveQueryDelete(this.options.api, query, ticket.controller.signal);
+        const entries = await resolveCatalogueQuery(this.options.api, query, ticket.controller.signal, 'delete');
         this.check(ticket);
         targets = entries.map(entry => ({itemId: entry.id, libraryId: entry.libraryId!, kind: entry.kind, title: entry.title}));
       }

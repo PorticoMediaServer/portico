@@ -3,7 +3,7 @@ import {NativeQueryDownloadSheet} from '../library/SelectionActionSurface';
 import React, {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {NativeModules, Platform, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {downloadBytes, downloadReasonMessage, type DownloadOptionsView, type DownloadQualityOption} from '../../../../../packages/client-core/src/downloads';
+import {downloadBytes, downloadReasonMessage, type DownloadOptionsView, type DownloadQualityChoice, type DownloadQualityOption} from '../../../../../packages/client-core/src/downloads';
 import type {DownloadEpisodes} from '../../../../../packages/client-core/src/download-requests';
 import type {ContainerDownloadPolicy} from '../../../../../packages/client-core/src/downloads-service';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
@@ -57,6 +57,7 @@ function NativeDownloadSheetBody({context, request}: {context: NativeShellBootst
   }, [context, request]);
   const container = request.container, deviceId = opening?.deviceId;
   const [view, setView] = useState<DownloadOptionsView>(), [choices, setChoices] = useState<readonly ContainerDownloadOption[]>(), [policy, setPolicy] = useState<DownloadEpisodes>('all'), [keepNext, setKeepNext] = useState(1);
+  const [selectionQualities, setSelectionQualities] = useState<readonly DownloadQualityChoice[]>();
   const [busy, setBusy] = useState(''), [done, setDone] = useState(''), [error, setError] = useState<unknown>();
   const [acceptedSingle, setAcceptedSingle] = useState(false);
   // The server asked for a quality (saved as Ask each time): the menu is read again and stays open, never an error.
@@ -71,8 +72,10 @@ function NativeDownloadSheetBody({context, request}: {context: NativeShellBootst
     if (!opening?.current()) return;
     const abort = new AbortController(), linked = linkNativeAbortSignals([abort.signal, opening.signal]);
     const service = opening.lease.service;
-    setError(undefined); setDone(''); setAcceptedSingle(false); setView(undefined); setChoices(undefined);
-    if (!container && request.itemId) {
+    setError(undefined); setDone(''); setAcceptedSingle(false); setView(undefined); setChoices(undefined); setSelectionQualities(undefined);
+    if (request.itemIds) {
+      void service.qualities(linked.signal).then(next => {if (!linked.signal.aborted && opening.current()) setSelectionQualities(next);}, failure => {if (!linked.signal.aborted && opening.current()) setError(failure);});
+    } else if (!container && request.itemId) {
       void service.options(request.itemId, linked.signal).then(next => {if (!linked.signal.aborted && opening.current()) setView(next);}, failure => {if (!linked.signal.aborted && opening.current()) setError(failure);});
     } else if (container && deviceId) {
       const wanted: ContainerDownloadPolicy = policy === 'next' ? {episodes: policy, keepNext} : {episodes: policy};
@@ -105,8 +108,9 @@ function NativeDownloadSheetBody({context, request}: {context: NativeShellBootst
             : line.key === 'downloads.requestFailed' ? t(line.key, line.values as {failed: number}) : t(line.key)).join('; '));
         return;
       }
-      if (!request.itemId) return;
-      const batch = await service.request({mediaId: request.itemId}, quality, attempts.operationFor(JSON.stringify(['item', request.itemId, quality])));
+      if (!request.itemId && !request.itemIds) return;
+      const target = request.itemIds ? {mediaIds: request.itemIds} : {mediaId: request.itemId};
+      const batch = await service.request(target, quality, attempts.operationFor(JSON.stringify(['item', request.itemId ?? request.itemIds, quality])));
       attempts.settle();
       if (!opening.owns(ticket)) return;
       await download.want(batch.items, batch.items[0] ? download.display(batch.items[0]) : undefined, service);
@@ -170,9 +174,11 @@ function NativeDownloadSheetBody({context, request}: {context: NativeShellBootst
         {episodic && <View style={{backgroundColor: theme.colors.raised, borderRadius: 14}}>{policyRow('all', t('downloads.policyAll'))}{policyRow('unwatched', t('downloads.policyUnwatched'))}{policyRow('next', t('downloads.policyNext'))}</View>}
         {episodic && policy === 'next' && <View style={{backgroundColor: theme.colors.raised, borderRadius: 14}}>{[1, 3, 5].map(count => <Focusable key={count} accessibilityRole="button" accessibilityState={{selected: keepNext === count}} onPress={() => {if (opening?.current() && !busy) setKeepNext(count);}} focusRadius={12}
           style={{minHeight: 48, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center'}}><Text style={[theme.type.body, {color: theme.colors.text, flex: 1}]}>{t('downloads.keepNext', {count})}</Text>{keepNext === count && <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.accentStrong}}/>}</Focusable>)}</View>}
-        {!done && !container && !view && error === undefined && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t('downloads.checking')}</Text>}
+        {!done && !container && !view && !selectionQualities && error === undefined && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t('downloads.checking')}</Text>}
         {view && !blocked && <View style={{backgroundColor: theme.colors.raised, borderRadius: 14}}>{view.options.map(titleOption)}</View>}
-        {container && choices && <View style={{backgroundColor: theme.colors.raised, borderRadius: 14}}>{choices.map(option => qualityRow({quality: option.quality, label: option.label, available: option.available && !!deviceId,
+        {(choices || selectionQualities) && <View style={{backgroundColor: theme.colors.raised, borderRadius: 14}}>
+          {selectionQualities?.map(option => qualityRow({quality: option.quality, label: option.label, available: true, meta: busy === option.quality ? t('downloads.adding') : undefined}))}
+          {choices?.map(option => qualityRow({quality: option.quality, label: option.label, available: option.available && !!deviceId,
           size: containerDownloadBytes(option) === undefined ? undefined : option.estimated ? t('downloads.aboutSize', {size: downloadBytes(option.estimatedBytes)}) : downloadBytes(option.estimatedBytes),
           notes: [option.available && opening?.current() && containerDownloadBytes(option) !== undefined ? opening.lease.device.admission?.(option.estimatedBytes) : undefined,
             option.available && option.sameAsOriginal ? t('quality.sameAsOriginal') : undefined].filter((value): value is string => !!value), meta: busy === option.quality ? t('downloads.adding') : undefined}))}</View>}

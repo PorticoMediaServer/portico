@@ -24,6 +24,9 @@ import {nativeAccountMenu, nativeAccountOpenTransition, nativeMenuRouteAvailable
 import {createNativeOwnerActivity} from './owner-activity';
 import {libraryScanReadiness} from './library-scan';
 import {NativeDownloadSheet} from '../screens/downloads/DownloadSheet';
+import {askNativeSelectionDownload} from '../screens/downloads/request';
+import {offlineDownloads} from '../platform/offline-downloads';
+import {selectedItemsLabel} from './selection-display';
 import {nativeHomeSelectionScope} from './selection-scope';
 import {homeSeeAllRoute, nativeEntryRoute, nativeEntryRouteSupported, nativeRailDestination, type NativeShellRoute} from './routes';
 import {nativeShellRoutes} from './route-registry';
@@ -100,6 +103,11 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
   const playback = context.playback.selectionPlayback(isCurrent);
   const controller = new HomeSelectionController({queries: viewerQueriesFor(context.api, {serverId: scope.serverId}), api: context.api, events: context.events, home: context.home, context: homeSelectionContext(scope, initial), environment: environment(), isCurrent,
     requestId: feedback.requestId, playback, reportError, notify: feedback.notice,
+    ...(!Platform.isTV && session.deviceId && offlineDownloads.getSnapshot().supported ? {
+      download: async (entries: readonly ContentEntry[], candidate: SelectionContext, signal: AbortSignal): Promise<void> => {
+        askNativeSelectionDownload(selectedItemsLabel(controller.getSnapshot().selection.summary), entries, {signal, isCurrent: () => isCurrent(candidate)});
+      },
+    } : {}),
     // An unread or empty directory is unknown, never "no library is visible" (that would drop every pick).
     visibleLibraries: () => {const libraries = context.libraries();return libraries.length ? libraries.map(library => library.id) : undefined;},
     ...(context.subscribeLibraries ? {subscribeVisibleLibraries: context.subscribeLibraries} : {}),
