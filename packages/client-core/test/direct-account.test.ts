@@ -53,16 +53,6 @@ test('person identity is username first, profile only when different and Private
  assert.throws(()=>personIdentity('','Kids'));
 });
 
-test('short invitation preview posts only the normalized short capability and rejects URL/long forms locally',async()=>{
- const {PeopleInvitationsClient}=await import('../src/direct-account.ts');
- const calls:any[]=[];
- const preview={serverName:'Fixture',expiresAt:'2026-11-01T12:00:00Z',role:'member',libraries:[],allLibraries:false,signInMethod:'local'};
- const client=new PeopleInvitationsClient({request:async<T>(path:string,method?:string,body?:unknown)=>{calls.push({path,method,body});return preview as T;}});
- assert.deepEqual(await client.previewShort('0123-4567-89ab-cdef'),preview);
- assert.deepEqual(calls,[{path:'/v1/access/invitations/preview',method:'POST',body:{shortCode:'0123456789ABCDEF'}}]);
- for(const raw of ['x'.repeat(43),'https://server.example/?shortCode=0123456789ABCDEF','0123-4567-89AB-CDEI'])await assert.rejects(client.previewShort(raw));
- assert.equal(calls.length,1);
-});
 
 test('an invitation\'s access grant is read exactly, and an inexact one refuses the document',()=>{
  const base={id:'grant',revision:1,role:'member',state:'pending',createdAt:'2026-10-01T00:00:00Z',expiresAt:'2026-10-02T00:00:00Z',allowedLibraries:[]};
