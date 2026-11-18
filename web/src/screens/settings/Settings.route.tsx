@@ -203,9 +203,6 @@ export function SettingsEntry() {
     const requestMetadataUpload: typeof originalApi.requestMetadataUpload = async <T,>(path: string, body: Blob, input?: AbortSignal): Promise<T> => {
       assert();const value = await originalApi.requestMetadataUpload<T>(path, body, signal(input));assert();return value;
     };
-    const uploadPicture: typeof originalApi.uploadPicture = async (path, method, body, contentType, input) => {
-      assert();const value = await originalApi.uploadPicture(path, method, body, contentType, signal(input));assert();return value;
-    };
     const requestBounded: typeof originalApi.requestBounded = async <T,>(path: string, maxBytes: number, input: AbortSignal): Promise<T> => {
       assert();const value = await originalApi.requestBounded<T>(path, maxBytes, signal(input));assert();return value;
     };
@@ -226,7 +223,6 @@ export function SettingsEntry() {
       if (property === 'requestConsole') return requestConsole;
       if (property === 'requestCertificate') return requestCertificate;
       if (property === 'requestMetadataUpload') return requestMetadataUpload;
-      if (property === 'uploadPicture') return uploadPicture;
       if (property === 'requestBounded') return requestBounded;
       if (property === 'requestLyrics') return requestLyrics;
       if (property === 'routeFetch') return routeFetch;
