@@ -5,7 +5,7 @@ import {frameSpec} from '@portico/design';
 import {Button} from '../controls/Button';
 import {BottomSheet} from '../overlays/BottomSheet';
 import {useTheme} from '../theme';
-import {useFrameMetrics} from './metrics';
+import {FrameColumn, useFrameMetrics} from './metrics';
 
 export type FramePane = Readonly<{
   /** The pane's title, in large type: the programme, the rule, Rules. */
@@ -40,7 +40,7 @@ export function SplitFrame({children, pane, testID}: SplitFrameProps) {
     {/* phone-guide g3: the sheet's own header is the pane's (eyebrow, title, subtitle); its body scrolls and its foot stays. */}
     {pane && <BottomSheet open onOpenChange={open => {if (!open) pane.close.onPress();}} title={pane.title} accessibilityLabel={pane.title} showClose={false}
       headerContent={<View style={{paddingHorizontal: frame.gutter, paddingBottom: theme.space.sm}}><PaneHeader pane={pane} sheet/></View>} footer={pane.footer && <PaneFoot>{pane.footer}</PaneFoot>}>
-      <View style={{paddingHorizontal: frame.gutter, gap: frame.headingGap}}>{pane.children}</View>
+      <View style={{paddingHorizontal: frame.gutter, gap: frame.headingGap}}><FrameColumn.Provider value>{pane.children}</FrameColumn.Provider></View>
     </BottomSheet>}
   </View>;
   return <View testID={testID} style={{flex: 1, flexDirection: 'row'}}>
@@ -75,7 +75,7 @@ function PaneColumn({pane}: {pane: FramePane}) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), padding = frame.cardPadding;
   return <View style={{width: frameSpec.pane.width[frame.form], backgroundColor: theme.colors.raised, paddingTop: Math.max(insets.top, frame.headerGap)}}>
     <View style={{paddingHorizontal: padding, paddingTop: padding}}><PaneHeader pane={pane}/></View>
-    <ScrollView style={{flex: 1}} contentContainerStyle={{padding, gap: frame.headingGap, paddingBottom: pane.footer ? padding : Math.max(insets.bottom, frameSpec.sheet.footerClear)}}>{pane.children}</ScrollView>
+    <ScrollView style={{flex: 1}} contentContainerStyle={{padding, gap: frame.headingGap, paddingBottom: pane.footer ? padding : Math.max(insets.bottom, frameSpec.sheet.footerClear)}}><FrameColumn.Provider value>{pane.children}</FrameColumn.Provider></ScrollView>
     {pane.footer && <View style={{paddingHorizontal: padding, paddingTop: theme.space.sm, paddingBottom: Math.max(insets.bottom, padding)}}><PaneFoot>{pane.footer}</PaneFoot></View>}
   </View>;
 }
