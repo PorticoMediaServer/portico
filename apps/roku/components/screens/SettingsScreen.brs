@@ -885,7 +885,7 @@ sub drawMatches()
             item = m.matches.createChild("ListRow")
             item.rowWidth = width
             item.model = {label: row.label, help: wordsOrNone(row.help), scope: wordsOrNone(row.scope), value: wordsOrNone(row.value),
-                control: wordsOrNone(row.control), switchOn: (row.switchOn = true), icon: wordsOrNone(row.icon)}
+                control: wordsOrNone(row.control), switchOn: (row.switchOn = true), icon: wordsOrNone(row.icon), danger: (row.danger = true)}
             item.translation = [s.resultsX, y]
             m.matchStops.push({node: item, page: group.page, label: row.label, advanced: entry.advanced, first: first})
             first = false
