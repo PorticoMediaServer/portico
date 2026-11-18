@@ -50,6 +50,9 @@ sub init()
     m.duration = 0
     m.ended = false
     m.failed = false     ' the Playback failed page is up
+    m.clock = createObject("roTimespan")
+    m.playedMs = 0       ' time this session has spent playing, before the stretch running now
+    m.clockRunning = false
     ' every fixed line of the overlay and of what sits over the picture comes from the player's frame
     f = frames().player
     m.f = f
@@ -447,6 +450,8 @@ sub onSession(event as object)
     end if
     m.session = result.data
     m.startKey = invalid
+    m.playedMs = 0
+    m.clock.mark()
     load(m.session.presentation)
     if m.session.lease <> invalid and m.session.lease.reportEveryMs <> invalid then m.report.duration = m.session.lease.reportEveryMs / 1000
     m.report.control = "start"
@@ -562,12 +567,43 @@ sub load(p as object)
     drawSubtitle(p, false)
 end sub
 
+' Time spent actually playing (not paused, buffering or jumping), which the server counts as
+' viewing time and needs before a play shows in history.
+sub clockState()
+    playing = (m.video.state = "playing")
+    if playing and not m.clockRunning
+        m.clock.mark()
+    else if not playing and m.clockRunning
+        m.playedMs = m.playedMs + m.clock.totalMilliseconds()
+    end if
+    m.clockRunning = playing
+end sub
+
+function playClock() as integer
+    total = m.playedMs
+    if m.clockRunning then total = total + m.clock.totalMilliseconds()
+    return total
+end function
+
+' The stop carries the final place and the viewing time with the session's progress token, so the
+' server saves both in one step, however the last progress report fared.
+function finalReport(positionMs as integer) as object
+    body = {positionMs: positionMs}
+    if m.session.progressToken <> invalid
+        body.progressToken = m.session.progressToken
+        body.playClockMs = playClock()
+    end if
+    return body
+end function
+
 sub sendProgress()
     if m.session = invalid then return
     state = "playing"
     if m.video.state = "paused" then state = "paused"
     if m.video.state = "buffering" then state = "buffering"
-    api("PUT", "/v1/playback/sessions/" + m.session.id + "/progress", {state: state, positionMs: int(m.video.position * 1000)}, "onProgress", {id: m.session.id})
+    at = m.video.position
+    if at = 0 and m.last > 0 then at = m.last      ' a stopped picture reports 0
+    api("PUT", "/v1/playback/sessions/" + m.session.id + "/progress", {state: state, positionMs: int(at * 1000), playClockMs: playClock()}, "onProgress", {id: m.session.id})
 end sub
 
 sub onProgress(event as object)
@@ -599,7 +635,7 @@ sub leave(tell as boolean)
     at = int(m.video.position * 1000)
     if at = 0 and m.last > 0 then at = int(m.last * 1000)
     m.video.control = "stop"
-    if tell and m.session <> invalid then api("DELETE", "/v1/playback/sessions/" + m.session.id, {positionMs: at}, "onStopped")
+    if tell and m.session <> invalid then api("DELETE", "/v1/playback/sessions/" + m.session.id, finalReport(at), "onStopped")
     m.session = invalid
     m.top.closed = true
 end sub
@@ -608,6 +644,7 @@ sub onStopped()
 end sub
 
 sub onVideoState()
+    clockState()
     state = m.video.state
     if state = "finished"
         ' the end of the title, or a stream that stopped short of it
@@ -656,8 +693,7 @@ sub onNotice(event as object)
     m.tries = 0
     if m.session <> invalid
         ' the failed session is ended with where it got to; a new one starts there
-        sendProgress()
-        api("DELETE", "/v1/playback/sessions/" + m.session.id, {positionMs: int(m.last * 1000)}, "onStopped")
+        api("DELETE", "/v1/playback/sessions/" + m.session.id, finalReport(int(m.last * 1000)), "onStopped")
         m.session = invalid
     end if
     if m.last > 0 then m.resumeAt = int(m.last * 1000)
