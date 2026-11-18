@@ -65,6 +65,11 @@ func (s *Server) catalogueRoutes() {
 		out := Library{ID: l.PublicID, Name: l.Name, Kind: l.Kind}
 		out.Views, out.Sorts, out.Filters = browseBy(l.Kind)
 		out.Views = append(out.Views, s.periodicalViews(r, l)...)
+		// The owner and administrators also sort by file size and filter by matched or not.
+		if role := CallerFrom(r.Context()).Role; role == "owner" || role == "admin" {
+			out.Sorts = append(out.Sorts, Sort{db.SortFileSize, "desc"})
+			out.Filters = append(out.Filters, Filter{ID: "matched", Type: "boolean"})
+		}
 		return out, nil
 	})
 	// A library's landing page (its Discover tab): Home's rows, for this library alone, in the
@@ -414,7 +419,7 @@ func browseBy(kind string) ([]View, []Sort, []Filter) {
 // defaultOrder is the direction a sort starts in when the request does not say.
 var defaultOrder = map[string]bool{db.SortAdded: true, db.SortYear: true, db.SortRelease: true, db.SortDuration: true,
 	db.SortCommunityRating: true, db.SortCriticRating: true, db.SortUserRating: true, db.SortLastPlayed: true, db.SortPlayCount: true,
-	db.SortResolution: true, db.SortLatest: true, db.SortPopular: true}
+	db.SortResolution: true, db.SortLatest: true, db.SortPopular: true, db.SortFileSize: true}
 
 func boolParam(query url.Values, name string) (*bool, error) {
 	switch query.Get(name) {

@@ -109,3 +109,13 @@ func loadLeafCounts(ctx context.Context, tx *sql.Tx, v Viewer, acc access, items
 	}
 	return rows.Err()
 }
+
+// listTotal counts the whole list when the request asked for its total.
+func listTotal(ctx context.Context, tx *sql.Tx, where *query, q ItemQuery, acc access, page *ItemPage) error {
+	if !q.WithTotal {
+		return nil
+	}
+	var err error
+	page.Total, err = total(ctx, tx, where, acc)
+	return err
+}

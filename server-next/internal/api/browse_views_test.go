@@ -67,3 +67,16 @@ func TestAComicLibrarysTabHoldsSeriesAndLooseComics(t *testing.T) {
 		t.Errorf("the series opens %v", issues)
 	}
 }
+
+// Only the owner and administrators are offered the sort by file size and the matched filter.
+func TestOnlyTheOwnerIsOfferedFileSizeAndMatched(t *testing.T) {
+	s, owner, members := seededWith(t, 60, 1)
+	for who, token := range map[string]string{"owner": owner, "member": members[0]} {
+		library := get[Library](t, s, token, "/v1/libraries/"+get[Libraries](t, s, token, "/v1/libraries").Items[0].ID)
+		sorts := slices.ContainsFunc(library.Sorts, func(s Sort) bool { return s.ID == db.SortFileSize })
+		filters := slices.ContainsFunc(library.Filters, func(f Filter) bool { return f.ID == "matched" })
+		if sorts != (who == "owner") || filters != (who == "owner") {
+			t.Errorf("the %s is offered file size %v and matched %v", who, sorts, filters)
+		}
+	}
+}
