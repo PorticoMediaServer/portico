@@ -8,9 +8,6 @@ are procedural fixtures. Dolby Vision reuses the committed procedural MEL/FEL
 MP4 containers, preserving their actual Dolby Vision configuration record.
 No network, commercial media or design assets are read.
 All generated media and per-section manifests belong on the test host.
-Use seed_state.py on the operator host to populate state through the real API;
-credentials remain in the operator's private file. Use verify.py and
-playback_smoke.py for readback and the bounded service qualification checks.
 """
 import argparse, collections, hashlib, importlib, json, os, shutil
 from pathlib import Path
