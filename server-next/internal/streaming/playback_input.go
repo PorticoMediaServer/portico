@@ -1,7 +1,9 @@
 package streaming
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,4 +118,21 @@ func (p *PlaybackInput) Close() error {
 		}
 	})
 	return p.closeErr
+}
+
+// chaptersInput is where the converter reads a disc title's chapters: descriptor 4, or stdin
+// when the disc is opened by path (ChapterMetadata), where descriptor 4 cannot be inherited.
+func (p *PlaybackInput) chaptersInput() string {
+	if len(p.ChapterMetadata) != 0 {
+		return "pipe:0"
+	}
+	return "pipe:4"
+}
+
+// chaptersStdin is the converter's stdin: the chapters when they come that way, else nothing.
+func (p *PlaybackInput) chaptersStdin() io.Reader {
+	if len(p.ChapterMetadata) == 0 {
+		return nil
+	}
+	return bytes.NewReader(p.ChapterMetadata)
 }

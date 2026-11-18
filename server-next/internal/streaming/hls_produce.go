@@ -310,11 +310,8 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 					chapterIndex++
 				}
 			}
-			chapters := "pipe:4"
-			if len(input.ChapterMetadata) != 0 {
-				chapters = "pipe:0"
-			}
-			args = append(args, "-protocol_whitelist", "file,pipe", "-format_whitelist", "ffmetadata", "-f", "ffmetadata", "-i", chapters, "-map_chapters", strconv.Itoa(chapterIndex))
+			args = append(args, "-protocol_whitelist", "file,pipe", "-format_whitelist", "ffmetadata", "-f", "ffmetadata", "-i", input.chaptersInput(),
+				"-map_chapters", strconv.Itoa(chapterIndex))
 			if residual > 0 {
 				args = append(args, "-ss", strconv.FormatFloat(float64(residual)/1000, 'f', 3, 64))
 			}
@@ -418,8 +415,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 				filepath.ToSlash(filepath.Join(outputDir, "window.m3u8")),
 			)
 		} else {
-			args = append(args, "-hls_playlist_type", "event", "-hls_segment_filename", filepath.Join(dir, "segment-%06d."+ext),
-				filepath.ToSlash(filepath.Join(dir, "master.m3u8")))
+			args = append(args, "-hls_playlist_type", "event", "-hls_segment_filename", filepath.Join(dir, "segment-%06d."+ext), filepath.ToSlash(filepath.Join(dir, "master.m3u8")))
 		}
 		return args, stages, nil
 	}
@@ -563,9 +559,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			return &notStarted{err}, why
 		}
 		cmd.WaitDelay = 2 * time.Second
-		if len(input.ChapterMetadata) != 0 {
-			cmd.Stdin = bytes.NewReader(input.ChapterMetadata)
-		}
+		cmd.Stdin = input.chaptersStdin()
 		if progress != nil {
 			cmd.Stdout = progress
 		} else if bookCold {
