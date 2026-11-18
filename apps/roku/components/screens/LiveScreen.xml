@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Live TV, the guide (tv.html frame 6): one focus region of channels and a time grid with the
-     now-line. OK on a programme opens its side sheet with Watch live first. -->
+<!-- Live TV, the guide (tv.html frame 6): the toolbar and the filter chips, then one focus region
+     of channels and a time grid with the now-line. OK on a programme opens its side sheet with
+     Watch live first. -->
 <component name="LiveScreen" extends="Group">
   <interface>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
@@ -13,10 +14,14 @@
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Live.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
     <Label id="pageTitle" text="Live TV"/>
     <ButtonRow id="toolbar"/>
+    <Group id="chipWindow">
+      <ButtonRow id="chips" visible="false"/>
+    </Group>
     <Label id="state" visible="false"/>
     <Group id="header"/>
     <Group id="window">

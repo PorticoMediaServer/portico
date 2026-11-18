@@ -3,6 +3,8 @@
 <component name="Button" extends="Group">
   <interface>
     <field id="text" type="string" onChange="onChange"/>
+    <!-- A button that opens a menu (Live TV's All channels, Today): a down chevron after the label. -->
+    <field id="menu" type="boolean" onChange="onChange"/>
     <!-- Name of a 28 px icon (images/i-<name>-28.png), or "". -->
     <field id="icon" type="string" onChange="onChange"/>
     <field id="on" type="boolean" onChange="onChange"/>
@@ -28,5 +30,6 @@
     <Rectangle id="track" width="100" height="6" visible="false"/>
     <Rectangle id="bar" height="6" visible="false"/>
     <Label id="detail" height="72" vertAlign="center" visible="false"/>
+    <Poster id="chevron" uri="pkg:/images/i-chevronDown-24.png" width="24" height="24" visible="false"/>
   </children>
 </component>
