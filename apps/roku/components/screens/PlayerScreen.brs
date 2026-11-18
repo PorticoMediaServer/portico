@@ -26,6 +26,25 @@ sub init()
     setType(m.top.findNode("at"), "metaStrong", c.text)
     setType(m.top.findNode("left"), "metaStrong", c.textSecondary)
     setType(m.top.findNode("flabText"), "nav", c.text)
+    ' every fixed line of the overlay comes from the player's frame
+    f = frames().player
+    m.f = f
+    m.top.findNode("title").translation = [f.left, f.top]
+    m.top.findNode("title").width = 1300
+    m.top.findNode("code").translation = [f.left, f.top + 54]
+    m.top.findNode("sub").translation = [f.left, f.top + 54]
+    m.top.findNode("clock").translation = [f.right - 500, f.top]
+    m.top.findNode("ends").translation = [f.right - 500, f.top + 44]
+    m.top.findNode("track").width = f.right - f.left
+    m.top.findNode("track").color = c.barTrack
+    m.ahead.color = c.barAhead
+    m.played.color = c.accentStrong
+    m.was.color = c.barTick
+    m.top.findNode("at").translation = [f.left, f.timeY]
+    m.top.findNode("left").translation = [f.right - 500, f.timeY]
+    m.buttons.translation = [0, f.buttonsY]
+    m.top.findNode("hints").translation = [f.left, f.buttonsY + 26]
+    m.top.findNode("flabPlate").blendColor = c.labelPlate
     m.video.observeField("state", "onVideoState")
     m.video.observeField("position", "onPosition")
     m.hide.observeField("fire", "lower")
@@ -116,7 +135,7 @@ sub placePills(values as object)
     key = values.join("|")
     if key = m.pillValues then return
     m.pillValues = key
-    right = frames().rightEdge
+    right = m.f.right
     for i = 2 to 0 step -1
         pill = m.row[m.firstPill + i]
         pill.value.text = values[i]
@@ -203,9 +222,9 @@ sub start()
     name = m.top.findNode("sub")
     name.text = sub_
     if code.text <> ""
-        x = 96 + code.boundingRect().width + 16
-        name.translation = [x, 134]
-        name.width = 1396 - x
+        x = m.f.left + code.boundingRect().width + 16
+        name.translation = [x, m.f.top + 54]
+        name.width = m.f.left + 1300 - x
     else
         name.width = 1300
     end if
@@ -637,22 +656,22 @@ sub paint()
     if m.pending >= 0 then position = m.pending
     seeking = (m.focus < 0)
     ' the seek bar: played, and while a scrub waits the stretch it would skip, lighter, with a tick where the picture is
-    trackY = 828
+    trackY = m.f.barY
     height = 8
     if seeking
-        trackY = 826
+        trackY = m.f.barY - 2
         height = 12
     end if
     for each bar in [m.top.findNode("track"), m.played, m.ahead]
-        bar.translation = [96, trackY]
+        bar.translation = [m.f.left, trackY]
         bar.height = height
     end for
-    m.played.width = barX(min(position, now), duration) - 96
+    m.played.width = barX(earlier(position, now), duration) - m.f.left
     m.ahead.visible = (m.pending >= 0)
     if m.ahead.visible
-        m.ahead.translation = [barX(min(position, now), duration), trackY]
+        m.ahead.translation = [barX(earlier(position, now), duration), trackY]
         m.ahead.width = abs(barX(position, duration) - barX(now, duration))
-        m.was.translation = [barX(now, duration) - 2, 819]
+        m.was.translation = [barX(now, duration) - 2, m.f.barY - 9]
     end if
     m.was.visible = m.ahead.visible
     knob = 22
@@ -660,8 +679,8 @@ sub paint()
     x = barX(position, duration)
     m.knob.width = knob
     m.knob.height = knob
-    m.knob.translation = [x - knob / 2, 832 - knob / 2]
-    m.knobRing.translation = [x - 40, 792]
+    m.knob.translation = [x - knob / 2, m.f.barY + 4 - knob / 2]
+    m.knobRing.translation = [x - 40, m.f.barY - 36]
     m.knobRing.width = 80
     m.knobRing.height = 80
     m.knobRing.visible = seeking
@@ -686,7 +705,7 @@ sub paint()
             spot.icon.blendColor = c.actionInk
         else
             ' glass, lighter under focus
-            if on then spot.plate.blendColor = "0xEDF5FA47" else spot.plate.blendColor = "0xEDF5FA24"
+            if on then spot.plate.blendColor = c.glassOn else spot.plate.blendColor = c.glass
             spot.icon.blendColor = c.text
             if spot.number <> invalid then spot.number.color = c.text
         end if
@@ -694,12 +713,12 @@ sub paint()
             across = spot.size * 296 / 216
             m.ring.width = across
             m.ring.height = across
-            m.ring.translation = [spot.x + spot.size / 2 - across / 2, 912 + 44 - across / 2]
+            m.ring.translation = [spot.x + spot.size / 2 - across / 2, m.f.buttonsY + 44 - across / 2]
             m.ring.visible = true
             names = {back: "Back 10 seconds", forward: "Forward 30 seconds", play: "Pause"}
             text = names[spot.kind]
             if spot.kind = "play" and paused then text = "Play"
-            showLabel(flab, text, spot.x + spot.size / 2, 912 + (88 - spot.size) / 2 - 12)
+            showLabel(flab, text, spot.x + spot.size / 2, m.f.buttonsY + (88 - spot.size) / 2 - 12)
         end if
     end for
     ' the three choices
@@ -709,15 +728,15 @@ sub paint()
     for i = m.firstPill to m.row.count() - 1
         pill = m.row[i]
         if i = m.focus and not m.scrub
-            pill.plate.blendColor = "0xEDF5FA47"
+            pill.plate.blendColor = c.glassOn
             pill.value.color = c.text
             out = metrics().focusSpread + 6
-            pillRing.translation = [pill.x - out, 912 + 12 - out]
+            pillRing.translation = [pill.x - out, m.f.buttonsY + 12 - out]
             pillRing.width = pill.width + out * 2
             pillRing.height = 64 + out * 2
             pillRing.visible = true
         else
-            pill.plate.blendColor = "0xEDF5FA24"
+            pill.plate.blendColor = c.glass
             pill.value.color = c.textSecondary
         end if
         pill.head.color = c.text
@@ -726,14 +745,14 @@ end sub
 
 ' Where a time falls on the seek bar.
 function barX(seconds as float, duration as float) as float
-    if duration <= 0 then return 96
+    if duration <= 0 then return m.f.left
     fraction = seconds / duration
     if fraction < 0 then fraction = 0
     if fraction > 1 then fraction = 1
-    return 96 + 1728 * fraction
+    return m.f.left + (m.f.right - m.f.left) * fraction
 end function
 
-function min(a as float, b as float) as float
+function earlier(a as float, b as float) as float
     if a < b then return a
     return b
 end function
