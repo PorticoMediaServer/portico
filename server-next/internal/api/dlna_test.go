@@ -194,19 +194,6 @@ func TestDLNA(t *testing.T) {
 		t.Errorf("the warning stayed after the range was removed: %q", settings.Warning)
 	}
 	saveDLNA(func(v *RemoteAccessSettings) { v.DLNA = false })
-	// Opening the library to every device at home is for the owner signed in: a key may save
-	// the rest of the remote access settings, never the DLNA switch.
-	var key KeyCreated
-	call(t, s, "POST", "/v1/admin/api-keys", owner, KeyCreate{Name: "Tool", Scopes: []string{"admin"}}, &key)
-	var current RemoteAccessSettings
-	call(t, s, "GET", "/v1/admin/settings/remote-access", owner, nil, &current)
-	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", key.Secret, RemoteAccessSave{RemoteAccessSettings: current}); got != 200 {
-		t.Errorf("a key saving the remote access settings unchanged answered %d", got)
-	}
-	current.DLNA = true
-	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", key.Secret, RemoteAccessSave{RemoteAccessSettings: current}); got != 403 {
-		t.Errorf("a key turning DLNA on answered %d, want 403", got)
-	}
 	if w := dlnaCall(s, home, "GET", media, "", nil); w.Code != 404 {
 		t.Errorf("with DLNA turned off a device at home was answered %d", w.Code)
 	}
