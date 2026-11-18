@@ -331,6 +331,7 @@ ICONS = {
     'server': [28],
     'settings': [32],
     'shield': [28],
+    'signOut': [28],
     'sliders': [28],
     'subtitles': [28],
     'success': [28],

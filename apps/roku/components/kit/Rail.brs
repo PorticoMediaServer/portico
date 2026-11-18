@@ -161,6 +161,10 @@ sub onActive()
     if not m.top.active then return
     m.open = true
     onCurrent()
+    for i = 0 to m.rows.count() - 1
+        if m.rows[i].id = m.top.enterOn then m.focus = i
+    end for
+    m.top.enterOn = ""
     m.top.setFocus(true)
     paint()
 end sub

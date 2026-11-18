@@ -10,6 +10,8 @@
     <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
     <!-- Set by the scene when Back closes the side sheet without a choice. -->
     <field id="menuClosed" type="boolean" alwaysNotify="true" onChange="onMenuClosed"/>
+    <!-- Asks the scene, once confirmed, to sign out ("signout"). -->
+    <field id="account" type="string" alwaysNotify="true"/>
   </interface>
   <script type="text/brightscript" uri="SettingsScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>

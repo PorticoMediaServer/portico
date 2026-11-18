@@ -247,7 +247,7 @@ function drawCard(node as object, stops as object, y as integer, rows as object)
         item = node.createChild("ListRow")
         item.rowWidth = f.pageWidth
         item.model = {label: row.label, help: wordsOrNone(row.help), scope: wordsOrNone(row.scope), value: wordsOrNone(row.value),
-            control: wordsOrNone(row.control), switchOn: (row.switchOn = true), icon: wordsOrNone(row.icon)}
+            control: wordsOrNone(row.control), switchOn: (row.switchOn = true), icon: wordsOrNone(row.icon), danger: (row.danger = true)}
         item.translation = [f.pageX, y]
         stops.push({node: item, act: row.act, first: first})
         first = false
@@ -342,7 +342,7 @@ function accountRows(spec as object) as object
         if m.resetDone then help = "Recommendations reset."
         return [{label: spec.label, help: help, icon: spec.icon, act: does}]
     end if
-    return []
+    return [{label: spec.label, icon: wordsOrNone(spec.icon), danger: (spec.danger = true), act: does}]
 end function
 
 ' The closed Advanced line: what is changed under it, or "All at defaults".
@@ -494,6 +494,8 @@ sub act(a as object)
         id = m.spec[m.page].id
         m.advanced[id] = not (m.advanced[id] = true)
         redraw()
+    else if a.id = "signout"
+        m.top.account = "signout"      ' the scene asks first, as it does from the rail's profile menu
     else if a.id = "reset"
         m.confirm.model = {title: "Reset recommendations?", body: "Portico will forget what it has learned about your taste. Your watch history, ratings and lists stay.", verb: "Reset"}
     end if
