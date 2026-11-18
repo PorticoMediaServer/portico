@@ -111,6 +111,10 @@ func (s *Server) topShelf(r *http.Request, _ None) (TopShelf, error) {
 	if err := s.refuseNonOwnerAway(r, c.UserID); err != nil {
 		return TopShelf{}, err
 	}
+	// Home-only and viewing hours, as for a sign-in: the reason is answered and the token keeps.
+	if err := s.db.AccountOpen(r.Context(), c.UserID, s.fromHome(r), s.now()); err != nil {
+		return TopShelf{}, err
+	}
 	r = r.WithContext(context.WithValue(r.Context(), callerKey, Caller{SessionID: c.SessionID, UserID: c.UserID, ProfileID: c.ProfileID,
 		Role: c.Role, Manage: c.Manage}))
 	rows, _, err := s.homeRows(r, false)
