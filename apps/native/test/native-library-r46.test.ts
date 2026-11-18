@@ -38,7 +38,7 @@ async function libraryScreen(width: number, isTV = false) {
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt'},
     '../../kit/controls': {Focusable: 'Focusable', Button: 'Button'},
     '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
-    '../../kit/browse': {LibraryHeader: 'LibraryHeader', LibraryMenu: 'LibraryMenu', LibrarySwitcher: 'LibrarySwitcher', StickyBrowseHeader: 'StickyBrowseHeader', ViewToggle: 'ViewToggle'},
+    '../../kit/browse': {LibraryHeader: 'LibraryHeader', LibraryExpandedHeader: 'LibraryExpandedHeader', LibraryMediumHeader: 'LibraryMediumHeader', LibraryMenu: 'LibraryMenu', LibrarySwitcher: 'LibrarySwitcher', StickyBrowseHeader: 'StickyBrowseHeader', ViewToggle: 'ViewToggle'},
     '../../kit/overlays': {Menu: 'Menu'},
     '../../kit/browse/presentation': {alpha, browseType: (used: any, size: number, weight = 600, tracking = 0) => ({fontSize: size * used.textScale, fontWeight: weight, letterSpacing: tracking * size})},
     '../../kit/Icon': {Icon: 'Icon'},

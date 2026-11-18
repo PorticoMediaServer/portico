@@ -68,6 +68,18 @@ export const frame = {
   sheet: {fullTop: 62, fullRadius: 16, footerClear: 34},
   /** Frame 6: the centred column on a tablet. A phone uses its width; the web's column and inset are the auth stage's. */
   signIn: {column: forms(0, 380, 380, 0)},
+  /** Frame 1, a library's fixed regions under its header (desktop-browse grid and filters, phone-app 4 to 6, tablet 3 to 5,
+   * final3-tv-08). The regions are `frameRegions.browse`. R5 interim: these numbers move to the rules hand's rhythm table. */
+  browse: {
+    /** The tabs' rule to the toolbar, and the toolbar's last line to the grid's first row. */
+    toolbarGap: forms(0, 12, 20, 24), // R5 interim
+    gridGap: forms(4, 12, 24, 24), // R5 interim
+    /** The A–Z rail stands in the right gutter beside the grid's last column. TV jumps with the toolbar's Jump to. */
+    alphabetWidth: forms(20, 24, 32, 0), // R5 interim
+    /** Filters: a sheet on a phone; over the grid on an upright tablet (tablet 5, 420); a column docked beside the grid on a
+     * landscape tablet (tablet 4, 380); the web's side panel (desktop-browse filters, 520); TV's side sheet (680). */
+    filtersWidth: {...forms(0, 420, 380, 680), web: 520},
+  },
   /** Frame 8 and rule 12: every region is placed from the frame's edges, so nothing moves when content is missing. */
   audio: {
     topBar: forms(46, 46, 46, 40),

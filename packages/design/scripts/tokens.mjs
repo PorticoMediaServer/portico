@@ -89,6 +89,8 @@ function frameTokens(form, web) {
     `--frame-audio-next-line: ${px(f.audio.nextLine[form])}`, `--frame-audio-bottom-row: ${px(f.audio.bottomRow[form])}`, `--frame-audio-controls: ${px(pick(f.audio.controlsWidth))}`,
     `--frame-audio-up-next: ${px(pick(f.audio.upNextWidth))}`, `--frame-audio-gap: ${px(pick(f.audio.gap))}`,
     `--frame-state-row-tile: ${px(f.stateRow.tile[form])}`,
+    `--frame-browse-toolbar-gap: ${px(f.browse.toolbarGap[form])}`, `--frame-browse-grid-gap: ${px(f.browse.gridGap[form])}`, `--frame-browse-alphabet: ${px(f.browse.alphabetWidth[form])}`,
+    `--frame-browse-filters: ${px(pick(f.browse.filtersWidth))}`,
     `--frame-player-edge: ${px(f.player.edge[form])}`, `--frame-player-top: ${px(f.player.top[form])}`, `--frame-player-bottom: ${px(f.player.bottom[form])}`,
     `--frame-player-times-gap: ${px(f.player.timesGap[form])}`, `--frame-player-controls-gap: ${px(f.player.controlsGap[form])}`, `--frame-player-end-gap: ${px(f.player.endGap[form])}`, `--frame-player-title-gap: ${px(f.player.titleGap[form])}`,
     `--frame-player-pill-height: ${px(f.player.pill.height[form])}`, `--frame-player-pill-padding: ${px(f.player.pill.paddingX[form])}`,
