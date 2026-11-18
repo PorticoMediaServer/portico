@@ -22,6 +22,8 @@
     <NowPlaying id="nowPlaying" visible="false"/>
     <Rail id="rail" visible="false"/>
     <Sheet id="sheet" visible="false"/>
+    <!-- The Watch Together group this profile is in: the room page and the player share it. -->
+    <TogetherRoom id="together"/>
     <!-- Signing out asks first, wherever it was chosen (the rail's profile menu, later Settings too). -->
     <Confirm id="confirm" visible="false"/>
     <!-- Development builds only: counts drawn frames, for judging smoothness without eyes on the screen. -->

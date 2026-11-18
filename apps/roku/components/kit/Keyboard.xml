@@ -7,6 +7,9 @@
     <!-- A key name (Lit_a, backspace) a page passes on while focus is not on the keyboard. -->
     <field id="typed" type="string" alwaysNotify="true" onChange="onTyped"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- Letters drawn in capitals (an invitation code, which is shown in capitals); what is typed
+         is the same either way. -->
+    <field id="capitals" type="boolean" onChange="onCapitals"/>
   </interface>
   <script type="text/brightscript" uri="Keyboard.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>

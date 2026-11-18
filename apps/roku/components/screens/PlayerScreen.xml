@@ -5,6 +5,9 @@
     <field id="item" type="assocarray"/>
     <!-- True to start from the beginning instead of where the title was left. -->
     <field id="startOver" type="boolean"/>
+    <!-- Played with the Watch Together group (Open player, Watch with group): the group's clock
+         says what plays, where and whether it moves, and Play, Pause and seeking go to the group. -->
+    <field id="together" type="boolean"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="art" type="string"/>
     <!-- Set true when the player is done and the page under it should come back. -->
@@ -21,6 +24,7 @@
   <script type="text/brightscript" uri="pkg:/source/AppLog.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Queue.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Together.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
     <Rectangle width="1920" height="1080" color="0x000000FF"/>
@@ -54,6 +58,15 @@
       </Group>
       <Group id="buttons"/>
       <Poster id="ring" uri="pkg:/images/focus-disc.png"/>
+      <!-- In a group, beside the title (tv-more frame 18): faces, the group's name and whether
+           everyone is in step. Up from the seek bar reaches it; OK opens who is here. -->
+      <Group id="pill" visible="false">
+        <Poster id="pillPlate" uri="pkg:/images/round-36.9.png" height="64"/>
+        <Group id="pillFaces"/>
+        <Label id="pillName"/>
+        <Poster id="pillDot" uri="pkg:/images/disc.png" width="9" height="9"/>
+        <Label id="pillState"/>
+      </Group>
       <Poster id="pillRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
       <!-- An icon-only button names itself while it has focus, in the empty middle of the time row. -->
       <Group id="flab">
@@ -131,5 +144,7 @@
     <Timer id="count" duration="1" repeat="true"/>
     <!-- The sleep timer chosen in the options panel: it pauses the title when it runs out. -->
     <Timer id="sleep"/>
+    <!-- In a group: the picture is held to the group's clock, once a second. -->
+    <Timer id="follow" duration="1" repeat="true"/>
   </children>
 </component>

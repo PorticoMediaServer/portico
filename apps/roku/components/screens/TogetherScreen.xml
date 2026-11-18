@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Watch Together (tv-more frames 11 to 17), reached from the rail's profile menu. The lobby: Start
+     a group, Join with a code, and the groups this profile is in. Join and Start open wide sheets
+     over it. The room: what is on, its buttons and the shared queue on the left; who is here and
+     the invitation (the host's) on the right; Leave and End at the foot; an amber strip over both
+     columns when the host is away or the group is out of reach. When the group ends the room gives
+     way to "This group has ended". The group itself is the scene's (components/TogetherRoom). Every
+     part is placed from frames().together in TogetherScreen.brs. -->
+<component name="TogetherScreen" extends="Group">
+  <interface>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- Open player: the title the group is on, played with the group. -->
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+    <!-- A queue row's or a person's menu, in the scene's side sheet; the choice comes back in menuChosen. -->
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+  </interface>
+  <script type="text/brightscript" uri="TogetherScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Together.brs"/>
+  <children>
+    <Group id="lobby" visible="false">
+      <Label id="lobbyTitle" text="Watch Together"/>
+      <Poster id="card" uri="pkg:/images/round-20.9.png"/>
+      <Poster id="cardDisc" uri="pkg:/images/round-36.9.png" width="72" height="72"/>
+      <Poster id="cardIcon" uri="pkg:/images/i-people-32.png" width="32" height="32"/>
+      <Label id="lede" text="Watch in step with friends on this server" wrap="true" maxLines="2"/>
+      <Label id="words" text="Everyone in the group plays, pauses and skips together, each on their own screen." wrap="true" maxLines="2"/>
+      <ButtonRow id="lobbyButtons"/>
+      <Label id="groupsHead" text="Groups you’re in" visible="false"/>
+      <Group id="groups"/>
+    </Group>
+    <Group id="room" visible="false">
+      <Label id="eyebrow" text="Watch Together"/>
+      <Label id="roomName"/>
+      <Group id="left">
+        <Poster id="nowPlate" uri="pkg:/images/round-20.9.png"/>
+        <Poster id="nowArt" loadDisplayMode="scaleToZoom"/>
+        <Poster id="nowShade" uri="pkg:/images/fade-down.png"/>
+        <Poster id="nowDot" uri="pkg:/images/disc.png" width="10" height="10"/>
+        <Label id="nowState"/>
+        <Label id="nowTitle"/>
+        <Label id="nowMeta"/>
+        <Label id="nowReady"/>
+        <Rectangle id="nowTrack" height="6"/>
+        <Rectangle id="nowPlayed" height="6"/>
+        <ButtonRow id="actions"/>
+        <Label id="hostControls" text="The host controls playback" visible="false"/>
+        <Label id="queueHead" text="Queue"/>
+        <Poster id="queuePlate" uri="pkg:/images/round-20.9.png"/>
+        <Group id="queue"/>
+        <Label id="queueEmpty" wrap="true" maxLines="2"/>
+      </Group>
+      <Group id="right">
+        <Label id="peopleHead"/>
+        <Poster id="peoplePlate" uri="pkg:/images/round-20.9.png"/>
+        <Group id="people"/>
+        <Group id="invite">
+          <Label id="inviteHead" text="Invite people"/>
+          <Poster id="invitePlate" uri="pkg:/images/round-20.9.png"/>
+          <Label id="code"/>
+          <Label id="inviteWords" wrap="true" maxLines="3"/>
+          <ButtonRow id="inviteButton"/>
+        </Group>
+      </Group>
+      <Group id="notice" visible="false">
+        <Poster id="noticePlate" uri="pkg:/images/round-20.9.png" height="100"/>
+        <Poster id="noticeEdge" uri="pkg:/images/line-20.9.png" height="100"/>
+        <Poster id="noticeIcon" uri="pkg:/images/i-warning-32.png" width="32" height="32"/>
+        <Label id="noticeText" wrap="true" maxLines="2" height="100" vertAlign="center"/>
+        <ButtonRow id="noticeButton"/>
+      </Group>
+      <ButtonRow id="foot"/>
+    </Group>
+    <PageState id="state" visible="false"/>
+    <Group id="sheet" visible="false">
+      <Rectangle id="scrim" width="1920" height="1080" opacity="0.6"/>
+      <Rectangle id="panel" height="1080"/>
+      <Label id="sheetEyebrow" text="Watch Together"/>
+      <Label id="sheetTitle"/>
+      <Label id="sheetWords" wrap="true" maxLines="2"/>
+      <Field id="codeField" label="Code from the host" placeholder="ABCD EFGH"/>
+      <Field id="groupField" label="Name"/>
+      <Field id="nameField" label="Your name in the group" note="Shown to the others"/>
+      <Label id="whoLabel" text="Who can play, pause and choose what’s on"/>
+      <ButtonRow id="control"/>
+      <ButtonRow id="submit"/>
+      <Label id="sheetNote" wrap="true" maxLines="2"/>
+      <Keyboard id="keyboard" capitals="true"/>
+      <KeyHints id="sheetHints"/>
+    </Group>
+    <Confirm id="confirm" visible="false"/>
+    <!-- The group's place and the host's countdown move on once a second. -->
+    <Timer id="tick" duration="1" repeat="true"/>
+  </children>
+</component>

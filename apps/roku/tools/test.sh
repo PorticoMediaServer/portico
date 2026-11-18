@@ -26,6 +26,10 @@ echo "$out" | grep -q '^PASSED *[0-9]* FAILED *0$'
 out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/live.brs source/Live.brs source/Present.brs 2>&1) || true
 echo "$out" | tail -20
 echo "$out" | grep -q '^PASSED [0-9]* FAILED 0$'
+# Watch Together's rules: codes, who may control, keeping in step, what a newer room changes.
+out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/together.brs source/Together.brs 2>&1) || true
+echo "$out" | tail -20
+echo "$out" | grep -q '^PASSED *[0-9]* FAILED *0$'
 # Every frame number, colour and type role the app reads is in source/Theme.brs. BrightScript only
 # finds a missing one when the screen that reads it opens, and then the app stops.
 python3 tools/theme-check.py

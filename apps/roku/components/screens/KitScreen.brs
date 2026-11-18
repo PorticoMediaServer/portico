@@ -81,6 +81,9 @@ function kitPages() as object
             {c: "Keyboard", at: [200, 120], f: {}}]},
         {title: "The name panel (a new playlist named on the TV, tv-focus 41)", parts: [
             {c: "NamePanel", at: [0, 0], f: {model: {eyebrow: "Alien", title: "New playlist", value: "Road trip", verb: "Create"}}}]},
+        {title: "Fields in a sheet: at rest with help, in focus, typed into, refused", parts: [
+            {c: "Field", at: [200, 160], f: {label: "Your name in the group", text: "Demo", note: "Shown to the others"}}, {c: "Field", at: [760, 160], f: {label: "Name", text: "Movie night", on: true}},
+            {c: "Field", at: [200, 400], f: {label: "Code from the host", text: "KQ7M 2X", typing: true}}, {c: "Field", at: [760, 400], f: {label: "Code from the host", placeholder: "ABCD EFGH", note: "That code didn’t work.", refused: true}}]},
         {title: "Number pads: a PIN with Forgot PIN?, and a two-step code", parts: [
             {c: "PinPad", at: [200, 220], f: {digits: 4, extra: "Forgot PIN?", boxesAt: [0, 700]}},
             {c: "PinPad", at: [1176, 220], f: {digits: 6, boxesAt: [-400, 700]}}]},

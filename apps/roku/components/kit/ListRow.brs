@@ -11,6 +11,7 @@ sub init()
     m.top.findNode("line").color = c.separator
     m.top.findNode("plate").blendColor = c.raisedBright
     m.top.findNode("chevron").blendColor = c.textTertiary
+    setType(m.top.findNode("initial"), "faceLetter", c.white)
 end sub
 
 ' Words on the left, the control on the right; the row grows to fit its words, never cuts a line in half.
@@ -28,6 +29,15 @@ sub layout()
         icon.blendColor = c.textSecondary
         textX = 88
     end if
+    face = m.top.findNode("face")
+    initial = m.top.findNode("initial")
+    face.visible = (model.initial <> invalid and model.initial <> "")
+    initial.visible = face.visible
+    if face.visible
+        face.blendColor = model.face
+        initial.text = model.initial
+        textX = 24 + 64 + 20
+    end if
     ' the right side first: the words take what is left
     right = w - 24
     chevron = m.top.findNode("chevron")
@@ -44,6 +54,9 @@ sub layout()
     valueRight = right
     if chevron.visible then valueRight = right - 24 - 12
     value.text = model.value
+    value.color = c.textSecondary
+    if model.tone = "good" then value.color = c.healthy
+    if model.tone = "wait" then value.color = c.warning
     value.width = 0
     valueWidth = value.boundingRect().width
     if valueWidth > 440 then valueWidth = 440
@@ -65,6 +78,7 @@ sub layout()
     if scope.text <> "" then words = words + 3 + scope.boundingRect().height
     h = words + 36
     if h < frames().settings.row then h = frames().settings.row
+    if face.visible and h < 64 + 24 then h = 64 + 24
     y = (h - words) / 2
     label.translation = [textX, y]
     y = y + label.boundingRect().height + 3
@@ -73,6 +87,8 @@ sub layout()
     scope.translation = [textX, y]
     tile.translation = [24, (h - 44) / 2]
     icon.translation = [32, (h - 28) / 2]
+    face.translation = [22, (h - 64) / 2]
+    initial.translation = [22, (h - 64) / 2]
     value.translation = [valueRight - valueWidth, 0]
     value.height = h
     value.vertAlign = "center"

@@ -13,6 +13,8 @@ sub init()
     info = createObject("roDeviceInfo")
     logApp("info", "app", "Portico " + createObject("roAppInfo").getVersion() + " on Roku OS " + info.getOSVersion().major + "." + info.getOSVersion().minor + ", " + info.getModel())
     m.task.control = "run"
+    ' the Watch Together group this profile is in, shared by the room page and the player
+    m.global.addFields({together: m.top.findNode("together")})
     ' Roku's own dialogs (the keyboard) wear Portico's colours.
     palette = createObject("roSGNode", "RSGPalette")
     palette.colors = {
@@ -159,6 +161,7 @@ end sub
 sub openProfileMenu(focusOn as string)
     m.sheetIsOwn = true
     rows = [{id: "switch", text: "Switch profile", icon: "", focus: focusOn = "switch"},
+        {id: "together", text: togetherRowText(), icon: "", focus: focusOn = "together"},
         {id: "signout", text: "Sign out", icon: "", gapBefore: true, focus: focusOn = "signout"}]
     ' the owner and administrators have Server settings first (tv-more frame 10)
     if m.role = "owner" or m.role = "admin" then rows.unshift({id: "server", text: "Server settings", icon: ""})
@@ -176,6 +179,8 @@ sub onSheetChosen(event as object)
             api("GET", "/v1/profiles", invalid, "onProfiles")
         else if which = "server"
             showServer()
+        else if which = "together"
+            showTogether()
         else if which = "signout"
             m.signOutFromMenu = true      ' Back or Cancel returns to the menu's Sign out row
             askSignOut()
@@ -395,6 +400,7 @@ sub onOpenAsk(ask as object)
         player.observeField("closed", "onPlayerClosed")
         player.item = ask.item
         player.startOver = (ask.startOver = true)
+        player.together = (ask.together = true)     ' played with the group: it follows the group's clock
         m.rail.visible = false
         player.active = true
         return
@@ -539,6 +545,7 @@ sub onMe(event as object)
         return
     end if
     m.rail.profileName = profile.name
+    m.global.together.ask = {do: "forget"}     ' a group belongs to the profile that joined it
     m.rail.profileColour = faceColour(profile.color)
     showHome()
 end sub
@@ -762,6 +769,22 @@ sub onRailChosen(event as object)
     m.screen.active = true     ' a destination not built yet: stay where you were
 end sub
 
+' Watch Together (tv-more frames 11 to 17), from the profile menu: the rail marks the profile.
+sub showTogether()
+    show("TogetherScreen")
+    m.screen.observeField("open", "onOpen")
+    m.screen.observeField("menu", "onMenu")
+    m.rail.visible = true
+    m.rail.current = "profile"
+    m.screen.active = true
+end sub
+
+' Inside a group the menu's row says so (tv-more frame 10).
+function togetherRowText() as string
+    if m.global.together.phase = "live" or m.global.together.phase = "reconnecting" then return "You’re in a group"
+    return "Watch Together"
+end function
+
 ' Settings' Sign out row asks the scene, as the profile menu's does
 sub onSettingsAsk(event as object)
     m.sheetIsOwn = true
@@ -782,6 +805,13 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
     if key = "back" and m.screens.getChildCount() > 1
         pop()
+        return true
+    end if
+    ' Back from Watch Together (its lobby, a room or the ended page) returns to its opener: the profile
+    ' menu, on Watch Together. The page's own sheets and dialogs answer Back first.
+    if key = "back" and m.screen <> invalid and m.screen.subtype() = "TogetherScreen"
+        showHome()
+        openProfileMenu("together")
         return true
     end if
     ' Back at the top of any other rail page goes to Home's opening state; only Home's own Back

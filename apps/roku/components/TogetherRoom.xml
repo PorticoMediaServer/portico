@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Watch Together group this profile is in on this TV: the scene's own, so the room page, the
+     player and the title menus all see the same room. It keeps it in step the way the other apps do
+     (packages/client-core room-session.ts): every `reportEveryMs` the server is told where this
+     member is (PUT /v1/groups/{id}/me) and answers with the whole room. Roku has no stream to hold
+     open for the server's change feed, so a change made by someone else reaches this TV at the
+     next of those reports, five seconds at most. -->
+<component name="TogetherRoom" extends="Node">
+  <interface>
+    <!-- The room as this member last read it (GET /v1/groups/{id}), with `receivedAt`: UpTime(0)
+         when the server read its clock, so groupPlaceMs can run the clock on from there. -->
+    <field id="room" type="assocarray"/>
+    <!-- "" (in no group), "live", "reconnecting" (the server did not answer) or "ended". -->
+    <field id="phase" type="string" value=""/>
+    <!-- What to do: {do: "create", name, displayName, control} | {do: "join", code, displayName} |
+         {do: "open", id} | {do: "play" | "pause" | "goAhead"} | {do: "seek", positionMs} |
+         {do: "watchEntry", entryId} | {do: "watch" | "add", itemId} | {do: "remove", entryId} |
+         {do: "newCode"} | {do: "makeHost", memberId} | {do: "becomeHost"} | {do: "leave"} |
+         {do: "end"} | {do: "forget"} (another profile: stop here, tell nobody). -->
+    <field id="ask" type="assocarray" alwaysNotify="true" onChange="onAsk"/>
+    <!-- How an ask went: {do, ok, code, message}. -->
+    <field id="answer" type="assocarray" alwaysNotify="true"/>
+    <!-- Where this member is, from the player: {state: ready | playing | paused | buffering, positionMs}. -->
+    <field id="report" type="assocarray" onChange="onReport"/>
+  </interface>
+  <script type="text/brightscript" uri="TogetherRoom.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Together.brs"/>
+  <children>
+    <Timer id="beat" duration="5" repeat="true"/>
+  </children>
+</component>
