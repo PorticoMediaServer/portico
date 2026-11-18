@@ -327,9 +327,14 @@ One frame for every kind of title page, its regions written once as data (`frame
 | Phone, and a tablet upright (`medium`, taller than wide) | One centred column: the art box with Back and Play on as glass discs, the kicker, title and facts hanging from its bottom edge; then the action row (round buttons), the played line with Start over, the synopsis, the picker row; the tabs; the panel; the side under it. A cover page puts the cover centred above the words. Ruling 6, tablet f8, phone-detail d1 |
 | An open foldable on its side (`medium`, wider than tall) | Two pages on the crease (foldable f2): the title and the cast on the left, the tabs and their panel on the right, each scrolling on its own |
 | A tablet on its side (`expanded`) | The words over the shaded art at the left: kicker, title, facts, tagline, synopsis, credits, then the action row with labelled buttons. A cover page: a square or poster at the left, a circle at the right (desktop-listen, desktop-detail f7). The side beside the panel |
-| TV | As a tablet on its side, with no discs. `collapsed` (focus in the panel) is the title and the tabs at the top (detail-tv-4, 5a) |
+| TV | As a tablet on its side, with no discs. `collapsed` (focus in the panel) is the title and the tabs at the top (detail-tv-4, 5a). A show's or season's Episodes tab: `seasons.column` (330 wide, `SeasonListRow`s, Hold OK) with `seasons.episodes` beside it (the stills and the band) at the top of the panel; the rest of the panel runs under both (detail-tv-5a, 5b) |
 
-The collapsed bar (touch): once the tabs pass under it. A phone and an upright tablet: Back, the title centred and Play
+On a tablet on its side and TV the art box is at least its drawn height and grows with its words (a long title never
+rises under Back); the words keep the copy width and the action row takes the page's width (one line, tablet f6).
+An action marked `wide` (Watched) is drawn only there; on a phone and an upright tablet it is in More (phone-detail d1).
+
+A screen that holds `collapsed` (a tab opened directly) gets the bar in place of the hero and the page's tabs, with the
+panel under it (desktop-detail f3, phone-detail d1 frame 2). The collapsed bar (touch): once the tabs pass under it. A phone and an upright tablet: Back, the title centred and Play
 on, with the tabs under it (phone-detail d1 frame 2). A tablet on its side: Back, the title, the tabs, the primary and
 the actions marked `pinned` (desktop-detail f3).
 
@@ -342,21 +347,23 @@ Parts for the panel and the side, in `kit/frames/title-parts.tsx` (the web kit h
 (label and value rows, values that open something underlined; a raised card on a phone), `CastRow` (circles with name
 and role; a sideways row on a phone and TV, wrapping groups on a tablet), `TrackPicker` (the audio and subtitles row),
 `NumberedRow` ("Films in order"), `OwnerCard` ("This collection", "Files"), `EpisodeNeighbour` (Previous and Next
-episode). Moved into the kit, one copy: `kit/layout/SeasonSheet.tsx` (from `screens/watch/SeasonsSheet.tsx`, which now
+episode), `SeasonListRow` (TV season column; `screens/watch/TVEpisodeBrowser.tsx` draws its seasons and groups with it),
+`VersionRows` (Play a different version, R9 `versions`), `EpisodeDisplay` (the owner's Episode display, R9 `choice`). Moved into the kit, one copy: `kit/layout/SeasonSheet.tsx` (from `screens/watch/SeasonsSheet.tsx`, which now
 maps the show's seasons and groups to its rows). The kit `EpisodeTile layout="row"` on a tablet puts the synopsis
 beside the picture under the title and the length on the picture (R7, tablets.md SC-5).
 
 Gallery: `dev/families/frames/title.gallery.tsx`, `frames-title-*`: film, film-resume, film-more, film-details (the
 collapsed bar), show, show-seasons (the season sheet), show-episode (an episode opened in place), season, episode,
-person, collection, album, artist, book, missing, loading. The old `frames-title`, `-missing` and `-loading` cases are
+person, collection, album, artist, book, missing, loading; versions, file-info (the screen's `NativeFileInfoContent` on
+the `details` form; Stage 2 moves it into the kit), episode-display. Each names its library, so the TV rail marks it. The old `frames-title`, `-missing` and `-loading` cases are
 these now.
 
 Still the screens' own, for Stage 2 (they read the title controller or TV shelves directly):
 `screens/watch/TitlePeople.tsx` (TV paging and focus; Stage 2 draws it on `CastRow`), `TitleEpisodePlate.tsx` (the
 episode opened in place; the gallery's is built from the kit parts), `screens/people/PersonScreen.tsx` and
 `screens/collections/CollectionScreen.tsx` (they still use `CoverHero`; Stage 2 puts them on `TitleFrame` with `cover`).
-`HeroMetadata` outlines a fact with the id `runtime`; on a title page the runtime is plain (phone-detail d1), so the
-gallery gives it another id. The rules hand should make that a rule (Home outlines it, a title page does not).
+The runtime chip is outlined only on Home (rule 6213a8c02a); the gallery's facts use the shared ids (`season-count`,
+`content-rating`).
 
 ## Decided by the owner (Justin, 18 Nov)
 
@@ -447,6 +454,7 @@ No mock-up draws Notifications on TV, so that one cell is `null`.
 | `confirm` (Delete…?) | sheet; foot halves (Cancel, the action; destructive is a red fill) | dialog; foot at the end | dialog; foot at the end | dialog; foot at the end, Cancel first |
 | `task` (Add source, Save as playlist) | sheet; bar: Cancel · centred title; foot full (the action) | side panel, modal; title · round ×; foot halves | dialog; title · round ×; foot at the end | side sheet, modal; title; foot: key hints (no Cancel) |
 | `details` (File info) | sheet; bar: title + item · Done | side panel; title + item · round × | side panel | full-height side sheet; eyebrow + title; foot full (Done) |
+| `versions` (Play a different version) | sheet; bar: title + film · Done | dialog; title + film · round ×; no foot | dialog, as tablet | side sheet, modal; eyebrow + title; foot: key hints (OK Play, Back Close) |
 | `filters` | sheet; title · Done; foot halves | side panel; title · round ×; foot halves | side panel | side panel; title; foot halves (Clear all, Show N) |
 | `settings` | full sheet; index "Settings · Done", a page "‹ Settings · centred title · its action" | a page beside the list | a page beside the list (web: full page at phone width, ruled) | a page |
 | `account` | sheet; title · Done | popover under the avatar | popover under the avatar | flyout right of the rail |
