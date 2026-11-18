@@ -92,7 +92,7 @@ function PlaybackSections() {
 /** Rule 9 in one page: a section that failed, one that kept its last list and says it is old, one loading and one empty. */
 function StateSections() {
   return <>
-    <SectionCard label={f('sources')}><StateRow kind="error" icon="i-warn" title={f('sourcesFailed')} reason={f('sourcesReason')} action={{label: f('tryAgain'), onPress: none}}/></SectionCard>
+    <SectionCard label={f('tuners')}><StateRow kind="error" icon="i-warn" title={f('tunersFailed')} reason={f('sourcesReason')} action={{label: f('tryAgain'), onPress: none}}/></SectionCard>
     <SectionCard label={f('sources')} stale={{label: f('sourcesStale'), retryLabel: f('tryAgain'), onRetry: none}}>
       <SettingsRow testID="frames-settings-source1" first icon="i-live" label={f('source1')} description={f('source1Meta')} navigates onPress={none}/>
       <SettingsRow icon="i-live" label={f('source2')} description={f('source2Meta')} navigates onPress={none}/>
@@ -116,7 +116,7 @@ function SettingsList() {
   return <Window><SettingsListFrame testID="frames-settings-list" startFocus={focusTestID('frames-settings-nav', JSON.stringify(['account', 'playback']))} hints={hints} open onOpenChange={none} bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
     page={page || wide ? <SettingsPageFrame title={f('playback')} back={{label: f('settings'), onPress: () => setPage(undefined)}} intro={f('playbackIntro')}><PlaybackSections/></SettingsPageFrame> : undefined}/></Window>;
 }
-const SettingsPage = () => <Window><SettingsPageFrame testID="frames-settings-page" startFocus="frames-settings-source1" title={f('liveTv')} back={{label: f('settings'), onPress: none}} intro={f('playbackIntro')}><StateSections/></SettingsPageFrame></Window>;
+const SettingsPage = () => <Window><SettingsPageFrame testID="frames-settings-page" startFocus="frames-settings-source1" title={f('liveTv')} back={{label: f('settings'), onPress: none}} intro={f('liveTvIntro')}><StateSections/></SettingsPageFrame></Window>;
 
 const Sheet = () => <Window><BrowseFrame header={{title: f('liveTv')}}><View/></BrowseFrame>
   <SheetFrame kind="task" task="task" testID="frames-sheet" startFocus="frames-sheet-playlist" hints={<KeyHints hints={[{key: f('keyOk'), label: f('hintChoose')}, {key: f('keyBack'), label: f('hintClose')}]}/>} open onOpenChange={none} title={f('addSource')}>
