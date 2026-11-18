@@ -52,9 +52,9 @@
     </Group>
     <!-- While a stream is being made ready or is catching up: the screen is never plain black. -->
     <Group id="wait" visible="false">
-      <Poster id="spinner" uri="pkg:/images/i-spinner-64.png" width="64" height="64" translation="[928,470]" blendColor="0xD5EFFFFF"/>
-      <Label id="waitTitle" translation="[260,566]" width="1400" horizAlign="center"/>
-      <Label id="waitText" translation="[260,612]" width="1400" horizAlign="center"/>
+      <Poster id="spinner" uri="pkg:/images/i-spinner-64.png" width="64" height="64"/>
+      <Label id="waitTitle" width="1400" horizAlign="center"/>
+      <Label id="waitText" width="1400" horizAlign="center"/>
       <Animation id="spin" duration="0.9" repeat="true" easeFunction="linear">
         <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[0.0, -6.2832]" fieldToInterp="spinner.rotation"/>
       </Animation>
