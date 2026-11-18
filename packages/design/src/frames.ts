@@ -75,6 +75,8 @@ export const frame = {
       actionGap: forms(18, 24, 24, 26),
       /** R5 interim (family C): a biography with Read more shows this many lines (desktop-detail f7, phone-detail d3). */
       readMoreLines: 4,
+      /** TV with focus in the panel (detail-tv-4, 5a): the art stays behind the title and tabs, dimmed to this. R5 interim. */
+      tvCollapsedArt: .4,
       /** A cover page's cover, its width per form (a poster is 1.5 times as tall): phone-app 13 and phone-detail d3 frame 7
        * (220 square, 180 poster, 104 circle), tablet f8, desktop-listen album, artist and book (340). R5 interim. */
       cover: {square: {...forms(220, 280, 300, 400), web: 340}, poster: {...forms(180, 220, 260, 340), web: 340}, circle: {...forms(104, 160, 300, 280), web: 340}},
