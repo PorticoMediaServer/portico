@@ -60,7 +60,12 @@ type Alternative struct {
 	Label     string `json:"label"`
 }
 
-// TrackID is the id a track has on the wire. Apps never parse it.
+// TrackID is the id a track has on the wire. A track inside the version's own file is its place
+// among that file's video, audio and subtitle streams, in file order, from 0
+// (`media_streams.stream_index`; other streams, such as fonts attached to the file, are not
+// counted). A player that opens the file itself (the desktop app's mpv) picks the same track by
+// that place. Apps parse nothing else in it: a subtitle file beside the video is "f<file>-<n>",
+// a downloaded subtitle "d<id>".
 func TrackID(t db.Track) string {
 	if t.Downloaded != "" {
 		return "d" + t.Downloaded

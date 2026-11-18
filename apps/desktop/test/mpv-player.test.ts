@@ -44,3 +44,17 @@ test('a closed mpv window reads as paused where it was, and Play opens it again 
   assert.deepEqual(mpv.calls.at(-1), ['mpv_load', {url: 'http://server.test/v1/media/g/original', startMs: 45_000, autoplay: true}]);
   player.dispose();
 });
+
+test('the file\'s own tracks the presentation names are picked once mpv has opened it', async () => {
+  const mpv = app(), player = new MpvPlayer(mpv.invoke, path => 'http://server.test' + path);
+  player.load({...source, fileTracks: {audio: 2, subtitle: -1}});
+  await settle();
+  mpv.set({state: 'loading'});
+  await (player as unknown as {poll(): Promise<void>}).poll();
+  assert.ok(!mpv.calls.some(([command]) => command === 'mpv_tracks'), 'not before mpv has the file open');
+  mpv.set({state: 'playing'});
+  await (player as unknown as {poll(): Promise<void>}).poll();
+  await (player as unknown as {poll(): Promise<void>}).poll();
+  assert.deepEqual(mpv.calls.filter(([command]) => command === 'mpv_tracks'), [['mpv_tracks', {audio: 2, subtitle: -1}]]);
+  player.dispose();
+});
