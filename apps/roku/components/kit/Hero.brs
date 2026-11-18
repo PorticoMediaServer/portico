@@ -32,6 +32,7 @@ sub init()
     m.hints = m.top.findNode("hints")
     m.credits = m.top.findNode("credits")
     m.buttonRow = m.top.findNode("buttonRow")
+    m.buttonRow.flexible = "play"     ' a title page's Play widens; the other buttons keep their slots
     setType(m.eyebrow, "eyebrow", c.accentStrong)
     setType(m.eyebrowMore, "meta", c.text)
     setType(m.year, "metaStrong", c.text)

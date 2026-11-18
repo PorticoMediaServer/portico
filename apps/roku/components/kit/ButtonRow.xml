@@ -4,6 +4,9 @@
   <interface>
     <!-- [{id, text, icon}], for Resume also {progress, detail}, and danger for a destructive one -->
     <field id="buttons" type="array" onChange="onButtons"/>
+    <!-- The id of the one button that widens to keep the others in their places when the row is
+         redrawn with a button gone or a label changed (a title page's Play, rule 12); "" for none. -->
+    <field id="flexible" type="string"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="pressed" type="string" alwaysNotify="true"/>
   </interface>
