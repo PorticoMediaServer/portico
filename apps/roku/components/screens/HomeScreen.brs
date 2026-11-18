@@ -23,7 +23,12 @@ end sub
 sub onHome(event as object)
     result = event.getData()
     if not result.ok
-        say("warning", "Can't reach the server", "You're still signed in. Try again in a moment.", [{id: "retry", text: "Try again now", icon: "refresh"}])
+        if result.status = 0
+            say("warning", "Can't reach the server", "You're still signed in. Try again in a moment.", [{id: "retry", text: "Try again now", icon: "refresh"}])
+        else
+            ' the server answered and refused (viewing hours, away from home): its own sentence says why
+            say("warning", "Home isn't available right now", result.error.message, [{id: "retry", text: "Try again now", icon: "refresh"}])
+        end if
         return
     end if
     home = result.data

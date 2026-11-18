@@ -163,12 +163,18 @@ sub renewed(status as integer, data as dynamic)
         for each req in held
             send(req, true)
         end for
-    else if status = 401 or status = 400 or status = 403
+    else if status = 401 or status = 400
         storeWrite({renewalId: ""})
         for each req in held
             answer(req, {ok: false, status: 401, error: {code: "sign_in_ended", message: "Sign in again."}})
         end for
         ended()
+    else if status = 403 and data <> invalid and data.error <> invalid
+        ' Not now (outside this account's viewing hours, or away from home): the sign-in stands
+        ' and the server's own sentence says why. The same renewal is asked again later.
+        for each req in held
+            answer(req, {ok: false, status: 403, error: data.error})
+        end for
     else
         ' The server was out of reach: the sign-in stands, the waiting requests fail as unreachable.
         for each req in held
