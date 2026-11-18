@@ -210,6 +210,25 @@ impl Mpv {
         })
     }
 
+    /// Shows the file's own audio track and subtitle the presentation names, by their place among
+    /// the file's own tracks (the server's id for them): `None` leaves mpv's choice, a subtitle of
+    /// -1 turns subtitles off.
+    pub fn tracks(&self, audio: Option<i64>, subtitle: Option<i64>) -> Result<(), String> {
+        self.with(false, &[], |running| {
+            let list = Self::request(running, json!(["get_property", "track-list"]))?;
+            if let Some(stream) = audio {
+                let id = track(&list, "audio", stream).ok_or("track_unavailable")?;
+                Self::request(running, json!(["set_property", "aid", id]))?;
+            }
+            match subtitle {
+                Some(-1) => { Self::request(running, json!(["set_property", "sid", "no"]))?; }
+                Some(stream) => { let id = track(&list, "sub", stream).ok_or("track_unavailable")?; Self::request(running, json!(["set_property", "sid", id]))?; }
+                None => {}
+            }
+            Ok(())
+        })
+    }
+
     pub fn observe(&self) -> Reading {
         let read = |running: &mut Running, name: &str| Self::request(running, json!(["get_property", name])).ok();
         self.with(false, &[], |running| {
@@ -241,9 +260,30 @@ impl Mpv {
     }
 }
 
+/// mpv's id for the server's in-file track `place`: its place among the file's video, audio and
+/// subtitle streams in file order (API.md, playback-options), which is its place in mpv's list of
+/// the file's own tracks ordered by stream number (`ff-index`). It must be of `kind`.
+fn track(list: &Value, kind: &str, place: i64) -> Option<i64> {
+    let mut own: Vec<&Value> = list.as_array()?.iter().filter(|t| t["external"] != true && t["ff-index"].is_i64()).collect();
+    own.sort_by_key(|t| t["ff-index"].as_i64());
+    let found = own.get(usize::try_from(place).ok()?)?;
+    (found["type"] == kind).then(|| found.get("id")?.as_i64())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_track_is_found_by_its_place_among_the_files_own_tracks() {
+        // An attached font (stream 2) is in neither the server's list nor mpv's, so places don't move.
+        let list = json!([{"id": 2, "type": "sub", "ff-index": 5}, {"id": 1, "type": "video", "ff-index": 0}, {"id": 1, "type": "audio", "ff-index": 1},
+            {"id": 2, "type": "audio", "ff-index": 3}, {"id": 1, "type": "sub", "ff-index": 4}, {"id": 3, "type": "sub", "external": true}]);
+        assert_eq!(track(&list, "audio", 2), Some(2), "place 2 is the second audio track, stream 3");
+        assert_eq!(track(&list, "sub", 4), Some(2));
+        assert_eq!(track(&list, "audio", 3), None, "place 3 is a subtitle, not audio");
+        assert_eq!(track(&list, "audio", 9), None);
+    }
 
     #[cfg(unix)]
     #[test]

@@ -65,6 +65,22 @@ test('the player is told which engine the server planned, so a device with mpv c
   controller.dispose();
 });
 
+test('an original file names its own tracks to the player by their stream number, and no subtitle is off', async () => {
+  const presentation = session('pbs_1').presentation;
+  const http = server(request => request.method === 'POST' ? json(201, {...session('pbs_1'), presentation: {...presentation, engine: 'mpv', audioTrackId: '2',
+    subtitle: {trackId: '4', kind: 'pgs', delivery: 'device'}}}) : json(204));
+  const screen = player();
+  const controller = new PlaybackSessionController({http, player: screen, timers: {...timers, now: () => Date.now()}});
+  await controller.start({itemId: 'itm_film'}, {state: 'playing'});
+  assert.deepEqual(screen.loads.at(-1)?.fileTracks, {audio: 2, subtitle: 4});
+  controller.dispose();
+  const off = server(request => request.method === 'POST' ? json(201, {...session('pbs_2'), presentation: {...presentation, audioTrackId: '1'}}) : json(204));
+  const second = player(), again = new PlaybackSessionController({http: off, player: second, timers: {...timers, now: () => Date.now()}});
+  await again.start({itemId: 'itm_film'}, {state: 'playing'});
+  assert.deepEqual(second.loads.at(-1)?.fileTracks, {audio: 1, subtitle: -1});
+  again.dispose();
+});
+
 test('after the server restarts and forgets the session, the title starts again where the player was', async () => {
   let forgotten = false, starts = 0;
   const http = server(request => {

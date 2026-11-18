@@ -29,6 +29,11 @@ export type PlayerSource = Readonly<{
   /** The player the server planned this presentation for: the device's own (`native`) or mpv,
    * on a device that carries both (the desktop app). Absent means `native`. */
   engine?: 'native' | 'mpv';
+  /** The tracks inside the file this presentation shows, by their place among the file's video,
+   * audio and subtitle streams (the server's id for them, API.md playback-options), for a player
+   * that picks them itself (mpv): `subtitle` -1 is off.
+   * Absent where the server already chose them (a converted or repackaged stream). */
+  fileTracks?: Readonly<{audio?: number; subtitle?: number}>;
   /** The session and item this presentation belongs to (identity for native engines' bindings; web ignores them). */
   sessionId?: string;
   itemId?: string;

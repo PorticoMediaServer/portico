@@ -7,11 +7,10 @@ export type Invoke = <T>(command: string, args?: Record<string, unknown>) => Pro
 type Reading = Readonly<{state: PlayerState | 'idle'; positionMs: number; durationMs: number; rate: number; volume: number; muted: boolean}>;
 
 /** The page's own player plus mpv (src-tauri/src/mpv.rs). Desktop CPUs decode 4K in software;
- * mpv draws HDR and every subtitle kind. Two things wait for later work: choosing an audio
- * track inside a file, and passthrough, since the app can't tell when sound goes to a receiver. */
+ * mpv draws HDR and every subtitle kind and picks a file's own tracks. Passthrough waits for a
+ * setting, since the app can't tell when sound goes to a receiver. */
 export function withDesktopMpv(document: CapabilityDocument): CapabilityDocument {
-  const next = withMpvEngine({...document, client: {...document.client, form: 'desktop', app: 'portico-desktop'}}, {softwareMaxHeight: 2160});
-  return next.engines.mpv ? {...next, engines: {...next.engines, mpv: {...next.engines.mpv, embeddedAudioSwitching: false}}} : next;
+  return withMpvEngine({...document, client: {...document.client, form: 'desktop', app: 'portico-desktop'}}, {softwareMaxHeight: 2160});
 }
 
 /**
@@ -24,6 +23,8 @@ export class MpvPlayer implements PlaybackMediaPort {
   private reading: PlayerObservation = {generation: 0, state: 'idle', positionMs: 0, rate: 1};
   private following?: Repeating;
   private seekingTo?: number;
+  /** The file's own tracks still to pick for the loaded presentation, once mpv has opened it. */
+  private pendingTracks?: PlayerSource['fileTracks'];
   private readonly listeners = new Set<(event: PlayerEvent) => void>();
   loaded = 0;
   settling = false;
@@ -38,6 +39,7 @@ export class MpvPlayer implements PlaybackMediaPort {
   private send(action: string, value = 0) { void this.invoke('mpv_command', {action, value}).catch(error => this.fail(error)); }
 
   load(source: PlayerSource): void {
+    this.pendingTracks = source.fileTracks && Object.keys(source.fileTracks).length ? source.fileTracks : undefined;
     this.source = source;
     this.reading = {generation: source.generation, state: 'loading', positionMs: source.startPositionMs, rate: 1};
     this.settling = true;
@@ -60,6 +62,10 @@ export class MpvPlayer implements PlaybackMediaPort {
     const positionMs = now.state === 'idle' ? this.reading.positionMs : now.positionMs;
     const changed = state !== this.reading.state;
     this.reading = {generation: source.generation, state, positionMs, rate: now.rate, volume: now.volume / 100, muted: now.muted};
+    if (this.pendingTracks && now.state !== 'loading' && now.state !== 'idle') {
+      const tracks = this.pendingTracks; this.pendingTracks = undefined;
+      void this.invoke('mpv_tracks', {audio: tracks.audio ?? null, subtitle: tracks.subtitle ?? null}).catch(error => this.fail(error));
+    }
     if (this.seekingTo !== undefined && Math.abs(positionMs - this.seekingTo) < 1500) {
       this.seekingTo = undefined;
       this.emit({type: 'seeked', observation: this.reading});

@@ -75,6 +75,12 @@ async fn mpv_available() -> Result<bool, String> {
 }
 
 #[tauri::command]
+async fn mpv_tracks(player: Player<'_>, audio: Option<i64>, subtitle: Option<i64>) -> Result<(), String> {
+    let mpv = player.inner().clone();
+    blocking(move || mpv.tracks(audio, subtitle)).await
+}
+
+#[tauri::command]
 async fn mpv_observe(player: Player<'_>) -> Result<mpv::Reading, String> {
     let mpv = player.inner().clone();
     blocking(move || Ok(mpv.observe())).await
@@ -84,7 +90,15 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Arc::new(mpv::Mpv::default()))
-        .invoke_handler(tauri::generate_handler![smoke::report, mpv_available, mpv_load, mpv_command, mpv_subtitle, mpv_observe])
+        .invoke_handler(tauri::generate_handler![
+            smoke::report,
+            mpv_available,
+            mpv_load,
+            mpv_command,
+            mpv_subtitle,
+            mpv_tracks,
+            mpv_observe,
+        ])
         .setup(|app| {
             let handle = app.handle().clone();
             let browser = app.handle().clone();
