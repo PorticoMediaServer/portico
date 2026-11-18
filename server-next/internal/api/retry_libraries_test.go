@@ -18,6 +18,7 @@ func init() {
 	})
 	safeToRepeat(map[string]string{
 		"POST /v1/admin/libraries/{id}/scan":      "a second scan request while one waits or runs joins it and queues nothing new",
+		"POST /v1/libraries/changed":              "a repeat asks for the same folder scans again, and a scan already running is not an error",
 		"POST /v1/admin/remote-sources/{id}/test": "tests the saved connection and replaces its status",
 		"POST /v1/admin/items/deletion":           "a read with a body: it says what deleting a selection would take and changes nothing",
 		"POST /v1/admin/items/delete":             "a repeat is refused whole with 400, because its first title is gone, and deletes nothing more",
