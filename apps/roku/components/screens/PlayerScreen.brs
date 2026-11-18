@@ -1394,11 +1394,22 @@ end sub
 
 ' How far behind live the picture is: Roku counts a live stream's duration up to its live edge.
 ' How far behind live the picture is, less the player's own lag at the live edge (measured when it
-' last started playing there), as the native player reads it.
+' last started playing there), as the native player reads it. While paused Roku may stop reading the
+' playlist, so its duration stands still: the time paused that the duration did not count is added
+' (walk batch-r6-07 saw "1 min behind live" unchanged after a minute's pause).
 function liveBehind() as float
     behind = 0
     if m.video.duration > 0 then behind = m.video.duration - m.video.position
     if m.liveLag <> invalid then behind = behind - m.liveLag
+    if m.video.state <> "paused"
+        m.pausedAt = invalid
+    else if m.pausedAt = invalid
+        m.pausedAt = UpTime(0)
+        m.pausedDuration = m.video.duration
+    else
+        unseen = (UpTime(0) - m.pausedAt) - (m.video.duration - m.pausedDuration)
+        if unseen > 0 then behind = behind + unseen
+    end if
     if behind < 0 then behind = 0
     return behind
 end function
