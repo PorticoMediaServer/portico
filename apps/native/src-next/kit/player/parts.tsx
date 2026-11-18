@@ -67,7 +67,7 @@ export function PlayerControl({icon, label, onPress, disabled, active, primary =
  * (intro, credits). A player screen's own timeline owns the gestures and keys and draws through this. */
 export function PlayerScrubBar({value, buffered = [], marks = [], preview, filmstrip, labels, tone = 'accent', knob: withKnob = true, liveEdge, from = 0}: {value: number; /** TV, while scrubbing: `PlayerFilmstrip`, which the bar centres over itself, and the chapters' names, which it sets under itself where each starts (`end` for one that runs to the end). */ filmstrip?: ReactNode; labels?: readonly Readonly<{at: number; text: string; end?: boolean}>[]; /** Live TV: where live is, 0 to 1. A red tick marks it and the bar after it, not yet aired, is dotted. */ liveEdge?: number; /** Live TV: where the kept window starts; what has played is drawn from there. */ from?: number; buffered?: readonly Readonly<{start: number; end: number}>[]; marks?: readonly Readonly<{start: number; end: number}>[]; /** `PlayerScrubPreview`, while scrubbing. */ preview?: ReactNode;
   /** What has played: the accent on video, white on the audio player. */ tone?: 'accent' | 'white'; /** TV's audio player draws a bar with no knob. */ knob?: boolean}) {
-  const theme = useTheme(), {form} = useFrameMetrics(), compact = useContext(PlayerCompact), knob = frameSpec.player.knob[form], track = compact ? frameSpec.player.portrait.scrubber : theme.spec.card.progress.height[theme.platform];
+  const theme = useTheme(), {form} = useFrameMetrics(), compact = useContext(PlayerCompact), knob = frameSpec.player.knob[form], track = compact ? frameSpec.player.portrait.scrubber : theme.spec.card.progress.height[theme.column];
   const part = (start: number, end: number): {left: `${number}%`; width: `${number}%`} => ({left: `${Math.max(0, start) * 100}%`, width: `${Math.max(0, Math.min(1, end) - Math.max(0, start)) * 100}%`});
   // The bar's box is the knob's height in every state, so nothing moves when the knob is hidden; in the upright strip the box is the track itself and the knob rides over the picture's edge.
   const [width, setWidth] = useState(0), [strip, setStrip] = useState(0);
@@ -109,7 +109,7 @@ export function PlayerFilmstrip({frames}: {frames: readonly Readonly<{time: stri
 /** The frame at the finger or the focused time while scrubbing: the picture there and its time under it. */
 export function PlayerScrubPreview({at, time, children}: {/** 0 to 1 along the scrubber. */ at: number; time: string; children: ReactNode}) {
   const theme = useTheme(), {form} = useFrameMetrics(), spec = frameSpec.player.preview, width = spec.width[form];
-  return <View pointerEvents="none" style={{position: 'absolute', bottom: spec.lift[form], left: `${at * 100}%`, marginLeft: -width / 2, width, height: spec.height[form], borderRadius: spec.radius[form], overflow: 'hidden', backgroundColor: theme.colors.shadow, borderWidth: theme.spec.focus.ringWidth[theme.platform], borderColor: alpha(theme.colors.text, tint.previewRing)}}>
+  return <View pointerEvents="none" style={{position: 'absolute', bottom: spec.lift[form], left: `${at * 100}%`, marginLeft: -width / 2, width, height: spec.height[form], borderRadius: spec.radius[form], overflow: 'hidden', backgroundColor: theme.colors.shadow, borderWidth: theme.spec.focus.ringWidth[theme.column], borderColor: alpha(theme.colors.text, tint.previewRing)}}>
     {children}
     <Text style={[theme.type.playerPreviewTime, styles.previewTime, {color: theme.colors.text, backgroundColor: alpha(theme.colors.dim, tint.previewBand), paddingVertical: theme.space.tight}]}>{time}</Text>
   </View>;
@@ -130,7 +130,7 @@ export function PlayerPill({name, value, qualifier, icon, tone, label, onPress, 
   const strong = [theme.type.playerPill, {color: theme.colors.text}], dim = [theme.type.playerPill, {color: theme.colors.textTertiary}];
   // TV (tv-player 1): a named entry is a two-line tile, its name over its value.
   if (form === 'tv' && name !== undefined) return <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} focusRadius={frameSpec.player.tile.radius}
-    style={{height: theme.spec.transport.control.size[theme.platform], paddingHorizontal: frameSpec.player.tile.paddingX, borderRadius: frameSpec.player.tile.radius, justifyContent: 'center', backgroundColor: alpha(theme.colors.text, tint.pill), opacity: disabled ? theme.spec.button.disabledOpacity : 1}}>
+    style={{height: theme.spec.transport.control.size[theme.column], paddingHorizontal: frameSpec.player.tile.paddingX, borderRadius: frameSpec.player.tile.radius, justifyContent: 'center', backgroundColor: alpha(theme.colors.text, tint.pill), opacity: disabled ? theme.spec.button.disabledOpacity : 1}}>
     <Text numberOfLines={1} style={[theme.type.playerTime, {color: theme.colors.text, fontFamily: theme.type.button.fontFamily}]}>{name}</Text>
     <Text numberOfLines={1} style={[theme.type.playerTime, {color: theme.colors.textSecondary}]}>{qualifier !== undefined ? `${qualifier} ` : ''}{value}</Text>
   </Focusable>;

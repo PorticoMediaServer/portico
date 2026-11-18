@@ -1,7 +1,6 @@
 import {forwardRef, useId, useRef, useState, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
 import {presentError} from '@core/presentation/errors.ts';
-import {ColourBackdrop} from '../artwork';
 import {TextField, type TextFieldProps} from '../controls/Fields';
 import {Icon} from '../Icon';
 import wordmark from '../../shell/wordmark.svg';
@@ -21,7 +20,6 @@ export function AuthStage({children, layout = 'column', service = false, topRigh
     <div className={[styles.content, contentClassName].filter(Boolean).join(' ')} data-auth-content>{children}</div>
   </section>;
   return <section className={[styles.stage, className].filter(Boolean).join(' ')} data-layout={layout}>
-    <ColourBackdrop className={styles.standardBackdrop} />
     <header className={styles.brand}><img src={wordmark} alt={t('accounts.brand')} />{service && <span>{t('next.account.brand')}</span>}</header>
     {topRight && <div className={styles.topRight}>{topRight}</div>}
     <div className={[styles.content, contentClassName].filter(Boolean).join(' ')} data-auth-content>{children}</div>

@@ -66,7 +66,7 @@ export function TitleFrame({art, back, topAction, title, metadata, primary, acti
     {!tv && <View style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, top: insets.top + theme.space.tight}}><RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/></View>}
     <PageStateFrame {...failure}/>
   </View>;
-  const height = spec.height[form], lockup = spec.lockup[form], actionHeight = theme.spec.button.hero.height[theme.platform];
+  const height = spec.height[form], lockup = spec.lockup[form], actionHeight = theme.spec.button.hero.height[theme.column];
   const identity = <>
     {loading ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
     <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: stacked ? 'center' : 'flex-start', justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/> : metadata}</View>
@@ -86,14 +86,14 @@ export function TitleFrame({art, back, topAction, title, metadata, primary, acti
     : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
       style={[{width: actionHeight, height: actionHeight}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha)}]}/>;
   const lead = {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, preferredFocus: true, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1} : undefined};
-  const row = <View style={{height: actionHeight, flexDirection: 'row', alignItems: 'center', gap: theme.spec.hero.actions.gap[theme.platform]}}>
+  const row = <View style={{height: actionHeight, flexDirection: 'row', alignItems: 'center', gap: theme.spec.hero.actions.gap[theme.column]}}>
     {primary.progress !== undefined && !stacked ? <ResumeButton {...lead} size="hero" progress={primary.progress} remaining={primary.remaining}>{primary.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero">{primary.label}</Button>}
     {primary.startOver && !stacked && <Button variant="glass" size="hero" icon="i-restart" disabled={loading} onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
     {actions.map(side)}
   </View>;
-  const track = theme.spec.card.progress.height[theme.platform];
+  const track = theme.spec.card.progress.height[theme.column];
   const resumeLine = primary.progress !== undefined && stacked && loading ? <View style={{gap: theme.space.tight}}>
-    <SkeletonBlock width="100%" height={track}/><View style={{minHeight: buttonGeometry('xs', theme.platform, 'text').height, justifyContent: 'center'}}><SkeletonBlock width="30%" height={theme.type.rowHelp.fontSize}/></View>
+    <SkeletonBlock width="100%" height={track}/><View style={{minHeight: buttonGeometry('xs', theme.column, 'text').height, justifyContent: 'center'}}><SkeletonBlock width="30%" height={theme.type.rowHelp.fontSize}/></View>
   </View> : primary.progress !== undefined && stacked ? <View style={{gap: theme.space.tight}}>
     <View accessibilityRole="progressbar" accessibilityValue={{min: 0, max: 1, now: primary.progress}} style={{height: track, borderRadius: track, overflow: 'hidden', backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
       <View style={{width: `${primary.progress * 100}%`, height: track, backgroundColor: theme.colors.accentStrong}}/></View>

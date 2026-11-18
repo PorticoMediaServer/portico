@@ -29,7 +29,7 @@ export const Chip = forwardRef<View, ChipProps>(function Chip({
   icon, trailingIcon, iconSize, disabled, accessibilityState, style, textStyle, hitSlop, onPress, ...props
 }, ref) {
   const theme = useTheme();
-  const geometry = chipGeometry(variant, theme.platform);
+  const geometry = chipGeometry(variant, theme.column);
   const isFacet = variant === 'facet' || variant === 'pill' || variant === 'quick';
   const applied = variant === 'applied';
   const [checked, setChecked] = useControlValue(selected, defaultSelected ?? false, onSelectedChange);
@@ -40,7 +40,7 @@ export const Chip = forwardRef<View, ChipProps>(function Chip({
   const border = dim ? theme.colors.line : desktopChoice ? colorAlpha(checked ? theme.colors.accentStrong : theme.colors.text, checked ? .62 : .16) : checked ? colorAlpha(theme.isTV ? theme.colors.accentStrong : theme.colors.accent, theme.isTV ? .7 : 1) : isFacet || retry ? theme.colors.lineStrong : 'transparent';
   const color = dim ? theme.colors.textTertiary : checked || !theme.isTV && !isFacet ? theme.colors.text : theme.colors.textSecondary;
   const labelWeight = !theme.isTV && (variant === 'facet' || variant === 'pill' || theme.platform === 'web' && variant === 'quick') ? 600 : 700;
-  const glyphSize = iconSize ?? chipSpec.icon[theme.platform];
+  const glyphSize = iconSize ?? chipSpec.icon[theme.column];
   return <Focusable {...props} ref={ref} disabled={disabled} focusKind="chip" focusRadius={geometry.radius}
     accessibilityRole={checkbox ? 'checkbox' : props.accessibilityRole ?? 'button'} accessibilityState={{...accessibilityState, ...(checkbox ? {checked} : toggle ? {selected: checked} : {})}}
     onPress={event => {if (!disabled) {onPress?.(event); if (toggle && !event.defaultPrevented) setChecked(!checked);}}}

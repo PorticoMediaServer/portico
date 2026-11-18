@@ -439,7 +439,7 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
             // Phone and tablet draw a Discover shelf as Home draws the same row: Home's card sizes, the 16:9 card for a
             // landscape row (Continue Watching), the caption inside the card's height, and the shared row heading.
             const wide = !theme.isTV && section.shape === 'landscape';
-            const cardWidth = theme.isTV ? 200 : wide ? theme.spec.card.width.wide[theme.platform] : theme.spec.card.width.poster[theme.platform], cell = discoverCell(theme, cardWidth, section.entries);
+            const cardWidth = theme.isTV ? 200 : wide ? theme.spec.card.width.wide[theme.column] : theme.spec.card.width.poster[theme.column], cell = discoverCell(theme, cardWidth, section.entries);
             const itemHeight = theme.isTV ? cell.art : wide ? cardWidth * 9 / 16 : cell.art + cell.caption;
             return <View key={section.id} style={theme.isTV ? undefined : {marginTop: 28}}>
             {theme.isTV && <Text accessibilityRole="header" style={[browseType(theme, 32, 700), {color: theme.colors.text, marginHorizontal: screenGutter, marginTop: 28}]}>{serverTextLabel(defaultI18n, section.heading)}</Text>}
@@ -604,8 +604,8 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
   const genres = source.tab.shows === 'genres', square = source.library.kind === 'music' || source.library.kind === 'audiobook';
   const width = list ? Math.max(0, paneWidth - (tabletGeometry ? 2 * tabletGeometry.gutter : 32)) : theme.isTV ? genres ? 320 : 200 : tabletGeometry ? tabletGeometry.itemWidth : Math.floor((paneWidth - 62) / 3);
   const artHeight = genres ? theme.isTV ? 180 : 84 : width * (square ? 1 : 1.5);
-  const captionLines = theme.spec.card.titleMargin[theme.platform] + 2 * (theme.type.cardTitle.lineHeight ?? 28 * theme.textScale)
-    + theme.spec.card.subtitleMargin[theme.platform] + (theme.type.caption.lineHeight ?? 24 * theme.textScale);
+  const captionLines = theme.spec.card.titleMargin[theme.column] + 2 * (theme.type.cardTitle.lineHeight ?? 28 * theme.textScale)
+    + theme.spec.card.subtitleMargin[theme.column] + (theme.type.caption.lineHeight ?? 24 * theme.textScale);
   const captionSpace = square ? captionLines : theme.isTV ? 72 : 43;
   // LibraryCard allows two title lines. Keep the authored default, but reserve
   // both lines plus metadata when text grows and long titles wrap. The theme's

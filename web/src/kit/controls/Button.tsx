@@ -9,14 +9,19 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: 'hero' | 'compact' | 'small' | 'xs' | 'episode' | 'dock' | 'transport';
   icon?: IconName;
   iconSize?: number;
+  /** R4: the glyph's class: its size for this form and its level of emphasis. A transport button is `primary` unless it
+   * says otherwise; shuffle, repeat and tool glyphs are `secondary`; inline glyphs `tertiary`. */
+  iconClass?: 'primary' | 'secondary' | 'tertiary';
+  /** With `iconClass`: the control is on (repeat on, a panel's button while its panel is open), so its glyph is the accent. */
+  active?: boolean;
   iconOnly?: boolean;
   loading?: boolean;
   phone?: boolean;
 };
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({variant = 'glass', size = 'hero', icon, iconSize, iconOnly = false, loading = false, phone = false, children, className, disabled, type = 'button', ...props}, ref) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({variant = 'glass', size = 'hero', icon, iconSize, iconClass, active = false, iconOnly = false, loading = false, phone = false, children, className, disabled, type = 'button', ...props}, ref) {
   return <button {...props} ref={ref} type={type} disabled={disabled || loading} aria-busy={loading || props['aria-busy'] || undefined}
-    data-size={size} data-variant={variant} data-phone={phone || undefined} data-icon-only={iconOnly || undefined}
+    data-size={size} data-variant={variant} data-phone={phone || undefined} data-icon-only={iconOnly || undefined} data-icon-class={iconClass} data-active={iconClass && active ? '' : undefined}
     className={[styles.button, className].filter(Boolean).join(' ')}>
     {icon && (loading ? <span className={styles.spinner} aria-hidden="true" style={iconSize ? {width: iconSize, height: iconSize} : undefined} /> : <Icon name={icon} className={styles.glyph} size={iconSize} style={iconSize ? {width: iconSize, height: iconSize} : undefined} />)}
     {children !== undefined && children !== null && <span className={styles.buttonLabel}>{children}</span>}

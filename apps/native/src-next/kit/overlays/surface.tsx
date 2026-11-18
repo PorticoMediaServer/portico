@@ -10,7 +10,7 @@ import {Button} from '../controls/Button';
 import {Focusable} from '../controls/Focusable';
 import {FocusRegion} from '../focus';
 import {Icon} from '../Icon';
-import {nativeType, useTheme} from '../theme';
+import {nativeType, useTheme, titleLine} from '../theme';
 import {useMotion} from '../useMotion';
 import {BottomSheet} from './BottomSheet';
 import {OverlayPortal, useOverlayFrame, useOverlayLifecycle} from './OverlayHost';
@@ -76,7 +76,8 @@ function AnonymousFocusBoundary({modal, children, style}: {modal: boolean; child
 }
 export function SurfaceHeader({title, description, action, side = false, inset = true, dialog = false, titleType: suppliedType, titleTextStyle, descriptionTextStyle, style}: Pick<SurfaceProps, 'title' | 'description' | 'titleType' | 'titleTextStyle' | 'descriptionTextStyle'> & {action?: React.ReactNode; side?: boolean; inset?: boolean; dialog?: boolean; style?: StyleProp<ViewStyle>}) {
   const theme = useTheme();
-  const titleType = nativeType(suppliedType ?? {size: theme.isTV && side ? 46 : theme.isTV ? 42 : theme.platform === 'tablet' && !side ? 23 : 21, weight: 800, tracking: theme.isTV ? side ? -0.035 : -0.03 : dialog ? -0.025 : -0.02, lineHeight: theme.isTV ? side ? 47.84 : 47.04 : dialog ? 27.6 : 'normal'}, theme.textScale);
+  const titleSize = theme.isTV && side ? 46 : theme.isTV ? 42 : theme.platform === 'tablet' && !side ? 23 : 21;
+  const titleType = nativeType(suppliedType ?? {size: titleSize, weight: 800, tracking: theme.isTV ? side ? -0.035 : -0.03 : dialog ? -0.025 : -0.02, lineHeight: theme.isTV ? side ? 47.84 : 47.04 : dialog ? 27.6 : titleLine(titleSize)}, theme.textScale);
   return <View style={StyleSheet.flatten([{paddingHorizontal: theme.isTV || !inset ? 0 : 20, paddingTop: dialog ? 0 : side && theme.isTV ? 18 : 2, paddingBottom: dialog ? 0 : 12}, style])}>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}><Text accessibilityRole="header" style={[titleType, {color: theme.colors.text, flex: 1, paddingRight: dialog && !theme.isTV ? 40 : 0}, titleTextStyle]}>{title}</Text>{action}</View>
     {description != null && <Text style={[theme.isTV ? nativeType({size: side ? 22 : 26, lineHeight: side ? 33 : 39, weight: 400, tracking: 0}, theme.textScale) : nativeType({size: theme.platform === 'tablet' && !side ? 15 : 14, lineHeight: theme.platform === 'tablet' && !side ? 23.25 : 21, weight: 400, tracking: 0}, theme.textScale), {color: theme.colors.textSecondary, marginTop: dialog ? theme.isTV ? 14 : 8 : 6}, descriptionTextStyle]}>{description}</Text>}
@@ -93,12 +94,12 @@ function CenteredDialog({open, onOpenChange, title, headerContext, description, 
   const native = useNativeModalPresence(animation.present, animation.present, undefined, animation.present && !open);
   useOverlayLifecycle(native.mounted, true, dismiss, initialFocusRef ?? closeRef, returnFocusRef, animation.enterMs, testID, restoreFocus);
   if (!native.mounted || !paint.visible) return null;
-  const width = suppliedWidth ?? (size === 'md' ? theme.isTV ? 900 : 480 : theme.spec.overlay.width[size][theme.platform]);
+  const width = suppliedWidth ?? (size === 'md' ? theme.isTV ? 900 : 480 : theme.spec.overlay.width[size][theme.column]);
   return <OverlayPaintDescendants><Modal key={native.key} transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => dismiss('back')} supportedOrientations={['portrait', 'landscape']}>
     <TVDesignCanvas><View pointerEvents={paint.interactive ? 'auto' : 'none'} accessibilityElementsHidden={!paint.interactive} style={styles.modalRoot} accessibilityViewIsModal importantForAccessibility={paint.interactive ? 'yes' : 'no-hide-descendants'} onAccessibilityEscape={() => dismiss('escape')}>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: scrimColor ?? alpha(theme.isTV ? '#04090d' : '#03080c', theme.isTV ? 0.62 : 0.64)}, scrimStyle]}/>
       <Pressable accessible={false} focusable={false} style={StyleSheet.absoluteFill} onPress={() => {if (dismissOnOutsidePress) dismiss('outside');}}/>
-      <Animated.View testID={testID} accessibilityLabel={accessibilityLabel} style={[{width: width || '100%', maxWidth: '92%', maxHeight: `${theme.spec.overlay.maxHeight[theme.platform] * 100}%`, borderRadius: theme.isTV ? 26 : 20, paddingTop: theme.isTV ? 48 : 26, paddingHorizontal: theme.isTV ? 52 : 26, paddingBottom: theme.isTV ? 44 : 22, backgroundColor: faceColor ?? theme.colors.raised, borderWidth: 1, borderColor: alpha(theme.colors.text, 0.09)}, animation.style, style]}>
+      <Animated.View testID={testID} accessibilityLabel={accessibilityLabel} style={[{width: width || '100%', maxWidth: '92%', maxHeight: `${theme.spec.overlay.maxHeight[theme.column] * 100}%`, borderRadius: theme.isTV ? 26 : 20, paddingTop: theme.isTV ? 48 : 26, paddingHorizontal: theme.isTV ? 52 : 26, paddingBottom: theme.isTV ? 44 : 22, backgroundColor: faceColor ?? theme.colors.raised, borderWidth: 1, borderColor: alpha(theme.colors.text, 0.09)}, animation.style, style]}>
         {faceColor ? null : <DialogBackground radius={theme.isTV ? 26 : 20}/>}
         <FocusBoundary modal testID={testID} style={{flexShrink: 1, minHeight: 0}}>
           {headerContext}

@@ -1,6 +1,5 @@
 import {createRoot} from 'react-dom/client';
 import {defaultI18n} from '@i18n';
-import {ColourBackdrop} from '../../kit/artwork';
 import styles from './live-player.module.css';
 import {Icon, IconSprite} from '../../kit/Icon';
 import {PlayerLive} from '../../kit/player';
@@ -25,7 +24,7 @@ function Right() {
 
 createRoot(document.getElementById('root')!).render(<><IconSprite />
   <main style={{position: 'fixed', inset: 0, background: 'var(--color-ink)', color: 'var(--color-text)'}} data-live-player-specimen>
-    <ColourBackdrop fill shape="round" className={styles.backplate}/>
+    <div aria-hidden="true" className={`portico-cover ${styles.backplate}`}/>
     <span className={styles.pictureLabel}>{t('next.live.livePicture')}</span>
     <PlayerLive port={port} playing={true} initialMiniGuideOpen
       onCollapse={() => {}} onStop={() => {}} onPlayPause={() => {}} onSkip={() => {}} onSeek={() => {}} onMore={() => {}}

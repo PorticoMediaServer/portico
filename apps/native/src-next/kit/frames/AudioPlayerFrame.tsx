@@ -93,7 +93,7 @@ export function AudioPlayerFrame({close, more, context, artwork, icon, title, by
     const state = {disabled: !!item.disabled, selected: item.active}, off = item.disabled || loading, tint = item.active ? theme.colors.accentStrong : theme.colors.text;
     // TV (music-plus): labelled buttons with the button's own corners.
     if (tv) return <Button key={item.label} testID={item.testID} variant="glass" size="compact" icon={item.icon} disabled={off} onPress={item.onPress}>{item.value !== undefined ? `${item.value}  ${item.label}` : item.label}</Button>;
-    const glyph = item.icon && <Icon name={item.icon} size={tiles || item.inline ? frameSpec.player.promptIcon : theme.spec.transport.control.icon[theme.platform]} color={tint}/>;
+    const glyph = item.icon && <Icon name={item.icon} size={tiles || item.inline ? frameSpec.player.promptIcon : theme.spec.transport.control.icon[theme.column]} color={tint}/>;
     return <Focusable key={item.label} testID={item.testID} accessibilityRole="button" accessibilityLabel={item.value !== undefined ? `${item.label}, ${item.value}` : item.label} accessibilityState={state} disabled={off} onPress={item.onPress} focusRadius={theme.baseRadii.control}
       style={[{flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', gap: theme.space.tight, opacity: off ? theme.spec.button.disabledOpacity : 1}, item.inline && !tiles && {flexDirection: 'row', gap: theme.space.xs},
         tiles && {borderRadius: frameSpec.card.radius.phone, backgroundColor: alpha(theme.colors.text, frameSpec.player.tint.pill), borderWidth: theme.space.hairline, borderColor: item.active ? theme.colors.accentStrong : 'transparent'}]}>

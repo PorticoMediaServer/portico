@@ -69,12 +69,12 @@ function Page({children, destination}: {children: ReactNode; destination: ShellD
 }
 
 function PosterRow({title, fresh = false}: {title: string; /** The first few are new. */ fresh?: boolean}) {
-  const theme = useTheme(), width = theme.spec.card.width.poster[theme.platform];
+  const theme = useTheme(), width = theme.spec.card.width.poster[theme.column];
   return <Row title={title} items={posters} getKey={item => item.id} itemWidth={width} itemHeight={width * 1.5} selection={selection}
     renderItem={(item, context) => <PosterCard {...card(context)} title={item.title} artwork={item.art} width={width} isNew={fresh && posters.indexOf(item) < 3} onNavigate={none}/>}/>;
 }
 function WideRow() {
-  const theme = useTheme(), width = theme.spec.card.width.wide[theme.platform];
+  const theme = useTheme(), width = theme.spec.card.width.wide[theme.column];
   return <Row title={f('continueWatching')} items={wides} getKey={item => item.id} itemWidth={width} itemHeight={width * 9 / 16} selection={selection}
     renderItem={(item, context) => <WideCard {...card(context)} title={item.title} artwork={item.art} width={width} progress={.4} caption={[{id: 'episode-label', text: f('wideEpisode'), role: 'identity'}, {id: 'remaining', text: f('wideLeft'), role: 'context'}]} primaryAction="play" onPlay={none} onNavigate={none}/>}/>;
 }
@@ -198,14 +198,14 @@ function LivePage() {
       <View style={{flex: 1}}><Text style={[theme.type.rowLabel, {color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{f('liveChannelName')}  {f('liveNumber')}</Text><Text style={[theme.type.rowHelp, {color: theme.colors.record}]}>{f('liveNow')}</Text></View></View>
     <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text}]}>{f('liveTitle')}</Text>
     <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{f('liveThen')}</Text>
-    <View style={{flexDirection: 'row', gap: theme.spec.hero.actions.gap[theme.platform]}}><Button testID="frames-live-guide" variant="glass" icon="i-list" onPress={none}>{f('liveGuide')}</Button><Button testID="frames-live-record" variant="glass" icon="i-rec" iconColor={theme.colors.record} onPress={none}>{f('liveRecord')}</Button></View>
+    <View style={{flexDirection: 'row', gap: theme.spec.hero.actions.gap[theme.column]}}><Button testID="frames-live-guide" variant="glass" icon="i-list" onPress={none}>{f('liveGuide')}</Button><Button testID="frames-live-record" variant="glass" icon="i-rec" iconColor={theme.colors.record} onPress={none}>{f('liveRecord')}</Button></View>
   </ScrollView>;
 }
 function WatchPage({paused = false}: {paused?: boolean}) {
   const theme = useTheme(), frame = useFrameMetrics(), [tab, setTab] = useState('episodes'), wide = frame.form !== 'phone';
   const words = <View style={{flexShrink: 1, gap: theme.space.tight}}><Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text}]}>{f('tlou')}</Text>
     <Text style={[theme.type.rowLabel, {color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{f('videoLead')}  {f('videoSubtitle')}</Text><HeroMetadata facts={fact(f('tlouFacts'))}/></View>;
-  const actions = <View style={{flexDirection: 'row', gap: theme.spec.hero.actions.gap[theme.platform]}}><Button icon={paused ? 'i-play' : 'i-pause'} align="stretch" style={wide ? undefined : {flex: 1}} onPress={none}>{f(paused ? 'play' : 'pause')}</Button>
+  const actions = <View style={{flexDirection: 'row', gap: theme.spec.hero.actions.gap[theme.column]}}><Button icon={paused ? 'i-play' : 'i-pause'} align="stretch" style={wide ? undefined : {flex: 1}} onPress={none}>{f(paused ? 'play' : 'pause')}</Button>
     {([['i-plus', 'myList'], ['i-dl', 'download'], ['i-more', 'more']] as const).map(([icon, name]) => <Button key={name} variant="glass" iconOnly icon={icon} accessibilityLabel={f(name)} onPress={none}/>)}</View>;
   return <ScrollView contentContainerStyle={{paddingVertical: theme.space.sm, gap: theme.space.sm}}>
     <View style={[{marginHorizontal: frame.gutter, gap: theme.space.sm}, wide && {flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between'}]}>{words}{actions}</View>
@@ -283,7 +283,7 @@ function PlayerUpNextCase() {
  * the transport, the live bar, and Go to live in the prompt corner when behind. */
 function PlayerLiveControlsCase() {
   const {form} = useFrameMetrics(), tv = form === 'tv', phone = form === 'phone', upright = usePlayerUpright(), id = 'frames-player-live-controls';
-  const theme = useTheme(), still = <Artwork source={asset('bd-tlou.jpg')}/>, markSize = theme.spec.transport.control.size[theme.platform];
+  const theme = useTheme(), still = <Artwork source={asset('bd-tlou.jpg')}/>, markSize = theme.spec.transport.control.size[theme.column];
   const quality = <PlayerPill testID={`${id}-quality`} name={tv ? f('qualityShort') : undefined} qualifier={f('qualityAuto')} value={f('qualityValue')} label={f('qualityShort')} onPress={none}/>;
   const plain = (icon: AudioControl['icon'], name: FixtureName) => <PlayerControl key={name} testID={`${id}-${name}`} icon={icon} label={f(name)} onPress={none}/>;
   return <Window><PlayerChromeFrame testID={id} chromeVisible picture={still} close={<PlayerControl testID={`${id}-close`} onPicture icon="i-down" label={f('close')} onPress={none}/>}
@@ -335,7 +335,7 @@ const State = () => <Page destination={{kind: 'home'}}><PageStateFrame testID="f
 
 /** The type roles, the four row kinds in one card, and the artwork boxes with and without a picture. */
 function Elements() {
-  const theme = useTheme(), frame = useFrameMetrics(), poster = theme.spec.card.width.poster[theme.platform], square = theme.spec.card.width.square[theme.platform];
+  const theme = useTheme(), frame = useFrameMetrics(), poster = theme.spec.card.width.poster[theme.column], square = theme.spec.card.width.square[theme.column];
   const roles = [['pageTitle', 'rolePageTitle', theme.colors.text], ['rowHeading', 'roleSectionHeading', theme.colors.text], ['groupLabel', 'roleGroupLabel', theme.colors.textSecondary], ['barTitle', 'roleBarTitle', theme.colors.text],
     ['rowLabel', 'roleRowLabel', theme.colors.text], ['rowHelp', 'roleRowHelp', theme.colors.textTertiary], ['intro', 'roleBody', theme.colors.textSecondary]] as const;
   const boxes = [['square', 'i-music', 'artMusic', square, undefined], ['square', 'i-book', 'artBook', square, undefined], ['poster', 'i-film', 'artPoster', poster, undefined], ['wide', 'i-tv', 'artWide', poster * 1.6, undefined],

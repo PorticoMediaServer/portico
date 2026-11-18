@@ -4,7 +4,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
 import {SkeletonBlock} from '../states/SkeletonBlock';
 import {useTheme} from '../theme';
-import {useFrameMetrics} from './metrics';
+import {FrameRhythm, useFrameMetrics} from './metrics';
 import {PageHeader, type PageHeaderProps} from './PageHeader';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
 
@@ -32,18 +32,18 @@ export function BrowseFrame({header, hero, state, children, testID}: BrowseFrame
   return <ScrollView testID={testID} style={{flex: 1}} scrollEnabled={!state} contentContainerStyle={{paddingBottom: frame.bottomClear}}>
     {top}
     {/* After the hero the first row starts at the rule's own offset from the art's bottom edge. */}
-    <View style={{gap: frame.sectionGap, marginTop: hero ? frameSpec.hero.home.rowOffset[frame.form] : 0}}>{state ? <RowsSkeleton/> : children}</View>
+    <FrameRhythm.Provider value><View style={{gap: frame.rowSection, marginTop: hero ? frameSpec.hero.home.rowOffset[frame.form] : 0}}>{state ? <RowsSkeleton/> : children}</View></FrameRhythm.Provider>
   </ScrollView>;
 }
 
 /** Loading holds the loaded page's boxes (rule 12): two rows, each a heading and a line of cards at their real size. */
 function RowsSkeleton() {
   const theme = useTheme(), frame = useFrameMetrics();
-  const card = theme.spec.card, gap = theme.spec.shelf.gap[theme.platform];
+  const card = theme.spec.card, gap = theme.spec.shelf.gap[theme.column];
   const row = (kind: 'wide' | 'poster', shine: boolean) => {
-    const width = card.width[kind][theme.platform], height = width / card.aspect[kind], count = Math.ceil(frame.width / (width + gap));
+    const width = card.width[kind][theme.column], height = width / card.aspect[kind], count = Math.ceil(frame.width / (width + gap));
     return <View style={{paddingLeft: frame.gutter}}>
-      <SkeletonBlock width={width} height={theme.type.rowHeading.fontSize} style={{marginBottom: frame.headingGap}}/>
+      <SkeletonBlock width={width} height={theme.type.rowHeading.fontSize} style={{marginBottom: frame.rowHeadingGap}}/>
       <View style={{flexDirection: 'row', gap, overflow: 'hidden'}}>{Array.from({length: count}, (_, index) => <SkeletonBlock key={index} width={width} height={height} radius={theme.radii.artwork} shine={shine && index === 0}/>)}</View>
     </View>;
   };

@@ -1,5 +1,6 @@
 import React, {Children, type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
 import {Button} from '../controls/Button';
 import {Focusable} from '../controls/Focusable';
@@ -19,6 +20,8 @@ type PanelAction = Readonly<{label: string; onPress: () => void}>;
  * remote's Back, so it draws no close button. */
 export function PlayerPanel({title, note, back, close, footer, children, testID}: {title: string; /** Under the title: what a change here lasts for. */ note?: string; back?: PanelAction; close: PanelAction; /** Pinned under the list (the Episodes note). */ footer?: string; children: ReactNode; testID?: string}) {
   const theme = useTheme(), {form} = useFrameMetrics(), upright = usePlayerUpright(), tv = form === 'tv', pad = spec.padding[form], sheet = upright;
+  // The Android line: a sheet's footer clears the navigation bar.
+  const insets = useSafeAreaInsets();
   return <View testID={testID} accessibilityViewIsModal style={[{flex: 1, backgroundColor: theme.colors.raised}, sheet && {borderTopLeftRadius: frameSpec.sheet.fullRadius, borderTopRightRadius: frameSpec.sheet.fullRadius}]}>
     {sheet && <View style={{alignSelf: 'center', marginTop: spec.grab.top, width: spec.grab.width, height: spec.grab.height, borderRadius: spec.grab.height / 2, backgroundColor: alpha(theme.colors.text, frameSpec.player.tint.buffered)}}/>}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, paddingHorizontal: pad, paddingTop: sheet ? theme.space.xs : pad, minHeight: theme.targets.touch + (sheet ? theme.space.xs : pad)}}>
@@ -31,7 +34,7 @@ export function PlayerPanel({title, note, back, close, footer, children, testID}
       <Icon name="i-clock" size={frameSpec.player.pillIcon} color={theme.colors.accentStrong}/><Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textSecondary}]}>{note}</Text>
     </View>}
     <ScrollView style={{flex: 1}} contentContainerStyle={{paddingHorizontal: pad, paddingTop: theme.space.sm, paddingBottom: pad, gap: theme.space.sm}}>{children}</ScrollView>
-    {footer !== undefined && <View style={{flexDirection: 'row', gap: theme.space.xs, padding: pad, borderTopWidth: theme.space.hairline, borderTopColor: theme.colors.line}}>
+    {footer !== undefined && <View style={{flexDirection: 'row', gap: theme.space.xs, padding: pad, paddingBottom: pad + (sheet ? insets.bottom : 0), borderTopWidth: theme.space.hairline, borderTopColor: theme.colors.line}}>
       <Icon name="i-info" size={frameSpec.player.pillIcon} color={theme.colors.accentStrong}/><Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textSecondary}]}>{footer}</Text>
     </View>}
   </View>;
@@ -75,7 +78,7 @@ export function PlayerPanelRow({label, detail, icon, value, qualifier, selected 
 /** Live TV: channel down or up, the size of a transport control, with the channel it goes to under (down) or over
  * (up) the arrow (tv-player 11, phone-player 1c). A plain glyph on a phone and tablet, on a disc on TV. */
 export function PlayerChannelStep({direction, number, label, onPress, disabled, testID}: {direction: 'down' | 'up'; number: string; /** For assistive technology: the direction and the channel it goes to. */ label: string; onPress: () => void; disabled?: boolean; testID: string}) {
-  const theme = useTheme(), {form} = useFrameMetrics(), size = theme.spec.transport.control.size[theme.platform];
+  const theme = useTheme(), {form} = useFrameMetrics(), size = theme.spec.transport.control.size[theme.column];
   const channel = <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{number}</Text>;
   return <Focusable testID={testID} focusId={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} focusRadius={size / 2}
     style={{width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: form === 'tv' ? alpha(theme.colors.text, frameSpec.player.tint.pill) : 'transparent', opacity: disabled ? theme.spec.button.disabledOpacity : 1}}>

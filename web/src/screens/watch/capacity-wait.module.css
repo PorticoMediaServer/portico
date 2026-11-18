@@ -1,5 +1,5 @@
 /* states f9: the server's directed wait, over the page when a first start has no picture yet. */
-.cover { position: fixed; inset: 0; z-index: var(--layer-dialog); background-color: var(--color-ink); background-image: var(--backdrop-glows); background-size: var(--backdrop-glows-size); background-repeat: no-repeat; }
+.cover { position: fixed; inset: 0; z-index: var(--layer-dialog); }
 /* The drawn alive line: a small ring and the remaining seconds. */
 .alive { display: flex; align-items: center; gap: 12px; margin: 0; font-size: var(--type-body-size); line-height: var(--type-body-line); font-weight: var(--type-title-weight); color: var(--color-text); }
 .ring { flex: none; animation: capacity-turn 1.2s linear infinite; }

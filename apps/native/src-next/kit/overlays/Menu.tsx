@@ -7,7 +7,7 @@ import Svg, {Defs, LinearGradient, RadialGradient, Rect, Stop} from 'react-nativ
 import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Icon} from '../Icon';
-import {nativeType, useTheme} from '../theme';
+import {nativeType, useTheme, titleLine} from '../theme';
 import {Focusable} from '../controls/Focusable';
 import {BottomSheet} from './BottomSheet';
 import {OverlayPortal, useOverlayFrame, useOverlayLifecycle} from './OverlayHost';
@@ -23,7 +23,7 @@ export function TouchMenuHeader({title, artwork, kind, year}: {title?: string; a
   const theme = useTheme();
   return <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 2, paddingHorizontal: 20, paddingBottom: 12}}>
     {artwork && <View style={{width: 40, height: 60, borderRadius: 6, overflow: 'hidden'}}>{artwork}</View>}
-    <View style={{flex: 1, minWidth: 0}}><Text accessibilityRole="header" style={[nativeType({size: 17, weight: 800, tracking: -.015, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{title}</Text>
+    <View style={{flex: 1, minWidth: 0}}><Text accessibilityRole="header" style={[nativeType({size: 17, weight: 800, tracking: -.015, lineHeight: titleLine(17)}, theme.textScale), {color: theme.colors.text}]}>{title}</Text>
       {(kind || year) && <View style={{flexDirection: 'row', gap: 8, marginTop: 2}}>{[kind, year].filter(Boolean).map((fact, index) => <Text key={index} style={[nativeType({size: 13, weight: 500, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary}]}>{fact}</Text>)}</View>}
     </View>
   </View>;
@@ -93,7 +93,7 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
     {tvFlyout && <View pointerEvents="none" style={StyleSheet.absoluteFill}><Svg width="100%" height="100%"><Defs><LinearGradient id="tv-flyout" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor="#162c3a"/><Stop offset="1" stopColor="#0f2230"/></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#tv-flyout)"/></Svg><View style={[StyleSheet.absoluteFill, {borderRadius: 24, borderWidth: 1.5, borderColor: alpha(theme.colors.text, .1)}]}/></View>}
     <FocusBoundary modal={holdFocus} testID={testID}><View onLayout={event => setHeight(event.nativeEvent.layout.height)} style={[tvFlyout ? {padding: 14} : touchContext ? {padding: 8} : {paddingVertical: 6}, contentStyle]}>
       {headerContext}
-      {showTitle && title != null && <Text accessibilityRole="header" style={[titleType ? nativeType(titleType, theme.textScale) : touchContext ? nativeType({size: 15, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale) : theme.type.bodyStrong, {color: theme.colors.text, paddingHorizontal: touchContext ? 20 : 14, paddingTop: touchContext ? 6 : 8, paddingBottom: touchContext ? 10 : 8, marginHorizontal: touchContext ? -8 : 0, marginBottom: touchContext ? 6 : 0, borderBottomWidth: touchContext ? 1 : 0, borderBottomColor: alpha(theme.colors.text, .08)}, titleTextStyle]}>{title}</Text>}
+      {showTitle && title != null && <Text accessibilityRole="header" style={[titleType ? nativeType(titleType, theme.textScale) : touchContext ? nativeType({size: 15, weight: 800, tracking: 0, lineHeight: titleLine(15)}, theme.textScale) : theme.type.bodyStrong, {color: theme.colors.text, paddingHorizontal: touchContext ? 20 : 14, paddingTop: touchContext ? 6 : 8, paddingBottom: touchContext ? 10 : 8, marginHorizontal: touchContext ? -8 : 0, marginBottom: touchContext ? 6 : 0, borderBottomWidth: touchContext ? 1 : 0, borderBottomColor: alpha(theme.colors.text, .08)}, titleTextStyle]}>{title}</Text>}
       {description != null && <Text style={[theme.type.caption, {color: theme.colors.textSecondary, paddingHorizontal: 14}, descriptionTextStyle]}>{description}</Text>}
       {children}{footer}
     </View></FocusBoundary>

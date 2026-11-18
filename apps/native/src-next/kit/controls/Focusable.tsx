@@ -56,13 +56,20 @@ const PressableStyleAdapter = forwardRef<View, PressableStyleAdapterProps>(funct
 });
 const AnimatedPressable = Animated.createAnimatedComponent(PressableStyleAdapter);
 
+/** The Android line (round 8): a focus ring is for keyboard and D-pad focus, never for touch. A touch hands focus to
+ * what it opens (a sheet's first row, a dialog's Cancel) without the viewer having aimed at it, so focus that arrives
+ * in the moment after a touch is not drawn. A key press has no touch before it, so its focus is. TV is always keys. */
+let lastTouch = 0;
+export function noteTouch(): void {lastTouch = Date.now();}
+export function focusFromTouch(isTV: boolean): boolean {return !isTV && Date.now() - lastTouch < 1000;}
+
 /** The platform moves focus; this primitive only draws it and owns its Menu registration. */
 export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
   children, style, disabled, focusable, focusableWhenDisabled, preferredFocus = false, onPress, onAccessibilityAction, onAccessibilityTap, onMagicTap, focusId, testID, focusKind = 'button', focusRadius = 10,
   focusInset = false, focusTreatment = 'default', focusScale: focusedScale, pressDurationMs, pressScale, onFocus, onBlur, onHoverIn, onHoverOut, onPressIn, onPressOut, onLongPress,
   onLongPressAction, longPressAccessibilityAction, accessibilityActions, accessibilityState, ...props
 }, ref) {
-  const {isTV, colors, layers, platform} = useTheme();
+  const {isTV, colors, layers, column: platform} = useTheme();
   const motion = useMotion(), paint = useOverlayPaintMode();
   const retainDisabledFocus = isTV && focusableWhenDisabled === true && paint.interactive;
   const nativeDisabled = !paint.interactive || disabled && !retainDisabledFocus;
@@ -72,7 +79,8 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
   const observation = useNativeObservation<View>({kind: 'view', semanticId: binding.testID, role: accessibilityRole,
     flattenedStyle: typeof __DEV__ !== 'undefined' && __DEV__ && typeof style !== 'function' ? StyleSheet.flatten(style) : undefined,
     declaredStyleComplete: typeof style !== 'function'}, binding.ref);
-  const [nativeFocused, setFocused] = useState(false);
+  const [nativeFocused, setNativeFocused] = useState(false);
+  const setFocused = (next: boolean) => setNativeFocused(next && !focusFromTouch(isTV));
   // W-9 (2eec0520): under a covered layer a control is inert. Covering blocks new focus but cannot move focus
   // already there, so a control left focused under a pushed page neither answers OK nor draws its ring: the
   // ring on screen is always the control that answers. Blur is still recorded so no stale ring returns.
@@ -113,7 +121,7 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
     onBlur={event => {setFocused(false); pressed.value = 0; if (!paint.interactive) return; binding.onBlur(); onBlur?.(event); observation.recordFocus(event, false);}}
     onHoverIn={event => {if (inert) return; setHovered(true); onHoverIn?.(event);}}
     onHoverOut={event => {if (!paint.interactive) return; setHovered(false); onHoverOut?.(event);}}
-    onPressIn={disabled || inert ? undefined : event => {pressed.value = withTiming(1, {...motion.timing('quick'), ...(pressDurationMs !== undefined && !motion.reduce ? {duration: pressDurationMs} : {})}); onPressIn?.(event);}}
+    onPressIn={disabled || inert ? undefined : event => {noteTouch(); pressed.value = withTiming(1, {...motion.timing('quick'), ...(pressDurationMs !== undefined && !motion.reduce ? {duration: pressDurationMs} : {})}); onPressIn?.(event);}}
     onPressOut={disabled || inert ? undefined : event => {pressed.value = withTiming(0, {...motion.timing('quick'), ...(pressDurationMs !== undefined && !motion.reduce ? {duration: pressDurationMs} : {})}); onPressOut?.(event);}}
     onLongPress={disabled || waiting || inert ? undefined : event => {onLongPressAction?.(); onLongPress?.(event);}}
     pressableStyleInput={typeof style === 'function' ? style : undefined}

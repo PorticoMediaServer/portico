@@ -51,7 +51,7 @@ function useReferenceArtwork() {
 
 /** One whole window: the standard backdrop the window draws, and the shell's gutter, which a frame takes inside the shell. */
 function Window({children}: {children: ReactNode}) {
-  return <div className="portico-backdrop" style={{height: '100%', overflowY: 'auto', '--shell-gutter': 'var(--page-gutter)'} as CSSProperties}>{children}</div>;
+  return <div style={{height: '100%', overflowY: 'auto', '--shell-gutter': 'var(--page-gutter)'} as CSSProperties}>{children}</div>;
 }
 /** A page as the app shows it: inside the shell's own top bar (from 1024) or wordmark bar and tab bar (phone width),
  * drawn with the shell's stylesheet so the frame is judged where it lives. Between 600 and 1023 the shell's rail is not drawn here. */
@@ -63,7 +63,7 @@ function Page({children, current, home = false}: {children: ReactNode; current: 
   const destinations = useRef<HTMLUListElement>(null), [listed, setListed] = useState(false);
   useEffect(() => setListed(true), []);
   const avatar = <span className={shell.avatar}><ProfileAvatarFace initial={f('profileInitial')} /></span>, page = (id: typeof current) => current === id ? 'page' as const : undefined;
-  return <div className={`portico-backdrop ${shell.shell}`} data-desktop={wide} data-navigation={wide ? 'topbar' : phone ? 'tabs' : undefined} style={{position: 'relative', height: '100%', overflowY: 'auto', boxSizing: 'border-box'}}>
+  return <div className={shell.shell} data-desktop={wide} data-navigation={wide ? 'topbar' : phone ? 'tabs' : undefined} style={{position: 'relative', height: '100%', overflowY: 'auto', boxSizing: 'border-box'}}>
     <div className={shell.navigation}>{wide ? <nav className={shell.topnav}>
       <a className={shell.brand}><img src={wordmark} alt="" /></a>
       <ul ref={destinations} className={shell.destinations}><li><a aria-current={page('home')}>{f('home')}</a></li><li><a aria-current={page('movies')}>{f('movies')}</a></li>{(['tvShows', 'anime', 'music', 'audiobooks', 'liveTvShort'] as const).map(name => <li key={name}><a>{f(name)}</a></li>)}{listed && <DesktopNavigationUnderline list={destinations} />}</ul>

@@ -12,7 +12,7 @@
  * phone-width web), `tablet` (iPad), `tv` (Apple TV, Android TV).
  */
 import type {ColorToken, TypeRole} from './index.ts';
-import {emphasis, formSizes, type ByForm} from './scale.ts';
+import {emphasis, formSizes, iconClass, type ByForm} from './scale.ts';
 
 type Platforms<T> = Readonly<{web: T; phone: T; tablet: T; tv: T}>;
 const all = <T>(web: T, phone: T, tablet: T, tv: T): Platforms<T> => ({web, phone, tablet, tv});
@@ -82,8 +82,9 @@ export const button = {
  * is everything beside it (skip, previous/next, captions). TV: 72 px with 40 px icons, 88 px Play/Pause.
  */
 export const transport = {
-  control: {size: all(48, 48, 48, 72), icon: all(22, 30, 26, 40)},
-  primary: {size: all(62, 76, 72, 88), icon: all(28, 34, 36, 48)},
+  /** R4: every transport glyph is the `primary` icon class's size; the discs keep their own. */
+  control: {size: all(48, 48, 48, 72), icon: scaled(iconClass.primary.size)},
+  primary: {size: all(62, 76, 72, 88), icon: scaled(iconClass.primary.size)},
   gap: all(14, 16, 20, 32),
 } as const;
 
@@ -133,7 +134,7 @@ export const toggle = {
 
 /** Chips: quick filters and removable filter tokens (CON-13 browse bar). */
 export const chip = {
-  height: all(40, 34, 34, 64), minHit: all(40, 44, 44, 64), paddingX: all(16, 13, 13, 26), gap: all(8, 6, 6, 10), icon: same(16, 24),
+  height: scaled(formSizes.row.chip), minHit: all(40, 44, 44, 64), paddingX: all(16, 13, 16, 26), gap: all(8, 6, 8, 10), icon: same(16, 24),
   radius: all(10, 9, 9, 14), label: 'chip' as TypeRole,
   rest: {background: 'raisedHigh', foreground: 'text'} as Fill,
   hover: {background: 'raisedBright', foreground: 'text'} as Fill,

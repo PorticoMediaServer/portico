@@ -12,6 +12,7 @@ import {SelectionHoldFeedback} from '../selection/index';
 import {nativeType, useTheme, type Theme} from '../theme';
 import {useMotion} from '../useMotion';
 import {useCovered, useFocusTarget, useFocusWaiting} from '../focus';
+import {focusFromTouch, noteTouch} from '../controls/Focusable';
 import {activateCard, cardAccessibilityLabel, cardProgress, holdCard, type CardActions} from './model';
 
 export const alpha = (color: string, opacity: number) => `${color}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`;
@@ -111,13 +112,13 @@ export function CardFrame({children, overlay, frame: _frame, title, titleMargin:
       onPress={() => {if (!commandDisabled && !tvHeld.current && !touch.consumePress()) activateCard(actions);}}
       delayLongPress={native.delayLongPress}
       onLongPress={theme.isTV ? () => {if (!commandDisabled) {tvHeld.current = true; holdCard(actions, true);}} : undefined}
-      onPressIn={() => {tvHeld.current = false; setPressed(true);}}
+      onPressIn={() => {noteTouch(); tvHeld.current = false; setPressed(true);}}
       onPressOut={() => {setPressed(false); touch.end();}}
       onFocus={() => {
         binding.onFocus();
         menuRegistration.current?.();
         menuRegistration.current = !disabled && !waiting && onMore && theme.isTV ? registerFocusedMenu(owner.current, onMore) : undefined;
-        setFocused(true); onFocus?.();
+        setFocused(!focusFromTouch(theme.isTV)); onFocus?.();
       }}
       onBlur={() => {binding.onBlur(); menuRegistration.current?.(); menuRegistration.current = undefined; setFocused(false); touch.cancel(); onBlur?.();}}
       onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}>
@@ -142,8 +143,8 @@ export function ArtFrame({children, width, height, radius, focused, selected, ho
   const artStyle = useAnimatedStyle(() => ({transform: [{scale: scale.value}]}));
   const focusStyle = useAnimatedStyle(() => ({opacity: focusOpacity.value}));
   const selectionStyle = useAnimatedStyle(() => ({opacity: selectionOpacity.value}));
-  const r = circle ? height / 2 : radius ?? t.spec.card.radius[t.platform];
-  const offset = t.spec.focus.offsetOuter[t.platform], ring = t.spec.focus.ringWidth[t.platform];
+  const r = circle ? height / 2 : radius ?? t.spec.card.radius[t.column];
+  const offset = t.spec.focus.offsetOuter[t.column], ring = t.spec.focus.ringWidth[t.column];
   return <Animated.View style={[{width, height, borderRadius: r, backgroundColor: t.colors.raised}, style, artStyle]}>
     <View style={[StyleSheet.absoluteFill, {overflow: 'hidden', borderRadius: r}]}>{waiting ? <View style={[StyleSheet.absoluteFill, {backgroundColor: t.colors.raisedHigh}]} /> : children}</View>
     <Animated.View pointerEvents="none" style={[{position: 'absolute', top: -3, left: -3, right: -3, bottom: -3, borderRadius: r + 3, borderWidth: 3, borderColor: holding ? t.colors.text : t.colors.accentStrong,
@@ -183,9 +184,12 @@ const factLineRatio = 1.4;
 
 export function Caption({title, titleLines, caption, detail, density, titleTextStyle, titleMargin, captionTextStyle, selected, centered, focused, tvRestingSecondary, lines = titleLines ?? 1}: Pick<CardProps, 'title' | 'titleLines' | 'caption' | 'detail' | 'density' | 'titleTextStyle' | 'titleMargin' | 'captionTextStyle'> & {selected?: boolean; centered?: boolean; focused?: boolean; tvRestingSecondary?: boolean; lines?: number}) {
   const t = useTheme(), waiting = useFocusWaiting();
-  const compact = density === 'grid' && !t.isTV;
-  return <View accessibilityElementsHidden={waiting} importantForAccessibility={waiting ? 'no-hide-descendants' : 'auto'} style={{opacity: waiting ? 0 : 1, marginTop: titleMargin ?? (compact ? 7 : t.spec.card.titleMargin[t.platform]), gap: t.spec.card.subtitleMargin[t.platform], alignItems: centered ? 'center' : undefined}}>
-    <Text numberOfLines={lines} ellipsizeMode="tail" style={[t.type.cardTitle, compact && titleStyle(t, 12.5, 600), {color: selected ? t.colors.accentStrong : t.isTV && tvRestingSecondary && !focused ? t.colors.textSecondary : t.colors.text, textAlign: centered ? 'center' : 'left'}, titleTextStyle]}>{title}</Text>
+  const compact = density === 'grid' && !t.isTV, slot = t.scale.card.caption, top = titleMargin ?? (compact ? 7 : slot.gap);
+  // R5: a reserved slot. The title and the line under it keep their boxes when the card has no second line (and when a
+  // title that may take two lines takes one), so the cards of a row line up and the row's height includes its captions.
+  const reserved = compact ? undefined : Math.ceil((slot.titleLine * lines + slot.subtitleLine) * t.fontScale) + slot.subtitleGap;
+  return <View accessibilityElementsHidden={waiting} importantForAccessibility={waiting ? 'no-hide-descendants' : 'auto'} style={{opacity: waiting ? 0 : 1, marginTop: top, minHeight: reserved, gap: slot.subtitleGap, alignItems: centered ? 'center' : undefined}}>
+    <Text numberOfLines={lines} ellipsizeMode="tail" style={[t.type.cardTitle, compact ? titleStyle(t, 12.5, 600) : {lineHeight: slot.titleLine}, {color: selected ? t.colors.accentStrong : t.isTV && tvRestingSecondary && !focused ? t.colors.textSecondary : t.colors.text, textAlign: centered ? 'center' : 'left'}, titleTextStyle]}>{title}</Text>
     <Parts parts={caption} fit={t.isTV ? 'cut' : 'drop'} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} /><Parts parts={detail} fit={t.isTV ? 'cut' : 'drop'} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} />
   </View>;
 }
@@ -193,8 +197,8 @@ export function Caption({title, titleLines, caption, detail, density, titleTextS
 export function Progress({value, height, radius = 4, paused = false, style}: {value?: number; height?: number; radius?: number; paused?: boolean; style?: StyleProp<ViewStyle>}) {
   const t = useTheme(), p = cardProgress(value);
   if (p === undefined) return null;
-  return <View pointerEvents="none" style={[{height: height ?? t.spec.card.progress.height[t.platform], overflow: 'hidden', borderRadius: radius, backgroundColor: alpha(t.colors.text, 0.22)}, style]}>
-    <View style={{height: '100%', width: `${p * 100}%`, borderRadius: radius, backgroundColor: paused ? t.colors.textTertiary : t.colors.accentStrong}} />
+  return <View pointerEvents="none" style={[{height: height ?? t.spec.card.progress.height[t.column], overflow: 'hidden', borderRadius: radius, backgroundColor: alpha(t.colors[t.spec.card.progress.track], t.spec.card.progress.trackAlpha)}, style]}>
+    <View style={{height: '100%', width: `${p * 100}%`, borderRadius: radius, backgroundColor: paused ? t.colors.textTertiary : t.colors[t.spec.card.progress.fill]}} />
   </View>;
 }
 
@@ -207,8 +211,8 @@ export function Scrim({horizontal = false, start = 0.45, opacity = 0.85}: {horiz
 
 export function Badge({children, kind = 'plain'}: {children?: ReactNode; kind?: 'new' | 'plain' | 'watched'}) {
   const t = useTheme();
-  return <View style={{paddingHorizontal: t.spec.card.badge.paddingX[t.platform], paddingVertical: t.spec.card.badge.paddingY[t.platform], borderRadius: t.spec.card.badge.radius[t.platform], backgroundColor: kind === 'new' ? t.colors.accent : alpha(t.colors.ink, 0.72)}}>
-    {kind === 'watched' ? <Icon name="i-check" size={t.isTV ? 22 : 16} color={t.colors.text} /> : <Text numberOfLines={1} style={[t.type.badge, {color: kind === 'new' ? t.colors.actionInk : t.colors.text}]}>{children}</Text>}
+  return <View style={{paddingHorizontal: t.spec.card.badge.paddingX[t.column], paddingVertical: t.spec.card.badge.paddingY[t.column], borderRadius: t.spec.card.badge.radius[t.column], backgroundColor: kind === 'new' ? t.colors[t.spec.card.badge.background] : alpha(t.colors.ink, 0.72)}}>
+    {kind === 'watched' ? <Icon name="i-check" size={t.isTV ? 22 : 16} color={t.colors.text} /> : <Text numberOfLines={1} style={[t.type.badge, {color: kind === 'new' ? t.colors[t.spec.card.badge.foreground] : t.colors.text}]}>{children}</Text>}
   </View>;
 }
 

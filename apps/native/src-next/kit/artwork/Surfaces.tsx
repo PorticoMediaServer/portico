@@ -159,7 +159,7 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
   });
   useEffect(() => {fallbackOpacity.stopAnimation(); fallbackOpacity.setValue(1);}, [sourceIdentity, fallbackOpacity]);
   useEffect(() => () => fallbackOpacity.stopAnimation(), [fallbackOpacity]);
-  const alpha = phoneTitle || pageWash ? theme.spec.hero.phoneTitle.wash.alpha : person ? .55 : music ? .85 : wash ? 0.42 : cover ? 0.62 : theme.spec.hero.ambient.alpha[theme.platform];
+  const alpha = phoneTitle || pageWash ? theme.spec.hero.phoneTitle.wash.alpha : person ? .55 : music ? .85 : wash ? 0.42 : cover ? 0.62 : theme.spec.hero.ambient.alpha[theme.column];
   const defaultPalette = {first: theme.colors.accentDeep, second: theme.colors.generatedGreen};
   // ambient-v1 is already blurred by the server. Android TV never runs a live blur filter.
   const allowLiveBlur = !theme.isTV;

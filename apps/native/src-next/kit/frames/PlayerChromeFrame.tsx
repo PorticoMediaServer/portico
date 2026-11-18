@@ -116,8 +116,8 @@ export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, 
           : <View style={{gap: spec.timesGap[form]}}>{scrubber}<View style={[row, {justifyContent: 'space-between'}, tv && scrubbing && {opacity: 0}]}>{position}{remaining}</View></View>}
         {/* Three fixed places. The transport is centred on the bar itself, not between the ends, so it stays in the middle whatever each end holds. */}
         <View>
-          <View style={[row, scrubbing && {opacity: 0}, {justifyContent: 'space-between', gap: spec.endGap[form], marginTop: spec.controlsGap[form], minHeight: theme.spec.transport.primary.size[theme.platform]}, sideways && {minHeight: spec.pill.height[form]}]}>
-            {!phone && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, row, {justifyContent: 'center', gap: theme.spec.transport.gap[theme.platform]}]}>{transport}</View>}
+          <View style={[row, scrubbing && {opacity: 0}, {justifyContent: 'space-between', gap: spec.endGap[form], marginTop: spec.controlsGap[form], minHeight: theme.spec.transport.primary.size[theme.column]}, sideways && {minHeight: spec.pill.height[form]}]}>
+            {!phone && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, row, {justifyContent: 'center', gap: theme.spec.transport.gap[theme.column]}]}>{transport}</View>}
             <View style={[row, {flexShrink: 0, gap: spec.endGap[form]}]}>{leading}</View>
             <View style={[row, {flexShrink: 1, minWidth: 0, overflow: 'hidden', justifyContent: 'flex-end', gap: spec.endGap[form]}]}>{trailing}</View>
           </View>

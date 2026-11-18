@@ -5,14 +5,14 @@
 .frame { --g: var(--shell-gutter, var(--page-gutter)); --card: var(--frame-card-inset); color: var(--color-text); font-family: var(--font); }
 @media (min-width: 600px) { .frame { --card: var(--g); } }
 
-/* Rule 6: one style per role, from the type scale. */
+/* Rule 6: one style per role, from the type scale. R3: each role's colour is its level of emphasis (`--type-<role>-color`). */
 .pageTitle, .rowHeading, .groupLabel, .rowLabel, .rowHelp, .intro, .barTitle { margin: 0; }
-.pageTitle { font-size: var(--type-page-title-size); line-height: var(--type-page-title-line); font-weight: var(--type-page-title-weight); letter-spacing: var(--type-page-title-tracking); text-wrap: balance; }
-.rowHeading { font-size: var(--type-row-heading-size); line-height: var(--type-row-heading-line); font-weight: var(--type-row-heading-weight); letter-spacing: var(--type-row-heading-tracking); }
-.groupLabel { font-size: var(--type-group-label-size); line-height: var(--type-group-label-line); font-weight: var(--type-group-label-weight); letter-spacing: var(--type-group-label-tracking); color: var(--color-text-secondary); }
-.rowLabel { font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-row-label-weight); }
-.rowHelp { font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-row-help-weight); color: var(--color-text-tertiary); }
-.intro { font-size: var(--type-intro-size); line-height: var(--type-intro-line); font-weight: var(--type-intro-weight); color: var(--color-text-secondary); max-width: var(--frame-paragraph-max); }
+.pageTitle { font-size: var(--type-page-title-size); line-height: var(--type-page-title-line); font-weight: var(--type-page-title-weight); letter-spacing: var(--type-page-title-tracking); color: var(--type-page-title-color); text-wrap: balance; }
+.rowHeading { font-size: var(--type-row-heading-size); line-height: var(--type-row-heading-line); font-weight: var(--type-row-heading-weight); letter-spacing: var(--type-row-heading-tracking); color: var(--type-row-heading-color); }
+.groupLabel { font-size: var(--type-group-label-size); line-height: var(--type-group-label-line); font-weight: var(--type-group-label-weight); letter-spacing: var(--type-group-label-tracking); color: var(--type-group-label-color); }
+.rowLabel { font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-row-label-weight); color: var(--type-row-label-color); }
+.rowHelp { font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-row-help-weight); color: var(--type-row-help-color); }
+.intro { font-size: var(--type-intro-size); line-height: var(--type-intro-line); font-weight: var(--type-intro-weight); color: var(--type-intro-color); max-width: var(--frame-paragraph-max); }
 .barTitle { font-size: var(--type-bar-title-size); line-height: var(--type-bar-title-line); font-weight: var(--type-bar-title-weight); }
 .oneLine { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .clamp2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
@@ -29,10 +29,11 @@
 /* Frame 1. */
 .browse { display: flex; flex-direction: column; padding-bottom: var(--frame-bottom-clear); min-height: 100%; }
 .browseTop { height: var(--spec-navigation-mobile-web-top-height); }
-.browseRows { display: flex; flex-direction: column; gap: var(--frame-section-gap); }
+/* R5: rows of cards. The frame's row rhythm is the whole space between them (kit `framedRows`). */
+.browseRows { composes: framedRows from '../layout/layout.module.css'; }
 /* After the hero the first row starts at the rule's own offset from the art's bottom edge. */
 .browse[data-hero] > .browseRows { position: relative; margin-top: var(--frame-hero-home-row-offset); }
-.skeletonRow { padding-left: var(--g); display: flex; flex-direction: column; gap: var(--frame-heading-gap); }
+.skeletonRow { padding-left: var(--g); display: flex; flex-direction: column; gap: var(--frame-row-heading-gap); }
 .skeletonCards { display: flex; gap: var(--row-gap); overflow: hidden; }
 .skeletonCards > * { flex: none; }
 
@@ -110,7 +111,7 @@
 .settingsMaster { padding-bottom: var(--frame-bottom-clear); display: flex; flex-direction: column; gap: var(--frame-section-gap); }
 .settingsMaster[data-covered] { display: none; }
 /* The list column's group labels are the rule's smaller list label. */
-.settingsMaster h3 { font-size: var(--type-list-label-size); letter-spacing: var(--type-list-label-tracking); color: var(--color-text-secondary); }
+.settingsMaster h3 { font-size: var(--type-list-label-size); letter-spacing: var(--type-list-label-tracking); color: var(--type-list-label-color); }
 .settingsBar, .pageBar { margin-bottom: calc(var(--frame-header-gap) - var(--frame-section-gap)); }
 .page { display: flex; flex-direction: column; gap: var(--frame-section-gap); padding-bottom: var(--frame-bottom-clear); }
 .page > .intro { margin: 0 var(--g); }

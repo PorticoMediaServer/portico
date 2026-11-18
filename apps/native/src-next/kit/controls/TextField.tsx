@@ -47,21 +47,21 @@ const NativeTextField = forwardRef<TextInput, TextFieldProps>(function NativeTex
   const search = variant === 'search';
   const selection = appearance === 'selection' && !theme.isTV && !search;
   const auth = appearance === 'auth' && !theme.isTV && !search, glass = glassRecipe();
-  const height = auth ? 48 : search ? fieldSpec.search.height[theme.platform] : fieldSpec.height[theme.platform];
+  const height = auth ? 48 : search ? fieldSpec.search.height[theme.column] : fieldSpec.height[theme.column];
   const suppliedField = StyleSheet.flatten(fieldStyle);
   const suppliedHeight = suppliedField?.height;
   const inputHeight = typeof suppliedHeight === 'number' ? suppliedHeight : height;
-  const radius = typeof suppliedField?.borderRadius === 'number' ? suppliedField.borderRadius : auth ? 11 : search ? fieldSpec.search.radius[theme.platform] : fieldSpec.radius[theme.platform];
+  const radius = typeof suppliedField?.borderRadius === 'number' ? suppliedField.borderRadius : auth ? 11 : search ? fieldSpec.search.radius[theme.column] : fieldSpec.radius[theme.column];
   const flagged = error !== undefined || invalid;
   const color = flagged ? theme.colors.danger : focused ? theme.colors.accent : theme.colors.lineControl;
   const selectionBorder = focused || flagged ? 2 : suppliedField?.borderWidth ?? 1;
   const labelID = `${id}-label`;
   const faceStyle: StyleProp<ViewStyle> = [styles.field, {minHeight: inputHeight, height: multiline || auth ? undefined : inputHeight, borderRadius: radius,
-      paddingHorizontal: auth ? 14 : search ? fieldSpec.search.paddingX[theme.platform] : fieldSpec.paddingX[theme.platform],
-      gap: search ? fieldSpec.search.gap[theme.platform] : 10,
+      paddingHorizontal: auth ? 14 : search ? fieldSpec.search.paddingX[theme.column] : fieldSpec.paddingX[theme.column],
+      gap: search ? fieldSpec.search.gap[theme.column] : 10,
       backgroundColor: auth ? glass.nativeBlur ? 'rgba(7,16,24,.62)' : colorAlpha(glass.backgroundColor, glass.backgroundAlpha)
         : search || focused ? theme.colors.raisedHigh : theme.colors.raised,
-      borderWidth: search && !flagged ? 0 : fieldSpec.borderWidth[theme.platform], borderColor: color,
+      borderWidth: search && !flagged ? 0 : fieldSpec.borderWidth[theme.column], borderColor: color,
       opacity: auth || editable ? 1 : .45}, fieldStyle, grow ? {height: undefined, minHeight: Math.max(inputHeight, typeof suppliedField?.minHeight === 'number' ? suppliedField.minHeight : 0)} : undefined, selection ? {backgroundColor: suppliedField?.backgroundColor ?? theme.colors.ink, borderWidth: selectionBorder,
         borderColor: flagged ? theme.colors.danger : focused ? theme.colors.focus : suppliedField?.borderColor ?? theme.colors.line} : undefined];
   const content = <>
@@ -80,7 +80,7 @@ const NativeTextField = forwardRef<TextInput, TextFieldProps>(function NativeTex
         style={[theme.type.body, styles.input, {fontFamily: selection || auth ? fontFamilies[600] : search ? fontFamilies[500] : fontFamilies[400],
           fontWeight: auth ? '600' : theme.type.body.fontWeight,
           fontSize: auth ? 16 * theme.textScale : search && !theme.isTV ? 15.5 * theme.textScale : theme.type.body.fontSize,
-          color: theme.colors.text, minHeight: inputHeight - 2 * (selection ? selectionBorder : fieldSpec.borderWidth[theme.platform])}, style,
+          color: theme.colors.text, minHeight: inputHeight - 2 * (selection ? selectionBorder : fieldSpec.borderWidth[theme.column])}, style,
           // A one-line field never takes a line height: on iOS it turns the unfocused value into a wrapped paragraph that
           // spills a half-cut second line out of the box; without it the value stays on one line and ends in an ellipsis.
           multiline ? undefined : {lineHeight: undefined}]} />

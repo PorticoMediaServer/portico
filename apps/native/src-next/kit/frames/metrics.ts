@@ -1,6 +1,6 @@
 import {createContext, useContext} from 'react';
 import {useWindowDimensions} from 'react-native';
-import {frameForm, frameSpec, type FrameForm} from '@portico/design';
+import {frameSpec, type FrameForm} from '@portico/design';
 import {useTheme} from '../theme';
 import {usePageWidth} from '../layout/page-inset';
 
@@ -13,23 +13,30 @@ export type FrameMetrics = Readonly<{
   /** Where a grouped card starts, and the padding and corners of one. */
   cardInset: number; cardPadding: number; cardRadius: number;
   /** Rule 5. */
-  sectionGap: number; headingGap: number; headerGap: number; titleTop: number; bottomClear: number; rowTwoLine: number;
+  sectionGap: number; headingGap: number;
+  /** R5, a row of cards: one row's captions to the next row's heading, and a heading to its cards. */
+  rowSection: number; rowHeadingGap: number;
+  headerGap: number; titleTop: number; bottomClear: number; rowTwoLine: number;
 }>;
 
 /** Set by a frame around a column whose edges it has already placed (a settings page beside its list): inside it the
  * gutter and card inset are zero, so parts line up with the column instead of the window. */
 export const FrameColumn = createContext(false);
 
+/** R5: set by a frame round its rows of cards. Inside it a kit `Row` adds no spacing of its own (it takes back the room
+ * its track keeps for a card's growth) and the frame's `rowSection` and `rowHeadingGap` are the whole rhythm. */
+export const FrameRhythm = createContext(false);
+
 /** The system rules' spacing for this window: the theme's gutter and packages/design `frameSpec`. Only frames and kit
  * parts call this; a screen has no use for it, because a screen types no spacing of its own. Type is `theme.type`. */
 export function useFrameMetrics(): FrameMetrics {
   const theme = useTheme(), width = usePageWidth(), column = useContext(FrameColumn);
-  // The form follows the window, as the shell's layout does: a tablet's page beside its sidebar is still that tablet's form.
-  const form = theme.isTV ? 'tv' : theme.platform === 'phone' ? 'phone' : frameForm(theme.width), rhythm = frameSpec.rhythm;
+  // The form is the theme's (R2: one test, `frameForm`): a tablet's page beside its sidebar is still that tablet's form.
+  const form = theme.form, rhythm = frameSpec.rhythm;
   const gutter = column ? 0 : theme.gutter;
   return {form, width, gutter, rightGutter: column ? 0 : form === 'tv' ? theme.layout.gutter.tvRight : theme.gutter,
     cardInset: column ? 0 : form === 'phone' ? frameSpec.card.phoneInset : gutter, cardPadding: frameSpec.card.padding[form], cardRadius: frameSpec.card.radius[form],
-    sectionGap: rhythm.section[form], headingGap: rhythm.headingGap[form], headerGap: rhythm.headerGap[form], titleTop: rhythm.titleTop[form],
+    sectionGap: rhythm.section[form], headingGap: rhythm.headingGap[form], rowSection: rhythm.rowSection[form], rowHeadingGap: rhythm.rowHeadingGap[form], headerGap: rhythm.headerGap[form], titleTop: rhythm.titleTop[form],
     bottomClear: rhythm.bottomClear[form], rowTwoLine: rhythm.rowTwoLine[form]};
 }
 

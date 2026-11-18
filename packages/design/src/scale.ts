@@ -37,9 +37,9 @@ export const formSizes = {
     /** The page's buttons (Play, My List, Sign in): rule 8. Round ones are as wide as they are high. */
     standard: {height: byForm(46, 48, 48, 54, 72), radius: byForm(10, 12, 12, 12, 14), paddingX: byForm(20, 22, 22, 26, 38), gap: byForm(8, 8, 8, 10, 14), icon: byForm(20, 20, 20, 22, 30)},
     /** In bars, panels and footers. */
-    small: {height: byForm(42, 44, 44, 42, 64), radius: byForm(10, 12, 12, 12, 14), paddingX: byForm(16, 18, 18, 18, 28), gap: byForm(8, 8, 8, 8, 12), icon: byForm(18, 18, 18, 18, 26)},
+    small: {height: byForm(42, 44, 44, 42, 64), radius: byForm(10, 12, 12, 10, 14), paddingX: byForm(18, 18, 18, 18, 26), gap: byForm(8, 8, 8, 8, 12), icon: byForm(18, 18, 18, 18, 26)},
     /** In rows and section headers. A touch form never draws a target under 44. */
-    extraSmall: {height: byForm(34, 44, 44, 34, 56), radius: byForm(9, 10, 10, 10, 12), paddingX: byForm(12, 14, 14, 14, 22), gap: byForm(6, 6, 6, 6, 10), icon: byForm(16, 16, 16, 16, 24)},
+    extraSmall: {height: byForm(34, 44, 44, 34, 56), radius: byForm(9, 10, 10, 9, 12), paddingX: byForm(13, 14, 14, 13, 22), gap: byForm(6, 6, 6, 6, 10), icon: byForm(16, 16, 16, 16, 24)},
   },
   row: {
     /** A list row with one line, and with a second (rule 5 and rule 7). The web's rows are one height. */

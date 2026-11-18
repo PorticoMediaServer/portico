@@ -11,7 +11,7 @@ const genreTile = (entry: ContentEntry) => entry.kind === 'category' && entry.na
 export function discoverCell(theme: Theme, width: number, entries: readonly ContentEntry[]): Readonly<{art: number; caption: number}> {
   if (entries.length && entries.every(genreTile)) return {art: theme.isTV ? 180 : 84, caption: 0};
   const poster = entries.some(entry => !square.has(entry.kind) && !genreTile(entry));
-  const caption = theme.spec.card.titleMargin[theme.platform] + 2 * (theme.type.cardTitle.lineHeight ?? 28 * theme.textScale)
-    + theme.spec.card.subtitleMargin[theme.platform] + (theme.type.caption.lineHeight ?? 24 * theme.textScale);
+  const caption = theme.spec.card.titleMargin[theme.column] + 2 * (theme.type.cardTitle.lineHeight ?? 28 * theme.textScale)
+    + theme.spec.card.subtitleMargin[theme.column] + (theme.type.caption.lineHeight ?? 24 * theme.textScale);
   return {art: poster ? width * 1.5 : width, caption};
 }

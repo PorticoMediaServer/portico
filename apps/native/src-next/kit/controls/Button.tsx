@@ -1,6 +1,6 @@
 import React, {forwardRef} from 'react';
 import {ActivityIndicator, Platform, StyleSheet, Text, View, type TextStyle, type ViewStyle, type StyleProp} from 'react-native';
-import {buttonSpec} from '@portico/design';
+import {buttonSpec, emphasis, iconClass as iconClasses, type IconClass} from '@portico/design';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {Icon, type IconName} from '../Icon';
 import {useTheme} from '../theme';
@@ -17,6 +17,11 @@ export type ButtonProps = Omit<FocusableProps, 'children'> & {
   iconSize?: number;
   /** Optional drawn glyph color; labels continue to use textStyle. */
   iconColor?: string;
+  /** R4: the glyph's class. It sets the glyph's size for this form and its level of emphasis (a white primary button
+   * keeps its ink). A transport button is `primary` unless it says otherwise; shuffle, repeat and tool glyphs are `secondary`. */
+  iconClass?: IconClass;
+  /** With `iconClass`: the control is on (repeat on, a panel's button while its panel is open), so its glyph is the accent. */
+  active?: boolean;
   iconOnly?: boolean;
   /** The leading slot is drawn only for an icon or a running spinner, so an idle label stays centred on every platform. */
   loading?: boolean;
@@ -32,7 +37,7 @@ type ButtonContentProps = ButtonProps & {progress?: number; remaining?: React.Re
 const paddingKeys = ['padding', 'paddingHorizontal', 'paddingVertical', 'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom', 'paddingStart', 'paddingEnd', 'paddingBlock', 'paddingBlockStart', 'paddingBlockEnd', 'paddingInline', 'paddingInlineStart', 'paddingInlineEnd'] as const;
 
 const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonContent({
-  variant = 'primary', size = 'hero', children, icon, trailingIcon, iconSize, iconColor, iconOnly = variant === 'icon', loading,
+  variant = 'primary', size = 'hero', children, icon, trailingIcon, iconSize, iconColor, iconClass, active, iconOnly = variant === 'icon', loading,
   disabled, style, textStyle, labelLines = 1, accessibilityState, hitSlop, progress, remaining, align = 'start', ...props
 }, ref) {
   const theme = useTheme();
@@ -43,19 +48,19 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
   // that, the label takes a second line and the face grows to hold it. So a labelled button's height is a minimum, not a limit: the
   // same face every button already has at larger text.
   const lines = Math.max(labelLines, 2), fluid = !iconOnly;
-  const geometry = buttonGeometry(size, theme.platform, variant);
+  const geometry = buttonGeometry(size, theme.column, variant);
   const nativeStyle = StyleSheet.flatten(typeof style === 'function' ? undefined : style);
   const height = typeof nativeStyle?.height === 'number' ? nativeStyle.height : geometry.height;
   // A round icon button is the `icon` variant (and the round transport size). An icon-only action beside labelled ones (Add, Download, More) keeps the button's own corners.
   const radius = typeof nativeStyle?.borderRadius === 'number' ? nativeStyle.borderRadius : variant === 'icon' ? height / 2 : geometry.radius;
-  const glyphSize = iconSize ?? geometry.icon;
+  const glyphSize = iconSize ?? (iconClass ? theme.scale.icon[iconClass].size : geometry.icon);
   const recipe = glassRecipe();
   const white = variant === 'primary';
   const tvDisabledPrimary = theme.isTV && white && disabled;
   const glass = variant === 'glass' || variant === 'icon' || variant === 'danger';
   const androidGlass = glass && recipe.nativeBlur && Platform.OS === 'android';
   const foreground = tvDisabledPrimary ? theme.colors[buttonSpec.tvDisabledPrimary.foreground] : white ? theme.colors.ink : variant === 'danger' ? theme.colors.record : variant === 'link' ? theme.colors.accentStrong : variant === 'text' ? theme.platform === 'web' ? theme.colors.textSecondary : theme.colors.accentStrong : theme.colors.text;
-  const glyphColor = iconColor ?? foreground;
+  const glyphColor = iconColor ?? (iconClass && !white ? theme.emphasis[active ? emphasis.active : iconClasses[iconClass].level] : foreground);
   const labelStyle = [theme.type.button, styles.label, {fontSize: geometry.fontSize * theme.textScale, color: foreground}, textStyle];
   const labelId = props.testID ?? props.focusId;
   const labelObservation = useNativeObservation<Text>({kind: 'text', semanticId: labelId ? `${labelId}/label` : undefined,
