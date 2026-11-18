@@ -491,6 +491,13 @@ function foundText(group as object) as string
     return group.total.toStr()
 end function
 
+' What a Top result is, in the words under its title (tv.html frame 5: "TV show").
+function topKindName(kind as string) as string
+    names = {movie: "Film", show: "TV show", person: "Person", artist: "Artist", album: "Album", audiobook: "Audiobook"}
+    if names[kind] <> invalid then return names[kind]
+    return ""
+end function
+
 function kindCount(n as integer, kind as string) as string
     one = {movie: "movie", show: "show", collection: "collection", artist: "artist", album: "album", track: "song", audiobook: "audiobook"}
     if one[kind] = invalid then return countText(n, "title", "titles")

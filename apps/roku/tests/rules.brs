@@ -63,6 +63,7 @@ sub main()
     same("filter summary", [filterSummary([]), filterSummary([{label: "1980s"}]), filterSummary([{label: "a"}, {label: "b"}])], ["Any", "1980s", "2 chosen"])
     same("saved view name", [savedViewName("Films", ["Unplayed", "1990s"], "Title A–Z"), savedViewName("Films", [], "Year")], ["Films: Unplayed, 1990s", "Films, Year"])
     same("copies told apart", copyNames([{title: "Dune", year: 2021, libraryId: "a"}, {title: "Dune", year: 2021, libraryId: "b"}, {title: "Alien", year: 1979, libraryId: "a"}], {a: "Films", b: "Films from TMDB"}), ["Films", "Films from TMDB", ""])
+    same("top result kind", [topKindName("show"), topKindName("movie"), topKindName("track")], ["TV show", "Film", ""])
     same("search found", [foundText({total: 20, totalIsMinimum: true}), foundText({total: 4}), foundText({})], ["20+", "4", ""])
 
     ' the capability table against the profiles the server records for Roku (server-next/internal/streaming/profiles)

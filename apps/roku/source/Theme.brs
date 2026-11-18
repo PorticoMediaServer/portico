@@ -93,7 +93,9 @@ function frames() as object
         ' column from `resultsX` with the kinds' chips on the title line; the row in focus is
         ' brought up level with the keys. Under the words of an empty box or of no matches, the
         ' recent searches or the genres to browse start at `underNoteY` (states frame 18).
-        search: {boxWidth: 500, boxHeight: 80, keysY: 176, resultsX: 780, underNoteY: 236}
+        ' A Top result (tv.html frame 5) leads the results with its 16:9 picture level with the keys;
+        ' the rows start `topHeight` under its top.
+        search: {boxWidth: 500, boxHeight: 80, keysY: 176, resultsX: 780, underNoteY: 236, topHeight: 319}
         ' Settings: the list column from `listX` (the Search settings box on `findY`, `findHeight` tall, its
         ' key hints centred on `hintsY` and 50 under it), then the chosen page at `pageX`: title at `top`,
         ' content `headerGap` under it, an intro `introWidth` wide, sections `sectionGap` apart; a row in
