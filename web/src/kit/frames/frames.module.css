@@ -23,7 +23,7 @@
 .headerRow { display: flex; align-items: flex-end; gap: var(--space-sm); }
 .headerRow > :first-child { flex: 1; min-width: 0; }
 /* The Back link's words start at the gutter: its own inset is taken back. */
-.back { margin-left: calc(-1 * var(--space-control-gap)); }
+.back { margin-left: calc(-1 * var(--space-control-gap)); justify-self: start; align-self: flex-start; }
 @media (min-width: 1024px) { .header, .header[data-back] { padding-top: var(--frame-title-top); } }
 
 /* Frame 1. */
@@ -135,6 +135,7 @@
 .playerShade { pointer-events: none; background: var(--frame-player-scrim); }
 .playerShade, .playerTop, .playerBar { transition: opacity var(--motion-standard) var(--ease-out); }
 .player[data-chrome='false'] :is(.playerShade, .playerTop, .playerBar) { opacity: 0; pointer-events: none; }
+.player[data-covered='bar'] .playerBar { opacity: 0; pointer-events: none; }
 .playerTop { position: absolute; inset: 0 0 auto; display: flex; align-items: flex-start; gap: var(--frame-player-title-gap); padding: var(--frame-player-top) var(--frame-player-edge); }
 .playerTitle { flex: 1; min-width: 0; align-self: center; }
 .playerTools { display: flex; gap: var(--space-control-gap); flex: none; }
@@ -174,7 +175,11 @@
   .playerTop { padding: var(--frame-player-portrait-top) var(--frame-player-portrait-edge); gap: 0; }
   .playerTitle { visibility: hidden; }
   .playerTools { gap: 0; }
-  .playerPrompts { padding: 0 var(--frame-player-portrait-edge) var(--space-xs); }
+  /* A prompt has its own place in the strip's bottom row, between the read-out and the options, where it covers neither them nor the transport. */
+  .playerPrompts { position: absolute; z-index: 1; right: var(--frame-player-portrait-prompt-right); bottom: var(--frame-player-portrait-bottom); min-height: var(--target-touch); display: flex; align-items: center; padding: 0;
+    --frame-player-prompt-height: var(--frame-player-portrait-prompt-height); --frame-player-prompt-padding: var(--frame-player-portrait-prompt-padding-x); --frame-player-prompt-radius: calc(var(--frame-player-portrait-prompt-height) / 2); --frame-player-prompt-dismiss: 0px; --type-player-prompt-size: var(--type-player-pill-size); }
+  /* The finger is on the scrubber: the transport makes way for the preview. */
+  .player[data-scrubbing='true'] .playerCentre { opacity: 0; pointer-events: none; }
   .playerBar { grid-template-columns: 1fr auto; grid-template-areas: 'clock trailing'; padding: 0 var(--frame-player-portrait-edge) var(--frame-player-portrait-bottom) var(--frame-player-portrait-time-inset); }
   .playerClock { display: inline; }
   .playerPosition, .playerRemaining, .playerLeading { display: none; }
@@ -191,12 +196,13 @@
 .audio { display: flex; flex-direction: column; height: 100%; min-height: 100dvh; box-sizing: border-box; padding: 0 var(--frame-audio-inset) max(var(--frame-sheet-footer-clear), env(safe-area-inset-bottom)); max-width: calc(var(--frame-audio-artwork) + 2 * var(--frame-audio-inset)); margin: 0 auto; }
 .audioTop { display: flex; align-items: center; gap: var(--space-xs); height: var(--frame-audio-top-bar); flex: none; }
 .audioTop > p { flex: 1; text-align: center; color: var(--color-text-secondary); }
-.audioArtSpace { flex: 1; min-height: 0; padding-top: var(--frame-audio-gap); overflow: hidden; }
+/* The title follows the artwork; what is left of the height sits between the title and the scrubber (phone-app 14). */
+.audioArtSpace { flex: none; padding-top: var(--frame-audio-gap); }
 .audioArt { width: 100%; max-width: var(--frame-audio-artwork); aspect-ratio: 1; }
-.audioWords { height: var(--frame-audio-title-slot); flex: none; display: flex; flex-direction: column; justify-content: flex-end; gap: var(--space-tight); }
+.audioWords { height: var(--frame-audio-title-slot); margin-top: var(--space-sm); flex: none; display: flex; flex-direction: column; justify-content: flex-start; gap: var(--space-tight); }
 .audioWords h1 { margin: 0; font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); letter-spacing: var(--type-title-tracking); }
 .audioWords > p { min-height: var(--type-row-help-line); }
-.audioScrubber { height: var(--frame-audio-scrubber); margin-top: var(--frame-audio-gap); flex: none; display: flex; flex-direction: column; justify-content: center; gap: var(--frame-player-times-gap); }
+.audioScrubber { height: var(--frame-audio-scrubber); margin-top: auto; flex: none; display: flex; flex-direction: column; justify-content: center; gap: var(--frame-player-times-gap); }
 .audioTransport { height: var(--frame-audio-transport); flex: none; display: flex; align-items: center; justify-content: space-between; }
 .audioActive { color: var(--color-accent-strong); }
 .audioNext { height: var(--frame-audio-next-line); flex: none; text-align: center; }
@@ -208,10 +214,22 @@
 .audioOption small { font-size: var(--type-micro-size); font-weight: var(--type-micro-weight); color: var(--color-text-tertiary); }
 .audioUpNext { display: none; }
 @media (min-width: 1024px) {
-  .audio { display: grid; grid-template-columns: var(--frame-audio-artwork) var(--frame-audio-controls) minmax(var(--frame-audio-up-next), 1fr); grid-template-rows: var(--frame-audio-top-bar) auto auto auto auto auto 1fr; column-gap: var(--frame-audio-gap); align-content: start; max-width: none; margin: 0; padding: var(--frame-title-top) var(--g) var(--frame-bottom-clear); }
-  .audioTop { grid-column: 1 / -1; } .audioTop > p { text-align: left; } .audioTop > button { display: none; }
-  .audioArtSpace { grid-column: 1; grid-row: 2 / -1; padding-top: 0; }
-  .audioWords, .audioScrubber, .audioTransport, .audioNext, .audioOptions { grid-column: 2; }
-  .audioNext { text-align: left; }
-  .audioUpNext { display: block; grid-column: 3; grid-row: 2 / -1; overflow-y: auto; min-height: 0; }
+  /* From 1024 (desktop-listen "now", tablet-play 9): the bar spans the window; the phone's column sits centred in the room beside the Up next panel. */
+  .audio { display: grid; grid-template-columns: minmax(0, 1fr) var(--frame-audio-up-next); grid-template-rows: var(--frame-audio-top-bar) auto auto 1fr auto auto auto auto; column-gap: var(--frame-audio-gap); max-width: none; margin: 0; padding: var(--frame-header-gap) var(--g) var(--frame-bottom-clear); }
+  .audioTop { grid-column: 1 / -1; } .audioTop > p { text-align: left; }
+  .audioArtSpace, .audioWords, .audioScrubber, .audioTransport, .audioNext, .audioOptions { grid-column: 1; justify-self: center; width: min(100%, var(--frame-audio-artwork)); }
+  .audioArtSpace { padding-top: 0; display: grid; justify-items: center; }
+  .audioArt { width: min(100%, calc(100dvh - var(--frame-audio-top-bar) - var(--frame-audio-title-slot) - var(--frame-audio-scrubber) - var(--frame-audio-transport) - var(--frame-audio-next-line) - var(--frame-audio-bottom-row) - 2 * var(--frame-audio-gap) - var(--frame-bottom-clear))); }
+  .audioArtSpace { grid-row: 2; } .audioWords { grid-row: 3; } .audioScrubber { grid-row: 5; margin-top: 0; } .audioTransport { grid-row: 6; } .audioNext { grid-row: 7; } .audioOptions { grid-row: 8; }
+  .audioUpNext { display: block; grid-column: 2; grid-row: 2 / -1; overflow-y: auto; min-height: 0; }
 }
+
+/* The episodes bar and the episode rows of a show (phone-player 4, tablet-play 3). */
+.seasonBar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-control-gap); }
+.seasonHide { margin-left: auto; display: flex; align-items: center; gap: var(--space-xs); font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-button-weight); color: var(--color-text-secondary); }
+.episodeRows { display: flex; flex-direction: column; gap: var(--space-sm); }
+.episodeRows > * { width: 100%; }
+.episodeRows > * > button { display: grid; grid-template-columns: calc(var(--card-poster-width) * 1.15) minmax(0, 1fr); column-gap: var(--space-sm); text-align: left; width: 100%; }
+.episodeRows > * > button > :first-child { grid-column: 1; grid-row: 1; }
+.episodeRows > * > button > :nth-child(2) { grid-column: 2; margin-top: 0; align-self: center; }
+.episodeRows > * > button > :nth-child(3) { grid-column: 1 / -1; }

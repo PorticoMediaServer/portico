@@ -1,6 +1,6 @@
 import type {ReactNode} from 'react';
 import {Artwork, type ArtworkSource} from '../artwork';
-import {Button} from '../controls';
+import {Button, Switch} from '../controls';
 import {Icon, type IconName} from '../Icon';
 import {SettingsGroup} from '../settings/SettingsGroups';
 import {Skeleton} from '../states';
@@ -48,4 +48,20 @@ export function StateRow(props: StateRowProps) {
     <div className={styles.stateText}><b className={`${styles.rowLabel} ${styles.clamp2}`}>{props.title}</b>{props.reason !== undefined && <p className={`${styles.rowHelp} ${styles.clamp2}`}>{props.reason}</p>}</div>
     {props.action && <Button size="xs" onClick={props.action.onPress}>{props.action.label}</Button>}
   </div>;
+}
+
+/** The episodes bar under a show's tabs (phone-player 4, tablet-play 3): the season chip, the season's count, and
+ * Hide watched at the end. The native kit has the same part with the same props. */
+export function SeasonBar({label, count, onSeasons, hideWatched, hideWatchedLabel, onHideWatched}: {label: string; count?: string; onSeasons: () => void; hideWatched: boolean; hideWatchedLabel: string; onHideWatched: (value: boolean) => void}) {
+  return <div className={styles.seasonBar}>
+    <Button size="small" onClick={onSeasons}>{label}<Icon name="i-chdown" size={16} /></Button>
+    {count !== undefined && <span className={styles.rowHelp}>{count}</span>}
+    <label className={styles.seasonHide}>{hideWatchedLabel}<Switch checked={hideWatched} onCheckedChange={onHideWatched} /></label>
+  </div>;
+}
+
+/** A show's episodes as rows: each kit `EpisodeTile` inside is laid out with its picture beside its words and its
+ * synopsis under both. (The show page's own copy of these rules, `screens/detail/show.module.css` `.episodeRow`, goes in Stage 2.) */
+export function EpisodeRows({children}: {children: ReactNode}) {
+  return <div className={styles.episodeRows}>{children}</div>;
 }

@@ -76,3 +76,5 @@ Shoot the panel and live cases like the player: 1440 by 900, 390 by 844 and 844 
 
 Not in the kit yet, so not drawn here: Chapters, the queue, Playback info and the end card (`screens/watch`). They are
 listed in `FRAMES.md` for Stage 2.
+
+Not sections to shoot: `browse` `sort-menu` and `library-switcher` and `cards` `reference` are measurement cases that need the gallery inputs manifest (`web/scripts/config.mjs`); without it they say "gallery inputs unavailable" or stay empty. The `overlays` `toast` case is 1440 wide; shoot `phone-toast` at 390. Shoot with scrollbars hidden.
