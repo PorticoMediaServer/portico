@@ -7,6 +7,8 @@ import {parseLocalSession,currentUTCTimestamp} from './local-session.ts';
 import type {LocalSession} from './index.ts';
 import {keepReadable,oneOfOr} from './tolerant.ts';
 import {requireTag} from './needs-newer-app.ts';
+import {rememberedFor,type RememberMarker} from './remember-marker.ts';
+import {serverNow} from './server-clock.ts';
 
 /** Account credentials administer profiles; a selected profile is only a viewer. */
 export interface ProfileAPI {request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>;
@@ -34,7 +36,7 @@ export type ManagementCapabilities=Readonly<{manageAccount:boolean;managePeople:
 /** PR-1: the server refused a management request until this remembered main profile enters its PIN again
  * (`profile_pin_manage`). It acted on nothing, so what the screen holds is still current; the app's shell asks for the PIN. */
 export const managementPinRefused = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === 'profile_pin_manage';
-export type DirectSnapshot=Readonly<{capabilities:ManagementCapabilities;authority:'local';serverId:string;account:DirectAccount;profiles:readonly ManagedProfile[];canManage:boolean;custodyPending?:boolean;twoStepSetupRequired?:true;rememberProfiles?:boolean;managePinRequired?:true}>;
+export type DirectSnapshot=Readonly<{capabilities:ManagementCapabilities;authority:'local';serverId:string;account:DirectAccount;profiles:readonly ManagedProfile[];canManage:boolean;custodyPending?:boolean;twoStepSetupRequired?:true;rememberProfiles?:boolean;pinRememberDays?:number;managePinRequired?:true}>;
 /**
  * The answer to a sign-in:
  * - `signed-in`: one `session` for this device. Until a profile is chosen it has the role `account`
@@ -54,10 +56,8 @@ export function directSignInContinuation(result:DirectSignIn):'challenge'|'passw
  return result.accountScoped?'profile-selection':'viewer';
 }
 export type ProfileScope=Readonly<{authority:ProfileAuthority;accountId:string;serverId?:string}>;
-/** `remember` (the PIN screen's Remember this profile) is not on the new server yet and is not sent. */
-export type ProfileSelectionInput=Readonly<{pin?:string;installationId?:string;remember?:boolean}>;
-/** `remembered`: the new sign-in remembers its profile until `expiresAt`. */
-export type DirectSelection=Readonly<{session:LocalSession;remembered?:Readonly<{expiresAt:string}>}>;
+export type ProfileSelectionInput=Readonly<{pin?:string;pinToken?:string;installationId?:string;remember?:boolean}>;
+export type DirectSelection=Readonly<{session:LocalSession;pinToken?:string}>;
 /** What the confirmation shows before a profile is deleted. `lifetime` is kept for the screens that pass a
  * preview back; the server deletes a profile in one step and reads nothing from it. */
 export type ProfileDeletion=Readonly<{id?:string;profileId:string;lifetime:string;name?:string;primary:boolean;status?:string;playlists?:number;savedResources?:number;servers?:readonly {id:string;name:string;acknowledged:boolean}[]}>;
@@ -91,19 +91,22 @@ export function parseManagedProfiles(raw:unknown,readable=false):readonly Manage
 }
 /** Builds what the screens know about an account from the server's `Account` and `Profile` shapes.
  * `role` and `canManage` are this sign-in's: only the account's main profile manages anything. */
-function accountSnapshot(serverId:string,account:unknown,profileRows:unknown,role:string,canManage:boolean,readable=false):DirectSnapshot{
+function accountSnapshot(serverId:string,account:unknown,profileRows:unknown,role:string,canManage:boolean,policy:Record<string,unknown>,readable=false):DirectSnapshot{
  if(!text(serverId,128)||!obj(account)||!text(account.id,128)||!text(account.username,64)||!['owner','admin','member'].includes(account.role as string))invalid();
  if(account.hostedAccountId!==undefined&&!text(account.hostedAccountId,256))invalid();
  const profiles=parseManagedProfiles(profileRows,readable),primary=profiles.find(p=>p.primary);if(!primary)invalid();
  const staff=canManage&&(role==='owner'||role==='admin');
+ const days=policy.pinRememberDays;
+ const pinRememberDays=typeof days==='number'&&Number.isSafeInteger(days)&&days>=-1?days:undefined;
  return Object.freeze({authority:'local',serverId,account:Object.freeze({id:account.id,username:account.username,primaryProfileId:primary.id,role:account.role as DirectAccount['role'],disabled:false,allowedLibraries:Object.freeze([]),
   ...(typeof account.hostedAccountId==='string'?{hostedAccountId:account.hostedAccountId}:{})}),
-  profiles,capabilities:Object.freeze({manageAccount:canManage,managePeople:staff,manageServer:staff,manageSignIn:canManage&&role==='owner'}),canManage,rememberProfiles:false});
+  profiles,capabilities:Object.freeze({manageAccount:canManage,managePeople:staff,manageServer:staff,manageSignIn:canManage&&role==='owner'}),canManage,rememberProfiles:policy.rememberProfiles===true&&pinRememberDays!==0,
+  ...(pinRememberDays!==undefined?{pinRememberDays}:{})});
 }
 /** Reads what `readDirectAccount` fetched (`GET /v1/me` and `GET /v1/profiles`) for the server the caller is signed in to. */
 export function parseDirectSnapshot(raw:unknown,expected:Partial<ProfileScope>={},readableProfiles=false):DirectSnapshot{
  if(!obj(raw)||!obj(raw.me)||!obj(raw.profiles)||typeof raw.me.canManageAccount!=='boolean'||!text(raw.me.role,64)||!expected.serverId||(expected.authority&&expected.authority!=='local'))invalid();
- const snapshot=accountSnapshot(expected.serverId,raw.me.account,raw.profiles.items,raw.me.role,raw.me.canManageAccount,readableProfiles);
+ const snapshot=accountSnapshot(expected.serverId,raw.me.account,raw.profiles.items,raw.me.role,raw.me.canManageAccount,raw.me,readableProfiles);
  if(expected.accountId&&snapshot.account.id!==expected.accountId)invalid();
  return snapshot;
 }
@@ -117,7 +120,7 @@ export function parseDirectSignIn(raw:unknown):DirectSignIn{
  if(!obj(raw.session)||!obj(raw.session.viewer)||!obj(raw.account))invalid();
  const session=parseLocalSession(raw.session,{accountId:raw.account.id as string});
  const accountScoped=session.viewer.role==='account';
- const snapshot=accountSnapshot(session.viewer.serverId,raw.account,raw.profiles,session.viewer.role,!accountScoped&&session.viewer.profileId===parseManagedProfiles(raw.profiles).find(p=>p.primary)?.id);
+ const snapshot=accountSnapshot(session.viewer.serverId,raw.account,raw.profiles,session.viewer.role,!accountScoped&&session.viewer.profileId===parseManagedProfiles(raw.profiles).find(p=>p.primary)?.id,raw);
  return Object.freeze({kind:'signed-in',snapshot:session.twoStepSetupRequired?Object.freeze({...snapshot,twoStepSetupRequired:true as const}):snapshot,session,accountScoped,passwordChangeRequired:false});
 }
 /** A sign-in answered by a route whose response union is tagged: the server always sends `variant`, one of
@@ -187,8 +190,33 @@ export async function changeRequiredPassword(api:ProfileAPI,currentPassword:stri
  */
 export async function selectDirectProfile(api:ProfileAPI,scope:ProfileScope&{serverId:string},profileId:string,input:ProfileSelectionInput,signal?:AbortSignal):Promise<DirectSelection>{
  if(scope.authority!=='local'||!text(profileId,128)||(input.pin!==undefined&&input.pin!==''&&!/^\d{4}$/.test(input.pin)))throw new CodedError('pin_format','Enter the four-digit profile PIN.');
- const raw=await callServer(api,'POST /v1/profiles/{id}/select',{id:profileId,body:input.pin?{pin:input.pin}:{},signal});
- return Object.freeze({session:parseLocalSession(raw,{accountId:scope.accountId,serverId:scope.serverId,profileId})});
+ const body=input.pin?{pin:input.pin,...(input.remember?{rememberPin:true}:{})}:input.pinToken?{pinToken:input.pinToken}:{};
+ const raw=await callServer(api,'POST /v1/profiles/{id}/select',{id:profileId,body,signal});
+ return Object.freeze({session:parseLocalSession(raw,{accountId:scope.accountId,serverId:scope.serverId,profileId}),
+  ...(text(raw.pinToken,16384)?{pinToken:raw.pinToken}:{})});
+}
+/** A PIN profile requires the server's grant. An ordinary profile only needs the local choice. */
+export function profileRememberMarker(pick:DirectSelection,snapshot:DirectSnapshot,remember:boolean):RememberMarker|undefined{
+ if(!remember||!snapshot.rememberProfiles)return undefined;
+ const {viewer,sessionFamilyId:familyId}=pick.session,profileId=viewer.profileId;
+ const profile=snapshot.profiles.find(p=>p.id===profileId);
+ if(!profile)return undefined;
+ if(profile.pinRequired)return pick.pinToken?{familyId,profileId,pinToken:pick.pinToken}:undefined;
+ return {familyId,profileId,lastUsedAt:serverNow(),pinRememberDays:snapshot.pinRememberDays??-1};
+}
+
+/** Reuse only the held sign-in's own choice. The server checks a remembered PIN and
+ * issues the viewing grant, with its sensitive-settings PIN recheck intact. */
+export async function resumeRememberedProfile(api:ProfileAPI,session:LocalSession,snapshot:DirectSnapshot,marker:RememberMarker|undefined,signal?:AbortSignal):Promise<LocalSession|undefined>{
+ const {serverId,accountId,profileId}=session.viewer;
+ if(!snapshot.rememberProfiles||!rememberedFor(marker,{familyId:session.sessionFamilyId,profileId},snapshot.pinRememberDays))return undefined;
+ const profile=snapshot.profiles.find(p=>p.id===profileId);
+ if(!profile)return undefined;
+ if(!profile.pinRequired)return session;
+ if(!marker.pinToken)return undefined;
+ const {session:chosen}=await selectDirectProfile(api,{authority:'local',serverId,accountId},profileId,{pinToken:marker.pinToken},signal);
+ if(chosen.sessionFamilyId!==session.sessionFamilyId||chosen.viewer.role!==session.viewer.role)invalid();
+ return keepSignInRenewal(chosen,session);
 }
 /** The profiles of an account, managed on its own server from its main profile. */
 export class ManagedProfilesClient {

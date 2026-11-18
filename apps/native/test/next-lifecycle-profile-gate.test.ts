@@ -67,7 +67,7 @@ test('the launch picker lists the server\'s profiles; a PIN profile opens the PI
     assert.equal(g.tree().props.testID, 'lifecycle-profile-pin');
     const remember = parts(g.tree()).find(node => node.type === 'Remember');
     assert.ok(remember, 'Remember this profile on this device is offered');
-    assert.equal(remember.props.checked, false, 'unticked until chosen');
+    assert.equal(remember.props.checked, true, 'checked by default');
     await act(() => remember.props.onChange(true));
     await g.host.rerender();
     const pin = parts(g.tree()).find(node => node.type === 'PhoneProfilePIN');
@@ -91,9 +91,10 @@ test('with Remember PIN for Off the PIN screen offers no Remember row and never 
   } finally {await g.host.unmount(); g.lifecycle.dispose();}
 });
 
-test('the current no-PIN profile opens without a request', async () => {
+test('the current no-PIN profile opens without a request when the choice is unchecked', async () => {
   const g = await gate(true);
   try {
+    await act(() => remembering(g).props.onChange(false)); await g.host.rerender();
     const picker = parts(g.tree()).find(node => node.type === 'Picker');
     await act(async () => {picker.props.onSelect('main'); await settle();});
     assert.equal(g.selects.length, 0);
@@ -126,7 +127,7 @@ test('Who\'s watching offers Remember this profile on this device under the face
       assert.equal(g.tree().props.testID, 'lifecycle-profiles');
       const row = remembering(g);
       assert.equal(!!row, allowed, allowed ? 'offered under the faces' : 'no checkbox when the server will not remember');
-      if (row) assert.equal(row.props.checked, false, 'unticked until chosen');
+      if (row) assert.equal(row.props.checked, true, 'checked by default');
     } finally {await g.host.unmount(); g.lifecycle.dispose();}
   }
 });
@@ -135,12 +136,12 @@ test('a ticked no-PIN profile is remembered when chosen; unticked it is not', as
   for (const ticked of [true, false]) {
     const g = await gate(true);
     try {
-      if (ticked) {await act(() => remembering(g).props.onChange(true)); await g.host.rerender();}
+      if (!ticked) {await act(() => remembering(g).props.onChange(false)); await g.host.rerender();}
       assert.equal(remembering(g).props.checked, ticked);
       const picker = parts(g.tree()).find(node => node.type === 'Picker');
       // The held profile is Demo; Alex has a PIN, so add a no-PIN second profile through a fresh gate below. Here, choose the current profile.
       await act(async () => {picker.props.onSelect('main'); await settle();});
-      assert.equal(g.selects.length, ticked ? 1 : 0, ticked ? 'the tick on the current profile signs in afresh so the server can remember it' : 'an untouched tap just returns');
+      assert.equal(g.selects.length, ticked ? 1 : 0, ticked ? 'the checked current profile saves the choice' : 'an untouched tap just returns');
       if (ticked) assert.equal(g.selects[0].remember, true);
     } finally {await g.host.unmount(); g.lifecycle.dispose();}
   }
@@ -149,7 +150,6 @@ test('a ticked no-PIN profile is remembered when chosen; unticked it is not', as
 test('the picker\'s tick carries to the PIN page, is sent only with the PIN, and cancelling sends nothing', async () => {
   const g = await gate(true);
   try {
-    await act(() => remembering(g).props.onChange(true)); await g.host.rerender();
     const picker = parts(g.tree()).find(node => node.type === 'Picker');
     await act(async () => {picker.props.onSelect('alex'); await settle();});
     await g.host.rerender();
@@ -180,8 +180,7 @@ test('on TV the faces carry the same checkbox only where the server allows remem
       const row = nodes(g.tree().props.children).find(node => node.type === 'TVPickerRemember');
       assert.equal(!!row, allowed);
       if (!row) continue;
-      assert.equal(row.props.checked, false);
-      await act(() => row.props.onChange(true)); await g.host.rerender();
+      assert.equal(row.props.checked, true);
       const picker = nodes(g.tree().props.children).find(node => node.type === 'Picker');
       await act(async () => {picker.props.onSelect('main'); await settle();});
       assert.equal(g.selects[0]?.remember, true);

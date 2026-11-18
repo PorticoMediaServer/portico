@@ -4,10 +4,10 @@ import {ApiError, HttpLocalApi, type LocalSession} from '../../../../packages/cl
 import type {AppServerSession, AppSessionStorage, AppSessionStore} from '../../../../packages/client-core/src/app-sessions';
 import {releaseQuietly} from '../../../../packages/client-core/src/cleanup';
 import {installationIdentity} from '../../../../packages/client-core/src/installation';
-import {parseDirectSnapshot, selectDirectProfile, type DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
+import {parseDirectSnapshot, profileRememberMarker, resumeRememberedProfile, selectDirectProfile, type DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
 import {rememberedFor} from '../../../../packages/client-core/src/remember-marker';
 import type {RememberedServer} from '../../../../packages/client-core/src/server-connections';
-import {restoreNativeSession} from '../../../../packages/client-core/src/server-connections';
+import {saveResumedProfile, restoreNativeSession} from '../../../../packages/client-core/src/server-connections';
 import type {HeldRead, LifecyclePorts, RecordsRead, SelectInput, TransitionRecord} from '../../../../packages/client-core/src/session-lifecycle-runtime';
 import type {ConnectFailure, ConnectedFacts, HeldSignIn, IdentityFailureCode, PickerProfile, SelectedFacts} from '../../../../packages/client-core/src/session-lifecycle';
 import {wait, type Scheduler} from '../../../../packages/client-core/src/timer';
@@ -60,7 +60,7 @@ export type NativeLifecycleDeps = Readonly<{
   drainRevocations: typeof drainRevocations;
   /** Removes the captured viewer's downloads, as the sign-out sheet does. */
   removeDownloads: (captured: AppServerSession) => Promise<unknown>;
-  /** Wall clock, for marker expiry. */
+  /** Server clock for the owner’s timed non-PIN policy while offline. */
   now: () => number;
   scheduler?: Scheduler;
   drainDelayMs: number;
@@ -177,8 +177,8 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
     return Object.freeze({
       server: Object.freeze({serverId: pin.serverId, name, signIn: entry.signIn}),
       viewer: viewerRef(session),
-      remembered: rememberedFor(entry.remembered && {serverId: pin.serverId, ...entry.remembered},
-        {serverId: pin.serverId, familyId: session.sessionFamilyId, profileId: session.viewer.profileId}, deps.now()),
+      remembered: rememberedFor(entry.remembered,
+        {familyId: session.sessionFamilyId, profileId: session.viewer.profileId}, undefined, deps.now()),
       ...(entry.profilePinRequired === undefined ? {} : {profilePinRequired: entry.profilePinRequired}),
     });
   };
@@ -193,7 +193,7 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
     return {servers: record.servers.length, held: holding(entry, display?.name ?? '')};
   };
 
-  const connect = async (serverId: string, signal: AbortSignal): Promise<ConnectedFacts> => {
+  const connect = async (serverId: string, signal: AbortSignal, admitted = false): Promise<ConnectedFacts> => {
     releaseConnection(); context = undefined; failed = undefined;
     const check = () => {if (signal.aborted) throw cancelled();};
     const borrowed = lent, installation = borrowed ?? deps.beginInstallation(signal);
@@ -231,14 +231,26 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
       const profiles: readonly PickerProfile[] = Object.freeze(snapshot.profiles.map(value => Object.freeze({
         id: value.id, name: value.name, primary: value.primary, pinRequired: value.pinRequired})));
       // PR-1: whether management needs the main profile's PIN is the server's answer, never assumed from the profile.
-      const facts: ConnectedFacts = Object.freeze({profiles, rememberProfiles: snapshot.rememberProfiles === true, manageLocked: snapshot.managePinRequired === true});
+      const facts: ConnectedFacts = {profiles, rememberProfiles: snapshot.rememberProfiles === true, manageLocked: snapshot.managePinRequired === true};
       // A refusal after this point (profile_pin_reentry) names its PIN screen from this account.
       context = Object.freeze({...context!, facts});
       const held = profiles.find(value => value.id === restored.session.viewer.profileId);
+      const marker = selected.remembered;
+      const resumed = admitted ? undefined : await resumeRememberedProfile(restored.api, restored.session, snapshot, marker, signal);
+      check();
+      const session = resumed ?? restored.session;
+      if (resumed && resumed !== restored.session)
+        await own(() => saveResumedProfile(restored.api, restored.session, resumed, env.storage, signal));
+      if (!admitted && marker) {
+        if (!resumed) await own(() => deps.sessions.setRemembered(serverId, session.sessionFamilyId, undefined, session.viewer.profileId)).catch(() => {});
+        else if (marker.pinToken === undefined && marker.pinRememberDays !== (snapshot.pinRememberDays ?? -1))
+          await own(() => deps.sessions.setRemembered(serverId, session.sessionFamilyId, profileRememberMarker({session}, snapshot, true))).catch(() => {});
+      }
+      check();
       // The last-seen PIN state is a cache for offline openings; failing to save it never fails the connection.
       if (held) await own(() => deps.sessions.setProfilePinRequired(serverId, restored.session.sessionFamilyId, held.pinRequired)).catch(() => {});
-      connected = Object.freeze({serverId, api: restored.api, session: restored.session, installation, prepared, selected, server, account: snapshot, ...(hint ? {hint} : {})});
-      return facts;
+      connected = Object.freeze({serverId, api: restored.api, session, installation, prepared, selected, server, account: snapshot, ...(hint ? {hint} : {})});
+      return Object.freeze({...facts, ...(!admitted ? {remembered: !!resumed} : {})});
     } catch (error) {
       releaseQuietly('lifecycle failed route', () => api?.getRouteConnection()?.dispose());
       releaseQuietly('lifecycle failed token', () => api?.setAccessToken(''));
@@ -310,12 +322,11 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
         if (picked) await deps.sessions.setProfilePinRequired(serverId, issued!.sessionFamilyId, picked.pinRequired).catch(() => {});
         // The marker is written after the new family, in its own write. A crash between the two leaves the
         // profile not remembered, which is the safe direction: the picker shows at the next launch.
-        if (selected.remembered) {
-          try {
-            await deps.sessions.setRemembered(serverId, issued!.sessionFamilyId, {profileId: issued!.viewer.profileId, expiresAt: selected.remembered.expiresAt});
-            rememberedMarker = true;
-          } catch { /* Not remembered; the pick stands. */ }
-        }
+        const marker = profileRememberMarker(selected, account, remember);
+        try {
+          await deps.sessions.setRemembered(serverId, issued!.sessionFamilyId, marker, issued!.viewer.profileId);
+          rememberedMarker = !!marker;
+        } catch { /* Not remembered; the pick stands. */ }
       });
       facts = Object.freeze({viewer: viewerRef(issued), remembered: rememberedMarker});
       // The previous family belongs to this server only. A switch to another server never
@@ -362,7 +373,7 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
     },
     failure: (serverId: string) => failed?.serverId === serverId ? failed.error : undefined,
     async reconnect(serverId: string, signal: AbortSignal) {
-      await connect(serverId, signal);
+      await connect(serverId, signal, true);
       // Sessions this device replaced (the pick that came before) are ended once Home has had its turn.
       drainRevocations(serverId);
       const held = connected?.serverId === serverId ? connected : undefined;

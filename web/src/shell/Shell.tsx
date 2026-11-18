@@ -29,7 +29,8 @@ import {SwitchProfileServerHost, HostedServerOpening, type SwitchProfileServerOp
 import {PendingChanges} from './PendingChanges';
 import type {Outbox} from '@core/outbox.ts';
 import {ConnectionAway} from './ConnectionAway';
-import {deviceRemembers, forgetRememberedProfile} from '../platform/tab-session-gate';
+import {browserAppSessions} from '../platform/server-connections';
+import {rememberedFor, type RememberMarker} from '@core/remember-marker.ts';
 import {webScreens} from '../route-registry-view';
 
 export type ShellIdentity = Readonly<{
@@ -158,6 +159,18 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureR
     switchOwner.current = opening; setSwitchOpening(opening);
   };
   const {viewer} = identity;
+  const [remembered, setRemembered] = useState<RememberMarker>();
+  useEffect(() => {
+    setRemembered(undefined);
+    if (!accountOpen) return;
+    let current = true;
+    void browserAppSessions().selected().then(entry => {
+      if (current && entry?.connection.pin.serverId === viewer.serverId &&
+          rememberedFor(entry.remembered, {familyId: entry.connection.session.sessionFamilyId, profileId: viewer.profileId}))
+        setRemembered(entry.remembered);
+    }).catch(() => {});
+    return () => {current = false;};
+  }, [accountOpen, viewer.serverId, viewer.profileId]);
   useEffect(() => {
     if (!pathname.startsWith('/library/')) return;
     let id: string;
@@ -197,7 +210,9 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureR
       watchTogether: () => { void navigate({to: '/watch-together'}); }, feedback: onFeedback,
       help: () => { void navigate({to: '/help'}); }, signOut: onSignOut,
       // Read when the menu draws: it opens only while this browser remembers the profile open now.
-      ...(accountOpen && deviceRemembers(viewer.serverId, viewer.profileId) ? {forgetRememberedProfile: () => forgetRememberedProfile(viewer.serverId)} : {}),
+      ...(accountOpen && remembered?.profileId === viewer.profileId ? {forgetRememberedProfile: () => {
+        void browserAppSessions().setRemembered(viewer.serverId, remembered.familyId, undefined, viewer.profileId).then(() => setRemembered(undefined)).catch(() => {});
+      }} : {}),
     }} trigger={navigation === 'sidebar' ? <button type="button" className={styles.profileRow} aria-label={[t('web.account.switchProfileOrServer'), identity.username || t('next.shell.usernameUnavailable'), identity.serverName].join(', ')}>
       <ProfileAvatarFace initial={current.initial} art={identity.profileArt} size={38} />
       <span className={styles.profileText}><b>{identity.username || t('next.shell.usernameUnavailable')}</b><small>{identity.serverName}</small></span><Icon name="i-updown" size={18} />

@@ -131,6 +131,20 @@ export async function rememberNativeSession(api:HttpLocalApi,session:LocalSessio
  if(!isCurrent()||!sameSelection(saved,record)){if(!isCurrent())await env.storage.change(current=>sameSelection(current,record)?previous:current);throw new RouteError('cancelled','The selected account or server changed.');}
  attachPersistence(connection,env,record,hosted);bindSessionRoute(parsed.accessToken,connection);api.setAccessToken(parsed.accessToken);
 }
+/** Publish a PIN-token replay for the same selection. Preserve its routes and any
+ * pending renewal, and leave a newer selection or rotation alone. */
+export async function saveResumedProfile(api:HttpLocalApi,previous:LocalSession,session:LocalSession,storage:ServerConnectionStorage,signal:AbortSignal):Promise<void>{
+ const check=()=>checkRestoreCancellation(signal);
+ await storage.change(current=>{
+  check();
+  if(!current||current.session.accessToken!==previous.accessToken||current.session.sessionFamilyId!==previous.sessionFamilyId)throw selectionChanged();
+  return {...current,session};
+ },check);
+ check();
+ const route=api.getRouteConnection();
+ if(route)bindSessionRoute(session.accessToken,route);
+ api.setAccessToken(session.accessToken);
+}
 /** Restore outcome: the server knows this sign-in but refuses it access (403, or 401 right after a
  * renewal). Not offline and not a reset: say so once, keep the credential, don't retry. */
 export const ACCESS_REFUSED='access_refused';

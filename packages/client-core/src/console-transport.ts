@@ -12,6 +12,10 @@ export function consoleUTF8Size(value:string):number {
  }
  return bytes;
 }
+/** The current server's sensitive-setting refusal uses the existing management PIN prompt. */
+export function normalizeManagementPin(code: unknown): unknown {
+ return code === 'profile_pin_required' ? 'profile_pin_manage' : code;
+}
 export class ConsoleTransportError extends Error {
  status:number;code:string;currentRevision?:number;fields?:string[];
  constructor(status:number,code:string,currentRevision?:number,fields?:string[]){
@@ -57,7 +61,7 @@ export async function readConsoleJson<T>(response:Response,signal:AbortSignal):P
   const e=(value&&typeof value==='object'&&!Array.isArray(value)?(value as {error?:unknown}).error:undefined);
   const data=e&&typeof e==='object'&&!Array.isArray(e)?e as Record<string,unknown>:{};
   // Every refusal reads as `unauthorized`, except the management PIN (PR-1): that sign-in may still manage once its PIN is entered.
-  const code=response.status===403&&data.code==='profile_pin_manage'?'profile_pin_manage':response.status===401||response.status===403?'unauthorized':typeof data.code==='string'?data.code:'console_unavailable';
+  const code=response.status===403&&normalizeManagementPin(data.code)==='profile_pin_manage'?'profile_pin_manage':response.status===401||response.status===403?'unauthorized':typeof data.code==='string'?data.code:'console_unavailable';
   const current=data.current&&typeof data.current==='object'&&!Array.isArray(data.current)?data.current as Record<string,unknown>:{};
   const revisionValue=data.currentRevision??current.revision;
   const revision=typeof revisionValue==='number'&&Number.isSafeInteger(revisionValue)&&revisionValue>=0?revisionValue:undefined;

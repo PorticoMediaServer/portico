@@ -2,6 +2,10 @@ import test from 'node:test';
 import {accountAnswer, accountPath} from '../../packages/client-core/test/next-wire.ts';
 import assert from 'node:assert/strict';
 import {ShellBootstrap, followsStoredSignIn, sameShellAuthority, type ShellAssembler} from '../src/shell/bootstrap.ts';
+import type {LocalSession} from '@core/index.ts';
+import {AppSessionStore, type AppSessionRecord} from '@core/app-sessions.ts';
+import type {RememberMarker} from '@core/remember-marker.ts';
+import {serverPath} from '@core/query/server-api.ts';
 import type {SelectedViewerRecord} from '@core/viewer-selection.ts';
 
 class TabStorage {values = new Map<string, string>(); getItem(k: string) {return this.values.get(k) ?? null;} setItem(k: string, v: string) {this.values.set(k, v);} removeItem(k: string) {this.values.delete(k);}}
@@ -9,7 +13,7 @@ const tab = new TabStorage();
 (globalThis as {localStorage?: unknown}).localStorage = tab;
 const gate = await import('../src/platform/tab-session-gate.ts');
 
-const session = {accessToken: 'access', expiresAt: '2099-01-01T00:00:00Z', authorizationHorizon: '2099-02-01T00:00:00Z', sessionFamilyId: 'family-a', tokenGeneration: '1',
+const session: LocalSession = {accessToken: 'access', expiresAt: '2099-01-01T00:00:00Z', authorizationHorizon: '2099-02-01T00:00:00Z', sessionFamilyId: 'family-a', tokenGeneration: '1',
   viewer: {serverId: 'server-a', accountId: 'account-a', profileId: 'alex', authority: 'local', role: 'member'}};
 const saved = {version: 1, serverUrl: 'https://demo.example:32500', session} as unknown as SelectedViewerRecord;
 const profile = (id: string, pinRequired: boolean, primary = false) => ({id, name: id, primary, position: primary ? 0 : 1, art: 'blue', revision: 1, pinRevision: 1, pinRequired, allowedLibraries: []});
@@ -18,13 +22,27 @@ const direct = (profiles: Array<{id: string; primary: boolean}>) => ({authority:
   account: {id: 'account-a', username: 'alex', primaryProfileId: profiles.find(value => value.primary)!.id, role: 'member', revision: 1, disabled: false, allowedLibraries: []}, profiles});
 const assembler: ShellAssembler = async () => {throw new Error('assembled');};
 
-function launch(answer: () => unknown, held = session) {
-  const requests: string[] = [];
+function launch(answer: () => unknown, held = session, marker?: RememberMarker, pinSelection?: () => unknown) {
+  const requests: string[] = [], bodies: unknown[] = [];
+  let record: AppSessionRecord | undefined = {version: 1, revision: 1, selectedServerId: held.viewer.serverId, servers: [{
+    signIn: 'local', remembered: marker, connection: {version: '1', logicalOrigin: saved.serverUrl, session: held,
+      pin: {serverId: held.viewer.serverId, fingerprint: 'fingerprint', publicKey: 'key'}, routes: {paired: [saved.serverUrl]}},
+  }]};
+  const store = new AppSessionStore({read: async () => record, change: async update => {record = update(record);}});
+  const selectPath = serverPath('POST /v1/profiles/{id}/select', {id: held.viewer.profileId});
   let disposed = 0;
-  const api = {baseUrl: 'https://demo.example:32500', getRouteConnection: () => ({dispose: () => {disposed++;}}),
-    request: async (path: string) => {requests.push(path); const value = answer(); if (value instanceof Error) throw value; return accountPath(path) ? accountAnswer(path, value) : value;}};
-  const bootstrap = new ShellBootstrap(assembler, {selected: {read: async () => ({...saved, session: held})}, restore: async () => ({api, session: held}) as never});
-  return {bootstrap, requests, disposed: () => disposed};
+  const api = {baseUrl: 'https://demo.example:32500', getRouteConnection: () => ({dispose: () => {disposed++;}}), setAccessToken() {},
+    request: async (path: string, _method?: string, body?: unknown) => {
+      requests.push(path);
+      if (path === selectPath) bodies.push(body);
+      const value = path === selectPath ? pinSelection?.() : answer();
+      if (value instanceof Error) throw value;
+      const reply = accountPath(path) ? accountAnswer(path, value) : value;
+      return path === '/v1/me' ? {...(reply as object), rememberProfiles: true, pinRememberDays: -1} : reply;
+    }};
+  const bootstrap = new ShellBootstrap(assembler, {selected: {read: async () => ({...saved, session: held})},
+    restore: async () => ({api, session: held}) as never, rememberedSessions: () => store});
+  return {bootstrap, requests, bodies, store, disposed: () => disposed};
 }
 
 test('not remembered in this tab, with several profiles: Who\'s watching first, and the route is released', async () => {
@@ -42,31 +60,32 @@ test('the account\'s only profile with no PIN opens without asking', async () =>
   const l = launch(() => direct([profile('alex', false, true)]));
   await l.bootstrap.start();
   assert.notEqual(l.bootstrap.getSnapshot().phase, 'choose-profile');
-  assert.equal(gate.tabAdmits({serverId: 'server-a', familyId: 'family-z', profileId: 'alex'}), true, 'the page load now follows this profile on this server');
+  assert.equal(gate.tabAdmits({serverId: 'server-a', profileId: 'alex'}), true, 'the page load now follows this profile on this server');
   l.bootstrap.dispose();
 });
 
-test('remembered in this tab: opens with no account read for the gate', async () => {
-  gate.resetTabSessionGate(); tab.values.clear();
-  gate.recordTabPick('server-a', 'alex', {serverId: 'server-a', familyId: 'family-a', profileId: 'alex', expiresAt: '2099-01-01T00:00:00Z'});
+test('the browser replays a PIN grant from the protected sign-in record after reload', async () => {
   gate.resetTabSessionGate();
-  const l = launch(() => direct([profile('main', false, true), profile('alex', true)]));
+  const marker = {familyId: 'family-a', profileId: 'alex', pinToken: 'grant'};
+  const l = launch(() => direct([profile('main', false, true), profile('alex', true)]), session, marker,
+    () => ({...session, accessToken: 'resumed'}));
   await l.bootstrap.start();
+  assert.deepEqual(l.bodies, [{pinToken: 'grant'}]);
   assert.notEqual(l.bootstrap.getSnapshot().phase, 'choose-profile');
-  assert.equal(l.requests.filter(path => path === '/v1/me').length <= 1, true);
+  assert.equal((await l.store.selected())?.connection.session.accessToken, 'resumed');
+  assert.deepEqual((await l.store.selected())?.remembered, marker);
   l.bootstrap.dispose();
 });
 
-test('a PIN changed elsewhere (profile_pin_reentry) asks for it again and stops remembering in this tab', async () => {
-  gate.resetTabSessionGate(); tab.values.clear();
-  // Remembered for an older sign-in only, so the gate reads the account, and that read is refused.
-  gate.recordTabPick('server-a', 'alex', {serverId: 'server-a', familyId: 'family-old', profileId: 'alex', expiresAt: '2099-01-01T00:00:00Z'});
+test('a rejected remembered PIN returns to the picker and clears the grant without signing out', async () => {
   gate.resetTabSessionGate();
-  const l = launch(() => Object.assign(new Error('gated'), {code: 'profile_pin_reentry', status: 403}));
+  const marker = {familyId: 'family-a', profileId: 'alex', pinToken: 'grant'};
+  const l = launch(() => direct([profile('main', false, true), profile('alex', true)]), session, marker,
+    () => Object.assign(new Error('gated'), {code: 'profile_pin_reentry', status: 403}));
   await l.bootstrap.start();
   assert.equal(l.bootstrap.getSnapshot().phase, 'choose-profile');
-  gate.resetTabSessionGate();
-  assert.equal(gate.tabAdmits({serverId: 'server-a', familyId: 'family-old', profileId: 'alex'}), false, 'the old remembering is gone');
+  assert.equal((await l.store.selected())?.remembered, undefined);
+  assert.equal((await l.store.selected())?.connection.session.sessionFamilyId, 'family-a');
   l.bootstrap.dispose();
 });
 
@@ -103,12 +122,14 @@ test('another tab choosing a different profile sends this tab to Who\'s watching
   first.bootstrap.dispose();
   // Tab 2 then chose "parent" (PIN-protected). This tab must never become that profile unasked.
   const parent = {...session, sessionFamilyId: 'family-b', viewer: {...session.viewer, profileId: 'parent'}};
-  const next = launch(() => direct([profile('parent', true, true), profile('alex', false)]), parent);
+  const marker = {familyId: parent.sessionFamilyId, profileId: 'parent', pinToken: 'grant-from-other-tab'};
+  const next = launch(() => direct([profile('parent', true, true), profile('alex', false)]), parent, marker);
   await next.bootstrap.start();
   assert.equal(next.bootstrap.getSnapshot().phase, 'choose-profile');
   assert.equal(next.bootstrap.getSnapshot().focus, 'alex', 'Who\'s watching starts on the profile this tab had open');
   assert.equal(next.disposed(), 1, 'the route to the other profile\'s sign-in is released');
-  assert.equal(gate.tabAdmits({serverId: 'server-a', familyId: 'family-b', profileId: 'parent'}), false, 'still not admitted: the pick (and its PIN) comes first');
+  assert.deepEqual(next.bodies, [], 'an open tab never replays a grant for another profile');
+  assert.equal(gate.tabAdmits({serverId: 'server-a', profileId: 'parent'}), false, 'still not admitted: the pick (and its PIN) comes first');
   next.bootstrap.dispose();
 });
 
@@ -129,8 +150,7 @@ test('a renewal mid-run onto another profile of this same sign-in restarts the t
 
 test('mid-session, any screen refused for a PIN changed elsewhere asks for it again, once, and only for this tab\'s sign-in', async () => {
   gate.resetTabSessionGate(); tab.values.clear();
-  gate.recordTabPick('server-a', 'alex', {serverId: 'server-a', familyId: 'family-a', profileId: 'alex', expiresAt: '2099-01-01T00:00:00Z'});
-  gate.resetTabSessionGate();
+  gate.admitProfile('server-a', 'alex');
   // A browser page's listeners, which the session refresher uses.
   const page = globalThis as {addEventListener?: unknown; removeEventListener?: unknown; document?: unknown};
   page.addEventListener ??= () => {}; page.removeEventListener ??= () => {};
@@ -161,6 +181,6 @@ test('mid-session, any screen refused for a PIN changed elsewhere asks for it ag
   assert.equal((state as {focus?: string}).focus, 'alex', 'Who\'s watching focuses the gated profile');
   assert.equal(released, 1, 'released with the restore it belonged to');
   gate.resetTabSessionGate();
-  assert.equal(gate.tabAdmits({serverId: 'server-a', familyId: 'family-a', profileId: 'alex'}), false, 'this tab stops remembering it');
+  assert.equal(gate.tabAdmits({serverId: 'server-a', profileId: 'alex'}), false, 'this tab stops remembering it');
   bootstrap.dispose();
 });

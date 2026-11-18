@@ -7,12 +7,13 @@ import {createLibraryRouteProof} from './library-route-proof';
 import type {LibraryRouteProof} from './library-route-proof';
 import type {HttpLocalApi, LocalSession} from '@core/index.ts';
 import {LocalSessionRefresher} from '@core/session-refresh.ts';
+import {saveResumedProfile} from '@core/server-connections.ts';
 import {selectedViewerRecord} from '@core/viewer-selection.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
 import {appearancePreferences, regionPreferences} from '@core/preference-effects.ts';
 import type {PreferenceSnapshot} from '@core/preferences.ts';
 import {notOnThisServer} from '@core/query/server-api.ts';
-import {parseDirectSnapshot, type DirectSnapshot} from '@core/profile-management.ts';
+import {parseDirectSnapshot, profileRememberMarker, resumeRememberedProfile, type DirectSnapshot} from '@core/profile-management.ts';
 import {HomeService} from '@core/home-service.ts';
 import {createShellFactOwner, attachShellFactFeed, bindShellFactWake, shellAccount, type ShellFactWitnesses} from './facts';
 import type {ShellFactsSource} from './fact-source';
@@ -32,7 +33,7 @@ import {defaultI18n} from '@i18n';
 import {lastKnownShell, rememberShell} from './last-known';
 import {settingsReturnAuthority} from './settings-return';
 import {browserAppSessionActions,type BrowserAppSessionActions} from '../platform/app-sessions';
-import {mountBrowserOutbox, browserConnectionEnvironment, restoreBrowserConnection, trackBrowserConnection, forgetBrowserConnection} from '../platform/server-connections';
+import {mountBrowserOutbox, browserAppSessions, browserConnectionEnvironment, restoreBrowserConnection, trackBrowserConnection, forgetBrowserConnection} from '../platform/server-connections';
 import {displayableTransportCode, launchFailure, retryDelayMs, savedSignInUnusable, serverIsStarting} from './connection-retry';
 import {bootRecoveryDeadline, bootRecoveryDelay, documentStartedAt} from './boot-state';
 import {browserEventStream, browserFeedEnvironment} from '../platform/event-feed';
@@ -176,7 +177,8 @@ export class ShellBootstrap {
     selected: Pick<typeof browserViewerStorage, 'read'> & Partial<Pick<typeof browserViewerStorage, 'clearIfFamily'>>;
     restore: typeof restoreBrowserConnection;
     actions?: () => BrowserAppSessionActions;
-  } = {selected: browserViewerStorage, restore: restoreAfterAccountEnd}) {
+    rememberedSessions?: typeof browserAppSessions;
+  } = {selected: browserViewerStorage, restore: restoreAfterAccountEnd, rememberedSessions: browserAppSessions}) {
     this.startedAt = environment.startedAt ?? documentStartedAt();
     this.state = Object.freeze({phase: 'restoring', startedAt: this.startedAt});
   }
@@ -349,6 +351,11 @@ export class ShellBootstrap {
       this.publish({...this.state, startedAt: this.startedAt, waiting: {serverName}});
       this.armRecovery(isCurrent);
     }
+    const savedViewer = selected.session.viewer;
+    const store = this.environment.rememberedSessions?.();
+    // Read the marker before restoration can renew a session that was idle.
+    const entry = !admittedProfile(savedViewer.serverId) ? await store?.selected() : undefined;
+    if (!isCurrent()) return;
     let restored: Awaited<ReturnType<typeof restoreBrowserConnection>>;
     try { restored = await this.environment.restore(selected.session); }
     catch (error) { this.transportError = error; throw error; }
@@ -362,16 +369,33 @@ export class ShellBootstrap {
     // before a reload when it has no PIN. Otherwise Who's watching first.
     const held = {serverId: session.viewer.serverId, familyId: session.sessionFamilyId, profileId: session.viewer.profileId};
     if (!tabAdmits(held)) {
-      let direct: DirectSnapshot;
-      try {direct = parseDirectSnapshot(await readDirectAccount(api, signal), {authority: 'local', accountId: session.viewer.accountId, serverId: session.viewer.serverId});}
-      catch (error) {api.getRouteConnection()?.dispose(); throw error;}
-      const only = direct.profiles.length === 1 && direct.profiles[0]!.id === held.profileId && !direct.profiles[0]!.pinRequired;
-      const kept = tabHadOpen(held) && direct.profiles.some(profile => profile.id === held.profileId && !profile.pinRequired);
-      if (!isCurrent()) {api.getRouteConnection()?.dispose(); return;}
-      if (!only && !kept) {
-        // Focus the profile this tab had open (another tab chose a different one), else the saved one.
-        const focus = admittedProfile(held.serverId) ?? held.profileId;
-        api.getRouteConnection()?.dispose(); this.clearWait(); this.publish({phase: 'choose-profile', focus}); return;
+      try {
+        const direct = parseDirectSnapshot(await readDirectAccount(api, signal),
+          {authority: 'local', accountId: session.viewer.accountId, serverId: held.serverId});
+        if (!isCurrent()) {api.getRouteConnection()?.dispose(); return;}
+        const marker = entry?.connection.pin.serverId === held.serverId && entry.remembered?.profileId === held.profileId ? entry.remembered : undefined;
+        const resumed = await resumeRememberedProfile(api, session, direct, marker, signal);
+        if (!isCurrent()) {api.getRouteConnection()?.dispose(); return;}
+        if (store && resumed && resumed !== session) {
+          await saveResumedProfile(api, session, resumed, store.connectionStorage(held.serverId), signal);
+          session = resumed;
+        }
+        if (marker?.familyId === held.familyId) {
+          if (!resumed) await store?.setRemembered(held.serverId, held.familyId, undefined, held.profileId).catch(() => {});
+          else if (marker.pinToken === undefined && marker.pinRememberDays !== (direct.pinRememberDays ?? -1))
+            await store?.setRemembered(held.serverId, held.familyId, profileRememberMarker({session}, direct, true)).catch(() => {});
+        }
+        if (!isCurrent()) {api.getRouteConnection()?.dispose(); return;}
+        const only = direct.profiles.length === 1 && direct.profiles[0]!.id === held.profileId && !direct.profiles[0]!.pinRequired;
+        const kept = tabHadOpen(held) && direct.profiles.some(profile => profile.id === held.profileId && !profile.pinRequired);
+        if (!resumed && !only && !kept) {
+          const focus = admittedProfile(held.serverId) ?? held.profileId;
+          api.getRouteConnection()?.dispose(); this.clearWait(); this.publish({phase: 'choose-profile', focus}); return;
+        }
+      } catch (error) {
+        if (isCurrent() && (error as {code?: unknown} | null)?.code === 'profile_pin_reentry')
+          await store?.setRemembered(held.serverId, held.familyId, undefined, held.profileId).catch(() => {});
+        api.getRouteConnection()?.dispose(); throw error;
       }
     }
     admitProfile(held.serverId, held.profileId);
@@ -390,6 +414,7 @@ export class ShellBootstrap {
       queueMicrotask(() => {
         if (!isCurrent()) return;
         forgetTabServer(held.serverId);
+        void store?.setRemembered(held.serverId, held.familyId, undefined, held.profileId).catch(() => {});
         this.clearWait(); this.fence(); this.publish({phase: 'choose-profile', focus: held.profileId});
       });
     }));
@@ -468,7 +493,7 @@ export class ShellBootstrap {
     const artwork = authenticatedArtwork({api, auth, identity: {serverId: session.viewer.serverId, viewerId: viewerId(session), authorityKey}, currentToken: () => session.accessToken, isCurrent});
     cleanups.push(() => artwork.dispose());
     // Choosing the open profile again is the management unlock (PR-1): only a remembered sign-in is ever locked, so it stays remembered.
-    const switchProfile=async(profileId:string,pin:string,signal:AbortSignal)=>{if(!isCurrent())throw new Error('The viewer changed.');await (this.environment.actions?.()??browserAppSessionActions()).switchProfile(api,session,profileId,pin,signal,isCurrent,profileId===session.viewer.profileId);if(isCurrent())this.restart();};
+    const switchProfile=async(profileId:string,pin:string,signal:AbortSignal)=>{if(!isCurrent())throw new Error('The viewer changed.');await (this.environment.actions?.()??browserAppSessionActions()).switchProfile(api,session,profileId,pin,signal,isCurrent,true);if(isCurrent())this.restart();};
     const display=browserServerDisplay();display.remember(api,facts().serverName);
     const saved=(await (this.environment.actions?.()??browserAppSessionActions()).store.read()).servers;
     const savedServers=await display.choices(saved.map(value=>({pin:value.connection.pin,origin:value.connection.logicalOrigin,signIn:value.signIn})),signal);
