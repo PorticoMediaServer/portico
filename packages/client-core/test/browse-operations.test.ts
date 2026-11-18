@@ -1,11 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
 import {readBrowseCapabilitiesResponse, readImmediateBrowsePageResponse, readBrowseCountsResponse, readBrowseFacetResponse, readReadingBrowseFacet,
   readSelectedChannelGuideResponse} from '../src/query/browse-reads.ts';
 import {browseCapabilitiesPath, browsePath, browseCountsPath, browseCountsRequest, browseContextFacetsPath} from '../src/browse.ts';
 
-const fixture = (name: string) => JSON.parse(readFileSync(new URL(`./compat-corpus/main/${name}.json`, import.meta.url), 'utf8')).body;
 test('facets and batched counts keep contextual filters and exact batch membership', async () => {
   const signal = new AbortController().signal;
   const query = {variant: 'predicate' as const, field: 'genre', operator: 'equals' as const, value: 'Drama'};

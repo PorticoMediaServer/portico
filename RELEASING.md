@@ -98,8 +98,7 @@ Passing the release tests doesn't prove a build works on physical Apple or Andro
 
 ## API compatibility evidence
 
-Before the first stable 1.0 tag, complete the [release corpus procedure](scripts/compat-corpus/README.md)
-and [actual-tool qualification matrix](docs/integration-qualification.md). Freeze
+Before the first stable 1.0 tag, complete the [actual-tool qualification matrix](docs/integration-qualification.md). Freeze
 the reviewed producer schema/corpus with its exact client parser pin. Later
 releases must pass both released-parser/current-producer and
 current-parser/released-producer directions, including error/precondition,
