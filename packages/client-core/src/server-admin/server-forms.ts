@@ -20,7 +20,7 @@ import {putSettingsDocument, type SettingsDocumentAPI} from '../settings-documen
  * (effective values, choices the server offers, the revision to save against).
  */
 
-export type ServerFormId = 'runtime' | 'connectivity' | 'remote' | 'certificate' | 'alerts' | 'liveDefaults' | 'recording' | 'maintenance' | 'logs' | 'segments';
+export type ServerFormId = 'runtime' | 'connectivity' | 'remote' | 'certificate' | 'alerts' | 'liveDefaults' | 'recording' | 'maintenance' | 'logs' | 'segments' | 'streamLimits';
 
 export type ServerFormDeps = Readonly<{
   api: SettingsDocumentAPI;
@@ -251,12 +251,25 @@ export async function setDetailWindow(deps: ServerFormDeps, on: boolean): Promis
   await deps.api.request(routePath("post_admin_logs_debug_window"), 'POST', routeBody("post_admin_logs_debug_window", {operationId: deps.operationId(), minutes: on ? 30 : 0}));
 }
 
+// ── Streams at once for each person ─────────────────────────────────────────────────────────
+
+/** The owner's default number of streams at once for each person (definition 07 rule 36), from the stream limits
+ * (`GET`/`PATCH /v1/admin/playback/stream-limits`). 0 is unlimited; a save names only this value. */
+export function streamLimitsForm(deps: ServerFormDeps): DraftForm<Readonly<{perPerson: number}>, undefined> {
+  const loaded = (limits: Readonly<{perPerson?: number}>) => ({value: {perPerson: limits.perPerson ?? 0}, status: undefined});
+  return new DraftForm<Readonly<{perPerson: number}>, undefined>({
+    load: async signal => loaded(await callServer(deps.api, 'GET /v1/admin/playback/stream-limits', {signal})),
+    save: async draft => loaded(await callServer(deps.api, 'PATCH /v1/admin/playback/stream-limits', {body: {perPerson: draft.perPerson}})),
+  });
+}
+
 // ── The forms of a page ─────────────────────────────────────────────────────────────────────
 
 const FACTORIES: Readonly<Record<ServerFormId, (deps: ServerFormDeps) => DraftForm<any, any>>> = {
   runtime: runtimeForm, connectivity: connectivityForm, remote: remoteAccessForm, certificate: certificateForm, alerts: alertsForm,
   liveDefaults: liveDefaultsForm, recording: recordingForm, maintenance: maintenanceForm, logs: logsForm,
   segments: deps => namedSettingsForm(deps, 'segments'),
+  streamLimits: streamLimitsForm,
 };
 
 export function createServerForm(id: ServerFormId, deps: ServerFormDeps): DraftForm<any, any> {
