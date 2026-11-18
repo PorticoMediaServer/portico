@@ -1,6 +1,5 @@
-import {routePath} from "../../contracts/src/route-paths.ts";
 import {randomId} from './random-id.ts';
-import {ApiError, HttpLocalApi} from './index.ts';
+import {ApiError} from './index.ts';
 import {serverNow} from './server-clock.ts';
 import type {DeviceAuthorization} from './device-authorization.ts';
 import {routeOrigin} from './route-identity.ts';
@@ -325,22 +324,3 @@ export class SetupCodeService<T> {
 }
 
 export type SetupPreview = {clientRequestId?:string;publicKey?:string;protocol?:string;requestId: string; userCode: string; deviceName: string; platform: string; appVersion: string; expiresAt: string};
-/** The caller selects one authority BEFORE entering/reviewing a code. No search
- * across servers, no inferred authority from an ambiguous human code. */
-export class SetupCodeApprover {
-  private readonly api:HttpLocalApi;readonly authority:'local';
-  constructor(api:HttpLocalApi,authority:'local'){this.api=api;this.authority=authority;}
-  private get path() {return routePath("post_quick_connect");}
-  async review(code: string, signal?: AbortSignal) {
-    const result = await this.api.request<SetupPreview>(this.path + '/review', 'POST', {userCode: normalizeSetupCode(code)}, signal);
-    if (!result || typeof result.requestId !== 'string' || result.requestId.length > 128 ||
-        normalizeSetupCode(result.userCode) !== normalizeSetupCode(code) ||
-        !Number.isFinite(Date.parse(result.expiresAt)) ||
-        typeof result.deviceName !== 'string' || result.deviceName.length > 100)
-      throw new Error('This device request is no longer available.');
-    return result;
-  }
-  decide(preview: SetupPreview, decision: 'approve' | 'deny', signal?: AbortSignal) {
-    return this.api.request<void>(this.path + '/decision', 'POST', {requestId: preview.requestId, userCode: normalizeSetupCode(preview.userCode), decision}, signal);
-  }
-}

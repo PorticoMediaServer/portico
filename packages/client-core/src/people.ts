@@ -1,4 +1,4 @@
-import {encodedRoutePath, routePath} from "../../contracts/src/route-paths.ts";
+import {routePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 /** Person facts and paged credits in the shape the existing screens draw. The server owns
  * identity, membership, ordering and totals. */
@@ -131,10 +131,6 @@ export function peopleSearchPath(q:string,limit=25):string{
  return routePath("get_people") + "?" + (new URLSearchParams({q:q.split(/\p{White_Space}+/u).filter(Boolean).join(' '),limit:String(limit)}));
 }
 /** The portrait address is server-authored; a client never composes a provider URL. */
-export function personPortraitPath(personId:string,size:'thumbnail'|'full'='thumbnail'):string{
- if(!id(personId))throw new Error('A person id is required.');
- return encodedRoutePath("get_people_id_portrait", {"id": encodeURIComponent(personId)})+(size==='thumbnail'?'?size=thumbnail':'');
-}
 export async function readPerson(api:LibraryContentApi,scope:ContentScope,personId:string,options:Readonly<{role?:PersonRole;department?:string;kind?:string;limit?:number;cursor?:string|null;signal?:AbortSignal}>={}):Promise<PersonPage>{
  const limit=options.limit??40;
  const path=personPath(personId,options);

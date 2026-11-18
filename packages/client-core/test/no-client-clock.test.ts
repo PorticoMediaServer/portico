@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {observeServerTime, resetServerClocks, serverNow} from '../src/server-clock.ts';
-import {SetupCodeApprover, SetupCodeService, type SetupCodeJournal} from '../src/setup-code.ts';
+import {SetupCodeService, type SetupCodeJournal} from '../src/setup-code.ts';
 import {TVConsentApprover, type TVConsentAuthority} from '../src/tv-consent.ts';
 import {rememberedFor} from '../src/remember-marker.ts';
 import {moveOfferDays} from '../src/sign-in.ts';
@@ -49,11 +49,9 @@ for (const [label, skew] of SKEWS) {
     await service.cancel();
   });
 
-  test(`a reviewed setup code and a reviewed TV request are not refused for their expiry when the clock is ${label}`, async t => {
+  test(`a reviewed TV request is not refused for their expiry when the clock is ${label}`, async t => {
     const truth = skewed(t, skew);
     const preview = {requestId: 'request', userCode: '2345-ABCD', deviceName: 'Living room', platform: 'tv', appVersion: '1', expiresAt: iso(truth + 300_000)};
-    const reviewed = await new SetupCodeApprover({baseUrl: 'https://server.test', request: async <T>() => preview as T} as never, 'local').review('2345ABCD');
-    assert.equal(reviewed.requestId, 'request');
     const authority: TVConsentAuthority = {kind: 'local', origin: 'https://server.test', serverId: 'server', accountId: 'account', sessionFamilyId: 'family'};
     const calls: string[] = [];
     const approver = new TVConsentApprover({baseUrl: authority.origin, request: async <T>(path: string) => {calls.push(path); return (calls.length === 1 ? {device: {name: preview.deviceName, platform: preview.platform, appVersion: preview.appVersion}, expiresAt: preview.expiresAt} : undefined) as T;}}, authority, () => authority);

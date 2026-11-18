@@ -1,5 +1,4 @@
 import {routeBody} from "../../contracts/src/routes.ts";
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 /** Library Channels are server-authored schedules, not client playlists. */
@@ -71,11 +70,5 @@ export async function previewLibraryChannel(api:ChannelApi,serverId:string,confi
  v.durationMs??=(v.rules as {durationMs:number}[]).reduce((n,r)=>n+r.durationMs,0);v.complete??=true;
  return v as unknown as LibraryChannelPreview}
 export async function saveLibraryChannel(api:ChannelApi,serverId:string,config:LibraryChannelConfig,expectedRevision:number,requestId:string,signal?:AbortSignal){return parseLibraryChannel(response(await api.request(routePath("post_admin_library_channels"),'POST',routeBody("post_admin_library_channels", {config,expectedRevision,requestId}),signal),serverId).channel)}
-/** A new custom draft is server-selected from the current authorized catalog.
- * Client identities are used only for explicit subsequent editor mutations. */
-export async function readLibraryDefaults(api:ChannelApi,serverId:string,timezone:string,signal?:AbortSignal):Promise<LibraryChannelConfig>{
- const v=envelope(await api.request<RouteResponse<"post_admin_library_channels_defaults">>(routePath("post_admin_library_channels_defaults"),'POST',routeBody("post_admin_library_channels_defaults", {timezone}),signal),serverId);
- return parseLibraryChannelConfig(v.config);
-}
 /** How a preview sample is named in "Some of what plays": its show for an episode, else its title. */
 export function librarySampleLabel(sample:{title:string;showTitle?:string}):string{return sample.showTitle||sample.title;}
