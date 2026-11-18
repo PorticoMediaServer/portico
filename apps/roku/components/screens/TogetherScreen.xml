@@ -21,6 +21,9 @@
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Together.brs"/>
   <children>
+    <!-- Holds focus for a row of the lobby or the room, and for a sheet's field: the page itself
+         cannot take focus back from one of its own buttons while it is already in the focus chain. -->
+    <Group id="rowStop" focusable="true"/>
     <Group id="lobby" visible="false">
       <Label id="lobbyTitle" text="Watch Together"/>
       <Poster id="card" uri="pkg:/images/round-20.9.png"/>
