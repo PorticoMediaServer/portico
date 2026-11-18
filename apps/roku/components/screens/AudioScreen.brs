@@ -254,13 +254,14 @@ sub startSession()
     if m.queue = invalid or m.queue.current = invalid then return
     if m.startKey = invalid then m.startKey = createObject("roDeviceInfo").getRandomUUID()
     body = {queue: {queueId: m.queue.id, entryId: m.queue.current.entryId}}
-    ' a book from its start; otherwise the server resumes where it stopped
+    ' a book from its start, or from a chapter; otherwise the server resumes where it stopped
     if m.ask <> invalid and m.ask.startOver = true then body.startPositionMs = 0
     ' back from being set aside for a video: from where it was, in a fresh session
     if m.resumeAtMs <> invalid
         body.startPositionMs = m.resumeAtMs
         m.resumeAtMs = invalid
     end if
+    if m.ask <> invalid and m.ask.startAtMs <> invalid then body.startPositionMs = m.ask.startAtMs
     api("POST", "/v1/playback/sessions", body, "onSession", invalid, false, m.startKey)
 end sub
 

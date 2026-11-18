@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- An audiobook, its author or its series (collections frames 43 to 45; frame "Title page"): the cover,
+     the words, your place, Resume or Play, Start over and More, then the chapters (a book) or the
+     books (an author or a series). The room takes its colour from the cover. -->
+<component name="BookScreen" extends="Group">
+  <interface>
+    <!-- An audiobook, a series, or {kind: "author", id: personId, title, libraryId}. -->
+    <field id="item" type="assocarray" onChange="onItem"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="art" type="string"/>
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+  </interface>
+  <script type="text/brightscript" uri="BookScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Poster id="coverBack" uri="pkg:/images/round-20.9.png"/>
+    <Poster id="cover" loadDisplayMode="scaleToFit"/>
+    <!-- an author has no photograph: their initials over a blur of their own covers (frame 44) -->
+    <MaskGroup id="disc" maskUri="pkg:/images/mask-circle-412.png" visible="false">
+      <Rectangle id="discBack"/>
+      <Group id="discCovers"/>
+      <Rectangle id="discShade" opacity="0.34"/>
+    </MaskGroup>
+    <Label id="initials" horizAlign="center" vertAlign="center" visible="false"/>
+    <Label id="eyebrow"/>
+    <Label id="title" wrap="true" maxLines="2"/>
+    <Label id="meta"/>
+    <Rectangle id="track" height="6" visible="false"/>
+    <Rectangle id="done" height="6" visible="false"/>
+    <Label id="left"/>
+    <ButtonRow id="buttons"/>
+    <Label id="listHeading"/>
+    <Label id="listCount"/>
+    <Group id="window">
+      <Group id="rows"/>
+    </Group>
+    <PageState id="state" visible="false"/>
+  </children>
+</component>
