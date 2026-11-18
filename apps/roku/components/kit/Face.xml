@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A person's face (tv-detail frame 9): their picture cut round, or, with none, their initials over
+     a soft tint picked by their name (the tint pictures a title with no art uses, chosen the same
+     way), the shared people fallback in place of a plain disc. -->
+<component name="Face" extends="Group">
+  <interface>
+    <field id="size" type="float" onChange="draw"/>
+    <field id="name" type="string" onChange="draw"/>
+    <!-- The picture's address, or "" for none. -->
+    <field id="photo" type="string" onChange="draw"/>
+  </interface>
+  <script type="text/brightscript" uri="Face.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <children>
+    <MaskGroup id="clip" maskUri="pkg:/images/disc.png">
+      <Poster id="tint" loadDisplayMode="scaleToZoom"/>
+      <Poster id="photo" loadDisplayMode="scaleToZoom"/>
+    </MaskGroup>
+    <Label id="initials" horizAlign="center" vertAlign="center"/>
+  </children>
+</component>
