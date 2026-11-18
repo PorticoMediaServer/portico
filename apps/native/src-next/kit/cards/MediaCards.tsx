@@ -20,7 +20,10 @@ type Media = Readonly<{
 export type PosterCardProps = CardProps & Media & {titleLines?: 1 | 2};
 export type WideCardProps = CardProps & Media;
 export type SquareCardProps = CardProps & Media;
-export type CircleCardProps = CardProps & ({art: CircleArtProps; person?: false} | {art: PersonCircleProps; person: true});
+export type CircleCardProps = CardProps & ({art: CircleArtProps; person?: false} | {art: PersonCircleProps; person: true}) & {
+  /** The circle's diameter where the name and role under it need more room than the circle (a title page's cast:
+   * phone-detail d1 frame 2, detail-tv-4). The circle is centred; the focus ring wraps only it; the card grows whole. */
+  circle?: number};
 export type CoverCardProps = PosterCardProps & {kind?: 'book' | 'periodical' | 'newspaper'; next?: boolean};
 
 /** SelectionCircle belongs to the selection family; cards only position the actual control. */
@@ -140,11 +143,11 @@ export function WideCard(props: WideCardProps) {
 }
 
 export function CircleCard(props: CircleCardProps) {
-  const t = useTheme(), width = props.width ?? (t.isTV ? t.spec.card.width.artist.tv : 104);
+  const t = useTheme(), width = props.width ?? (t.isTV ? t.spec.card.width.artist.tv : 104), art = props.circle ?? width;
   const Frame = props.frame ?? CardFrame;
-  return <Frame {...props} width={width} overlay={s => <Overlays props={props} hovered={s.hovered} holding={s.holding} height={width} />}>
-    {s => <><ArtFrame height={width} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected} circle>
-      {props.person ? <PersonCircle {...props.art} visible={props.visible ?? props.art.visible} size={width} /> : <CircleArt {...props.art} visible={props.visible ?? props.art.visible} size={width} />}
+  return <Frame {...props} width={width} overlay={s => <Overlays props={props} hovered={s.hovered} holding={s.holding} height={art} />}>
+    {s => <><ArtFrame width={props.circle} height={art} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected} circle style={props.circle ? {alignSelf: 'center'} : undefined}>
+      {props.person ? <PersonCircle {...props.art} visible={props.visible ?? props.art.visible} size={art} /> : <CircleArt {...props.art} visible={props.visible ?? props.art.visible} size={art} />}
     </ArtFrame><View style={{marginTop: t.isTV ? 0 : 1}}><Caption {...props} titleTextStyle={[titleStyle(t, t.isTV ? 22 : 14, 700), props.titleTextStyle]} captionTextStyle={[titleStyle(t, t.isTV ? 20 : 12.5, 600), props.captionTextStyle]} centered selected={props.selection?.selected} /></View></>}
   </Frame>;
 }
