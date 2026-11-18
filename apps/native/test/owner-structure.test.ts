@@ -23,12 +23,12 @@ test('an owner on a phone or tablet has Integrations and Metadata, where the web
   assert.equal(ids[ids.indexOf('people') + 1], 'integrations');
 });
 
-test('Integrations matches the web: API keys and rate limit, webhooks and assistants without retired member-token controls', () => {
+test('Integrations matches the web: API keys, webhooks and assistants, with no rate-limit row (fixed at 600 a minute) and no retired member-token controls', () => {
   const integrations = page(on(owner, false), 'server', 'integrations');
   assert.deepEqual(integrations.tabs?.map(t => t.id), ['keys', 'webhooks', 'assistants']);
   assert.deepEqual(panels(integrations), ['server.apiKeys', 'server.webhooks', 'server.assistants']);
   const settings = integrations.sections.flatMap(s => s.rows.filter(r => r.kind === 'server-setting').map(settingsRowId));
-  assert.deepEqual(settings, ['runtime.apiRequestsPerMinute']);
+  assert.deepEqual(settings, []);
   assert.deepEqual(integrations, page(settingsStructure({...owner, platform: 'web'}), 'server', 'integrations'));
 });
 

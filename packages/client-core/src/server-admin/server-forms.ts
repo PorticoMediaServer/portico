@@ -1,6 +1,5 @@
 import {routeBody} from "../../../contracts/src/routes.ts";
 import {routePath} from "../../../contracts/src/route-paths.ts";
-import type {ConsoleClient, RuntimeSettings, SettingsDocument} from '../console.ts';
 import {DraftForm, type Loaded} from './draft-form.ts';
 import {callServer} from '../query/server-api.ts';
 import {putSettingsDocument, type SettingsDocumentAPI} from '../settings-document.ts';
@@ -19,7 +18,6 @@ export type ServerFormId = 'runtime' | 'connectivity' | 'remote' | 'certificate'
 
 export type ServerFormDeps = Readonly<{
   api: SettingsDocumentAPI;
-  console: ConsoleClient;
   /** The server every administration answer must name. */
   serverId: string;
   /** 48 lowercase hex characters (every write route accepts that shape). */
@@ -42,34 +40,6 @@ export function createOperationIds(make: () => string): {forPayload: (key: strin
 /** A read that answers 404 is a feature this server has not set up: the form is unavailable, not failed. */
 async function orAbsent<T>(read: Promise<T>): Promise<T | null> {
   try { return await read; } catch (error) { if ((error as {status?: number} | null)?.status === 404) return null; throw error; }
-}
-
-// ── Runtime settings: name, converting video, capacity, how long records are kept ───────────
-
-export type RuntimeStatus = Readonly<{revision: number; effective: RuntimeSettings; restartFields: readonly string[]; /** Whether the owner's own FFmpeg build passed the server's checks, when one is named. */ ffmpegValidation?: SettingsDocument['ffmpegValidation']}>;
-const runtimeLoaded = (doc: SettingsDocument): Loaded<RuntimeSettings, RuntimeStatus> => ({value: doc.requested, status: {revision: doc.revision, effective: doc.effective, restartFields: doc.restartFields, ...(doc.ffmpegValidation ? {ffmpegValidation: doc.ffmpegValidation} : {})}});
-
-/** The retention the server accepts: diagnostics and finished tasks 1–30 days, notifications 1–180. */
-export const RETENTION_LIMITS: Readonly<Record<'diagnosticDays' | 'notificationDays' | 'jobDays', number>> = {diagnosticDays: 30, notificationDays: 180, jobDays: 30};
-
-/** The server's own name rules (`operations/settings.go`: `SafeText(name, 100)` then no newline
- * or tab): nonblank, at most 100 UTF-8 bytes, no control characters and no bidi formatting. */
-function serverNameProblem(name: string): string | undefined {
-  if (!name.trim()) return 'server.form.nameRequired';
-  if (new TextEncoder().encode(name).length > 100) return 'error.invalidInput';
-  for (const character of name) {
-    const code = character.codePointAt(0)!;
-    if (code < 0x20 || code >= 0x7f && code <= 0x9f || code >= 0x202a && code <= 0x202e || code >= 0x2066 && code <= 0x2069) return 'error.invalidInput';
-  }
-  return undefined;
-}
-
-export function runtimeForm(deps: ServerFormDeps): DraftForm<RuntimeSettings, RuntimeStatus> {
-  return new DraftForm<RuntimeSettings, RuntimeStatus>({
-    load: async () => runtimeLoaded(await deps.console.settings()),
-    save: async (draft, saved, status) => runtimeLoaded(await deps.console.applySettings(status?.revision ?? 0, draft, saved)),
-    validate: draft => serverNameProblem(draft.name),
-  });
 }
 
 // ── Alert thresholds ─────────────────────────────────────────────────────────────────────────
@@ -117,7 +87,7 @@ export function streamLimitsForm(deps: ServerFormDeps): DraftForm<Readonly<{perP
 // ── The forms of a page ─────────────────────────────────────────────────────────────────────
 
 const FACTORIES = {
-  runtime: runtimeForm, alerts: alertsForm,
+  alerts: alertsForm,
   segments: deps => namedSettingsForm(deps, 'segments'),
   titleData: deps => namedSettingsForm(deps, 'title_data'),
   streamLimits: streamLimitsForm,

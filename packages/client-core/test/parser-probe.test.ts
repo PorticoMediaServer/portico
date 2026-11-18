@@ -89,6 +89,7 @@ function routesFor(libraryCount: number, role: string): Map<string, RouteBody> {
   const get = (path: string, json: unknown, status = 200) => routes.set(`GET ${path}`, {status, json});
   get('/v1/system', {id: 'srv', name: 't', setupRequired: false, hostedConfigured: false, version: '1'});
   get('/v1/me', me({accountId: 'a', profileId: 'p', role}));
+  get('/v1/admin/sessions', {items: []});
   get('/v1/capabilities', {features: {playback_v1: true}});
   get('/v1/home?limit=12', homeDocument(2));
   get('/v1/home/layout', {revision: 1, rowOrder: ['recent'], hiddenRowIds: [], rows: [{id: 'recent', title: 'Recent', kind: 'recent', artworkShape: 'poster', libraryId: 'lib-0', required: false, hideable: true, reorderable: true, hidden: false}]});
@@ -131,12 +132,13 @@ test('the token never appears in the report or stdout', async () => {
   assert.ok(log.every(entry => entry.auth === `Bearer ${TOKEN}`), 'the bearer was sent on requests');
 });
 
-test('owner console reads are skipped for non-owners and attempted for owners', async () => {
+test('owner probe skips administration reads for members and reads rebuilt Now Playing for owners', async () => {
   const memberLog: LoggedRequest[] = [];
   const member = await walk(routesFor(1, 'member'), memberLog, 1);
-  assert.ok(!memberLog.some(entry => entry.path.startsWith('/v1/admin/console')), 'no console reads for a member');
+  assert.ok(!memberLog.some(entry => entry.path === '/v1/admin/sessions'));
   assert.ok(member.report.notProbed.some(entry => entry.name === 'owner console reads'));
   const ownerLog: LoggedRequest[] = [];
   const owner = await walk(routesFor(1, 'owner'), ownerLog, 1);
-  assert.ok(ownerLog.some(entry => entry.path.startsWith('/v1/admin/console')), 'console reads attempted for an owner');
+  assert.ok(ownerLog.some(entry => entry.path === '/v1/admin/sessions'));
+  assert.ok(!ownerLog.some(entry => entry.path.startsWith('/v1/admin/console/')));
 });

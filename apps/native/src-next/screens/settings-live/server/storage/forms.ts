@@ -1,6 +1,5 @@
 import {useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {withRequestRaw} from '../../../../../../../packages/client-core/src/home-selection/list-destinations';
-import {ConsoleClient, type ConsoleAPI} from '../../../../../../../packages/client-core/src/console';
 import {isAuthenticationFailure} from '../../../../../../../packages/client-core/src/backups';
 import {FormSet, type DraftForm, type FormState} from '../../../../../../../packages/client-core/src/server-admin/draft-form';
 import {createServerForm, type DraftFormId, type ServerFormDeps} from '../../../../../../../packages/client-core/src/server-admin/server-forms';
@@ -22,27 +21,18 @@ export type StorageForms = Readonly<{
 }>;
 export function createStorageForms(context: NativeShellBootstrapContext, ids: readonly DraftFormId[], reportError: NativeShellRuntime['reportError']): StorageForms {
   const lifetime = new NativeScreenLifetime(context), set = new FormSet(), forms: Partial<Record<DraftFormId, DraftForm<any, any>>> = {}, offs: (() => void)[] = [];
-  let consoleClient: ConsoleClient | undefined;
   const current = () => lifetime.current() && nativeStorageOwner(context);
-  const dispose = () => {lifetime.dispose();for (const form of Object.values(forms)) form.dispose();for (const off of offs) off();consoleClient?.dispose();};
+  const dispose = () => {lifetime.dispose();for (const form of Object.values(forms)) form.dispose();for (const off of offs) off();};
   const originalApi = context.api;
   const requireCurrent = () => {if (!current()) throw screenScopeEnded();};
-  const api: ConsoleAPI = {
-    ...(originalApi.requestConsole ? {requestConsole: async <T,>(path: string, method: string, body: unknown, caller: AbortSignal): Promise<T> => {
-      requireCurrent();
-      try {
-        const value = await lifetime.request(signal => originalApi.requestConsole<T>(path, method, body, signal), caller);
-        requireCurrent(); return value;
-      } catch (error) {if (isAuthenticationFailure(error)) {const owned = current();dispose();if (owned) reportError(error);}throw error;}
-    }} : {}),
+  const api: ServerFormDeps['api'] = {
     request: async <T,>(path: string, method?: string, body?: unknown, caller?: AbortSignal): Promise<T> => {
-    if (!current()) throw screenScopeEnded();
+    requireCurrent();
     try {const value = await lifetime.request(signal => originalApi.request<T>(path, method, body, signal), caller);requireCurrent();return value;}
     catch (error) {if (isAuthenticationFailure(error)) {const owned = current();dispose();if (owned) reportError(error);}throw error;}
   }};
   const authority = context.authority();
-  consoleClient = new ConsoleClient(api, {serverId: authority.serverId, viewerId: authority.profileId});
-  const deps: ServerFormDeps = {api: withRequestRaw(api, originalApi.requestRaw?.bind(originalApi), requireCurrent), console: consoleClient, serverId: authority.serverId, operationId: operationHex};
+  const deps: ServerFormDeps = {api: withRequestRaw(api, originalApi.requestRaw?.bind(originalApi), requireCurrent), serverId: authority.serverId, operationId: operationHex};
   for (const id of ids) {const form = createServerForm(id, deps);forms[id] = form;offs.push(set.add(id, form));}
   return {mount: ++nextMount, context, forms: forms as Record<DraftFormId, DraftForm<any, any>>, set, dispose};
 }

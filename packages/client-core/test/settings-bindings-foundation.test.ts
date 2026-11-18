@@ -21,7 +21,6 @@ test('typed Mbps input is empty by default and converts only explicit numbers',(
 test('configuration preserves current/effective/default and config-only source search',()=>{
  const doc=parseSettingsConfiguration({revision:3,registryRevision:'38b',signInPolicyRevision:'policy-1',path:'/config/portico.toml',fields:[{id:'updates.channel',key:'updates.channel',current:'beta',effective:'stable',default:'stable',source:'file',configOnly:true,applicationMode:'restart'}]});
  assert.equal(searchConfiguration(doc,'updates.channel beta')[0]?.source,'file');
- assert.deepEqual(readSettingsBinding(settingsBinding('updates.channel')!,{configuration:doc},'updates.channel'),{current:'beta',effective:'stable',default:'stable',source:'file',configOnly:true,applicationMode:'restart'});
  assert.throws(()=>parseSettingsConfiguration({...doc,fields:[...doc.fields,...doc.fields]}));
 });
 test('own address is independent of managed route and cannot smuggle credentials or a path',()=>{
@@ -68,13 +67,6 @@ test('ST-7: the owner Quality page shows the same away-from-home server limit, r
  assert.equal(readSettingsBinding(b,{forms:{awayLimit:{awayVideoKbps:8000}}})?.current,readSettingsBinding(settingsBinding('streaming.awayQuality')!,{forms:{connectivity:{remoteBitrateLimitKbps:8000}}})?.current);
  assert.throws(()=>settingsBindingPatch(b,'4k'),/read-only/,'it is changed only on the Streaming page');
 });
-
-test('missing-title preset writes both policy and exact days without rounding a custom grace period',()=>{
- const b=settingsBinding('storage.missingRule')!;
- assert.deepEqual(settingsBindingPatch(b,'7d'),{form:'runtime',values:{'library.missingTitles':'after_days','library.missingTitlesDays':7}});
- assert.equal(readSettingsBinding(b,{forms:{runtime:{'library.missingTitles':'after_days','library.missingTitlesDays':17}}})?.current,'custom');
-});
-
 
 test('folder units and create kinds remain canonical and preserve inventory revision',async()=>{
  const {libraryKindForChoice,readLibrarySourceSettingsBinding,patchLibrarySourceSettingsBinding}=await import('../src/presentation/settings-bindings.ts');

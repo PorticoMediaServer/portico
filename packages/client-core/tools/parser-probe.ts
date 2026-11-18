@@ -43,7 +43,6 @@ import {DownloadsService} from '../src/downloads-service.ts';
 import {parseDownloadUsage} from '../src/downloads.ts';
 import {RoomSessionService} from '../src/room-session.ts';
 import {serverPath} from '../src/query/server-api.ts';
-import {ConsoleClient} from '../src/console.ts';
 import {parseAccessDevice, parseAccessMember, parseInvitation, parseLogPage} from '../src/server-administration.ts';
 import {parseApiCredential} from '../src/api-access.ts';
 import {parseBackupsDocument, parseEnvelope, parseLibraryDocument, parseStorageReport, parseTunerView} from '../src/administration.ts';
@@ -52,7 +51,7 @@ import {PreferencesReader} from '../src/preferences-reader.ts';
 import {IdentityClient} from '../src/identity-client.ts';
 import {PlaybackOptionsClient} from '../src/playback-v1/options.ts';
 import {localV1Http} from '../src/playback-v1/local-http.ts';
-import {AdminSessionsClient} from '../src/playback-v1/admin-sessions.ts';
+import {readServerNowPlaying} from '../src/admin/server-now-playing.ts';
 import {parseListeningPreferences} from '../src/listening.ts';
 import {SearchService} from '../src/search.ts';
 import {getContainerState} from '../src/container-state.ts';
@@ -545,30 +544,8 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
 
   // 8. Owner console reads.
   if (isOwner) {
-    const ownerScope = scopeOf();
-    const consoleClient = new ConsoleClient(api, ownerScope);
-    const consoleReads: [string, string, () => Promise<unknown>][] = [
-      ['console registry', '/v1/console/registry', () => consoleClient.registry()],
-      ['console settings', '/v1/admin/console/settings', () => consoleClient.settings()],
-      ['console preferences', '/v1/preferences?deviceClass=web', () => consoleClient.preferences('web')],
-      ['console now playing', '/v1/admin/sessions?limit=50', () => new AdminSessionsClient(localV1Http(api)).list()],
-      ['console stream options', '/v1/admin/console/stream-options', () => consoleClient.streamOptions()],
-      ['console jobs', '/v1/admin/console/jobs?cursor=', () => consoleClient.jobs()],
-      ['console job kinds', '/v1/admin/console/job-kinds', () => consoleClient.jobKinds()],
-      ['console schedules', '/v1/admin/console/schedules', () => consoleClient.schedules()],
-      ['console alerts', '/v1/admin/console/alerts', () => consoleClient.alerts()],
-      ['console runtime diagnostics', '/v1/admin/console/diagnostics/runtime?cursor=', () => consoleClient.records('runtime')],
-      ['console transcode capacity', '/v1/admin/transcode/capacity', () => consoleClient.transcodeCapacity()],
-      ['console telemetry', '/v1/admin/telemetry?window=10m', () => consoleClient.telemetry()],
-      ['console telemetry now', '/v1/admin/telemetry/now', () => consoleClient.telemetryNow()],
-      ['console playback history', '/v1/admin/playback/history?period=24h&cursor=&limit=50', () => consoleClient.playbackHistory()],
-      ['console feedback reports', '/v1/admin/feedback?cursor=', () => consoleClient.reports(true)],
-    ];
-    for (const [name, path, run] of consoleReads) {
-      await rec.check('owner', name, 'GET', path, run);
-    }
-    consoleClient.dispose();
-    rec.skip('console attention', 'the old GET /v1/admin/attention read is gone; the rebuilt Dashboard reads its own attention');
+    const nowPlayingPath = serverPath('GET /v1/admin/sessions');
+    await rec.check('owner', 'now playing', 'GET', nowPlayingPath, () => readServerNowPlaying(api));
     // The web console's administration documents: app-composed GET paths, client-core parsers.
     async function envelopeRead<T>(name: string, path: string, parse: (raw: unknown) => T): Promise<void> {
       await rec.check('owner', name, 'GET', path, async () => parseEnvelope(await api.request<unknown>(path), serverId, parse).result);
@@ -596,7 +573,6 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
         return raw.items.map(each);
       });
     }
-    rec.skip('activity screen', 'ActivityService snapshots differ from ConsoleClient.jobs, which already covers jobs (activity.ts)');
     rec.skip('library management directory', 'libraries admin is covered through parseLibraryDocument (library-management.ts)');
   } else {
     rec.skip('owner console reads', `viewer role is '${role}', not 'owner'`);

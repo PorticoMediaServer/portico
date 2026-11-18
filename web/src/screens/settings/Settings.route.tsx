@@ -194,9 +194,6 @@ export function SettingsEntry() {
     const requestRaw: typeof originalApi.requestRaw = async (path, method, options) => {
       assert();const value = await originalApi.requestRaw(path, method, {...options, signal: signal(options?.signal)});assert();return value;
     };
-    const requestConsole: typeof originalApi.requestConsole = async <T,>(path: string, method: string, body: unknown, input: AbortSignal): Promise<T> => {
-      assert();const value = await originalApi.requestConsole<T>(path, method, body, signal(input));assert();return value;
-    };
     const requestMetadataUpload: typeof originalApi.requestMetadataUpload = async <T,>(path: string, body: Blob, input?: AbortSignal): Promise<T> => {
       assert();const value = await originalApi.requestMetadataUpload<T>(path, body, signal(input));assert();return value;
     };
@@ -217,7 +214,6 @@ export function SettingsEntry() {
     const api = new Proxy(originalApi, {get(target, property) {
       if (property === 'request') return request;
       if (property === 'requestRaw') return requestRaw;
-      if (property === 'requestConsole') return requestConsole;
       if (property === 'requestMetadataUpload') return requestMetadataUpload;
       if (property === 'requestBounded') return requestBounded;
       if (property === 'requestLyrics') return requestLyrics;
@@ -420,17 +416,6 @@ export function SettingsEntry() {
         invitations: new SettingsInvitations(api, current, api.baseUrl, viewer.serverId), signIn: identity.signIn, openHome, reportError,
         // owner-people 6/25: only the owner of a local-sign-in server adds accounts here (the server refuses anyone else).
         ...(role === 'owner' && identity.signIn === 'local' ? {addAccount: (input: NewDirectMember, signal: AbortSignal) => {assert(); return createDirectMember(api, input, signal);}} : {}),
-        // The owner's invite expiry, in whole days on the server and hours in the
-        // dialog, read live so a save is used by the next invitation only.
-        inviteRole: () => {
-          const stored = controller.rowState(settingsRowIndex.get('people.inviteRole')!.row).value;
-          return stored === 'administrator' ? 'admin' : stored === 'member' ? 'member' : undefined;
-        },
-        inviteExpiryHours: () => {
-          const state = controller.rowState(settingsRowIndex.get('people.inviteExpiry')!.row);
-          const days = Number(state.value);
-          return Number.isFinite(days) && days > 0 ? days * 24 : undefined;
-        },
         authority: {scope: {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId, sessionFamilyId: session.sessionFamilyId},
           isCurrent: current, subscribe: listener => {authorityListeners.add(listener); return () => {authorityListeners.delete(listener);};}, onAuthorityChanged: openHome},
       } : undefined;

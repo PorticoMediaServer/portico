@@ -32,14 +32,7 @@ test('Advanced summaries compare actual values and matrix defaults regardless of
   assert.match(settingsSummary([row('storage.analysisSpace')], () => ({current: '40'}), t), /40/);
 });
 
-test('missing-title presets roundtrip and dates use committed rules or the explicit server date', () => {
-  const binding = bindings.settingsBinding('storage.missingRule'), sources = {forms: {runtime: {'library.missingTitles': 'after_days', 'library.missingTitlesDays': 30}}};
-  assert.ok(binding);
-  const value = bindings.readSettingsBinding(binding, sources); assert.ok(value);
-  assert.equal(value.current, '30d');
-  for (const [preset, days] of [['7d', 7], ['30d', 30], ['90d', 90]] as const) assert.deepEqual(bindings.settingsBindingPatch(binding, preset, sources).values, {'library.missingTitles': 'after_days', 'library.missingTitlesDays': days});
-  assert.deepEqual(bindings.settingsBindingPatch(binding, {days: 46}, sources).values, {'library.missingTitles': 'after_days', 'library.missingTitlesDays': 46});
-  assert.throws(() => bindings.settingsBindingPatch(binding, {days: 0}, sources));
+test('missing-title dates use committed rules or the explicit server date', () => {
   const missing = {missingSince: '2026-10-01T12:00:00Z'};
   assert.equal(missingRemovalTime(missing, 'after_days', 7), Date.parse('2026-10-08T12:00:00Z'));
   assert.equal(missingRemovalTime(missing, 'immediately', 30), Date.parse(missing.missingSince));
