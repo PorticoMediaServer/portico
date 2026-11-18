@@ -247,6 +247,7 @@ export const newFramesFixtureMessages = {
   'next.newframes.fixture.recordings3': '3 recordings · 2 unwatched',
   'next.newframes.fixture.yesterday430': 'Yesterday, 4:30 PM',
   'next.newframes.fixture.quietHarborFacts': '2014 · 1 h 42 min',
+  'next.newframes.fixture.sortRecent': 'Recently recorded',
   'next.newframes.fixture.recordedCounts': '10 shows and films · 20 recordings · 8 unwatched',
   // Saved and Downloads (desktop-search saved, phone-app 9, tablet 11 and 11b, collections-34).
   'next.newframes.fixture.saved': 'Saved',

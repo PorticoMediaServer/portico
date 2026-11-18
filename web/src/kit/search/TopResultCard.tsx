@@ -8,7 +8,7 @@ export type TopResultCardProps = Readonly<{
   eyebrow: string; title: string;
   /** The facts line (kit `TitleFactsLine`). */
   facts: ReactNode;
-  /** The title's own picture, blurred behind the card. */
+  /** The title's own picture: sharp, fading in from the left (phone-app 8); behind an artist's circle, blurred (phone-web 4). */
   background?: ArtworkSource;
   /** An artist's circle: their picture, or their initials when there is none. */
   ring?: Readonly<{source?: ArtworkSource; initials: string}>;
@@ -21,7 +21,7 @@ export type TopResultCardProps = Readonly<{
  * has one, its facts, and a round Play. From 600 the Top result is the kit title's `SearchResultHero`. Moved from
  * `screens/search/TopResult.tsx`; the Search screen draws this same part. */
 export function TopResultCard({eyebrow, title, facts, background, ring, onOpen, play}: TopResultCardProps) {
-  return <section className={styles.phoneTop} aria-label={eyebrow}>
+  return <section className={styles.phoneTop} data-ring={ring ? true : undefined} aria-label={eyebrow}>
     {background && <Artwork className={styles.phoneTopBg} source={background} alt=""/>}
     <button type="button" className={styles.phoneTopOpen} aria-label={title} onClick={onOpen}/>
     {ring && <span className={styles.phoneTopRing}>{ring.source ? <Artwork source={ring.source} alt=""/> : ring.initials}</span>}
