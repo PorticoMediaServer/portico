@@ -335,7 +335,7 @@ ICONS = {
     'repeat': [28, 32],
     'restart': [28],
     'search': [32],
-    'server': [28],
+    'server': [28, 32],
     'settings': [32],
     'shield': [28],
     'shuffle': [28, 32],

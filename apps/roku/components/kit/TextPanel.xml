@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A long text read in full (a person's biography, tv-detail frame 9: "OK opens it in full"): a
+     side panel from frames().textPanel with the eyebrow, the title and the text, which Up and Down
+     scroll when it runs past the panel. Back closes it. -->
+<component name="TextPanel" extends="Group">
+  <interface>
+    <!-- {eyebrow, title, text}; setting it opens the panel. -->
+    <field id="model" type="assocarray" onChange="onModel"/>
+    <field id="closed" type="boolean" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="TextPanel.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <SidePanel id="surface"/>
+    <Label id="eyebrow"/>
+    <Label id="title" wrap="true" maxLines="2"/>
+    <ScrollableText id="text"/>
+    <KeyHints id="hints"/>
+  </children>
+</component>

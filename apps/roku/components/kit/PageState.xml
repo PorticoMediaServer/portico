@@ -8,6 +8,10 @@
     <field id="title" type="string" onChange="onChange"/>
     <field id="body" type="string" onChange="onChange"/>
     <field id="footnote" type="string" onChange="onChange"/>
+    <!-- While the page keeps trying by itself (states frame 5): a turning spinner, `status` in bold
+         ("Trying again in 30 seconds") and `statusMore` after it ("6 tries since 4:02 PM"). -->
+    <field id="status" type="string" onChange="onStatus"/>
+    <field id="statusMore" type="string" onChange="onStatus"/>
     <field id="buttons" type="array" alias="row.buttons"/>
     <field id="pressed" type="string" alwaysNotify="true" alias="row.pressed"/>
     <field id="active" type="boolean" alwaysNotify="true" alias="row.active"/>
@@ -19,6 +23,14 @@
     <Poster id="icon" width="32" height="32"/>
     <Label id="title" width="1500"/>
     <Label id="body" wrap="true" maxLines="3"/>
+    <Group id="statusLine" visible="false">
+      <Poster id="spinner" uri="pkg:/images/i-spinner-64.png" width="32" height="32" scaleRotateCenter="[16,16]"/>
+      <Label id="status"/>
+      <Label id="statusMore"/>
+    </Group>
+    <Animation id="turn" duration="1" repeat="true" easeFunction="linear">
+      <FloatFieldInterpolator key="[0, 1]" keyValue="[0, -6.2832]" fieldToInterp="spinner.rotation"/>
+    </Animation>
     <ButtonRow id="row"/>
     <Label id="footnote" wrap="true" maxLines="3"/>
   </children>

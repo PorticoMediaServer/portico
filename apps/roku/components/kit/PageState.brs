@@ -22,6 +22,26 @@ sub init()
     setType(footnote, "body", c.textTertiary)
     footnote.width = f.state.width
     footnote.translation = [x, f.state.buttonsY + 110]
+    m.top.findNode("statusLine").translation = [x, f.state.statusY]
+    m.top.findNode("spinner").blendColor = c.accent
+    setType(m.top.findNode("status"), "metaStrong", c.text)
+    setType(m.top.findNode("statusMore"), "meta", c.textSecondary)
+end sub
+
+sub onStatus()
+    line = m.top.findNode("statusLine")
+    line.visible = (m.top.status <> "")
+    if line.visible then m.top.findNode("turn").control = "start" else m.top.findNode("turn").control = "stop"
+    status = m.top.findNode("status")
+    status.text = m.top.status
+    status.translation = [50, 0]
+    status.height = 32
+    status.vertAlign = "center"
+    more = m.top.findNode("statusMore")
+    more.text = m.top.statusMore
+    more.height = 32
+    more.vertAlign = "center"
+    more.translation = [50 + status.boundingRect().width + 48, 0]
 end sub
 
 sub onChange()
