@@ -49,6 +49,6 @@ export const layoutMessages = {
   'next.layout.recommended': 'Recommended for you',
   'next.layout.recentIn': 'Recently added to {library}',
   'next.layout.openTitle': 'Open {title}',
-  'next.layout.playEpisode': 'Play S{season} E{episode}',
+  'next.layout.playEpisode': 'Play S{season, number, ::group-off} E{episode, number, ::group-off}',
   'next.layout.itemCount': '{shown} of {total}',
 } as const satisfies Record<`next.layout.${string}`, string>;
