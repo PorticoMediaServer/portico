@@ -938,8 +938,10 @@ sub onProgress(event as object)
     result = event.getData()
     if m.session = invalid or event.getRoSGNode().ctx.id <> m.session.id then return
     if m.live = true and result.ok and result.data <> invalid and result.data.state = "ended" and result.data.end <> invalid
-        ' the channel stopped at its source, or could not be converted for this TV
-        fail(result.data.end.message)
+        ' the channel stopped at its source, or could not be converted for this TV (the server's words when it sends any)
+        message = result.data.end.message
+        if message = invalid or message = "" then message = "This channel could not be played on this TV."
+        fail(message)
     else if result.ok and result.data <> invalid and result.data.generation <> invalid and result.data.generation <> m.presentation.generation
         ' the server moved this title to another stream by itself: read the session and play that
         api("GET", "/v1/playback/sessions/" + m.session.id, invalid, "onRecheck", {id: m.session.id, failed: false})
