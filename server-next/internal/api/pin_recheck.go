@@ -23,12 +23,12 @@ const pinTypedFor = time.Hour
 const pinRecheckSetting = "security.askPinForSensitiveSettings"
 
 // pinMemory is what a device keeps to show that it was allowed to remember a profile's PIN.
-// It is good on that device only, and only while the PIN is the one it was made for.
+// It belongs to the sign-in that remembered it and to the PIN it was made for.
 type pinMemory struct {
-	Profile int64  `json:"p"`
-	Device  string `json:"d"`
-	PIN     string `json:"h"`
-	At      int64  `json:"t"`
+	Profile    int64  `json:"p"`
+	Session    string `json:"s"`
+	PIN        string `json:"h"`
+	Generation int64  `json:"g"`
 }
 
 func pinFingerprint(hash string) string { return auth.Hash("pin|" + hash)[:16] }

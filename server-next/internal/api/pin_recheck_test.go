@@ -17,15 +17,18 @@ func TestARememberedPINAndSensitiveSettings(t *testing.T) {
 	first := setup(t, s)
 	main := first.Profiles[0].ID
 	owner := onMain(t, s, first)
+	if me := get[Me](t, s, owner.AccessToken, "/v1/me"); !first.RememberProfiles || first.PINRememberDays != -1 || !me.RememberProfiles || me.PINRememberDays != -1 {
+		t.Fatal("sign-in and the account snapshot should offer remembering for the life of the sign-in by default")
+	}
 	if code := status(t, s, "PUT", "/v1/profiles/"+main+"/pin", owner.AccessToken, ProfilePIN{PIN: "1234"}); code != 200 {
 		t.Fatalf("setting a PIN answered %d", code)
 	}
 	choose := "/v1/profiles/" + main + "/select"
-	enter := func(n int, body ProfileSelect) (int, Session) {
+	deviceFive := signIn(t, s, 5).Session
+	enter := func(token string, body ProfileSelect) (int, Session) {
 		t.Helper()
-		in := signIn(t, s, n)
 		var out Session
-		w := call(t, s, "POST", choose, in.Session.AccessToken, body, nil)
+		w := call(t, s, "POST", choose, token, body, nil)
 		if w.Code == 200 {
 			jsonInto(w, &out)
 		}
@@ -36,20 +39,20 @@ func TestARememberedPINAndSensitiveSettings(t *testing.T) {
 	}
 
 	// Typed, and remembered from now on: everything works, for an hour.
-	code, typed := enter(5, ProfileSelect{PIN: "1234", RememberPIN: true})
-	if code != 200 || typed.PINToken == "" || typed.PINTokenExpiresAt == nil {
-		t.Fatalf("choosing with the PIN and rememberPin answered %d, token %q", code, typed.PINToken)
+	code, typed := enter(deviceFive.AccessToken, ProfileSelect{PIN: "1234", RememberPIN: true})
+	if code != 200 || typed.PINToken == "" {
+		t.Fatalf("choosing with the PIN and rememberPin answered %d, token present %t", code, typed.PINToken != "")
 	}
 	if got := sensitive(typed.AccessToken, "ann"); got != 200 {
 		t.Fatalf("a sensitive change just after typing the PIN answered %d", got)
 	}
 	// Typed and not remembered: no token, and no hour to run out.
-	if code, plain := enter(6, ProfileSelect{PIN: "1234"}); code != 200 || plain.PINToken != "" {
-		t.Fatalf("choosing with the PIN alone answered %d with token %q", code, plain.PINToken)
+	if code, plain := enter(signIn(t, s, 6).Session.AccessToken, ProfileSelect{PIN: "1234"}); code != 200 || plain.PINToken != "" {
+		t.Fatalf("choosing with the PIN alone answered %d, token present %t", code, plain.PINToken != "")
 	}
 
 	// Entered with the remembered PIN: the owner's pages open, sensitive changes ask for the PIN.
-	code, kept := enter(5, ProfileSelect{PINToken: typed.PINToken})
+	code, kept := enter(typed.AccessToken, ProfileSelect{PINToken: typed.PINToken})
 	if code != 200 || kept.Viewer.Role != "owner" {
 		t.Fatalf("entering with a remembered PIN answered %d as %q", code, kept.Viewer.Role)
 	}
@@ -83,7 +86,7 @@ func TestARememberedPINAndSensitiveSettings(t *testing.T) {
 	}
 
 	// The hour after a typed PIN runs out on a device that remembers it.
-	code, typed = enter(5, ProfileSelect{PIN: "1234", RememberPIN: true})
+	code, typed = enter(kept.AccessToken, ProfileSelect{PIN: "1234", RememberPIN: true})
 	if code != 200 {
 		t.Fatalf("typing the PIN again answered %d", code)
 	}
@@ -96,10 +99,13 @@ func TestARememberedPINAndSensitiveSettings(t *testing.T) {
 		PreferencesEdit{Scope: "profile-server", DeviceClass: "web", Values: map[string]any{pinRecheckSetting: false}}); got != 200 {
 		t.Fatalf("turning the check off after typing the PIN answered %d", got)
 	}
-	if code, kept = enter(5, ProfileSelect{PINToken: typed.PINToken}); code != 200 || sensitive(kept.AccessToken, "dan") != 200 {
+	if code, kept = enter(typed.AccessToken, ProfileSelect{PINToken: typed.PINToken}); code != 200 || sensitive(kept.AccessToken, "dan") != 200 {
 		t.Errorf("with the check off, a sensitive change from a remembered PIN was refused")
 	}
-	status(t, s, "PATCH", "/v1/preferences", typed.AccessToken, PreferencesEdit{Scope: "profile-server", DeviceClass: "web", Values: map[string]any{pinRecheckSetting: true}})
+	if code, fresh := enter(kept.AccessToken, ProfileSelect{PIN: "1234"}); code != 200 || status(t, s, "PATCH", "/v1/preferences", fresh.AccessToken,
+		PreferencesEdit{Scope: "profile-server", DeviceClass: "web", Values: map[string]any{pinRecheckSetting: true}}) != 200 {
+		t.Fatal("turning the check back on was refused")
+	}
 	// An hour later the same sign-in must type the PIN again.
 	in := signIn(t, s, 7)
 	var hour Session
@@ -122,26 +128,96 @@ func TestARememberedPINAndSensitiveSettings(t *testing.T) {
 	}
 
 	// Good on its own device only; not after the PIN changes; not once the owner says always ask.
-	if code, _ := enter(8, ProfileSelect{PINToken: typed.PINToken}); code != 403 {
+	if code, _ := enter(signIn(t, s, 8).Session.AccessToken, ProfileSelect{PINToken: typed.PINToken}); code != 403 {
 		t.Errorf("a remembered PIN carried to another device answered %d", code)
 	}
-	code, fresh := enter(5, ProfileSelect{PIN: "1234"})
-	if code != 200 || status(t, s, "PUT", "/v1/profiles/"+main+"/pin", fresh.AccessToken, ProfilePIN{PIN: "4321"}) != 200 {
+	code, fresh := renew(t, s, deviceFive.RefreshToken, 5, "before-changing-pin")
+	if code != 200 {
+		t.Fatalf("renewing before changing the PIN answered %d", code)
+	}
+	if code := status(t, s, "PUT", "/v1/profiles/"+main+"/pin", fresh.AccessToken, ProfilePIN{PIN: "4321"}); code != 200 {
 		t.Fatal("changing the PIN after typing it was refused")
 	}
-	if code, _ := enter(5, ProfileSelect{PINToken: typed.PINToken}); code != 403 {
+	if code, _ := enter(fresh.AccessToken, ProfileSelect{PINToken: typed.PINToken}); code != 403 {
 		t.Errorf("a remembered PIN still worked after the PIN changed: %d", code)
 	}
-	code, typed = enter(5, ProfileSelect{PIN: "4321", RememberPIN: true})
+	code, typed = enter(fresh.AccessToken, ProfileSelect{PIN: "4321", RememberPIN: true})
 	if code != 200 || typed.PINToken == "" {
 		t.Fatalf("remembering the new PIN answered %d", code)
 	}
 	saveSignIn(t, s, typed.AccessToken, `{"pinRememberDays":0}`, 200)
-	if code, _ := enter(5, ProfileSelect{PINToken: typed.PINToken}); code != 403 {
+	in = signIn(t, s, 9)
+	if me := get[Me](t, s, in.Session.AccessToken, "/v1/me"); in.RememberProfiles || me.RememberProfiles {
+		t.Fatal("sign-in and the account snapshot should show always ask")
+	}
+	if code, _ := enter(typed.AccessToken, ProfileSelect{PINToken: typed.PINToken}); code != 403 {
 		t.Errorf("a remembered PIN still worked after the owner chose always ask: %d", code)
 	}
-	if code, again := enter(5, ProfileSelect{PIN: "4321", RememberPIN: true}); code != 200 || again.PINToken != "" {
-		t.Errorf("with always ask chosen, rememberPin answered %d and token %q", code, again.PINToken)
+	if code, again := enter(typed.AccessToken, ProfileSelect{PIN: "4321", RememberPIN: true}); code != 200 || again.PINToken != "" {
+		t.Errorf("with always ask chosen, rememberPin answered %d, token present %t", code, again.PINToken != "")
+	}
+}
+
+func TestRememberedPINFollowsDeviceUse(t *testing.T) {
+	for _, tc := range []struct {
+		name, policy string
+		daysOfUse    int
+		idleDays     int
+	}{
+		{name: "life of the sign-in", daysOfUse: 60, idleDays: 90},
+		{name: "timed policy", policy: `{"pinRememberDays":7}`, daysOfUse: 8, idleDays: 7},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newTestServer(t)
+			now := time.Now()
+			s.setClock(func() time.Time { return now })
+			first := setup(t, s)
+			owner := onMain(t, s, first)
+			if tc.policy != "" {
+				saveSignIn(t, s, owner.AccessToken, tc.policy, 200)
+			}
+			profile := "/v1/profiles/" + first.Profiles[0].ID
+			if got := status(t, s, "PUT", profile+"/pin", owner.AccessToken, ProfilePIN{PIN: "1234"}); got != 200 {
+				t.Fatalf("setting a PIN answered %d", got)
+			}
+			session := signIn(t, s, 5).Session
+			var typed Session
+			if got := call(t, s, "POST", profile+"/select", session.AccessToken, ProfileSelect{PIN: "1234", RememberPIN: true}, &typed).Code; got != 200 || typed.PINToken == "" {
+				t.Fatalf("remembering the PIN answered %d, token present %t", got, typed.PINToken != "")
+			}
+			for day := 1; day <= tc.daysOfUse; day++ {
+				now = now.Add(24 * time.Hour)
+				code, renewed := renew(t, s, session.RefreshToken, 5, "daily-use")
+				if code != 200 || renewed.SessionID != session.SessionID {
+					t.Fatalf("renewal on day %d answered %d", day, code)
+				}
+				session = renewed
+			}
+			kept := ProfileSelect{PINToken: typed.PINToken}
+			if got := status(t, s, "POST", profile+"/select", session.AccessToken, kept); got != 200 {
+				t.Fatalf("remembered PIN after %d days of daily use answered %d", tc.daysOfUse, got)
+			}
+			now = now.Add(time.Duration(tc.idleDays) * 24 * time.Hour)
+			code, renewed := renew(t, s, session.RefreshToken, 5, "after-idle")
+			if tc.policy == "" {
+				if code != 401 {
+					t.Fatalf("renewal after the device's sign-in expired answered %d", code)
+				}
+				renewed = signIn(t, s, 5).Session
+			} else {
+				if code != 200 {
+					t.Fatalf("the sign-in should survive when only PIN memory expires: %d", code)
+				}
+				code, renewed = renew(t, s, renewed.RefreshToken, 5, "after-idle-again")
+				if code != 200 {
+					t.Fatalf("second renewal after the idle gap answered %d", code)
+				}
+			}
+			w := call(t, s, "POST", profile+"/select", renewed.AccessToken, kept, nil)
+			if w.Code != 403 || !strings.Contains(w.Body.String(), "profile_pin_reentry") {
+				t.Fatalf("remembered PIN after expiry answered %d", w.Code)
+			}
+		})
 	}
 }
 

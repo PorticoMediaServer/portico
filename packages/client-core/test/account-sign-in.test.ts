@@ -61,6 +61,21 @@ test('signing in to an account with several profiles asks who is watching: nothi
   assert.deepEqual(s.calls[0]!.body, {username: 'sam', password: 'a password', device: {installationId: INSTALLATION, name: 'Test browser', platform: 'web', app: 'portico', appVersion: '1'}});
 });
 
+test('sign-in and account read use the server’s profile remembering policy', async () => {
+  const profiles = [profile('main'), profile('kid', {pinRequired: true})];
+  const me = {account: account(), role: 'account', canManageAccount: false};
+  for (const policy of [{rememberProfiles: true, pinRememberDays: -1}, {rememberProfiles: false, pinRememberDays: 0}, {}]) {
+    const s = server({'POST /v1/auth/sign-in': {session: session(), account: account(), profiles, ...policy}});
+    const signIn = await directSignIn(s.api, 'sam', 'unused');
+    if (signIn.kind !== 'signed-in') return assert.fail('expected a sign-in');
+    const read = parseDirectSnapshot({me: {...me, ...policy}, profiles: {items: profiles}}, {serverId: 'srv'});
+    for (const snapshot of [signIn.snapshot, read]) {
+      assert.equal(snapshot.rememberProfiles, policy.rememberProfiles === true);
+      assert.equal(snapshot.pinRememberDays, policy.pinRememberDays);
+    }
+  }
+});
+
 test('an account\'s only profile opens by itself when it has no PIN, with the sign-in just given, and keeps its refresh token', async () => {
   const s = server({
     'POST /v1/auth/sign-in': {session: session(), account: account(), profiles: [profile('main')]},

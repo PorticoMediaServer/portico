@@ -361,12 +361,9 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 		return Session{}, err
 	}
 	sel := db.ProfileSelection{UserID: caller.UserID, SessionID: caller.SessionID, ProfileID: p.ID, CheckedPINHash: p.PINHash, AtHome: s.fromHome(r), Now: now}
-	remember, pinToken := time.Duration(s.signInSettings().PINRememberDays)*24*time.Hour, ""
-	var kept pinMemory
+	remember := s.signInSettings().PINRememberDays != 0
 	if p.PINHash != "" && req.PIN == "" && req.PINToken != "" {
-		// A remembered PIN: good on the device it was given to, until the PIN changes or the
-		// owner's time for remembering runs out. It cannot be guessed, so a stale one counts
-		// against nobody; the app asks for the PIN.
+		// A stale remembered PIN counts against nobody; the app asks for the PIN.
 		session, err := s.db.SessionState(ctx, caller.SessionID, now)
 		if errors.Is(err, db.ErrNotFound) {
 			return Session{}, errSignInEnded()
@@ -375,8 +372,9 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 			return Session{}, err
 		}
 		sel.Remembered = true
-		sel.PINOK = s.tokens.Recall("pin", req.PINToken, &kept) && kept.Profile == p.ID && kept.Device == session.DevicePublicID &&
-			kept.PIN == pinFingerprint(p.PINHash) && now.Before(time.UnixMilli(kept.At).Add(remember))
+		var kept pinMemory
+		sel.PINOK = remember && s.tokens.Recall("pin", req.PINToken, &kept) && kept.Profile == p.ID &&
+			kept.Session == session.PublicID && kept.PIN == pinFingerprint(p.PINHash) && kept.Generation >= session.PINMemoryFromGeneration
 		if !sel.PINOK {
 			return Session{}, refusal(http.StatusForbidden, "profile_pin_reentry", "Enter this profile's PIN.", false)
 		}
@@ -407,9 +405,8 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 		if sel.PINOK, err = s.passwords.Check(ctx, p.PINHash, req.PIN); err != nil {
 			return Session{}, err
 		}
-		if req.RememberPIN && remember > 0 {
+		if req.RememberPIN && remember {
 			sel.TypedFor = pinTypedFor
-			pinToken = s.tokens.Remember("pin", pinMemory{Profile: p.ID, Device: session.DevicePublicID, PIN: pinFingerprint(p.PINHash), At: now.UnixMilli()})
 		}
 	}
 	st, err := s.db.SelectProfile(ctx, sel)
@@ -427,9 +424,8 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 		return Session{}, err
 	}
 	out := s.session(st, now, "")
-	if pinToken != "" {
-		expires := now.Add(remember).UTC()
-		out.PINToken, out.PINTokenExpiresAt = pinToken, &expires
+	if sel.TypedFor != 0 {
+		out.PINToken = s.tokens.Remember("pin", pinMemory{Profile: p.ID, Session: st.PublicID, PIN: pinFingerprint(p.PINHash), Generation: st.Generation})
 	}
 	return out, nil
 }

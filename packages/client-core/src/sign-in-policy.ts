@@ -16,7 +16,7 @@ const invalid=():never=>{throw new Error(unreadableServerResponse);};
 function typed(key:Property,value:unknown):SignInPolicyValues[Property]|undefined{
  if(key==='requireTwoStep')return ['nobody','administrators','everyone'].includes(String(value))?value as SignInPolicyValues['requireTwoStep']:undefined;
  const n=typeof value==='string'&&value.trim()!==''?Number(value):value;
- return typeof n==='number'&&Number.isSafeInteger(n)&&(key==='staySignedInDays'?[7,30,90,365]:[0,7,30,90]).includes(n)?n:undefined;
+ return typeof n==='number'&&Number.isSafeInteger(n)&&(key==='staySignedInDays'?[7,30,90,365]:[-1,0,7,30,90]).includes(n)?n:undefined;
 }
 
 /** The existing controller's configuration port, backed by the rebuilt settings document. */

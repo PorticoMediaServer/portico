@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readOwnerSignInConfiguration,signInPolicyRows,isSignInPolicyRow,signInPolicyValues,signInPolicyWith,patchSignInPolicy,signInPolicyConflict} from '../src/sign-in-policy.ts';
 import {readSettingsBinding,settingsBinding} from '../src/presentation/settings-bindings.ts';
 
-const document={name:'sign-in',etag:'"7"',values:{staySignedInDays:30,pinRememberDays:0,requireTwoStep:'admins'},defaults:{staySignedInDays:90,pinRememberDays:30,requireTwoStep:'nobody'}};
+const document={name:'sign-in',etag:'"7"',values:{staySignedInDays:30,pinRememberDays:0,requireTwoStep:'admins'},defaults:{staySignedInDays:90,pinRememberDays:-1,requireTwoStep:'nobody'}};
 const api={request:async<T>(path:string)=>path==='/v1/admin/settings/sign-in'?document as T:{dataFolder:'/fixture/data'} as T};
 
 test('rebuilt Sign-in reads only supported policy rows',async()=>{
@@ -13,9 +13,11 @@ test('rebuilt Sign-in reads only supported policy rows',async()=>{
  assert.deepEqual(Object.keys(signInPolicyRows).sort(),['signin.pinRemember','signin.requireTwoStep','signin.stayLength']);
  assert.equal(isSignInPolicyRow('signin.passwordAttempts'),false);
  assert.equal(config.signInPolicyRevision,'"7"');
+ assert.equal(config.fields.find(field=>field.id==='signin.pinRemember')?.default,-1);
  const values=signInPolicyValues(config)!;
  assert.deepEqual(values,{staySignedInDays:30,pinRememberDays:0,requireTwoStep:'administrators'});
  assert.deepEqual(signInPolicyWith(values,'signin.stayLength','365'),{...values,staySignedInDays:365});
+ assert.deepEqual(signInPolicyWith(values,'signin.pinRemember','-1'),{...values,pinRememberDays:-1});
  assert.throws(()=>signInPolicyWith(values,'signin.stayLength','31'));
  for(const id of ['signin.passwordAttempts','signin.pinAttempts']){
   assert.equal(readSettingsBinding(settingsBinding(id)!,{configuration:config},id),undefined);

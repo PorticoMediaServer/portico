@@ -715,12 +715,12 @@ CREATE TABLE sessions (
   remote_addr           TEXT,
   -- Until when a main profile entered with a remembered PIN counts as having typed it; NULL when typed and not remembered, or there is none.
   manage_until_at       INTEGER,
-  second_step_at        INTEGER -- when this sign-in showed a two-step code; NULL: only the password, or approved from another device
+  second_step_at        INTEGER, -- when this sign-in showed a two-step code; NULL: only the password, or approved from another device
+  pin_memory_from_generation INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 CREATE INDEX sessions_user ON sessions (user_id);
 CREATE INDEX sessions_profile ON sessions (profile_id) WHERE profile_id IS NOT NULL;
 CREATE INDEX sessions_device ON sessions (device_id);
-
 -- Every short-lived single-use secret: password reset, TV sign-in code, two-step challenge,
 -- recovery code. Redeeming is one UPDATE ... WHERE used_at IS NULL, so exactly one caller wins.
 CREATE TABLE auth_codes (
