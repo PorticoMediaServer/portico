@@ -46,7 +46,6 @@ test('a shelf Read opens the server’s chosen version; the title page still nam
   assert.deepEqual(readDestination('book-1', 'epub-2'), {to: '/read/$itemId', params: {itemId: 'book-1'}, search: {sourceId: 'epub-2'}});
 });
 
-import {setServerChannelHidden} from '@core/server-channel-visibility.ts';
 import {settingsRoute} from '../src/kit/settings/search.ts';
 
 test('Edit channel retains the exact Settings editor target only on the server Live page', () => {
@@ -58,36 +57,6 @@ test('Edit channel retains the exact Settings editor target only on the server L
 
 test('profile hidden state never supplies the owner Show action', () => {
   assert.equal(summary(guideChannelMenuEntries(channel('live-source', {hidden: true}), actions(true)))[1]?.[1], 'Hide channel');
-});
-
-test('server hide uses the exact map revision and preserves inherited number and guide mapping; Undo is fenced', async () => {
-  const calls: {path: string; method?: string; body?: any}[] = [];
-  let revision = 4, hidden = false;
-  const page = () => ({sourceId: 's1', generation: 'g1', revision, nextCursor: '', items: [{channelId: 'c1', name: 'One', sourceNumber: '1', number: '1', overrideNumber: '', group: '', guideChannelId: 'epg-one', hidden, position: 0, overridden: false}]});
-  const api = {async request<T>(path: string, method?: string, body?: any): Promise<T> {
-    calls.push({path, method, body});
-    if (method === 'PUT') {assert.equal(body.expectedRevision, revision);hidden = body.overrides[0].hidden;revision++;}
-    return {protocolVersion: '1.0', serverId: 'server', result: page()} as T;
-  }};
-  const args = [api, 'server', 's1', 'c1'] as const;
-  const signal = new AbortController().signal;
-  const receipt = await setServerChannelHidden(...args, true, () => 'operation', signal, () => true);
-  assert.match(calls[0]!.path, /channel-map\?channelId=c1&limit=1$/);
-  assert.deepEqual(calls[1]!.body, {expectedRevision: 4, operationId: 'operation', overrides: [{channelId: 'c1', number: '', guideChannelId: 'epg-one', hidden: true}]});
-  assert.deepEqual(receipt, {revision: 5, hidden: true, previousHidden: false});
-  revision++; // A concurrent settings edit defeats retained Undo.
-  await assert.rejects(setServerChannelHidden(...args, false, () => 'undo', signal, () => true, receipt), {message: 'channel_map_changed'});
-  assert.equal(calls.filter(call => call.method === 'PUT').length, 1);
-  const fresh = {...receipt, revision};
-  await setServerChannelHidden(...args, false, () => 'undo', signal, () => true, fresh);
-  assert.equal(hidden, false);
-});
-
-test('a retired channel action cannot write after its exact lookup', async () => {
-  let current = true, calls = 0;
-  const api = {async request<T>(): Promise<T> {calls++;current = false;return {} as T;}};
-  await assert.rejects(setServerChannelHidden(api, 'server', 's1', 'c1', true, () => 'operation', new AbortController().signal, () => current));
-  assert.equal(calls, 1);
 });
 
 test('on a new-server channel the owner gets no Hide channel until the owner screens bring it there', async () => {

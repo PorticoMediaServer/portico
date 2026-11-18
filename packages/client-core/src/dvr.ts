@@ -1,14 +1,12 @@
 import type {RecordingSpace} from './next-dvr.ts';
-import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 import {serviceProblem, serviceText} from './presentation/service-text.ts';
 import type {MessageId} from '../../i18n/src/index.ts';
 import {firstOfEach, keepReadable, oneOfOr} from './tolerant.ts';
-import {durationIntent, wireDurations} from './wire-units.ts';
-/** DVR intent protocol. This module never constructs a stream URL or starts playback.
- * Each instance belongs to one authenticated server/viewer lifetime. */
+import {wireDurations} from './wire-units.ts';
+/** The recordings screens' types, parsers and model; the rebuilt server's client is `NextDVRClient` (next-dvr.ts). */
 import {parseGuideProgramme} from './channel-guide.ts';
-import type {ChannelApi, GuideChannel, GuideProgramme} from './channel-guide';
+import type {GuideChannel, GuideProgramme} from './channel-guide';
 export type DVRView = 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage';
 export type RecordingState = 'scheduled' | 'conflicted' | 'skipped' | 'waiting-source' | 'waiting-guide' | 'preparing' | 'recording' | 'finalizing' | 'completed' | 'incomplete-playable' | 'failed' | 'cancelled' | 'pending-delete' | 'deleted';
 export type RecordingOptions = {beforeSeconds: number; afterSeconds: number; priority: number; retentionDays: number; episodeLimit: number};
@@ -35,10 +33,6 @@ export type Capacity = {known: boolean; effective: number; planningEstimate?: nu
 export type RecordingDetail = {recording: Recording; capacity: Capacity; overlaps: RecordingOverlap[]; nextOverlap: string};
 export type RulePreview = {matches: number; unknownNewEvidence: number; sample: GuideProgramme[]; generation: string; capacity: Capacity};
 export type DeletePreview = {recordingId: string; revision: number; bytes: number; keep: boolean; activeReaders: boolean; result: string};
-export type StoragePolicy = {revision: number; retentionDays: number; episodeLimit: number; floorBytes: number; capBytes: number};
-export type RecordingStorage = {policy: StoragePolicy; measurement: {freeBytes: number; usedBytes: number; reservedBytes: number; writeHealthy: boolean; measuredAt: string}; pendingDeleteBytes: number; forecastBytes: number; forecastHours: number; forecastDescription: string; captureAvailable: boolean; warning: string};
-export type ChannelChoice = {id: string; name: string; number: string};
-export type ChannelChoices = {channels: ChannelChoice[]; generation: string; nextCursor: string};
 export type RecordingDraft = {channel: GuideChannel; programme: GuideProgramme; series: boolean};
 export const defaultRecordingOptions: RecordingOptions = {beforeSeconds: 0, afterSeconds: 0, priority: 0, retentionDays: 0, episodeLimit: 0};
 export const dvrViews: readonly DVRView[] = ['upcoming', 'recorded', 'rules', 'history', 'storage'];
@@ -100,7 +94,6 @@ export function countUnwatched(recordings: readonly Pick<Recording,'watched'>[])
 /** Padding travels in milliseconds; the options here keep the seconds the pickers offer. */
 const PADDING = {beforeSeconds: 'beforeMs', afterSeconds: 'afterMs'} as const;
 function optionsFromWire(v:unknown):unknown{return object(v)&&object(v.options)?{...v,options:wireDurations(v.options,PADDING)}:v;}
-function configToWire(c:RuleConfig):Record<string,unknown>{return {...c,options:durationIntent(c.options,PADDING)};}
 function config(v:unknown):RuleConfig{
  if(!object(v)||!text(v.name,160)||!v.name||!id(v.sourceId,48)||!text(v.seriesId,512)||(v.matchKind==='title'?(!text(v.title,512)||!v.title||!id(v.channelId)||v.seriesId!==''):!v.seriesId)||typeof v.enabled!=='boolean'||!['all','new'].includes(v.episodes)||!validRecordingOptions(v.options))invalid();
  for(const k of ['allowedChannels','blockedChannels'])if(!Array.isArray(v[k])||v[k].length>2000||v[k].some((x:unknown)=>!id(x)))invalid();
@@ -162,132 +155,7 @@ export function recordingTime(value:string):string{return value?new Date(value).
 
 /** Optional original caller scope; omitted callers keep the viewer client's existing lifetime. */
 export type DVRCommandLifetime = Readonly<{signal: AbortSignal; isCurrent: () => boolean}>;
-const captureDVRCommand = (value: DVRCommandLifetime | undefined, owner: () => boolean): DVRCommandLifetime | undefined => {
- if(!value)return undefined;
- const signal=value.signal,predicate=value.isCurrent;let retired=false;
- return Object.freeze({signal,isCurrent:()=>{
-  if(retired||signal.aborted||!owner()){retired=true;return false;}
-  let current=false;try{current=predicate.call(value)===true;}catch{retired=true;return false;}
-  if(!current||signal.aborted||!owner()){retired=true;return false;}
-  return true;
- }});
-};
-const retiredDVRCommand = () => Object.assign(new Error('Recording operation retired.'), {name: 'AbortError'});
 
-export class DVRClient {
- private disposed=false;private accessEpoch=0;private accessChanged:(()=>void)|undefined;private requests=new Set<AbortController>();private receipts=new Map<string,Promise<string>>();
- private api:ChannelApi;private serverId:string;private newRequestId:()=>Promise<string>;private timeoutMs:number;
- constructor(api:ChannelApi,serverId:string,newRequestId:()=>Promise<string>,timeoutMs=18000){this.api=api;this.serverId=serverId;this.newRequestId=newRequestId;this.timeoutMs=timeoutMs;}
- // React effect replay may reuse the memoized instance, but not its requests.
- activate(){this.dispose();this.disposed=false;this.accessEpoch++;}
- onAccessChanged(listener:()=>void){this.accessChanged=listener;}
- dispose(){this.accessChanged=undefined;this.disposed=true;const requests=[...this.requests];this.requests.clear();this.receipts.clear();for(const request of requests)request.abort();}
- private captureCommand(lifetime?:DVRCommandLifetime,epoch=this.accessEpoch){return captureDVRCommand(lifetime,()=>!this.disposed&&epoch===this.accessEpoch);}
- private requireCommand(lifetime?:DVRCommandLifetime){
-  if(!lifetime)return;
-  const epoch=this.accessEpoch;
-  if(this.disposed||lifetime.signal.aborted)throw retiredDVRCommand();
-  const current=lifetime.isCurrent();
-  if(current!==true||this.disposed||lifetime.signal.aborted||epoch!==this.accessEpoch)throw retiredDVRCommand();
- }
- private async read<T>(path:string,method='GET',body?:unknown,lifetime?:DVRCommandLifetime):Promise<T>{
-  this.requireCommand(lifetime);
-  if(this.disposed)throw new Error('Recording scope closed.');const epoch=this.accessEpoch;const abort=new AbortController();this.requests.add(abort);let timer:ReturnType<typeof setTimeout>|undefined;
-  const stop=()=>abort.abort();lifetime?.signal.addEventListener('abort',stop,{once:true});if(lifetime?.signal.aborted)stop();
-  const check=()=>{this.requireCommand(lifetime);if(this.disposed||abort.signal.aborted||epoch!==this.accessEpoch||!this.requests.has(abort))throw lifetime?retiredDVRCommand():new Error('Recording scope closed.');};
-  try {
-   check();const request=this.api.request.bind(this.api);check();
-   const response=request<unknown>(path,method,body,abort.signal);void response.catch(()=>{});check();
-   const raw=await Promise.race([response,new Promise<never>((_,reject)=>{timer=setTimeout(()=>{abort.abort();reject(new Error('Recording request timed out.'));},this.timeoutMs)})]);
-   check();
-   if(!object(raw)||raw.protocolVersion!=='1.0'||raw.serverId!==this.serverId||!('result' in raw))invalid();
-   const result=raw.result;check();return result as T;
-  } catch(error){
-   // A late refusal from a cancelled caller cannot retire the shared viewer client.
-   this.requireCommand(lifetime);
-   if(lifetime&&(this.disposed||epoch!==this.accessEpoch||!this.requests.has(abort)))throw retiredDVRCommand();
-   if(!this.disposed&&epoch===this.accessEpoch&&isAccessError(error)){this.accessEpoch++;for(const request of this.requests)request.abort();this.accessChanged?.();}throw error;
-  } finally{lifetime?.signal.removeEventListener('abort',stop);clearTimeout(timer);this.requests.delete(abort);}
- }
- private async mutate<T>(path:string,method:string,body:Record<string,unknown>,lifetime?:DVRCommandLifetime):Promise<T>{
-  this.requireCommand(lifetime);
-  const epoch=this.accessEpoch,key=JSON.stringify([path,method,body]);let request=this.receipts.get(key);
-  if(!request){
-   // Reserve the exact receipt before the external ID provider can reenter.
-   // Caller retirement never deletes/rejects an allocation a sibling may share.
-   let resolve!:(value:string)=>void,reject!:(error:unknown)=>void;
-   request=new Promise<string>((yes,no)=>{resolve=yes;reject=no;});this.receipts.set(key,request);
-   const receipt=request;void receipt.catch(()=>{if(this.receipts.get(key)===receipt)this.receipts.delete(key);});
-   try{void this.newRequestId().then(value=>{if(!id(value,48))invalid();return value;}).then(resolve,reject);}catch(error){reject(error);}
-  }
-  // Keep unknown-outcome receipts for this viewer lifetime. Never auto-rebase a
-  // stale revision or replace a request id after a timeout.
-  let requestId:string;
-  try{this.requireCommand(lifetime);requestId=await request;}catch(error){this.requireCommand(lifetime);throw error;}
-  this.requireCommand(lifetime);
-  if(epoch!==this.accessEpoch)throw new Error('Recording scope closed.');
-  const input=lifetime?Object.freeze({...body,requestId}):{...body,requestId};
-  try{const result=await this.read<T>(path,method,input,lifetime);this.requireCommand(lifetime);return result;}
-  catch(error){this.requireCommand(lifetime);throw error;}
- }
- async list(view:Exclude<DVRView,'storage'>,cursor='',sort:'recent'|'title'|'oldest'='recent',group=''){return parseDVRPage(await this.read(routePath("get_dvr") + "?" + (new URLSearchParams({state:view,limit:'50',sort,...(group?{group}:{}),...(cursor?{cursor}:{})}))));}
- async summary():Promise<DVRSummary>{return parseDVRSummary(await this.read(routePath("get_dvr_summary")));}
- async groups(sort:'recent'|'title'|'oldest'='recent',cursor=''):Promise<RecordingGroups>{return parseRecordingGroups(await this.read(routePath("get_dvr_groups")+'?'+new URLSearchParams({sort,limit:'30',...(cursor?{cursor}:{})})));}
- async detail(recordingId:string,after=''):Promise<RecordingDetail>{if(!id(recordingId)||after&&!id(after))invalid();const v=await this.read<RecordingDetail>(encodedRoutePath("get_dvr_recordings_id", {"id": recordingId})+(after?'?after='+after:''));if(!object(v)||!validCapacity(v.capacity)||!Array.isArray(v.overlaps)||v.overlaps.length>20||!text(v.nextOverlap,64)||v.nextOverlap&&!id(v.nextOverlap))invalid();const r=parseRecording(v.recording);if(r.id!==recordingId)invalid();for(const o of v.overlaps)if(!object(o)||!id(o.id)||!text(o.title,512)||!instant(o.start)||!instant(o.end)||Date.parse(o.start)>=Date.parse(o.end)||!number(o.priority,-1000,1000)||!states.includes(o.state))invalid();if(new Set(v.overlaps.map(o=>o.id)).size!==v.overlaps.length)invalid();return {recording:r,capacity:capacity(v.capacity),overlaps:parseOverlaps(v.overlaps),nextOverlap:v.nextOverlap};}
- async schedule(d:RecordingDraft,options:RecordingOptions,lifetime?:DVRCommandLifetime){
-  const original=this.captureCommand(lifetime);this.requireCommand(original);
-  if(!validRecordingOptions(options))invalid();
-  try{
-   const raw=await this.mutate(routePath("post_dvr_recordings"),'POST',{occurrence:occurrence(d),options:durationIntent(options,PADDING)},original);
-   this.requireCommand(original);const result=parseRecording(raw);
-   this.requireCommand(original);return result;
-  }catch(error){this.requireCommand(original);throw error;}
- }
- async update(r:Recording,options:RecordingOptions,lifetime?:DVRCommandLifetime){
-  if(lifetime===undefined){if(!validRecordingOptions(options))invalid();return parseRecording(await this.mutate(encodedRoutePath("patch_dvr_recordings_id", {"id": r.id}),'PATCH',{expectedRevision:r.revision,options:durationIntent(options,PADDING)}));}
-  const epoch=this.accessEpoch,record=Object.freeze({id:r.id,revision:r.revision});
-  const captured=Object.freeze({beforeSeconds:options.beforeSeconds,afterSeconds:options.afterSeconds,priority:options.priority,retentionDays:options.retentionDays,episodeLimit:options.episodeLimit});
-  const original=this.captureCommand(lifetime,epoch);this.requireCommand(original);
-  if(!id(record.id)||!number(record.revision,1)||!validRecordingOptions(captured))invalid();
-  const body=Object.freeze({expectedRevision:record.revision,options:Object.freeze(durationIntent(captured,PADDING))});
-  try{this.requireCommand(original);const raw=await this.mutate(encodedRoutePath("patch_dvr_recordings_id", {"id":record.id}),'PATCH',body,original);
-   this.requireCommand(original);const result=parseRecording(raw);this.requireCommand(original);
-   if(result.id!==record.id||result.revision!==record.revision+1||Object.keys(captured).some(key=>result.options[key as keyof RecordingOptions]!==captured[key as keyof RecordingOptions]))invalid();
-   this.requireCommand(original);return result;
-  }catch(error){this.requireCommand(original);throw error;}
- }
- async cancel(r:Recording){return parseRecording(await this.mutate(encodedRoutePath("post_dvr_recordings_id_cancel", {"id": r.id}),'POST',{expectedRevision:r.revision}));}
- async keep(r:Recording){return parseRecording(await this.mutate(encodedRoutePath("put_dvr_recordings_id_keep", {"id": r.id}),'PUT',{expectedRevision:r.revision,keep:!r.keep}));}
- async deletePreview(r:Recording):Promise<DeletePreview>{const v=await this.read<DeletePreview>(encodedRoutePath("get_dvr_recordings_id_delete_preview", {"id": r.id}));if(!object(v)||v.recordingId!==r.id||!number(v.revision,1)||!number(v.bytes)||typeof v.keep!=='boolean'||typeof v.activeReaders!=='boolean'||!text(v.result,1024))invalid();return {recordingId:v.recordingId,revision:v.revision,bytes:v.bytes,keep:v.keep,activeReaders:v.activeReaders,result:v.result};}
- async delete(r:Recording,preview:DeletePreview){if(preview.recordingId!==r.id)invalid();return parseRecording(await this.mutate(encodedRoutePath("delete_dvr_recordings_id", {"id": r.id}),'DELETE',{expectedRevision:preview.revision}));}
- async newRuleID(lifetime?:DVRCommandLifetime){
-  const original=this.captureCommand(lifetime);this.requireCommand(original);
-  try{const [a,b]=await Promise.all([this.newRequestId(),this.newRequestId()]);this.requireCommand(original);if(!id(a,48)||!id(b,48))invalid();return (a+b).slice(0,64);}
-  catch(error){this.requireCommand(original);throw error;}
- }
- async saveRule(ruleId:string,revision:number,c:RuleConfig,anchor?:Occurrence,lifetime?:DVRCommandLifetime){
-  const original=this.captureCommand(lifetime);this.requireCommand(original);
-  if(!id(ruleId)||!number(revision))invalid();const validated=config(c),definition=original?validated:c;
-  const capturedAnchor=original&&anchor?{sourceId:anchor.sourceId,channelId:anchor.channelId,generation:anchor.generation,programmeId:anchor.programmeId}:anchor;
-  try{const raw=await this.mutate(encodedRoutePath("put_dvr_rules_id", {"id": ruleId}),'PUT',{id:ruleId,expectedRevision:revision,config:configToWire(definition),...(capturedAnchor?{anchor:capturedAnchor}:{})},original);this.requireCommand(original);const result=rule(raw);this.requireCommand(original);return result;}
-  catch(error){this.requireCommand(original);throw error;}
- }
- async deleteRule(r:RecordingRule,future:'keep'|'cancel'){const v=await this.mutate<{deleted:boolean}>(encodedRoutePath("delete_dvr_rules_id", {"id": r.id}),'DELETE',{expectedRevision:r.revision,future});if(v.deleted!==true)invalid();}
- async preview(c:RuleConfig,lifetime?:DVRCommandLifetime):Promise<RulePreview>{
-  const original=this.captureCommand(lifetime);this.requireCommand(original);const validated=config(c),definition=original?validated:c;
-  try{const v=await this.read<RulePreview>(routePath("post_dvr_rules_preview"),'POST',configToWire(definition),original);this.requireCommand(original);
-   if(!object(v)||!number(v.matches)||!number(v.unknownNewEvidence)||!id(v.generation,48)||!Array.isArray(v.sample)||v.sample.length>12||!validCapacity(v.capacity))invalid();
-   const result={matches:v.matches,unknownNewEvidence:v.unknownNewEvidence,sample:v.sample.map(programme),generation:v.generation,capacity:capacity(v.capacity)};this.requireCommand(original);return result;
-  }catch(error){this.requireCommand(original);throw error;}
- }
- async channels(sourceId:string,search='',cursor=''):Promise<ChannelChoices>{if(!id(sourceId,48))invalid();const v=await this.read<ChannelChoices>(routePath("get_dvr_channels") + "?" + (new URLSearchParams({sourceId,search,cursor})));if(!object(v)||!id(v.generation,48)||!text(v.nextCursor,128)||!Array.isArray(v.channels)||v.channels.length>30)invalid();for(const c of v.channels)if(!object(c)||!id(c.id)||!text(c.name,256)||!text(c.number,32))invalid();return {channels:v.channels.map(c=>({id:c.id,name:c.name,number:c.number})),generation:v.generation,nextCursor:v.nextCursor};}
- async storage():Promise<RecordingStorage>{const v=await this.read<RecordingStorage>(routePath("get_dvr_storage"));if(!object(v)||!validStoragePolicy(v.policy)||!object(v.measurement)||!number(v.measurement.usedBytes)||!number(v.measurement.freeBytes)||!number(v.measurement.reservedBytes)||typeof v.measurement.writeHealthy!=='boolean'||!(v.measurement.measuredAt===''||instant(v.measurement.measuredAt))||!number(v.pendingDeleteBytes)||!number(v.forecastBytes)||!number(v.forecastHours,1)||!text(v.forecastDescription,2048)||typeof v.captureAvailable!=='boolean'||!text(v.warning,256))invalid();return {policy:storagePolicy(v.policy),measurement:{freeBytes:v.measurement.freeBytes,usedBytes:v.measurement.usedBytes,reservedBytes:v.measurement.reservedBytes,writeHealthy:v.measurement.writeHealthy,measuredAt:v.measurement.measuredAt},pendingDeleteBytes:v.pendingDeleteBytes,forecastBytes:v.forecastBytes,forecastHours:v.forecastHours,forecastDescription:v.forecastDescription,captureAvailable:v.captureAvailable,warning:v.warning};}
- async saveStorage(p:StoragePolicy){if(!validStoragePolicy(p))invalid();const {revision,...policy}=p;const v=await this.mutate<StoragePolicy>(routePath("put_dvr_storage"),'PUT',{expectedRevision:revision,policy});if(!validStoragePolicy(v))invalid();return storagePolicy(v);}
-}
-function validCapacity(v:unknown):v is Capacity{return object(v)&&typeof v.known==='boolean'&&number(v.effective)&&(!v.known||v.effective>0)&&(v.planningEstimate===undefined||number(v.planningEstimate))&&(v.mode===undefined||text(v.mode,64));}
-function capacity(v:Capacity):Capacity{return {known:v.known,effective:v.effective,...(v.planningEstimate===undefined?{}:{planningEstimate:v.planningEstimate}),...(v.mode===undefined?{}:{mode:v.mode})};}
-function storagePolicy(v:StoragePolicy):StoragePolicy{return {revision:v.revision,retentionDays:v.retentionDays,episodeLimit:v.episodeLimit,floorBytes:v.floorBytes,capBytes:v.capBytes};}
-export function validStoragePolicy(v:unknown):v is StoragePolicy{return object(v)&&number(v.revision,1)&&number(v.retentionDays,0,3650)&&number(v.episodeLimit,0,100000)&&number(v.floorBytes)&&number(v.capBytes);}
 
 export type DVRQuery = {view:DVRView;cursor?:string;recordingId?:string};
 /** What the model reads through: the recordings, one recording, and the recordings' space. */
@@ -336,5 +204,3 @@ export type RecordingGroups={groups:{key:string;title:string;recordings:number;u
 function checkedNumber(v:unknown):number{if(!number(v))invalid();return v;}
 function parseOverlaps(v:unknown):RecordingOverlap[]{if(!Array.isArray(v)||v.length>20)invalid();return v.map(o=>{if(!object(o)||!id(o.id)||!text(o.title,512)||!instant(o.start)||!instant(o.end)||!number(o.priority,-1000,1000)||!states.includes(o.state))invalid();const ch=o.channel;if(ch!==undefined&&(!object(ch)||!text(ch.id,64)||!text(ch.name,256)||!text(ch.number,32)))invalid();return {id:o.id,title:o.title,start:o.start,end:o.end,priority:o.priority,state:o.state,...(ch?{channel:parseRecordingChannel(ch)}:{}),...(typeof o.ruleId==='string'?{ruleId:o.ruleId}:{}),...(object(o.episode)?{episode:{season:checkedNumber(o.episode.season??0),number:checkedNumber(o.episode.number??0)}}:{})};});}
 function parseRuleSummary(v:unknown):RuleSummary{if(!object(v)||!object(v.channel)||!text(v.channel.id,64)||!text(v.channel.name,256)||!text(v.channel.number,32))invalid();return {upcoming:checkedNumber(v.upcoming),recorded:checkedNumber(v.recorded),conflicts:checkedNumber(v.conflicts),matchingTonight:checkedNumber(v.matchingTonight),...(v.next===undefined?{}:{next:programme(v.next)}),channel:parseRecordingChannel(v.channel)};}
-export function parseDVRSummary(v:unknown):DVRSummary{if(!object(v))invalid();return {upcoming:checkedNumber(v.upcoming),recorded:checkedNumber(v.recorded),rules:checkedNumber(v.rules),conflicts:checkedNumber(v.conflicts),groups:checkedNumber(v.groups),unwatched:checkedNumber(v.unwatched)};}
-export function parseRecordingGroups(v:unknown):RecordingGroups{if(!object(v)||!Array.isArray(v.groups)||v.groups.length>50||!text(v.nextCursor,4096)||!number(v.revision))invalid();return {revision:v.revision,nextCursor:v.nextCursor,groups:v.groups.map(g=>{if(!object(g)||!text(g.key,1200)||!text(g.title,512)||!instant(g.latest))invalid();return {key:g.key,title:g.title,latest:g.latest,recordings:checkedNumber(g.recordings),unwatched:checkedNumber(g.unwatched),kept:checkedNumber(g.kept),exceptions:checkedNumber(g.exceptions),recording:parseRecording(g.recording)};})};}

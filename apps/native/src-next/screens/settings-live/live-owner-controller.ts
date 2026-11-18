@@ -1,5 +1,3 @@
-import {deleteOwnerRecordingRule, readOwnerRecordingGuide, readOwnerRecordingOwners, readOwnerRecordingPermissions, readOwnerRecordingRules, readOwnerTuners, writeOwnerRecordingPermission, ownerRecordingRuleChange, sendOwnerRecordingRuleCommand} from '../../../../../packages/client-core/src/owner-requests';
-import {clonePortableDto} from '../../../../../packages/client-core/src';
 import {parseEnvelope} from '../../../../../packages/client-core/src/administration';
 import {lanConfirmationRoots, remoteSourceDraft, withConfirmedLanRoots, type RemoteSourceDraft, type RemoteSourcePreview, type SourceKind} from '../../../../../packages/client-core/src/linear-api';
 import type {LiveSourceInput} from '../../../../../packages/client-core/src/live-source-draft';
@@ -10,10 +8,7 @@ import {readOwnerDvrSettings, saveOwnerDvrSettings, type OwnerDvrDocument} from 
 import {readLiveDefaultsDocument, saveLiveDefaultsDocument, type LiveDefaultsDocument} from '../../../../../packages/client-core/src/server-admin/live-defaults';
 import {changeOwnerSource, createOwnerSource, discoverLiveTuners, previewOwnerSource, readOwnerSources, remoteSourceSave, uploadSourceSave, type OwnerSource, type SourceSave} from '../../../../../packages/client-core/src/server-admin/live-sources';
 import {adminResult, liveDefaultsView, rebuiltLiveDefaults, liveSourceFromOwner, type UploadPreview, type ChannelMapEdit, type ChannelMapPage, type LiveDefaults, type LiveSource, type LiveSources, type LiveSourceSettings, type LogoImportOutcome, type TunerDiscovery} from './live-owner-model';
-import {dvrDocumentView, needsRuleOwner, parseAdminRulePage, parseRecordingPolicy, parseTunerView, type AdminRule, type DVRDefaults, type DVRDocument, type RecordingPolicy, type TunerView} from './recording-owner-model';
-import {recordingGuideRoute, recordingOwnerKey, recordingRulePayload, recordingSeries, type RecordingGrant, type RecordingOwner, type RecordingSeries} from '../../../../../packages/client-core/src/server-admin/recording-policy';
-import {parseChannelGuide} from '../../../../../packages/client-core/src/channel-guide';
-import {readRecordingRoot, saveRecordingRoot, type RecordingRootIntent} from '../../../../../packages/client-core/src/server-admin/recording-root';
+import {dvrDocumentView, type DVRDefaults, type DVRDocument} from './recording-owner-model';
 import {routePath} from '../../../../../packages/contracts/src/route-paths';
 import type {LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
 export type LiveOwnerSnapshot = Readonly<{
@@ -23,7 +18,6 @@ export type LiveOwnerSnapshot = Readonly<{
 /** The screen's transport; `requestRaw` (the app's header-sending call, guarded by the screen) carries a source's revision. */
 export type LiveOwnerApi = Readonly<{request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<T>}> & Partial<Pick<LibraryContentApi, 'requestRaw'>>;
 export type NativeRecordingCommandLifetime = Readonly<{signal: AbortSignal; isCurrent: () => boolean}>;
-type Request = <T>(path: string, method?: string, body?: unknown) => Promise<T>;
 
 
 /** One owner's genuine live-source administration: reads and fenced writes through the screen's
@@ -39,7 +33,6 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
     super({loading: false, busy: false});
     this.lifetime = lifetime; this.api = api; this.operationId = operationId;
   }
-  private request: Request = <T,>(path: string, method?: string, body?: unknown) => this.lifetime.request(signal => this.api.request<T>(path, method, body, signal));
   readonly current = () => !this.disposed && this.lifetime.current() && !this.disposed;
   load(quiet = false): Promise<void> {
     if (!this.current()) return Promise.resolve();
@@ -178,69 +171,6 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
   };
   importSourceLogos = (id: string, replaceExisting: boolean) => this.lifetime.request(signal => importSourceLogos(this.rebuiltApi(), id, replaceExisting, signal));
   sourceChoices = (id: string, kind: 'groups' | 'channels', query: string, cursor?: string) => this.lifetime.request(signal => readSourceChoices(this.rebuiltApi(), id, kind, query, cursor, signal));
-  tuners = async (): Promise<TunerView> => parseTunerView(await readOwnerTuners({request: this.request}), this.lifetime.authority.serverId);
-  policy = async (cursor = ''): Promise<RecordingPolicy> => {
-    const [owners, grants] = await Promise.all([readOwnerRecordingOwners({request: this.request}, '?' + new URLSearchParams({limit: '200', cursor})), readOwnerRecordingPermissions({request: this.request})]);
-    return parseRecordingPolicy(owners, grants, this.lifetime.authority.serverId);
-  };
-  setPermission = async (owner: RecordingOwner, enabled: boolean, revision: number) => {
-    await writeOwnerRecordingPermission({request: this.request}, {owner, enabled, revision});
-  };
-  rules = async (cursor = '') => parseAdminRulePage(await readOwnerRecordingRules({request: this.request}, '?' + new URLSearchParams({limit: '100', cursor})), this.lifetime.authority.serverId);
-  private async recordingMutation(draft: Parameters<typeof recordingRulePayload>[0], grants: readonly RecordingGrant[], caller?: NativeRecordingCommandLifetime): Promise<AdminRule> {
-    const callerSignal=caller?.signal,callerCurrent=caller?.isCurrent;
-    const current = () => {
-      if (this.disposed || callerSignal?.aborted || !this.current() || this.disposed || callerSignal?.aborted) return false;
-      if (callerCurrent && !callerCurrent()) return false;
-      const ownerCurrent=this.current();
-      // The final owner predicate may synchronously retire this original caller.
-      return ownerCurrent && !this.disposed && !callerSignal?.aborted;
-    };
-    if (!current()) throw screenScopeEnded();
-    const original = clonePortableDto(draft);
-    const payload = clonePortableDto(recordingRulePayload(original, grants, this.operationId()));
-    const expected = clonePortableDto(payload);
-    if (!current()) throw screenScopeEnded();
-    const command = ownerRecordingRuleChange(original.id, payload);
-    const response = await this.lifetime.request(async signal => {
-      if (!current()) throw screenScopeEnded();
-      const value = await sendOwnerRecordingRuleCommand(this.api, command, signal);
-      if (!current()) throw screenScopeEnded();
-      return value;
-    }, callerSignal);
-    if (!current()) throw screenScopeEnded();
-    const envelope = response as {serverId?: unknown; result?: unknown};
-    const saved = parseAdminRulePage({serverId: envelope?.serverId, result: {items: [envelope?.result]}}, this.lifetime.authority.serverId).items[0]!;
-    const options = expected.options as AdminRule['options'];
-    if (!saved.id || original.id && (saved.id !== original.id || saved.revision !== expected.expectedRevision + 1)
-      || saved.revision < 1 || recordingOwnerKey(saved.owner as RecordingOwner) !== recordingOwnerKey(expected.owner)
-      || saved.sourceId !== expected.sourceId || saved.kind !== expected.kind || saved.match !== expected.match
-      || saved.name !== expected.name || saved.enabled !== expected.enabled
-      || options.prePaddingMs !== null && saved.options.prePaddingMs !== options.prePaddingMs
-      || options.postPaddingMs !== null && saved.options.postPaddingMs !== options.postPaddingMs
-      || options.keepPolicy !== null && JSON.stringify(saved.options.keepPolicy) !== JSON.stringify(options.keepPolicy)
-      || saved.options.newEpisodesOnly !== options.newEpisodesOnly || saved.options.priority !== options.priority
-      || saved.options.folderTemplate !== options.folderTemplate) throw new Error('invalid_response');
-    if (!current()) throw screenScopeEnded();
-    // This is a command receipt, not authority to refresh a shared source under
-    // a successor page. The original admitted presenter owns its own reload.
-    return saved;
-  }
-  saveRuleEnabled = (rule: AdminRule, grants: readonly RecordingGrant[], enabled: boolean, caller?: NativeRecordingCommandLifetime) => {
-    if (needsRuleOwner(rule) || rule.owner.authority === '') return Promise.reject(new Error('invalid_rule_owner'));
-    return this.recordingMutation({id: rule.id, revision: rule.revision, owner: rule.owner, anchor: rule.anchor, kind: rule.kind, name: rule.name, match: rule.match, sourceId: rule.sourceId, enabled, options: rule.options}, grants, caller);
-  };
-  deleteRule = async (rule: AdminRule) => {
-    await deleteOwnerRecordingRule({request: this.request}, rule.id, `expectedRevision=${rule.revision}&operationId=${encodeURIComponent(this.operationId())}`);
-  };
-  guideSeries = async (day: string, sourceId: string): Promise<readonly RecordingSeries[]> => {
-    const route = recordingGuideRoute(day, sourceId);
-    if (!route) throw new Error('invalid_guide_date');
-    const query = new URLSearchParams({kind: route.kind, start: route.start, end: route.end, timezone: route.timezone, search: route.search, sourceId: route.sourceId, limit: '30'});
-    const guide = parseChannelGuide(await readOwnerRecordingGuide({request: this.request}, query.toString()), this.lifetime.authority.serverId, route);
-    return recordingSeries(guide, true);
-  };
-  createRule = (draft: Parameters<typeof recordingRulePayload>[0], grants: readonly RecordingGrant[], caller?: NativeRecordingCommandLifetime) => this.recordingMutation(draft, grants, caller);
   /** The rebuilt `dvr` document as the guide's Record series sheet reads its defaults (padding and keep). Fields the
    * rebuilt server does not have stay neutral. */
   private dvrDocument?: OwnerDvrDocument;
@@ -255,9 +185,6 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
       keepNewest: policy.mode === 'keep-count' ? policy.keepCount : 0, keepDays: policy.mode === 'keep-days' ? policy.keepDays : 0}, signal));
     this.dvrDocument = next; return dvrDocumentView(next);
   };
-  /** live-owner 10/16c: the recordings folder (a bare registered outcome, not the console envelope). */
-  recordingRoot = (signal?: AbortSignal) => this.lifetime.request(next => readRecordingRoot(this.api, next), signal);
-  saveRecordingRoot = (intent: RecordingRootIntent, signal?: AbortSignal) => this.lifetime.request(next => saveRecordingRoot(this.api, intent, next), signal);
   /** The folder explorer's listings for one opening: GET filesystem reads only, within this
    * owner's lifetime and retired with the opening's signal. */
   folderBrowser = (opening: AbortSignal): LibraryContentApi => ({request: <T,>(path: string, method?: string, _body?: unknown, caller?: AbortSignal): Promise<T> => {

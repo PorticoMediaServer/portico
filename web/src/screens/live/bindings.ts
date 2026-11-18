@@ -2,7 +2,6 @@ import {GuideWindowStore, type GuideChannelRow} from '@core/guide/index.ts';
 import {findChannel, nextGuideSource, nextGuideSummaries, nextOnNowSource} from '@core/guide/next-source.ts';
 import type {LegacyGuideOptions} from '@core/guide/legacy-source.ts';
 import {markChannel, type ChannelChoice} from '@core/live-tv.ts';
-import type {setServerChannelHidden} from '@core/server-channel-visibility.ts';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 
 /** The page's filters as the new server's channel choice: one source, one group, favourites, hidden ones too. */
@@ -65,7 +64,7 @@ export function createLiveBindings(context: ScreenContext, options: LegacyGuideO
       life.assert();
     },
     /** Hiding a channel for everyone is the owner's, in Live TV settings: it moves with the owner's Live TV screens. */
-    async channelHidden(_row: GuideChannelRow, _hidden: boolean, _expected?: Readonly<{revision: number; hidden: boolean}>): ReturnType<typeof setServerChannelHidden> {
+    async channelHidden(_row: GuideChannelRow, _hidden: boolean, _expected?: Readonly<{revision: number; hidden: boolean}>): Promise<Readonly<{revision: number; hidden: boolean; previousHidden: boolean}>> {
       throw Object.assign(new Error('This is not available on this server yet.'), {code: 'not_on_server'});
     },
     dispose() {life.dispose();for (const value of stores) value.dispose();stores.clear();listeners.clear();failure = undefined;},

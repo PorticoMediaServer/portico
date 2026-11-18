@@ -39,7 +39,6 @@ import {SavedService, type SavedProjection} from '../src/saved.ts';
 import {PersonalSavedService} from '../src/personal-saved.ts';
 import {readLibraryChannels, readLibraryTemplates} from '../src/library-channels.ts';
 import {ChannelGuideService} from '../src/channel-guide.ts';
-import {DVRClient} from '../src/dvr.ts';
 import {InboxService} from '../src/inbox.ts';
 import {parseFeedbackCapabilities} from '../src/notifications.ts';
 import {DownloadsService} from '../src/downloads-service.ts';
@@ -522,24 +521,7 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
   await rec.check('live', 'library channels', 'GET', '/v1/admin/library-channels', () => readLibraryChannels(api, serverId));
   await rec.check('live', 'library channel templates', 'GET', '/v1/admin/library-channels/templates', () => readLibraryTemplates(api, serverId));
   rec.skip('library channel preview', 'POST /v1/admin/library-channels/preview: a write-shaped call; skipped when unsure (library-channels.ts)');
-  if (isOwner) {
-    const dvr = new DVRClient(api, serverId, requestId);
-    let firstRecording = '';
-    for (const view of ['upcoming', 'recorded', 'rules'] as const) {
-      const page = await rec.check('live', `dvr ${view}`, 'GET', `/v1/dvr?state=${view}&limit=50`, () => dvr.list(view)) as
-        {recordings?: {id: string}[]} | undefined;
-      const recordings = Array.isArray(page?.recordings) ? page.recordings : [];
-      if (!firstRecording && recordings.length > 0 && typeof recordings[0].id === 'string') firstRecording = recordings[0].id;
-    }
-    await rec.check('live', 'dvr storage', 'GET', '/v1/dvr/storage', () => dvr.storage());
-    const recordingId = firstRecording;
-    if (recordingId) {
-      await rec.check('live', 'dvr recording detail', 'GET', `/v1/dvr/recordings/${recordingId}`, () => dvr.detail(recordingId));
-    } else {
-      rec.skip('dvr recording detail', 'no recording sampled from the DVR lists');
-    }
-    dvr.dispose();
-  }
+  rec.skip('dvr', 'recordings on the rebuilt server are NextDVRClient (next-dvr.ts): GET /v1/dvr, /v1/dvr/recordings, /v1/dvr/rules');
 
   // 7. Notifications, downloads, groups.
   const inboxSvc = new InboxService(api);

@@ -115,37 +115,6 @@ test('administrative rules retain legal DVR values, title and ownerless rows', (
   for (const value of [-1, 0.5, 21600001]) assert.throws(() => parseAdminRulePage(envelope([{...row, options: {...row.options, prePaddingMs: value}}]), 'server'));
 });
 
-test('ownerless legacy rule cannot toggle and deletion keeps its original identity and revision', async () => {
-  const owner = authority(), calls: {path: string; method?: string}[] = [];
-  const lifetime = new NativeScreenLifetime(owner);
-  const api = {request: async <T,>(path: string, method?: string) => {
-    calls.push({path, method});
-    if (path === '/v1/admin/live-sources') return {protocolVersion: '1.0', serverId: 'server', sources: [source], refresh: []} as T;
-    return {} as T;
-  }};
-  const controller = new NativeLiveOwnerController(lifetime, api, () => 'op1');
-  const legacy = parseAdminRules({serverId: 'server', result: {items: [{id: 'legacy', revision: 7, owner: {authority: '', accountId: '', profileId: ''}, status: 'needs-owner-and-guide-selection', kind: 'series', name: 'Legacy', match: 'legacy', sourceId: '', enabled: false, options: {prePaddingMs: 0, postPaddingMs: 0, keepPolicy: null, newEpisodesOnly: false, priority: 0, folderTemplate: ''}}]}}, 'server')[0]!;
-  await assert.rejects(controller.saveRuleEnabled(legacy, [], true));
-  assert.equal(calls.length, 0);
-  await controller.deleteRule(legacy);
-  assert.equal(calls[0]!.method, 'DELETE');
-  assert.match(calls[0]!.path, /recording-groups\/legacy\?expectedRevision=7&operationId=op1/);
-});
-
-test('recording controller forwards independent owner and rule cursors', async () => {
-  const calls: string[] = [], lifetime = new NativeScreenLifetime(authority());
-  const api = {request: async <T,>(path: string) => {
-    calls.push(path);
-    const result = path.startsWith('/v1/admin/dvr/recording-owners') ? {items: [], nextCursor: 'owner-next'} : path.startsWith('/v1/admin/dvr/recording-groups') ? {items: [], nextCursor: 'rule-next'} : [];
-    return {serverId: 'server', result} as T;
-  }};
-  const controller = new NativeLiveOwnerController(lifetime, api, () => 'op1');
-  assert.equal((await controller.policy('owner-one')).nextCursor, 'owner-next');
-  assert.equal((await controller.rules('rule-one')).nextCursor, 'rule-next');
-  assert.ok(calls.some(path => path.includes('recording-owners?limit=200&cursor=owner-one')));
-  assert.ok(calls.some(path => path.includes('recording-groups?limit=100&cursor=rule-one')));
-});
-
 test('recording continuation deduplicates full keys and refuses cursor cycles without consuming retries', () => {
   const seen = new Set<string>();
   const first = [{key: 'local/a/p'}, {key: 'hosted/a/p'}];
@@ -162,78 +131,6 @@ test('new-rule padding choice preserves minute wire units and null inheritance',
   assert.equal(rulePaddingChoice(60000), '60');
   assert.equal(rulePaddingFromChoice('default'), null);
   assert.equal(rulePaddingChoice(null), 'default');
-});
-
-test('rule toggle adopts only its exact advanced receipt', async () => {
-  const owner = {authority: 'local' as const, accountId: 'a', profileId: 'p'};
-  const row = {id: 'r', revision: 3, owner, status: 'disabled', kind: 'title', name: 'Title', match: 'Title', sourceId: 's', enabled: false, options: {prePaddingMs: 60000, postPaddingMs: 0, keepPolicy: null, newEpisodesOnly: false, priority: 0, folderTemplate: ''}};
-  const rule = parseAdminRules({serverId: 'server', result: {items: [row]}}, 'server')[0]!;
-  const grants = [{owner, enabled: true, revision: 1}];
-  let receipt = {...row, revision: 4, enabled: true};
-  const calls: string[] = [];
-  const api = {request: async <T,>(path: string) => {
-    calls.push(path);
-    if (path === '/v1/admin/live-sources') return {serverId: 'server', sources: [source], refresh: []} as T;
-    return {serverId: 'server', result: receipt} as T;
-  }};
-  const controller = new NativeLiveOwnerController(new NativeScreenLifetime(authority()), api, () => 'op1');
-  assert.equal((await controller.saveRuleEnabled(rule, grants, true)).revision, 4);
-  for (const bad of [{...receipt, id: 'other'}, {...receipt, owner: {...owner, profileId: 'other'}}, {...receipt, revision: 3}, {...receipt,revision:5}, {...receipt,revision:999}, {...receipt, enabled: false}, {...receipt, match: 'other'}, {...receipt, options: {...receipt.options, prePaddingMs: 0}}]) {
-    receipt = bad; await assert.rejects(controller.saveRuleEnabled(rule, grants, true), /invalid_response/);
-  }
-});
-
-test('new rule accepts only its actual command receipt and never refreshes a shared source',async()=>{
- const owner={authority:'local' as const,accountId:'a',profileId:'p'},grants=[{owner,enabled:true,revision:1}];
- const draft={owner,anchor:{sourceId:'s',channelId:'c',generation:'g',programmeId:'programme'},kind:'title',name:'Actual title',match:'Actual title',sourceId:'s',enabled:false,
-  options:{prePaddingMs:60000,postPaddingMs:null,keepPolicy:null,newEpisodesOnly:false,priority:500,folderTemplate:''}};
- const row={id:'generated',revision:7,owner,status:'disabled',kind:draft.kind,name:draft.name,match:draft.match,sourceId:'s',enabled:false,
-  options:{...draft.options,postPaddingMs:120000,keepPolicy:{mode:'keep-count',keepCount:5000,keepDays:0,keepUntilWatched:false}}};
- let receipt:any={serverId:'server',result:row};const calls:{method?:string;body?:any}[]=[];
- const controller=new NativeLiveOwnerController(new NativeScreenLifetime(authority()),{request:async<T>(_path:string,method?:string,body?:unknown)=>{calls.push({method,body});return receipt as T;}},()=> 'original-create');
- try{
-  assert.equal((await controller.createRule(draft,grants)).revision,7,'create/revive is not assumed revision one');
-  assert.deepEqual(calls[0].body.anchor,draft.anchor);assert.equal(calls[0].body.operationId,'original-create');assert.equal(calls[0].body.options.prePaddingMs,60000);
-  for(const invalid of [{},{serverId:'wrong',result:row},{serverId:'server',result:{...row,id:''}},{serverId:'server',result:{...row,revision:0}},
-   ...[{owner:{...owner,profileId:'other'}},{sourceId:'other'},{kind:'series'},{name:'Other'},{match:'Other'},{enabled:true},{options:{...row.options,prePaddingMs:0}}].map(change=>({serverId:'server',result:{...row,...change}}))]){
-   receipt=invalid;await assert.rejects(controller.createRule(draft,grants),/invalid_response/);
-  }
-  assert(calls.every(call=>call.method==='POST'),'no receipt causes an unrelated shared GET');
- }finally{controller.dispose();}
-});
-
-test('original create/toggle caller retirement during POST/PUT never refreshes or adopts under a successor',async()=>{
- for(const command of ['create','toggle'] as const){
-  let answer!:(value:unknown)=>void,live=true;const calls:{method?:string;signal?:AbortSignal}[]=[];
-  const owner={authority:'local' as const,accountId:'a',profileId:'p'},grants=[{owner,enabled:true,revision:1}];
-  const row={id:'original',revision:3,owner,status:'disabled',kind:'title',name:'Title',match:'Title',sourceId:'s',enabled:false,options:{prePaddingMs:60000,postPaddingMs:0,keepPolicy:null,newEpisodesOnly:false,priority:0,folderTemplate:''}};
-  const rule=parseAdminRules({serverId:'server',result:{items:[row]}},'server')[0]!;
-  const lifetime=new NativeScreenLifetime(authority()),caller=new AbortController();
-  const controller=new NativeLiveOwnerController(lifetime,{request:async<T>(_path:string,method?:string,_body?:unknown,signal?:AbortSignal)=>{calls.push({method,signal});return await new Promise<unknown>(resolve=>{answer=resolve;}) as T;}},()=> 'original-operation');
-  const proof={signal:caller.signal,isCurrent:()=>live};
-  const request=command==='toggle'?controller.saveRuleEnabled(rule,grants,true,proof):controller.createRule({owner,anchor:{sourceId:'s',channelId:'c',generation:'g',programmeId:'programme'},kind:'title',name:'Title',match:'Title',sourceId:'s',enabled:false,options:row.options},grants,proof);
-  try{
-   assert.equal(calls.length,1);live=false;caller.abort();assert.equal(calls[0].signal?.aborted,true);
-   const refused=assert.rejects(request,{name:'AbortError'});answer({serverId:'server',result:{...row,revision:4,enabled:command==='toggle'}});await refused;
-   assert.equal(calls.length,1);assert.equal(lifetime.current(),true,'borrowed controller lifetime remains live');
-  }finally{controller.dispose();lifetime.dispose();}
- }
-});
-
-test('last original owner predicate aborting a command caller inside the real lifetime request refuses before API dispatch',async()=>{
- const caller=new AbortController();let insideRequest=false,armed=false,requests=0;
- class ObservedLifetime extends NativeScreenLifetime{
-  override request<T>(read:(signal:AbortSignal)=>Promise<T>,signal?:AbortSignal):Promise<T>{insideRequest=true;return super.request(read,signal).finally(()=>{insideRequest=false;});}
- }
- const original=authority();const lifetime=new ObservedLifetime({...original,current:()=>{if(armed)caller.abort();return original.current();}});
- const controller=new NativeLiveOwnerController(lifetime,{request:async<T>()=>{requests++;return {} as T;}},()=> 'original-pre-io');
- const owner={authority:'local' as const,accountId:'a',profileId:'p'},grants=[{owner,enabled:true,revision:1}];
- try{
-  await assert.rejects(controller.createRule({owner,anchor:{sourceId:'s',channelId:'c',generation:'g',programmeId:'programme'},kind:'title',name:'Title',match:'Title',sourceId:'s',enabled:false,
-   options:{prePaddingMs:60000,postPaddingMs:0,keepPolicy:null,newEpisodesOnly:false,priority:0,folderTemplate:''}},grants,
-   {signal:caller.signal,isCurrent:()=>{if(insideRequest)armed=true;return true;}}),{name:'AbortError'});
-  assert.equal(armed,true);assert.equal(caller.signal.aborted,true);assert.equal(requests,0,'no API dispatch, acceptance or shared refresh after nested caller abort');assert.equal(lifetime.current(),true);
- }finally{controller.dispose();lifetime.dispose();}
 });
 
 test('native live documents accept the shared 100,000-choice limit and retain rewind', () => {
