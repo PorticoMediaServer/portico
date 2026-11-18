@@ -111,7 +111,9 @@ function SettingsOwner() {
  * client-core `IntegrationSwitchesSource`): the Jellyfin-compatible routes and Assistants, each off until the owner turns
  * it on. No mock-up draws the switches: they lead the Assistants tab as one "Connections" section of switch rows. A save
  * the server refused leaves the switch as it was and says so as rule 9's error row in that section (`failed`). */
-function IntegrationsPage({failed = false, back}: {failed?: boolean; back?: () => void}) {
+/** `over`: an overlay opened from this page. It is drawn inside the page so that, on a phone, it opens over the Settings
+ * sheet the page is in (a second sheet opened beside the first never shows on iOS). */
+function IntegrationsPage({failed = false, back, over}: {failed?: boolean; back?: () => void; over?: ReactNode}) {
   const [tab, setTab] = useState('assistants'), {form} = useFrameMetrics(), [routes, setRoutes] = useState(true), [assistants, setAssistants] = useState(!failed);
   return <SettingsPageFrame title={f('integrations')} back={back ? {label: t('next.shell.settings'), onPress: back} : undefined} intro={f('integrationsIntro')}
     server={<ServerHeader serverName={fx('serverName')} viewerRole="owner" audience="owner" variant={form === 'phone' ? 'phone' : 'page'}/>}
@@ -125,6 +127,7 @@ function IntegrationsPage({failed = false, back}: {failed?: boolean; back?: () =
       <SettingsRow first label={t('api.mcp.address')} description={[t('api.mcp.addressHelp'), f('assistantAddressValue')]} control={<Button variant="glass" size="small" icon="i-copy" onPress={none}>{t('web.twoStep.copy')}</Button>}/>
       <SettingsRow label={t('api.mcp.key')} description={t('api.mcp.keyHelp')} navigates value={t('next.settingsSpec.server.integrations.groups.2.rows.1.control.label')} onPress={none}/>
     </SectionCard>
+    {over}
   </SettingsPageFrame>;
 }
 function SettingsIntegrations({failed = false}: {failed?: boolean}) {
@@ -139,8 +142,7 @@ function SettingsIntegrations({failed = false}: {failed?: boolean}) {
 function TwoStepBox({refused = false}: {refused?: boolean}) {
   const theme = useTheme(), [code, setCode] = useState(refused ? '482913' : '482'), [recovery, setRecovery] = useState(false);
   const ready = recovery ? Boolean(code.trim()) : /^\d{6}$/.test(code), swap = () => {setCode(''); setRecovery(!recovery);};
-  return <OverlaysProvider><Window><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings')}} list={<Index selected="integrations" onOpen={none}/>} page={<IntegrationsPage/>}/></Window>
-    <SheetFrame kind="task" task="task" open onOpenChange={none} title={t(recovery ? 'services.signin.recovery' : 'web.direct.codeTitle')} action={{label: t('action.continue'), disabled: !ready, onPress: none}}>
+  const sheet = <SheetFrame kind="task" task="task" open onOpenChange={none} title={t(recovery ? 'services.signin.recovery' : 'web.direct.codeTitle')} action={{label: t('action.continue'), disabled: !ready, onPress: none}}>
       <SheetBody>
         <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{t(recovery ? 'services.signin.recoveryBody' : 'services.signin.twoStep')}</Text>
         {recovery ? <TextField label={t('accounts.signIn.recoveryCode')} placeholder={t('services.recovery.codePlaceholder')} value={code} onChangeText={setCode} invalid={refused}/>
@@ -148,7 +150,8 @@ function TwoStepBox({refused = false}: {refused?: boolean}) {
         {refused && <Text accessibilityRole="alert" style={[theme.type.rowHelp, {color: theme.colors.danger}]}>{f('codeWrong')}</Text>}
         <RecoveryLine recovery={recovery} onPress={swap}/>
       </SheetBody>
-    </SheetFrame></OverlaysProvider>;
+    </SheetFrame>;
+  return <OverlaysProvider><Window><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings')}} list={<Index selected="integrations" onOpen={none}/>} page={<IntegrationsPage over={sheet}/>}/></Window></OverlaysProvider>;
 }
 /** A settings page shown alone (tablets SC-8): Back, the gutter and the page's column limit. */
 const SettingsAlone = () => <Page destination={{kind: 'settings'}}><OwnerPage back={none}/></Page>;
