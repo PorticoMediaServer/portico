@@ -86,6 +86,18 @@ class LiveRatchets(unittest.TestCase):
         (package/'package.json').write_text(json.dumps({'name':'@test/platform-transport','version':'9.0.0','types':'index.d.ts'}))
         self.assertEqual(self.checks(base),(1,1),'even equal entry lockfiles cannot use a mismatched installed package')
 
+    def test_only_manifests_ci_installs_bind_the_dependency_environment(self):
+        tool=self.root/'tools/old/package.json';tool.parent.mkdir(parents=True)
+        tool.write_text(json.dumps({'devDependencies':{'playwright':'1.0.0'}}));(tool.parent/'package-lock.json').write_text('{}')
+        base=self.commit('A tool with its own install that CI never makes')
+        self.git('rm','-q','-r','tools/old')
+        self.assertEqual(self.checks(base),(0,0),'removing a manifest nothing installs changes no typed result')
+        (self.root/'package.json').write_text(json.dumps({'workspaces':['web']}))
+        (self.root/'web/package.json').write_text(json.dumps({'dependencies':{'react':'1.0.0'}}))
+        base=self.commit('A workspace with a dependency')
+        (self.root/'web/package.json').write_text(json.dumps({'dependencies':{'react':'2.0.0'}}));self.git('add','.')
+        self.assertEqual(self.checks(base),(1,1),'a workspace manifest is installed, so changing it still needs entry-bound installs')
+
     def test_baseline_only_engineering_increases_are_rejected(self):
         path=self.root/'ci/engineering-rules-baseline.json'
         baseline=json.loads(path.read_text());baseline['set-interval'][self.path]=99

@@ -26,10 +26,22 @@ def dependency_input(path):
     return Path(path).name in {'package.json','package-lock.json','npm-shrinkwrap.json','yarn.lock','pnpm-lock.yaml','.npmrc'}
 
 
+# The other `npm ci` installs CI makes besides the root's (merge.yml "Install typed ratchet owning lockfiles").
+INSTALLED_APPS=('apps/native','apps/vega','apps/desktop')
+
+
+def installed_directories(records):
+    """Where CI installs from: the root, its workspaces and INSTALLED_APPS. A manifest elsewhere
+    (an unused tool's package.json) is never installed, so it cannot change a typed result."""
+    root=records.get('package.json')
+    workspaces=json.loads(root[2]).get('workspaces',[]) if root else []
+    return {'.',*workspaces,*INSTALLED_APPS}
+
+
 def dependency_environment(records):
-    result={}
+    result={};installed=installed_directories(records)
     for path,(_,_,data) in records.items():
-        if not dependency_input(path):continue
+        if not dependency_input(path) or str(Path(path).parent) not in installed:continue
         if Path(path).name=='package.json':
             manifest=json.loads(data)
             selected={k:manifest[k] for k in DEPENDENCY_FIELDS if k in manifest}
