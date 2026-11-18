@@ -109,7 +109,8 @@
   .toastHost { left: 8px; right: 8px; translate: none; max-width: none; bottom: var(--overlay-toast-bottom, var(--shell-toast-bottom, 96px)); }
   .toast { gap: 12px; padding: 8px 8px 8px 12px; font-size: 14px; box-shadow: 0 14px 30px -10px rgba(0,0,0,.85), inset 0 0 0 1px rgba(237,245,250,.1); }
   .toast:has(> .toastAction[data-variant="text"]) { gap: 12px; padding: 12px 8px 12px 16px; font-size: 14px; }
-  .toastMessage { flex: 1; }
+  /* At phone width the message wraps beside its action; it is never cut. */
+  .toastMessage { flex: 1; white-space: normal; overflow: visible; text-overflow: clip; }
   .toastAction.toastAction { height: 36px; padding: 0 14px; }
   .toastAction.toastAction[data-variant="text"] { padding: 0 12px; font-size: 14px; }
   .quietBanner { max-width: calc(100vw - 24px); height: auto; min-height: 36px; font-size: 13.5px; white-space: normal; }

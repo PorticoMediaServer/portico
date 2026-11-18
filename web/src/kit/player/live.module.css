@@ -1,5 +1,5 @@
 /* desktop-live.html#live-player: the normal player's geometry, with only the live parts changed. */
-.live { position: absolute; inset: 0; color: var(--color-text); pointer-events: none; }
+.live { position: absolute; inset: 0; color: var(--color-text); pointer-events: none; container: live / size; }
 .shade { position: absolute; inset: 0; z-index: 1; pointer-events: none;
   background: linear-gradient(180deg, color-mix(in srgb, var(--color-live-player-scrim) 84%, transparent) 0, color-mix(in srgb, var(--color-live-player-scrim) 38%, transparent) 130px, transparent 240px),
     linear-gradient(0deg, color-mix(in srgb, var(--color-live-player-scrim) 94%, transparent) 0, color-mix(in srgb, var(--color-live-player-scrim) 62%, transparent) 150px, transparent 340px); }
@@ -119,3 +119,22 @@
 @media (prefers-reduced-motion: reduce) { .miniGuide { animation: miniGuide-arrive-fade var(--motion-reduced) linear both; } }
 :global([data-reduce-motion='true']) .miniGuide { animation: miniGuide-arrive-fade var(--motion-reduced) linear both; }
 @keyframes miniGuide-arrive-fade { from { opacity: 0; } }
+
+/* Upright (owner, 18 Nov): when the picture is a short strip with the channel's page under it, the chrome is the one
+   the native apps draw there. Guide, Record and More are icons in the top row; channel down and up sit either side of
+   the transport in the middle of the picture; the time, how far behind live, Go to live and the options are along the
+   bottom. The channel and programme are named on the page below, not in the strip. */
+@container live (max-height: 320px) {
+  .top { padding: 6px; flex-wrap: nowrap; }
+  .mark, .identity { display: none; }
+  .tools { flex: 1; justify-content: flex-end; gap: 0; }
+  .tools .control, .top > .control, .record.record { background: none; backdrop-filter: none; }
+  .bottom { padding: 0 6px 8px 14px; }
+  .times > :last-child { display: none; }
+  .controls { display: block; margin: 0; }
+  .center { position: absolute; left: 0; right: 0; bottom: calc(50cqh - 27px); display: flex; justify-content: space-evenly; }
+  .right { position: absolute; right: 6px; bottom: 2px; }
+  .left { position: absolute; left: 52px; bottom: calc(100cqh - 46px); }
+  .guideButton.guideButton { width: 40px; padding: 0; justify-content: center; background: none; backdrop-filter: none; box-shadow: none; }
+  .guideButton.guideButton span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}

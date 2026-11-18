@@ -183,10 +183,11 @@ const Sheet = () => <Window><BrowseFrame header={{title: f('liveTv')}} />
 
 function SignIn() {
   const [address, setAddress] = useState(f('addressValue'));
-  return <SignInFrame back={{label: f('back'), onPress: none}} title={f('localServer')} lede={f('localLede')} error={f('signInError')}>
+  // The sign-in page sits on the window's one backdrop, as every page does (auth 4).
+  return <Window><SignInFrame back={{label: f('back'), onPress: none}} title={f('localServer')} lede={f('localLede')} error={f('signInError')}>
     <TextField label={f('address')} value={address} onChange={event => setAddress(event.currentTarget.value)} />
     <Button variant="primary" onClick={none}>{f('continue')}</Button>
-  </SignInFrame>;
+  </SignInFrame></Window>;
 }
 
 /** A still frame standing in for the video surface (a plain picture: the player's surface is a video element, not kit artwork). */
@@ -288,13 +289,19 @@ function PlayerUpNextCase() {
  * and programme lockup, Record, the programme-long bar with the live edge and Go to live, channel down and up, and
  * Guide with its short guide. It is drawn from one port of channel facts, here a fixed sample. */
 function PlayerLiveCase({guide = false}: {guide?: boolean}) {
-  const [volume, setVolume] = useState(.7), wide = useWide(), sideways = useLandscapePhone(), pointer = wide && !sideways;
-  return <div style={{position: 'relative', height: '100%', overflow: 'hidden', background: 'var(--color-ink)'}}>
-    <div style={{position: 'absolute', inset: 0, display: 'grid'}}><Still /></div>
-    <PlayerLive port={livePlayerPort} playing initialMiniGuideOpen={guide} onCollapse={none} onStop={none} onPlayPause={none} onSkip={none} onSeek={none} onMore={none} reportError={none}
-      right={<>{pointer && <PlayerVolume value={volume} muted={false} label={f('volume')} muteLabel={f('volume')} onChange={setVolume} onMute={none} />}<PlayerControl icon="i-cc" label={f('subtitles')} onPress={none} />
-        <PlayerPill qualifier={f('qualityAuto')} value={f('qualityValue')} label={f('qualityShort')} onPress={none} /><PlayerControl icon="i-pip" label={f('pictureInPicture')} onPress={none} /><PlayerControl icon="i-full" label={f('fullScreen')} onPress={none} /></>} />
+  const [volume, setVolume] = useState(.7), wide = useWide(), sideways = useLandscapePhone(), upright = usePhone(), pointer = wide && !sideways;
+  const chrome = <PlayerLive port={livePlayerPort} playing initialMiniGuideOpen={guide} onCollapse={none} onStop={none} onPlayPause={none} onSkip={none} onSeek={none} onMore={none} reportError={none}
+    right={upright ? <PlayerPill qualifier={f('qualityAuto')} value={f('qualityValue')} label={f('qualityShort')} onPress={none} /> : <>{pointer && <PlayerVolume value={volume} muted={false} label={f('volume')} muteLabel={f('volume')} onChange={setVolume} onMute={none} />}<PlayerControl icon="i-cc" label={f('subtitles')} onPress={none} />
+      <PlayerPill qualifier={f('qualityAuto')} value={f('qualityValue')} label={f('qualityShort')} onPress={none} /><PlayerControl icon="i-pip" label={f('pictureInPicture')} onPress={none} /><PlayerControl icon="i-full" label={f('fullScreen')} onPress={none} /></>} />;
+  const picture = <div style={{position: 'absolute', inset: 0, display: 'grid'}}><Still /></div>;
+  // Upright: the picture is a 16:9 strip and the channel's page is under it, as the native apps draw it.
+  if (upright) return <div style={{height: '100%', overflowY: 'auto', background: 'var(--color-ink)'}}>
+    <div style={{position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden'}}>{picture}{chrome}</div>
+    <div className={frame.frame} style={{display: 'grid', gap: 'var(--space-sm)', padding: 'var(--space-sm) var(--g)'}}>
+      <p className={frame.rowLabel}><b>{f('liveChannelName')}  {f('liveNumber')}</b></p><h1 className={frame.pageTitle}>{f('liveTitle')}</h1><p className={frame.intro}>{f('liveThen')}</p>
+    </div>
   </div>;
+  return <div style={{position: 'relative', height: '100%', overflow: 'hidden', background: 'var(--color-ink)'}}>{picture}{chrome}</div>;
 }
 
 function Audio({variant}: {variant: 'music' | 'missing' | 'book' | 'loading'}) {
@@ -307,6 +314,9 @@ function Audio({variant}: {variant: 'music' | 'missing' | 'book' | 'loading'}) {
   // The queue is the screen's content: here the kit's song rows under their group labels (desktop-listen "now").
   const song = (key: string, title: string, duration: FixtureName, playing = false) => <SongRow key={key} context="search" onPlay={none}
     row={{id: key, playing, artwork: <ArtBox kind="square" icon="i-music" source={art('pool/albums/after-hours.jpg')} />, duration: {id: 'duration', text: f(duration), role: 'context'}, text: {id: key, title, caption: [{id: 'artist', text: f('queueArtist'), role: 'context'}], detail: []}}} />;
+  // An audiobook's side column is its chapters, the one being read marked.
+  const chapters = <div><h3 className={frame.rowHelp}>{f('chapters')}</h3>{(['chapterRow7', 'chapterRow8', 'chapterRow9', 'chapterRow10'] as const).map((name, index) => <SongRow key={name} onPlay={none}
+    row={{id: name, playing: index === 1, number: index + 7, duration: {id: 'duration', text: f(`queueDuration${index + 1}` as FixtureName), role: 'context'}, text: {id: name, title: f(name), caption: [], detail: []}}} />)}</div>;
   const queue = <div><h3 className={frame.rowHelp}>{f('queueNow')}</h3>{song('now', f('songTitle'), 'queueDurationNow', true)}<h3 className={frame.rowHelp}>{f('queueNextFrom')}</h3>
     {(['queue1', 'queue2', 'queue3', 'queue4', 'queue5', 'queue6'] as const).map((name, index) => song(name, f(name), `queueDuration${index + 1}` as FixtureName))}</div>;
   return <Window><AudioPlayerFrame loading={variant === 'loading'}
@@ -317,7 +327,7 @@ function Audio({variant}: {variant: 'music' | 'missing' | 'book' | 'loading'}) {
     scrubber={<><SeekLine variant="player" value={.34} input={{min: 0, max: 1, step: .001, value: .34, onChange: none, 'aria-label': f('seek')}} /><PlayerTimes position={f(book ? 'bookElapsed' : 'audioElapsed')} middle={book ? f('timeLeft') : undefined} remaining={f(book ? 'bookRemaining' : 'audioRemaining')} /></>} transport={book ? reading : music} next={book || missing ? undefined : {label: f('nextLabel'), title: f('nextTitle')}}
     options={book ? [option('speed', undefined, 'speedValue'), {...option('sleep', undefined, 'sleepValue'), active: true}, option('chapters', undefined, 'chaptersValue'), option('thisBrowser', 'i-cast')]
       : [option('lyrics', 'i-lyrics', undefined, missing), {...option('thisBrowser', 'i-cast'), inline: true}, option('upNext', 'i-queue')]}
-    upNext={missing ? undefined : queue} /></Window>;
+    upNext={missing ? undefined : book ? chapters : queue} /></Window>;
 }
 
 const State = () => <Page current="home"><PageStateFrame icon="i-srvoff" title={f('cantReach')} body={f('cantReachBody')} retry={{progress: .6, label: f('retryLabel'), detail: f('retryDetail')}}
