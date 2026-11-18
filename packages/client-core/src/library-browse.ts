@@ -151,6 +151,7 @@ const authors = (operator: string, value: unknown): string => {
 /** The server's list for a tab with these filters and this order. The filters all apply together; anything else is refused. */
 export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibrary['views']; /** The library's kind as the capabilities name it (book, comic, audiobook). */ kind?: string}>, pivotId: string, nodes: readonly BrowseNode[], sorts: readonly BrowseSortSelection[]): ItemListQuery {
   if (library.id === acrossLibraries && pivotId === genreTitlesPivot) return genreTitlesQuery(nodes, sorts);
+  if (library.id === acrossLibraries) throw new BrowseQueryError('pivot', 'That view is not available in this library.');
   const bookKind = ['book', 'books'].includes(library.kind ?? '') ? 'book' : ['audiobook', 'audiobooks'].includes(library.kind ?? '') ? 'audiobook' : undefined;
   const candidates = pivots.filter(each => each.id === pivotId && (!library.views || library.views.some(view => view.kind === each.kind))
     && (pivotId !== 'books' || !bookKind || each.kind === bookKind));
