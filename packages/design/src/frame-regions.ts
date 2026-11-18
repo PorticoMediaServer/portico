@@ -255,6 +255,7 @@ export const frameRegions = {
     {id: 'prompts', forms: allWeb, from: ['desktop-player f1, f2s (Skip intro, Skip recap, Skipped + Undo)', 'phone-player 2, 2b', 'tablet-play f8 (Go to live)']},
     {id: 'card', forms: allWeb, from: ['desktop-player f4, f4s (Up next, Skip credits, scene note, countdown)', 'phone-player 6, 6b, 6c, 6e (Still watching?)', 'tv-player p5, p6']},
     {id: 'panel', forms: allWeb, from: ['desktop-player f3, f6 (options, Episodes drawer)', 'tablet-play f2 (beside: options, Episodes column)', 'phone-player 3 (sheet, side sheet)', 'tv-player p4 (in place)', 'tv-player p11 (short guide)', 'desktop-live live-player (short guide)', 'playback-info 1, 3, 4']},
+    {id: 'resume', forms: ['web'], from: ['desktop-player f6 (the paused picture\'s Play over the Episodes drawer)']},
     {id: 'band', forms: ['tv'], from: ['tv-player p1 frame 3 (Episodes across the bottom; on the web the desktop drawer is the panel, desktop-player f6)']},
     {id: 'hints', forms: ['tv'], from: ['tv-player p2', 'tv-player p4 (Back Close)']},
     {id: 'body', forms: ['phone', 'medium'], from: ['phone-player r4 (watch page)', 'tablet-play f3', 'phone-player 1c (channel page under an upright live picture)'], flexible: true},

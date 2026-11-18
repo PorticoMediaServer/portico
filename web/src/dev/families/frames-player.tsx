@@ -88,7 +88,8 @@ function WatchPage({paused = false}: {paused?: boolean}) {
 type PlayerState = 'playing' | 'paused' | 'buffering' | 'scrubbing' | 'missing' | 'recap' | 'undo';
 /** The video player filled with the kit's player parts, with what each mock-up puts in each place for its form
  * (desktop-player 1, phone-player 1 on its side, phone-player 4 upright). `opened` is the button whose panel shows. */
-function Player({state = 'playing', panel, panelCovers, card, opened}: {state?: PlayerState; panel?: ReactNode; panelCovers?: 'bar' | 'all'; card?: ReactNode; opened?: 'episodes' | 'subtitles'}) {
+function Player({state = 'playing', panel, panelCovers, resume, card, opened, page}: {state?: PlayerState; panel?: ReactNode; panelCovers?: 'bar' | 'all'; resume?: ReactNode; card?: ReactNode; opened?: 'episodes' | 'subtitles';
+  /** An upright phone: what stands in the watch page's place under the strip (the end card). */ page?: ReactNode}) {
   const [volume, setVolume] = useState(.7), upright = usePhone(), sideways = useSideways(), desktop = useWide() && !sideways, missing = state === 'missing';
   const tool = (icon: AudioControl['icon'], name: FrameName, disabled = false) => <PlayerControl onPicture icon={icon} label={f(name)} disabled={disabled} onPress={none} />;
   const subtitles = <PlayerPill icon="i-subs" name={f('subtitles')} value={f('english')} label={f('subtitles')} disabled={missing} open={opened === 'subtitles'} onPress={none} />;
@@ -97,7 +98,7 @@ function Player({state = 'playing', panel, panelCovers, card, opened}: {state?: 
   const prompt = state === 'playing' ? <PlayerPrompt label={f('skipIntro')} onPress={none} dismiss={{label: f('dismiss'), onPress: none}} />
     : state === 'recap' ? <PlayerPrompt label={p('skipRecap')} onPress={none} dismiss={{label: f('dismiss'), onPress: none}} />
     : state === 'undo' ? <PlayerPrompt note={p('skippedIntro')} label={p('undo')} icon="i-undo" onPress={none} /> : undefined;
-  return <Layer video><PlayerChromeFrame chromeVisible={state !== 'undo'} scrubbing={state === 'scrubbing'} panel={panel} panelCovers={panelCovers} card={card} picture={<Still />} close={tool('i-down', 'close')}
+  return <Layer video><PlayerChromeFrame chromeVisible={state !== 'undo'} scrubbing={state === 'scrubbing'} panel={panel} panelCovers={panelCovers} resume={resume} card={card} picture={<Still />} close={tool('i-down', 'close')}
     title={<PlayerTitle title={f('tlou')} lead={f('videoLead')} subtitle={opened === 'episodes' ? p('pausedAt') : f('videoSubtitle')} />}
     tools={desktop ? <>{tool('i-cast', 'playOn')}{tool('i-more', 'more')}{tool('i-x', 'dismiss')}</> : <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{upright && tool('i-subs', 'subtitles', missing)}{tool('i-sliders', 'playerSettings')}</>}
     scrubber={<Scrubber scrubbing={state === 'scrubbing'} marks={!missing} />}
@@ -109,7 +110,7 @@ function Player({state = 'playing', panel, panelCovers, card, opened}: {state?: 
     trailing={desktop ? <><PlayerVolume value={volume} muted={false} label={f('volume')} muteLabel={f('volume')} onChange={setVolume} onMute={none} /><PlayerControl tool icon="i-subs" label={f('subtitles')} disabled={missing} open={opened === 'subtitles'} onPress={none} />{quality}
         <PlayerPill value={f('speedShort')} label={f('speed')} onPress={none} /><PlayerControl tool icon="i-pip" label={f('pictureInPicture')} onPress={none} /><PlayerControl tool icon="i-full" label={f('fullScreen')} onPress={none} /></>
       : upright ? <>{quality}<PlayerControl tool icon="i-full" label={f('fullScreen')} onPress={none} /></> : <>{subtitles}{audio}{quality}</>}
-    prompts={prompt} body={<WatchPage paused={state === 'paused'} />} /></Layer>;
+    prompts={prompt} body={page ?? <WatchPage paused={state === 'paused'} />} /></Layer>;
 }
 
 /** The player's own panels (kit/player), each over the player as the player screen draws it. One panel of columns on
@@ -147,7 +148,7 @@ function PlayerEpisodesCase() {
   const art = useReferenceArtwork(), upright = usePhone(), sideways = useSideways(), anchor = useRef<HTMLButtonElement>(null);
   if (upright) return <Player state="paused" opened="episodes" />;
   const context: PlayerPanelContext = {panel: 'episodes', snapshot: {} as PlayerPanelContext['snapshot'], layout: sideways ? 'phone' : 'desktop', landscape: sideways, phoneTop: 220, close: none, show: none, returnFocusRef: anchor};
-  return <Player state="paused" opened="episodes" panelCovers={sideways ? 'all' : 'bar'} panel={<PlayerEpisodes episodes={episodeList} context={context} artwork={art} onPlay={none} onSeason={none} reportError={none} />} />;
+  return <Player state="paused" opened="episodes" panelCovers={sideways ? 'all' : 'bar'} resume={<PlayerControl resume icon="i-play" label={f('play')} onPress={none} />} panel={<PlayerEpisodes episodes={episodeList} context={context} artwork={art} onPlay={none} onSeason={none} reportError={none} />} />;
 }
 /** Up next over the credits: desktop-player 4 (Play now, Skip credits, Watch credits and the scene after the credits)
  * and 4s (the countdown), phone-player 6. */
@@ -159,10 +160,12 @@ function PlayerUpNextCase({variant}: {variant: 'plain' | 'credits' | 'countdown'
 }
 /** The end of a film (desktop-player 4b, phone-player 6d): the kit's end card over the picture. */
 function PlayerEndCase() {
-  const art = useReferenceArtwork(), phone = !useWide(); // the screen's own test: under 1024 wide is the phone layout (WatchScreen)
+  // The screen's own test: under 1024 wide is the phone layout (WatchScreen). Upright, the card takes the watch page's place.
+  const art = useReferenceArtwork(), phone = !useWide(), upright = usePhone();
   const related = (['spirited-away', 'inside-out', 'alien', 'blade-runner', 'dune', 'barbie'] as const).map(id => ({id, title: id.split('-').map(word => word[0]!.toUpperCase() + word.slice(1)).join(' '), poster: art(`pool/movies/${id}.jpg`)}));
-  return <Player card={<div style={{position: 'absolute', inset: 0}}><PlayerEndCard layout={phone ? 'phone' : 'desktop'} canReplay onReplay={none} onClose={none} reportError={none} artwork={() => undefined}
-    card={{title: f('insideOut'), year: 2015, genres: ['Animation', 'Family'], related, rating: {value: null, set: async () => {}}, back: none, openRelated: none}} /></div>} />;
+  const end = <div style={{position: upright ? 'relative' : 'absolute', inset: 0, height: upright ? '100%' : undefined}}><PlayerEndCard layout={phone ? 'phone' : 'desktop'} canReplay onReplay={none} onClose={none} reportError={none} artwork={() => undefined}
+    card={{title: f('insideOut'), year: 2015, genres: ['Animation', 'Family'], related, rating: {value: null, set: async () => {}}, back: none, openRelated: none}} /></div>;
+  return upright ? <Player state="paused" page={end} /> : <Player card={end} />;
 }
 
 /** Still watching? (phone-player 6e): the kit's prompt over the paused player; nothing starts until the viewer says so. */

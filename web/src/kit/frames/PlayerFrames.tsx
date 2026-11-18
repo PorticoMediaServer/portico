@@ -42,6 +42,9 @@ export type PlayerChromeFrameProps = Readonly<{
   /** One of the player's own panels, open (`PlayerOptions`, `PlayerEpisodes`). `panelCovers` says what it lies over,
    * which hides: `bar` for the Episodes drawer (desktop-player 6), `all` on a phone on its side (phone-player 3). */
   panel?: ReactNode; panelCovers?: 'bar' | 'all';
+  /** Paused under a panel that covers the bar (the Episodes drawer): the resume disc in the middle of the picture the
+   * panel leaves (desktop-player f6). The screen passes it only while paused. */
+  resume?: ReactNode;
   /** A phone: the finger is on the scrubber, so the transport in the middle of the picture makes way for the preview. */
   scrubbing?: boolean;
   /** An upright phone only: the watch page under the picture (the title page's own content). */
@@ -53,7 +56,7 @@ export type PlayerChromeFrameProps = Readonly<{
  * transport in the middle of the picture and the read-outs either side of the scrubber. An upright phone (phone-player
  * 4): the picture is a 16:9 strip with the chrome inside it, the scrubber on its lower edge, and the watch page below.
  * Every region is fixed; the parts that fill it are `kit/player`'s. */
-export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, panelCovers, scrubbing, body}: PlayerChromeFrameProps) {
+export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, panelCovers, resume, scrubbing, body}: PlayerChromeFrameProps) {
   const covered = card ? 'all' : panel ? panelCovers : undefined, shown = chromeVisible && covered !== 'all';
   const right = times.live ? <b className={styles.playerLive}>{times.live}</b> : <b>{times.remaining}</b>;
   return <div className={styles.player} data-chrome={shown} data-covered={covered} data-scrubbing={scrubbing || undefined}>
@@ -73,6 +76,7 @@ export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, 
           <div className={styles.playerTrailing}>{trailing}</div>
         </div>
       </div>
+      {covered === 'bar' && resume !== undefined && <div className={styles.playerResume}>{resume}</div>}
       {card}{panel}
     </div>
     {body !== undefined && <div className={styles.playerBody}>{body}</div>}

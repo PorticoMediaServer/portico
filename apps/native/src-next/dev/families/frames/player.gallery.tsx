@@ -165,7 +165,7 @@ function PlayerPanelCase({panel}: {panel: PanelName}) {
   const title = {options: 'optTitle', subtitles: 'subtitles', audio: 'audio', quality: 'qualityShort', speed: 'optSpeed'} as const;
   // R1: a list starts on its current choice; Playback options on its first heading.
   const start = {options: 'heading-subtitles', subtitles: 'english', audio: 'english', quality: 'optAutomatic', speed: 'optNormal'} as const;
-  return <Player state="paused" id={id} start={`${id}-${start[panel]}`} opened={form === 'phone' || upright ? undefined : 'subtitles'} panel={<PlayerPanel testID={`${id}-panel`} title={inPlace ? f('optTitle') : f(title[panel])} note={panel === 'options' && !inPlace ? f('optNote') : undefined}
+  return <Player state="paused" id={id} start={`${id}-${start[panel]}`} opened={form === 'phone' || upright ? undefined : 'subtitles'} panel={<PlayerPanel testID={`${id}-panel`} title={inPlace ? f('optTitle') : f(title[panel])} note={panel === 'options' && (!inPlace || form === 'tv') ? f('optNote') : undefined}
     back={panel === 'options' || inPlace ? undefined : back} close={close} footer={inPlace && form !== 'tv' ? f('optNote') : undefined}>{inPlace ? placed : drill}</PlayerPanel>}/>;
 }
 /** Episodes as each form draws it (owner ruling 5): a column beside the picture on a tablet (tablet-play 2a) and a side

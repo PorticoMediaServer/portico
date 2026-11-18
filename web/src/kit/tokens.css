@@ -2622,6 +2622,9 @@
   --frame-player-portrait-scrubber: 3px;
   --frame-title-credits-gap: 6px;
   --frame-player-prompt-gap: 10px;
+  --frame-player-drawer: 480px;
+  --frame-player-resume: 88px;
+  --frame-player-resume-icon: 36px;
   --frame-player-upright-primary: 58px;
   --frame-player-upright-primary-icon: 26px;
   --frame-player-upright-control: 46px;
