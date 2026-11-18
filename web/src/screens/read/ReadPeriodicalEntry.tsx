@@ -1,4 +1,3 @@
-import {ReadGroupSavedAction} from './ReadGroupSavedAction';
 import {useEffect, useRef, useState, useSyncExternalStore, type ReactNode, useLayoutEffect} from 'react';
 import {calendarDate, defaultI18n} from '@i18n';
 import type {ReadingPeriodicalType, ReadingPeriodicalIssue, ReadingYearChoice, ReadingDayChoice} from '@portico/client-core';
@@ -23,7 +22,7 @@ const generated = (title: string) => ({title, glyph: Array.from(title)[0] ?? '',
 type Captured = NonNullable<ReturnType<typeof useProtectedWebScreenContext>>;
 type Common = Readonly<{context: Captured['context']; bindings: ReturnType<typeof createReadBindings>; libraryId: string; kind: ReadingPeriodicalType; issueDate?: string; year?: string; month?: string; reportError: (error: unknown) => void}>;
 type Groups = Common & Readonly<{mode: 'groups'; pages: ReturnType<typeof createReadingPeriodicalGroupsCollection>}>;
-type Issues = Common & Readonly<{mode: 'issues'; seriesId: string; pages: ReturnType<typeof createReadingPeriodicalIssuesCollection>}>;
+type Issues = Common & Readonly<{mode: 'issues'; pages: ReturnType<typeof createReadingPeriodicalIssuesCollection>}>;
 type Resources = Groups | Issues;
 
 /** Only an actual server-offered type/series reaches this renderer. No dates or
@@ -46,7 +45,7 @@ function BoundPeriodicals({captured, libraryId, kind, seriesId}: {captured: Capt
     const effects = shellEffects.current;
     const bindings = createReadBindings(captured.context);
     const common: Common = {context: captured.context, bindings, libraryId, kind, issueDate: issueDate || undefined, year: year || undefined, month: month || undefined, reportError: error => {if (bindings.authority.isCurrent()) effects.reportError(error);}};
-    const next: Resources = seriesId ? {...common, mode: 'issues', seriesId, pages: createReadingPeriodicalIssuesCollection(bindings.client, libraryId, seriesId, kind, issueDate || undefined, year || undefined, choices => {if (active && bindings.authority.isCurrent()) setYearFact({context: captured.context, choices});}, month || undefined, (actualMonth, choices, latestDate) => {
+    const next: Resources = seriesId ? {...common, mode: 'issues', pages: createReadingPeriodicalIssuesCollection(bindings.client, libraryId, seriesId, kind, issueDate || undefined, year || undefined, choices => {if (active && bindings.authority.isCurrent()) setYearFact({context: captured.context, choices});}, month || undefined, (actualMonth, choices, latestDate) => {
         if (!active || !bindings.authority.isCurrent()) return;
         if (actualMonth) setDayFact({context: captured.context, month: actualMonth, choices});
         else if (kind === 'newspaper' && !month && latestDate) setMonth(latestDate.slice(0, 7));
@@ -107,14 +106,12 @@ function IssueRows({resources, retry}: {resources: Issues; retry: () => void}) {
     if (!resources.bindings.authority.isCurrent()) return;
     void router.navigate(read ? readChosenDestination(issue.item.id) : {to: '/item/$itemId', params: {itemId: issue.item.id}}).catch(resources.reportError);
   };
-  const saved = state.status === 'ready' ? <ReadGroupSavedAction client={resources.bindings.client} libraryId={resources.libraryId} groupKind={resources.kind} seriesId={resources.seriesId}
-    isCurrent={() => resources.bindings.authority.isCurrent() && resources.pages.collection.getSnapshot().status === 'ready'} reportError={resources.reportError}/> : null;
-  // desktop-read 5: a periodical's name heads its issues as the kit row's heading, its My List beside it.
+  // The ready heading keeps its existing action-slot spacing.
   const grid = <GridFrame>{(height, width) => <WindowedGrid collection={resources.pages.collection} label={name ?? t(resources.kind === 'magazine' ? 'library.tab.magazines' : 'library.tab.newspapers')}
     height={height} cardWidth={width} rowHeight={width * 4 / 3 + 66} gap={20} rowGap={30} renderPlaceholder={() => <Skeleton width={width} height={width * 4 / 3}/>}
     renderItem={issue => <CoverCard kind={resources.kind} context="grid" density="grid" visible
       artwork={resources.context.artwork.foreground(issue.item.coverUrl, 380, 3 / 4)} generated={generated(issue.item.title)}
       model={{title: issue.item.title, caption: [{id: 'date', text: calendarDate(defaultI18n, issue.issueDate), role: 'identity'}]}}
       disabled={!issue.item.inventoryAvailable} playLabel={t('next.reader.read')} onNavigate={() => open(issue, false)} onPlay={issue.item.inventoryAvailable ? () => open(issue, true) : undefined}/>}/>}</GridFrame>;
-  return <section className={styles.library}>{name ? <Row heading={name} platform={phone ? 'phone-web' : 'desktop'} actions={saved ?? undefined}>{grid}</Row> : <>{saved}{grid}</>}</section>;
+  return <section className={styles.library}>{name ? <Row heading={name} platform={phone ? 'phone-web' : 'desktop'} actions={state.status === 'ready' ? <></> : undefined}>{grid}</Row> : grid}</section>;
 }

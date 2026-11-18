@@ -32,7 +32,7 @@ export async function readHistoryPage(api: ServerRequester, bound: SavedScope, p
     entries: (Array.isArray(page?.items) ? page.items : []).map(entry => ({id: entry.id, media: mediaOf(entry), updatedAt: entry.playedAt, positionMs: entry.watchedMs ?? 0, completed: true}))};
 }
 /** Clear history, answered as the old receipt the service checks. The server answers nothing to keep. */
-export async function clearHistory(api: ServerRequester, bound: SavedScope, operationId: string, signal?: AbortSignal, _body?: unknown): Promise<unknown> {
+export async function clearHistory(api: ServerRequester, bound: SavedScope, operationId: string, signal?: AbortSignal): Promise<unknown> {
   await callServer(api, 'DELETE /v1/history', {signal});
   return {serverId: bound.serverId, viewerFence: 'viewer', receipt: {operationId, revision: 0}};
 }
@@ -160,9 +160,8 @@ export type ResourceCommandContext = Readonly<{
   /** The page's entries in order: each entry's id and title, so a removal can be undone. */
   entries: readonly Readonly<{id: string; itemId?: string}>[];
 }>;
-/** One collection or saved view change on the rebuilt server, answered as the receipt `personal-saved.ts` checks. The
- * service also hands over the old route's request, which only a test's old-server transport reads. */
-export async function sendResourceCommand(api: SavedNextApi, bound: SavedScope, intent: PersonalSavedIntent, context: ResourceCommandContext, operationId: string, signal?: AbortSignal, _old?: Readonly<{path: string; method: string; body: unknown}>): Promise<unknown> {
+/** One collection or saved view change on the rebuilt server, answered as the receipt `personal-saved.ts` checks. */
+export async function sendResourceCommand(api: SavedNextApi, bound: SavedScope, intent: Exclude<PersonalSavedIntent, {action: 'clear-history'}>, context: ResourceCommandContext, operationId: string, signal?: AbortSignal): Promise<unknown> {
   const answer = (resourceId: string, list: Pick<List, 'revision'> | undefined, extra: Record<string, unknown> = {}) =>
     ({serverId: bound.serverId, viewerFence: 'viewer', receipt: {operationId, resourceId, revision: list ? revisionOf(list) : (context.revision ?? 0) + 1, deleted: false, ...extra}});
   // An addition names its operation as its Idempotency-Key, which Retry keeps, so a repeat adds nothing twice. It
@@ -244,5 +243,4 @@ export async function sendResourceCommand(api: SavedNextApi, bound: SavedScope, 
       return answer(id, list);
     }
   }
-  throw new CodedError('not_available', 'This is not available on this server yet.');
 }

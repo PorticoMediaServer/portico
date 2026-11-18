@@ -8,7 +8,7 @@ import type {SavedRuntime, SavedScreenRoute} from './runtime';
 import {sameSavedRoute, savedRouteKey} from './route';
 
 export function savedCatalogueEntry(entry: SavedEntry): ContentEntry | undefined {
-  if (entry.kind === 'playlist' || entry.kind === 'reading_group') return undefined;
+  if (entry.kind === 'playlist') return undefined;
   const media = entry.kind === 'playlist_entry' ? entry.hidden ? undefined : entry.media : entry;
   // A radio station is a seed, not an item: it is never a saved selection member.
   return media?.kind === 'radio' ? undefined : media;

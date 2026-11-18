@@ -1,5 +1,3 @@
-import {ReadingGroupCard} from './ReadingGroupCard';
-import type {SavedReadingGroupCard} from '@core/reading-saved-group.ts';
 import type {SavedCatalogueSelection} from './catalogue-selection';
 import {CatalogueSelectionEntry, useCatalogueSelectionActive} from '../browse/document-selection';
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
@@ -53,7 +51,6 @@ export type SavedSelection = Readonly<{
 }>;
 export type SavedEffects = SavedDownloadEffects & Readonly<{
   openEntry(entry: ContentEntry): void;
-  openReadingGroup?: (card: Extract<SavedReadingGroupCard, {hidden: false}>) => void;
   playEntry(entry: ContentEntry, signal: AbortSignal): Promise<void>;
   openMore?: (service: SavedService, sectionId: string, entry: SavedEntry, anchor: HTMLElement) => void;
   selectRoute(route: SavedScreenRoute): void;
@@ -378,7 +375,6 @@ export function SavedSection(bindings: SavedViewBindings & {service: SavedServic
     <WindowedGrid collection={collection} pinnedIndex={bindings.heldEntryId ? section.entries.findIndex(entry => entry.id === bindings.heldEntryId) : undefined} label={bindings.heading?.label ?? serverTextLabel(defaultI18n, section.heading)} height={height} cardWidth={oneColumn ? Math.max(1, width) : presentation.cardWidth} rowHeight={rowHeight} rowGap={oneColumn ? 0 : 16} gap={phoneRows ? 0 : 16} reducedMotion={presentation.reducedMotion} onVisibleRange={onVisibleRange}
       renderPlaceholder={() => phoneRows ? <Skeleton width={Math.max(1, width)} height={72} /> : <Skeleton width={presentation.cardWidth} height={presentation.cardWidth / ratio} />}
       renderItem={(entry, context) => {
-        if (entry.kind === 'reading_group') return <ReadingGroupCard card={entry} service={service} runtime={bindings.runtime} operations={bindings.operations} artwork={artwork} width={presentation.cardWidth} open={effects.openReadingGroup} reportError={effects.reportError}/>;
         const cardSelection = selection?.card(service, section.id, entry), media = mediaEntry(entry);
         if (entry.kind === 'playlist') {
           // A generic content entry may also name a playlist; the card's own two
@@ -434,7 +430,7 @@ function PlaylistRow({first, title, count, pinned, lastChanged, covers, open}: {
   </button>;
 }
 function mediaEntry(entry: SavedEntry): ContentEntry | undefined {
-  return entry.kind === 'playlist' || entry.kind === 'reading_group' ? undefined : entry.kind === 'playlist_entry' ? entry.hidden ? undefined : entry.media : entry;
+  return entry.kind === 'playlist' ? undefined : entry.kind === 'playlist_entry' ? entry.hidden ? undefined : entry.media : entry;
 }
 
 function PersonalResources(bindings: SavedViewBindings & {onCreate: () => void}) {

@@ -1,8 +1,5 @@
-import {parseSavedReadingGroupCard, type SavedReadingGroupCard} from './reading-saved-group.ts';
 import {readSavedPage, readSavedSummary, savedTransport, type SavedTransport} from './saved-next.ts';
 import {validateHomeEntry} from './home.ts';
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {wireDurations} from './wire-units.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {firstOfEach, keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
@@ -58,38 +55,11 @@ export function parseResourceOrderWitness(v: unknown): ResourceOrderWitness | un
  return freeze({ ...(v.previous === undefined ? {} : { previous: v.previous as string }), ...(v.next === undefined ? {} : { next: v.next as string }), last: v.last as string });
 }
 export type SavedRoute = Readonly<{ view: 'watchlist' | 'favorites' | 'playlists' | 'collections' | 'views' | 'history' | 'resource'; resourceId?:string; sort?: string; direction?: 'asc' | 'desc'; filter?: SavedListFilter | PlaylistListFilter | ResourceContentFilter; shape?:SavedShape; period?: HistoryPeriod } | ({ view: 'playlist'; playlistId: string } & ResourceContentQuery)>;
-/** Filters and sorts are named server policies. The client picks a published name; it never
- * evaluates the predicate or re-sorts the page it was given. */
-export function savedListPath(view: 'watchlist' | 'favorites', options: Readonly<{ filter?: SavedListFilter; shape?:SavedShape; sort?: SavedListSort; direction?: 'asc' | 'desc'; limit?: number; cursor?: string | null }> = {}): string {
-  const limit = options.limit ?? 40;
-  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Saved lists page 1 to 100 rows.');
-  if (options.filter !== undefined && !savedListFilters.includes(options.filter)) throw new Error('Unknown saved list filter.');
-  if (options.sort !== undefined && !savedListSorts.includes(options.sort)) throw new Error('Unknown saved list sort.');
-  if (options.direction !== undefined && options.direction !== 'asc' && options.direction !== 'desc') throw new Error('Unknown sort direction.');
-  const params = new URLSearchParams({ view, limit: String(limit) });
-  if(options.shape!==undefined&&!['posters','squares'].includes(options.shape))throw new Error('Unknown Saved shape.');
-  if(options.shape)params.set('shape',options.shape);
-  if (options.filter) params.set('filter', options.filter);
-  if (options.sort) params.set('sort', options.sort);
-  if (options.direction) params.set('direction', options.direction);
-  if (options.cursor) params.set('cursor', options.cursor);
-  return routePath("get_saved_content") + "?" + (params);
-}
-export function personalHistoryPath(options: Readonly<{ period?: HistoryPeriod; libraryId?: string; limit?: number; cursor?: string | null }> = {}): string {
-  const limit = options.limit ?? 40;
-  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('History pages 1 to 100 rows.');
-  if (options.period !== undefined && !historyPeriods.includes(options.period)) throw new Error('Unknown history period.');
-  const params = new URLSearchParams({ limit: String(limit) });
-  if (options.period) params.set('period', options.period);
-  if (options.libraryId) params.set('libraryId', options.libraryId);
-  if (options.cursor) params.set('cursor', options.cursor);
-  return routePath("get_personal_history") + "?" + (params);
-}
 /** itemOnly rows use the title id for display; they name no removable list occurrence. */
 export type PlaylistOccurrence = Readonly<{itemOnly?: true}> & Readonly<{ id: string; kind: 'playlist_entry'; hidden: true } | { id: string; kind: 'playlist_entry'; hidden: false; media: ContentEntry }>;
 export type PlaylistCard = Readonly<{ id: string; kind: 'playlist'; title: string; subtitle?: string; count?: number; /** This viewer pinned the playlist. */ pinned?: boolean; /** When the playlist itself last changed (its creation, or its last name/summary/items edit). */ lastChanged?: string; artworkPaths?:readonly string[]; navigation: Readonly<{ view: 'playlist'; entityId: string }> }>;
-export type SavedEntry = ContentEntry | PlaylistOccurrence | PlaylistCard | SavedReadingGroupCard;
-export const savedEntryKey = (entry: SavedEntry): string => entry.kind === 'reading_group' ? `reading-group:${entry.id}` : entry.id;
+export type SavedEntry = ContentEntry | PlaylistOccurrence | PlaylistCard;
+export const savedEntryKey = (entry: SavedEntry): string => entry.id;
 export type SavedProjection = Readonly<Omit<ContentProjection, 'scope' | 'sections' | 'navigation'> & {
  scope: Readonly<{ serverId: string; libraryId: ''; libraryKind: 'mixed'; view: SavedRoute['view']; entityId: string; viewerFence: string }>;
  shapeCounts?:SavedShapeCounts;
@@ -197,7 +167,6 @@ function media(v: unknown): ContentEntry {
 }
 function entry(v: unknown, view: SavedRoute['view']): SavedEntry {
  if (!record(v)) invalid();
- if (v.kind === 'reading_group') {if (view !== 'watchlist') invalid(); return parseSavedReadingGroupCard(v);}
  if (view === 'playlist') {
   if (!id(v.id) || v.kind !== 'playlist_entry' || typeof v.hidden !== 'boolean') invalid();
   // A hidden occurrence stays opaque: whatever else the row carries is never read.
@@ -685,7 +654,7 @@ export type SavedLandingSummary=Readonly<{serverId:string;viewerFence:string;rev
  * aren't titles. */
 export async function readWatchlist(api: SavedApi, bound: SavedScope, signal?: AbortSignal): Promise<readonly ContentEntry[]> {
  const page = projection((await readSavedPage(api, bound, {view: 'watchlist'}, null, signal)).page, bound, {view: 'watchlist'});
- return page.sections.flatMap(section => section.entries.filter((entry): entry is ContentEntry => entry.kind !== 'reading_group' && entry.kind !== 'playlist_entry' && entry.kind !== 'playlist'));
+ return page.sections.flatMap(section => section.entries.filter((entry): entry is ContentEntry => entry.kind !== 'playlist_entry' && entry.kind !== 'playlist'));
 }
 export async function fetchSavedSummary(api:SavedApi,bound:SavedScope,signal?:AbortSignal):Promise<SavedLandingSummary>{
  const value:unknown=await readSavedSummary(api,bound,signal);

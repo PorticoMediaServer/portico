@@ -1,6 +1,6 @@
 import {validateHomeEntry} from './home.ts';
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
+import {routePath} from "../../contracts/src/route-paths.ts";
 import {wireDurations} from './wire-units.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {firstOfEach,keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
@@ -10,7 +10,7 @@ import {validateContentEntry,type ContentEntry} from './library-content.ts';
 import {parseBrowseNode,parseBrowseResult,type BrowseNode,type BrowseResult,type BrowseSortSelection} from './browse.ts';
 import type {SavedApi,SavedScope,SavedRoute,SavedActor,SavedShapeCounts} from './saved.ts';
 import {clearHistory,readDirectory,readHistoryPage,readResource,readResourceRow,sendResourceCommand} from './personal-saved-next.ts';
-import {parseSavedShapeCounts,parseResourceOrderWitness,resourceContentManual,resourceContentParams,resourceContentQuery,type ResourceContentQuery,type ResourceOrderWitness} from './saved.ts';
+import {parseSavedShapeCounts,parseResourceOrderWitness,resourceContentManual,resourceContentQuery,type ResourceContentQuery,type ResourceOrderWitness} from './saved.ts';
 export type PersonalResourceKind='collection'|'view';
 /** A saved view stores the whole browse request: the pivot, the expression tree
  * and the sort. The server validates it against the published capabilities; this
@@ -29,13 +29,12 @@ export type PersonalSavedIntent=Readonly<
   * order given; without it they swap among their places. Fenced by the collection's revision. */
  {action:'reorder';entryIds:readonly string[];afterEntryId?:string}|
  {action:'delete'}|{action:'pin';pinned:boolean}|
- {action:'share';actor:SavedActor;role:'viewer'|'editor'}|{action:'unshare';actor:SavedActor}|
- {action:'clear-history'|'reset-viewing-activity'}>;
+ {action:'clear-history'}>;
 export type PersonalSavedError=Readonly<{code:string;message:string;conflict:boolean}>;
 /** A collection page's own query echo, offered orders and filters, matching count, the index
  * of its first entry in the whole query and, in the collection's own order, its witnesses. */
 export type PersonalResourcePage=Readonly<{sort:string;direction:'asc'|'desc';filter:string;sorts:readonly Readonly<{id:string;labelKey:string;directions:readonly ('asc'|'desc')[]}>[];filters:readonly Readonly<{id:string;labelKey:string;options:readonly Readonly<{id:string;label:string;count:number}>[]}>[];totalCount:number;start:number;order?:ResourceOrderWitness}>;
-export type PersonalSavedSnapshot=Readonly<{page:PersonalResourcePage|null;shapeCounts?:SavedShapeCounts;route:SavedRoute|null;loading:boolean;error:PersonalSavedError|null;mutationError:PersonalSavedError|null;pending:boolean;retryPending:boolean;resources:readonly PersonalResource[];resource:PersonalResource|null;entries:readonly PersonalResourceEntry[];browse:BrowseResult|null;revision:number;viewerFence:string;cursor:string|null;history:readonly (string|null)[];nextCursor:string;result:Readonly<{resourceId?:string;deleted:boolean;entries?:EntryOutcomes;/** A removal can be undone until `until` with this token. */undo?:Readonly<{token:string;until:string}>}>|null;candidates:readonly Readonly<SavedActor&{id:string;displayName:string}>[];candidateCursor:string;libraries:readonly Readonly<{id:string;name:string;kind:string}>[]}>;
+export type PersonalSavedSnapshot=Readonly<{page:PersonalResourcePage|null;shapeCounts?:SavedShapeCounts;route:SavedRoute|null;loading:boolean;error:PersonalSavedError|null;mutationError:PersonalSavedError|null;pending:boolean;retryPending:boolean;resources:readonly PersonalResource[];resource:PersonalResource|null;entries:readonly PersonalResourceEntry[];browse:BrowseResult|null;revision:number;viewerFence:string;cursor:string|null;history:readonly (string|null)[];nextCursor:string;result:Readonly<{resourceId?:string;deleted:boolean;entries?:EntryOutcomes;/** A removal can be undone until `until` with this token. */undo?:Readonly<{token:string;until:string}>}>|null;libraries:readonly Readonly<{id:string;name:string;kind:string}>[]}>;
 const obj=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const str=(v:unknown,max=4096):v is string=>typeof v==='string'&&v.length<=max&&!/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(v);
 const id=(v:unknown):v is string=>str(v,256)&&v.length>0&&!/[\r\n]/.test(v);
@@ -57,10 +56,10 @@ function definition(v:unknown):SavedDefinition{
 function resource(v:unknown,scope:SavedScope):PersonalResource{
  if(!obj(v)||v.serverId!==scope.serverId||!id(v.viewerFence)||!id(v.id)||!['collection','view'].includes(v.kind as string)||!str(v.name,400)||!v.name.trim()||!str(v.summary,8000)||!['private','server'].includes(v.visibility as string)||!num(v.revision)||!num(v.entryCount)||!['owner','editor','viewer'].includes(v.role as string)||!['ready','needs-review'].includes(v.status as string)||typeof v.pinned!=='boolean'||!num(v.pinRevision))bad();
  // An action this app does not know is not offered. The role and what a role may hold stay exact.
- const offered=rows(v.actions,8),actions=[...new Set(offered.filter((a):a is string=>typeof a==='string'&&['pin','update','delete','entries','reorder','share'].includes(a)))];
+ const offered=rows(v.actions,8),actions=[...new Set(offered.filter((a):a is string=>typeof a==='string'&&['pin','update','delete','entries','reorder'].includes(a)))];
  if(actions.length!==offered.length)noteSkipped('personal-saved','resource.actions',offered.length-actions.length);
  if(v.role==='viewer'&&actions.some(a=>a!=='pin')||v.role==='editor'&&actions.some(a=>a!=='pin'&&a!=='entries'&&a!=='reorder'))bad();
- const shares=keepReadable('personal-saved','resource.shares',rows(v.shares??[],100),s=>{if(!obj(s)||typeof s.role!=='string'||!str(s.displayName,512))bad();/* Someone a collection or view is shared with is never hidden for holding a role this app does not know: they are listed, as a viewer, and can still be removed. */return {...actor(s),role:oneOfOr('personal-saved','share.role',s.role,['viewer','editor'] as const,'viewer'),displayName:s.displayName};});
+ const shares=keepReadable('personal-saved','resource.shares',rows(v.shares??[],100),s=>{if(!obj(s)||typeof s.role!=='string'||!str(s.displayName,512))bad();return {...actor(s),role:oneOfOr('personal-saved','share.role',s.role,['viewer','editor'] as const,'viewer'),displayName:s.displayName};});
  const invalidComponents=keepReadable('personal-saved','resource.invalidComponents',rows(v.invalidComponents,32),x=>{if(!str(x,256))bad();return x;});
  // Needs-review definitions are deliberately not executed or silently normalized.
  const d=v.kind==='view'&&v.status==='ready'?definition(v.definition):undefined;
@@ -69,7 +68,6 @@ function resource(v:unknown,scope:SavedScope):PersonalResource{
  return {...card,serverId:scope.serverId,viewerFence:v.viewerFence,id:v.id,kind:v.kind as PersonalResourceKind,name:v.name,summary:v.summary,visibility:v.visibility as PersonalVisibility,revision:v.revision,role:v.role as PersonalResource['role'],entryCount:v.entryCount,actions,...(d?{definition:d}:{}),status:v.status as PersonalResource['status'],invalidComponents,pinned:v.pinned,pinRevision:v.pinRevision,shares};
 }
 /** Visibility is a published server policy, not a client-side sharing rule. */
-function visibility(v:unknown):PersonalVisibility{if(v!=='private'&&v!=='server')throw new Error('Collection visibility must be private or server.');return v;}
 export type EntryOutcomes=Readonly<{added:readonly string[];removed:readonly string[];unchanged:readonly string[];failed:readonly Readonly<{itemId:string;code:string}>[]}>;
 /** Membership batches report every item. A row the server refused is an outcome the
  * viewer can see and act on, never a silently dropped change. */
@@ -129,7 +127,6 @@ export function parsePersonalBatchReceipt(v:unknown,serverId:string,requested:re
  if(results.filter(r=>r.ok).length!==v.updated||results.filter(r=>!r.ok).length!==v.failed)bad();
  return Object.freeze({serverId,viewerFence:v.viewerFence,operationId:v.operationId,results:Object.freeze(results),updated:v.updated,failed:v.failed});
 }
-export const PERSONAL_BATCH_PATH=routePath("put_items_personal_state_batch");
 /** A conflict is read again and offered as a reviewed retry: an out-of-date copy (`list_changed`, area 6 rule 34), or a
  * reorder that moved some entries before it failed. */
 function info(e:unknown):PersonalSavedError{const x=e as {code?:unknown;partlyMade?:unknown};const code=id(x?.code)?x.code:'request_failed';return {code,message:e instanceof Error?e.message:'The request failed.',conflict:x?.partlyMade===true||['resource_conflict','revision_mismatch','personal_state_conflict','stale_continuation','operation_expired','list_changed'].includes(code)};}
@@ -180,11 +177,11 @@ export function savedCategoryId(d?:SavedDefinition):string{
 export type PersonalSavedTransport=Readonly<{history:typeof readHistoryPage;clearHistory:typeof clearHistory;directory:typeof readDirectory;resource:typeof readResource;row:typeof readResourceRow;send:typeof sendResourceCommand}>;
 export const personalSavedTransport:PersonalSavedTransport=Object.freeze({history:readHistoryPage,clearHistory,directory:readDirectory,resource:readResource,row:readResourceRow,send:sendResourceCommand});
 export class PersonalSavedService{
- private state:PersonalSavedSnapshot;private listeners=new Set<()=>void>();private generation=0;private readTicket=0;private candidateTicket=0;private disposed=false;private controllers=new Set<AbortController>();private seen=0;
- private command?:{intent:PersonalSavedIntent;path:string;method:string;body:Record<string,unknown>;fence:string;rebased?:boolean};
+ private state:PersonalSavedSnapshot;private listeners=new Set<()=>void>();private generation=0;private readTicket=0;private disposed=false;private controllers=new Set<AbortController>();private seen=0;
+ private command?:{intent:PersonalSavedIntent;operationId:string;revision:number;fence:string};
  private api:SavedApi;readonly scope:SavedScope;private requestId:()=>Promise<string>;private transport:PersonalSavedTransport;
  constructor(api:SavedApi,scope:SavedScope,requestId:()=>Promise<string>,transport:PersonalSavedTransport=personalSavedTransport){this.api=api;this.transport=transport;this.scope=Object.freeze({...scope});this.requestId=requestId;if(!id(scope.serverId)||!str(scope.viewerId,1024)||!scope.viewerId)throw new Error('A complete viewer scope is required.');this.state=this.empty();}
- private empty():PersonalSavedSnapshot{return freeze({page:null,route:null,loading:false,error:null,mutationError:null,pending:false,retryPending:false,resources:[],resource:null,entries:[],browse:null,revision:0,viewerFence:'',cursor:null,history:[],nextCursor:'',result:null,candidates:[],candidateCursor:'',libraries:[]});}
+ private empty():PersonalSavedSnapshot{return freeze({page:null,route:null,loading:false,error:null,mutationError:null,pending:false,retryPending:false,resources:[],resource:null,entries:[],browse:null,revision:0,viewerFence:'',cursor:null,history:[],nextCursor:'',result:null,libraries:[]});}
  getSnapshot=()=>this.state;
  subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
  private publish(patch:Partial<PersonalSavedSnapshot>){if(this.disposed)return;this.state=freeze({...this.state,...patch});for(const fn of this.listeners)fn();}
@@ -268,15 +265,14 @@ export class PersonalSavedService{
  }
  /** One page of the route, read and checked. */
  private async page(route:SavedRoute,cursor:string|null,history:readonly (string|null)[],signal?:AbortSignal){
-   const query=new URLSearchParams({limit:String(PAGE),...(cursor?{cursor}:{})});
-   if(route.view==='resource')resourceContentParams(query,resourceContentQuery(route));
-   const path=route.view==='resource'?encodedRoutePath("get_saved_resources_id_content", {"id": encodeURIComponent(route.resourceId!)}):route.view==='history'?routePath("get_personal_history"):routePath("get_saved_resources");
-   if(route.view==='collections'||route.view==='views'){query.set('kind',route.view==='collections'?'collection':'view');if('shape'in route&&route.shape)query.set('shape',route.shape);}
-   if(route.view==='history'&&'period'in route&&route.period)query.set('period',route.period);
-   const raw=route.view==='history'?await this.bounded(s=>this.transport.history(this.api,this.scope,'period'in route?route.period:undefined,cursor,s),signal)
-    :route.view==='collections'||route.view==='views'?await this.bounded(s=>this.transport.directory(this.api,this.scope,route.view==='views'?'view':'collection',cursor,s),signal)
-    :route.view==='resource'?await this.bounded(s=>this.transport.resource(this.api,this.scope,route.resourceId!,resourceContentQuery(route),cursor,s),signal)
-    :await this.request<unknown>(path+'?'+query,'GET',undefined,signal);
+   const raw=await this.bounded(s=>{
+    switch(route.view){
+     case 'history':return this.transport.history(this.api,this.scope,route.period,cursor,s);
+     case 'collections':case 'views':return this.transport.directory(this.api,this.scope,route.view==='views'?'view':'collection',cursor,s);
+     case 'resource':return this.transport.resource(this.api,this.scope,route.resourceId!,resourceContentQuery(route),cursor,s);
+     default:throw new Error('Invalid personal resource destination.');
+    }
+   },signal);
    if(!obj(raw)||!str(raw.nextCursor,4096))bad();let patch:{-readonly [K in keyof PersonalSavedSnapshot]?:PersonalSavedSnapshot[K]}&{viewerFence:string;revision:number;nextCursor:string}={page:null,resource:null,resources:[],entries:[],browse:null,nextCursor:raw.nextCursor,cursor,history:[...history],viewerFence:'',revision:0};
    if(route.view==='resource'){
     const r=resource(raw.resource,this.scope);if(r.id!==route.resourceId)bad();patch.resource=r;patch.viewerFence=r.viewerFence;patch.revision=r.revision;
@@ -303,44 +299,56 @@ export class PersonalSavedService{
    return patch;
  }
  async loadLibraries():Promise<void>{const g=this.generation;try{const raw=await this.request<RouteResponse<"get_libraries">>(routePath("get_libraries"));if(!this.alive(g))return;if(!obj(raw))bad();const libraries=distinct(keepReadable('personal-saved','libraries',rows(raw.items,2048),v=>{if(!obj(v)||!id(v.id)||!str(v.name,512)||!id(v.kind))bad();return{id:v.id,name:v.name,kind:v.kind};}),'libraries');this.publish({libraries});}catch(e){if(this.alive(g))this.publish({error:info(e)});}}
- async loadCandidates(cursor=''):Promise<void>{const r=this.state.resource,g=this.generation,ticket=++this.candidateTicket;if(!r?.actions.includes('share'))return;
-  try{const raw=await this.request<RouteResponse<"get_saved_resources_id_share_candidates">>(encodedRoutePath("get_saved_resources_id_share_candidates", {"id": encodeURIComponent(r.id)}) + "?" + (new URLSearchParams({limit:'40',...(cursor?{cursor}:{})})));if(!this.alive(g)||ticket!==this.candidateTicket)return;
-   if(!obj(raw)||raw.serverId!==this.scope.serverId||!id(raw.viewerFence)||raw.resourceId!==r.id||raw.revision!==r.revision||!str(raw.nextCursor,4096))bad();const candidates=distinct(keepReadable('personal-saved','candidates',rows(raw.candidates),c=>{if(!obj(c)||!id(c.id)||!str(c.displayName,512))bad();return {...actor(c),id:c.id,displayName:c.displayName};}),'candidates');this.publish({candidates,candidateCursor:raw.nextCursor});
-  }catch(e){if(this.alive(g)&&ticket===this.candidateTicket)this.publish({error:info(e)});}}
- async mutate(intent:PersonalSavedIntent,rebased=false):Promise<boolean>{
+ async mutate(intent:PersonalSavedIntent):Promise<boolean>{
   if(this.disposed||this.state.loading||this.state.pending||this.command)throw new Error('Finish or dismiss the outstanding change before starting another.');
-  const r=this.state.resource,g=this.generation,route=this.state.route;if(!route||!this.state.viewerFence)throw new Error('Reload Saved before changing it.');
+  const r=this.state.resource,g=this.generation,route=this.state.route;
+  if(!route||!this.state.viewerFence)throw new Error('Reload Saved before changing it.');
   if(this.state.entries.some(entry=>entry.itemOnly&&(intent.action==='entries'?intent.removeEntryIds?.includes(entry.id):intent.action==='reorder'&&(intent.entryIds.includes(entry.id)||intent.afterEntryId===entry.id))))throw new Error('Open the list’s own order to change this entry.');
-  let path: string=routePath("post_saved_resources"),method='POST',body:Record<string,unknown>={expectedRevision:r?.revision??0};
-  if(intent.action==='create'){if(route.view!=='collections'&&route.view!=='views')throw new Error('Open the matching resource directory.');Object.assign(body,{kind:intent.kind,name:intent.name,summary:intent.summary??'',...(intent.visibility?{visibility:visibility(intent.visibility)}:{}),...(intent.definition?{definition:definition(intent.definition)}:{})});}
-  else if(intent.action==='clear-history'||intent.action==='reset-viewing-activity'){if(route.view!=='history')throw new Error('Open viewing history.');path=routePath("post_personal_history_actions");body={expectedRevision:this.state.revision,action:intent.action};}
-  else{
-   const action=intent.action==='unshare'?'share':intent.action;if(!r||!r.actions.includes(action))throw new Error('This action is not currently available to your profile.');const resourceId=encodeURIComponent(r.id);
-   switch(intent.action){
-    case 'update':path=encodedRoutePath('patch_saved_resources_id',{id:resourceId});method='PATCH';Object.assign(body,{...(intent.name!==undefined?{name:intent.name}:{}),...(intent.summary!==undefined?{summary:intent.summary}:{}),...(intent.visibility!==undefined?{visibility:visibility(intent.visibility)}:{}),...(intent.definition?{definition:definition(intent.definition)}:{})});break;
-    case 'delete':path=encodedRoutePath('delete_saved_resources_id',{id:resourceId});method='DELETE';break;
-    case 'entries':method='PUT';path=encodedRoutePath('put_saved_resources_id_entries',{id:resourceId});if(intent.undoToken!==undefined){if(!id(intent.undoToken)||intent.addItemIds?.length||intent.removeEntryIds?.length)throw new Error('Invalid collection entries.');body.undoToken=intent.undoToken;break;}if((intent.addItemIds?.length??0)>100||(intent.removeEntryIds?.length??0)>100||intent.addItemIds?.some(x=>!id(x))||intent.removeEntryIds?.some(x=>!id(x)))throw new Error('Invalid collection entries.');Object.assign(body,{addItemIds:intent.addItemIds??[],removeEntryIds:intent.removeEntryIds??[]});break;
-    case 'reorder':if(route.view!=='resource'||!resourceContentManual(resourceContentQuery(route)))throw new Error('Moves are made in the collection’s own order.');method='PUT';path=encodedRoutePath('reorder_saved_collection',{id:resourceId});if(!intent.entryIds.length||intent.entryIds.length>200||intent.entryIds.some(x=>!id(x))||new Set(intent.entryIds).size!==intent.entryIds.length||intent.afterEntryId!==undefined&&intent.afterEntryId!==''&&(!id(intent.afterEntryId)||intent.entryIds.includes(intent.afterEntryId)))throw new Error('Invalid collection order.');Object.assign(body,{entryIds:[...intent.entryIds],...(intent.afterEntryId!==undefined?{afterEntryId:intent.afterEntryId}:{})});break;
-    case 'share':case 'unshare':path=encodedRoutePath(intent.action==='share'?'put_saved_resources_id_shares':'delete_saved_resources_id_shares',{id:resourceId});method=intent.action==='share'?'PUT':'DELETE';Object.assign(body,actor(intent.actor));if(intent.action==='share')body.role=intent.role;break;
+  if(intent.action==='create'){
+   if(route.view!=='collections'&&route.view!=='views')throw new Error('Open the matching resource directory.');
+  }else if(intent.action==='clear-history'){
+   if(route.view!=='history')throw new Error('Open viewing history.');
+  }else if(!r?.actions.includes(intent.action)){
+   throw new Error('This action is not currently available to your profile.');
+  }
+  if(intent.action==='create'||intent.action==='update'){
+   if(intent.visibility!==undefined&&intent.visibility!=='private'&&intent.visibility!=='server')throw new Error('Collection visibility must be private or server.');
+   if(intent.definition)definition(intent.definition);
+  }
+  if(intent.action==='entries'){
+   if(intent.undoToken!==undefined){
+    if(!id(intent.undoToken)||intent.addItemIds?.length||intent.removeEntryIds?.length)throw new Error('Invalid collection entries.');
+   }else if((intent.addItemIds?.length??0)>100||(intent.removeEntryIds?.length??0)>100||intent.addItemIds?.some(x=>!id(x))||intent.removeEntryIds?.some(x=>!id(x))){
+    throw new Error('Invalid collection entries.');
    }
   }
+  if(intent.action==='reorder'){
+   if(route.view!=='resource'||!resourceContentManual(resourceContentQuery(route)))throw new Error('Moves are made in the collection’s own order.');
+   if(!intent.entryIds.length||intent.entryIds.length>200||intent.entryIds.some(x=>!id(x))||new Set(intent.entryIds).size!==intent.entryIds.length||intent.afterEntryId!==undefined&&intent.afterEntryId!==''&&(!id(intent.afterEntryId)||intent.entryIds.includes(intent.afterEntryId)))throw new Error('Invalid collection order.');
+  }
+  const revision=r?.revision??0;
   this.publish({pending:true,mutationError:null,result:null});
-  try{const operationId=await this.bounded(()=>this.requestId());if(!this.alive(g))return false;if(!uuid.test(operationId))throw new Error('A UUIDv4 operation ID is required.');body.operationId=operationId;this.command={intent:freeze({...intent}),path,method,body:freeze(body),fence:this.state.viewerFence,...(rebased?{rebased}:{})};return await this.send();}
+  try{const operationId=await this.bounded(()=>this.requestId());if(!this.alive(g))return false;if(!uuid.test(operationId))throw new Error('A UUIDv4 operation ID is required.');this.command={intent:freeze({...intent}),operationId,revision,fence:this.state.viewerFence};return await this.send();}
   catch(e){if(this.alive(g))this.publish({pending:false,mutationError:info(e),retryPending:!!this.command});return false;}
  }
  private async send():Promise<boolean>{const c=this.command,g=this.generation;if(!c||this.disposed)return false;this.publish({pending:true,mutationError:null});
-  // A collection's or open saved view's change goes to the rebuilt server's lists, with what it needs from the page on screen.
-  const listed=c.intent.action==='create'?true:c.intent.action!=='clear-history'&&c.intent.action!=='reset-viewing-activity'&&!!this.state.resource;
-  const context={resourceId:this.state.resource?.id,kind:this.state.resource?.kind,revision:c.body.expectedRevision as number|undefined,cursor:this.state.cursor,entries:this.state.entries.map(e=>({id:e.id,...(e.media?{itemId:e.media.id}:{})}))};
-  try{const raw=c.intent.action==='clear-history'?await this.bounded(s=>this.transport.clearHistory(this.api,this.scope,c.body.operationId as string,s,c.body))
-   :listed?await this.bounded(s=>this.transport.send(this.api,this.scope,c.intent,context,c.body.operationId as string,s,c))
-   :await this.request<unknown>(c.path,c.method,c.body);if(!this.alive(g))return false;if(!obj(raw)||raw.serverId!==this.scope.serverId||raw.viewerFence!==c.fence)bad();const receipt=raw.receipt;if(!obj(receipt)||receipt.operationId!==c.body.operationId||!num(receipt.revision))bad();const activity=c.intent.action==='clear-history'||c.intent.action==='reset-viewing-activity';if(!activity&&(!id(receipt.resourceId)||typeof receipt.deleted!=='boolean'))bad();
+  const context={resourceId:this.state.resource?.id,kind:this.state.resource?.kind,revision:c.revision,cursor:this.state.cursor,entries:this.state.entries.map(e=>({id:e.id,...(e.media?{itemId:e.media.id}:{})}))};
+  const activity=c.intent.action==='clear-history';
+  try{
+   const raw=await this.bounded(s=>c.intent.action==='clear-history'
+    ?this.transport.clearHistory(this.api,this.scope,c.operationId,s)
+    :this.transport.send(this.api,this.scope,c.intent,context,c.operationId,s));
+   if(!this.alive(g))return false;
+   if(!obj(raw)||raw.serverId!==this.scope.serverId||raw.viewerFence!==c.fence)bad();
+   const receipt=raw.receipt;
+   if(!obj(receipt)||receipt.operationId!==c.operationId||!num(receipt.revision))bad();
+   if(!activity&&(!id(receipt.resourceId)||typeof receipt.deleted!=='boolean'))bad();
    if(c.intent.action!=='create'&&!activity&&receipt.resourceId!==this.state.resource?.id)bad();
    const deleted=obj(raw.current)&&raw.current.resourceId===receipt.resourceId&&typeof raw.current.deleted==='boolean'?raw.current.deleted:receipt.deleted===true;
    const entries=c.intent.action==='entries'&&receipt.entries!==undefined?parseEntryOutcomes(receipt.entries):undefined;
    const undo=c.intent.action==='entries'&&id(receipt.undoToken)&&str(receipt.undoUntil,64)?{undo:{token:receipt.undoToken,until:receipt.undoUntil}}:{};
    if(entries?.failed.length){this.publish({pending:false,retryPending:true,mutationError:null,result:{entries,...undo,...(typeof receipt.resourceId==='string'?{resourceId:receipt.resourceId}:{}),deleted}});await this.refresh();return false;}
-   this.command=undefined;this.publish({pending:false,retryPending:false,mutationError:null,result:{...(entries?{entries}:{}),...undo,...(typeof receipt.resourceId==='string'?{resourceId:receipt.resourceId}:{}),deleted},candidates:[],candidateCursor:''});
+   this.command=undefined;this.publish({pending:false,retryPending:false,mutationError:null,result:{...(entries?{entries}:{}),...undo,...(typeof receipt.resourceId==='string'?{resourceId:receipt.resourceId}:{}),deleted}});
    // A list paged further than its first page stays where the viewer is (a move, a removal deep in a collection).
    if(!deleted&&!((this.state.history.length||this.seen>PAGE)&&await this.readThrough({}).catch(()=>false)))await this.refresh();return this.alive(g);
   }catch(e){if(!this.alive(g))return false;const error=info(e);this.publish({pending:false,retryPending:true,mutationError:error});if(error.conflict)await this.refresh();

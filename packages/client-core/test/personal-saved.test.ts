@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {PersonalSavedService,makeSavedDefinition,savedTitlePrefix,savedCategoryId} from '../src/personal-saved.ts';
 const scope={serverId:'server',viewerId:'["local","account","profile"]'};
 const media=(id='item')=>({id,libraryId:'library',kind:'movie',title:'Movie',available:true,playback:{itemId:id,startSeconds:0}});
-const resource=(patch:any={})=>({serverId:'server',viewerFence:'fence',id:'collection',kind:'collection',name:'Collection',summary:'',visibility:'private',revision:1,role:'owner',entryCount:0,actions:['pin','update','delete','entries','share'],status:'ready',invalidComponents:[],pinned:false,pinRevision:0,shares:[],...patch});
+const resource=(patch:any={})=>({serverId:'server',viewerFence:'fence',id:'collection',kind:'collection',name:'Collection',summary:'',visibility:'private',revision:1,role:'owner',entryCount:0,actions:['pin','update','delete','entries'],status:'ready',invalidComponents:[],pinned:false,pinRevision:0,shares:[],...patch});
 const directory=(resources:any[]=[])=>({serverId:'server',viewerFence:'fence',revision:1,resources,nextCursor:''});
 // A collection page echoes its query, offers its orders and filters, and counts what matches.
 const pageFields=(total:number)=>({query:{sort:'position',direction:'asc',category:'all',q:'',limit:40,searchMode:'none'},sorts:[{id:'position',labelKey:'sort.position',directions:['asc']}],filters:[{id:'filter',labelKey:'saved.filter',options:[{id:'all',label:'All',count:total}]}],totalCount:total,start:0});
@@ -59,9 +59,6 @@ test('late reads and writes cannot publish into another resource or disposed sco
  const late=deferred();let body:any;const s=setup(async(p,m,b)=>{if(m==='GET')return p.includes('/content')?content():directory();body=b;return late.promise;});await s.select({view:'resource',resourceId:'collection'});const change=s.mutate({action:'delete'});await tick();await s.select({view:'views'});await change;late.resolve({serverId:'server',viewerFence:'fence',receipt:{operationId:body.operationId,resourceId:'collection',revision:2,deleted:true}});await tick();assert.equal(s.getSnapshot().route?.view,'views');assert.equal(s.getSnapshot().result,null);s.dispose();
  const read=deferred();const x=setup(async()=>read.promise);const work=x.select({view:'collections'});x.dispose();await work;read.resolve(directory([resource()]));await tick();assert.equal(x.getSnapshot().resources.length,0);
 });
-test('history-only clear and reset-viewing-activity remain distinct idempotent commands',async()=>{
- const bodies:any[]=[];let revision=0;const s=setup(async(p,m,b)=>{if(m==='GET')return {serverId:'server',viewerFence:'fence',revision,entries:[{id:'occurrence',media:media(),updatedAt:'2026-09-06T12:00:00Z',positionSeconds:30,completed:false}],nextCursor:''};bodies.push(b);return {serverId:'server',viewerFence:'fence',receipt:{operationId:b.operationId,revision:++revision,action:b.action}};});await s.select({view:'history'});await s.mutate({action:'clear-history'});await s.mutate({action:'reset-viewing-activity'});assert.deepEqual(bodies.map(b=>b.action),['clear-history','reset-viewing-activity']);assert.deepEqual(bodies.map(b=>b.expectedRevision),[0,1]);assert.notEqual(bodies[0].operationId,bodies[1].operationId);s.dispose();
-});
 test('saved query needs-review does not execute or normalize an unsupported definition',async()=>{
  const s=setup(async()=>content(resource({id:'query',kind:'view',actions:['pin','update','delete'],status:'needs-review',invalidComponents:['pivot'],definition:{pivot:'obsolete'}})));await s.select({view:'resource',resourceId:'query'});assert.equal(s.getSnapshot().resource?.status,'needs-review');assert.equal(s.getSnapshot().browse,null);assert.equal(s.getSnapshot().resource?.definition,undefined);assert.equal(s.getSnapshot().error,null);s.dispose();
  assert.throws(()=>makeSavedDefinition('','prefix'));assert.equal(savedTitlePrefix(makeSavedDefinition('library','Prefix')),'Prefix');assert.equal(savedCategoryId(makeSavedDefinition('library','','grid','title','asc','decade:1990')),'decade:1990');
@@ -95,7 +92,7 @@ test('a collection removal carries its undo token, and Undo sends the token alon
  await assert.rejects(()=>s.mutate({action:'entries',undoToken:'undo-1',removeEntryIds:['member']}),/Invalid/);s.dispose();
 });
 test('a several-entry reorder refused because the collection changed surfaces the conflict instead of reapplying an old order',async()=>{
- const writes:any[]=[];let revision=3;const s=setup(async(p,m,b)=>{if(m==='GET')return content(resource({revision,actions:['pin','update','delete','entries','reorder','share']}),[{id:'e1',hidden:false,media:media('a')},{id:'e2',hidden:false,media:media('b')}]);writes.push(b);revision=4;throw Object.assign(new Error('Changed'),{code:'revision_mismatch'});});
+ const writes:any[]=[];let revision=3;const s=setup(async(p,m,b)=>{if(m==='GET')return content(resource({revision,actions:['pin','update','delete','entries','reorder']}),[{id:'e1',hidden:false,media:media('a')},{id:'e2',hidden:false,media:media('b')}]);writes.push(b);revision=4;throw Object.assign(new Error('Changed'),{code:'revision_mismatch'});});
  await s.select({view:'resource',resourceId:'collection'});
  assert.equal(await s.mutate({action:'reorder',entryIds:['e2','e1'],afterEntryId:''}),false);
  assert.equal(writes.length,1,'no automatic second write');
@@ -103,14 +100,14 @@ test('a several-entry reorder refused because the collection changed surfaces th
  s.dispose();
 });
 test('a collection move preserves its refused revision until the viewer explicitly reviews and rebases',async()=>{
- const writes:any[]=[];const paths:string[]=[];let revision=3;const s=setup(async(p,m,b)=>{if(m==='GET')return content(resource({revision,actions:['pin','update','delete','entries','reorder','share']}),[{id:'e1',hidden:false,media:media('a')},{id:'e2',hidden:false,media:media('b')}]);paths.push(p);writes.push(b);if(writes.length===1){revision=4;throw Object.assign(new Error('Changed'),{code:'revision_mismatch'});}revision=5;return {serverId:'server',viewerFence:'fence',receipt:{operationId:b.operationId,resourceId:'collection',revision,deleted:false}};});
+ const writes:any[]=[];const paths:string[]=[];let revision=3;const s=setup(async(p,m,b)=>{if(m==='GET')return content(resource({revision,actions:['pin','update','delete','entries','reorder']}),[{id:'e1',hidden:false,media:media('a')},{id:'e2',hidden:false,media:media('b')}]);paths.push(p);writes.push(b);if(writes.length===1){revision=4;throw Object.assign(new Error('Changed'),{code:'revision_mismatch'});}revision=5;return {serverId:'server',viewerFence:'fence',receipt:{operationId:b.operationId,resourceId:'collection',revision,deleted:false}};});
  await s.select({view:'resource',resourceId:'collection'});
  assert.equal(await s.mutate({action:'reorder',entryIds:['e2'],afterEntryId:''}),false);
  assert.equal(writes.length,1,'a conflict never authors another operation automatically');
  assert.equal(writes[0].expectedRevision,3);
  assert.equal(s.getSnapshot().mutationError?.code,'revision_mismatch');
  assert.equal(await s.rebase(),true);
- assert.deepEqual(paths,['/v1/saved-resources/collection/order','/v1/saved-resources/collection/order']);
+ assert.deepEqual(paths,['/fixtures/resources/collection/order','/fixtures/resources/collection/order']);
  assert.deepEqual([writes[0].expectedRevision,writes[1].expectedRevision],[3,4]);
  assert.deepEqual(writes[1].entryIds,['e2']);assert.equal(writes[1].afterEntryId,'');assert.notEqual(writes[0].operationId,writes[1].operationId);
  assert.equal(s.getSnapshot().mutationError,null);
@@ -126,7 +123,7 @@ test('a collection paged past its first page is read again through every page on
  // 100 members, 40 a page: the cursor names where the page starts.
  let order=Array.from({length:100},(_,i)=>'m'+i);let revision=1;const reads:string[]=[];
  const s=setup(async(p,m,b)=>{
-  if(m==='GET'){const at=Number(new URL('http://x'+p).searchParams.get('cursor')??0);reads.push(String(at));const ids=order.slice(at,at+40);return {resource:resource({revision,actions:['pin','update','delete','entries','reorder','share']}),entries:ids.map(id=>({id,hidden:false,media:media(id)})),nextCursor:at+40<order.length?String(at+40):'',...pageFields(order.length),start:at};}
+  if(m==='GET'){const at=Number(new URL('http://x'+p).searchParams.get('cursor')??0);reads.push(String(at));const ids=order.slice(at,at+40);return {resource:resource({revision,actions:['pin','update','delete','entries','reorder']}),entries:ids.map(id=>({id,hidden:false,media:media(id)})),nextCursor:at+40<order.length?String(at+40):'',...pageFields(order.length),start:at};}
   const from=order.indexOf(b.entryIds[0]);order.splice(from,1);order.splice(b.afterEntryId?order.indexOf(b.afterEntryId)+1:0,0,b.entryIds[0]);revision++;
   return {serverId:'server',viewerFence:'fence',receipt:{operationId:b.operationId,resourceId:'collection',revision,deleted:false}};
  });

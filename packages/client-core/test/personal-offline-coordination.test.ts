@@ -42,14 +42,3 @@ test('offline reading operations preserve payload and return the original transp
     ['/v1/reading/offline/progress', 'POST', {receipt, observationReceipt, expectedRevision: 7, observedAt: 1000, startedAt: 500, location}],
   ]);
 });
-
-test('saved reading-group removal preserves revision, stable command and post-response authority', async () => {
-  const {removeSavedReadingGroup} = await import('../src/saved-reading-reference.ts');
-  const signal = new AbortController().signal, command = {operationId: 'held', expectedRevision: 2}, calls: unknown[][] = [];
-  const api = {request: async <T>(...args: unknown[]) => {calls.push(args); return {serverId: 'server', referenceId: 'reference', operationId: 'held', removed: true, revision: 3} as T;}};
-  const result = await removeSavedReadingGroup(api, 'server', 'reference', command, signal, () => {});
-  assert.equal(result.revision, 3);
-  assert.deepEqual(calls, [['/v1/reading/saved-groups/reference', 'DELETE', command, signal]]);
-  const cancelled = new Error('retired');
-  await assert.rejects(removeSavedReadingGroup(api, 'server', 'reference', command, signal, () => {throw cancelled;}), error => error === cancelled);
-});

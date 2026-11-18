@@ -1,7 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {parsePersonPage,parsePeopleDirectory,personPath,peopleSearchPath,personPortraitPath,readPerson,personSections,personSectionLabel} from '../src/people.ts';
 import {personalBatchBody,parsePersonalBatchReceipt,parseEntryOutcomes,MAX_PERSONAL_BATCH} from '../src/personal-saved.ts';
-import {savedListPath,personalHistoryPath} from '../src/saved.ts';
 import {skippedParts} from '../src/tolerant.ts';
 const scope={serverId:'server',viewerId:JSON.stringify(['local','account','profile'])};
 const media=(id:string)=>({id,libraryId:'library',kind:'movie',title:'Film '+id,navigation:{view:'item',entityId:id}});
@@ -142,12 +141,4 @@ test('membership outcomes account for every item exactly once',()=>{
  assert.equal(outcomes.failed[0].code,'not_found');
  assert.throws(()=>parseEntryOutcomes({added:['a'],removed:['a'],unchanged:[],failed:[]}));
  assert.throws(()=>parseEntryOutcomes({added:['a'],removed:[],unchanged:[],failed:[{itemId:'d'}]}));
-});
-test('saved list and history addresses carry only published filters and periods',()=>{
- assert.equal(savedListPath('watchlist',{filter:'inProgress',sort:'progress',direction:'desc'}),'/v1/content?view=watchlist&limit=40&filter=inProgress&sort=progress&direction=desc');
- assert.equal(personalHistoryPath({period:'7d',libraryId:'lib'}),'/v1/personal-history?limit=40&period=7d&libraryId=lib');
- assert.throws(()=>savedListPath('favorites',{filter:'everything' as any}));
- assert.throws(()=>savedListPath('favorites',{sort:'rank' as any}));
- assert.throws(()=>personalHistoryPath({period:'forever' as any}));
- assert.throws(()=>personalHistoryPath({limit:101}));
 });

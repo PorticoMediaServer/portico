@@ -85,7 +85,6 @@ async function mount(initial: {posters: any; squares: any}) {
     './retry-admission.ts': retryAdmission,
     './use-view-operations.ts': {useSavedViewOperations: () => operations},
     './saved.module.css': {default: {}},
-    './ReadingGroupCard': {ReadingGroupCard: 'ReadingGroupCard'},
   });
   const flat = () => tree(h.render(() => app.SavedScreen({runtime, route: currentRoute, online: true, downloadsOffered: false,
     artwork, preparationArtwork: artwork, presentation, effects})));

@@ -1,5 +1,3 @@
-import {removeSavedReadingGroup} from '@core/saved-reading-reference.ts';
-import {readingSavedReferencePath, type ReadingSavedReferenceCommand} from '@core/reading-saved-group.ts';
 import {SavedService, type SavedApi, type SavedRestore, type SavedRoute} from '@core/saved.ts';
 import {PersonalSavedService, isPersonalSavedRoute} from '@core/personal-saved.ts';
 import {DownloadsService} from '@core/downloads-service.ts';
@@ -60,10 +58,6 @@ export function createSavedRuntime(input: Readonly<{api: SavedApi; scope: SavedD
   if (input.deviceId) downloads.followDevice(input.deviceId);
   return {
     scope, operations, saved, posters, squares, personal, downloads, summary,
-    canRemoveReadingGroup(referenceId: string): boolean {return operations.current && readingSavedReferencePath(referenceId) !== undefined;},
-    removeReadingGroup(referenceId: string, command: ReadingSavedReferenceCommand, signal: AbortSignal) {
-      return removeSavedReadingGroup(api, scope.serverId, referenceId, command, signal, () => {if (!operations.current) throw abort();});
-    },
     /** Install once for this captured parent lifetime. Route unmounts do not
      * cancel an accepted native queue; parent retirement closes the observer. */
     installReadyDownloads(save: SaveReadyPreparation, reportError: (error: unknown) => void): void {

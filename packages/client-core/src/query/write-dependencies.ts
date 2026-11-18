@@ -103,10 +103,6 @@ const table = {
   // A show, season, album or series as a whole.
   set_container_personal_state: oneTitle('id', true),
   undo_container_personal_state: oneTitle('id', true),
-  put_reading_group_my_list: (write, context) => {
-    const libraryId = write.params.libraryId, seriesId = write.params.seriesId;
-    return libraryId && seriesId ? titlesChanged([{itemId: seriesId, libraryId}], context, true) : [];
-  },
   post_libraries_libraryId_reading_mark_all: write => {
     const libraryId = write.params.libraryId;
     return libraryId ? [dependsOn.personal(libraryId), dependsOn.personal(), `personal:any:${libraryId}`, `personal:any:${ALL}`] : [];
@@ -115,7 +111,6 @@ const table = {
   post_personal_history_actions: () => [dependsOn.personal(), `personal:any:${ALL}`, dependsOn.progress(), `progress:any:${ALL}`],
   delete_me_removed_titles_id: profileWide,
   post_me_recommendations_reset: () => [dependsOn.list('recommendations'), dependsOn.personal()],
-  delete_reading_saved_group_reference: profileWide,
   post_saved_resources: profileWide,
   delete_saved_resources_id: profileWide,
   patch_saved_resources_id: profileWide,

@@ -136,12 +136,6 @@ function CommittedSaved({captured, lease, appearance, choice, setChoice}: {captu
     const reportError = (error: unknown) => {if (lease.current()) context.effects.reportError(error);};
     return {
       openEntry(entry) {if (member(entry)) context.effects.openEntry(entry);},
-      openReadingGroup(card) {
-        if (dataRoute.view !== 'watchlist' || !documents.some(held => documentCurrent(held)
-          && held.state.projection!.sections.some(section => section.entries.some(value => value === card)))) return;
-        void router.navigate({to: '/library/$libraryId', params: {libraryId: card.libraryId}, search: {view: 'series', entityId: card.readingGroup.seriesId,
-          ...(card.navigation.pivot ? {pivot: card.navigation.pivot} : {})}}).catch(reportError);
-      },
       async playEntry(entry, input) {
         // A station is its seed, never an ordinary item playback authority.
         if (entry.kind === 'radio' || !member(entry) || !entry.libraryId || !entry.playback || entry.available === false || entry.missing)
