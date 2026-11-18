@@ -2,7 +2,7 @@
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {colors, profileArtColors, spacing, spacingGrid, radii, platformRadii, motion, easings, springs, springTiming, reducedMotion, layout, layers, targets, typography, fixedTypeMetrics, typeScale, watchEndType, componentSpec, frameSpec} from '../src/index.ts';
+import {colors, profileArtColors, spacing, spacingGrid, radii, platformRadii, motion, easings, springs, springTiming, reducedMotion, layout, layers, targets, typography, fixedTypeMetrics, watchEndType, componentSpec, frameSpec, formScale, emphasis} from '../src/index.ts';
 
 export const tokenCssPath = fileURLToPath(new URL('../../../web/src/kit/tokens.css', import.meta.url));
 const kebab = value => value.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase());
@@ -12,11 +12,24 @@ const ms = value => `${value}ms`;
 const scalar = value => String(value);
 const rgba = (color, alpha) => `rgba(${[1, 3, 5].map(i => parseInt(colors[color].slice(i, i + 2), 16)).join(', ')}, ${alpha})`;
 
-function typeTokens(column) {
-  return Object.entries(typeScale[column]).flatMap(([role, value]) => {
+/** One form's type roles (R2), each with the colour of its level of emphasis (R3). */
+function typeTokens(form) {
+  return Object.entries(formScale.type[form]).flatMap(([role, value]) => {
     const prefix = `--type-${kebab(role)}`;
-    return [`${prefix}-size: ${rem(value.size)}`, `${prefix}-line: ${value.lineHeight === 'normal' ? 'normal' : rem(value.lineHeight)}`, `${prefix}-weight: ${value.weight}`, `${prefix}-tracking: ${value.tracking}em`, `${prefix}-transform: none`];
+    return [`${prefix}-size: ${rem(value.size)}`, `${prefix}-line: ${value.lineHeight === 'normal' ? 'normal' : rem(value.lineHeight)}`, `${prefix}-weight: ${value.weight}`, `${prefix}-tracking: ${value.tracking}em`, `${prefix}-transform: none`,
+      `${prefix}-color: var(--emphasis-${formScale.emphasis[form][role] ?? 'primary'})`];
   });
+}
+/** R3: the levels and what a control's state takes, the same on every form. */
+function emphasisTokens() {
+  const color = token => `var(--color-${kebab(token)})`;
+  return [...Object.entries(emphasis.level).map(([level, token]) => `--emphasis-${level}: ${color(token)}`),
+    `--emphasis-value: var(--emphasis-${emphasis.value.level})`, `--emphasis-value-weight: ${emphasis.value.weight}`,
+    `--emphasis-value-chosen: var(--emphasis-${emphasis.valueChosen.level})`, `--emphasis-value-chosen-weight: ${emphasis.valueChosen.weight}`,
+    `--emphasis-active: var(--emphasis-${emphasis.active})`, `--emphasis-on: var(--emphasis-${emphasis.on})`, `--emphasis-off: var(--emphasis-${emphasis.off})`,
+    `--emphasis-progress-fill: ${color(emphasis.progress.fill)}`, `--emphasis-progress-track: ${rgba(emphasis.progress.track, emphasis.progress.trackAlpha)}`,
+    `--emphasis-badge-background: ${color(emphasis.badge.background)}`, `--emphasis-badge-foreground: ${color(emphasis.badge.foreground)}`,
+    ...['primary', 'secondary', 'tertiary'].map(name => `--icon-${name}-color: var(--emphasis-${formScale.icon[name].level})`)];
 }
 
 /** Numeric spec leaves are lengths except the explicitly dimensionless/time roles. */
@@ -51,17 +64,25 @@ function watchEndTokens() {
     `--type-watch-end-name-line: ${scalar(watchEndType.nameLine)}`,
     `--type-watch-end-year-size: ${rem(watchEndType.yearSize)}`];
 }
-function platformTokens(platform) {
-  const column = platform === 'web' ? 'desktop' : platform === 'tv' ? 'tenFoot' : 'handheld';
-  const {hero, button, card, chip, shelf} = componentSpec;
-  return [...typeTokens(column), ...watchEndTokens(),
+/** What a form decides (R2, R4): `phone`, `medium`, `web` or `tv`. What the form scale does not hold comes from the
+ * component spec's column for it (`tablet` for `medium`). */
+function platformTokens(form) {
+  const platform = form === 'medium' ? 'tablet' : form;
+  const {hero, chip, shelf} = componentSpec, {card, button, row, icon} = formScale, caption = card.caption;
+  const buttons = Object.entries({hero: button.standard, small: button.small, xs: button.extraSmall}).flatMap(([name, size]) =>
+    [`--button-${name}-height: ${px(size.height[form])}`, `--button-${name}-radius: ${px(size.radius[form])}`, `--button-${name}-padding-x: ${px(size.paddingX[form])}`, `--button-${name}-gap: ${px(size.gap[form])}`, `--button-${name}-icon: ${px(size.icon[form])}`]);
+  return [...typeTokens(form), ...watchEndTokens(),
     `--hero-home-height: ${px(hero.homeHeight[platform])}`, `--hero-title-height: ${px(hero.titleHeight[platform])}`,
     `--hero-ambient-blur: ${px(hero.ambient.blur[platform])}`, `--hero-ambient-alpha: ${hero.ambient.alpha[platform]}`,
-    `--button-hero-height: ${px(button.hero.height[platform])}`, `--button-hero-radius: ${px(button.hero.radius[platform])}`,
-    `--button-hero-padding-x: ${px(button.hero.paddingX[platform])}`, `--button-hero-gap: ${px(button.hero.gap[platform])}`,
-    `--card-poster-width: ${px(card.width.poster[platform])}`, `--card-wide-width: ${px(card.width.wide[platform])}`, `--card-square-width: ${px(card.width.square[platform])}`,
-    `--card-radius: ${px(card.radius[platform])}`, `--chip-height: ${px(chip.height[platform])}`, `--chip-radius: ${px(chip.radius[platform])}`,
-    `--row-gap: ${px(shelf.gap[platform])}`, `--row-margin-top: ${px(shelf.marginTop[platform])}`,
+    ...buttons,
+    `--card-poster-width: ${px(card.poster[form])}`, `--card-wide-width: ${px(card.wide[form])}`, `--card-square-width: ${px(card.square[form])}`, `--card-artist-width: ${px(card.artist[form])}`,
+    `--card-radius: ${px(card.radius[form])}`, `--chip-height: ${px(chip.height[platform])}`, `--chip-radius: ${px(chip.radius[platform])}`,
+    `--row-gap: ${px(card.gap[form])}`, `--row-margin-top: ${px(shelf.marginTop[platform])}`,
+    `--card-caption-gap: ${px(caption.gap[form])}`, `--card-caption-title-line: ${px(caption.titleLine[form])}`, `--card-caption-subtitle-gap: ${px(caption.subtitleGap[form])}`, `--card-caption-subtitle-line: ${px(caption.subtitleLine[form])}`,
+    `--card-caption-height: ${px(caption.gap[form] + caption.titleLine[form] + caption.subtitleGap[form] + caption.subtitleLine[form])}`,
+    `--list-row-one-line: ${px(row.oneLine[form])}`, `--list-row-two-line: ${px(row.twoLine[form])}`, `--list-row-padding-x: ${px(row.paddingX[form])}`, `--list-row-padding-y: ${px(row.paddingY[form])}`,
+    `--list-row-tile: ${px(row.tile[form])}`, `--list-row-tile-radius: ${px(row.tileRadius[form])}`, `--list-row-select: ${px(row.select[form])}`, `--list-row-chip: ${px(row.chip[form])}`, `--list-row-tab: ${px(row.tab[form])}`,
+    ...['primary', 'secondary', 'tertiary'].flatMap(name => [`--icon-${name}: ${px(icon[name].size[form])}`, `--icon-${name}-box: ${px(icon.box[name][form])}`]),
   ];
 }
 /** The screen frames' measurements for one form (packages/design/src/frames.ts). `web` takes the browser's own
@@ -78,6 +99,7 @@ function frameTokens(form, web) {
   return [
     `--frame-card-padding: ${px(f.card.padding[form])}`, `--frame-card-radius: ${px(f.card.radius[form])}`,
     `--frame-section-gap: ${px(f.rhythm.section[form])}`, `--frame-heading-gap: ${px(f.rhythm.headingGap[form])}`, `--frame-header-gap: ${px(f.rhythm.headerGap[form])}`,
+    `--frame-row-section: ${px(pick(f.rhythm.rowSection))}`, `--frame-row-heading-gap: ${px(pick(f.rhythm.rowHeadingGap))}`, `--frame-row-bleed: ${px(pick(f.rhythm.rowBleed))}`,
     `--frame-title-top: ${px(pick(f.rhythm.titleTop))}`, `--frame-bottom-clear: ${px(f.rhythm.bottomClear[form])}`, `--frame-row-two-line: ${px(f.rhythm.rowTwoLine[form])}`,
     ...hero('home', f.hero.home), ...hero('title', f.hero.title),
     `--frame-hero-home-row-offset: ${px(pick(f.hero.home.rowOffset))}`,
@@ -124,12 +146,12 @@ export function renderTokens() {
     ...entries(layers, 'layer', scalar), ...entries(targets, 'target', px),
     `--font: ${typography.webFamily}`, `--font-mono: ${typography.monoFamily}`, `--page-gutter: ${px(layout.gutter.phone)}`, ...entries(layout.gutter, 'gutter', px),
     '--text-transform: none', `--glass-fill: ${rgba('text', componentSpec.button.glass.alpha)}`, `--glass-hover-fill: ${rgba('text', componentSpec.button.glass.hoverAlpha)}`,
-    `--glass-blur: ${px(componentSpec.button.glass.blur)}`, ...flattenSpec(componentSpec), ...platformTokens('phone'), ...frameConstants(), ...frameTokens('phone', true),
+    `--glass-blur: ${px(componentSpec.button.glass.blur)}`, ...flattenSpec(componentSpec), ...emphasisTokens(), ...platformTokens('phone'), ...frameConstants(), ...frameTokens('phone', true),
   ];
   const reduced = [`.portico-motion`, `[data-portico-motion]`].join(', ');
   return `/* Canonical projection of packages/design. Run node packages/design/scripts/tokens.mjs. */\n` +
     block(':root', root) + '\n\n' +
-    `@media (min-width: ${layout.breakpoint.phone}px) {\n${block(':root', [`--page-gutter: ${px(layout.gutter.tablet)}`, ...frameTokens('medium', true)])}\n}\n\n` +
+    `@media (min-width: ${layout.breakpoint.phone}px) {\n${block(':root', [...platformTokens('medium'), `--page-gutter: ${px(layout.gutter.tablet)}`, ...frameTokens('medium', true)])}\n}\n\n` +
     `@media (min-width: ${layout.breakpoint.desktop}px) {\n${block(':root', [...platformTokens('web'), '--page-gutter: clamp(32px, calc(7.6923076923vw - 46.7692307692px), 64px)', ...frameTokens('expanded', true)])}\n}\n\n` +
     block('[data-platform="tv"]', [...platformTokens('tv'), `--page-gutter: ${px(layout.gutter.tv)}`, ...frameTokens('tv', false)]) + '\n\n' +
     // Consumers opt their moving layers into this contract; static geometry is unaffected.

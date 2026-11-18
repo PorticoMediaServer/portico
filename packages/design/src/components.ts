@@ -12,10 +12,14 @@
  * phone-width web), `tablet` (iPad), `tv` (Apple TV, Android TV).
  */
 import type {ColorToken, TypeRole} from './index.ts';
+import {emphasis, formSizes, type ByForm} from './scale.ts';
 
 type Platforms<T> = Readonly<{web: T; phone: T; tablet: T; tv: T}>;
 const all = <T>(web: T, phone: T, tablet: T, tv: T): Platforms<T> => ({web, phone, tablet, tv});
 const same = <T>(value: T, tv: T): Platforms<T> => all(value, value, value, tv);
+/** A form-scale role (scale.ts) as this file's columns: `tablet` is the expanded tablet's. The sizes that follow the
+ * form are written once, in `formSizes`; a part that draws `medium` differently reads the form scale itself. */
+const scaled = <T>(role: ByForm<T>): Platforms<T> => all(role.web, role.phone, role.expanded, role.tv);
 
 export type Fill = Readonly<{background: ColorToken | 'transparent'; backgroundAlpha?: number; foreground: ColorToken; border?: ColorToken; borderAlpha?: number}>;
 
@@ -51,7 +55,7 @@ export const button = {
   label: {sm: 'captionStrong', md: 'bodyStrong', lg: 'bodyStrong'} as Readonly<Record<ButtonSize, TypeRole>>,
   /** Sizes use drawn radii; hero geometry has its own platform columns. */
   radius: all(10, 10, 10, 14),
-  hero: {height: all(54, 46, 46, 72), radius: all(12, 10, 10, 14), paddingX: all(26, 20, 20, 38), gap: all(10, 8, 8, 14), icon: all(22, 20, 20, 30), label: 'button' as TypeRole},
+  hero: {height: scaled(formSizes.button.standard.height), radius: scaled(formSizes.button.standard.radius), paddingX: scaled(formSizes.button.standard.paddingX), gap: scaled(formSizes.button.standard.gap), icon: scaled(formSizes.button.standard.icon), label: 'button' as TypeRole},
   compact: {height: 46, radius: 12, paddingX: 26, gap: 10, label: 'compactButton' as TypeRole},
   phoneMockGap: 10,
   glass: {color: 'text' as ColorToken, alpha: 0.14, hoverAlpha: 0.22, focusedTvAlpha: 0.28, blur: 20, nativeBlur: {phone: true, appleTv: true, androidTv: false, fireTv: false}, fallback: {background: 'text' as ColorToken, backgroundAlpha: 0.14}},
@@ -330,22 +334,22 @@ export const hero = {
 
 /** Artwork scales; the label stays still. Shadow is a fixed layer faded in (motion.html#1). */
 export const card = {
-  width: {poster: all(190, 118, 118, 214), wide: all(316, 262, 262, 400), phoneMockWide: 260, square: all(190, 132, 132, 214), artist: all(172, 100, 100, 214)},
-  aspect: {poster: 2 / 3, wide: 16 / 9, square: 1, circle: 1, magazine: 3 / 4}, radius: same(10, 14),
-  title: 'cardTitle' as TypeRole, subtitle: 'cardSubtitle' as TypeRole, titleMargin: all(10, 8, 8, 14), subtitleMargin: same(2, 3),
+  width: {poster: scaled(formSizes.card.poster), wide: scaled(formSizes.card.wide), phoneMockWide: 260, square: scaled(formSizes.card.square), artist: scaled(formSizes.card.artist)},
+  aspect: {poster: 2 / 3, wide: 16 / 9, square: 1, circle: 1, magazine: 3 / 4}, radius: scaled(formSizes.card.radius),
+  title: 'cardTitle' as TypeRole, subtitle: 'cardSubtitle' as TypeRole, titleMargin: scaled(formSizes.card.caption.gap), subtitleMargin: scaled(formSizes.card.caption.subtitleGap),
   hover: {artScale: 1.045, liveScale: 1.03, episodeScale: 1.03, durationMs: 260, playMs: 200, playTranslate: 6,
     shadow: {x: 0, y: 22, blur: 40, spread: -16, color: 'shadow' as ColorToken, alpha: 0.85}, ring: {width: 1, color: 'text' as ColorToken, alpha: 0.16}},
   play: {size: 40, wideSize: 52, episodeSize: 48, inset: 10, wideScaleFrom: 0.9},
   /** kit.css `.gap` between on-art facts: 12 px, 16 on TV. */
   wide: {insetX: same(14, 20), insetBottom: same(14, 18), title: 'wideTitle' as TypeRole, scrimStart: 0.45, scrimAlpha: 0.85, factsGap: all(12, 12, 12, 16)},
-  progress: {height: same(4, 6), marginTop: same(10, 12), track: 'text' as ColorToken, trackAlpha: 0.22, fill: 'accentStrong' as ColorToken},
-  badge: {radius: same(6, 8), inset: same(8, 12), paddingX: all(8, 8, 8, 11), paddingY: same(3, 4), role: 'badge' as TypeRole},
+  progress: {height: same(4, 6), marginTop: same(10, 12), track: emphasis.progress.track, trackAlpha: emphasis.progress.trackAlpha, fill: emphasis.progress.fill},
+  badge: {radius: same(6, 8), inset: same(8, 12), paddingX: all(8, 8, 8, 11), paddingY: same(3, 4), role: 'badge' as TypeRole, ...emphasis.badge},
   live: {width: {web: 316, phone: 244}, height: {web: 178, phone: 140}, padding: {web: 18, phone: 14}, radius: 12, channelGap: 10, monogramSize: 34, monogramRadius: 8, title: 'liveTitle' as TypeRole, channel: 'liveChannel' as TypeRole, timeGap: 3, dotSize: 7, dotGap: 6, dotAnimated: false, monogram: 'liveMonogram' as TypeRole},
 } as const;
 
 export const shelf = {
   marginTop: all(44, 28, 28, 44), heading: 'rowHeading' as TypeRole, subtitle: 'rowSubtitle' as TypeRole, seeAll: 'seeAll' as TypeRole, headingGap: all(14, 14, 14, 18), headingMargin: all(14, 4, 4, 22),
-  gap: all(16, 12, 12, 28), paddingTop: same(10, 10), phonePaddingTop: 8, paddingBottom: same(14, 14), phonePaddingBottom: 10,
+  gap: scaled(formSizes.card.gap), paddingTop: same(10, 10), phonePaddingTop: 8, paddingBottom: same(14, 14), phonePaddingBottom: 10,
   homeOverlap: -40, pageBottom: 72, arrowWidth: 56, arrowTop: 38, arrowBottom: 50, revealMs: 200,
   rank: {width: 262, numberWidth: 92, numberHeight: 255, overlap: -22, posterWidth: 170, strokeWidth: 2, role: 'rank' as TypeRole},
 } as const;

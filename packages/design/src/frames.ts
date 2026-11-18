@@ -6,25 +6,39 @@
  * (`web/src/kit/frames`) read its CSS projection (`--frame-*` in tokens.css). A screen never types one of these
  * numbers: it picks a frame, and the frame applies them.
  *
- * Forms are widths, not devices: `phone` under 600 (a phone, a folded foldable, phone-width web), `medium`
- * 600 to 1023 (a small tablet, an open foldable), `expanded` 1024 and up (a large tablet, the web), `tv` the
- * 1920 x 1080 ten-foot canvas.
+ * Forms are size classes, not devices: `phone` under 600 wide (a phone, a folded foldable, phone-width web) and a
+ * phone on its side (wider than 600 but under 600 high); `medium` 600 to 1023 (a small tablet, an open foldable);
+ * `expanded` 1024 and up (a large tablet, the web); `tv` the 1920 x 1080 ten-foot canvas. `frameForm` is the one
+ * test: the native theme (`createTheme`) and the frames both call it, so they cannot disagree about a window.
  */
 
 export type FrameForm = 'phone' | 'medium' | 'expanded' | 'tv';
 type Forms<T> = Readonly<Record<FrameForm, T>>;
 const forms = <T>(phone: T, medium: T, expanded: T, tv: T): Forms<T> => ({phone, medium, expanded, tv});
-export function frameForm(width: number, isTV = false): FrameForm {
-  return isTV ? 'tv' : width < 600 ? 'phone' : width < 1024 ? 'medium' : 'expanded';
+export function frameForm(width: number, isTV = false, height?: number): FrameForm {
+  if (isTV) return 'tv';
+  if (width < 600 || (height !== undefined && width < 1024 && height < 600)) return 'phone';
+  return width < 1024 ? 'medium' : 'expanded';
 }
 
 export const frame = {
   /** Rule 4: on a phone a grouped card sits 16 from the edge and its text 14 inside it. On wider forms a card starts at the gutter. */
   card: {phoneInset: 16, padding: forms(14, 14, 24, 28), radius: forms(14, 14, 14, 20)},
-  /** Rule 5. */
+  /** Rule 5 and R5. The frame is the one owner of the space between sections: a kit `Row`, `Shelf`, `Section` or
+   * `SectionCard` adds no margin or padding of its own, and a screen types none.
+   * `section` and `headingGap` are for a block that is not a row of cards (a grouped list, a paragraph, a grid): the
+   * block's edge to the next heading, and a heading to its block.
+   * `rowSection` and `rowHeadingGap` are for a row of cards: the bottom of one row's captions to the next row's
+   * heading, and a heading to the cards' art. They are the mock-ups' drawn distances (kit.css draws rule 5's 28 and 8
+   * and then pads its rows by 8 and 10, which is how a phone's rows come to sit 38 apart). */
   rhythm: {
     section: forms(28, 28, 44, 44),
     headingGap: forms(8, 8, 14, 22),
+    rowSection: {...forms(38, 40, 40, 44), web: 58},
+    rowHeadingGap: {...forms(12, 16, 16, 22), web: 24},
+    /** The room a row keeps round its cards for a card's hover or focus growth and its shadow. The row takes it back
+     * with a negative margin of the same size, so it is not part of the rhythm. */
+    rowBleed: {...forms(10, 10, 10, 28), web: 14},
     headerGap: forms(12, 12, 16, 28),
     /** The page title's top edge: under the status bar on a phone, 60 on a tablet, 112 on the web (under the 76 nav), 64 on TV. */
     titleTop: {...forms(0, 60, 60, 64), web: 112},
