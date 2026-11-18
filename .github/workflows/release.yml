@@ -675,7 +675,7 @@ jobs:
         env: {VERSION: '${{ needs.identity.outputs.version }}', BUILD: '${{ needs.identity.outputs.build }}'}
         run: |
           set -euo pipefail
-          sudo apt-get update -qq && sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libmpv-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+          sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libwebkit2gtk-4.1-dev libmpv-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
           python3 scripts/release-version.py stamp --version "$VERSION" --build "$BUILD" --product desktop
           npm ci --no-audit --no-fund
           (cd apps/desktop && npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false && npm run build:unsigned)
@@ -773,7 +773,9 @@ jobs:
 
   draft:
     needs: [identity, assemble, seal, desktop]
-    if: needs.identity.outputs.release == 'true'
+    # The desktop build is optional (the notes say whether it is attached): a desktop job that
+    # fails or runs out of time must not cost the release its draft.
+    if: ${{ !cancelled() && needs.identity.outputs.release == 'true' && needs.seal.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     # Provenance attestations go to the public Sigstore log, so they are written only when the
