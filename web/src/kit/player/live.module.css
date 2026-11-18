@@ -51,7 +51,9 @@
 .left { display: flex; align-items: center; gap: 6px; }
 .center { display: flex; align-items: center; gap: 14px; }
 .right { display: flex; align-items: center; justify-content: flex-end; gap: 6px; pointer-events: auto; }
-.guideButton.guideButton { height: 42px; padding: 0 16px; border-radius: 10px; font-size: var(--type-body-size); gap: 8px; }
+.guideButton.guideButton { height: 42px; padding: 0 16px; border-radius: 10px; font-size: var(--type-body-size); gap: 8px; flex: none; }
+/* One word on one line at any width: the kit label balances its lines, which would otherwise break "Guide" by the letter beside a full right cluster. */
+.guideButton.guideButton span { white-space: nowrap; }
 .miniGuide { position: absolute; z-index: var(--layer-live-guide); right: 40px; top: 112px; width: 440px; padding: 14px; border-radius: 18px; background: color-mix(in srgb, var(--color-player-notice) 80%, transparent); backdrop-filter: blur(28px) saturate(1.3); box-shadow: 0 30px 60px -20px color-mix(in srgb, var(--color-shadow) 80%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--color-text) 8%, transparent); pointer-events: auto; }
 @media (prefers-reduced-transparency: reduce) { .control, .control:hover, .goLive, .goLive:hover { background: var(--color-raised-high); backdrop-filter: none; } .control[data-main], .control[data-main]:hover { background: var(--color-text); } .miniGuide { background: var(--color-raised); backdrop-filter: none; } }
 .miniHead { display: flex; align-items: baseline; justify-content: space-between; padding: 2px 8px 6px; }

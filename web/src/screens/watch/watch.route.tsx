@@ -16,7 +16,7 @@ import {fenceKey} from '../../shell/playback-model';
 import type {DetailProjection} from '@core/detail.ts';
 import {watchEndCard} from './end-card';
 import {readCollectionNext, type WatchCollectionNext} from './collection-next';
-import {WatchEpisodesDrawer} from './EpisodesDrawer';
+import {PlayerEpisodes} from '../../kit/player';
 import {WatchQueueList} from './QueueList';
 import {watchEpisodes, type WatchEpisodeRow} from './episodes';
 import {router} from '../../router';
@@ -180,7 +180,7 @@ function RegisteredWatchPlayback({binding}: {binding: WatchBindings | undefined}
   const renderPanel = (context: WatchPanelContext) => context.panel === 'queue' && panels?.queue
     ? <WatchQueueList port={panels.queue} context={context} />
     : context.panel === 'episodes' && episodes && binding
-    ? <WatchEpisodesDrawer episodes={episodes} context={context} locale={binding.environment.locale}
+    ? <PlayerEpisodes episodes={episodes} context={context} locale={binding.environment.locale}
       artwork={url => binding.artwork.foreground(url, 632, 16 / 9, {group: 'playback'})}
       onPlay={row => playEpisode(row).then(() => context.close())} onSeason={selectSeason} reportError={binding.reportError} />
     : panels?.render(context) ?? null;
