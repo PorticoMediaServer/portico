@@ -228,10 +228,10 @@ end sub
 sub onMe(event as object)
     result = event.getData()
     if not result.ok
-        if result.status = 401 or result.status = 403
+        if result.status = 401
             showSignIn()
         else
-            showHome()   ' out of reach: Home says so and offers to try again
+            showHome()   ' out of reach, or not allowed just now: Home says why and offers to try again
         end if
         return
     end if
