@@ -320,6 +320,7 @@ ICONS = {
     'listPlus': [28],
     'live': [32],
     'lock': [28],
+    'lyrics': [28],
     'maximize': [28],
     'more': [28],
     'music': [28, 32],

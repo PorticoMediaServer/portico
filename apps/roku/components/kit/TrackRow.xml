@@ -4,7 +4,7 @@
      has the list focus look (rule 11). -->
 <component name="TrackRow" extends="Group">
   <interface>
-    <!-- {art, number, title, sub, duration, playing, done, progress, menu, meter}: art is a
+    <!-- {art, number, title, sub, duration, playing, done, progress, favorite, menu, meter}: art is a
          picture's address; without one the number is drawn in its place, or the level meter when `meter`
          is set (the song playing in an album's list, tv-more frame 6). The playing one reads in the accent;
          a done one (a chapter already heard) is dimmed with a tick for its number; progress (0 to 1)
@@ -32,6 +32,8 @@
     <Poster id="tick" uri="pkg:/images/i-check-28.png" width="24" height="24" visible="false"/>
     <Rectangle id="track" height="5" visible="false"/>
     <Rectangle id="bar" height="5" visible="false"/>
+    <!-- a favorite's filled heart, beside the duration (tv-more frame 6) -->
+    <Poster id="favorite" uri="pkg:/images/i-heartFilled-28.png" width="24" height="24" visible="false"/>
     <Poster id="morePlate" uri="pkg:/images/disc.png" width="48" height="48" visible="false"/>
     <Poster id="more" uri="pkg:/images/i-more-28.png" width="28" height="28" visible="false"/>
   </children>

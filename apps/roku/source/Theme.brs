@@ -61,7 +61,8 @@ end function
 function frames() as object
     return {
         ' Now playing for music and audiobooks: every control placed from here; only Up next changes.
-        audio: {fromY: 120, artX: 200, artY: 230, art: 600, titleX: 880, titleY: 230, titleWidth: 500, titleHeight: 330,
+        ' A song's actions (Lyrics, Add to playlist, More) sit on `actionsY`, under the transport.
+        audio: {actionsY: 802, fromY: 120, artX: 200, artY: 230, art: 600, titleX: 880, titleY: 230, titleWidth: 500, titleHeight: 330,
             controlsY: 590, controlsHeight: 274, nextX: 1460, nextY: 230, nextWidth: 360, nextHeight: 640}
         ' A library or Search (frame "Browse"): the page title's line; Home's moderate hero with its
         ' words from `heroTop`, and the heading of the row in focus on `rowsY`.
