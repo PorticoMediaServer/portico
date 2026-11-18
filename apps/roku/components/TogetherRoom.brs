@@ -25,13 +25,6 @@ sub onAsk()
         act("POST", "/playback", {action: "seek", positionMs: int(ask.positionMs)}, d)
     else if d = "watchEntry"
         act("POST", "/playback", {action: "watch", entryId: ask.entryId}, d)
-    else if d = "watch" or d = "add"
-        ' the queue is sent whole with the title at its end; Watch then puts the group on it
-        known = {}
-        for each entry in m.top.room.queue
-            known[entry.entryId] = true
-        end for
-        act("PUT", "/queue", queueWith(m.top.room, ask.itemId), d, {itemId: ask.itemId, known: known})
     else if d = "remove"
         act("PUT", "/queue", queueWithout(m.top.room, ask.entryId), d)
     else if d = "newCode"
@@ -80,10 +73,9 @@ function firstState() as string
     return "ready"
 end function
 
-sub act(method as string, suffix as string, body as dynamic, d as string, extra = invalid as dynamic)
+sub act(method as string, suffix as string, body as dynamic, d as string)
     m.seq = m.seq + 1
     ctx = {seq: m.seq, sent: UpTime(0), do: d, id: m.id}
-    if extra <> invalid then ctx.append(extra)
     api(method, "/v1/groups/" + m.id + suffix, body, "onActed", ctx)
 end sub
 
@@ -97,14 +89,6 @@ sub onActed(event as object)
         return
     end if
     take(result.data, ctx)
-    if ctx.do = "watch"
-        for each entry in result.data.queue
-            if entry.itemId = ctx.itemId and ctx.known[entry.entryId] <> true
-                act("POST", "/playback", {action: "watch", entryId: entry.entryId}, "watchEntry")
-                return
-            end if
-        end for
-    end if
     m.top.answer = {do: ctx.do, ok: true}
 end sub
 

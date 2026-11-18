@@ -14,7 +14,7 @@
     <field id="phase" type="string" value=""/>
     <!-- What to do: {do: "create", name, displayName, control} | {do: "join", code, displayName} |
          {do: "open", id} | {do: "play" | "pause" | "goAhead"} | {do: "seek", positionMs} |
-         {do: "watchEntry", entryId} | {do: "watch" | "add", itemId} | {do: "remove", entryId} |
+         {do: "watchEntry", entryId} | {do: "remove", entryId} |
          {do: "newCode"} | {do: "makeHost", memberId} | {do: "becomeHost"} | {do: "leave"} |
          {do: "end"} | {do: "forget"} (another profile: stop here, tell nobody). -->
     <field id="ask" type="assocarray" alwaysNotify="true" onChange="onAsk"/>
