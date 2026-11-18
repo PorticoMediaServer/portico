@@ -1598,6 +1598,10 @@
   --spec-tabs-gap-phone: 24px;
   --spec-tabs-gap-tablet: 24px;
   --spec-tabs-gap-tv: 44px;
+  --spec-tabs-inset-x-web: 0px;
+  --spec-tabs-inset-x-phone: 0px;
+  --spec-tabs-inset-x-tablet: 0px;
+  --spec-tabs-inset-x-tv: 16px;
   --spec-tabs-padding-top-web: 16px;
   --spec-tabs-padding-top-phone: 12px;
   --spec-tabs-padding-top-tablet: 12px;

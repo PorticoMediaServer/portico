@@ -8,7 +8,7 @@ async function tabs(isTV: boolean) {
   const h = hooks();
   const {Tabs} = await screenModule(new URL('../src-next/kit/controls/Tabs.tsx', import.meta.url), {
     react: {...h.react, useId: () => 'id', default: {...h.react.default, useId: () => 'id'}}, 'react-native': {ScrollView: 'ScrollView', StyleSheet: {create: (value: unknown) => value, absoluteFill: {}}, Text: 'Text', View: 'View'},
-    '@portico/design': {tabsSpec: {gap: {tv: 40, phone: 20}, paddingTop: {tv: 0, phone: 0}, paddingBottom: {tv: 0, phone: 0}, underline: {tv: 3, phone: 2}}},
+    '@portico/design': {tabsSpec: {gap: {tv: 40, phone: 20}, insetX: {tv: 16, phone: 0}, paddingTop: {tv: 0, phone: 0}, paddingBottom: {tv: 0, phone: 0}, underline: {tv: 3, phone: 2}}},
     '../focus': {focusTestID: (a: string, b: string) => `${a}.${b}`},
     '../theme': {useTheme: () => ({isTV, platform: isTV ? 'tv' : 'phone', gutter: 0, textScale: 1, fontScale: 1, type: {tab: {}}, colors: {line: 'l', text: 't', textTertiary: 't3', accent: 'a', raisedBright: 'r', textSecondary: 's'}})},
     './Focusable': {Focusable: 'Focusable'}, './control-model': {colorAlpha: (c: string) => c, enabledChoice: (items: any[]) => items[0]?.value, minimumHitSlop: () => 0},
