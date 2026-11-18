@@ -4,7 +4,7 @@
 ' lists (GET /v1/lists?kind=); History is GET /v1/history, newest first: films, episodes, songs and audiobooks.
 function savedTabs() as object
     return [
-        {id: "list", text: "My List", query: "inList=true", empty: "My List is empty", body: "Add a title to My List from its page and it waits for you here."},
+        {id: "list", text: "My List", query: "inList=true", empty: "My List is empty", body: "Add a title to My List from its page and it waits for you here. Press * on any poster to add it without opening it."},
         {id: "favorites", text: "Favorites", query: "favorite=true", empty: "No favorites yet", body: "Mark anything as a favorite and it is kept here."},
         {id: "playlist", text: "Playlists", kind: "playlist", one: "playlist", many: "playlists", eyebrow: "Playlist", heading: "In playlist order", empty: "No playlists yet", body: "Make one from any title's Add to playlist."},
         {id: "collection", text: "Collections", kind: "collection", one: "collection", many: "collections", eyebrow: "Collection", heading: "In collection order", empty: "No collections yet", body: "Personal collections group titles across a library the way you like."},
@@ -449,7 +449,7 @@ sub emptyTab()
     m.page.icon = "bookmark"
     m.page.title = spec.empty
     m.page.body = spec.body
-    m.page.buttons = [{id: "home", text: "Browse Home", icon: ""}]
+    m.page.buttons = [{id: "home", text: "Browse Home", icon: "home"}]
     m.page.visible = true
     m.shown = true
     ' nothing to sort or filter: no toolbar (frame 5), so Up from the state reaches the tabs
@@ -609,6 +609,10 @@ function onKeyEvent(key as string, press as boolean) as boolean
     holdKey(key, press and history and (key = "up" or key = "down"))
     if not press then return false
     if key = "back" then return backToTop()
+    if key = "options" and m.region = "content"
+        openMenu()
+        return true
+    end if
     if history
         if key = "OK"
             entry = m.rows[m.row].entry
@@ -710,6 +714,31 @@ function contentRegion() as string
     if m.gridState.visible then return m.region
     return "content"
 end function
+
+' --- * on a title ----------------------------------------------------------------------------------
+
+sub openMenu()
+    item = invalid
+    if tabSpec().id = "history"
+        if m.rows.count() > 0 then item = m.rows[m.row].entry.item
+    else if tabSpec().kind = invalid and m.shown and m.sources[m.at].grid <> invalid
+        item = m.sources[m.at].items[m.sources[m.at].grid.itemFocused]
+    end if
+    if item = invalid then return
+    m.top.menu = cardMenu(item, [], [])
+end sub
+
+' A menu's choice: the card menu's own rows are done by kit/CardMenu.brs, the rest are Sort's.
+sub onChosen(event as object)
+    if not cardMenuChosen(event.getData()) then onMenuChosen(event)
+end sub
+
+' A change can take the title out of the tab (Remove from My List): the tab is read again with
+' focus at the same place, so it falls to the neighbour.
+sub cardMenuChanged(item as object)
+    if m.shown and tabSpec().id <> "history" and m.sources[m.at].grid <> invalid then m.keepAt = m.sources[m.at].grid.itemFocused
+    load()
+end sub
 
 ' The Sort menu's choice.
 sub onMenuChosen(event as object)
