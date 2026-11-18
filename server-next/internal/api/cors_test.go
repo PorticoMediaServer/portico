@@ -140,6 +140,29 @@ func TestTheLGAndSamsungAppsMayReadAnswers(t *testing.T) {
 	}
 }
 
+// Portico's desktop app shows the web app from its own files, at tauri://localhost (macOS, Linux)
+// or http://tauri.localhost (Windows). It may read answers and have its preflights answered;
+// look-alikes may not.
+func TestTheDesktopAppMayReadAnswers(t *testing.T) {
+	s := openTestServer(t, filepath.Join(t.TempDir(), "main.db"))
+	owner := onMainProfile(t, s)
+	for _, origin := range []string{"tauri://localhost", "http://tauri.localhost"} {
+		read := asked(s, origin, "GET", "/v1/libraries", owner.AccessToken)
+		if read.Code != 200 || !readable(read, origin) || read.Header().Get("Access-Control-Allow-Credentials") != "" {
+			t.Errorf("%q: answered %d with headers %v", origin, read.Code, read.Header())
+		}
+		pre := asked(s, origin, "OPTIONS", "/v1/libraries", "", "Access-Control-Request-Method", "GET", "Access-Control-Request-Headers", "authorization")
+		if pre.Code != http.StatusNoContent || !readable(pre, origin) {
+			t.Errorf("preflight %q: answered %d with headers %v", origin, pre.Code, pre.Header())
+		}
+	}
+	for _, origin := range []string{"https://tauri.localhost", "tauri://localhost:1", "http://tauri.localhost.evil.example", "tauri://evil.example"} {
+		if w := asked(s, origin, "GET", "/v1/system", ""); w.Header().Get("Access-Control-Allow-Origin") != "" {
+			t.Errorf("%q could read an answer: %v", origin, w.Header())
+		}
+	}
+}
+
 // Before a request that carries a token or a JSON body, a browser asks whether the page may
 // send it. An allowed origin is told yes without any sign-in, since that question never
 // carries one, and told which methods and headers it may use.

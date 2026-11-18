@@ -63,7 +63,7 @@ func (s *Server) crossOrigin(w http.ResponseWriter, r *http.Request) bool {
 	// The answer depends on who asks, so nothing that keeps answers may hand one origin's to another.
 	w.Header().Add("Vary", "Origin")
 	origin := r.Header.Get("Origin")
-	allowed := s.originAllowed(origin) || tvAppOrigin(origin, r.UserAgent())
+	allowed := s.originAllowed(origin) || tvAppOrigin(origin, r.UserAgent()) || slices.Contains(desktopAppOrigins, origin)
 	if origin == receiver.Origin {
 		_, err := s.castApplication(r.Context())
 		allowed = err == nil
@@ -84,6 +84,13 @@ func (s *Server) crossOrigin(w http.ResponseWriter, r *http.Request) bool {
 	w.Header().Set("Access-Control-Expose-Headers", corsExposed)
 	return false
 }
+
+// desktopAppOrigins are Portico's desktop app, which shows the web app from its own files: Tauri
+// gives that page the origin tauri://localhost on macOS and Linux and http://tauri.localhost on
+// Windows. No website's page has either origin, so a page in someone's browser gains nothing; a
+// program on the person's own computer could claim one, but such a program can send any origin
+// it likes already, since only a browser is held by these headers.
+var desktopAppOrigins = []string{"tauri://localhost", "http://tauri.localhost"}
 
 // tvAppOrigin is whether a request comes from Portico's app on an LG or Samsung television.
 // Those sets run an installed app as a page loaded from the set's own files, so it has no web
