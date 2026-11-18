@@ -24,8 +24,8 @@
     <Poster id="coverBack" uri="pkg:/images/round-20.9.png"/>
     <Poster id="cover" loadDisplayMode="scaleToFill"/>
     <MaskGroup id="circle" maskUri="pkg:/images/mask-circle-412.png" maskSize="[412,412]">
-      <!-- the hairlines between the albums show this -->
-      <Rectangle id="circleBack" width="412" height="412"/>
+      <!-- the hairlines between the albums show this; a Poster, as a Rectangle is not masked on a Roku -->
+      <Poster id="circleBack" uri="pkg:/images/round-14.9.png" width="412" height="412"/>
       <Group id="circleArt"/>
     </MaskGroup>
     <Label id="eyebrow"/>
