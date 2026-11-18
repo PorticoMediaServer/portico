@@ -10796,6 +10796,9 @@
           "nextEntryId": {
             "type": "string"
           },
+          "passoutCheckDue": {
+            "type": "boolean"
+          },
           "refills": {
             "type": "boolean"
           },
