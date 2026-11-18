@@ -398,7 +398,7 @@ func TestAViewersMediaJobYieldsToTheServerAndBackgroundToBoth(t *testing.T) {
 	for _, c := range []struct {
 		background bool
 		want       int
-	}{{false, playbackNice}, {true, 10}} {
+	}{{false, playbackNice}, {true, backgroundNice}} {
 		cmd, err := Command(Job{Executable: ffmpeg, Background: c.background,
 			Args: []string{"-hide_banner", "-loglevel", "error", "-re", "-f", "lavfi", "-i", "nullsrc=s=16x16:d=3", "-f", "null", "-"}})
 		if err != nil {
