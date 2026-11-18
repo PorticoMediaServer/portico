@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A Portico Account with no server yet (connect.html frames 35 and 38): Join with an invitation and
+     Set up your own server; and the invitation's own page (frame 36): the server's address, then the
+     code typed with Portico's keyboard. Part of AccountPages, which sends the requests; this only
+     draws and reports what was chosen. Placed from frames().signIn. -->
+<component name="JoinPages" extends="Group">
+  <interface>
+    <!-- "start" (the two tiles) or "join" (the invitation's page). -->
+    <field id="page" type="string" onChange="onPage"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- On the start page after a server let this account go (frame 38): {title, body}; invalid for none. -->
+    <field id="notice" type="assocarray" onChange="onNotice"/>
+    <!-- The server's address as typed, shown in its box. -->
+    <field id="address" type="string" onChange="onAddress"/>
+    <!-- A refusal under the side's words ("This invitation is no longer valid."). -->
+    <field id="note" type="string" onChange="onNote"/>
+    <!-- "join" (the Join tile) or "address" (OK on the address box). -->
+    <field id="pressed" type="string" alwaysNotify="true"/>
+    <!-- Set when a whole code has been typed: {address, code}. -->
+    <field id="submitted" type="assocarray" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="JoinPages.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Poster id="mark" uri="pkg:/images/wordmark.png" width="176" height="40"/>
+    <Label id="eyebrow"/>
+    <Label id="title" width="1600"/>
+    <Label id="body" width="1000" wrap="true" maxLines="2"/>
+    <Group id="start">
+      <Group id="notice" visible="false">
+        <Poster id="noticePlate" uri="pkg:/images/round-14.9.png" height="78"/>
+        <Poster id="noticeIcon" uri="pkg:/images/i-info-28.png" width="28" height="28"/>
+        <MultiStyleLabel id="noticeText" height="78" vertAlign="center"/>
+      </Group>
+      <Group id="joinTile">
+        <Poster id="joinRing" uri="pkg:/images/focus-20.9.png" visible="false"/>
+        <Poster id="joinPlate" uri="pkg:/images/round-20.9.png"/>
+        <Poster id="joinDisc" uri="pkg:/images/disc.png" width="78" height="78"/>
+        <Poster id="joinIcon" uri="pkg:/images/i-link-28.png" width="28" height="28"/>
+        <Label id="joinTitle" text="Join with an invitation"/>
+        <Label id="joinText" wrap="true" maxLines="3" text="Enter the code you were sent, or open the invitation link on your phone: this TV finds the server once you’ve joined."/>
+      </Group>
+      <Group id="setupTile">
+        <Poster id="setupPlate" uri="pkg:/images/round-20.9.png"/>
+        <Poster id="setupEdge" uri="pkg:/images/line-20.9.png"/>
+        <Poster id="setupDisc" uri="pkg:/images/disc.png" width="78" height="78"/>
+        <Poster id="setupIcon" uri="pkg:/images/i-server-28.png" width="28" height="28"/>
+        <Label id="setupTitle" text="Set up your own server"/>
+        <Label id="setupText" wrap="true" maxLines="4" text="Portico Server is free for Windows, macOS, Linux and Docker. Scan to see the downloads and the steps."/>
+        <!-- the downloads page, as the native TV app's tile (https://getportico.tv/download/) -->
+        <QrCode id="setupQr" text="https://getportico.tv/download/"/>
+      </Group>
+    </Group>
+    <Group id="join" visible="false">
+      <Label id="addressLabel" text="Server address"/>
+      <Poster id="addressRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
+      <Poster id="addressBox" uri="pkg:/images/line-14.9.png"/>
+      <Label id="addressText" height="83" vertAlign="center"/>
+      <Label id="codeLabel" text="Invitation code"/>
+      <Poster id="codeBox" uri="pkg:/images/line-14.9.png"/>
+      <Label id="codeText" height="83" vertAlign="center"/>
+      <!-- nine across, four rows, as frame 36 draws it; codes never hold 0 (auth.CodeAlphabet) -->
+      <Keyboard id="keyboard" characters="ABCDEFGHIJKLMNOPQRSTUVWXYZ-123456789" columns="9"/>
+      <Label id="whereTitle" text="Where is the code?"/>
+      <Label id="whereText" wrap="true" maxLines="6" text="The owner of the server shares an invitation link and a code from Settings › Server › People. The code is the short part, like K7QP-2MXD-9HRT-4WNC."/>
+      <Label id="easierText" wrap="true" maxLines="3" text="Easier: open the invitation link on your phone. This TV finds the server by itself once you’ve joined."/>
+      <Label id="joinNote" wrap="true" maxLines="3"/>
+    </Group>
+  </children>
+</component>

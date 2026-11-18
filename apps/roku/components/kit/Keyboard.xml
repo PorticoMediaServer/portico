@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Portico's own keyboard for Search: six columns that keep their column on Up and Down, then
-     Space, delete and Clear. Typing never moves focus; it remembers its key when focus comes back. -->
+<!-- Portico's own keyboard (Search; an invitation code): columns that keep their column on Up and
+     Down, then Space, delete and Clear. Typing never moves focus; it remembers its key when focus
+     comes back. Set `characters`, `columns` and `width` before it is shown. -->
 <component name="Keyboard" extends="Group">
   <interface>
     <field id="text" type="string" alwaysNotify="true"/>
@@ -10,6 +11,10 @@
     <!-- Letters drawn in capitals (an invitation code, which is shown in capitals); what is typed
          is the same either way. -->
     <field id="capitals" type="boolean" onChange="onCapitals"/>
+    <!-- The keys, in order, and how many to a row; the width the columns share (Search: 6 across 500). -->
+    <field id="characters" type="string" value="abcdefghijklmnopqrstuvwxyz1234567890" onChange="build"/>
+    <field id="columns" type="integer" value="6" onChange="build"/>
+    <field id="width" type="integer" value="500" onChange="build"/>
   </interface>
   <script type="text/brightscript" uri="Keyboard.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>

@@ -60,9 +60,12 @@ sub init()
         "default": {fontUri: "pkg:/fonts/manrope-400.ttf", fontSize: body[1], color: "#" + mid(c.textSecondary, 3)},
         "b": {fontUri: "pkg:/fonts/manrope-700.ttf", fontSize: body[1], color: "#" + mid(c.text, 3)}
     }
-    ' "Sign in with Portico Account" joins this row when that flow is built (the next change).
-    m.doorButtons.buttons = [{id: "local", text: "Use a local server", icon: ""}]
-    m.doorButtons.observeField("pressed", "showLocal")
+    ' both ways in, as on the phone; the Portico Account first, with the focus (connect-14)
+    m.doorButtons.buttons = [{id: "portico", text: "Sign in with Portico Account", icon: ""}, {id: "local", text: "Use a local server", icon: ""}]
+    m.doorButtons.observeField("pressed", "onDoorButton")
+    m.account = m.top.findNode("account")
+    m.account.observeField("signedIn", "onAccountSignedIn")
+    m.account.observeField("leave", "onAccountLeft")
     m.codeButtons.observeField("pressed", "onCodeButton")
     m.factorPad.observeField("entered", "onFactor")
     m.poll.observeField("fire", "onPoll")
@@ -91,6 +94,8 @@ sub onActive()
         m.factorPad.active = true
     else if m.stage = "local"
         paintNearby()
+    else if m.stage = "account"
+        m.account.active = true
     else
         m.doorButtons.active = true
     end if
@@ -103,6 +108,7 @@ sub go(stage as string)
     m.local.visible = (stage = "local")
     m.code.visible = (stage = "code")
     m.factor.visible = (stage = "factor")
+    m.account.visible = (stage = "account")
     if stage <> "code" then m.poll.control = "stop"
     onActive()
 end sub
@@ -128,12 +134,7 @@ end function
 ' --- Roku's keyboard, for an address, a name or a password ---------------------------------
 
 sub typeIn(title as string, message as string, text as string, secret as boolean, after as string)
-    dialog = createObject("roSGNode", "StandardKeyboardDialog")
-    dialog.title = title
-    dialog.message = [message]
-    dialog.buttons = ["OK", "Cancel"]
-    dialog.text = text
-    if secret then dialog.textEditBox.secureMode = true
+    dialog = keyboardDialog(title, message, text, secret)
     dialog.observeField("buttonSelected", "onAnswered")
     dialog.observeField("wasClosed", "onAskClosed")
     m.after = after
@@ -168,6 +169,35 @@ sub onAskClosed(event as object)
 end sub
 
 ' --- the front door and the server's address ------------------------------------------------
+
+sub onDoorButton(event as object)
+    m.doorNote.text = ""
+    if event.getData() = "portico"
+        go("account")
+        m.account.callFunc("start")
+    else
+        showLocal()
+    end if
+end sub
+
+' Back from the Portico Account pages returns to the front door; Use a local server opens its page.
+sub onAccountLeft(event as object)
+    go("door")
+    if event.getData() = "local" then showLocal()
+end sub
+
+sub askAddress()
+    onDoor()
+end sub
+
+sub openAccount(serverId as string)
+    go("account")
+    m.account.callFunc("resume", serverId)
+end sub
+
+sub onAccountSignedIn(event as object)
+    m.top.signedIn = event.getData()
+end sub
 
 ' --- Use a local server: servers found on this network, then a typed address ---------------------
 

@@ -321,6 +321,7 @@ ICONS = {
     'keyboard': [28],
     'list': [28],
     'listPlus': [28],
+    'link': [28],
     'live': [32],
     'lock': [28],
     'lyrics': [28],

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Signing in on a television: the front door, the server's address, then a code approved on a
-     phone or computer (with a QR code), or a password typed with Roku's keyboard (connect.html
-     frame 40, auth.html frame 9). Every part is placed from frames().signIn in init(). -->
+<!-- Signing in on a television: the front door, then a Portico Account (AccountPages), or a local
+     server's address and a code approved on a phone or computer (with a QR code), or a password
+     typed with Roku's keyboard (connect.html frame 40, auth.html frame 9). Every part is placed from frames().signIn in init(). -->
 <component name="SignInScreen" extends="Group">
   <interface>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
@@ -11,12 +11,16 @@
     <field id="notice" type="string" onChange="onNotice"/>
     <!-- The address of the server last used, offered again in the address box. -->
     <field id="address" type="string" onChange="onNotice"/>
+    <!-- From Switch server: straight to a local server's address, or to one of the Portico Account's servers by its id. -->
+    <function name="askAddress"/>
+    <function name="openAccount"/>
   </interface>
   <script type="text/brightscript" uri="SignInScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Address.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Dialog.brs"/>
   <children>
     <Group id="door">
       <Poster id="doorMark" uri="pkg:/images/wordmark.png" width="176" height="40"/>
@@ -52,6 +56,10 @@
       <Label id="factorBody" text="Open your authenticator app and enter the six-digit code for this server." width="820" wrap="true" maxLines="3"/>
       <PinPad id="factorPad" digits="6"/>
     </Group>
+    <!-- Sign in with Portico Account: its code, the account's servers, and the pages on the way -->
+    <AccountPages id="account" visible="false"/>
     <Timer id="poll" duration="3"/>
+    <!-- Sign in with Portico Account: its code, the account's servers, and the pages on the way -->
+    <AccountPages id="account" visible="false"/>
   </children>
 </component>

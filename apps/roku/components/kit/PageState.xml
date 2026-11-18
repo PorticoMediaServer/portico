@@ -12,6 +12,9 @@
          ("Trying again in 30 seconds") and `statusMore` after it ("6 tries since 4:02 PM"). -->
     <field id="status" type="string" onChange="onStatus"/>
     <field id="statusMore" type="string" onChange="onStatus"/>
+    <!-- The sign-in pages' state (connect.html frames 8 to 13): a 72 px title that wraps onto a
+         second line upward, as a server's name can be long, instead of one 96 px line. -->
+    <field id="small" type="boolean" onChange="onSmall"/>
     <field id="buttons" type="array" alias="row.buttons"/>
     <field id="pressed" type="string" alwaysNotify="true" alias="row.pressed"/>
     <field id="active" type="boolean" alwaysNotify="true" alias="row.active"/>

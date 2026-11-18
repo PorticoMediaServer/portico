@@ -53,3 +53,19 @@ sub onChange()
     m.top.findNode("disc").visible = (m.top.icon <> "")
     if m.top.icon <> "" then icon.uri = "pkg:/images/i-" + m.top.icon + "-32.png"
 end sub
+
+' Bottom-aligned on its line, so a second line goes up, clear of the icon, and the sentence sits
+' a little lower; the buttons stay on their line.
+sub onSmall()
+    if not m.top.small then return
+    f = frames()
+    title = m.top.findNode("title")
+    setType(title, "authTitle", colours().text)
+    title.wrap = true
+    title.maxLines = 2
+    title.lineSpacing = -20     ' Roku's own gap between 72 px lines is loose
+    title.height = 240
+    title.vertAlign = "bottom"
+    title.translation = [f.gutter - 4, f.state.y + 290 - 240]
+    m.top.findNode("body").translation = [f.gutter, f.state.y + 300]
+end sub
