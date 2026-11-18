@@ -19871,7 +19871,7 @@
         "tags": [
           "Integrations"
         ],
-        "x-access": "admin",
+        "x-access": "owner",
         "x-audience": "Integrations",
         "x-scope": "admin"
       }

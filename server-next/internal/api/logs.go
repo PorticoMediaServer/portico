@@ -110,7 +110,8 @@ func (s *Server) logRoutes() {
 		out.NextCursor, out.DetailUntil = next, s.detailUntil()
 		return out, err
 	})
-	Handle(s, "PUT /v1/admin/logs/detail", Admin, func(r *http.Request, req LogDetail) (LogDetailState, error) {
+	// Record more detail is the owner's (definition 12: administrators read Messages only).
+	Handle(s, "PUT /v1/admin/logs/detail", Owner, func(r *http.Request, req LogDetail) (LogDetailState, error) {
 		if err := s.mayReadMessages(r); err != nil {
 			return LogDetailState{}, err
 		}
