@@ -21,34 +21,34 @@
   <children>
     <Rectangle width="1920" height="1080" color="0x000000FF"/>
     <Video id="video" width="1920" height="1080" enableUI="false"/>
-    <!-- The overlay (tv-player frame 1): the top row from the 80 px line, the seek bar, time row and
-         button row ending on the 80 px line at the foot. Every part is placed from those two edges. -->
+    <!-- The overlay (tv-player frame 1): a top row, the seek bar, the time row and the button row.
+         PlayerScreen.brs places every part from frames().player; none carries an edge of its own here. -->
     <Group id="controls" visible="false">
       <Poster uri="pkg:/images/fade-up.png" width="1920" height="300" opacity="0.75"/>
       <Poster uri="pkg:/images/fade-down.png" width="1920" height="600" translation="[0,480]" opacity="0.96"/>
-      <Label id="title" translation="[96,80]" width="1300"/>
-      <Label id="code" translation="[96,134]"/>
-      <Label id="sub" translation="[96,134]"/>
-      <Label id="clock" translation="[1324,80]" width="500" horizAlign="right"/>
-      <Label id="ends" translation="[1324,124]" width="500" horizAlign="right"/>
-      <Rectangle id="track" translation="[96,828]" width="1728" height="8" color="0xEDF5FA38"/>
-      <Rectangle id="ahead" translation="[96,828]" height="8" color="0x5CB3E26B" visible="false"/>
-      <Rectangle id="played" translation="[96,828]" height="8" color="0x5CB3E2FF"/>
-      <Rectangle id="was" width="4" height="26" color="0xEDF5FAE6" visible="false"/>
+      <Label id="title"/>
+      <Label id="code"/>
+      <Label id="sub"/>
+      <Label id="clock" width="500" horizAlign="right"/>
+      <Label id="ends" width="500" horizAlign="right"/>
+      <Rectangle id="track" height="8"/>
+      <Rectangle id="ahead" height="8" visible="false"/>
+      <Rectangle id="played" height="8"/>
+      <Rectangle id="was" width="4" height="26" visible="false"/>
       <Poster id="knobRing" uri="pkg:/images/focus-disc.png" width="60" height="60" visible="false"/>
       <Poster id="knob" uri="pkg:/images/disc.png" width="22" height="22"/>
-      <Label id="at" translation="[96,862]"/>
-      <Label id="left" translation="[1324,862]" width="500" horizAlign="right"/>
-      <Group id="buttons" translation="[0,912]"/>
+      <Label id="at"/>
+      <Label id="left" width="500" horizAlign="right"/>
+      <Group id="buttons"/>
       <Poster id="ring" uri="pkg:/images/focus-disc.png"/>
       <Poster id="pillRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
       <!-- An icon-only button names itself while it has focus, in the empty middle of the time row. -->
       <Group id="flab">
-        <Poster id="flabPlate" uri="pkg:/images/round-10.9.png" blendColor="0x071018E6" height="40"/>
+        <Poster id="flabPlate" uri="pkg:/images/round-10.9.png" height="40"/>
         <Label id="flabText" height="40" vertAlign="center"/>
       </Group>
       <!-- While a scrub waits for OK, these key hints stand in the button row's place. -->
-      <Group id="hints" translation="[96,938]" visible="false"/>
+      <Group id="hints" visible="false"/>
     </Group>
     <!-- While a stream is being made ready or is catching up: the screen is never plain black. -->
     <Group id="wait" visible="false">
