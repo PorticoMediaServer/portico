@@ -1,9 +1,6 @@
 import {routeBody} from "../../../contracts/src/routes.ts";
 import {routePath} from "../../../contracts/src/route-paths.ts";
 import type {ConsoleClient, RuntimeSettings, SettingsDocument} from '../console.ts';
-import {parseLogSettings, type LogSettings, type LogDetailMinutes} from '../server-administration.ts';
-import {parseDVRDocument, parseEnvelope, parseLiveDefaultsDocument, folderTemplateProblems, type DVRDefaults, type DVRDocument, type LiveDefaults} from '../administration.ts';
-import type {HttpLocalApi} from '../index.ts';
 import {DraftForm, type Loaded} from './draft-form.ts';
 import {callServer} from '../query/server-api.ts';
 import {putSettingsDocument, type SettingsDocumentAPI} from '../settings-document.ts';
@@ -105,100 +102,6 @@ export function alertsForm(deps: ServerFormDeps): DraftForm<AlertThresholds, {re
   });
 }
 
-// ── Live TV and recording defaults ──────────────────────────────────────────────────────────
-
-/** One settings save, with a new operation ID each time. A save that gets no answer fails, and the form reads the current value again. */
-function settingsSave<D>(deps: ServerFormDeps, path: string, method: string, parse: (raw: unknown) => D) {
-  return async (payload: object): Promise<D> => parse(await deps.api.request(path, method, {...payload, operationId: deps.operationId()}));
-}
-
-function documentForm<T extends object, D extends {revision: number; settings: T}>(deps: ServerFormDeps, path: string, parse: (raw: unknown) => D, validate?: (draft: T, doc: D | undefined) => string | undefined): DraftForm<T, D> {
-  const save = settingsSave(deps, path, 'PUT', raw => parseEnvelope(raw, deps.serverId, parse).result);
-  return new DraftForm<T, D>({
-    load: async signal => { const doc = await orAbsent(deps.api.request<unknown>(path, 'GET', undefined, signal).then(raw => parseEnvelope(raw, deps.serverId, parse).result)); return doc && {value: doc.settings, status: doc}; },
-    save: async (draft, _saved, doc) => {
-      const revision = doc?.revision ?? 0;
-      const stored = await save({expectedRevision: revision, settings: draft});
-      return {value: stored.settings, status: stored};
-    },
-    validate,
-  });
-}
-
-export const liveDefaultsForm = (deps: ServerFormDeps) => documentForm<LiveDefaults, ReturnType<typeof parseLiveDefaultsDocument>>(deps, routePath("get_live_settings"), parseLiveDefaultsDocument);
-
-export const recordingForm = (deps: ServerFormDeps) => documentForm<DVRDefaults, DVRDocument>(deps, routePath("get_admin_dvr_settings"), parseDVRDocument, (draft, doc) => {
-  if (!doc?.folderTokens.length) return undefined;
-  return [...folderTemplateProblems(draft.folderTemplate, doc.folderTokens), ...folderTemplateProblems(draft.movieFolderTemplate, doc.folderTokens)][0];
-});
-
-// ── Maintenance: windows, background priority, what is kept and for how long ────────────────
-
-export type MaintenanceWindow = Readonly<{id: string; name: string; enabled: boolean; cadence: string; days: readonly string[]; startMinute: number; durationMinutes: number; timezone: string; tasks: readonly string[]}>;
-export type MaintenanceSettings = Readonly<{windows: readonly MaintenanceWindow[]; retention: Readonly<Record<string, number>>; backupKeepCount: number; backgroundSpeed?: 'gentle' | 'normal' | 'fast'}>;
-export type MaintenanceDocument = Readonly<{revision: number; pausedUntilUnixMillis: number; settings: MaintenanceSettings; cadences: readonly {id: string; name: string; days: readonly string[]; description: string}[]; tasks: readonly string[]; days: readonly string[]; retentionMaxima: Readonly<Record<string, number>>; storageCategories: readonly {id: string; name: string; retentionKey: string}[]}>;
-
-/** The document is owner configuration the server validates in full on save, so it is read structurally. */
-export function parseMaintenanceDocument(raw: unknown): MaintenanceDocument {
-  const v = raw as MaintenanceDocument;
-  if (!v || typeof v.revision !== 'number' || !v.settings || !Array.isArray(v.settings.windows) || !Array.isArray(v.cadences) || !Array.isArray(v.tasks)) throw new Error('The server returned maintenance settings this version cannot read.');
-  return {...v, pausedUntilUnixMillis: Number.isFinite(v.pausedUntilUnixMillis) ? v.pausedUntilUnixMillis : 0, settings: {...v.settings, backgroundSpeed:v.settings.backgroundSpeed==='gentle'||v.settings.backgroundSpeed==='fast'?v.settings.backgroundSpeed:'normal'}};
-}
-
-export const maintenanceForm = (deps: ServerFormDeps) => documentForm<MaintenanceSettings, MaintenanceDocument>(deps, routePath("get_admin_maintenance_settings"), parseMaintenanceDocument);
-
-export type ResourceUsage = Readonly<{connections: {ordinary: number; total: number; ordinaryLimit: number; consoleReserve: number} | null; analysis: {trackedBytes: number; limitBytes: number; measured: boolean}; localArtwork: {trackedBytes: number; limitBytes: number; measured: boolean}; streams: number; streamLimit: number | null; subtitleTracksPerFile: number; subtitleFileLimitMiB: number}>;
-export async function loadResourceUsage(api: Pick<HttpLocalApi, 'request'>, signal?: AbortSignal): Promise<ResourceUsage> {
-  const value = await api.request<ResourceUsage>(routePath("get_admin_resource_usage"), 'GET', undefined, signal);
-  if (!value || !Number.isSafeInteger(value.streams) || !Number.isSafeInteger(value.analysis?.trackedBytes) || !Number.isSafeInteger(value.analysis?.limitBytes) || !Number.isSafeInteger(value.subtitleTracksPerFile) || !Number.isSafeInteger(value.localArtwork?.trackedBytes) || !Number.isSafeInteger(value.localArtwork?.limitBytes) || typeof value.localArtwork?.measured !== 'boolean') throw new Error('The server returned resource usage this version cannot read.');
-  return value;
-}
-
-export type ScheduledJob = Readonly<{task: string; /** Names of the enabled windows that run it. */ windows: readonly string[]; /** The start of the next window that runs it, in the server window's own clock, or undefined when no enabled window does. */ nextAt?: Date}>;
-
-const DAY_INDEX: Readonly<Record<string, number>> = {sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6};
-
-/** When a window next opens, by this device's clock (the document's window times are the server's local times; the two agree when owner and server share a time zone, which the row says). */
-export function nextWindowStart(window: MaintenanceWindow, now: Date): Date | undefined {
-  if (!window.enabled) return undefined;
-  const days = new Set(window.days.map(d => DAY_INDEX[d.toLowerCase()]).filter(d => d !== undefined));
-  for (let offset = 0; offset < 8; offset++) {
-    const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset, Math.floor(window.startMinute / 60), window.startMinute % 60);
-    if ((days.size === 0 || days.has(at.getDay())) && at.getTime() > now.getTime()) return at;
-  }
-  return undefined;
-}
-
-/** Every job the server runs on a schedule, with the windows it runs in and when the next one opens. */
-export function scheduledJobs(doc: Pick<MaintenanceDocument, 'tasks'>, settings: MaintenanceSettings, now: Date): readonly ScheduledJob[] {
-  return doc.tasks.map(task => {
-    const running = settings.windows.filter(w => w.enabled && w.tasks.includes(task));
-    const starts = running.map(w => nextWindowStart(w, now)).filter((d): d is Date => !!d).sort((a, b) => a.getTime() - b.getTime());
-    return {task, windows: running.map(w => w.name), ...(starts[0] ? {nextAt: starts[0]} : {})};
-  });
-}
-
-// ── Message log detail ──────────────────────────────────────────────────────────────────────
-
-export type LogsDraft = Readonly<{logLevel: LogSettings['logLevel']; logDetailMinutes: LogDetailMinutes; retention: LogSettings['retention']}>;
-
-export function logsForm(deps: ServerFormDeps): DraftForm<LogsDraft, LogSettings> {
-  const save = settingsSave(deps, routePath('patch_admin_logs_settings'), 'PATCH', parseLogSettings);
-  return new DraftForm<LogsDraft, LogSettings>({
-    load: async signal => { const settings = parseLogSettings(await deps.api.request(routePath("get_admin_logs_settings"), 'GET', undefined, signal)); return {value: {logLevel: settings.logLevel, logDetailMinutes: settings.logDetailMinutes ?? 30, retention: settings.retention}, status: settings}; },
-    save: async (draft, _saved, status) => {
-      const payload = {logLevel: draft.logLevel, retention: draft.retention, ...(status?.logDetailMinutes === undefined ? {} : {logDetailMinutes: draft.logDetailMinutes})};
-      const settings = await save({expectedRevision: status?.revision ?? 0, ...payload});
-      return {value: {logLevel: settings.logLevel, logDetailMinutes: settings.logDetailMinutes ?? 30, retention: settings.retention}, status: settings};
-    },
-  });
-}
-
-/** "Record more detail for 30 minutes": on, or off again. The one control for extra detail. */
-export async function setDetailWindow(deps: ServerFormDeps, on: boolean): Promise<void> {
-  await deps.api.request(routePath("post_admin_logs_debug_window"), 'POST', routeBody("post_admin_logs_debug_window", {operationId: deps.operationId(), minutes: on ? 30 : 0}));
-}
-
 // ── Streams at once for each person ─────────────────────────────────────────────────────────
 
 /** The owner's default number of streams at once for each person (definition 07 rule 36), from the stream limits
@@ -215,7 +118,6 @@ export function streamLimitsForm(deps: ServerFormDeps): DraftForm<Readonly<{perP
 
 const FACTORIES = {
   runtime: runtimeForm, alerts: alertsForm,
-  liveDefaults: liveDefaultsForm, recording: recordingForm, maintenance: maintenanceForm, logs: logsForm,
   segments: deps => namedSettingsForm(deps, 'segments'),
   titleData: deps => namedSettingsForm(deps, 'title_data'),
   streamLimits: streamLimitsForm,

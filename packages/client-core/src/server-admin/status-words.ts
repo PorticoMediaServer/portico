@@ -3,9 +3,7 @@
  * A code never reaches the screen (X-04); it stays in the logs.
  */
 import type {ConnectionDocument, CustomCertificateStatus} from '../server-administration.ts';
-import type {PlaybackSettingsSnapshot} from '../playback-settings.ts';
 import type {MessageId, MessageValues} from '../../../i18n/src/index.ts';
-import {sentence} from './console-words.ts';
 
 type Translate = (id: MessageId, values?: MessageValues) => string;
 export type StatusTone = 'healthy' | 'warning' | 'danger' | 'accent' | 'neutral';
@@ -47,15 +45,6 @@ export function listedAddresses<T extends Readonly<{address: string}>>(addresses
 /** What kind of address the server answers on. */
 export function addressKind(t: Translate, kind: string): string {
   return t(kind === 'lan' ? 'server.address.home' : kind === 'public' ? 'server.address.public' : 'server.address.thisMachine');
-}
-
-/** Playback › Right now: what the server can deliver, as label and value pairs. */
-export function deliveryStatusRows(t: Translate, d: NonNullable<NonNullable<PlaybackSettingsSnapshot['observation']>['diagnostics']>): readonly (readonly [string, string])[] {
-  return [
-    [t('server.delivery.original'), d.directConfigured ? t('server.delivery.available') : t('server.delivery.notConfigured')],
-    [t('server.delivery.converted'), d.hlsConfigured ? (d.lifecycle === 'running' ? t('server.delivery.available') : sentence(d.lifecycle)) : t('server.delivery.notConfigured')],
-    [t('server.delivery.active'), d.activeConversionSessions == null ? t('server.delivery.notMeasured') : d.conversionSessionLimit != null ? t('server.delivery.activeOf', {count: d.activeConversionSessions, limit: d.conversionSessionLimit}) : String(d.activeConversionSessions)],
-  ];
 }
 
 /** Where the owner is connected from right now and which side of the home-network list that is; nothing when the server could not say. */

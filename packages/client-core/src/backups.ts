@@ -34,7 +34,6 @@ export type BackupTransport={request<T>(path:string,method?:string,body?:unknown
 const BACKUPS_PATH=routePath("get_admin_backups");
 const RESTORE_PATH=routePath("post_admin_backups_restore");
 /** The owner-only fix-permissions operation (spec §6.2), as be/backups publishes it. */
-export const STATE_PERMISSIONS_FIX_PATH=routePath("post_admin_state_permissions_fix");
 
 /** getBackups reads the whole backups document: the list, the running backup (if any) and the last restore. */
 export async function getBackups(transport:BackupTransport,serverId:string,signal?:AbortSignal):Promise<BackupsDocument>{
@@ -92,11 +91,6 @@ export async function restoreBackup(transport:BackupTransport,serverId:string,op
   if(Date.now()-started>600_000)throw Object.assign(new Error('The restore is still running.'),{code:'restore_progress_timeout'});
   await delay(500,signal);
  }
-}
-
-/** fixStatePermissions runs the owner-only §6.2 permissions repair. See STATE_PERMISSIONS_FIX_PATH. */
-export async function fixStatePermissions(transport:BackupTransport,serverId:string,operationId:string,signal?:AbortSignal):Promise<void>{
- await transport.request<unknown>(STATE_PERMISSIONS_FIX_PATH,'POST',{operationId},signal);
 }
 
 export type BackupPollOptions=Readonly<{expectedJobId?:string;intervalMs?:number;timeoutMs?:number;signal?:AbortSignal;onProgress?:(doc:BackupsDocument)=>void}>;
@@ -168,22 +162,6 @@ export async function waitForServerAnswer(get:()=>Promise<BackupsDocument>,optio
 /** Restart is owner-only and works for portable launches as well as services. */
 export async function restartServer(transport:BackupTransport,signal?:AbortSignal):Promise<void>{
  await transport.request<RouteResponse<"post_admin_restart">>(routePath("post_admin_restart"),'POST',routeBody("post_admin_restart", {}),signal);
-}
-
-export type BackupSettings=Readonly<{backupFolder:string;includeArtwork:boolean;passphraseProtected:boolean;passphraseSet:boolean}>;
-export type BackupSettingsPatch=Readonly<{backupFolder?:string;includeArtwork?:boolean;passphraseProtected?:boolean;passphrase?:string}>;
-function parseBackupSettings(v:unknown):BackupSettings{
- if(typeof v!=='object'||v===null)throw new Error('Invalid backup settings.');
- const s=v as Record<string,unknown>;
- if(typeof s.backupFolder!=='string'||s.backupFolder.length>8192||typeof s.includeArtwork!=='boolean'||typeof s.passphraseProtected!=='boolean'||typeof s.passphraseSet!=='boolean')throw new Error('Invalid backup settings.');
- return Object.freeze({backupFolder:s.backupFolder,includeArtwork:s.includeArtwork,passphraseProtected:s.passphraseProtected,passphraseSet:s.passphraseSet});
-}
-/** Secret write input is never retained or returned by the settings read facade. */
-export async function getBackupSettings(transport:BackupTransport,serverId:string,signal?:AbortSignal):Promise<BackupSettings>{
- return parseEnvelope(await transport.request<unknown>(routePath('get_admin_backup_settings'),'GET',undefined,signal),serverId,parseBackupSettings).result;
-}
-export async function updateBackupSettings(transport:BackupTransport,serverId:string,patch:BackupSettingsPatch,signal?:AbortSignal):Promise<BackupSettings>{
- return parseEnvelope(await transport.request<unknown>(routePath('put_admin_backup_settings'),'PUT',routeBody('put_admin_backup_settings',patch),signal),serverId,parseBackupSettings).result;
 }
 
 export type BackupSourceInspection=Readonly<{encrypted:boolean}>;

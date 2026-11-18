@@ -25,7 +25,7 @@ import {HttpLocalApi} from '../src/index.ts';
 import {compatContentApi} from '../src/presentation/content-compat.ts';
 import {viewerScope} from '../src/presentation/content.ts';
 import {fetchHome, fetchHomeRow} from '../src/home.ts';
-import {fetchItemRecommendations, fetchSuggestions} from '../src/recommendations.ts';
+import {fetchItemRecommendations} from '../src/recommendations.ts';
 import {LibraryContentService, type ContentProjection, type ContentRoute, type ContentView} from '../src/library-content.ts';
 import {parseBrowseCapabilities, parseBrowseFacets} from '../src/browse.ts';
 import {DetailService} from '../src/detail.ts';
@@ -44,9 +44,9 @@ import {parseDownloadUsage} from '../src/downloads.ts';
 import {RoomSessionService} from '../src/room-session.ts';
 import {serverPath} from '../src/query/server-api.ts';
 import {ConsoleClient} from '../src/console.ts';
-import {parseAccessDevice, parseAccessMember, parseInvitation, parseLogPage, parseLogSettings} from '../src/server-administration.ts';
+import {parseAccessDevice, parseAccessMember, parseInvitation, parseLogPage} from '../src/server-administration.ts';
 import {parseApiCredential} from '../src/api-access.ts';
-import {parseBackupsDocument, parseDVRDocument, parseEnvelope, parseLibraryDocument, parseLiveDefaultsDocument, parseStorageReport, parseTunerView} from '../src/administration.ts';
+import {parseBackupsDocument, parseEnvelope, parseLibraryDocument, parseStorageReport, parseTunerView} from '../src/administration.ts';
 import {readServerUpdates} from '../src/server-admin/server-updates.ts';
 import {PreferencesReader} from '../src/preferences-reader.ts';
 import {IdentityClient} from '../src/identity-client.ts';
@@ -245,7 +245,6 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
         fetchHomeRow(api, row.id, {}));
     }
   }
-  await rec.check('home', 'suggestions', 'GET', '/v1/suggestions?limit=12', () => fetchSuggestions(api, 12));
 
   // 3. Libraries.
   const libraries = await rec.check('libraries', 'library list', 'GET', '/v1/libraries', () => api.libraries()) as
@@ -577,23 +576,13 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
     if (libs[0]) {
       await envelopeRead('library admin document', `/v1/admin/libraries/${encodeURIComponent(libs[0].id)}/settings`, parseLibraryDocument);
     }
-    await envelopeRead('dvr settings document', '/v1/admin/dvr/settings', parseDVRDocument);
     await envelopeRead('dvr tuners', '/v1/admin/dvr/tuners', parseTunerView);
-    await envelopeRead('live defaults', '/v1/admin/live/settings', parseLiveDefaultsDocument);
     await envelopeRead('backups document', '/v1/admin/backups', parseBackupsDocument);
-    // Web MaintenanceWindows.tsx reads this registry document structurally (its readDocument); the same checks here.
-    await envelopeRead('maintenance settings', '/v1/admin/maintenance/settings', raw => {
-      const v = raw as {revision?: unknown; settings?: {windows?: unknown}; cadences?: unknown; tasks?: unknown} | null;
-      if (!v || typeof v.revision !== 'number' || !v.settings || !Array.isArray(v.settings.windows) || !Array.isArray(v.cadences) || !Array.isArray(v.tasks)) throw Object.assign(new Error('maintenance settings unreadable'), {code: 'invalid_response'});
-      return v;
-    });
     await envelopeRead('storage report', '/v1/admin/storage-usage', parseStorageReport);
     // A registry route: the bare report, no administration envelope (the web reads it directly).
     await rec.check('owner', 'update report', 'GET', '/v1/admin/updates', () => readServerUpdates(api));
     await rec.check('owner', 'server logs page 1', 'GET', '/v1/admin/logs?limit=20', () =>
       api.request<unknown>('/v1/admin/logs?limit=20').then(parseLogPage));
-    await rec.check('owner', 'log settings', 'GET', '/v1/admin/logs/settings', () =>
-      api.request<unknown>('/v1/admin/logs/settings').then(parseLogSettings));
     const accessLists: [string, string, (raw: unknown) => unknown][] = [
       ['access members', '/v1/admin/access/members?limit=20', parseAccessMember],
       ['access invitations', '/v1/admin/access/invitations?limit=20', parseInvitation],

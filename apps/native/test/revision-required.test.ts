@@ -29,12 +29,10 @@ test('escaped container IDs and administration result envelopes use the correct 
   for (const [path, doc] of [
     [routePath('set_container_personal_state', {kind: 'show', id: 'show/one'}), {revision: 3}],
     [routePath('set_live_source_configuration', {id: 'source/one'}), {result: {revision: 3}}],
-    [routePath('put_admin_maintenance_settings'), {revision: 3}],
     [routePath('put_download_settings'), {revision: 3}],
     [routePath('put_library_settings', {id: 'movie/one'}), {revision: 3}],
     [routePath('put_metadata_settings'), {revision: 3}],
     [routePath('put_direct_profile_restrictions', {id: 'profile/one'}), {revision: 3}],
-    [routePath('set_live_settings'), {result: {revision: 3}}],
   ] as const) {
     let count = 0;
     const send = revisionRequiredFetch(async (url, options = {}) => {

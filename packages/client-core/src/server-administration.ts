@@ -75,11 +75,8 @@ export type Invitation=Readonly<{id:string;email?:never;notes?:string;serverId?:
 export type AccessDevice=Readonly<{id:string;accountId:string;username:string;profileId:string;profileName?:string;name:string;platform:string;app:string;appVersion:string;lastNetwork:string;liveState:'idle'|'watching'|'listening';
  firstSeenAt:string;lastSeenAt:string;revision:number;sessionCount?:number}>;
 export type LogRecord=Readonly<{sequence:string;at:string;level:LogLevel;category:LogCategory;message:string}>;
-export type LogRetention=Readonly<{category:LogCategory;days:number}>;
 export const LOG_DETAIL_MINUTES = [15,30,60,120,240] as const;
 export type LogDetailMinutes = typeof LOG_DETAIL_MINUTES[number];
-export type LogSettings=Readonly<{revision:number;logLevel:LogLevel;effectiveLevel:LogLevel;debugWindowUntil?:string;logDetailMinutes?:LogDetailMinutes;
- retention:readonly LogRetention[];levels:readonly string[];categories:readonly string[]}>;
 export type ClientLogUpload=Readonly<{id:string;accountId:string;profileId:string;deviceId:string;platform:string;
  appVersion?:string;receivedAt:string;bytes:number;body?:string}>;
 export type ConnectivityPolicy=Readonly<{revision:number;remoteSignInPolicy:RemoteSignInPolicy;remoteBitrateLimitKbps:number;
@@ -293,20 +290,6 @@ export function parseAdminServerEvents(raw:unknown):readonly AdminServerEvent[]{
   out.push(Object.freeze({at:when(entry.at),code:entry.code as AdminServerEventCode}));
  }
  return Object.freeze(out);
-}
-
-export function parseLogSettings(raw:unknown):LogSettings{
- if(!obj(raw))return invalid();
- if(raw.logDetailMinutes!==undefined&&(typeof raw.logDetailMinutes!=='number'||!(LOG_DETAIL_MINUTES as readonly number[]).includes(raw.logDetailMinutes)))return invalid();
- const retention=Array.isArray(raw.retention)?raw.retention:[];
- if(retention.length>logCategories.length)invalid();
- return Object.freeze({revision:num(raw.revision,1),logLevel:oneOf(raw.logLevel,logLevels),effectiveLevel:oneOf(raw.effectiveLevel,logLevels),
-  debugWindowUntil:optionalWhen(raw.debugWindowUntil),...(raw.logDetailMinutes===undefined?{}:{logDetailMinutes:raw.logDetailMinutes as LogDetailMinutes}),
-  retention:Object.freeze(retention.map((entry:unknown):LogRetention=>{
-   if(!obj(entry))return invalid();
-   return Object.freeze({category:oneOf(entry.category,logCategories),days:num(entry.days,1,90)});
-  })),
-  levels:list(raw.levels,16,x=>str(x,16)),categories:list(raw.categories,32,x=>str(x,32))});
 }
 
 export function parseClientLogUpload(raw:unknown):ClientLogUpload{
