@@ -9,7 +9,7 @@ const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.tes
 const scopes = ['read', 'playback', 'library', 'admin'];
 
 /** The member's own personal access tokens: only their real list, create and revoke calls. */
-async function fixture(options: {hosted?: boolean} = {}) {
+async function fixture(options: {hosted?: boolean; tokensAllowed?: boolean} = {}) {
   const host = hooks(), pendingEffects: (() => void)[] = []; let deps: any[] | undefined, cleanup: (() => void) | undefined;
   const useLayoutEffect = (effect: () => () => void, next: any[]) => {
     if (!deps || next.some((value, index) => value !== deps![index])) {deps = next; pendingEffects.push(() => {cleanup?.(); cleanup = effect();});}
@@ -23,15 +23,22 @@ async function fixture(options: {hosted?: boolean} = {}) {
     navigation: {getSnapshot: () => navigation, subscribe: () => () => {}}, api: {request: async () => ({})},
   };
   const lifetime = new NativeScreenLifetime(context), calls: any[] = [], copied: string[] = [];
-  const token = {id: 'token-1', kind: 'token', name: 'Laptop script', scopes: ['read'], hint: '9f2a', createdAt: '2026-10-01T09:00:00Z', lastUsedAt: '2026-10-20T10:00:00Z', state: 'active',
-    member: {accountId: 'account', username: 'justin', profileId: 'main', profile: 'Justin'}};
-  let page: any = {items: [token], limit: 100};
-  const apiAccess = {
-    apiScopes: scopes,
-    getApiAccessOptions: async () => ({scopes, maximumKeys: 10, maximumTokens: 10, tokensAllowed: true, requestsPerMinute: 60, queryParameter: 'api_key'}),
-    listAccessTokens: async () => page,
-    createAccessToken: async (_transport: unknown, input: any) => {calls.push(['createAccessToken', input]); return {credential: {...token, id: 'token-2', name: input.name, scopes: input.scopes}, secret: 'pat.fixture-secret'};},
-    revokeAccessToken: async (_transport: unknown, id: string) => {calls.push(['revokeAccessToken', id]); page = {items: [], limit: 100}; return {...token, id, state: 'revoked'};},
+  const token = {id: 'token-1', name: 'Laptop script', scopes: ['read'], createdAt: '2026-10-01T09:00:00Z', lastUsedAt: '2026-10-20T10:00:00Z'};
+  let items = [token];
+  context.api.request = async (path: string, method: string) => {
+    if (method === 'DELETE') {
+      assert.equal(path, '/v1/me/tokens/token-1');
+      calls.push([method, path]);
+      items = [];
+      return;
+    }
+    assert.deepEqual([method, path], ['GET', '/v1/me/tokens']);
+    return {items, tokensAllowed: options.tokensAllowed ?? true};
+  };
+  context.api.requestRaw = async (path: string, method: string, input: any) => {
+    assert.deepEqual([method, path], ['POST', '/v1/me/tokens']);
+    calls.push([method, input]);
+    return {status: 200, headers: {}, body: {key: {...token, id: 'token-2', ...input.body}, secret: 'pk_fixture-secret'}};
   };
   let sequence = 0, current: {key: string; id: string} | undefined;
   const theme = {isTV: false, platform: 'phone', width: 390, colors: new Proxy({}, {get: (_t, key) => String(key)})};
@@ -39,11 +46,10 @@ async function fixture(options: {hosted?: boolean} = {}) {
     react: host.react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', useWindowDimensions: () => ({width: 390, height: 844})}, 'react-native-qrcode-svg': {default: 'QRCode'},
     '../../../../../packages/client-core/src/identity-client': {IdentityClient: class {}},
     '../../../../../packages/client-core/src/password-strength': {passwordStrength: () => ({level: 0, label: '', hint: '', acceptable: false})},
-    '../../../../../packages/client-core/src/api-access': apiAccess,
+    '../../../../../packages/client-core/src/api-access': {apiScopes: scopes},
     '../../../../../packages/client-core/src/playback-v1/http': {idempotencyKey: () => 'fixture-operation'},
     '../../../../../packages/client-core/src/server-admin/api-words': {EXPIRY_DAYS: [0, 30, 90, 365],
       chosenScopes: (ticked: ReadonlySet<string>) => ticked.has('admin') ? ['admin'] : scopes.filter(scope => ticked.has(scope)),
-      credentialWorks: (value: any) => value.state === 'active',
       expiryInstant: (days: number, now: number) => days > 0 ? new Date(now + days * 86_400_000).toISOString() : undefined,
       expiryLabel: (_t: unknown, days: number) => `expiry-${days}`, scopeTicked: (ticked: ReadonlySet<string>, scope: string) => ticked.has(scope)},
     '../../../../../packages/client-core/src/server-admin/server-forms': {createOperationIds: () => ({
@@ -78,6 +84,17 @@ test('The token list names each token, when it was made, when it was last used a
   } finally {f.dispose();}
 });
 
+test('The list policy shows the existing off notice before a create request', async () => {
+  const f = await fixture({tokensAllowed: false});
+  try {
+    await f.open();
+    assert.ok(nodes(f.tree()).some(node => Array.isArray(node.props?.children) && node.props.children.includes('api.tokens.off')));
+    assert.equal(f.find('access-token-add'), undefined);
+    assert.ok(f.find('access-token-token-1'), 'existing tokens can still be revoked');
+    assert.deepEqual(f.calls, []);
+  } finally {f.dispose();}
+});
+
 test('Creating a token needs a name and a scope, then shows the one-time token in a sheet only its acknowledgement closes', async () => {
   const f = await fixture();
   try {
@@ -87,13 +104,13 @@ test('Creating a token needs a name and a scope, then shows the one-time token i
     assert.equal(f.find('access-token-create').props.disabled, true);
     f.find('access-token-scope-read').props.onCheckedChange(true); f.render();
     const create = f.find('access-token-create').props.onPress; create(); await new Promise(resolve => setImmediate(resolve)); f.render();
-    assert.deepEqual(f.calls.map(call => [call[0], call[1].name, call[1].scopes, call[1].expiresAt]), [['createAccessToken', 'Laptop script', ['read'], undefined]]);
-    assert.equal(typeof f.calls[0][1].operationId, 'string');
+    assert.deepEqual(f.calls.map(([method, input]) => [method, input.body]), [['POST', {name: 'Laptop script', scopes: ['read']}]]);
+    assert.equal(f.calls[0][1].headers['Idempotency-Key'], 'operation-1');
     const sheet = f.find('access-tokens');
     assert.equal(sheet.props.title, 'api.tokens.copyTitle');
     assert.equal(sheet.props.dismissOnBack, false); assert.equal(sheet.props.dismissOnGesture, false); assert.equal(sheet.props.dismissOnOutsidePress, false); assert.equal(sheet.props.showClose, false);
-    assert.deepEqual(f.find('access-token-secret').props.children, ['pat.fixture-secret']);
-    await f.press('access-token-copy'); assert.deepEqual(f.copied, ['pat.fixture-secret']);
+    assert.deepEqual(f.find('access-token-secret').props.children, ['pk_fixture-secret']);
+    await f.press('access-token-copy'); assert.deepEqual(f.copied, ['pk_fixture-secret']);
     await f.press('access-token-copied');
     assert.equal(f.find('access-tokens').props.open, false); assert.equal(f.find('access-token-secret'), undefined);
   } finally {f.dispose();}
@@ -105,7 +122,7 @@ test('A token is revoked only from its own confirmation, and the list reloads af
     await f.open(); f.find('access-token-token-1').props.onPress(); f.render();
     assert.equal(f.find('access-tokens').props.title, 'web.access.revokeTitle'); assert.deepEqual(f.calls, []);
     await f.press('access-token-revoke');
-    assert.deepEqual(f.calls, [['revokeAccessToken', 'token-1']]);
+    assert.deepEqual(f.calls, [['DELETE', '/v1/me/tokens/token-1']]);
     assert.equal(f.find('access-token-token-1'), undefined);
   } finally {f.dispose();}
 });

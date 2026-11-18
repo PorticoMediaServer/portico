@@ -49,6 +49,12 @@ type KeyCreated struct {
 	Note   string `json:"note,omitempty"`
 }
 
+// PersonalTokenList is the caller's live tokens and whether their account may make tokens.
+type PersonalTokenList struct {
+	Items         []Key `json:"items"`
+	TokensAllowed bool  `json:"tokensAllowed"`
+}
+
 type keyKind struct {
 	kind  string
 	limit int
@@ -65,18 +71,28 @@ var (
 
 func (s *Server) keyRoutes() {
 	// Making, listing and ending keys is for a signed-in person: a key never mints another.
+	Handle(s, "GET /v1/me/tokens", SignedIn, s.listPersonalTokens)
 	for _, k := range []keyKind{personalTokens, appPasswords} {
 		path := "/v1/me/tokens"
 		if k.appPassword {
 			path = "/v1/me/app-passwords"
+			Handle(s, "GET "+path, SignedIn, func(r *http.Request, _ None) (Page[Key], error) { return s.listKeys(r, k) })
 		}
-		Handle(s, "GET "+path, SignedIn, func(r *http.Request, _ None) (Page[Key], error) { return s.listKeys(r, k) })
 		Handle(s, "POST "+path, SignedIn, func(r *http.Request, req KeyCreate) (KeyCreated, error) { return s.createKey(r, k, req) })
 		Handle(s, "DELETE "+path+"/{id}", SignedIn, func(r *http.Request, _ None) (None, error) { return s.revokeKey(r, k) })
 	}
 	Handle(s, "GET /v1/admin/api-keys", Owner, func(r *http.Request, _ None) (Page[Key], error) { return s.ownerAPIKeys(r) }).Scope = ScopeSession
 	Handle(s, "POST /v1/admin/api-keys", Owner, func(r *http.Request, req KeyCreate) (KeyCreated, error) { return s.createKey(r, apiKeys, req) }).Scope = ScopeSession
 	Handle(s, "DELETE /v1/admin/api-keys/{id}", Owner, func(r *http.Request, _ None) (None, error) { return s.revokeKey(r, apiKeys) }).Scope = ScopeSession
+}
+
+func (s *Server) listPersonalTokens(r *http.Request, _ None) (PersonalTokenList, error) {
+	page, err := s.listKeys(r, personalTokens)
+	if err != nil {
+		return PersonalTokenList{}, err
+	}
+	allowed, err := s.db.TokensAllowed(r.Context(), CallerFrom(r.Context()).UserID)
+	return PersonalTokenList{Items: page.Items, TokensAllowed: allowed}, err
 }
 
 func keyOut(k db.APIKey) Key {

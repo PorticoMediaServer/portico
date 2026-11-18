@@ -9299,6 +9299,24 @@
         ],
         "type": "object"
       },
+      "PersonalTokenList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Key"
+            },
+            "type": "array"
+          },
+          "tokensAllowed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "tokensAllowed"
+        ],
+        "type": "object"
+      },
       "Play": {
         "properties": {
           "audioTrackId": {
@@ -28630,7 +28648,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KeyPage"
+                  "$ref": "#/components/schemas/PersonalTokenList"
                 }
               }
             },

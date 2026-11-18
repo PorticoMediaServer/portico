@@ -55,7 +55,7 @@ function createSettingsAccountScope(context: NativeShellBootstrapContext, lifeti
   lifetime.signal.addEventListener('abort', dispose, {once: true});
   cleanups.push(() => lifetime.signal.removeEventListener('abort', dispose));
   changed();
-  const request = async <T,>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> => {
+  const within = async <T,>(work: (signal: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T> => {
     if (!current() || signal?.aborted) throw retired();
     const round = new AbortController(), stop = () => round.abort();
     abort.signal.addEventListener('abort', stop, {once: true}); signal?.addEventListener('abort', stop, {once: true});
@@ -63,13 +63,15 @@ function createSettingsAccountScope(context: NativeShellBootstrapContext, lifeti
       if (!current() || signal?.aborted) throw retired();
       const value = await lifetime.request(next => {
         if (!current() || signal?.aborted) throw retired();
-        return context.api.request<T>(path, method, body, next);
+        return work(next);
       }, round.signal);
       if (!current() || signal?.aborted) throw retired();
       return value;
     } finally {abort.signal.removeEventListener('abort', stop); signal?.removeEventListener('abort', stop);}
   };
-  return Object.freeze({current, dispose, request, signal: abort.signal, serverId, familyId, installationId: session.installationId});
+  const request = <T,>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal) =>
+    within(next => context.api.request<T>(path, method, body, next), signal);
+  return Object.freeze({current, dispose, request, within, signal: abort.signal, serverId, familyId, installationId: session.installationId});
 }
 export type NativeAccountSecurityScope = ReturnType<typeof createNativeAccountSecurityScope>;
 export type NativeAccessTokenScope = ReturnType<typeof createNativeAccessTokenScope>;

@@ -1,15 +1,16 @@
 import {ownerAccessTokenApi} from '../../../../../packages/client-core/src/owner-account-clients';
+import type {Key, PersonalTokenList} from '../../../../../packages/contracts/src/next/api';
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import {apiScopes, createAccessToken, getApiAccessOptions, listAccessTokens, revokeAccessToken, type ApiAccessOptions, type ApiAccessTransport, type ApiCredential, type ApiCredentialPage, type ApiScope, type IssuedApiCredential} from '../../../../../packages/client-core/src/api-access';
+import {apiScopes, type ApiScope} from '../../../../../packages/client-core/src/api-access';
 import {IdentityClient, type TwoFactorEnrolment} from '../../../../../packages/client-core/src/identity-client';
 import type {Device} from '../../../../../packages/client-core/src/identity-devices';
 import type {TwoFactorState} from '../../../../../packages/client-core/src/identity-restrictions';
 import {passwordStrength} from '../../../../../packages/client-core/src/password-strength';
 import {idempotencyKey} from '../../../../../packages/client-core/src/playback-v1/http';
-import {EXPIRY_DAYS, chosenScopes, credentialWorks, expiryInstant, expiryLabel, type ExpiryDays} from '../../../../../packages/client-core/src/server-admin/api-words';
+import {EXPIRY_DAYS, chosenScopes, expiryInstant, expiryLabel, type ExpiryDays} from '../../../../../packages/client-core/src/server-admin/api-words';
 import {createOperationIds} from '../../../../../packages/client-core/src/server-admin/server-forms';
 import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
 import {nativeAccounts} from '../../platform/accounts';
@@ -204,7 +205,7 @@ export function NativeAccountSecurityPanel({kind, context, lifetime, t, runtime,
   </>;
 }
 
-type TokenOpening = Readonly<{scope: NativeAccessTokenScope; transport: ApiAccessTransport}>;
+type TokenOpening = Readonly<{scope: NativeAccessTokenScope; api: ReturnType<typeof ownerAccessTokenApi>}>;
 type TokenView = 'list' | 'create' | 'revoke' | 'receipt';
 
 /** A member's own personal access tokens: list, create and revoke. The token is shown once,
@@ -215,12 +216,12 @@ export function NativeAccessTokensPanel({context, lifetime, t, runtime}: NativeS
   const mounted = useRef(false), busyRef = useRef(false), copyRef = useRef(false);
   const operations = useRef(createOperationIds(() => idempotencyKey()));
   const [busy, setBusy] = useState(false), [error, setError] = useState<unknown>(), [notice, setNotice] = useState('');
-  const [page, setPage] = useState<ApiCredentialPage>(), [options, setOptions] = useState<ApiAccessOptions>();
-  const [view, setView] = useState<TokenView>('list'), [revoking, setRevoking] = useState<ApiCredential>();
+  const [page, setPage] = useState<PersonalTokenList>();
+  const [view, setView] = useState<TokenView>('list'), [revoking, setRevoking] = useState<Key>();
   const [name, setName] = useState(''), [ticked, setTicked] = useState<ReadonlySet<ApiScope>>(() => new Set()), [days, setDays] = useState<ExpiryDays>(0);
-  const [issued, setIssued] = useState<IssuedApiCredential>(), [copied, setCopied] = useState(false);
+  const [issued, setIssued] = useState<{secret?: string}>(), [copied, setCopied] = useState(false);
   const clear = () => {
-    setBusy(false); setError(undefined); setPage(undefined); setOptions(undefined); setView('list'); setRevoking(undefined);
+    setBusy(false); setError(undefined); setPage(undefined); setView('list'); setRevoking(undefined);
     setName(''); setTicked(new Set()); setDays(0); setIssued(undefined); setCopied(false);
   };
   const close = () => {openingRef.current?.scope.dispose(); openingRef.current = undefined; busyRef.current = false; copyRef.current = false; operations.current.release(); setOpening(undefined); clear();};
@@ -236,10 +237,8 @@ export function NativeAccessTokensPanel({context, lifetime, t, runtime}: NativeS
     catch (failure) {if (current(held)) setError(failure);}
     finally {if (current(held)) {busyRef.current = false; setBusy(false);}}
   };
-  const load = (held: TokenOpening | undefined, cursor = '', append = false) => {
-    void run(held, h => Promise.all([listAccessTokens(h.transport, cursor, h.scope.signal), getApiAccessOptions(h.transport, h.scope.signal)]), ([next, access]) => {
-      setOptions(access); setPage(value => append && value ? {...next, items: [...value.items, ...next.items]} : next);
-    });
+  const load = (held: TokenOpening | undefined) => {
+    void run(held, h => h.api.list(h.scope.signal), setPage);
   };
   const open = () => {
     if (openingRef.current || !mounted.current || !lifetime.current() || !context.current() || !nativeAccessTokensAllowed(context)) return;
@@ -248,8 +247,7 @@ export function NativeAccessTokensPanel({context, lifetime, t, runtime}: NativeS
     close(); setNotice('');
     let scope: NativeAccessTokenScope;
     try {scope = createNativeAccessTokenScope(context, lifetime);} catch (failure) {if ((failure as {name?: string})?.name === 'AbortError') return; throw failure;}
-    const transport = ownerAccessTokenApi(scope);
-    const held = {scope, transport};
+    const held = {scope, api: ownerAccessTokenApi(scope, context.api)};
     openingRef.current = held; setOpening(held); load(held);
   };
   const held = opening;
@@ -267,7 +265,7 @@ export function NativeAccessTokensPanel({context, lifetime, t, runtime}: NativeS
     const expiresAt = expiryInstant(days, serverNow());
     // One operation id per draft: a retry of the same ask never makes a second token.
     const operationId = operations.current.forPayload(JSON.stringify([trimmed, chosen, expiresAt ?? '']));
-    void run(attempt, h => createAccessToken(h.transport, {operationId, name: trimmed, scopes: chosen, ...(expiresAt ? {expiresAt} : {})}, h.scope.signal), receipt => {
+    void run(attempt, h => h.api.create(operationId, {name: trimmed, scopes: [...chosen], ...(expiresAt ? {expiresAt} : {})}, h.scope.signal), receipt => {
       operations.current.release();
       setIssued(receipt); setName(''); setTicked(new Set()); setDays(0); setView('receipt');
     });
@@ -275,9 +273,13 @@ export function NativeAccessTokensPanel({context, lifetime, t, runtime}: NativeS
   const revoke = () => {
     const attempt = held, target = revoking;
     if (!current(attempt) || !target || busyRef.current) return;
-    void run(attempt, h => revokeAccessToken(h.transport, target.id, h.scope.signal), () => {
+    void run(attempt, async h => {
+      await h.api.revoke(target.id, h.scope.signal);
+      return h.api.list(h.scope.signal);
+    }, next => {
+      setPage(next);
       setRevoking(undefined); setView('list'); setNotice(t('api.credential.tokenRevoked'));
-    }).then(() => load(attempt));
+    });
   };
   const copySecret = async () => {
     const secret = issued?.secret;
@@ -296,19 +298,17 @@ export function NativeAccessTokensPanel({context, lifetime, t, runtime}: NativeS
   const scopeRow = (scope: ApiScope) => <Switch key={scope} testID={`access-token-scope-${scope}`} checked={ticked.has(scope)} disabled={busy} description={t(`api.scope.${scope}.help` as MessageId)} onCheckedChange={() => toggleScope(scope)}>{t(`api.scope.${scope}` as MessageId)}</Switch>;
   const content = view === 'list'
     ? <View style={{gap: 12}}>{failure}
-        {options && !options.tokensAllowed ? bodyText(t('api.tokens.off')) : null}
+        {page && !page.tokensAllowed ? bodyText(t('api.tokens.off')) : null}
         {busy && !page ? bodyText(t('status.loading')) : null}
         {page && !page.items.length ? bodyText(t('api.tokens.none')) : null}
         {page?.items.length ? <View>{page.items.map((token, index) => <SettingsRow key={token.id} first={index === 0} testID={`access-token-${token.id}`} label={token.name}
           description={[token.scopes.map(scope => t(`api.scope.${scope}` as MessageId)).join(', '), t('api.credential.created', {when: defaultI18n.date(token.createdAt)}), token.lastUsedAt ? t('api.credential.lastUsed', {when: defaultI18n.date(token.lastUsedAt)}) : t('api.credential.neverUsed')].join(' · ')}
-          value={token.state === 'active' ? undefined : t(`api.credential.state.${token.state}` as MessageId)}
-          onPress={credentialWorks(token) ? () => {if (current(held) && !busyRef.current) {setRevoking(token); setView('revoke'); setError(undefined);}} : undefined}/>)}</View> : null}
-        {page?.nextCursor ? <Button size="compact" variant="glass" disabled={busy} onPress={() => {if (current(held) && !busyRef.current && page?.nextCursor) load(held, page.nextCursor, true);}}>{t('action.showMore')}</Button> : null}
+          onPress={() => {if (current(held) && !busyRef.current) {setRevoking(token); setView('revoke'); setError(undefined);}}}/>)}</View> : null}
       </View>
     : view === 'create'
     ? <View style={{gap: 12}}>{failure}
         <TextField testID="access-token-name" label={t('builder.name')} description={t('api.tokens.nameHelp')} value={name} onChangeText={edit(setName)} maxLength={80} editable={!busy}/>
-        <View style={{gap: 8}}>{apiScopes.filter(scope => !options || options.scopes.includes(scope)).map(scopeRow)}</View>
+        <View style={{gap: 8}}>{apiScopes.map(scopeRow)}</View>
         <Select testID="access-token-expiry" label={t('api.credential.expiryLabel')} value={String(days)} disabled={busy} options={EXPIRY_DAYS.map(value => ({value: String(value), label: expiryLabel(t, value)}))} onValueChange={value => {const parsed = Number(value); if (editing() && EXPIRY_DAYS.some(day => day === parsed)) setDays(parsed as ExpiryDays);}}/>
       </View>
     : view === 'revoke'
@@ -323,7 +323,7 @@ export function NativeAccessTokensPanel({context, lifetime, t, runtime}: NativeS
     ? <><Button variant="glass" disabled={busy} onPress={() => {if (editing()) {setView('list'); setError(undefined);}}}>{t('action.back')}</Button><Button testID="access-token-create" loading={busy} disabled={busy || !name.trim() || !chosenScopes(ticked).length} onPress={submit}>{t('api.tokens.create')}</Button></>
     : view === 'revoke'
     ? <><Button variant="glass" disabled={busy} onPress={() => {if (editing()) {setRevoking(undefined); setView('list');}}}>{t('action.cancel')}</Button><Button testID="access-token-revoke" variant="danger" loading={busy} disabled={busy} onPress={revoke}>{t('web.access.revoke')}</Button></>
-    : <><Button variant="glass" onPress={() => {if (current(held)) close();}}>{t('action.close')}</Button>{options?.tokensAllowed !== false && <Button testID="access-token-add" icon="i-plus" disabled={busy || !options} onPress={begin}>{t('api.tokens.create')}</Button>}</>;
+    : <><Button variant="glass" onPress={() => {if (current(held)) close();}}>{t('action.close')}</Button>{page?.tokensAllowed !== false && <Button testID="access-token-add" icon="i-plus" disabled={busy || !page} onPress={begin}>{t('api.tokens.create')}</Button>}</>;
   const surface = {
     testID: 'access-tokens', open: !!opening && current(opening), title,
     onOpenChange: (value: boolean) => {if (!value && !receipt && current(held)) close();},

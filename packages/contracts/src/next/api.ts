@@ -2781,6 +2781,11 @@ export interface PersonRole {
   titleCount: number;
 }
 
+export interface PersonalTokenList {
+  items: Key[];
+  tokensAllowed: boolean;
+}
+
 export interface Play {
   itemId: string;
   positionMs: number;
@@ -4766,7 +4771,7 @@ export interface Routes {
   'DELETE /v1/admin/invitations/{id}': {access: 'admin'; request: undefined; response: undefined};
   'GET /v1/auth/invitations/{id}': {access: 'public'; request: undefined; response: InvitationPreview};
   'POST /v1/auth/invitations/{id}/accept': {access: 'public'; request: InvitationAccept; response: SignInResponse};
-  'GET /v1/me/tokens': {access: 'signedIn'; request: undefined; response: KeyPage};
+  'GET /v1/me/tokens': {access: 'signedIn'; request: undefined; response: PersonalTokenList};
   'POST /v1/me/tokens': {access: 'signedIn'; request: KeyCreate; response: KeyCreated};
   'DELETE /v1/me/tokens/{id}': {access: 'signedIn'; request: undefined; response: undefined};
   'GET /v1/me/app-passwords': {access: 'signedIn'; request: undefined; response: KeyPage};
