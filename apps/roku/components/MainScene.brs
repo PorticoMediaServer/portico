@@ -55,6 +55,12 @@ sub onLaunchArgs()
     if createObject("roAppInfo").isDev() and args <> invalid
         ' Development builds only: scripts can hand the app a sign-in, or clear it.
         if args.devSignOut <> invalid then storeWrite({origin: "", refreshToken: "", profileId: "", renewalId: ""})
+        ' the shared elements page (design decision 4), for bin/roku-kit; never in a viewer's build
+        if args.devKit <> invalid
+            show("KitScreen")
+            m.screen.active = true
+            return
+        end if
         if args.devOrigin <> invalid and args.devRefresh <> invalid
             storeWrite({origin: args.devOrigin, refreshToken: args.devRefresh, installationId: args.devInstallation, profileId: args.devProfile, renewalId: ""})
         end if
