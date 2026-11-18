@@ -170,8 +170,9 @@ export function PlayerPill({name, value, qualifier, icon, tone, label, onPress, 
   if (spare && beside) return null;
   const fill = alpha(theme.colors.text, open ? tint.open : tint.pill);
   const strong = [theme.type.playerPill, {color: theme.colors.text}], dim = [theme.type.playerPill, {color: theme.colors.textTertiary}];
-  // TV (tv-player 1): a named entry is a two-line tile, its name over its value.
-  if (form === 'tv' && name !== undefined) return <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} focusRadius={frameSpec.player.tile.radius}
+  // TV (tv-player 1): a named entry with a value is a two-line tile, its name over its value; one with only a name
+  // (Episodes) is the pill with its icon, as tv-player 1 draws it.
+  if (form === 'tv' && name !== undefined && value !== undefined) return <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} focusRadius={frameSpec.player.tile.radius}
     style={{height: theme.spec.transport.control.size[theme.column], paddingHorizontal: frameSpec.player.tile.paddingX, borderRadius: frameSpec.player.tile.radius, justifyContent: 'center', backgroundColor: fill, opacity: disabled ? theme.spec.button.disabledOpacity : 1}}>
     <Text numberOfLines={1} style={[theme.type.playerTime, {color: theme.colors.text, fontFamily: theme.type.button.fontFamily}]}>{name}</Text>
     <Text numberOfLines={1} style={[theme.type.playerTime, {color: theme.colors.textSecondary}]}>{qualifier !== undefined ? `${qualifier} ` : ''}{value}</Text>
