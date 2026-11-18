@@ -262,6 +262,7 @@ sub onPasswordAnswer(event as object)
     end if
     if result.data.challenge <> invalid
         m.challenge = result.data.challenge.token
+        m.factorPad.digits = 6     ' a fresh pad: digits typed for an earlier attempt are gone
         go("factor")
         return
     end if
