@@ -310,7 +310,7 @@ func (d *DB) RecentlyAddedIn(ctx context.Context, v Viewer, library string) ([]I
 	for n, title := range titles {
 		list[n] = title.id
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+`, max(i.added_at,ifnull(i.last_child_added_at,0))`+itemFrom+`i.id IN `+intList(list)+` AND `+acc.visible("i"), v.args()...)
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+`, i.home_added_at`+itemFrom+`i.id IN `+intList(list)+` AND `+acc.visible("i"), v.args()...)
 	if err != nil {
 		return nil, err
 	}

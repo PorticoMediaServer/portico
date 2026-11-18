@@ -258,20 +258,20 @@ CREATE TABLE items (
   -- until then a holder whose titles are all hidden from a profile still lists for it.
   may_empty        INTEGER NOT NULL DEFAULT 0 CHECK (may_empty IN (0, 1)),
   last_child_added_at INTEGER,
+  home_added_at    INTEGER GENERATED ALWAYS AS (max(added_at, ifnull(last_child_added_at, 0))) VIRTUAL,
   available        INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0, 1)),
   missing_since_at INTEGER,
   revision         INTEGER NOT NULL DEFAULT 1,
   extra            TEXT
 );
--- The list indexes end with rating_age so a profile with a rating limit skips and counts
--- titles from the index alone.
+-- The list indexes include rating_age so a profile with a rating limit skips and counts from the index alone.
 CREATE INDEX items_by_title ON items (library_id, kind, sort_title, id, rating_age);
 CREATE INDEX items_by_added ON items (library_id, kind, added_at, id, rating_age);
 CREATE INDEX items_by_year ON items (library_id, kind, year, id, rating_age);
--- by_release also ends with year. A list of one decade in release order starts at the oldest
--- release and passes every earlier title; with the year here it passes them in the index.
-CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rating_age, year);
-CREATE INDEX items_home_release ON items (release_date, id, rating_age, library_id, kind, parent_id, labels); -- Home spans libraries and kinds; it holds all the walk asks, so it never reads the table
+CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rating_age, year); -- year covers release-ordered decade pages
+-- Home walks eligible cards across libraries. The WHERE clauses match ItemQuery.filters.
+CREATE INDEX items_home_added ON items (home_added_at, id, rating_age, library_id, kind, parent_id, labels, may_empty, leaf_count) WHERE (kind IN (1,2,6,8,9,10,12) OR (kind IN (4,7,11) AND parent_id IS NULL));
+CREATE INDEX items_home_release ON items (release_date, id, rating_age, library_id, kind, parent_id, labels, may_empty, leaf_count) WHERE release_date > '' AND (kind IN (1,2,6,8,9,10,12) OR (kind IN (4,7,11) AND parent_id IS NULL));
 -- The sorts by length and by community rating. Without an index every page of such a list
 -- reads and sorts the whole library.
 CREATE INDEX items_by_duration ON items (library_id, kind, duration_ms, id, rating_age);
