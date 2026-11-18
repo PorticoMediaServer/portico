@@ -1,4 +1,4 @@
-import React, {Children, createContext, useContext, type ReactNode, type RefObject} from 'react';
+import React, {createContext, useContext, type ReactNode, type RefObject} from 'react';
 import {Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec, overlayForm, type OverlayBar, type OverlayFoot, type OverlayTask} from '@portico/design';
@@ -9,6 +9,8 @@ import {TopBar, type TopBarBack} from '../layout/TopBar';
 import {BottomSheet} from '../overlays/BottomSheet';
 import {Popover} from '../overlays/Menu';
 import {Dialog} from '../overlays/surface';
+import {OverlayFootRow} from '../overlays/FootRow';
+export {OverlayFootRow};
 import type {OverlayReason} from '../overlays/types';
 import {StartFocusScope} from '../focus';
 import {useTheme} from '../theme';
@@ -35,14 +37,6 @@ export function SheetBar({title, back, action}: SheetBarProps) {
   </View>;
 }
 
-/** R9: a foot's buttons as the table lays them out. `halves` and `full` give each button an equal share of the width
- * (one button is the full width); `end` keeps them at their own width at the end, primary last. Never hugging the left. */
-export function OverlayFootRow({layout, children}: {layout: OverlayFoot; children: ReactNode}) {
-  const theme = useTheme(), items = Children.toArray(children).filter(Boolean);
-  if (layout === 'end') return <View style={{flexDirection: 'row', justifyContent: 'flex-end', gap: theme.space.controlGap}}>{items}</View>;
-  return <View style={{flexDirection: 'row', gap: theme.space.controlGap}}>{items.map((item, index) => <View key={index} style={{flex: 1, minWidth: 0}}>{item}</View>)}</View>;
-}
-
 /** R9: the overlay bar's three slots from the table: Cancel or nothing at the start; the title centred or at the start
  * with the item it is about beside it; Done (accent), the task's action, the round close, or nothing at the end. */
 function OverlayBarRow({bar, title, subtitle, action, onClose}: {bar: OverlayBar; title: string; subtitle?: string; action?: SheetAction; onClose: () => void}) {
@@ -67,7 +61,7 @@ export type SheetFrameProps = SheetBase & (
   /** R9: menus, pickers, confirmations, short tasks, details and filters. What kind of overlay the task is on this form
    * (sheet, dialog, side panel, popover), what its bar holds and how the foot lays out come from packages/design
    * `overlayForms`; a screen names the task, never the kind. The rows are the flexible region. */
-  | Readonly<{kind: 'task'; task: Exclude<OverlayTask, 'settings' | 'account' | 'notifications'>; title: string; subtitle?: string;
+  | Readonly<{kind: 'task'; task: Exclude<OverlayTask, 'settings' | 'notifications'>; title: string; subtitle?: string;
       /** The task's own action: in the bar where the form puts it there, else the foot's primary. */
       action?: SheetAction;
       /** Foot buttons (Cancel and Delete; Back and Add source), laid out by the form's foot. */

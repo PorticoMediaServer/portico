@@ -11,6 +11,7 @@ import {SheetBar, SheetFrame, useInSheet, type SheetBarProps} from './SheetFrame
 import type {OverlayReason} from '../overlays/types';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Icon} from '../Icon';
+import {Button} from '../controls/Button';
 
 /** True for a page the list frame places beside its list (tablet, TV). A page shown alone keeps Back, the gutter and a column limit. */
 const BesideList = createContext(false);
@@ -94,7 +95,9 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
   const theme = useTheme(), frame = useFrameMetrics(), inSheet = useInSheet(), beside = useContext(BesideList) && frame.form !== 'phone' && !inSheet, t = defaultI18n.t;
   const saved = status && <View accessibilityLiveRegion="polite" style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>{status === 'saved' && <Icon name="i-check" size={16} color={theme.colors.textSecondary}/>}
     <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t(status === 'saved' ? 'next.settings.saved' : 'next.settings.saving')}</Text></View>;
-  const trailing = (saved || actions) ? <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>{saved}{actions}</View> : undefined;
+  // Outside the phone's sheet the page's own action (Mark all read, Invite someone) joins the header's end.
+  const own = action && !inSheet && !actions ? <Button variant="link" disabled={action.disabled} onPress={action.onPress}>{action.label}</Button> : undefined;
+  const trailing = (saved || actions || own) ? <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>{saved}{actions}{own}</View> : undefined;
   // Rule 3: the compact bar inside the phone's Settings sheet; the page title beside the list; a page shown alone keeps
   // Back and the large title at the gutter (tablets SC-8, r7 S6 on TV), like any pushed page.
   const header = inSheet ? <SheetBar title={title} back={back} action={action}/>

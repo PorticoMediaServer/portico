@@ -107,8 +107,10 @@ function DialogCase() {
   const cancel = useRef<View>(null);
   const [open, setOpen] = useState(true);
   const [removed, setRemoved] = useState(false);
+  // The buttons alone: the dialog lays its foot out by the R9 table (halves on a phone, at the end wider).
+  const buttons = <><Button testID="overlays-button-3" ref={cancel} variant="glass" preferredFocus onPress={() => setOpen(false)}>{t('action.cancel')}</Button><Button testID="overlays-button-4" variant="danger" onPress={() => {setRemoved(true); setOpen(false);}}>{t('downloads.removeFromDevice')}</Button></>;
   return <Scene><Button testID="overlays-opener" ref={opener} variant="glass" onPress={() => {setRemoved(false); setOpen(true);}}>{t('next.overlays.native.dialog')}</Button>
-    <Dialog open={open} onOpenChange={setOpen} title={t('confirm.removeDownload.title')} description={t('confirm.removeDownload.body', {title: film.name})} initialFocusRef={cancel} returnFocusRef={opener} footer={<View style={{flexDirection: 'row', gap: 10}}><Button testID="overlays-button-3" ref={cancel} variant="glass" preferredFocus onPress={() => setOpen(false)}>{t('action.cancel')}</Button><Button testID="overlays-button-4" variant="danger" onPress={() => {setRemoved(true); setOpen(false);}}>{t('downloads.removeFromDevice')}</Button></View>} testID="overlays-dialog"><View/></Dialog>
+    <Dialog open={open} onOpenChange={setOpen} title={t('confirm.removeDownload.title')} description={t('confirm.removeDownload.body', {title: film.name})} initialFocusRef={cancel} returnFocusRef={opener} footer={theme.isTV ? <View style={{flexDirection: 'row', gap: 10}}>{buttons}</View> : buttons} testID="overlays-dialog"><View/></Dialog>
     <ToastHost toast={removed ? {id: 'removed', message: t('downloads.removeFromDevice'), action: {label: t('action.undo'), onPress: () => setRemoved(false)}} : null} onDismiss={() => setRemoved(false)}/>
   </Scene>;
 }

@@ -1,6 +1,6 @@
 import {OverlayPaintDescendants, useOverlayPaintMode} from './OverlayPaintContext';
 import React, {forwardRef, useCallback, useEffect, useRef, useState} from 'react';
-import {Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import Animated, {useAnimatedStyle} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {menuSpec, overlayForm} from '@portico/design';
@@ -81,12 +81,15 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
     if (!open || tvSide) return;
     let live = true, frame: number | undefined;
     const measure = () => {
-      anchorRef.current?.measureInWindow((x, y, width, height) => {if (live) setAnchor(previous => previous && previous.x === x && previous.y === y && previous.width === width && previous.height === height ? previous : {x, y, width, height});});
+      // A modal surface draws from the top of the screen (statusBarTranslucent), but Android measures the anchor below
+      // the status bar: without this a modal popover lands one status bar too high, over its own trigger.
+      const drop = modal && Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0;
+      anchorRef.current?.measureInWindow((x, measuredY, width, height) => {const y = measuredY + drop; if (live) setAnchor(previous => previous && previous.x === x && previous.y === y && previous.width === width && previous.height === height ? previous : {x, y, width, height});});
       if (touchContext || placement === 'right-end') frame = requestAnimationFrame(measure);
     };
     measure();
     return () => {live = false; if (frame !== undefined) cancelAnimationFrame(frame);};
-  }, [open, anchorRef, viewport.width, viewport.height, insets.top, insets.bottom, insets.left, insets.right, touchContext, placement, tvSide]);
+  }, [open, anchorRef, viewport.width, viewport.height, insets.top, insets.bottom, insets.left, insets.right, touchContext, placement, tvSide, modal]);
   if (tvSide) return <BottomSheet open={open} onOpenChange={onOpenChange} title={title} headerContext={headerContext} description={description} footer={footer ?? (tvMenuForm?.foot === 'hints' ? <BackCloseHints/> : undefined)} showClose={false} fitContent
     initialFocusRef={initialFocusRef} returnFocusRef={returnFocusRef ?? anchorRef} restoreFocus={restoreFocus} accessibilityLabel={accessibilityLabel} testID={testID}>
     <View style={[{gap: menuSpec.tvSheetRowGap}, contentStyle]}>{children}</View>

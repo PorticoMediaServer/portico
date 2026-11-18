@@ -11,6 +11,7 @@ import {useTheme} from '../theme';
 import {useMotion} from '../useMotion';
 import {useKeyboardHeight} from '../../platform/keyboard';
 import {TVDesignCanvas} from './TVDesignCanvas';
+import {OverlayFootRow} from './FootRow';
 import {useOverlayLifecycle} from './OverlayHost';
 import {useNativeModalPresence} from './native-dismissal';
 import {releaseSheet, resistSheet, sheetHeights} from './geometry';
@@ -151,7 +152,9 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
           {!page && (footer != null || side && showClose) && <Animated.View onLayout={event => setFooterHeight(event.nativeEvent.layout.height)}
             style={[side ? {paddingTop: 20} : styles.footer,
               side ? undefined : {backgroundColor: theme.colors.raised, paddingTop: footerPadding?.top ?? 14, paddingBottom: footerPadding ? keyboardTop !== undefined ? footerPadding.keyboardBottom : Math.max(insets.bottom, footerPadding.bottom) : (keyboardInset > 0 ? 0 : insets.bottom) + 16,
-                borderTopWidth: showFooterSeparator ? 1 : 0, borderTopColor: alpha(theme.colors.text, 0.08)}, footerStyle]}>{footer ?? close}</Animated.View>}
+                borderTopWidth: showFooterSeparator ? 1 : 0, borderTopColor: alpha(theme.colors.text, 0.08)}, footerStyle]}>
+              {/* R9: a touch sheet's foot buttons take equal halves or the full width, never hugging the left. */}
+              {side || theme.isTV ? footer ?? close : <OverlayFootRow layout="halves">{footer}</OverlayFootRow>}</Animated.View>}
         </FocusBoundary>
       </Animated.View>
     </View></View></TVDesignCanvas>;

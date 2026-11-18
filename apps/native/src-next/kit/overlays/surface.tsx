@@ -13,6 +13,7 @@ import {Icon} from '../Icon';
 import {nativeType, useTheme, titleLine} from '../theme';
 import {useMotion} from '../useMotion';
 import {BottomSheet} from './BottomSheet';
+import {OverlayFootRow} from './FootRow';
 import {OverlayPortal, useOverlayFrame, useOverlayLifecycle} from './OverlayHost';
 import {useNativeModalPresence} from './native-dismissal';
 import type {DialogProps, OverlayReason, SidePanelProps, SurfaceProps} from './types';
@@ -106,7 +107,7 @@ function CenteredDialog({open, onOpenChange, title, headerContext, description, 
           <SurfaceHeader dialog inset={false} title={title} description={description} titleType={titleType} titleTextStyle={titleTextStyle} descriptionTextStyle={descriptionTextStyle}/>
           {scrollable ? <ScrollView style={{flexGrow: 0, flexShrink: 1, minHeight: 0}} contentContainerStyle={contentStyle} keyboardShouldPersistTaps="handled">{children}</ScrollView>
             : <View style={[{flexShrink: 1, minHeight: 0}, contentStyle]}>{children}</View>}
-          {footer != null && <View style={{marginTop: footerMarginTop ?? (theme.isTV ? 40 : 22), gap: theme.isTV ? 18 : 10}}>{footer}</View>}
+          {footer != null && <View style={{marginTop: footerMarginTop ?? (theme.isTV ? 40 : 22), gap: theme.isTV ? 18 : 10}}>{theme.isTV ? footer : <OverlayFootRow layout="end">{footer}</OverlayFootRow>}</View>}
         </FocusBoundary>
         {showClose && !theme.isTV && <Focusable testID={testID ? `${testID}-close` : undefined} focusId="close" ref={closeRef} focusRadius={18} accessibilityRole="button" accessibilityLabel={defaultI18n.t('action.close')} hitSlop={4} onPress={() => dismiss('close-button')} style={{position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-close" size={20} color={theme.colors.textTertiary}/></Focusable>}
       </Animated.View>
@@ -122,7 +123,9 @@ export function Dialog(props: DialogProps) {
   if (props.placement === 'side') return <BottomSheet {...props} fitContent scrollable={props.scrollable ?? true} />;
   if (theme.platform !== 'phone') return <CenteredDialog {...props}/>;
   const headerContext = props.headerContext == null ? props.headerContext : <View style={{paddingHorizontal: dialogSheetGutter}}>{props.headerContext}</View>;
-  return <BottomSheet {...props} headerContext={headerContext} contentStyle={[{paddingHorizontal: dialogSheetGutter}, props.contentStyle]} fitContent scrollable={props.scrollable ?? true} />;
+  // R9 `confirm` on a phone: the foot's buttons are equal halves (one button the full width), never hugging the left.
+  const footer = props.footer == null ? props.footer : <OverlayFootRow layout="halves">{props.footer}</OverlayFootRow>;
+  return <BottomSheet {...props} footer={footer} headerContext={headerContext} contentStyle={[{paddingHorizontal: dialogSheetGutter}, props.contentStyle]} fitContent scrollable={props.scrollable ?? true} />;
 }
 function useScrimStyle(progress: {value: number}) {
   return useAnimatedStyle(() => ({opacity: progress.value}));
