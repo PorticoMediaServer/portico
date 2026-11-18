@@ -170,18 +170,18 @@ function Over({children}: {children: (anchor: React.RefObject<View | null>) => R
     </View><PosterRow title={f('recent')} fresh/></View></Page>{children(anchor)}</OverlaysProvider>;
 }
 const OverlayTask = () => <Over>{() => <SheetFrame kind="task" task="task" open onOpenChange={none} title={fx('addSource')} action={{label: fx('addSource'), onPress: none}}>
-  <View style={{gap: 12, paddingHorizontal: 16}}><TextField label={f('sourceUrl')} value={f('sourceUrlValue')} onChangeText={none}/><TextField label={f('sourceName')} value={f('sourceNameValue')} onChangeText={none}/></View>
+  <View style={{gap: 12, paddingHorizontal: 16}}><TextField testID="overlay-task-url" label={f('sourceUrl')} value={f('sourceUrlValue')} onChangeText={none}/><TextField testID="overlay-task-name" label={f('sourceName')} value={f('sourceNameValue')} onChangeText={none}/></View>
 </SheetFrame>}</Over>;
 const OverlayConfirm = () => <Over>{() => <SheetFrame kind="task" task="confirm" open onOpenChange={none} title={f('recordingTitle')}
-  foot={<><Button variant="glass" onPress={none}>{t('next.overlays.cancel')}</Button><Button variant="danger" onPress={none}>{f('delete')}</Button></>}><Body text={f('recordingBody')}/></SheetFrame>}</Over>;
+  foot={<><Button testID="overlay-confirm-cancel" variant="glass" onPress={none}>{t('next.overlays.cancel')}</Button><Button testID="overlay-confirm-delete" variant="danger" onPress={none}>{f('delete')}</Button></>}><Body text={f('recordingBody')}/></SheetFrame>}</Over>;
 function Body({text}: {text: string}) { const theme = useTheme(); return <Text style={[theme.type.intro, {color: theme.colors.textSecondary, paddingHorizontal: 16}]}>{text}</Text>; }
 const OverlayDetails = () => <Over>{() => <SheetFrame kind="task" task="details" open onOpenChange={none} title={f('fileInfo')} subtitle={f('fileTitle')}>
-  <SectionCard label={f('version1')}><SettingsRow first label={f('videoFact')} value={f('videoValue')} readable/><SettingsRow label={f('audioFact')} value={f('audioValue')} readable/><SettingsRow label={f('sizeFact')} value={f('sizeValue')} readable/></SectionCard>
-  <SectionCard label={f('version2')}><SettingsRow first label={f('videoFact')} value={f('video1080')} readable/><SettingsRow label={f('audioFact')} value={f('audio1080')} readable/><SettingsRow label={f('sizeFact')} value={f('size1080')} readable/></SectionCard>
+  <SectionCard label={f('version1')}><SettingsRow testID="details-1-video" first label={f('videoFact')} value={f('videoValue')} readable/><SettingsRow testID="details-1-audio" label={f('audioFact')} value={f('audioValue')} readable/><SettingsRow testID="details-1-size" label={f('sizeFact')} value={f('sizeValue')} readable/></SectionCard>
+  <SectionCard label={f('version2')}><SettingsRow testID="details-2-video" first label={f('videoFact')} value={f('video1080')} readable/><SettingsRow testID="details-2-audio" label={f('audioFact')} value={f('audio1080')} readable/><SettingsRow testID="details-2-size" label={f('sizeFact')} value={f('size1080')} readable/></SectionCard>
 </SheetFrame>}</Over>;
 const OverlayActions = () => { const settled = useSettled(); return <Over>{anchor => <SheetFrame kind="task" task="actions" open={settled} onOpenChange={none} title={f('cardTitle')} subtitle={f('cardFacts')} anchorRef={anchor}>
-  {([['i-play', fx('play')], ['i-plus', f('addMyList')], ['i-check', f('markWatched')], ['i-info', f('fileInfo')]] as const).map(([icon, label]) => <MenuRow key={label} icon={icon} label={label} onPress={none}/>)}
-  <MenuRow icon="i-trash" label={f('deleteMedia')} destructive onPress={none}/>
+  {([['i-play', fx('play')], ['i-plus', f('addMyList')], ['i-check', f('markWatched')], ['i-info', f('fileInfo')]] as const).map(([icon, label]) => <MenuRow key={label} testID={`actions-${icon}`} icon={icon} label={label} onPress={none}/>)}
+  <MenuRow testID="actions-delete" icon="i-trash" label={f('deleteMedia')} destructive onPress={none}/>
 </SheetFrame>}</Over>; };
 /** A short choice drops from its own trigger and leaves it in view (phone-app 4b, 18): the library's sort order. */
 function OverlayChoice() {
@@ -190,7 +190,7 @@ function OverlayChoice() {
     <View style={{paddingHorizontal: theme.gutter, alignItems: 'flex-start'}}><View ref={anchor} collapsable={false}><Chip icon="i-sort" trailingIcon="i-down" onPress={none}>{f(order)}</Chip></View></View>
     <PosterRow title={f('recent')} fresh/><PosterRow title={fx('newOnServer')}/></View></Page>
     <SheetFrame kind="task" task="choice" open={settled} onOpenChange={none} title={f('sortBy')} anchorRef={anchor}>
-      {(['sortTitle', 'sortAdded', 'sortReleased', 'sortRating'] as const).map(name => <MenuRow key={name} label={f(name)} selected={name === order} onPress={() => setOrder(name)}/>)}
+      {(['sortTitle', 'sortAdded', 'sortReleased', 'sortRating'] as const).map(name => <MenuRow key={name} testID={`choice-${name}`} label={f(name)} selected={name === order} onPress={() => setOrder(name)}/>)}
     </SheetFrame></OverlaysProvider>;
 }
 
