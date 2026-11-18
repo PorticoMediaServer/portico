@@ -230,6 +230,7 @@
      "text"
     ],
     "embeddedAudioSwitching": true,
+    "liveNeedsHls": true,
     "audioPassthrough": [
      {
       "codec": "ac3",
