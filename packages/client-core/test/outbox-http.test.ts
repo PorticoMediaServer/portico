@@ -60,3 +60,35 @@ test('a place the reader saves through the outbox is sent with one content type'
     assert.deepEqual(types, ['application/json']);
   } finally { reading.dispose(); outbox.dispose(); }
 });
+
+// Area 6 rule 43: a title added to a playlist while the server is out of reach is kept and sent later,
+// with the caller's own idempotency key, so a second send never adds it twice.
+test('a title added to a playlist with no server is kept and sent when it is back', async () => {
+  const kept = new Map<string, OutboxEntry>();
+  const store = {list: async () => [...kept.values()], put: async (entry: OutboxEntry) => { kept.set(entry.id, entry); }, delete: async (id: string) => { kept.delete(id); }};
+  let reachable = false;
+  const sent: {path: string; method: string; key: string | null; body: unknown}[] = [];
+  const api = new HttpLocalApi('http://server.test', session.accessToken, async (input, init) => {
+    if (!reachable) throw new TypeError('Failed to fetch');
+    sent.push({path: new URL(String(input)).pathname, method: init?.method ?? 'GET', key: new Headers(init?.headers).get('Idempotency-Key'), body: JSON.parse(String(init?.body))});
+    return Response.json({added: 1, skipped: [], list: {id: 'lst_1'}});
+  });
+  api.setOutboxSession(session);
+  const outbox = api.configureOutbox(store);
+  try {
+    await assert.rejects(api.requestRaw('/v1/lists/lst_1/entries', 'POST', {headers: {'Idempotency-Key': 'add-1'}, body: {items: ['itm_film']}}), {code: 'sync_pending'});
+    assert.equal(outbox.waiting(), 1, 'the addition is kept');
+    reachable = true; outbox.wake();
+    await settle();
+    assert.deepEqual(sent, [{path: '/v1/lists/lst_1/entries', method: 'POST', key: 'add-1', body: {items: ['itm_film']}}]);
+    assert.equal(outbox.waiting(), 0);
+  } finally { outbox.dispose(); }
+});
+
+test('every list change goes through the outbox; the old playlist routes are not listed', async () => {
+  const {outboxKind} = await import('../src/outbox-routes.ts');
+  for (const [method, path] of [['POST', '/v1/lists'], ['PATCH', '/v1/lists/lst_1'], ['DELETE', '/v1/lists/lst_1'], ['POST', '/v1/lists/lst_1/entries'],
+    ['PATCH', '/v1/lists/lst_1/entries/ent_1'], ['DELETE', '/v1/lists/lst_1/entries/ent_1']]) assert.equal(outboxKind(path, method), 'list', `${method} ${path}`);
+  assert.equal(outboxKind('/v1/lists/lst_1', 'GET'), undefined);
+  assert.equal(outboxKind('/v1/playlists/lst_1', 'DELETE'), undefined);
+});
