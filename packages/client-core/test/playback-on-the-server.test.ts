@@ -55,6 +55,16 @@ function player(): MediaPlayer & {loads: PlayerSource[]; at(positionMs: number):
     onEvent(listener) { listeners.add(listener); return () => listeners.delete(listener); }, dispose() {}};
 }
 
+test('the player is told which engine the server planned, so a device with mpv can hand it the file', async () => {
+  const http = server(request => request.method === 'POST'
+    ? json(201, {...session('pbs_1'), presentation: {...session('pbs_1').presentation, engine: 'mpv'}}) : json(204));
+  const screen = player();
+  const controller = new PlaybackSessionController({http, player: screen, timers: {...timers, now: () => Date.now()}});
+  await controller.start({itemId: 'itm_film'}, {state: 'playing'});
+  assert.equal(screen.loads.at(-1)?.engine, 'mpv');
+  controller.dispose();
+});
+
 test('after the server restarts and forgets the session, the title starts again where the player was', async () => {
   let forgotten = false, starts = 0;
   const http = server(request => {
