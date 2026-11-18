@@ -233,6 +233,14 @@ const handheldType = {
   stopBody: type(15, 23.25, 500), stopField: type(16, 'normal', 600), stopHelp: type(13.5, 'normal', 400),
   fieldValue: type(15, 'normal', 400), fieldPlaceholder: type(15, 'normal', 400), fieldLabel: type(13, 18, 600),
   accountTitle: type(30, 32.4, 800, -.035), accountLede: type(15, 22.5, 400), accountHint: type(13, 18, 600), accountEyebrow: type(13, 'normal', 700),
+  // System rule 6 (design/ui-v1 system-rules.html): the roles a screen on a frame picks from. Row and section headings are `rowHeading`,
+  // card text `cardTitle` and `cardSubtitle`, tabs `tab`; these are the roles the scale lacked.
+  pageTitle: type(34, 38, 800, -.03), barTitle: type(17, 'normal', 700), groupLabel: type(15, 'normal', 700), listLabel: type(15, 'normal', 700),
+  rowLabel: type(15.5, 20, 600), rowHelp: type(12.5, 17.5, 500), intro: type(14.5, 21.75, 500),
+  // The players' own roles (desktop-player, phone-player, tv-player): title block, time read-outs, pills, the skip
+  // numeral inside a transport button, the time under a scrub preview, and the Skip intro prompt.
+  playerTitle: type(16.5, 'normal', 800, -.015), playerSubtitle: type(13, 'normal', 600), playerTime: type(12, 'normal', 700), playerPill: type(13.5, 'normal', 700),
+  playerSkip: type(8.5, 'normal', 800), playerPreviewTime: type(14, 'normal', 800), playerPrompt: type(15, 'normal', 700),
 };
 /** The end-card (PostPlay) type roles from desktop-player.html's post-play block:
  * kicker 15, title 76, compact title 56, feature 32, name 14 and year 13, with
@@ -255,6 +263,10 @@ export const typeScale: Readonly<Record<'desktop' | 'handheld' | 'tenFoot', Read
     synopsis: type(17, 26.35, 400), button: type(17, 'normal', 700), tab: type(17, 'normal', 700), chip: type(15, 'normal', 700),
     liveTitle: type(18, 'normal', 700, -.01), bannerTitle: type(52, 52, 800, -.04), bannerBody: type(16, 24, 400), rank: type(168, 131.04, 800, -.08),
     episodeTitle: type(16, 'normal', 700, -.01), episodeBody: type(14, 21, 400), fallbackLockup: type(52, 48.88, 800, -.045),
+    pageTitle: type(56, 60, 800, -.03), groupLabel: type(22, 'normal', 700, -.015), listLabel: type(14, 'normal', 700),
+    rowLabel: type(17, 22, 600), rowHelp: type(15, 21, 500), intro: type(17, 25.5, 500),
+    playerTitle: type(34, 36.72, 800, -.035), playerSubtitle: type(15, 'normal', 400), playerTime: type(13.5, 'normal', 600),
+    playerPreviewTime: type(15, 'normal', 800), playerPrompt: type(16.5, 'normal', 800),
   },
   tenFoot: {...handheldType,
     fieldValue: type(32, 'normal', 600), fieldPlaceholder: type(32, 'normal', 500), fieldLabel: type(22, 22, 700),
@@ -267,6 +279,10 @@ export const typeScale: Readonly<Record<'desktop' | 'handheld' | 'tenFoot', Read
     meta: type(24, 'normal', 400), eyebrow: type(24, 'normal', 600), synopsis: type(24, 34.8, 400), button: type(26, 'normal', 700), tab: type(26, 'normal', 700), chip: type(22, 'normal', 700),
     badge: type(18, 'normal', 800), tag: type(20, 'normal', 600), episodeTitle: type(24, 'normal', 700, -.01), episodeBody: type(22, 33, 400),
     liveTitle: type(26, 'normal', 700, -.01), liveChannel: type(22, 'normal', 600), liveLabel: type(20, 'normal', 700),
+    pageTitle: type(44, 50, 800, -.03), groupLabel: type(20, 'normal', 700), listLabel: type(20, 'normal', 700),
+    rowLabel: type(25, 32, 600), rowHelp: type(19, 27, 500), intro: type(23, 33, 500),
+    playerTitle: type(44, 48, 800, -.035), playerSubtitle: type(24, 'normal', 400), playerTime: type(20, 'normal', 600), playerPill: type(22, 'normal', 700),
+    playerSkip: type(13, 'normal', 800), playerPreviewTime: type(22, 'normal', 800), playerPrompt: type(26, 'normal', 700),
   },
 };
 
@@ -277,6 +293,8 @@ export type { IconId, IconDefinition } from './icons.ts';
 export { componentSpec, focus as focusSpec, button as buttonSpec, transport as transportSpec, field as fieldSpec, toggle as toggleSpec, chip as chipSpec, segmented as segmentedSpec, row as rowSpec, overlay as overlaySpec, menu as menuSpec, feedback as feedbackSpec, confirmation as confirmationSpec, hero as heroSpec, card as cardSpec, shelf as shelfSpec, banner as bannerSpec, episode as episodeSpec, generatedArt as generatedArtSpec, navigation as navigationSpec, activity as activitySpec, tag as tagSpec, tabs as tabsSpec } from './components.ts';
 export type { ComponentSpec, Fill, ButtonVariant, ButtonSize, ButtonState, RowVariant, OverlayKind, ScrimStop } from './components.ts';
 export {tvAccount as tvAccountSpec} from './components.ts';
+export {frame as frameSpec, frameForm} from './frames.ts';
+export type {FrameSpec, FrameForm} from './frames.ts';
 
 /** Named surface roles, including the exact 6/10/12/14/16 px kit radii. */
 export const radii = {small: 6, control: 8, artwork: 10, surface: 10, panel: 12, overlay: 14, tag: 6, thumbnail: 8, heroButton: 12, liveCard: 12, fallback: 14, banner: 16, popover: 18, sheet: 24, pill: 999} as const;
@@ -318,7 +336,8 @@ export const reducedMotion = {durationMs: 160, easing: 'linear', transforms: fal
 export const motionRules = {animatedProperties: ['transform', 'opacity'], interruptFromCurrent: true, queue: false, ambientLiveDots: false, ambientSkeletons: false, ambientLevelMeters: false, staggerMs: [60, 80], maxStaggerSteps: 3} as const;
 export const layout = {
   breakpoint: {phone: 600, desktop: 1024}, designWidth: {desktop: 1440, phone: 390, tv: 1920}, designHeight: {phone: 844, tv: 1080},
-  gutter: {desktop: 64, desktopNarrow: 32, phone: 20, tablet: 20, tv: 200, tvRight: 96, tvAuth: 120, tvPlayer: 96},
+  /** System rule 4: phone 20, a tablet under 1024 wide 28, 32 from 1024 growing to 64 at 1440, TV 200. */
+  gutter: {desktop: 64, desktopNarrow: 32, phone: 20, tablet: 28, tv: 200, tvRight: 96, tvAuth: 120, tvPlayer: 96},
 } as const;
 export const layers = {liveChrome: 3, liveGuide: 4, liveNotice: 5, base: 0, content: 2, artLabel: 3, rowArrow: 4, heroNavigation: 5, phoneTabBar: 6, tvFocus: 8, sticky: 10, navigation: 20, player: 30, menu: 40, dialog: 50, notice: 60} as const;
 /** Visual sizes may be smaller; renderers extend touch/focus hit areas to these minima. */
