@@ -12,7 +12,7 @@ import {putSettingsDocument, type SettingsDocumentAPI} from '../settings-documen
  */
 
 /** Settings rows can refer to documents outside this module's draft factories. */
-export type ServerFormId = 'runtime' | 'connectivity' | 'remote' | 'certificate' | 'alerts' | 'liveDefaults' | 'recording' | 'maintenance' | 'logs' | 'segments' | 'titleData' | 'streamLimits';
+export type ServerFormId = 'runtime' | 'connectivity' | 'remote' | 'certificate' | 'storage' | 'remote-access' | 'liveDefaults' | 'recording' | 'maintenance' | DraftFormId;
 
 export type ServerFormDeps = Readonly<{
   api: SettingsDocumentAPI;
@@ -58,7 +58,7 @@ const FACTORIES = {
   segments: deps => namedSettingsForm(deps, 'segments'),
   titleData: deps => namedSettingsForm(deps, 'title_data'),
   streamLimits: streamLimitsForm,
-} satisfies Partial<Record<ServerFormId, (deps: ServerFormDeps) => DraftForm<any, any>>>;
+} satisfies Record<string, (deps: ServerFormDeps) => DraftForm<any, any>>;
 
 export type DraftFormId = keyof typeof FACTORIES;
 

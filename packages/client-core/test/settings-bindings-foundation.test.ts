@@ -18,6 +18,14 @@ test('typed Mbps input is empty by default and converts only explicit numbers',(
  assert.equal(readSettingsBinding(binding,{forms:{connectivity:{uploadCapacityKbps:0}}})?.current,null);
  assert.throws(()=>settingsBindingPatch(binding,Number.NaN));
 });
+test('General thresholds and notice recipients name the fields in their settings documents',()=>{
+ for(const [id,form,key,codec] of [
+  ['alertStorageWarn','storage','warnPercent','number-choice'],
+  ['alertStorageCritical','storage','majorPercent','number-choice'],
+  ['alertCertificateDays','remote-access','certificateWarningDays','number-choice'],
+  ['serverNoticesTo','notices','serverNoticesTo','server-notices'],
+ ]) assert.deepEqual(settingsBinding(`general.${id}`),{form,key,codec});
+});
 test('configuration preserves current/effective/default and config-only source search',()=>{
  const doc=parseSettingsConfiguration({revision:3,registryRevision:'38b',signInPolicyRevision:'policy-1',path:'/config/portico.toml',fields:[{id:'updates.channel',key:'updates.channel',current:'beta',effective:'stable',default:'stable',source:'file',configOnly:true,applicationMode:'restart'}]});
  assert.equal(searchConfiguration(doc,'updates.channel beta')[0]?.source,'file');

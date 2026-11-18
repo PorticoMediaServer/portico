@@ -4,17 +4,6 @@ import {settingsBinding,readSettingsBinding,settingsBindingPatch} from '../src/p
 import {parseMetadataSettings} from '../src/metadata-settings.ts';
 import {hardwareSelectionChoices} from '../src/presentation/hardware-selection.ts';
 
-const audience={scan:'both',storage:'owner',certificate:'both',recording:'off',feedback:'both'} as const;
-
-test('Who sees each notice reads and writes the whole matrix, and nothing else',()=>{
- const binding=settingsBinding('general.noticeAudience')!;
- assert.deepEqual(binding,{form:'alerts',key:'noticeAudience',codec:'notice-audience'});
- assert.deepEqual(readSettingsBinding(binding,{forms:{alerts:{noticeAudience:audience}}})?.current,audience);
- assert.deepEqual(settingsBindingPatch(binding,{...audience,storage:'off'}),{form:'alerts',values:{noticeAudience:{...audience,storage:'off'}}});
- for(const invalid of [{...audience,storage:'everyone'},{scan:'both'},{...audience,backups:'both'},'both',null])assert.throws(()=>settingsBindingPatch(binding,invalid));
- assert.equal(readSettingsBinding(binding,{forms:{alerts:{}}}),undefined,'a server without routing offers no row');
-});
-
 test('Device offers Automatic, Processor only and each found adapter by its opaque id',()=>{
  const binding=settingsBinding('streaming.hardware')!;
  assert.deepEqual(binding,{form:'runtime',key:'hardwareSelection',codec:'hardware-selection'});

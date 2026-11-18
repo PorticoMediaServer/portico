@@ -100,6 +100,14 @@ test('the new pages are found by the settings search', () => {
   assert.ok(searchSettings(structure, 'metadata', t).some(m => m.address === 'server-metadata'));
 });
 
+test('alert thresholds still lead to General from phone settings search', () => {
+  const structure = settingsStructure({owner: true, platform: 'phone', capabilities: {}});
+  const matches = searchSettings(structure, t('settings.server.alertThresholds'), t);
+  assert.deepEqual(matches.filter(match => match.address === 'server-general').map(match => match.rowId), [
+    'storage.warnPercent', 'storage.majorPercent', 'remote-access.certificateWarningDays',
+  ]);
+});
+
 test('every word the structure names exists in the catalogue', () => {
   for (const platform of ['web', 'phone', 'tv'] as const) {
     for (const p of server(platform)) {

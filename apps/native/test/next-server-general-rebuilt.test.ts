@@ -11,10 +11,10 @@ import type {NativeShellBootstrapContext} from '../src-next/shell/bootstrap';
  */
 const documents: Record<string, {etag: string; values: Record<string, unknown>}> = {
   general: {etag: '"3"', values: {name: 'Portico Demo', backgroundSpeed: 'normal', updateCheck: 'automatic', heavyWork: {hours: 'any'}}},
-  storage: {etag: '"0"', values: {warnPercent: 10, majorPercent: 5}},
-  notices: {etag: '"0"', values: {serverNoticesTo: 'owner', keepDays: 180}},
+  storage: {etag: '"0"', values: {warnPercent: 15, majorPercent: 8}},
+  notices: {etag: '"0"', values: {serverNoticesTo: 'owner-and-admins', keepDays: 180}},
 };
-const remoteAccess = {advertisedInterface: '', remoteAccess: 'on', certificateWarningDays: 14, ownAddress: {enabled: false, domain: '', certificateFile: '', keyFile: ''}};
+const remoteAccess = {advertisedInterface: '', remoteAccess: 'on', certificateWarningDays: 30, ownAddress: {enabled: false, domain: '', certificateFile: '', keyFile: ''}};
 
 const textOf = (value: unknown): string => Array.isArray(value) ? value.map(textOf).join('')
   : typeof value === 'string' ? value
@@ -66,6 +66,12 @@ test('General shows the rebuilt documents and saves a changed name with the revi
 
   assert.equal(byTestId('general.name')?.props.value, 'Portico Demo', 'the name comes from the general document');
   assert.match(hosts().map(host => textOf(host.children)).join('\n'), /b4b19fd13dca/, 'the version comes from the updates answer');
+  byTestId('server-general-advanced').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  assert.equal(byTestId('general.alertStorageWarn')?.props.accessibilityValue?.text, '15%');
+  assert.equal(byTestId('general.alertStorageCritical')?.props.accessibilityValue?.text, '8%');
+  assert.equal(byTestId('general.alertCertificateDays')?.props.accessibilityValue?.text, '30 days');
+  assert.equal(byTestId('general.serverNoticesTo')?.props.accessibilityValue?.text, 'The owner and administrators');
   byTestId('general.name').props.onChangeText('Living room');
   await settle();
   pressable('Save').props.onPress({nativeEvent: {}, stopPropagation() {}});
