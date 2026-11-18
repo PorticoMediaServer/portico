@@ -213,6 +213,7 @@ sub onOpenAsk(ask as object)
         return
     end if
     page = invalid
+    if kind = "list" then page = push("LibraryScreen")     ' Search's See all, a genre's titles
     if kind = "movie" then page = push("TitleScreen")
     if kind = "show" then page = push("ShowScreen")
     if kind = "collection" or kind = "person" then page = push("GroupScreen")

@@ -6,6 +6,9 @@
   <interface>
     <!-- {id, name, kind} from the rail. -->
     <field id="library" type="assocarray" onChange="onLibrary"/>
+    <!-- Or one list as a grid with its title and count, no toolbar: {kind: "list", title, path,
+         view}. Search's "See all" for one kind (path is that search with kind) and a genre's titles. -->
+    <field id="item" type="assocarray" onChange="onItem"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="art" type="string"/>
     <field id="open" type="assocarray" alwaysNotify="true"/>

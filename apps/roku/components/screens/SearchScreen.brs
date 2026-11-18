@@ -33,10 +33,11 @@ sub init()
     m.failed.translation = [s.resultsX, s.keysY]
     m.failed.width = f.rightEdge - s.resultsX
     m.results.clippingRect = [s.resultsX - 40, 0, 1920 - s.resultsX + 40, 1080]
+    m.page.translation = [0, s.keysY]     ' rows start level with the keys (the recent searches come before any search)
     m.keyboard.observeField("text", "onTyped")
     m.rest.observeField("fire", "askSearch")
     m.failed.observeField("pressed", "onRetry")
-    m.rows = []          ' {kind, items, node, y}: a shelf, or the row saying the search failed
+    m.rows = []          ' {kind, items, node, y, fixed}: the kinds' chips, a shelf, the recent searches, the genres to browse, or the row saying the search failed
     m.focus = -1         ' -1 the keyboard, otherwise a row of results
     m.asked = ""
     m.libraryNames = {}
@@ -56,6 +57,64 @@ end sub
 sub showPrompt()
     m.none.text = ""
     m.note.text = "Search every library you can see: films, shows, episodes, people, music and audiobooks."
+    api("GET", "/v1/search/history", invalid, "onHistory")
+end sub
+
+' An empty box offers the profile's recent searches: OK types one again; Clear forgets them all.
+sub onHistory(event as object)
+    result = event.getData()
+    if m.asked <> "" or not result.ok or result.data.items = invalid or result.data.items.count() = 0 then return
+    m.recent = []
+    buttons = []
+    for each entry in result.data.items
+        if buttons.count() < 6
+            buttons.push({id: "q:" + buttons.count().toStr(), text: entry.query, icon: "search"})
+            m.recent.push(entry.query)
+        end if
+    end for
+    buttons.push({id: "clear", text: "Clear", icon: ""})
+    row = noteRow("Recent searches")
+    bar = row.createChild("ButtonRow")
+    bar.translation = [frames().search.resultsX, shelfMetrics("gridPoster").headingGap]
+    bar.buttons = buttons
+    bar.observeField("pressed", "onRecent")
+    m.rows.push({kind: "recent", items: [], node: bar, y: 0, fixed: true})
+end sub
+
+' A heading under the note's words for the recent searches or the genres, fixed at underNoteY.
+function noteRow(heading as string) as object
+    s = frames().search
+    row = m.page.createChild("Group")
+    row.translation = [0, s.underNoteY - s.keysY]
+    label = row.createChild("Label")
+    setType(label, "rowHeading", colours().text)
+    label.text = heading
+    label.translation = [s.resultsX, 0]
+    return row
+end function
+
+sub onRecent(event as object)
+    which = event.getData()
+    if which = "clear"
+        api("DELETE", "/v1/search/history", invalid, "onForgotten")
+        return
+    end if
+    moveTo(-1)
+    m.keyboard.text = m.recent[which.mid(2).toInt()]
+end sub
+
+sub onForgotten(event as object)
+    if not event.getData().ok or m.asked <> "" then return
+    moveTo(-1)
+    showGroups([])
+end sub
+
+' A search the viewer acted on (opened a result or a kind's list) goes to the top of the recent ones.
+sub recordSearch()
+    if m.asked <> "" then api("GET", "/v1/search?q=" + m.asked.encodeUriComponent() + "&record=true&limit=1", invalid, "onRecorded")
+end sub
+
+sub onRecorded()
 end sub
 
 sub onActive()
@@ -105,7 +164,31 @@ sub onResults(event as object)
     if m.rows.count() = 0
         m.none.text = "No matches for “" + m.asked + "”"
         m.note.text = "Check the spelling or try a shorter search."
+        api("GET", "/v1/genres?counts=true", invalid, "onGenres", {text: m.asked})
     end if
+end sub
+
+' No matches: the genres to browse instead (states frame 18), each opening its titles as a grid.
+sub onGenres(event as object)
+    result = event.getData()
+    if event.getRoSGNode().ctx.text <> m.asked or m.rows.count() > 0 or not result.ok or result.data.genres = invalid or result.data.genres.count() = 0 then return
+    row = noteRow("")
+    shelf = row.createChild("Shelf")
+    shelf.slotX = frames().search.resultsX
+    shelf.shape = "landscape"
+    shelf.heading = "Browse instead"
+    size = shelfMetrics("landscape").card
+    cards = createObject("roSGNode", "ContentNode")
+    for each genre in result.data.genres
+        art = ""
+        if genre.cover <> invalid then art = pick(genre.cover, ["backdrop"])
+        sub_ = ""
+        if genre.count <> invalid then sub_ = countText(genre.count, "title", "titles")
+        cards.createChild("ContentNode").addFields({id: genre.value, kind: "genre", art: imageUrl(art, size[0], size[1]), whole: false, title: genre.label, sub: sub_, progress: -1, badge: "", overlay: true})
+    end for
+    shelf.cards = cards
+    shelf.observeField("selectedIndex", "onSelected")
+    m.rows.push({kind: "genre", items: result.data.genres, node: shelf, y: 0, fixed: true})
 end sub
 
 function groupName(kind as string) as string
@@ -168,10 +251,22 @@ sub showGroups(groups as object)
             shelf.cards = cards
             shelf.translation = [0, y]
             shelf.observeField("selectedIndex", "onSelected")
-            m.rows.push({kind: group.kind, items: items, node: shelf, y: y, shape: shape})
+            m.rows.push({kind: group.kind, items: items, node: shelf, y: y, total: foundText(group), shape: shape})
             y = y + shelfMetrics(shape).block
         end if
     end for
+    ' On TV each kind's chip is the See all for its row: its whole list as a grid (people have no grid)
+    chips = []
+    for each row in m.rows
+        if row.kind <> "person" then chips.push({id: row.kind, text: groupName(row.kind), detail: row.total, icon: ""})
+    end for
+    if chips.count() > 0
+        bar = m.page.createChild("ButtonRow")
+        bar.translation = [s.resultsX, frames().browse.titleY - s.keysY]
+        bar.buttons = chips
+        bar.observeField("pressed", "onChip")
+        m.rows.unshift({kind: "chips", items: [], node: bar, y: 0, fixed: true})
+    end if
     m.focus = -1
     m.page.translation = [0, s.keysY]
     clipResults()
@@ -191,7 +286,7 @@ sub clipResults()
     bottom = 1080
     top = m.page.translation[1]
     for each row in m.rows
-        if row.shape <> invalid
+        if row.shape <> invalid and row.fixed <> true
             y = top + row.y
             g = shelfMetrics(row.shape)
             if y + g.headingGap + g.card[1] > 1080
@@ -205,13 +300,21 @@ sub clipResults()
     m.results.clippingRect = [s.resultsX - 40, 0, 1920 - s.resultsX + 40, bottom]
 end sub
 
+sub onChip(event as object)
+    kind = event.getData()
+    recordSearch()
+    m.top.open = {item: {kind: "list", title: groupName(kind), path: "/v1/search?q=" + m.asked.encodeUriComponent() + "&kind=" + kind, view: kind}, play: false}
+end sub
+
 sub moveTo(i as integer)
     m.focus = i
     if i < 0
         m.keyboard.active = true
         return
     end if
-    m.page.translation = [0, frames().search.keysY - m.rows[i].y]
+    y = m.rows[i].y
+    if m.rows[i].fixed = true then y = 0     ' the chips and the rows under the note's words never scroll
+    m.page.translation = [0, frames().search.keysY - y]
     clipResults()
     m.rows[i].node.active = true
 end sub
@@ -222,6 +325,11 @@ sub onSelected(event as object)
     at = event.getData()
     if at < 0 or at >= row.items.count() then return
     item = row.items[at]
+    if row.kind = "genre"
+        m.top.open = {item: {kind: "list", title: item.label, path: "/v1/items?tag=" + item.value + "&sort=title", view: ""}, play: false}
+        return
+    end if
+    recordSearch()
     if row.kind = "person" then item = {kind: "person", id: item.id, title: item.name}
     m.top.open = {item: item, play: (row.kind = "episode")}
 end sub
@@ -244,7 +352,10 @@ function onKeyEvent(key as string, press as boolean) as boolean
     if m.focus < 0
         ' the keyboard gave the key up: Right from its last column reaches the results
         if key = "right" and m.rows.count() > 0
-            moveTo(0)
+            ' the first row of results, not the chips above it
+            first = 0
+            if m.rows[0].kind = "chips" and m.rows.count() > 1 then first = 1
+            moveTo(first)
             return true
         end if
         return key = "right"      ' nothing found yet: Right stops
