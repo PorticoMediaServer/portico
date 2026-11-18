@@ -526,3 +526,14 @@ function bookChapters(book as object) as object
     end if
     return out
 end function
+
+' The playlists a song can join (tv-more frame 7, Add to playlist): the ones this profile may change,
+' by name, as rows of the side sheet; "pl:" and the list's id is what the sheet hands back.
+function playlistRows(lists as dynamic) as object
+    rows = []
+    if lists = invalid then return rows
+    for each list in lists
+        if list.role = "owner" or list.role = "editor" then rows.push({id: "pl:" + list.id, text: list.name, detail: countText(list.count, "song", "songs")})
+    end for
+    return rows
+end function

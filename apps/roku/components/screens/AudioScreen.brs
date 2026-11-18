@@ -1,5 +1,6 @@
 ' Focus (tv-focus 33): it starts on Pause. The transport is one row; Right from its end reaches Up
-' next, a list that remembers its row; Left from the list returns to the transport. Back leaves.
+' next, a list that remembers its row; Left from the list returns to the transport. Down from the
+' transport reaches a song's actions (Lyrics, Add to playlist, More), Up goes back. Back leaves.
 '
 ' Songs join through Roku's Audio node playing a content list: about half a minute before a song
 ' ends the server is asked to get the next one ready (prepare-next) and it is added to the list, so
@@ -64,6 +65,11 @@ sub init()
     chapterLine.width = f.titleWidth
     setType(chapterLine, "meta", c.textSecondary)
     makeTransport()
+    m.actions = m.top.findNode("actions")
+    m.actions.translation = [f.titleX, f.actionsY]
+    m.actions.buttons = [{id: "lyrics", text: "Lyrics", icon: "lyrics"}, {id: "playlist", text: "Add to playlist", icon: "listPlus"}, {id: "more", text: "", icon: "more"}]
+    m.actions.observeField("pressed", "onAction")
+    m.showLyrics = false
     m.audio.observeField("state", "onState")
     m.audio.observeField("position", "onPosition")
     m.audio.observeField("contentIndex", "onIndex")
@@ -74,7 +80,7 @@ sub init()
     m.queue = invalid
     m.upNext = []
     m.chapters = []
-    m.focus = 2          ' 0 shuffle, 1 previous, 2 play/pause, 3 next, 4 repeat; -1 is Up next
+    m.focus = 2          ' 0 shuffle, 1 previous, 2 play/pause, 3 next, 4 repeat; -1 is Up next; -2 the actions
     m.row = 0            ' the Up next row in focus, remembered
     m.scroll = 0
 end sub
@@ -203,7 +209,162 @@ sub drawItem(entry as object)
     m.top.findNode("art").uri = imageUrl(cover, f.art, f.art)
     m.top.findNode("art").visible = (cover <> "")
     m.top.findNode("artMark").visible = (cover = "")
+    readLyrics(entry)
 end sub
+
+' --- a song's actions and its lyrics ---------------------------------------------------------
+
+' The song now playing, by its item id (a queue entry names it itemId, the item a page asked for id).
+function songId() as string
+    if m.item = invalid then return ""
+    if m.item.itemId <> invalid then return m.item.itemId
+    if m.item.id <> invalid then return m.item.id
+    return ""
+end function
+
+' A song's actions show under the transport; a book has none (no lyrics, and its chapter line sits there).
+function isSong() as boolean
+    return m.ask <> invalid and m.ask.item.kind <> "audiobook" and m.chapters.count() = 0
+end function
+
+' Each new song asks for its lyrics (GET /v1/items/{id}/lyrics, as the other apps do); Lyrics stays in
+' its slot, dimmed, while the server has none.
+sub readLyrics(entry as object)
+    id = entry.itemId
+    if id = invalid then id = entry.id
+    if id = invalid or id = m.lyricsFor then return
+    m.lyricsFor = id
+    m.lyrics = invalid
+    paintActions()
+    if m.showLyrics then drawSide()
+    if isSong() then api("GET", "/v1/items/" + id + "/lyrics", invalid, "onLyrics", {id: id})
+end sub
+
+sub onLyrics(event as object)
+    result = event.getData()
+    if event.getRoSGNode().ctx.id <> m.lyricsFor then return
+    if result.ok and result.data.items.count() > 0 then m.lyrics = result.data.items[0]
+    paintActions()
+    if m.showLyrics then drawSide()
+end sub
+
+sub paintActions()
+    m.actions.visible = isSong()
+    lyricsButton = m.actions.getChild(0)
+    if lyricsButton <> invalid
+        if m.lyrics <> invalid then lyricsButton.opacity = 1 else lyricsButton.opacity = 0.4
+    end if
+end sub
+
+sub onAction(event as object)
+    which = event.getData()
+    if which = "lyrics"
+        if m.lyrics = invalid then return      ' dimmed: the server has none for this song
+        m.showLyrics = not m.showLyrics
+        drawSide()
+    else if which = "playlist"
+        if songId() <> "" then askPlaylists([songId()], m.item.title)
+    else if which = "more"
+        ' the song's state (a favorite or not) is read before its menu opens
+        if songId() <> "" then api("GET", "/v1/items/" + songId(), invalid, "onSongRead", {id: songId()})
+    end if
+end sub
+
+' More (tv-07-f7): Add to or Remove from Favorites, Add to playlist, Go to album, Go to artist.
+sub onSongRead(event as object)
+    result = event.getData()
+    if not result.ok or event.getRoSGNode().ctx.id <> songId() then return
+    m.song = result.data
+    rows = []
+    if m.song.state <> invalid and m.song.state.favorite = true then rows.push({id: "fav", text: "Remove from Favorites", icon: ""}) else rows.push({id: "fav", text: "Add to Favorites", icon: ""})
+    rows.push({id: "pl", text: "Add to playlist…", icon: ""})
+    if m.song.parentId <> invalid then rows.push({id: "album", text: "Go to album", icon: "", gapBefore: true})
+    if m.song.rootId <> invalid then rows.push({id: "artist", text: "Go to artist", icon: ""})
+    m.top.menu = {eyebrow: "", title: m.song.title, status: "", rows: rows}
+end sub
+
+sub onMenuChosen(event as object)
+    which = event.getData()
+    if addToPlaylist(which) or m.song = invalid then return
+    song = m.song
+    if which = "fav"
+        on = not (song.state <> invalid and song.state.favorite = true)
+        api("PUT", "/v1/items/" + song.id + "/state", {favorite: on, madeAgoMs: 0}, "onFavoriteSaved")
+    else if which = "pl"
+        askPlaylists([song.id], song.title)
+    else if which = "album"
+        m.top.open = {item: {id: song.parentId, kind: "album", title: song.parentTitle, libraryId: song.libraryId}, play: false}
+    else if which = "artist"
+        m.top.open = {item: {id: song.rootId, kind: "artist", title: song.rootTitle, libraryId: song.libraryId}, play: false}
+    end if
+end sub
+
+sub onFavoriteSaved(event as object)
+    result = event.getData()
+    if result.ok and m.song <> invalid then m.song.state = result.data
+end sub
+
+' The right-hand column: Up next, or the lyrics while Lyrics is on.
+sub drawSide()
+    showing = m.showLyrics and m.lyrics <> invalid
+    m.rows.visible = not showing
+    lines = m.top.findNode("lyricsLines")
+    lines.visible = showing
+    lines.removeChildrenIndex(lines.getChildCount(), 0)
+    if not showing
+        m.top.findNode("nextHeading").text = "Up next"
+        drawUpNext()
+        return
+    end if
+    c = colours()
+    m.top.findNode("nextHeading").text = "Lyrics"
+    m.top.findNode("nextHeading").visible = true
+    count = m.top.findNode("nextCount")
+    count.visible = true
+    count.text = ""
+    if m.lyrics.credit <> invalid then count.text = m.lyrics.credit
+    m.lyricYs = []
+    y = 0
+    for each line in m.lyrics.lines
+        label = lines.createChild("Label")
+        label.text = line.text
+        label.width = m.f.nextWidth
+        label.wrap = true
+        setType(label, "listLabel", c.textSecondary)
+        label.translation = [0, y]
+        m.lyricYs.push(y)
+        y = y + label.boundingRect().height + 14
+    end for
+    m.lyricAt = -1
+    m.lyricScroll = 0
+    followLyrics()
+end sub
+
+' Timed lyrics follow the song: the line being sung is lit and kept a little below the top.
+sub followLyrics()
+    if not (m.showLyrics and m.lyrics <> invalid) or m.lyrics.format <> "lrc" then return
+    at = here() * 1000 + m.lyrics.offsetMs
+    now = -1
+    for i = 0 to m.lyrics.lines.count() - 1
+        line = m.lyrics.lines[i]
+        if line.atMs <> invalid and line.atMs <= at then now = i
+    end for
+    if now = m.lyricAt then return
+    m.lyricAt = now
+    c = colours()
+    lines = m.top.findNode("lyricsLines")
+    for i = 0 to lines.getChildCount() - 1
+        if i = now then lines.getChild(i).color = c.text else lines.getChild(i).color = c.textSecondary
+    end for
+    if now >= 0 then scrollLyrics(m.lyricYs[now] - 120)
+end sub
+
+sub scrollLyrics(y as float)
+    if y < 0 then y = 0
+    m.lyricScroll = y
+    m.top.findNode("lyricsLines").translation = [0, -y]
+end sub
+
 
 ' --- the queue and the sessions ----------------------------------------------------------
 
@@ -214,6 +375,10 @@ sub onPlay()
     m.ask = ask
     m.author = ask.item.rootTitle     ' an entry of the queue does not carry a book's author
     m.chapters = []
+    m.showLyrics = false
+    m.lyricsFor = invalid
+    m.top.findNode("lyricsLines").visible = false
+    m.rows.visible = true
     m.top.findNode("chapterLine").text = ""
     m.top.findNode("nextHeading").text = "Up next"
     if ask.item.kind = "audiobook" then api("GET", "/v1/items/" + ask.item.id, invalid, "onBookRead")
@@ -328,6 +493,7 @@ end function
 sub onPosition()
     paintTime()
     publish()
+    followLyrics()
     if m.chapters.count() > 0 then drawChapterLine()
     if m.chapters.count() > 0 then markChapters()
     ' just after Roku moves on, the position still reads the last song's end: wait for the new start
@@ -429,6 +595,7 @@ sub onBookRead(event as object)
         end if
     end if
     m.chapters = bookChapters(result.data)
+    paintActions()
     if m.chapters.count() = 0 then return
     ' the Up next region lists the chapters
     m.upNext = []
@@ -517,8 +684,10 @@ sub drawUpNext()
         y = y + 88
     end for
     ' nothing after this (the last song, a book in one file): no heading over an empty column
-    m.top.findNode("nextHeading").visible = (m.upNext.count() > 0)
-    m.top.findNode("nextCount").visible = (m.upNext.count() > 0)
+    if not (m.showLyrics and m.lyrics <> invalid)
+        m.top.findNode("nextHeading").visible = (m.upNext.count() > 0)
+        m.top.findNode("nextCount").visible = (m.upNext.count() > 0)
+    end if
     ' the TrackRows are every other child after a heading: keep a list of them for focus
     m.trackRows = []
     for i = 0 to m.rows.getChildCount() - 1
@@ -668,8 +837,14 @@ end sub
 ' --- keys ------------------------------------------------------------------------------------
 
 sub onActive()
-    if m.top.active then m.top.setFocus(true)
+    if m.top.active then focusHere()
     paint()
+end sub
+
+' Focus on the action row when it was there, else on the screen (held by the transport, so that
+' focus leaving the row is a real move: setFocus on this screen would leave it in the row).
+sub focusHere()
+    if m.focus = -2 and m.actions.visible then m.actions.active = true else m.top.findNode("transport").setFocus(true)
 end sub
 
 sub pressControl(kind as string)
@@ -737,6 +912,17 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
     if key = "play"
         pressControl("play")
+    else if m.focus = -2
+        ' the action row gave the key up: Up goes back to the transport, on Play/Pause
+        if key = "up"
+            m.focus = 2
+            focusHere()
+        end if
+    else if m.focus = -1 and m.showLyrics and m.lyrics <> invalid
+        ' lyrics in Up next's place: Up and Down read through them, Left returns
+        if key = "up" then scrollLyrics(m.lyricScroll - 80)
+        if key = "down" then scrollLyrics(m.lyricScroll + 80)
+        if key = "left" then m.focus = 4
     else if m.focus < 0
         if key = "up" and m.row > 0
             m.row = m.row - 1
@@ -761,11 +947,14 @@ function onKeyEvent(key as string, press as boolean) as boolean
             end while
             if i < m.spots.count()
                 m.focus = i
-            else if m.trackRows <> invalid and m.trackRows.count() > 0
-                m.focus = -1          ' Up next, on the row it was left on
+            else if (m.trackRows <> invalid and m.trackRows.count() > 0) or (m.showLyrics and m.lyrics <> invalid)
+                m.focus = -1          ' Up next, on the row it was left on (or the lyrics)
             end if
         else if key = "OK"
             pressControl(m.spots[m.focus].kind)
+        else if key = "down" and m.actions.visible
+            m.focus = -2
+            focusHere()
         end if
     end if
     paint()

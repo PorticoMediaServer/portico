@@ -15,6 +15,11 @@
     <field id="now" type="assocarray"/>
     <!-- From the card: "previous", "play", "next" or "stop". -->
     <field id="command" type="string" alwaysNotify="true" onChange="onCommand"/>
+    <!-- The song's own menus (More, Add to playlist) in the scene's side sheet, and what was chosen. -->
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+    <!-- Go to album or artist from the song's menu: the page to open (the music carries on). -->
+    <field id="open" type="assocarray" alwaysNotify="true"/>
     <!-- From a song's menu: {item, placement} puts the song next or at the end of what is playing. -->
     <field id="enqueue" type="assocarray" alwaysNotify="true" onChange="onEnqueue"/>
   </interface>
@@ -23,6 +28,7 @@
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Queue.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/AddToPlaylist.brs"/>
   <children>
     <Rectangle id="back" width="1920" height="1080"/>
     <Poster id="fromIcon" uri="pkg:/images/i-music-32.png" width="28" height="28"/>
@@ -45,7 +51,11 @@
     <Label id="nextCount"/>
     <Group id="nextWindow">
       <Group id="nextRows"/>
+      <!-- the song's lyrics, in Up next's place while Lyrics is on -->
+      <Group id="lyricsLines" visible="false"/>
     </Group>
+    <!-- A song's own actions under the transport (tv-07-f7): Lyrics, Add to playlist, More. -->
+    <ButtonRow id="actions" visible="false"/>
     <Audio id="audio"/>
     <Timer id="report" duration="10" repeat="true"/>
     <Timer id="again" duration="1"/>

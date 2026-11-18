@@ -65,7 +65,7 @@ sub place()
     meta = m.top.findNode("meta")
     if a then meta.translation = [x, f.artistMetaY] else meta.translation = [x, f.metaY]
     if a then m.buttons.translation = [x, f.artistButtonsY] else m.buttons.translation = [x, f.buttonsY]
-    m.buttons.buttons = [{id: "play", text: "Play", icon: "play"}, {id: "shuffle", text: "Shuffle", icon: "shuffle"}]
+    drawButtons()
     heading = m.top.findNode("songsHeading")
     heading.visible = a
     heading.translation = [f.artistX, f.songsY - 60]
@@ -76,6 +76,19 @@ sub place()
     window.clippingRect = [-50, -40, listWidth() + 100, 1080 - listY]
     m.albums.slotX = f.albumsX
     m.albums.translation = [0, f.albumsY]
+end sub
+
+' Play and Shuffle, then the round buttons (tv-more frames 6 and 8): Favorite (the heart filled once it
+' is one), and on an album Add to playlist and More.
+sub drawButtons()
+    heart = "heart"
+    if m.detail <> invalid and m.detail.state <> invalid and m.detail.state.favorite = true then heart = "heartFilled"
+    buttons = [{id: "play", text: "Play", icon: "play"}, {id: "shuffle", text: "Shuffle", icon: "shuffle"}, {id: "favorite", text: "", icon: heart}]
+    if not m.artist
+        buttons.push({id: "playlist", text: "", icon: "listPlus"})
+        buttons.push({id: "more", text: "", icon: "more"})
+    end if
+    m.buttons.buttons = buttons
 end sub
 
 function listWidth() as integer
@@ -106,6 +119,7 @@ sub onDetail(event as object)
     m.detail = d
     m.metaParts = parts
     drawMeta()
+    drawButtons()
 end sub
 
 sub drawMeta()
@@ -171,7 +185,7 @@ sub drawRows()
         row.rowWidth = w
         row.rowHeight = m.f.row
         row.translation = [0, i * m.f.row]
-        model = {title: song.title, duration: clockText(song.durationMs), number: (i + 1).toStr(), menu: true}
+        model = {title: song.title, duration: clockText(song.durationMs), number: (i + 1).toStr(), menu: true, favorite: (song.state <> invalid and song.state.favorite = true)}
         if m.artist
             model.art = imageUrl(pick(song.images, ["cover", "poster"]), 72, 72)
             if song.parentTitle <> invalid then model.sub = song.parentTitle
@@ -245,10 +259,50 @@ end sub
 
 ' Play and Shuffle play the whole album or artist; a song plays on from itself.
 sub onPressed(event as object)
+    which = event.getData()
+    if which = "favorite"
+        if m.detail <> invalid then saveFavorite(m.detail, -1)
+        return
+    else if which = "playlist"
+        if m.songs.count() > 0 then askPlaylists(songIds(), m.top.item.title)
+        return
+    else if which = "more"
+        ' the album's own menu: its artist (Favorite and Add to playlist have their buttons)
+        if m.detail <> invalid and m.detail.rootId <> invalid then m.top.menu = {eyebrow: "", title: m.top.item.title, status: "", rows: [{id: "albumArtist", text: "Go to artist", icon: ""}]}
+        return
+    end if
     if m.songs.count() = 0 then return
     body = {source: {container: m.top.item.id}}
     if event.getData() = "shuffle" then body.shuffle = true
     m.top.open = {item: m.songs[0], play: true, queue: body}
+end sub
+
+function songIds() as object
+    ids = []
+    for each one in m.songs
+        ids.push(one.id)
+    end for
+    return ids
+end function
+
+' A favorite changes at once; the server is told (PUT state), and a refusal puts it back.
+' `row` is the song's place in the list, or -1 for the album or artist itself.
+sub saveFavorite(item as object, row as integer)
+    if item.state = invalid then item.state = {}
+    on = not (item.state.favorite = true)
+    item.state.favorite = on
+    if row < 0 then drawButtons() else drawRows()
+    api("PUT", "/v1/items/" + item.id + "/state", {favorite: on, madeAgoMs: 0}, "onFavoriteSaved", {row: row, on: on})
+end sub
+
+sub onFavoriteSaved(event as object)
+    result = event.getData()
+    if result.ok then return
+    ctx = event.getRoSGNode().ctx
+    if ctx.row < 0 then item = m.detail else item = m.songs[ctx.row]
+    if item = invalid then return
+    item.state.favorite = not ctx.on
+    if ctx.row < 0 then drawButtons() else drawRows()
 end sub
 
 sub playSong(i as integer)
@@ -280,15 +334,27 @@ sub songMenu()
     else
         rows.push({id: "play", text: "Play", icon: "play"})
     end if
+    if song.state <> invalid and song.state.favorite = true then rows.push({id: "fav", text: "Remove from Favorites", icon: "", gapBefore: true}) else rows.push({id: "fav", text: "Add to Favorites", icon: "", gapBefore: true})
+    rows.push({id: "pl", text: "Add to playlist…", icon: ""})
     if m.artist and song.parentId <> invalid then rows.push({id: "album", text: "Go to album", icon: "", gapBefore: true})
     if not m.artist and song.rootId <> invalid then rows.push({id: "artist", text: "Go to artist", icon: "", gapBefore: true})
     m.top.menu = {eyebrow: "", title: song.title, status: "", rows: rows}
 end sub
 
 sub onMenuChosen(event as object)
-    song = m.songs[m.row]
     which = event.getData()
-    if which = "play"
+    if addToPlaylist(which) then return
+    if which = "albumArtist"
+        m.top.open = {item: {id: m.detail.rootId, kind: "artist", title: m.detail.rootTitle, libraryId: m.detail.libraryId}, play: false}
+        return
+    end if
+    if m.songs.count() = 0 then return
+    song = m.songs[m.row]
+    if which = "fav"
+        saveFavorite(song, m.row)
+    else if which = "pl"
+        askPlaylists([song.id], song.title)
+    else if which = "play"
         playSong(m.row)
     else if which = "next" or which = "end"
         m.top.open = {item: song, enqueue: which}

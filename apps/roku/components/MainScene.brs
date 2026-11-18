@@ -128,6 +128,15 @@ end sub
 ' A page asks for the side sheet by setting its `menu` field; the choice comes back in `menuChosen`.
 sub onMenu(event as object)
     page = event.getRoSGNode()
+    ' the audio player's menus (a song's More, a playlist to add to) open here too, over it
+    m.sheetFor = invalid
+    if page.isSameNode(m.top.findNode("audioPlayer"))
+        m.sheetFor = page
+        m.sheet.model = event.getData()
+        m.sheet.visible = true
+        m.sheet.active = true
+        return
+    end if
     if not page.isSameNode(m.screen) then return
     ' a page whose sheet no longer applies (the title ended under the player's options) closes it
     if event.getData().close = true
@@ -164,6 +173,13 @@ sub onSheetChosen(event as object)
         return
     end if
     closeSheet()
+    ' a menu the audio player opened answers to it
+    if m.sheetFor <> invalid
+        owner = m.sheetFor
+        m.sheetFor = invalid
+        owner.menuChosen = event.getData()
+        return
+    end if
     if m.screen <> invalid and m.screen.hasField("menuChosen") then m.screen.menuChosen = event.getData()
 end sub
 
@@ -177,9 +193,12 @@ sub onSheetClosed()
         m.rail.active = true
         return
     end if
+    ' a menu the audio player opened was not the page's: the page hears nothing
+    forPlayer = (m.sheetFor <> invalid)
     closeSheet()
+    m.sheetFor = invalid
     ' the page that asked for the menu hears that it closed (Settings goes back a step)
-    if not own and m.screen <> invalid and m.screen.hasField("menuClosed") then m.screen.menuClosed = true
+    if not own and not forPlayer and m.screen <> invalid and m.screen.hasField("menuClosed") then m.screen.menuClosed = true
 end sub
 
 ' Sign out asks first (tv-more frame 33): focus starts on Cancel, so a stray OK changes nothing.
@@ -212,7 +231,11 @@ end sub
 ' Focus returns to what opened the sheet.
 sub closeSheet()
     m.sheet.visible = false
-    if m.screen <> invalid then m.screen.active = true
+    if m.sheetFor <> invalid
+        m.sheetFor.active = true
+    else if m.screen <> invalid
+        m.screen.active = true
+    end if
 end sub
 
 ' A song (or a run of them), or an audiobook, plays in the audio player, which covers the page until it is left.
@@ -221,6 +244,8 @@ sub playAudio(ask as object)
     if m.audioWatched <> true
         player.observeField("closed", "onAudioClosed")
         player.observeField("now", "onNowPlaying")
+        player.observeField("menu", "onMenu")
+        player.observeField("open", "onAudioOpen")
         card = m.top.findNode("nowPlaying")
         card.observeField("command", "onCardCommand")
         card.observeField("dismissed", "onCardDismissed")
@@ -231,6 +256,12 @@ sub playAudio(ask as object)
     player.visible = true
     m.rail.visible = false
     player.active = true
+end sub
+
+' Go to album or artist from the song's menu: the screen goes (the music carries on) and the page opens.
+sub onAudioOpen(event as object)
+    onAudioClosed()
+    onOpen(event)
 end sub
 
 sub onAudioClosed()

@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- An album or an artist (tv-more frames 6 and 8; frame "Title page"): the cover (or the circle cut
      from the artist's album art), the words, Play and Shuffle, and the songs; an artist also has its
-     albums. A song's "..." opens its menu in the side sheet (tv-more frame 7). -->
+     albums. The round buttons are Favorite, Add to playlist and (on an album) More. A song's "..." opens its
+     menu in the side sheet (tv-more frame 7). -->
 <component name="MusicScreen" extends="Group">
   <interface>
     <field id="item" type="assocarray" onChange="onItem"/>
@@ -18,6 +19,7 @@
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/AddToPlaylist.brs"/>
   <children>
     <Poster id="coverBack" uri="pkg:/images/round-20.9.png"/>
     <Poster id="cover" loadDisplayMode="scaleToFill"/>
