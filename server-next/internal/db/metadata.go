@@ -379,17 +379,21 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 		sets += ", match_state = CASE WHEN match_state = ? AND ? = ? THEN match_state ELSE ? END"
 		args = append(args, MatchChosen, d.Match, MatchFound, d.Match)
 	}
+	// One assignment to extra with every path in it: SQLite keeps only the last of several
+	// assignments to one column, so separate ones lost all but one of these.
+	var extra []any
 	if d.OriginalLanguage != "" {
-		sets += ", extra = json_set(ifnull(extra, '{}'), '$.originalLanguage', ?)"
-		args = append(args, d.OriginalLanguage)
+		extra = append(extra, "$.originalLanguage", d.OriginalLanguage)
 	}
 	if d.Continuing != nil {
-		sets += ", extra = json_set(ifnull(extra, '{}'), '$.continuing', ?)"
-		args = append(args, *d.Continuing)
+		extra = append(extra, "$.continuing", *d.Continuing)
 	}
 	if d.Numbering != nil {
-		sets += ", extra = json_set(ifnull(extra, '{}'), '$.episodeOrder', ?, '$.episodeOffset', ?)"
-		args = append(args, d.Numbering.Order, d.Numbering.Offset)
+		extra = append(extra, "$.episodeOrder", d.Numbering.Order, "$.episodeOffset", d.Numbering.Offset)
+	}
+	if len(extra) > 0 {
+		sets += ", extra = json_set(ifnull(extra, '{}')" + strings.Repeat(", ?", len(extra)) + ")"
+		args = append(args, extra...)
 	}
 	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, itemID)...); err != nil {
 		return err
