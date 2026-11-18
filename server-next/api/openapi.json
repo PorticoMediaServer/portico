@@ -4250,6 +4250,9 @@
             },
             "type": "array"
           },
+          "limits": {
+            "$ref": "#/components/schemas/MemberLimits"
+          },
           "note": {
             "type": "string"
           },
@@ -4267,7 +4270,8 @@
           "allLibraries",
           "libraries",
           "createdAt",
-          "expiresAt"
+          "expiresAt",
+          "limits"
         ],
         "type": "object"
       },
@@ -4307,6 +4311,9 @@
             },
             "type": "array"
           },
+          "limits": {
+            "$ref": "#/components/schemas/MemberLimitsEdit"
+          },
           "note": {
             "type": "string"
           },
@@ -4329,6 +4336,9 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/MemberLimitsEdit"
           },
           "note": {
             "type": "string"

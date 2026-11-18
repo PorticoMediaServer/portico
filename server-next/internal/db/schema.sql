@@ -751,7 +751,10 @@ CREATE TABLE invitations (
   note               TEXT,
   created_at         INTEGER NOT NULL,
   expires_at         INTEGER NOT NULL,
-  accepted_at        INTEGER
+  accepted_at        INTEGER,
+  -- limits: what the account it creates is held to from its first sign-in, as the JSON of
+  -- an AccountLimits; blocked labels by public id.
+  limits             TEXT    NOT NULL
 ) STRICT;
 CREATE INDEX invitations_creator ON invitations (created_by_user_id) WHERE created_by_user_id IS NOT NULL;
 CREATE INDEX invitations_accepted ON invitations (accepted_user_id) WHERE accepted_user_id IS NOT NULL;

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -13,6 +14,9 @@ const maxOpenInvitations = 200
 
 // ErrInvitationLimit: too many invitations are already waiting to be accepted.
 var ErrInvitationLimit = errors.New("too many open invitations")
+
+// NoAccountLimits are what an account nobody has limited is held to: the users table's defaults.
+var NoAccountLimits = AccountLimits{AllowWatchTogether: true, AllowTokens: true}
 
 // Invitation lets one person create their own account on this server.
 type Invitation struct {
@@ -31,21 +35,26 @@ type Invitation struct {
 	CreatedAt    time.Time
 	ExpiresAt    time.Time
 	AcceptedAt   time.Time
+	// Limits are what the account it creates is held to from its first sign-in.
+	Limits AccountLimits
 }
 
 const invitationColumns = `i.id, i.public_id, i.role, i.state, i.all_libraries, ifnull(i.note, ''),
 	ifnull((SELECT username FROM users WHERE id = i.created_by_user_id), ''),
 	ifnull((SELECT username FROM users WHERE id = i.accepted_user_id), ''),
-	i.created_at, i.expires_at, ifnull(i.accepted_at, 0),
+	i.created_at, i.expires_at, ifnull(i.accepted_at, 0), i.limits,
 	ifnull((SELECT group_concat(l.public_id || char(31) || l.name, char(30)) FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.invitation_id = i.id), '')`
 
 func scanInvitation(row interface{ Scan(...any) error }, now time.Time) (Invitation, error) {
 	var i Invitation
 	var created, expires, accepted int64
-	var libraries string
-	err := row.Scan(&i.ID, &i.PublicID, &i.Role, &i.State, &i.AllLibraries, &i.Note, &i.CreatedBy, &i.AcceptedBy, &created, &expires, &accepted, &libraries)
+	var limits, libraries string
+	err := row.Scan(&i.ID, &i.PublicID, &i.Role, &i.State, &i.AllLibraries, &i.Note, &i.CreatedBy, &i.AcceptedBy, &created, &expires, &accepted, &limits, &libraries)
 	if errors.Is(err, sql.ErrNoRows) {
 		return i, ErrNotFound
+	}
+	if err == nil {
+		err = json.Unmarshal([]byte(limits), &i.Limits)
 	}
 	i.CreatedAt, i.ExpiresAt = time.UnixMilli(created), time.UnixMilli(expires)
 	for _, library := range strings.FieldsFunc(libraries, func(r rune) bool { return r == 30 }) {
@@ -73,6 +82,8 @@ type NewInvitation struct {
 	Libraries    []string
 	Note         string
 	ExpiresAt    time.Time
+	// Limits are what the account is held to from its first sign-in; NoAccountLimits for none.
+	Limits AccountLimits
 	// IdempotencyKey and RequestHash make a repeated request return what it made the first time.
 	IdempotencyKey string
 	RequestHash    string
@@ -107,8 +118,12 @@ func (d *DB) CreateInvitation(ctx context.Context, n NewInvitation) (Invitation,
 		if err != nil {
 			return err
 		}
-		res, err := tx.Exec(`INSERT INTO invitations (public_id, code_hash, created_by_user_id, role, all_libraries, note, created_at, expires_at)
-			VALUES (?, ?, ?, ?, ?, nullif(?, ''), ?, ?)`, n.PublicID, n.CodeHash, n.ActorID, n.Role, n.AllLibraries, n.Note, at, n.ExpiresAt.UnixMilli())
+		limits, err := invitationLimits(tx, n.Limits)
+		if err != nil {
+			return err
+		}
+		res, err := tx.Exec(`INSERT INTO invitations (public_id, code_hash, created_by_user_id, role, all_libraries, note, created_at, expires_at, limits)
+			VALUES (?, ?, ?, ?, ?, nullif(?, ''), ?, ?, ?)`, n.PublicID, n.CodeHash, n.ActorID, n.Role, n.AllLibraries, n.Note, at, n.ExpiresAt.UnixMilli(), limits)
 		if err != nil {
 			return err
 		}
@@ -125,6 +140,35 @@ func (d *DB) CreateInvitation(ctx context.Context, n NewInvitation) (Invitation,
 		return rememberCreated(tx, n.ActorID, n.IdempotencyKey, n.RequestHash, out.PublicID, n.Now)
 	})
 	return out, err
+}
+
+// invitationLimits are limits as an invitation keeps them. An unknown label is ErrUnknownLabel.
+func invitationLimits(tx *sql.Tx, l AccountLimits) (string, error) {
+	if _, err := labelIDs(tx, l.BlockedLabels); err != nil {
+		return "", err
+	}
+	encoded, err := json.Marshal(l)
+	return string(encoded), err
+}
+
+// holdToInvitation holds an account an invitation just created to the limits it carries,
+// before its first session starts. A label deleted since the invitation was made hides
+// nothing any more, so it is left out rather than keeping the person from joining.
+func holdToInvitation(tx *sql.Tx, userID int64, limits string) error {
+	var l AccountLimits
+	if err := json.Unmarshal([]byte(limits), &l); err != nil {
+		return err
+	}
+	kept := l.BlockedLabels[:0]
+	for _, label := range l.BlockedLabels {
+		if _, err := labelIDs(tx, []string{label}); err == nil {
+			kept = append(kept, label)
+		} else if !errors.Is(err, ErrUnknownLabel) {
+			return err
+		}
+	}
+	l.BlockedLabels = kept
+	return setAccountLimits(tx, userID, l)
 }
 
 func shareWithInvitation(tx *sql.Tx, id int64, libraries []int64) error {
@@ -150,7 +194,9 @@ type InvitationEdit struct {
 	Libraries    *[]string
 	Note         *string
 	ExpiresAt    *time.Time
-	Now          time.Time
+	// Limits, when set, makes the new limits from the ones the invitation carries, or refuses.
+	Limits func(AccountLimits) (AccountLimits, error)
+	Now    time.Time
 }
 
 // UpdateInvitation edits an open invitation; its code stays the same. One that is used,
@@ -184,6 +230,15 @@ func (d *DB) UpdateInvitation(ctx context.Context, e InvitationEdit) (Invitation
 		if e.ExpiresAt != nil {
 			i.ExpiresAt = *e.ExpiresAt
 		}
+		if e.Limits != nil {
+			if i.Limits, err = e.Limits(i.Limits); err != nil {
+				return err
+			}
+		}
+		limits, err := invitationLimits(tx, i.Limits)
+		if err != nil {
+			return err
+		}
 		if e.Libraries != nil {
 			libraries, err := libraryIDs(tx, *e.Libraries)
 			if err != nil {
@@ -193,8 +248,8 @@ func (d *DB) UpdateInvitation(ctx context.Context, e InvitationEdit) (Invitation
 				return err
 			}
 		}
-		if _, err := tx.Exec(`UPDATE invitations SET role = ?, all_libraries = ?, note = nullif(?, ''), expires_at = ? WHERE id = ?`,
-			i.Role, i.AllLibraries, i.Note, i.ExpiresAt.UnixMilli(), i.ID); err != nil {
+		if _, err := tx.Exec(`UPDATE invitations SET role = ?, all_libraries = ?, note = nullif(?, ''), expires_at = ?, limits = ? WHERE id = ?`,
+			i.Role, i.AllLibraries, i.Note, i.ExpiresAt.UnixMilli(), limits, i.ID); err != nil {
 			return err
 		}
 		if out, err = scanInvitation(tx.QueryRow(`SELECT `+invitationColumns+` FROM invitations i WHERE i.id = ?`, i.ID), e.Now); err != nil {
@@ -296,8 +351,8 @@ type Acceptance struct {
 	Now          time.Time
 }
 
-// AcceptInvitation uses the invitation up, creates the account with the role and libraries
-// the invitation carries, and signs the person in, all in one commit: of many people
+// AcceptInvitation uses the invitation up, creates the account with the role, libraries and
+// limits the invitation carries, and signs the person in, all in one commit: of many people
 // accepting one invitation at once, one gets an account. A code that is not an open
 // invitation is ErrNotFound; a taken username is ErrConflict and leaves the invitation open.
 func (d *DB) AcceptInvitation(ctx context.Context, a Acceptance) (SessionState, error) {
@@ -305,10 +360,10 @@ func (d *DB) AcceptInvitation(ctx context.Context, a Acceptance) (SessionState, 
 	stamp, err := d.writeSessionsStamped(ctx, func(tx *sql.Tx, _ *changes) error {
 		at := a.Now.UnixMilli()
 		var id int64
-		var role string
+		var role, limits string
 		var allLibraries bool
 		err := tx.QueryRow(`UPDATE invitations SET state = 'accepted', accepted_at = ? WHERE code_hash = ? AND state = 'open' AND expires_at > ?
-			RETURNING id, role, all_libraries`, at, a.CodeHash, at).Scan(&id, &role, &allLibraries)
+			RETURNING id, role, all_libraries, limits`, at, a.CodeHash, at).Scan(&id, &role, &allLibraries, &limits)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -320,6 +375,9 @@ func (d *DB) AcceptInvitation(ctx context.Context, a Acceptance) (SessionState, 
 			return err
 		}
 		if _, err := tx.Exec(`UPDATE users SET all_libraries = ? WHERE id = ?`, allLibraries, userID); err != nil {
+			return err
+		}
+		if err := holdToInvitation(tx, userID, limits); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(`INSERT INTO library_access (library_id, user_id) SELECT library_id, ? FROM library_access WHERE invitation_id = ?`, userID, id); err != nil {

@@ -27,6 +27,8 @@ type Invitation struct {
 	CreatedAt    time.Time  `json:"createdAt"`
 	ExpiresAt    time.Time  `json:"expiresAt"`
 	AcceptedAt   *time.Time `json:"acceptedAt,omitempty"`
+	// Limits are what the account it creates is held to from its first sign-in.
+	Limits MemberLimits `json:"limits"`
 }
 
 // InvitationCreate makes an invitation.
@@ -40,6 +42,9 @@ type InvitationCreate struct {
 	Note string `json:"note,omitempty"`
 	// ExpiresInDays is 1, 3, 7 (the default) or 30.
 	ExpiresInDays int `json:"expiresInDays,omitempty"`
+	// Limits hold the account from its first sign-in, as on a member: only the fields sent
+	// are set, the rest stay as an account with no limits has them.
+	Limits *MemberLimitsEdit `json:"limits,omitempty"`
 }
 
 // InvitationEdit changes an invitation that is still open. Fields left out stay as they
@@ -50,6 +55,8 @@ type InvitationEdit struct {
 	Libraries     *[]string `json:"libraries,omitempty"`
 	Note          *string   `json:"note,omitempty"`
 	ExpiresInDays *int      `json:"expiresInDays,omitempty"`
+	// Limits changes only the fields it names, as on a member.
+	Limits *MemberLimitsEdit `json:"limits,omitempty"`
 }
 
 // InvitationPreview is what the holder of a code sees before accepting: the server, the
@@ -73,7 +80,7 @@ type InvitationAccept struct {
 
 func (s *Server) invitationOut(i db.Invitation) Invitation {
 	out := Invitation{ID: i.PublicID, Role: i.Role, State: i.State, AllLibraries: i.AllLibraries, Libraries: i.Libraries, Note: i.Note,
-		CreatedBy: i.CreatedBy, AcceptedBy: i.AcceptedBy, CreatedAt: i.CreatedAt.UTC(), ExpiresAt: i.ExpiresAt.UTC()}
+		Limits: memberLimitsOut(i.Limits), CreatedBy: i.CreatedBy, AcceptedBy: i.AcceptedBy, CreatedAt: i.CreatedAt.UTC(), ExpiresAt: i.ExpiresAt.UTC()}
 	if out.Libraries == nil {
 		out.Libraries = []string{}
 	}
@@ -144,6 +151,13 @@ func (s *Server) createInvitation(r *http.Request, req InvitationCreate) (Invita
 	if err := checkInvitation(&req.Role, &req.ExpiresInDays, &req.Libraries, &req.Note); err != nil {
 		return Invitation{}, err
 	}
+	limits := db.NoAccountLimits
+	if req.Limits != nil {
+		var err error
+		if limits, err = req.Limits.over(caller.Role)(limits); err != nil {
+			return Invitation{}, err
+		}
+	}
 	key, err := idempotencyKey(r)
 	if err != nil {
 		return Invitation{}, err
@@ -151,7 +165,7 @@ func (s *Server) createInvitation(r *http.Request, req InvitationCreate) (Invita
 	id := db.NewID("inv")
 	i, err := s.db.CreateInvitation(r.Context(), db.NewInvitation{ActorID: caller.UserID, ActorRole: caller.Role,
 		PublicID: id, CodeHash: invitationHash(s.tokens.InvitationCode(id)),
-		Role: req.Role, AllLibraries: req.AllLibraries == nil || *req.AllLibraries, Libraries: req.Libraries, Note: req.Note,
+		Role: req.Role, AllLibraries: req.AllLibraries == nil || *req.AllLibraries, Libraries: req.Libraries, Note: req.Note, Limits: limits,
 		ExpiresAt: now.AddDate(0, 0, req.ExpiresInDays), IdempotencyKey: key, RequestHash: requestHash(req), Now: now})
 	if errors.Is(err, db.ErrInvitationLimit) {
 		return Invitation{}, ErrConflict("invitation_capacity", "Too many invitations are waiting. Revoke some first.")
@@ -169,6 +183,9 @@ func (s *Server) editInvitation(r *http.Request, req InvitationEdit) (Invitation
 	}
 	e := db.InvitationEdit{ActorID: caller.UserID, ActorRole: caller.Role, MemberOnly: caller.SessionID == 0, PublicID: r.PathValue("id"),
 		Role: req.Role, AllLibraries: req.AllLibraries, Libraries: req.Libraries, Note: req.Note, Now: now}
+	if req.Limits != nil {
+		e.Limits = req.Limits.over(caller.Role)
+	}
 	if req.ExpiresInDays != nil {
 		expires := now.AddDate(0, 0, *req.ExpiresInDays)
 		e.ExpiresAt = &expires
