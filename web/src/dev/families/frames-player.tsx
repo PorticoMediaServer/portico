@@ -1,11 +1,10 @@
 import {useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type ReactNode} from 'react';
 import {defaultI18n, formatMessage, type MessageId} from '@i18n';
-import {ArtworkScheduler} from '@core/artwork';
 import type {FactPart} from '@portico/client-core/kit-model';
 import {framesFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/frames-fixtures.ts';
 import {playerFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/player-fixtures.ts';
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
-import {ArtworkGlow, type AmbientArtSource, type ArtworkImage, type ArtworkSource} from '../../kit/artwork';
+import {ArtworkGlow, type AmbientArtSource} from '../../kit/artwork';
 import {EpisodeTile} from '../../kit/cards';
 import {Button, Chip, Tabs, TextField} from '../../kit/controls';
 import {AudioPlayerFrame, EpisodeList, PlayerChromeFrame, SeasonBar, episodeRowClass, type AudioControl} from '../../kit/frames';
@@ -13,6 +12,7 @@ import {HeroFacts} from '../../kit/layout';
 import {PlaybackInfo, SeekLine, type PlaybackInfoProjection, type TrackChoice} from '../../kit/media';
 import {playbackInfoCopy} from '../../screens/watch/info-copy';
 import {galleryCase} from './dock';
+import {useReferenceArtwork} from './frames';
 import {Dialog} from '../../kit/overlays';
 import {usePhone} from '../../kit/overlays/shared';
 import {AudioPanel, PlayerControl, PlayerEndCard, PlayerStillWatching, PlayerEpisodes, PlayerLive, PlayerOptions, PlayerPill, PlayerPrompt, PlayerScrubPreview, PlayerTitle, PlayerUpNext, PlayerVolume, QueueGroup, QueueRow,
@@ -32,20 +32,6 @@ const none = () => {};
 const fact = (text: string): FactPart[] => text.split(' · ').map((part, index) => ({id: index === 0 ? 'year' : `fact-${index}`, text: part, role: index === 0 ? 'identity' : 'context'}));
 const reference = (path: string) => new URL(`assets/${path}`, 'http://100.120.50.24:8787/').href;
 
-/** The reference artwork the capture run serves (the same files the native gallery and the mock-ups use). */
-function useReferenceArtwork() {
-  const scheduler = useMemo(() => new ArtworkScheduler<ArtworkImage>({load: (key, signal) => new Promise((resolve, reject) => {
-    const picture = new Image();
-    const clear = () => {signal.removeEventListener('abort', abort); picture.onload = null; picture.onerror = null;};
-    const abort = () => {clear(); picture.src = ''; reject(new DOMException('Aborted', 'AbortError'));};
-    signal.addEventListener('abort', abort, {once: true});
-    picture.onload = () => {void picture.decode().then(() => {clear(); if (signal.aborted) reject(new DOMException('Aborted', 'AbortError')); else resolve({src: picture.src, width: picture.naturalWidth, height: picture.naturalHeight});}, error => {clear(); reject(error);});};
-    picture.onerror = () => {clear(); reject(new Error('Reference artwork failed to decode.'));};
-    if (signal.aborted) abort(); else picture.src = reference(key);
-  }), classify: () => ({retryable: false}), concurrency: 4, priorityExtra: 0, backoffMs: []}), []);
-  useEffect(() => () => scheduler.dispose(), [scheduler]);
-  return (key: string): ArtworkSource => ({scheduler, key});
-}
 function useQuery(query: string) {
   const [on, setOn] = useState(() => window.matchMedia(query).matches);
   useEffect(() => {const media = window.matchMedia(query), update = () => setOn(media.matches); media.addEventListener('change', update); return () => media.removeEventListener('change', update);}, [query]);
