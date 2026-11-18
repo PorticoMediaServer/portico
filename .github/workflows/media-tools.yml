@@ -16,6 +16,10 @@ name: Media tools
 #
 # The kept layers are container images named build-cache-ffmpeg-* in the project's registry.
 # They are build caches. Nothing here signs or publishes a release.
+#
+# macOS (Apple Silicon) has no containers: the macos job builds on a Mac runner, with the Xcode
+# the release uses, as upstream's buildmac.sh does, and keeps the built libraries in GitHub's
+# cache (also after a failure, so a run never rebuilds a finished library). It has no compiler stage.
 on:
   pull_request:
     paths:
@@ -28,7 +32,7 @@ on:
         description: Platform to build for
         type: choice
         default: linux-x64
-        options: [linux-x64, linux-arm64]
+        options: [linux-x64, linux-arm64, macos-arm64]
       stage:
         description: The one stage to run
         type: choice
@@ -63,9 +67,12 @@ jobs:
         run: third_party/ffmpeg/build.sh prepare "$PLATFORM"
       - name: Everything that needs no compiler
         run: third_party/ffmpeg/build.sh check "$PLATFORM"
-      - name: The same for Linux arm64, on a pull request
+      - name: The same for Linux arm64 and macOS, on a pull request
         if: github.event_name == 'pull_request'
-        run: third_party/ffmpeg/build.sh prepare linux-arm64 && third_party/ffmpeg/build.sh check linux-arm64
+        run: |
+          for platform in linux-arm64 macos-arm64; do
+            third_party/ffmpeg/build.sh prepare "$platform" && third_party/ffmpeg/build.sh check "$platform"
+          done
 
   sources:
     if: github.event_name == 'workflow_dispatch' && inputs.stage == 'sources'
@@ -90,7 +97,7 @@ jobs:
           retention-days: 30
 
   build:
-    if: github.event_name == 'workflow_dispatch' && contains(fromJSON('["compiler","libraries","helper","configure","bundle"]'), inputs.stage)
+    if: github.event_name == 'workflow_dispatch' && contains(fromJSON('["compiler","libraries","helper","configure","bundle"]'), inputs.stage) && inputs.platform != 'macos-arm64'
     needs: check
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ fromJSON('{"compiler":100,"libraries":200,"helper":30,"configure":40,"bundle":120}')[inputs.stage] }}
@@ -163,6 +170,112 @@ jobs:
           retention-days: ${{ inputs.platform == 'linux-arm64' && 3 || 30 }}
           compression-level: 0
 
+  macos:
+    # The Mac bundle, built natively. The libraries are built into /opt/ffbuild/prefix (upstream's
+    # folder) and kept in GitHub's cache under the hash of what builds them; each finished library
+    # is marked there, so a run after a failure starts at the library that failed.
+    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'macos-arm64' && contains(fromJSON('["libraries","helper","configure","bundle"]'), inputs.stage)
+    needs: check
+    runs-on: macos-26
+    # A first build of every library takes a few hours; later runs take minutes for the libraries.
+    timeout-minutes: 330
+    env:
+      # The Xcode the release's macOS job builds with.
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      LIBRARIES_KEY: media-tools-libraries-macos-arm64-xcode-26.6-${{ hashFiles('third_party/ffmpeg/upstream.lock', 'third_party/ffmpeg/recipes/**', 'third_party/ffmpeg/patches/lib*-no-decryption.patch') }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          sparse-checkout: |
+            third_party/ffmpeg
+            third_party/portico-disc
+            fixtures/discs
+            server-next
+      - name: Xcode 26.6, a current bash for build.sh, and upstream's build folder
+        run: |
+          version="$(xcodebuild -version)"
+          echo "$version"
+          [ "${version%%$'\n'*}" = 'Xcode 26.6' ] || { echo 'expected Xcode 26.6' >&2; exit 1; }
+          brew install bash zstd
+          sudo mkdir -p /opt/ffbuild && sudo chown "$USER" /opt/ffbuild
+      - name: The libraries kept from earlier runs
+        id: restore
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: /opt/ffbuild/prefix
+          key: ${{ env.LIBRARIES_KEY }}
+          restore-keys: ${{ env.LIBRARIES_KEY }}-partial-
+      - run: third_party/ffmpeg/build.sh prepare "$PLATFORM"
+      - name: Libraries (only those not built yet)
+        id: libraries
+        env:
+          LIBRARY: ${{ inputs.library }}
+        run: third_party/ffmpeg/build.sh libraries "$PLATFORM"
+      - name: Keep the libraries
+        if: always() && steps.libraries.outcome != 'skipped' && steps.restore.outputs.cache-hit != 'true' && inputs.library == ''
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: /opt/ffbuild/prefix
+          key: ${{ steps.libraries.outcome == 'success' && env.LIBRARIES_KEY || format('{0}-partial-{1}-{2}', env.LIBRARIES_KEY, github.run_id, github.run_attempt) }}
+
+      - name: Library sources and licence texts
+        if: inputs.stage == 'bundle'
+        run: third_party/ffmpeg/build.sh sources "$PLATFORM"
+      - name: Disc helper
+        if: inputs.stage == 'helper' || inputs.stage == 'bundle'
+        run: third_party/ffmpeg/build.sh helper "$PLATFORM"
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        if: inputs.stage == 'helper' || inputs.stage == 'bundle'
+        with:
+          go-version-file: server-next/go.mod
+          cache: false
+      - name: Disc tests against the fixtures
+        if: inputs.stage == 'helper'
+        working-directory: server-next
+        env:
+          GOWORK: 'off'
+          PORTICO_DISC_TEST_BINARY: ${{ github.workspace }}/.media-tools/${{ env.PLATFORM }}/out/portico-disc
+        run: go test ./internal/disc -run 'TestHelper' -count=1 -v | grep -E '^(=== RUN|--- |PASS|FAIL|ok|\s+\S+_test.go)' ; exit "${PIPESTATUS[0]}"
+
+      - name: FFmpeg configure step alone
+        if: inputs.stage == 'configure'
+        run: third_party/ffmpeg/build.sh configure "$PLATFORM"
+      - name: ffmpeg and ffprobe
+        if: inputs.stage == 'bundle'
+        run: third_party/ffmpeg/build.sh compile "$PLATFORM"
+      - name: The bundle, and its programs run
+        if: inputs.stage == 'bundle'
+        run: third_party/ffmpeg/build.sh package "$PLATFORM"
+      - name: Every disc test with the packed bundle
+        if: inputs.stage == 'bundle'
+        working-directory: server-next
+        env:
+          GOWORK: 'off'
+        # A skipped test is a failure here: with the bundle every disc test can run.
+        run: |
+          mkdir -p "$RUNNER_TEMP/bundle"
+          tar -xJf "$GITHUB_WORKSPACE/.media-tools/$PLATFORM/portico-media-tools-$PLATFORM.tar.xz" -C "$RUNNER_TEMP/bundle"
+          export PORTICO_DISC_TEST_BINARY="$RUNNER_TEMP/bundle/bin/portico-disc" PORTICO_DISC_TEST_FFMPEG="$RUNNER_TEMP/bundle/bin/ffmpeg"
+          go test ./internal/disc -count=1 -v > "$RUNNER_TEMP/disc.log" 2>&1 && passed=1
+          grep -E '^(--- |PASS|FAIL|ok|panic|\s+\S+_test.go)' "$RUNNER_TEMP/disc.log" || true
+          if grep -qE '^\s*--- SKIP' "$RUNNER_TEMP/disc.log"; then echo "a disc test was skipped, so the bundle was not tested by it"; exit 1; fi
+          [ "${passed:-0}" = 1 ]
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: inputs.stage == 'bundle'
+        with:
+          name: portico-media-tools-${{ env.PLATFORM }}
+          path: .media-tools/${{ env.PLATFORM }}/portico-media-tools-${{ env.PLATFORM }}.tar.xz
+          retention-days: 30
+          compression-level: 0
+      # The library half of the complete source the GPL requires with the programs.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: inputs.stage == 'bundle'
+        with:
+          name: portico-media-tools-${{ env.PLATFORM }}-library-sources
+          path: .media-tools/${{ env.PLATFORM }}/library-sources-${{ env.PLATFORM }}.tar.zst
+          retention-days: 30
+          compression-level: 0
+
   verify:
     # A bundle for arm64 is cross-compiled on x86, so the checks that run its programs happen
     # here, on an arm64 runner: they start, need no extra library, list every wanted feature,
@@ -208,7 +321,7 @@ jobs:
     # The new server's whole test suite, media tests included, with the bundle as its FFmpeg, and
     # the disc tests with the bundle's helper. Not part of ci/required.
     if: github.event_name == 'workflow_dispatch' && inputs.stage == 'test'
-    runs-on: ${{ inputs.platform == 'linux-arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    runs-on: ${{ fromJSON('{"linux-x64":"ubuntu-24.04","linux-arm64":"ubuntu-24.04-arm","macos-arm64":"macos-26"}')[inputs.platform] }}
     timeout-minutes: 40
     permissions:
       contents: read
@@ -250,6 +363,8 @@ jobs:
           cache: true
           cache-dependency-path: server-next/go.sum
       - name: Install bubblewrap and allow unprivileged user namespaces on this VM
+        # (macOS confines the decoder with its own sandbox-exec.)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get install -y --no-install-recommends bubblewrap || { sudo apt-get update && sudo apt-get install -y --no-install-recommends bubblewrap; }
           for setting in kernel.apparmor_restrict_unprivileged_userns=0 kernel.unprivileged_userns_clone=1; do
