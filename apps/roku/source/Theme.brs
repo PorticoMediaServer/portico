@@ -66,6 +66,16 @@ function frames() as object
         ' A library or Search (frame "Browse"): the page title's line; Home's moderate hero with its
         ' words from `heroTop`, and the heading of the row in focus on `rowsY`.
         browse: {titleY: 64, heroTop: 110, rowsY: 520}
+        ' Customize Home (collections frames 27 to 29): the wider side panel from `x`, its words from
+        ' `pad` inside it to `padRight` from the screen's edge; the title on `top`, the intro from
+        ' `introY`, the rows from `rowsY` down to `rowsBottom`, one every `rowPitch`, each `rowHeight`
+        ' tall: its grip from `gripX` in a slot `gripWidth` wide, `gap` between its parts, `endPad`
+        ' inside its right end, a name with a note under it at `nameTop` and `noteTop`; the landing
+        ' line `dropLine` thick; the buttons on `footY`; while a row is held, the key hints on Home's
+        ' own foot at `hintsY`.
+        customize: {x: 1060, width: 860, pad: 60, padRight: 96, top: 60, introY: 124, rowsY: 218, rowsBottom: 944,
+            rowPitch: 76, rowHeight: 70, gripX: 12, gripWidth: 44, gap: 18, endPad: 18, nameTop: 8, noteTop: 41,
+            dropLine: 6, footY: 960, hintsY: 1000}
         ' The red-verb dialog: a panel `width` wide from `x`, its words and buttons `pad` inside it.
         dialog: {x: 510, width: 900, pad: 52}
         ' A library (tv.html frame 4): the toolbar under the page title, the chosen filters' chips and the count on one line under it, then the grid's first cards; its Discover tab, Home's hero and rows, sits `discoverDrop` lower than Home so the hero's words stay under the tabs.

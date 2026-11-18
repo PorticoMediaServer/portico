@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Customize Home (collections frames 28 and 29): Home's rows in this profile's order, in a side
+     panel over Home. OK picks a row up, Up and Down choose where it lands (a line shows it), OK drops
+     it there and Back puts it back; Left or Right reaches a row's switch, which shows or hides it. Rows the server keeps on Home say so and
+     have no switch, but still move. Add a saved view, Reset to default and Save are at the foot.
+     It holds focus until it closes; Back closes it without saving. -->
+<component name="HomeCustomize" extends="Group">
+  <interface>
+    <!-- Set true to read Home's rows and open the panel. -->
+    <field id="open" type="boolean" alwaysNotify="true" onChange="onOpen"/>
+    <!-- When it closes: "saved" (Home's layout changed) or "". -->
+    <field id="closed" type="string" alwaysNotify="true"/>
+    <!-- True while a row is held: Home clears its own foot for the key hints. -->
+    <field id="holding" type="boolean"/>
+  </interface>
+  <script type="text/brightscript" uri="HomeCustomize.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <children>
+    <SidePanel id="surface"/>
+    <Label id="title" wrap="true" maxLines="2"/>
+    <Label id="intro" wrap="true" maxLines="3"/>
+    <Group id="window">
+      <Group id="rows"/>
+      <!-- While a row is held: the row itself over the list, and over it the line where it will land
+           (at the held row's edge, so it is drawn last or the row's ring would hide it). -->
+      <HomeCustomizeRow id="held" visible="false"/>
+      <Rectangle id="dropLine" visible="false"/>
+    </Group>
+    <ButtonRow id="foot"/>
+    <!-- On Home's own foot at the left, as the frame draws it, while a row is held. -->
+    <KeyHints id="hints" visible="false"/>
+    <Confirm id="confirm" visible="false"/>
+  </children>
+</component>

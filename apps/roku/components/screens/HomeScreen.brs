@@ -20,6 +20,21 @@ sub init()
     m.loadingDelay.observeField("fire", "onLoadingDelay")
     m.focus = -2       ' -2 nothing to focus yet, otherwise the row in focus
     m.notice.observeField("pressed", "load")
+    ' Customize Home: a button after the last row, and the panel it opens over Home
+    m.customizeLine = m.top.findNode("customizeLine")
+    m.customize = m.top.findNode("customize")
+    m.customize.buttons = [{id: "customize", text: "Customize Home", icon: "sliders"}]
+    m.customize.observeField("pressed", "onCustomizePressed")
+    text = m.top.findNode("customizeText")
+    setType(text, "meta", colours().textSecondary)
+    text.height = 72
+    text.vertAlign = "center"
+    text.translation = [m.customize.getChild(0).buttonWidth + 24, 0]
+    m.customizer = m.top.findNode("customizer")
+    m.customizer.observeField("closed", "onCustomizeClosed")
+    ' the held row's key hints go on Home's foot, where the Customize Home button sits
+    m.customizer.observeField("holding", "onCustomizeHolding")
+    m.onCustomize = false   ' focus is on the Customize Home button, under the row in focus
     load()
 end sub
 
@@ -83,6 +98,7 @@ sub onHome(event as object)
             for i = 0 to m.rows.count() - 1
                 if m.rows[i].row.id = id and m.rows[i].row.items.count() > 0
                     moveTo(i, own)
+                    if keep.customize = true and id = keep.row then onCustomizeStop(own)
                     return
                 end if
             end for
@@ -162,6 +178,8 @@ sub place()
         if entry.row.items.count() > 0 then y = y + shelfMetrics(entry.row.shape).block
         if entry.shelf <> invalid then entry.shelf.translation = [0, entry.y]
     end for
+    m.customizeLine.translation = [frames().gutter, y]
+    m.customizeLine.visible = (rowFrom(0, 1) >= 0)
     if m.focus >= 0 and m.slide.state <> "running" then m.page.translation = [0, m.rowsY - m.rows[m.focus].y]
 end sub
 
@@ -243,6 +261,29 @@ function readDeferred() as boolean
     return false
 end function
 
+' Down from the last row: the Customize Home button. The page stays where it is (the button sits
+' under the last row's cards) and the hero, still about that row's card, shows no key hints.
+sub onCustomizeStop(grab as boolean)
+    m.onCustomize = true
+    m.hero.okText = ""
+    if grab then m.customize.active = true
+end sub
+
+sub onCustomizeHolding()
+    m.customizeLine.opacity = 1
+    if m.customizer.holding then m.customizeLine.opacity = 0
+end sub
+
+sub onCustomizePressed()
+    m.customizer.open = true
+end sub
+
+' The panel closed: focus is back on the button; a saved layout is read again.
+sub onCustomizeClosed(event as object)
+    m.customize.active = true
+    if event.getData() = "saved" then refresh()
+end sub
+
 sub onActive()
     if not m.top.active then return
     ' back from a title's page or the player: what was played or changed there shows here
@@ -255,6 +296,8 @@ sub onActive()
         m.notice.active = true
     else if m.focus = -2
         m.top.setFocus(true)     ' still loading: Home holds focus until a row can take it
+    else if m.onCustomize
+        m.customize.active = true
     else
         m.rows[m.focus].shelf.active = true
     end if
@@ -323,6 +366,7 @@ end function
 sub moveTo(i as integer, grab = true as boolean)
     if i < 0 then return
     stopLoading()
+    m.onCustomize = false
     makeNear(i)
     m.focus = i
     if grab then m.rows[i].shelf.active = true
@@ -370,6 +414,7 @@ sub describe()
     m.top.art = model.art
     ok = "Details"
     if m.rows[m.focus].row.id = "continue" then ok = "Resume"
+    if m.onCustomize then ok = ""      ' focus is on Customize Home, not the card: no OK or * hints
     m.hero.okText = ok
     m.hero.model = model
 end sub
@@ -451,7 +496,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
     holdKey(key, press and (key = "up" or key = "down"))
     if not press then return false
     if key = "options" and m.focus >= 0
-        openMenu()
+        if not m.onCustomize then openMenu()
         return true
     end if
     ' a library's Discover gives Up from its first row to the page's tabs
@@ -499,6 +544,7 @@ sub refresh()
         if entry.shelf <> invalid then m.memory[entry.row.id] = entry.shelf.focusedIndex
         if i > m.focus then m.keep.after.push(entry.row.id)
     end for
+    m.keep.customize = m.onCustomize     ' back on the Customize Home button after a save
     m.details = {}     ' progress and played may have changed
     api("GET", homePath(), invalid, "onHome", {path: homePath()})
 end sub
@@ -507,9 +553,17 @@ function pressKey(key as string) as boolean
     if m.focus < 0 then return false
     if key = "down"
         target = rowFrom(m.focus + 1, 1)
-        if target >= 0 then moveTo(target)
+        if target >= 0
+            moveTo(target)
+        else if not m.onCustomize
+            onCustomizeStop(true)
+        end if
         return true
     else if key = "up"
+        if m.onCustomize
+            moveTo(m.focus)       ' back to the row's remembered card
+            return true
+        end if
         target = rowFrom(m.focus - 1, -1)
         ' Up from the first row goes on to the scene (the now-playing card)
         if target < 0 then return false
@@ -518,7 +572,7 @@ function pressKey(key as string) as boolean
     else if key = "back"
         ' Back from anywhere on Home is the opening state; from there it leaves the app.
         first = rowFrom(0, 1)
-        if m.focus <> first
+        if m.focus <> first or m.onCustomize
             moveTo(first)
             return true
         end if

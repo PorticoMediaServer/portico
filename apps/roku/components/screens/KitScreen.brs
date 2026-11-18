@@ -89,6 +89,8 @@ function kitPages() as object
             {c: "QrCard", at: [1060, 212], f: {link: "https://demo.getportico.tv/settings/profile", address: "demo.getportico.tv/settings/profile", note: "Scan the code with your phone, or go to this address on a computer."}}]},
         {title: "The season list (five whole, the next peeking)", parts: [{c: "SeasonList", at: [200, 160], f: {seasons: sampleSeasons()}}]},
         {title: "The confirm dialog (focus starts on Cancel)", parts: [{c: "Confirm", at: [0, 0], f: {model: {title: "Sign out of Portico Demo on this TV?", body: "You'll need to sign this TV in again.", verb: "Sign out"}}}]},
+        {title: "The side panel a panel or picker opens on (Customize Home, File info): the scrim and the panel from x", parts: [
+            {c: "SidePanel", at: [0, 0], f: {x: 1060}}]},
         {title: "The rail, closed", parts: [{c: "Rail", at: [0, 0], f: sampleRail()}]},
         {title: "The rail, open (drawn open; the page keeps the focus)", parts: [{c: "Rail", at: [0, 0], f: sampleRail(), open: true}]}
     ])
