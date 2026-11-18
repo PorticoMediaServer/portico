@@ -442,6 +442,12 @@ func (s *Server) changePlayback(r *http.Request, req PlaybackChange) (PlaybackSe
 // lives and when to report next. A session that is over answers 410; one this server does
 // not know (it restarted) answers 404, and the app starts again where it was.
 func (s *Server) reportPlayback(r *http.Request, req PlaybackProgress) (PlaybackLease, error) {
+	// Viewing hours that have ended, or a home-only account now away, stop playback here: the
+	// report is refused with the reason, the app stops and says why, and the session, its
+	// position kept, ends when its lease runs out. The sign-in is kept.
+	if err := s.db.AccountOpen(r.Context(), CallerFrom(r.Context()).UserID, s.fromHome(r), s.now()); err != nil {
+		return PlaybackLease{}, err
+	}
 	if live.IsLive(r.PathValue("id")) {
 		paused := req.State == playback.StatePaused
 		session, err := s.liveSession(r, &paused)
