@@ -1,25 +1,29 @@
-import {useEffect, useRef, useState, type ComponentType, type ReactNode} from 'react';
-import {formatMessage, type MessageId} from '@i18n';
+import {useEffect, useMemo, useRef, useState, type CSSProperties, type ComponentType, type ReactNode} from 'react';
+import {defaultI18n, formatMessage, type MessageId} from '@i18n';
+import {frameForm, frameSpec} from '@design';
+import {libraryTabs} from '@core/presentation/library-tabs';
+import {browseToolbarModel} from '@portico/client-core/kit-model';
 import type {FactPart} from '@portico/client-core/kit-model';
 import {newFramesFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/newframes-fixtures.ts';
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
 import {AmbientArt, ChannelMark} from '../../kit/artwork';
-import {CircleCard, GenreTile, LiveCard, PosterCard, QuickTile, SquareCard, WideCard} from '../../kit/cards';
-import {SongRow} from '../../kit/browse';
+import {CircleCard, GenreTile, LiveCard, PosterCard, QuickTile, ResumeCard, SquareCard, WideCard} from '../../kit/cards';
+import {BrowseToolbar, LibraryMenu, LibrarySwitcher, SongRow} from '../../kit/browse';
 import {Button, Chip, Segmented, Switch, Tabs, TextField} from '../../kit/controls';
 import {RecordingStorage} from '../../kit/dvr/RecordingsLayout';
 import {RuleCard} from '../../kit/dvr/RuleCard';
-import {ArtBox, BrowseFrame, LiveFrame, ReaderFrame, SearchFrame, Section, SectionCard, SplitFrame, type FramePane} from '../../kit/frames';
+import {ArtBox, BrowseFrame, LiveFrame, ReaderFrame, SearchFrame, Section, SectionCard, type FramePane} from '../../kit/frames';
 import {Shelf} from '../../kit/layout';
 import {AiringRow, ChannelRow, ConflictCard, GuideGrid, RecordingRow, type GuideChannel, type GuideCell} from '../../kit/live';
 import {usePhone} from '../../kit/overlays/shared';
 import {ReaderAnnotations, ReaderPanel} from '../../kit/reader/ReaderPanel';
 import {ReaderDisplayPopover, ReaderDisplaySheet} from '../../kit/reader/ReaderDisplay';
-import {DownloadRow, StorageMeter} from '../../kit/saved';
+import {DirectoryRows, DownloadRow, StorageMeter} from '../../kit/saved';
 import {SearchHistory, TopResultCard} from '../../kit/search';
-import {SettingsRow} from '../../kit/shell';
+import {SettingsRow, WaitingNotice} from '../../kit/shell';
 import {SearchResultHero, TitleFactsLine} from '../../kit/title/TitleParts';
-import {Page, useReferenceArtwork} from './frames';
+import {Page, f as framesText, useReferenceArtwork} from './frames';
+import {capabilities as libraryCapabilities, env as libraryEnv, labels as libraryLabels} from './frames-library';
 import page from './frames-newframes.module.css';
 
 /** Round 8: the kinds of screen that had no frame (Search, Live TV, Saved, Downloads, music, audiobooks, the reader), each
@@ -243,96 +247,129 @@ function LiveRules() {
   </LiveFrame></Page>;
 }
 
-// ---- Saved and Downloads (named uses of BrowseFrame; the tabs, toolbar and grid regions are the library frame's) ----
-const listed = [['dune-part-two', 'Dune: Part Two', '2024'], ['severance', 'Severance', '1 season'], ['the-last-of-us', 'The Last of Us', '1 h 4 min left'], ['spirited-away', 'Spirited Away', '2001'], ['interstellar', 'Interstellar', '2014'], ['silo', 'Silo', '1 season'], ['blade-runner', 'Blade Runner', '1982']] as const;
-function SavedTabs({value}: {value: string}) {
-  return <div style={{padding: '0 var(--g)'}}><Tabs value={value} onValueChange={none} items={(['myList', 'favorites', 'playlists', 'collections', 'savedViews', 'history', 'downloads'] as const).map(name => ({value: name, label: f(name)}))}/></div>;
+// ---- Saved, Downloads, Music and Audiobooks: named uses of BrowseFrame (its header, tabs, toolbar, grid and rows regions) ----
+const listed = [['dune-part-two', 'Dune: Part Two', '2024 · Movie'], ['severance', 'Severance', 'Show · 1 season'], ['the-last-of-us', 'The Last of Us', 'S1 E1 · 1 h 4 min left'], ['spirited-away', 'Spirited Away', '2001 · Movie'],
+  ['interstellar', 'Interstellar', '2014 · Movie'], ['silo', 'Silo', 'Show · 1 season'], ['blade-runner', 'Blade Runner', '1982 · Movie'], ['slow-horses', 'Slow Horses', 'Show · 1 season'], ['oppenheimer', 'Oppenheimer', '2023 · Movie'],
+  ['alien', 'Alien', '1979 · Movie'], ['inside-out', 'Inside Out', '2015 · Movie'], ['the-dark-knight', 'The Dark Knight', '2008 · Movie'], ['barbie', 'Barbie', '2023 · Movie'], ['gladiator', 'Gladiator', '2000 · Movie']] as const;
+const caption = (text: string) => text.split(' · ').map((part, index) => fact(`c${index}`, part, index ? 'context' : 'identity'));
+function ListedPoster({item: [id, name, line]}: {item: typeof listed[number]}) {
+  const art = useReferenceArtwork();
+  return <PosterCard visible model={{title: name, caption: caption(line), progress: id === 'the-last-of-us' ? .18 : undefined}} artwork={art(posterPath(id))} style={{width: '100%'}} context="grid" density="grid" onNavigate={none}/>;
+}
+const savedTabs = (value: string) => ({value, onValueChange: none, items: (['myList', 'favorites', 'playlists', 'collections', 'savedViews', 'history', 'downloads'] as const).map(name => ({value: name, label: f(name)}))});
+/** My List's Filters bar: the library's own toolbar (Filters, quick chips, the count, sort, grid or list). */
+function SavedToolbar() {
+  const phone = usePhone(), model = useMemo(() => browseToolbarModel(libraryCapabilities, 'movie', [], {field: 'added', direction: 'desc'}, libraryEnv), []);
+  return <BrowseToolbar model={model} labels={libraryLabels} platform={phone ? 'phone' : 'desktop'} resultCount={f('titles18Count')} topInset={0} onFilters={none} onQuickChange={none} onSortChange={none} view={{value: 'grid', onValueChange: none}}/>;
+}
+/** A bounded grid of cards in the page's flow, at the library grid's own column width and gaps (frameSpec.browse.grid). My List's
+ * grid is followed by its Music and audiobooks row, so it is not the self-scrolling `grid` region. */
+function CardGrid({children}: {children: ReactNode}) {
+  const form = frameForm(typeof window === 'undefined' ? 1440 : window.innerWidth), grid = frameSpec.browse.grid;
+  return <div className={page.cards} style={{'--grid-card': `${grid.card[form]}px`, columnGap: grid.columnGap[form], rowGap: grid.rowGap[form]} as CSSProperties}>{children}</div>;
 }
 function Saved() {
   const art = useReferenceArtwork(), phone = usePhone();
   const listening = [['book', 'project-hail-mary-unabridged', 'bHailMary', 'wWeir'], ['book', 'the-hobbit', 'bHobbit', 'wTolkien'], ['album', 'rumours', 'aRumours', 'rFleetwood'], ['album', 'random-access-memories', 'aRam', 'rDaftPunk']] as const;
-  return <Page current="saved"><BrowseFrame header={{title: f('saved')}}>
-    {!phone && <SavedTabs value="myList"/>}
-    <Shelf heading={f('myList')} subtitle={f('titles18Count')} onSeeAll={none} platform={platform(phone)} items={listed} getKey={item => item[0]}
-      renderItem={([id, name, caption]) => <PosterCard model={{title: name, caption: [fact('caption', caption, 'identity')], progress: id === 'the-last-of-us' ? .18 : undefined}} artwork={art(posterPath(id))} style={{width: 'var(--card-poster-width)'}} onNavigate={none}/>}/>
-    {phone ? <SectionCard>
-      <SettingsRow label={f('favorites')}><RowValue>{f('count24')}</RowValue></SettingsRow>
-      <SettingsRow label={f('playlists')}><RowValue>{f('count3')}</RowValue></SettingsRow>
-      <SettingsRow label={f('collections')}><RowValue>{f('count1')}</RowValue></SettingsRow>
-    </SectionCard> : <Shelf heading={f('musicAndBooks')} subtitle="4" platform={platform(phone)} items={listening} getKey={item => item[1]}
-      renderItem={([kind, id, name, by]) => <SquareCard variant={kind === 'book' ? 'audiobook' : 'music'} model={{title: f(name), caption: [fact('by', f(by), 'identity')]}} artwork={art(`pool/${kind === 'book' ? 'books' : 'albums'}/${id}.jpg`)} style={{width: 'var(--card-square-width, 174px)'}} onNavigate={none}/>}/>}
+  // At phone width Saved is a page of entries (phone-web 6, phone-app 9): My List's row, then the other lists, each opening its own page.
+  if (phone) return <Page current="saved"><BrowseFrame header={{title: f('saved')}}>
+    <Shelf heading={f('myList')} subtitle={f('titles12')} onSeeAll={none} platform="phone-web" items={listed.slice(0, 6)} getKey={item => item[0]}
+      renderItem={([id, name, line]) => <PosterCard model={{title: name, caption: caption(line)}} artwork={art(posterPath(id))} style={{width: 'var(--card-poster-width)'}} onNavigate={none}/>}/>
+    <div>
+      <DirectoryRows rows={[{id: 'downloads', label: f('downloads'), icon: 'i-dl', caption: f('webDownloadsLine'), onPress: none}]}/>
+      <DirectoryRows rows={([['favorites', 'i-heart', 'count24'], ['playlists', 'i-queue', 'count3'], ['collections', 'i-stack', 'count1'], ['savedViews', 'i-filter', 'count2'], ['history', 'i-clock', undefined]] as const)
+        .map(([id, icon, count]) => ({id, label: f(id), icon, count: count && f(count), onPress: none}))}/>
+    </div>
+  </BrowseFrame></Page>;
+  return <Page current="saved"><BrowseFrame header={{title: f('saved'), tabs: savedTabs('myList')}} toolbar={<SavedToolbar/>}>
+    <CardGrid>{listed.map(item => <ListedPoster key={item[0]} item={item}/>)}</CardGrid>
+    <Shelf heading={f('musicAndBooks')} subtitle="4" platform="desktop" items={listening} getKey={item => item[1]}
+      renderItem={([kind, id, name, by]) => <SquareCard variant={kind === 'book' ? 'audiobook' : 'music'} model={{title: f(name), caption: [fact('by', f(by), 'identity')]}} artwork={art(`pool/${kind === 'book' ? 'books' : 'albums'}/${id}.jpg`)} style={{width: 'var(--card-square-width)'}} onNavigate={none}/>}/>
   </BrowseFrame></Page>;
 }
-function Rules({label}: {label?: string}) {
-  const [wifi, setWifi] = useState(true), [remove, setRemove] = useState(true), [next, setNext] = useState(true);
-  return <>
-    <SectionCard label={label}>
-      <SettingsRow label={f('wifiOnly')} help={f('wifiOnlyHelp')}><Switch checked={wifi} onCheckedChange={setWifi} aria-label={f('wifiOnly')}/></SettingsRow>
-      <SettingsRow label={f('removeWatched')} help={f('removeWatchedHelp')}><Switch checked={remove} onCheckedChange={setRemove} aria-label={f('removeWatched')}/></SettingsRow>
-      <SettingsRow label={f('nextEpisode')} help={f('nextEpisodeHelp')}><Switch checked={next} onCheckedChange={setNext} aria-label={f('nextEpisode')}/></SettingsRow>
-      <SettingsRow label={f('storageLimit')} help={f('storageLimitHelp')}><RowValue>{f('limit25')}</RowValue></SettingsRow>
-    </SectionCard>
-  </>;
-}
+/** The web's Downloads tab: what the server has prepared for this browser to save (collections-34; collections-36 at phone
+ * width). A device's own downloads, with storage and Rules, are the apps' (tablet 11b, the native case). */
 function Downloads() {
   const art = useReferenceArtwork(), phone = usePhone(), more = {label: f('more'), onPress: none};
-  const card = (children: ReactNode) => <div style={{margin: '0 var(--card)', borderRadius: 'var(--frame-card-radius)', background: 'var(--color-raised)'}}>{children}</div>;
-  // tablet 11b: Rules is a pane beside the list from 600; at phone width it follows the list.
-  return <Page current="saved"><SplitFrame pane={phone ? undefined : {title: f('rules'), close: {label: f('close'), onPress: none}, children: <Rules/>}}>
-    <BrowseFrame header={{title: f(phone ? 'downloads' : 'saved'), back: phone ? {label: f('saved'), onPress: none} : undefined}}>
-      {!phone && <SavedTabs value="downloads"/>}
-      <StorageMeter used={f('storageDevice')} free={f('storageDeviceFree')} value={.08} other={.03}/>
-      <Section title={`${f('slowHorses')}  ·  ${f('twoEpisodes')}`}>{card(<>
-        <DownloadRow title={f('failuresContagious')} detail={f('failuresFacts')} artwork={art(posterPath('slow-horses'))} action={<Button variant="primary" icon="i-play" iconOnly aria-label={f('play')} onClick={none}/>} onPress={none}/>
-        <DownloadRow title={f('workDrinks')} detail={f('workDrinksFacts')} artwork={art(posterPath('slow-horses'))} status={{text: f('downloading')}} progress={.64} more={more} onPress={none}/>
-      </>)}</Section>
-      <Section title={f('movies')}>{card(<>
-        <DownloadRow title={f('spirited')} artwork={art('pool/movies/spirited-away.jpg')} status={{text: f('waitingWifi'), tone: 'warning'}} more={more} onPress={none}/>
-        <DownloadRow title={f('insideOut')} artwork={art('pool/movies/inside-out.jpg')} status={{text: f('stopped'), tone: 'error'}} retry={{label: f('tryAgain'), onPress: none}} more={more} onPress={none}/>
-      </>)}</Section>
-      {phone && <Rules label={f('rules')}/>}
-    </BrowseFrame>
-  </SplitFrame></Page>;
+  const save = <Button variant="primary" size="small" icon="i-dl" onClick={none}>{f('saveFile')}</Button>;
+  const stop = <Button size="small" onClick={none}>{f('stopPreparing')}</Button>;
+  return <Page current="saved"><BrowseFrame header={phone ? {title: f('downloads'), back: {label: f('saved'), onPress: none}} : {title: f('saved'), tabs: savedTabs('downloads')}}>
+    <Section title={f('prepared')} subtitle={f('preparedUsage')}>
+      {!phone && <div className={page.inset}><WaitingNotice icon="i-info">{f('browserNote')}</WaitingNotice></div>}
+      <div className={page.list}>
+        <DownloadRow title={f('duneTwo')} detail={f('duneTwoFacts')} artwork={art(posterPath('dune-part-two'))} status={{text: f('readyToSave'), tone: 'ready', note: f('keptUntil')}} action={save} more={more} onPress={none}/>
+        <DownloadRow title={f('spirited')} detail={f('spiritedFacts')} artwork={art(posterPath('spirited-away'))} status={{text: f('readyToSave'), tone: 'ready', note: f('keptUntil')}} action={save} more={more} onPress={none}/>
+        <DownloadRow title={f('failuresContagious')} detail={f('failuresWebFacts')} artwork={art(posterPath('slow-horses'))} status={{text: f('preparing64'), note: f('minutesLeft4')}} progress={.64}
+          action={<><Button size="small" icon="i-pause" onClick={none}>{f('pause')}</Button>{stop}</>} onPress={none}/>
+        <DownloadRow title={f('interstellar')} detail={f('interstellarFacts')} artwork={art(posterPath('interstellar'))} status={{text: f('waiting'), note: f('waitingFirst')}} action={stop} onPress={none}/>
+        <DownloadRow title={f('titanic')} detail={f('titanicFacts')} artwork={art(posterPath('blade-runner'))} status={{text: f('expired'), tone: 'warning', note: f('expiredHelp')}} retry={{label: f('tryAgain'), onPress: none}} more={more} onPress={none}/>
+      </div>
+    </Section>
+    <Section title={f('wholeShows')}><div className={page.list}>
+      <DownloadRow title={f('severanceSeason')} detail={f('severanceFacts')} artwork={art(posterPath('severance'))} status={{text: f('ready3of9')}} progress={.33} action={<><Button size="small" icon="i-pause" onClick={none}>{f('pause')}</Button><Button size="small" onClick={none}>{f('cancel')}</Button></>} onPress={none}/>
+      <DownloadRow title={f('silo')} detail={f('siloFacts')} artwork={art(posterPath('silo'))} status={{text: f('ready9of10'), note: f('couldNotPrepare')}} action={<Button size="small" onClick={none}>{f('cancel')}</Button>} onPress={none}/>
+    </div></Section>
+    <div className={page.inset}><Button size="small" onClick={none}>{f('showMore')}</Button></div>
+  </BrowseFrame></Page>;
 }
 
-// ---- Music and audiobooks (named uses of BrowseFrame) ----
-const albums = [['after-hours', 'aAfterHours', 'rWeeknd'], ['abbey-road-2019-mix', 'aAbbey', 'rBeatles'], ['1989-taylor-s-version-deluxe', 'a1989', 'rTaylor'], ['the-wall', 'aWall', 'rFloyd'], ['thriller', 'aThriller', 'rJackson'], ['damn', 'aDamn', 'rKendrick'], ['rumours', 'aRumours', 'rFleetwood']] as const;
+/** A library's header (frameRegions.browse `header.*`): the switcher in the title (centred at phone width), ⋯, the tabs the
+ * library's kind has (client-core `libraryTabs`), and Shuffle all for Music. */
+function useListenHeader(kind: 'music' | 'audiobook', tab: string) {
+  const phone = usePhone(), [library, setLibrary] = useState(kind === 'music' ? 'music' : 'audiobooks'), [current, setCurrent] = useState(tab);
+  const libraries = (['movies', 'tvShows', 'anime', 'music', 'audiobooks'] as const).map(id => ({id, name: id === 'music' ? f('music') : id === 'audiobooks' ? f('audiobooks') : framesText(id)}));
+  return {title: libraries.find(entry => entry.id === library)!.name, back: {label: f('libraries'), onPress: none},
+    switcher: <LibrarySwitcher libraries={libraries} value={library} onValueChange={setLibrary} compact={phone}/>,
+    menu: <LibraryMenu owner onSaveView={none} onMarkAll={none} onEditPins={none} onLibrarySettings={none} onScan={none}/>,
+    trailing: kind === 'music' && !phone ? <Button icon="i-shuffle" onClick={none}>{f('shuffleAll')}</Button> : undefined,
+    tabs: {value: current, onValueChange: setCurrent, items: libraryTabs(kind).map(item => ({value: item.id, label: defaultI18n.t(item.label)}))}};
+}
+const albums = [['after-hours', 'aAfterHours', 'rWeeknd'], ['damn', 'aDamn', 'rKendrick'], ['rumours', 'aRumours', 'rFleetwood'], ['abbey-road-2019-mix', 'aAbbey', 'rBeatles'],
+  ['hit-me-hard-and-soft', 'aHitMe', 'rBillie'], ['random-access-memories', 'aRam', 'rDaftPunk'], ['1989-taylor-s-version-deluxe', 'a1989', 'rTaylor'], ['thriller', 'aThriller', 'rJackson'], ['the-wall', 'aWall', 'rFloyd']] as const;
+const songs = [['sHardest', 'd331', 'after-hours', 'rWeeknd'], ['sAlone', 'd410', 'after-hours', 'rWeeknd'], ['sTooLate', 'd359', 'after-hours', 'rWeeknd'], ['sDreams', 'd414', 'rumours', 'rFleetwood']] as const;
 function Songs({count = 4}: {count?: number}) {
   const art = useReferenceArtwork();
-  const songs = [['sHardest', 'd331', 'after-hours', 'rWeeknd'], ['sAlone', 'd410', 'after-hours', 'rWeeknd'], ['sTooLate', 'd359', 'after-hours', 'rWeeknd'], ['sDreams', 'd414', 'rumours', 'rFleetwood']] as const;
-  return <div style={{padding: '0 var(--g)'}}>{songs.slice(0, count).map(([title, duration, path, by], index) => <SongRow key={title} context="search" onPlay={none}
+  return <div className={page.inset}>{songs.slice(0, count).map(([title, duration, path, by], index) => <SongRow key={title} context="search" onPlay={none}
     row={{id: title, playing: index === 0, artwork: <ArtBox kind="square" icon="i-music" source={art(`pool/albums/${path}.jpg`)}/>, duration: fact('duration', f(duration)), text: {id: title, title: f(title), caption: [fact('artist', f(by))], detail: []}}}/>)}</div>;
 }
-function Music({songs = false}: {songs?: boolean}) {
+/** Recently played: quick tiles two lines deep, four across from tablet width and two at phone width (final3-desktop-12, phone-app 15a). */
+function RecentlyPlayed() {
   const art = useReferenceArtwork(), phone = usePhone();
-  return <Page current="music"><BrowseFrame header={{title: f('music'), back: phone ? {label: f('scopeAll'), onPress: none} : undefined,
-    trailing: !phone && <><Button icon="i-shuffle" onClick={none}>{f('shuffleAll')}</Button><Button icon="i-more" iconOnly aria-label={f('more')} onClick={none}/></>}}>
-    <div style={{padding: '0 var(--g)'}}><Tabs value={songs ? 'songs' : 'discover'} onValueChange={none} items={[{value: 'discover', label: f('discover')}, {value: 'artists', label: f('artists')}, {value: 'albums', label: f('scopeAlbums')}, {value: 'songs', label: f('songs')}]}/></div>
-    {songs ? <Songs/> : <>
-      <Shelf heading={f('recentlyPlayed')} platform={platform(phone)} items={albums.slice(0, 6)} getKey={item => item[0]}
-        renderItem={([id, name, by]) => <QuickTile model={{title: f(name), caption: [fact('by', f(by), 'identity')]}} artwork={art(`pool/albums/${id}.jpg`)} playing={id === 'after-hours'} onPause={none} style={{width: phone ? 230 : 340}} onNavigate={none}/>}/>
-      <Shelf heading={f('newAlbums')} subtitle={f('lastSevenDays')} onSeeAll={none} platform={platform(phone)} items={albums} getKey={item => item[0]}
-        renderItem={([id, name, by]) => <SquareCard variant="music" model={{title: f(name), caption: [fact('by', f(by), 'identity')]}} artwork={art(`pool/albums/${id}.jpg`)} style={{width: 'var(--card-square-width, 174px)'}} onNavigate={none}/>}/>
-      <Shelf heading={f('artists')} onSeeAll={none} platform={platform(phone)} items={albums.slice(0, 6)} getKey={item => item[2]}
-        renderItem={([id, , by]) => <CircleCard model={{title: f(by), caption: [fact('albums', f('oneAlbum'))]}} covers={[art(`pool/albums/${id}.jpg`)]} style={{width: phone ? 104 : 168}} onNavigate={none}/>}/>
-      <Section title={f('playMost')}><Songs count={3}/></Section>
+  return <Section title={f('recentlyPlayed')}><div className={page.tiles}>{albums.slice(0, phone ? 4 : 8).map(([id, name, by]) =>
+    <QuickTile key={id} visible model={{title: f(name), caption: [fact('by', f(by), 'identity')]}} artwork={art(`pool/albums/${id}.jpg`)} playing={id === 'after-hours'} onPause={none} onNavigate={none}/>)}</div></Section>;
+}
+function Music({tab = 'discover'}: {tab?: 'discover' | 'songs'}) {
+  const art = useReferenceArtwork(), phone = usePhone(), header = useListenHeader('music', tab), shelf = platform(phone);
+  const artists = albums.slice(0, 8).map(([id, , by]) => ({id, by}));
+  const newAlbums = <Shelf key="albums" heading={f('newAlbums')} subtitle={f('lastSevenDays')} onSeeAll={none} platform={shelf} items={albums} getKey={item => item[0]}
+    renderItem={([id, name, by]) => <SquareCard variant="music" model={{title: f(name), caption: [fact('by', f(by), 'identity')]}} artwork={art(`pool/albums/${id}.jpg`)} style={{width: 'var(--card-square-width)'}} onNavigate={none}/>}/>;
+  const artistRow = <Shelf key="artists" heading={f('artists')} onSeeAll={none} platform={shelf} items={artists} getKey={item => item.by}
+    renderItem={({id, by}) => <CircleCard model={{title: f(by), caption: [fact('albums', f('oneAlbum'))]}} covers={[art(`pool/albums/${id}.jpg`)]} style={{width: 'var(--card-square-width)'}} onNavigate={none}/>}/>;
+  return <Page current="music"><BrowseFrame header={header}>
+    {tab === 'songs' ? <Songs/> : <>
+      <RecentlyPlayed/>
+      {phone ? [artistRow, newAlbums] : [newAlbums, artistRow]}
+      {!phone && <Section title={f('playMost')} subtitle={f('last30')}><Songs count={3}/></Section>}
     </>}
   </BrowseFrame></Page>;
 }
 function Audiobooks() {
-  const art = useReferenceArtwork(), phone = usePhone();
-  const going = [['the-hobbit', 'bHobbit', 'left432', .62], ['the-martian-unabridged', 'bMartian', 'left434', .58], ['project-hail-mary-unabridged', 'bHailMary', 'left142', .12]] as const;
-  const added = [['the-hunger-games-special-edition', 'bHunger', 'wCollins'], ['pride-and-prejudice', 'bPride', 'wAusten'], ['dune', 'bDune', 'wHerbert'], ['the-hobbit', 'bHobbit', 'wTolkien']] as const;
-  const authors = [['iWeir', 'wWeir', 'the-martian-unabridged'], ['iHerbert', 'wHerbert', 'dune'], ['iTolkien', 'wTolkien', 'the-hobbit']] as const;
-  const width = {width: 'var(--card-square-width, 174px)'};
-  return <Page current="audiobooks"><BrowseFrame header={{title: f('audiobooks'), back: phone ? {label: f('scopeAll'), onPress: none} : undefined}}>
-    <div style={{padding: '0 var(--g)'}}><Tabs value="discover" onValueChange={none} items={[{value: 'discover', label: f('discover')}, {value: 'books', label: f('books')}, {value: 'authors', label: f('authors')}]}/></div>
-    <Shelf heading={f('continueListening')} platform={platform(phone)} items={going} getKey={item => item[0]}
-      renderItem={([id, name, left, progress]) => <SquareCard variant="audiobook" model={{title: f(name), caption: [fact('left', f(left))], progress}} artwork={art(`pool/books/${id}.jpg`)} style={width} onNavigate={none}/>}/>
-    <Shelf heading={f('recentlyAdded')} subtitle={f('books8')} onSeeAll={none} platform={platform(phone)} items={added} getKey={item => item[0]}
-      renderItem={([id, name, by]) => <SquareCard variant="audiobook" model={{title: f(name), caption: [fact('by', f(by), 'identity')]}} artwork={art(`pool/books/${id}.jpg`)} style={width} onNavigate={none}/>}/>
-    <Shelf heading={f('authors')} onSeeAll={none} platform={platform(phone)} items={authors} getKey={item => item[0]}
-      renderItem={([initials, name, id]) => <CircleCard variant="person" initials={f(initials)} model={{title: f(name), caption: []}} covers={[art(`pool/books/${id}.jpg`)]} style={{width: phone ? 104 : 168}} onNavigate={none}/>}/>
+  const art = useReferenceArtwork(), phone = usePhone(), shelf = platform(phone), header = useListenHeader('audiobook', 'discover');
+  const going = [['the-martian-unabridged', 'bMartian', 'wWeir', 'chapter15', 'left434', .58], ['harry-potter-and-the-philosopher-s-stone', 'bPotter', 'wRowling', 'chapter6', 'left533', .32], ['the-hobbit', 'bHobbit', 'wTolkien', 'chapter6', 'left432', .62]] as const;
+  const added = [['the-martian-unabridged', 'bMartian', 'wWeir'], ['the-hunger-games-special-edition', 'bHunger', 'wCollins'], ['the-hobbit', 'bHobbit', 'wTolkien'], ['project-hail-mary-unabridged', 'bHailMary', 'wWeir'],
+    ['pride-and-prejudice', 'bPride', 'wAusten'], ['harry-potter-and-the-philosopher-s-stone', 'bPotter', 'wRowling'], ['dune', 'bDune', 'wHerbert']] as const;
+  const authors = [['iWeir', 'wWeir', 'twoBooks'], ['iHerbert', 'wHerbert', 'oneBook'], ['iRowling', 'wRowling', 'oneBook'], ['iTolkien', 'wTolkien', 'oneBook']] as const;
+  const square = {width: 'var(--card-square-width)'};
+  return <Page current="audiobooks"><BrowseFrame header={header}>
+    {/* Continue listening: the wide resume card from tablet width (desktop-listen books), square covers with time left on a phone (phone-app 15c). */}
+    <Shelf heading={f('continueListening')} platform={shelf} items={phone ? going : going.slice(0, 2)} getKey={item => item[0]}
+      renderItem={([id, name, by, chapter, left, progress]) => phone
+        ? <SquareCard variant="audiobook" model={{title: f(name), caption: [fact('left', f(left))], progress}} artwork={art(`pool/books/${id}.jpg`)} style={square} onNavigate={none}/>
+        : <ResumeCard model={{title: f(name), caption: [fact('by', f(by), 'identity')], progress}} location={fact('chapter', f(chapter))} remaining={fact('left', f(left))} artwork={art(`pool/books/${id}.jpg`)} onNavigate={none}/>}/>
+    <Shelf heading={f('recentlyAdded')} subtitle={f('books8')} onSeeAll={none} platform={shelf} items={added} getKey={item => item[0]}
+      renderItem={([id, name, by]) => <SquareCard variant="audiobook" model={{title: f(name), caption: [fact('by', f(by), 'identity')]}} artwork={art(`pool/books/${id}.jpg`)} style={square} onNavigate={none}/>}/>
+    <Shelf heading={f('authors')} onSeeAll={none} platform={shelf} items={authors} getKey={item => item[0]}
+      renderItem={([initials, name, books]) => <CircleCard variant="person" initials={f(initials)} covers={[]} model={{title: f(name), caption: [fact('books', f(books))]}} style={square} onNavigate={none}/>}/>
   </BrowseFrame></Page>;
 }
 
@@ -383,6 +420,6 @@ export default defineGalleryFamily({id: 'frames-newframes', labelKey: 'next.plat
   section('live-guide', 'liveGuide', () => <LiveGuide/>, 1400), section('live-details', 'liveDetails', () => <LiveGuide details/>), section('live-list', 'liveList', LiveList),
   section('live-upcoming', 'liveUpcoming', LiveUpcoming, 1300), section('live-recorded', 'liveRecorded', LiveRecorded), section('live-rules', 'liveRules', LiveRules),
   section('saved', 'saved', Saved), section('downloads', 'downloads', Downloads),
-  section('music', 'music', () => <Music/>, 1300), section('music-songs', 'musicSongs', () => <Music songs/>), section('audiobooks', 'audiobooks', Audiobooks, 1200),
+  section('music', 'music', () => <Music/>, 1300), section('music-songs', 'musicSongs', () => <Music tab="songs"/>), section('audiobooks', 'audiobooks', Audiobooks, 1200),
   section('reader', 'reader', () => <Reader/>), section('reader-contents', 'readerContents', () => <Reader panel="contents"/>), section('reader-display', 'readerDisplay', () => <Reader panel="display"/>),
 ]});

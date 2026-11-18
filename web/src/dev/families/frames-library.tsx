@@ -29,10 +29,10 @@ const watched = new Set(['alien', 'blade-runner']), progress: Readonly<Record<st
 /** The grid's own lists are constants: a new list each render would be a new collection each render. */
 const animated = posters.filter(poster => ['how-to-train-your-dragon', 'incredibles-2', 'inside-out', 'moana', 'monsters-inc', 'interstellar'].includes(poster.id)), recent = posters.slice(20);
 const count = (n: number) => t('lib.count', {count: n, pivot: 'movies'});
-const capabilities = libraryFramesCapabilities as unknown as BrowseCapabilities;
+export const capabilities = libraryFramesCapabilities as unknown as BrowseCapabilities;
 const name = (value: {id: string; labelKey: string}) => {const key = browseNameId(value.id, value.labelKey, defaultI18n.has); return key && defaultI18n.has(key) ? t(key) : value.labelKey;};
-const labels: BrowseLabels = {field: name, sort: name, quick: quick => defaultI18n.has(quick.labelKey) ? t(quick.labelKey as MessageId) : quick.labelKey};
-const env = {t, locale: 'en-US', owner: true};
+export const labels: BrowseLabels = {field: name, sort: name, quick: quick => defaultI18n.has(quick.labelKey) ? t(quick.labelKey as MessageId) : quick.labelKey};
+export const env = {t, locale: 'en-US', owner: true};
 const libraries = (['movies', 'tvShows', 'anime', 'music', 'audiobooks'] as const).map(id => ({id, name: f(id)}));
 
 /** The library's header regions: the switcher in the title (centred at phone width), ⋯, Select and the tabs. */

@@ -5,8 +5,9 @@ import type {ShellArtwork} from '../../shell/artwork';
 import {savedCatalogueEntry} from './catalogue-selection';
 import {savedReaderRoute} from './runtime.ts';
 import {sameSavedRoute} from './route';
-import {Icon} from '../../kit/Icon';
+import {Icon, type IconName} from '../../kit/Icon';
 import {PosterCard} from '../../kit/cards';
+import {DirectoryRows} from '../../kit/saved';
 import {savedCardModel} from '../home/model';
 import {shapeFor} from '@core/presentation/card-shape.ts';
 import type {ContentEntry} from '@core/library-content.ts';
@@ -48,7 +49,7 @@ export function SavedPhoneDirectory({runtime, downloadsOffered, artwork, select,
     return bounded;
   })();
   const count = (shapes: Readonly<{posters: number; squares: number}> | undefined) => shapes === undefined ? undefined : shapes.posters + shapes.squares;
-  const rows: readonly Readonly<{id: string; label: string; count?: number; icon: Parameters<typeof Icon>[0]['name']; route: SavedScreenRoute}>[] = [
+  const rows: readonly Readonly<{id: string; label: string; count?: number; icon: IconName; route: SavedScreenRoute}>[] = [
     {id: 'watchlist', label: t('saved.tab.watchlist'), count: count(value?.myList), icon: 'i-bookmark', route: {view: 'watchlist'}},
     {id: 'favorites', label: t('saved.tab.favorites'), count: count(value?.favorites), icon: 'i-heart', route: {view: 'favorites'}},
     {id: 'playlists', label: t('saved.tab.playlists'), count: value?.playlists, icon: 'i-queue', route: {view: 'playlists'}},
@@ -68,27 +69,11 @@ export function SavedPhoneDirectory({runtime, downloadsOffered, artwork, select,
       <div className={styles.phonePreviewRail}>{preview.map(media => <PosterCard key={media.id} model={savedCardModel(media, {t, locale: defaultI18n.region.formatLocale})}
         artwork={artwork.foreground(media.posterUrl, 118 * (globalThis.devicePixelRatio || 1), 2 / 3)} context="shelf" onNavigate={() => openEntry(media)} />)}</div>
     </div>}
-    <div className={directory.rows} role="list">
-      {rowsShown.map(row => <div key={row.id} role="listitem">
-        <button type="button" className={directory.row} onClick={() => select(row.route)}>
-          <span className={directory.icon}><Icon name={row.icon} size={18} /></span>
-          <span className={directory.label}>{row.label}</span>
-          {row.count !== undefined && <span className={directory.count}>{defaultI18n.number(row.count)}</span>}
-          <Icon name="i-right" size={18} className={directory.chevron} />
-        </button>
-      </div>)}
-    </div>
+    <DirectoryRows rows={rowsShown.map(row => ({id: row.id, label: row.label, icon: row.icon, count: row.count === undefined ? undefined : defaultI18n.number(row.count), onPress: () => select(row.route)}))} />
     {pins && <>
       <div className={directory.sectionHead}><h2>{t('pins.heading')}</h2><button type="button" className={directory.edit} onClick={pins.edit}>{t('pins.edit')}</button></div>
-      {pins.list.length > 0 && <div className={directory.rows} role="list" aria-label={t('pins.heading')}>
-        {pins.list.map(pin => <div key={JSON.stringify([pin.kind, pin.id])} role="listitem">
-          <button type="button" className={directory.row} onClick={() => select(pin.kind === 'playlist' ? {view: 'playlist', playlistId: pin.id} : {view: 'resource', resourceId: pin.id})}>
-            <span className={directory.icon}><Icon name={pin.kind === 'playlist' ? 'i-queue' : pin.kind === 'collection' ? 'i-stack' : 'i-filter'} size={18} /></span>
-            <span className={directory.label}>{pin.name}<small className={directory.caption}>{pin.kind === 'view' ? t('title.savedView') : t('title.kind', {kind: pin.kind})}</small></span>
-            <Icon name="i-right" size={18} className={directory.chevron} />
-          </button>
-        </div>)}
-      </div>}
+      {pins.list.length > 0 && <DirectoryRows label={t('pins.heading')} rows={pins.list.map(pin => ({id: JSON.stringify([pin.kind, pin.id]), label: pin.name, icon: pin.kind === 'playlist' ? 'i-queue' : pin.kind === 'collection' ? 'i-stack' : 'i-filter',
+        caption: pin.kind === 'view' ? t('title.savedView') : t('title.kind', {kind: pin.kind}), onPress: () => select(pin.kind === 'playlist' ? {view: 'playlist', playlistId: pin.id} : {view: 'resource', resourceId: pin.id})}))} />}
     </>}
   </div>;
 }
