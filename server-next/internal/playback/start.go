@@ -71,20 +71,26 @@ type Prepared struct {
 }
 
 // Prepare plans a title for the device asking and starts its stream under the id its session
-// will have. from, when it names the caller's running session, hands its quality on. The
-// caller must give the result to Start, or to Drop.
+// will have. from names the caller's session that is playing now, which hands its quality on.
+// There must be one: a prepared stream is counted by no stream limit, so it is only ever the
+// next thing on a device whose stream is counted already. The caller must give the result to
+// Start, or to Drop.
 func (s *Service) Prepare(ctx context.Context, c Caller, itemID, from string) (*Prepared, error) {
 	device, err := s.db.SessionDevice(ctx, c.SignInID)
 	if err != nil {
 		return nil, err
 	}
-	ask := Ask{prepareAudio: true}
-	if sess, err := s.owned(from, c.Viewer, c.SignInID); err == nil {
-		running := s.snapshot(sess)
-		quality := running.Choice.Quality
-		ask.Quality, ask.Network = &quality, running.Network
-		c.AtHome = running.Network == NetworkLocal
+	sess, err := s.owned(from, c.Viewer, c.SignInID)
+	if err != nil {
+		return nil, err
 	}
+	running := s.snapshot(sess)
+	if running.State == StateEnded {
+		return nil, db.ErrNotFound
+	}
+	quality := running.Choice.Quality
+	ask := Ask{prepareAudio: true, Quality: &quality, Network: running.Network}
+	c.AtHome = running.Network == NetworkLocal
 	r, err := s.resolve(ctx, c, device, itemID, ask, nil, "", true)
 	if err != nil {
 		return nil, err
