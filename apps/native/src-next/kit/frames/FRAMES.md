@@ -256,14 +256,17 @@ Each is fixed once in the kit; every TV screen inherits it.
   (`focusKind="row"`: settings rows, player panel rows, queue and chapter rows, the Settings nav, server rows) sits in a
   card or column that clips, so it draws the same ring inside its own edges, over a raised fill, and does not grow. Nothing
   draws an edge line or its own focus fill. A TV side sheet's and the Settings list's scroll boxes leave a free-standing
-  ring its room.
+  ring its room: the ring plus the focused row's growth (a 488 column at 1.05 needs 20 each side), and nothing that sits
+  in a side sheet adds a scroll box of its own (the sort picker's rows go straight into the sheet).
 - **Current is not focus (R1).** The open page (the rail's accent bar left of the icon, on every page; Settings nav's accent
   band), the chosen option (an accent tick before the label in a TV panel list; the tick in a menu row) and an active
   control (accent glyph) stay drawn when focus is elsewhere. Focus is only the ring.
 - **Start focus (R1).** Every frame takes `startFocus`: the `focusId` or `testID` of the control the page starts on. The
   frame wraps its content in `StartFocusScope` (`kit/focus`), and that control asks for focus through the
   same preferred ask every kit control has (`useFocusTarget`), which now asks again on the next frames until focus lands
-  or anything else takes it (Android TV drops an ask made before the view can take focus). The rail is outside every
+  (Android TV drops an ask made before the view can take focus). Android TV also focuses a page's first focusable view by
+  itself (a library's Discover tab above its start poster), so one arrival elsewhere is passed over; a second (the person
+  moved, a newer ask) ends the asking, so it never pulls focus back. The rail is outside every
   frame, so a page never starts in it. Defaults: `TitleFrame` starts on its primary (Play or Resume, a focus stop even
   while loading); `PageStateFrame` on its primary action; a `Menu` on its first enabled row. Where a page starts:
   Home, the first Continue Watching card; a list, its first card; a title, Play or Resume; Settings, the current page in
@@ -280,7 +283,15 @@ Each is fixed once in the kit; every TV screen inherits it.
 - **Key hints (R11).** `KeyHints` takes one or more key caps per hint and wraps before it cuts. Hint regions: the Home
   hero (in the actions' place: OK Resume, Hold OK More options), `SettingsListFrame`'s `hints` under the list,
   `SheetFrame`'s `hints` in place of its footer on TV (OK Choose, Back Close), `PlayerPanel`'s foot (Back Close, always
-  on TV), every TV side sheet (Back Close), and `PlayerChromeFrame`'s `hints` while scrubbing.
+  on TV), every TV side sheet (Back Close), and `PlayerChromeFrame`'s `hints` while scrubbing. Sizes are
+  `keyHintsSpec` (packages/design): a 36-high cap with the key in `badge`, then the action in `captionStrong` at the
+  tertiary text colour, quieter than the cap (tv.html `.key-cap`, `.hint`).
+- **Name tags (player-tv 1, 12).** In the TV video player a focused transport disc names itself in a dark tag above it
+  ("Pause"; "Previous  When You're Lost in the Darkness" with `PlayerControl`'s `detail`). `PlayerChromeFrame` turns it on
+  for its TV transport (`PlayerNameTags`); the audio player and the music card draw none (tv 7, player-tv 10).
+- **List edges.** A list that runs past its side sheet or player panel fades into it at that edge (player-tv 4, tv-focus
+  36), never cut flat against the foot (`useListEdges` / `ListEdgeFade`). On Android the platform draws that edge
+  (`fadingEdgeLength`), which also keeps a newly focused row clear of it.
 - **Page inset (S6).** A settings page drawn on its own on a tablet or TV is a pushed page: Back, the large title and its
   sections at the page's gutter (x = 200 beside the rail on TV), held to the page's column; beside its list it starts at
   the column.
