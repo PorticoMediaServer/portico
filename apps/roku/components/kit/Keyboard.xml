@@ -4,6 +4,8 @@
 <component name="Keyboard" extends="Group">
   <interface>
     <field id="text" type="string" alwaysNotify="true"/>
+    <!-- A key name (Lit_a, backspace) a page passes on while focus is not on the keyboard. -->
+    <field id="typed" type="string" alwaysNotify="true" onChange="onTyped"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
   </interface>
   <script type="text/brightscript" uri="Keyboard.brs"/>
