@@ -243,7 +243,10 @@ func (s *Streams) Start(ctx context.Context, r StartRequest) (Stream, error) {
 	var open inputOpener
 	if len(r.Parts) > 1 {
 		first := r.Parts[0]
-		source, open = libraryFile{path: first.Path, size: first.Size, modified: first.Modified, roots: s.libraries}, joinedInput(r.Parts, s.libraries)
+		source, open = libraryFile{path: first.Path, size: first.Size, modified: first.Modified, roots: s.libraries}, joinedInput(r.Parts, s.libraries, s.hls)
+		if first.Remote != nil {
+			source = remoteFile{storage: first.Remote, path: first.Path, size: first.Size, modified: first.Modified}
+		}
 	}
 	// A file that cannot be opened is refused now, in plain words, not as a
 	// failed conversion a moment later.

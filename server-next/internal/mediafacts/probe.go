@@ -127,7 +127,11 @@ func (p Probe) InspectRemote(ctx context.Context, address string) (Facts, error)
 	if strings.HasSuffix(address, ".m3u8") {
 		protocols, formats = mediaexec.HLSInputProtocols, mediaexec.HLSInputFormats
 	}
-	return p.inspect(ctx, address, []string{"-protocol_whitelist", protocols, "-format_whitelist", formats, "-probesize", "8388608", "-analyzeduration", "5000000"})
+	options := []string{"-protocol_whitelist", protocols, "-format_whitelist", formats, "-probesize", "8388608", "-analyzeduration", "5000000"}
+	if p.CodecSetup {
+		options = append(options, "-show_data_hash", "sha256")
+	}
+	return p.inspect(ctx, address, options)
 }
 
 func (p Probe) InspectRemoteMP4(ctx context.Context, path string) (Facts, error) {

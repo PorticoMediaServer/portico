@@ -85,9 +85,11 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 	defer func() { input.Close() }()
 	ctx, releaseInput := input.BorrowContext(ctx)
 	defer releaseInput()
-	if remoteInput != nil {
-		defer remoteInput.Close()
-	}
+	defer func() {
+		if remoteInput != nil {
+			remoteInput.Close()
+		}
+	}()
 	path := input.Argument
 	if delivery != nil {
 		if e = h.loadTextRenditions(ctx, id, delivery); e != nil {
@@ -157,7 +159,10 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		position = timeline.Boundaries[from]
 		if input.Positioned && delivery != nil && delivery.VideoAction != "none" {
 			input.Close()
-			input, e = h.joinedVideoInput(ctx, id, delivery, position, timeline)
+			if remoteInput != nil {
+				remoteInput.Close()
+			}
+			input, remoteInput, e = h.joinedVideoInput(ctx, id, delivery, position, timeline)
 			if e != nil {
 				h.failedWith(ctx, id, FailureSourceUnreadable, "")
 				return
@@ -461,7 +466,11 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 					}
 					releaseRemote = release
 				}
-				return subtitles.WindowCommand{Args: args, Hardware: conversionJobHardware(plan, stages), Stderr: said,
+				var stdout io.Writer
+				if bookCold {
+					stdout = &limitedWriter{buffer: &bookOutput, limit: 4096}
+				}
+				return subtitles.WindowCommand{Args: args, Hardware: conversionJobHardware(plan, stages), Stderr: said, Stdout: stdout,
 					Started: func() {
 						started(conversionKind(plan, args, stages))
 						h.recordConversionStart(ctx, id, plan, args, stages, fallbackLaunch)
@@ -775,7 +784,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 	}
 	h.mu.Unlock()
 	if bookCopy && produced >= from && produced+1 < timeline.count() && (e == nil || throttled()) {
-		h.warmBookCopy(ctx, id, produced+1, delivery, owned)
+		h.warmBookCopy(ctx, id, produced+1, delivery, owned, dir)
 	}
 	if (cutShort || emptyRun) && !throttled() && ctx.Err() == nil {
 		if h.died(id, from, owned) {

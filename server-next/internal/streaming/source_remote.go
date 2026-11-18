@@ -168,7 +168,7 @@ func (f remoteFile) openBridge(ctx context.Context, ffmpeg, ffprobe string, proc
 	// The remote server chooses the bytes. Held to single-file formats, they cannot be a
 	// playlist that sends the converter to another address.
 	options := []string{"-format_whitelist", mediaexec.LocalInputFormats}
-	window := &bridgeWindow{bridge: bridge, reader: reader, ffmpeg: ffmpeg, ffprobe: ffprobe, processes: processes, libraries: libraries}
+	window := &bridgeWindow{bridge: bridge, readers: []*sequentialReaderAt{reader}, ffmpeg: ffmpeg, ffprobe: ffprobe, processes: processes, libraries: libraries}
 	return &PlaybackInput{ReleaseSource: reader.Close, Options: options}, window, nil
 }
 
@@ -238,7 +238,7 @@ func (r *sequentialReaderAt) Close() error {
 // the session's folder. Each run reserves the bridge's port until the tool has really exited.
 type bridgeWindow struct {
 	bridge          *inputbridge.Bridge
-	reader          *sequentialReaderAt
+	readers         []*sequentialReaderAt
 	ffmpeg, ffprobe string
 	processes       *processpool.Supervisor
 	libraries       []string
@@ -265,13 +265,20 @@ func (w *bridgeWindow) Run(ctx context.Context, dir string, build func(string) (
 	if spec.Started != nil {
 		ctx = childprocess.WithStarted(ctx, spec.Started)
 	}
-	return decoder.RunHLSWindow(ctx, w.processes, token(), w.ffmpeg, w.bridge.URL(), dir, reservation, spec.Args, spec.Hardware, spec.Stderr, w.libraries...)
+	return decoder.RunHLSWindow(ctx, w.processes, token(), w.ffmpeg, w.bridge.URL(), dir, reservation, spec.Args, spec.Hardware, spec.Stdout, spec.Stderr, w.libraries...)
 }
 
 func (w *bridgeWindow) Close() error { return w.bridge.Close() }
 
-// lostSource says the converter's last read of the remote file failed.
-func (w *bridgeWindow) lostSource() bool { return w.reader != nil && w.reader.lostSource() }
+// lostSource says the converter's last read of a remote file failed.
+func (w *bridgeWindow) lostSource() bool {
+	for _, reader := range w.readers {
+		if reader.lostSource() {
+			return true
+		}
+	}
+	return false
+}
 
 // sourceLost says a run's remote input ended in a failure: its converter exiting cleanly
 // then is not the end of the title. A local file's end is the file's.

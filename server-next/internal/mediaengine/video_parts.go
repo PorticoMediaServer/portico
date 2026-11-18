@@ -8,6 +8,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
+	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
 )
 
@@ -16,15 +17,20 @@ func (e *Engine) videoParts(ctx context.Context, r playback.PlanRequest, remoteI
 	if (r.Item.Kind != db.KindMovie && r.Item.Kind != db.KindEpisode) || len(r.Version.Parts) < 2 {
 		return nil, nil
 	}
+	// A version on remote storage is joined the same way, each part read through its source.
+	var storage remote.Storage
 	if remoteID != 0 {
-		return nil, nil
+		var err error
+		if storage, _, err = e.remote(ctx, remoteID); err != nil {
+			return nil, nil
+		}
 	}
 	parts := make([]streaming.JoinedPart, 0, len(r.Version.Parts))
 	for _, part := range r.Version.Parts {
 		version := r.Version
 		version.FileID = part.FileID
 		path, place, partRemoteID, facts, err := e.source(ctx, version)
-		if err != nil || partRemoteID != 0 {
+		if err != nil || partRemoteID != remoteID {
 			return nil, nil
 		}
 		length := place.DurationMS
@@ -51,10 +57,11 @@ func (e *Engine) videoParts(ctx context.Context, r playback.PlanRequest, remoteI
 				fmt.Fprintln(&shape, s.ColorTransfer, s.ColorPrimaries, s.Detail.DynamicRange, s.Detail.SampleRate, s.Channels, s.ChannelLayout)
 			}
 		}
-		parts = append(parts, streaming.JoinedPart{Path: path, Size: place.Size, Modified: time.Unix(0, place.ModifiedNS), DurationUS: length * 1000, Shape: shape.String()})
+		parts = append(parts, streaming.JoinedPart{Path: path, Size: place.Size, Modified: time.Unix(0, place.ModifiedNS), DurationUS: length * 1000, Shape: shape.String(),
+			Remote: storage})
 	}
-	// The mixed-part filter joins sound only. Until video conversion and remote
-	// joining support these parts, preserve the existing first-file playback.
+	// The mixed-part filter joins sound only. Until video conversion supports
+	// these parts, preserve the existing first-file playback.
 	if streaming.PartsDiffer(parts) {
 		return nil, nil
 	}

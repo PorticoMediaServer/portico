@@ -12,6 +12,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/childprocess"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
+	"github.com/PorticoMediaServer/portico/server-next/internal/subtitles"
 	"github.com/PorticoMediaServer/portico/server-next/internal/supervise"
 )
 
@@ -79,32 +80,42 @@ func bookCopyPhase(data []byte, fragmented bool) (int64, error) {
 	return 0, errCopyTimeline
 }
 
-func (h *HLS) readBookCopyPhase(ctx context.Context, id string, from int, plan *DeliveryPlan) (int64, error) {
+// readBookCopyPhase reads the next batch's first copied packet. dir is the stream's folder, the
+// one place a run on the decoder's isolated bridge (a book on remote storage) may write.
+func (h *HLS) readBookCopyPhase(ctx context.Context, id string, from int, plan *DeliveryPlan, dir string) (int64, error) {
 	input, remote, err := h.openWindowInput(ctx, id, plan, float64(from)*HLSSegmentSeconds)
 	if err != nil {
 		return 0, err
 	}
 	defer input.Close()
+	args := func(protocols, source string) []string {
+		args := []string{"-nostdin", "-v", "error", "-protocol_whitelist", protocols}
+		args = append(args, input.Options...)
+		args = append(args, "-i", source)
+		return append(args, bookCopyObservationArgs(input, plan)...)
+	}
+	var out bytes.Buffer
 	if remote != nil {
-		remote.Close()
-		return 0, errCopyTimeline
+		defer remote.Close()
+		err := remote.Run(ctx, dir, func(url string) (subtitles.WindowCommand, error) {
+			return subtitles.WindowCommand{Args: args("http,tcp", url), Stdout: &limitedWriter{buffer: &out, limit: 4096}}, nil
+		})
+		if err != nil {
+			return 0, err
+		}
+		return bookCopyPhase(out.Bytes(), plan.OutputContainer == "fmp4_hls")
 	}
 	ctx, release := input.BorrowContext(ctx)
 	defer release()
-	args := []string{"-nostdin", "-v", "error", "-protocol_whitelist", "file,pipe"}
-	args = append(args, input.Options...)
-	args = append(args, "-i", input.Argument)
-	args = append(args, bookCopyObservationArgs(input, plan)...)
 	for _, f := range input.ExtraFiles() {
 		_, _ = f.Seek(0, io.SeekStart)
 	}
-	cmd, err := mediaexec.CommandContext(ctx, mediaexec.Job{Executable: h.binary, Args: args,
+	cmd, err := mediaexec.CommandContext(ctx, mediaexec.Job{Executable: h.binary, Args: args("file,pipe", input.Argument),
 		Files: input.ExtraFiles(), InputFD: input.MountFD, InputMount: input.MountPath, ReadPaths: input.ReadPaths()})
 	if err != nil {
 		return 0, err
 	}
 	cmd.WaitDelay = time.Second
-	var out bytes.Buffer
 	cmd.Stdout = &limitedWriter{buffer: &out, limit: 4096}
 	if err := childprocess.Run(ctx, cmd); err != nil {
 		return 0, err
@@ -142,7 +153,7 @@ func (h *HLS) takeBookCopyAhead(ctx context.Context, id string, from int) (int64
 	return ahead.phase, ahead.err != nil, nil
 }
 
-func (h *HLS) warmBookCopy(parent context.Context, id string, from int, plan *DeliveryPlan, owned *hlsWindow) {
+func (h *HLS) warmBookCopy(parent context.Context, id string, from int, plan *DeliveryPlan, owned *hlsWindow, dir string) {
 	h.mu.Lock()
 	s := h.streams[id]
 	if s == nil || s.state != streamLive || h.windows[id] != owned || owned.retired || parent.Err() != nil || h.ctx.Err() != nil {
@@ -174,6 +185,6 @@ func (h *HLS) warmBookCopy(parent context.Context, id string, from int, plan *De
 				return
 			}
 		}
-		ahead.phase, ahead.err = h.readBookCopyPhase(ctx, id, from, plan)
+		ahead.phase, ahead.err = h.readBookCopyPhase(ctx, id, from, plan, dir)
 	})
 }
