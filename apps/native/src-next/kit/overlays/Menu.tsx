@@ -121,7 +121,7 @@ export function Menu({items, open, onOpenChange, title, description, footer, ini
   const grouped = !touchContext && (actualPresentation === 'sheet' || (actualPresentation === 'sideSheet' && !theme.isTV));
   if (actualPresentation === 'anchored' && !anchorRef) {if (open) throw new Error('An anchored menu requires an anchor ref.'); return null;}
   const rows = items.map((entry, index) => {
-    if ('section' in entry) return <Text key={entry.id} style={[compactTouch ? nativeType({size: 13.5, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale) : theme.type.captionStrong, {color: entry.tone === 'owner' ? theme.colors.accentStrong : theme.colors.textTertiary, marginHorizontal: theme.isTV ? 0 : compactTouch && entry.tone === 'owner' ? 14 : 20, marginTop: compactTouch ? 10 : 16, marginBottom: compactTouch ? 2 : 8}]}>{entry.label}</Text>;
+    if ('section' in entry) return <Text key={entry.id} style={[compactTouch ? nativeType({size: 13.5, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale) : theme.type.captionStrong, {color: theme.colors.textTertiary, marginHorizontal: theme.isTV ? 0 : compactTouch && entry.tone === 'owner' ? 14 : 20, marginTop: compactTouch ? 10 : 16, marginBottom: compactTouch ? 2 : 8}]}>{entry.label}</Text>;
     if ('separator' in entry) return <View key={entry.id} style={grouped ? {height: 12} : {height: 1.5, backgroundColor: alpha(theme.colors.line, 0.9), marginHorizontal: tvFlyout ? 12 : 4, marginVertical: tvFlyout ? 8 : 6}}/>;
     const previousAction = items.slice(0, index).some(value => !('section' in value) && !('separator' in value) && !value.disabled);
     const initial = entry.id === initialFocusId || (!initialFocusId && !entry.disabled && !previousAction);
