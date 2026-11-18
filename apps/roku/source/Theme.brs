@@ -78,6 +78,10 @@ function frames() as object
             dropLine: 6, footY: 960, hintsY: 1000}
         ' The red-verb dialog: a panel `width` wide from `x`, its words and buttons `pad` inside it.
         dialog: {x: 510, width: 900, pad: 52}
+        ' File info (tv-detail frame 8): the panel from `x`, its words `pad` inside it; the eyebrow on
+        ' `top`, the name above the meta line on `metaY`, the table from `tableY` with rows
+        ' `rowPitch` apart and its columns at `columns` from the words' left; Done on `doneY`.
+        fileInfo: {x: 1020, pad: 56, top: 64, metaY: 176, tableY: 240, rowPitch: 58, columns: [0, 170, 300, 450, 610, 710], doneY: 952}
         ' A library (tv.html frame 4): the toolbar under the page title, the chosen filters' chips and the count on one line under it, then the grid's first cards; its Discover tab, Home's hero and rows, sits `discoverDrop` lower than Home so the hero's words stay under the tabs.
         grid: {toolsY: 144, chipsY: 220, countY: 236, cardsY: 318, discoverDrop: 48}
         ' A person or a collection (tv-detail frames 9 and 10, tv-detail.html .pcopy and .tvc): the

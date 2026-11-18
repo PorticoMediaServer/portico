@@ -27,5 +27,6 @@
     <Group id="stripStop" focusable="true"/>
     <Hero id="hero" mode="title"/>
     <TitleSections id="sections"/>
+    <FileInfo id="fileInfo"/>
   </children>
 </component>

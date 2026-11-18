@@ -135,6 +135,25 @@ function cardMenuChosen(which as string) as boolean
     return true
 end function
 
+' A film's or an episode's last group (tv-detail frame 7, rows from fileMenuRows): Play a different
+' version, a version chosen (it plays once, the next Play is automatic again), and File info (the
+' page's FileInfo panel, m.fileInfo). Returns false for a row that is not one of these.
+function fileMenuChosen(item as dynamic, which as string) as boolean
+    if item = invalid then return false
+    if which = "versions"
+        m.top.menu = versionsMenu(item)
+    else if left(which, 8) = "version:"
+        item.versionId = mid(which, 9)
+        m.top.open = {item: item, play: true, startOver: false}
+        item.delete("versionId")
+    else if which = "fileinfo"
+        m.fileInfo.item = item
+    else
+        return false
+    end if
+    return true
+end function
+
 sub onCardMenuSaved(event as object)
     result = event.getData()
     if not result.ok or m.cardItem = invalid or m.cardItem.id <> event.getRoSGNode().ctx.id then return

@@ -369,6 +369,8 @@ sub start()
     if m.queue <> invalid and m.queue.current <> invalid then body = {queue: {queueId: m.queue.id, entryId: m.queue.current.entryId}}
     if m.top.startOver then body.startPositionMs = 0
     if m.resumeAt <> invalid then body.startPositionMs = m.resumeAt
+    ' a title page's Play a different version names the file to play, this once
+    if item.versionId <> invalid then body.versionId = item.versionId
     ' one start is one request however often it is asked again while the stream gets ready (202)
     if m.startKey = invalid then m.startKey = createObject("roDeviceInfo").getRandomUUID()
     api("POST", "/v1/playback/sessions", body, "onSession", invalid, false, m.startKey)
