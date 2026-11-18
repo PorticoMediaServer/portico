@@ -58,7 +58,7 @@ const tvMenuForm = overlayForm('actions', 'tv');
 /** R9, TV column: on TV a menu or picker is never a pointer drop-down. Every popover but the rail's own flyout (`right-end`,
  * tv-focus 9) is the TV side sheet: the right-hand panel over the dimmed page with its eyebrow (`headerContext`), title,
  * full-width rows and the Back/Close key hints at its foot (detail-tv 5c, tv-focus 4 and 43, tv-more 23). */
-export function Popover({open, onOpenChange, anchorRef, title, headerContext, description, children, footer, initialFocusRef, returnFocusRef, restoreFocus = true, accessibilityLabel, testID, style, contentStyle, titleType, titleTextStyle, descriptionTextStyle, width = 282, modal = false, holdFocus: suppliedHoldFocus, showTitle = false, backdropOpacity = 0, placement = 'bottom-end', offset = 6, alignOffset = 0, dismissOnOutsidePress = true, touchContext = false}: PopoverProps & {touchContext?: boolean}) {
+export function Popover({open, onOpenChange, anchorRef, title, headerContext, description, children, footer, initialFocusRef, returnFocusRef, restoreFocus = true, accessibilityLabel, testID, style, contentStyle, titleType, titleTextStyle, descriptionTextStyle, width = 282, maxWidth, modal = false, holdFocus: suppliedHoldFocus, showTitle = false, backdropOpacity = 0, placement = 'bottom-end', offset = 6, alignOffset = 0, dismissOnOutsidePress = true, touchContext = false}: PopoverProps & {touchContext?: boolean}) {
   const theme = useTheme(), paint = useOverlayPaintMode(), tvSide = theme.isTV && placement !== 'right-end' && tvMenuForm?.kind === 'side';
   // TV: an open popover holds the remote's focus (as the kit Menu does), so Down can't walk into the page behind it.
   const holdFocus = suppliedHoldFocus ?? (modal || theme.isTV);
@@ -70,6 +70,10 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
   const progress = animation.progress;
   const backdropStyle = useAnimatedStyle(() => ({opacity: progress.value}));
   const [anchor, setAnchor] = useState<{x: number; y: number; width: number; height: number}>();
+  // With `maxWidth`, the surface takes its content's width between `width` and it: the content is laid out once at its own
+  // width (start-aligned) and measured, then stretches to the surface.
+  const [natural, setNatural] = useState<number>();
+  const shownWidth = maxWidth === undefined ? width : Math.min(maxWidth, Math.max(width, natural ?? width));
   const [height, setHeight] = useState(1);
   const dismiss = useCallback((reason: OverlayReason) => onOpenChange(false, reason), [onOpenChange]);
   // A modal popover hides its Modal as soon as it closes, and is gone (focus back) once the platform says so
@@ -98,7 +102,7 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
   const touchRect = touchContext ? touchMenuRect(anchor, viewport, height, insets) : undefined;
   const canvasScale = theme.isTV && placement === 'right-end' ? Math.min(viewport.width / theme.layout.designWidth.tv, viewport.height / theme.layout.designHeight.tv) : 1;
   if (canvasScale <= 0) return null;
-  const rect = touchRect ?? (placement === 'right-end' ? rightEndMenuRect(anchor, viewport, {width, height}, insets, offset, alignOffset, canvasScale) : popoverRect(anchor, viewport, {width, height}, insets, placement, offset));
+  const rect = touchRect ?? (placement === 'right-end' ? rightEndMenuRect(anchor, viewport, {width: shownWidth, height}, insets, offset, alignOffset, canvasScale) : popoverRect(anchor, viewport, {width: shownWidth, height}, insets, placement, offset));
   const material = glassRecipe();
   const rightEnd = placement === 'right-end', tvFlyout = rightEnd && theme.isTV;
   // motion.html 2.12/3.7: grow from the point nearest what was tapped, not from the menu's centre.
@@ -110,7 +114,7 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
       {headerContext}
       {showTitle && title != null && <Text accessibilityRole="header" style={[titleType ? nativeType(titleType, theme.textScale) : touchContext ? nativeType({size: 15, weight: 800, tracking: 0, lineHeight: titleLine(15)}, theme.textScale) : theme.type.bodyStrong, {color: theme.colors.text, paddingHorizontal: touchContext ? 20 : 14, paddingTop: touchContext ? 6 : 8, paddingBottom: touchContext ? 10 : 8, marginHorizontal: touchContext ? -8 : 0, marginBottom: touchContext ? 6 : 0, borderBottomWidth: touchContext ? 1 : 0, borderBottomColor: alpha(theme.colors.text, .08)}, titleTextStyle]}>{title}</Text>}
       {description != null && <Text style={[theme.type.caption, {color: theme.colors.textSecondary, paddingHorizontal: 14}, descriptionTextStyle]}>{description}</Text>}
-      {children}{footer}
+      {maxWidth === undefined || natural !== undefined ? children : <View style={{alignSelf: 'flex-start', maxWidth: maxWidth - 2}} onLayout={event => setNatural(Math.ceil(event.nativeEvent.layout.width) + 2)}>{children}</View>}{footer}
     </View></FocusBoundary>
   </Animated.View>;
   const pointer = touchRect && <Animated.View pointerEvents="none" style={[backdropStyle, {position: 'absolute', left: touchRect.side === 'right' ? rect.x - 7 : rect.x + rect.width - 7, top: rect.y + touchRect.arrowY - 7, width: 14, height: 14, borderRadius: 3, backgroundColor: alpha('#162c3a', .97), transform: [{rotate: '45deg'}]}]}/>;

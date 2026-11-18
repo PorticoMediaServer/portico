@@ -1,7 +1,7 @@
 import React, {createContext, useContext, type ReactNode, type RefObject} from 'react';
 import {Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {frameSpec, overlayForm, type OverlayBar, type OverlayFoot, type OverlayTask} from '@portico/design';
+import {frameSpec, overlayForm, popoverWidth, type OverlayBar, type OverlayFoot, type OverlayTask} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Button} from '../controls/Button';
 import {BackCloseHints} from '../controls/KeyHints';
@@ -43,8 +43,10 @@ function OverlayBarRow({bar, title, subtitle, action, onClose}: {bar: OverlayBar
   const end = bar.trailing === 'done' ? <Button variant="text" size="small" textStyle={{color: theme.colors.accentStrong}} onPress={onClose}>{t('next.overlays.done')}</Button>
     : bar.trailing === 'action' && action ? <Button variant="text" size="small" textStyle={{color: theme.colors.accentStrong}} disabled={action.disabled} onPress={action.onPress}>{action.label}</Button>
     : bar.trailing === 'close' ? <Button variant="icon" size="small" icon="i-x" accessibilityLabel={t('next.overlays.close')} onPress={onClose}/> : null;
-  const heading = <Text accessibilityRole="header" style={[theme.type.barTitle, {color: theme.colors.text, includeFontPadding: false, textAlign: bar.title === 'centre' ? 'center' : 'left', flexShrink: 1}]}>{title}
-    {subtitle !== undefined && bar.subtitle && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{'  '}{subtitle}</Text>}</Text>;
+  const titleText = <Text accessibilityRole="header" style={[theme.type.barTitle, {color: theme.colors.text, includeFontPadding: false, textAlign: bar.title === 'centre' ? 'center' : 'left', flexShrink: 1}]}>{title}</Text>;
+  // The item stays beside a title that fits with it on one line, else it wraps under the title; the title never wraps for it.
+  const heading = subtitle !== undefined && bar.subtitle ? <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: theme.space.xs, flexShrink: 1}}>
+    {titleText}<Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{subtitle}</Text></View> : titleText;
   if (bar.title === 'centre') return <View style={{minHeight: frameSpec.header.bar, flexDirection: 'row', alignItems: 'center', paddingHorizontal: frame.gutter}}>
     <View style={{flex: 1, alignItems: 'flex-start'}}>{bar.leading === 'cancel' && <Button variant="text" size="small" onPress={onClose}>{t('next.overlays.cancel')}</Button>}</View>
     {heading}<View style={{flex: 1, alignItems: 'flex-end'}}>{end}</View>
@@ -76,7 +78,7 @@ export type SheetFrameProps = SheetBase & (
 /** Frame 5 and rule 2. A sheet is a plain surface: raised (bottom) or ink (full height), its corners, grab and scrim,
  * and nothing else. It takes no background, glow or header of the content's own. */
 export function SheetFrame(props: SheetFrameProps) {
-  const theme = useTheme(), {height} = useWindowDimensions(), insets = useSafeAreaInsets(), spec = frameSpec.sheet;
+  const theme = useTheme(), viewport = useWindowDimensions(), {height} = viewport, insets = useSafeAreaInsets(), spec = frameSpec.sheet;
   const {open, onOpenChange, testID} = props, frame = useFrameMetrics(), children = <StartFocusScope id={props.startFocus}>{props.children}</StartFocusScope>;
   if (props.kind === 'task') {
     const form = overlayForm(props.task, frame.form), close = () => onOpenChange(false, 'close-button'), t = defaultI18n.t;
@@ -96,7 +98,8 @@ export function SheetFrame(props: SheetFrameProps) {
     if (form?.foot === 'hints') return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.title} description={bar.subtitle ? props.subtitle : undefined} footer={props.hints ?? <BackCloseHints/>} showClose={false}>
       {body}{tvAction && <View style={{marginTop: theme.space.md}}><OverlayFootRow layout="full">{tvAction}</OverlayFootRow></View>}</BottomSheet>;
     if (form?.kind === 'popover' && props.anchorRef) return <Popover open={open} onOpenChange={onOpenChange} anchorRef={props.anchorRef} title={props.title} modal={form.modal} backdropOpacity={form.modal ? .5 : 0}
-      placement={frame.form === 'phone' ? 'bottom-start' : 'right-end'} width={320} testID={testID}>{bar.title === 'start' ? header : null}{body}</Popover>;
+      placement={frame.form === 'phone' ? 'bottom-start' : 'right-end'} width={popoverWidth.min.native}
+      maxWidth={frame.form === 'phone' ? viewport.width - 2 * frame.gutter : popoverWidth.max} testID={testID}>{bar.title === 'start' ? header : null}{body}</Popover>;
     if (form?.kind === 'dialog') return <Dialog open={open} onOpenChange={onOpenChange} title={props.title} description={bar.subtitle ? props.subtitle : undefined} footer={footer} testID={testID}>{body}</Dialog>;
     // TV draws its side sheet's own heading (the title, the item it is about under it), as the hints form does.
     return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.title} description={bar.subtitle ? props.subtitle : undefined} headerContent={frame.form === 'tv' ? undefined : header} footer={footer} showClose={false} fitContent={form?.kind === 'sheet'}>{body}</BottomSheet>;
