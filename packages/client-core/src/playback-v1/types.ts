@@ -201,6 +201,8 @@ export type Presentation = Readonly<{
   /** What the URL delivers: the file's own container for direct play, `fmp4_hls` or `mpegts_hls` for a stream. */
   container?: string;
   hdr?: Readonly<{source?: string; delivered?: string; toneMapped: boolean}>;
+  /** The server's plain sentence for the viewer about this presentation, e.g. "Only part 1 of 2 can play: the parts are encoded differently." */
+  notice?: string;
   /** The version 2 plan (spec §18.1): the client decodes the original file (or a FLAC/Opus
    * conversion) with the server's exact trim and gains. */
   audio?: AudioRenderV2;
@@ -293,6 +295,7 @@ export function parsePresentation(p: unknown, prepared = false): Presentation {
     bitrateKbps: optNum(p.bitrateKbps),
     hdr: obj(p.hdr) ? Object.freeze({source: typeof p.hdr.source === 'string' ? p.hdr.source : undefined, delivered: typeof p.hdr.delivered === 'string' ? p.hdr.delivered : undefined, toneMapped: bool(p.hdr.toneMapped)}) : undefined,
     audio: parseAudioRenderV2(p.audioRender),
+    ...(typeof p.notice === 'string' && p.notice.trim() && p.notice.length <= 500 ? {notice: p.notice.trim()} : {}),
   });
 }
 
