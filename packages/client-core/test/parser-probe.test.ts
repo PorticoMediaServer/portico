@@ -27,8 +27,7 @@ function fakeFetch(routes: Map<string, RouteBody>, log: LoggedRequest[]): typeof
     const headers = (init as {headers?: unknown} | undefined)?.headers;
     const auth = headers instanceof Headers ? headers.get('authorization') : (headers as Record<string, string> | undefined)?.['Authorization'] ?? (headers as Record<string, string> | undefined)?.['authorization'] ?? null;
     log.push({method, path, auth});
-    // The probe is read-only: GET, plus POST to the browse-query read route.
-    if (method !== 'GET' && !(method === 'POST' && /\/browse$/.test(path.split('?')[0]))) {
+    if (method !== 'GET') {
       throw new Error(`write blocked: ${method} ${path}`);
     }
     const route = routes.get(`${method} ${path}`);
@@ -85,17 +84,9 @@ function capabilities(libraryId: string) {
   };
 }
 
-function browseResult() {
-  return {
-    pivot: 'movies', applied: {query: null, sort: [], seek: null}, entries: [],
-    pageInfo: {start: 0, total: 0, revision: 'r', hasMore: false, nextCursor: ''},
-  };
-}
-
 function routesFor(libraryCount: number, role: string): Map<string, RouteBody> {
   const routes = new Map<string, RouteBody>();
   const get = (path: string, json: unknown, status = 200) => routes.set(`GET ${path}`, {status, json});
-  const post = (path: string, json: unknown, status = 200) => routes.set(`POST ${path}`, {status, json});
   get('/v1/system', {id: 'srv', name: 't', setupRequired: false, hostedConfigured: false, version: '1'});
   get('/v1/me', me({accountId: 'a', profileId: 'p', role}));
   get('/v1/capabilities', {features: {playback_v1: true}});
@@ -107,7 +98,6 @@ function routesFor(libraryCount: number, role: string): Map<string, RouteBody> {
   for (let index = 0; index < libraryCount; index++) {
     get(`/v1/libraries/lib-${index}/content?view=discover&limit=40`, projection(`lib-${index}`, 'discover', 5));
     get(`/v1/libraries/lib-${index}/browse-capabilities`, capabilities(`lib-${index}`));
-    post(`/v1/libraries/lib-${index}/browse`, browseResult());
     get(`/v1/libraries/lib-${index}/facets?field=title&limit=20`, {field: 'title', values: []});
     get(`/v1/libraries/lib-${index}/inventory-status`, {serverId: 'srv', inventory: {libraryId: `lib-${index}`, revision: 1, sources: []}});
   }
@@ -124,15 +114,12 @@ async function walk(routes: Map<string, RouteBody>, log: LoggedRequest[], limit:
 
 test('no write method is ever sent', async () => {
   const log: LoggedRequest[] = [];
-  // The fake throws on anything but GET and the allow-listed read POSTs, so a
-  // write would surface here as a rejected walk.
   const {report} = await walk(routesFor(1, 'owner'), log, 2);
   assert.ok(report.calls.length > 0);
   for (const entry of log) {
-    const browsePost = entry.method === 'POST' && /\/browse$/.test(entry.path.split('?')[0]);
-    assert.ok(entry.method === 'GET' || browsePost, `unexpected write: ${entry.method} ${entry.path}`);
+    assert.equal(entry.method, 'GET', `unexpected write: ${entry.method} ${entry.path}`);
   }
-  assert.ok(log.some(entry => entry.method === 'POST' && /\/browse$/.test(entry.path.split('?')[0])), 'the browse read POST was exercised');
+  assert.ok(report.notProbed.some(entry => entry.name === 'browse page (lib-0)'));
 });
 
 test('the token never appears in the report or stdout', async () => {
