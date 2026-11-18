@@ -64,9 +64,9 @@ type Session struct {
 	InstallationID   string    `json:"installationId"`
 	Viewer           Viewer    `json:"viewer"`
 	// PINToken is present after choosing a profile with its PIN and rememberPin: this device
-	// sends it in place of the PIN until PINTokenExpiresAt, or until the PIN changes.
-	PINToken          string     `json:"pinToken,omitempty"`
-	PINTokenExpiresAt *time.Time `json:"pinTokenExpiresAt,omitempty"`
+	// sends it in place of the PIN while this sign-in and the owner's remembering policy
+	// still allow it, and while the PIN is unchanged.
+	PINToken string `json:"pinToken,omitempty"`
 	// TwoStepSetupRequired says the owner requires two-step sign-in and this account has not
 	// set it up: until it has, the session can use only the two-step setup routes and
 	// GET /v1/me. Once set up, the app renews and carries on.
@@ -104,6 +104,10 @@ type SignInResponse struct {
 	Account   Account    `json:"account,omitzero"`
 	Profiles  []Profile  `json:"profiles,omitempty"`
 	Challenge *Challenge `json:"challenge,omitempty"`
+	// RememberProfiles tells the picker to offer remembering on this device.
+	RememberProfiles bool `json:"rememberProfiles"`
+	// PINRememberDays is -1 for the sign-in's lifetime, 0 for always ask, or the idle limit in days.
+	PINRememberDays int `json:"pinRememberDays"`
 }
 
 // Challenge is a password sign-in waiting for its second step.
@@ -122,6 +126,9 @@ type Me struct {
 	// CanManageAccount says this session is on the account's main profile, and so may change
 	// the account's profiles, devices, sessions and password.
 	CanManageAccount bool `json:"canManageAccount"`
+	// RememberProfiles and PINRememberDays give the current policy after reconnecting.
+	RememberProfiles bool `json:"rememberProfiles"`
+	PINRememberDays  int  `json:"pinRememberDays"`
 }
 
 func errBadSignIn() *Error {
@@ -334,7 +341,9 @@ func (s *Server) signedIn(ctx context.Context, st db.SessionState, now time.Time
 	if err != nil {
 		return SignInResponse{}, err
 	}
-	return SignInResponse{Session: s.session(st, now, refresh), Account: accountOut(account), Profiles: profilesOut(profiles)}, nil
+	days := s.signInSettings().PINRememberDays
+	return SignInResponse{Session: s.session(st, now, refresh), Account: accountOut(account), Profiles: profilesOut(profiles),
+		RememberProfiles: days != 0, PINRememberDays: days}, nil
 }
 
 func accountOut(a db.Account) Account {
@@ -420,9 +429,10 @@ func (s *Server) refresh(r *http.Request, req RefreshRequest) (Session, error) {
 		return Session{}, errSignInEnded()
 	}
 	next := s.tokens.NextRefresh(req.RefreshToken, ref, req.RequestID)
+	rememberFor := time.Duration(s.signInSettings().PINRememberDays) * 24 * time.Hour
 	st, replayed, err := s.db.RenewSession(r.Context(), db.Renewal{SessionID: ref.SessionID, Generation: ref.Generation,
 		Hash: auth.Hash(req.RefreshToken), NextHash: auth.Hash(next), RequestID: req.RequestID, InstallationID: req.InstallationID,
-		ExpiresAt: now.Add(s.sessionIdle()), RemoteAddr: s.remoteHost(r), AtHome: s.fromHome(r), Now: now})
+		ExpiresAt: now.Add(s.sessionIdle()), PINRememberFor: rememberFor, RemoteAddr: s.remoteHost(r), AtHome: s.fromHome(r), Now: now})
 	if errors.Is(err, db.ErrBadCredentials) {
 		return Session{}, errSignInEnded()
 	}
@@ -485,7 +495,8 @@ func (s *Server) me(r *http.Request, _ None) (Me, error) {
 	if err != nil {
 		return Me{}, err
 	}
-	out := Me{Account: accountOut(account), Role: caller.Role, CanManageAccount: caller.Manage}
+	days := s.signInSettings().PINRememberDays
+	out := Me{Account: accountOut(account), Role: caller.Role, CanManageAccount: caller.Manage, RememberProfiles: days != 0, PINRememberDays: days}
 	if out.Account.HostedAccountID, err = s.db.PorticoAccountID(ctx, caller.UserID); err != nil {
 		return Me{}, err
 	}

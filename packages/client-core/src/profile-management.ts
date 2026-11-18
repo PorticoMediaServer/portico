@@ -29,12 +29,13 @@ export type DirectAccount=Readonly<{id:string;username:string;primaryProfileId:s
  * (retiring it, its certificates) is not with it yet: after a transfer to it, or after a direct
  * owner. Ask the owner to accept it (`acceptPorticoCustody`). */
 export type ManagementCapabilities=Readonly<{manageAccount:boolean;managePeople:boolean;manageServer:boolean;manageSignIn:boolean}>;
-/** `rememberProfiles`: the PIN screen may offer Remember this profile. `managePinRequired`: this remembered
+/** `rememberProfiles`: the picker may offer Remember this profile. `pinRememberDays`: -1 for the sign-in's
+ * lifetime, 0 for always ask, or the idle limit in days. `managePinRequired`: this remembered
  * main profile enters its PIN again before it manages the account (profile_pin_manage). */
 /** PR-1: the server refused a management request until this remembered main profile enters its PIN again
  * (`profile_pin_manage`). It acted on nothing, so what the screen holds is still current; the app's shell asks for the PIN. */
 export const managementPinRefused = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === 'profile_pin_manage';
-export type DirectSnapshot=Readonly<{capabilities:ManagementCapabilities;authority:'local';serverId:string;account:DirectAccount;profiles:readonly ManagedProfile[];canManage:boolean;custodyPending?:boolean;twoStepSetupRequired?:true;rememberProfiles?:boolean;managePinRequired?:true}>;
+export type DirectSnapshot=Readonly<{capabilities:ManagementCapabilities;authority:'local';serverId:string;account:DirectAccount;profiles:readonly ManagedProfile[];canManage:boolean;custodyPending?:boolean;twoStepSetupRequired?:true;rememberProfiles?:boolean;pinRememberDays?:number;managePinRequired?:true}>;
 /**
  * The answer to a sign-in:
  * - `signed-in`: one `session` for this device. Until a profile is chosen it has the role `account`
@@ -91,19 +92,20 @@ export function parseManagedProfiles(raw:unknown,readable=false):readonly Manage
 }
 /** Builds what the screens know about an account from the server's `Account` and `Profile` shapes.
  * `role` and `canManage` are this sign-in's: only the account's main profile manages anything. */
-function accountSnapshot(serverId:string,account:unknown,profileRows:unknown,role:string,canManage:boolean,readable=false):DirectSnapshot{
+function accountSnapshot(serverId:string,account:unknown,profileRows:unknown,role:string,canManage:boolean,policy:Record<string,unknown>,readable=false):DirectSnapshot{
  if(!text(serverId,128)||!obj(account)||!text(account.id,128)||!text(account.username,64)||!['owner','admin','member'].includes(account.role as string))invalid();
  if(account.hostedAccountId!==undefined&&!text(account.hostedAccountId,256))invalid();
  const profiles=parseManagedProfiles(profileRows,readable),primary=profiles.find(p=>p.primary);if(!primary)invalid();
  const staff=canManage&&(role==='owner'||role==='admin');
  return Object.freeze({authority:'local',serverId,account:Object.freeze({id:account.id,username:account.username,primaryProfileId:primary.id,role:account.role as DirectAccount['role'],disabled:false,allowedLibraries:Object.freeze([]),
   ...(typeof account.hostedAccountId==='string'?{hostedAccountId:account.hostedAccountId}:{})}),
-  profiles,capabilities:Object.freeze({manageAccount:canManage,managePeople:staff,manageServer:staff,manageSignIn:canManage&&role==='owner'}),canManage,rememberProfiles:false});
+  profiles,capabilities:Object.freeze({manageAccount:canManage,managePeople:staff,manageServer:staff,manageSignIn:canManage&&role==='owner'}),canManage,
+  rememberProfiles:policy.rememberProfiles===true,...(typeof policy.pinRememberDays==='number'?{pinRememberDays:policy.pinRememberDays}:{})});
 }
 /** Reads what `readDirectAccount` fetched (`GET /v1/me` and `GET /v1/profiles`) for the server the caller is signed in to. */
 export function parseDirectSnapshot(raw:unknown,expected:Partial<ProfileScope>={},readableProfiles=false):DirectSnapshot{
  if(!obj(raw)||!obj(raw.me)||!obj(raw.profiles)||typeof raw.me.canManageAccount!=='boolean'||!text(raw.me.role,64)||!expected.serverId||(expected.authority&&expected.authority!=='local'))invalid();
- const snapshot=accountSnapshot(expected.serverId,raw.me.account,raw.profiles.items,raw.me.role,raw.me.canManageAccount,readableProfiles);
+ const snapshot=accountSnapshot(expected.serverId,raw.me.account,raw.profiles.items,raw.me.role,raw.me.canManageAccount,raw.me,readableProfiles);
  if(expected.accountId&&snapshot.account.id!==expected.accountId)invalid();
  return snapshot;
 }
@@ -117,7 +119,7 @@ export function parseDirectSignIn(raw:unknown):DirectSignIn{
  if(!obj(raw.session)||!obj(raw.session.viewer)||!obj(raw.account))invalid();
  const session=parseLocalSession(raw.session,{accountId:raw.account.id as string});
  const accountScoped=session.viewer.role==='account';
- const snapshot=accountSnapshot(session.viewer.serverId,raw.account,raw.profiles,session.viewer.role,!accountScoped&&session.viewer.profileId===parseManagedProfiles(raw.profiles).find(p=>p.primary)?.id);
+ const snapshot=accountSnapshot(session.viewer.serverId,raw.account,raw.profiles,session.viewer.role,!accountScoped&&session.viewer.profileId===parseManagedProfiles(raw.profiles).find(p=>p.primary)?.id,raw);
  return Object.freeze({kind:'signed-in',snapshot:session.twoStepSetupRequired?Object.freeze({...snapshot,twoStepSetupRequired:true as const}):snapshot,session,accountScoped,passwordChangeRequired:false});
 }
 /** A sign-in answered by a route whose response union is tagged: the server always sends `variant`, one of

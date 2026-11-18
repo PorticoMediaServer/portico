@@ -7613,8 +7613,14 @@
           "canManageAccount": {
             "type": "boolean"
           },
+          "pinRememberDays": {
+            "type": "integer"
+          },
           "profile": {
             "$ref": "#/components/schemas/Profile"
+          },
+          "rememberProfiles": {
+            "type": "boolean"
           },
           "role": {
             "type": "string"
@@ -7623,7 +7629,9 @@
         "required": [
           "account",
           "role",
-          "canManageAccount"
+          "canManageAccount",
+          "rememberProfiles",
+          "pinRememberDays"
         ],
         "type": "object"
       },
@@ -13517,10 +13525,6 @@
           "pinToken": {
             "type": "string"
           },
-          "pinTokenExpiresAt": {
-            "format": "date-time",
-            "type": "string"
-          },
           "refreshToken": {
             "type": "string"
           },
@@ -13930,16 +13934,26 @@
           "challenge": {
             "$ref": "#/components/schemas/Challenge"
           },
+          "pinRememberDays": {
+            "type": "integer"
+          },
           "profiles": {
             "items": {
               "$ref": "#/components/schemas/Profile"
             },
             "type": "array"
           },
+          "rememberProfiles": {
+            "type": "boolean"
+          },
           "session": {
             "$ref": "#/components/schemas/Session"
           }
         },
+        "required": [
+          "rememberProfiles",
+          "pinRememberDays"
+        ],
         "type": "object"
       },
       "SignInState": {

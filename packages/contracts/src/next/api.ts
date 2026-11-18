@@ -2280,6 +2280,8 @@ export interface Me {
   profile?: Profile;
   role: string;
   canManageAccount: boolean;
+  rememberProfiles: boolean;
+  pinRememberDays: number;
 }
 
 export interface Media {
@@ -4065,7 +4067,6 @@ export interface Session {
   installationId: string;
   viewer: Viewer;
   pinToken?: string;
-  pinTokenExpiresAt?: string;
   twoStepSetupRequired?: boolean;
 }
 
@@ -4185,6 +4186,8 @@ export interface SignInResponse {
   account?: Account;
   profiles?: Profile[];
   challenge?: Challenge;
+  rememberProfiles: boolean;
+  pinRememberDays: number;
 }
 
 export interface SignInState {

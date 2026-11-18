@@ -186,6 +186,9 @@ type SessionState struct {
 	ExpiresAt  time.Time
 	// RenewedAt is when the current refresh token replaced the previous one.
 	RenewedAt time.Time
+	// PINMemoryFromGeneration is the generation reached after the last gap that expired
+	// timed PIN memory. Renewing again cannot make an earlier PIN token valid.
+	PINMemoryFromGeneration int64
 	// Stamp goes into a token minted from this state.
 	Stamp TokenStamp
 
@@ -219,14 +222,14 @@ func sessionState(ctx context.Context, q queryer, id int64) (SessionState, error
 	var s SessionState
 	var expires, renewed, manageUntil int64
 	err := q.QueryRowContext(ctx, `
-		SELECT s.id, s.public_id, s.token_generation, s.expires_at, ifnull(s.previous_at, s.created_at),
+		SELECT s.id, s.public_id, s.token_generation, s.expires_at, ifnull(s.previous_at, s.created_at), s.pin_memory_from_generation,
 			s.revoked_at IS NOT NULL, s.refresh_hash, ifnull(s.previous_refresh_hash, ''), ifnull(s.previous_request_id, ''),
 			u.id, u.public_id, u.role, u.disabled_at IS NOT NULL,
 			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0), s.scope = 'member', s.scope = 'cast', s.scope = 'enrol', ifnull(s.manage_until_at, 0),
 			d.public_id, d.client_id
 		FROM sessions s JOIN users u ON u.id = s.user_id JOIN devices d ON d.id = s.device_id
 		LEFT JOIN profiles p ON p.id = s.profile_id
-		WHERE s.id = ?`, id).Scan(&s.ID, &s.PublicID, &s.Generation, &expires, &renewed,
+		WHERE s.id = ?`, id).Scan(&s.ID, &s.PublicID, &s.Generation, &expires, &renewed, &s.PINMemoryFromGeneration,
 		&s.revoked, &s.refreshHash, &s.previousHash, &s.previousRequestID,
 		&s.UserID, &s.UserPublicID, &s.UserRole, &s.disabled,
 		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary, &s.MemberOnly, &s.Cast, &s.Enrol, &manageUntil,
@@ -477,6 +480,8 @@ type Renewal struct {
 	RequestID      string
 	InstallationID string
 	ExpiresAt      time.Time
+	// PINRememberFor is the idle limit for timed profile memory. Nonpositive means no timed limit.
+	PINRememberFor time.Duration
 	RemoteAddr     string
 	// AtHome says the request came from one of the owner's home networks.
 	AtHome bool
@@ -517,10 +522,14 @@ func (d *DB) RenewSession(ctx context.Context, r Renewal) (out SessionState, rep
 			if s.Cast {
 				r.ExpiresAt = r.Now.Add(CastIdle) // a Cast receiver unused for a day is signed out
 			}
+			pinMemoryFrom := s.PINMemoryFromGeneration
+			if r.PINRememberFor > 0 && !r.Now.Before(s.RenewedAt.Add(r.PINRememberFor)) {
+				pinMemoryFrom = s.Generation + 1
+			}
 			if _, err := tx.Exec(`UPDATE sessions SET refresh_hash = ?, token_generation = token_generation + 1,
 					previous_refresh_hash = ?, previous_request_id = ?, previous_at = ?,
-					expires_at = ?, last_used_at = ?, remote_addr = nullif(?, '') WHERE id = ?`,
-				r.NextHash, r.Hash, r.RequestID, at, r.ExpiresAt.UnixMilli(), at, r.RemoteAddr, s.ID); err != nil {
+					expires_at = ?, last_used_at = ?, remote_addr = nullif(?, ''), pin_memory_from_generation = ? WHERE id = ?`,
+				r.NextHash, r.Hash, r.RequestID, at, r.ExpiresAt.UnixMilli(), at, r.RemoteAddr, pinMemoryFrom, s.ID); err != nil {
 				return err
 			}
 			if _, err := tx.Exec(`UPDATE devices SET last_seen_at = ? WHERE client_id = ?`, at, s.InstallationID); err != nil {
