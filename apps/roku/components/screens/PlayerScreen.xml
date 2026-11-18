@@ -17,6 +17,7 @@
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Queue.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
     <Rectangle width="1920" height="1080" color="0x000000FF"/>
@@ -53,6 +54,28 @@
     <!-- Skip intro, Skip credits: at the lower right, above where the overlay goes, so it never
          moves when the overlay comes up. It takes focus only while the overlay is down. -->
     <ButtonRow id="prompt" visible="false"/>
+    <!-- Up next during the credits (tv-player frame 5): the next title, Play now focused, Watch
+         credits beside it puts the card away. In the same place as the skip prompt. -->
+    <Group id="upNext" visible="false">
+      <Poster id="unPlate" uri="pkg:/images/round-20.9.png" width="680" height="296"/>
+      <Rectangle id="unBack" translation="[26,26]" width="256" height="144"/>
+      <Poster id="unStill" translation="[26,26]" width="256" height="144"/>
+      <Label id="unLabel" translation="[306,30]" text="Up next"/>
+      <Label id="unTitle" translation="[306,60]" width="350" wrap="true" maxLines="3"/>
+      <Label id="unSub" translation="[306,104]" width="350"/>
+      <Label id="unWhen" translation="[306,140]" width="350" wrap="true" maxLines="2"/>
+      <ButtonRow id="unRow" translation="[26,200]"/>
+    </Group>
+    <!-- The end of a film with nothing queued (tv-player frame 7): its art comes back behind Finished. -->
+    <Group id="finished" visible="false">
+      <Rectangle id="finBack" width="1920" height="1080"/>
+      <Poster id="finArt" width="1920" height="1080" opacity="0.55"/>
+      <Poster uri="pkg:/images/fade-down.png" width="1920" height="540" translation="[0,540]"/>
+      <Label id="finLabel" text="Finished"/>
+      <Label id="finTitle" width="1100" wrap="true" maxLines="2"/>
+      <Label id="finMeta" width="1100"/>
+      <ButtonRow id="finRow"/>
+    </Group>
     <!-- While a stream is being made ready or is catching up: the screen is never plain black. -->
     <Group id="wait" visible="false">
       <Poster id="spinner" uri="pkg:/images/i-spinner-64.png" width="64" height="64"/>

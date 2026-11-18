@@ -21,7 +21,9 @@ function colours() as object
         ' the icon of a page that could not load, and the tile of a section that could not
         warning: "0xE8BC6AFF", dangerTint: "0xF38B8833",
         ' laid over a card's picture: the plate under its length and tick, its progress track, a generated cover's rule
-        onArt: "0x071018D9", trackOnArt: "0xEDF5FA40", coverRule: "0xEDF5FA8C"
+        onArt: "0x071018D9", trackOnArt: "0xEDF5FA40", coverRule: "0xEDF5FA8C",
+        ' the dark card under a prompt over the picture (Up next, the Undo note), and the dimming on its picture
+        promptPlate: "0x09131BD6", stillDim: "0x707070FF"
     }
 end function
 
@@ -36,8 +38,8 @@ function frames() as object
         sheet: {x: 1200, width: 720, top: 64, rowsX: 1260, rowsWidth: 600},
         ' The video player: the picture is the page. The top row hangs from `top`; the seek bar,
         ' the time row and the button row sit on their own lines; everything runs from `left` to `right`.
-        ' Over it: the waiting spinner's line, how far below a page notice Playback failed sits, the foot of the prompts at the lower right.
-        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470, noticeDrop: 40, promptBottom: 720},
+        ' Over it: the waiting spinner's line, how far below a page notice Playback failed sits, the foot of the prompts at the lower right, and the Finished page's lines.
+        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470, noticeDrop: 40, promptBottom: 720, finished: {top: 84, titleY: 120, metaY: 326, buttonsY: 372}},
         ' Every page beside the rail: its content starts at `gutter` and ends at `rightEdge`.
         gutter: 200, rightEdge: 1824,
         ' A library or Search (frame "Browse"): the page title's line; Home's moderate hero with its

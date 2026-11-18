@@ -281,6 +281,9 @@ ICONS = {
     'search': [32], 'home': [32], 'film': [32], 'tv': [32], 'book': [32], 'music': [32], 'folder': [32],
     'live': [32], 'bookmark': [32], 'settings': [32], 'warning': [32], 'refresh': [28], 'server': [28], 'play': [28, 40], 'pause': [40], 'lock': [28], 'plus': [28], 'check': [28], 'info': [28], 'close': [28], 'forward': [28],
     'collection': [28], 'more': [28], 'watched': [28], 'success': [28],
+    'next': [32],
+    'previous': [32],
+    'restart': [28],
 }
 
 
