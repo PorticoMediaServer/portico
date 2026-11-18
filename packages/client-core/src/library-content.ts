@@ -3,13 +3,11 @@ import {callServer, serverPath} from './query/server-api.ts';
 import {entriesFromItems} from './items.ts';
 import {parseMusicTechnicalFacts, type MusicTechnicalFacts} from './music-facts.ts';
 import {parseMusicBadges, type MusicFormatBadge} from './music-badges.ts';
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
-import {wireDurations,wireDisplayDurations} from './wire-units.ts';
+import {wireDisplayDurations} from './wire-units.ts';
 import {unreadableServerResponse} from './server-messages.ts';
-import {parseBookProgress,type BookProgress,type ListeningViewerScope,parseListeningJourney,type ListeningJourney} from './listening.ts';
+import {parseBookProgress,type BookProgress,type ListeningViewerScope,type ListeningJourney} from './listening.ts';
 import {parseBrowseNode,type BrowseNode,type BrowseSortSelection} from './browse.ts';
-import {firstOfEach,keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
+import {noteSkipped} from './tolerant.ts';
 import {mergeRevalidatedList} from './freshness-actions.ts';
 import {parseHomeActions, type HomeActions} from './home.ts';
 import type {FetchPage} from './collections/windowed.ts';
@@ -150,11 +148,8 @@ export type LibraryContentSnapshot = Readonly<{
 const views: readonly string[] = ['discover','browse','collections','categories','show','season','artist','album','book','collection','releases','songs','authors','series','author','book_series','disc'];
 const entityViews = new Set(['show','season','artist','album','book','collection','author','book_series','disc']);
 const entryKinds: readonly string[] = ['ebook','comic','movie','show','season','episode','artist','album','song','book','audiobook_file','chapter','collection','category','author','book_series','disc','extra','playlist','radio'];
-/** Unknown string kinds are future server cards; only their entries are omitted. */
-export const unknownContentEntryKind = (v: unknown): boolean => record(v) && typeof v.kind === 'string' && !entryKinds.includes(v.kind);
 /** The closed set, as a guard: a validated kind is never narrowed by a cast. */
 export const contentEntryKind = (v: unknown): v is ContentEntryKind => typeof v === 'string' && entryKinds.includes(v);
-const optional = <K extends string, V>(key: K, value: V | undefined): Partial<Record<K, V>> => (value === undefined ? {} : { [key]: value } as Record<K, V>);
 const record = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const string = (v: unknown, max = 512): v is string => typeof v === 'string' && v.length <= max && !/[\x00-\x1f\x7f]/.test(v);
 const synopsis = (v: unknown): v is string => typeof v === 'string' && v.length <= 16384 && !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(v);
@@ -166,25 +161,8 @@ class ContentFailure extends Error {
   constructor(code: string, message: string, retryable = false) { super(message); this.code = code; this.retryable = retryable; }
 }
 function invalid(): never { throw new ContentFailure('invalid_projection', unreadableServerResponse); }
-function boundedArray(v: unknown, max: number): unknown[] { if (!Array.isArray(v) || v.length > max) invalid(); return v; }
 /** A part of a projection that could not be read was left out; an absent or null value is not counted. */
 function left(part: string, value: unknown): void { if (value !== undefined && value !== null) noteSkipped('content', part); }
-/** A heading keeps its words when its parameters cannot be read; the fallback then names it. */
-function heading(v: unknown): ContentHeading {
-  if (!record(v) || !id(v.key) || !string(v.fallback, 512)) invalid();
-  if (v.params === undefined || v.params === null) return Object.freeze({ key: v.key, fallback: v.fallback });
-  if (!record(v.params) || Object.keys(v.params).length > 16) { left('heading.params', v.params); return Object.freeze({ key: v.key, fallback: v.fallback }); }
-  const params: Record<string, string> = {};
-  for (const [name, value] of Object.entries(v.params)) {
-    if (!id(name) || !string(value, 1024)) { left('heading.params', value); continue; }
-    params[name] = value as string;
-  }
-  return Object.freeze({ key: v.key, fallback: v.fallback, params: Object.freeze(params) });
-}
-/** A heading that cannot be read is blank under `key`, so its section or page is still shown. */
-function headingOr(v: unknown, key: string): ContentHeading {
-  try { return heading(v); } catch { left('heading', v); return Object.freeze({ key, fallback: '' }); }
-}
 /** A See all destination that cannot be read is left out, never its section or row. */
 function seeAll(v: unknown): ContentSeeAll | undefined {
   if (v === undefined || v === null) return undefined;
@@ -369,62 +347,6 @@ function scope(input: ContentScope): ContentScope {
   if (!record(input) || !id(input.serverId) || !string(input.viewerId, 1024) || !input.viewerId) throw new Error('A bound server and viewer scope is required.');
   return Object.freeze({ serverId: input.serverId, viewerId: input.viewerId });
 }
-function projection(raw: unknown, expected: ContentRoute, bound: ContentScope, pageSize: number): ContentProjection {
-  if (!record(raw) || !record(raw.scope) || !record(raw.revision) || !record(raw.query)) invalid();
-  const s = raw.scope, r = raw.revision, q = raw.query;
-  if (s.serverId !== bound.serverId || s.libraryId !== (expected.libraryId ?? '') || s.view !== expected.view || s.entityId !== (expected.entityId ?? '') || !id(s.libraryKind)) invalid();
-  if (!count(r.catalog) || !count(r.viewer)) invalid();
-  // A search mode this app does not know reads as no search.
-  const searchMode = oneOfOr('content', 'query.searchMode', q.searchMode, ['none', 'title_prefix'] as const, 'none');
-  if (!string(q.sort) || !string(q.direction) || !string(q.category) || !string(q.q) || !count(q.limit) || q.limit < 1 || q.limit > pageSize) invalid();
-  for (const field of ['sort','direction','category','q'] as const) if (expected[field] !== undefined && expected[field] !== q[field]) invalid();
-  // The lists below keep what can be read: a tab, sort, filter, option, section or entry this app
-  // cannot read is left out alone, and a repeated id keeps its first appearance.
-  const navigation = firstOfEach('content', 'navigation', keepReadable('content', 'navigation', boundedArray(raw.navigation ?? [], 16), n => {
-    if (!record(n) || !id(n.id) || !id(n.labelKey) || !views.includes(n.view as string)) invalid();
-    return Object.freeze({ id: n.id, labelKey: n.labelKey, view: n.view as ContentView });
-  }), n => n.id);
-  const sorts = firstOfEach('content', 'sorts', keepReadable('content', 'sorts', boundedArray(raw.sorts ?? [], 32), n => {
-    if (!record(n) || !id(n.id) || !id(n.labelKey)) invalid();
-    const directions = [...new Set(boundedArray(n.directions, 2).filter(v => v === 'asc' || v === 'desc'))];
-    return Object.freeze({ id: n.id, labelKey: n.labelKey, directions: Object.freeze(directions as ('asc' | 'desc')[]) });
-  }), n => n.id);
-  const filters = firstOfEach('content', 'filters', keepReadable('content', 'filters', boundedArray(raw.filters ?? [], 16), n => {
-    if (!record(n) || !id(n.id) || !id(n.labelKey)) invalid();
-    const options = firstOfEach('content', 'filter.options', keepReadable('content', 'filter.options', boundedArray(n.options, 100), o => {
-      if (!record(o) || !id(o.id) || !string(o.label ?? '')) invalid();
-      return Object.freeze({ id: o.id, label: (o.label ?? '') as string, count: count(o.count) ? o.count : 0 });
-    }), o => o.id);
-    return Object.freeze({ id: n.id, labelKey: n.labelKey, options: Object.freeze(options) });
-  }), n => n.id);
-  // Discover carries Continue, Recommended, the personal rows, Trending and Recently added.
-  // DR-1: a rail holds what this page asked for. A Music library's Artists, New albums, Recently played and Playlists
-  // rails are built at the request's limit (40, server maximum 100); the generic rows stop at 12.
-  const railBound = Math.min(100, Math.max(12, pageSize));
-  const sections = firstOfEach('content', 'sections', keepReadable('content', 'sections', boundedArray(raw.sections, 24), n => {
-    if (!record(n) || !id(n.id) || !string(n.nextCursor ?? '', 4096)) invalid();
-    // A layout this app does not know is drawn as a grid, which holds any number of entries.
-    const type = oneOfOr('content', 'section.type', n.type, ['rail', 'grid', 'list'] as const, 'grid');
-    const entries = firstOfEach('content', 'entries', keepReadable('content', 'entries', boundedArray(n.entries, type === 'rail' ? railBound : 100), v => {
-      const row = entry(v);
-      if (row.libraryId !== undefined && row.libraryId !== expected.libraryId) invalid();
-      return row;
-    }), e => e.id);
-    // The count is at least the entries kept.
-    return Object.freeze({ id: n.id, type, heading: headingOr(n.heading, n.id), entries: Object.freeze(entries), totalCount: Math.max(count(n.totalCount) ? n.totalCount : 0, entries.length), nextCursor: (n.nextCursor ?? '') as string, ...(typeof n.start === 'number' && Number.isSafeInteger(n.start) && (n.start as number) >= 0 ? { start: n.start as number } : {}), ...optional('seeAll', seeAll(n.seeAll)) });
-  }), n => n.id);
-  // A page none of whose sections could be read is refused rather than shown as empty.
-  if (!sections.length && (raw.sections as unknown[]).length) invalid();
-  let entity: ContentEntry | undefined;
-  // The page's own entity is exact (it is what was asked for); it never plays, so playback on it is ignored.
-  if(raw.entity!==undefined && raw.entity!==null && !unknownContentEntryKind(raw.entity)){entity=entry(raw.entity);if(!['artist','album','book','disc','author','book_series'].includes(expected.view)||entity.kind!==expected.view||entity.id!==expected.entityId||entity.libraryId!==expected.libraryId)invalid();if(entity.playback!==undefined){const{playback:_ignored,...rest}=entity;entity=Object.freeze(rest);}}
-  // The listening actions and the empty-state words are optional: unreadable ones are left out.
-  let listening: ListeningJourney | undefined;
-  if (raw.listening !== undefined && raw.listening !== null) { try { listening = parseListeningJourney(raw.listening, s.libraryId as string); } catch { noteSkipped('content', 'listening'); } }
-  let empty: ContentHeading | undefined;
-  if (raw.empty !== undefined && raw.empty !== null) { try { empty = heading(raw.empty); } catch { noteSkipped('content', 'empty'); } }
-  return Object.freeze({ ...(entity?{entity}:{}), ...(listening?{listening}:{}), heading: headingOr(raw.heading, s.view as string), scope: Object.freeze({ serverId: s.serverId as string, libraryId: s.libraryId as string, libraryKind: s.libraryKind as string, view: s.view as ContentSurface, entityId: s.entityId as string }), query: Object.freeze({ sort: q.sort, direction: q.direction, category: q.category, q: q.q, limit: q.limit, searchMode }), navigation: Object.freeze(navigation), sorts: Object.freeze(sorts), filters: Object.freeze(filters), sections: Object.freeze(sections), ...(empty ? { empty } : {}) });
-}
 type Page = { cursor: string | null; sectionId?: string };
 const seenEntries = new WeakMap<ContentSection, Set<string>>();
 const sameEntry = (a: ContentEntry, b: ContentEntry) => a === b || JSON.stringify(a) === JSON.stringify(b);
@@ -460,33 +382,23 @@ function mergeHead(previous: readonly ContentSection[], fresh: readonly ContentS
   return changed ? Object.freeze(sections) : previous;
 }
 /** Views whose grid section the server opens at any index (`start`), so a page that left memory can be read again. */
-const startViews: ReadonlySet<ContentView> = new Set<ContentView>(['browse', 'collection', 'collections', 'artist']);
+const startViews: ReadonlySet<ContentView> = new Set<ContentView>(['collection', 'artist']);
 export const contentViewRehydratable = (view: ContentView): boolean => startViews.has(view);
 /**
  * LR05: the page source for a bounded window (`createWindowedCollection` with `maxResidentPages`)
  * over the `items` grid of a start-addressable view. Every page is read by its own index, so the
  * window may evict any page and read it again on back-scroll; nothing is appended without bound.
- * The first page pins the viewer fence and catalogue revision. A later page from another one is a
- * changed library (`stale_continuation`), never spliced into the old offsets. Other views keep
- * `LibraryContentService`'s appended sections: their earlier pages cannot be read again.
- * `onPage` receives each accepted page's projection (heading, sorts, query, scope and revision,
- * without its sections), so a screen can draw its header from the same read as its window.
+ * Other views keep `LibraryContentService`'s appended sections: their earlier pages cannot be read again.
+ * `onPage` receives the accepted page's metadata without its sections.
  */
 export function libraryContentPages(options: Readonly<{ api: LibraryContentApi; scope: ContentScope; route: ContentRoute; pageSize?: number; onPage?: (projection: ContentProjection) => void }>): FetchPage<ContentEntry> {
   const bound = scope(options.scope), selected = route(options.route), pageSize = options.pageSize ?? 40;
+  if (!rebuiltContentViews.has(selected.view)) throw new ContentFailure('not_found', 'This library view is unavailable.');
   if (!contentViewRehydratable(selected.view) || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error('Invalid content window.');
-  const changed = () => new ContentFailure('stale_continuation', 'The library changed. Refresh to continue.', true);
   return async (start, count, signal) => {
     if (!Number.isSafeInteger(start) || start < 0 || !Number.isInteger(count) || count < 1 || count > pageSize) throw new Error('Invalid content window page.');
-    const query = new URLSearchParams({ view: selected.view, limit: String(count) });
-    for (const field of ['entityId','sort','direction','category','q'] as const) if (selected[field] !== undefined) query.set(field, selected[field]!);
-    if (start > 0) query.set('start', String(start));
-    // A view the rebuilt server answers is read there, opened at the same position.
-    const result = rebuiltContentViews.has(selected.view) ? await rebuiltContentWindow(options.api, selected, bound, start, count, signal)
-      : projection(await options.api.request<unknown>(encodedRoutePath("get_libraries_id_content", {"id": encodeURIComponent(selected.libraryId)}) + "?" + query, 'GET', undefined, signal), selected, bound, pageSize);
-    // The server leaves out an empty section: an empty library at the top, or a list that shrank under a later page.
-    const grid = result.sections.find(section => section.id === 'items' && section.type === 'grid');
-    if (!grid) { if (start > 0) throw changed(); options.onPage?.(Object.freeze({ ...result, sections: Object.freeze([]) })); return { items: Object.freeze([]), total: 0 }; }
+    const result = await rebuiltContentWindow(options.api, selected, bound, start, count, signal);
+    const [grid] = result.sections;
     if ((grid.start ?? 0) !== start || grid.entries.length > count) invalid();
     options.onPage?.(Object.freeze({ ...result, sections: Object.freeze([]) }));
     return { items: grid.entries, total: grid.totalCount };
@@ -504,11 +416,10 @@ export function contentPageQuery(queries: ViewerQueries, r: ContentRoute, cursor
   return {
     queryKey: queryKeys.content(r.libraryId, query.toString()),
     queryFn: async ({signal}) => {
+      if (!rebuiltContentViews.has(r.view)) throw new ContentFailure('not_found', 'This library view is unavailable.');
       const deadline = linkAbortSignals([signal], 15_000);
       try {
-        // A view the rebuilt server answers is read there; the rest still ask the content route.
-        if (rebuiltContentViews.has(r.view)) return await rebuiltContent(queries.api, r, queries.scope, pageSize, deadline.signal, cursor);
-        return projection(await queries.api.request<unknown>(encodedRoutePath("get_libraries_id_content", {"id": encodeURIComponent(r.libraryId)}) + "?" + query, 'GET', undefined, deadline.signal), r, queries.scope, pageSize);
+        return await rebuiltContent(queries.api, r, queries.scope, pageSize, deadline.signal, cursor);
       }
       catch (error) { if (deadline.signal.aborted && !signal.aborted) throw new ContentFailure('timeout', 'The server took too long to respond. Try again.', true); throw error; }
       finally { deadline.dispose(); }
@@ -783,9 +694,6 @@ export class LibraryContentService {
     }
   }
 }
-
-/** Reuse the canonical strict semantic DTO validation in composed server workspaces. */
-export { projection as validateContentProjection };
 
 /** Shared media-entry validation for server-authored cross-library search. It throws for an entry that cannot be shown; callers leave out that entry alone. */
 export { entry as validateContentEntry };

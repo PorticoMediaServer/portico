@@ -2,12 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultI18n} from '../../i18n/src/index.ts';
 import {homeRowHeading, isPersonalRowId, validateHomeRow} from '../src/home.ts';
-import {validateContentProjection as parseContentProjection} from '../src/library-content.ts';
 import {itemRecommendationsFromRelated, fetchItemRecommendations, fetchShowRecommendations, moreLikeThisRow, titleRecommendationRows, validateItemRecommendations} from '../src/recommendations.ts';
 import {serverTextLabel} from '../src/presentation/server-text.ts';
 import {resetSkippedParts, skippedParts} from '../src/tolerant.ts';
 
-// Recommendations P7: personal rows, their parameterised titles and the See all page.
+// Recommendations P7: personal rows and their parameterised titles.
 
 const entry = (id: string) => ({id, kind: 'movie', title: `Title ${id}`, navigation: {view: 'item', entityId: id}});
 function row(changes: Record<string, unknown> = {}): any {
@@ -51,21 +50,6 @@ test('titles come from the catalogue, with the fallback for an unknown code or m
   assert.equal(t('home.row.moreWith'), 'Server words', 'a message whose params are missing keeps the server’s words');
   // A content heading names itself the same way.
   assert.equal(serverTextLabel(defaultI18n, {key: 'home.row.fromCreator', params: {name: 'Vince Gilligan'}, fallback: 'From Vince Gilligan'}), 'From Vince Gilligan');
-});
-
-test('Discover headings carry params', () => {
-  const projection = parseContentProjection({
-    heading: {key: 'library.discover', fallback: 'Films'},
-    scope: {serverId: 's', viewerFence: 'f', libraryId: 'l', libraryKind: 'movie', view: 'discover', entityId: ''},
-    navigation: [], query: {sort: 'server', direction: 'asc', category: '', q: '', limit: 8, searchMode: 'none'}, revision: {catalog: 1, viewer: 1}, sorts: [], filters: [],
-    sections: [{id: 'for_you:genre:drama', type: 'rail', heading: {key: 'home.row.genreForYou', fallback: 'Drama for you', params: {genre: 'Drama'}}, entries: [entry('m1')], totalCount: 1, nextCursor: '',
-      seeAll: {pivot: 'movies', query: {variant:'predicate',field: 'genre', operator: 'contains', value: 'Drama'}, sort: [{field: 'forYou', direction: 'desc'}]}},
-      ...['recommended', 'for_you:new', 'for_you:gems', 'for_you:top', 'trending_now', 'recently_added'].map(id => ({id, type: 'rail', heading: {key: 'section.' + id, fallback: id}, entries: [entry(id)], totalCount: 1, nextCursor: ''}))],
-  } as never, {libraryId: 'l', view: 'discover'}, {viewerId: 'v', serverId: 's'}, 60);
-  assert.deepEqual(projection.sections[0]!.heading, {key: 'home.row.genreForYou', fallback: 'Drama for you', params: {genre: 'Drama'}});
-  assert.deepEqual(projection.sections[0]!.seeAll, {pivot: 'movies', query: {variant:'predicate',field: 'genre', operator: 'contains', value: 'Drama'}, sort: [{field: 'forYou', direction: 'desc'}]});
-  assert.equal(projection.sections.length, 7, 'Discover carries more than four rows now');
-  assert.equal(projection.sections[1]!.seeAll, undefined);
 });
 
 const related = (relation: string, extra: Record<string, unknown> = {}) => row({id: `${relation}:local:x`, title: relation, titleText: undefined, family: undefined, kind: 'related', relation, entries: [entry(relation + '1')], total: 1, limit: 1, hasMore: false, nextCursor: '', cursorCapable: false, ...extra});

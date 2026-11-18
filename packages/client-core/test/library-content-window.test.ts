@@ -2,26 +2,27 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {contentViewRehydratable, libraryContentPages, type ContentEntry, type ContentRoute} from '../src/library-content.ts';
 import {createWindowedCollection} from '../src/collections/windowed.ts';
-import {isStaleAnswer} from '../src/freshness-actions.ts';
+import {serverPath} from '../src/query/server-api.ts';
 
 const scope = {viewerId: JSON.stringify(['hosted', 'account', 'profile']), serverId: 'server'};
-const route: ContentRoute = {libraryId: 'movies', view: 'browse', sort: 'title'};
+const route: ContentRoute = {libraryId: 'movies', view: 'collection', entityId: 'collection', sort: 'title'};
 const tick = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 async function settle() {for (let n = 0; n < 10; n++) await tick();}
-/** A start-addressed server over `total` titles: one `items` grid per page, its start echoed back. */
+/** A start-addressed item list inside a collection. */
 function server(total: number) {
   const reads: number[] = [];
-  let fence = 'fence', catalog = 3;
   const api = {request: async <T>(path: string): Promise<T> => {
-    const u = new URL(path, 'https://server.test'), start = Number(u.searchParams.get('start') ?? 0), limit = Number(u.searchParams.get('limit'));
+    if (path === serverPath('GET /v1/libraries/{id}', {id: route.libraryId})) return {id: route.libraryId, kind: 'movie'} as T;
+    if (path === serverPath('GET /v1/items/{id}', {id: route.entityId})) return {id: route.entityId, kind: 'collection', title: 'Collection'} as T;
+    const u = new URL(path, 'https://server.test'), start = Number(u.searchParams.get('at') ?? 0), limit = Number(u.searchParams.get('limit'));
+    assert.equal(u.pathname, serverPath('GET /v1/items'));
+    assert.equal(u.searchParams.get('collection'), route.entityId);
     assert.equal(u.searchParams.get('cursor'), null, 'a window never pages by cursor');
     reads.push(start);
-    const entries = Array.from({length: Math.max(0, Math.min(limit, total - start))}, (_, n) => ({id: `t${start + n}`, kind: 'movie', title: `Title ${start + n}`, navigation: {view: 'item', entityId: `t${start + n}`}}));
-    return {heading: {key: 'library.title', fallback: 'Movies'}, scope: {serverId: 'server', libraryId: 'movies', libraryKind: 'movie', view: 'browse', entityId: '', viewerFence: fence},
-      revision: {catalog, viewer: 1}, query: {sort: 'title', direction: 'asc', category: '', q: '', limit, searchMode: 'none'}, navigation: [], sorts: [], filters: [],
-      sections: entries.length ? [{id: 'items', type: 'grid', heading: {key: 'items', fallback: 'Movies'}, entries, totalCount: total, nextCursor: 'opaque', start}] : []} as T;
+    const items = Array.from({length: Math.max(0, Math.min(limit, total - start))}, (_, n) => ({id: `t${start + n}`, kind: 'movie', title: `Title ${start + n}`}));
+    return {items, total} as T;
   }};
-  return {api, reads, change: (next: {fence?: string; catalog?: number}) => {fence = next.fence ?? fence; catalog = next.catalog ?? catalog;}};
+  return {api, reads, shrinkTo: (next: number) => {total = next;}};
 }
 const window = (fetchPage: ReturnType<typeof libraryContentPages>) =>
   createWindowedCollection<ContentEntry>({fetchPage, pageSize: 10, maxResidentPages: 3, prefetchPages: 0, maxConcurrent: 1, keyOf: entry => entry.id});
@@ -46,17 +47,18 @@ test('a long section holds a bounded window and reads evicted pages again by the
   } finally {collection.dispose();}
 });
 
-test('an empty library is an empty window; a section that vanished under a later page is stale', async () => {
+test('empty windows and later pages beyond the end carry the collection total', async () => {
   const empty = server(0), signal = new AbortController().signal;
   assert.deepEqual(await libraryContentPages({api: empty.api, scope, route, pageSize: 10})(0, 10, signal), {items: [], total: 0});
-  const shrunk = server(10), pages = libraryContentPages({api: shrunk.api, scope, route, pageSize: 10});
+  const shrunk = server(20), pages = libraryContentPages({api: shrunk.api, scope, route, pageSize: 10});
   await pages(0, 10, signal);
-  await assert.rejects(pages(10, 10, signal), (error: unknown) => isStaleAnswer(error));
+  shrunk.shrinkTo(10);
+  assert.deepEqual(await pages(10, 10, signal), {items: [], total: 10});
 });
 
 test('only start-addressable views get a window, and pages stay within the bound', async () => {
   assert.deepEqual(['browse', 'collection', 'collections', 'artist', 'discover', 'show', 'songs'].map(view => contentViewRehydratable(view as ContentRoute['view'])),
-    [true, true, true, true, false, false, false]);
+    [false, true, false, true, false, false, false]);
   assert.throws(() => libraryContentPages({api: server(1).api, scope, route: {libraryId: 'movies', view: 'discover'}}), /Invalid content window/);
   const pages = libraryContentPages({api: server(100).api, scope, route, pageSize: 10}), signal = new AbortController().signal;
   await assert.rejects(pages(0, 11, signal), /Invalid content window page/);
