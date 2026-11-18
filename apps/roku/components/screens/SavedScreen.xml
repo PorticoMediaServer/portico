@@ -10,6 +10,8 @@
     <field id="menu" type="assocarray" alwaysNotify="true"/>
     <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
     <field id="toTop" type="boolean" alwaysNotify="true" onChange="onToTop"/>
+    <!-- Set by the scene while a page opened from here lies over it. -->
+    <field id="covered" type="boolean" onChange="onCovered"/>
     <!-- Set when an empty tab's Browse Home is pressed. -->
     <field id="goHome" type="boolean" alwaysNotify="true"/>
   </interface>

@@ -111,6 +111,11 @@ function frames() as object
         guide: {headerY: 244, rowsY: 296, pitch: 100, cell: 90, channelWidth: 300, chipsY: 144, gridX: 520, perMinute: 8, shown: 7, toolbarX: 380, toolbarY: 56}
         ' Every page beside the rail: its content starts at `gutter`.
         gutter: 200
+        ' A playlist or collection the viewer has (collections frames 18 and 20): the mosaic `cover`
+        ' across from `coverY`, the words from `wordsX` on their lines, the buttons on `actionsY`,
+        ' then the rows from `rowsY`, `row` apart: a cover `thumb` wide, the title from `titleX`, the
+        ' library from `libraryX`, the row's state at the right edge; the hint at the foot on `hintY`.
+        list: {cover: 280, coverY: 72, wordsX: 528, eyebrowY: 100, nameY: 132, factsY: 226, actionsY: 280, rowsY: 456, row: 104, thumb: 52, titleX: 324, libraryX: 1168, hintY: 1006}
         ' The live player's guide (tv-player frame 11, second): the panel's corner and width, the
         ' first channel's row `rowsY` under its top, rows `row` apart.
         miniGuide: {x: 1144, y: 80, width: 680, rowsY: 72, row: 116}
