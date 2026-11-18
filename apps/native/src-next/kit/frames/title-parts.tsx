@@ -6,7 +6,7 @@ import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
 import {TVRow} from '../layout/TVRow';
 import {useTheme} from '../theme';
-import {frameSpec} from '@portico/design';
+import {frameSpec, tvFocusRoom} from '@portico/design';
 import {useFrameMetrics} from './metrics';
 
 const sizes = frameSpec.hero.title.parts;
@@ -64,7 +64,11 @@ export function CastRow({groups}: Readonly<{groups: readonly (readonly CastPerso
     {entry.role !== undefined && <Text style={[theme.type.cardSubtitle, {marginTop: 2, textAlign: 'center', color: theme.colors.textTertiary}]}>{entry.role}</Text>}
   </Focusable>;
   const lists = groups.filter(group => group.length > 0);
-  if (scroll) return <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: rowPad, alignItems: 'flex-start'}}>{lists.flat().map(person)}</ScrollView></TVRow>;
+  // R1, TV: the scroller gives a focused person its growth, ring and glow (`tvFocusRoom`) and takes it back, so the row
+  // does not move. Height: the circle; the glow's room covers the name's share of the growth.
+  const room = frame.form === 'tv' ? tvFocusRoom(width, size, 'card') : undefined;
+  if (scroll) return <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={room && {marginTop: -room.top, marginBottom: -room.bottom, marginHorizontal: -room.side}}
+    contentContainerStyle={[{gap: rowPad, alignItems: 'flex-start'}, room && {paddingTop: room.top, paddingBottom: room.bottom, paddingHorizontal: room.side}]}>{lists.flat().map(person)}</ScrollView></TVRow>;
   return <View style={{gap: theme.space.md}}>{lists.map((group, index) => <View key={index} style={{flexDirection: 'row', flexWrap: 'wrap', rowGap: theme.space.md, columnGap: theme.space.sm,
     paddingTop: index > 0 ? theme.space.md : 0, borderTopWidth: index > 0 ? 1 : 0, borderTopColor: theme.colors.line}}>{group.map(person)}</View>)}</View>;
 }

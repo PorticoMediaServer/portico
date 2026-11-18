@@ -57,7 +57,7 @@ export function PlayerPanelGroup({label, note, heading, children}: {label?: stri
   heading?: Readonly<{label: string; value?: string; open: boolean; onPress: () => void; testID: string}>; children: ReactNode}) {
   const theme = useTheme(), {form} = useFrameMetrics(), rows = Children.toArray(children), notes = note === undefined ? [] : typeof note === 'string' ? [note] : note;
   const head = heading && <Focusable testID={heading.testID} focusId={heading.testID} focusKind="row" accessibilityRole="button" accessibilityState={{expanded: heading.open}} accessibilityLabel={[heading.label, heading.value].filter(Boolean).join(', ')} onPress={heading.onPress}
-    style={({focused}) => ({minHeight: spec.row[form], paddingHorizontal: frameSpec.card.padding.phone, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap, backgroundColor: focused && theme.isTV ? alpha(theme.colors.text, frameSpec.player.tint.track) : 'transparent'})}>
+    style={{minHeight: spec.row[form], paddingHorizontal: frameSpec.card.padding.phone, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>
     <Text style={[theme.type.rowLabel, {flex: 1, color: theme.colors.text}]}>{heading.label}</Text>
     {heading.value !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.accentStrong}]}>{heading.value}</Text>}
     <Icon name={heading.open ? 'i-chup' : 'i-chdown'} size={frameSpec.player.pillIcon} color={theme.colors.textTertiary}/>
@@ -65,7 +65,9 @@ export function PlayerPanelGroup({label, note, heading, children}: {label?: stri
   const list = heading ? heading.open ? rows : [] : rows;
   return <View style={{gap: theme.space.xs}}>
     {label !== undefined && <Text accessibilityRole="header" style={[theme.type.rowHelp, {color: theme.colors.textSecondary, fontFamily: theme.type.groupLabel.fontFamily}]}>{label}</Text>}
-    <View style={{borderRadius: frameSpec.card.radius.phone, overflow: 'hidden', backgroundColor: theme.colors.raisedHigh}}>
+    {/* Not clipped: a focused row's ring and glow spread past the card (player-tv 4); Android cuts any drawing at a clipping
+        parent's edge. The rows round their own focus. */}
+    <View style={{borderRadius: frameSpec.card.radius.phone, backgroundColor: theme.colors.raisedHigh}}>
       {head}
       {list.map((row, index) => <View key={index} style={(index > 0 || head) && {borderTopWidth: theme.space.hairline, borderTopColor: theme.colors.line}}>{row}</View>)}
     </View>
