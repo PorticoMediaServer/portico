@@ -16,7 +16,7 @@ import {RecordingStorage} from '../../kit/dvr/RecordingsLayout';
 import {RuleCard} from '../../kit/dvr/RuleCard';
 import {ArtBox, BrowseFrame, LiveFrame, ReaderFrame, SearchFrame, Section, SectionCard, type FramePane} from '../../kit/frames';
 import {Shelf} from '../../kit/layout';
-import {AiringRow, ChannelRow, ConflictCard, GuideGrid, RecordingRow, type GuideChannel, type GuideCell} from '../../kit/live';
+import {AiringRow, ChannelRow, ConflictCard, GuideGrid, GuideGroups, GuidePicker, RecordingRow, type GuideChannel, type GuideCell} from '../../kit/live';
 import {usePhone} from '../../kit/overlays/shared';
 import {ReaderAnnotations, ReaderPanel} from '../../kit/reader/ReaderPanel';
 import {ReaderDisplayPopover, ReaderDisplaySheet} from '../../kit/reader/ReaderDisplay';
@@ -137,27 +137,29 @@ const guide: readonly GuideChannel[] = [
 ];
 const ruler = (['time330', 'time400', 'time430', 'time500', 'time530', 'time600'] as const).map((label, index) => ({at: index * 30, label: f(label)}));
 const Grid = () => <GuideGrid channels={guide} span={210} now={35} ruler={ruler} nowLabel={f('nowTime')} channelLabel={f('channel')} onCell={none}/>;
-function Groups() {
-  const groups = [['groupAll', 14], ['groupFavorites', 3], ['groupNews', 2], ['groupSports', 2], ['groupMovies', 2], ['groupKids', 1], ['groupDocumentary', 1]] as const;
-  return <>{groups.map(([name, count], index) => <Chip key={name} variant="search" selected={index === 0} count={count} icon={name === 'groupFavorites' ? 'i-star' : undefined} onClick={none}>{f(name)}</Chip>)}</>;
-}
+const groups = ([['groupAll', 14], ['groupFavorites', 3], ['groupNews', 2], ['groupSports', 2], ['groupMovies', 2], ['groupKids', 1], ['groupDocumentary', 1]] as const)
+  .map(([name, count]) => ({id: name, label: f(name), count, icon: name === 'groupFavorites' ? 'i-star' as const : undefined}));
+const Groups = () => <GuideGroups groups={groups} value="groupAll" onValueChange={none}/>;
 function Switcher() {
-  // A picker is the kit's chip with its chevron after the words, as the library's sort (phone-guide g1, desktop-live guide).
-  return <Chip trailingIcon="i-chdown" onClick={none}>{f('allChannels')}</Chip>;
+  // At phone width the source picker is an outlined chip heading the groups (phone-guide g1); wider, the kit's chip with its chevron.
+  return <Chip variant={usePhone() ? 'pill' : undefined} trailingIcon="i-chdown" onClick={none}>{f('allChannels')}</Chip>;
 }
 function GuideTools() {
   const phone = usePhone();
+  // At phone width the day and the sort are the guide's quiet pickers, text on one line (phone-guide g1).
+  if (phone) return <><GuidePicker icon="i-cal" label={f('todayShort')} value={f('guideDate')} onPress={none}/><span style={{flex: 1}}/><GuidePicker label={f('sortByNumber')} onPress={none}/></>;
   return <>
-    <Chip icon="i-cal" trailingIcon="i-chdown" onClick={none}>{f(phone ? 'todayShort' : 'today')}</Chip>
-    {!phone && <><Button size="small" icon="i-left" onClick={none}>{f('back2h')}</Button><Button size="small" onClick={none}>{f('now')}</Button><Button size="small" onClick={none}>{f('ahead2h')}<Icon name="i-right" size={16}/></Button></>}
+    <Chip icon="i-cal" trailingIcon="i-chdown" onClick={none}>{f('today')}</Chip>
+    <Button size="small" icon="i-left" onClick={none}>{f('back2h')}</Button><Button size="small" onClick={none}>{f('now')}</Button><Button size="small" onClick={none}>{f('ahead2h')}<Icon name="i-right" size={16}/></Button>
     <span style={{flex: 1}}/>
-    {phone ? <Button variant="text" size="small" onClick={none}>{f('sortByNumber')}<Icon name="i-chdown" size={16}/></Button>
-      : <Chip prefix={defaultI18n.t('next.browse.sort')} trailingIcon="i-chdown" onClick={none}>{f('sortByNumber')}</Chip>}
-    {!phone && <Segmented value="grid" onValueChange={none} items={[{value: 'grid', label: f('grid'), icon: 'i-grid'}, {value: 'list', label: f('list'), icon: 'i-list'}]}/>}
+    <Chip prefix={defaultI18n.t('next.browse.sort')} trailingIcon="i-chdown" onClick={none}>{f('sortByNumber')}</Chip>
+    <Segmented value="grid" onValueChange={none} items={[{value: 'grid', label: f('grid'), icon: 'i-grid'}, {value: 'list', label: f('list'), icon: 'i-list'}]}/>
   </>;
 }
 function PhoneActions({list = false}: {list?: boolean}) {
-  return <><Segmented value={list ? 'list' : 'guide'} onValueChange={none} items={[{value: 'list', label: f('list')}, {value: 'guide', label: f('guide')}]}/><Button variant="icon" icon="i-rec" iconOnly aria-label={f('tabRecordings')} onClick={none}/></>;
+  // phone-guide g1: List | Guide with their glyphs, and Recordings as a bare glyph in the title row.
+  return <><Segmented value={list ? 'list' : 'guide'} onValueChange={none} items={[{value: 'list', label: f('list'), icon: 'i-list'}, {value: 'guide', label: f('guide'), icon: 'i-grid'}]}/>
+    <Button variant="text" icon="i-rec" iconOnly aria-label={f('tabRecordings')} onClick={none}/></>;
 }
 const LiveTabs = ({value}: {value: 'guide' | 'recordings'}) => <Tabs value={value} onValueChange={none} items={[{value: 'guide', label: f('tabGuide')}, {value: 'recordings', label: <>{f('tabRecordings')} <small style={{color: 'var(--color-record)'}}>{f('conflictTab')}</small></>}]}/>;
 function PaneChannel() {

@@ -2,3 +2,4 @@
 export {GuideGrid, ChannelRow, AiringRow, Flag, guideSpec, type GuideGridProps, type GuideChannel, type GuideCell, type ChannelRowProps, type AiringRowProps} from './Guide';
 export {MiniGuideHead, MiniGuideRow, MiniGuideAll, type MiniGuideRowProps} from './MiniGuide';
 export {RecordingRow, RuleCard, ConflictCard, type RecordingRowProps, type RuleCardProps, type ConflictCardProps} from './Recordings';
+export {GuidePicker, GuideGroups, type GuideGroup} from './GuideHeader';

@@ -84,6 +84,7 @@ export const newFramesFixtureMessages = {
   'next.newframes.fixture.groupDocumentary': 'Documentary',
   'next.newframes.fixture.today': 'Today  Wed, Oct 21',
   'next.newframes.fixture.todayShort': 'Today',
+  'next.newframes.fixture.guideDate': 'Wed, Oct 21',
   'next.newframes.fixture.back2h': '2 h',
   'next.newframes.fixture.now': 'Now',
   'next.newframes.fixture.ahead2h': '2 h',

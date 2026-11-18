@@ -77,3 +77,8 @@
 .conflictHead > span { display: grid; gap: var(--space-px-2); color: var(--color-text); }
 .conflictHead b { font-size: var(--type-list-label-size); font-weight: var(--type-list-label-weight); }
 .conflictHead small { font-size: var(--type-row-help-size); color: var(--color-text-secondary); }
+/* The guide's quiet pickers (phone-guide g1): text on the page, a glyph, a strong label, its value, a chevron. */
+.picker { display: inline-flex; align-items: center; gap: var(--space-tight); min-height: var(--target-touch, 44px); padding: 0; border: 0; background: transparent; color: var(--color-text-secondary); font: inherit; font-size: var(--type-body-size, 15px); white-space: nowrap; cursor: pointer; }
+.picker > svg { color: var(--color-text-tertiary); flex: none; }
+.picker b { color: var(--color-text); font-weight: var(--type-body-strong-weight, 600); }
+.picker:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; border-radius: 6px; }
