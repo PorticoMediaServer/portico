@@ -4,8 +4,9 @@
 ' rail. The time grid runs from the half hour before now; its lines are frames().guide. Up from the
 ' first channel reaches the filter chips (All, Favorites and the channel groups), and Up again the toolbar:
 ' the channel source when there is more than one, the day shown (today or tomorrow, as the server
-' reads a day of the guide at a time) and Now, back to what is on now. A chip or a choice reads the
-' guide again with the server's own filter; focus stays where it was.
+' reads a day of the guide at a time), Now, back to what is on now, and Recordings. A chip or a
+' choice reads the guide again with the server's own filter; focus stays where it was. A programme
+' booked to record carries the red dot; its sheet records it, records the series, or cancels.
 sub init()
     c = colours()
     m.g = frames().guide
@@ -27,6 +28,7 @@ sub init()
     m.guide = []        ' [{channel, programmes}] from the server
     m.next = ""         ' the cursor of the guide's next page of channels, "" at the end
     m.paging = false    ' that next page has been asked for
+    m.bookingSeq = 0
     m.seq = 0           ' which read of the guide is current: a late answer to an older one is dropped
     m.r = 0             ' the channel in focus
     m.c = 0             ' the cell in focus in that row (0 is the channel itself)
@@ -35,6 +37,11 @@ sub init()
     m.region = "grid"   ' "bar" (the toolbar), "chips" or "grid"
     m.sources = []      ' the channel sources, with their groups
     m.filter = {source: "", group: "", favorites: false}
+    m.booked = {}       ' the profile's bookings by bookingKey (source/Live.brs)
+    m.canRecord = false ' this profile may record (the server's DVR overview)
+    m.hasRecordings = false
+    m.confirm = m.top.findNode("confirm")
+    m.confirm.observeField("chosen", "onConfirm")
     m.toolbar = m.top.findNode("toolbar")
     m.toolbar.translation = [m.g.toolbarX, m.g.toolbarY]
     m.toolbar.observeField("pressed", "onToolbar")
@@ -52,10 +59,11 @@ sub drawToolbar()
     day = "Today"
     if m.day = 1 then day = "Tomorrow"
     buttons = []
-    for each id in liveToolbar(m.sources.count())
+    for each id in liveToolbar(m.sources.count(), m.canRecord or m.hasRecordings)
         if id = "source" then buttons.push({id: "source", text: sourceName(), icon: "", menu: true})
         if id = "day" then buttons.push({id: "day", text: day, icon: "", menu: true})
         if id = "now" then buttons.push({id: "now", text: "Now", icon: ""})
+        if id = "recordings" then buttons.push({id: "recordings", text: "Recordings", icon: "dvr"})
     end for
     m.toolbar.buttons = buttons
 end sub
@@ -107,7 +115,47 @@ sub onActive()
     if not m.top.active then return
     focusRegion(m.region)
     ' read again when come back to after a while: what is on now has moved on
-    if m.readAt = invalid or nowSeconds() - m.readAt > 60 then load()
+    if m.readAt = invalid or nowSeconds() - m.readAt > 60
+        load()
+    else
+        loadBookings()      ' Recordings may have cancelled one
+    end if
+end sub
+
+' Whether this profile may record, and what it has booked: the red dots and the sheet's rows.
+sub loadBookings()
+    m.bookingSeq = m.bookingSeq + 1
+    m.bookings = []
+    api("GET", "/v1/dvr", invalid, "onDvr")
+    api("GET", "/v1/dvr/recordings", invalid, "onBookings", {seq: m.bookingSeq})
+end sub
+
+sub onDvr(event as object)
+    result = event.getData()
+    if not result.ok then return
+    m.canRecord = (result.data.canRecord = true)
+    m.hasRecordings = (result.data.upcoming + result.data.recorded > 0)
+    drawToolbar()
+end sub
+
+' Every page of the bookings (a series rule can book many), then the dots are drawn once.
+sub onBookings(event as object)
+    result = event.getData()
+    ctx = event.getRoSGNode().ctx
+    if ctx.seq <> m.bookingSeq or not result.ok then return
+    for each r in result.data.items
+        channelId = ""
+        if r.channelId <> invalid then channelId = r.channelId
+        m.bookings.push({channelId: channelId, starts: secondsOf(r.startsAt), id: r.id, state: r.state, mayCancel: r.mayCancel = true, mayChange: r.mayChange = true})
+    end for
+    if result.data.nextCursor <> invalid and result.data.nextCursor <> ""
+        api("GET", "/v1/dvr/recordings?cursor=" + createObject("roUrlTransfer").escape(result.data.nextCursor), invalid, "onBookings", ctx)
+        return
+    end if
+    m.booked = liveBookings(m.bookings)
+    if m.cells = invalid then return
+    draw()
+    if m.region = "grid" then paint()
 end sub
 
 ' The guide's query: the day's three hours and the filter, with the cursor of a next page.
@@ -128,6 +176,7 @@ end function
 sub load()
     m.seq = m.seq + 1
     m.next = ""
+    loadBookings()
     ' the sources and their groups come with the first page of channels
     api("GET", "/v1/live/channels?limit=1", invalid, "onSources")
     api("GET", guidePath(""), invalid, "onGuide", {seq: m.seq, more: false})
@@ -248,6 +297,7 @@ sub draw()
     palette = c.channelTints
     for r = 0 to m.guide.count() - 1
         row = m.guide[r]
+        m.drawing = r
         y = r * g.pitch
         cells = []
         ' the channel cell
@@ -337,6 +387,16 @@ function programmeCell(p as object, s as integer, e as integer, x as float, y as
         track.width = width * (now - s) / (e - s)
         if x + track.width > 1920 then track.width = 1920 - x
         track.translation = [x, y + m.g.cell - 4]
+    end if
+    if m.booked[bookingKey(m.guide[m.drawing].channel.id, s)] <> invalid
+        ' booked to record: the red dot before its times
+        booked = m.rows.createChild("Poster")
+        booked.uri = "pkg:/images/disc.png"
+        booked.blendColor = c.danger
+        booked.width = 12
+        booked.height = 12
+        booked.translation = [tx, y + 58]
+        tx = tx + 12 + 10
     end if
     label = m.rows.createChild("Label")
     label.text = times
@@ -474,6 +534,8 @@ sub onToolbar(event as object)
     if which = "now"
         focusRegion("grid")
         toStart()
+    else if which = "recordings"
+        m.top.open = {item: {kind: "recordings", title: "Recordings"}}
     else if which = "source"
         rows = [{id: "source:", text: "All channels", current: m.filter.source = ""}]
         for each source in m.sources
@@ -591,7 +653,22 @@ sub openSheet()
             if other.programme <> invalid and other.start <= now and now < other.ends then cell = other
         end for
     end if
+    m.sheetCell = cell
     model = {eyebrow: row.channel.name + "   " + row.channel.number, title: row.channel.name, status: "", rows: [{id: "watch", text: "Watch live", icon: "play"}]}
+    ' Record and Record series: a source's channel (a Library Channel plays the library), a
+    ' programme the profile may see that has not ended, and a profile allowed to record
+    p = cell.programme
+    if m.canRecord and row.channel.kind = "source" and p <> invalid and p.notAvailable <> true and cell.ends > nowSeconds()
+        booking = m.booked[bookingKey(row.channel.id, cell.start)]
+        if booking = invalid
+            model.rows.push({id: "record", text: "Record", dot: true})
+        else if booking.state = "scheduled" and booking.mayCancel
+            model.rows.push({id: "cancelrec", text: "Cancel recording", detail: "Recording scheduled", dot: true})
+        else if booking.state = "recording" and booking.mayChange
+            model.rows.push({id: "stoprec", text: "Stop recording", detail: "Recording now", dot: true})
+        end if
+        model.rows.push({id: "series", text: "Record series…", icon: "repeat"})
+    end if
     if row.channel.favorite
         model.rows.push({id: "favorite", text: "Remove channel from Favorites", icon: "heartFilled"})
     else
@@ -633,6 +710,29 @@ sub onMenuChosen(event as object)
         api("PUT", "/v1/live/channels/" + channel.id + "/state", {favorite: not channel.favorite, hidden: channel.hidden}, "onFavorite", {id: channel.id, seq: m.seq})
         return
     end if
+    if chosen = "record"
+        api("POST", "/v1/dvr/recordings", {programme: m.sheetCell.programme.id}, "onRecordAnswer", {seq: m.seq})
+        return
+    end if
+    if chosen = "cancelrec" or chosen = "stoprec"
+        m.asked = chosen
+        p = m.sheetCell.programme
+        if chosen = "cancelrec"
+            m.confirm.model = {title: "Cancel recording " + p.title + "?", body: "It won’t be recorded. A series rule, if there is one, stays in place.", verb: "Cancel recording"}
+        else
+            m.confirm.model = {title: "Stop recording " + p.title + "?", body: "What has been recorded so far is kept.", verb: "Stop recording"}
+        end if
+        return
+    end if
+    if chosen = "series"
+        ' what a rule for this programme would record, before it is made
+        api("POST", "/v1/dvr/rules?preview=true", {programme: m.sheetCell.programme.id}, "onSeriesPreview", {seq: m.seq})
+        return
+    end if
+    if chosen = "rule:this" or chosen = "rule:any"
+        api("POST", "/v1/dvr/rules", {programme: m.sheetCell.programme.id, anyChannel: chosen = "rule:any"}, "onRecordAnswer", {seq: m.seq})
+        return
+    end if
     if chosen <> "watch" then return
     row = m.sheetRow
     ' the player gets the channel and the whole lineup, for channel up and down
@@ -648,4 +748,42 @@ sub onFavorite(event as object)
         if row.channel.id = ctx.id then row.channel.favorite = result.data.favorite
     end for
     if m.filter.favorites and not result.data.favorite then load()
+end sub
+
+' A booking or a series rule made: the red dots are read again. One the server refused says why.
+sub onRecordAnswer(event as object)
+    result = event.getData()
+    if event.getRoSGNode().ctx.seq <> m.seq then return
+    if not result.ok
+        m.top.menu = {title: "This program wasn’t recorded", body: result.error.message, rows: [{id: "ok", text: "OK"}]}
+        return
+    end if
+    loadBookings()
+end sub
+
+' Record series (tv.html frame 6, Record series…): which channels the rule follows. A guide that
+' names no series matches by title, on this channel only, so there is nothing to choose there.
+sub onSeriesPreview(event as object)
+    result = event.getData()
+    if event.getRoSGNode().ctx.seq <> m.seq then return
+    if not result.ok
+        m.top.menu = {title: "This program wasn’t recorded", body: result.error.message, rows: [{id: "ok", text: "OK"}]}
+        return
+    end if
+    rule = result.data
+    status = ""
+    if rule.preview <> invalid then status = countText(rule.preview.matches, "airing in the guide now", "airings in the guide now")
+    rows = [{id: "rule:this", text: "On " + m.sheetRow.channel.name, icon: "repeat"}]
+    if rule.byTitle <> true then rows.push({id: "rule:any", text: "On any channel", icon: "repeat"})
+    m.top.menu = {eyebrow: "Record series", title: m.sheetCell.programme.title, status: status, rows: rows}
+end sub
+
+sub onConfirm()
+    focusRegion(m.region)
+    if m.confirm.chosen <> "confirm" then return
+    booking = m.booked[bookingKey(m.sheetRow.channel.id, m.sheetCell.start)]
+    if booking = invalid then return
+    path = "/v1/dvr/recordings/" + booking.id
+    if m.asked = "stoprec" then path = path + "?action=stop"
+    api("DELETE", path, invalid, "onRecordAnswer", {seq: m.seq})
 end sub

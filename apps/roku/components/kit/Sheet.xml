@@ -14,6 +14,7 @@
          keys at the foot ([{keys, text}], kit/KeyHints), and the rows stop above them. -->
     <field id="model" type="assocarray" onChange="onModel"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- A row may also say `dot`: a recording's red dot in place of its icon (Record). -->
     <!-- The row chosen with OK. -->
     <field id="chosen" type="string" alwaysNotify="true"/>
     <!-- Set true when Back closes the sheet without a choice. -->
