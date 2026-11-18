@@ -1,39 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readBrowseCapabilitiesResponse, readImmediateBrowsePageResponse, readBrowseCountsResponse, readBrowseFacetResponse, readReadingBrowseFacet,
-  readSelectedChannelGuideResponse} from '../src/query/browse-reads.ts';
-import {browseCapabilitiesPath, browsePath, browseCountsPath, browseCountsRequest, browseContextFacetsPath} from '../src/browse.ts';
+import {readBrowseCapabilitiesResponse, readBrowseCountsResponse, readBrowseFacetResponse} from '../src/query/browse-reads.ts';
+import {acrossLibraries} from '../src/browse.ts';
+import {genreTitlesPivot} from '../src/library-browse.ts';
 
-test('facets and batched counts keep contextual filters and exact batch membership', async () => {
-  const signal = new AbortController().signal;
+/** Across libraries there is one list, a genre's titles; its reads are the rebuilt server's, never the old /v1/browse routes. */
+test('a genre\'s titles across libraries counts with the rebuilt reads', async () => {
+  const signal = new AbortController().signal, paths: string[] = [];
   const query = {variant: 'predicate' as const, field: 'genre', operator: 'equals' as const, value: 'Drama'};
-  const queries = [{id: 'draft', query}];
-  const counts = {counts: [{id: 'draft', total: 4, totalIsLowerBound: false, revision: 'rev'}]};
-  const calls: unknown[][] = [];
-  const api = {async request(...args: unknown[]) {calls.push(args);return counts;}};
-  assert.deepEqual(await readBrowseCountsResponse(api, '*', 'movies', queries, signal), counts);
-  assert.deepEqual(calls, [[browseCountsPath('*'), 'POST', browseCountsRequest('movies', queries), signal]]);
-  const facetApi = {async request(...args: unknown[]) {calls.push(args);return {field: 'genre', total: 1, values: [{value: 'Drama', label: 'Drama', count: 4}]};}};
-  const facet = await readBrowseFacetResponse(facetApi, '*', 'genre', 'movies', query, 'Dr', 200, signal);
-  assert.equal((facet as {values: {value: string}[]}).values[0].value, 'Drama');
-  assert.deepEqual(calls[1], [browseContextFacetsPath('*', 'genre', 'movies', query, 'Dr', 200), 'GET', undefined, signal]);
-});
-test('transport failures and cancellation are not retried or cached by an operation', async () => {
-  for (const error of [Object.assign(new Error('stale'), {code: 'stale_continuation'}), new DOMException('retired', 'AbortError')]) {
-    let calls = 0;
-    const api = {async request() {calls++;throw error;}};
-    await assert.rejects(readBrowseCapabilitiesResponse(api, '*', ''), value => value === error);
-    assert.equal(calls, 1);
-  }
+  const api = {async request(path: string) {paths.push(path); return path.startsWith('/v1/facets') ? {values: [{value: 'Drama', label: 'Drama', count: 4}]} : {items: [], total: 4};}};
+  const counts = await readBrowseCountsResponse(api, acrossLibraries, genreTitlesPivot, [{id: 'draft', query}], signal) as {counts: {id: string; total: number}[]};
+  assert.deepEqual(counts.counts.map(one => [one.id, one.total]), [['draft', 4]]);
+  assert.ok(paths.length === 1 && paths[0]!.startsWith('/v1/items?'), paths.join(' '));
 });
 
-test('single-channel guide retains exact query order, hidden policy and signal', async () => {
-  const signal = new AbortController().signal, calls: unknown[][] = [], pending = new Promise<unknown>(() => {});
-  const api = {request(...args: unknown[]) {calls.push(args);return pending;}};
-  for (const include of [false, true]) {
-    const route = {kind: 'live-source' as const, sourceId: 'source /?', ...(include ? {includeServerHidden: true} : {}), timezone: 'UTC', search: '', start: 'start', end: 'end'};
-    const expected = '/v1/guide?' + new URLSearchParams({...route, includeServerHidden: String(include), channels: 'channel /?', limit: '1'});
-    assert.equal(readSelectedChannelGuideResponse(api, route, 'channel /?', include, signal), pending);
-    assert.deepEqual(calls.at(-1), [expected, 'GET', undefined, signal]);
-  }
+test('any other list across libraries is refused before a request is sent', async () => {
+  let calls = 0;
+  const api = {async request() {calls++; return {};}};
+  await assert.rejects(readBrowseCapabilitiesResponse(api, acrossLibraries, 'movies'), {name: 'BrowseQueryError'});
+  await assert.rejects(readBrowseCountsResponse(api, acrossLibraries, 'movies', [{id: 'x', query: null}]), {name: 'BrowseQueryError'});
+  await assert.rejects(readBrowseFacetResponse(api, acrossLibraries, 'genre', 'movies', undefined, '', 10), {name: 'BrowseQueryError'});
+  assert.equal(calls, 0);
+  assert.ok(await readBrowseCapabilitiesResponse(api, acrossLibraries, genreTitlesPivot));
 });

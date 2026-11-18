@@ -5,29 +5,22 @@ import type {ContentEntry} from '../library-content.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
 import type {ServerRequester} from './server-api.ts';
 import {readRebuiltReadingFacet} from './reading-facets-rebuilt.ts';
-import {routePath} from '../../../contracts/src/routes.ts';
-import type {GuideRoute} from '../channel-guide.ts';
-import {acrossLibraries, browseCapabilitiesPath, browsePath, browseContextFacetsPath, browseCountsPath, browseCountsRequest, parseBrowseFacets,
-  type BrowseNode, type BrowseRequestBody} from '../browse.ts';
+import {acrossLibraries, BrowseQueryError, parseBrowseFacets, type BrowseNode} from '../browse.ts';
 
 export interface BrowseReadApi {
   request(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<unknown>;
 }
-/** What a library's tab can be filtered and ordered by, for `parseBrowseCapabilities`. A list across libraries still asks the route it always did. */
+/** What a library's tab can be filtered and ordered by, for `parseBrowseCapabilities`. Across libraries there is one list, a genre's titles. */
 export async function readBrowseCapabilitiesResponse(api: BrowseReadApi, libraryId: string, pivot: string, signal?: AbortSignal) {
   // A genre's titles across every library: one list of films and shows, sorted by title, date added or year.
   if (libraryId === acrossLibraries && pivot === genreTitlesPivot) return genreTitlesCapabilities();
-  if (libraryId === acrossLibraries) return api.request(browseCapabilitiesPath(libraryId, pivot), 'GET', undefined, signal);
+  if (libraryId === acrossLibraries) throw new BrowseQueryError('pivot', 'That view is not available in this library.');
   return libraryBrowseCapabilities(await readLibrary(api as ServerRequester, libraryId, signal), pivot);
-}
-export function readImmediateBrowsePageResponse(api: BrowseReadApi, libraryId: string, body: BrowseRequestBody, signal?: AbortSignal) {
-  return api.request(browsePath(libraryId), 'POST', body, signal);
 }
 const conditions = (query: BrowseNode | null | undefined): readonly BrowseNode[] => query ? [query] : [];
 /** How many titles each of a few candidate filters would leave: the empty state's "loosen one filter" choices. */
 export async function readBrowseCountsResponse(api: BrowseReadApi, libraryId: string, pivot: string,
   queries: readonly Readonly<{id: string; query: BrowseNode | null}>[], signal?: AbortSignal) {
-  if (libraryId === acrossLibraries) return api.request(browseCountsPath(libraryId), 'POST', browseCountsRequest(pivot, queries), signal);
   const counts = await Promise.all(queries.map(async each => {
     const page = await readItems(api as ServerRequester, libraryItemQuery({id: libraryId}, pivot, conditions(each.query), []), {limit: 1, total: true}, signal);
     return {id: each.id, total: page.total ?? page.items.length, totalIsLowerBound: false, revision: 'counted'};
@@ -37,7 +30,6 @@ export async function readBrowseCountsResponse(api: BrowseReadApi, libraryId: st
 /** The choices of one filter, counted under the other filters in use, for `parseBrowseFacets`. `search` narrows them by name. */
 export async function readBrowseFacetResponse(api: BrowseReadApi, libraryId: string, field: string, pivot: string,
   query: BrowseNode | undefined, search: string, limit: number, signal?: AbortSignal) {
-  if (libraryId === acrossLibraries) return api.request(browseContextFacetsPath(libraryId, field, pivot, query, search, limit), 'GET', undefined, signal);
   // A library's authors are its people by that role, not a counted facet of the list.
   if (field === 'author') return readRebuiltReadingFacet(api as ServerRequester, {libraryId, field, q: search, limit}, signal);
   // A library's collections are its own titles of kind collection, not a counted facet of the list.
@@ -97,11 +89,3 @@ export const readArtistReleasePage = (api: BrowseReadApi, libraryId: string, art
 export const readArtistSongPage = (api: BrowseReadApi, libraryId: string, artistId: string, order: 'popular' | 'title', page: MusicPageRequest, signal?: AbortSignal): Promise<MusicPage> =>
   readMusicPage(api, libraryId, {artist: artistId, kind: 'track', sort: order, ...(order === 'title' ? {order: 'asc' as const} : {})}, page, signal);
 
-/** One named channel in the existing selected-source guide window. */
-export function readSelectedChannelGuideResponse(api: BrowseReadApi,
-  route: Pick<GuideRoute, 'kind' | 'sourceId' | 'timezone' | 'search' | 'start' | 'end' | 'includeServerHidden'>,
-  channelId: string, includeServerHidden: boolean, signal: AbortSignal) {
-  const params = new URLSearchParams({...route, includeServerHidden: String(includeServerHidden), channels: channelId, limit: '1'});
-  const path = routePath('get_guide') + '?' + params;
-  return api.request(path, 'GET', undefined, signal);
-}

@@ -77,65 +77,6 @@ test('the container-only download dispatcher refuses a proof-bearing query inste
   } finally {held.model.dispose();}
 });
 
-async function deleteResolver() {
-  const details: string[] = [];
-  const module = await componentModule(new URL('../../packages/client-core/src/query/catalogue-query-delete.ts', import.meta.url), {
-    '../selection-basis.ts': await import('../../packages/client-core/src/selection-basis.ts'),
-    '../browse.ts': await import('../../packages/client-core/src/browse.ts'),
-    '../selection-model/index.ts': await import('../../packages/client-core/src/selection-model/index.ts'),
-    '../catalogue-selection.ts': {readCatalogueSelectionItem: async (_options: unknown, entry: {id: string}) => {details.push(entry.id); return {capabilities: {delete: true}};}},
-  });
-  return {resolve: module.resolveQueryDelete as typeof resolveQueryDelete, details};
-}
-const exactPage = (total: number, over: Record<string, unknown> = {}) => ({pivot: 'movies', applied: {query: null, sort, seek: null},
-  entries: Array.from({length: total}, (_, n) => ({id: `movie-${n}`, kind: 'movie', title: `Movie ${n}`, libraryId: 'lib', navigation: {view: 'item'}})),
-  pageInfo: {start: 0, total, revision, totalIsLowerBound: false, hasMore: false, nextCursor: ''}, ...over});
-
-test('bounded whole-view Delete posts the exact proof once and converts every eligible member at the 200 boundary', async () => {
-  for (const size of [1, 199, 200]) {
-    const held = selected(proof, size), resolver = await deleteResolver(), bodies: any[] = [];
-    try {
-      const targets = await resolver.resolve(held.target, {api: {request: async <T>(path: string, method?: string, body?: unknown) => {
-        assert.equal(path, '/v1/libraries/lib/browse'); assert.equal(method, 'POST'); bodies.push(body); return exactPage(size) as T;
-      }}, serverId: 'server', viewerId: 'viewer', isCurrent: () => true, requestId: async () => 'operation'}, new AbortController().signal);
-      assert.equal(bodies.length, 1); assert.equal(bodies[0].selectionBasis, proof); assert.deepEqual(bodies[0].range, {start: 0, revision}); assert.equal(bodies[0].limit, 200);
-      assert.equal(targets.length, size); assert.equal(resolver.details.length, size); assert.equal(new Set(targets.map(entry => entry.itemId)).size, size);
-      assert.deepEqual(targets.map(entry => entry.itemId), resolver.details); assert.ok(Object.isFrozen(targets));
-    } finally {held.model.dispose();}
-  }
-});
-
-test('witness refusal under the same page revision and incomplete 200-member answers never reach item checks', async () => {
-  const held = selected(proof, 200);
-  try {
-    for (const response of [
-      {pageInfo: {...exactPage(200).pageInfo, hasMore: true}}, {pageInfo: {...exactPage(200).pageInfo, nextCursor: 'more'}},
-      {pageInfo: {...exactPage(200).pageInfo, totalIsLowerBound: true}}, {pageInfo: {...exactPage(200).pageInfo, revision: 'other'}},
-      {entries: exactPage(199).entries}, {pageInfo: {...exactPage(200).pageInfo, total: 201}},
-    ]) {
-      const resolver = await deleteResolver();
-      await assert.rejects(resolver.resolve(held.target, {api: {request: async <T>() => exactPage(200, response) as T}, serverId: 'server', viewerId: 'viewer', isCurrent: () => true, requestId: async () => 'operation'}, new AbortController().signal));
-      assert.deepEqual(resolver.details, []);
-    }
-    const resolver = await deleteResolver(); let calls = 0;
-    await assert.rejects(resolver.resolve(held.target, {api: {request: async (_path: string, _method?: string, body?: unknown) => {
-      calls++; assert.equal((body as any).selectionBasis, proof); throw Object.assign(new Error('witness changed'), {status: 409, code: 'stale_continuation'});
-    }}, serverId: 'server', viewerId: 'viewer', isCurrent: () => true, requestId: async () => 'operation'}, new AbortController().signal), {code: 'stale_continuation'});
-    assert.equal(calls, 1); assert.deepEqual(resolver.details, []);
-  } finally {held.model.dispose();}
-});
-
-test('the existing explicit-delete conversion remains compatible with legacy descriptors without a proof', async () => {
-  const held = selected(), resolver = await deleteResolver();
-  try {
-    const legacy = {...held.target, selector: {query: {libraryId: 'lib', pivot: 'movies', sort}}};
-    const targets = await resolver.resolve(legacy, {api: {request: async <T>(_path: string, _method?: string, body?: unknown) => {
-      assert.equal('selectionBasis' in (body as object), false); return exactPage(2) as T;
-    }}, serverId: 'server', viewerId: 'viewer', isCurrent: () => true, requestId: async () => 'operation'}, new AbortController().signal);
-    assert.equal(targets.length, 2);
-  } finally {held.model.dispose();}
-});
-
 test('the existing selection menu renders unavailable Download and Delete rows with their supplied reasons', async () => {
   const host = createRenderer();
   const {PhoneActionBar} = await componentModule(new URL('../src/kit/selection/SelectionBar.tsx', import.meta.url), {
