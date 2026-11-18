@@ -17,7 +17,9 @@ function server(saved: Readonly<{order?: string[]; hidden?: string[]; views?: st
   // As server-next does, a saved view's row comes only from home.savedViews, and only the first four are filled: the rest
   // come deferred, named, with no items.
   const rows = (include: boolean) => [{id: 'continue', title: 'Continue Watching', shape: 'landscape', items: [item('a')]}, {id: 'recently_added', title: 'Recently Added', shape: 'poster', items: [item('b')]},
-    ...views.map((id, n) => ({id: 'view:' + id, title: 'View ' + id, shape: 'poster', items: n < 4 ? [item('c')] : [], ...(n < 4 ? {} : {deferred: true}), library: 'lib_films', query: 'genre=Drama'}))]
+    ...views.map((id, n) => ({id: 'view:' + id, title: 'View ' + id, shape: 'poster', items: n < 4 ? [item('c')] : [], ...(n < 4 ? {} : {deferred: true}), library: 'lib_films', query: 'genre=Drama'})),
+    // As server-next does, a collection's row comes only from its id in the order.
+    ...order.filter(id => id.startsWith('collection:')).map(id => ({id, title: 'Collection ' + id, shape: 'poster', items: [item('d')], library: 'lib_films', query: 'collection=' + id.slice(11)}))]
     .sort((x, y) => (order.indexOf(x.id) + 1 || 99) - (order.indexOf(y.id) + 1 || 99))
     .flatMap(row => row.id !== 'continue' && hidden.includes(row.id) ? include ? [{...row, items: [], hidden: true}] : [] : [row]);
   const asked: string[] = [];
@@ -141,4 +143,17 @@ test('an episode entry carries its own still; a malformed still is left out like
   assert.equal(validateContentEntry(base).stillUrl, undefined);
   assert.equal(validateContentEntry({...base, stillUrl: 42}).stillUrl, undefined);
   assert.equal(validateContentEntry({...base, stillUrl: 42}).backdropUrl, base.backdropUrl);
+});
+
+test('Show on Home puts a collection\'s row at the end of Home and Remove from Home takes it off, keeping the rest of the layout', async () => {
+  const {api, sent} = server({order: ['recently_added', 'continue'], hidden: ['recently_added']}), home = new HomeService(api);
+  await home.load();
+  await home.setCollectionOnHome('itm_c1', true);
+  assert.deepEqual((sent[0] as {values: Record<string, unknown>}).values, {'home.rowOrder': ['recently_added', 'continue', 'collection:itm_c1'], 'home.hiddenRowIds': ['recently_added'], 'home.savedViews': []});
+  assert.deepEqual(home.getSnapshot().document!.rows.map(row => row.id), ['continue', 'collection:itm_c1']);
+  await home.setCollectionOnHome('itm_c1', true);
+  assert.equal(sent.length, 1, 'already on Home: nothing is saved');
+  await home.setCollectionOnHome('itm_c1', false);
+  assert.deepEqual((sent[1] as {values: Record<string, unknown>}).values['home.rowOrder'], ['recently_added', 'continue']);
+  assert.deepEqual(home.getSnapshot().document!.rows.map(row => row.id), ['continue']);
 });

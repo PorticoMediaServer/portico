@@ -12,6 +12,8 @@
  * No React and no timers of its own beyond the read deadline: tested under Node.
  */
 import {readHomeLayoutSettings, saveHomeLayoutSettings} from './home-layout-settings.ts';
+import {homeDraftIntent, homeLayoutDraft} from './home-layout-editor.ts';
+import {CodedError} from './server-messages.ts';
 import type {DeviceClass} from './preferences.ts';
 import {appendHomeRowPage, fetchHome, fetchHomeRow, type HomeApi, type HomeDocument, type HomeLayout, type HomeLayoutView, type HomeRow} from './home.ts';
 
@@ -231,6 +233,20 @@ export class HomeService {
     await saveHomeLayoutSettings(this.api(), this.deviceClass, null, lifetime?.signal);
     this.assertLayoutOpen(lifetime);
     await this.refresh({signal: lifetime?.signal});
+  }
+
+  /** A collection's Show on Home and Remove from Home: the profile's layout read now, with that collection's row put at
+   * the end and shown, or taken out, saved as Customize saves it (the later save wins), and Home read again. The order
+   * names it `collection:<id>` and the server builds the row only from that (area 5 rule 39); Reset takes it away. Home
+   * names at most 64 rows, so one more is refused rather than cutting the order. */
+  async setCollectionOnHome(collectionId: string, on: boolean, lifetime?: HomeLayoutWriteLifetime): Promise<void> {
+    this.assertLayoutOpen(lifetime);
+    const draft = homeLayoutDraft(await this.loadLayout(lifetime?.signal)), id = 'collection:' + collectionId, present = draft.order.includes(id);
+    const {rowOrder, hiddenRowIds} = homeDraftIntent(draft), hidden = hiddenRowIds.filter(value => value !== id);
+    if (on ? present && !draft.hidden.has(id) : !present) return;
+    if (on && !present && rowOrder.length >= 64) throw new CodedError('home_rows_full', 'Home already has as many rows as it can keep.');
+    const order = on ? present ? rowOrder : [...rowOrder, id] : rowOrder.filter(value => value !== id);
+    await this.saveLayout(order, hidden, () => '', undefined, lifetime);
   }
 
   /** Take an entry out of every row at once (a removal the screen has just asked the server for); returns the way to put the rows back. */
