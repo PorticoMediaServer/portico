@@ -191,7 +191,7 @@ func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {
 		return sortSpec{columns: []string{idOrder(q.trendingIDs)}}, true
 	}
 	if q.homeRecent && q.Sort == SortAdded {
-		return sortSpec{columns: []string{"max(i.added_at, ifnull(i.last_child_added_at, 0))"}}, true
+		return sortSpec{columns: []string{"i.home_added_at"}}, true
 	}
 	if q.homeIDs != nil && q.Sort == SortOrder {
 		return sortSpec{columns: []string{idOrder(q.homeIDs)}}, true
@@ -359,6 +359,10 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		return page, invalid("This list cannot be sorted that way.")
 	}
 	where := newQuery(v)
+	// On a recent date page, check holders as the ordered index reaches them.
+	if q.homeRecent && !q.WithTotal && q.At == 0 && q.Series == "" && (q.Sort == SortAdded || q.homeReleased && q.Sort == SortRelease) {
+		where.holders = acc.filled("i")
+	}
 	if found, err := q.filters(ctx, tx, where, acc); err != nil || !found {
 		return page, err
 	}
@@ -640,10 +644,10 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		// Popular holds only what has been played: an artist nobody has played has no row.
 		w.add(` AND EXISTS (SELECT 1 FROM play_history h WHERE h.item_id = i.id AND `, sharedPlay, `)`)
 	}
-	scoped := false
+	scoped := q.homeIDs != nil
 	if q.homeIDs != nil {
 		w.add(" AND i.id IN ", intList(q.homeIDs))
-		scoped = true
+		w.scope = "SELECT id FROM items WHERE id IN " + intList(q.homeIDs)
 	}
 	if q.homeUnplayed {
 		w.add(" AND ifnull(", ownState("played"), ", 0) = 0 AND ifnull(", ownState("favorite"), ", 0) = 0 AND ifnull(", ownState("hidden"), ", 0) = 0")
@@ -652,10 +656,9 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		w.add(" AND i.release_date > '' AND i.release_date <= ", w.arg(time.Now().UTC().Format(time.DateOnly)))
 	}
 	if q.homeRecent {
-		w.add(fmt.Sprintf(` AND (i.kind IN (%d,%d,%d,%d,%d,%d) OR
-			(i.kind IN (%d,%d,%d) AND i.parent_id IS NULL) OR
-			(i.kind = %d AND EXISTS (SELECT 1 FROM items issue WHERE issue.parent_id = i.id AND issue.kind = %d)))`,
-			KindMovie, KindShow, KindAlbum, KindBook, KindAudiobook, KindComic, KindEpisode, KindTrack, KindIssue, KindSeries, KindIssue))
+		w.add(fmt.Sprintf(` AND (i.kind IN (%d,%d,%d,%d,%d,%d,%d) OR (i.kind IN (%d,%d,%d) AND i.parent_id IS NULL))
+			AND (i.kind != %d OR EXISTS (SELECT 1 FROM items issue WHERE issue.parent_id = i.id AND issue.kind = %d))`,
+			KindMovie, KindShow, KindAlbum, KindAudiobook, KindBook, KindComic, KindSeries, KindEpisode, KindTrack, KindIssue, KindSeries, KindIssue))
 		scoped = true
 	}
 	var library int64
@@ -924,11 +927,8 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		q.trendingSource(w)
 		scoped = true
 	}
-	// A list that can hold shows, seasons, artists, albums, collections or series leaves out
-	// those the viewer would find nothing under; one of films, episodes or tracks alone needs
-	// no such check, and nor does a series' list: it holds only volumes and issues.
-	// The holders are found once for the request, and are nearly always none.
-	if q.Series == "" && (len(q.Kinds) == 0 || w.holderKinds != "") {
+	// Other lists of holders find the emptied ones once. A series lists only volumes and issues.
+	if w.holders == "" && q.Series == "" && (len(q.Kinds) == 0 || w.holderKinds != "") {
 		if set := acc.emptiedWithin(library, w.holderKinds, w.within("f")); set != "" {
 			emptied, err := ids(ctx, tx, set, w.args...)
 			if err != nil {

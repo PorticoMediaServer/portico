@@ -2,6 +2,7 @@ package db_test
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -201,6 +202,19 @@ func TestAHolderEmptiedOnlyByARatingAndALabelTogether(t *testing.T) {
 		}
 	}
 	for _, who := range []db.Viewer{both, byRating, byLabel} {
+		recent := db.ItemQuery{Library: music.PublicID, Kinds: []db.ItemKind{db.KindAlbum}, Limit: 200}
+		page, err := l.d.HomeRowItems(ctx, who, "recently_added", recent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		recent.WithTotal = true
+		counted, err := l.d.HomeRowItems(ctx, who, "recently_added", recent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.EqualFunc(page.Items, counted.Items, func(a, b db.Item) bool { return a.ID == b.ID }) {
+			t.Errorf("profile %d: checking holders while paging changed the visible album order", who.ProfileID)
+		}
 		for _, kinds := range [][]db.ItemKind{{db.KindArtist}, {db.KindAlbum}, {db.KindArtist, db.KindAlbum}, {db.KindArtist, db.KindAlbum, db.KindTrack}} {
 			q := db.ItemQuery{Library: music.PublicID, Kinds: kinds, Limit: 200}
 			list := everything(t, l.d, who, q)
