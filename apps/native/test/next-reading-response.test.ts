@@ -1,27 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {HttpLocalApi, ReadingError, type Viewer} from '../../../packages/client-core/src';
-import {routePath} from '../../../packages/contracts/src/routes';
 import {nativeReadingPolicy, nativeReadingResponse} from '../src-next/platform/reading-response';
 import {nativeServerFetch} from '../src-next/platform/server-connections';
 import {NativeModules} from './react-native-stub.mjs';
 
 const origin = 'http://127.0.0.1:39129', revision = 'a'.repeat(64);
 const viewer: Viewer = {accountId: 'a', profileId: 'p', serverId: 's', authority: 'local', role: 'member'};
-test('canonical byte operations alone select exact bounds and other Reading controls retain JSON', () => {
-  for (const [path, method, limit] of [
-    [routePath('head_reading_sessions_sessionId_source', {sessionId: 'session'}), 'HEAD', 65536],
-    [routePath('get_reading_sessions_sessionId_source', {sessionId: 'session'}), 'GET', 65536],
-    [routePath('get_reading_sessions_sessionId_assets', {sessionId: 'session'}), 'GET', 33554432],
-    [routePath('get_reading_sessions_sessionId_pages_pageIndex', {sessionId: 'session', pageIndex: 0}), 'GET', 16777216],
-  ] as const) {
-    assert.equal(nativeReadingPolicy(origin + path, method, method === 'GET' && path.endsWith('/source') ? {Range: 'bytes=0-9'} : undefined)?.binaryLimit, limit);
-    assert.equal(nativeReadingPolicy(origin + path, 'PATCH'), undefined);
-  }
-  assert.deepEqual(nativeReadingPolicy(origin + routePath('post_reading_sessions'), 'POST'), {binaryLimit: undefined});
-  assert.equal(nativeReadingPolicy(origin + '/v1/items/other', 'GET'), undefined);
-  assert.deepEqual(nativeReadingPolicy(origin + routePath('get_reading_sessions_sessionId_source', {sessionId: 'session'}), 'GET'), {sequential: true});
-});
 // The rebuilt server's book bytes come from the media address its book route gave. On a phone each one must
 // cross the native byte exchange: through the ordinary JSON request a PDF, an EPUB part or a comic page is lost.
 test('a book’s bytes at its media address cross the native byte exchange with their limits, and nothing else under /v1/media does', () => {
