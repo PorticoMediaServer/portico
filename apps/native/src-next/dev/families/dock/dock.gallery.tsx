@@ -1,5 +1,5 @@
 import React, {useCallback, useMemo, useState, useSyncExternalStore} from 'react';
-import {View} from 'react-native';
+import {View, useWindowDimensions} from 'react-native';
 import {PlaybackDock, type DockPlayback, type DockState, type QueuePlaybackFence, type QueueScope, type RemotePhase} from '../../../../../../packages/player-core/src/index';
 import {playbackIdentity} from '../../../../../../packages/client-core/src/presentation/kit-model/index';
 import {defaultI18n} from '../../../../../../packages/i18n/src/index';
@@ -49,8 +49,10 @@ function fixture(kind: Case) {
   return {dock, model};
 }
 
-function DockCase({kind}: {kind: Case}) {
-  const theme = useTheme();
+/** One dock case. The player family's frames gallery draws its dock and casting cases through this too, with the
+ * reference artwork (`artwork`); the window's own size, so a tablet's bar spans a tablet. */
+export function DockCase({kind, artwork: reference}: {kind: Case; artwork?: Evidence['artwork']}) {
+  const theme = useTheme(), window = useWindowDimensions();
   const injected = globalThis.__porticoNativeDockEvidence;
   const prepared = useMemo(() => fixture(kind), [kind]);
   const [snapshot, setSnapshot] = useState(prepared.dock.getSnapshot()), [expanded, setExpanded] = useState(kind === 'tv-expanded'), [menu, setMenu] = useState(kind === 'menu'), [noticeDismissed, setNoticeDismissed] = useState(false);
@@ -58,7 +60,7 @@ function DockCase({kind}: {kind: Case}) {
   const [docked, setDocked] = useState(true);
   const external = useSyncExternalStore(injected?.subscribe ?? (() => () => {}), injected?.getSnapshot ?? (() => snapshot));
   const dock = injected?.dock ?? prepared.dock;
-  const artwork = injected?.artwork?.[kind === 'tv-book' || kind === 'audiobook' ? 'book' : kind.startsWith('tv-') ? 'tvMusic' : ['video', 'menu', 'finished', 'gesture'].includes(kind) ? 'video' : 'music'];
+  const artwork = (injected?.artwork ?? reference)?.[kind === 'tv-book' || kind === 'audiobook' ? 'book' : kind.startsWith('tv-') ? 'tvMusic' : ['video', 'menu', 'finished', 'gesture'].includes(kind) ? 'video' : 'music'];
   const restoredMusic = kind === 'handover' && snapshot.local?.kind === 'music' ? snapshot.local : undefined;
   const localModel = {...prepared.model, fence: snapshot.local?.fence ?? prepared.model.fence, artwork: restoredMusic ? injected?.artwork?.music : artwork,
     ...(restoredMusic ? {identity: playbackIdentity({kind: 'music', item: {id: restoredMusic.fence.itemId, kind: 'song', title: facts.music.title, artist: facts.music.artist}}, 'dock', {t: defaultI18n.t}), durationSeconds: 239} : {}),
@@ -97,7 +99,7 @@ function DockCase({kind}: {kind: Case}) {
   const occupant = currentOccupant(dock, external, presentation);
   const parked = !injected && snapshot.parkedAudio?.kind !== 'live' ? snapshot.parkedAudio : null;
   const notice = injected ? injected.notice : !noticeDismissed && parked ? {id: 'gallery-paused-audio', kind: 'paused-audio' as const, fence: parked.fence, identity: playbackIdentity({kind: 'music', item: {id: parked.fence.itemId, kind: 'song', title: facts.music.title, artist: facts.music.artist}}, 'dock', {t: defaultI18n.t}), positionSeconds: parked.positionSeconds} : undefined;
-  return <OverlaysProvider><View style={{width: theme.isTV ? 1920 : 390, height: theme.isTV ? 1080 : 844, backgroundColor: theme.colors.ink}}>
+  return <OverlaysProvider><View style={{width: window.width, height: window.height, marginHorizontal: -theme.gutter, backgroundColor: theme.colors.ink}}>
     {kind === 'menu' && occupant ? <MediaBar occupant={occupant} onAction={action} menuOpen={menu} onMenuOpenChange={setMenu} style={{position: 'absolute', left: 8, right: 8, bottom: 92}}/> : <DockHost testID={`dev.dock.${kind}`} dock={dock} snapshot={external} presentation={presentation} onAction={action} tvExpanded={expanded} onTVExpandedChange={setExpanded} morph={kind === 'gesture' ? morph : undefined} onVideoSlot={setSlot} bottomInset={92} notice={notice} onNoticeDismiss={injected ? injected.onNoticeDismiss : () => setNoticeDismissed(true)}/>}
     {injected?.surface && <PlayerMorph controller={morph} fence={localFence} docked={docked} fullFrame={{x: 0, y: 0, width: 390, height: 219.375}} dockFrame={slot} retainedSnapshot={injected.retainedSnapshot}>{injected.surface}</PlayerMorph>}
     {!docked && localFence && <Button variant="text" onPress={() => action({type: 'collapse', fence: localFence})}>{defaultI18n.t('player.minimize')}</Button>}

@@ -7,6 +7,7 @@ import {Focusable} from '../controls/Focusable';
 import {BackCloseHints} from '../controls/KeyHints';
 import {useFrameMetrics, usePlayerUpright} from '../frames/metrics';
 import {Icon, type IconName} from '../Icon';
+import {TVRow} from '../layout/TVRow';
 import {alpha} from '../shell/visual';
 import {useTheme} from '../theme';
 
@@ -101,4 +102,19 @@ export function PlayerChannelStep({direction, number, label, onPress, disabled, 
     style={{width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: form === 'tv' ? alpha(theme.colors.text, frameSpec.player.tint.pill) : 'transparent', opacity: disabled ? theme.spec.button.disabledOpacity : 1}}>
     {direction === 'up' && <Icon name="i-chup" size={frameSpec.player.promptIcon} color={theme.colors.text}/>}{channel}{direction === 'down' && <Icon name="i-chdown" size={frameSpec.player.promptIcon} color={theme.colors.text}/>}
   </Focusable>;
+}
+
+/** TV's Episodes (tv-player 1, frame 3): a band across the bottom of the picture, not a column. "Episodes" and the
+ * count, the season at the right, then the season's tiles (the kit `EpisodeTile`) in a row that scrolls past the
+ * player's edge. `PlayerChromeFrame` places it (its `band`) and hides the controls while it shows. */
+export function PlayerEpisodeBand({title, count, season, children}: Readonly<{title: string; count?: string; season?: ReactNode; children: ReactNode}>) {
+  const theme = useTheme(), edge = frameSpec.player.edge.tv;
+  return <View style={{gap: theme.space.md}}>
+    <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, paddingHorizontal: edge}}>
+      <Text accessibilityRole="header" style={[theme.type.rowHeading, {color: theme.colors.text}]}>{title}</Text>
+      <Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textTertiary}]}>{count}</Text>
+      {season}
+    </View>
+    <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: theme.space.md, paddingHorizontal: edge}}>{children}</ScrollView></TVRow>
+  </View>;
 }

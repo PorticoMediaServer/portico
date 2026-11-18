@@ -171,20 +171,25 @@ export function EpisodeTile(props: EpisodeTileProps) {
   // title, the length on the picture (tablet f8, tablet-play 3; tablets.md SC-5).
   const wide = row && t.column === 'tablet';
   const width = props.width ?? (row ? 350 : t.spec.episode.width[t.column]), artWidth = row ? props.artWidth ?? 136 : width, height = artWidth * 9 / 16;
+  // Where the length sits on the picture (a tile, a tablet row), Playing or Watched is a labelled chip at the picture's
+  // top left (desktop-player f6, tablet-play 2a), so nothing shares the length's corner. A tile's own status keeps its badge.
+  const pictured = !row || wide, playingBars = (color: string) => [.55, 1, .38].map((factor, index) => <View key={index} style={{width: 3, height: 12 * factor, borderRadius: 1.5, backgroundColor: color}}/>);
+  const chip = !pictured ? undefined : props.status && !row ? <Badge kind="new">{props.status}</Badge>
+    : props.playing ? <Badge kind="playing">{defaultI18n.t('next.dock.playing')}</Badge> : props.watched ? <Badge kind="watched">{defaultI18n.t('next.cards.watched')}</Badge> : undefined;
   const art = (focused: boolean, hovered: boolean, holding: boolean) => <ArtFrame width={artWidth} height={height} radius={row ? 8 : undefined} focused={focused} hovered={hovered} holding={holding} hoverScale={t.spec.card.hover.episodeScale} selected={props.selection?.selected || props.open}>
     <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="still" backdropFallback={props.backdropFallback} source={props.artwork} fallback={fallbackFor(props, 'still', artWidth, height)} width={artWidth} height={height} />
-    {props.length && (!row || wide) && <View style={{position: 'absolute', right: t.spec.episode.duration.inset[t.column], top: t.spec.episode.duration.inset[t.column]}}><Badge>{props.length}</Badge></View>}
-    {props.status && !row && <View style={{position: 'absolute', left: t.isTV ? 16 : 8, top: t.isTV ? 14 : 8}}><Badge kind="new">{props.status}</Badge></View>}
-    <Marks watched={props.watched} progress={props.progress} />
-    {/* The episode that is playing carries the playing mark on its picture (phone-player 4). */}
-    {props.playing && row && <View pointerEvents="none" style={{position: 'absolute', right: t.spec.card.badge.inset[t.column], top: t.spec.card.badge.inset[t.column], flexDirection: 'row', alignItems: 'flex-end', gap: 2, padding: 5, borderRadius: 6, backgroundColor: 'rgba(7,16,24,.82)'}}>
-      {[.55, 1, .38].map((factor, index) => <View key={index} style={{width: 3, height: 12 * factor, borderRadius: 1.5, backgroundColor: t.colors.accentStrong}}/>)}</View>}
+    {props.length && pictured && <View style={{position: 'absolute', right: t.spec.episode.duration.inset[t.column], top: t.spec.episode.duration.inset[t.column]}}><Badge>{props.length}</Badge></View>}
+    {chip && <View style={{position: 'absolute', left: t.isTV ? 16 : 8, top: t.isTV ? 14 : 8}}>{chip}</View>}
+    <Marks watched={props.watched && !pictured} progress={props.progress} />
+    {/* A phone's row: the episode that is playing carries the playing mark on its picture (phone-player 4). */}
+    {props.playing && row && !wide && <View pointerEvents="none" style={{position: 'absolute', right: t.spec.card.badge.inset[t.column], top: t.spec.card.badge.inset[t.column], flexDirection: 'row', alignItems: 'flex-end', gap: 2, padding: 5, borderRadius: 6, backgroundColor: 'rgba(7,16,24,.82)'}}>
+      {playingBars(t.colors.accentStrong)}</View>}
   </ArtFrame>;
   const text = <View style={{flex: row ? 1 : undefined, minWidth: 0, marginTop: row ? 0 : t.spec.episode.titleMargin[t.column], gap: 3, paddingRight: row && (props.onDownload || props.onMore) ? 40 : 0}}>
     <Text numberOfLines={row && !t.isTV ? 2 : 1} style={[row ? titleStyle(t, 15) : t.type.episodeTitle, {color: props.selection?.selected || props.playing ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
     <Parts parts={props.label} fit={row && !t.isTV ? 'wrap' : 'cut'} style={row ? titleStyle(t, 12.5, 600) : undefined} />
     {row && (props.length || props.status) && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12}}>
-      {props.status && <Text style={[titleStyle(t, 12.5, 700), {color: t.colors.accentStrong}]}>{props.status}</Text>}
+      {props.status && !(wide && (props.playing || props.watched)) && <Text style={[titleStyle(t, 12.5, 700), {color: t.colors.accentStrong}]}>{props.status}</Text>}
       {props.length && !wide && <Text style={[titleStyle(t, 12.5, 600), {color: t.colors.textTertiary}]}>{props.length}</Text>}
     </View>}
     <Parts parts={props.caption} /><Parts parts={props.detail} />
@@ -198,7 +203,8 @@ export function EpisodeTile(props: EpisodeTileProps) {
     <View pointerEvents="box-none" style={{width: artWidth, height}}><Overlays props={{...props, onMore: undefined}} hovered={s.hovered} holding={s.holding} height={height} playSize={48} centered episode /></View>
     {!props.disabled && !props.selection?.active && (props.onDownload || props.onMore) && <CardAction name={props.onDownload ? 'i-dl' : 'i-more'} label={props.onDownload ? defaultI18n.t('next.cards.download') : defaultI18n.t('card.more', {title: props.title})} onPress={props.onDownload ?? props.onMore!} size={t.isTV ? 38 : 44} color={t.colors.textTertiary} style={{position: 'absolute', right: 0, top: (height - (t.isTV ? 38 : 44)) / 2, backgroundColor: 'transparent'}} />}
   </View> : <Overlays props={props} hovered={s.hovered} holding={s.holding} height={height} playSize={48} persistentPlay={!t.isTV} episode />}>
-    {s => <><View style={{flexDirection: row ? 'row' : 'column', gap: row ? wide ? 18 : 14 : 0, alignItems: wide ? 'flex-start' : row ? 'center' : undefined}}>{art(s.focused, s.hovered, s.holding)}{text}</View>
+    {s => <><View style={[{flexDirection: row ? 'row' : 'column', gap: row ? wide ? 18 : 14 : 0, alignItems: wide ? 'flex-start' : row ? 'center' : undefined},
+      /* A tablet row that is playing is raised (tablet-play 2a). */ wide && props.playing && {padding: t.space.xs, margin: -t.space.xs, borderRadius: t.spec.card.badge.radius[t.column] * 2, backgroundColor: t.colors.raised}]}>{art(s.focused, s.hovered, s.holding)}{text}</View>
       {props.synopsis && !wide && <Text numberOfLines={row ? 2 : 3} style={[row ? titleStyle(t, 13, 600) : t.type.episodeBody, {color: t.colors.textSecondary, marginTop: row ? 9 : 8, lineHeight: row ? 18.85 * t.textScale : undefined}]}>{props.synopsis}</Text>}
     </>}
   </CardFrame>;

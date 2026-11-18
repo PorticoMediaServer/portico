@@ -41,6 +41,9 @@ export type PlayerChromeFrameProps = Readonly<{
    * tablet (the picture and its controls take the room that is left), and over the picture's right side on a phone on
    * its side and a TV, where the controls hide while it is open. */
   panel?: ReactNode;
+  /** TV: Episodes as a band across the bottom of the picture (`PlayerEpisodeBand`, tv-player 1 frame 3). The controls
+   * hide while it shows; the bottom shade stays under it. */
+  band?: ReactNode;
   /** The scrubber is held: the transport makes way for the preview (in the middle of the picture on a phone; the whole controls row on a tablet and TV, tv-player 2). */
   scrubbing?: boolean;
   /** TV, while scrubbing: `KeyHints`, in the controls row's place (tv-player 2). */
@@ -71,12 +74,12 @@ function Shade() {
 export function PlayerChromeFrame({startFocus, ...props}: PlayerChromeFrameProps) {
   return <StartFocusScope id={startFocus}><PlayerChromeFrameBody {...props}/></StartFocusScope>;
 }
-function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, scrubbing = false, hints, body, testID}: Omit<PlayerChromeFrameProps, 'startFocus'>) {
+function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, band, scrubbing = false, hints, body, testID}: Omit<PlayerChromeFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), spec = frameSpec.player, {form} = frame;
   const phone = form === 'phone', tv = form === 'tv', upright = usePlayerUpright(), sideways = phone && !upright, beside = !!panel && !upright && !phone && !tv;
   const edge = upright ? spec.portrait.edge : Math.max(spec.edge[form], insets.left, insets.right);
   // The controls make way for a panel wherever it lies over the picture (phone-player 3, tv-player 4).
-  const visible = chromeVisible && !card && !(panel && !beside);
+  const banded = tv && !!band, visible = chromeVisible && !card && !(panel && !beside) && !banded;
   const shown = {opacity: visible ? 1 : 0} as const, touch = visible ? 'box-none' : 'none';
   const time = [theme.type.playerTime, {color: theme.colors.textTertiary, fontVariant: ['tabular-nums' as const]}], strong = {color: theme.colors.text, fontFamily: theme.type.button.fontFamily};
   const clock = tv && times.clock !== undefined ? <View style={{alignItems: 'flex-end'}}>
@@ -100,14 +103,14 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
   </View>;
   const stage = <View style={upright ? {aspectRatio: spec.portrait.aspect, overflow: 'hidden'} : {flex: 1, overflow: 'hidden'}}>
     <View style={StyleSheet.absoluteFill}>{picture}</View>
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, shown]}>{upright ? <View style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.portrait.shade)}]}/> : <Shade/>}</View>
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, banded ? undefined : shown]}>{upright ? <View style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.portrait.shade)}]}/> : <Shade/>}</View>
     {tv && !!panel && <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.panelDim)}]}/>}
     {top}
     {(phone || upright) && centre}
     {!!card && !panel && <View pointerEvents="box-none" style={{position: 'absolute', right: edge, bottom: upright ? spec.portrait.bottom : Math.max(spec.bottom[form], insets.bottom), maxWidth: '100%'}}>{card}</View>}
     {/* The prompt corner rides on the bar's box, which keeps its size while the chrome is hidden, so a prompt never moves. */}
     <View pointerEvents="box-none" style={{position: 'absolute', left: 0, right: 0, bottom: 0}}>
-      {!upright && !panel && !card && <View pointerEvents="box-none" style={{alignItems: 'flex-end', paddingHorizontal: edge, paddingBottom: theme.space.sm}}>{prompts}</View>}
+      {!upright && !panel && !card && !banded && <View pointerEvents="box-none" style={{alignItems: 'flex-end', paddingHorizontal: edge, paddingBottom: theme.space.sm}}>{prompts}</View>}
       {upright ? <View pointerEvents="box-none">
         <View pointerEvents="box-none" style={[row, {gap: theme.space.xs, paddingLeft: spec.portrait.timeInset, paddingRight: edge, paddingBottom: spec.portrait.bottom, minHeight: theme.targets.touch}]}>
           {/* The read-out gives way first, so the options at the row's end always keep the gutter. */}
@@ -131,6 +134,8 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
         </View>
       </View>}
     </View>
+    {/* Over the hidden bar, so the band's tiles are what the remote reaches. */}
+    {banded && <View style={{position: 'absolute', left: 0, right: 0, bottom: Math.max(spec.bottom[form], insets.bottom)}}>{band}</View>}
   </View>;
   const over = !!panel && !upright && !beside && <View style={{position: 'absolute', top: 0, right: 0, bottom: 0, width: spec.panel.width[form]}}>{panel}</View>;
   // The frame draws no backdrop: the player's layer is black (R10). Beside a panel the bar's spare parts make way (SC-10).

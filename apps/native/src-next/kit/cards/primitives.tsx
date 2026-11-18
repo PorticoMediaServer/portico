@@ -209,10 +209,16 @@ export function Scrim({horizontal = false, start = 0.45, opacity = 0.85}: {horiz
   </LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#card-scrim)" /></Svg>;
 }
 
-export function Badge({children, kind = 'plain'}: {children?: ReactNode; kind?: 'new' | 'plain' | 'watched'}) {
-  const t = useTheme();
-  return <View style={{paddingHorizontal: t.spec.card.badge.paddingX[t.column], paddingVertical: t.spec.card.badge.paddingY[t.column], borderRadius: t.spec.card.badge.radius[t.column], backgroundColor: kind === 'new' ? t.colors[t.spec.card.badge.background] : alpha(t.colors.ink, 0.72)}}>
-    {kind === 'watched' ? <Icon name="i-check" size={t.isTV ? 22 : 16} color={t.colors.text} /> : <Text numberOfLines={1} style={[t.type.badge, {color: kind === 'new' ? t.colors[t.spec.card.badge.foreground] : t.colors.text}]}>{children}</Text>}
+/** A chip on a picture. `watched` is the check alone, or the check and its words when given them; `playing` is white
+ * with the playing bars (desktop-player f6, tablet-play 2a). */
+export function Badge({children, kind = 'plain'}: {children?: ReactNode; kind?: 'new' | 'plain' | 'watched' | 'playing'}) {
+  const t = useTheme(), playing = kind === 'playing', ink = playing ? t.colors.ink : kind === 'new' ? t.colors[t.spec.card.badge.foreground] : t.colors.text;
+  const words = children !== undefined && <Text numberOfLines={1} style={[t.type.badge, {color: ink}]}>{children}</Text>;
+  return <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: t.spec.card.badge.paddingX[t.column], paddingVertical: t.spec.card.badge.paddingY[t.column], borderRadius: t.spec.card.badge.radius[t.column],
+    backgroundColor: kind === 'new' ? t.colors[t.spec.card.badge.background] : playing ? t.colors.text : alpha(t.colors.ink, 0.72)}}>
+    {kind === 'watched' && <Icon name="i-check" size={children === undefined ? t.isTV ? 22 : 16 : t.isTV ? 18 : 13} color={t.colors.text} />}
+    {playing && <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: 2}}>{[.55, 1, .38].map((factor, index) => <View key={index} style={{width: 3, height: 12 * factor, borderRadius: 1.5, backgroundColor: ink}}/>)}</View>}
+    {words}
   </View>;
 }
 

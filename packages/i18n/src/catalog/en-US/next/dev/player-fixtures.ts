@@ -66,6 +66,24 @@ export const playerFixtureMessages = {
   'next.player.fixture.startsAfterScene': 'Starts in 1:28, after the scene',
   'next.player.fixture.playingIn': 'Playing in 8s',
   'next.player.fixture.pausedAt': 'Paused at 14:05',
+  // Episodes as each form draws them (desktop-player f6, tablet-play 2a, tv-player p1 frame 3): the fourth episode and air dates.
+  'next.player.fixture.episode4': 'Please Hold to My Hand', 'next.player.fixture.episodeNumber4': 'Episode 4', 'next.player.fixture.episodeLength4': '46 min',
+  'next.player.fixture.aired1': 'Jan 15, 2023', 'next.player.fixture.aired2': 'Jan 22, 2023', 'next.player.fixture.aired3': 'Jan 29, 2023', 'next.player.fixture.aired4': 'Feb 5, 2023',
+  // The end of a film (tv-player 7, phone-player 6d, desktop-player 4b).
+  'next.player.fixture.insideOut': 'Inside Out', 'next.player.fixture.insideOutRuntime': '1 h 35 min',
+  'next.player.fixture.spiritedAway': 'Spirited Away', 'next.player.fixture.alien': 'Alien', 'next.player.fixture.bladeRunner': 'Blade Runner',
+  'next.player.fixture.dune': 'Dune', 'next.player.fixture.barbie': 'Barbie', 'next.player.fixture.aliens': 'Aliens',
+  // Playback info (playback-info 1, 3, 4, 15): one converted film.
+  'next.player.fixture.infoTitle': 'Gladiator', 'next.player.fixture.infoDevice': 'This device',
+  'next.player.fixture.infoReason': "This device can't play Dolby Vision or Dolby Digital Plus, so the server converts both.",
+  'next.player.fixture.infoNetwork': 'Home network  21 Mbps',
+  'next.player.fixture.infoMkv': 'MKV', 'next.player.fixture.infoMp4': 'MP4', 'next.player.fixture.infoHevc': 'HEVC Main 10',
+  'next.player.fixture.infoVision': 'Dolby Vision profile 5', 'next.player.fixture.infoHdr10': 'HDR10, converted from Dolby Vision profile 5',
+  'next.player.fixture.info10bit': '10-bit', 'next.player.fixture.info4k': '3840 × 2160', 'next.player.fixture.infoFps': '23.976 fps',
+  'next.player.fixture.infoVisionLost': "Dolby Vision isn't available on this device.",
+  'next.player.fixture.infoDdp': 'Dolby Digital Plus with Atmos', 'next.player.fixture.infoAac': 'AAC', 'next.player.fixture.info51': '5.1', 'next.player.fixture.info48': '48 kHz',
+  'next.player.fixture.infoDecoded': 'Decoded by this device', 'next.player.fixture.infoAtmosLost': "Atmos isn't available on this device.",
+  'next.player.fixture.infoSrt': 'English, SRT', 'next.player.fixture.infoDrawn': 'Drawn by this device',
   // Subtitles and quality, further in (desktop-player 3, tablet-play 2b, tv-player 4).
   'next.player.fixture.timing': 'Timing',
   'next.player.fixture.timingValue': '0.0 s',
@@ -78,4 +96,8 @@ export const playerFixtureMessages = {
   'next.player.fixture.more': 'More',
   'next.player.fixture.liveEdge': 'Live',
   'next.player.fixture.liveChannelUp': 'Channel',
+  // The short guide (tv-player 11, phone-player 1e): five channels round the one playing.
+  'next.player.fixture.guide201': '201', 'next.player.fixture.guide202': '202', 'next.player.fixture.guide301': '301', 'next.player.fixture.guide302': '302', 'next.player.fixture.guide401': '401',
+  'next.player.fixture.markSs': 'SS', 'next.player.fixture.markSse': 'SSE', 'next.player.fixture.markLm': 'LM', 'next.player.fixture.markLc': 'LC', 'next.player.fixture.markPk': 'PK',
+  'next.player.fixture.at430': '4:30 PM', 'next.player.fixture.at500': '5:00 PM', 'next.player.fixture.at615': '6:15 PM', 'next.player.fixture.at740': '7:40 PM',
 } as const;

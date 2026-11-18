@@ -3,7 +3,9 @@ import {defaultI18n} from '@i18n';
 import {Artwork} from '../artwork';
 import type {ArtworkSource} from '../artwork/types';
 import {Icon} from '../Icon';
+import {Chip} from '../controls';
 import {Menu, type MenuEntry} from '../overlays';
+import {PlayerControl} from './parts';
 import type {PlayerEpisodeList, PlayerEpisodeRow, PlayerPanelContext} from './panel-types';
 import styles from './episodes.module.css';
 
@@ -48,12 +50,12 @@ export function PlayerEpisodes({episodes, context, locale, artwork, onPlay, onSe
     <div className={styles.head}>
       <h3>{t('next.controls.episodes')}</h3>
       {episodes.seasons.length > 1
-        ? <button ref={chip} type="button" className={styles.chip} aria-haspopup="menu" aria-expanded={seasons} onClick={() => setSeasons(value => !value)}>
-          {season ? season.title || t('next.kit.season', {number: season.number}) : t('next.controls.season')}<Icon name="i-down" size={18} />
-        </button>
+        ? <Chip ref={chip} variant="toolbar" trailingIcon="i-down" aria-haspopup="menu" aria-expanded={seasons} onClick={() => setSeasons(value => !value)}>
+          {season ? season.title || t('next.kit.season', {number: season.number}) : t('next.controls.season')}
+        </Chip>
         : season && <span className={styles.season}>{season.title || t('next.kit.season', {number: season.number})}</span>}
       <span className={styles.count}>{t('next.watch.episodeCount', {count: episodes.rows.length})}</span>
-      <button type="button" className={styles.close} aria-label={t('next.overlays.close')} onClick={context.close}><Icon name="i-close" size={22} /></button>
+      <span className={styles.close}><PlayerControl onPicture icon="i-x" label={t('next.overlays.close')} onPress={context.close} /></span>
     </div>
     <div className={styles.track}>
       {episodes.rows.map(row => {
