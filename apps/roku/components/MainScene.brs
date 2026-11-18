@@ -509,6 +509,7 @@ sub onRailChosen(event as object)
         for each library in m.libraries.data.items
             if library.id = id
                 show("LibraryScreen")
+                m.screen.observeField("goHome", "showHome")
                 m.screen.observeField("art", "onArt")
                 m.screen.observeField("open", "onOpen")
                 m.screen.observeField("menu", "onMenu")
