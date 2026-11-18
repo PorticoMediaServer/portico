@@ -1,88 +1,54 @@
 # Continuous integration
 
-Pull requests run affected short feedback: whole-module build/vet for the default and capability tag sets, lint, types and affected tests. Go uses `-short`; measured tests at2seconds or more, the five explicit nightly parents, and qualifying Sleep tests skip in this tier. Fast correctness tests stay active. The feedback target is2–5minutes; timings remain subject to measurement.
+`merge.yml` runs on every pull request, every merge-queue group and on demand. Its required
+check is `ci/required`, which passes only when every job the planner selected passed. Merges go
+through the protected queue, rebase only. `nightly.yml` runs the full inventory at 04:17 UTC.
 
-The merge queue runs the full affected deterministic suite. The required context is `ci/required` on both PR and queue commits, with event/tier validation and exact queue base/head verification. Main receives the exact tested queue SHA as an append-only linear descendant. Queue rebase is the only enabled integration method. Direct main pushes are disabled after bootstrap. There is no duplicate push-to-main workflow.
+## Jobs in `merge.yml`
 
-The planner follows reverse Go imports and test imports. Go-only changes select no JS or Android unless committed generated contracts change. Mixed docs/TS changes do not broaden Go seeds. Short feedback uses the JS dependency graph; merge uses complete affected component inventories. Unknown mappings fail closed. Tests use explicit nonempty lists, with producer/consumer ownership recorded once.
+| Job | What it runs |
+|---|---|
+| `planner` | `ci/plan.py`: picks the jobs and tests the changed paths need (below), and `ci/commit_bylines.py` (no AI authors or trailers) |
+| `hygiene` | `python3 -m unittest discover -s ci`, `ci/source_guard.py`, `ci/secret-scan.sh`, the engineering ratchet (`ci/engineering_rules.py`, see [ENGINEERING-RULES.md](../docs/ENGINEERING-RULES.md)) and the client API ratchet (`ci/client_api_census.py`, see [client-api-ownership.md](../docs/client-api-ownership.md)) |
+| `server_next` | In `server-next`: `go build`, `go vet`, `go test ./...` with `CONTRACTS_CHECK=1` (generated contracts must be committed), and the comic-archive test with the official capability tags. Runs when `server-next/` or `merge.yml` changes, and for every queue group |
+| `go_build`, `go_vet_cross`, `go_tests` | The `apikit` module: build, cross-platform vet and duration-balanced test shards |
+| `js`, `js_static` | Tests per component (`web`, `packages`, `apps/native`, `apps/vega`, `website`) in duration-balanced shards; then types, lint, strings, design tokens, boundary checks and `scripts/check-no-external-fonts.mjs` against the built web bundle (`ci/run.py`) |
+| `android` | `android-tests.yml` when Android or Robolectric inputs change |
+| `roku` | `apps/roku/tools/check.sh` and `test.sh` when `apps/roku/` changes |
 
-Tests that read files outside their own package (the persistence SQL census scans every production Go file, others read fixtures, contracts or the rclone lock) are declared in `ci/source-readers.json` with the files they read. The planner adds exactly those tests whenever a changed path is one of those files, even when no import connects the packages; a package chosen only this way runs just its declared tests. `ci/test_source_readers.py` keeps the manifest true: it scans every Go test file for reads outside the package and fails on one that is neither declared nor listed under `reviewed` with a reason, and on a declared test that does not exist or no longer reads. Add a new reader to the manifest in the same change. The census tests run in the short tier too.
+## How the planner chooses
 
-A merge group plans against the target branch's tip, not the previous group's head: each group runs the tests for everything it carries beyond main, so a web-only group queued behind a Go change still runs the Go tests.
+- A path under `server-next/` selects `server_next`; `apps/roku/` selects `roku`.
+- A path under a JS component selects that component; `packages/` selects every component but
+  the website. `packages/contracts/` and `apikit/` also select the Go jobs.
+- Markdown and images select nothing.
+- Any other path selects everything.
+- PRs run the short tier; queue groups plan against the target branch's tip and run the merge
+  tier. `workflow_dispatch` with `full=true` runs everything.
 
+Test files are packed into shards by measured duration: `ci/js-durations.json` for JS, and
+`ci/merge_durations.json` and `ci/durations.json` for Go. A file with no measurement still runs,
+estimated from its component. Each JS shard reports every file it was given, and the aggregate
+fails if one is missing.
 
-Go test shards run parallel to whole-module build/vet and hygiene. Short feedback keeps its measured LPT bins, actual Short guards and ten-shard cap for ordinary PRs; a promoted PR with the full Go inventory is priced from `ci/merge_durations.json` over that baseline and sized by the same 390-second target / 468-second budget packing as merge (128-shard ceiling), so it gets more VMs instead of stacking work up to the deadline. Full merge/nightly shards are priced from `ci/merge_durations.json`: a parent above the 390-second per-command target gets its own shard, the rest longest-processing-time pack until every modeled batch fits, and the planner fails closed above 468 seconds (60% of the 780-second deadline). Whole small packages batch at-p=4; partial/split packages use exact parent selections. A single parent that alone exceeds the budget cannot be divided by name and is reported in `shard_budget.oversized_single_tests`. A shard builds its playback helper. Dependency, npm, Gradle and NDK caches are separate from test results. FFmpeg is installed only for selected probe consumers; a later qualified product build will replace apt with an exact digest-pinned asset.
+## Other workflows
 
-Nightly has one owner per parent. The five timing/pressure/scale parents and Golden have explicit diagnostic lanes; the deterministic inventory excludes those exact owners and JS-owned producer assignments. A shared build artifact feeds the nightly workers. Merge retains Golden, keyset, bulk-vs-incremental, restricted-profile matrices and the15deterministic P2-52b siblings.
+- **server-next:** crash, load, media, upgrade, container home and the Windows install and
+  service runs (`server-next-*.yml`).
+- **Apps and packaging:** desktop, Apple build and TestFlight, Android tests, packaging
+  qualification, FFmpeg and media tools.
+- **Release and website:** release, release-published and website.
+- **Repository:** CLA and labels.
 
-`quarantine.json` lists exact package/parent exceptions with owner, reason and expiry. Expired policies, unknown test failures, build failures, races, panics, timeouts and incomplete terminal events block. Expected log text such as a handled request timing out does not fail a passing test. Stderr is diagnostic output, not a verdict. Passing quarantined tests still report normally.
+## Upkeep
 
-`ci/package-smoke.py --package QUALIFIED_LINUX_TARBALL` installs/starts a sealed portable package and checks readiness. Packaging activation requires qualified inputs. Android Hermes boot additionally requires its qualified engine/source bundle and device harness. Never build source FFmpeg on a nightly cache miss. Release/toolchain/signing migration inputs remain in release-staged/ until independently qualified; no store acceptance is implied.
-
-The first fresh-repository dispatch uses explicit full bootstrap mode. Nightly scheduling and branch protection follow a green bootstrap; the first real PR through the queue proves the complete integration path. Source selection, raw per-test events and diagnostics are retained as small artifacts.
-
-Temporary VPS capacity runs the planner, hygiene and tiny aggregators under the same event/head-repository guard and runs only the first selected Go shard on the G12-only `portico-vps-go` label; remaining Go shards, JS, platform and packaging jobs stay hosted. Contabo handles tiny jobs and private CI; concurrent disk-heavy Go suites there exceeded real per-test deadlines. The planner permits either VPS label only in this repository for merge groups, main pushes, schedules, manual dispatches and PRs whose head repository is this repository. Fork, missing-head and other events stay on `ubuntu-24.04`. The runner group is restricted to this public repository; contributor-approval policy is unchanged. Removing the routing override restores hosted-only Go execution without changing the selected tests.
-
-VPS Go jobs retain local build/module caches. A runner may set PORTICO_CI_GO_PACKAGE_JOBS to 1 or 2 to fit its memory budget; the hosted default remains 4 and the recorded selection/terminal accounting is unchanged.
-
-Read hosted timings with `python3 ci/timings.py --since 2026-10-31T18:45:00Z` or pass explicit run IDs. `--json` includes per-step setup times and reconstructed concurrency for the selected runs. Queue timestamps on jobs still queued are placeholders and are excluded from execution time. Successful complete runs get separate PR/merge-group wall-time quantiles and runner-minutes; incomplete, failed and canceled samples remain visible. The latest-finishing gate dependency is reported, not an inferred arbitrary workflow DAG. Rerun wall time starts at that attempt's start because the API does not expose a reliable attempt-request timestamp.
-
-For capacity evidence, add `--snapshot /path/outside/repo/capacity.jsonl`. Each invocation appends one timestamped observation of in-progress and queued/waiting jobs across active workflows in this repository. Rerun the command to build a time series; it never starts workflows or waits in a polling loop. `--history /path/outside/repo/capacity.jsonl` reports the saved time series offline; appending a snapshot also reports its history. Observations span sequential API calls, do not establish organization-wide concurrency or entitlement, and preserve labels and runner names for Support.
-
-Timings and capacity snapshots also read available job logs for the `runner: N cpu, M GiB` diagnostic and the provisioner header's Cloud/Region. The planner and the first Go/native JS jobs print the hardware line. Completed siblings remain in snapshot job records for this evidence but never count as active capacity. Missing, queued or not-yet-retrievable logs produce explicit null values and availability status; execution time does not establish runner hardware. Job-count observation timestamps are separate from the later log-fetch completion time.
-
-The build check checks the deterministic Cast catalogue at `server-next/receiver/generate-cast-text.mjs`. The receiver now uses the rebuilt playback protocol directly and carries no old generated contract/outbox bundle.
-
-JavaScript test files are allocated deterministically to duration-balanced shards (native 4, packages 3, web 2, desktop and Vega 1, capped by file count). The original selected-file list remains authoritative. Unknown files use the measured component P90 or a documented 30-second bootstrap fallback, never disappear. The plan includes exact file-to-shard assignments, estimates, unmeasured files and the original owning roots. Types, boundary/hooks/strings/design/routes checks, tokens and desktop Rust tests run once per selected component; website keeps its existing check command once. Contracts are built per job pending setup/transfer measurements.
-
-Node file-completion receipts retain source HEAD, the canonical plan digest, shard assignment, terminal state and per-file duration alongside readable test output. Both the shard and required aggregate fail closed if an assigned file does not report. The gate also rejects duplicate, unexpected, failing or stale receipts and unsuccessful static jobs. Nightly uses the same accounting. server-next has its own race and media checks; old-server diagnostics and producers have been removed.
-
-Import a complete passing receipt set with `python3 ci/update_js_durations.py --plan selection/ci-plan.json --results results/js --source PUBLIC_RUN_URL`. The updater validates the exact plan before atomically updating `ci/js-durations.json`; measurements never change test selection. Review duration provenance and commit the update normally. Per-job receipts include contracts-build and producer setup seconds so shared setup can be evaluated against transfer costs.
-
-Import full merge-tier Go weights with `python3 ci/update_merge_durations.py --runs RUN_ID,RUN_ID` (or repeat `--results` with unzipped `go-N` artifact directories). It reads every package JSONL, keeps the longest `Elapsed` per parent across the supplied runs, and atomically rewrites `ci/merge_durations.json`; the API download is used because `gh run download` mangles some artifact names. Existing parents are preserved unless a supplied run measured a longer `Elapsed`. Parents absent from the table and from `ci/durations.json` use 20 seconds. `ci/test_plan_budget.py` pins weighted packing, the 468-second ceiling and the single-parent exception, and the merge/nightly shard ceiling of 128.
-
-Run once per train before enqueue: `python3 ci/refresh_go_durations.py --pr N...` (repeat `--pr`, or pass `--head SHA`). For each head it finds the newest completed run whose `go_tests` shards passed and that still has non-expired `go-N` artifacts (an unrelated failing job such as hygiene does not disqualify it), imports those measurements, preserves untouched parents, rewrites the table atomically, and prints the parents added or lengthened plus the source run. A head with no passing `go_tests` artifacts fails with a clear error and writes nothing. Pass `--inventory ci-plan.json` from a prior planner run to also print the modeled shard count for that exact inventory; otherwise rerun the planner dry-run after the refresh.
-
-The web static job runs its existing build command (including TypeScript) once and then `scripts/check-no-external-fonts.mjs` against that exact `web/dist`. The separate tsc invocation is omitted for web only, avoiding a duplicate compiler pass. The guard scans the built web and Cast receiver output and the shipped CSPs; a failure blocks the existing static gate.
-
-For an entirely GitHub-hosted full merge-tier qualification, dispatch `gh workflow run merge.yml --repo PorticoMediaServer/portico --ref main -f full=true -f tier=merge -f hosted_only=true`. The boolean `hosted_only` input defaults false on merge and nightly workflows. When true, planner/hygiene/aggregators and every Go shard use ubuntu-24.04; the existing JS/static/Android jobs are already hosted. Normal runs retain the event/head-repository guard and fixed G12 share. The override changes runner placement only, with no matrix max-parallel cap or selection/receipt change.
-
-JS shards selecting the invitation or reset contract producer compile the HTTP API Go test binary once during setup, before concurrent Node workers and their 120-second execution budgets. Each contract file still runs its exact real producer test independently and validates fresh ephemeral output. The binary comes from that job’s checked checkout and is deleted with its temporary fixture directory; it is not a cached result or a product server executable. The receipt records `producer_compile` seconds separately. Standalone Node runs retain the original `go test` fallback. Test selection, producer ownership and terminal/receipt verdicts are unchanged.
-
-The existing nightly workflow remains active while the merge queue and required PR checks are paused. It schedules a full inventory on the default main branch every day at04:17UTC (`nightly.yml`); no affected-path selection is used. Its normal Go shards plus the required pressure/golden diagnostic lanes cover every full merge-tier parent, with one execution owner per parent. In particular, HTTP `TestReadPathGoldenEquivalence` runs in the golden lane and blocks `ci/nightly/full` if red. JS has the same full component inventories, producer ownership and receipts as a full merge dispatch; Android also runs. Merge checks own hygiene, cross-vet and static checks; nightly builds only the helper needed by its wider diagnostics. Race tests cover server-next and apikit, and macOS tests cover media and packaging paths plus server-next. `ci/test_nightly_coverage.py` checks full merge/nightly ownership parity and the scheduled full planner/required diagnostic wiring. A second duplicate daily merge-tier workflow is unnecessary.
-
-For an immediate main audit during the pause: `gh workflow run merge.yml --repo PorticoMediaServer/portico --ref main -f full=true -f tier=merge`. Record its exact SHA and triage all root failures; affected PR checks alone do not qualify current main.
-
-A required hosted decoder-sandbox job installs bubblewrap and FFmpeg on a disposable Ubuntu VM and enables unprivileged user namespaces there. It proves namespace access as the runner user, then runs the complete mediaexec and decoder packages. An explicit hosted assertion rejects an unavailable decoder bridge after namespace preflight. The real isolation, live HLS, subtitle burn-in and M4 probe pool parents must report pass; missing or skipped parents fail the job. Raw Go events, stderr, the exact command and source SHA are retained in `decoder-sandbox`. PR/merge and nightly required aggregates require this job whenever Go tests are selected. The setup command refuses developer machines and self-hosted runners; no production sandbox policy changes.
-
-Short feedback gives the production-statement and upsert-trigger source censuses one dedicated Go shard. Their previous zero-cost layout is used only to preserve every ordinary shard assignment; the censuses run serially in their own package process on a separate VM, with their actual duration recorded in the plan. Full merge/nightly allocation is unchanged.
-
-PR Go feedback runs changed package owners and their **direct** reverse imports (including test and external-test imports) without `-short`. The existing transitive selection still runs; its other packages keep `-short`. Module/workspace manifest changes promote every package. Ordinary documentation changes promote none; `testdata/` and embedded inputs are resolved first even for Markdown/image suffixes. Deleted embedded inputs retain conservative ownership through embed patterns. Git path discovery disables rename collapsing so both deleted source and added destination reach ownership and source-reader selection. Source-reader-only selections keep their exact parent list and short mode. `full_go_packages` records the decision, and whole-package batches are separated by mode so a full package cannot silently inherit another package's `-short`. Existing tier exclusions and inventory regex behavior are unchanged.
-
-Promoted PR plans can use up to 20 ordinary duration-balanced Go shards, plus the existing dedicated census shard. Other short plans and full queue/nightly plans retain their existing cap. The Go package deadline (780s), batch watchdog (900s), and workflow job timeout (25 minutes) stay unchanged. The planner summary lists promoted packages and added modeled work.
-
-Planning-only comparison at `e348713c`, using `ci/durations.json` and the existing 1s estimate for unmeasured parents (no product suites run locally):
-
-| Changed package/input | Packages promoted | Go shards before → after | Added summed parent-test minutes | Largest shard's modeled test minutes before → after |
-| --- | ---: | ---: | ---: | ---: |
-| HTTP route (`httpapi/request_cost_test.go`) | 4 | 11 → 21 | 23.7 | 4.9 → 3.6 |
-| Typed writer (`store/writer/transaction.go`) | 3 | 3 → 3 | 0.0 | 2.4 → 2.4 |
-| Shared writer (`dbwork/write.go`) | 59 | 11 → 21 | 78.4 | 4.9 → 6.4 |
-
-These are summed test-duration estimates, not measured PR wall time or billed runner-minutes: setup, compilation, queue availability and the existing package-worker pool affect elapsed time. The typed-writer sample has no additional short-guarded cost in the recorded model; 208 of its 224 parents are unmeasured, so that estimate is particularly incomplete. The other samples have 595, 638 and 1,215 unmeasured parents respectively. A same-source comparison confirms the queue inventory, source-reader selection, exclusions, shard assignments and estimates are unchanged for these source/module examples. Fixture/embed and rename discovery corrections apply to all tiers; full-run execution policy is unchanged.
-
-The native static job typechecks both the application and `apps/native/test/tsconfig.json` once per selected component. The test config includes the complete native test tree; a test-only TypeScript error fails the same required static gate.
-
-The Go inventory includes the `reading_client_integration` test tag. Client-core, reader-core and contracts changes select the real HTTP publication boundary through `source-readers.json`, even without a Go import edge. Only its owning Go shard installs pinned Node/root lockfile dependencies and builds contracts; the same setup applies to the race observer. The integration runs through the ordinary exact-parent and terminal-event accounting, including full merge and nightly plans.
-
-The inventory-batch SIGKILL matrix has three deterministic parents: width two,
-and two disjoint width-eight partitions. All native, terminal and uncertain
-COMMIT cuts remain selected in ordinary PR/merge/nightly coverage. Initial
-planner weights are 216.38 seconds for width two and 355 seconds per width-eight
-partition, derived from the 216.38/705.84-second width populations in focused
-run 42521426376 (with allowance for each partition's independent trace setup).
-The existing name-based planner distributes these parents; package and job
-deadlines are unchanged. Partition coverage and planner controls reject missing
-or duplicate cuts and accidental co-location of the three heavy parents.
-
-The Basic FIRST resume crash matrix has separate copy and completed-copy parents so the planner can place their complete SIGKILL/reopen cells on different runners. Their initial 200s duration entries are conservative allocation forecasts, not hold measurements or a qualification result; neither cell selection nor the package deadline changes.
+- `ci/quarantine.json`: exact package and test exceptions, each with an owner, a reason and an
+  expiry. An expired entry fails CI.
+- `python3 ci/update_js_durations.py --plan selection/ci-plan.json --results results/js --source RUN_URL`
+  refreshes JS durations from a passing run.
+- `python3 ci/update_merge_durations.py --runs RUN_ID` and
+  `python3 ci/refresh_go_durations.py --pr N` refresh Go durations.
+- `python3 ci/timings.py RUN_ID...` reports wall time, runner minutes and the runner hardware of
+  given runs.
+- `ci/package-smoke.py --package TARBALL` installs and starts a built Linux package and checks
+  that it is ready.
