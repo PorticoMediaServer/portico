@@ -248,15 +248,18 @@ function LiveUpcoming() {
   </LiveFrame></FocusProvider></Page>;
 }
 function LiveRecorded() {
+  const {theme, phone} = useScale();
+  return <Page destination={{kind: 'live'}}><FocusProvider><LiveFrame testID="frames-live-recorded" {...recordingsHeader('recorded', phone)} chips={<RecordingsChips value="recorded"/>}
+    toolbar={<><Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{f('recordedCounts')}</Text></>}><RecordedTiles/></LiveFrame></FocusProvider></Page>;
+}
+/** Measured inside the page (beside the rail), so the tiles fill the page's width, not the window's. */
+function RecordedTiles() {
   const {theme, frame, phone} = useScale(), columns = phone ? 1 : frame.form === 'tv' ? 3 : 2, gap = theme.space.sm;
   const width = (frame.width - frame.gutter - frame.rightGutter - gap * (columns - 1)) / columns;
   const items = [['pClockmakers', 'recordings6', 'bd-matrix'], ['pStoryTime', 'recordings3', 'bd-toystory'], ['pWorldTonight', 'yesterday430', 'bd-sev'], ['pQuietHarbor', 'quietHarborFacts', 'bd-spirited']] as const;
-  return <Page destination={{kind: 'live'}}><FocusProvider><LiveFrame testID="frames-live-recorded" {...recordingsHeader('recorded', phone)} chips={<RecordingsChips value="recorded"/>}
-    toolbar={<><Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{f('recordedCounts')}</Text></>}>
-    <View style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
-      {items.map(([title, caption, art]) => <WideCard key={title} title={f(title)} artwork={asset(`${art}.jpg`)} width={width} caption={[fact('caption', f(caption))]} onNavigate={none}/>)}
-    </View>
-  </LiveFrame></FocusProvider></Page>;
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
+    {items.map(([title, caption, art]) => <WideCard key={title} title={f(title)} artwork={asset(`${art}.jpg`)} width={width} caption={[fact('caption', f(caption))]} onNavigate={none}/>)}
+  </View>;
 }
 function rulePane(): FramePane {
   return {title: f('pClockmakers'), subtitle: f('ruleCounts'), close: {label: f('close'), onPress: none}, children: <RuleBody/>,
@@ -314,9 +317,11 @@ function SavedToolbar() {
 }
 /** My List's own posters in the library frame's grid. A constant, so the grid keeps one collection. */
 const myList = libraryPosters.slice(0, 18);
-function SavedList() {
+// The grid measures the page it is drawn in, so its hook runs inside the gallery `Page` (beside the rail), not around it.
+const SavedList = () => <Page destination={{kind: 'saved'}}><SavedGrid/></Page>;
+function SavedGrid() {
   const {grid} = useGrid(myList);
-  return <Page destination={{kind: 'saved'}}><BrowseFrame testID="frames-saved" header={{title: f('saved'), tabs: savedTabs('myList')}} toolbar={<SavedToolbar/>} grid={grid}/></Page>;
+  return <BrowseFrame testID="frames-saved" header={{title: f('saved'), tabs: savedTabs('myList')}} toolbar={<SavedToolbar/>} grid={grid}/>;
 }
 /** A phone's Saved is a page of entries (phone-app 9): My List's row, the downloads on this phone, then the other lists. */
 function Saved() {
