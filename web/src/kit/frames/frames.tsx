@@ -47,9 +47,13 @@ export type PageStateProps = Readonly<{
   /** One paragraph under the buttons ("If the server is asleep…", states 4a, 5). */
   help?: ReactNode;
 }>;
+/** Under a frame's header (a library's title and tabs, a page's title) the state fills the room the frame leaves and its words
+ * start a header gap below the header; at the whole page's 170 from the top they were cut off under a library header. */
+const pageStateRegion = {flex: '1 1 auto', height: 'auto'} as const;
+const pageStateContent = {top: 'var(--frame-header-gap)', transform: 'none', maxHeight: 'calc(100% - 2 * var(--frame-header-gap))'} as const;
 /** Frame 9: the whole page can't load, or is waiting the first time. Once per screen, in place of the page. */
-export function PageStateFrame({primaryAction, secondaryAction, downloads, ...state}: PageStateProps) {
-  return <StateLayout {...state} primary={primaryAction} secondary={secondaryAction}>{downloads}</StateLayout>;
+export function PageStateFrame({primaryAction, secondaryAction, downloads, belowHeader = false, ...state}: PageStateProps & Readonly<{belowHeader?: boolean}>) {
+  return <StateLayout {...state} primary={primaryAction} secondary={secondaryAction} style={belowHeader ? pageStateRegion : undefined} contentStyle={belowHeader ? pageStateContent : undefined}>{downloads}</StateLayout>;
 }
 
 export type SheetBarProps = Readonly<{

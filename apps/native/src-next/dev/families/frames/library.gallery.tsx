@@ -216,6 +216,12 @@ function BrowseLoading() {
   return <BrowseFrame testID="frames-browse-loading" header={header} toolbar={toolbar} state={{kind: 'loading'}}/>;
 }
 
+/** The library's answer failed: the header stays, the page's failure state fills the room under it. */
+function BrowseFailed() {
+  return <BrowseFrame testID="frames-browse-failed" header={useLibraryHeader()} state={{icon: 'i-warn', tone: 'warning', title: t('next.states.pageFailed'), body: t('next.states.pageFailedBody'),
+    primaryAction: {id: 'retry', label: t('next.states.tryAgain'), onPress: none}}}/>;
+}
+
 /** Each region of the library frame, outlined: the screen's in blue, the flexible region in amber. */
 function RegionsBrowse() {
   const frame = useFrameMetrics(), box = (label: string, rows = 1) => <View style={{marginHorizontal: frame.gutter}}><Region label={label} height={frame.rowTwoLine * rows}/></View>;
@@ -236,6 +242,7 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-browse-empty', title: 'next.platform.frame.browseEmpty', render: () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseEmpty/></Page>, ...whole},
   {id: 'frames-browse-menu', title: 'next.platform.frame.browseMenu', render: () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseList menuOpen/></Page>, platforms: ['phone', 'tablet', 'web'], ...whole},
   {id: 'frames-browse-loading', title: 'next.platform.frame.browseLoading', render: () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseLoading/></Page>, ...whole},
+  {id: 'frames-browse-failed', title: 'next.platform.frame.browseFailed', render: () => <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFailed/></Page>, ...whole},
   {id: 'frames-regions-browse', title: 'next.platform.frame.regionsBrowse', render: RegionsBrowse, ...whole},
 ];
 export default galleries;

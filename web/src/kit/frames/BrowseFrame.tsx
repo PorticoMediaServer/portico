@@ -70,7 +70,7 @@ export function BrowseFrame({header, hero, toolbar, grid, alphabet, filters, sta
   return <div style={dock} className={`${frames.frame} ${styles.browse}`} data-hero={hero ? true : undefined} data-header={header ? true : undefined} data-grid={gridded || undefined} data-docked={docked || undefined}>
     {header ? <BrowseHeader {...header} phone={phone} /> : hero ?? <div className={styles.top} />}
     {toolbar}
-    {failure ? <PageStateFrame {...failure} /> : gridded
+    {failure ? <PageStateFrame {...failure} belowHeader /> : gridded
       ? <div className={styles.content}>{loading ? <GridSkeleton /> : grid}{alphabet && !loading && <div className={styles.alphabet}>{alphabet}</div>}</div>
       : <div className={styles.rows}>{loading ? <RowsSkeleton /> : children}</div>}
     {filters && <FiltersSurface form={phone ? 'sheet' : docked ? 'docked' : 'panel'} medium={form === 'medium'} open={filters.open} onClose={filters.onClose}
