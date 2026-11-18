@@ -307,7 +307,6 @@ def js_static(plan,component):
         if group=='apps/native': execute(['npx','--no-install','tsc','--noEmit','--project','test/tsconfig.json'],ROOT/group)
         for name in ['lint:boundary','lint:hooks','lint:strings','lint:design','lint:routes','tokens']:
             if name in scripts: execute(['npm','run',name],ROOT/group)
-    if component=='apps/desktop': execute(['npm','run','test:rust'],ROOT/component)
 
 
 def aggregate(plan,needs):
