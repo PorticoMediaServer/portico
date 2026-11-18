@@ -50,7 +50,9 @@ test('A11: Music\'s Discover header offers Shuffle all beside the ⋯, a shuffle
   assert.match(route, /header=\{<LibraryIdentity \{\.\.\.header\} action=\{shuffleAll\}\/>\}/);
   // Wide headers only: the phone's compact header keeps just the ⋯ (phone-web 6, phone-app).
   const library = read('../src/screens/browse/Library.tsx');
-  assert.match(library, /<StickyBrowseHeader name=\{library\.name\} switcher=\{switcher\} menu=\{libraryMenu\}/);
-  assert.match(library, /<LibraryHeader name=\{library\.name\} counts=\{counts\} switcher=\{switcher\} menu=\{menu\}/);
+  assert.match(library, /<StickyBrowseHeader name=\{header\.title\} switcher=\{header\.switcher\} menu=\{header\.menu\}/);
+  assert.match(library, /menu=\{header\.trailing \? <>\{header\.trailing\}\{header\.menu\}<\/> : header\.menu\}/);
+  // On the frame the action is the header's `trailing`, which the frame draws before the ⋯ on wide headers only.
+  assert.match(library, /counts, trailing: action, menu: libraryMenu,/);
   assert.equal(defaultI18n.t('next.browse.shuffleAll'), 'Shuffle all');
 });

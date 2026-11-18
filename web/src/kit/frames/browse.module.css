@@ -11,7 +11,8 @@
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-control-gap); margin: var(--frame-header-gap) var(--g) var(--space-xs); }
 /* A grid fills the window under the header and toolbar and scrolls itself; the A–Z rail stands in the right gutter. */
 .browse[data-grid] { height: 100%; min-height: 0; padding-bottom: 0; }
-.content { position: relative; flex: 1; min-height: 0; display: flex; margin-top: var(--frame-browse-grid-gap); padding: 0 var(--g); }
+/* E-web-20: the A–Z rail's widened hit areas never widen the page. */
+.content { position: relative; flex: 1; min-height: 0; min-width: 0; overflow-x: clip; display: flex; margin-top: var(--frame-browse-grid-gap); padding: 0 var(--g); }
 .content > :first-child { flex: 1; min-width: 0; }
 .alphabet { position: absolute; top: 0; right: 0; width: var(--g); display: flex; justify-content: center; }
 /* The docked pane's width (frameSpec.browse.filtersWidth.expanded), set by BrowseFrame from the same number the pane is drawn at. */

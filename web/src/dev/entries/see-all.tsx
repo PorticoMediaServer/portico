@@ -9,6 +9,8 @@
  * The entry fails closed outside a development build and only mounts over a root element, so a
  * node test can read the same fixture documents without a DOM.
  */
+import {FreshnessProvider, freshnessFor} from '../../platform/freshness';
+import {viewerQueryScope} from '@core/query/viewer-queries.ts';
 import {defaultI18n} from '@i18n';
 import {serverPath} from '@core/query/server-api.ts';
 import type {HttpLocalApi, Library, LocalSession, Viewer} from '@core/index.ts';
@@ -219,6 +221,8 @@ async function mount(element: HTMLElement) {
     dispose: () => runtime.dispose(),
   } as unknown as HttpLocalApi;
   const contextBase = {
+    // The app's own freshness runtime over the specimen's answers, as the shell's bootstrap makes it.
+    freshness: freshnessFor(api, viewerQueryScope(session.viewer)),
     api, session: () => session, events, artwork, facts: {identity, preferences, serverName: identity.serverName},
     preferences: {getSnapshot: () => preferences, subscribe: () => () => {}},
     epoch: 1, isCurrent: () => true, signOut: () => record('sign-out'),
@@ -240,7 +244,7 @@ async function mount(element: HTMLElement) {
   createRoot(element).render(<WebScreenProvider value={{binding, context: contextBase} as never}>
     <IconSprite />
     <ShellBindingsProvider value={binding as never}>
-      <RouterProvider router={router} />
+      <FreshnessProvider api={api} viewerId={viewerQueryScope(session.viewer).viewerId} serverId={session.viewer.serverId} events={null}><RouterProvider router={router} /></FreshnessProvider>
     </ShellBindingsProvider>
   </WebScreenProvider>);
   // The fixture and the commands the screen issued are inspectable from the page; no credentials.
