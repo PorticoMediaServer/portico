@@ -239,9 +239,9 @@ type AudioPick struct {
 
 type SubtitlePick struct {
 	TrackID *string `json:"trackId"`
-	// Delivery is auto (the default) or embeddedClient (the player draws the track from the
-	// file it is playing). sidecar (a subtitle file served beside the stream) and burn (into
-	// the picture) are not available yet and are refused with 501 subtitle_delivery_unavailable.
+	// Delivery is auto (the default), embeddedClient (the player draws the track from the file
+	// it is playing), sidecar (a subtitle file served beside the stream) or burn (drawn into the
+	// picture, which converts the video): a viewer may always choose to burn a subtitle in.
 	Delivery string `json:"delivery,omitempty"`
 }
 
