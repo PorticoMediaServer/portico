@@ -32,9 +32,10 @@ export type HeroProps<T extends HeroCandidate> = Omit<HTMLAttributes<HTMLElement
   onArtworkError?: (candidate: T) => void;
 };
 
-export function HeroFacts({parts, platform = 'desktop', sizeClass, children}: {parts: readonly FactPart[]; platform?: LayoutPlatform; sizeClass?: 'medium'; children?: ReactNode}) {
+/** `runtimeChip`: Home's hero outlines the runtime too (mock.html home); a title page draws it as plain text (desktop-detail f1, f2). */
+export function HeroFacts({parts, platform = 'desktop', sizeClass, runtimeChip = false, children}: {parts: readonly FactPart[]; platform?: LayoutPlatform; sizeClass?: 'medium'; runtimeChip?: boolean; children?: ReactNode}) {
   return <div className={styles.facts} style={{...layoutType(platformType(platform).meta), ...(sizeClass === 'medium' ? {fontSize: 15} : {})}}>{parts.map(part =>
-    <span key={part.id} className={part.id === 'content-rating' || part.id === 'season-count' || part.id === 'duration' ? styles.tag : undefined} data-fact-role={part.role}>{part.text}</span>)}{children}</div>;
+    <span key={part.id} className={part.id === 'content-rating' || part.id === 'season-count' || (runtimeChip && part.id === 'duration') ? styles.tag : undefined} data-fact-role={part.role}>{part.text}</span>)}{children}</div>;
 }
 
 export function HeroProgress({progress, remaining, label = defaultI18n.t('next.layout.progress')}: {progress: number; remaining: ReactNode; label?: string}) {
@@ -102,7 +103,7 @@ export function Hero<T extends HeroCandidate>({candidates, renderArtwork, render
       role={platform !== 'tv' && showNavigation && candidates.length > 1 ? 'tabpanel' : undefined} aria-labelledby={platform !== 'tv' && showNavigation && candidates.length > 1 ? `${id}-tab-${index}` : undefined}>
       {reason && <p className={styles.reason} style={{...layoutType(type.eyebrow), ...(sizeClass === 'medium' ? {fontSize: 15} : {})}}>{reason}</p>}
       <Lockup title={title} long={entry.long} platform={platform} style={moderate ? {fontSize: 'var(--hero-lockup)', lineHeight: 'var(--frame-hero-lockup-line)'} : sizeClass === 'medium' ? {fontSize: 62, lineHeight: .94} : undefined} />
-      {renderMetadata ? renderMetadata(entry, context) : entry.facts?.length ? <HeroFacts parts={entry.facts} platform={platform} /> : null}
+      {renderMetadata ? renderMetadata(entry, context) : entry.facts?.length ? <HeroFacts parts={entry.facts} platform={platform} runtimeChip /> : null}
       {entry.overview && <p className={styles.overview} style={layoutType(type.synopsis)}>{entry.overview}</p>}
       {renderActions && <div className={styles.actions}>{renderActions(entry, context)}</div>}
       {renderSupplement?.(entry, context)}
