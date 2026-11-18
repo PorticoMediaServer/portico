@@ -25,7 +25,7 @@ const f = (name: FrameName) => formatMessage(framesFixtureMessages[`next.frames.
 const p = (name: PlayerName) => formatMessage(playerFixtureMessages[`next.player.fixture.${name}`]);
 const asset = (path: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${path}`, cacheKey: `frames-reference:${path}`});
 const none = () => {};
-const chip = (part: string) => /^\d+ h( \d+ min)?$|^\d+ min$/.test(part) ? 'runtime' : / seasons?$/.test(part) ? 'seasons' : /^(G|PG|PG-13|R|TV-[A-Z0-9]+)$/.test(part) ? 'rating' : undefined;
+const chip = (part: string) => /^\d+ h( \d+ min)?$|^\d+ min$/.test(part) ? 'duration' : / seasons?$/.test(part) ? 'season-count' : /^(G|PG|PG-13|R|TV-[A-Z0-9]+)$/.test(part) ? 'content-rating' : undefined;
 const fact = (text: string) => text.split(' · ').map((part, index) => ({id: chip(part) ?? (index === 0 ? 'year' : `fact-${index}`), text: part, role: index === 0 ? 'identity' as const : 'context' as const}));
 
 /** One whole window. The audio player's layer draws the glow from its artwork (R10: `Layer kind="audio"`); the

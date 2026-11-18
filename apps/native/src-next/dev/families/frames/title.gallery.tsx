@@ -28,7 +28,7 @@ const card = ({onFocus, onBlur, focusId, testID}: LayoutItemContext) => ({onFocu
 function Meta({text, tags = []}: {text: string; tags?: string[]}) {
   const {form} = useFrameMetrics(), stacked = form === 'phone' || form === 'medium';
   return <HeroMetadata centered={stacked} facts={[...text.split(' · ').map((part, index) => ({id: index === 0 ? 'year' : `fact-${index}`, text: part, role: index === 0 ? 'identity' as const : 'context' as const})),
-    ...tags.map(tag => ({id: / seasons?$/.test(tag) ? 'seasons' : 'rating', text: tag, role: 'context' as const}))]}/>;
+    ...tags.map(tag => ({id: / seasons?$/.test(tag) ? 'season-count' : 'content-rating', text: tag, role: 'context' as const}))]}/>;
 }
 const back = {label: f('back'), onPress: none}, playOn = {icon: 'i-cast' as const, label: f('playOn'), onPress: none};
 const link = (text: string) => ({text, onPress: none});

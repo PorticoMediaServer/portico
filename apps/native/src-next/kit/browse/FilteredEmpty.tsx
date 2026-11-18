@@ -32,7 +32,7 @@ export function FilteredEmpty({description, onClearFilters, suggestions = [], su
     </View>
     <Text accessibilityRole="header" style={[browseType(theme, theme.isTV ? 44 : theme.platform === 'phone' ? 26 : 34, 800, -.03), {color: theme.colors.text, textAlign: 'center', marginBottom: 10}]}>{t('next.browse.native.filterEmptyTitle')}</Text>
     <Text style={[browseType(theme, theme.isTV ? 24 : 16.5, 400, 0, theme.isTV ? 36 : 25.575), {color: theme.colors.textSecondary, textAlign: 'center', maxWidth: theme.isTV ? 680 : 460, marginBottom: 26}]}>{description ?? t('next.browse.native.filterEmptyBody')}</Text>
-    <Button variant="primary" size="hero" onPress={onClearFilters} style={{height: theme.isTV ? 72 : 50}}>{t('next.browse.native.clearFilters')}</Button>
+    <Button focusId="clear-filters" variant="primary" size="hero" onPress={onClearFilters} style={{height: theme.isTV ? 72 : 50}}>{t('next.browse.native.clearFilters')}</Button>
     <RelaxSuggestions suggestions={suggestions} label={suggestionsLabel}/>
   </View>;
 }
