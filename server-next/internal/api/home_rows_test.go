@@ -55,9 +55,25 @@ func TestHomeRowsPageTheirWholeSource(t *testing.T) {
 		t.Fatalf("Continue holds %d, count %v", len(page.Items), page.Total)
 	}
 	initial := get[Home](t, s, token, "/v1/home")
+	whole := get[HomeRow](t, s, token, "/v1/home/rows/continue?limit=200&total=true")
 	for _, row := range initial.Rows {
-		if row.ID == "continue" && (len(row.Items) != 40 || row.NextCursor == "") {
+		if row.ID != "continue" {
+			continue
+		}
+		if len(row.Items) != 40 || row.NextCursor == "" {
 			t.Fatalf("initial Continue: %d, cursor %q", len(row.Items), row.NextCursor)
+		}
+		// See all carries on from Home's last card in the row's own order, and its count holds.
+		rest := get[HomeRow](t, s, token, "/v1/home/rows/continue?cursor="+url.QueryEscape(row.NextCursor))
+		var got, want []string
+		for _, item := range append(row.Items, rest.Items...) {
+			got = append(got, item.ID)
+		}
+		for _, item := range whole.Items {
+			want = append(want, item.ID)
+		}
+		if !slices.Equal(got, want) || whole.Total == nil || *whole.Total != len(want) {
+			t.Fatalf("Continue from Home %v, whole %v (count %v)", got, want, whole.Total)
 		}
 	}
 	if w := call(t, s, "GET", "/v1/home/rows/view:not-yours", limited, nil, nil); w.Code != 404 {
