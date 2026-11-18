@@ -16,6 +16,8 @@
     <!-- Set by the scene when another page is opened over Home. -->
     <field id="covered" type="boolean" onChange="onCovered"/>
     <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+    <!-- A library's id, for its Discover tab: the same rows read from the library's own landing. -->
+    <field id="library" type="string" onChange="load"/>
   </interface>
   <script type="text/brightscript" uri="HomeScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>

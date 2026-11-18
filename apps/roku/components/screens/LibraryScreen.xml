@@ -38,6 +38,8 @@
     <MarkupGrid id="grid" itemComponentName="Card" numColumns="7" numRows="3"
                 drawFocusFeedback="false" vertFocusAnimationStyle="fixedFocus"/>
     <StateRow id="gridState" visible="false"/>
+    <!-- The Discover tab: the library's own Home rows, drawn by Home itself. Made when first shown. -->
+    <Group id="discover"/>
     <PageState id="page" visible="false"/>
   </children>
 </component>

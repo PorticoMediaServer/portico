@@ -8,6 +8,8 @@ sub init()
     m.viewRing = m.top.findNode("viewRing")
     m.gridState = m.top.findNode("gridState")
     m.page = m.top.findNode("page")
+    m.discover = m.top.findNode("discover")
+    m.home = invalid
     name = m.top.findNode("name")
     setType(name, "title", c.text)
     name.translation = [f.gutter, f.browse.titleY]
@@ -100,18 +102,51 @@ sub onDetail(event as object)
     m.allTotal = invalid
     if m.detail.views = invalid or m.detail.views.count() = 0 then m.detail.views = [{kind: ""}]
     if m.detail.sorts <> invalid and m.detail.sorts.count() > 0 then m.sort = m.detail.sorts[0]
-    ' Sort and Filters, then the quick filters this library's titles have the facts for (a music
-    ' library has no "Unplayed"). Filters shows only when the library names a filter it can list.
     m.filterSpecs = filterSpecs(m.detail.filters)
-    m.toolSpecs = [{id: "sort", text: "Sort", icon: "sort"}]
-    if m.filterSpecs.count() > 0 then m.toolSpecs.push({id: "filters", text: "Filters", icon: "sliders"})
-    m.leading = m.toolSpecs.count()
-    m.toolSpecs.append(quickFilters(m.detail.filters))
+    m.view = 0
+    buildTools()
     drawViews()
-    drawTools()
     drawChips()
     loadList()
+    ' Discover is offered when the library's own Home has rows; it sits left of the first view,
+    ' which the page opens on
+    api("GET", "/v1/libraries/" + m.top.library.id + "/landing", invalid, "onLanding", {id: m.top.library.id})
 end sub
+
+sub onLanding(event as object)
+    result = event.getData()
+    if event.getRoSGNode().ctx.id <> m.top.library.id or not result.ok or result.data.rows = invalid then return
+    if result.data.rows.count() = 0 or m.detail.views[0].kind = "discover" then return
+    m.detail.views.unshift({kind: "discover"})
+    m.view = m.view + 1
+    drawViews()
+    paint()
+end sub
+
+function onDiscover() as boolean
+    return m.detail <> invalid and m.detail.views[m.view].kind = "discover"
+end function
+
+' Sort and Filters, and Jump to when the sort has letters or decades to jump to, then the quick
+' filters this library's titles have the facts for (a music library has no "Unplayed"). Filters
+' shows only when the library names a filter it can list.
+sub buildTools()
+    m.toolSpecs = [{id: "sort", text: "Sort", icon: "sort"}]
+    if m.filterSpecs.count() > 0 then m.toolSpecs.push({id: "filters", text: "Filters", icon: "sliders"})
+    if jumpFacet() <> "" then m.toolSpecs.push({id: "jump", text: "Jump to"})
+    m.leading = m.toolSpecs.count()
+    m.toolSpecs.append(quickFilters(m.detail.filters))
+    if m.tool >= m.toolSpecs.count() then m.tool = m.toolSpecs.count() - 1
+    drawTools()
+end sub
+
+' What Jump to jumps by for the sort in use: first letters by title, decades by year; "" for none.
+function jumpFacet() as string
+    if m.sort = invalid then return ""
+    if m.sort.id = "title" then return "letter"
+    if m.sort.id = "year" or m.sort.id = "release" then return "year"
+    return ""
+end function
 
 ' Nothing on the page could load: the whole-page state, in place of the page (rule 9).
 ' A library (or a view of it) with no titles at all (tv-focus frame 46): the toolbar and the grid
@@ -393,6 +428,10 @@ sub onPage(event as object)
         if card.art = "" and (item.kind = "collection" or item.kind = "artist") then askArt(m.items.count() + i, item)
     end for
     m.items.append(fresh)
+    if ctx.first <> true and m.jumpTarget <> invalid
+        if m.cursor = invalid and m.jumpTarget >= m.items.count() then m.jumpTarget = m.items.count() - 1
+        landJump()
+    end if
     if ctx.first = true
         if m.items.count() = 0
             if chosenCount() > 0
@@ -575,6 +614,8 @@ sub focusRegion()
     if m.region = "tools" and m.empty = true then m.region = "page"     ' an empty library has no toolbar: Browse Home
     if m.region = "page"
         m.page.active = true
+    else if m.region = "grid" and onDiscover()
+        m.home.active = true
     else if m.region = "grid" and m.grid.visible
         m.grid.setFocus(true)
     else if m.region = "grid" and m.gridState.visible
@@ -647,6 +688,14 @@ sub onMenuChosen(event as object)
         return
     end if
     id = event.getData()
+    if onDiscover()
+        m.home.menuChosen = id        ' a title's menu opened from a Discover row
+        return
+    end if
+    if left(id, 2) = "j:"
+        jumpTo(m.jumps[id.mid(2).toInt()])
+        return
+    end if
     if left(id, 2) = "f:" or id = "clear"
         chooseFilter(id)
         return
@@ -659,8 +708,58 @@ sub onMenuChosen(event as object)
     for each sort in m.detail.sorts
         if sort.id = id then m.sort = sort
     end for
-    drawTools()
+    buildTools()
     loadList()
+end sub
+
+' --- Jump to: the letters (or decades) the list holds, each with how many titles; a choice puts
+' focus on its first card, reading on until that card has arrived.
+
+sub askJump()
+    facet = jumpFacet()
+    path = listPath()
+    api("GET", "/v1/facets" + mid(path, len("/v1/items") + 1) + "&facet=" + facet, invalid, "onJumps", {generation: m.generation})
+end sub
+
+sub onJumps(event as object)
+    result = event.getData()
+    if event.getRoSGNode().ctx.generation <> m.generation or not result.ok or result.data.values = invalid then return
+    values = result.data.values
+    ' letters come in A to Z order, decades newest first: turn them round when the list runs the other way
+    turn = (jumpFacet() = "letter" and m.sort.order = "desc") or (jumpFacet() = "year" and m.sort.order = "asc")
+    if turn then values.reverse()
+    rows = []
+    m.jumps = []
+    at = 0
+    for i = 0 to values.count() - 1
+        v = values[i]
+        label = v.value
+        if v.label <> invalid then label = v.label
+        rows.push({id: "j:" + i.toStr(), text: label, value: v.count.toStr()})
+        m.jumps.push(at)
+        at = at + v.count
+    end for
+    if rows.count() = 0 then return
+    m.top.menu = {eyebrow: m.top.library.name, title: "Jump to", status: "", rows: rows}
+end sub
+
+sub jumpTo(position as integer)
+    m.jumpTarget = position
+    landJump()
+end sub
+
+' The jump lands once its card has arrived; until then the list reads on from where it has got to.
+sub landJump()
+    if m.jumpTarget = invalid then return
+    if m.jumpTarget < m.items.count()
+        m.grid.jumpToItem = m.jumpTarget
+        m.jumpTarget = invalid
+        m.region = "grid"
+        focusRegion()
+    else if not m.asking
+        m.asking = true
+        api("GET", listPath() + "&limit=200&at=" + m.items.count().toStr(), invalid, "onPage", {generation: m.generation, first: false})
+    end if
 end sub
 
 sub changeView()
@@ -669,9 +768,44 @@ sub changeView()
     m.chosen = {}
     m.allTotal = invalid
     m.tool = 0
+    showDiscover(onDiscover())
+    if onDiscover() then return
     drawTools()
     drawChips()
     loadList()
+end sub
+
+' The Discover tab shows the library's own Home in place of the toolbar and the grid.
+sub showDiscover(on as boolean)
+    for each part in [m.tools, m.chips, m.top.findNode("count"), m.grid, m.gridState]
+        part.visible = not on
+    end for
+    if on
+        m.gridState.visible = false
+        if m.home = invalid
+            m.home = m.discover.createChild("HomeScreen")
+            m.discover.translation = [0, frames().grid.discoverDrop]
+            m.home.observeField("open", "onHomeOpen")
+            m.home.observeField("art", "onHomeArt")
+            m.home.observeField("menu", "onHomeMenu")
+            m.home.library = m.top.library.id
+        end if
+    else
+        m.top.art = ""
+    end if
+    m.discover.visible = on
+end sub
+
+sub onHomeOpen(event as object)
+    m.top.open = event.getData()
+end sub
+
+sub onHomeArt(event as object)
+    if onDiscover() then m.top.art = event.getData()
+end sub
+
+sub onHomeMenu(event as object)
+    m.top.menu = event.getData()
 end sub
 
 sub onMenuClosed()
@@ -835,6 +969,12 @@ function onKeyEvent(key as string, press as boolean) as boolean
     if not press or m.detail = invalid or m.region = "page" then return false
     if m.list <> invalid then return key = "up"     ' one list: the grid is the whole page
     if m.region = "grid"
+        if onDiscover()
+            if key <> "up" then return false
+            m.region = "views"          ' Up from Discover's first row
+            focusRegion()
+            return true
+        end if
         if key = "up"
             m.region = "tools"
             if m.chipSpecs <> invalid and m.chipSpecs.count() > 0 then m.region = "chips"
@@ -912,6 +1052,10 @@ function onKeyEvent(key as string, press as boolean) as boolean
                 openFilters()
                 return true
             end if
+            if spec.id = "jump"
+                askJump()
+                return true
+            end if
             ' a quick filter changes the list in place and keeps focus on its chip
             if m.quick[spec.id] = true then m.quick.delete(spec.id) else m.quick[spec.id] = true
             drawTools()
@@ -944,6 +1088,11 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
     if key = "left" and m.view = 0 and hasSwitcher()
         m.region = "switch"     ' Left from the first view: the library's name
+        focusRegion()
+        return true
+    end if
+    if key = "down" and onDiscover()
+        m.region = "grid"       ' Down from the views on Discover: its rows
         focusRegion()
         return true
     end if

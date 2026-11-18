@@ -23,14 +23,22 @@ sub init()
     load()
 end sub
 
+' Home's rows, or a library's own (its Discover tab), which have the same shape.
+function homePath() as string
+    if m.top.library <> "" then return "/v1/libraries/" + m.top.library + "/landing"
+    return "/v1/home"
+end function
+
 sub load()
     m.notice.visible = false
     m.loadingDelay.control = "start"
-    api("GET", "/v1/home", invalid, "onHome")
+    api("GET", homePath(), invalid, "onHome", {path: homePath()})
 end sub
 
 sub onHome(event as object)
     result = event.getData()
+    ' a Discover tab is made as Home and then told its library: Home's own answer is not its
+    if event.getRoSGNode().ctx.path <> homePath() then return
     if not result.ok
         if result.status = 0
             say("warning", "Can't reach the server", "You're still signed in. Try again in a moment.", [{id: "retry", text: "Try again now", icon: "refresh"}])
@@ -160,8 +168,9 @@ end sub
 ' The address of more of a row's titles: every row, built-in, saved view or collection, goes on
 ' at /v1/home/rows/{id}, the same way See all pages it.
 function rowItemsPath(row as object, cursor as dynamic) as string
-    path = "/v1/home/rows/" + row.id
-    if cursor <> invalid then path = path + "?cursor=" + cursor
+    path = "/v1/home/rows/" + row.id + "?"
+    if m.top.library <> "" then path = path + "library=" + m.top.library + "&"
+    if cursor <> invalid then path = path + "cursor=" + cursor
     return path
 end function
 
@@ -445,6 +454,8 @@ function onKeyEvent(key as string, press as boolean) as boolean
         openMenu()
         return true
     end if
+    ' a library's Discover gives Up from its first row to the page's tabs
+    if key = "up" and m.top.library <> "" and rowFrom(m.focus - 1, -1) < 0 then return false
     return pressKey(key)
 end function
 
@@ -494,7 +505,7 @@ sub refresh()
         if i > m.focus then m.keep.after.push(entry.row.id)
     end for
     m.details = {}     ' progress and played may have changed
-    api("GET", "/v1/home", invalid, "onHome")
+    api("GET", homePath(), invalid, "onHome", {path: homePath()})
 end sub
 
 function pressKey(key as string) as boolean
