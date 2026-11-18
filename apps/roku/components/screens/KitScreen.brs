@@ -75,6 +75,8 @@ function kitPages() as object
             {c: "Key", at: [380, 340], f: {text: "Forgot PIN?", glass: true, width: 484}}]},
         {title: "The keyboard (Search's)", parts: [
             {c: "Keyboard", at: [200, 120], f: {}}]},
+        {title: "The name panel (a new playlist named on the TV, tv-focus 41)", parts: [
+            {c: "NamePanel", at: [0, 0], f: {model: {eyebrow: "Alien", title: "New playlist", value: "Road trip", verb: "Create"}}}]},
         {title: "Number pads: a PIN with Forgot PIN?, and a two-step code", parts: [
             {c: "PinPad", at: [200, 220], f: {digits: 4, extra: "Forgot PIN?", boxesAt: [0, 700]}},
             {c: "PinPad", at: [1176, 220], f: {digits: 6, boxesAt: [-400, 700]}}]},
