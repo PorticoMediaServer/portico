@@ -403,9 +403,9 @@ func (d *DB) chooseMoodRows(ctx context.Context, v Viewer) ([]keptMoodRow, error
 		byTag[c.tag].items = append(byTag[c.tag].items, c.item)
 	}
 	// Not interested makes similar titles less likely (personal state rule 12): each title so
-	// marked since the last reset counts once against every mood tag it carries.
+	// marked since the last reset counts once against every mood tag it carries: the newest 100.
 	against, err := ids(ctx, tx, `SELECT it.tag_id FROM (SELECT item_id FROM user_item_state WHERE profile_id = @viewer_profile AND hidden = 1
-		AND hidden_at > `+tasteSince+` LIMIT `+fmt.Sprint(tasteFavorites)+`) s CROSS JOIN item_tags it ON it.item_id = s.item_id`, v.args()...)
+		AND hidden_at > `+tasteSince+` ORDER BY hidden_at DESC LIMIT `+fmt.Sprint(tasteFavorites)+`) s CROSS JOIN item_tags it ON it.item_id = s.item_id`, v.args()...)
 	if err != nil {
 		return nil, err
 	}
