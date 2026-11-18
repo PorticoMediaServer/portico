@@ -14,13 +14,13 @@ export function SkippedFiles({libraryId, api, service, isCurrent, label}: Readon
 }>) {
   const [open, setOpen] = useState(false), [page, setPage] = useState<SkippedPage>(), [failed, setFailed] = useState(false), [busy, setBusy] = useState(false);
   const [libraryName, setLibraryName] = useState('');
-  const lifetime = useRef<AbortController | undefined>(undefined), job = useRef<string | undefined>(undefined), running = useRef(false);
+  const lifetime = useRef<AbortController | undefined>(undefined), running = useRef(false);
   const current = (capture: AbortController) => lifetime.current === capture && !capture.signal.aborted && isCurrent();
-  const load = async (capture: AbortController, after = 0) => {
-    if (!current(capture) || running.current || !job.current) return;
+  const load = async (capture: AbortController, after = '') => {
+    if (!current(capture) || running.current) return;
     running.current = true; setBusy(true); setFailed(false);
     try {
-      const next = await skippedFiles(api, libraryId, job.current, after, capture.signal);
+      const next = await skippedFiles(api, libraryId, after, capture.signal);
       if (current(capture)) setPage(before => after && before ? {...next, items: [...before.items, ...next.items]} : next);
     } catch { if (current(capture)) setFailed(true); }
     finally { if (current(capture)) {running.current = false; setBusy(false);} }
@@ -31,16 +31,14 @@ export function SkippedFiles({libraryId, api, service, isCurrent, label}: Readon
   useEffect(() => {
     const {current, load} = setupPorts.current;
     if (!open) return;
-    const capture = new AbortController(); lifetime.current = capture; running.current = false; job.current = undefined;
+    const capture = new AbortController(); lifetime.current = capture; running.current = false;
     setPage(undefined); setLibraryName(''); setFailed(false); setBusy(true);
     void service.selectLibrary(libraryId).then(async () => {
       if (!current(capture)) return;
       const selected = service.getSnapshot().selected.data?.library;
       if (!selected || selected.id !== libraryId) throw new Error('library_changed');
       setLibraryName(selected.name);
-      job.current = selected.lastScan?.id;
-      if (job.current) await load(capture);
-      else {setPage({items: [], count: 0, hasMore: false, next: 0}); setBusy(false);}
+      await load(capture);
     }).catch(() => {if (current(capture)) {setFailed(true);setBusy(false);}});
     return () => {capture.abort(); if (lifetime.current === capture) lifetime.current = undefined;};
   }, [open, libraryId, api, service, isCurrent]);
@@ -66,7 +64,7 @@ export function SkippedFiles({libraryId, api, service, isCurrent, label}: Readon
     <Button variant="glass" size="small" onClick={() => {if (isCurrent()) setOpen(true);}}>{label}</Button>
     <Dialog footerDismisses open={open} onOpenChange={setOpen} size="lg" width={640} title={t('next.ownerLibraries.filesSkippedTitle')}
       description={t('next.ownerLibraries.filesSkippedLede')} footer={<>
-        {page && page.items.length > 0 && <span className={styles.skippedCount}>{t('next.ownerLibraries.filesCount', {count: page.count})}</span>}
+        {page && page.items.length > 0 && <span className={styles.skippedCount}>{t('next.ownerLibraries.filesCount', {count: page.items.length})}</span>}
         <Button onClick={() => setOpen(false)}>{t('next.overlays.close')}</Button>
         <Button variant="primary" icon="i-refresh" loading={busy} disabled={busy} onClick={() => {void scan();}}>{t('next.ownerLibraries.scanAgain')}</Button>
       </>}>
@@ -77,7 +75,7 @@ export function SkippedFiles({libraryId, api, service, isCurrent, label}: Readon
         <b>{t('next.ownerLibraries.skippedEmptyTitle')}</b>
         <p>{t('next.ownerLibraries.skippedEmptyBody', {library: libraryName})}</p>
       </div> : null}
-      {page && page.items.length > 0 && <ul className={styles.skippedList}>{page.items.map(file => <li key={file.sequence}><code>{file.path}</code><small>{t(file.reason)}</small></li>)}</ul>}
+      {page && page.items.length > 0 && <ul className={styles.skippedList}>{page.items.map(file => <li key={file.path}><code>{file.path}</code><small>{file.reason ? t(file.reason) : file.message}</small></li>)}</ul>}
       {page?.hasMore && <Button disabled={busy} onClick={() => {const capture = lifetime.current;if (capture) void load(capture, page.next);}}>{t('next.ownerLibraries.showMore')}</Button>}
     </Dialog>
   </>;

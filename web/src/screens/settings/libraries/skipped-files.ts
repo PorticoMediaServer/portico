@@ -1,28 +1,15 @@
-import {readOwnerSkippedFiles} from '@core/owner-library-requests.ts';
+import {readLibrarySkippedFiles} from '@core/admin/skipped-files.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import type {MessageId} from '@i18n';
-export type SkippedFile = Readonly<{sequence: number; path: string; reason: MessageId}>;
-export type SkippedPage = Readonly<{items: readonly SkippedFile[]; count: number; hasMore: boolean; next: number}>;
+/** `reason` is the catalogue's words when this app knows the server's reason; otherwise the server's own `message` is shown. */
+export type SkippedFile = Readonly<{path: string; reason?: MessageId; message: string}>;
+export type SkippedPage = Readonly<{items: readonly SkippedFile[]; hasMore: boolean; next: string}>;
 const reasons: Readonly<Record<string, MessageId>> = {
-  file_truncated: 'scan.issue.file_truncated', unfinished_download: 'scan.issue.unfinished_download',
+  damaged: 'scan.issue.damaged', not_supported: 'scan.issue.unsupported', not_media: 'scan.issue.not_media',
 };
-const categories: Readonly<Record<string, MessageId>> = {
-  damaged: 'scan.issue.damaged', unsupported: 'scan.issue.unsupported', 'not-media': 'scan.issue.not_media',
-};
-const integer = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
-const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
-/** Only the server's unplayable-file page is shown; unmatched titles never enter this list. */
-export async function skippedFiles(api: LibraryContentApi, libraryId: string, jobId: string, after: number, signal: AbortSignal): Promise<SkippedPage> {
-  const raw: unknown = await readOwnerSkippedFiles(api, libraryId, jobId, after, signal);
-  if (!object(raw) || raw.jobId !== jobId || !Array.isArray(raw.items) || raw.items.length > 40 || !integer(raw.count) ||
-      typeof raw.hasMore !== 'boolean' || !integer(raw.nextSequence) || raw.nextSequence < after || (raw.hasMore && raw.nextSequence <= after)) throw new Error('invalid_skipped_files');
-  const items: SkippedFile[] = [];
-  let previous = after;
-  for (const row of raw.items) {
-    if (!object(row) || !integer(row.sequence) || row.sequence <= previous || row.sequence > raw.nextSequence || typeof row.path !== 'string' ||
-        row.path.length > 8192 || /[\x00-\x1f\x7f]/.test(row.path) || typeof row.category !== 'string' || !Object.hasOwn(categories, row.category)) throw new Error('invalid_skipped_file');
-    previous = row.sequence;
-    items.push({sequence: row.sequence, path: row.path, reason: typeof row.reason === 'string' && Object.hasOwn(reasons, row.reason) ? reasons[row.reason] : categories[row.category]});
-  }
-  return {items, count: raw.count, hasMore: raw.hasMore, next: raw.nextSequence};
+/** One page of the library's files Portico could not prepare (`GET /v1/admin/libraries/{id}/skipped`, 40 a page). */
+export async function skippedFiles(api: LibraryContentApi, libraryId: string, cursor: string, signal: AbortSignal): Promise<SkippedPage> {
+  const page = await readLibrarySkippedFiles(api, libraryId, cursor || undefined, signal);
+  return {items: page.items.map(file => ({path: file.path, ...(Object.hasOwn(reasons, file.reason) ? {reason: reasons[file.reason]} : {}), message: file.message})),
+    hasMore: !!page.nextCursor, next: page.nextCursor ?? ''};
 }
