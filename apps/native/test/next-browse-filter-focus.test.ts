@@ -32,11 +32,11 @@ async function fixture(isTV: boolean) {
   const reanimated = {default: {createAnimatedComponent: (value: any) => value, View: 'AnimatedView'},
     useSharedValue: (value: any) => React.useRef({value}).current, useAnimatedStyle: (run: any) => run(), withTiming: (value: any) => value};
   const {Focusable} = await screenModule(new URL('../src-next/kit/controls/Focusable.tsx', import.meta.url), {
-    '../overlays/OverlayPaintContext': liveOverlayPaint,
+    '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': liveOverlayPaint,
     react, 'react-native': native, 'react-native-reanimated': reanimated, '@portico/design': design, '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': themeModule,
     '../useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './control-model': controlModel, './useFocusedMenu': {useFocusedMenu() {}}, '../focus': {...focusModule, useCovered: () => false},
   });
-  const shared = {'../overlays/OverlayPaintContext': liveOverlayPaint, react, 'react-native': native, '@portico/design': design, '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': themeModule, '../focus': {...focusModule, useCovered: () => false},
+  const shared = {'../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': liveOverlayPaint, react, 'react-native': native, '@portico/design': design, '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': themeModule, '../focus': {...focusModule, useCovered: () => false},
     '../Icon': {Icon: 'Icon'}, './Focusable': {Focusable}, './control-model': controlModel, './useControlValue': {useControlValue}};
   const {Chip} = await screenModule(new URL('../src-next/kit/controls/Chip.tsx', import.meta.url), shared);
   const {Segmented} = await screenModule(new URL('../src-next/kit/controls/Tabs.tsx', import.meta.url), shared);

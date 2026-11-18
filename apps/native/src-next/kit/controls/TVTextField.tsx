@@ -51,7 +51,10 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
         {backgroundColor: focused ? theme.colors[fieldSpec.fill.focus] : colorAlpha(theme.colors[fieldSpec.tv.rest.background], fieldSpec.tv.rest.backgroundAlpha ?? 1),
           borderWidth: fieldSpec.borderWidth.tv, borderColor: theme.colors[error ? fieldSpec.border.invalid : focused ? fieldSpec.border.focus : fieldSpec.border.rest]}]}>
       {leadingIcon && <Icon name={leadingIcon} size={iconSize ?? 30} color={theme.colors.textTertiary}/>}
-      <Text numberOfLines={1} ellipsizeMode="head" style={[textStyle, {flex: 1, minWidth: 0}]}>{displayed || props.placeholder || ''}</Text>
+      {/* A typed value keeps its end in view (an address's last part, as typing it); the placeholder starts at its first
+          word and takes a second line rather than being cut (tv-more, final3-tv-09). */}
+      {displayed ? <Text numberOfLines={1} ellipsizeMode="head" style={[textStyle, {flex: 1, minWidth: 0}]}>{displayed}</Text>
+        : <Text style={[textStyle, {flex: 1, minWidth: 0}]}>{props.placeholder ?? ''}</Text>}
       {trailing}
     </Focusable>
     {/* Focus on native mount so the text input is in the window when it asks for the keyboard. */}

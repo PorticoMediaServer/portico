@@ -67,6 +67,15 @@ export function focusTarget(target: FocusTarget | null | undefined) {
 }
 
 const stack = createOverlayStack();
+/** The open overlay a control sits in (its stack id); undefined on the page. */
+export const OverlayLayer = createContext<object | undefined>(undefined);
+/** R1, TV: whether this control is in the top layer: inside the topmost open overlay, or on the page while none is open.
+ * Only the top layer draws a focus ring. An Android TV sheet is its own window, and the view focused in the window under
+ * it is never blurred (a card the page started on, or the opener), so without this two rings showed. */
+export function useInTopLayer(): boolean {
+  const layer = useContext(OverlayLayer), top = useSyncExternalStore(stack.subscribe, stack.top, () => undefined);
+  return top === layer;
+}
 let keyUsers = 0;
 let unregisterKeys: (() => void) | undefined;
 function retainOverlayKeys(): () => void {
@@ -88,7 +97,7 @@ export function dispatchOverlayKey(key: 'escape' | 'tab' | 'menu', _shift = fals
   return false;
 }
 export function useOverlayLifecycle(open: boolean, modal: boolean, dismiss: (reason: OverlayReason) => void, initialFocusRef?: FocusRef, returnFocusRef?: FocusRef, focusDelay = 0, regionId?: string, restoreFocus = true) {
-  const registry = useOptionalFocusRegistry(), paint = useOverlayPaintMode();
+  const registry = useOptionalFocusRegistry(), paint = useOverlayPaintMode(), layer = useRef({}).current;
   const returnCurrent = useOverlayPaintReturnCurrent(), returnPermit = useRef(returnCurrent);
   returnPermit.current = returnCurrent;
   open = open && paint.visible;
@@ -115,7 +124,7 @@ export function useOverlayLifecycle(open: boolean, modal: boolean, dismiss: (rea
     const opener = registry?.capture();
     const releaseReturn = regionId && restoring.current ? registry?.registerReturn(regionId, opener) : undefined;
     const releaseOpener = opener && restoring.current ? registry?.retain(opener) : undefined;
-    const registration = {};
+    const registration = layer;
     const remove = stack.register(registration, reason => dismissRef.current(reason));
     const releaseKeys = retainOverlayKeys();
     const releaseMenu = captureTVMenuKey();
@@ -124,7 +133,8 @@ export function useOverlayLifecycle(open: boolean, modal: boolean, dismiss: (rea
     const timer = setTimeout(() => {
       if (!stack.isTop(registration)) return;
       const target = initial.current?.current;
-      if (target) focusTarget(target); else if (regionId && (Platform as typeof Platform | undefined)?.isTV) registry?.focusRegion(regionId);
+      // A start already placed inside it (a picker's current choice) stays.
+      if (target) focusTarget(target); else if (regionId && (Platform as typeof Platform | undefined)?.isTV && registry?.capture()?.regionId !== regionId) registry?.focusRegion(regionId);
     }, delay.current);
     const releaseBack = registerBack(() => {
       if (!stack.isTop(registration)) return false;
@@ -146,6 +156,8 @@ export function useOverlayLifecycle(open: boolean, modal: boolean, dismiss: (rea
         else registry?.restore(opener);
       }
     };
-  }, [open, modal, registry, regionId]);
+  }, [open, modal, registry, regionId, layer]);
+  // The overlay's layer id, for its `FocusBoundary` (only the top layer draws a ring); none while it is not open.
+  return open ? layer : undefined;
 }
 const styles = StyleSheet.create({root: {flex: 1}});

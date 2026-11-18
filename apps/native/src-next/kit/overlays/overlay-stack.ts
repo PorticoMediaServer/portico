@@ -9,12 +9,12 @@ export function createOverlayStack() {
     register(id: object, dismiss: Entry['dismiss']) {
       const entry = {id, dismiss};
       entries.push(entry);
-      if (entries.length === 1) changed();
+      changed();
       return () => {
         const wasTop = entries[entries.length - 1] === entry;
         const index = entries.indexOf(entry);
         if (index >= 0) entries.splice(index, 1);
-        if (index >= 0 && !entries.length) changed();
+        if (index >= 0) changed();
         return index >= 0 && wasTop;
       };
     },
@@ -22,6 +22,8 @@ export function createOverlayStack() {
     isOpen: () => entries.length > 0,
     subscribe(listener: () => void) {listeners.add(listener); return () => {listeners.delete(listener);};},
     isTop(id: object) {return entries[entries.length - 1]?.id === id;},
+    /** The topmost open surface's id, or undefined when none is open. */
+    top: (): object | undefined => entries[entries.length - 1]?.id,
     dismiss(reason: OverlayReason) {
       const top = entries[entries.length - 1];
       if (!top) return false;
@@ -30,3 +32,4 @@ export function createOverlayStack() {
     },
   };
 }
+

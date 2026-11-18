@@ -33,7 +33,7 @@ test('the real sparse CardFrame keeps one native host from waiting through two l
     react, 'react-native': nativeModule, 'react-native-reanimated': animated,
     'react-native-svg': {default: 'RCTSvg', Defs: 'RCTDefs', LinearGradient: 'RCTGradient', Rect: 'RCTRect', Stop: 'RCTStop'},
     '../../../../../packages/i18n/src/index': {defaultI18n},
-    '../browse/useTouchHold': {useTouchHold: () => ({phase: 'idle', consumePress: () => false, end() {}, cancel() {},
+    '../overlays/OverlayHost': {useInTopLayer: () => true}, '../browse/useTouchHold': {useTouchHold: () => ({phase: 'idle', consumePress: () => false, end() {}, cancel() {},
       handlers: {onTouchStart() {}, onTouchMove() {}, onTouchEnd() {}, onTouchCancel() {}}})},
     '../../platform/haptics': {touchMenuHaptic() {}},
     '../../platform/menu-key': {registerFocusedMenu: (_owner: unknown, callback: () => void) => {menus.push(callback); return () => {}; }},

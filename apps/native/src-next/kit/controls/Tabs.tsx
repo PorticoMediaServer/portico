@@ -53,7 +53,8 @@ export function Tabs({items, value, defaultValue, onValueChange, disabled, passi
     : <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{overflow: 'visible'}} contentContainerStyle={stripStyle}
       accessibilityRole={passive ? undefined : 'tablist'} accessibilityLabel={accessibilityLabel}>{children}</ScrollView></TVRow>;
   return <View style={style} testID={testID}>
-    <View style={{borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>{strip(items.map(item => {
+    {/* TV draws its tabs over the page with no rule under the strip, only the selected tab's underline (final3-tv-08, detail-tv-5a). */}
+    <View style={{borderBottomWidth: theme.isTV ? 0 : 1, borderBottomColor: theme.colors.line}}>{strip(items.map(item => {
         const childProps = itemProps?.(item);
         const blocked = disabled || item.disabled;
         const selected = item.value === current;

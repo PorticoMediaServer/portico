@@ -92,7 +92,7 @@ for (const os of ['ios', 'android'] as const) {
       '@portico/design': {fieldSpec: spec}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => theme, fontFamilies: {400: 'regular', 500: 'medium', 600: 'semibold'}},
       './control-model': {colorAlpha: (color: string, alpha: number) => color + ':' + alpha},
       '../focus': {useFocusTarget: () => ({waiting: false, ref: {current: null}, testID: 'credential', onFocus() {}, onBlur() {}})},
-      '../overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({interactive: true})},
+      '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({interactive: true})},
       '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur, backgroundColor: '#1c3341', backgroundAlpha: .8})},
     });
     const host = createFabricHookHost(() => {const outer = TextField.render({appearance, label: 'Password', value: 'value', secureTextEntry: true,
