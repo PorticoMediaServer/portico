@@ -40,7 +40,13 @@ function cardMenu(item as object, extras as object, skip as object) as object
     if item.kind = "episode" and item.rootId <> invalid and not menuSkips(skip, "show")
         rows.push({id: "card:show", text: "Go to show", icon: "forward", gapBefore: gap})
         gap = false
-    else if (item.kind = "movie" or item.kind = "show" or item.kind = "collection") and not menuSkips(skip, "details")
+    end if
+    ' the show's page opened on the episode's season, at the episode (tv-detail frame 7)
+    if item.kind = "episode" and item.rootId <> invalid and item.parentId <> invalid and not menuSkips(skip, "season")
+        rows.push({id: "card:season", text: "Go to season", icon: "list", gapBefore: gap})
+        gap = false
+    end if
+    if (item.kind = "movie" or item.kind = "show" or item.kind = "collection") and not menuSkips(skip, "details")
         ' the pages the app has: a film's, a show's and a collection's
         rows.push({id: "card:details", text: "Details", icon: "info", gapBefore: gap})
         gap = false
@@ -110,6 +116,8 @@ function cardMenuChosen(which as string) as boolean
         m.top.open = {item: item, play: true, startOver: true}
     else if id = "show"
         m.top.open = {item: {id: item.rootId, kind: "show", title: item.rootTitle}, play: false}
+    else if id = "season"
+        m.top.open = {item: {id: item.rootId, kind: "show", title: item.rootTitle, seasonId: item.parentId, episodeId: item.id}, play: false}
     else if id = "details"
         m.top.open = {item: item, play: false}
     else if id = "playlist" or id = "collection"
