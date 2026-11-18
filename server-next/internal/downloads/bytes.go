@@ -4,16 +4,19 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/prepare"
@@ -308,6 +311,26 @@ func openBookCopy(c reading.Copy, title string) (*File, error) {
 		ContentType: contentType, Name: saveName(title, 1, 1, c.Container), last: true}, nil
 }
 
+// openKeptSubtitle opens a subtitle someone searched for or uploaded, kept by the server under
+// its hash. The hash from the database is the only name used.
+func (s *Service) openKeptSubtitle(title string, track db.Track) (*File, error) {
+	hash := track.DownloadedHash
+	if _, err := hex.DecodeString(hash); err != nil || len(hash) != 64 || s.SubtitleDir == "" {
+		return nil, ErrGone
+	}
+	file, err := libraryfile.Open(filepath.Join(s.SubtitleDir, hash[:2], hash), []string{s.SubtitleDir})
+	if err != nil {
+		return nil, ErrGone
+	}
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, ErrGone
+	}
+	return &File{ReadSeeker: file, Closer: file, Size: info.Size(), Modified: info.ModTime(), ETag: `"` + hash + `"`,
+		ContentType: "application/octet-stream", Name: saveName(title, 0, 0, track.Codec)}, nil
+}
+
 // openSubtitle opens a subtitle file beside the original, or, for a smaller copy, a text
 // subtitle that was inside the file and was written out beside the copy. The track is found
 // among the version's own tracks; nothing in the address names a file.
@@ -326,11 +349,14 @@ func (s *Service) openSubtitle(ctx context.Context, v db.Viewer, dl db.Download,
 				continue
 			}
 			place := inside
-			if !track.Sidecar {
+			if !track.Sidecar && track.Downloaded == "" {
 				inside++
 			}
 			if playback.TrackID(track) != trackID {
 				continue
+			}
+			if track.Downloaded != "" {
+				return s.openKeptSubtitle(title.Title, track)
 			}
 			if track.Sidecar {
 				source, size, modified, err := s.Prepare.OpenFile(ctx, track.FileID)

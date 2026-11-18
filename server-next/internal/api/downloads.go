@@ -757,7 +757,8 @@ func (s *Server) downloadedItem(r *http.Request, _ None) (DownloadedItem, error)
 	for n, subtitle := range shaped.Subtitles {
 		track := subtitleTrack(version, n)
 		switch {
-		case subtitle.Source == "sidecar":
+		case subtitle.Source == "sidecar", subtitle.Source == "downloaded":
+			// A file of its own: beside the title, or one someone searched for or uploaded.
 			out.Subtitles = append(out.Subtitles, DownloadSubtitle{PlaybackSubtitle: subtitle, URL: base + "subtitles/" + playback.TrackID(track)})
 		case dl.Quality == downloads.Original:
 			// Inside the file the device keeps.
@@ -770,7 +771,7 @@ func (s *Server) downloadedItem(r *http.Request, _ None) (DownloadedItem, error)
 					Part: partOf(len(version.Parts), 1)})
 			}
 		}
-		if subtitle.Source != "sidecar" {
+		if subtitle.Source == "embedded" {
 			inside++
 		}
 	}
