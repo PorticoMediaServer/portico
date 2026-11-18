@@ -196,7 +196,8 @@
     "subtitleRendering": [
      "text"
     ],
-    "embeddedAudioSwitching": true
+    "embeddedAudioSwitching": true,
+    "liveNeedsHls": true
    }
   }
  }

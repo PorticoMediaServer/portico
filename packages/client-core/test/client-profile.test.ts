@@ -15,6 +15,10 @@ test('every declared table is a document the server accepts',()=>{
  assert.equal(appleDeclaredProfile({television:true}).engines.native.transports!.some(t=>t.containers?.includes('mkv')),false,'AVPlayer has never played Matroska');
  assert.deepEqual(appleDeclaredProfile({television:true}).engines.native.video!.find(v=>v.codec==='hevc')!.codecTags,['hvc1','dvh1'],'AVFoundation takes HEVC under hvc1 only');
  assert.equal(appleDeclaredProfile({television:true}).engines.native.embeddedAudioSwitching,true);
+ assert.deepEqual(
+  [androidDeclaredProfile(),androidDeclaredProfile({television:true}),fireTvDeclaredProfile()].map(d=>d.engines.native.liveNeedsHls),
+  [true,true,true],'Android phones, Android TVs and Fire TVs need HLS for live rewind',
+ );
  assert.ok(castDeclaredProfile('chromecast').engines.native.video!.every(v=>v.codec!=='hevc'));
  assert.ok(castDeclaredProfile('google_tv_4k').engines.native.video!.find(v=>v.codec==='hevc')!.dynamicRanges!.includes('dolby_vision'));
  const googleTV=castDeclaredProfile('google_tv_4k').engines.native,streamer=castDeclaredProfile('google_tv_streamer').engines.native;

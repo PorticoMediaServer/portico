@@ -66,9 +66,8 @@ func TestPlanFromFileFacts(t *testing.T) {
 	}
 }
 
-// A Roku says it cannot pause or go back in a live channel's endless MPEG-TS, so a channel
-// reaches it as HLS (with the rewind stretch); a .ts file still plays on it as it is, and a
-// player that does not say so still takes the channel's own stream.
+// A player that needs HLS for live rewind gets the channel as HLS and can still play a .ts
+// file directly. A player that accepts live MPEG-TS can still take the channel's own stream.
 func TestLiveChannelReachesAPlayerThatNeedsHLSAsHLS(t *testing.T) {
 	channel := FileFacts{
 		ID: "live", Container: "mpegts", VideoCodec: "h264", AudioCodec: "aac", Width: 1920, Height: 1080,
@@ -87,15 +86,15 @@ func TestLiveChannelReachesAPlayerThatNeedsHLSAsHLS(t *testing.T) {
 		}
 		return p
 	}
-	for _, roku := range []string{"roku_hd", "roku_4k"} {
-		if p := plan(roku, true); p.Mode != "hls" || p.Strategy != DeliveryCopyRemux {
-			t.Fatalf("a channel reached %s as %s %s, want HLS repackaged", roku, p.Mode, p.Strategy)
+	for _, device := range []string{"roku_hd", "roku_4k", "android", "androidtv", "firetv"} {
+		if p := plan(device, true); p.Mode != "hls" || p.Strategy != DeliveryCopyRemux {
+			t.Fatalf("a channel reached %s as %s %s, want HLS repackaged", device, p.Mode, p.Strategy)
 		}
-		if p := plan(roku, false); p.Strategy != DeliveryOriginal {
-			t.Fatalf("a .ts file reached %s as %s, want as it is", roku, p.Strategy)
+		if p := plan(device, false); p.Strategy != DeliveryOriginal {
+			t.Fatalf("a .ts file reached %s as %s, want as it is", device, p.Strategy)
 		}
 	}
-	if p := plan("androidtv", true); p.Strategy != DeliveryOriginal {
-		t.Fatalf("a channel reached Android TV as %s, want its own stream", p.Strategy)
+	if p := plan("tizen", true); p.Strategy != DeliveryOriginal {
+		t.Fatalf("a channel reached Tizen as %s, want its own stream", p.Strategy)
 	}
 }

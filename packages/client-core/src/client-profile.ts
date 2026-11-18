@@ -270,6 +270,7 @@ export function androidDeclaredProfile(options:{television?:boolean;family?:'and
    ],
    subtitleRendering:[...textOnly],
    embeddedAudioSwitching:true,
+   liveNeedsHls:true,
   }},
  };
 }
