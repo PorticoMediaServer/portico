@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -222,6 +223,23 @@ func TestStableTitlesChaptersPIDAndSeekAuthority(t *testing.T) {
 	if _, err := DecodeSeek(seek, 1, 37000); err == nil {
 		t.Fatal("different seek accepted")
 	}
+	one := 1
+	blu := Title{Playlist: &one, DurationMs: 20000}
+	if _, err := DecodeEntryPoints([]byte(`{"schema":1,"playlist":1,"stepMs":6000,"entryPointsMs":[5998,12000,17996]}`), blu, 6000); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{
+		`{"schema":1,"playlist":2,"stepMs":6000,"entryPointsMs":[5998]}`,
+		`{"schema":1,"playlist":1,"stepMs":5000,"entryPointsMs":[4998]}`,
+		`{"schema":1,"playlist":1,"stepMs":6000,"entryPointsMs":[6001]}`,
+		`{"schema":1,"playlist":1,"stepMs":6000,"entryPointsMs":[5998,5000]}`,
+		`{"schema":1,"playlist":1,"stepMs":6000,"entryPointsMs":[5998,12000,17996,23998]}`,
+		`{"schema":1,"playlist":1,"stepMs":6000}`,
+	} {
+		if _, err := DecodeEntryPoints([]byte(bad), blu, 6000); err == nil {
+			t.Fatalf("entry points accepted: %s", bad)
+		}
+	}
 }
 
 func TestHelperFixtureProbeAndCrossClipSeek(t *testing.T) {
@@ -258,6 +276,50 @@ func TestHelperFixtureProbeAndCrossClipSeek(t *testing.T) {
 	cmd.Stdout = &out
 	if err := cmd.Run(); err == nil || out.Len() != 0 {
 		t.Fatal("invalid arguments published JSON")
+	}
+}
+
+// The disc reader lists a Blu-ray title's entry points, the keyframes a copied picture is cut
+// on, and a seek to one lands on it. The fixture's keyframes are on whole seconds of the title,
+// and an EP map keeps a keyframe's time to within 6 ms below it, so with a step of 6.5 seconds
+// each answer is the keyframe before the time asked, never the time asked itself.
+func TestHelperFixtureEntryPoints(t *testing.T) {
+	binaryPath := os.Getenv("PORTICO_DISC_TEST_BINARY")
+	if binaryPath == "" {
+		t.Skip("set PORTICO_DISC_TEST_BINARY to the compiled helper")
+	}
+	root, fixtures := discFixtures(t)
+	tool := Tool{Binary: binaryPath}
+	for _, f := range fixtures {
+		path := filepath.Join(root, f.Path)
+		probe, err := tool.ProbeLocal(context.Background(), path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if probe.Kind != "bluray" {
+			continue
+		}
+		t.Run(f.ID, func(t *testing.T) {
+			title := probe.Titles[0]
+			raw, err := tool.run(context.Background(), path, "entry-points", path, strconv.Itoa(*title.Playlist), "6500")
+			if err != nil {
+				t.Fatal(err)
+			}
+			points, err := DecodeEntryPoints(raw, title, 6500)
+			if err != nil || len(points.EntryPointsMs) != 11 {
+				t.Fatalf("entry points %s: %v", raw, err)
+			}
+			for i, at := range points.EntryPointsMs {
+				keyframe := int64(i+1) * 6500 / 1000 * 1000
+				if at > keyframe || keyframe-at > 6 {
+					t.Fatalf("entry point %d is %d ms, want the keyframe at %d ms", i, at, keyframe)
+				}
+				seek, err := tool.SeekLocal(context.Background(), path, *title.Playlist, at)
+				if err != nil || seek.TitleTimeMs != at {
+					t.Fatalf("a seek to the entry point at %d ms lands at %+v (%v)", at, seek, err)
+				}
+			}
+		})
 	}
 }
 

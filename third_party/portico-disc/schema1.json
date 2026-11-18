@@ -8,6 +8,9 @@
     },
     {
       "$ref": "#/$defs/seek"
+    },
+    {
+      "$ref": "#/$defs/entryPoints"
     }
   ],
   "$defs": {
@@ -255,6 +258,39 @@
         "requestedMs",
         "byteOffset",
         "titleTimeMs"
+      ]
+    },
+    "entryPoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": 1
+        },
+        "playlist": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99999
+        },
+        "stepMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 600000
+        },
+        "entryPointsMs": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 604800000
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "playlist",
+        "stepMs",
+        "entryPointsMs"
       ]
     }
   }

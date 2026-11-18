@@ -83,6 +83,16 @@ type Seek struct {
 	TitleTimeMs int64 `json:"titleTimeMs"`
 }
 
+// EntryPoints is, for every StepMs of a Blu-ray title after its start, the entry point at or
+// before it: a keyframe from the clip's EP map, in whole milliseconds of the title, rounded up.
+// A copied picture is cut on them, and a seek to one lands on it.
+type EntryPoints struct {
+	Schema        int     `json:"schema"`
+	Playlist      int     `json:"playlist"`
+	StepMs        int64   `json:"stepMs"`
+	EntryPointsMs []int64 `json:"entryPointsMs"`
+}
+
 var playlistFile = regexp.MustCompile(`^[0-9]{5}\.mpls$`)
 var clipFile = regexp.MustCompile(`^[0-9]{5}\.m2ts$`)
 var isoLanguage = regexp.MustCompile(`^(?:[a-z]{2,3})?$`)
@@ -199,6 +209,27 @@ func DecodeSeek(raw []byte, playlist int, requestedMs int64) (Seek, error) {
 		return s, ErrProtocol
 	}
 	return s, nil
+}
+
+// DecodeEntryPoints reads the entry-points answer for a Blu-ray title asked with stepMs: at
+// most one point per step inside the title, each at or before its step and none going back.
+func DecodeEntryPoints(raw []byte, t Title, stepMs int64) (EntryPoints, error) {
+	var e EntryPoints
+	if err := decode(raw, &e); err != nil {
+		return e, err
+	}
+	if t.Playlist == nil || e.Schema != Schema || e.Playlist != *t.Playlist || stepMs < 1000 || e.StepMs != stepMs || e.EntryPointsMs == nil ||
+		int64(len(e.EntryPointsMs)) > t.DurationMs/stepMs {
+		return e, ErrProtocol
+	}
+	last := int64(0)
+	for i, at := range e.EntryPointsMs {
+		if at < last || at > int64(i+1)*stepMs {
+			return e, ErrProtocol
+		}
+		last = at
+	}
+	return e, nil
 }
 
 // OrderedTitles supplies stable Title N display positions. Changing the main
