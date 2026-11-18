@@ -1,4 +1,4 @@
-import {useRef, useLayoutEffect, useState, useSyncExternalStore} from 'react';
+import {useEffect, useRef, useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import type {Library} from '@core/index.ts';
 import type {BrowseCount, BrowseNode} from '@core/browse.ts';
@@ -9,7 +9,9 @@ import styles from './browse.module.css';
 
 /** Each chip is a separate server-evaluated count over the immutable Home row.
  * Multiple libraries of one kind are one query; their counts are never summed. */
-export function BrowseScopeChips({controller, libraries, reportError, labelFor}: Readonly<{controller: BrowseController; libraries?: readonly Library[]; reportError: (error: unknown) => void; labelFor?: (kind: string) => string}>) {
+/** `onKind`: the one kind the grid now shows (the chip chosen, or the only kind the row holds), so the grid can take that kind's
+ * card shape; undefined while the row is mixed or not yet counted. */
+export function BrowseScopeChips({controller, libraries, reportError, labelFor, onKind}: Readonly<{controller: BrowseController; libraries?: readonly Library[]; reportError: (error: unknown) => void; labelFor?: (kind: string) => string; onKind?: (kind: string | undefined) => void}>) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const [scope, setScope] = useState<Readonly<{owner: BrowseController; query: BrowseState; counts: readonly BrowseCount[]; signature: string}> | undefined>(undefined);
   const offered = !!libraries && controller.source.libraryId === '*' && state.capabilities?.fields.some(field => field.id === 'library' && field.operators.includes('in'));
@@ -35,12 +37,15 @@ export function BrowseScopeChips({controller, libraries, reportError, labelFor}:
     }, 180);
     return () => {clearTimeout(timer);stop.abort();};
   }, [controller, offered, signature, reportError, state.queryRevision, state.capabilities]);
-  if (!offered || !scope || scope.owner !== controller || scope.signature !== signature || !controller.acceptsQuery(scope.query)) return null;
-  const groups = scopeTypes(libraries ?? []), all = scope.counts.find(count => count.id === 'all');
-  if (!all) return null;
+  const counted = offered && !!scope && scope.owner === controller && scope.signature === signature && controller.acceptsQuery(scope.query) ? scope : undefined;
+  const groups = scopeTypes(libraries ?? []), all = counted?.counts.find(count => count.id === 'all');
   const selected = state.predicates.find(node => 'field' in node && node.field === 'library');
   const values = selected && 'field' in selected && selected.operator === 'in' ? Array.isArray(selected.value) ? selected.value : [selected.value] : [];
   const checked = (group: ScopeType) => group.libraryIds.length === values.length && group.libraryIds.every(id => values.includes(id));
+  const held = counted ? groups.filter(group => (counted.counts.find(count => count.id === group.kind)?.total ?? 0) > 0) : [];
+  const kind = groups.find(checked)?.kind ?? (held.length === 1 ? held[0]!.kind : undefined);
+  useEffect(() => {onKind?.(kind);}, [onKind, kind]);
+  if (!counted || !all) return null;
   const label = (count: BrowseCount) => count.totalIsLowerBound ? defaultI18n.t('next.browse.countAtLeast', {count: count.total}) : defaultI18n.number(count.total);
   const change = (libraryIds?: readonly string[]) => {
     try {controller.setQuery([...state.predicates.filter(node => !('field' in node) || node.field !== 'library'),
@@ -49,7 +54,7 @@ export function BrowseScopeChips({controller, libraries, reportError, labelFor}:
   };
   return <><RadioGroup className={styles.scopeChips} orientation="horizontal" value={!selected ? 'all' : groups.find(checked)?.kind ?? ''} onValueChange={value => change(value === 'all' ? undefined : groups.find(group => group.kind === value)?.libraryIds)} aria-label={defaultI18n.t('next.browse.libraries')}><RadioItem value="all" asChild><Chip variant="quick" selected={!selected} count={label(all)}>{defaultI18n.t('next.controls.all')}</Chip></RadioItem>
     {groups.map(group => {
-      const count = scope.counts.find(count => count.id === group.kind);
+      const count = counted.counts.find(count => count.id === group.kind);
       return count && (count.total > 0 || checked(group)) ? <RadioItem key={group.kind} value={group.kind} asChild><Chip variant="quick" selected={checked(group)} count={label(count)}>{labelFor?.(group.kind) ?? defaultI18n.t(group.label)}</Chip></RadioItem> : null;
     })}</RadioGroup><span className={styles.scopeSeparator} aria-hidden="true"/></>;
 }
