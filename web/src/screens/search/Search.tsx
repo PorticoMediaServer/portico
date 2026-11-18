@@ -33,7 +33,7 @@ import {useLoadingClock} from '../detail/Loading';
 import {ScreenProblem} from '../detail/ScreenProblem';
 import {useShellWidth} from '../../shell/viewport';
 import {useTitleMenu, type TitleMenuSubject} from '../../shell/title-menu';
-import {RecentSearches} from './RecentSearches';
+import {SearchHistory} from '../../kit/search';
 import {nowNext} from '@core/guide/index.ts';
 import {channelTint, type FactPart} from '@portico/client-core/kit-model';
 import {clockText, durationText} from '@core/presentation/kit-model/text.ts';
@@ -142,9 +142,9 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
     if (text.trim() && !empty) return;
     if (binding.genres.getSnapshot().phase === 'idle') void binding.genres.load().catch(() => {});
   }, [binding, text, empty]);
-  const recentBlock = <RecentSearches queries={recent} compact={compact} onRemove={removeRecent}
-    onSelect={query => {if (context.isCurrent()) {setText(query);setChip('all');committed.current = '';}}}
-    onClear={() => {clearRecentHistory?.();}}/>;
+  const recentBlock = <SearchHistory compact={compact} title={t('web.search.recent')} clear={{label: t('web.search.clearRecent'), onPress: () => {clearRecentHistory?.();}}}
+    items={recent.map(query => ({query, onPress: () => {if (context.isCurrent()) {setText(query);setChip('all');committed.current = '';}},
+      ...(removeRecent ? {remove: {label: t('web.search.removeRecent', {query}), onPress: () => removeRecent(query)}} : {})}))}/>;
   const videoKinds = new Intl.ListFormat(locale(), {style: 'long', type: 'conjunction'}).format([
     t('web.libraryKind.plural', {kind: 'movie'}), t('web.libraryKind.plural', {kind: 'tv'}), t('web.libraryKind.plural', {kind: 'anime'})]);
   const liveSourceCount = new Set(onNow.cards.map(card => card.channel.sourceId)).size;

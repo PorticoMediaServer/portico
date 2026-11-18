@@ -136,6 +136,19 @@ export const frame = {
     /** Skip intro and Up next: the white prompt and the round dismiss beside it, and how far the corner sits above the bottom edge. */
     prompt: {height: forms(44, 52, 52, 72), radius: forms(10, 12, 12, 14), paddingX: forms(18, 24, 24, 36), dismiss: forms(0, 48, 44, 0), gap: 10, bottom: forms(26, 64, 64, 96)},
   },
+  /** A page's second pane (`SplitFrame`): its width beside the page from tablet width (tablet-play 6 and 7, final3-tv-10;
+   * the web from 1024 is desktop-live live-sheet). A phone draws the pane as a sheet. */
+  pane: {width: {...forms(0, 380, 420, 640), web: 600}},
+  /** TV Search: the keyboard column beside the results (final3-tv-09: 416 of 1600). */
+  search: {keyboardWidth: 500},
+  /** The Live TV guide grid: minutes to points (phone-guide g1, tablet-play 6, desktop-live live-guide, final3-tv-10), the
+   * channel column, a row, a channel's mark, the time column of a list of airings, the ruler, the gap between cells. */
+  guide: {
+    perMinute: {...forms(3, 4, 4, 8), web: 8}, channel: {...forms(56, 176, 176, 300), web: 220}, row: {...forms(72, 72, 72, 100), web: 76},
+    mark: forms(36, 40, 40, 56), timeColumn: forms(76, 76, 76, 120), ruler: 36, gap: 4, radius: 8, nowPill: 120,
+  },
+  /** The picture beside a row's words: a recording's 16:9 (a phone's row has none, phone-app 12) and a download's poster (tablet 11b, collections-34). */
+  rowArt: {recording: forms(0, 132, 160, 220), download: forms(44, 48, 48, 72)},
   /** Rule 9: the in-section state row's tile, and the error tile's tint of the record colour. */
   stateRow: {tile: forms(30, 30, 30, 40), iconShare: .6, errorTint: .16},
   /** Rule 12: the no-artwork placeholder's icon is a third of the box's short side. */

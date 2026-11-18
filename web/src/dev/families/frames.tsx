@@ -57,8 +57,8 @@ export function Window({children}: {children: ReactNode}) {
  * drawn with the shell's stylesheet so the frame is judged where it lives. Between 600 and 1023 the shell's rail is not drawn here. */
 /** The owner's server activity in the top bar, with two people watching (mock.html home). Only what the closed button reads. */
 const activityView = {phase: 'ready', serverName: '', health: 'normal', streamCount: 2, taskCount: 0, streams: [], scans: [], tasks: []} as unknown as ActivityPanelView;
-export function Page({children, current, home = false}: {children: ReactNode; current: 'home' | 'movies' | 'settings'; home?: boolean}) {
-  const phone = usePhone(), wide = useWide(), tools = (name: 'i-search' | 'i-bookmark' | 'i-bell', label: FixtureName) => <a className={shell.icon} aria-label={f(label)}><Icon name={name} size={22} /></a>;
+export function Page({children, current, home = false}: {children: ReactNode; current: 'home' | 'movies' | 'settings' | 'search' | 'saved' | 'music' | 'audiobooks' | 'liveTvShort'; home?: boolean}) {
+  const phone = usePhone(), wide = useWide(), tools = (name: 'i-search' | 'i-bookmark' | 'i-bell', label: FixtureName) => <a className={shell.icon} aria-label={f(label)} aria-current={current === label ? 'page' : undefined}><Icon name={name} size={22} /></a>;
   // The shell's underline measures the list it is in, so it is mounted once that list exists.
   const destinations = useRef<HTMLUListElement>(null), [listed, setListed] = useState(false);
   useEffect(() => setListed(true), []);
@@ -66,12 +66,12 @@ export function Page({children, current, home = false}: {children: ReactNode; cu
   return <div className={shell.shell} data-desktop={wide} data-navigation={wide ? 'topbar' : phone ? 'tabs' : undefined} style={{position: 'relative', height: '100%', overflowY: 'auto', boxSizing: 'border-box'}}>
     <div className={shell.navigation}>{wide ? <nav className={shell.topnav}>
       <a className={shell.brand}><img src={wordmark} alt="" /></a>
-      <ul ref={destinations} className={shell.destinations}><li><a aria-current={page('home')}>{f('home')}</a></li><li><a aria-current={page('movies')}>{f('movies')}</a></li>{(['tvShows', 'anime', 'music', 'audiobooks', 'liveTvShort'] as const).map(name => <li key={name}><a>{f(name)}</a></li>)}{listed && <DesktopNavigationUnderline list={destinations} />}</ul>
+      <ul ref={destinations} className={shell.destinations}><li><a aria-current={page('home')}>{f('home')}</a></li><li><a aria-current={page('movies')}>{f('movies')}</a></li>{(['tvShows', 'anime', 'music', 'audiobooks', 'liveTvShort'] as const).map(name => <li key={name}><a aria-current={current === name ? 'page' : undefined}>{f(name)}</a></li>)}{listed && <DesktopNavigationUnderline list={destinations} />}</ul>
       <div className={shell.tools}>{tools('i-search', 'search')}{tools('i-bookmark', 'saved')}{tools('i-bell', 'notifications')}<TopBarActivity viewerRole="owner" view={activityView} open={false} onOpenChange={none} />{avatar}</div>
     </nav> : phone ? <>
       {home && <header className={shell.phoneHeader}><a className={shell.brand}><img src={wordmark} alt="" /></a><div className={shell.phoneTools}>{avatar}</div></header>}
-      <nav className={shell.tabbar}>{([['i-home', 'home', 'home'], ['i-search', 'search', ''], ['i-grid', 'libraries', 'movies'], ['i-tv', 'liveTvShort', ''], ['i-bookmark', 'saved', '']] as const).map(([icon, name, id]) =>
-        <a key={name} aria-current={id && current === id ? 'page' : undefined}><Icon name={icon} size={22} /><span>{f(name)}</span></a>)}</nav>
+      <nav className={shell.tabbar}>{([['i-home', 'home', 'home'], ['i-search', 'search', 'search'], ['i-grid', 'libraries', 'movies'], ['i-tv', 'liveTvShort', 'liveTvShort'], ['i-bookmark', 'saved', 'saved']] as const).map(([icon, name, id]) =>
+        <a key={name} aria-current={id && (current === id || id === 'movies' && (current === 'music' || current === 'audiobooks')) ? 'page' : undefined}><Icon name={icon} size={22} /><span>{f(name)}</span></a>)}</nav>
     </> : null}</div>
     {children}
   </div>;

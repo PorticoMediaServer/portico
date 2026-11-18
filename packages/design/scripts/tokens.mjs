@@ -111,6 +111,8 @@ function frameTokens(form, web) {
     `--frame-audio-next-line: ${px(f.audio.nextLine[form])}`, `--frame-audio-bottom-row: ${px(f.audio.bottomRow[form])}`, `--frame-audio-controls: ${px(pick(f.audio.controlsWidth))}`,
     `--frame-audio-up-next: ${px(pick(f.audio.upNextWidth))}`, `--frame-audio-gap: ${px(pick(f.audio.gap))}`,
     `--frame-state-row-tile: ${px(f.stateRow.tile[form])}`,
+    `--frame-pane-width: ${px(pick(f.pane.width))}`, `--frame-guide-per-minute: ${px(pick(f.guide.perMinute))}`, `--frame-guide-channel: ${px(pick(f.guide.channel))}`, `--frame-guide-row: ${px(pick(f.guide.row))}`,
+    `--frame-row-art-recording: ${px(f.rowArt.recording[form])}`, `--frame-row-art-download: ${px(f.rowArt.download[form])}`,
     `--frame-player-edge: ${px(f.player.edge[form])}`, `--frame-player-top: ${px(f.player.top[form])}`, `--frame-player-bottom: ${px(f.player.bottom[form])}`,
     `--frame-player-times-gap: ${px(f.player.timesGap[form])}`, `--frame-player-controls-gap: ${px(f.player.controlsGap[form])}`, `--frame-player-end-gap: ${px(f.player.endGap[form])}`, `--frame-player-title-gap: ${px(f.player.titleGap[form])}`,
     `--frame-player-pill-height: ${px(f.player.pill.height[form])}`, `--frame-player-pill-padding: ${px(f.player.pill.paddingX[form])}`,
@@ -126,6 +128,7 @@ function frameConstants() {
     `--frame-player-portrait-aspect: ${f.player.portrait.aspect}`, `--frame-player-portrait-shade: ${f.player.portrait.shade * 100}%`, `--frame-player-portrait-top: ${px(f.player.portrait.top)}`, `--frame-player-portrait-prompt-height: ${px(f.player.portrait.promptHeight)}`, `--frame-player-portrait-prompt-padding-x: ${px(f.player.portrait.promptPaddingX)}`, `--frame-player-portrait-prompt-right: ${px(f.player.portrait.promptRight)}`, `--frame-player-portrait-edge: ${px(f.player.portrait.edge)}`, `--frame-player-portrait-bottom: ${px(f.player.portrait.bottom)}`, `--frame-player-portrait-time-inset: ${px(f.player.portrait.timeInset)}`, `--frame-player-portrait-scrubber: ${px(f.player.portrait.scrubber)}`, `--frame-player-portrait-control: ${px(f.player.portrait.control)}`, `--frame-player-portrait-control-icon: ${px(f.player.portrait.controlIcon)}`, `--frame-player-portrait-primary: ${px(f.player.portrait.primary)}`, `--frame-player-portrait-primary-icon: ${px(f.player.portrait.primaryIcon)}`, `--frame-title-credits-gap: ${px(f.hero.title.creditsGap)}`, `--frame-player-prompt-gap: ${px(f.player.prompt.gap)}`,
     `--frame-card-inset: ${px(f.card.phoneInset)}`, `--frame-hero-lockup-line: ${f.hero.lockupLine}`, `--frame-hero-lockup-tracking: ${f.hero.lockupTracking}em`,
     `--frame-state-row-icon-share: ${f.stateRow.iconShare}`, `--frame-state-row-error-tint: ${f.stateRow.errorTint * 100}%`,
+    `--frame-guide-ruler: ${px(f.guide.ruler)}`, `--frame-guide-gap: ${px(f.guide.gap)}`,
     `--frame-header-bar: ${px(f.header.bar)}`, `--frame-header-back-row: ${px(f.header.backRow)}`, `--frame-settings-page-max: ${px(f.settings.pageMax)}`, `--frame-paragraph-max: ${px(f.settings.paragraphMax)}`,
     `--frame-sheet-footer-clear: ${px(f.sheet.footerClear)}`, `--frame-placeholder-icon-share: ${f.placeholder.iconShare}`, `--frame-placeholder-line: ${rgba('text', f.placeholder.lineAlpha)}`];
 }

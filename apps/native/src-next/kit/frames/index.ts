@@ -10,3 +10,7 @@ export {AudioPlayerFrame, type AudioPlayerFrameProps, type AudioControl, type Au
 export {PageStateFrame, type PageStateProps} from './PageStateFrame';
 export {type PageHeaderProps} from './PageHeader';
 export {Section, SectionCard, StateRow, ArtBox, ArtPlaceholder, type StateRowProps, type SectionStale} from './parts';
+// Round 8, the kinds of screen that had no frame.
+export {SearchFrame, type SearchFrameProps, type SearchNone} from './SearchFrame';
+export {LiveFrame, type LiveFrameProps} from './LiveFrame';
+export {SplitFrame, type SplitFrameProps, type FramePane} from './SplitFrame';

@@ -22,7 +22,7 @@ async function mount(options: {kind?: 'movie' | 'show'; phase?: string; selected
     preferences: service({effective: {'appearance.showBackdrops': false}}), artwork: {ambient() {}, foreground() {}}}};
   const app = await componentModule(new URL('../src/screens/search/TopResult.tsx', import.meta.url), {
     react: h.react, '../detail/model': {titlePageFacts: () => []},
-    '../../kit/artwork': {AmbientArt: 'AmbientArt'}, '../../kit/controls': {Button: 'Button'},
+    '../../kit/artwork': {AmbientArt: 'AmbientArt'}, '../../kit/controls': {Button: 'Button'}, '../../kit/search': {TopResultCard: 'TopResultCard'},
     '../../kit/title/TitleParts': {SearchResultHero: 'SearchResultHero', TitleFactsLine: 'TitleFactsLine'},
     '../detail/Detail': {TitleActions: 'TitleActions'}, '../detail/text': {t, environment: {t, locale: 'en-US'}},
     '../detail/detail.module.css': {default: {}}, '../detail/context': {runScreenCommand},

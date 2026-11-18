@@ -40,6 +40,7 @@
 /* Parts. */
 .sectionHead { display: flex; align-items: center; gap: var(--space-sm); margin: 0 var(--g) var(--frame-heading-gap); }
 .sectionHead > :first-child { flex: 1; min-width: 0; }
+.sectionTitle { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: var(--space-px-12); }
 /* A group is the kit's SettingsGroup; the frame gives it the card's inset and takes over the space between groups. */
 .frame .groupSlot { margin: 0 var(--card); }
 .frame .groupSlot > :first-child { margin-top: 0; }

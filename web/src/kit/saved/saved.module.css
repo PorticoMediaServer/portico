@@ -1,0 +1,24 @@
+/* Saved's parts. Inside a frame they take its card inset (--card) and gutter (--g). */
+.storage { margin: 0 var(--card, 0); padding: var(--frame-card-padding); display: grid; gap: var(--space-xs); border-radius: var(--frame-card-radius); background: var(--color-raised); color: var(--color-text-secondary); font-size: var(--type-row-label-size); }
+.storage b { color: var(--color-text); font-size: var(--type-list-label-size); font-weight: var(--type-list-label-weight); margin-right: var(--space-xs); }
+.storage small { font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
+.meter { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--color-text) 12%, transparent); }
+.meter i:first-child { width: calc(var(--used) * 100%); background: var(--color-accent-strong); }
+.meter i:last-child { width: calc(var(--other) * 100%); background: color-mix(in srgb, var(--color-accent-strong) 40%, transparent); }
+.download { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-xs) var(--frame-card-padding); }
+.download + .download { border-top: var(--space-hairline) solid var(--color-line); }
+.downloadOpen { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-sm); padding: 0; border: 0; background: transparent; color: var(--color-text); text-align: left; font: inherit; cursor: pointer; }
+.downloadArt { flex: none; width: var(--frame-row-art-download); aspect-ratio: 2 / 3; border-radius: var(--radius-small); overflow: hidden; background: var(--color-raised-high); }
+.downloadArt > * { width: 100%; height: 100%; }
+.downloadWords { flex: 1; min-width: 0; display: grid; gap: var(--space-px-2); font-size: var(--type-row-help-size); color: var(--color-text-secondary); }
+.downloadWords b { font-size: var(--type-list-label-size); font-weight: var(--type-list-label-weight); color: var(--color-text); }
+.downloadWords small { font-size: inherit; color: var(--color-text-tertiary); }
+.downloadWords [data-tone='warning'] { color: var(--color-amber); }
+.downloadWords [data-tone='error'] { color: var(--color-record); }
+.downloadWords [data-tone='ready'] { color: var(--color-healthy); }
+.bar { display: block; height: 3px; margin-top: var(--space-tight); border-radius: 2px; background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.bar i { display: block; height: 100%; border-radius: inherit; background: var(--color-accent-strong); }
+/* Try again sits under the words, past the poster (tablet 11b). */
+.downloadMain { flex: 1; min-width: 0; display: grid; justify-items: start; gap: var(--space-xs); }
+.downloadMain > .downloadOpen { width: 100%; }
+.retry { margin-left: calc(var(--space-px-48) + var(--space-sm)); }
