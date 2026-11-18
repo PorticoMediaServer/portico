@@ -81,6 +81,10 @@ func discFacts(found disc.Probe) (Facts, error) {
 			continue
 		}
 		stream := db.Stream{Codec: discCodecs[s.Coding], Language: s.Language}
+		if found.Kind == "dvd" && s.Kind == "subtitle" {
+			// A DVD's subtitles are all pictures, with no coding number of their own.
+			stream.Codec = "dvd_subtitle"
+		}
 		switch s.Kind {
 		case "video":
 			stream.Kind = db.StreamVideo

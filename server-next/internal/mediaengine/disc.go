@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"slices"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -116,9 +115,6 @@ func (e *Engine) readDisc(ctx context.Context, index string) (*measuredDisc, err
 	}
 	// The disc reader's length is the title's, where the stream's own can be a guess.
 	facts.Duration = float64(title.DurationMs) / 1000
-	// The disc's own subtitles are not offered: the server reads them out of a file, and the
-	// title is no file. Subtitles downloaded for the film are.
-	facts.Streams = slices.DeleteFunc(facts.Streams, func(s mediafacts.Stream) bool { return s.Type == "subtitle" })
 	d.probe, d.title, d.facts = found, title, facts
 	if found.Kind == "bluray" {
 		// Where a copied picture can be cut. A disc reader without the list (an older bundle)
@@ -154,8 +150,16 @@ func (d *measuredDisc) open() (*streaming.PlaybackInput, error) {
 		file.Close()
 		return nil, err
 	}
+	// The title from its start, for reading a subtitle track out of it.
+	start, err := d.probe.FFmpegInput(disc.DescriptorPath(d.directory), d.title, 0, nil)
+	if err != nil {
+		file.Close()
+		chapters.Close()
+		return nil, err
+	}
 	mount := d.job(mediaexec.Job{})
 	return &streaming.PlaybackInput{File: file, Inherit: true, MountFD: mount.InputFD, MountPath: mount.InputMount, Extra: []*os.File{chapters}, Keyframes: d.keyframes,
+		Options: start.Options, Argument: start.URL,
 		InputAt: func(ctx context.Context, ms int64) ([]string, string, int64, error) {
 			var seek *disc.Seek
 			if ms > 0 && d.probe.Kind == "bluray" {

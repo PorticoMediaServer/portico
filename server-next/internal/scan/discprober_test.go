@@ -36,6 +36,12 @@ func TestADiscIsItsMainFeature(t *testing.T) {
 		a.Codec != "truehd" || a.Language != "eng" || s.Kind != db.StreamSubtitle || s.Codec != "hdmv_pgs_subtitle" {
 		t.Fatalf("the disc's tracks: %+v", facts.Streams)
 	}
+	// A DVD's subtitles are pictures, named so whatever their number.
+	dvd := disc.Title{Title: 1, DurationMs: 600_000, Streams: []disc.Stream{{Kind: "video", Coding: 2}, {Kind: "subtitle", Coding: 0, Language: "en"}}}
+	if facts, err := discFacts(disc.Probe{Kind: "dvd", Encryption: "none", Titles: []disc.Title{dvd}}); err != nil || len(facts.Streams) != 2 ||
+		facts.Streams[1].Codec != "dvd_subtitle" {
+		t.Fatalf("a DVD's tracks: %+v, %v", facts.Streams, err)
+	}
 	if _, err := discFacts(disc.Probe{Kind: "bluray", Encryption: "aacs", Titles: []disc.Title{feature}}); err != ErrEncrypted {
 		t.Fatalf("an encrypted disc: %v", err)
 	}

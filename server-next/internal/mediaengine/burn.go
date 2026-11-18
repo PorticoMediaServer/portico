@@ -76,6 +76,10 @@ func burning(r playback.PlanRequest, facts mediafacts.Facts) (*burnTrack, error)
 // burnLoader reads a plan's burned subtitle when the converter first needs it.
 func (e *Engine) burnLoader(p *planned, source streaming.Source) func(context.Context) (*streaming.BurnSubtitle, error) {
 	b := p.burn
+	if p.disc != nil {
+		// A disc's own subtitle is read out of the title.
+		source = streaming.DiscSource(p.disc.open)
+	}
 	if source == nil {
 		source = e.place("").streams.LibrarySource(p.path, p.place.Size, time.Unix(0, p.place.ModifiedNS))
 	}
