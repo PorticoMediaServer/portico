@@ -9,6 +9,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -55,6 +56,8 @@ var toolchainCache sync.Map
 func ConfigureToolchain(f ToolchainFacts) {
 	installedToolchain.Store(&f)
 	switch {
+	case f.macSoftwareDolbyVision():
+		capabilityreport.Report(capabilityreport.DolbyVision, true, "", errors.New("This Mac can convert Dolby Vision profile 5 films to SDR or HDR10."))
 	case f.Filters["libplacebo"] && f.VulkanAvailable:
 		capabilityreport.Report(capabilityreport.DolbyVision, true, "", errors.New("Dolby Vision films without a compatible base layer (profile 5) are converted on this server's Vulkan graphics device."))
 	case !f.Filters["libplacebo"]:
@@ -73,6 +76,10 @@ func ConfigureToolchain(f ToolchainFacts) {
 			errors.New(dolbyVisionNoVulkan(f.VulkanReason)),
 		)
 	}
+}
+
+func (f *ToolchainFacts) macSoftwareDolbyVision() bool {
+	return runtime.GOOS == "darwin" && f != nil && f.Filters["tonemapx"]
 }
 
 // dolbyVisionNoVulkan is the owner's one line for a server whose FFmpeg has the filter but
