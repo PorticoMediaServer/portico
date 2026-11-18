@@ -1,0 +1,5 @@
+{
+  "extends": "../../web/tsconfig.json",
+  "compilerOptions": {"types": ["vite/client", "node"]},
+  "include": ["src", "test", "../../web/src/env.d.ts"]
+}

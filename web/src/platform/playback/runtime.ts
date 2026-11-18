@@ -394,7 +394,7 @@ export class WebShellPlaybackRuntime {
       loadHls: this.env.loadHls ?? (() => import('hls.js').then(module => module.default as unknown as import('./web-media-player.ts').HlsModule)),
       nativeHls: this.env.nativeHls ?? browserNativeHlsPolicy(), timers: this.env.timers, playerTimers: this.env.playerTimers, key: this.env.key,
       deviceMemory: typeof navigator === 'undefined' ? undefined : (navigator as Navigator & {deviceMemory?: number}).deviceMemory,
-      createPlayer: this.env.createPlayer,
+      createPlayer: this.env.createPlayer, secondEngine: this.env.secondEngine,
       createRender: this.env.createRender === null ? undefined : this.env.createRender ?? ((service, element) => new DecodeAudioRender(service, path => this.source.api.mediaUrl(path), element as HTMLVideoElement, (current, next) => !!current && (service.getQueueController()?.sameAlbum?.(current, next) ?? false), this.audioCache, this.recordDiagnostic)),
     });
     const service = new PlaybackService({...web.transport, progressPlayback: async (id, payload) => {
