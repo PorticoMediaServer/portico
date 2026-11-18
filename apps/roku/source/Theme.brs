@@ -72,15 +72,16 @@ function frames() as object
         ' same line); a person's first row's heading on `rowsY`, a collection's on `actionRowsY`, which
         ' leaves the place of its action row above it; once focus goes down the row in focus sits at `scrolledY`.
         group: {face: 280, nameY: 132, factsY: 260, aboutY: 306, rowsY: 440, scrolledY: 164, eyebrowY: 96, actionRowsY: 520}
-        ' Live TV's guide: the time header, the first row and the row pitch, the channel column, and the
+        ' Live TV's guide: the toolbar beside the page title, the time header, the first row and the
+        ' row pitch, the channel column, and the
         ' grid from `gridX` at `perMinute` px a minute; `shown` rows fit on the screen.
-        guide: {headerY: 244, rowsY: 296, pitch: 100, cell: 90, channelWidth: 300, gridX: 520, perMinute: 8, shown: 7}
+        guide: {headerY: 244, rowsY: 296, pitch: 100, cell: 90, channelWidth: 300, gridX: 520, perMinute: 8, shown: 7, toolbarX: 380, toolbarY: 56}
         ' Every page beside the rail: its content starts at `gutter`.
         gutter: 200
         ' The video player: the picture is the page. The top row hangs from `top`; the seek bar,
         ' the time row and the button row sit on their own lines; everything runs from `left` to `right`.
         ' Over it: the waiting spinner's line, how far below a page notice Playback failed sits, the foot of the prompts at the lower right, and the Finished page's lines.
-        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470, noticeDrop: 40, promptBottom: 720, finished: {top: 84, titleY: 120, metaY: 326, buttonsY: 372}}
+        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470, noticeDrop: 40, promptBottom: 720, finished: {top: 84, titleY: 120, metaY: 326, buttonsY: 372, rowY: 560}}
         ' Every page beside the rail: its content ends at `rightEdge`.
         rightEdge: 1824
         ' Search (tv.html frame 5): the box on the page title's line, the keys under it, the results
@@ -155,6 +156,7 @@ function typeRoles() as object
         faceName: [700, 30, 0]              ' before a profile is chosen: a face's name
         faceNote: [600, 22, 0]              ' before a profile is chosen: the line under a face's name
         factLabel: [400, 22, 0]             ' a fact's label in Details (Released, Directed by...)
+        finishedTitle: [800, 84, 0]         ' the Finished page's title, two lines above its year line (tv-player frame 7)
         groupLabel: [700, 20, 0]            ' a group's heading in the player's menus
         heading: [600, 32, 0]
         help: [500, 19, 0]                  ' small secondary words (a reason, a choice's value, a channel number)

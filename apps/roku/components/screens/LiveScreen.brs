@@ -1,7 +1,9 @@
 ' The guide is one focus region (tv-focus 24 to 26): it starts on the programme on now on the first
 ' channel; Up and Down change channel keeping the time position; Left and Right walk the
 ' programmes; Left from the earliest programme reaches the channel cell, and Left again opens the
-' rail. The time grid runs from the half hour before now; its lines are frames().guide.
+' rail. The time grid runs from the half hour before now; its lines are frames().guide. Up from the
+' first channel reaches the toolbar: the day shown (today or tomorrow, as the server reads a day of the
+' guide at a time) and Now, back to what is on now.
 sub init()
     c = colours()
     m.g = frames().guide
@@ -24,22 +26,49 @@ sub init()
     m.r = 0             ' the channel in focus
     m.c = 0             ' the cell in focus in that row (0 is the channel itself)
     m.first = 0         ' the channel at the top of the screen
+    m.day = 0           ' 0 today, 1 tomorrow
+    m.onBar = false     ' focus on the toolbar
+    m.toolbar = m.top.findNode("toolbar")
+    m.toolbar.translation = [m.g.toolbarX, m.g.toolbarY]
+    m.toolbar.observeField("pressed", "onToolbar")
+    drawToolbar()
     m.top.findNode("minute").control = "start"
+end sub
+
+sub drawToolbar()
+    day = "Today"
+    if m.day = 1 then day = "Tomorrow"
+    m.toolbar.buttons = [{id: "day", text: day, icon: ""}, {id: "now", text: "Now", icon: ""}]
 end sub
 
 sub onActive()
     if not m.top.active then return
-    m.top.setFocus(true)
+    if m.onBar then m.toolbar.active = true else m.rows.setFocus(true)
     ' read again when come back to after a while: what is on now has moved on
     if m.readAt = invalid or nowSeconds() - m.readAt > 60 then load()
 end sub
 
+' Today from the half hour before now; tomorrow from the same half hour a day on. Three hours either way.
+function windowStart() as integer
+    now = nowSeconds()
+    return now - (now mod 1800) + m.day * 86400
+end function
+
 sub load()
-    api("GET", "/v1/live/guide", invalid, "onGuide")
+    if m.day = 0
+        api("GET", "/v1/live/guide", invalid, "onGuide", {day: 0})
+        return
+    end if
+    from = createObject("roDateTime")
+    from.fromSeconds(windowStart())
+    upTo = createObject("roDateTime")
+    upTo.fromSeconds(windowStart() + 3 * 3600)
+    api("GET", "/v1/live/guide?from=" + from.toISOString() + "&to=" + upTo.toISOString(), invalid, "onGuide", {day: m.day})
 end sub
 
 sub onGuide(event as object)
     result = event.getData()
+    if event.getRoSGNode().ctx.day <> m.day then return
     state = m.top.findNode("state")
     if not result.ok
         state.text = "The guide could not be loaded."
@@ -57,10 +86,10 @@ sub onGuide(event as object)
         if m.guide[i].channel.id = keep then m.r = i
     end for
     ' the grid starts on the half hour before now; focus starts on what is on now
-    now = nowSeconds()
-    m.start = now - (now mod 1800)
+    m.start = windowStart()
     m.from = m.start
-    m.time = now
+    m.time = nowSeconds()
+    if m.day > 0 then m.time = m.start
     m.first = m.r
     draw()
     focusAt(m.time)
@@ -301,7 +330,10 @@ end sub
 function pressKey(key as string) as boolean
     if m.cells = invalid or m.cells.count() = 0 then return false
     if key = "up" or key = "down"
-        if key = "up" and m.r = 0 then return false
+        if key = "up" and m.r = 0
+            toBar(true)
+            return true
+        end if
         if key = "down" and m.r = m.cells.count() - 1 then return false
         if key = "up" then m.r = m.r - 1 else m.r = m.r + 1
         if m.c = 0 then paint() else focusAt(m.time)
@@ -335,6 +367,54 @@ function pressKey(key as string) as boolean
     return true
 end function
 
+sub toBar(on as boolean)
+    m.onBar = on
+    if on
+        m.ring.visible = false
+        if m.cells <> invalid and m.cells.count() > 0 then m.cells[m.r][m.c].plate.blendColor = colours().raised
+        m.toolbar.active = true
+    else
+        m.rows.setFocus(true)
+        m.toolbar.active = false       ' the row draws its focus off
+        paint()
+    end if
+end sub
+
+sub onToolbar(event as object)
+    if event.getData() = "now"
+        toBar(false)
+        toStart()
+    else
+        m.top.menu = {title: "Day", rows: [{id: "day:0", text: "Today", current: m.day = 0}, {id: "day:1", text: "Tomorrow", current: m.day = 1}]}
+    end if
+end sub
+
+function atStart() as boolean
+    if m.day <> 0 then return false
+    if m.cells = invalid or m.cells.count() = 0 then return true
+    now = nowSeconds()
+    cell = m.cells[0][m.c]
+    return m.r = 0 and m.from = m.start and m.c > 0 and cell.start <= now and now < cell.ends
+end function
+
+sub toStart()
+    if m.day <> 0
+        m.day = 0
+        drawToolbar()
+        m.r = 0
+        load()
+        return
+    end if
+    m.r = 0
+    m.first = 0
+    if m.from <> m.start
+        m.from = m.start
+        draw()
+    end if
+    m.time = nowSeconds()
+    focusAt(m.time)
+end sub
+
 ' Moves the grid's window by half an hour and keeps focus on the same time.
 sub shift(by as integer)
     m.from = m.from + by
@@ -347,6 +427,21 @@ end sub
 function onKeyEvent(key as string, press as boolean) as boolean
     holdKey(key, press)
     if not press then return false
+    if m.onBar
+        ' the toolbar gave the key up: Down returns to the guide, Up goes on to the scene
+        if key = "down" or key = "back"
+            toBar(false)
+            if key = "back" then toStart()
+            return true
+        end if
+        return false
+    end if
+    if key = "back"
+        ' Back, step by step: first to the guide's start (what is on now on the first channel)
+        if atStart() then return false
+        toStart()
+        return true
+    end if
     if key = "OK"
         openSheet()
         return true
@@ -379,6 +474,14 @@ sub openSheet()
 end sub
 
 sub onMenuChosen(event as object)
+    if left(event.getData(), 4) = "day:"
+        m.day = mid(event.getData(), 5).toInt()
+        drawToolbar()
+        m.r = 0
+        toBar(false)
+        load()
+        return
+    end if
     if event.getData() <> "watch" then return
     row = m.guide[m.r]
     ' the player gets the channel and the whole lineup, for channel up and down

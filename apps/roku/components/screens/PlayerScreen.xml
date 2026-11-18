@@ -9,6 +9,8 @@
     <field id="art" type="string"/>
     <!-- Set true when the player is done and the page under it should come back. -->
     <field id="closed" type="boolean" alwaysNotify="true"/>
+    <!-- A title chosen from the Finished page's More like this: its page opens in the player's place. -->
+    <field id="open" type="assocarray" alwaysNotify="true"/>
     <!-- The side sheet for Subtitles, Audio and Quality: asked of the scene, answered in menuChosen. -->
     <field id="menu" type="assocarray" alwaysNotify="true"/>
     <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
@@ -93,9 +95,11 @@
       <Poster id="finArt" width="1920" height="1080" opacity="0.55"/>
       <Poster uri="pkg:/images/fade-down.png" width="1920" height="540" translation="[0,540]"/>
       <Label id="finLabel" text="Finished"/>
-      <Label id="finTitle" width="1100" wrap="true" maxLines="2"/>
+      <Label id="finTitle" width="760" wrap="true" maxLines="2"/>
       <Label id="finMeta" width="1100"/>
       <ButtonRow id="finRow"/>
+      <!-- More like this film, from the title page's related read (tv-player frame 7). -->
+      <Shelf id="finRelated" shape="poster" visible="false"/>
     </Group>
     <!-- While a stream is being made ready or is catching up: the screen is never plain black. -->
     <Group id="wait" visible="false">

@@ -68,8 +68,8 @@ sub init()
     setType(m.top.findNode("unSub"), "meta", c.textSecondary)
     setType(m.top.findNode("unWhen"), "help", c.textTertiary)
     setType(m.top.findNode("finLabel"), "eyebrow", c.accentStrong)
-    setType(m.top.findNode("finTitle"), "lockupLong", c.text)
-    m.top.findNode("finTitle").lineSpacing = -24     ' two lines of the lockup set close, as the frame draws them
+    setType(m.top.findNode("finTitle"), "finishedTitle", c.text)
+    m.top.findNode("finTitle").lineSpacing = -40     ' two lines set close, as the frame draws them, ending above the year line
     setType(m.top.findNode("finMeta"), "metaStrong", c.textSecondary)
     m.queue = invalid    ' this play's queue (source/Queue.brs), once the server has made it
     m.queueAsked = false
@@ -128,6 +128,10 @@ sub init()
     m.top.findNode("finTitle").translation = [f.left, f.finished.titleY]
     m.top.findNode("finMeta").translation = [f.left, f.finished.metaY]
     m.finRow.translation = [f.left, f.finished.buttonsY]
+    m.finRelated = m.top.findNode("finRelated")
+    m.finRelated.slotX = f.left
+    m.finRelated.translation = [0, f.finished.rowY]
+    m.finRelated.observeField("selectedIndex", "onFinishedRelated")
     makeButtons(false, false)
     makeHints()
 end sub
@@ -152,6 +156,27 @@ sub makeButtons(hasPrevious as boolean, hasNext as boolean)
         if down <> invalid then specs.unshift({kind: "chdown", icon: "chevronDown-20", size: 64, channel: down.channel.number})
         if up <> invalid then specs.push({kind: "chup", icon: "chevronUp-20", size: 64, channel: up.channel.number})
     end if
+    ' an episode played from its show has Episodes at the left end of the row (tv-player frame 1)
+    if m.top.item <> invalid and m.top.item.kind = "episode" and m.queue <> invalid and m.queue.current <> invalid
+        plate = m.buttons.createChild("Poster")
+        plate.uri = "pkg:/images/round-14.9.png"
+        plate.height = 64
+        plate.translation = [m.f.left, 12]
+        icon = m.buttons.createChild("Poster")
+        icon.uri = "pkg:/images/i-collection-28.png"
+        icon.width = 28
+        icon.height = 28
+        icon.translation = [m.f.left + 22, 30]
+        label = m.buttons.createChild("Label")
+        label.text = "Episodes"
+        label.height = 64
+        label.vertAlign = "center"
+        label.translation = [m.f.left + 64, 12]
+        setType(label, "button")
+        plate.width = 64 + label.boundingRect().width + 26
+        m.row.push({kind: "episodes", plate: plate, icon: icon, label: label, x: m.f.left, width: plate.width})
+    end if
+    m.firstTransport = m.row.count()
     ' Play/Pause stays in the middle of the screen whatever flanks it
     gap = 22
     x = 960 - 44
@@ -293,7 +318,13 @@ end sub
 sub onActive()
     if not m.top.active then return
     m.top.setFocus(true)
+    if m.finished.visible then m.finRow.active = true
     if m.session = invalid and not m.ended then start()
+end sub
+
+' The options panel goes when the title ends under it: what comes next takes the screen.
+sub closeOptions()
+    m.top.menu = {close: true}
 end sub
 
 ' --- the session with the server -----------------------------------------------------------
@@ -395,6 +426,14 @@ function audioDetail(track as object) as string
     return text + channels
 end function
 
+' "4 Mbps", "1.5 Mbps", "500 kbps"
+function bitrateText(kbps as integer) as string
+    if kbps < 1000 then return kbps.toStr() + " kbps"
+    tenths = int(kbps / 100 + 0.5)
+    if tenths mod 10 = 0 then return int(tenths / 10).toStr() + " Mbps"
+    return int(tenths / 10).toStr() + "." + (tenths mod 10).toStr() + " Mbps"
+end function
+
 function qualityLabel(q as object) as string
     if q.mode = "original" then return "Original"
     if q.mode = "automatic" then return "Automatic"
@@ -443,11 +482,45 @@ sub openOptions(which as integer)
         same = (p.quality <> invalid and p.quality.mode = q.mode and (q.mode <> "fixed" or p.quality.id = q.id))
         detail = ""
         if q.mode = "original" then detail = "Plays the file as is"
-        if q.mode = "fixed" and q.maxHeight <> invalid then detail = "Up to " + q.maxHeight.toStr() + "p; converted only when the file is larger"
+        ' a fixed quality caps the height and the bitrate: a file above either is converted (server-next delivery_plan)
+        ' (one line that fits the panel: "Converted when above 720p or 4 Mbps")
+        if q.mode = "fixed" and q.maxHeight <> invalid
+            detail = "Converted when above " + q.maxHeight.toStr() + "p"
+            if q.maxVideoBitrateKbps <> invalid then detail = detail + " or " + bitrateText(q.maxVideoBitrateKbps)
+        end if
         rows.push({id: "qua:" + i.toStr(), text: qualityLabel(q), detail: detail, under: "h:qua", current: same})
     end for
     m.hide.control = "stop"
     m.top.menu = {title: "Playback options", status: "Changes here last until you stop watching. Your defaults stay as they are in Settings.", open: ["h:sub", "h:aud", "h:qua"][which], rows: rows}
+end sub
+
+' Episodes: the season playing, read from the queue (an episode's queue is its show), the one
+' playing marked; OK on another plays it.
+sub openEpisodes()
+    if m.queue = invalid then return
+    m.hide.control = "stop"
+    api("GET", "/v1/queues/" + m.queue.id + "/entries?around=current&before=100&after=100", invalid, "onEpisodes", {entryId: m.queue.current.entryId})
+end sub
+
+sub onEpisodes(event as object)
+    result = event.getData()
+    if not result.ok or m.queue = invalid or m.queue.current = invalid then return
+    if event.getRoSGNode().ctx.entryId <> m.queue.current.entryId then return
+    playing = queueEntry(result.data.items, m.queue.current.entryId)
+    if playing = invalid then return
+    rows = []
+    for each entry in result.data.items
+        if entry.available = true and entry.parentIndex = playing.parentIndex
+            row = {id: "epi:" + entry.entryId, text: entry.title, current: entry.entryId = playing.entryId}
+            if entry.index <> invalid then row.text = entry.index.toStr() + "   " + entry.title
+            if entry.durationMs <> invalid then row.detail = durationText(entry.durationMs)
+            rows.push(row)
+        end if
+    end for
+    model = {title: "Episodes", rows: rows}
+    if playing.parentIndex <> invalid then model.title = "Season " + playing.parentIndex.toStr()
+    if playing.rootTitle <> invalid then model.eyebrow = playing.rootTitle
+    m.top.menu = model
 end sub
 
 sub onMenuChosen(event as object)
@@ -455,6 +528,10 @@ sub onMenuChosen(event as object)
     id = event.getData()
     kind = left(id, 4)
     value = mid(id, 5)
+    if kind = "epi:"
+        if m.queue <> invalid and m.queue.current <> invalid and value <> m.queue.current.entryId then moveQueue("entry", value)
+        return
+    end if
     change = {}
     if kind = "sub:"
         if value = "" then change.subtitles = {trackId: invalid} else change.subtitles = {trackId: value}
@@ -765,6 +842,10 @@ sub onVideoState()
         m.loading = false
         if m.video.duration > 0 then m.duration = m.video.duration
         busy(invalid)
+        if m.controls.visible
+            m.hide.control = "stop"
+            m.hide.control = "start"
+        end if
         paint()
     else if state = "buffering"
         if m.loading = true then busy("Getting ready…") else busy("Catching up…")
@@ -1190,8 +1271,13 @@ end sub
 ' Next, Previous, or "this title ended": the queue moves (naming the entry it moves from, so a
 ' request sent twice moves once), and the title it lands on starts.
 sub advance(reason as string)
+    moveQueue(reason, invalid)
+end sub
+
+sub moveQueue(reason as string, entryId as dynamic)
     if m.queue = invalid or m.queue.current = invalid then return
     body = {reason: reason, fromEntryId: m.queue.current.entryId}
+    if entryId <> invalid then body.entryId = entryId
     if reason = "completion" and m.session <> invalid then body.sessionId = m.session.id
     stopSession()
     hideAll()
@@ -1242,6 +1328,7 @@ sub fresh()
 end sub
 
 sub hideAll()
+    closeOptions()
     m.top.findNode("count").control = "stop"
     m.counting = false
     m.cardMode = ""
@@ -1292,6 +1379,7 @@ end sub
 
 ' The end of the title: the next entry plays; a film with nothing after it gets Finished.
 sub ended()
+    closeOptions()
     if m.next <> invalid
         m.promptKey = ""
         m.controls.visible = false
@@ -1329,6 +1417,45 @@ sub showFinished()
     m.finRow.buttons = [{id: "replay", text: "Replay", icon: "restart"}, {id: "close", text: "Close", icon: ""}]
     m.finished.visible = true
     m.finRow.active = true
+    m.finRelated.visible = false
+    api("GET", "/v1/items/" + item.id + "/related", invalid, "onFinishedRelatedRead", {id: item.id})
+end sub
+
+' More like this film: the related groups in one row, as the title page reads them.
+sub onFinishedRelatedRead(event as object)
+    result = event.getData()
+    if not result.ok or not m.finished.visible or event.getRoSGNode().ctx.id <> m.top.item.id then return
+    items = []
+    seen = {}
+    seen[m.top.item.id] = true
+    for each group in result.data.groups
+        for each item in withoutReading(group.items)
+            if seen[item.id] <> true
+                seen[item.id] = true
+                items.push(item)
+            end if
+        end for
+    end for
+    m.relatedItems = items
+    if items.count() = 0 then return
+    cards = createObject("roSGNode", "ContentNode")
+    for each item in items
+        card = cardFor(item, "poster")
+        card.art = imageUrl(card.art, 214, 320)
+        cards.createChild("ContentNode").addFields(card)
+    end for
+    m.finRelated.heading = "More like " + m.top.item.title
+    m.finRelated.cards = cards
+    m.finRelated.visible = true
+end sub
+
+' A related title opens its page in place of the player.
+sub onFinishedRelated(event as object)
+    at = event.getData()
+    if m.relatedItems = invalid or at < 0 or at >= m.relatedItems.count() then return
+    item = m.relatedItems[at]
+    leave(false)
+    m.top.open = {item: item, play: false}
 end sub
 
 sub onFinished(event as object)
@@ -1355,6 +1482,8 @@ end sub
 
 sub lower()
     if m.video.state = "paused" or m.scrub or m.failed then return     ' paused, a scrub waiting, or failed: the controls stay
+    ' still catching up after a jump: the controls stay, and their time runs again once the picture plays
+    if m.video.state = "buffering" or m.pending >= 0 then return
     m.controls.visible = false
     m.focus = m.playIndex
     focusPrompt()
@@ -1451,7 +1580,7 @@ sub paint()
     flab = m.top.findNode("flab")
     flab.visible = false
     m.ring.visible = false
-    for i = 0 to m.firstPill - 1
+    for i = m.firstTransport to m.firstPill - 1
         spot = m.row[i]
         on = (i = m.focus and not m.scrub)
         if spot.kind = "play"
@@ -1498,6 +1627,21 @@ sub paint()
         end if
         pill.head.color = c.text
     end for
+    if m.firstTransport > 0
+        episodes = m.row[0]
+        if m.focus = 0 and not m.scrub
+            episodes.plate.blendColor = c.glassOn
+            out = metrics().focusSpread + 6
+            pillRing.translation = [episodes.x - out, m.f.buttonsY + 12 - out]
+            pillRing.width = episodes.width + out * 2
+            pillRing.height = 64 + out * 2
+            pillRing.visible = true
+        else
+            episodes.plate.blendColor = c.glass
+        end if
+        episodes.icon.blendColor = c.text
+        episodes.label.color = c.text
+    end if
     ' Playback failed keeps the title and where it stopped; its own buttons are the only ones
     if m.failed
         m.buttons.visible = false
@@ -1611,6 +1755,8 @@ function onKeyEvent(key as string, press as boolean) as boolean
     if not press then return false
     if m.finished.visible
         if key = "back" then leave(false)
+        if key = "down" and m.finRelated.visible then m.finRelated.active = true
+        if key = "up" and m.finRelated.isInFocusChain() then m.finRow.active = true
         return true
     end if
     if m.notice.visible
@@ -1671,6 +1817,9 @@ function onKeyEvent(key as string, press as boolean) as boolean
             return true
         else if kind = "previous" or kind = "next"
             advance(kind)
+            return true
+        else if kind = "episodes"
+            openEpisodes()
             return true
         else
             openOptions(m.focus - m.firstPill)
