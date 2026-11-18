@@ -3,9 +3,6 @@ services:
     image: ghcr.io/porticomediaserver/portico-server:latest
     restart: unless-stopped
     ports: ["32500:32500"]
-    # Keep /transcode on disk for fallback and spill. See INSTALLING.md for sizing.
-    tmpfs:
-      - /memory-transcode:rw,noexec,nosuid,nodev,size=512m,nr_inodes=8192,mode=1777
     volumes:
       - ${PORTICO_CONFIG:-./config}:/config
       - ${PORTICO_TRANSCODE:-./transcode}:/transcode
