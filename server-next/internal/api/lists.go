@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -14,7 +15,7 @@ import (
 
 // List is a playlist, a collection or a saved view. A saved view holds no entries: it is a
 // library with a sort and filters, opened as GET /v1/items?library={library}&{query}, and its
-// count is that list's total. A playlist's or collection's entries are read with
+// count and covers are that list's total and first titles, as it opens now. A playlist's or collection's entries are read with
 // GET /v1/items?list={id}: each unambiguous occurrence carries its entryId for moves and removals.
 // Revision is also the list's ETag; an
 // edit may send it back in If-Match, and one made on an out-of-date copy is refused with 412.
@@ -142,6 +143,9 @@ func (s *Server) listRoutes() {
 	Handle(s, "POST /v1/lists", WithProfile, s.createList)
 	Handle(s, "GET /v1/lists/{id}", WithProfile, func(r *http.Request, _ None) (List, error) {
 		l, err := s.db.List(r.Context(), viewer(r), r.PathValue("id"))
+		if err == nil {
+			err = s.viewTiles(r, &l)
+		}
 		if err != nil {
 			return List{}, listError(err)
 		}
@@ -288,6 +292,13 @@ func (s *Server) lists(r *http.Request, _ None) (Page[List], error) {
 		}
 	}
 	lists, next, err := s.db.ListsWithIDs(r.Context(), viewer(r), kind, query.Get("cursor"), limit, ids)
+	if err == nil {
+		each := make([]*db.List, len(lists))
+		for n := range lists {
+			each[n] = &lists[n]
+		}
+		err = s.viewTiles(r, each...)
+	}
 	out := Page[List]{Items: make([]List, len(lists)), NextCursor: next}
 	for n, l := range lists {
 		out.Items[n] = listShape(l)
@@ -331,7 +342,34 @@ func (s *Server) createList(r *http.Request, req ListCreate) (ListCreated, error
 	}
 	l, err := s.db.CreateList(r.Context(), viewer(r), db.NewList{Kind: req.Kind, Name: req.Name, SortName: sorttext.Key(req.Name, "", ""),
 		Description: req.Description, Items: req.Items, Everyone: req.Everyone, Library: req.Library, Query: req.Query}, key, requestHash(req), s.now())
+	if err == nil {
+		err = s.viewTiles(r, &l)
+	}
 	return ListCreated{listShape(l)}, listError(err)
+}
+
+// viewTiles gives each saved view among lists its count and covers: the total of its list as
+// it opens now (see viewRowItems) and its first four titles. A view keeps no entries, so this
+// is one read of its list each, which costs what its sort and filters cost; up to four views
+// are read at once, leaving the rest of the reading connections to everyone else.
+func (s *Server) viewTiles(r *http.Request, lists ...*db.List) error {
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, 4)
+	errs := make([]error, len(lists))
+	for n, l := range lists {
+		if l.Kind != db.ListSavedView {
+			continue
+		}
+		wg.Go(func() {
+			slots <- struct{}{}
+			defer func() { <-slots }()
+			var page db.ItemPage
+			page, _, errs[n] = s.viewRowItems(r.Context(), r, l.LibraryPublicID, l.Query, 4, true)
+			l.Count, l.Covers = page.Total, page.Items
+		})
+	}
+	wg.Wait()
+	return errors.Join(errs...)
 }
 
 func (s *Server) editList(r *http.Request, req ListEdit) (List, error) {
@@ -354,6 +392,9 @@ func (s *Server) editList(r *http.Request, req ListEdit) (List, error) {
 		change.SortName = sorttext.Key(*req.Name, "", "")
 	}
 	l, err := s.db.EditList(r.Context(), viewer(r), r.PathValue("id"), revision, change, s.now())
+	if err == nil {
+		err = s.viewTiles(r, &l)
+	}
 	return listShape(l), listError(err)
 }
 
