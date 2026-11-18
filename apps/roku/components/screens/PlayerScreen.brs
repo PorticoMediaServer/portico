@@ -867,6 +867,8 @@ sub load(p as object)
     content.url = m.global.origin + p.url
     content.streamFormat = streamFormat(p)
     content.title = m.top.findNode("title").text
+    ' a live stream with no place asked for starts at its live edge: its lag is measured when it plays
+    m.atLiveEdge = (m.live = true and (p.startPositionMs = invalid or p.startPositionMs = 0))
     if p.startPositionMs <> invalid and p.startPositionMs > 0
         content.playStart = p.startPositionMs / 1000
         m.last = p.startPositionMs / 1000
@@ -998,6 +1000,12 @@ sub onVideoState()
     else if state = "playing"
         m.loading = false
         if m.video.duration > 0 then m.duration = m.video.duration
+        ' at the live edge the picture sits a little behind the playlist's end: that much counts as live
+        if m.live = true and m.atLiveEdge = true and m.video.duration > 0
+            m.liveLag = m.video.duration - m.video.position
+            if m.liveLag < 0 then m.liveLag = 0
+            m.atLiveEdge = false
+        end if
         busy(invalid)
         if m.controls.visible
             m.hide.control = "stop"
@@ -1385,19 +1393,22 @@ sub tune(row as dynamic)
 end sub
 
 ' How far behind live the picture is: Roku counts a live stream's duration up to its live edge.
+' How far behind live the picture is, less the player's own lag at the live edge (measured when it
+' last started playing there), as the native player reads it.
 function liveBehind() as float
     behind = 0
     if m.video.duration > 0 then behind = m.video.duration - m.video.position
+    if m.liveLag <> invalid then behind = behind - m.liveLag
     if behind < 0 then behind = 0
     return behind
 end function
 
-' Go to live: the stream is started again at its live edge.
+' Go to live: Roku's own seek to the playable live edge (its streaming specification: a seek past the
+' end lands there), with focus back on Play/Pause.
 sub goLive()
     if m.presentation = invalid then return
-    p = m.presentation
-    p.startPositionMs = 0
-    load(p)
+    m.atLiveEdge = true
+    m.video.seek = 999999.0
     m.focus = m.playIndex
     raise()
 end sub
@@ -1405,12 +1416,25 @@ end sub
 ' The live bar spans the programme: played up to where the picture is, a red mark at live, and the
 ' time row says the picture's time and how far behind live it is.
 sub paintLive()
-    if m.liveProgramme = invalid then return
     c = colours()
     now = createObject("roDateTime").asSeconds()
+    behind = liveBehind()
+    ' how far behind, and Go to live, as the native player has them (more than 30 s; more than 5 s),
+    ' whether or not the guide knows what is on
+    text = timeOfDay(-int(behind))
+    minutes = int(behind / 60 + 0.5)
+    if minutes < 1 then minutes = 1
+    if behind > 30 then text = text + "   " + minutes.toStr() + " min behind live"
+    m.top.findNode("at").text = text
+    m.top.findNode("left").text = ""
+    goLiveNode = m.top.findNode("goLive")
+    goLiveNode.visible = behind > 5
+    if not goLiveNode.visible and m.focus = -1 then m.focus = m.playIndex
+    paintGoLive(c, goLiveNode)
+    paintTools()
+    if m.liveProgramme = invalid then return
     s = isoSeconds(m.liveProgramme.startsAt)
     e = isoSeconds(m.liveProgramme.endsAt)
-    behind = liveBehind()
     at = now - behind
     m.knobRing.visible = false
     ' a skip waiting to land shows where it will land
@@ -1428,14 +1452,10 @@ sub paintLive()
     edge = m.top.findNode("edge")
     edge.translation = [barX(now - s, e - s) - 2, m.f.barY - 7]
     edge.visible = true
-    text = timeOfDay(-int(behind))
-    if behind >= 60 then text = text + "   " + int(behind / 60).toStr() + " min behind live"
-    m.top.findNode("at").text = text
-    m.top.findNode("left").text = ""
     m.top.findNode("ends").text = "Ends " + timeOfDay(e - now)
-    goLiveNode = m.top.findNode("goLive")
-    goLiveNode.visible = behind > 30
-    if not goLiveNode.visible and m.focus = -1 then m.focus = m.playIndex
+end sub
+
+sub paintGoLive(c as object, goLiveNode as object)
     on = (m.focus = -1)
     if on then m.top.findNode("goLivePlate").blendColor = c.glassOn else m.top.findNode("goLivePlate").blendColor = c.glass
     pillRing = m.top.findNode("pillRing")
@@ -1447,7 +1467,6 @@ sub paintLive()
         pillRing.height = 48 + out * 2
         pillRing.visible = true
     end if
-    paintTools()
 end sub
 
 ' Record (Recording once booked) and More, from the right edge on the top line. Recording can be
