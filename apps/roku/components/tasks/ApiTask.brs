@@ -57,16 +57,21 @@ end function
 
 sub send(req as object, retried as boolean)
     s = m.top.session
-    if s = invalid or s.origin = invalid
-        answer(req, {ok: false, status: 0, error: {code: "no_server", message: "No server is chosen."}})
-        return
+    ' A sign-in request names its own server; everything else goes to the one signed in to.
+    origin = req.origin
+    if origin = invalid or origin = ""
+        if s = invalid or s.origin = invalid
+            answer(req, {ok: false, status: 0, error: {code: "no_server", message: "No server is chosen."}})
+            return
+        end if
+        origin = s.origin
     end if
     if m.renewing and req.public <> true
         m.waiting.push(req)
         return
     end if
-    x = newTransfer(s.origin + req.path)
-    if req.public <> true and s.accessToken <> invalid then x.addHeader("Authorization", "Bearer " + s.accessToken)
+    x = newTransfer(origin + req.path)
+    if req.public <> true and s <> invalid and s.accessToken <> invalid then x.addHeader("Authorization", "Bearer " + s.accessToken)
     method = req.method
     body = ""
     if req.body <> invalid then body = formatJson(req.body)
