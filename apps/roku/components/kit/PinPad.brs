@@ -12,9 +12,12 @@ sub init()
     reset()
 end sub
 
+' Setting `digits` (even to the same number) starts the pad afresh: nothing typed, nothing marked wrong.
 sub reset()
     c = colours()
     m.value = ""
+    m.bad = false
+    m.clear.control = "stop"
     m.keys.removeChildrenIndex(m.keys.getChildCount(), 0)
     labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0"]
     for i = 0 to labels.count() - 1
