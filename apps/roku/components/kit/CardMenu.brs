@@ -115,6 +115,14 @@ function cardMenuChosen(which as string) as boolean
     else if id = "playlist" or id = "collection"
         m.cardListKind = id
         api("GET", "/v1/lists?kind=" + id + "&limit=200", invalid, "onCardMenuLists")
+    else if id = "new"
+        ' a new playlist or collection with this title in it: its name typed on the TV (the scene's panel)
+        panel = m.top.getScene().findNode("namePanel")
+        panel.unobserveField("chosen")
+        panel.observeField("chosen", "onCardMenuNamed")
+        title = "New playlist"
+        if m.cardListKind = "collection" then title = "New collection"
+        panel.model = {eyebrow: item.title, title: title, value: "", verb: "Create"}
     end if
     return true
 end function
@@ -136,14 +144,28 @@ sub onCardMenuLists(event as object)
         if list.role = "owner" or list.role = "editor" then rows.push({id: "card:add:" + list.id, text: list.name, value: countText(list.count, "item", "items")})
     end for
     title = "Add to playlist"
-    none = "No playlists yet. Make one on your phone or computer, then add to it here."
+    none = "No playlists yet. Make the first one here."
+    made = "New playlist"
     if m.cardListKind = "collection"
         title = "Add to collection"
-        none = "No collections yet. Make one on your phone or computer, then add to it here."
+        none = "No collections yet. Make the first one here."
+        made = "New collection"
     end if
     status = ""
     if rows.count() = 0 then status = none
+    rows.unshift({id: "card:new", text: made, icon: "plus"})
+    if rows.count() > 1 then rows[1].gapBefore = true
     m.top.menu = {eyebrow: m.cardItem.title, title: title, status: status, rows: rows, hints: [{keys: ["OK"], text: "Add"}, {keys: ["Back"], text: "Close"}]}
+end sub
+
+' The name for a new list, or "" when Back closed the panel: focus comes back to the page either way.
+sub onCardMenuNamed()
+    panel = m.top.getScene().findNode("namePanel")
+    panel.unobserveField("chosen")
+    name = panel.chosen
+    m.top.active = true
+    if name = "" or m.cardItem = invalid then return
+    api("POST", "/v1/lists", {kind: m.cardListKind, name: name, items: [m.cardItem.id]}, "onCardMenuAdded", invalid, false, createObject("roDeviceInfo").getRandomUUID())
 end sub
 
 ' Added: the list shows it the next time it is opened; nothing here changes.

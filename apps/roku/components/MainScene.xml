@@ -28,5 +28,7 @@
     <Animation id="frameClock" duration="1" repeat="true" easeFunction="linear">
       <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[0.0, 0.01]" fieldToInterp="frameProbe.opacity"/>
     </Animation>
+    <!-- A name typed on the TV (a new playlist or collection): asked for by a page, over everything. -->
+    <NamePanel id="namePanel"/>
   </children>
 </component>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A name typed on the TV, in the side sheet's place (tv-focus 41: the keyboard in a sheet, the
+     same keys as Search): the field with what is typed, the button that finishes, then the keys.
+     It holds focus while open: the keys first; Up from their top row reaches the button, Down from
+     the button returns to the keys. OK types; Back closes without a name. The scene owns one. -->
+<component name="NamePanel" extends="Group">
+  <interface>
+    <!-- {eyebrow, title, value (what the field starts with), verb (the button: "Create", "Save")};
+         setting it opens the panel. -->
+    <field id="model" type="assocarray" onChange="onModel"/>
+    <!-- The name, trimmed, when the button is pressed with something typed; "" when Back closes it. -->
+    <field id="chosen" type="string" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="NamePanel.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Rectangle id="scrim" width="1920" height="1080" opacity="0.5"/>
+    <Rectangle id="panel" height="1080"/>
+    <Label id="eyebrow"/>
+    <Label id="title" wrap="true" maxLines="2"/>
+    <Poster id="field" uri="pkg:/images/round-14.9.png"/>
+    <Label id="typed" vertAlign="center"/>
+    <Rectangle id="caret" width="3"/>
+    <ButtonRow id="finish"/>
+    <Keyboard id="keyboard"/>
+    <KeyHints id="hints"/>
+  </children>
+</component>
