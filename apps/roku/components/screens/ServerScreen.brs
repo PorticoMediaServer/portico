@@ -66,6 +66,12 @@ sub load()
     api("GET", "/v1/admin/invitations", invalid, "onRead", {part: "invitations"})
     api("GET", "/v1/admin/devices", invalid, "onRead", {part: "devices"})
     if m.top.role = "owner" then api("GET", "/v1/admin/remote-access", invalid, "onRead", {part: "remote"})
+    ' the other pages' reads (source/ServerPages.brs)
+    for each page in m.pages
+        for each read in serverPageReads(page.id)
+            api("GET", read.path, invalid, "onRead", {part: read.part})
+        end for
+    end for
 end sub
 
 sub onRead(event as object)
@@ -122,6 +128,9 @@ sub showPage()
     if page.id = "libraries" then y = drawLibraries(y)
     if page.id = "people" then y = drawPeople(y)
     if page.id = "remote" then y = drawRemote(y)
+    for each group in serverPageGroups(page.id, m.data)
+        y = drawGroup(y, group.label, group.rows, group.empty)
+    end for
     if m.row >= m.stops.count() then m.row = m.stops.count() - 1
     if m.row < 0 then m.row = 0
     paint()
