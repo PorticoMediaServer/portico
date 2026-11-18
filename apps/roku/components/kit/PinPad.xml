@@ -3,6 +3,8 @@
      its column on Up and Down; typing never moves focus; the last digit submits. -->
 <component name="PinPad" extends="Group">
   <interface>
+    <!-- Left from the pad's left edge goes on to the page (the PIN page's Remember this profile). -->
+    <field id="passLeft" type="boolean"/>
     <field id="digits" type="integer" value="4" alwaysNotify="true" onChange="reset"/>
     <!-- Text of the button under the pad ("Forgot PIN?"), or "" for none. -->
     <field id="extra" type="string" onChange="reset"/>

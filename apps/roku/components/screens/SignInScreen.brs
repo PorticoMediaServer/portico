@@ -481,7 +481,7 @@ sub finish(event as object, signIn as object)
     end if
     profiles = []
     if signIn.profiles <> invalid then profiles = signIn.profiles
-    m.top.signedIn = {origin: event.getRoSGNode().ctx.origin, serverName: m.system.name, serverId: m.system.id, session: signIn.session, profiles: profiles}
+    m.top.signedIn = {origin: event.getRoSGNode().ctx.origin, serverName: m.system.name, serverId: m.system.id, session: signIn.session, profiles: profiles, rememberProfiles: signIn.rememberProfiles = true}
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean

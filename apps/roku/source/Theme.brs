@@ -165,7 +165,7 @@ function frames() as object
         ' face, title, name, boxes and note lines, the number pad's corner, the key hints' line
         signIn: {pageX: 120, eyebrowY: 354, titleY: 385, bodyY: 494, buttonsY: 656, cardX: 1060, cardY: 212,
             markX: 120, markY: 72, whoTitleBottom: 391, facesY: 470, facePitch: 296, whoNoteY: 860,
-            pinX: 240, pinWidth: 640, pinFaceY: 238, pinTitleY: 462, pinNameY: 540, boxesY: 619, pinNoteY: 775, keysX: 1176, keysY: 219, hintsY: 988, doorButtonsY: 576, doorNoteY: 690, doorTitleY: 416, factorBodyY: 512, factorBoxesY: 640, factorTitleY: 420, noteY: 760, pressY: 976, localTitleY: 127, localBodyY: 229, nearbyLabelY: 300, nearbyRowsY: 340, elsewhereLabelY: 700, localButtonsY: 740, localNoteY: 840}
+            pinX: 240, pinWidth: 640, pinFaceY: 238, pinTitleY: 462, pinNameY: 540, boxesY: 619, pinRememberY: 790, pinNoteY: 860, keysX: 1176, keysY: 219, hintsY: 988, doorButtonsY: 576, doorNoteY: 690, doorTitleY: 416, factorBodyY: 512, factorBoxesY: 640, factorTitleY: 420, noteY: 760, pressY: 976, localTitleY: 127, localBodyY: 229, nearbyLabelY: 300, nearbyRowsY: 340, elsewhereLabelY: 700, localButtonsY: 740, localNoteY: 840}
         ' The whole page could not load (frame "Page states"): icon, title and one sentence from `y`,
         ' `width` wide, then buttons on `buttonsY`.
         state: {y: 300, width: 1000, buttonsY: 760,

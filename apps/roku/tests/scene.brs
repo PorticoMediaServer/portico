@@ -12,6 +12,14 @@ sub main()
         getData: function() as object : return m.data : end function})
     check("the server's id is stored beside its address", m.store.serverid = "srv_home" and m.store.origin = "http://home.example")
     check("and the task's session carries it", m.task.session.serverId = "srv_home")
+    check("a new sign-in remembers no PIN from an earlier one", m.store.pintoken = "")
+
+    ' a PIN profile this TV remembers: its token is sent in place of the PIN, and Who's watching is skipped
+    m.sent = []
+    m.store.pinprofile = "p2"
+    m.store.pintoken = "tok"
+    onProfiles({data: {ok: true, data: {items: [{id: "p1"}, {id: "p2", pinRequired: true}]}}, getData: function() as object : return m.data : end function})
+    check("the remembered PIN profile is chosen with its token", m.sent.count() = 1 and m.sent[0].path = "/v1/profiles/p2/select" and m.sent[0].body.pinToken = "tok")
     ? "PASSED "; m.passed; " FAILED "; m.failed
 end sub
 
@@ -31,10 +39,17 @@ sub storeWrite(values as object)
     end for
 end sub
 
+function storeRead(key as string) as string
+    value = m.store[lcase(key)]
+    if value = invalid then return ""
+    return value
+end function
+
 function installationId() as string
     return "installation"
 end function
 
 function api(method as string, path as string, body as dynamic, callback as string, ctx = invalid as dynamic, isPublic = false as boolean, key = "" as string, origin = "" as string) as object
+    if m.sent <> invalid then m.sent.push({path: path, body: body})
     return {}
 end function

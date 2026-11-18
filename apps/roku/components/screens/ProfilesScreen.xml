@@ -9,8 +9,11 @@
     <field id="profiles" type="array" onChange="onProfiles"/>
     <!-- The profile used last, to start on. -->
     <field id="last" type="string"/>
+    <!-- The server lets a device remember a profile (its rememberProfiles): the PIN page offers
+         Remember this profile on this device, ticked (owner, 18 Nov). -->
+    <field id="remember" type="boolean"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
-    <!-- Set when a profile is chosen: {session, profile}. -->
+    <!-- Set when a profile is chosen: {session, profile, pinToken} (pinToken when its PIN is to be remembered). -->
     <field id="chosen" type="assocarray"/>
     <function name="chooseOnly"/>
   </interface>
@@ -34,6 +37,13 @@
       <Label id="pinName" horizAlign="center"/>
       <PinPad id="pad" digits="4" extra="Forgot PIN?"/>
       <Label id="pinNote" horizAlign="center" wrap="true" maxLines="3"/>
+      <!-- Remember this profile on this device, under the boxes (auth.html frame 17): Left from the pad reaches it -->
+      <Group id="rememberStop" focusable="true" visible="false">
+        <Poster id="rememberRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
+        <Poster id="rememberBox" uri="pkg:/images/line-10.9.png" width="40" height="40"/>
+        <Poster id="rememberTick" uri="pkg:/images/i-check-28.png" width="28" height="28" translation="[6,6]"/>
+        <Label id="rememberLabel" text="Remember this profile on this device" height="40" vertAlign="center" translation="[58,0]"/>
+      </Group>
       <KeyHints id="hints" small="true" horizAlignment="center"/>
     </Group>
     <!-- Forgot PIN?: a new PIN is set on a phone or computer, as on the other TV apps -->

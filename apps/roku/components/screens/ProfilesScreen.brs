@@ -26,6 +26,11 @@ sub init()
         label.width = f.pinWidth
     end for
     m.pad.translation = [f.keysX, f.keysY]
+    m.rememberStop = m.top.findNode("rememberStop")
+    setType(m.top.findNode("rememberLabel"), "body", c.textSecondary)
+    m.top.findNode("rememberBox").blendColor = c.lineStrong
+    m.rememberOn = true          ' on unless the person turns it off (owner, 18 Nov)
+    m.onRemember = false
     m.pad.boxesAt = [f.pinX + (f.pinWidth - 470) / 2 - f.keysX, f.boxesY - f.keysY]     ' four boxes are 470 across
     hints = m.top.findNode("hints")
     hints.translation = [960, f.hintsY]
@@ -173,6 +178,7 @@ sub choose(pin as dynamic)
     profile = m.top.profiles[m.focus]
     body = {}
     if pin <> invalid then body = {pin: pin}
+    if pin <> invalid and m.top.remember and m.rememberOn then body.rememberPin = true
     api("POST", "/v1/profiles/" + profile.id + "/select", body, "onSelected")
 end sub
 
@@ -180,7 +186,7 @@ sub onSelected(event as object)
     m.busy = false
     result = event.getData()
     if result.ok and result.data.accessToken <> invalid
-        m.top.chosen = {session: result.data, profile: m.top.profiles[m.focus]}
+        m.top.chosen = {session: result.data, profile: m.top.profiles[m.focus], pinToken: result.data.pinToken}
     else if m.stage = "pin" and result.error.code = "profile_pin_invalid"
         m.pad.wrong = true
     else if m.stage = "pin"
@@ -202,6 +208,10 @@ sub showPin(show as boolean)
         m.top.findNode("pinName").text = profile.name
         m.pinNote.text = ""
         m.pad.digits = 4
+        m.onRemember = false
+        m.rememberStop.visible = m.top.remember
+        m.pad.passLeft = m.top.remember
+        paintRemember()
     end if
     onActive()
 end sub
@@ -261,7 +271,19 @@ function onKeyEvent(key as string, press as boolean) as boolean
             showPin(false)
             return true
         end if
-        return key <> "back"
+        if m.onRemember
+            ' on Remember this profile: OK turns it on or off; Right or Up goes back to the pad
+            if key = "OK" then m.rememberOn = not m.rememberOn
+            if key = "right" or key = "up"
+                m.onRemember = false
+                m.pad.active = true
+            end if
+        else if key = "left" and m.top.remember
+            m.onRemember = true
+            m.rememberStop.setFocus(true)
+        end if
+        paintRemember()
+        return true
     end if
     if key = "right" and m.focus < m.top.profiles.count() - 1
         m.focus = m.focus + 1
@@ -281,4 +303,20 @@ end function
 sub chooseOnly()
     m.focus = 0
     choose(invalid)
+end sub
+
+sub paintRemember()
+    m.top.findNode("rememberTick").visible = m.rememberOn
+    ring = m.top.findNode("rememberRing")
+    ring.visible = m.onRemember
+    out = metrics().focusSpread + 6
+    ring.translation = [-out, -out]
+    ring.width = 40 + out * 2
+    ring.height = 40 + out * 2
+    label = m.top.findNode("rememberLabel")
+    if m.onRemember then label.color = colours().text else label.color = colours().textSecondary
+    ' centred in the PIN's column, as the boxes are
+    f = frames().signIn
+    width = 58 + label.boundingRect().width
+    m.rememberStop.translation = [f.pinX + (f.pinWidth - width) / 2, f.pinRememberY]
 end sub
