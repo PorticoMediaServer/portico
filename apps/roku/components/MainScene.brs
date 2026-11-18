@@ -51,12 +51,13 @@ sub onLaunchArgs()
         return
     end if
     m.task.unobserveField("ready")
+    m.task.observeField("serverChanged", "onServerChanged")
     args = m.top.launchArgs
     ' A deep link: Roku started the app to open one title (contentId is the item's id on this server).
     if args <> invalid and args.contentId <> invalid then m.linked = args
     if createObject("roAppInfo").isDev() and args <> invalid
         ' Development builds only: scripts can hand the app a sign-in, or clear it.
-        if args.devSignOut <> invalid then storeWrite({origin: "", refreshToken: "", profileId: "", renewalId: ""})
+        if args.devSignOut <> invalid then storeWrite({origin: "", serverId: "", refreshToken: "", profileId: "", renewalId: ""})
         ' the shared elements page (design decision 4), for bin/roku-kit; never in a viewer's build
         if args.devKit <> invalid
             show("KitScreen")
@@ -64,7 +65,7 @@ sub onLaunchArgs()
             return
         end if
         if args.devOrigin <> invalid and args.devRefresh <> invalid
-            storeWrite({origin: args.devOrigin, refreshToken: args.devRefresh, installationId: args.devInstallation, profileId: args.devProfile, renewalId: ""})
+            storeWrite({origin: args.devOrigin, serverId: args.devServer, refreshToken: args.devRefresh, installationId: args.devInstallation, profileId: args.devProfile, renewalId: ""})
         end if
     end if
     origin = storeRead("origin")
@@ -74,7 +75,7 @@ sub onLaunchArgs()
         return
     end if
     m.global.origin = origin
-    m.task.session = {origin: origin, refreshToken: token, installationId: installationId()}
+    m.task.session = {origin: origin, serverId: storeRead("serverId"), refreshToken: token, installationId: installationId()}
     api("GET", "/v1/me", invalid, "onMe")
 end sub
 
@@ -366,12 +367,33 @@ function signedOutText() as string
     return "You were signed out of " + name + ". Sign in again to carry on."
 end function
 
+' The saved address answers as another server, or not as Portico (ApiTask.renew): one plain page.
+' The sign-in is kept, unsent: Try again asks the address again; Sign in again goes to the front door.
+sub onServerChanged(event as object)
+    name = storeRead("serverName")
+    if name = "" then name = "your server"
+    body = "This address now answers as a different server. Nothing was sent to it. Try again, or sign in again if the server was reinstalled or moved."
+    if event.getData() = "notPortico" then body = "This address answers, but not as a Portico server. Nothing was sent to it. Check the address, then try again, or sign in again."
+    show("PageState")
+    m.screen.icon = "warning"
+    m.screen.title = "Portico couldn’t confirm this is " + name
+    m.screen.body = body
+    m.screen.buttons = [{id: "again", text: "Try again", icon: "refresh"}, {id: "signin", text: "Sign in again", icon: ""}]
+    m.screen.observeField("pressed", "onServerChangedButton")
+    m.screen.active = true
+end sub
+
+sub onServerChangedButton(event as object)
+    if event.getData() = "again" then enter() else showSignIn()
+end sub
+
 sub onSignedIn(event as object)
     signIn = event.getData()
     session = signIn.session
     m.global.origin = signIn.origin
-    m.task.session = {origin: signIn.origin, accessToken: session.accessToken, refreshToken: session.refreshToken, installationId: installationId()}
-    storeWrite({origin: signIn.origin, serverName: signIn.serverName, refreshToken: session.refreshToken, renewalId: ""})
+    ' the server's id is kept beside its address: no renewal sends the token where it is not (ApiTask.renew)
+    m.task.session = {origin: signIn.origin, serverId: signIn.serverId, accessToken: session.accessToken, refreshToken: session.refreshToken, installationId: installationId()}
+    storeWrite({origin: signIn.origin, serverId: signIn.serverId, serverName: signIn.serverName, refreshToken: session.refreshToken, renewalId: ""})
     if session.viewer <> invalid and session.viewer.profileId <> invalid
         enter()
     else
@@ -415,6 +437,7 @@ end sub
 
 sub onMe(event as object)
     result = event.getData()
+    if not result.ok and result.error <> invalid and result.error.code = "server_changed" then return     ' its own page comes (onServerChanged)
     if not result.ok
         if result.status = 401
             storeWrite({refreshToken: "", renewalId: ""})

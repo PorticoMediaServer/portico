@@ -16,6 +16,7 @@ sub main()
     check("the password goes to the server being signed in to", lastSent().origin = a and lastSent().path = "/v1/auth/sign-in")
     answer(lastSent(), {ok: true, status: 200, data: {session: {accessToken: "from-a"}}})
     check("an answer in time signs in under its own server", m.top.signedIn <> invalid and m.top.signedIn.origin = a and m.top.signedIn.session.accessToken = "from-a")
+    check("the sign-in names the server's id, from the same server", m.top.signedIn.serverId = "srv")
 
     ' the viewer goes back and chooses another server before the first one answers
     fresh()

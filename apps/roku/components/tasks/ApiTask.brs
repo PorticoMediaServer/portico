@@ -40,21 +40,6 @@ sub giveUpOnSilent()
     end for
 end sub
 
-function newTransfer(url as string) as object
-    x = createObject("roUrlTransfer")
-    x.setMessagePort(m.port)
-    x.setUrl(url)
-    x.retainBodyOnError(true)
-    x.enableEncodings(true)
-    if left(url, 5) = "https"
-        x.setCertificatesFile("common:/certs/ca-bundle.crt")
-        x.initClientCertificates()
-    end if
-    x.addHeader("Accept", "application/json")
-    x.addHeader("Content-Type", "application/json")
-    return x
-end function
-
 sub send(req as object, retried as boolean)
     s = m.top.session
     ' A sign-in request names its own server; everything else goes to the one signed in to.
@@ -104,6 +89,10 @@ sub finish(msg as object)
     text = msg.getString()
     data = invalid
     if text <> invalid and text <> "" then data = parseJson(text)
+    if p.check = true
+        checked(status, data)
+        return
+    end if
     if p.renewal = true
         renewed(status, data)
         return
@@ -138,7 +127,55 @@ sub renew()
         ended()
         return
     end if
+    ' A sign-in kept before the server's id was: sign in again (nothing in the field holds one).
+    if s.serverId = invalid or s.serverId = ""
+        ended()
+        return
+    end if
     m.renewing = true
+    ' Before the refresh token goes anywhere, the address is asked who it is (security finding F9,
+    ' setup rules 68 and 71). This catches "the address is now another machine or another
+    ' server": a home address handed to another computer, a server reinstalled with a new
+    ' identity. It does NOT stop an impostor that copies the id from the real server's answer:
+    ' the real proof (the server signing a challenge, /v1/system/identity-proof, Ed25519) cannot
+    ' be checked in BrightScript, which has no such primitive, and on a plain-HTTP home address
+    ' nothing on a Roku can tell a stand-in from the server. The full identity check and trust
+    ' in a server's private certificate stay open (the lane's item 4, owner question 16).
+    x = newTransfer(s.origin + "/v1/system")
+    x.asyncGetToString()
+    m.pending[x.getIdentity().toStr()] = {xfer: x, renewal: true, check: true, started: m.clock.totalMilliseconds()}
+end sub
+
+' What the address answered: "same" (the server signed in to), "other" (another Portico server),
+' "notPortico" (something answers, not as Portico) or "unreachable" (no answer, or a server error).
+function serverAnswer(status as integer, data as dynamic, serverId as string) as string
+    if status = 0 or status >= 500 then return "unreachable"
+    if status <> 200 or type(data) <> "roAssociativeArray" or getInterface(data.id, "ifString") = invalid or data.apiMajor = invalid then return "notPortico"
+    if data.id = serverId then return "same"
+    return "other"
+end function
+
+sub checked(status as integer, data as dynamic)
+    who = serverAnswer(status, data, m.top.session.serverId)
+    if who = "same"
+        sendRenewal()
+    else if who = "unreachable"
+        renewed(0, invalid)
+    else
+        ' Not the server signed in to: the refresh token is not sent, and is kept, so the viewer
+        ' can try again once the address is right. Waiting requests get the reason.
+        m.renewing = false
+        held = m.waiting
+        m.waiting = []
+        for each req in held
+            answer(req, {ok: false, status: 0, error: {code: "server_changed", message: "This address no longer answers as your server.", retry: true}})
+        end for
+        m.top.serverChanged = who
+    end if
+end sub
+
+sub sendRenewal()
+    s = m.top.session
     requestId = storeRead("renewalId")
     if requestId = ""
         requestId = createObject("roDeviceInfo").getRandomUUID()
