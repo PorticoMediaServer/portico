@@ -100,8 +100,7 @@ function EpisodesShelf() {
 function SearchResults() {
   const art = useReferenceArtwork(), phone = usePhone();
   return <Page current="search"><SearchFrame field={<SearchField value={f('queryTlou')}/>} cancel={phone && <Button variant="text" size="small" onClick={none}>{f('cancel')}</Button>} scopes={<Scopes/>}
-    notice={<div style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', padding: 'var(--space-px-12) var(--space-px-12) var(--space-px-12) var(--space-px-18)', borderRadius: 'var(--radius-panel)', background: 'var(--color-raised)', color: 'var(--color-text-secondary)'}}>
-      <span style={{flex: 1}}>{f('partial')}</span><Button size="small" icon="i-retry" onClick={none}>{f('tryAgain')}</Button></div>}>
+    notice={<WaitingNotice icon="i-clock" action={{id: 'retry', label: f('tryAgain'), onAction: none}}>{f('partial')}</WaitingNotice>}>
     {phone ? <div style={{padding: '0 var(--card)'}}><TopResultCard eyebrow={f('topResult')} title={f('tlou')} facts={<TitleFactsLine parts={f('tlouFacts').split(' · ').map((text, index) => fact(`f${index}`, text, index ? 'context' : 'identity'))}/>}
       background={art('bd-tlou.jpg')} onOpen={none} play={{label: f('play'), onPress: none}}/></div>
     : <div style={{padding: '0 var(--g)'}}><SearchResultHero title={f('tlou')} eyebrow={f('topResult')} facts={<TitleFactsLine parts={f('tlouFacts').split(' · ').map((text, index) => fact(`f${index}`, text, index ? 'context' : 'identity'))}/>}
@@ -214,7 +213,7 @@ function LiveUpcoming() {
 function LiveRecorded() {
   const art = useReferenceArtwork(), phone = usePhone();
   const items = [['pClockmakers', 'recordings6', 'bd-matrix'], ['pStoryTime', 'recordings3', 'bd-toystory'], ['pWorldTonight', 'yesterday430', 'bd-sev'], ['pQuietHarbor', 'quietHarborFacts', 'bd-spirited']] as const;
-  return <Page current="liveTvShort"><LiveFrame {...recordings('recorded', phone)} toolbar={<small style={{color: 'var(--color-text-secondary)'}}>{f('recordedCounts')}</small>}>
+  return <Page current="liveTvShort"><LiveFrame {...recordings('recorded', phone)} toolbar={<><small style={{color: 'var(--color-text-secondary)'}}>{f('recordedCounts')}</small><span style={{flex: 1}}/><Button variant="text" size="small" icon="i-chdown" onClick={none}>{f('sortRecent')}</Button></>}>
     <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 'var(--space-sm)', padding: '0 var(--g)'}}>
       {items.map(([title, caption, path]) => <WideCard key={title} model={{title: f(title), caption: [fact('caption', f(caption))], detail: []}} artwork={art(`${path}.jpg`)} onNavigate={none}/>)}
     </div>

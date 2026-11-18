@@ -18,7 +18,8 @@
 /* The drawn top result: the title's own art behind it, the artist's circle when it has
    one, its real facts, and Play only where this title really plays. */
 .phoneTop { position: relative; display: flex; align-items: center; gap: 16px; width: 100%; min-height: 148px; margin: 14px 0 2px; padding: 14px 16px; border-radius: 14px; overflow: hidden; background: var(--color-raised); isolation: isolate; }
-.phoneTopBg { position: absolute; inset: -30%; width: 160%; height: 160%; object-fit: cover; filter: blur(40px) saturate(1.4); opacity: .5; z-index: -1; }
+.phoneTopBg { position: absolute; inset: 0 0 0 30%; width: 70%; height: 100%; object-fit: cover; z-index: -1; mask-image: linear-gradient(90deg, transparent, #000 55%); }
+.phoneTop[data-ring] .phoneTopBg { inset: -30%; width: 160%; height: 160%; filter: blur(40px) saturate(1.4); opacity: .5; mask-image: none; }
 .phoneTopOpen { position: absolute; inset: 0; z-index: 0; border: 0; background: transparent; cursor: pointer; }
 .phoneTopOpen:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; border-radius: 14px; }
 .phoneTopRing { position: relative; z-index: 1; flex: none; display: grid; pointer-events: none; place-items: center; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; background: var(--color-raised-high); box-shadow: 0 16px 30px -12px var(--color-shadow), 0 0 0 3px color-mix(in srgb, var(--color-text) 14%, transparent); font-size: var(--type-fixed-size-30px); font-weight: var(--type-fixed-weight-800); }
