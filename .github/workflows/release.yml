@@ -353,7 +353,7 @@ jobs:
           curl -fsS -o /dev/null http://127.0.0.1:32500/v1/health/ready || { docker logs portico-proof; exit 1; }
           docker exec portico-proof sh -c 'test -d /config/Temp && test -f /config/main.db && test -f /config/setup-code.txt'
           docker exec portico-proof /opt/portico/third_party/ffmpeg/bin/ffmpeg -hide_banner -version | head -1
-          docker top portico-proof -o uid,args
+          docker top portico-proof -o pid,uid,args
           docker logs portico-proof 2>&1 | tail -20
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with: {name: assets-docker, path: dist/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
