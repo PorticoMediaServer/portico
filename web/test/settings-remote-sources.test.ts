@@ -127,8 +127,6 @@ const hookRuntime = (React: any) => {
   };
 };
 
-const {addCloudTokenSource, addRcloneRemoteFromFields} = await import('../../packages/client-core/src/remote-storage.ts');
-
 test('the Remote sources page draws the add action and its empty state', async () => {
   const React = await import('react');
   const hooks = hookRuntime(React);
@@ -155,17 +153,6 @@ test('a source left before a folder of it is in a library says Setup not finishe
     assert.match(markup, /Continue setup/);
     assert.match(markup, /https:\/\/nas\.local\/dav/);
   } finally {hooks.unmountAll();}
-});
-
-test('OneDrive or Dropbox by token and a new rclone remote say plainly that this server does not offer them yet, and send nothing', async () => {
-  let sent = 0;
-  const api = {request: async () => {sent++; return {};}};
-  for (const attempt of [addCloudTokenSource(api, {name: 'Drive', provider: 'onedrive', token: '{}', path: '', preset: 'read-once'}),
-    addRcloneRemoteFromFields(api, {name: 'Bucket', type: 's3', options: {}, path: '', preset: 'read-once'})]) {
-    const error = await attempt.then(() => undefined, failure => failure);
-    assert.equal(remoteErrorText(error), defaultI18n.t('next.remoteSources.notOnServerYet'));
-  }
-  assert.equal(sent, 0);
 });
 
 test('a refusal shows what the server wrote for this area, or names the field, and anything else is a plain line', () => {

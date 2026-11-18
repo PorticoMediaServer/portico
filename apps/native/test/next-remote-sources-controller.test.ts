@@ -41,14 +41,10 @@ test('an administrator, a disabled owner and another profile reach nothing (rule
   }
 });
 
-test('adding is one call that tests and saves, and the two steps the server does not have yet send nothing', async () => {
+test('adding WebDAV is one call that tests and saves', async () => {
   const f = fixture(), controller = new NativeRemoteSourcesController(f.ports);
   await controller.add({kind: 'webdav', name: 'Archive', preset: 'read-once', webdav: {address: 'https://storage.example'}});
-  assert.deepEqual(f.calls[0], {path: '/v1/admin/remote-sources', method: 'POST', body: {kind: 'webdav', name: 'Archive', preset: 'read-once', webdav: {address: 'https://storage.example'}}});
-  const before = f.calls.length;
-  await assert.rejects(controller.addCloudToken({name: 'OneDrive', provider: 'onedrive', token: '{}', path: '', preset: 'read-once'}), {code: 'not_on_server'});
-  await assert.rejects(controller.addRcloneFromFields({name: 'Bucket', type: 's3', options: {}, path: '', preset: 'read-once'}), {code: 'not_on_server'});
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(f.calls.filter(one => one.method === 'POST').length, 1);
-  assert.ok(f.calls.length >= before);
+  assert.deepEqual(f.calls.filter(one => one.method === 'POST'), [
+    {path: '/v1/admin/remote-sources', method: 'POST', body: {kind: 'webdav', name: 'Archive', preset: 'read-once', webdav: {address: 'https://storage.example'}}},
+  ]);
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {addRemoteFolderToLibrary, listRemoteSources, remoteSourceCreate} from '../src/remote-storage.ts';
+import {addCloudTokenSource, addRcloneRemoteFromFields, addRemoteFolderToLibrary, listRemoteSources, missingField, remoteRefusal, remoteSourceCreate} from '../src/remote-storage.ts';
 
 type Sent = {path: string; method: string; body: unknown};
 const server = (answer: (sent: Sent) => unknown) => {
@@ -17,6 +17,39 @@ test('the wizard sends only what each kind needs, with the default preset, and n
     {name: 'Box', preset: 'list-only', kind: 'rclone', rclone: {config: '[box]\ntype = box\ntoken = {}', path: 'Films'}});
   assert.deepEqual(remoteSourceCreate({kind: 'rclone', name: 'Box', config: 'token = {}', path: ''}), {missing: 'config'});
   assert.deepEqual(remoteSourceCreate({kind: 'drive', name: 'Drive', path: '', signIn: 'si_1', redirectedUrl: ''}), {missing: 'redirectedUrl'});
+});
+
+test('a cloud token is sent as an rclone option and a refused sign-in keeps the server’s wording', async () => {
+  const token = '{"access_token":"stand-in","refresh_token":"stand-in-refresh"}';
+  const fields = {name: 'OneDrive', provider: 'onedrive', token, path: 'Films', preset: 'list-only'} as const;
+  const {api, sent} = server(() => ({id: 'rs_cloud'}));
+  assert.equal((await addCloudTokenSource(api, fields)).id, 'rs_cloud');
+  assert.deepEqual(sent, [{path: '/v1/admin/remote-sources', method: 'POST', body: {
+    kind: 'rclone', name: 'OneDrive', preset: 'list-only', rclone: {type: 'onedrive', options: {token}, path: 'Films'},
+  }}]);
+
+  const message = 'The source refused its sign-in: check the user name and password, key or token.';
+  const refused = server(() => {throw Object.assign(new Error(message), {code: 'source_sign_in'});});
+  await assert.rejects(addCloudTokenSource(refused.api, fields), error => {
+    assert.deepEqual(remoteRefusal(error), {sentence: message});
+    return true;
+  });
+});
+
+test('a new rclone remote sends the backend and its options and maps a refused rclone field', async () => {
+  const fields = {name: 'Archive', type: 'sftp', options: {host: 'storage.example', user: 'owner', pass: 'stand-in'}, path: '/srv/media', preset: 'on-request'} as const;
+  const {api, sent} = server(() => ({id: 'rs_sftp'}));
+  assert.equal((await addRcloneRemoteFromFields(api, fields)).id, 'rs_sftp');
+  assert.deepEqual(sent, [{path: '/v1/admin/remote-sources', method: 'POST', body: {
+    kind: 'rclone', name: 'Archive', preset: 'on-request',
+    rclone: {type: 'sftp', options: {host: 'storage.example', user: 'owner', pass: 'stand-in'}, path: '/srv/media'},
+  }}]);
+
+  const refused = server(() => {throw Object.assign(new Error('Check the request and try again.'), {code: 'invalid_request', path: 'rclone'});});
+  await assert.rejects(addRcloneRemoteFromFields(refused.api, fields), error => {
+    assert.deepEqual(remoteRefusal(error), {field: 'config'});
+    return true;
+  });
 });
 
 test('every page of sources is read', async () => {
@@ -46,8 +79,7 @@ test('Continue setup does not report a folder as added when the answer does not 
   await assert.rejects(addRemoteFolderToLibrary(api, 'lib_1', {source: 'rs_2', path: 'Films'}), {code: 'not_on_server'});
 });
 
-test('a refused request says what the server wrote for this area, or names the refused field, never a stranger sentence', async () => {
-  const {remoteRefusal, missingField, addCloudTokenSource} = await import('../src/remote-storage.ts');
+test('a refused request says what the server wrote for this area, or names the refused field, never a stranger sentence', () => {
   // Seen in the browser try: an address nothing answers on, and rclone missing on the server.
   assert.deepEqual(remoteRefusal({code: 'source_unreachable', message: 'Portico could not reach that address: connection refused'}),
     {sentence: 'Portico could not reach that address: connection refused'});
@@ -57,5 +89,4 @@ test('a refused request says what the server wrote for this area, or names the r
   assert.deepEqual(remoteRefusal({code: 'invalid_request', message: 'Check the request and try again.', path: 'webdav.address'}), {field: 'address'});
   assert.deepEqual(remoteRefusal(missingField('config')), {field: 'config'});
   assert.deepEqual(remoteRefusal({code: 'internal', message: '<pre>stack</pre>'}), {other: 'internal'});
-  assert.deepEqual(remoteRefusal(await addCloudTokenSource({request: async () => ({}) as never}, {name: 'x', provider: 'dropbox', token: '{}', path: '', preset: 'read-once'}).catch(e => e)), {notOnServer: true});
 });
