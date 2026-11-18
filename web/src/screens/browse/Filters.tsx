@@ -141,9 +141,11 @@ export function BrowseFilters({controller, model, labels, compact, medium = fals
     try {
       if ((change.kind === 'facet' || change.kind === 'match') && shown.kind === 'values') {
         const match = change.kind === 'match' ? change.value : shown.match;
-        const included = change.kind === 'facet' ? [...shown.included.filter(v => v !== change.value), ...(change.selection === 'include' ? [change.value] : [])] : shown.match === 'none' && match !== 'none' ? shown.excluded : shown.included;
+        const included = change.kind === 'facet' ? descriptor.single ? (change.selection === 'include' ? [change.value] : [])
+          : [...shown.included.filter(v => v !== change.value), ...(change.selection === 'include' ? [change.value] : [])] : shown.match === 'none' && match !== 'none' ? shown.excluded : shown.included;
         const excluded = change.kind === 'facet' ? [...shown.excluded.filter(v => v !== change.value), ...(change.selection === 'exclude' ? [change.value] : [])] : shown.match === 'none' && match !== 'none' ? [] : shown.excluded;
-        next = [...(included.length ? [parsed({field: descriptor.field, operator: match === 'none' ? 'not-in' : match === 'all' && field.operators.includes('contains-all') ? 'contains-all' : descriptor.operator, value: included.map(value => descriptor.field === 'decade' ? Number(value) : value)})] : []),
+        next = [...(included.length && descriptor.single ? [parsed({field: descriptor.field, operator: 'equals', value: included[0]})] : []),
+          ...(included.length && !descriptor.single ? [parsed({field: descriptor.field, operator: match === 'none' ? 'not-in' : match === 'all' && field.operators.includes('contains-all') ? 'contains-all' : descriptor.operator, value: included.map(value => descriptor.field === 'decade' ? Number(value) : value)})] : []),
           ...(excluded.length ? [parsed({field: descriptor.field, operator: 'not-in', value: excluded.map(value => descriptor.field === 'decade' ? Number(value) : value)})] : [])];
       } else if (change.kind === 'toggle' && change.value !== undefined) next = [parsed({field: id, operator: 'equals', value: change.value})];
       else if (change.kind === 'choice' && change.value !== undefined) next = shown.kind === 'range' ? (rangePresets(field, new Date()).find(preset => preset.id === change.value)?.predicates ?? []).map(parsed) : [parsed({field: id, operator: 'equals', value: change.value})];
