@@ -298,6 +298,7 @@ the mock-up frames it comes from. How the native frame draws each:
 | `header.title`, `.switcher` | the top bar with the switcher (name ⌄) centred (`StickyBrowseHeader`) | the 24 pt name with the round switcher (`LibraryMediumHeader`) | the large title with the round switcher (`LibraryExpandedHeader`) | the title ▾ with the tabs beside it (`LibraryHeader`) |
 | `header.back` | ‹ Libraries in the bar; Back on a plain page | a plain page only | a plain page only | the remote's Back |
 | `header.trailing` | not drawn | Select, before ⋯ | Select, before ⋯ | not drawn |
+| `header.counts` | not drawn | the counts line under the name | the counts line under the title | under the title (final3-desktop-12, desktop-listen) |
 | `header.menu` | ⋯ in the bar | ⋯ at the right | ⋯ at the right | not drawn (a card's Hold OK menu) |
 | `header.tabs` | inside the bar, scrolling | under the title from the gutter, the rule across | same | beside the title |
 | `header.intro`, `.actions` | a plain page (See all): the line under the title, Play and Shuffle under it | same | same | same |

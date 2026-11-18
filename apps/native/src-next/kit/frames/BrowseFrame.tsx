@@ -2,6 +2,7 @@ import React, {type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
+import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {StartFocusScope} from '../focus';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {FiltersDock, FiltersOver, FiltersPane, LibraryExpandedHeader, LibraryHeader, LibraryMediumHeader, StickyBrowseHeader, libraryFiltersTabletPane} from '../browse';
@@ -9,7 +10,7 @@ import {Button, Tabs, type TabItem} from '../controls';
 import {BottomSheet, SidePanel} from '../overlays';
 import {SkeletonBlock} from '../states/SkeletonBlock';
 import {useTheme} from '../theme';
-import {FrameRhythm, useFrameMetrics} from './metrics';
+import {FrameRhythm, useFrameMetrics, type FrameMetrics} from './metrics';
 import {PageHeader, type PageHeaderProps} from './PageHeader';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
 
@@ -19,6 +20,8 @@ export type BrowseHeaderProps = PageHeaderProps & Readonly<{
   switcher?: ReactNode;
   /** The kit `LibraryMenu` (⋯): Save this view, Mark all as watched, Edit pins, and the owner's Library settings and Scan. Not on TV. */
   menu?: ReactNode;
+  /** The library's counts under its title ("10 artists  10 albums  40 songs"): wide headers only, never the phone bar. */
+  counts?: readonly FactPart[];
   /** The page's tabs: Discover / Movies / Collections (Music: Discover / Artists / Albums / Songs / Genres). The frame draws
    * the kit `Tabs` from the gutter, its rule across the page. */
   tabs?: Readonly<{items: readonly TabItem[]; value: string; onValueChange: (value: string) => void}>;
@@ -94,7 +97,7 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, chil
 
 /** The header per form (frameRegions.browse `header.*`). A library: the phone's top bar with the switcher centred and ⋯, the
  * upright tablet's 24 pt name, the landscape tablet's large title, TV's title with its tabs beside it. A plain page: rule 3's header. */
-function BrowseHeader({title, back, trailing, switcher, menu, tabs: tabItems, intro, actions}: BrowseHeaderProps) {
+function BrowseHeader({title, back, trailing, switcher, menu, counts, tabs: tabItems, intro, actions}: BrowseHeaderProps) {
   const frame = useFrameMetrics(), form = frame.form;
   // TV sets the tabs beside the title, in the header's own row; elsewhere they run from the gutter under it.
   const tabs = tabItems && <Tabs items={tabItems.items} value={tabItems.value} onValueChange={tabItems.onValueChange} style={form === 'tv' ? undefined : {marginTop: form === 'phone' ? 0 : frame.headerGap}}
@@ -105,9 +108,9 @@ function BrowseHeader({title, back, trailing, switcher, menu, tabs: tabItems, in
     {actions && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.controlGap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, marginTop: frame.headerGap}}>{actions}</View>}
     {tabs}</>;
   if (form === 'phone') return <StickyBrowseHeader name={title} switcher={switcher} menu={menu} back={back}>{tabs}</StickyBrowseHeader>;
-  if (form === 'medium') return <LibraryMediumHeader name={title} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryMediumHeader>;
-  if (form === 'expanded') return <LibraryExpandedHeader name={title} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryExpandedHeader>;
-  return <LibraryHeader name={title} switcher={switcher}>{tabs}</LibraryHeader>;
+  if (form === 'medium') return <LibraryMediumHeader name={title} counts={counts} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryMediumHeader>;
+  if (form === 'expanded') return <LibraryExpandedHeader name={title} counts={counts} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryExpandedHeader>;
+  return <LibraryHeader name={title} counts={counts} switcher={switcher}>{tabs}</LibraryHeader>;
 }
 
 function Pane({filters}: {filters: BrowseFiltersProps}) {
@@ -144,11 +147,19 @@ function RowsSkeleton() {
   return <>{row('wide', true)}{row('poster', false)}</>;
 }
 
+/** The poster grid's card width: as many columns of at least `frameSpec.browse.grid.card` as fit between the gutters, stretched
+ * to fill them (phone-app 5: three across; desktop-browse: seven). Beside a docked Filters pane the grid has that much less room. */
+export function browseGridCard(frame: FrameMetrics, filtersDocked = false) {
+  const grid = frameSpec.browse.grid, gap = grid.columnGap[frame.form];
+  const room = frame.width - frame.gutter - frame.rightGutter - (filtersDocked ? frameSpec.browse.filtersWidth[frame.form] : 0);
+  const columns = Math.max(1, Math.floor((room + gap) / (grid.card[frame.form] + gap)));
+  return {width: Math.floor((room - gap * (columns - 1)) / columns), columns};
+}
+
 /** A library grid loading: posters at their real size with their two caption lines, in the grid's own columns. */
 function GridSkeleton() {
   const theme = useTheme(), frame = useFrameMetrics();
-  const width = theme.spec.card.width.poster[theme.column], grid = frameSpec.browse.grid, gap = grid.columnGap[frame.form], line = theme.type.cardTitle.fontSize ?? 13;
-  const columns = Math.max(1, Math.floor((frame.width - frame.gutter - frame.rightGutter + gap) / (width + gap)));
+  const {width, columns} = browseGridCard(frame), grid = frameSpec.browse.grid, gap = grid.columnGap[frame.form], line = theme.type.cardTitle.fontSize ?? 13;
   return <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: gap, rowGap: grid.rowGap[frame.form], paddingLeft: frame.gutter, paddingRight: frame.rightGutter, overflow: 'hidden'}}>
     {Array.from({length: columns * 3}, (_, index) => <View key={index} style={{width, gap: theme.space.tight}}>
       <SkeletonBlock width={width} height={width * 1.5} radius={theme.radii.artwork} shine={index === 0}/>

@@ -1,5 +1,5 @@
 import React, {useRef, useState, type ReactNode} from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, Text, View, type StyleProp, type ViewStyle} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, Focusable} from '../controls';
@@ -10,6 +10,7 @@ import {Icon, type IconName} from '../Icon';
 import {useTheme} from '../theme';
 import {alpha, browseType} from './presentation';
 import type {LibraryChoice, LibraryHeaderProps} from './types';
+import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model';
 
 const t = defaultI18n.t;
 
@@ -23,7 +24,7 @@ export function LibraryHeader({name, counts, switcher, menu, ambient, children, 
           <Text accessibilityRole="header" textBreakStrategy="balanced" style={[browseType(theme, theme.isTV ? 44 : 56, 800, -.045, theme.isTV ? 'normal' : 56), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text>
           {switcher}
         </View>
-        {!!counts?.length && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12}}>{counts.map(part => <Text key={part.id} style={[browseType(theme, theme.isTV ? 22 : 15), {color: theme.colors.textTertiary}]}>{part.text}</Text>)}</View>}
+        <LibraryCounts counts={counts} style={{marginTop: 12}}/>
       </View>
       {theme.isTV && children}
       {menu}
@@ -41,8 +42,14 @@ export function StickyBrowseHeader({name, switcher, menu, children, onLibraries,
  * 44 pt title with its switcher beside it, then Select and the library menu at
  * the right, and the pivot strip on the drawn hairline. The sidebar already says
  * where you are, so there is no back control. */
-export function LibraryExpandedHeader({name, switcher, menu, ambient, selection, children, testID}: {
-  name: string; switcher?: ReactNode; menu?: ReactNode; ambient?: ReactNode; selection?: ReactNode; children?: ReactNode; testID?: string;
+/** A library's counts under its title (final3-desktop-12, desktop-listen music and books). */
+function LibraryCounts({counts, style}: {counts?: readonly FactPart[]; style?: StyleProp<ViewStyle>}) {
+  const theme = useTheme();
+  return counts?.length ? <View style={[{flexDirection: 'row', flexWrap: 'wrap', gap: 12}, style]}>{counts.map(part => <Text key={part.id} style={[browseType(theme, theme.isTV ? 22 : 15), {color: theme.colors.textTertiary}]}>{part.text}</Text>)}</View> : null;
+}
+
+export function LibraryExpandedHeader({name, counts, switcher, menu, ambient, selection, children, testID}: {
+  name: string; counts?: readonly FactPart[]; switcher?: ReactNode; menu?: ReactNode; ambient?: ReactNode; selection?: ReactNode; children?: ReactNode; testID?: string;
 }) {
   const theme = useTheme(), insets = useSafeAreaInsets();
   return <View testID={testID} style={{paddingTop: insets.top, zIndex: theme.layers.sticky}}>
@@ -53,6 +60,7 @@ export function LibraryExpandedHeader({name, switcher, menu, ambient, selection,
       <View style={{width: 44, height: 44, borderRadius: 22, marginTop: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.text, .12)}}>{switcher}</View>
       <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{selection}{menu}</View>
     </View>
+    <LibraryCounts counts={counts} style={{paddingHorizontal: theme.gutter, marginTop: 8}}/>
     {children}
   </View>;
 }
@@ -60,8 +68,8 @@ export function LibraryExpandedHeader({name, switcher, menu, ambient, selection,
 /** tablet5 (moved from screens/library; BrowseFrame draws it): upright, the rail already says where you are, so the compact header
  * keeps the phone's 24 pt name and switcher but drops its back control; Select
  * and the library menu sit at the right, and the pivots scroll as on a phone. */
-export function LibraryMediumHeader({name, switcher, menu, selection, ambient, wash, children, testID}: {
-  name: string; switcher?: ReactNode; menu?: ReactNode; selection?: ReactNode; ambient?: ReactNode; wash?: boolean; children?: ReactNode; testID?: string;
+export function LibraryMediumHeader({name, counts, switcher, menu, selection, ambient, wash, children, testID}: {
+  name: string; counts?: readonly FactPart[]; switcher?: ReactNode; menu?: ReactNode; selection?: ReactNode; ambient?: ReactNode; wash?: boolean; children?: ReactNode; testID?: string;
 }) {
   const theme = useTheme(), insets = useSafeAreaInsets();
   return <View testID={testID} style={{paddingTop: insets.top, zIndex: theme.layers.sticky}}>
@@ -72,6 +80,7 @@ export function LibraryMediumHeader({name, switcher, menu, selection, ambient, w
       <View style={{width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.text, .12)}}>{switcher}</View>
       <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{selection}{menu}</View>
     </View>
+    <LibraryCounts counts={counts} style={{paddingHorizontal: 28, marginTop: 4}}/>
     {children}
   </View>;
 }

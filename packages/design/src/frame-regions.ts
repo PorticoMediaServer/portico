@@ -78,6 +78,7 @@ export const frameRegions = {
     {id: 'header.switcher', forms: all, from: ['desktop-browse grid (the round chevron)', 'phone-app 4, 4b (the centred name)', 'tablet 4', 'final3-tv-08 (title ▾)']},
     {id: 'header.back', forms: touch, from: ['phone-app 4 (‹ Libraries)', 'collections-46, -47 (See all)']},
     {id: 'header.trailing', forms: ['medium', 'expanded'], from: ['tablet 3, 4 (Select)', 'desktop-listen music (Shuffle)']},
+    {id: 'header.counts', forms: ['medium', 'expanded', 'tv'], from: ['final3-desktop-12-music-discover', 'desktop-listen music, songs, books']},
     {id: 'header.menu', forms: touch, from: ['phone-app 4c', 'desktop-browse grid (⋯)', 'tablet 3']},
     {id: 'header.intro', forms: touch, from: ['desktop-browse seeall (why these titles are here)', 'collections-46, -47']},
     {id: 'header.actions', forms: touch, from: ['desktop-browse seeall (Play, Shuffle)', 'collections-46, -47']},

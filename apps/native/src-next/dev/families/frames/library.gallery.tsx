@@ -11,7 +11,7 @@ import {BrowseToolbar, FilterBuilder, FilteredEmpty, LibraryMenu, LibrarySwitche
 import {CollectionTile, LiveCard, PosterCard, SquareCard, WideCard} from '../../../kit/cards';
 import {cardCaptionHeight} from '../../../kit/cards/caption-metrics';
 import {Button, KeyHints} from '../../../kit/controls';
-import {BrowseFrame, HomeHero} from '../../../kit/frames';
+import {BrowseFrame, HomeHero, browseGridCard} from '../../../kit/frames';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {AlphabetRail, Row, WindowedGrid, type HeroCandidate} from '../../../kit/layout';
 import {OwnerTag} from '../../../kit/shell';
@@ -74,9 +74,9 @@ function FiltersFields() {
 }
 
 /** The poster grid: the kit's WindowedGrid of PosterCards with title and year, and the A–Z rail beside it. */
-function useGrid(items: readonly Poster[] = posters) {
+function useGrid(items: readonly Poster[] = posters, filtersDocked = false) {
   const theme = useTheme(), frame = useFrameMetrics(), [visible, setVisible] = useState({first: 0, last: 0}), grid = useRef<React.ComponentRef<typeof WindowedGrid>>(null);
-  const width = theme.spec.card.width.poster[theme.column], caption = cardCaptionHeight(theme, 2);
+  const {width} = browseGridCard(frame, filtersDocked), caption = cardCaptionHeight(theme, 2);
   const positionIndex = useMemo(() => Object.fromEntries([...new Set(items.map(item => /^\d/.test(item.title) ? '#' : item.title[0]!.toUpperCase()))].map(key => [key, items.findIndex(item => (/^\d/.test(item.title) ? '#' : item.title[0]!.toUpperCase()) === key)])), [items]);
   const collection = useMemo(() => createWindowedCollection({pageSize: 40, maxResidentPages: 4, maxConcurrent: 1, keyOf: (item: Poster) => item.id,
     fetchPage: async (start, size) => ({items: items.slice(start, start + size), total: items.length, positionIndex})}), [items, positionIndex]);
@@ -170,8 +170,8 @@ function BrowseDiscover({kind = 'movie'}: {kind?: string}) {
 
 /** Filters open over (or docked beside) a filtered grid: applied chips with Clear all, and the count. */
 function BrowseFilters() {
-  const header = useLibraryHeader(), {toolbar, open, setOpen} = useToolbar(true);
-  const {grid, alphabet, start} = useGrid(animated);
+  const header = useLibraryHeader(), {toolbar, open, setOpen} = useToolbar(true), {form} = useFrameMetrics();
+  const {grid, alphabet, start} = useGrid(animated, open && form === 'expanded');
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-filters" startFocus={start} header={header} toolbar={toolbar} grid={grid} alphabet={alphabet}
     filters={{open, onClose: () => setOpen(false), onClear: none, onDone: () => setOpen(false), count: count(6), save: {canSave: true, onSave: none}, children: <FiltersFields/>}}/></Page>;
 }
@@ -179,7 +179,7 @@ function BrowseFilters() {
 /** The Collections tab: a grid of wide collection tiles with their film counts. */
 function BrowseCollections() {
   const theme = useTheme(), frame = useFrameMetrics(), header = useLibraryHeader({tab: 'collections'});
-  const width = theme.isTV ? 520 : Math.min(350, frame.width - frame.gutter - frame.rightGutter);
+  const room = frame.width - frame.gutter - frame.rightGutter, width = frame.form === 'phone' ? room : theme.isTV ? 520 : Math.min(350, room);
   const tiles = ([['dune', 'collectionDune', 'twoFilms', ['dune', 'dune-part-two']], ['alien', 'collectionAlien', 'twoFilms', ['alien', 'aliens']], ['avengers', 'collectionAvengers', 'fourFilms', ['avengers-endgame', 'avengers-infinity-war']], ['pixar', 'collectionToyStory', 'sixFilms', ['inside-out', 'incredibles-2', 'monsters-inc']]] as const);
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-collections" startFocus="dune" header={header}>
     <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.spec.shelf.gap[theme.column], paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
