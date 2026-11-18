@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- A playlist or a collection from Saved (collections frames 18 to 20): the mosaic, its name, how
-     many and how long, who made it; Play all and Shuffle; then its titles as rows in its own order.
+     many and how long, who made it; Play all, Shuffle, Pin (Pinned once it is) and More, which holds
+     the list's order, which titles show, and Pin or Unpin; then its titles as rows.
      OK on a row plays from it; * on a row opens its menu: Go to item, and for a list the viewer may
      change, Move up, Move down and Remove (a collection: Remove only). Renaming and deleting a list
      stay on a phone, tablet or computer (collections frame 20). -->
@@ -18,6 +19,7 @@
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Pins.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
     <Group id="cover">

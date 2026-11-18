@@ -299,7 +299,7 @@ def read_ts(expr, imports):
 # collide; a new entry goes in its alphabetical place.
 ICONS = {
     'book': [32],
-    'bookmark': [32],
+    'bookmark': [28, 32],
     'browser': [28],
     'check': [28],
     'chevronDown': [20, 24, 28],
