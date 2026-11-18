@@ -66,18 +66,18 @@ test('N2-3: the reader stays full screen on a tablet, and a phone has no rail', 
   assert.equal(phone.provider.props.value, 0);
 });
 
-// tablet-play6: while a page's side panel is open the expanded sidebar folds to the rail (the brand mark, no toggle),
+// tablet-play6: while a page's side panel is open the expanded sidebar folds to the rail (no toggle; every rail draws the
+// Portico mark itself, so the shell passes nothing for it),
 // and the page starts where that rail ends; it opens again when the panel closes. A medium window's rail is unchanged.
 test('an expanded tablet\'s sidebar folds to the rail while a page holds it, and the page moves to the rail\'s edge', async () => {
   const open = await shell(1180, 820, title, false);
-  assert.equal(open.rail.props.expanded, true); assert.equal(typeof open.rail.props.onToggle, 'function'); assert.equal(open.rail.props.brand, false);
+  assert.equal(open.rail.props.expanded, true); assert.equal(typeof open.rail.props.onToggle, 'function');
   assert.equal(open.left, 248);
   const held = await shell(1180, 820, title, true);
   assert.equal(held.rail.props.expanded, false, 'folded to the rail');
   assert.equal(held.rail.props.onToggle, undefined, 'no toggle while folded: the remembered choice is not touched');
-  assert.equal(held.rail.props.brand, true, 'the folded rail carries the brand mark, as tablet-play6 draws it');
   assert.equal(held.left, model.mediumRailMetrics.width);
   const medium = await shell(820, 1180, title, true);
-  assert.equal(medium.rail.props.expanded, false); assert.equal(medium.rail.props.brand, false); assert.equal(medium.rail.props.onToggle, undefined);
+  assert.equal(medium.rail.props.expanded, false); assert.equal(medium.rail.props.onToggle, undefined);
 });
 
