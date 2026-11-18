@@ -15,6 +15,7 @@ type QueueToCopy struct {
 	Start       int
 	ShuffleSeed *int64
 	Selection   string
+	Repeat      string
 }
 
 // CopyableQueue reads a queue of any profile of the viewer's account for the viewer to take
@@ -34,9 +35,9 @@ func (d *DB) CopyableQueue(ctx context.Context, v Viewer, publicID string) (Queu
 	var queueID, current int64
 	var seed sql.NullInt64
 	var selection sql.NullString
-	err = tx.QueryRowContext(ctx, `SELECT q.id, ifnull(q.current_entry_id, 0), q.shuffle_seed, q.selection FROM play_queues q
+	err = tx.QueryRowContext(ctx, `SELECT q.id, ifnull(q.current_entry_id, 0), q.shuffle_seed, q.selection, q.repeat FROM play_queues q
 		JOIN profiles p ON p.id = q.profile_id WHERE q.public_id = ? AND p.user_id = ?`, publicID, v.UserID).
-		Scan(&queueID, &current, &seed, &selection)
+		Scan(&queueID, &current, &seed, &selection, &out.Repeat)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
 	}
