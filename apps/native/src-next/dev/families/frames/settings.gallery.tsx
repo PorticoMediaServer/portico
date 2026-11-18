@@ -10,7 +10,7 @@ import {ProfileFace, ProfilePicker, type ProfileOption} from '../../../kit/artwo
 import {Artwork} from '../../../kit/artwork/Artwork';
 import {Icon} from '../../../kit/Icon';
 import {PosterCard} from '../../../kit/cards';
-import {PageStateFrame, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame} from '../../../kit/frames';
+import {PageStateFrame, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow} from '../../../kit/frames';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {Banner, MenuRow, Popover} from '../../../kit/overlays';
 import {OverlaysProvider} from '../../../kit/overlays/OverlayHost';
@@ -21,6 +21,7 @@ import {PhoneProfilePIN} from '../../../screens/accounts/PhoneProfilePIN';
 import {PhoneWhosWatching} from '../../../screens/accounts/PhoneWhosWatching';
 import {RememberProfileRow} from '../../../screens/accounts/RememberProfileRow';
 import {DownloadsStillPlay} from '../../../kit/states/DownloadsStillPlay';
+import {TVSwitchRow} from '../../../screens/settings-live/server/TVSettingRows';
 import {useTheme} from '../../../kit/theme';
 import type {IconName} from '../../../kit/Icon';
 import type {Gallery} from '../../gallery-registry';
@@ -37,6 +38,13 @@ const none = () => {};
 const profile = {id: 'demo', name: f('profileName'), initial: f('profileName')[0]!, color: 'blue' as const};
 const skipOptions = [{value: 'ask', label: fx('ask')}, {value: 'auto', label: f('skipAuto')}, {value: 'off', label: f('never')}];
 
+/** A switch row: the switch beside the label on touch; on TV the row is the focus stop and OK flips it (the TV
+ * Settings' own `TVSwitchRow`). */
+function SwitchRow({label, help, on, onChange, first, dependent}: {label: string; help?: string; on: boolean; onChange: (on: boolean) => void; first?: boolean; dependent?: boolean}) {
+  const theme = useTheme();
+  return theme.isTV ? <TVSwitchRow testID={label} label={label} description={help} checked={on} dependent={dependent} onChange={onChange}/>
+    : <SettingsRow first={first} dependent={dependent} label={label} description={help} control={<Switch checked={on} onCheckedChange={onChange} accessibilityLabel={label}/>}/>;
+}
 /** desktop-settings f1, phone-app 18, tablet f12: Saved, section help, a switch with dependent rows, values, the choice
  * matrix with Changed and Reset. */
 function PlaybackSections() {
@@ -44,9 +52,9 @@ function PlaybackSections() {
   const [skips, setSkips] = useState<Record<string, string>>({intros: 'ask', credits: 'ask', recaps: 'auto'});
   return <>
     <SectionCard label={fx('nextEpisode')}>
-      <SettingsRow first label={fx('autoplay')} control={<Switch checked={autoplay} onCheckedChange={setAutoplay} accessibilityLabel={fx('autoplay')}/>}/>
+      <SwitchRow first label={fx('autoplay')} on={autoplay} onChange={setAutoplay}/>
       <SettingsRow dependent continuesBranch label={fx('wait')} description={fx('waitHelp')} value={fx('waitValue')} onPress={none}/>
-      <SettingsRow dependent label={f('creditsRow')} control={<Switch checked={credits} onCheckedChange={setCredits} accessibilityLabel={f('creditsRow')}/>}/>
+      <SwitchRow dependent label={f('creditsRow')} on={credits} onChange={setCredits}/>
       <SettingsRow label={f('stillWatching')} description={f('stillWatchingHelp')} value={f('afterThree')} onPress={none}/>
     </SectionCard>
     <SectionCard label={fx('skipping')} help={f('skippingHelp')}>
@@ -98,6 +106,49 @@ function SettingsOwner() {
   const {form} = useFrameMetrics(), [page, setPage] = useState<string | undefined>('people');
   return <Window><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}}
     list={<Index selected="people" onOpen={setPage}/>} page={page || form !== 'phone' ? <OwnerPage back={() => setPage(undefined)}/> : undefined}/></Window>;
+}
+/** The owner's Integrations page (owner-server 16, 23, phone 38-40) with its two switches (definition 13 rules 33 and 37;
+ * client-core `IntegrationSwitchesSource`): the Jellyfin-compatible routes and Assistants, each off until the owner turns
+ * it on. No mock-up draws the switches: they lead the Assistants tab as one "Connections" section of switch rows. A save
+ * the server refused leaves the switch as it was and says so as rule 9's error row in that section (`failed`). */
+function IntegrationsPage({failed = false, back}: {failed?: boolean; back?: () => void}) {
+  const [tab, setTab] = useState('assistants'), {form} = useFrameMetrics(), [routes, setRoutes] = useState(true), [assistants, setAssistants] = useState(!failed);
+  return <SettingsPageFrame title={f('integrations')} back={back ? {label: t('next.shell.settings'), onPress: back} : undefined} intro={f('integrationsIntro')}
+    server={<ServerHeader serverName={fx('serverName')} viewerRole="owner" audience="owner" variant={form === 'phone' ? 'phone' : 'page'}/>}
+    tabs={<Tabs value={tab} onValueChange={setTab} items={[{value: 'keys', label: f('apiKeys')}, {value: 'tokens', label: f('memberTokens')}, {value: 'webhooks', label: `${f('webhooks')} 1`}, {value: 'assistants', label: t('api.mcp.tab')}]}/>}>
+    <SectionCard label={f('connections')}>
+      <SwitchRow first label={f('compatibleRoutes')} help={f('compatibleRoutesHelp')} on={routes} onChange={setRoutes}/>
+      <SwitchRow label={f('assistantsSwitch')} help={f('assistantsHelp')} on={assistants} onChange={setAssistants}/>
+      {failed && <StateRow kind="error" icon="i-warn" title={f('notSaved')} reason={f('notSavedReason')} action={{label: fx('tryAgain'), onPress: none}}/>}
+    </SectionCard>
+    <SectionCard label={t('api.mcp.title')} help={t('api.mcp.lede')}>
+      <SettingsRow first label={t('api.mcp.address')} description={[t('api.mcp.addressHelp'), f('assistantAddressValue')]} control={<Button variant="glass" size="small" icon="i-copy" onPress={none}>{t('web.twoStep.copy')}</Button>}/>
+      <SettingsRow label={t('api.mcp.key')} description={t('api.mcp.keyHelp')} navigates value={t('next.settingsSpec.server.integrations.groups.2.rows.1.control.label')} onPress={none}/>
+    </SectionCard>
+  </SettingsPageFrame>;
+}
+function SettingsIntegrations({failed = false}: {failed?: boolean}) {
+  const {form} = useFrameMetrics(), [page, setPage] = useState<string | undefined>('integrations');
+  return <Window><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}}
+    list={<Index selected="integrations" onOpen={setPage}/>} page={page || form !== 'phone' ? <IntegrationsPage failed={failed} back={() => setPage(undefined)}/> : undefined}/></Window>;
+}
+/** The two-step code box (security STATUS "Needs the visual rebuild"; account-10 frames 3 and 4, account-31 frame 3): a
+ * signed-in person whose sign-in has not shown a code is asked for one before a guarded action (approving a TV, creating
+ * a key). A short task by R9 over the page it guards: the six boxes, "Lost your phone? Use a recovery code" (which swaps
+ * the boxes for the recovery field), Continue once six digits are in. `refused`: the code was wrong. */
+function TwoStepBox({refused = false}: {refused?: boolean}) {
+  const theme = useTheme(), [code, setCode] = useState(refused ? '482913' : '482'), [recovery, setRecovery] = useState(false);
+  const ready = recovery ? Boolean(code.trim()) : /^\d{6}$/.test(code), swap = () => {setCode(''); setRecovery(!recovery);};
+  return <OverlaysProvider><Window><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings')}} list={<Index selected="integrations" onOpen={none}/>} page={<IntegrationsPage/>}/></Window>
+    <SheetFrame kind="task" task="task" open onOpenChange={none} title={t(recovery ? 'services.signin.recovery' : 'web.direct.codeTitle')} action={{label: t('action.continue'), disabled: !ready, onPress: none}}>
+      <View style={{gap: theme.space.sm, paddingHorizontal: 16}}>
+        <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{t(recovery ? 'services.signin.recoveryBody' : 'services.signin.twoStep')}</Text>
+        {recovery ? <TextField label={t('accounts.signIn.recoveryCode')} placeholder={t('services.recovery.codePlaceholder')} value={code} onChangeText={setCode} invalid={refused}/>
+          : <PhonePINEntry length={6} label={t('web.twoStep.code')} value={code} onChange={setCode} error={refused} autoFocus={false}/>}
+        {refused && <Text accessibilityRole="alert" style={[theme.type.rowHelp, {color: theme.colors.danger}]}>{f('codeWrong')}</Text>}
+        <RecoveryLine recovery={recovery} onPress={swap}/>
+      </View>
+    </SheetFrame></OverlaysProvider>;
 }
 /** A settings page shown alone (tablets SC-8): Back, the gutter and the page's column limit. */
 const SettingsAlone = () => <Page destination={{kind: 'settings'}}><OwnerPage back={none}/></Page>;
@@ -178,9 +229,10 @@ function SignInCode() {
     <Links><Button variant="link" onPress={none}>{t('auth.backToSignIn')}</Button></Links>
   </SignInFrame></Window>;
 }
-function RecoveryLine() {
+/** "Lost your phone? Use a recovery code", or the way back to the authenticator code. */
+function RecoveryLine({recovery = false, onPress = none}: {recovery?: boolean; onPress?: () => void}) {
   const theme = useTheme();
-  return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4}}><Text style={[theme.type.rowHelp]}>{t('services.signin.lostPhone')}</Text><Button variant="link" size="compact" onPress={none}>{t('services.signin.recovery')}</Button></View>;
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4}}>{!recovery && <Text style={[theme.type.rowHelp]}>{t('services.signin.lostPhone')}</Text>}<Button variant="link" size="compact" onPress={onPress}>{t(recovery ? 'services.signin.authenticator' : 'services.signin.recovery')}</Button></View>;
 }
 const SignInPortico = () => <Window><SignInFrame kicker={t('accounts.signIn.to')} title={f('serverName')} lede={t('accounts.signIn.handoffReturnBody')} terms={<Terms/>}>
   <Button align="stretch" variant="primary" onPress={none}>{t('accounts.signIn.handoff')}</Button>
@@ -253,11 +305,15 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-settings-search', title: 'next.platform.frame.settingsList', render: () => <SettingsIndex search/>, ...whole},
   {id: 'frames-settings-owner', title: 'next.platform.frame.settingsPage', render: SettingsOwner, ...whole},
   {id: 'frames-settings-alone', title: 'next.platform.frame.settingsPage', render: SettingsAlone, ...whole},
+  {id: 'frames-settings-integrations', title: 'next.platform.frame.settingsPage', render: () => <SettingsIntegrations/>, ...whole},
+  {id: 'frames-settings-integrations-failed', title: 'next.platform.frame.settingsPage', render: () => <SettingsIntegrations failed/>, ...whole},
   {id: 'frames-overlay-task', title: 'next.platform.frame.sheet', render: OverlayTask, platforms: touch, ...whole},
   {id: 'frames-overlay-confirm', title: 'next.platform.frame.sheet', render: OverlayConfirm, platforms: touch, ...whole},
   {id: 'frames-overlay-details', title: 'next.platform.frame.sheet', render: OverlayDetails, platforms: touch, ...whole},
   {id: 'frames-overlay-actions', title: 'next.platform.frame.sheet', render: OverlayActions, platforms: touch, ...whole},
   {id: 'frames-overlay-choice', title: 'next.platform.frame.sheet', render: OverlayChoice, platforms: touch, ...whole},
+  {id: 'frames-overlay-two-step', title: 'next.platform.frame.sheet', render: () => <TwoStepBox/>, platforms: touch, ...whole},
+  {id: 'frames-overlay-two-step-refused', title: 'next.platform.frame.sheet', render: () => <TwoStepBox refused/>, platforms: touch, ...whole},
   {id: 'frames-sign-in-server', title: 'next.platform.frame.signIn', render: () => <SignInServer/>, platforms: touch, ...whole},
   {id: 'frames-sign-in-locked', title: 'next.platform.frame.signIn', render: () => <SignInServer locked/>, platforms: touch, ...whole},
   {id: 'frames-sign-in-code', title: 'next.platform.frame.signIn', render: SignInCode, platforms: touch, ...whole},

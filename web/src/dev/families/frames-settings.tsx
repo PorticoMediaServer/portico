@@ -7,11 +7,11 @@ import {shellFixtures, shellReference as sample} from '../../../../packages/i18n
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
 import {Button, Select, Switch, Tabs, TextField} from '../../kit/controls';
 import {Segmented} from '../../kit/controls/Choices';
-import {PageStateFrame, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame} from '../../kit/frames';
+import {PageStateFrame, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, StateRow} from '../../kit/frames';
 import {MenuGroup, MenuItem, MenuSeparator, Popover} from '../../kit/overlays';
 import {useFrameForm} from '../../kit/overlays';
 import {LocalServerSignIn, PorticoServerSignIn, ServerProfilePIN, ServerProfiles} from '../../kit/accounts';
-import {ServerChallenge} from '../../kit/accounts/ServerChallenge';
+import {ServerChallenge, TwoStepCode, twoStepReady} from '../../kit/accounts/ServerChallenge';
 import {AccountMenu, ChoiceMatrix, DefaultHint, DeviceRow, NotificationItem, PersonRow, ProfileAvatar, ServerHeader, SettingsNav, SettingsProfileCard, SettingsRow, ShortcutTiles, SubtitlePreview, type ShellAction} from '../../kit/shell';
 import {NotificationsPanel} from '../../kit/shell/NotificationsPanel';
 import {SettingsAdvanced} from '../../kit/settings/SettingsGroups';
@@ -109,6 +109,50 @@ function SettingsOwner() {
 }
 /** A settings page shown alone (tablets SC-8): Back, the gutter and the page's column limit. */
 const SettingsAlone = () => <Page current="settings"><OwnerPage back={none} /></Page>;
+
+/** The owner's Integrations page (owner-server 16, 23, phone 38-40) with its two switches (definition 13 rules 33 and 37;
+ * client-core `IntegrationSwitchesSource`): the Jellyfin-compatible routes and Assistants, each off until the owner turns
+ * it on. No mock-up draws the switches: they lead the Assistants tab as one "Connections" section of switch rows. A save
+ * the server refused leaves the switch as it was and says so as rule 9's error row in that section (`failed`). */
+function IntegrationsSections({failed = false}: {failed?: boolean}) {
+  const [routes, setRoutes] = useState(true), [assistants, setAssistants] = useState(!failed);
+  return <>
+    <SectionCard label={f('connections')}>
+      <SettingsRow label={f('compatibleRoutes')} help={f('compatibleRoutesHelp')}><Switch checked={routes} onCheckedChange={setRoutes} aria-label={f('compatibleRoutes')} /></SettingsRow>
+      <SettingsRow label={f('assistantsSwitch')} help={f('assistantsHelp')}><Switch checked={assistants} onCheckedChange={setAssistants} aria-label={f('assistantsSwitch')} /></SettingsRow>
+      {failed && <StateRow kind="error" icon="i-warn" title={f('notSaved')} reason={f('notSavedReason')} action={{label: fx('tryAgain'), onPress: none}} />}
+    </SectionCard>
+    <SectionCard label={t('api.mcp.title')} help={t('api.mcp.lede')}>
+      <SettingsRow stacked label={t('api.mcp.address')} help={t('api.mcp.addressHelp')}><div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-sm)'}}><code style={{overflowWrap: 'anywhere'}}>{f('assistantAddressValue')}</code><Button size="xs" icon="i-copy" onClick={none}>{t('web.twoStep.copy')}</Button></div></SettingsRow>
+      <SettingsRow label={t('api.mcp.key')} help={t('api.mcp.keyHelp')}><Button size="xs" onClick={none}>{t('next.settingsSpec.server.integrations.groups.2.rows.1.control.label')}</Button></SettingsRow>
+    </SectionCard>
+  </>;
+}
+function IntegrationsPage({failed = false, back}: {failed?: boolean; back?: () => void}) {
+  const [tab, setTab] = useState('assistants');
+  return <SettingsPageFrame title={f('integrations')} back={back ? {label: t('next.shell.settings'), onPress: back} : undefined} intro={f('integrationsIntro')}
+    server={<ServerHeader serverName={serverName} viewerRole="owner" audience="owner" health="normal" facts={serverFacts} />}
+    tabs={<Tabs aria-label={f('integrations')} value={tab} onValueChange={setTab} items={[{value: 'keys', label: f('apiKeys')}, {value: 'tokens', label: f('memberTokens')}, {value: 'webhooks', label: `${f('webhooks')} 1`}, {value: 'assistants', label: t('api.mcp.tab')}]} />}>
+    <IntegrationsSections failed={failed} /></SettingsPageFrame>;
+}
+function SettingsIntegrations({failed = false}: {failed?: boolean}) {
+  const phone = useFrameForm() === 'phone', [page, setPage] = useState<string | undefined>('integrations');
+  return <Page current="settings"><SettingsListFrame bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}}
+    list={<Index selected="integrations" onOpen={setPage} />} page={page || !phone ? <IntegrationsPage failed={failed} back={() => setPage(undefined)} /> : undefined} /></Page>;
+}
+
+/** The two-step code box (security STATUS "Needs the visual rebuild"; account-10 frames 3 and 4, account-31 frame 3): a
+ * signed-in person whose sign-in has not shown a code is asked for one before a guarded action (approving a TV, creating
+ * a key). A short task by R9 over the page it guards: the six boxes, "Lost your phone? Use a recovery code" (which swaps
+ * the boxes for the recovery field), Continue once six digits are in. `refused`: the code was wrong. */
+function TwoStepBox({refused = false}: {refused?: boolean}) {
+  const [code, setCode] = useState(refused ? '482913' : '482'), [recovery, setRecovery] = useState(false);
+  return <Page current="settings"><SettingsListFrame bar={{title: t('next.shell.settings')}} list={<Index selected="integrations" onOpen={none} />} page={<IntegrationsPage />} />
+    <SheetFrame open onOpenChange={none} task="task" title={t(recovery ? 'services.signin.recovery' : 'web.direct.codeTitle')} action={{label: t('action.continue'), disabled: !twoStepReady(code, recovery), onPress: none}}>
+      <p>{t(recovery ? 'services.signin.recoveryBody' : 'services.signin.twoStep')}</p>
+      <TwoStepCode value={code} onChange={setCode} recovery={recovery} onRecoveryChange={setRecovery} error={refused ? f('codeWrong') : undefined} />
+    </SheetFrame></Page>;
+}
 
 /** Every overlay task over a real page: the Settings page, or a library row whose card opened the menu. */
 function OverPage({children, settings = false}: {children: ReactNode; settings?: boolean}) {
@@ -220,8 +264,10 @@ export default defineGalleryFamily({id: 'frames-settings', labelKey: 'next.platf
   section('settings-search', 'settingsList', () => <SettingsList search />),
   section('settings-owner', 'settingsPage', SettingsOwner),
   section('settings-alone', 'settingsPage', SettingsAlone),
+  section('settings-integrations', 'settingsPage', () => <SettingsIntegrations />, 1180), section('settings-integrations-failed', 'settingsPage', () => <SettingsIntegrations failed />),
   section('overlay-task', 'sheet', TaskSheet), section('overlay-confirm', 'sheet', ConfirmSheet), section('overlay-details', 'sheet', DetailsSheet),
   section('overlay-actions', 'sheet', ActionsMenu), section('overlay-choice', 'sheet', ChoicePopover),
+  section('overlay-two-step', 'sheet', () => <TwoStepBox />), section('overlay-two-step-refused', 'sheet', () => <TwoStepBox refused />),
   section('sign-in-server', 'signIn', SignInServer), section('sign-in-locked', 'signIn', SignInLocked), section('sign-in-code', 'signIn', SignInCode), section('sign-in-portico', 'signIn', SignInPortico),
   section('whos-watching', 'signIn', WhosWatching), section('profile-pin', 'signIn', ProfilePIN),
   section('account-menu', 'sheet', Account), section('notifications', 'sheet', Notifications),
