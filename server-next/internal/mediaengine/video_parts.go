@@ -11,13 +11,15 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
 )
 
-// A film or episode in several files is one stream, with the version's clock.
-func (e *Engine) videoParts(ctx context.Context, r playback.PlanRequest, remoteID int64) ([]streaming.JoinedPart, error) {
+// A film or episode in several files is one stream, with the version's clock. When its
+// files cannot be joined, the first plays alone and the notice tells the person so.
+func (e *Engine) videoParts(ctx context.Context, r playback.PlanRequest, remoteID int64) ([]streaming.JoinedPart, string, error) {
 	if (r.Item.Kind != db.KindMovie && r.Item.Kind != db.KindEpisode) || len(r.Version.Parts) < 2 {
-		return nil, nil
+		return nil, "", nil
 	}
+	only := fmt.Sprintf("Only part 1 of %d can play.", len(r.Version.Parts))
 	if remoteID != 0 {
-		return nil, nil
+		return nil, only, nil
 	}
 	parts := make([]streaming.JoinedPart, 0, len(r.Version.Parts))
 	for _, part := range r.Version.Parts {
@@ -25,20 +27,20 @@ func (e *Engine) videoParts(ctx context.Context, r playback.PlanRequest, remoteI
 		version.FileID = part.FileID
 		path, place, partRemoteID, facts, err := e.source(ctx, version)
 		if err != nil || partRemoteID != 0 {
-			return nil, nil
+			return nil, only, nil
 		}
 		length := place.DurationMS
 		if length <= 0 {
 			length = int64(facts.Duration * 1000)
 		}
 		if length <= 0 {
-			return nil, nil
+			return nil, only, nil
 		}
 		var shape strings.Builder
 		for _, s := range facts.Streams {
 			if s.Type == "audio" || s.Type == "video" {
 				if s.TimeBase == "" || s.CodecSetupSize > 0 && s.CodecSetupHash == "" {
-					return nil, nil
+					return nil, only, nil
 				}
 				// The selected track maps by index, not descriptive metadata.
 				fmt.Fprintln(&shape, s.Index, s.Type, s.Codec)
@@ -56,7 +58,7 @@ func (e *Engine) videoParts(ctx context.Context, r playback.PlanRequest, remoteI
 	// The mixed-part filter joins sound only. Until video conversion and remote
 	// joining support these parts, preserve the existing first-file playback.
 	if streaming.PartsDiffer(parts) {
-		return nil, nil
+		return nil, fmt.Sprintf("Only part 1 of %d can play: the parts are encoded differently.", len(r.Version.Parts)), nil
 	}
-	return parts, nil
+	return parts, "", nil
 }

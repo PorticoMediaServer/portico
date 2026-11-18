@@ -183,7 +183,8 @@ func TestASplitVideoPlaysBothParts(t *testing.T) {
 }
 
 // Descriptive stream titles do not prevent copying. A genuinely different
-// layout retains main's playable first file until mixed video joining lands.
+// layout retains main's playable first file until mixed video joining lands,
+// and the person is told that only part 1 plays.
 func TestSplitVideoTitlesJoinAndDifferentLayoutsKeepPlaying(t *testing.T) {
 	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
 	h, d := newHouse(t, ffmpeg, ffprobe)
@@ -243,9 +244,12 @@ func TestSplitVideoTitlesJoinAndDifferentLayoutsKeepPlaying(t *testing.T) {
 			t.Fatal(err)
 		}
 		played := h.listen(t, session.Presentation.URL, ffmpeg, ffprobe)
-		want := 16.0
+		want, notice := 16.0, ""
 		if differentLayout {
-			want = 8
+			want, notice = 8, "Only part 1 of 2 can play: the parts are encoded differently."
+		}
+		if session.Presentation.Notice != notice {
+			t.Fatalf("different layout=%v: notice %q, want %q", differentLayout, session.Presentation.Notice, notice)
 		}
 		if math.Abs(played.seconds-want) > 0.4 {
 			t.Fatalf("different layout=%v: delivered %.3f seconds, want %.0f", differentLayout, played.seconds, want)
