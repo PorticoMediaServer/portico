@@ -106,6 +106,9 @@ type Job struct {
 	Fonts bool
 	// Background work (scans, analysis, prepared versions) runs at low priority.
 	Background bool
+	// Waiting is a short read someone is waiting on (the facts read when Play is pressed): it
+	// runs at the server's own priority, ahead of conversions, as the server's own work does.
+	Waiting bool
 	// MaxFileBytes bounds each regular file the process writes: 0 means
 	// DefaultOutputBytes when there are WriteDirs and NoOutputFiles otherwise.
 	MaxFileBytes int64
@@ -138,7 +141,9 @@ func Command(job Job) (*exec.Cmd, error) {
 	}
 	cmd := exec.Command(argv[0], argv[1:]...)
 	finish(cmd, job.Files, job.Fonts)
-	lowerPriority(cmd, job.Background)
+	if !job.Waiting {
+		lowerPriority(cmd, job.Background)
+	}
 	return cmd, nil
 }
 
@@ -151,7 +156,9 @@ func CommandContext(ctx context.Context, job Job) (*exec.Cmd, error) {
 	}
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	finish(cmd, job.Files, job.Fonts)
-	lowerPriority(cmd, job.Background)
+	if !job.Waiting {
+		lowerPriority(cmd, job.Background)
+	}
 	return cmd, nil
 }
 

@@ -44,10 +44,13 @@ func execShim(spec shimSpec, inner []string) error {
 			return fmt.Errorf("media process CPU limit: %w", err)
 		}
 	}
-	if spec.Background {
+	switch {
+	case spec.Waiting:
+		// Someone is waiting on this short read: it keeps the server's own priority.
+	case spec.Background:
 		// Background work yields to viewers; it is never paused.
 		_ = unix.Setpriority(unix.PRIO_PROCESS, 0, backgroundNice)
-	} else {
+	default:
 		// A viewer's conversion yields to the server itself: with the processor full of
 		// conversions, pages, sign-ins and played-as-is files must not wait behind them.
 		// The server needs little, so a conversion loses almost nothing (load proof, 18 Nov).
