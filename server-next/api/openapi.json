@@ -14954,6 +14954,120 @@
         ],
         "type": "object"
       },
+      "TopShelf": {
+        "properties": {
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/TopShelfSection"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sections"
+        ],
+        "type": "object"
+      },
+      "TopShelfEntry": {
+        "properties": {
+          "displayUrl": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "playUrl": {
+            "type": "string"
+          },
+          "progressPercent": {
+            "type": "integer"
+          },
+          "showTitle": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "imageUrl",
+          "displayUrl"
+        ],
+        "type": "object"
+      },
+      "TopShelfSection": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TopShelfEntry"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "titleText": {
+            "$ref": "#/components/schemas/TopShelfText"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "titleText",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "TopShelfText": {
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
+      "TopShelfToken": {
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "feedUrl": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "expiresAt",
+          "feedUrl"
+        ],
+        "type": "object"
+      },
+      "TopShelfTokenRequest": {
+        "properties": {
+          "installationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "installationId"
+        ],
+        "type": "object"
+      },
       "TrashEmptied": {
         "properties": {
           "removed": {
@@ -31442,6 +31556,83 @@
         "x-access": "withProfile",
         "x-audience": "Integrations",
         "x-scope": "read"
+      }
+    },
+    "/v1/topshelf": {
+      "get": {
+        "operationId": "get_v1_topshelf",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopShelf"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
+      }
+    },
+    "/v1/topshelf/token": {
+      "post": {
+        "operationId": "post_v1_topshelf_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopShelfTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopShelfToken"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     }
   },
