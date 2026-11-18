@@ -15,9 +15,7 @@ export function libraryChannelUpload(context: ShellAssemblyContext, isCurrent: (
     if (!current() || signal.aborted) throw {code: 'cancelled'};
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(channelId) || file.size <= 0 || file.size > 10 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) throw {code: 'invalid_request'};
     try {
-      const token = context.session().accessToken;
-      if (!current() || signal.aborted) throw {code: 'cancelled'};
-      const response = await uploadOwnerChannelLogo(context.api, channelId, token, file, signal);
+      const response = await uploadOwnerChannelLogo(context.api, channelId, file, signal);
       if (!current() || signal.aborted) {await response.body?.cancel();throw {code: 'cancelled'};}
       if (!response.ok) {await response.body?.cancel();throw {code: response.status === 401 ? 'unauthorized' : response.status === 403 ? 'not_permitted' : 'write_failed', status: response.status};}
       const result = await response.json() as LibraryChannel;
