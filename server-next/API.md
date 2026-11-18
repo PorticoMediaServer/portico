@@ -544,7 +544,8 @@ also refused whenever and wherever that person could not sign in (outside viewin
 from home for an account limited to home, a blocked network, an account turned off or
 waiting). After that a tool uses the same routes as the apps, within what its key may do
 (Read, Play, Libraries, Administer). No key can make, change or revoke keys, change a
-password, PIN or two-step sign-in, change who is owner or administrator, or restore a backup.
+password, PIN, two-step sign-in or the sign-in settings, change who is owner or administrator,
+or restore a backup.
 
 | Route | Who | Purpose |
 |---|---|---|

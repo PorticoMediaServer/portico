@@ -36,6 +36,7 @@ func TestKeysCannotChangeWhoMaySignIn(t *testing.T) {
 		{"DELETE", "/v1/admin/members/" + sam.ID, nil},
 		{"PATCH", "/v1/admin/members/" + sam.ID, MemberEdit{Disabled: &yes}},
 		{"PATCH", "/v1/admin/members/" + pat.ID, MemberEdit{Disabled: &no}},
+		{"PUT", "/v1/admin/settings/sign-in", map[string]string{"requireTwoStep": "nobody"}},
 	} {
 		var refused errorBody
 		if w := call(t, s, c.method, c.path, key.Secret, c.body, &refused); w.Code != 403 || refused.Error.Code != "session_required" {
