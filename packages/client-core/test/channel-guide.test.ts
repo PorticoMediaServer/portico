@@ -129,20 +129,12 @@ test('one channel, programme or source that cannot be read is left out and the r
  assert.equal(guide.sources.length,1);assert.equal(guide.state,'ready');
  const over:any=fixture();over.guide.channels=Array(51).fill(over.guide.channels[0]);assert.throws(()=>parseChannelGuide(over,'server',route),'the bound on channels is exact');
 });
-test('favorite mutation binds exact profile-scoped revision and verifies server response',async()=>{
+test('a favourite is the profile\'s channel marks on the rebuilt server',async()=>{
  const {saveChannelPreference}=await import('../src/channel-guide.ts');const channel=parseChannelGuide(fixture(),'server',route).channels[0];
- let sent:unknown;let path='';let response:unknown={protocolVersion:'1.0',serverId:'server',revision:1};
- const api:ChannelApi={request:async<T>(p,_method,body)=>{path=p;sent=body;return response as T}};
- assert.equal(await saveChannelPreference(api,'server',channel,'same-operation',{favorite:true,hidden:false}),1);
- assert.equal(path,'/v1/channels/preferences');assert.deepEqual(sent,{requestId:'same-operation',sourceId:'source',channelId:'channel',expectedRevision:0,favorite:true,hidden:false});
- response={protocolVersion:'1.0',serverId:'other-server',revision:1};await assert.rejects(saveChannelPreference(api,'server',channel,'same-operation',{favorite:true,hidden:false}));
- response={protocolVersion:'1.0',serverId:'server',revision:0};await assert.rejects(saveChannelPreference(api,'server',channel,'same-operation',{favorite:true,hidden:false}));
-});
-test('operation identifiers require two valid secure UUID results',async()=>{
- const {channelOperationId}=await import('../src/channel-guide.ts');let calls=0;
- const id=await channelOperationId(async()=>{calls++;return '12345678-1234-4123-8123-123456789abc'});
- assert.equal(calls,2);assert.match(id,/^[0-9a-f]{48}$/);
- await assert.rejects(channelOperationId(async()=> 'untrusted-random-value'));
+ const sent:unknown[]=[];
+ const api:ChannelApi={request:async<T>(p:string,method?:string,body?:unknown)=>{sent.push([method,p,body]);return {favorite:true,hidden:false} as T}};
+ await saveChannelPreference(api,channel,{favorite:true,hidden:false});
+ assert.deepEqual(sent,[['PUT','/v1/live/channels/channel/state',{favorite:true,hidden:false}]]);
 });
 
 test('FEAT-04: group chips rank the top groups by count (ties keep server order)',()=>{
