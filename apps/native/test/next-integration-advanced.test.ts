@@ -19,7 +19,7 @@ async function fixture(refuse = false) {
     if (method === 'PUT') kept = {...kept, ...body};
     return kept;
   }}};
-  class Lifetime {live = true; current = () => this.live; dispose() {this.live = false;} request<T>(work: (signal: AbortSignal) => Promise<T>) {return work(new AbortController().signal);}}
+  class Lifetime {live = true; private abort = new AbortController(); signal = this.abort.signal; current = () => this.live; dispose() {this.live = false; this.abort.abort();}}
   const {NativeIntegrationAdvanced} = await screenModule(new URL('../src-next/screens/settings-live/server/integrations/Advanced.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'},
     '../../../../../../../packages/client-core/src/server-admin/integration-switches': {IntegrationSwitchesSource},

@@ -18,8 +18,9 @@ export function NativeIntegrationAdvanced({ports, runtime}: {ports: NativeSettin
   const [source, setSource] = useState<IntegrationSwitchesSource>();
   useLayoutEffect(() => {
     const lifetime = new NativeScreenLifetime(context);
-    const next = new IntegrationSwitchesSource({request: <T,>(path: string, method?: string, body?: unknown, caller?: AbortSignal) =>
-      lifetime.request(signal => context.api.request<T>(path, method, body, signal), caller)}, lifetime.current);
+    // The source owns its requests; when this server's sign-in changes, the lifetime ends and so does the source.
+    const next = new IntegrationSwitchesSource(context.api, lifetime.current);
+    lifetime.signal.addEventListener('abort', () => next.dispose(), {once: true});
     setSource(next); void next.load();
     return () => {next.dispose(); lifetime.dispose();};
   }, [context]);
