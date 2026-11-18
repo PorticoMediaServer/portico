@@ -196,7 +196,8 @@ sub onContent()
             setType(m.title, "episodeTitle", c.text)
             setType(m.sub, "cardSubtitle", c.textSecondary)
             m.title.translation = [0, m.h + 26]
-            if m.title.boundingRect().height > 44 then m.sub.translation = [0, m.h + 88] else m.sub.translation = [0, m.h + 58]
+            ' the episode's number sits under the title however many lines it takes, with the same gap
+            m.sub.translation = [0, m.h + 26 + m.title.boundingRect().height + 4]
         end if
     end if
     m.track.translation = [20, m.h - 24]
