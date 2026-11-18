@@ -19,6 +19,7 @@
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Servers.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Address.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Dialog.brs"/>
   <children>
