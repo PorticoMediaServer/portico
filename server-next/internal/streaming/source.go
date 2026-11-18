@@ -59,11 +59,24 @@ func (f libraryFile) Open(ctx context.Context) (io.ReadSeekCloser, int64, time.T
 	return file, info.Size(), info.ModTime(), nil
 }
 
+// DiscSource is the main feature of a film disc, opened as the converter is given it (the
+// disc's StartRequest.Disc), for reading a track out of it: it is never read by range.
+func DiscSource(open func() (*PlaybackInput, error)) Source { return discSource(open) }
+
+type discSource func() (*PlaybackInput, error)
+
+func (discSource) Open(context.Context) (io.ReadSeekCloser, int64, time.Time, error) {
+	return nil, 0, time.Time{}, ErrSourceUnavailable
+}
+
 // converterInput opens a source the way ffmpeg can be given it: as an open
 // descriptor on Unix, by path on Windows.
 func converterInput(ctx context.Context, source Source) (*PlaybackInput, error) {
 	if source == nil {
 		return nil, ErrSourceUnavailable
+	}
+	if open, ok := source.(discSource); ok {
+		return open()
 	}
 	opened, _, _, err := source.Open(ctx)
 	if err != nil {
