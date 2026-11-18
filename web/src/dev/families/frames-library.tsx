@@ -55,7 +55,7 @@ function useToolbar(filtered: boolean, total = filtered ? 6 : 80) {
   const model = useMemo(() => browseToolbarModel(capabilities, 'movie', predicates, sort, env), [predicates, sort]);
   const chips = model.applied.flatMap((node, index) => 'field' in node ? [{id: String(index), parts: appliedFilterParts(node, id => labels.field(capabilities.fields.find(entry => entry.id === id) ?? {id, labelKey: id} as BrowseCapabilities['fields'][number]), env,
     value => typeof value === 'number' ? t('next.kit.filter.decade', {year: String(value)}) : String(value))}] : []);
-  const toolbar = <BrowseToolbar model={model} labels={labels} platform={phone ? 'phone' : 'desktop'} resultCount={count(total)} filtersOpen={open} onFilters={() => setOpen(true)} onSortChange={setSort} topInset={0}
+  const toolbar = <BrowseToolbar model={model} labels={labels} platform={phone ? 'phone' : 'desktop'} resultCount={count(total)} resultTotal={total} filtersOpen={open} onFilters={() => setOpen(true)} onSortChange={setSort} topInset={0}
     onReshuffle={() => setSort(previous => ({...previous, seed: (previous.seed ?? 0) + 1}))}
     onQuickChange={(id, checked) => {const quick = model.quick.find(item => item.id === id); if (quick) setPredicates(previous => checked ? [...previous, quick.query] : previous.filter(item => JSON.stringify(item) !== JSON.stringify(quick.query)));}}
     applied={chips} onRemoveFilter={id => setPredicates(previous => previous.filter(item => item !== model.applied[Number(id)]))} onClearFilters={() => setPredicates([])}

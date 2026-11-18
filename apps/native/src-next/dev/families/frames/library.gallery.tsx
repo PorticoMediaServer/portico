@@ -48,18 +48,18 @@ function useLibraryHeader({tab = 'browse', kind = 'movie', menuOpen = false}: {t
   };
 }
 
-/** The Filters bar: Filters with its count, quick chips, the count, sort with order, grid or list, card size, Save view, applied chips. */
+/** The Filters bar: Filters ("Filters · 6" while a filter applies), sort, the applied filters and quick chips, grid or list; TV adds Jump to and Save view and its count line. */
 function useToolbar(filtered: boolean, total = filtered ? 6 : 80) {
   const [sort, setSort] = useState<BrowseSortSelection>({field: 'title', direction: 'asc'});
   const [predicates, setPredicates] = useState<readonly BrowseNode[]>(filtered ? [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: [l('next.libraryFrames.fixture.animation')]}, {variant: 'predicate', field: 'decade', operator: 'in', value: ['2010']}] : []);
-  const [view, setView] = useState<'grid' | 'list'>('grid'), [size, setSize] = useState('medium'), [open, setOpen] = useState(filtered);
+  const [view, setView] = useState<'grid' | 'list'>('grid'), [open, setOpen] = useState(filtered);
   const model = useMemo(() => browseToolbarModel(capability, 'movie', predicates, sort, {t, owner: true}), [predicates, sort]);
   const applied = model.applied.flatMap((predicate, index) => 'field' in predicate ? [{id: String(index), parts: appliedFilterParts(predicate as AppliedFilter, id => t(fieldNames[id]!), {t})}] : []);
-  const toolbar = <BrowseToolbar model={model} labels={labels} resultCount={count(total)} filtersOpen={open} onFilters={() => setOpen(true)} onSortChange={setSort}
+  const toolbar = <BrowseToolbar model={model} labels={labels} resultCount={count(total)} resultTotal={total} filtersOpen={open} onFilters={() => setOpen(true)} onSortChange={setSort}
     onReshuffle={() => setSort(previous => ({...previous, seed: (previous.seed ?? 0) + 1}))}
     onQuickChange={(id, checked) => {const query = model.quick.find(item => item.id === id)!.query; setPredicates(previous => checked ? [...previous, query] : previous.filter(item => item !== query));}}
     applied={applied} onRemoveFilter={id => setPredicates(previous => previous.filter(item => item !== model.applied[Number(id)]))} onClearFilters={() => setPredicates([])}
-    view={{value: view, onValueChange: setView}} cardSize={{value: size, options: ['small', 'medium', 'large'].map(value => ({value, label: t(`next.browse.native.${value}` as MessageId)})), onValueChange: setSize}}
+    view={{value: view, onValueChange: setView}}
     save={{canSave: predicates.length > 0, onSave: none}} onJump={none}/>;
   return {toolbar, open, setOpen};
 }

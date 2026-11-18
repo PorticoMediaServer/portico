@@ -198,15 +198,15 @@ function ToolbarCase({sticky = false, owner = true, musicMode = false, filtered 
   const theme = useTheme();
   const [sort, setSort] = useState<BrowseSortSelection>({field: 'title', direction: 'asc'}), [predicates, setPredicates] = useState<readonly BrowseNode[]>(filtered ? [{variant: 'predicate' as const, field: 'decade', operator: 'in', value: ['1980']}] : []);
   const [filters, setFilters] = useState(initialFilters), [fields, setFields] = useState(initialFields), [saved, setSaved] = useState(false), [jump, setJump] = useState(false), [letter, setLetter] = useState('A');
-  const [view, setView] = useState<'grid' | 'list'>('grid'), [size, setSize] = useState('medium');
+  const [view, setView] = useState<'grid' | 'list'>('grid');
   const model = useMemo(() => browseToolbarModel(capability, musicMode ? 'music' : 'movie', predicates, sort, {t, owner}), [musicMode, predicates, sort, owner]);
   const applied = model.applied.flatMap((predicate, index) => 'field' in predicate ? [{id: String(index), parts: appliedFilterParts(predicate as AppliedFilter, id => t(fieldNames[id]), {t})}] : []);
   return <BrowseStage height={900}>
-    <BrowseToolbar model={model} labels={labels} sticky={sticky} resultCount={t('lib.count', {count: filtered ? 10 : 80, pivot: musicMode ? 'songs' : 'movies'})}
+    <BrowseToolbar model={model} labels={labels} sticky={sticky} resultCount={t('lib.count', {count: filtered ? 10 : 80, pivot: musicMode ? 'songs' : 'movies'})} resultTotal={filtered ? 10 : 80}
       onFilters={() => setFilters(true)} onSortChange={setSort} onReshuffle={() => setSort(previous => ({...previous, seed: (previous.seed ?? 0) + 1}))}
       onQuickChange={(id, checked) => {const query = model.quick.find(item => item.id === id)!.query; setPredicates(previous => checked ? [...previous, query] : previous.filter(item => item !== query)); setSaved(false);}}
       applied={applied} onRemoveFilter={id => {const target = model.applied[Number(id)]; setPredicates(previous => previous.filter(item => item !== target)); setSaved(false);}} onClearFilters={() => {setPredicates([]); setFields(clearedFields()); setSaved(false);}}
-      view={{value: view, onValueChange: setView}} cardSize={{value: size, options: ['small', 'medium', 'large'].map(value => ({value, label: t(`next.browse.native.${value}` as MessageId)})), onValueChange: setSize}}
+      view={{value: view, onValueChange: setView}}
       save={{canSave: !saved && predicates.length > 0, onSave: () => setSaved(true)}} onJump={() => setJump(true)}/>
     {theme.isTV && <Text style={{color: theme.colors.textTertiary, margin: 56}}>{t('next.browse.native.jumpTo')} {letter}</Text>}
     <FilterSurface open={filters} onOpenChange={setFilters} fields={fields} onFieldsChange={setFields} match={match} renderAllValues={renderAllValues} onApply={() => {setPredicates(fixturePredicates(fields)); setSaved(false); setFilters(false);}} onSave={() => {setPredicates(fixturePredicates(fields)); setSaved(true); setFilters(false);}}/>

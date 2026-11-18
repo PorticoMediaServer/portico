@@ -17,6 +17,8 @@ export type AppliedFilterChip = Readonly<{id: string; parts: AppliedFilterModel}
 export type BrowseToolbarProps = Readonly<{
   model: BrowseToolbarModel; platform?: BrowsePlatform; sticky?: boolean;
   resultCount: ReactNode;
+  /** The number behind `resultCount`: phones and tablets show it in the Filters control ("Filters · 12") while a filter applies. */
+  resultTotal?: number;
   onQuickChange: (id: string, checked: boolean) => void; onFilters: () => void;
   /** True while the caller's Filters surface is open, so the chip reads as open. */
   filtersOpen?: boolean;
@@ -24,8 +26,7 @@ export type BrowseToolbarProps = Readonly<{
   labels: BrowseLabels; applied?: readonly AppliedFilterChip[];
   onRemoveFilter?: (id: string) => void; onClearFilters?: () => void;
   view?: Readonly<{value: 'grid' | 'list'; onValueChange: (value: 'grid' | 'list') => void}>;
-  /** Card size and Save view: wide forms only; a phone draws neither (phone-app 5: Save view is in its Filters sheet). */
-  cardSize?: Readonly<{value: string; options: readonly Readonly<{value: string; label: string}>[]; onValueChange: (value: string) => void}>;
+  /** Save view: TV's toolbar (a phone or tablet saves from ⋯ or its Filters sheet). */
   save?: Readonly<{canSave: boolean; onSave: () => void}>;
   onSelect?: () => void;
   onJump?: () => void; selection?: ReactNode; children?: ReactNode; testID?: string;
