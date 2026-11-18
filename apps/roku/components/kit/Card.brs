@@ -25,6 +25,9 @@ sub init()
     m.top.findNode("tickPlate").blendColor = c.onArt
     m.badgePlate.blendColor = c.accent
     m.person = m.top.findNode("person")
+    ' A page shown again by Back: a cut picture (a MaskGroup) left as it was does not draw again,
+    ' so a row showed only the card in focus and its neighbours; each card makes its cut new.
+    m.global.observeField("pageShownAgain", "onShownAgain")
     setType(m.top.findNode("faceInitials"), "personInitials", c.textSecondary)
     setType(m.top.findNode("faceName"), "cardTitle", c.text)
     setType(m.top.findNode("facePart"), "cardSubtitle", c.textTertiary)
@@ -276,6 +279,7 @@ end sub
 
 sub grow(s as float)
     if m.w = 0 then return
+    if m.redraw = invalid then m.redraw = 0
     item = m.top.itemContent
     aside = (item <> invalid and item.overlay = true and item.whole = true and item.art <> "")
     m.under.scale = [s, s]
@@ -292,7 +296,7 @@ sub grow(s as float)
     shiftY = 0
     if m.shiftY <> invalid then shiftY = m.shiftY
     m.clip.translation = [(m.w - w) / 2, (m.h - h) / 2 + shiftY]
-    m.clip.maskSize = [w, h]
+    m.clip.maskSize = [w, h + m.redraw]
     m.art.width = w
     m.art.height = h
     m.art.translation = [0, 0]
@@ -306,4 +310,11 @@ sub grow(s as float)
     m.shade.width = w
     m.shade.height = h * 0.62
     m.shade.translation = [0, h - h * 0.62]
+end sub
+
+' The cut is made a hundredth of a pixel taller or back again: a real change, so it is drawn anew.
+sub onShownAgain()
+    if m.w = 0 then return
+    if m.redraw = 0.01 then m.redraw = 0 else m.redraw = 0.01
+    onFocus()
 end sub
