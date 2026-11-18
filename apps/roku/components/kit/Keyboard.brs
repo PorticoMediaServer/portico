@@ -95,6 +95,25 @@ function pressKey(key as string) as boolean
     return true
 end function
 
+' A letter sent by the Roku phone app's keyboard (or a script), or its delete key: typed into the
+' box. The keyboard's own key presses, or a page's (`typed`) while focus is elsewhere on it.
+function typeKey(key as string) as boolean
+    if left(key, 4) = "Lit_"
+        typed = mid(key, 5)
+        if typed = "%20" or typed = " " then typed = " "
+        if len(typed) = 1 and instr(1, m.letters + " ", lcase(typed)) > 0 then m.top.text = m.top.text + lcase(typed)
+        return true
+    else if key = "backspace"
+        if len(m.top.text) > 0 then m.top.text = left(m.top.text, len(m.top.text) - 1)
+        return true
+    end if
+    return false
+end function
+
+sub onTyped()
+    typeKey(m.top.typed)
+end sub
+
 function onKeyEvent(key as string, press as boolean) as boolean
     holdKey(key, press)
     if not press then return false
@@ -112,14 +131,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
         end if
         m.top.text = text
         return true
-    else if left(key, 4) = "Lit_"
-        ' a letter sent by the Roku phone app's keyboard (or a script)
-        typed = mid(key, 5)
-        if typed = "%20" or typed = " " then typed = " "
-        if len(typed) = 1 and instr(1, m.letters + " ", lcase(typed)) > 0 then m.top.text = m.top.text + lcase(typed)
-        return true
-    else if key = "backspace"
-        if len(m.top.text) > 0 then m.top.text = left(m.top.text, len(m.top.text) - 1)
+    else if typeKey(key)
         return true
     else if key = "replay" or key = "rewind"
         if len(m.top.text) > 0 then m.top.text = left(m.top.text, len(m.top.text) - 1)

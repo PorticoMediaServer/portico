@@ -253,6 +253,12 @@ function onKeyEvent(key as string, press as boolean) as boolean
         moveTo(-1)                ' Left from a row's first card (or Back): the keyboard, at the key it left
         return true
     end if
+    if left(key, 4) = "Lit_" or key = "backspace"
+        ' a letter from the phone app while focus is in the results: back to the keyboard, typed in the box
+        moveTo(-1)
+        m.keyboard.typed = key
+        return true
+    end if
     if key = "up" or key = "down"
         pressKey(key)
         return true
