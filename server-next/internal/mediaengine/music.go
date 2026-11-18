@@ -83,7 +83,7 @@ func (e *Engine) musicPlan(ctx context.Context, r playback.PlanRequest, request 
 		remoteID != 0 || len(r.Failures) > 0 {
 		return nil
 	}
-	m, ok := e.measured(ctx, r.Version.FileID, path, place)
+	m, ok := e.measured(ctx, r.Version.FileID, place.Path, place)
 	if !ok && m != nil && (r.PrepareAudio || r.Item.Kind == db.KindAudiobook || place.AudioExact != "") {
 		wait := ctx
 		if !r.PrepareAudio {

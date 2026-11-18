@@ -25,7 +25,15 @@ func TestSongsArePlannedForTheAppsOwnMusicEngine(t *testing.T) {
 	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
 	h, d := newHouse(t, ffmpeg, ffprobe)
 	ctx := context.Background()
-	library := filepath.Join(t.TempDir(), "Music")
+	// The library folder is reached through a link, as every folder under /var is on macOS:
+	// songs are measured by the path the scan recorded.
+	disk, library := filepath.Join(t.TempDir(), "Music"), filepath.Join(t.TempDir(), "Music")
+	if err := os.MkdirAll(disk, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(disk, library); err != nil {
+		t.Fatal(err)
+	}
 	album := filepath.Join(library, "The Band", "The Album")
 	if err := os.MkdirAll(album, 0o755); err != nil {
 		t.Fatal(err)

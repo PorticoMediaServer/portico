@@ -81,7 +81,7 @@ func (e *Engine) burnLoader(p *planned, source streaming.Source) func(context.Co
 		source = streaming.DiscSource(p.disc.open)
 	}
 	if source == nil {
-		source = e.place("").streams.LibrarySource(p.path, p.place.Size, time.Unix(0, p.place.ModifiedNS))
+		source = e.place("").streams.LibrarySource(p.place.Path, p.place.Size, time.Unix(0, p.place.ModifiedNS))
 	}
 	return func(ctx context.Context) (*streaming.BurnSubtitle, error) {
 		// Taking a track out of a large film reads all of it once. Ten minutes covers a
