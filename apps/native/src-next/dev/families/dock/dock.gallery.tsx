@@ -60,7 +60,7 @@ export function DockCase({kind, artwork: reference}: {kind: Case; artwork?: Evid
   const [docked, setDocked] = useState(true);
   const external = useSyncExternalStore(injected?.subscribe ?? (() => () => {}), injected?.getSnapshot ?? (() => snapshot));
   const dock = injected?.dock ?? prepared.dock;
-  const artwork = (injected?.artwork ?? reference)?.[kind === 'tv-book' || kind === 'audiobook' ? 'book' : kind.startsWith('tv-') ? 'tvMusic' : ['video', 'menu', 'finished', 'gesture'].includes(kind) ? 'video' : 'music'];
+  const artwork = (injected?.artwork ?? reference)?.[kind === 'tv-book' || kind === 'audiobook' ? 'book' : kind.startsWith('tv-') ? 'tvMusic' : ['video', 'menu', 'finished', 'gesture', 'connecting', 'waiting', 'playing', 'play-on', 'stopped', 'replaced', 'error'].includes(kind) ? 'video' : 'music'];
   const restoredMusic = kind === 'handover' && snapshot.local?.kind === 'music' ? snapshot.local : undefined;
   const localModel = {...prepared.model, fence: snapshot.local?.fence ?? prepared.model.fence, artwork: restoredMusic ? injected?.artwork?.music : artwork,
     ...(restoredMusic ? {identity: playbackIdentity({kind: 'music', item: {id: restoredMusic.fence.itemId, kind: 'song', title: facts.music.title, artist: facts.music.artist}}, 'dock', {t: defaultI18n.t}), durationSeconds: 239} : {}),

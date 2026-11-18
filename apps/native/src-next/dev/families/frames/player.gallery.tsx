@@ -175,7 +175,7 @@ function PlayerEpisodesCase() {
   const [hide, setHide] = useState(false), {form} = useFrameMetrics(), upright = usePlayerUpright(), theme = useTheme();
   if (upright) return <Player state="paused" id="frames-player-episodes" opened="episodes"/>;
   const season = <Button testID="frames-player-episodes-season" variant="glass" size="small" trailingIcon="i-chdown" onPress={none}>{f('episodesSeason')}</Button>;
-  if (form === 'tv') return <Player state="paused" id="frames-player-episodes" start="frames-episode-episode3" opened="episodes" band={<PlayerEpisodeBand title={f('episodesTitle')} count={f('episodesCount')} season={season}>
+  if (form === 'tv') return <Player state="paused" id="frames-player-episodes" start="frames-episode-episode2" opened="episodes" band={<PlayerEpisodeBand title={f('episodesTitle')} count={f('episodesCount')} season={season}>
     {episodes.map(episode => <EpisodeTile key={episode.id} testID={`frames-episode-${episode.id}`} layout="tile" title={episode.title} status={episode.playing ? episode.status : undefined} length={episode.length}
       label={[{id: 'episode', text: episode.number, role: 'context'}, {id: 'aired', text: episode.watched ? episode.status : episode.playing ? f('episodeLeft2') : episode.aired, role: 'context'}]}
       artwork={episode.art ? asset(episode.art) : undefined} progress={episode.watched ? 1 : episode.progress} onNavigate={none}/>)}
