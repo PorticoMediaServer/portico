@@ -89,8 +89,26 @@ draws its own copies of the title, controls, read-outs, pills and prompts. Stage
 these parts and deletes its private drawing. Apply the same test to any other screen that needs more than stock
 parts (the reader, the guide grid, the equaliser): name the parts, put them in the kit, draw them in the Kit page.
 
-Still drawn only by the player screens, and to become `kit/player` parts in Stage 2: the Subtitles and Audio, Quality and
-Speed panels, the options panel, the Episodes panel and Up next.
+The player's own panels and the Live TV chrome are kit parts too. They were drawn by the watch and live screens and
+were moved, not copied: the screens draw these same parts.
+
+| Part | What it is | Form |
+| --- | --- | --- |
+| `PlayerOptions` | Playback options with Subtitles, Audio, Quality, Speed, subtitle style and the sleep timer, from one `PlayerOptionsModel` | Desktop: one panel of columns over the picture. Phone upright: a bottom sheet, a list that opens each sub-list. Phone on its side: the same list in a side sheet |
+| `PlayerEpisodes` | The Episodes drawer: season chip and a row of episode cards | Across the bottom of the picture; on an upright phone it rises over the watch page |
+| `PlayerUpNext` | The Up next card over the credits (`layout`: desktop, tablet, phone) | The player's bottom right corner |
+| `PlayerLive` | The Live TV chrome from one `LiveChromePort`: channel and programme lockup, Record, the programme-long bar with the live edge and Go to live, channel down and up, Guide and its short guide | One layout that narrows; it is not built on `PlayerChromeFrame` |
+
+Left for Stage 2, listed so it is not forgotten:
+
+- `PlayerLive` draws its own top bar, bar and controls row instead of filling `PlayerChromeFrame`. It matches the
+  mock-up as it is; folding it onto the frame means the frame's scrubber and read-out places taking the live bar.
+  On an upright phone its title is cut to one line by the buttons beside it (no mock-up draws that form).
+- `PlayerOptions`, `PlayerEpisodes` and `PlayerUpNext` keep the fixed sizes they had in the screen (their CSS files
+  moved with them). Reading them from `frameSpec.player` is Stage 2 work with the rest of the watch screen.
+- An episode with no still shows the drawer's own blank, not the rule 12 placeholder.
+- Still in `screens/watch`: Chapters (`ChaptersDrawer.tsx`, which shares the Episodes drawer's styles), the queue
+  (`QueueList.tsx`), Playback info, the version chooser, Still watching and the end card.
 
 ## What a screen may do
 

@@ -67,7 +67,12 @@ Each is one shared kit part. The capture lane shoots these ids too (`family` `ca
 | Player: transport, scrubber and preview, read-outs, title, pills, Skip intro | `kit/player`, `kit/media` `SeekLine` | `frames` `player`, `player-paused`, `player-buffering`, `player-scrubbing`, `player-live`, `player-missing`, `player-landscape` |
 | Player as built today | `screens/watch` | `watch` `desktop-player-f1` |
 
-Not in the kit yet, so not drawn: the player's own panels (Subtitles and Audio, Quality, Speed, the options panel,
-Episodes, Up next). They are drawn by `screens/watch` (`WatchOptions.tsx`, `EpisodesDrawer.tsx`, `UpNextPrompt.tsx`,
-`QueueList.tsx`) on the kit's `SidePanel`, `BottomSheet` and `Menu`. Moving them into `kit/player` is listed in
-`FRAMES.md` for Stage 2.
+| Player panels: Playback options, Subtitles, Audio, Quality, Speed | `kit/player` `PlayerOptions` | `frames` `player-options`, `player-subtitles`, `player-audio`, `player-quality`, `player-speed` (at 1440 the one panel shows every list; the sub-lists are the phone forms) |
+| Player: Episodes drawer | `kit/player` `PlayerEpisodes` | `frames` `player-episodes` |
+| Player: Up next card | `kit/player` `PlayerUpNext` | `frames` `player-up-next` |
+| Player: Live TV chrome (Record, Guide, channel down and up, Go to live), and with the short guide open | `kit/player` `PlayerLive` | `frames` `player-live-controls`, `player-live-guide` |
+
+Shoot the panel and live cases like the player: 1440 by 900, 390 by 844 and 844 by 390.
+
+Not in the kit yet, so not drawn here: Chapters, the queue, Playback info and the end card (`screens/watch`). They are
+listed in `FRAMES.md` for Stage 2.
