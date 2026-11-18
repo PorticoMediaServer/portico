@@ -57,7 +57,7 @@ export function useWide() {
 }
 /** The owner's server activity in the top bar, with two people watching (mock.html home). Only what the closed button reads. */
 const activityView = {phase: 'ready', serverName: '', health: 'normal', streamCount: 2, taskCount: 0, streams: [], scans: [], tasks: []} as unknown as ActivityPanelView;
-export function Page({children, current, home = false}: {children: ReactNode; current: 'home' | 'movies' | 'settings' | 'search' | 'saved' | 'music' | 'audiobooks' | 'liveTvShort'; home?: boolean}) {
+export function Page({children, current, home = false}: {children: ReactNode; current: 'home' | 'movies' | 'tvShows' | 'settings' | 'search' | 'saved' | 'music' | 'audiobooks' | 'liveTvShort'; home?: boolean}) {
   const phone = usePhone(), wide = useWide(), tools = (name: 'i-search' | 'i-bookmark' | 'i-bell', label: FixtureName) => <a className={shell.icon} aria-label={f(label)} aria-current={current === label ? 'page' : undefined}><Icon name={name} size={22} />{name === 'i-bell' && <span className={shell.dot} />}</a>;
   // The shell's underline measures the list it is in, so it is mounted once that list exists.
   const destinations = useRef<HTMLUListElement>(null), [listed, setListed] = useState(false);
@@ -71,7 +71,7 @@ export function Page({children, current, home = false}: {children: ReactNode; cu
     </nav> : phone ? <>
       {home && <header className={shell.phoneHeader}><a className={shell.brand}><img src={wordmark} alt="" /></a><div className={shell.phoneTools}>{avatar}</div></header>}
       <nav className={shell.tabbar}>{([['i-home', 'home', 'home'], ['i-search', 'search', 'search'], ['i-grid', 'libraries', 'movies'], ['i-tv', 'liveTvShort', 'liveTvShort'], ['i-bookmark', 'saved', 'saved']] as const).map(([icon, name, id]) =>
-        <a key={name} aria-current={id && (current === id || id === 'movies' && (current === 'music' || current === 'audiobooks')) ? 'page' : undefined}><Icon name={icon} size={22} /><span>{f(name)}</span></a>)}</nav>
+        <a key={name} aria-current={id && (current === id || id === 'movies' && (current === 'tvShows' || current === 'music' || current === 'audiobooks')) ? 'page' : undefined}><Icon name={icon} size={22} /><span>{f(name)}</span></a>)}</nav>
     </> : null}</div>
     {children}
   </div>;
