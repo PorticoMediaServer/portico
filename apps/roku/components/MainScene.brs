@@ -1,5 +1,7 @@
 sub init()
     m.backdrop = m.top.findNode("backdrop")
+    ' the Appearance settings this TV honours (source/Settings.brs appearanceLooks)
+    m.global.addFields({looks: {}})
     m.screens = m.top.findNode("screens")
     m.rail = m.top.findNode("rail")
     m.screen = invalid
@@ -466,6 +468,7 @@ sub showHome()
     if m.entered <> true
         m.entered = true
         api("PUT", "/v1/devices/current/capabilities", deviceProfile(), "onCapabilitiesSent")
+        api("GET", "/v1/preferences?deviceClass=television", invalid, "onLooks")
         api("GET", "/v1/libraries", invalid, "onLibraries")
         api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
     end if
@@ -517,7 +520,14 @@ sub onQuiet(event as object)
     if event.getRoSGNode().isSameNode(m.screen) then m.backdrop.quiet = event.getData()
 end sub
 
+sub onLooks(event as object)
+    result = event.getData()
+    if result.ok then m.global.looks = appearanceLooks(result.data.effective)
+end sub
+
 sub setArt(art as string)
+    ' Show backdrops off (Settings, Appearance): the plain backdrop only
+    if m.global.looks.showBackdrops = false then art = ""
     if left(art, 7) = "poster|"
         m.backdrop.poster = imageUrl(mid(art, 8), 400, 600)
         m.backdrop.tint = ""

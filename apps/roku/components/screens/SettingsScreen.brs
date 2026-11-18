@@ -106,6 +106,7 @@ sub took(snapshot as object)
     for each field in snapshot.registry.fields
         m.scopes[field.key] = field.scopes[0]
     end for
+    m.global.looks = appearanceLooks(m.values)     ' Show backdrops and Reduce motion apply at once
     redraw()
 end sub
 

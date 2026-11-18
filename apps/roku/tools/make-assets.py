@@ -319,7 +319,7 @@ ICONS = {
     'lock': [28],
     'maximize': [28],
     'more': [28],
-    'music': [32],
+    'music': [28, 32],
     'next': [32],
     'pause': [40],
     'phone': [28],
