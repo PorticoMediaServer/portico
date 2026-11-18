@@ -384,7 +384,6 @@ jobs:
             ${{ env.WORK }}/wire.json
             ${{ env.WORK }}/wire.txt
             ${{ env.WORK }}/cpu.pprof
-            ${{ env.WORK }}/bin/portico-server
           retention-days: 30
 
   unsynced:
