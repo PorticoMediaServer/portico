@@ -8,6 +8,36 @@ A screen picks one frame and fills its slots. It never draws a backdrop, a heade
 space between sections, or a page-level loading or error state: the frame does. Each frame has fixed regions,
 which never move, and one flexible region, the only place that may change when content is missing or added.
 
+## The rules (round 8, 18 Nov)
+
+Every rule is data in `packages/design` and is inherited; a frame or a screen never types one of these numbers or
+colours. Names and values: `packages/design/src/scale.ts`, `index.ts` (`formScale`) and `frames.ts`.
+
+- **R2 form scale.** Type, card, button and row sizes come from the FORM (`phone | medium | expanded | tv`), not the
+  width: one table, `formScale` (form x role). `frameForm(width, isTV, height)` is the one test and `createTheme` uses it,
+  so the theme and the frames cannot disagree. A touch window from 1024 wide is `expanded`: a tablet, with the tablet's
+  own column (page title 44, row heading 21, poster 150, button 48), never the web's. Read `theme.form`,
+  `theme.type[role]`, `theme.scale` (`.card`, `.button`, `.row`, `.icon`) and, for the component spec's other sizes,
+  `theme.spec.x[theme.column]`. `theme.platform` and `theme.layoutMode` name the STRUCTURE only (`'web'` / `'desktop'`
+  is the wide arrangement a tablet shares with the desktop); never index a size by them.
+- **R3 emphasis.** Four levels: primary, secondary, tertiary, accent (`theme.emphasis`). A text role with a level
+  carries its colour in `theme.type[role]` (`rowHelp` tertiary, `intro` and `meta` secondary, `eyebrow` accent...), so
+  text drawn with a role needs no colour. A value at its default is tertiary and medium, a chosen one accent and bold
+  (`emphasis.value`, `.valueChosen`); a control that is on is accent (`emphasis.active`); a row's label is `rowLabel`
+  (semibold); "S1 E2" is `playerSubtitle` and the episode's name `playerSubtitleStrong`; progress and the New badge are
+  at accent strength (`emphasis.progress`, `.badge`).
+- **R4 icon classes.** `primary` (the transport), `secondary` (shuffle, repeat, tool glyphs), `tertiary` (inline
+  glyphs): a size per form and a level of emphasis each (`theme.scale.icon`). The kit `Button` takes `iconClass` and
+  `active`; dimming is the level's colour, never an opacity.
+- **R5 rhythm.** The frame is the one owner of the space between sections. On a frame (`FrameRhythm`) a kit `Row` adds
+  no spacing of its own; the frame applies `rowSection` and `rowHeadingGap` (rows of cards) and `sectionGap` and
+  `headingGap` (other blocks) from `useFrameMetrics()`. A card's caption is a reserved two-line slot
+  (`theme.scale.card.caption`, `cardCaptionHeight(theme)`), so a row's height includes its captions.
+- **The Android line.** A focus ring is drawn only for keyboard or D-pad focus, never for focus a touch handed over
+  (`Focusable`, and the cards). A bold title's line box is never tighter than 1.2 of its size on Android
+  (`nativeType`); sheet and menu titles have a line box of their own. A sheet's footer adds the bottom inset.
+- **R10 layers.** See "The backdrop" below.
+
 ## Which frame
 
 | Screen | Frame | Flexible region |

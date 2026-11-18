@@ -9,6 +9,31 @@ A screen picks one frame and fills its slots. It never draws a backdrop, a heade
 space between sections, or a page-level loading or error state: the frame does. Each frame has fixed regions,
 which never move, and one flexible region, the only place that may change when content is missing or added.
 
+## The rules (round 8, 18 Nov)
+
+Every rule is data in `packages/design` and is inherited; a frame or a screen never types one of these numbers or
+colours. Names and values: `packages/design/src/scale.ts`, `index.ts` (`formScale`) and `frames.ts`.
+
+- **R2 form scale.** Type, card, button and row sizes come from the FORM, not the width: one table, `formScale`
+  (form x role), projected to the tokens at phone width (`:root`), tablet width (600), desktop width (1024, the `web`
+  column) and TV. A page reads `--type-<role>-*`, `--card-*-width`, `--card-caption-*`, `--button-hero|small|xs-*`,
+  `--list-row-*`; the kit `Button` and the cards already do. At 600 to 1023 the web draws the tablet's column.
+- **R3 emphasis.** Four levels: `--emphasis-primary | -secondary | -tertiary | -accent`. Every role has
+  `--type-<role>-color` (its level), and the role classes here apply it. A value at its default is
+  `--emphasis-value`, a chosen one `--emphasis-value-chosen` (with their `-weight`); a control that is on is
+  `--emphasis-active`; an open tab `--emphasis-on` and its neighbours `--emphasis-off`; progress and the New badge are
+  `--emphasis-progress-*` and `--emphasis-badge-*`.
+- **R4 icon classes.** `primary` (the transport), `secondary` (shuffle, repeat, tool glyphs), `tertiary` (inline
+  glyphs): `--icon-<class>` (size), `--icon-<class>-box`, `--icon-<class>-color`. The kit `Button` takes `iconClass`
+  and `active`; dimming is the level's colour, never an opacity.
+- **R5 rhythm.** The frame is the one owner of the space between sections. A frame's rows container composes the kit's
+  `framedRows` (`kit/layout/layout.module.css`); inside it a `Shelf` adds no spacing of its own and the frame's
+  `--frame-row-section` and `--frame-row-heading-gap` are the whole rhythm. Other blocks use `--frame-section-gap` and
+  `--frame-heading-gap`. A card's caption is a reserved two-line slot (`--card-caption-height`), so a row's height
+  includes its captions.
+- **Focus.** The ring is `:focus-visible` only: focus that a pointer hands to an opened menu or dialog draws none.
+- **R10 layers.** See "The backdrop" below.
+
 ## Which frame
 
 | Screen | Frame | Flexible region |
@@ -160,12 +185,14 @@ Round 7 (18 Nov): in the upright live strip Go to live sits on a row of its own 
 - **Button labels are never shrunk and never cut.** Buttons are sized so standard labels fit on every form; a long translation makes the button wider or takes a second line. An ellipsis on a button label is a fault. In the native kit: no label is shrunk to fit, and every labelled `Button` lets its label take a second line, its height being a minimum.
 - Also settled: the Watch Together pill comes in Stage 2; phone transport is 76 / 76 / 58; TV player type takes the nearest roles; Start over is a button on a tablet; the synopsis is two lines; both missing-art looks stay; the tablet gutter is 28; web Settings is a full page at phone width; the audio queue uses the kit's song row; web cards carry their second line; the native backdrop comes in Stage 2.
 
-## The backdrop (owner, 17 and 18 Nov)
+## The backdrop (owner, 17 and 18 Nov; R10)
 
-ONE backdrop everywhere: `body` draws it (`kit/backdrop.css`). A frame, a screen and a page draw no backdrop and no page
-colour. A sheet, menu or dialog is a plain kit surface. The exceptions: the audio player is a glow from the playing
-item's artwork, the video player is black. Round 8 removes the remaining local draws (`ColourBackdrop` in boot, the
-account pages and states, and three stylesheets that repeat the glow variables) and adds the guard the native app has.
+ONE backdrop everywhere: `body` draws it (`kit/backdrop.css`) and nothing else does. A frame, a screen and a page draw
+no backdrop and no page colour. A sheet, menu or dialog is a plain kit surface. A full-window cover that must hide the
+page beneath it is the one class `portico-cover` (opaque, with the same backdrop); its two named forms are the audio
+player (`data-cover="audio"` with the kit `ArtworkGlow` as its first child: a glow from the playing item's artwork)
+and the video player (`data-cover="player"`, black). `ColourBackdrop` and `.portico-backdrop` are gone.
+`web/test/one-backdrop.test.ts` lists the covers and fails when the backdrop, the cover or the glow is used elsewhere.
 
 ## What a screen may do
 
@@ -192,7 +219,7 @@ account pages and states, and three stylesheets that repeat the glow variables) 
 
 `scripts/lint-design.mjs` already refuses raw colours. Add, for `src/screens/**`:
 
-- `.portico-backdrop`, `ColourBackdrop`, and `background` or `background-color` on a screen's root.
+- `background` or `background-color` on a screen's root (the backdrop itself is already held by `test/one-backdrop.test.ts`).
 - `font-size`, `font-weight`, `line-height`, `letter-spacing` with a literal value.
 - `padding`, `margin`, `gap`, `inset`, `top`, `left`, `right`, `bottom` with a literal length (allow 0 and `var()`).
 - `var(--page-gutter)`, `var(--shell-gutter)` and `var(--frame-*)`: the frames place content, screens do not.
@@ -208,8 +235,8 @@ account pages and states, and three stylesheets that repeat the glow variables) 
 - Inside the shell the frames take the shell's gutter (`--shell-gutter`, which already follows rule 4); a
   standalone page takes `--page-gutter`, which is now 28 from 600 to 1023.
 - Settings at phone width is a full page with the compact bar (as the web is today), not a sheet as on the phone app.
-- The kit `SettingsRow` is about 58 high at 1440 where rule 7 says 76, and a row of `Shelf` cards carries 24 of its
-  own padding on top of the 28 or 44 between sections. Both are the shared components' own; fix them there.
+- The kit `SettingsRow` is about 58 high at 1440 where rule 7 says 76 (`--list-row-one-line`): the Settings family
+  applies it. A `Shelf` on a frame no longer adds padding of its own (R5).
 - Not built, because nothing calls for it yet: a full-height sheet on the web.
 - Measurements the pages do not give are filled in `packages/design/src/frames.ts` from the nearest drawn form;
   correct them there, nowhere else.

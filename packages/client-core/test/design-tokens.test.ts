@@ -158,8 +158,9 @@ test('row subtitle CSS projects the TV size without changing desktop or phone te
   const css = renderTokens();
   const blocks = [...css.matchAll(/(?:^|\n)(:root|\[data-platform="tv"\]) \{\n([\s\S]*?)\n\}/g)]
     .filter(match => match[2]!.includes('--type-row-subtitle-size:'));
-  assert.equal(blocks.length, 3, 'phone, desktop and explicit TV token blocks');
-  for (const [index, size] of ['0.875rem', '0.875rem', '1.25rem'].entries()) {
+  // Round 8 (R2): the tablet's column is a block of its own, between the phone's and the desktop's.
+  assert.equal(blocks.length, 4, 'phone, tablet, desktop and explicit TV token blocks');
+  for (const [index, size] of ['0.875rem', '0.875rem', '0.875rem', '1.25rem'].entries()) {
     const body = blocks[index]![2]!;
     assert.ok(body.includes(`--type-row-subtitle-size: ${size};`), blocks[index]![1]);
     assert.ok(body.includes('--type-row-subtitle-line: normal;'));

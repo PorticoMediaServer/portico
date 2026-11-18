@@ -87,7 +87,7 @@
 .rowActions[data-placement='inline'] { margin-left: 18px; }
 .seeAll { border: 0; padding: 0; background: none; margin-left: auto; color: var(--color-text-tertiary); text-decoration: none; display: inline-flex; align-items: center; gap: 2px; opacity: 0; cursor: pointer; transition: opacity 200ms var(--ease-out); white-space: nowrap; }
 .row:hover .seeAll, .row:focus-within .seeAll { opacity: 1; }
-.track { display: flex; position: relative; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 var(--layout-gutter); padding: var(--framed-row-bleed, 10px) var(--layout-gutter) var(--framed-row-bleed, 14px); margin-block: calc(-1 * var(--framed-row-bleed, 0px)); scrollbar-width: none; overscroll-behavior-x: contain; }
+.track { display: flex; position: relative; gap: var(--row-gap); overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 var(--layout-gutter); padding: var(--framed-row-bleed, 10px) var(--layout-gutter) var(--framed-row-bleed, 14px); margin-block: calc(-1 * var(--framed-row-bleed, 0px)); scrollbar-width: none; overscroll-behavior-x: contain; }
 .track::-webkit-scrollbar { display: none; }
 .shelfItem { flex: none; scroll-snap-align: start; }
 .shelfItem { animation: layout-arrive var(--motion-quick) var(--ease-out) both; transition: opacity var(--motion-standard) var(--ease-in), transform var(--motion-standard) var(--ease-in); }
