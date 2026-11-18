@@ -82,27 +82,52 @@ export const frame = {
   sheet: {fullTop: 62, fullRadius: 16, footerClear: 34},
   /** Frame 6: the centred column on a tablet. A phone uses its width; the web's column and inset are the auth stage's. */
   signIn: {column: forms(0, 380, 380, 0)},
-  /** Frame 8 and rule 12: every region is placed from the frame's edges, so nothing moves when content is missing. */
+  /** Frame 8 and rule 12: every region is placed from the frame's edges, so nothing moves when content is missing.
+   * The phone (phone-app 14 and 15) is one column; the wide forms (desktop-listen "now" and "book-player", tablet-play
+   * 9, 10 and 12, final3-tv-12) are their own layout: a column of the cover's width (title, scrubber with its times at
+   * its ends, a compact transport, volume on the web) beside a raised queue panel. The backdrop is the layer's glow. */
   audio: {
-    topBar: forms(46, 46, 46, 40),
+    topBar: {...forms(46, 64, 64, 40), web: 84},
     /** A phone's and a TV's artwork size; a tablet's and the web's is the room there is, up to this. */
-    artwork: {...forms(334, 600, 600, 560), web: 600},
+    artwork: {...forms(334, 370, 420, 600), web: 480},
     inset: forms(28, 40, 56, 96),
-    /** Two title lines and a byline, bottom-aligned. */
+    /** A phone's audiobook cover is narrower than a song's (phone-app 15). */
+    bookArtShare: .86,
+    /** Two title lines and a byline, bottom-aligned (the phone; the wide forms let the title take its lines). */
     titleSlot: forms(96, 104, 104, 200),
     /** The scrubber line and the time read-outs under it. */
     scrubber: forms(48, 48, 48, 72),
     transport: forms(80, 80, 80, 120),
     nextLine: forms(22, 22, 22, 32),
     bottomRow: forms(64, 64, 64, 90),
-    /** Wide forms: the title, scrubber and controls column beside the artwork. */
-    /** TV: wide enough for its three labelled buttons at their full labels. */
-    controlsWidth: {...forms(0, 0, 300, 600), web: 420},
-    upNextWidth: {...forms(0, 280, 340, 360), web: 360},
-    gap: {...forms(12, 12, 30, 64), web: 56},
+    /** TV: the title and controls column beside the artwork (final3-tv-12: 540, the scrubber and transport 500). */
+    controlsWidth: {...forms(0, 0, 0, 540), web: 0},
+    /** The queue panel (desktop 452, tablet 380, upright tablet 366; TV's list starts at 1440 and runs to the safe edge). */
+    upNextWidth: {...forms(0, 366, 380, 384), web: 452},
+    /** Between the artwork column and the queue panel; on TV between the artwork and the title column. */
+    gap: {...forms(24, 20, 20, 80), web: 32},
+    /** The wide forms' column (R7): its gaps from the mock-ups. The cover to the title, the title to the scrubber, the
+     * scrubber to the transport, the transport to the volume or the pill row. `bookArt` is the audiobook's cover beside its title. */
+    wide: {
+      titleGap: {...forms(0, 26, 26, 0), web: 30}, scrubberGap: {...forms(0, 18, 18, 0), web: 20}, transportGap: {...forms(0, 16, 16, 0), web: 18}, belowGap: {...forms(0, 18, 18, 0), web: 12},
+      transportSpacing: {...forms(0, 18, 18, 0), web: 24}, timesWidth: 34, bookTimesWidth: 58, volume: 160,
+      bookColumn: {...forms(0, 600, 600, 0), web: 660}, bookArt: {...forms(0, 250, 250, 0), web: 300}, bookArtGap: 30, chapterGap: 34, rowsGap: 22, rowLabel: 132,
+      /** The panel's corners and inset from the window, the segmented tabs, a queue row and its artwork, a group label's padding. */
+      panelRadius: 20, panelInset: {...forms(0, 20, 20, 0), web: 32}, tabs: 38, row: 60, rowArt: 44, rowArtRadius: 6, handle: 22, foot: 70,
+    },
+    /** R4 interim: the music transport's classes. Play or Pause's disc, Previous and Next (primary, white), shuffle and
+     * repeat (secondary: smaller and dimmer), on each form. A phone's are the owner's 76 (phone-app 14). */
+    icons: {
+      primary: {...forms(76, 74, 74, 96), web: 74}, primaryIcon: {...forms(32, 30, 30, 44), web: 30},
+      control: {...forms(56, 52, 52, 72), web: 50}, stepIcon: {...forms(30, 26, 26, 34), web: 26}, secondaryIcon: {...forms(24, 22, 22, 32), web: 22},
+      /** The heart and More beside the title (tertiary class, at the control's size). */
+      inlineIcon: forms(24, 22, 22, 28),
+    },
+    /** TV (final3-tv-12): the title is a display line, the queue rows are 88 with 72 artwork. */
+    tv: {fromTop: 124, artTop: 230, titleTop: 50, scrubberTop: 360, transportTop: 442, moreTop: 576, scrubberWidth: 500, row: 88, rowArt: 72, rowArtRadius: 10, moreHeight: 64},
   },
-  /** Frame 7, the video player's chrome (desktop-player, tablet-play, phone-player and tv-player mock-ups; the web
-   * values are the built web player's). Scrims are stops of the dim colour: alpha, then how far from the edge. */
+  /** Frame 7, the video player's chrome (desktop-player, tablet-play, phone-player and tv-player mock-ups; R6: the web's
+   * values are its mock-ups', desktop-player 1 and 7). Scrims are stops of the dim colour: alpha, then how far from the edge. */
   player: {
     edge: forms(14, 32, 40, 96), top: forms(4, 26, 30, 64), bottom: forms(8, 32, 24, 56),
     /** Scrubber to the time read-outs, read-outs to the controls row, and between controls at either end. */
@@ -113,13 +138,30 @@ export const frame = {
     /** The glyph in a pill and in a prompt. */
     pillIcon: 16, promptIcon: 20,
     /** A phone held upright (phone-player 4): the picture is a 16:9 strip under the status bar with the watch page below it. */
-    portrait: {aspect: 16 / 9, top: 4, edge: 6, bottom: 8, timeInset: 14, scrubber: 3, shade: .44, control: 38, controlIcon: 22, primary: 58, primaryIcon: 26,
-      /** A window narrower than this for its height is upright: a phone, a tablet in portrait, an open foldable (tablet-play 3). */
-      maxAspect: 4 / 3, promptHeight: 34, promptPaddingX: 12,
+    portrait: {aspect: 16 / 9, top: 4, edge: 6, bottom: 8, timeInset: 14, scrubber: 3, shade: .44, control: 46, controlIcon: 24, primary: 58, primaryIcon: 26,
+      promptHeight: 34, promptPaddingX: 12,
       /** The web places the prompt from the strip's right edge, clear of the quality pill and full screen. */
       promptRight: 168},
+    /** R8: the upright form is a window taller than wide (a phone, a tablet in portrait); an open foldable, wider than
+     * tall, gets the full-window player (foldable 3). On the web a window this short is a phone on its side and takes
+     * the phone's sideways forms, whatever its width (phone-player 1). */
+    upright: {maxAspect: 1}, sidewaysMaxHeight: 500,
+    /** R4 interim and R6: the transport's icon classes per form (desktop-player 1, tablet-play 1 and 3, phone-player 1
+     * and 4, tv-player 1). All of it is primary: white. `primary` is Play or Pause's disc and glyph; `control` the other
+     * buttons' box; `skipIcon` the 10 and 30 arrows, drawn larger than `stepIcon` (Previous, Next, the channel steps),
+     * and `numeral` the seconds in them; `gap` between transport buttons; `toolIcon` the bar's own glyphs (subtitles,
+     * picture in picture, full screen: secondary). `upright` is the strip's: a phone's, then a tablet's (tablet-play 3). */
+    transport: {
+      primary: forms(76, 76, 62, 88), primaryIcon: forms(32, 32, 28, 38), control: forms(58, 58, 48, 64),
+      skipIcon: forms(40, 40, 28, 34), stepIcon: forms(30, 30, 22, 28), numeral: forms(11.5, 11.5, 8.5, 12), gap: forms(72, 72, 14, 22), toolIcon: forms(22, 22, 24, 30),
+      upright: {phone: {primary: 58, primaryIcon: 26, control: 46, skipIcon: 34, stepIcon: 24, numeral: 9.5, gap: 26}, tablet: {primary: 84, primaryIcon: 32, control: 62, skipIcon: 40, stepIcon: 30, numeral: 11.5, gap: 44}},
+    },
+    /** R6: the scrubber's track (6 on the web and a tablet, 4 on a phone, 8 on TV), one continuous line; a marked stretch is tinted on it. */
+    track: forms(4, 6, 6, 8),
     /** The scrubber's knob: a small dot. The numeral inside a skip arrow is `typeScale.playerSkip`. */
-    knob: forms(12, 14, 14, 20),
+    knob: {...forms(14, 20, 20, 20), web: 18},
+    /** A tablet's knob under the finger (tablet-play 1 inset) and a TV's while scrubbing (tv-player 2). */
+    knobHeld: forms(22, 30, 30, 44),
     /** TV scrubbing (tv-player 2): five pictures over the bar, the middle one large; chapter names under the bar; key hints in the controls row's place. */
     filmstrip: {small: {width: 256, height: 144}, large: {width: 480, height: 270}, gap: 20, radius: 12, lift: 12, dim: .78, labelGap: 12},
     /** TV: an options entry is a two-line tile (its name over its value) with the card's corners (tv-player 1). */
@@ -127,7 +169,7 @@ export const frame = {
     /** With a panel open the TV picture is dimmed by this much of the dim colour. */
     panelDim: .5,
     /** Tints of the text colour: the scrubber's track, what has buffered and a marked stretch; a pill's fill; a preview's ring. */
-    tint: {track: .16, buffered: .26, mark: .5, pill: .1, previewRing: .9, previewBand: .6},
+    tint: {track: .16, buffered: .26, mark: .5, pill: .1, open: .2, previewRing: .9, previewBand: .6},
     /** The thumbnail over the scrubber while scrubbing, and how far above the bar it sits. */
     preview: {width: forms(178, 256, 256, 400), height: forms(100, 144, 144, 225), radius: forms(9, 10, 10, 14), lift: forms(22, 40, 30, 44)},
     /** The player's own panels (options, Subtitles, Audio, Quality, Speed, Episodes): a column on the picture's right edge from

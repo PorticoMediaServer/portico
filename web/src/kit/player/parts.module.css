@@ -8,14 +8,27 @@
 .title p b { color: var(--color-text); font-weight: var(--type-button-weight); margin-inline-end: var(--space-control-gap); }
 
 /* A top-bar button over the picture: a plain white glyph on a phone, upright or on its side. */
-@media (max-width: 599px), (max-height: 500px) { button.onPicture.onPicture { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; color: var(--color-text); } }
+@media (max-width: 599px) { button.onPicture.onPicture.onPicture { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; color: var(--color-text); } }
 
-/* A transport button with the seconds it skips drawn inside its arrow. */
+/* R4 and R6: the transport's icon classes (frameSpec.player.transport, --frame-player-transport-*), all white. The kit's
+   icon button is grey and 40 square; a transport control takes the class's box and glyph instead. */
+button.control.control { --control-height: var(--frame-player-transport-control); --control-icon: var(--frame-player-transport-step-icon); width: var(--control-height); color: var(--color-text); }
+button.control.control[data-kind='skip'] { --control-icon: var(--frame-player-transport-skip-icon); }
+button.control.control[data-kind='primary'] { --control-height: var(--frame-player-transport-primary); --control-icon: var(--frame-player-transport-primary-icon); color: var(--color-ink); }
+button.control.control[data-kind='tool'] { --control-height: var(--frame-player-transport-control); --control-icon: var(--frame-player-transport-tool-icon); color: var(--color-text-secondary); }
+button.control.control[data-kind='picture'] { --control-height: var(--spec-transport-control-size-web); --control-icon: var(--frame-player-transport-tool-icon); color: var(--color-text); }
+button.control.control[data-tone='secondary'] { color: var(--color-text-secondary); }
+button.control.control[aria-pressed='true'] { color: var(--color-accent-strong); }
+/* The audio player's classes (frameSpec.audio.icons): its own box and glyphs; shuffle and repeat smaller and dimmer. */
+button.control.control[data-audio] { --control-height: var(--frame-audio-icon-control); --control-icon: var(--frame-audio-icon-step-icon); }
+button.control.control[data-audio][data-kind='primary'] { --control-height: var(--frame-audio-icon-primary); --control-icon: var(--frame-audio-icon-primary-icon); }
+button.control.control[data-audio][data-tone='secondary'] { --control-icon: var(--frame-audio-icon-secondary-icon); }
+/* An option that is on (repeat) and the button whose panel is open carry a dot under them; the open one sits on a raised disc. */
+button.control.control:is([aria-pressed='true'], [data-open])::after { content: ''; position: absolute; bottom: var(--space-px-4); left: 50%; width: var(--space-px-4); height: var(--space-px-4); margin-left: calc(var(--space-px-4) / -2); border-radius: 50%; background: var(--color-accent-strong); }
+button.control.control[data-open] { background: color-mix(in srgb, var(--color-text) var(--frame-player-tint-open), transparent); }
+/* A transport button with the seconds it skips drawn inside its arrow, at a numeral you can read. */
 .skip { position: relative; display: inline-grid; }
-.skip > small { position: absolute; inset: 0; display: grid; place-items: center; padding-top: var(--space-hairline); pointer-events: none; font-size: var(--type-player-skip-size); font-weight: var(--type-player-skip-weight); }
-/* The arrow's ring is drawn small in its box, so it is enlarged to weigh the same as Previous and Next beside it, and is as bright. */
-.skip > button { color: var(--color-text); }
-.skip > button > svg { width: calc(var(--control-icon) * 1.4); height: calc(var(--control-icon) * 1.4); }
+.skip > small { position: absolute; inset: 0; display: grid; place-items: center; padding-top: var(--space-px-2); pointer-events: none; color: var(--color-text); font-size: var(--frame-player-transport-numeral); font-weight: var(--type-player-skip-weight); }
 
 .times { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-xs); font-size: var(--type-player-time-size); font-weight: var(--type-player-time-weight); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
 .times b { color: var(--color-text); font-weight: var(--type-button-weight); }
@@ -27,7 +40,7 @@
 .pill span { color: var(--color-text-tertiary); font-weight: var(--type-caption-strong-weight); }
 .pill svg { width: var(--frame-player-pill-icon); height: var(--frame-player-pill-icon); color: var(--color-text-secondary); }
 .prompt svg, .dismiss svg { width: var(--frame-player-prompt-icon); height: var(--frame-player-prompt-icon); }
-.pill:hover { background: color-mix(in srgb, var(--color-text) 20%, transparent); }
+.pill:hover, .pill[data-open] { background: color-mix(in srgb, var(--color-text) 20%, transparent); }
 .pill:disabled { opacity: var(--spec-button-disabled-opacity); cursor: default; }
 .pill:focus-visible, .prompt:focus-visible, .dismiss:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 2px; }
 
@@ -36,7 +49,8 @@
 .preview > :first-child { position: absolute; inset: 0; width: 100%; height: 100%; }
 .preview > b { position: absolute; inset: auto 0 0; padding: var(--space-px-14) 0 var(--space-tight); text-align: center; font-size: var(--type-player-preview-time-size); font-weight: var(--type-player-preview-time-weight); font-variant-numeric: tabular-nums; background: linear-gradient(0deg, color-mix(in srgb, var(--color-dim) 88%, transparent), transparent); }
 
-/* Skip intro and Up next: the white prompt and its round dismiss. */
+/* Skip intro and Up next: the white prompt and its round dismiss; after an automatic skip, the note before Undo. */
+.promptNote { height: var(--frame-player-prompt-height); padding: 0 var(--frame-player-prompt-padding); border-radius: var(--frame-player-prompt-radius); display: inline-flex; align-items: center; white-space: nowrap; font-size: var(--type-player-prompt-size); font-weight: var(--type-player-prompt-weight); background: color-mix(in srgb, var(--color-ink) 90%, transparent); color: var(--color-text); }
 .prompts { display: flex; align-items: center; gap: var(--frame-player-prompt-gap); }
 .prompt { height: var(--frame-player-prompt-height); padding: 0 var(--frame-player-prompt-padding); border: 0; border-radius: var(--frame-player-prompt-radius); display: inline-flex; align-items: center; gap: var(--space-control-gap); cursor: pointer; font-family: var(--font); font-size: var(--type-player-prompt-size); font-weight: var(--type-player-prompt-weight); background: var(--color-text); color: var(--color-ink); box-shadow: 0 18px 36px -14px color-mix(in srgb, var(--color-shadow) 85%, transparent); transition: transform var(--motion-quick) var(--ease-out); }
 .prompt:hover { background: var(--color-white); }

@@ -1,0 +1,190 @@
+/* The two players (frames 7 and 8): measurements are --frame-player-*, --frame-audio-* and the transport classes
+   (packages/design frames.ts), type the --type-* roles. Nothing here is a number of this file's own. */
+/* Frame 7 in three forms. The bar is one grid whose areas move with the form, so each part is drawn once. The prompt
+   corner rides on the bar's box, which keeps its size while the chrome is hidden, so a prompt never moves. The frame
+   draws no backdrop: the player's layer is black (R10). */
+.player { position: relative; height: 100%; min-height: 100dvh; display: flex; flex-direction: column; color: var(--color-text); font-family: var(--font); }
+.playerStage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.playerPicture, .playerShade { position: absolute; inset: 0; }
+.playerPicture > * { width: 100%; height: 100%; }
+.playerShade { pointer-events: none; background: var(--frame-player-scrim); }
+.playerShade, .playerTop, .playerBar { transition: opacity var(--motion-standard) var(--ease-out); }
+.player[data-chrome='false'] :is(.playerShade, .playerTop, .playerBar) { opacity: 0; pointer-events: none; }
+.player[data-covered='bar'] .playerBar { opacity: 0; pointer-events: none; }
+.playerTop { position: absolute; inset: 0 0 auto; display: flex; align-items: flex-start; gap: var(--frame-player-title-gap); padding: var(--frame-player-top) var(--frame-player-edge); }
+.playerTitle { flex: 1; min-width: 0; align-self: center; }
+.playerTools { display: flex; gap: var(--space-control-gap); flex: none; }
+.playerBottom { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; pointer-events: none; }
+.playerPrompts { align-self: flex-end; padding: 0 var(--frame-player-edge) var(--space-sm); pointer-events: auto; }
+.playerBar { pointer-events: auto; display: grid; align-items: center; padding: 0 var(--frame-player-edge) max(var(--frame-player-bottom), env(safe-area-inset-bottom));
+  grid-template-columns: 1fr auto 1fr; grid-template-areas: 'seek seek seek' 'position . remaining' 'leading centre trailing'; row-gap: var(--frame-player-times-gap); }
+.playerSeek { grid-area: seek; min-width: 0; }
+.playerPosition, .playerRemaining, .playerClock { font-size: var(--type-player-time-size); font-weight: var(--type-player-time-weight); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.playerPosition b, .playerRemaining b, .playerClock b { color: var(--color-text); font-weight: var(--type-button-weight); }
+.playerPosition { grid-area: position; }
+.playerRemaining { grid-area: remaining; justify-self: end; display: inline-flex; gap: var(--space-control-gap); }
+.playerClock { display: none; grid-area: clock; }
+.playerLive { display: inline-flex; align-items: center; gap: var(--space-tight); }
+.playerLive::before { content: ''; width: var(--space-xs); height: var(--space-xs); border-radius: 50%; background: var(--color-record); }
+.playerLeading, .playerTrailing { display: flex; align-items: center; gap: var(--frame-player-end-gap); min-width: 0; min-height: var(--frame-player-transport-primary); }
+.playerLeading { grid-area: leading; }
+.playerTrailing { grid-area: trailing; justify-content: flex-end; }
+.playerCentre { grid-area: centre; display: flex; align-items: center; gap: var(--frame-player-transport-gap); }
+.playerBody { display: none; }
+/* A phone on its side: the transport moves to the middle of the picture, the read-outs sit either side of the scrubber. */
+@media (max-height: 500px) and (min-width: 600px) {
+  /* R8: a window this short is a phone on its side; it takes the phone's sideways forms (phone-player 1), never the desktop's. */
+  /* The left end may be wider than the time over it and the right end wider than the time left: each spans a spare
+     column, so neither squeezes the scrubber. */
+  .playerBar { grid-template-columns: auto auto 1fr auto; grid-template-areas: 'position seek seek remaining' 'leading leading trailing trailing'; }
+  .playerSeek { margin: 0 var(--space-px-12); }
+  .playerEnds { display: none; }
+  .playerLeading, .playerTrailing { min-height: var(--frame-player-pill-height); }
+  .playerCentre { position: absolute; inset: 0; justify-content: center; gap: var(--frame-player-transport-gap); pointer-events: none; }
+  .playerCentre > * { pointer-events: auto; }
+}
+/* An upright phone: the picture is a 16:9 strip with the chrome inside it; the watch page follows. */
+@media (max-width: 599px) {
+  /* The strip's transport is its own class (phone-player 4): the owner's 58 disc. */
+  .playerStage { flex: none; aspect-ratio: var(--frame-player-portrait-aspect); --frame-player-transport-control: var(--frame-player-upright-control); --frame-player-transport-step-icon: var(--frame-player-upright-step-icon);
+    --frame-player-transport-skip-icon: var(--frame-player-upright-skip-icon); --frame-player-transport-primary: var(--frame-player-upright-primary); --frame-player-transport-primary-icon: var(--frame-player-upright-primary-icon);
+    --frame-player-transport-numeral: var(--frame-player-upright-numeral); --frame-player-transport-gap: var(--frame-player-upright-gap); }
+  .playerShade { background: color-mix(in srgb, var(--color-dim) var(--frame-player-portrait-shade), transparent); }
+  .playerTop { padding: var(--frame-player-portrait-top) var(--frame-player-portrait-edge); gap: 0; }
+  .playerTitle { visibility: hidden; }
+  .playerTools { gap: 0; }
+  /* A prompt has its own place in the strip's bottom row, between the read-out and the options, where it covers neither them nor the transport. */
+  .playerPrompts { position: absolute; z-index: 1; right: var(--frame-player-portrait-prompt-right); bottom: var(--frame-player-portrait-bottom); min-height: var(--target-touch); display: flex; align-items: center; padding: 0;
+    --frame-player-prompt-height: var(--frame-player-portrait-prompt-height); --frame-player-prompt-padding: var(--frame-player-portrait-prompt-padding-x); --frame-player-prompt-radius: calc(var(--frame-player-portrait-prompt-height) / 2); --frame-player-prompt-dismiss: 0px; --type-player-prompt-size: var(--type-player-pill-size); }
+  /* The finger is on the scrubber: the transport makes way for the preview. */
+  .player[data-scrubbing='true'] .playerCentre { opacity: 0; pointer-events: none; }
+  .playerBar { grid-template-columns: 1fr auto; grid-template-areas: 'clock trailing'; padding: 0 var(--frame-player-portrait-edge) var(--frame-player-portrait-bottom) var(--frame-player-portrait-time-inset); }
+  .playerClock { display: inline; }
+  .playerPosition, .playerRemaining, .playerLeading { display: none; }
+  .playerTrailing { min-height: var(--target-touch); }
+  .playerSeek { position: absolute; inset: auto 0 0; height: var(--frame-player-portrait-scrubber); display: flex; align-items: center; }
+  .playerSeek > * { flex: 1; }
+  .playerCentre { position: absolute; inset: 0; justify-content: center; gap: var(--frame-player-transport-gap); pointer-events: none; }
+  .playerCentre > * { pointer-events: auto; }
+  .playerBody { display: block; flex: 1; background: var(--color-ink); }
+}
+
+/* A phone on its side: the finger is on the scrubber, so the transport in the middle of the picture makes way for the preview (phone-player 1b). */
+@media (max-height: 500px) { .player[data-scrubbing='true'] .playerCentre { opacity: 0; pointer-events: none; } }
+
+/* Frame 8 and rule 12 (R7: each form its own layout). The frame draws no backdrop: the audio player's layer is the
+   glow from the artwork (R10). Phone width (phone-app 14 and 15): the bar, the artwork, the title, the scrubber with
+   its times under its ends and the transport, then what is left of the height shared evenly round the next line, and
+   the bottom row on the bottom edge. */
+.audio { position: relative; height: 100%; min-height: 100dvh; box-sizing: border-box; display: flex; flex-direction: column; color: var(--color-text); font-family: var(--font);
+  padding: 0 var(--frame-audio-inset) max(var(--frame-sheet-footer-clear), env(safe-area-inset-bottom)); }
+.audioTop { height: var(--frame-audio-top-bar); flex: none; display: flex; align-items: center; gap: var(--space-xs); }
+button.audioSquare.audioSquare { background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.audioContext { flex: 1; min-width: 0; margin: 0; display: flex; flex-direction: column; align-items: center; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-secondary); }
+.audioContext > * { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.audioContext > b { font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-group-label-weight); color: var(--color-text); }
+.audioNotice, button.audioDevice, button.audioTitleMore, .audioRows, .audioVolume { display: none; }
+.audioColumn { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.audioArt { flex: none; align-self: center; width: 100%; max-width: var(--frame-audio-artwork); aspect-ratio: 1; margin-top: var(--frame-audio-gap); box-shadow: 0 40px 70px -30px color-mix(in srgb, var(--color-shadow) 90%, transparent); }
+.audio[data-book] .audioArt { max-width: calc(var(--frame-audio-artwork) * var(--frame-audio-book-art-share)); }
+.audioWords { flex: none; min-height: var(--frame-audio-title-slot); margin-top: var(--space-sm); display: flex; align-items: flex-start; gap: var(--space-xs); }
+.audioWords > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-tight); }
+.audioWords h1 { margin: 0; font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); letter-spacing: var(--type-title-tracking); overflow-wrap: anywhere; }
+.audioWords p { margin: 0; min-height: var(--type-intro-line); font-size: var(--type-intro-size); line-height: var(--type-intro-line); font-weight: var(--type-group-label-weight); color: var(--color-text-secondary); }
+.audioWords p > [data-rest] { display: none; }
+.audioMarks { flex: none; display: flex; }
+.audioMarks > button.audioMark { color: var(--color-text); --control-icon: var(--frame-audio-icon-inline-icon); }
+.audioBadge { display: inline-flex; vertical-align: middle; margin-inline-start: var(--space-sm); padding: var(--space-px-2) var(--space-xs); border-radius: var(--space-xs); font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-group-label-weight); letter-spacing: 0; background: color-mix(in srgb, var(--color-text) 10%, transparent); }
+.audioChapter { margin: 0; display: flex; align-items: center; gap: var(--space-xs); min-height: var(--type-row-label-line); font-size: var(--type-row-label-size); color: var(--color-text-secondary); }
+.audioChapter > svg { width: var(--frame-player-pill-icon); height: var(--frame-player-pill-icon); }
+.audioChapter > b { flex: 1; min-width: 0; font-weight: var(--type-row-label-weight); }
+.audioChapter > span { font-size: var(--type-row-help-size); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.audioSeek { flex: none; min-height: var(--frame-audio-scrubber); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'bar bar bar' 'pos mid end'; align-content: center; row-gap: var(--frame-player-times-gap);
+  font-size: var(--type-player-time-size); font-weight: var(--type-player-time-weight); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.audioSeek > div { grid-area: bar; min-width: 0; }
+.audioSeek > span:first-child { grid-area: pos; }
+.audioSeek > span:last-child { grid-area: end; text-align: end; }
+.audioMiddle { grid-area: mid; text-align: center; }
+.audioTransport { flex: none; height: var(--frame-audio-transport); display: flex; align-items: center; justify-content: space-between; }
+/* What is left of the height is shared evenly above and below the next line, the same on every phone. */
+.audioNext { flex: none; height: var(--frame-audio-next-line); margin: auto 0; display: flex; justify-content: center; align-items: center; gap: var(--space-xs); font-size: var(--type-row-help-size); color: var(--color-text-tertiary); white-space: nowrap; overflow: hidden; }
+.audioNext b { color: var(--color-text); font-weight: var(--type-group-label-weight); }
+.audioOptions { flex: none; height: var(--frame-audio-bottom-row); display: flex; }
+.audioOptions[data-tiles] { gap: var(--space-xs); }
+/* A bottom-row slot is the kit's text button with its glyph or value over its label, as wide as its share of the row; the device's glyph is beside its label. */
+button.audioSlot.audioSlot { flex: 1; min-width: 0; height: 100%; padding: 0 var(--space-px-4); color: var(--color-text); }
+.audioSlot > span { display: flex; flex-direction: column; align-items: center; gap: var(--space-tight); }
+.audioSlot small { font-size: var(--type-row-help-size); font-weight: var(--type-group-label-weight); }
+.audioSlot[data-kind='device'] { flex: 1.6; }
+.audioSlot[data-kind='device'] > span { flex-direction: row; gap: var(--space-xs); }
+.audioSlot[data-kind='device'] small { font-size: var(--type-row-label-size); white-space: nowrap; }
+.audioSlot[data-kind='tile'] { border-radius: var(--frame-card-radius); background: color-mix(in srgb, var(--color-text) 10%, transparent); box-shadow: inset 0 0 0 1px transparent; }
+.audioSlot[data-kind='tile'] b { display: inline-flex; align-items: center; gap: var(--space-tight); font-size: var(--type-row-label-size); font-weight: var(--type-page-title-weight); }
+.audioSlot[data-kind='tile'] b svg { width: var(--frame-player-pill-icon); height: var(--frame-player-pill-icon); color: var(--color-text-secondary); }
+.audioSlot[data-kind='tile'][aria-pressed='true'] { color: var(--color-accent-strong); background: color-mix(in srgb, var(--color-accent) 24%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 70%, transparent); }
+.audioSlot[data-kind='tile'][aria-pressed='true'] b svg { color: var(--color-accent-strong); }
+/* At phone width the queue is a sheet over the player while it is open. */
+.audioPanel { position: absolute; z-index: 2; inset: var(--frame-sheet-full-top) 0 0; display: flex; flex-direction: column; border-radius: var(--frame-sheet-full-radius) var(--frame-sheet-full-radius) 0 0; overflow: hidden; background: var(--color-raised); }
+
+/* From 600 (desktop-listen "now", tablet-play 9): the bar spans the window; a column as wide as the cover sits centred
+   in the room beside the raised queue panel; the title, scrubber, transport and volume share the cover's edges. */
+@media (min-width: 600px) {
+  .audio { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: var(--frame-audio-top-bar) minmax(0, 1fr); column-gap: var(--frame-audio-wide-panel-inset);
+    padding: 0 var(--frame-audio-wide-panel-inset) var(--frame-audio-wide-panel-inset); }
+  .audioTop { grid-column: 1 / -1; gap: var(--space-sm); }
+  button.audioSquare.audioSquare { background: var(--glass-fill); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur)); }
+  .audioContext { flex-direction: row; align-items: baseline; gap: var(--space-tight); }
+  .audioContext > b { font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-button-weight); }
+  .audioNotice { display: inline-flex; position: absolute; left: 50%; top: calc((var(--frame-audio-top-bar) - var(--target-touch)) / 2 + var(--space-px-2)); translate: -50% 0; align-items: center; gap: var(--space-xs); height: calc(var(--target-touch) - var(--space-px-4)); padding: 0 var(--space-sm);
+    border-radius: var(--target-touch); font-size: var(--type-row-help-size); font-weight: var(--type-group-label-weight); white-space: nowrap; background: color-mix(in srgb, var(--color-ink) 55%, transparent); backdrop-filter: blur(var(--glass-blur)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent); }
+  .audioNotice > svg { width: var(--frame-player-pill-icon); height: var(--frame-player-pill-icon); }
+  button.audioDevice { display: inline-flex; }
+  .audioColumn { grid-column: 1; grid-row: 2; align-self: center; justify-self: center; width: min(100%, var(--frame-audio-artwork)); flex: none; display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; }
+  .audioColumn > :not(.audioArt, .audioWords) { grid-column: 1 / -1; }
+  .audioArt { margin-top: 0; max-width: none; }
+  .audioWords { min-height: 0; margin-top: var(--frame-audio-wide-title-gap); align-items: flex-end; gap: var(--space-sm); }
+  .audioWords h1 { font-size: var(--type-audio-title-size); line-height: var(--type-audio-title-line); font-weight: var(--type-audio-title-weight); letter-spacing: var(--type-audio-title-tracking); }
+  .audioWords p { margin-top: var(--space-tight); font-weight: var(--type-intro-weight); }
+  .audioWords p > [data-rest] { display: inline; margin-inline-start: var(--space-sm); }
+  button.audioTitleMore { display: inline-flex; }
+  .audioSeek { min-height: 0; margin-top: var(--frame-audio-wide-scrubber-gap); grid-template-columns: var(--frame-audio-wide-times-width) minmax(0, 1fr) var(--frame-audio-wide-times-width); grid-template-areas: 'pos bar end'; column-gap: var(--space-sm); align-items: center; }
+  .audioMiddle { display: none; }
+  /* The line has no knob at rest; it shows under the pointer or keyboard focus (desktop-listen "now"). */
+  .audioSeek input::-webkit-slider-thumb { opacity: 0; }
+  .audioSeek input::-moz-range-thumb { opacity: 0; }
+  .audioSeek:is(:hover, :focus-within) input::-webkit-slider-thumb { opacity: 1; }
+  .audioSeek:is(:hover, :focus-within) input::-moz-range-thumb { opacity: 1; }
+  .audioTransport { height: auto; margin-top: var(--frame-audio-wide-transport-gap); justify-content: center; gap: var(--frame-audio-wide-transport-spacing); }
+  .audioVolume { display: flex; justify-content: center; margin-top: var(--frame-audio-wide-below-gap); }
+  .audioVolume > * > :last-child { width: var(--frame-audio-wide-volume); }
+  .audioNext, .audioOptions { display: none; }
+  .audioPanel { position: static; grid-column: 2; grid-row: 2; width: var(--frame-audio-up-next); min-height: 0; margin-top: var(--space-xs); border-radius: 0; background: none; overflow: visible; }
+  /* An audiobook (desktop-listen "book-player", tablet-play 12): the cover beside the title, the chapter line, the book-long scrubber, then Speed and Sleep timer as rows. */
+  .audio[data-book] .audioColumn { width: min(100%, var(--frame-audio-wide-book-column)); grid-template-columns: var(--frame-audio-wide-book-art) minmax(0, 1fr); column-gap: var(--frame-audio-wide-book-art-gap); }
+  .audio[data-book] .audioArt { max-width: none; }
+  .audio[data-book] .audioWords { margin: 0 0 var(--space-tight); }
+  .audio[data-book] .audioChapter { margin-top: var(--frame-audio-wide-chapter-gap); color: var(--color-text); }
+  .audio[data-book] .audioChapter > svg { display: none; }
+  .audio[data-book] .audioChapter > b { font-weight: var(--type-button-weight); }
+  .audio[data-book] .audioSeek { margin-top: var(--space-xs); grid-template-columns: var(--frame-audio-wide-book-times-width) minmax(0, 1fr) var(--frame-audio-wide-book-times-width); }
+  .audioRows { display: grid; gap: var(--space-control-gap); margin-top: var(--frame-audio-wide-rows-gap); }
+}
+
+/* R8, a phone on its side (no mock-up draws the audio player sideways; phone-app 14 turned): the cover beside the
+   words, the scrubber and the transport, the bottom row's slots as one row under them, and the queue a sheet as at
+   phone width. A window this short has no room for the wide form's column and panel. */
+@media (min-width: 600px) and (max-height: 500px) {
+  .audio { display: flex; padding: 0 var(--frame-audio-wide-panel-inset) var(--space-sm); }
+  .audioColumn { flex: 1; width: auto; align-self: stretch; grid-template-columns: auto minmax(0, 1fr); grid-auto-rows: auto; column-gap: var(--frame-audio-wide-book-art-gap); align-content: center; }
+  .audio[data-book] .audioColumn { width: auto; grid-template-columns: auto minmax(0, 1fr); }
+  .audioColumn > :not(.audioArt) { grid-column: 2; }
+  .audioArt, .audio[data-book] .audioArt { grid-column: 1; grid-row: 1 / span 6; align-self: center; width: calc(100dvh - var(--frame-audio-top-bar) - 2 * var(--space-sm)); max-width: none; }
+  .audioWords, .audio[data-book] .audioWords { margin: 0; }
+  .audioWords h1, .audio[data-book] .audioWords h1 { font-size: var(--type-title-size); line-height: var(--type-title-line); }
+  .audio[data-book] .audioChapter { margin-top: var(--space-xs); }
+  .audioSeek { margin-top: var(--space-xs); }
+  .audioTransport { margin-top: var(--space-xs); justify-content: space-between; gap: 0; }
+  .audioVolume, .audioRows { display: none; }
+  .audioOptions { display: flex; height: var(--frame-audio-bottom-row); margin-top: var(--space-xs); }
+  .audioPanel { position: absolute; z-index: 2; inset: var(--space-sm) 0 0; width: auto; margin: 0; border-radius: var(--frame-sheet-full-radius) var(--frame-sheet-full-radius) 0 0; overflow: hidden; background: var(--color-raised); }
+}

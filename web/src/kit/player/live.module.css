@@ -140,3 +140,23 @@
   .guideButton.guideButton { width: 40px; padding: 0; justify-content: center; background: none; backdrop-filter: none; box-shadow: none; }
   .guideButton.guideButton span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 }
+
+/* R8, a phone on its side (phone-player 1c and 1e): the same player as on demand, never the desktop bar narrowed. The
+   channel lockup is small at the top left; the transport (channel down and up either side) is in the middle of the
+   picture; Guide and the options pills share the row under the line; the short guide is a side sheet the full height
+   of the picture, clear of the line and the transport. */
+@container live (min-width: 600px) and (max-height: 500px) {
+  .top { padding: var(--space-px-12) var(--frame-player-edge); gap: var(--space-xs); }
+  .mark { width: var(--target-touch); height: var(--target-touch); }
+  .identity h2 { font-size: var(--type-player-title-size); line-height: var(--type-player-title-line); }
+  .identity p { font-size: var(--type-player-subtitle-size); }
+  .record.record { width: var(--target-touch); padding: 0; justify-content: center; }
+  .recordText { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .bottom { padding: 0 var(--frame-player-edge) var(--frame-player-bottom); }
+  .controls { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'left right'; }
+  .center { position: absolute; left: 0; right: 0; bottom: calc(50cqh - var(--frame-player-transport-primary) / 2); justify-content: center; gap: var(--frame-player-transport-gap); pointer-events: auto; }
+  .control { width: var(--frame-player-transport-control); height: var(--frame-player-transport-control); background: none; }
+  .control[data-main] { width: var(--frame-player-transport-primary); height: var(--frame-player-transport-primary); background: var(--color-text); }
+  .left { grid-area: left; } .right { grid-area: right; }
+  .miniGuide { top: 0; right: 0; bottom: 0; width: var(--frame-player-panel-width); border-radius: 0; overflow-y: auto; }
+}

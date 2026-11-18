@@ -1,17 +1,14 @@
 import React, {useRef, useState, type ReactNode} from 'react';
-import {Platform, ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {Text, View, useWindowDimensions} from 'react-native';
 import {formatMessage} from '../../../../../../packages/i18n/src';
 import {framesFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/frames-fixtures';
-import {AmbientArt, Artwork, ChannelMark, type ArtworkSource} from '../../../kit/artwork/index';
-import {EpisodeTile, PosterCard, SquareCard, WideCard} from '../../../kit/cards';
-import {Button, KeyHints, Switch, Tabs, TextField} from '../../../kit/controls';
-import {SongRow} from '../../../kit/browse/Tracks';
-import {ArtBox, AudioPlayerFrame, BrowseFrame, HomeHero, PageStateFrame, PlayerChromeFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame,
-  type AudioControl, type AudioOption} from '../../../kit/frames';
+import {AmbientArt, type ArtworkSource} from '../../../kit/artwork/index';
+import {PosterCard, SquareCard, WideCard} from '../../../kit/cards';
+import {Button, KeyHints, Switch, TextField} from '../../../kit/controls';
+import {ArtBox, BrowseFrame, HomeHero, PageStateFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame} from '../../../kit/frames';
 import {frameSpec} from '@portico/design';
-import {useFrameMetrics, usePlayerUpright} from '../../../kit/frames/metrics';
-import {PlayerChannelStep, PlayerControl, PlayerFilmstrip, PlayerLiveActions, PlayerPanel, PlayerPanelGroup, PlayerPanelRow, PlayerPill, PlayerPrompt, PlayerScrubBar, PlayerScrubPreview, PlayerTimes, PlayerTitle, PlayerUpNext} from '../../../kit/player';
-import {HeroMetadata, Row, SeasonBar, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
+import {useFrameMetrics} from '../../../kit/frames/metrics';
+import {HeroMetadata, Row, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
 import {LargeTitleHeader, SettingsNav, SettingsRow, ShortcutTiles} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -105,26 +102,6 @@ const BrowseList = () => <Page destination={{kind: 'library', libraryId: 'movie'
 </BrowseFrame></Page>;
 const BrowseLoading = () => <Window><BrowseFrame testID="frames-browse-loading" header={{title: f('movies')}} state={{kind: 'loading'}}/></Window>;
 
-/** A show's episode list as the title page and the watch page draw it (phone-player 4, tablet-play 3): the kit's season
- * bar, then the kit's episode rows with their states. */
-const episodes = [
-  {name: 'episode1', number: 'episodeNumber1', status: 'episodeWatched', length: 'episodeLength1', watched: true, progress: undefined, playing: false, art: true},
-  {name: 'episode2', number: 'episodeNumber2', status: 'episodePlaying', length: 'episodeLeft2', watched: false, progress: .26, playing: true, art: true},
-  {name: 'episode3', number: 'episodeNumber3', status: 'episodeUpNext', length: 'episodeLength3', watched: false, progress: undefined, playing: false, art: false},
-] as const;
-function EpisodeRows({panel = false}: {panel?: boolean}) {
-  const theme = useTheme(), frame = useFrameMetrics(), width = (panel ? frameSpec.player.panel.width[frame.form] || frame.width : frame.width) - 2 * (panel ? frameSpec.player.panel.padding[frame.form] : frame.gutter);
-  return <View style={{gap: theme.space.sm}}>{episodes.map(episode => <EpisodeTile key={episode.name} testID={`frames-episode-${episode.name}`} layout="row" width={width} artWidth={panel ? frameSpec.player.panel.still[frame.form] : frame.form === 'phone' ? undefined : frameSpec.player.panel.still.tv}
-    title={f(episode.name)} label={[{id: 'episode', text: f(episode.number), role: 'context'}]} status={f(episode.status)} length={f(episode.length)} synopsis={f('tlouSynopsis')}
-    artwork={episode.art ? asset('bd-tlou.jpg') : undefined} watched={episode.watched} progress={episode.progress} playing={episode.playing} onNavigate={none} onDownload={theme.isTV ? undefined : none}/>)}</View>;
-}
-function Episodes() {
-  const theme = useTheme(), frame = useFrameMetrics(), [hide, setHide] = useState(false);
-  return <View style={{marginHorizontal: frame.gutter, gap: theme.space.sm}}>
-    <SeasonBar label={f('episodesSeason')} count={f('episodesCount')} onSeasons={none} hideWatched={hide} onHideWatched={setHide}/>
-    <EpisodeRows/>
-  </View>;
-}
 function Title({variant}: {variant: 'full' | 'missing' | 'loading'}) {
   const [tab, setTab] = useState('more'), full = variant !== 'missing', {form} = useFrameMetrics();
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID={`frames-title-${variant}`} back={{label: f('back'), onPress: none}} topAction={{icon: 'i-cast', label: f('playOn'), onPress: none}}
@@ -197,151 +174,6 @@ function SignIn() {
   </SignInFrame></Window>;
 }
 
-type PlayerState = 'playing' | 'paused' | 'buffering' | 'scrubbing' | 'live' | 'missing';
-/** The watch page under the upright player's picture (phone-player 4, tablet-play 3): the title page's own content, without its art. */
-/** Under an upright live picture: what is on, on which channel, and what follows. */
-function LivePage() {
-  const theme = useTheme(), frame = useFrameMetrics();
-  return <ScrollView contentContainerStyle={{padding: frame.gutter, gap: theme.space.sm}}>
-    <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}><ChannelMark mark={{text: f('liveMark'), seed: 'synthetic:sse'} as never} size={theme.targets.touch}/>
-      <View style={{flex: 1}}><Text style={[theme.type.rowLabel, {color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{f('liveChannelName')}  {f('liveNumber')}</Text><Text style={[theme.type.rowHelp, {color: theme.colors.record}]}>{f('liveNow')}</Text></View></View>
-    <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text}]}>{f('liveTitle')}</Text>
-    <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{f('liveThen')}</Text>
-    <View style={{flexDirection: 'row', gap: theme.spec.hero.actions.gap[theme.column]}}><Button testID="frames-live-guide" variant="glass" icon="i-list" onPress={none}>{f('liveGuide')}</Button><Button testID="frames-live-record" variant="glass" icon="i-rec" iconColor={theme.colors.record} onPress={none}>{f('liveRecord')}</Button></View>
-  </ScrollView>;
-}
-function WatchPage({paused = false}: {paused?: boolean}) {
-  const theme = useTheme(), frame = useFrameMetrics(), [tab, setTab] = useState('episodes'), wide = frame.form !== 'phone';
-  const words = <View style={{flexShrink: 1, gap: theme.space.tight}}><Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text}]}>{f('tlou')}</Text>
-    <Text style={[theme.type.rowLabel, {color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{f('videoLead')}  {f('videoSubtitle')}</Text><HeroMetadata facts={fact(f('tlouFacts'))}/></View>;
-  const actions = <View style={{flexDirection: 'row', gap: theme.spec.hero.actions.gap[theme.column]}}><Button icon={paused ? 'i-play' : 'i-pause'} align="stretch" style={wide ? undefined : {flex: 1}} onPress={none}>{f(paused ? 'play' : 'pause')}</Button>
-    {([['i-plus', 'myList'], ['i-dl', 'download'], ['i-more', 'more']] as const).map(([icon, name]) => <Button key={name} variant="glass" iconOnly icon={icon} accessibilityLabel={f(name)} onPress={none}/>)}</View>;
-  return <ScrollView contentContainerStyle={{paddingVertical: theme.space.sm, gap: theme.space.sm}}>
-    <View style={[{marginHorizontal: frame.gutter, gap: theme.space.sm}, wide && {flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between'}]}>{words}{actions}</View>
-    <Tabs items={[{value: 'episodes', label: f('episodes')}, {value: 'more', label: f('moreLikeThis')}, {value: 'details', label: f('details')}]} value={tab} onValueChange={setTab}/>
-    <Episodes/>
-  </ScrollView>;
-}
-/** The video player filled with the kit's player parts, with what each mock-up puts in each place for its form
- * (tablet-play 1 and tv-player 1; phone-player 1 on its side; phone-player 4 and tablet-play 3 upright). Nothing moves between the states. */
-function Player({state = 'playing', panel, card, id = `frames-player-${state}`, start}: {state?: PlayerState; /** A `PlayerPanel`, open. */ panel?: ReactNode; /** Up next, over the credits. */ card?: ReactNode; id?: string;
-  /** TV: where the case starts (R1); Play or Pause unless a panel or card is open. */ start?: string}) {
-  const {form} = useFrameMetrics(), phone = form === 'phone', tv = form === 'tv', upright = usePlayerUpright(), tablet = !phone && !tv && !upright, live = state === 'live', missing = state === 'missing', scrubbing = state === 'scrubbing';
-  const still = <Artwork source={asset('bd-tlou.jpg')}/>;
-  const tool = (icon: AudioControl['icon'], name: FixtureName, disabled = false) => <PlayerControl key={name} testID={`${id}-${name}`} onPicture icon={icon} label={f(name)} disabled={disabled} onPress={none}/>;
-  const plain = (icon: AudioControl['icon'], name: FixtureName, disabled = false) => <PlayerControl key={name} testID={`${id}-${name}`} icon={icon} label={f(name)} disabled={disabled} onPress={none}/>;
-  const quality = <PlayerPill testID={`${id}-quality`} icon={tablet ? undefined : 'i-quality'} name={tv ? f('qualityShort') : undefined} qualifier={f('qualityAuto')} value={f('qualityValue')} label={f('qualityShort')} onPress={none}/>;
-  const subtitles = <PlayerPill testID={`${id}-subtitles`} icon="i-cc" name={f('subtitles')} value={f('english')} label={f('subtitles')} disabled={missing} onPress={none}/>;
-  const audio = <PlayerPill testID={`${id}-audio`} icon="i-audio" name={f('audio')} value={f('english')} label={f('audio')} disabled={missing} onPress={none}/>;
-  // On touch and on TV the knob goes to the time being previewed (phone-player 1b, tv-player 2).
-  const at = scrubbing ? .65 : live ? .96 : .29;
-  return <Window><PlayerChromeFrame testID={id} startFocus={start ?? `${id}-toggle`} chromeVisible scrubbing={scrubbing} panel={panel} card={card} picture={still} close={tool('i-down', 'close')} title={<PlayerTitle title={f('tlou')} lead={f('videoLead')} subtitle={f('videoSubtitle')}/>}
-    tools={upright ? <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{tool('i-cc', 'subtitles', missing)}{tool('i-settings', 'playerSettings')}</>
-      : tablet ? <>{tool('i-cast', 'playOn')}{tool('i-more', 'more')}{tool('i-x', 'dismiss')}</> : <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{tool('i-settings', 'playerSettings')}</>}
-    scrubber={<PlayerScrubBar value={at} buffered={[{start: at, end: live ? 1 : at + .14}]} marks={missing || live ? [] : [{start: .02, end: .08}, {start: .95, end: 1}]}
-      preview={scrubbing && !tv ? <PlayerScrubPreview at={at} time={f('previewTime')}>{still}</PlayerScrubPreview> : undefined}
-      filmstrip={scrubbing && tv ? <PlayerFilmstrip frames={(['film1', 'film2', 'previewTime', 'film4', 'film5'] as const).map(name => ({time: f(name), picture: still}))}/> : undefined}
-      labels={scrubbing && tv ? [{at: 0, text: f('markRecap')}, {at: .05, text: f('markIntro')}, {at: 1, text: f('markCredits'), end: true}] : undefined}/>}
-    hints={<KeyHints hints={[{key: f('keyMove'), label: f('hintMove')}, {key: f('keyHold'), label: f('hintFaster')}, {key: f('keyOk'), label: f('hintPlayFrom')}, {key: f('keyBack'), label: f('hintReturn')}]}/>}
-    times={{position: f(scrubbing ? 'previewTime' : 'elapsed'), remaining: f('remaining'), duration: f('duration'), endsAt: live ? undefined : f('endsAt'), live: live ? f('live') : undefined, clock: f('clock')}}
-    transport={<><PlayerControl testID={`${id}-previous`} icon="i-prev" label={f('previous')} disabled={live || missing} onPress={none}/><PlayerControl testID={`${id}-rewind`} icon="i-rew" skip={10} label={f('rewind')} onPress={none}/>
-      <PlayerControl testID={`${id}-toggle`} primary icon={state === 'paused' ? 'i-play' : 'i-pause'} busy={state === 'buffering'} label={f(state === 'paused' ? 'play' : 'pause')} onPress={none}/>
-      <PlayerControl testID={`${id}-forward`} icon="i-ffw" skip={30} label={f('forward')} disabled={live} onPress={none}/><PlayerControl testID={`${id}-next`} icon="i-next" label={f('next')} disabled={live || missing} onPress={none}/></>}
-    leading={<Button testID={`${id}-episodes`} variant="glass" size="small" icon="i-episodes" disabled={live} onPress={none}>{f('episodesButton')}</Button>}
-    trailing={upright ? <>{quality}{plain('i-full', 'fullScreen')}</>
-      : tablet ? <>{plain('i-cc', 'subtitles', missing)}{quality}<PlayerPill testID={`${id}-speed`} value={f('speedShort')} label={f('optSpeed')} onPress={none}/>{plain('i-pip', 'pictureInPicture')}</>
-      : tv ? <>{subtitles}{audio}{quality}{plain('i-sliders', 'playerOptions')}{plain('i-pip', 'pictureInPicture')}</> : <>{subtitles}{audio}{quality}</>}
-    prompts={(state === 'playing' ? <PlayerPrompt testID={`${id}-skip`} label={f('skipIntro')} onPress={none} dismiss={{label: f('dismiss'), onPress: none}}/> : undefined)}
-    body={<WatchPage paused={state === 'paused'}/>}/></Window>;
-}
-
-/** The player's own panels (kit/player), each open on the paused player where the frame places it for the form:
- * Playback options and the lists it opens (phone-player 3 and 3b, tablet-play 2b, tv-player 4), then Episodes (tablet-play 2a). */
-type PanelName = 'options' | 'subtitles' | 'audio' | 'quality' | 'speed';
-function PlayerPanelCase({panel}: {panel: PanelName}) {
-  const [forced, setForced] = useState(false), id = `frames-player-${panel}`;
-  const close = {label: f('optDone'), onPress: none}, back = {label: f('optBack'), onPress: none};
-  const row = (label: FixtureName, detail?: FixtureName, selected = false, unavailable = false, trailing?: ReactNode) => <PlayerPanelRow key={label} testID={`${id}-${label}`} label={f(label)} detail={detail && f(detail)} selected={selected} unavailable={unavailable ? f('optUnavailable') : undefined} trailing={trailing} onPress={none}/>;
-  const entry = (icon: AudioControl['icon'], label: FixtureName, value: FixtureName, qualifier?: FixtureName) => <PlayerPanelRow key={label} testID={`${id}-${label}`} icon={icon} label={f(label)} value={f(value)} qualifier={qualifier && f(qualifier)} onPress={none}/>;
-  const body = {
-    options: <><PlayerPanelGroup>{entry('i-cc', 'subtitles', 'english')}{entry('i-audio', 'audio', 'english')}{entry('i-quality', 'qualityShort', 'qualityValue', 'optAutomaticShort')}{entry('i-gauge', 'optSpeed', 'optNormal')}{entry('i-moon', 'optSleep', 'optOff')}</PlayerPanelGroup>
-      <PlayerPanelGroup label={f('optThisTitle')}>{entry('i-queue', 'upNext', 'optUpNextCount')}</PlayerPanelGroup></>,
-    subtitles: <><PlayerPanelGroup>{row('optOff')}{row('english', 'optSrt', true)}{row('optEnglishSdh', 'optSrt')}{row('optSpanish', 'optSrt')}{row('optGerman', 'optNotAdded', false, false, <Button variant="glass" size="xs" icon="i-plus" onPress={none}>{f('optAdd')}</Button>)}</PlayerPanelGroup>
-      <PlayerPanelGroup>{row('optForced', 'optForcedHelp', false, false, <Switch checked={forced} onCheckedChange={setForced} accessibilityLabel={f('optForced')}/>)}</PlayerPanelGroup></>,
-    audio: <PlayerPanelGroup note={f('optAudioNow')}>{row('english', 'optAac51', true)}{row('optSpanish', 'optAacStereo')}{row('optCommentary', 'optAacStereo', false, true)}</PlayerPanelGroup>,
-    quality: <PlayerPanelGroup note={f('optQualityNow')}>{row('optOriginal', 'optOriginalDetail')}{row('optAutomatic', 'optAutomaticDetail', true)}{row('opt720', 'opt720Detail')}{row('opt480', 'opt480Detail')}</PlayerPanelGroup>,
-    speed: <PlayerPanelGroup>{row('optSpeed05')}{row('optSpeed075')}{row('optNormal', undefined, true)}{row('optSpeed125')}{row('optSpeed15')}{row('optSpeed2')}</PlayerPanelGroup>,
-  }[panel];
-  const title = {options: 'optTitle', subtitles: 'subtitles', audio: 'audio', quality: 'qualityShort', speed: 'optSpeed'} as const;
-  // R1: a list starts on its current choice, Playback options on its first row.
-  const start = {options: 'subtitles', subtitles: 'english', audio: 'english', quality: 'optAutomatic', speed: 'optNormal'} as const;
-  return <Player state="paused" id={id} start={`${id}-${start[panel]}`} panel={<PlayerPanel testID={`${id}-panel`} title={f(title[panel])} note={panel === 'options' ? f('optNote') : undefined} back={panel === 'options' ? undefined : back} close={close}>{body}</PlayerPanel>}/>;
-}
-function PlayerEpisodesCase() {
-  const [hide, setHide] = useState(false);
-  return <Player state="paused" id="frames-player-episodes" start="frames-episode-episode2" panel={<PlayerPanel testID="frames-player-episodes-panel" title={f('episodesTitle')} close={{label: f('optDone'), onPress: none}} footer={f('episodesNote')}>
-    <SeasonBar label={f('episodesSeason')} count={f('episodesCount')} onSeasons={none} hideWatched={hide} onHideWatched={setHide}/>
-    <EpisodeRows panel/>
-  </PlayerPanel>}/>;
-}
-/** Up next over the credits (tv-player 5, phone-player 6): the kit card in the player's prompt corner, the controls hidden. */
-function PlayerUpNextCase() {
-  const {form} = useFrameMetrics();
-  return <Player id="frames-player-up-next" start="watch-up-next-play" card={<PlayerUpNext compact={form !== 'tv'} item={{entryId: 'next', title: f('episode3'), durationMs: 76 * 60_000, episode: {seasonNumber: 1, number: 3}} as never} artwork={asset('bd-tlou.jpg')}
-    countdown={{seconds: 42, automatic: false}} countdownTotal={60} sceneAfter={false} onPlayNow={none} onWatchCredits={none} onSkipCredits={none}/>}/>;
-}
-/** The Live TV player's controls on the player frame (tv-player 11, tablet-play 8, phone-player 1c): the channel's
- * mark and the Live mark in the title block, Record and More at the top, Guide, channel down and up either side of
- * the transport, the live bar, and Go to live in the prompt corner when behind. */
-function PlayerLiveControlsCase() {
-  const {form} = useFrameMetrics(), tv = form === 'tv', phone = form === 'phone', upright = usePlayerUpright(), id = 'frames-player-live-controls';
-  const theme = useTheme(), still = <Artwork source={asset('bd-tlou.jpg')}/>, markSize = theme.spec.transport.control.size[theme.column];
-  const quality = <PlayerPill testID={`${id}-quality`} name={tv ? f('qualityShort') : undefined} qualifier={f('qualityAuto')} value={f('qualityValue')} label={f('qualityShort')} onPress={none}/>;
-  const plain = (icon: AudioControl['icon'], name: FixtureName) => <PlayerControl key={name} testID={`${id}-${name}`} icon={icon} label={f(name)} onPress={none}/>;
-  return <Window><PlayerChromeFrame testID={id} startFocus={`${id}-toggle`} chromeVisible picture={still} close={<PlayerControl testID={`${id}-close`} onPicture icon="i-down" label={f('close')} onPress={none}/>}
-    title={<PlayerTitle mark={<ChannelMark mark={{text: f('liveMark'), seed: 'synthetic:sse'} as never} size={markSize}/>} title={f('liveTitle')} lead={f('liveChannelName')} subtitle={f('liveNumber')} live={f('liveNow')} detail={f('liveThen')}/>}
-    tools={<>{upright && <PlayerControl testID={`${id}-guide`} onPicture icon="i-list" label={f('guide')} onPress={none}/>}<PlayerLiveActions enabled compact={phone || upright} record={{label: f('liveRecord'), onPress: none}} more={{onPress: none}}/></>}
-    scrubber={<PlayerScrubBar value={.68} from={.55} buffered={[{start: .55, end: .7}]} liveEdge={.7}/>}
-    times={{position: f('liveClock'), behind: f('liveBehind'), endsAt: f('liveEnds')}}
-    transport={<><PlayerChannelStep testID={`${id}-channel-down`} direction="down" number={f('liveDown')} label={f('liveChannelDown')} onPress={none}/><PlayerControl testID={`${id}-rewind`} icon="i-rew" skip={10} label={f('rewind')} onPress={none}/>
-      <PlayerControl testID={`${id}-toggle`} primary icon="i-pause" label={f('pause')} onPress={none}/><PlayerControl testID={`${id}-forward`} icon="i-ffw" skip={30} label={f('forward')} onPress={none}/>
-      <PlayerChannelStep testID={`${id}-channel-up`} direction="up" number={f('liveUp')} label={f('liveChannelUp')} onPress={none}/></>}
-    leading={<Button testID={`${id}-guide`} variant="glass" size="small" icon="i-list" onPress={none}>{f('liveGuide')}</Button>}
-    trailing={tv ? <><PlayerPill testID={`${id}-captions`} name={f('captions')} value={f('optOff')} label={f('captions')} onPress={none}/>{quality}{plain('i-sliders', 'playerOptions')}{plain('i-pip', 'pictureInPicture')}</>
-      : phone || upright ? quality : <>{plain('i-cc', 'subtitles')}{quality}{plain('i-pip', 'pictureInPicture')}</>}
-    prompts={<PlayerPill testID={`${id}-go-live`} icon="i-rec" tone="record" value={f('liveGoToLive')} label={f('liveGoToLive')} onPress={none}/>}
-    body={<LivePage/>}/></Window>;
-}
-
-function Audio({variant}: {variant: 'music' | 'missing' | 'book' | 'loading'}) {
-  const theme = useTheme(), frame = useFrameMetrics(), tv = frame.form === 'tv', id = `frames-audio-${variant}`;
-  const control = (icon: AudioControl['icon'], name: FixtureName, extra: Partial<AudioControl> = {}): AudioControl => ({icon, label: f(name), onPress: none, testID: `${id}-${name}`, ...extra});
-  const option = (name: FixtureName, icon?: AudioOption['icon'], value?: FixtureName, disabled = false): AudioOption => ({label: f(name), icon, value: value && f(value), onPress: none, disabled, testID: `${id}-option-${name}`});
-  const book = variant === 'book', missing = variant === 'missing';
-  // The device this is playing on is named for what it is; a TV has no such entry and offers Add to playlist there (music-plus).
-  const device = {inline: true, ...option(Platform.OS === 'ios' ? frame.form === 'phone' ? 'thisPhone' : 'thisTablet' : frame.form === 'phone' ? 'thisAndroid' : 'thisAndroidTablet', Platform.OS === 'ios' ? 'i-airplay' : 'i-cast')};
-  const music = [control('i-shuffle', 'shuffle'), control('i-prev', 'previous'), control('i-pause', 'pause'), control('i-next', 'next', {disabled: missing}), control('i-repeat', 'repeat', {active: true})] as const;
-  const reading = [control('i-prev', 'previous'), control('i-rew', 'rewind', {skip: 10}), control('i-pause', 'pause'), control('i-ffw', 'forward', {skip: 30}), control('i-next', 'next')] as const;
-  // The queue is the screen's content: here the kit's song rows under their group labels (desktop-listen "now").
-  const song = (key: string, title: string, duration: FixtureName, playing = false) => <SongRow key={key} testID={`${id}-queue-${key}`} focusId={`${id}-queue-${key}`} onPlay={none} onEnter={none}
-    row={{id: key, playing, artwork: <Artwork source={asset('pool/albums/after-hours.jpg')}/>, duration: {id: 'duration', text: f(duration), role: 'context'}, text: {id: key, title, caption: [{id: 'artist', text: f('queueArtist'), role: 'context'}], detail: []}}}/>;
-  const label = (name: FixtureName) => <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary, fontFamily: theme.type.groupLabel.fontFamily, marginTop: theme.space.xs}]}>{f(name)}</Text>;
-  // An audiobook's side column is its chapters, the one being read marked.
-  const chapters = <View>{label('chapters')}{(['chapterRow7', 'chapterRow8', 'chapterRow9', 'chapterRow10'] as const).map((name, index) => <SongRow key={name} testID={`${id}-chapter-${name}`} focusId={`${id}-chapter-${name}`} onPlay={none} onEnter={none}
-    row={{id: name, playing: index === 1, duration: {id: 'duration', text: f(`queueDuration${index + 1}` as FixtureName), role: 'context'}, text: {id: name, title: f(name), caption: [], detail: []}}}/>)}</View>;
-  const queue = <View>{label('queueNow')}{song('now', f('songTitle'), 'queueDurationNow', true)}{label('queueNextFrom')}
-    {(['queue1', 'queue2', 'queue3', 'queue4', 'queue5', 'queue6'] as const).map((name, index) => song(name, f(name), `queueDuration${index + 1}` as FixtureName))}</View>;
-  return <Window><AudioPlayerFrame testID={id} startFocus={`${id}-pause`} loading={variant === 'loading'}
-    close={control('i-down', 'close')} more={control('i-more', 'more')} favourite={control('i-heart', 'favourite')} context={book ? f('playingFromListening') : missing ? f('playingFromField') : f('playingFrom')} source={book ? f('playingSourceListening') : missing ? f('playingSourceField') : f('playingSource')}
-    artwork={missing ? undefined : asset(book ? 'pool/books/the-hobbit.jpg' : 'pool/albums/after-hours.jpg')} icon={book ? 'i-book' : 'i-music'}
-    title={book ? f('hobbit') : missing ? f('longSong') : f('songTitle')} byline={book ? f('tolkien') : missing ? f('choir') : f('songArtist')} chapter={book ? {label: f('chapter'), of: f('chapterOf')} : undefined}
-    scrubber={<View style={{gap: frameSpec.player.timesGap[frame.form]}}><PlayerScrubBar value={.34} tone="white" knob={!tv}/><PlayerTimes position={f(book ? 'bookElapsed' : 'audioElapsed')} middle={book ? f('timeLeft') : undefined} remaining={f(book ? 'bookRemaining' : 'audioRemaining')}/></View>}
-    transport={book ? reading : music} next={book || missing ? undefined : {label: f('nextLabel'), title: f('nextTitle')}}
-    options={book ? [option('speed', undefined, 'speedValue'), {...option('sleep', undefined, 'sleepValue'), active: true}, option('chapters', undefined, 'chaptersValue'), ...(tv ? [] : [device])]
-      : [option('lyrics', 'i-lyrics', undefined, missing), tv ? option('addToPlaylist', 'i-listplus') : device, option('upNext', 'i-queue')]}
-    upNext={missing ? undefined : book ? chapters : queue}/></Window>;
-}
-
 const State = () => <Page destination={{kind: 'home'}}><PageStateFrame testID="frames-state" icon="i-srvoff" title={f('cantReach')} body={f('cantReachBody')} retry={{progress: .6, label: f('retryLabel'), detail: f('retryDetail')}}
   primaryAction={{id: 'retry', label: f('tryAgain'), icon: 'i-retry', onPress: none}} secondaryAction={{id: 'switch', label: f('switchServer'), icon: 'i-swap', onPress: none}}/></Page>;
 
@@ -397,16 +229,6 @@ function RegionsSettings() {
 }
 const RegionsSheet = () => <Window><SheetFrame kind="task" task="task" open onOpenChange={none} title={f('ownBarTitle')} foot={<Region name="regionFooter" height={frameSpec.sheet.footerClear}/>}><Block name="regionSheetRows" flexible/></SheetFrame></Window>;
 const RegionsSignIn = () => <Window><SignInFrame back={own.back} title={f('ownTitle')} lede={f('ownLede')} terms={<Text style={{color: 'transparent'}}>{f('terms')}</Text>}><Region name="regionForm" flexible height={frameSpec.signIn.column.medium}/></SignInFrame></Window>;
-const RegionsPlayer = () => <Window><PlayerChromeFrame chromeVisible picture={<Region name="regionPicture"/>} close={<Region name="regionClose" height={frameSpec.header.backRow}/>} title={<Region name="regionPlayerTitle" height={frameSpec.header.backRow}/>}
-  tools={<Region name="regionTools" height={frameSpec.header.backRow}/>} scrubber={<Region name="regionScrubber" height={frameSpec.player.portrait.control}/>} times={{position: f('elapsed'), remaining: f('remaining'), duration: f('duration')}}
-  transport={<View style={{width: frameSpec.audio.controlsWidth.expanded}}><Region name="regionTransport" height={frameSpec.header.backRow}/></View>} leading={<Region name="regionLeading" height={frameSpec.header.backRow}/>} trailing={<Region name="regionTrailing" height={frameSpec.header.backRow}/>}
-  prompts={<View style={{width: frameSpec.audio.upNextWidth.expanded}}><Region name="regionPrompts" height={frameSpec.header.backRow}/></View>} body={<Region name="regionWatchPage" flexible/>}/></Window>;
-function RegionsAudio() {
-  const slot = (icon: AudioControl['icon']): AudioControl => ({icon, label: f('ownAction') + icon, onPress: none});
-  return <Window><AudioPlayerFrame close={slot('i-down')} more={slot('i-more')} context={f('ownContext')} icon="i-music" title={f('ownTitle')} byline={f('ownByline')} scrubber={<Region name="regionScrubber" height={frameSpec.audio.scrubber.phone}/>}
-    transport={[slot('i-shuffle'), slot('i-prev'), slot('i-pause'), slot('i-next'), slot('i-repeat')]} next={{label: f('ownNext'), title: f('ownNext')}}
-    options={[{label: f('ownOption'), icon: 'i-lyrics', onPress: none}, {label: f('ownOption') + ' ', icon: 'i-cast', onPress: none}, {label: f('ownOption') + '  ', icon: 'i-queue', onPress: none}]} upNext={<Region name="regionUpNext" flexible height={frameSpec.audio.artwork.phone}/>}/></Window>;
-}
 const RegionsState = () => <Window><PageStateFrame icon="i-info" title={f('ownStateTitle')} body={f('ownStateBody')} primaryAction={{id: 'primary', label: f('ownPrimary'), onPress: none}} secondaryAction={{id: 'secondary', label: f('ownSecondary'), onPress: none}}/></Window>;
 
 const whole = {screen: true} as const;
@@ -422,16 +244,6 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-settings-page', title: 'next.platform.frame.settingsPage', render: SettingsPage, ...whole},
   {id: 'frames-sheet', title: 'next.platform.frame.sheet', render: Sheet, ...whole},
   {id: 'frames-sign-in', title: 'next.platform.frame.signIn', render: SignIn, platforms: ['phone', 'tablet', 'web'], ...whole},
-  {id: 'frames-player', title: 'next.platform.frame.player', render: () => <Player/>, ...whole},
-  ...(['paused', 'buffering', 'scrubbing', 'live', 'missing'] as const).map(state => ({id: `frames-player-${state}`, title: 'next.platform.frame.player' as const, render: () => <Player state={state}/>, ...whole})),
-  ...(['options', 'subtitles', 'audio', 'quality', 'speed'] as const).map(panel => ({id: `frames-player-${panel}`, title: `next.platform.frame.player${panel[0]!.toUpperCase()}${panel.slice(1)}` as 'next.platform.frame.playerOptions', render: () => <PlayerPanelCase panel={panel}/>, ...whole})),
-  {id: 'frames-player-episodes', title: 'next.platform.frame.playerEpisodes', render: PlayerEpisodesCase, ...whole},
-  {id: 'frames-player-up-next', title: 'next.platform.frame.playerUpNext', render: PlayerUpNextCase, ...whole},
-  {id: 'frames-player-live-controls', title: 'next.platform.frame.playerLiveControls', render: PlayerLiveControlsCase, ...whole},
-  {id: 'frames-audio', title: 'next.platform.frame.audio', render: () => <Audio variant="music"/>, ...whole},
-  {id: 'frames-audio-missing', title: 'next.platform.frame.audioMissing', render: () => <Audio variant="missing"/>, ...whole},
-  {id: 'frames-audio-book', title: 'next.platform.frame.audioBook', render: () => <Audio variant="book"/>, ...whole},
-  {id: 'frames-audio-loading', title: 'next.platform.frame.audioLoading', render: () => <Audio variant="loading"/>, ...whole},
   {id: 'frames-state', title: 'next.platform.frame.state', render: State, ...whole},
   {id: 'frames-elements', title: 'next.platform.frame.elements', render: Elements},
   {id: 'frames-regions-browse', title: 'next.platform.frame.regionsBrowse', render: RegionsBrowse, ...whole},
@@ -439,8 +251,6 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-regions-settings', title: 'next.platform.frame.regionsSettings', render: RegionsSettings, ...whole},
   {id: 'frames-regions-sheet', title: 'next.platform.frame.regionsSheet', render: RegionsSheet, ...whole},
   {id: 'frames-regions-sign-in', title: 'next.platform.frame.regionsSignIn', render: RegionsSignIn, platforms: ['phone', 'tablet', 'web'], ...whole},
-  {id: 'frames-regions-player', title: 'next.platform.frame.regionsPlayer', render: RegionsPlayer, ...whole},
-  {id: 'frames-regions-audio', title: 'next.platform.frame.regionsAudio', render: RegionsAudio, ...whole},
   {id: 'frames-regions-state', title: 'next.platform.frame.regionsState', render: RegionsState, ...whole},
 ];
 export default galleries;

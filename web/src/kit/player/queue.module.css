@@ -1,0 +1,40 @@
+/* The audio player's queue panel (desktop-listen "now"): measurements are --frame-audio-wide-* (packages/design frames.ts). */
+.panel { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; border-radius: var(--frame-audio-wide-panel-radius); overflow: hidden; color: var(--color-text);
+  background: color-mix(in srgb, var(--color-ink) 44%, transparent); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 8%, transparent); }
+.tabs { margin: var(--space-sm) var(--space-sm) var(--space-xs); display: flex; }
+.tabs > * { flex: 1; }
+.list { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: var(--space-sm); }
+.foot { flex: none; min-height: var(--frame-audio-wide-foot); box-sizing: border-box; display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-px-14) var(--space-sm) var(--space-px-14) var(--space-md); border-top: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
+.foot > span { flex: 1; }
+.group { margin: 0; display: flex; align-items: baseline; gap: var(--space-xs); padding: var(--space-px-14) var(--space-md) var(--space-tight); font-size: var(--type-row-help-size); font-weight: var(--type-button-weight); color: var(--color-text-tertiary); }
+.group > span { flex: 1; }
+.group > small { font-size: inherit; font-weight: var(--type-row-help-weight); }
+.row { position: relative; display: flex; align-items: center; gap: var(--space-px-12); min-height: var(--frame-audio-wide-row); margin: 0 var(--space-xs); padding: var(--space-tight) var(--space-px-10) var(--space-tight) var(--space-tight); box-sizing: border-box; border-radius: var(--space-px-10); }
+.row:hover, .row:focus-within { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.row[data-playing] { background: color-mix(in srgb, var(--color-text) 10%, transparent); }
+.lead { flex: none; width: var(--frame-audio-wide-handle); display: grid; place-items: center; font-size: var(--type-row-help-size); font-weight: var(--type-button-weight); color: var(--color-text-tertiary); }
+.lead > svg { width: var(--frame-player-pill-icon); height: var(--frame-player-pill-icon); }
+.art { flex: none; width: var(--frame-audio-wide-row-art); height: var(--frame-audio-wide-row-art); border-radius: var(--frame-audio-wide-row-art-radius); overflow: hidden; background: var(--color-raised-soft); }
+.text { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font-family: var(--font); text-align: start; cursor: pointer; display: grid; gap: var(--space-px-2); }
+.text:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 2px; border-radius: var(--space-px-4); }
+/* A title takes a second line rather than being cut. */
+.text b { font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-button-weight); overflow-wrap: anywhere; }
+.row[data-playing] .text b { color: var(--color-accent-strong); }
+.text small { font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
+.text small i { font-style: normal; margin-inline-start: var(--space-px-12); font-variant-numeric: tabular-nums; }
+.progress { display: block; height: var(--space-px-3); margin-top: var(--space-px-4); border-radius: var(--space-px-2); background: color-mix(in srgb, var(--color-text) 16%, transparent); overflow: hidden; }
+.progress > i { display: block; height: 100%; background: var(--color-accent-strong); }
+.duration { flex: none; font-size: var(--type-row-help-size); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.actions { display: none; flex: none; }
+.row[data-hover]:is(:hover, :focus-within) .actions { display: flex; }
+.row[data-hover]:is(:hover, :focus-within) .duration { display: none; }
+.choiceRow { display: grid; grid-template-columns: var(--frame-audio-wide-row-label) minmax(0, 1fr); align-items: center; gap: var(--space-px-14); }
+.choiceLabel { font-size: var(--type-row-label-size); font-weight: var(--type-button-weight); }
+.choiceLabel small { display: block; margin-top: var(--space-px-2); font-size: var(--type-row-help-size); font-weight: var(--type-group-label-weight); color: var(--color-text-tertiary); white-space: nowrap; }
+.choices { display: flex; flex-wrap: wrap; gap: var(--space-px-2); padding: var(--space-px-4); border-radius: var(--space-px-12); background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.choices > button { flex: 1 1 auto; min-width: 0; height: calc(var(--spec-segmented-height-web) + var(--space-px-2)); padding: 0 var(--space-xs); border: 0; border-radius: var(--space-px-9); cursor: pointer; font-family: var(--font); font-size: var(--type-row-help-size); font-weight: var(--type-button-weight);
+  color: var(--color-text-secondary); background: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.choices > button:hover { color: var(--color-text); background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.choices > button[aria-pressed='true'] { color: var(--color-text); background: color-mix(in srgb, var(--color-accent) 24%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 70%, transparent); }
+.choices > button:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 2px; }
