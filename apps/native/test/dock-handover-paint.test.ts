@@ -42,7 +42,7 @@ async function rig() {
   };
   const {DockHandover, DockPaintRow} = await screenModule(new URL('../src-next/kit/dock/DockHandover.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {View: 'View', Image: 'Image'}, 'react-native-reanimated': animated,
-    '../overlays/overlay-paint-model': {freezeOverlayPaint}, '../overlays/OverlayPaintContext': {OverlayPaintProvider: 'PaintMode', OVERLAY_PAINT_INERT: INERT},
+    '../overlays/overlay-paint-model': {freezeOverlayPaint}, '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': {OverlayPaintProvider: 'PaintMode', OVERLAY_PAINT_INERT: INERT},
     '../useMotion': {useMotion: () => motion}, './model': {sameDockFence}, './ListeningCoverBridge': {useListeningMiniPaint: () => ({active: false})},
   });
   const allowed = [DockPaintRow, 'View', 'Text', 'Input', 'Image', React.Fragment];

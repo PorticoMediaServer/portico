@@ -45,7 +45,7 @@ async function rig() {
     '../../../../../packages/player-core/src': {sameFence}, './model': {validRect},
     '../theme': {useTheme: () => ({layers: {player: 30}, colors: {accentStrong: '#abc'}})},
     '../useMotion': {useMotion: () => ({reduce, transforms: !reduce, timing: (kind: string) => ({duration: reduce ? 160 : kind === 'quick' ? 120 : 180, easing: reduce ? 'linear' : 'out'})})},
-    '../overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({interactive})}, './ListeningCoverPaint': {ListeningCoverPaint: 'ListeningCoverPaint'},
+    '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({interactive})}, './ListeningCoverPaint': {ListeningCoverPaint: 'ListeningCoverPaint'},
     '../overlays/CommittedPaint': {CommittedPaintProvider: 'CommittedPaintProvider'},
   });
   const provider = createFabricHookHost(() => {tree = ListeningCoverProvider({children: null});});await provider.mount();

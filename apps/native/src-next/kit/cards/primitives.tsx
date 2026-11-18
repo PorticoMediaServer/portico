@@ -13,6 +13,7 @@ import {nativeType, useTheme, type Theme} from '../theme';
 import {useMotion} from '../useMotion';
 import {useCovered, useFocusTarget, useFocusWaiting} from '../focus';
 import {focusFromTouch, noteTouch} from '../controls/touch-focus';
+import {useInTopLayer} from '../overlays/OverlayHost';
 import {activateCard, cardAccessibilityLabel, cardProgress, holdCard, type CardActions} from './model';
 
 export const alpha = (color: string, opacity: number) => `${color}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`;
@@ -63,7 +64,9 @@ export function CardFrame({children, overlay, frame: _frame, title, titleMargin:
   const theme = useTheme(), motion = useMotion(), covered = useCovered();
   const eligible = !disabled && focusable !== false;
   const {waiting, ...binding} = useFocusTarget({focusId, testID, disabled: !eligible, ref: menuAnchorRef, preferred: theme.isTV && preferredFocus, preferredBlocked: covered});
-  const [focused, setFocused] = useState(false), [hovered, setHovered] = useState(false), [pressed, setPressed] = useState(false);
+  const [nativeFocused, setFocused] = useState(false), [hovered, setHovered] = useState(false), [pressed, setPressed] = useState(false);
+  // R1, TV: only the top layer draws focus (`useInTopLayer`); a card left focused under an open sheet draws none.
+  const topLayer = useInTopLayer(), focused = nativeFocused && (!theme.isTV || topLayer);
   const owner = useRef({}), menuRegistration = useRef<(() => void) | undefined>(undefined), tvHeld = useRef(false), scale = useSharedValue(1);
   const actions = {primaryAction, onNavigate, onPlay, onMore, selection} as CardActions;
   const commandDisabled = !!disabled || waiting || !(primaryAction === 'play' ? onPlay : onNavigate);

@@ -23,7 +23,7 @@ async function rig() {
     'react-native-gesture-handler': {Gesture: {Pan: () => ({enabled() {return this;}})}, GestureDetector: 'GestureDetector'}, 'react-native-reanimated': {default: {View: 'AnimatedView'}, useSharedValue: (value: any) => React.useRef({value}).current,
       useAnimatedReaction() {}, cancelAnimation() {}, withTiming: (value: number) => value, withDelay: (_delay: number, value: number) => value, useAnimatedStyle: (read: () => unknown) => ({read})},
     '../../../../../packages/player-core/src': {sameFence}, '../theme': {useTheme: () => ({layers: {player: 30}})},
-    '../overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({interactive: true})},
+    '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({interactive: true})},
     '../overlays/CommittedPaint': {CommittedPaintProvider: 'CommittedPaintProvider'},
     '../useMotion': {useMotion: () => ({transforms: true, timing: () => ({duration: 180})})}, './ListeningCoverPaint': {ListeningCoverPaint: 'ListeningCoverPaint'}, './model': {validRect},
   });

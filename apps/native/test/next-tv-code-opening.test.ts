@@ -650,7 +650,7 @@ test('FX213 real Retry Button/Focusable/registry retains its entry host through 
     const {Focusable} = await screenModule(new URL('../src-next/kit/controls/Focusable.tsx', import.meta.url), {
       react: controlled, 'react-native': native, '@portico/design': {focusSpec}, '../theme': {useTheme: () => theme}, '../focus': {...focus, useCovered: () => false},
       '../useMotion': {useMotion: () => ({transforms: false, reduce: true, timing: () => ({})})}, './control-model': controlModel,
-      './useFocusedMenu': {useFocusedMenu() {}}, '../overlays/OverlayPaintContext': paint, '../dev-observation': observation,
+      './useFocusedMenu': {useFocusedMenu() {}}, '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': paint, '../dev-observation': observation,
       'react-native-reanimated': {default: {View: 'AnimatedView', createAnimatedComponent: (component: any) => component}, useAnimatedStyle: (fn: () => any) => fn(), useSharedValue: (value: number) => React.useRef({value}).current, withTiming: (value: number) => value},
     });
     const {Button} = await screenModule(new URL('../src-next/kit/controls/Button.tsx', import.meta.url), {

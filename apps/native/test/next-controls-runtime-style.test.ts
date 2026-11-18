@@ -96,7 +96,7 @@ async function controls(isTV = false, reduce = false, interactive = true, covere
     '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': {useTheme: () => theme}, './registry': await import('../src-next/kit/focus/registry.ts'),
   });
   const {Focusable} = await screenModule(new URL('../src-next/kit/controls/Focusable.tsx', import.meta.url), {
-    '../overlays/OverlayPaintContext': {...liveOverlayPaint, useOverlayPaintMode: () => ({...liveOverlayPaint.useOverlayPaintMode(), interactive: paintState.interactive})},
+    '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': {...liveOverlayPaint, useOverlayPaintMode: () => ({...liveOverlayPaint.useOverlayPaintMode(), interactive: paintState.interactive})},
     react, 'react-native': native, 'react-native-reanimated': animated, '@portico/design': {focusSpec, fieldSpec},
     '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': {useTheme: () => theme}, '../useMotion': {useMotion: () => motion},
     './control-model': controlModel, './useFocusedMenu': {useFocusedMenu}, '../focus': {...focusModule, useCovered: () => covered},
