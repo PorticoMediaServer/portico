@@ -79,7 +79,7 @@ Not in the kit yet, so not drawn: tooltips (none on native) and the Live TV shor
 `TVMiniGuide.tsx`, `HandheldMiniGuide.tsx`). What the watch screen still draws for itself is listed in `FRAMES.md`
 for Stage 2.
 
-A section a kind of device does not have (a phone-only sheet on a TV) opens as a one-line notice saying so, not as the catalogue. A case opened as a window silences the development warning box.
+A section a kind of device does not have (a phone-only sheet on a TV) opens as a one-line notice saying so, not as the catalogue. A tablet has the same sections in landscape as in portrait. TV sign-in is drawn by the accounts family: `tv-account-welcome`, `tv-account-activate`, `tv-account-sign-in-empty` and the other `tv-account-*` sections. The TV rail is drawn on the TV page sections (`frames-browse-home`, `frames-title`). A case opened as a window silences the development warning box.
 
 Not gallery sections: `browse-sort-menu`, `browse-library-switcher` and `cards-reference` on the web are measurement cases that need the gallery inputs manifest (`web/scripts/config.mjs`); without it they say "gallery inputs unavailable" or stay empty. The web `overlays` `toast` case is 1440 wide; shoot `phone-toast` at 390.
 

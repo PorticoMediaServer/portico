@@ -90,7 +90,7 @@ export function SettingsNav({accountPages, serverPages, viewerRole, serverName, 
   </View>;
   if (searchResults) return <View style={style}>{search}<SettingsSearchResults testID={controlID(testID, 'search')} {...searchResults}/></View>;
   return <View style={style}>{search}
-    {currentMode !== 'server' && <><SettingsSectionLabel label={defaultI18n.t('settings.heading.account')}/><View style={{marginHorizontal: theme.isTV ? 0 : 16, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.isTV ? 'transparent' : theme.colors.raised}}>{accountPages.map((page, index) => row(page, false, index, accountPages[index - 1]))}</View></>}
+    {currentMode !== 'server' && <><SettingsSectionLabel label={defaultI18n.t('settings.heading.account')}/><View style={{marginHorizontal: theme.isTV ? 0 : 16, borderRadius: 14, overflow: theme.isTV ? 'visible' : 'hidden', backgroundColor: theme.isTV ? 'transparent' : theme.colors.raised}}>{accountPages.map((page, index) => row(page, false, index, accountPages[index - 1]))}</View></>}
     {currentMode !== 'account' && pages.length > 0 && <View style={{marginTop: 20, marginHorizontal: theme.isTV ? 0 : 16, borderRadius: theme.isTV ? 20 : 14, overflow: 'hidden', backgroundColor: theme.colors.raised, borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .28)}}>
       <View style={{backgroundColor: alpha(theme.colors.accent, .1), borderBottomWidth: 1, borderBottomColor: alpha(theme.colors.accentStrong, .22)}}><ServerHeader serverName={serverName} viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} variant={theme.isTV ? 'group' : 'phone'} style={theme.isTV ? {padding: 20} : undefined}/></View>
       {pages.map((page, index) => row(page, true, index, pages[index - 1]))}

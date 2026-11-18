@@ -42,12 +42,12 @@ function Overlays({props, hovered, height, holding = false, playSize = 40, cente
   </View>;
 }
 
-function Marks({progress, watched, isNew, onNewBadge}: Media & {onNewBadge?: (bottom: number) => void}) {
+function Marks({progress, watched, isNew, onNewBadge, insetProgress = false}: Media & {onNewBadge?: (bottom: number) => void; /** A poster's bar sits inside the art's edges (mock.html cards); a still's runs along its bottom edge. */ insetProgress?: boolean}) {
   const t = useTheme(), inset = t.spec.card.badge.inset[t.platform];
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     {isNew && <View onLayout={event => onNewBadge?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{position: 'absolute', left: inset, top: inset}}><Badge kind="new">{defaultI18n.t('next.kit.new')}</Badge></View>}
     {watched && <View accessibilityLabel={defaultI18n.t('card.watched')} style={{position: 'absolute', right: inset, top: inset}}><Badge kind="watched" /></View>}
-    <Progress value={progress} style={{position: 'absolute', left: 0, right: 0, bottom: 0}} />
+    <Progress value={progress} style={insetProgress ? {position: 'absolute', left: inset, right: inset, bottom: inset} : {position: 'absolute', left: 0, right: 0, bottom: 0}} />
   </View>;
 }
 
@@ -75,7 +75,7 @@ function Portrait({kind = 'poster', next, titleLines: suppliedLines, ...props}: 
         <GeneratedCoverClearance.Provider value={clearance}>
           <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} source={props.artwork} fallback={fallbackFor(props, kind, width, height)} kind={kind} width={width} height={height} />
         </GeneratedCoverClearance.Provider>
-        <Marks {...props} onNewBadge={setBadgeBottom} />
+        <Marks {...props} onNewBadge={setBadgeBottom} insetProgress />
       </ArtFrame>
       <Caption {...props} selected={props.selection?.selected} focused={state.focused} tvRestingSecondary lines={titleLines} />
     </>}
@@ -173,6 +173,9 @@ export function EpisodeTile(props: EpisodeTileProps) {
     {props.length && !row && <View style={{position: 'absolute', right: t.spec.episode.duration.inset[t.platform], top: t.spec.episode.duration.inset[t.platform]}}><Badge>{props.length}</Badge></View>}
     {props.status && !row && <View style={{position: 'absolute', left: t.isTV ? 16 : 8, top: t.isTV ? 14 : 8}}><Badge kind="new">{props.status}</Badge></View>}
     <Marks watched={props.watched} progress={props.progress} />
+    {/* The episode that is playing carries the playing mark on its picture (phone-player 4). */}
+    {props.playing && row && <View pointerEvents="none" style={{position: 'absolute', right: t.spec.card.badge.inset[t.platform], top: t.spec.card.badge.inset[t.platform], flexDirection: 'row', alignItems: 'flex-end', gap: 2, padding: 5, borderRadius: 6, backgroundColor: 'rgba(7,16,24,.82)'}}>
+      {[.55, 1, .38].map((factor, index) => <View key={index} style={{width: 3, height: 12 * factor, borderRadius: 1.5, backgroundColor: t.colors.accentStrong}}/>)}</View>}
   </ArtFrame>;
   const text = <View style={{flex: row ? 1 : undefined, minWidth: 0, marginTop: row ? 0 : t.spec.episode.titleMargin[t.platform], gap: 3, paddingRight: row && (props.onDownload || props.onMore) ? 40 : 0}}>
     <Text numberOfLines={row && !t.isTV ? 2 : 1} style={[row ? titleStyle(t, 15) : t.type.episodeTitle, {color: props.selection?.selected || props.playing ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>

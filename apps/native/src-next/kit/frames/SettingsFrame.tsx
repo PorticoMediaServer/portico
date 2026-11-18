@@ -25,12 +25,14 @@ export type SettingsListFrameProps = Readonly<{
  * place. Tablet and TV: the list in its own column beside the page, each with its own scroll. */
 export function SettingsListFrame({bar, open, onOpenChange, list, page, testID}: SettingsListFrameProps) {
   const frame = useFrameMetrics(), {form} = frame, width = frameSpec.settings.listWidth[form];
+  // A TV row's focus ring is drawn outside the row: the list's scroll box leaves it that room so it is never cut.
+  const theme = useTheme(), ring = form === 'tv' ? theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv : 0;
   if (form === 'phone') return <SheetFrame kind="full" open={open} onOpenChange={onOpenChange} bar={page ? undefined : bar} testID={testID}>
     {page ?? <ScrollView contentContainerStyle={{paddingBottom: frameSpec.sheet.footerClear}}>{list}</ScrollView>}
   </SheetFrame>;
   return <View testID={testID} style={{flex: 1, flexDirection: 'row', paddingLeft: frame.gutter, gap: frameSpec.settings.gap[form]}}>
     {/* The list's column is already placed from the gutter, so the cards in it start at the column's own edges. */}
-    <ScrollView style={{flexGrow: 0, width}} contentContainerStyle={{paddingTop: frame.titleTop || frame.headerGap, paddingBottom: frame.bottomClear}}><FrameColumn.Provider value>{list}</FrameColumn.Provider></ScrollView>
+    <ScrollView style={{flexGrow: 0, width: width + 2 * ring, marginLeft: -ring}} contentContainerStyle={{paddingTop: frame.titleTop || frame.headerGap, paddingBottom: frame.bottomClear, paddingHorizontal: ring}}><FrameColumn.Provider value>{list}</FrameColumn.Provider></ScrollView>
     <View style={{flex: 1}}>{page}</View>
   </View>;
 }

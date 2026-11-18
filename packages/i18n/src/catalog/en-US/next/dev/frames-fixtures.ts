@@ -355,4 +355,8 @@ export const framesFixtureMessages = {
   'next.frames.fixture.settingsDashboard': 'Dashboard',
   'next.frames.fixture.settingsSwitchProfile': 'Switch profile',
   'next.frames.fixture.settingsTogether': 'Watch Together',
+  'next.frames.fixture.chapterRow7': 'Chapter 7: Queer Lodgings',
+  'next.frames.fixture.chapterRow8': 'Chapter 8: Flies and Spiders',
+  'next.frames.fixture.chapterRow9': 'Chapter 9: Barrels Out of Bond',
+  'next.frames.fixture.chapterRow10': 'Chapter 10: A Warm Welcome',
 } as const;

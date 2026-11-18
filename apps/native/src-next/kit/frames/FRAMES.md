@@ -142,6 +142,14 @@ Live screens whose look changes with this foundation (they are in the app today,
 - native TV Live: Record's glyph is red;
 - an episode row that is playing has its title in the accent.
 
+Changed in the final round before the owner's review (r6):
+
+- `AudioPlayerFrame`: the artwork, title, scrubber and transport are one group. What is left of the height is under the group on a phone and around it on a tablet; on TV the words sit against the scrubber. A TV's buttons wrap to a second row before any label is cut.
+- `TitleFrame`: on a tablet the picture is shaded behind the words (`frameSpec.hero.title.shade`); `TitleAction.active` tints an action that is on (in My List).
+- `PlayerScrubBar`: the filmstrip's landing picture stays over the knob. `PlayerChromeFrame`'s `body` under an upright live picture is the channel's page (the gallery draws one).
+- Kit: `SettingsNav`'s TV group no longer clips its rows' focus ring, and `SettingsListFrame` leaves the ring its room; the server card's name takes two lines; a banner's action never shrinks under its message; an episode row that is playing carries the playing mark on its picture; a poster's progress bar sits inside the art's edges.
+- Gallery: a wide tablet counts as a tablet for which sections it has (its sections showed "not drawn on this kind of device" in landscape); on Android a section that is not a whole screen keeps clear of the status bar; TV pages draw the shell's own rail. TV sign-in is the `tv-account-*` sections of the accounts family.
+
 Left for Stage 2, listed so it is not forgotten:
 
 - `screens/watch/WatchPanels.tsx` (options, Subtitles, Audio, Quality, Speed, sleep timer, subtitle style) and

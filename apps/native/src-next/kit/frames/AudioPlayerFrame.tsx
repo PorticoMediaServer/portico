@@ -71,7 +71,8 @@ export function AudioPlayerFrame({close, more, context, artwork, icon, title, by
   </View>;
   const art = <View style={{width: column, height: column}}>{loading ? <SkeletonBlock width={column} height={column} radius={theme.radii.artwork} shine/> : <ArtBox kind="square" source={artwork} icon={icon} width={column} alt={title}/>}</View>;
   // Two title lines and a byline are kept, from the slot's top edge, so a short title leaves its room under it.
-  const words = <View style={{height: spec.titleSlot[form], flexDirection: 'row', alignItems: 'flex-start', gap: theme.space.xs}}>
+  // On TV the words sit on the slot's bottom edge, against the scrubber; elsewhere they hang from its top, under the artwork.
+  const words = <View style={{height: spec.titleSlot[form], flexDirection: 'row', alignItems: tv ? 'flex-end' : 'flex-start', gap: theme.space.xs}}>
     <View style={{flex: 1, minWidth: 0, gap: theme.space.tight}}>{loading ? <><SkeletonBlock width="64%" height={theme.type.title.fontSize}/><SkeletonBlock width="40%" height={theme.type.intro.fontSize}/></> : <>
       <Text accessibilityRole="header" numberOfLines={2} style={[tv ? theme.type.pageTitle : theme.type.title, {color: theme.colors.text, includeFontPadding: false}]}>{title}</Text>
       <Text numberOfLines={1} style={[theme.type.intro, {color: theme.colors.textSecondary, fontFamily: theme.type.groupLabel.fontFamily}]}>{byline ?? ' '}</Text>
@@ -100,14 +101,16 @@ export function AudioPlayerFrame({close, more, context, artwork, icon, title, by
       <Text numberOfLines={1} style={optionLabel}>{item.label}</Text>
     </Focusable>;
   };
-  const bottom = <View style={{height: spec.bottomRow[form], flexDirection: 'row', alignItems: 'center', gap: tiles || tv ? theme.space.xs : 0}}>{options.map(option)}</View>;
-  const stack = <View style={{flex: phone ? 1 : undefined, flexGrow: 1, width: Math.max(column, spec.artwork.phone) + 2 * inset, paddingHorizontal: inset, alignSelf: 'center'}}>
+  const bottom = <View style={[{flexDirection: 'row', alignItems: 'center', gap: tiles || tv ? theme.space.xs : 0}, tv ? {minHeight: spec.bottomRow[form], flexWrap: 'wrap'} : {height: spec.bottomRow[form]}]}>{options.map(option)}</View>;
+  // The artwork, the title, the scrubber and the transport read as one group (phone-app 14, tablet-play 9 and 10). What is left of
+  // the height is below the group on a phone (the next line and the bottom row sit on the bottom edge) and around it on a tablet.
+  const stack = <View style={{flex: phone ? 1 : undefined, flexGrow: 1, width: Math.max(column, spec.artwork.phone) + 2 * inset, paddingHorizontal: inset, alignSelf: 'center', justifyContent: phone ? 'flex-start' : 'center'}}>
     {phone && top}
     <View style={{marginTop: phone ? spec.gap[form] : 0, alignItems: 'center'}}>{art}</View>
     <View style={{marginTop: theme.space.sm}}>{words}</View>
-    {/* The flexible region: what is left of the column's height stays empty here. */}
-    <View style={{flex: 1}}/>
-    {seek}{buttons}{next}{bottom}
+    {seek}{buttons}
+    {phone && <View style={{flex: 1}}/>}
+    {next}{bottom}
   </View>;
   if (phone) return <View testID={testID} style={{flex: 1, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, frameSpec.sheet.footerClear)}}>{stack}</View>;
   if (!tv) return <View testID={testID} style={{flex: 1, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, frameSpec.sheet.footerClear)}}>
@@ -119,7 +122,7 @@ export function AudioPlayerFrame({close, more, context, artwork, icon, title, by
   </View>;
   return <View testID={testID} style={{flex: 1, flexDirection: 'row', gap: spec.gap[form], paddingTop: frame.titleTop + frame.headerGap, paddingLeft: inset, paddingRight: frame.rightGutter, paddingBottom: frame.bottomClear}}>
     <View style={{width: column}}>{top}<View style={{marginTop: spec.gap[form] / 2}}>{art}</View></View>
-    <View style={{width: spec.controlsWidth[form], paddingTop: spec.topBar[form] + spec.gap[form] / 2}}>{words}<View style={{marginTop: spec.gap[form] / 2}}>{seek}</View>{buttons}{next}{bottom}</View>
+    <View style={{width: spec.controlsWidth[form], height: spec.topBar[form] + spec.gap[form] / 2 + column, paddingTop: spec.topBar[form] + spec.gap[form] / 2, justifyContent: 'center'}}>{words}<View style={{marginTop: spec.gap[form] / 2}}>{seek}</View>{buttons}{next}{bottom}</View>
     {upNext !== undefined && <ScrollView style={{flex: 1, minWidth: spec.upNextWidth[form], marginTop: spec.topBar[form] + spec.gap[form] / 2}}>{upNext}</ScrollView>}
   </View>;
 }

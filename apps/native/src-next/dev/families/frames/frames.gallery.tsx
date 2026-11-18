@@ -12,10 +12,12 @@ import {frameSpec} from '@portico/design';
 import {useFrameMetrics, usePlayerUpright} from '../../../kit/frames/metrics';
 import {PlayerChannelStep, PlayerControl, PlayerFilmstrip, PlayerLiveActions, PlayerPanel, PlayerPanelGroup, PlayerPanelRow, PlayerPill, PlayerPrompt, PlayerScrubBar, PlayerScrubPreview, PlayerTimes, PlayerTitle, PlayerUpNext} from '../../../kit/player';
 import {HeroMetadata, Row, SeasonBar, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
-import {SettingsNav, SettingsRow, ShortcutTiles} from '../../../kit/shell';
+import {LargeTitleHeader, SettingsNav, SettingsRow, ShortcutTiles} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {MediumRail} from '../../../shell/MediumRail';
+import {TVRail} from '../../../shell/TVRail';
+import {FocusProvider} from '../../../kit/focus';
 import {PhoneTabBar} from '../../../shell/PhoneTabBar';
 import {mediumRailMetrics, phoneBarHeight, type ShellDestination} from '../../../shell/model';
 import {NativePageInsetProvider} from '../../../kit/layout/page-inset';
@@ -28,9 +30,11 @@ const f = (name: FixtureName) => formatMessage(framesFixtureMessages[`next.frame
 /** The reference artwork the capture run serves (the same files the mock-ups use). */
 const asset = (path: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${path}`, cacheKey: `frames-reference:${path}`});
 const none = () => {};
+/** A stand-in signed-in scope for the shell's TV rail, which names its focus stops by it. */
+const galleryAuthority = {serverId: 'gallery', userId: 'gallery', profileId: 'gallery', epoch: '1', viewerFence: '1'} as never;
 /** The tablet sidebar's width (shell/NativeShell). */
 const sidebarWidth = 248;
-const libraries = ([['movies', 'movies'], ['shows', 'tvShows'], ['anime', 'anime'], ['music', 'musicLibrary'], ['audiobooks', 'audiobooks']] as const).map(([kind, name]) => ({id: kind, name: f(name), kind}));
+const libraries = ([['movie', 'movies'], ['tv', 'tvShows'], ['anime', 'anime'], ['music', 'musicLibrary'], ['audiobook', 'audiobooks']] as const).map(([kind, name]) => ({id: kind, name: f(name), kind}));
 const selection: LayoutSelection = {active: false, isSelected: () => false, onToggle: none, onEnter: none};
 const card = ({onFocus, onBlur, focusId, testID}: LayoutItemContext) => ({onFocus, onBlur, focusId, testID});
 /** Fixture facts: the first is the year; a runtime, a season count and a rating carry the ids the kit draws as chips. */
@@ -59,6 +63,8 @@ function Page({children, destination}: {children: ReactNode; destination: ShellD
     {rail && <MediumRail expanded={sidebar} brand={sidebar} serverName={f('serverName')} libraries={libraries} hasLiveTV destination={destination} profile={{id: 'gallery', name: f('profileInitial'), initial: f('profileInitial'), color: 'blue'}} unread
       notificationAction={{label: f('notifications'), onPress: none}} serverAction={{id: 'activity', label: f('serverActivity'), onPress: none}} onNavigate={none} onProfile={none} profileRef={profileRef} short={window.height < theme.layout.breakpoint.phone}/>}
     {form === 'phone' && <PhoneTabBar destination={destination} hasLiveTV onSelect={none} landscape={landscape}/>}
+    {/* TV: the shell's own rail, collapsed, over the page's left edge as the app draws it. */}
+    {form === 'tv' && <FocusProvider><TVRail authority={galleryAuthority} libraries={libraries} hasLiveTV destination={destination} profile={{id: 'gallery', name: f('profileInitial'), initial: f('profileInitial'), color: 'blue'}} onNavigate={none} onProfile={none} profileRef={profileRef} onExpandedChange={none}/></FocusProvider>}
   </View>;
 }
 
@@ -82,7 +88,7 @@ function BrowseHome() {
   const index = 0, setIndex = none, art = (id: string) => heroes.find(entry => entry.id === id)?.art;
   return <Page destination={{kind: 'home'}}><BrowseFrame testID="frames-browse-home" hero={<HomeHero candidates={heroes} activeIndex={index} onIndexChange={setIndex}
     renderArtwork={(entry, context) => <AmbientArt foreground={art(entry.id)} visible={context.visible} foregroundStyle={context.foregroundStyle} onReady={context.onReady} onError={context.onError}/>}
-    renderActions={() => <><Button icon="i-play" onPress={none}>{f('play')}</Button><Button variant="glass" icon="i-plus" onPress={none}>{f('myList')}</Button></>}/>}>
+    renderActions={() => <><Button icon="i-play" preferredFocus onPress={none}>{f('play')}</Button><Button variant="glass" icon="i-plus" onPress={none}>{f('myList')}</Button></>}/>}>
     <WideRow/><PosterRow fresh title={f('newOnServer')}/>
   </BrowseFrame></Page>;
 }
@@ -117,12 +123,12 @@ function Title({variant}: {variant: 'full' | 'missing' | 'loading'}) {
     art={<AmbientArt treatment="title" foreground={full ? asset('bd-insideout.jpg') : undefined}/>}
     title={full ? f('insideOut') : f('longTitle')} metadata={<HeroMetadata facts={fact(full ? `${f('insideOutFacts')} · ${f('insideOutRating')}` : f('longFacts'))} centered={form === 'phone'}/>}
     primary={full ? {icon: 'i-play', label: f('resume'), progress: .09, remaining: f('resumeLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none} : {icon: 'i-play', label: f('play'), onPress: none}}
-    actions={full ? [{icon: 'i-check', label: f('myList'), labelled: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}] : []}
+    actions={full ? [{icon: 'i-check', label: f('myList'), labelled: true, active: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}] : []}
     tagline={full ? f('insideOutTagline') : undefined} synopsis={full ? f('insideOutSynopsis') : undefined}
     credits={full ? [{label: f('directedBy'), names: f('insideOutDirector')}, {label: f('starring'), names: f('insideOutCast')}] : undefined}
     tabs={{items: [{value: 'more', label: f('moreLikeThis')}, {value: 'details', label: f('details')}], value: tab, onValueChange: setTab}}
     state={variant === 'loading' ? {kind: 'loading'} : undefined}>
-    <PosterRow title={f('moreLikeInsideOut')}/>
+    <PosterRow title={f('moreLikeInsideOut')}/><WideRow/><PosterRow title={f('newOnServer')}/>
   </TitleFrame></Page>;
 }
 
@@ -160,7 +166,7 @@ const settingsPages = {
 function SettingsList() {
   const [page, setPage] = useState<string>(), {form} = useFrameMetrics(), wide = form !== 'phone';
   const tiles = ([['profiles', 'i-person', 'settingsSwitchProfile'], ['servers', 'i-server', 'switchServer'], ['notifications', 'i-bell', 'notifications'], ['together', 'i-people', 'settingsTogether']] as const).map(([id, icon, name]) => ({id, icon, label: f(name), onPress: none}));
-  const list = <View>{form === 'phone' && <ShortcutTiles testID="frames-settings-tiles" actions={tiles}/>}
+  const list = <View>{form !== 'phone' && <LargeTitleHeader title={f('settings')} style={{paddingHorizontal: 0}}/>}{form === 'phone' && <ShortcutTiles testID="frames-settings-tiles" actions={tiles}/>}
     <SettingsNav testID="frames-settings-nav" accountPages={settingsPages.account} serverPages={settingsPages.server} viewerRole="owner" serverName={f('serverName')} selectedId={page ?? (wide ? 'playback' : '')} onNavigate={setPage} mode={form === 'tv' ? 'account' : 'combined'}/></View>;
   return <Window><SettingsListFrame testID="frames-settings-list" open onOpenChange={none} bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
     page={page || wide ? <SettingsPageFrame title={f('playback')} back={{label: f('settings'), onPress: () => setPage(undefined)}} intro={f('playbackIntro')}><PlaybackSections/></SettingsPageFrame> : undefined}/></Window>;
@@ -184,6 +190,17 @@ function SignIn() {
 
 type PlayerState = 'playing' | 'paused' | 'buffering' | 'scrubbing' | 'live' | 'missing';
 /** The watch page under the upright player's picture (phone-player 4, tablet-play 3): the title page's own content, without its art. */
+/** Under an upright live picture: what is on, on which channel, and what follows. */
+function LivePage() {
+  const theme = useTheme(), frame = useFrameMetrics();
+  return <ScrollView contentContainerStyle={{padding: frame.gutter, gap: theme.space.sm}}>
+    <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}><ChannelMark mark={{text: f('liveMark'), seed: 'synthetic:sse'} as never} size={theme.targets.touch}/>
+      <View style={{flex: 1}}><Text style={[theme.type.rowLabel, {color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{f('liveChannelName')}  {f('liveNumber')}</Text><Text style={[theme.type.rowHelp, {color: theme.colors.record}]}>{f('liveNow')}</Text></View></View>
+    <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text}]}>{f('liveTitle')}</Text>
+    <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{f('liveThen')}</Text>
+    <View style={{flexDirection: 'row', gap: theme.spec.hero.actions.gap[theme.platform]}}><Button testID="frames-live-guide" variant="glass" icon="i-list" onPress={none}>{f('liveGuide')}</Button><Button testID="frames-live-record" variant="glass" icon="i-rec" iconColor={theme.colors.record} onPress={none}>{f('liveRecord')}</Button></View>
+  </ScrollView>;
+}
 function WatchPage({paused = false}: {paused?: boolean}) {
   const theme = useTheme(), frame = useFrameMetrics(), [tab, setTab] = useState('episodes'), wide = frame.form !== 'phone';
   const words = <View style={{flexShrink: 1, gap: theme.space.tight}}><Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text}]}>{f('tlou')}</Text>
@@ -281,7 +298,7 @@ function PlayerLiveControlsCase() {
     trailing={tv ? <><PlayerPill testID={`${id}-captions`} name={f('captions')} value={f('optOff')} label={f('captions')} onPress={none}/>{quality}{plain('i-sliders', 'playerOptions')}{plain('i-pip', 'pictureInPicture')}</>
       : phone || upright ? quality : <>{plain('i-cc', 'subtitles')}{quality}{plain('i-pip', 'pictureInPicture')}</>}
     prompts={<PlayerPill testID={`${id}-go-live`} icon="i-rec" tone="record" value={f('liveGoToLive')} label={f('liveGoToLive')} onPress={none}/>}
-    body={<WatchPage/>}/></Window>;
+    body={<LivePage/>}/></Window>;
 }
 
 function Audio({variant}: {variant: 'music' | 'missing' | 'book' | 'loading'}) {
@@ -297,6 +314,9 @@ function Audio({variant}: {variant: 'music' | 'missing' | 'book' | 'loading'}) {
   const song = (key: string, title: string, duration: FixtureName, playing = false) => <SongRow key={key} testID={`${id}-queue-${key}`} focusId={`${id}-queue-${key}`} onPlay={none} onEnter={none}
     row={{id: key, playing, artwork: <Artwork source={asset('pool/albums/after-hours.jpg')}/>, duration: {id: 'duration', text: f(duration), role: 'context'}, text: {id: key, title, caption: [{id: 'artist', text: f('queueArtist'), role: 'context'}], detail: []}}}/>;
   const label = (name: FixtureName) => <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary, fontFamily: theme.type.groupLabel.fontFamily, marginTop: theme.space.xs}]}>{f(name)}</Text>;
+  // An audiobook's side column is its chapters, the one being read marked.
+  const chapters = <View>{label('chapters')}{(['chapterRow7', 'chapterRow8', 'chapterRow9', 'chapterRow10'] as const).map((name, index) => <SongRow key={name} testID={`${id}-chapter-${name}`} focusId={`${id}-chapter-${name}`} onPlay={none} onEnter={none}
+    row={{id: name, playing: index === 1, duration: {id: 'duration', text: f(`queueDuration${index + 1}` as FixtureName), role: 'context'}, text: {id: name, title: f(name), caption: [], detail: []}}}/>)}</View>;
   const queue = <View>{label('queueNow')}{song('now', f('songTitle'), 'queueDurationNow', true)}{label('queueNextFrom')}
     {(['queue1', 'queue2', 'queue3', 'queue4', 'queue5', 'queue6'] as const).map((name, index) => song(name, f(name), `queueDuration${index + 1}` as FixtureName))}</View>;
   return <Window><AudioPlayerFrame testID={id} loading={variant === 'loading'}
@@ -307,7 +327,7 @@ function Audio({variant}: {variant: 'music' | 'missing' | 'book' | 'loading'}) {
     transport={book ? reading : music} next={book || missing ? undefined : {label: f('nextLabel'), title: f('nextTitle')}}
     options={book ? [option('speed', undefined, 'speedValue'), {...option('sleep', undefined, 'sleepValue'), active: true}, option('chapters', undefined, 'chaptersValue'), ...(tv ? [] : [device])]
       : [option('lyrics', 'i-lyrics', undefined, missing), tv ? option('addToPlaylist', 'i-listplus') : device, option('upNext', 'i-queue')]}
-    upNext={missing ? undefined : queue}/></Window>;
+    upNext={missing ? undefined : book ? chapters : queue}/></Window>;
 }
 
 const State = () => <Page destination={{kind: 'home'}}><PageStateFrame testID="frames-state" icon="i-srvoff" title={f('cantReach')} body={f('cantReachBody')} retry={{progress: .6, label: f('retryLabel'), detail: f('retryDetail')}}

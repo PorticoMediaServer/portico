@@ -50,14 +50,15 @@ export function Kit({initialGallery, presentation = 'catalogue', captured = fals
   useEffect(() => {if (presentation === 'window') LogBox.ignoreAllLogs();}, [presentation]);
   const [selected, setSelected] = useState<string | undefined>(initialGallery);
   const [focused, setFocused] = useState<string>();
-  const available = galleriesForPlatform(galleries, theme.platform);
+  // A wide tablet's theme platform is `web` (the desktop layout); it is still a tablet for which sections it has, as in portrait.
+  const available = galleriesForPlatform(galleries, theme.platform === 'web' ? 'tablet' : theme.platform);
   const current = available.find(gallery => gallery.id === selected);
   const Screen = current?.render;
   const t = defaultI18n.t;
   // The private compiled evidence entry injects this Kit through App's normal
   // KitHost shell slot. Families keep the catalogue gutter they were authored in;
   // Canvas's negative gutter therefore cancels exactly once, at the window edge.
-  if (presentation === 'window' && Screen) return <SafeAreaView testID="native-kit-window" edges={captured && !theme.isTV && !current?.screen ? ['top'] : []} style={{flex: 1}}><View style={{flex: 1, paddingHorizontal: theme.gutter}}><Screen /></View></SafeAreaView>;
+  if (presentation === 'window' && Screen) return <SafeAreaView testID="native-kit-window" edges={(captured || Platform.OS === 'android') && !theme.isTV && !current?.screen ? ['top'] : []} style={{flex: 1}}><View style={{flex: 1, paddingHorizontal: theme.gutter}}><Screen /></View></SafeAreaView>;
   // A section asked for as a window that this kind of device does not have (a phone-only sheet on a TV) says so. Falling through
   // to the catalogue drew every family at once, and a shot of that was read as the section's own fault.
   if (presentation === 'window' && initialGallery && !Screen) return <SafeAreaView testID="native-kit-absent" style={{flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.gutter}}>
