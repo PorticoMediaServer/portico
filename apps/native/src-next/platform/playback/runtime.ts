@@ -11,7 +11,7 @@ import {PlaybackService, type LocalSession, type PlaybackSession} from '../../..
 import {signInHolds} from './paint-authority';
 import {DetailService, type DetailProjection} from '../../../../../packages/client-core/src/detail';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import {encodedRoutePath, routePath} from '../../../../../packages/contracts/src/routes';
+import {playbackPath} from '../../../../../packages/client-core/src/playback-v1/routes';
 import {SessionsClient} from '../../../../../packages/client-core/src/playback-v1/sessions';
 import {localV1Http} from '../../../../../packages/client-core/src/playback-v1/local-http';
 import {call, type V1Request, type V1Response} from '../../../../../packages/client-core/src/playback-v1/http';
@@ -26,7 +26,7 @@ import {legacyChannel} from '../../../../../packages/client-core/src/guide/legac
 import type {HomeChannel} from '../../../../../packages/client-core/src/home';
 import type {HomeSelectionPlaybackPort, HomeSelectionPlaybackRequest} from '../../../../../packages/client-core/src/home-selection/types';
 import type {SelectionContext} from '../../../../../packages/client-core/src/selection-model/index';
-import {obj, parseDiscTitleRef, parseQueue, parseSession, type DiscTitleRef, type Session, type PlaybackOptions, type QueueHeader, type Selector} from '../../../../../packages/client-core/src/playback-v1/types';
+import {parseDiscTitleRef, parseSession, type DiscTitleRef, type Session, type PlaybackOptions, type QueueHeader, type Selector} from '../../../../../packages/client-core/src/playback-v1/types';
 import type {PlaybackChoices} from '../../../../../packages/client-core/src/playback-v1/choices';
 import type {SegmentInput} from '../../../../../packages/client-core/src/playback-v1/queue';
 import {qualityOptionRequest, type QualityOption} from '../../../../../packages/client-core/src/playback-v1/quality';
@@ -313,32 +313,14 @@ export class NativePlaybackRuntime {
   private retiredStart(request: V1Request, response: V1Response): void {
     this.preparingStarts.retired(request, response);
     if (request.method !== 'POST' || ![200, 201].includes(response.status) || !this.authorityMatches()) return;
+    // A start's answer can arrive after its caller retired. On the rebuilt server only `POST /v1/playback/sessions`
+    // starts one: a queue's create and advance answer the queue alone.
+    if (request.path !== playbackPath('POST /v1/playback/sessions')) return;
     let session: Session;
-    if (request.path === routePath('create_queue')) {
-      // A combined queue create can also return a real session after its caller
-      // retires. Scope HTTP rejects that response before the core can abandon it.
-      if (!obj(request.body) || request.body.owner !== 'device' || !obj(request.body.startPlayback) || !obj(response.body)) return;
-      try {
-        const queue = parseQueue(response.body.queue);
-        session = parseSession(response.body.session);
-        if (session.role !== 'local' || session.queue?.queueId !== queue.id || !queue.current || session.queue.entryId !== queue.current.entryId) return;
-      } catch {return;}
-    } else if (request.path === routePath('start_playback_session')) {
-      try {session = parseSession(response.body);} catch {return;}
-      const body = request.body as {itemId?: unknown; queue?: {queueId?: unknown; entryId?: unknown}} | undefined;
-      if (!body || !body.queue && typeof body.itemId !== 'string') return;
-      if (body.queue ? session.queue?.queueId !== body.queue.queueId || session.queue?.entryId !== body.queue.entryId : session.itemId !== body.itemId) return;
-    } else if (obj(request.body) && request.body.reason === 'entry' && typeof request.body.entryId === 'string' && obj(response.body)) {
-      // Scope HTTP owns a late advance response before core can observe its admitted session.
-      try {
-        const queue = parseQueue(response.body.queue);
-        session = parseSession(response.body.session);
-        const revision = Object.entries(request.headers ?? {}).find(([key]) => key.toLowerCase() === 'if-match')?.[1];
-        if (!revision || queue.revision === revision || request.path !== encodedRoutePath('advance_queue', {id: encodeURIComponent(queue.id)})
-          || session.role !== 'local' || session.queue?.queueId !== queue.id || session.queue.entryId !== request.body.entryId
-          || queue.current?.entryId !== request.body.entryId) return;
-      } catch {return;}
-    } else return;
+    try {session = parseSession(response.body);} catch {return;}
+    const body = request.body as {itemId?: unknown; queue?: {queueId?: unknown; entryId?: unknown}} | undefined;
+    if (!body || !body.queue && typeof body.itemId !== 'string') return;
+    if (body.queue ? session.queue?.queueId !== body.queue.queueId || session.queue?.entryId !== body.queue.entryId : session.itemId !== body.itemId) return;
     if (this.playback.getSnapshot().session?.id === session.id) return;
     this.stopOwnedSession(session.id);
   }
