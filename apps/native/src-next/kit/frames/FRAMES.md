@@ -245,7 +245,7 @@ Parts, the same names in both apps:
 Left for Stage 2, so it is not forgotten:
 - `screens/search/SearchScreen.tsx` still draws its own Recent searches rows and Top result (its tests read them); `screens/settings-live/LiveScreen.tsx` and `RecordingsScreen.tsx` their own guide, list, rows and programme details; `screens/downloads/DownloadsScreen.tsx` its own rows and Rules. Each is bound to its controller, so each moves onto these parts with its screen.
 - TV search's keyboard is the screen's `NativeTVKeyboard` (`screens/search/TVKeyboard.tsx`), drawn by the gallery from there: it reads destination focus, so it moves to the kit with the TV search screen.
-- Music, Audiobooks and Saved are named uses of `BrowseFrame`: the library switcher, counts line, tabs, toolbar and grid are the library frame's regions (stage1/r8-library). Until they land, the gallery cases draw the kit `Tabs` at the head of the rows and rows in place of the grid.
+- Music, Audiobooks and Saved are named uses of `BrowseFrame`: they fill its `header.switcher` (libraries), `header.menu`, `header.trailing` (Shuffle all), `header.tabs` (client-core `libraryTabs`; Saved's seven), `toolbar` and `grid` (Saved's My List from tablet width, tablet 11) or rows. A phone's Saved is rows: My List, the downloads on this phone, then the list card (phone-app 9). The counts line under a library's title waits on a `header.counts` region (RULE-REQUESTS, newframes part 2).
 
 ## TV rules (round 8: R1, R9's TV column, R11)
 

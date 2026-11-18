@@ -217,7 +217,7 @@ Parts, the same names in both apps:
 
 Left for Stage 2, so it is not forgotten:
 - `screens/live/GuideScreen.tsx`, `ProgrammePanel.tsx` and `RecordingsScreen.tsx` still draw their own grid, list, rows and pane, and `kit/dvr` RecordingsLayout is LiveFrame's header for those pages; `screens/saved/Downloads.tsx` its own rows. Each is bound to its controller and moves onto these parts with its screen.
-- Music, Audiobooks and Saved are named uses of `BrowseFrame`: the library switcher, counts line, tabs, toolbar and grid are the library frame's regions (stage1/r8-library). Until they land, the gallery cases draw the kit `Tabs` at the head of the rows and rows in place of the grid.
+- Music, Audiobooks and Saved are named uses of `BrowseFrame`: they fill its `header.switcher` (libraries), `header.menu`, `header.trailing` (Shuffle all), `header.tabs` (client-core `libraryTabs`; Saved's seven), `toolbar` (Saved's My List) and rows. Saved's My List grid sits in the page's flow at `frameSpec.browse.grid`'s column width and gaps, because its Music and audiobooks row follows it (desktop-search saved). The counts line under a library's title waits on a `header.counts` region (RULE-REQUESTS, newframes part 2). The web's Downloads tab is the server's prepared files (collections-34, -36); a device's own downloads with Rules are the apps'.
 
 ## The library and Home (round 8)
 
