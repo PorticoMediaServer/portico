@@ -1,6 +1,9 @@
 package db
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // HomeQueueSource is the row a queue started from. Query-backed rows keep their query;
 // Continue and recommendation rows keep the chosen ids so playing does not reorder them.
@@ -28,7 +31,29 @@ func (d *DB) HomeQueueSource(ctx context.Context, v Viewer, row string, q ItemQu
 		}
 		return HomeQueueSource{Query: q}, nil
 	}
-	q, _, _, err := d.homeRowQuery(ctx, v, row, q)
+	var err error
+	if row == "trending" || strings.HasPrefix(row, "because:") {
+		// A ranked row is held as the titles See all shows now, in its order and up to the queue's
+		// limit, so playing does not rank it again.
+		page, ids := q, []int64{}
+		page.Cursor, page.Limit = "", maxPageSize
+		for len(ids) < QueueMax {
+			got, err := d.HomeRowItems(ctx, v, row, page)
+			if err != nil {
+				return HomeQueueSource{}, err
+			}
+			for _, item := range got.Items {
+				ids = append(ids, item.ID)
+			}
+			if got.NextCursor == "" || len(got.Items) == 0 {
+				break
+			}
+			page.Cursor = got.NextCursor
+		}
+		q.homeIDs, q.Sort, q.Desc = ids, SortOrder, false
+	} else {
+		q, _, _, err = d.homeRowQuery(ctx, v, row, q)
+	}
 	if err != nil {
 		return HomeQueueSource{}, err
 	}

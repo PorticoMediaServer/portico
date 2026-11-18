@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 )
 
 func TestBecauseWatchedUsesOwnHistoryAndLocalSignals(t *testing.T) {
@@ -108,6 +110,28 @@ func TestBecauseWatchedUsesOwnHistoryAndLocalSignals(t *testing.T) {
 		}
 		if status(t, s, "GET", "/v1/home/rows/because:"+films[len(films)-1].ID, who, nil) != 404 {
 			t.Fatal("another seed without own play accepted")
+		}
+	}
+	// Play from See all holds the row's titles in the row's order (a queue needs a signed-in device: the owner's).
+	ownerAccess, _ := s.tokens.CheckAccess(owner, time.Now())
+	exec(`INSERT INTO play_history(profile_id,profile_name,account_name,item_id,client_event_id,played_at,item_kind,title)
+  SELECT ?, 'Owner','Owner',id,'play-owner',?,kind,title FROM items WHERE public_id=?`, ownerAccess.ProfileID, now, seed.ID)
+	shown := []string{}
+	for cursor := ""; ; {
+		row := get[HomeRow](t, s, owner, "/v1/home/rows/"+rowID+"?limit=50&cursor="+url.QueryEscape(cursor))
+		shown = append(shown, ids(row.Items)...)
+		if cursor = row.NextCursor; cursor == "" {
+			break
+		}
+	}
+	var made QueueCreated
+	if w := call(t, s, "POST", "/v1/queues", owner, QueueCreate{Source: playqueue.QueueSource{HomeRow: &playqueue.HomeRowSource{ID: rowID}}}, &made); w.Code != 201 ||
+		made.Queue.Total != len(shown) || len(made.Window) == 0 {
+		t.Fatalf("Because queue of %d titles: %d %s", len(shown), w.Code, w.Body)
+	}
+	for n, entry := range made.Window {
+		if entry.ItemID != shown[n] {
+			t.Fatalf("Because queue entry %d is %s, the row shows %s", n, entry.ItemID, shown[n])
 		}
 	}
 	// Current history privacy/reset and Not interested on the seed remove both the reason and row.
