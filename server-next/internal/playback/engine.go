@@ -204,6 +204,9 @@ type Plan struct {
 	ConvertingToHeight int
 	// Hardware says the picture is converted on a graphics device, not the processor.
 	Hardware bool
+	// Notice is a sentence for the person about what does not play: a film in parts that
+	// cannot be joined plays its first part only.
+	Notice string
 	// PlaybackInfo is what the file holds against what is playing here, and AudioRender how
 	// an app that decodes music itself should play it. Both pass through to the app as they are.
 	PlaybackInfo json.RawMessage

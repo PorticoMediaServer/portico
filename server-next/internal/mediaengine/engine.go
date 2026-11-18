@@ -486,11 +486,12 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	// a place in the whole film, episode or book (playback rule 60 for books).
 	isSTRM := strings.EqualFold(filepath.Ext(path), ".strm")
 	var parts []streaming.JoinedPart
+	var notice string
 	if !isSTRM && disc == nil {
 		parts, err = e.bookParts(ctx, r, remoteID, facts)
 	}
 	if err == nil && parts == nil && !isSTRM && disc == nil {
-		parts, err = e.videoParts(ctx, r, remoteID)
+		parts, notice, err = e.videoParts(ctx, r, remoteID)
 	}
 	if err != nil {
 		return playback.Plan{}, err
@@ -644,7 +645,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	}
 
 	out := playback.Plan{Mode: "stream", Player: plan.Engine, Route: routes[plan.Strategy], Container: plan.OutputContainer,
-		BitrateKbps: (plan.VideoBitrateBPS + plan.AudioBitrateBPS) / 1000, Quality: q,
+		BitrateKbps: (plan.VideoBitrateBPS + plan.AudioBitrateBPS) / 1000, Quality: q, Notice: notice,
 		Audio:  &playback.Decision{Action: action(plan.AudioAction), Reasons: plan.ReasonCodes, To: plan.OutputAudioCodec, Channels: plan.AudioChannels},
 		Detail: &planned{plan: plan, request: request, path: path, place: place, remoteID: remoteID, strmFileID: r.Version.FileID, parts: parts, disc: disc}}
 	if plan.Strategy == streaming.DeliveryOriginal {
