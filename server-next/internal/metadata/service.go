@@ -384,7 +384,8 @@ var creditRoles = map[string]db.CreditRole{
 // details turns a provider's record into what the database stores.
 func details(r Record, match db.MatchState) db.ItemDetails {
 	d := db.ItemDetails{Match: match, Title: r.Title, OriginalTitle: r.OriginalTitle, Summary: r.Overview, Tagline: r.Tagline,
-		Year: r.Year, ReleaseDate: r.ReleaseDate, ContentRating: r.ContentRating, CommunityRating: r.Rating, Index: r.Index}
+		Year: r.Year, ReleaseDate: r.ReleaseDate, ContentRating: r.ContentRating, CommunityRating: r.Rating, Index: r.Index,
+		OriginalLanguage: r.OriginalLanguage}
 	if age, ok := contentrating.Age(r.ContentRating); ok {
 		d.RatingAge = &age
 	}

@@ -207,8 +207,11 @@ type ItemDetails struct {
 	// Continuing says whether a show is still running, which a refresh comes sooner for.
 	// nil means the provider did not say.
 	Continuing *bool
-	Tags       []TagName // genres, studios, networks and countries; each kind given replaces that list
-	Credits    []ImportCredit
+	// OriginalLanguage is the provider's word for the language the title was made in; kept as a
+	// fact for playback's "original language" audio choice, not a field a person edits.
+	OriginalLanguage string
+	Tags             []TagName // genres, studios, networks and countries; each kind given replaces that list
+	Credits          []ImportCredit
 	// Index is, for a child, its number under its parent: an episode's number.
 	Index int
 	// Replace says the title is now a different one (its match was changed): what the provider
@@ -350,6 +353,10 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 		// A match a person chose is never made the server's own again.
 		sets += ", match_state = CASE WHEN match_state = ? AND ? = ? THEN match_state ELSE ? END"
 		args = append(args, MatchChosen, d.Match, MatchFound, d.Match)
+	}
+	if d.OriginalLanguage != "" {
+		sets += ", extra = json_set(ifnull(extra, '{}'), '$.originalLanguage', ?)"
+		args = append(args, d.OriginalLanguage)
 	}
 	if d.Continuing != nil {
 		sets += ", extra = json_set(ifnull(extra, '{}'), '$.continuing', ?)"

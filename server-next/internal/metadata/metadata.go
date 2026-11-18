@@ -144,19 +144,22 @@ type Record struct {
 	Ref           Ref
 	Title         string
 	OriginalTitle string
-	Overview      string
-	Tagline       string
-	Year          int
-	ReleaseDate   string  // YYYY-MM-DD
-	ContentRating string  // for the Locale's region
-	Rating        float64 // out of 10
-	Genres        []string
-	Studios       []string
-	Networks      []string
-	Countries     []string
-	Credits       []Credit
-	Pictures      []Picture
-	OtherIDs      []Ref // the same title at other providers: its IMDb id
+	// OriginalLanguage is the language the title was made in: what a viewer's "original
+	// language" audio choice plays.
+	OriginalLanguage string
+	Overview         string
+	Tagline          string
+	Year             int
+	ReleaseDate      string  // YYYY-MM-DD
+	ContentRating    string  // for the Locale's region
+	Rating           float64 // out of 10
+	Genres           []string
+	Studios          []string
+	Networks         []string
+	Countries        []string
+	Credits          []Credit
+	Pictures         []Picture
+	OtherIDs         []Ref // the same title at other providers: its IMDb id
 	// Still running: a show that has not ended is refreshed sooner.
 	Continuing bool
 	// For a child: its number, and the number of what holds it (an episode's season).
