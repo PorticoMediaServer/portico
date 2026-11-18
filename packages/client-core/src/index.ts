@@ -59,7 +59,6 @@ export * from "./personal-saved.ts";
 export {SearchService,searchPath,parseSearchHistory,type SearchGroup,type SearchSort,type SearchDirection,type SearchGroupStatus,type SearchGroupErrorCode,type SearchQuery,type SearchEntry,type SearchGroupResult,type SearchGroupCapability,type SearchCapabilities,type SearchData,type SearchSnapshot,type SearchHistoryEntry,type SearchHistoryPage} from './search.ts';
 export {readSearchGenres, releaseSearchGenres, searchGenresReadMetadata, type SearchGenreArt, type SearchGenre,
   type SearchGenrePage, type SearchGenreRequest, type SearchGenreReadOptions} from './search-genres.ts';
-export * from './facet-windows.ts';
 export * from './people.ts';
 export {savedListFilters,savedListSorts,historyPeriods,type SavedListFilter,type SavedListSort,type HistoryPeriod,type SavedApi,type SavedScope,type SavedRoute,type SavedActor} from './saved.ts';
 export * from './browse.ts';

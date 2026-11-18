@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
  accessTokenPrefix,apiKeyPrefix,apiScopePresets,createAccessToken,createApiKey,isApiCredentialSecret,listApiKeys,listAccessTokens,listWebhookDeliveries,
- parseApiAccessOptions,parseApiCredential,parseIssuedApiCredential,parseIssuedWebhook,parsePathReport,parseTitlePage,parseWebhook,parseWebhookDelivery,parseWebhookDeliveryPage,parseWebhookList,
- presetOf,queryTitles,reportChangedPaths,refreshIntegrationLibraries,revokeApiKey,sendWebhookTest,updateWebhook,webhookEdits,type ApiAccessTransport,
+ parseApiAccessOptions,parseApiCredential,parseIssuedApiCredential,parseIssuedWebhook,parseWebhook,parseWebhookDelivery,parseWebhookDeliveryPage,parseWebhookList,
+ presetOf,revokeApiKey,sendWebhookTest,updateWebhook,webhookEdits,type ApiAccessTransport,
 } from '../src/api-access.ts';
 
 const member={accountId:'owner',username:'sam',profileId:'p1',profile:'Sam'};
@@ -89,24 +89,6 @@ test('current webhook pages and receipts keep events and distinct log rows', asy
  assert.equal(log.calls[0].path,'/v1/admin/webhooks/w1/deliveries?cursor=c');
 });
 
-test('the title query and the paths-changed report', async () => {
- const row={id:'t1',kind:'movie',title:'A Film',libraryId:'movies',year:2001,available:true,providerIds:{tmdb:'603'}};
- assert.equal(parseTitlePage({items:[row],limit:50,nextCursor:'n'}).items[0].providerIds.tmdb,'603');
- // One title that cannot be read is left out alone; the page size and the cursor stay exact.
- assert.deepEqual(parseTitlePage({items:[{...row,providerIds:undefined},{...row,available:'yes'},row,{...row,title:'Again'}],limit:50,futureField:1}).items.map(t=>t.title),['A Film']);
- assert.throws(()=>parseTitlePage({items:[row],limit:-1}));
- assert.throws(()=>parseTitlePage({items:Array(101).fill(row),limit:50}));
- const titles=recorder({items:[row],limit:2});
- await queryTitles(titles.transport,{library:'movies',kind:'movie',sort:'year',order:'desc',yearFrom:2000,limit:2});
- assert.equal(titles.calls[0].path,'/v1/titles?library=movies&kind=movie&sort=year&order=desc&yearFrom=2000&limit=2');
- const report=recorder({paths:[{path:'/media/a',status:'queued',libraryId:'movies',sourceId:'s',folder:'a'},{path:'/x',status:'outside_libraries'}],jobs:[{id:'j1',status:'queued',processed:0,analyzed:0,warnings:0}]});
- const out=await reportChangedPaths(report.transport,[{path:'/media/a',change:'added'},{path:'/x'}]);
- assert.deepEqual(report.calls[0].body,{paths:[{path:'/media/a',change:'added'},{path:'/x'}]});
- assert.deepEqual(out.jobIds,['j1']);
- assert.equal(out.paths[1].status,'outside_libraries');
- assert.throws(()=>parsePathReport({paths:[{path:'/x',status:'scanning'}],jobs:[]}));
-});
-
 test('webhook form sends only changed fields', () => {
  const was=parseWebhook(webhook);
  assert.deepEqual(webhookEdits(was,{name:'Home',url:webhook.url,events:['a.future.event','playback.started']}),{});
@@ -118,12 +100,4 @@ test('a credential page carries the exact total across pages and refuses a page 
  assert.equal((await listApiKeys(page.transport)).total,250);
  await assert.rejects(listApiKeys(recorder({items:[credential],limit:100}).transport));
  await assert.rejects(listApiKeys(recorder({items:[credential],limit:100,total:-1}).transport));
-});
-
-test('deferred integration work is explicit and never invents job IDs',async()=>{
- const raw={paths:[{path:'/media/A',status:'deferred',scanScope:'source',libraryId:'films',sourceId:'source'}],jobs:[],deferred:true};
- const parsed=parsePathReport(raw);assert.equal(parsed.deferred,true);assert.deepEqual(parsed.jobIds,[]);assert.equal(parsed.paths[0].scanScope,'source');
- assert.throws(()=>parsePathReport({...raw,deferred:'yes'}));assert.throws(()=>parsePathReport({...raw,paths:[{...raw.paths[0],scanScope:'everything'}]}));
- const queued=parsePathReport({paths:[],jobs:[{id:'real'}]});assert.equal(queued.deferred,false);assert.deepEqual(queued.jobIds,['real']);
- const request=recorder(raw);await refreshIntegrationLibraries(request.transport,'films');assert.equal(request.calls[0].path,'/v1/integrations/refresh');assert.deepEqual(request.calls[0].body,{libraryId:'films'});
 });

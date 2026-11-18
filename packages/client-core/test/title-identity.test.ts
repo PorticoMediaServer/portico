@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {mergeTitles, removeLibrary, separateArtist} from '../src/title-identity.ts';
-import {entryActionList, entryActions} from '../src/presentation/index.ts';
+import {mergeTitles, removeLibrary} from '../src/title-identity.ts';
 import {formValue, withFormValue} from '../src/server-admin/server-forms.ts';
 
 test('merging sends what the owner confirmed; removing a library asks the rebuilt server and waits for the job that removes it', async () => {
@@ -11,16 +10,6 @@ test('merging sends what the owner confirmed; removing a library asks the rebuil
   await removeLibrary(api, 'films', 'Films', 7, 1);
   assert.deepEqual(calls, [['/v1/admin/items/b/merge', 'POST', {itemId: 'a'}], ['/v1/admin/libraries/films?confirm=Films', 'DELETE', undefined], ['/v1/jobs/job_1', 'GET', undefined]]);
   await assert.rejects(mergeTitles(api, 'a', 'a'));
-});
-
-test('Not this artist moves albums and answers the new artist', async () => {
-  const calls: unknown[] = [];
-  const api = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => { calls.push([path, method, body]); return {artistId: 'artist-2'} as T; }};
-  assert.equal(await separateArtist(api, ['album-1']), 'artist-2');
-  assert.deepEqual(calls, [['/v1/admin/titles/separate-artist', 'POST', {albumIds: ['album-1']}]]);
-  await assert.rejects(separateArtist(api, []));
-  const manage = entryActionList(entryActions({kind: 'album', separateArtist: true, delete: false})).map(a => a.id);
-  assert.deepEqual(manage, ['separateArtist']);
 });
 
 test('a setting whose own name has a dot is one key, not a path', () => {

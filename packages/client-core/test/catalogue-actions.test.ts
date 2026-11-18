@@ -1,15 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readMetadataResponse, readCatalogueDeletion, deleteCatalogueTitles, readLibraryMetadataAgentResponse, refreshCatalogueMetadata} from '../src/query/catalogue-actions.ts';
+import {readCatalogueDeletion, deleteCatalogueTitles, readLibraryMetadataAgentResponse, refreshCatalogueMetadata} from '../src/query/catalogue-actions.ts';
 
 test('catalogue commands preserve the original body, operation identity and transport signal', async () => {
   const calls: unknown[][] = [], raw = {}, signal = new AbortController().signal;
   const api = {async request(...args: unknown[]) {calls.push(args);return raw;}};
-  assert.equal(await readMetadataResponse(api, 'item', 'a /?', signal), raw);
   assert.equal(await readLibraryMetadataAgentResponse(api, 'lib /?', signal), raw);
   assert.equal(await refreshCatalogueMetadata(api, 'movie', 'a /?', signal), raw);
   assert.deepEqual(calls, [
-    ['/v1/metadata/item/a%20%2F%3F', 'GET', undefined, signal],
     ['/v1/admin/libraries/lib%20%2F%3F', 'GET', undefined, signal],
     ['/v1/admin/items/a%20%2F%3F/metadata/refresh', 'POST', {}, signal],
   ]);
@@ -28,8 +26,7 @@ test('a library with deleting off is a preview that says why and offers no delet
 
 test('catalogue operations retain transport promise identity and error settlement order', () => {
   const pending = new Promise<unknown>(() => {}), api = {request: () => pending};
-  for (const result of [readMetadataResponse(api, 'item', 'item'),
-    readLibraryMetadataAgentResponse(api, 'library'), refreshCatalogueMetadata(api, 'movie', 'item')]) {
+  for (const result of [readLibraryMetadataAgentResponse(api, 'library'), refreshCatalogueMetadata(api, 'movie', 'item')]) {
     assert.equal(result, pending);
   }
 });

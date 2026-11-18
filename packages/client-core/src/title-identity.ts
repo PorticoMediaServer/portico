@@ -1,7 +1,5 @@
-import {routeBody} from "../../contracts/src/routes.ts";
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {callServer} from './query/server-api.ts';
-import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
+import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {keepReadable} from './tolerant.ts';
 
 /** Title identity changes and library removal. */
@@ -21,15 +19,6 @@ export async function mergeTitles(api:TitleIdentityApi,fromId:string,intoId:stri
  const out=await callServer(api, 'POST /v1/admin/items/{id}/merge', {id:intoId, body:{itemId:fromId}});
  if(!obj(out)||!id(out.itemId))invalid('merged title');
  return out.itemId;
-}
-/** Says these albums, all filed under one artist, are by someone else of the same name ("Not
- * this artist"): they move, with their songs' credits, to a new artist of their own that is never
- * joined back automatically. At least one album must stay with the artist. Returns the new artist's id. */
-export async function separateArtist(api:TitleIdentityApi,albumIds:readonly string[]):Promise<string>{
- if(!albumIds.length||albumIds.length>100||!albumIds.every(id))invalid('albums to separate');
- const out=await api.request<RouteResponse<"separate_artist">>(routePath("separate_artist"),'POST',routeBody("separate_artist", {albumIds:[...albumIds]}));
- if(!obj(out)||!id(out.artistId))invalid('separated artist');
- return out.artistId;
 }
 /** Removes a library. `confirmation` is the library's name typed back; `expectedRevision` its
  * configuration revision. The library disappears at once; the rest happens in the background.
@@ -103,61 +92,6 @@ export async function findLibraryFile(api:TitleIdentityApi,libraryId:string,file
  options.onProgress?.(raw.items.length);
  for(const row of raw.items){if(!obj(row)||row.assetId!==fileId)continue;if(!id(row.id)||!id(row.revision))invalid('library file');return Object.freeze({objectId:row.id,revision:row.revision});}
  return undefined;
-}
-
-/** Kinds whose files sit in an album or book, which an owner can separate by folder. */
-export const FOLDER_SPLITTABLE_KINDS:readonly string[]=Object.freeze(['song','audiobook_file']);
-
-/** Says the folder holding this file is an album (or book) of its own, not part of the one it was joined with. Returns the new album's or book's id. */
-export async function separateLibraryFolder(api:TitleIdentityApi,libraryId:string,file:LibraryFileRecord,signal?:AbortSignal):Promise<string>{
- const objectId=file.objectId,revision=file.revision;
- if(!id(libraryId)||!id(objectId)||!id(revision))invalid('folder to separate');
- const path=encodedRoutePath("post_admin_libraries_id_inventory_object_separate_folder", {"id": encodeURIComponent(libraryId), "object": encodeURIComponent(objectId)});
- const body=Object.freeze({revision}),started=Date.now();
- let pending:unknown;
- for(let attempt=0;attempt<32;attempt++){
-  if(signal?.aborted)throw folderCancelled();
-  if(attempt>0&&Date.now()-started>=120_000)throw pending;
-  let out:unknown;
-  try{out=await folderRequest(api,path,body,signal);}
-  catch(error){
-   if(signal?.aborted)throw folderCancelled();
-   // Match the transport's ApiError fields; same_request is not transport auto-retry.
-   if(!obj(error)||!((error.status===409&&error.code==='request_in_progress')||(error.status===503&&error.code==='writer_capacity')))throw error;
-   pending=error;
-   const seconds=typeof error.retryAfterSeconds==='number'&&error.retryAfterSeconds>0?error.retryAfterSeconds:2;
-   const delay=seconds*1000,remaining=120_000-(Date.now()-started);
-   if(attempt===31||delay>=remaining)throw error;
-   await folderWait(delay,signal);
-   continue;
-  }
-  if(signal?.aborted)throw folderCancelled();
-  if(!obj(out)||!id(out.itemId))invalid('separated album');
-  return out.itemId;
- }
- throw pending;
-}
-function folderCancelled():Error{return Object.assign(new Error('cancelled'),{name:'AbortError'});}
-/** Race even a transport that ignores cancellation; its late result cannot publish an id. */
-function folderRequest(api:TitleIdentityApi,path:string,body:Readonly<{revision:string}>,signal?:AbortSignal):Promise<unknown>{
- return new Promise((resolve,reject)=>{
-  const abort=()=>{signal?.removeEventListener('abort',abort);reject(folderCancelled());};
-  if(signal?.aborted){abort();return;}
-  signal?.addEventListener('abort',abort,{once:true});
-  Promise.resolve().then(()=>{
-   if(signal?.aborted)throw folderCancelled();
-   return api.request<unknown>(path,'POST',body,signal);
-  }).then(resolve,reject).finally(()=>signal?.removeEventListener('abort',abort));
- });
-}
-function folderWait(delay:number,signal?:AbortSignal):Promise<void>{
- return new Promise((resolve,reject)=>{
-  const cleanup=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);};
-  const abort=()=>{cleanup();reject(folderCancelled());};
-  const timer=setTimeout(()=>{cleanup();resolve();},delay);
-  if(signal?.aborted){abort();return;}
-  signal?.addEventListener('abort',abort,{once:true});
- });
 }
 
 /** Split one whole version into a new title. There is no occurrence/part split on server-next. */

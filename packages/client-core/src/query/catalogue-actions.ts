@@ -1,4 +1,3 @@
-import {encodedRoutePath, routePath} from '../../../contracts/src/routes.ts';
 import type {BulkEdit} from '../metadata-bulk.ts';
 import {metadataAgentPath} from '../server-admin/metadata-agent.ts';
 import {refreshMetadataPath} from '../presentation/entry-actions.ts';
@@ -13,10 +12,6 @@ export interface CatalogueActionsApi {
 }
 /** Existing command owners retain their captured proofs and uncertain-outcome
  * state. These operations never retry or replace an operation's body. */
-export function readMetadataResponse(api: CatalogueActionsApi, kind: string, id: string, signal?: AbortSignal) {
-  return api.request(encodedRoutePath('get_metadata_kind_id', {kind: encodeURIComponent(kind), id: encodeURIComponent(id)}), 'GET', undefined, signal);
-}
-/** One bulk edit, saved as the rebuilt server's `edit_items` job; the answer is the editor's per-title receipt. */
 export function submitMetadataBulk(api: CatalogueActionsApi, body: BulkEdit, signal?: AbortSignal) {
   return saveBulkMetadata(api as never, body, signal);
 }

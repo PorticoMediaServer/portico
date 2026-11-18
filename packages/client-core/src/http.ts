@@ -163,13 +163,10 @@ export class RequestTimeoutError extends Error {
  * do not come through here and have no such limit.
  */
 export function requestDeadlineMs(path: string, method: string): number {
-  // This owner read advances capped server snapshots; selection size sets its
-  // duration. The screen owns cancellation, rather than a whole-scan timer.
-  if (method === 'POST' && path === routePath('post_metadata_bulk_preview')) return Infinity;
   const held = /[?&]waitMs=(\d{1,7})(?:&|$)/.exec(path);
   if (held) return Math.min(Number(held[1]), 600_000) + 15_000;
   if (method === 'GET' || method === 'HEAD') return 30_000;
-  return path.startsWith(routePrefix("change_connectivity_policy", 2)) ? 120_000 : 60_000;
+  return path.startsWith(routePrefix("get_admin_logs_events", 2)) ? 120_000 : 60_000;
 }
 /** Runs `work` under the request's deadline and the caller's own cancellation. A caller's cancel stays a cancel; the deadline is a timeout. */
 async function withinDeadline<T>(ms: number, signal: AbortSignal | undefined, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -751,7 +748,6 @@ export class HttpLocalApi {
       const answer = await this.outboxWrite(path, method, body, undefined, signal);
       return this.readAnswered<T>(new Response(answer.body === undefined ? null : JSON.stringify(answer.body), {status: answer.status, headers: {...answer.headers}}));
     }
-    // Ordinary requests time out; the paged owner preview belongs to caller cancellation (see `requestDeadlineMs`).
     // A change the writer refused before it began is sent again, not dropped (`writer-capacity.ts`).
     return retryWriterCapacity(
       () => withinDeadline(requestDeadlineMs(path, method), signal, bounded => this.answered<T>(path, method, body, bounded, options.manageGate !== false)),
@@ -947,8 +943,5 @@ export class HttpHostedApi {
   /** The account's transport, for `porticoSignIn`. */
   request<T>(path: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<T> {
     return this.http.request<T>(path, method, body, signal);
-  }
-  logout() {
-    return this.http.request<void>(routePath("delete_sessions_current"), "DELETE");
   }
 }

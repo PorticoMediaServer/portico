@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   parseLibraryChannel, parseLibraryChannelConfig, librarySampleLabel,
-  readLibraryChannels, readLibraryTemplates, previewLibraryChannel, saveLibraryChannel, readLibraryDefaults,
+  readLibraryChannels, readLibraryTemplates, previewLibraryChannel, saveLibraryChannel,
   type LibraryChannelConfig,
 } from '../src/library-channels.ts';
 
@@ -105,13 +105,7 @@ test('preview fills builder defaults older servers omit; templates and save/defa
     return {serverId: 's', protocolVersion: '1.0', channel: channel()};
   }) as never, 's', config() as unknown as LibraryChannelConfig, 2, 'req-1');
   assert.equal(saved.revision, 1);
-  const defaults = await readLibraryDefaults(api(async (path, method, body) => {
-    assert.equal(path, '/v1/admin/library-channels/defaults');
-    assert.equal(method, 'POST');
-    assert.deepEqual(body, {timezone: 'UTC'});
-    return {serverId: 's', config: config()};
-  }) as never, 's', 'UTC');
-  assert.equal(defaults.id, 'c1');
+
 });
 
 test('sample labels prefer the episode show name', () => {

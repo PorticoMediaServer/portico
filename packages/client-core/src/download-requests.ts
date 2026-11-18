@@ -1,16 +1,15 @@
 import {canonicalQualityLadder} from '../../contracts/src/types.ts';
-import {routePath} from "../../contracts/src/route-paths.ts";
+import {encodedRoutePath, routePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 import {parseDownloadPreparation,type DownloadPreparation} from './downloads.ts';
 import {firstOfEach,keepReadable,noteSkipped,oneOf} from './tolerant.ts';
 /**
  * Whole-container download requests (`create_download_request`,
- * `get_download_request` and `list_download_requests` in
+ * and `get_download_request` in
  * `server/api/portico.openapi.json`):
  * one `POST /v1/downloads/requests` for a show, season, album, book or
  * playlist — never TV — with a policy choosing which episodes to take, then
- * `GET /v1/downloads/requests/{id}?limit=&cursor=` for request progress, and
- * `GET /v1/downloads/requests?deviceId=` to find a device's requests again.
+ * `GET /v1/downloads/requests/{id}?limit=&cursor=` for request progress.
  *
  * Admission returns 202 with `totalKnown:false` while the worker captures
  * visible membership; the client shows an indeterminate capture state until
@@ -25,12 +24,6 @@ export type DownloadEpisodes='all'|'unwatched'|'next';
 export type DownloadRequestPolicy=Readonly<{episodes:DownloadEpisodes;keepNext?:number}>;
 export type DownloadRequestState='capturing'|'admitting'|'preparing'|'complete'|'failed';
 export type DownloadRequestErrorCode='authority_revoked'|'target_not_found';
-/** One request as a device lists it to find the ones it started. */
-export type DownloadRequestSummary=Readonly<{requestId:string;state:DownloadRequestState;target:Readonly<{kind:DownloadRequestKind;id:string}>;title:string;quality:string;createdAt:string}>;
-/** One page of a device's requests, newest first; follow `nextCursor` until it is empty. */
-export type DownloadRequestPage=Readonly<{requests:readonly DownloadRequestSummary[];nextCursor:string}>;
-/** The most requests one discovery page holds. */
-export const DOWNLOAD_REQUEST_PAGE=50;
 export type DownloadRequestItem=Readonly<{itemId:string;reason?:string;preparation?:DownloadPreparation}>;
 export type DownloadRequest=Readonly<{
  requestId:string;total:number;totalKnown:boolean;state:DownloadRequestState;
@@ -40,7 +33,6 @@ export type DownloadRequest=Readonly<{
 }>;
 export interface DownloadRequestsApi{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}
 
-export const DOWNLOAD_REQUESTS_PATH=routePath("list_download_requests");
 export const downloadRequestStates:readonly DownloadRequestState[]=Object.freeze(['capturing','admitting','preparing','complete','failed'] as const);
 /** Complete means no queued/running/paused members remain (individual failures may remain). */
 export const isDownloadRequestTerminal=(state:DownloadRequestState):boolean=>state==='complete'||state==='failed';
@@ -114,7 +106,7 @@ export async function createDownloadRequest(api:DownloadRequestsApi,input:Downlo
  if(typeof quality!=='string'||!canonicalQualityLadder.some(q=>q.id===quality))throw new Error('Choose a download quality.');
  const checkedPolicy=policy(input.policy);
  try{
-  return parseDownloadRequest(await api.request<unknown>(DOWNLOAD_REQUESTS_PATH,'POST',{
+  return parseDownloadRequest(await api.request<unknown>(routePath('create_download_request'),'POST',{
    operationId:input.operationId,
    target:{kind:target.kind,id:target.id},
    deviceId:input.deviceId,quality,policy:{...checkedPolicy},
@@ -126,29 +118,6 @@ export async function createDownloadRequest(api:DownloadRequestsApi,input:Downlo
  }
 }
 
-export function parseDownloadRequestList(raw:unknown):DownloadRequestPage{
- if(!object(raw)||!Array.isArray(raw.requests)||raw.requests.length>DOWNLOAD_REQUEST_PAGE||raw.nextCursor!==undefined&&(typeof raw.nextCursor!=='string'||raw.nextCursor.length>256))invalid();
- const out=raw.requests.map(entry=>{
-  if(!object(entry)||!id(entry.requestId)||!downloadRequestStates.includes(String(entry.state) as DownloadRequestState))invalid();
-  const target=entry.target;
-  if(!object(target)||!requestKinds.includes(String(target.kind))||!id(target.id))invalid();
-  if(typeof entry.title!=='string'||entry.title.length>1024||!id(entry.quality)||typeof entry.createdAt!=='string'||entry.createdAt.length>64)invalid();
-  return Object.freeze({requestId:entry.requestId as string,state:entry.state as DownloadRequestState,target:Object.freeze({kind:target.kind as DownloadRequestKind,id:target.id as string}),title:entry.title as string,quality:entry.quality as string,createdAt:entry.createdAt as string});
- });
- if(new Set(out.map(r=>r.requestId)).size!==out.length)invalid();
- return Object.freeze({requests:Object.freeze(out),nextCursor:(raw.nextCursor as string|undefined)??''});
-}
-
-/** One page of the whole-container requests this device started that are still at work (however
- * old), or finished in the last day. The server keeps them, so a device finds them again after the
- * app was closed. */
-export async function listDownloadRequests(api:DownloadRequestsApi,deviceId:string,options:Readonly<{cursor?:string;signal?:AbortSignal}>={}):Promise<DownloadRequestPage>{
- if(!id(deviceId))throw new Error('A download request needs the authenticated device id.');
- const query=new URLSearchParams({deviceId,limit:String(DOWNLOAD_REQUEST_PAGE)});
- if(options.cursor)query.set('cursor',options.cursor);
- return parseDownloadRequestList(await api.request<unknown>(DOWNLOAD_REQUESTS_PATH+'?'+query,'GET',undefined,options.signal));
-}
-
 /** Reads live visible-member counts plus one keyset page of preparations. `limit: 0` reads the
  * counts alone (no members), for a poll that only follows progress. */
 export async function getDownloadRequest(api:DownloadRequestsApi,requestId:string,options:Readonly<{cursor?:string;limit?:number;signal?:AbortSignal}>={}):Promise<DownloadRequest>{
@@ -157,7 +126,7 @@ export async function getDownloadRequest(api:DownloadRequestsApi,requestId:strin
  if(!Number.isInteger(limit)||limit<0||limit>100||limit===0&&options.cursor)throw new Error('Download request pages read 1 to 100 members, or 0 for counts alone.');
  const query=new URLSearchParams({limit:String(limit)});
  if(options.cursor)query.set('cursor',options.cursor);
- const raw=await api.request<unknown>(DOWNLOAD_REQUESTS_PATH+'/'+encodeURIComponent(requestId)+'?'+query,'GET',undefined,options.signal);
+ const raw=await api.request<unknown>(encodedRoutePath('get_download_request',{id:encodeURIComponent(requestId)})+'?'+query,'GET',undefined,options.signal);
  const parsed=parseDownloadRequest(raw);
  if(parsed.requestId!==requestId)throw new Error(unreadableServerResponse);
  return parsed;

@@ -7,53 +7,8 @@ const origin = 'http://server.test';
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}});
 const required = () => json({error: {code: 'revision_required', retry: 'never'}}, 428);
 
-test('a refused console mutation silently rereads and retries with the revision and the same operation ID', async () => {
-  const seen: {url: string; method: string; body?: unknown; headers: Headers}[] = [];
-  const send = revisionRequiredFetch(async (input, options = {}) => {
-    const call = {url: String(input), method: options.method ?? 'GET', body: options.body && JSON.parse(String(options.body)), headers: new Headers(options.headers)};
-    seen.push(call);
-    if (seen.length === 1) return required();
-    if (call.method === 'GET') return json({scope: {serverId: 'server'}, data: {revision: 7}});
-    assert.deepEqual(call.body, {expectedRevision: 7, values: {name: 'New name'}, idempotencyKey: 'same-operation'});
-    return json({saved: true});
-  });
-  const path = origin + routePath('change_console_settings');
-  const response = await send(path, {method: 'PATCH', headers: {Authorization: 'Bearer viewer', 'Content-Type': 'application/json'}, body: JSON.stringify({expectedRevision: null, values: {name: 'New name'}, idempotencyKey: 'same-operation'})});
-  assert.deepEqual(await response.json(), {saved: true});
-  assert.deepEqual(seen.map(c => [c.url, c.method]), [[path, 'PATCH'], [path, 'GET'], [path, 'PATCH']]);
-  assert.equal(seen[1]!.headers.get('Authorization'), 'Bearer viewer');
-  assert.equal(seen[1]!.headers.get('Content-Type'), null);
-});
-
-test('escaped container IDs and administration result envelopes use the correct resource', async () => {
-  for (const [path, doc] of [
-    [routePath('set_container_personal_state', {kind: 'show', id: 'show/one'}), {revision: 3}],
-    [routePath('set_live_source_configuration', {id: 'source/one'}), {result: {revision: 3}}],
-    [routePath('put_admin_maintenance_settings'), {revision: 3}],
-    [routePath('put_download_settings'), {revision: 3}],
-    [routePath('put_library_settings', {id: 'movie/one'}), {revision: 3}],
-    [routePath('put_metadata_settings'), {revision: 3}],
-    [routePath('put_direct_profile_restrictions', {id: 'profile/one'}), {revision: 3}],
-    [routePath('set_live_settings'), {result: {revision: 3}}],
-  ] as const) {
-    let count = 0;
-    const send = revisionRequiredFetch(async (url, options = {}) => {
-      count++;
-      assert.equal(url, origin + path);
-      if (count === 1) return required();
-      if (options.method === 'GET') return json(doc);
-      assert.equal(JSON.parse(String(options.body)).expectedRevision, 3);
-      return json({saved: true});
-    });
-    assert.equal((await send(origin + path, {method: 'PUT', body: '{}'})).status, 200);
-    assert.equal(count, 3);
-  }
-});
-
 test('queue and session commands reread their parent and retry using If-Match without changing the intent', async () => {
   for (const [method, path, readPath] of [
-    ['POST', routePath('add_queue_segment', {id: 'queue/one'}), routePath('get_queue', {id: 'queue/one'})],
-    ['POST', routePath('move_queue_entry', {id: 'queue/one', entryId: 'entry/one'}), routePath('get_queue', {id: 'queue/one'})],
     ['DELETE', routePath('remove_queue_entry', {id: 'queue/one', entryId: 'entry/one'}), routePath('get_queue', {id: 'queue/one'})],
     ['PATCH', routePath('change_playback_session', {id: 'session/one'}), routePath('get_playback_session', {id: 'session/one'})],
   ]) {
@@ -142,25 +97,4 @@ test('other 428 reasons, stale revisions, authentication and interrupted writes 
   assert.equal(calls, 1);
   const offline = new Error('offline');
   await assert.rejects(revisionRequiredFetch(async () => { throw offline; })(origin + routePath('put_metadata_settings'), {method: 'PUT', body: '{}'}), e => e === offline);
-});
-
-test('delete and administrative playback commands read their actual resource before retrying', async () => {
-  for (const [method, path, readPath, revision] of [
-    ['DELETE', routePath('remove_library', {id: 'movies'}), routePath('get_admin_libraries_id_inventory_config', {id: 'movies'}), 3],
-    ['DELETE', routePath('delete_direct_member', {id: 'member'}), routePath('get_direct_member_deletion_preview', {id: 'member'}), 3],
-    ['POST', routePath('control_admin_session', {id: 'session'}), routePath('get_admin_session_controls', {id: 'session'}), '3'],
-    ['PUT', routePath('reorder_playlist_window', {id: 'playlist'}), routePath('get_playlist_order', {id: 'playlist'}), 3],
-    ['PATCH', routePath('change_connectivity_policy'), routePath('get_connectivity_policy'), 3],
-  ] as const) {
-    let count = 0;
-    const send = revisionRequiredFetch(async (input, options = {}) => {
-      count++;
-      if (count === 1) return required();
-      if (options.method === 'GET') { assert.equal(input, origin + readPath); return json({revision}); }
-      assert.equal(JSON.parse(String(options.body)).expectedRevision, revision);
-      return json({saved: true});
-    });
-    assert.equal((await send(origin + path, {method, body: '{}'})).status, 200);
-    assert.equal(count, 3);
-  }
 });
