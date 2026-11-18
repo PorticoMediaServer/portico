@@ -35,10 +35,6 @@ export function readPlaybackSubtitleFonts(api: PlaybackApi, path: string, signal
 export function readPlaybackSubtitleLines(api: PlaybackApi, path: string, signal?: AbortSignal): Promise<unknown> {
   return api.request(path, 'GET', undefined, signal);
 }
-/** Preserve the original guide query's ordering, including its explicit empty cursor. */
-export function readPlaybackGuide(api: PlaybackApi, query: URLSearchParams, signal?: AbortSignal): Promise<unknown> {
-  return api.request(`${routePath('get_guide')}?${query}`, 'GET', undefined, signal);
-}
 /** The complete original channel cleanup continuation stays in one async operation: the session is
  * stopped only while it is still this start's own channel playback. */
 export async function stopOriginalPreparingChannel(http: V1Http, body: OriginalChannelStart['body'], actual: Readonly<{id: string; generation: number}>, signal: AbortSignal, claimStop: () => boolean): Promise<void> {
