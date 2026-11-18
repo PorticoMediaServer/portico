@@ -2,6 +2,8 @@ import {routeBody} from "../../contracts/src/routes.ts";
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {callServer} from './query/server-api.ts';
 import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
+import {keepReadable} from './tolerant.ts';
+
 /** Title identity changes and library removal. */
 export type TitleIdentityApi=Readonly<{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}>;
 
