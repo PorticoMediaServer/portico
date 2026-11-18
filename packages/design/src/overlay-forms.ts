@@ -36,7 +36,9 @@ export type OverlayBar = Readonly<{
  * `none`: the overlay commits as you choose (a menu, a picker). `hints`: TV, where Back closes and the foot says so with
  * key hints ("OK Choose", "Back Close") in place of buttons. */
 export type OverlayFoot = 'halves' | 'full' | 'end' | 'none' | 'hints';
-export type OverlayForm = Readonly<{kind: OverlayFormKind; modal: boolean; bar: OverlayBar; foot: OverlayFoot}>;
+/** `width`: a TV side sheet's width, drawn per task (detail-tv-5d File info 900, 8b Play a different version 760, menus and
+ * pickers 640). */
+export type OverlayForm = Readonly<{kind: OverlayFormKind; modal: boolean; bar: OverlayBar; foot: OverlayFoot; width?: number}>;
 
 /** The tasks. A screen names one of these; anything that is none of them is a page. */
 export type OverlayTask =
@@ -62,7 +64,9 @@ export type OverlayTask =
   | 'notifications';
 
 const bar = (leading: OverlayBar['leading'], title: OverlayBar['title'], trailing: OverlayBar['trailing'], subtitle = false): OverlayBar => ({leading, title, trailing, subtitle});
-const form = (kind: OverlayFormKind, modal: boolean, overlayBar: OverlayBar, foot: OverlayFoot): OverlayForm => ({kind, modal, bar: overlayBar, foot});
+const form = (kind: OverlayFormKind, modal: boolean, overlayBar: OverlayBar, foot: OverlayFoot, width?: number): OverlayForm => ({kind, modal, bar: overlayBar, foot, width});
+/** The TV side sheet's width for a menu, a picker or a short task (detail-tv 5c, tv-more 23). */
+const tvSide = 640;
 /** Nothing in the bar: a popover has at most a quiet heading of its own content. */
 const quiet = bar('none', 'none', 'none');
 
@@ -80,13 +84,13 @@ export const overlayForms: Readonly<Record<OverlayTask, Readonly<Record<FrameFor
     medium: form('popover', true, bar('none', 'start', 'none', true), 'none'),
     /** A pointer menu (desktop-detail f2) leaves the page undimmed. */
     expanded: form('popover', false, bar('none', 'start', 'none', true), 'none'),
-    tv: form('side', true, tvBar, 'hints'),
+    tv: form('side', true, tvBar, 'hints', tvSide),
   },
   choice: {
     phone: form('popover', true, quiet, 'none'),
     medium: form('popover', true, quiet, 'none'),
     expanded: form('popover', false, quiet, 'none'),
-    tv: form('side', true, tvBar, 'hints'),
+    tv: form('side', true, tvBar, 'hints', tvSide),
   },
   confirm: {
     phone: form('sheet', true, bar('none', 'start', 'none'), 'halves'),
@@ -99,13 +103,13 @@ export const overlayForms: Readonly<Record<OverlayTask, Readonly<Record<FrameFor
     phone: form('sheet', true, bar('cancel', 'centre', 'none'), 'full'),
     medium: form('side', true, bar('none', 'start', 'close'), 'halves'),
     expanded: form('dialog', true, bar('none', 'start', 'close'), 'end'),
-    tv: form('side', true, bar('none', 'start', 'none'), 'hints'),
+    tv: form('side', true, bar('none', 'start', 'none'), 'hints', tvSide),
   },
   details: {
     phone: form('sheet', true, bar('none', 'start', 'done', true), 'none'),
     medium: form('side', false, bar('none', 'start', 'close', true), 'none'),
     expanded: form('side', false, bar('none', 'start', 'close', true), 'none'),
-    tv: form('side', true, tvBar, 'full'),
+    tv: form('side', true, tvBar, 'full', 900),
   },
   /** detail-phone 9b (a sheet: the title, the film under it, Done), desktop-detail 9b (a centred dialog over the dimmed
    * page: the title, the film under it, a round x, no foot), detail-tv-8b (the side sheet, OK Play and Back Close). */
@@ -113,13 +117,13 @@ export const overlayForms: Readonly<Record<OverlayTask, Readonly<Record<FrameFor
     phone: form('sheet', true, bar('none', 'start', 'done', true), 'none'),
     medium: form('dialog', true, bar('none', 'start', 'close', true), 'none'),
     expanded: form('dialog', true, bar('none', 'start', 'close', true), 'none'),
-    tv: form('side', true, tvBar, 'hints'),
+    tv: form('side', true, tvBar, 'hints', 760),
   },
   filters: {
     phone: form('sheet', true, bar('none', 'start', 'done'), 'halves'),
     medium: form('side', false, bar('none', 'start', 'close'), 'halves'),
     expanded: form('side', false, bar('none', 'start', 'close'), 'halves'),
-    tv: form('side', true, bar('none', 'start', 'none'), 'halves'),
+    tv: form('side', true, bar('none', 'start', 'none'), 'halves', tvSide),
   },
   settings: {
     /** The index: "Settings · Done". A page pushed inside it: "‹ Settings · centred title · its action". */
@@ -140,7 +144,7 @@ export const overlayForms: Readonly<Record<OverlayTask, Readonly<Record<FrameFor
     medium: form('popover', true, bar('none', 'start', 'action'), 'none'),
     expanded: form('popover', true, bar('none', 'start', 'action'), 'none'),
     /** No TV mock-up draws the list; it opens from the rail's profile menu (tv-more 10), so it is a side sheet like every list a TV menu opens. */
-    tv: form('side', true, tvBar, 'hints'),
+    tv: form('side', true, tvBar, 'hints', tvSide),
   },
 };
 
