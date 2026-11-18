@@ -173,6 +173,8 @@ export type ToastHostProps = {
    * existing caller, which then keeps the original bottomOffset + safe area + 12. */
   obstructionTop?: number;
   topOffset?: number;
+  /** R12: inside the player a wider form stands the card at the start (desktop-player), not centred. */
+  placement?: 'player';
   testID?: string;
 };
 export type BannerProps = {

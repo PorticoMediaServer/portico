@@ -18,6 +18,8 @@ export type ToastClearanceInput = Readonly<{
   safeBottom: number;
   /** Occupied obstruction's top measured from the viewport bottom, when one exists. */
   obstructionTop?: number;
+  /** R12: the gap kept above that edge, the form's `toastCards` bottom; TOAST_GAP when left out. */
+  gap?: number;
 }>;
 
 const finite = (value: number | undefined): number => value !== undefined && Number.isFinite(value) ? value : 0;
@@ -25,9 +27,9 @@ const finite = (value: number | undefined): number => value !== undefined && Num
 /** The bottom padding a host needs. Without a real obstruction this is the
  * original bottomOffset + safeBottom + 12; with one it clears whichever is larger,
  * so the safe area is still counted once and no gap is ever smaller than before. */
-export function toastClearance({bottomOffset, safeBottom, obstructionTop}: ToastClearanceInput): number {
+export function toastClearance({bottomOffset, safeBottom, obstructionTop, gap = TOAST_GAP}: ToastClearanceInput): number {
   const base = finite(bottomOffset) + finite(safeBottom);
   // A non-finite or non-positive obstruction is no obstruction: the fallback stays.
   const obstruction = obstructionTop !== undefined && Number.isFinite(obstructionTop) && obstructionTop > 0 ? obstructionTop : undefined;
-  return (obstruction === undefined ? base : Math.max(base, obstruction)) + TOAST_GAP;
+  return (obstruction === undefined ? base : Math.max(base, obstruction)) + gap;
 }

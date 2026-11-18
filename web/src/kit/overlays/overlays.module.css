@@ -105,15 +105,25 @@
 .phoneMenu .menuIcon { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: rgba(237,245,250,.08); color: var(--color-text-secondary); }
 .phoneMenu .ownerGroup .menuIcon { background: rgba(64,159,212,.16); color: var(--color-accent-strong); }
 .phoneMenu .menuSeparator { margin: 12px 16px; }
-.toastHost { position: fixed; z-index: var(--layer-notice); bottom: var(--overlay-toast-bottom, var(--shell-toast-bottom, 32px)); left: 50%; translate: -50% 0; max-width: calc(100vw - 32px); }
-.toast { display: flex; align-items: center; gap: 14px; padding: 10px 10px 10px 18px; border-radius: 14px; font-size: 14.5px; line-height: normal; color: var(--color-text-secondary); background: rgba(29,56,72,.95); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 24px 50px -18px var(--color-shadow), inset 0 0 0 1px rgba(237,245,250,.1); touch-action: none; }
-.toast:has(> .toastAction[data-variant="text"]) { gap: 22px; padding: 14px 14px 14px 22px; font-size: 15px; font-weight: 600; color: var(--color-text); background: var(--color-raised-bright); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 24px 50px -18px rgba(0,0,0,.9), 0 0 0 1px rgba(237,245,250,.1); }
+/* R12 (packages/design toastCards, toastPill): a card with an action rests --toast-bottom above the edge, or above the bar or
+   the player's controls the shell names; inside the player a wider form starts it --toast-player-inset in. A confirmation
+   with no action is the pill at the top centre. */
+.toastHost { position: fixed; z-index: var(--layer-notice); bottom: var(--overlay-toast-bottom, var(--shell-toast-bottom, var(--toast-bottom))); left: 50%; translate: -50% 0; max-width: calc(100vw - 32px); }
+.toastHost[data-shape="pill"] { top: calc(var(--toast-pill-top) + env(safe-area-inset-top, 0px)); bottom: auto; left: 50%; translate: -50% 0; }
+@media (min-width: 600px) { .toastHost[data-placement="player"][data-shape="card"] { left: var(--toast-player-inset); translate: none; } }
+/* Under the desktop top bar, not over its links; the player has none. */
+@media (min-width: 1024px) { .toastHost[data-shape="pill"]:not([data-placement="player"]) { top: calc(var(--spec-navigation-top-height) + var(--toast-pill-top)); } }
+.toast { display: flex; align-items: center; gap: var(--toast-gap); padding: var(--toast-padding); border-radius: var(--toast-radius); font-size: 14.5px; line-height: normal; color: var(--color-text-secondary); background: rgba(29,56,72,.95); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 24px 50px -18px var(--color-shadow), inset 0 0 0 1px rgba(237,245,250,.1); touch-action: none; }
+.toast[data-shape="pill"] { gap: 8px; min-height: var(--toast-pill-height); padding: 0 var(--toast-pill-padding-x); border-radius: var(--toast-pill-radius); font-size: 14px; font-weight: 600; }
+@media (min-width: 600px) {
+  .toast[data-shape="card"] { font-size: 15px; font-weight: 600; color: var(--color-text); background: var(--color-raised-bright); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 24px 50px -18px rgba(0,0,0,.9), 0 0 0 1px rgba(237,245,250,.1); }
+}
 .toast b, .banner b, .quietBanner b { color: var(--color-text); font-weight: 700; }
 .toastMessage { min-width: 0; }
 .toastArtwork { flex: none; }
 .toastArtwork > img { display: block; width: 28px; height: 42px; border-radius: 5px; object-fit: cover; }
-.toastAction.toastAction { gap: 6px; margin-left: auto; flex: none; height: 34px; padding: 0 13px; border-radius: 9px; font-size: 14px; font-weight: 700; }
-.toastAction.toastAction[data-variant="text"] { height: 36px; padding: 0 14px; font-size: 14.5px; font-weight: 800; color: var(--color-accent-strong); }
+.toastAction.toastAction { gap: 6px; margin-left: auto; flex: none; height: var(--toast-action-height); padding: 0 13px; border-radius: 9px; font-size: 14px; font-weight: 700; }
+.toastAction.toastAction[data-variant="text"] { padding: 0 14px; font-size: 14.5px; font-weight: 800; color: var(--color-accent-strong); }
 .toastAction.toastAction[data-variant="text"]:hover:not(:disabled) { color: var(--color-accent-strong); }
 .feedbackIcon { flex: none; color: var(--color-accent-strong); }
 .toast[data-tone="success"] .feedbackIcon { color: var(--color-healthy); }
@@ -124,12 +134,12 @@
 .banner { display: flex; align-items: center; gap: 14px; padding: 10px 10px 10px 16px; border-radius: 14px; background: rgba(16,33,45,.92); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: inset 0 0 0 1px rgba(237,245,250,.1), 0 20px 40px -18px var(--color-shadow); font-size: 14.5px; line-height: 1.45; color: var(--color-text-secondary); }
 .bannerAction.bannerAction { margin-left: auto; flex: none; }
 @media (max-width: 599px) {
-  .toastHost { left: 8px; right: 8px; translate: none; max-width: none; bottom: var(--overlay-toast-bottom, var(--shell-toast-bottom, 96px)); }
-  .toast { gap: 12px; padding: 8px 8px 8px 12px; font-size: 14px; box-shadow: 0 14px 30px -10px rgba(0,0,0,.85), inset 0 0 0 1px rgba(237,245,250,.1); }
-  .toast:has(> .toastAction[data-variant="text"]) { gap: 12px; padding: 12px 8px 12px 16px; font-size: 14px; }
+  .toastHost { left: var(--toast-inset); right: var(--toast-inset); translate: none; max-width: none; bottom: var(--overlay-toast-bottom, var(--shell-toast-bottom, 96px)); }
+  .toastHost[data-shape="pill"] { left: 50%; right: auto; translate: -50% 0; max-width: calc(100vw - 2 * var(--toast-inset)); }
+  .toast { font-size: 14px; box-shadow: 0 14px 30px -10px rgba(0,0,0,.85), inset 0 0 0 1px rgba(237,245,250,.1); }
   /* At phone width the message wraps beside its action; it is never cut. */
   .toastMessage { flex: 1; white-space: normal; overflow: visible; text-overflow: clip; }
-  .toastAction.toastAction { height: 36px; padding: 0 14px; }
+  .toastAction.toastAction { padding: 0 14px; }
   .toastAction.toastAction[data-variant="text"] { padding: 0 12px; font-size: 14px; }
   .quietBanner { max-width: calc(100vw - 24px); height: auto; min-height: 36px; font-size: 13.5px; white-space: normal; }
   .banner { font-size: 13.5px; gap: 10px; }

@@ -20,7 +20,8 @@ for (const variant of [undefined, 'glass', 'text'] as const) {
     }));
     assert.match(html, /role="status" aria-live="polite" aria-atomic="true"/);
     assert.equal((html.match(/<button/g) ?? []).length, 1);
-    assert.match(html, new RegExp(`data-variant="${variant ?? 'glass'}"`));
+    // Left out, R12 picks it by form: the accent text action wider (the render's form), tinted glass on a phone.
+    assert.match(html, new RegExp(`data-variant="${variant ?? 'text'}"`));
     assert.match(html, /type="button"/);
     assert.match(html, /data-size="xs"/);
     assert.match(html, /aria-label="Open Family night playlist"/);

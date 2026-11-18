@@ -163,7 +163,7 @@ test('the shared toast preserves an explicitly authored TV Undo without changing
     'react-native-gesture-handler': {Gesture: {Pan: () => pan}, GestureDetector: 'GestureDetector'},
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useSharedValue: (value: any) => ({value}), useAnimatedStyle: (run: () => any) => run(), runOnJS: (run: any) => run},
     'react-native-safe-area-context': {}, '../../../../../packages/i18n/src/index': {defaultI18n: {t}}, '../../platform/native-blur': {glassRecipe: () => ({nativeBlur: false})},
-    '../controls/Button': {Button: 'Button'}, '../Icon': {Icon: 'Icon'}, '../theme': {nativeType: type, useTheme: () => ({...theme, isTV: true})},
+    '../controls/Button': {Button: 'Button'}, '../Icon': {Icon: 'Icon'}, '../theme': {nativeType: type, useTheme: () => ({...theme, isTV: true, form: 'tv'})},
     '../useMotion': {useMotion: () => ({reduce: true, timing: () => ({}), spring: () => ({})})}, './geometry': {}, './toast-clearance': {}, './toast-clock': {}, './surface': {alpha: (value: string) => value},
   });
   const props = {id: 'undo', message: 'Removed', action: {label: 'Undo', onPress: () => calls.push('undo')}, onDismiss: (_id: string, reason: string) => calls.push(reason)};

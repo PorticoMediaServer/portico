@@ -2596,6 +2596,10 @@
   --icon-secondary-box: 48px;
   --icon-tertiary: 18px;
   --icon-tertiary-box: 38px;
+  --toast-pill-height: 40px;
+  --toast-pill-radius: 20px;
+  --toast-pill-padding-x: 16px;
+  --toast-pill-top: 22px;
   --frame-player-scrim: linear-gradient(180deg, color-mix(in srgb, var(--color-live-player-scrim) 84%, transparent) 0px, color-mix(in srgb, var(--color-live-player-scrim) 38%, transparent) 130px, transparent 240px), linear-gradient(0deg, color-mix(in srgb, var(--color-live-player-scrim) 94%, transparent) 0px, color-mix(in srgb, var(--color-live-player-scrim) 62%, transparent) 150px, transparent 340px);
   --frame-player-volume: 84px;
   --frame-player-pill-icon: 16px;
@@ -2748,6 +2752,13 @@
   --frame-player-prompt-padding: 18px;
   --frame-player-prompt-dismiss: 0px;
   --frame-player-prompt-bottom: 26px;
+  --toast-radius: 14px;
+  --toast-padding: 10px 8px 10px 14px;
+  --toast-gap: 12px;
+  --toast-inset: 8px;
+  --toast-bottom: 12px;
+  --toast-player-inset: auto;
+  --toast-action-height: 36px;
 }
 
 @media (min-width: 600px) {
@@ -3713,6 +3724,13 @@
   --frame-player-prompt-padding: 24px;
   --frame-player-prompt-dismiss: 48px;
   --frame-player-prompt-bottom: 64px;
+  --toast-radius: 14px;
+  --toast-padding: 14px 14px 14px 22px;
+  --toast-gap: 22px;
+  --toast-inset: auto;
+  --toast-bottom: 36px;
+  --toast-player-inset: 24px;
+  --toast-action-height: 36px;
 }
 }
 
@@ -4679,6 +4697,13 @@
   --frame-player-prompt-padding: 24px;
   --frame-player-prompt-dismiss: 44px;
   --frame-player-prompt-bottom: 64px;
+  --toast-radius: 14px;
+  --toast-padding: 14px 14px 14px 22px;
+  --toast-gap: 22px;
+  --toast-inset: auto;
+  --toast-bottom: 36px;
+  --toast-player-inset: 24px;
+  --toast-action-height: 36px;
 }
 }
 

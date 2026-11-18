@@ -2,7 +2,7 @@
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {colors, profileArtColors, spacing, spacingGrid, radii, platformRadii, motion, easings, springs, springTiming, reducedMotion, layout, layers, targets, typography, fixedTypeMetrics, watchEndType, componentSpec, frameSpec, formScale, emphasis} from '../src/index.ts';
+import {colors, profileArtColors, spacing, spacingGrid, radii, platformRadii, motion, easings, springs, springTiming, reducedMotion, layout, layers, targets, typography, fixedTypeMetrics, watchEndType, componentSpec, frameSpec, formScale, emphasis, toastCards, toastPill} from '../src/index.ts';
 
 export const tokenCssPath = fileURLToPath(new URL('../../../web/src/kit/tokens.css', import.meta.url));
 const kebab = value => value.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase());
@@ -125,13 +125,21 @@ function frameTokens(form, web) {
     `--frame-player-pill-height: ${px(f.player.pill.height[form])}`, `--frame-player-pill-padding: ${px(f.player.pill.paddingX[form])}`,
     `--frame-player-preview-width: ${px(f.player.preview.width[form])}`, `--frame-player-preview-height: ${px(f.player.preview.height[form])}`, `--frame-player-preview-radius: ${px(f.player.preview.radius[form])}`, `--frame-player-preview-lift: ${px(f.player.preview.lift[form])}`,
     `--frame-player-prompt-height: ${px(f.player.prompt.height[form])}`, `--frame-player-prompt-radius: ${px(f.player.prompt.radius[form])}`, `--frame-player-prompt-padding: ${px(f.player.prompt.paddingX[form])}`, `--frame-player-prompt-dismiss: ${px(f.player.prompt.dismiss[form])}`, `--frame-player-prompt-bottom: ${px(f.player.prompt.bottom[form])}`,
+    ...toastTokens(toastCards[form]),
   ];
+}
+/** R12, a toast's card on this form (packages/design `toastCards`); TV keeps its own toast. */
+function toastTokens(card) {
+  if (!card) return [];
+  return [`--toast-radius: ${px(card.radius)}`, `--toast-padding: ${card.padding.map(px).join(' ')}`, `--toast-gap: ${px(card.gap)}`, `--toast-inset: ${card.inset === null ? 'auto' : px(card.inset)}`,
+    `--toast-bottom: ${px(card.bottom)}`, `--toast-player-inset: ${card.playerInset === null ? 'auto' : px(card.playerInset)}`, `--toast-action-height: ${px(card.actionHeight)}`];
 }
 /** The same for every form. */
 function frameConstants() {
   const f = frameSpec;
   const scrim = (edge, stops) => `linear-gradient(${edge}, ${stops.map(([alpha, at]) => `${alpha ? `color-mix(in srgb, var(--color-live-player-scrim) ${alpha * 100}%, transparent)` : 'transparent'} ${px(at)}`).join(', ')})`;
-  return [`--frame-player-scrim: ${scrim('180deg', f.player.scrim.top)}, ${scrim('0deg', f.player.scrim.bottom)}`, `--frame-player-volume: ${px(f.player.volumeWidth)}`, `--frame-player-pill-icon: ${px(f.player.pillIcon)}`, `--frame-player-prompt-icon: ${px(f.player.promptIcon)}`,
+  return [`--toast-pill-height: ${px(toastPill.height)}`, `--toast-pill-radius: ${px(toastPill.radius)}`, `--toast-pill-padding-x: ${px(toastPill.paddingX)}`, `--toast-pill-top: ${px(toastPill.top)}`,
+    `--frame-player-scrim: ${scrim('180deg', f.player.scrim.top)}, ${scrim('0deg', f.player.scrim.bottom)}`, `--frame-player-volume: ${px(f.player.volumeWidth)}`, `--frame-player-pill-icon: ${px(f.player.pillIcon)}`, `--frame-player-prompt-icon: ${px(f.player.promptIcon)}`,
     `--frame-player-portrait-aspect: ${f.player.portrait.aspect}`, `--frame-player-portrait-shade: ${f.player.portrait.shade * 100}%`, `--frame-player-portrait-top: ${px(f.player.portrait.top)}`, `--frame-player-portrait-prompt-height: ${px(f.player.portrait.promptHeight)}`, `--frame-player-portrait-prompt-padding-x: ${px(f.player.portrait.promptPaddingX)}`, `--frame-player-portrait-prompt-right: ${px(f.player.portrait.promptRight)}`, `--frame-player-portrait-edge: ${px(f.player.portrait.edge)}`, `--frame-player-portrait-bottom: ${px(f.player.portrait.bottom)}`, `--frame-player-portrait-time-inset: ${px(f.player.portrait.timeInset)}`, `--frame-player-portrait-scrubber: ${px(f.player.portrait.scrubber)}`, `--frame-player-portrait-control: ${px(f.player.portrait.control)}`, `--frame-player-portrait-control-icon: ${px(f.player.portrait.controlIcon)}`, `--frame-player-portrait-primary: ${px(f.player.portrait.primary)}`, `--frame-player-portrait-primary-icon: ${px(f.player.portrait.primaryIcon)}`, `--frame-title-credits-gap: ${px(f.hero.title.creditsGap)}`, `--frame-player-prompt-gap: ${px(f.player.prompt.gap)}`,
     ...Object.entries(f.player.transport.upright.phone).map(([key, value]) => `--frame-player-upright-${kebab(key)}: ${px(value)}`), `--frame-player-tint-open: ${f.player.tint.open * 100}%`,
     `--frame-player-sideways-max-height: ${px(f.player.sidewaysMaxHeight)}`, `--frame-sheet-full-top: ${px(f.sheet.fullTop)}`, `--frame-audio-book-art-share: ${f.audio.bookArtShare}`, `--frame-sheet-full-radius: ${px(f.sheet.fullRadius)}`,
