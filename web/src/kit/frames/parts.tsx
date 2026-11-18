@@ -29,8 +29,8 @@ export type SectionStale = Readonly<{label: string; retryLabel: string; onRetry:
 
 /** Rule 7: one group of a settings or owner page. Its label, then one raised card of rows. In-section loading,
  * empty and error are a `StateRow` as the card's only child. The kit's `SettingsGroup`, at the frame's inset. */
-export function SectionCard({label, stale, children}: {label?: string; stale?: SectionStale; children: ReactNode}) {
-  return <div className={styles.groupSlot}><SettingsGroup title={label}
+export function SectionCard({label, help, stale, children}: {label?: string; /** The section's help paragraph under its label (desktop-settings f1 "When the server has found an intro…"). */ help?: string; stale?: SectionStale; children: ReactNode}) {
+  return <div className={styles.groupSlot}><SettingsGroup title={label} description={help}
     actions={stale && <><span className={`${styles.rowHelp} ${styles.stale}`}>{stale.label}</span><Button size="xs" onClick={stale.onRetry}>{stale.retryLabel}</Button></>}>{children}</SettingsGroup></div>;
 }
 

@@ -25,13 +25,14 @@
 .popoverDescription { padding: 10px 12px 6px; font-size: 13px; font-weight: 700; line-height: normal; color: var(--color-text-tertiary); }
 .menu { padding: 8px; }
 .menuItems { min-width: 0; outline: none; }
-.menuRow { display: flex; align-items: center; gap: 12px; width: 100%; height: 38px; padding: 0 12px; text-align: left; border: 0; border-radius: 8px; color: var(--color-text-secondary); background: transparent; font: inherit; font-size: 14.5px; line-height: normal; font-weight: 600; cursor: pointer; }
+.menuRow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 38px; padding: 8px 12px; text-align: left; border: 0; border-radius: 8px; color: var(--color-text-secondary); background: transparent; font: inherit; font-size: 14.5px; line-height: normal; font-weight: 600; cursor: pointer; }
 .menuRow:hover { background: rgba(237,245,250,.07); color: var(--color-text); }
 .menuRow:focus-visible { color: var(--color-text); outline: 2px solid var(--color-focus); outline-offset: -2px; }
 .menuRow:disabled { opacity: .4; cursor: default; }
 .menuRow[data-selected="true"] { color: var(--color-text); font-weight: 700; background: rgba(64,159,212,.16); }
 .menuIcon { display: inline-flex; color: var(--color-text-tertiary); flex: none; }
-.menuLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* No cut text: a long row label takes a second line. */
+.menuLabel { min-width: 0; overflow-wrap: anywhere; }
 .menuDescription { margin-left: auto; font-size: 12.5px; font-weight: 600; line-height: normal; color: var(--color-text-tertiary); white-space: nowrap; }
 .menuCheck { margin-left: auto; color: var(--color-accent-strong); flex: none; }
 .menuRow[data-destructive="true"], .menuRow[data-destructive="true"] .menuIcon { color: var(--color-record); }
@@ -46,7 +47,7 @@
 .panelDescription b { color: var(--color-text); }
 .panelClose.panelClose { margin: -2px -8px 0 0; width: 40px; height: 40px; padding: 0; min-width: 40px; border-radius: 50%; color: var(--color-text-secondary); background: transparent; }
 .panelBody { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 32px 32px; }
-.panelFooter { display: flex; flex: none; gap: 12px; padding: 18px 32px 24px; background: var(--color-raised); box-shadow: 0 -1px 0 var(--color-line), 0 -30px 30px -10px var(--color-raised); }
+.panelFooter { display: flex; flex: none; gap: 12px; /* R9: a side panel's foot buttons are equal halves. */ padding: 18px 32px 24px; background: var(--color-raised); box-shadow: 0 -1px 0 var(--color-line), 0 -30px 30px -10px var(--color-raised); }
 .sheet { position: fixed; z-index: var(--layer-dialog); inset: auto 0 0; display: flex; flex-direction: column; height: var(--overlay-sheet-height); border-radius: 24px 24px 0 0; background: var(--color-raised); color: var(--color-text); box-shadow: 0 -24px 60px -20px var(--color-shadow), inset 0 1px 0 rgba(237,245,250,.08); outline: none; padding-bottom: var(--overlay-sheet-padding-bottom, max(34px, env(safe-area-inset-bottom))); }
 .sheetHeader { flex: none; touch-action: none; user-select: none; }
 .grabber { display: flex; align-items: flex-start; justify-content: center; padding-top: 8px; height: 23px; cursor: ns-resize; }
@@ -56,7 +57,7 @@
 .grabber:focus-visible > span { background: var(--color-focus); }
 .sheetHeading { display: flex; align-items: center; gap: 10px; padding: var(--overlay-sheet-heading-padding, 2px var(--gutter-phone) 6px); }
 .sheetTitle { flex: 1; min-width: 0; margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -.02em; line-height: normal; }
-.sheetDone.sheetDone { margin-left: auto; padding: 0; height: 28px; min-width: 0; color: var(--color-text-secondary); font-size: 15px; font-weight: 700; line-height: normal; }
+.sheetDone.sheetDone { margin-left: auto; padding: 0; height: 28px; min-width: 0; color: var(--color-accent-strong); font-size: 15px; font-weight: 700; line-height: normal; }
 .sheetDescription { margin: 6px var(--gutter-phone) 0; font-size: 14px; line-height: 1.5; color: var(--color-text-secondary); }
 .sheetBody { flex: 1; min-height: 0; overflow: hidden; overscroll-behavior: contain; }
 /* A phone Dialog's body sits on the sheet heading's gutter; zero specificity, so a caller's own body class still wins. */
@@ -64,6 +65,22 @@
 .sheet[data-full-height="true"] .sheetBody { overflow: auto; }
 .sheetFooter { position: absolute; inset: auto 0 0; display: flex; gap: 10px; padding: 12px var(--gutter-phone) max(30px, env(safe-area-inset-bottom)); background: linear-gradient(180deg, rgba(16,33,45,0), var(--color-raised) 30%); }
 .sheet[data-has-footer="true"] .sheetBody { padding-bottom: 96px; }
+/* R9 (packages/design overlay-forms): foot buttons are equal halves, or one full width; never hugging the left edge.
+   A pointer dialog keeps its actions at the end, primary last. */
+.sheetFooter > *, .panelFooter > * { flex: 1 1 0; min-width: 0; }
+.dialogFooter[data-foot="halves"] > * { flex: 1 1 0; }
+/* R9 bar anatomy: the item an overlay is about, grey beside its title; a task's bar is Cancel · centred title · action. */
+.sheetSubtitle { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 15px; font-weight: 600; line-height: normal; color: var(--color-text-tertiary); }
+.sheetHeading:has(> .sheetSubtitle) > .sheetTitle { flex: 0 1 auto; }
+.sheetHeading[data-centred] { display: grid; grid-template-columns: 1fr auto 1fr; }
+.sheetHeading[data-centred] > .sheetTitle { font-size: var(--type-bar-title-size); line-height: var(--type-bar-title-line); font-weight: var(--type-bar-title-weight); letter-spacing: 0; text-align: center; }
+.sheetHeading[data-centred] > :first-child { justify-self: start; } .sheetHeading[data-centred] > :last-child { justify-self: end; }
+/* A modal popover dims the page under it and leaves its trigger in view. */
+.popoverScrim { position: fixed; inset: 0; z-index: calc(var(--layer-menu) - 1); background: rgba(3,8,12,.5); pointer-events: none; }
+/* Focus placed on open shows no ring unless the last input was a key (web review cause 4; Android rule: focus rings for
+   keyboard or D-pad only). shared.ts marks the document's last input. */
+:global(html:not([data-input="keyboard"])) :is(.dialog, .sheet, .sidePanel, .popover) :focus-visible { outline: none; }
+:global(html:not([data-input="keyboard"])) .grabber:focus-visible > span { background: var(--color-line-strong); }
 
 /* Opted-in sheets only (account28/29 workspace confirmations): actions stack full
    width with the sheet's own action on top, and the body clears the footer by the

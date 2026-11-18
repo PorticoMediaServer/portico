@@ -295,6 +295,9 @@ export type { ComponentSpec, Fill, ButtonVariant, ButtonSize, ButtonState, RowVa
 export {tvAccount as tvAccountSpec} from './components.ts';
 export {frame as frameSpec, frameForm} from './frames.ts';
 export type {FrameSpec, FrameForm} from './frames.ts';
+export {overlayForms, overlayForm} from './overlay-forms.ts';
+export {frameRegions, type FrameRegion} from './frame-regions.ts';
+export type {OverlayTask, OverlayForm, OverlayFormKind, OverlayBar, OverlayFoot} from './overlay-forms.ts';
 
 /** Named surface roles, including the exact 6/10/12/14/16 px kit radii. */
 export const radii = {small: 6, control: 8, artwork: 10, surface: 10, panel: 12, overlay: 14, tag: 6, thumbnail: 8, heroButton: 12, liveCard: 12, fallback: 14, banner: 16, popover: 18, sheet: 24, pill: 999} as const;
