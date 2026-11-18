@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Server settings on TV (tv-more frames 35 to 39): view only, for the owner and administrators,
+     opened from the profile menu. Settings' two columns: the server and its pages on the left, the
+     page in focus on the right as readable rows with their values in words. Nothing here changes
+     anything: settings are changed on a phone or computer. -->
+<component name="ServerScreen" extends="Group">
+  <interface>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="toTop" type="boolean" alwaysNotify="true" onChange="onToTop"/>
+    <!-- "owner" or "admin": which pages it shows (an administrator's are frame 39's). -->
+    <field id="role" type="string" onChange="onRole"/>
+  </interface>
+  <script type="text/brightscript" uri="ServerScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Server.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Label id="heading" text="Server settings"/>
+    <Poster id="card" uri="pkg:/images/round-14.9.png"/>
+    <Poster id="tile" uri="pkg:/images/round-10.9.png"/>
+    <Poster id="tileIcon" uri="pkg:/images/i-server-28.png" width="28" height="28"/>
+    <Label id="serverWord" text="Server"/>
+    <Label id="serverName"/>
+    <Label id="who"/>
+    <Poster id="listPlate" uri="pkg:/images/round-14.9.png"/>
+    <Rectangle id="listBar" width="3" height="28"/>
+    <Poster id="listRing" uri="pkg:/images/focus-14.9.png"/>
+    <Group id="list"/>
+    <Group id="page"/>
+  </children>
+</component>

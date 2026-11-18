@@ -143,9 +143,11 @@ end sub
 ' row focus starts on when the menu opens again for what one of its rows opened ("" for the first).
 sub openProfileMenu(focusOn as string)
     m.sheetIsOwn = true
-    m.sheet.model = {eyebrow: storeRead("serverName"), title: m.rail.profileName, status: "", rows: [
-        {id: "switch", text: "Switch profile", icon: "", focus: focusOn = "switch"},
-        {id: "signout", text: "Sign out", icon: "", gapBefore: true, focus: focusOn = "signout"}]}
+    rows = [{id: "switch", text: "Switch profile", icon: "", focus: focusOn = "switch"},
+        {id: "signout", text: "Sign out", icon: "", gapBefore: true, focus: focusOn = "signout"}]
+    ' the owner and administrators have Server settings first (tv-more frame 10)
+    if m.role = "owner" or m.role = "admin" then rows.unshift({id: "server", text: "Server settings", icon: ""})
+    m.sheet.model = {eyebrow: storeRead("serverName"), title: m.rail.profileName, status: "", rows: rows}
     m.sheet.visible = true
     m.sheet.active = true
 end sub
@@ -157,6 +159,8 @@ sub onSheetChosen(event as object)
         which = event.getData()
         if which = "switch"
             api("GET", "/v1/profiles", invalid, "onProfiles")
+        else if which = "server"
+            showServer()
         else if which = "signout"
             m.signOutFromMenu = true      ' Back or Cancel returns to the menu's Sign out row
             askSignOut()
@@ -165,6 +169,21 @@ sub onSheetChosen(event as object)
     end if
     closeSheet()
     if m.screen <> invalid and m.screen.hasField("menuChosen") then m.screen.menuChosen = event.getData()
+end sub
+
+' The account's role on this server: the owner and administrators have Server settings (view only).
+sub onRole(event as object)
+    result = event.getData()
+    m.role = ""
+    if result.ok and result.data.role <> invalid then m.role = result.data.role
+end sub
+
+sub showServer()
+    show("ServerScreen")
+    m.screen.role = m.role
+    m.rail.visible = true
+    m.rail.current = "profile"
+    m.screen.active = true
 end sub
 
 sub onSheetClosed()
@@ -496,6 +515,7 @@ sub showHome()
         api("GET", "/v1/preferences?deviceClass=television", invalid, "onLooks")
         api("GET", "/v1/libraries", invalid, "onLibraries")
         api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
+        api("GET", "/v1/me", invalid, "onRole")
     end if
     show("HomeScreen")
     m.screen.observeField("menu", "onMenu")
