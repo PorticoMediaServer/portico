@@ -86,6 +86,7 @@ sub onLaunchArgs()
     end if
     m.global.origin = origin
     m.task.session = {origin: origin, serverId: storeRead("serverId"), refreshToken: token, installationId: installationId()}
+    m.starting = true      ' the first /v1/me of this run: a PIN profile not remembered here is asked for again
     api("GET", "/v1/me", invalid, "onMe")
 end sub
 
@@ -553,7 +554,11 @@ sub useProfile(chosen as object)
     m.task.session = session
     storeWrite({profileId: chosen.profile.id})
     ' a PIN profile remembered on this TV: its token stands in for the PIN while the sign-in lasts
-    if chosen.pinToken <> invalid and chosen.pinToken <> "" then storeWrite({pinProfile: chosen.profile.id, pinToken: chosen.pinToken})
+    if chosen.pinToken <> invalid and chosen.pinToken <> ""
+        storeWrite({pinProfile: chosen.profile.id, pinToken: chosen.pinToken})
+    else if chosen.profile.pinRequired = true
+        storeWrite({pinProfile: "", pinToken: ""})     ' chosen with Remember off: not remembered
+    end if
     enter()
 end sub
 
@@ -605,6 +610,11 @@ sub onMe(event as object)
     end if
     m.rememberProfiles = (result.data.rememberProfiles = true)
     profile = result.data.profile
+    starting = (m.starting = true)
+    m.starting = false
+    ' the server keeps the chosen profile with the sign-in; a PIN profile this TV did not remember
+    ' (the person turned Remember off) is asked for again when the app starts
+    if profile <> invalid and starting and profile.pinRequired = true and not (storeRead("pinProfile") = profile.id and storeRead("pinToken") <> "") then profile = invalid
     if profile = invalid
         api("GET", "/v1/profiles", invalid, "onProfiles")
         return

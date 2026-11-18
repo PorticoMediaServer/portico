@@ -14,6 +14,12 @@ sub main()
     check("and the task's session carries it", m.task.session.serverId = "srv_home")
     check("a new sign-in remembers no PIN from an earlier one", m.store.pintoken = "")
 
+    ' the app starts on a sign-in whose PIN profile this TV did not remember (Remember was off): Who's watching again
+    m.sent = []
+    m.starting = true
+    onMe({data: {ok: true, data: {profile: {id: "p2", name: "Kid", pinRequired: true}}}, getData: function() as object : return m.data : end function})
+    check("a PIN profile not remembered here is asked for again at start", m.sent.count() = 1 and m.sent[0].path = "/v1/profiles")
+
     ' a PIN profile this TV remembers: its token is sent in place of the PIN, and Who's watching is skipped
     m.sent = []
     m.store.pinprofile = "p2"

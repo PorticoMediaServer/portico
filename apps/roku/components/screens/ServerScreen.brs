@@ -39,7 +39,7 @@ sub init()
     m.ring = m.top.findNode("listRing")
     m.listMove = m.top.findNode("listMove")
     out = metrics().focusSpread + 6
-    m.top.findNode("listWindow").clippingRect = [0, m.listTop - out, f.pageX - 20, f.foot - m.listTop + out]
+    m.top.findNode("listWindow").clippingRect = [0, m.listTop - out, f.pageX - 20, f.foot - m.listTop + out * 2]      ' room for the ring under the last row
 
     m.region = "list"
     m.at = 0
