@@ -168,6 +168,43 @@ Left for Stage 2, listed so it is not forgotten:
 
 Round 7 (18 Nov): a wide tablet's hero and title artwork now fades out by its alpha mask as TV's does (`kit/artwork/Surfaces.tsx`), so the title page has no hard edge where the picture starts. The TV audio player is one centred row (artwork 560) with no empty lower half. The Record glyph (`i-rec`) is a solid dot.
 
+## TV rules (round 8: R1, R9's TV column, R11)
+
+Each is fixed once in the kit; every TV screen inherits it.
+
+- **One focus look (R1).** Every focusable thing takes the kit `Focusable`'s ring: the 4 px ring, a 4 px ink gap and the
+  glow. A free-standing control (button, card, chip, tab, tile, Up next) draws it outside itself and grows a little. A row
+  (`focusKind="row"`: settings rows, player panel rows, queue and chapter rows, the Settings nav, server rows) sits in a
+  card or column that clips, so it draws the same ring inside its own edges, over a raised fill, and does not grow. Nothing
+  draws an edge line or its own focus fill. A TV side sheet's and the Settings list's scroll boxes leave a free-standing
+  ring its room.
+- **Current is not focus (R1).** The open page (the rail's accent bar left of the icon, on every page; Settings nav's accent
+  band), the chosen option (an accent tick before the label in a TV panel list; the tick in a menu row) and an active
+  control (accent glyph) stay drawn when focus is elsewhere. Focus is only the ring.
+- **Start focus (R1).** Every frame takes `startFocus`: the `focusId` or `testID` of the control the page starts on. The
+  frame wraps its content in `StartFocusScope` (`kit/focus`), and that control asks for focus through the
+  same preferred ask every kit control has (`useFocusTarget`), which now asks again on the next frames until focus lands
+  or anything else takes it (Android TV drops an ask made before the view can take focus). The rail is outside every
+  frame, so a page never starts in it. Defaults: `TitleFrame` starts on its primary (Play or Resume, a focus stop even
+  while loading); `PageStateFrame` on its primary action; a `Menu` on its first enabled row. Where a page starts:
+  Home, the first Continue Watching card; a list, its first card; a title, Play or Resume; Settings, the current page in
+  the nav; a sheet, menu or Playback options, the first row; a picker or a panel's list, its current choice (the first
+  row when nothing is chosen); a confirmation, Cancel; the player, Play or Pause; Up next, Play now.
+- **The rail (R1, S3, S6).** Closed, its clip leaves room for the current page's bar. Open, it is the solid panel over the
+  dimmed page, which moves right (the shell's `tvRailScrim`, drawn by the shell and by the gallery's `Page`).
+- **Overlays on TV (R9, TV column).** A menu or picker is never a pointer drop-down: every `Popover` and `Menu` on TV is
+  the right-hand side sheet (`BottomSheet`'s side form, 640 wide): eyebrow (`headerContext`), title, full-width rows
+  with the gap between them, and the Back/Close key hints at the foot. The only anchored TV menu is the rail's own
+  profile flyout (`placement="right-end"`). A dialog stays a centred dialog that starts on Cancel.
+- **Key hints (R11).** `KeyHints` takes one or more key caps per hint and wraps before it cuts. Hint regions: the Home
+  hero (in the actions' place: OK Resume, Hold OK More options), `SettingsListFrame`'s `hints` under the list,
+  `SheetFrame`'s `hints` in place of its footer on TV (OK Choose, Back Close), `PlayerPanel`'s foot (Back Close, always
+  on TV), every TV side sheet (Back Close), and `PlayerChromeFrame`'s `hints` while scrubbing.
+- **Page inset (S6).** A settings page drawn on its own on a tablet or TV keeps the page's left gutter (x = 200 beside the
+  rail on TV); beside its list it starts at the column.
+- **No cut text (S9).** A TV queue or chapter row's title takes two lines and the row grows; a TV menu row's label takes
+  two lines.
+
 ## Decided by the owner (Justin, 18 Nov)
 
 - **Skip intro on an upright phone** sits in the picture's bottom row between the time and the options. It never covers the transport and is hidden while a panel or Up next is open.

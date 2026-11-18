@@ -57,7 +57,7 @@ export function PlayerControl({icon, label, onPress, disabled, active, primary =
   const button = <Button testID={testID} variant={primary ? 'primary' : disc ? 'glass' : 'text'} size="transport" iconOnly icon={icon} loading={busy}
     iconSize={little ? primary ? small.primaryIcon : small.controlIcon : undefined} iconColor={primary ? undefined : active ? theme.colors.accentStrong : theme.colors.text}
     style={size === undefined ? undefined : {height: size, borderRadius: size / 2}} align="center"
-    accessibilityLabel={label} accessibilityState={{selected: active}} disabled={disabled} onPress={onPress} preferredFocus={primary}/>;
+    accessibilityLabel={label} accessibilityState={{selected: active}} disabled={disabled} onPress={onPress} focusableWhenDisabled={busy}/>;
   if (skip === undefined) return button;
   return <View>{button}<View pointerEvents="none" style={[StyleSheet.absoluteFill, {alignItems: 'center', justifyContent: 'center', opacity: disabled ? theme.spec.button.disabledOpacity : 1}]}>
     <Text style={[theme.type.playerSkip, {color: theme.colors.text, includeFontPadding: false}]}>{skip}</Text></View></View>;

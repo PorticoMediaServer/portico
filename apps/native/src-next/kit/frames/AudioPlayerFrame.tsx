@@ -9,6 +9,7 @@ import {Icon, type IconName} from '../Icon';
 import {SkeletonBlock} from '../states/SkeletonBlock';
 import {alpha} from '../shell/visual';
 import {useTheme} from '../theme';
+import {StartFocusScope} from '../focus';
 import {useFrameMetrics} from './metrics';
 import {PlayerControl} from '../player/parts';
 import {ArtBox} from './parts';
@@ -43,6 +44,8 @@ export type AudioPlayerFrameProps = Readonly<{
   upNext?: ReactNode;
   loading?: boolean;
   testID?: string;
+  /** TV: the control the page starts on (R1), by its `focusId` or `testID`. Never in the rail. */
+  startFocus?: string;
 }>;
 
 /** Frame 8, now playing for music and audiobooks (rule 12). Every region has a fixed box, so a missing cover, a long
@@ -51,7 +54,10 @@ export type AudioPlayerFrameProps = Readonly<{
  * room that is left sits between the title and the scrubber. A tablet (tablet-play 9 and 10) keeps that column,
  * larger, in the room beside an Up next panel on the right, under a bar that spans the window. TV (music-plus) puts
  * the title and controls beside the artwork and Up next after them. Loading fills the same boxes. */
-export function AudioPlayerFrame({close, more, context, artwork, icon, title, byline, favourite, source, chapter, scrubber, transport, next: upcoming, options, upNext, loading = false, testID}: AudioPlayerFrameProps) {
+export function AudioPlayerFrame({startFocus, ...props}: AudioPlayerFrameProps) {
+  return <StartFocusScope id={startFocus}><AudioPlayerFrameBody {...props}/></StartFocusScope>;
+}
+function AudioPlayerFrameBody({close, more, context, artwork, icon, title, byline, favourite, source, chapter, scrubber, transport, next: upcoming, options, upNext, loading = false, testID}: Omit<AudioPlayerFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.audio, {form} = frame;
   const tv = form === 'tv', phone = form === 'phone', inset = spec.inset[form], panel = !phone && !tv && upNext !== undefined ? spec.upNextWidth[form] : 0;
   // The artwork is the spec's size where the window has room; a short window (a tablet on its side) gets the largest square that leaves every fixed region its place.

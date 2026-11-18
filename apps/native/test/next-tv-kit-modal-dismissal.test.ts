@@ -137,28 +137,10 @@ test('only the top layer takes focus: a dialog opened over a closing sheet keeps
   }
 });
 
-// Sol 8's P2 on #844 (comment 6638349337): each dismissal report belongs to its own presentation. A modal popover hides
-// its Modal as soon as it closes, while its exit keeps it present; reopened before tvOS reports that dismissal, it must
-// not ask UIKit to show a view controller that is still being dismissed, and that old report must not end a later close.
-test('Apple TV: a popover reopened while its early hide is still dismissing is shown again only once that dismissal ends', async () => {
-  const {engine, opened, exit, open} = await scene('tvos', {wait: 60_000});
-  await opened('popover');
-  open(false);
-  await engine.settle();
-  assert.deepEqual(engine.windows().map(window => window.dismissing), [true], 'hidden at once: its dismissal has started');
-  open(true);
-  await engine.settle(); await exit();
-  assert.deepEqual(engine.windows().map(window => window.dismissing), [true], 'not shown again while UIKit is still dismissing it');
-  await engine.finishDismissals(); await exit();
-  assert.deepEqual(engine.windows().map(window => window.dismissing), [false], 'shown again once the old dismissal has ended');
-  open(false);
-  await engine.settle(); await exit();
-  assert.deepEqual(engine.windows().map(window => window.dismissing), [true], 'the second close waits for its own dismissal');
-  await engine.finishDismissals(); await exit();
-  assert.equal(engine.windows().length, 0);
-  assert.equal(engine.focused, 'show', 'focus back where it was');
-  await engine.unmount();
-});
+// Sol 8's P2 on #844 (comment 6638349337): each dismissal report belongs to its own presentation. The scene-level case
+// (a modal popover hiding its Modal early, reopened before tvOS reported that dismissal) has no TV form any more: by R9
+// a TV popover is the side sheet, which keeps its Modal until its exit like every sheet above. The rule itself stays
+// covered at the presence level by the probes below (an earlier presentation's report never ends a later close).
 
 async function probe(platform: 'android' | 'tvos', wait: number) {
   const kit = await tvFocusKit({platform}), o: any = await tvKitOverlays(kit, {wait});

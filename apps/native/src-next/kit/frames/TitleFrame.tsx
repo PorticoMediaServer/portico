@@ -12,6 +12,7 @@ import {alpha} from '../shell/visual';
 import {SkeletonBlock} from '../states/SkeletonBlock';
 import {buttonGeometry} from '../controls/control-model';
 import {useTheme} from '../theme';
+import {StartFocusScope} from '../focus';
 import {useFrameMetrics} from './metrics';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
 
@@ -53,12 +54,19 @@ export type TitleFrameProps = Readonly<{
   children?: ReactNode;
   state?: Readonly<{kind: 'loading'}> | PageStateProps;
   testID?: string;
+  /** TV: the control the page starts on (R1), by `focusId` or `testID`. Left out, it is the primary (Play or Resume). */
+  startFocus?: string;
 }>;
 
 /** Frame 2, a title page: a film, show, person, album or book. Fixed: the art box, Back, the title slot (the title
  * sits on its bottom edge and grows upward over the art), the metadata line, the action row and the tabs bar.
  * Flexible: the synopsis and the tab panel under them. Loading draws the same boxes. */
-export function TitleFrame({art, back, topAction, title, metadata, primary, actions = [], tagline, synopsis, credits, tabs, children, state, testID}: TitleFrameProps) {
+export function TitleFrame({startFocus, ...props}: TitleFrameProps) {
+  return <StartFocusScope id={startFocus ?? props.primary.testID ?? titlePrimaryId}><TitlePage {...props}/></StartFocusScope>;
+}
+/** The primary's own focus id when the screen gives it no test id. */
+const titlePrimaryId = 'title-primary';
+function TitlePage({art, back, topAction, title, metadata, primary, actions = [], tagline, synopsis, credits, tabs, children, state, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', stacked = form === 'phone';
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
@@ -85,7 +93,7 @@ export function TitleFrame({art, back, topAction, title, metadata, primary, acti
     ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
     : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
       style={[{width: actionHeight, height: actionHeight}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha)}]}/>;
-  const lead = {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, preferredFocus: true, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1} : undefined};
+  const lead = {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, focusId: primary.testID ?? titlePrimaryId, focusableWhenDisabled: loading, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1} : undefined};
   const row = <View style={{height: actionHeight, flexDirection: 'row', alignItems: 'center', gap: theme.spec.hero.actions.gap[theme.platform]}}>
     {primary.progress !== undefined && !stacked ? <ResumeButton {...lead} size="hero" progress={primary.progress} remaining={primary.remaining}>{primary.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero">{primary.label}</Button>}
     {primary.startOver && !stacked && <Button variant="glass" size="hero" icon="i-restart" disabled={loading} onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}

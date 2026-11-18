@@ -105,7 +105,9 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
     <Animated.View style={[{flex: 1, width: spec.openWidth, paddingLeft: spec.insetLeft, paddingTop: spec.paddingTop, paddingBottom: spec.paddingBottom}, panel]}>
       {/* Closed, the column ends at the page's 200 gutter: anything wider (the 512-wide entry list) lies over the page's first
           column, and tvOS refuses focus to what it covers. Open, it takes the panel's width. */}
-      <Animated.View style={[{flex: 1}, counter, open ? null : {width: tvRailClosedColumn, overflow: 'hidden'}, dimmed && !open ? {opacity: .5} : null]}>
+      {/* Its clip starts left of the items by the current mark's room, so the current page's accent bar (tv.html: 3 px, left
+          of the icon) shows on every page with the rail closed, not only open (r7 S6). */}
+      <Animated.View style={[{flex: 1}, counter, open ? null : {width: tvRailClosedColumn + tvRailMarkRoom, marginLeft: -tvRailMarkRoom, paddingLeft: tvRailMarkRoom, overflow: 'hidden'}, dimmed && !open ? {opacity: .5} : null]}>
         <View accessible={false} style={{height: 40, marginLeft: 16, marginBottom: 64}}>
           {open ? <Image source={require('../../assets/wordmark.png')} resizeMode="contain" style={{...headerWordmark.tvRail, flexShrink: 0, position: 'absolute', top: (40 - headerWordmark.tvRail.height) / 2}}/> : <RailBrandSymbol/>}
         </View>
@@ -138,6 +140,8 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
 
 /** Closed, the rail's column (from its 72 inset) ends at the page's 200 gutter. */
 const tvRailClosedColumn = 200 - 72; // the page gutter less the rail's insetLeft (spec.navigation.tv)
+/** Room left of the items for the current page's bar (drawn 16 left of its item). */
+const tvRailMarkRoom = 24;
 /** Room around the rail list for a focused item's glow. */
 const tvRailGlow = 40;
 

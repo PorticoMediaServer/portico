@@ -6,6 +6,7 @@ import {Button} from '../controls/Button';
 import {TopBar, type TopBarBack} from '../layout/TopBar';
 import {BottomSheet} from '../overlays/BottomSheet';
 import type {OverlayReason} from '../overlays/types';
+import {StartFocusScope} from '../focus';
 import {useTheme} from '../theme';
 import {useFrameMetrics} from './metrics';
 
@@ -30,11 +31,15 @@ export function SheetBar({title, back, action}: SheetBarProps) {
   </View>;
 }
 
-type SheetBase = Readonly<{open: boolean; onOpenChange: (open: boolean, reason: OverlayReason) => void; children: ReactNode; testID?: string}>;
+type SheetBase = Readonly<{open: boolean; onOpenChange: (open: boolean, reason: OverlayReason) => void; children: ReactNode; testID?: string;
+  /** TV: the row the sheet starts on (R1), by its `focusId` or `testID`: the first row, or Cancel in a confirmation. */
+  startFocus?: string}>;
 export type SheetFrameProps = SheetBase & (
   /** Menus, pickers, short tasks: a bottom sheet on a phone, a side panel on wider forms and TV. The rows are the
    * flexible region: the sheet grows to its limit, then they scroll. The footer's actions stay put. */
-  | Readonly<{kind: 'bottom'; title: string; footer?: ReactNode}>
+  | Readonly<{kind: 'bottom'; title: string; footer?: ReactNode;
+    /** TV: the key hints at the sheet's foot (R11: "OK Choose", "Back Close"), in place of a footer. */
+    hints?: ReactNode}>
   /** Settings and editors on a phone: full height from 62 below the top. `bar` is left out only when the content
    * is a page that brings the bar itself (`SettingsPageFrame`). */
   | Readonly<{kind: 'full'; bar?: SheetBarProps}>);
@@ -43,8 +48,8 @@ export type SheetFrameProps = SheetBase & (
  * and nothing else. It takes no background, glow or header of the content's own. */
 export function SheetFrame(props: SheetFrameProps) {
   const theme = useTheme(), {height} = useWindowDimensions(), insets = useSafeAreaInsets(), spec = frameSpec.sheet;
-  const {open, onOpenChange, children, testID} = props;
-  if (props.kind === 'bottom') return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.title} footer={props.footer} showClose={false}>
+  const {open, onOpenChange, testID} = props, children = <StartFocusScope id={props.startFocus}>{props.children}</StartFocusScope>;
+  if (props.kind === 'bottom') return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.title} footer={theme.isTV && props.hints ? props.hints : props.footer} showClose={false}>
     <InSheet.Provider value>{children}</InSheet.Provider>
   </BottomSheet>;
   return <BottomSheet open={open} onOpenChange={onOpenChange} testID={testID} title={props.bar?.title ?? ''} accessibilityLabel={props.bar?.title} scrollable={false}

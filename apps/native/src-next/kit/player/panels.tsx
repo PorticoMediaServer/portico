@@ -3,6 +3,7 @@ import {ScrollView, Text, View} from 'react-native';
 import {frameSpec} from '@portico/design';
 import {Button} from '../controls/Button';
 import {Focusable} from '../controls/Focusable';
+import {BackCloseHints} from '../controls/KeyHints';
 import {useFrameMetrics, usePlayerUpright} from '../frames/metrics';
 import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
@@ -34,6 +35,8 @@ export function PlayerPanel({title, note, back, close, footer, children, testID}
     {footer !== undefined && <View style={{flexDirection: 'row', gap: theme.space.xs, padding: pad, borderTopWidth: theme.space.hairline, borderTopColor: theme.colors.line}}>
       <Icon name="i-info" size={frameSpec.player.pillIcon} color={theme.colors.accentStrong}/><Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textSecondary}]}>{footer}</Text>
     </View>}
+    {/* R11: a TV panel closes with the remote's Back, so its foot says so (player-tv 4). */}
+    {tv && <View style={{paddingHorizontal: pad, paddingBottom: pad}}><BackCloseHints/></View>}
   </View>;
 }
 
@@ -58,8 +61,11 @@ export function PlayerPanelRow({label, detail, icon, value, qualifier, selected 
   const end = [theme.type.rowHelp, {color: theme.colors.textSecondary}];
   return <Focusable testID={testID} focusId={testID} focusKind="row" accessibilityRole="button" accessibilityLabel={[label, detail, qualifier, value, unavailable].filter(Boolean).join(', ')} accessibilityState={{selected, disabled: unavailable !== undefined}}
     disabled={unavailable !== undefined || !onPress} onPress={onPress}
-    style={({focused}) => ({minHeight: spec.row[form], paddingVertical: theme.space.xs, paddingHorizontal: frameSpec.card.padding.phone, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap,
-      backgroundColor: focused && theme.isTV ? alpha(theme.colors.text, frameSpec.player.tint.track) : 'transparent', opacity: unavailable !== undefined ? theme.spec.button.disabledOpacity : 1})}>
+    style={() => ({minHeight: spec.row[form], paddingVertical: theme.space.xs, paddingHorizontal: frameSpec.card.padding.phone, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap,
+      opacity: unavailable !== undefined ? theme.spec.button.disabledOpacity : 1})}>
+    {/* R1 "current": on TV the chosen option is an accent tick before its label, and stays when focus is elsewhere
+        (player-tv 4); focus is the kit ring. Elsewhere the tick stays at the row's end. */}
+    {theme.isTV && !icon && value === undefined && <View style={{width: frameSpec.player.promptIcon}}>{selected && <Icon name="i-check" size={frameSpec.player.promptIcon} color={theme.colors.accentStrong}/>}</View>}
     {icon && <View style={{width: tile, height: tile, borderRadius: theme.baseRadii.control, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.raisedSoft}}><Icon name={icon} size={tile * frameSpec.stateRow.iconShare} color={theme.colors.textSecondary}/></View>}
     <View style={{flex: 1, minWidth: 0}}>
       <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{label}</Text>
@@ -68,7 +74,7 @@ export function PlayerPanelRow({label, detail, icon, value, qualifier, selected 
     {trailing}
     {unavailable !== undefined ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{unavailable}</Text>
       : value !== undefined ? <><Text style={end}>{qualifier !== undefined && <Text style={{color: theme.colors.text}}>{qualifier}  </Text>}{value}</Text><Icon name="i-right" size={frameSpec.player.pillIcon} color={theme.colors.textTertiary}/></>
-      : selected && <Icon name="i-check" size={frameSpec.player.promptIcon} color={theme.colors.accentStrong}/>}
+      : selected && !theme.isTV && <Icon name="i-check" size={frameSpec.player.promptIcon} color={theme.colors.accentStrong}/>}
   </Focusable>;
 }
 

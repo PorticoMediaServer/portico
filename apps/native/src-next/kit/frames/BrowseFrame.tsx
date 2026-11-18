@@ -2,6 +2,7 @@ import React, {type ReactNode} from 'react';
 import {ScrollView, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
+import {StartFocusScope} from '../focus';
 import {SkeletonBlock} from '../states/SkeletonBlock';
 import {useTheme} from '../theme';
 import {useFrameMetrics} from './metrics';
@@ -15,6 +16,9 @@ export type BrowseFrameProps = Readonly<{
   /** The whole page is loading for the first time, or can't load: drawn in place of the rows. */
   state?: Readonly<{kind: 'loading'}> | PageStateProps;
   testID?: string;
+  /** TV: the `focusId` or `testID` of the control the page starts on (R1): Home's first Continue Watching card, a
+   * list's first card. Never in the rail. */
+  startFocus?: string;
 }> & (
   /** A destination or a pushed list: its title is the header. */
   | Readonly<{header: PageHeaderProps; hero?: never}>
@@ -24,7 +28,10 @@ export type BrowseFrameProps = Readonly<{
 /** Frame 1, Browse: Home, a library, Live TV, Saved, Search results, any page of rows of cards or a grid under one
  * header. The frame owns the header, the safe area, the space between rows and the clearance at the bottom (rows
  * take the theme's gutter themselves); the shell owns the tab bar, sidebar or rail around it, and the window owns the backdrop. */
-export function BrowseFrame({header, hero, state, children, testID}: BrowseFrameProps) {
+export function BrowseFrame({startFocus, ...props}: BrowseFrameProps) {
+  return <StartFocusScope id={startFocus}><BrowsePage {...props}/></StartFocusScope>;
+}
+function BrowsePage({header, hero, state, children, testID}: Omit<BrowseFrameProps, 'startFocus'>) {
   const frame = useFrameMetrics(), insets = useSafeAreaInsets();
   // Home with nothing to feature keeps the wordmark bar's room, so the first row never sits under it.
   const top = header ? <PageHeader {...header}/> : hero ?? <View style={{height: frame.form === 'tv' ? frame.titleTop : insets.top + frameSpec.header.wordmarkBar}}/>;

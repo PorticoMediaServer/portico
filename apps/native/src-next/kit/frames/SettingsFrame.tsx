@@ -1,13 +1,17 @@
-import React, {type ReactNode} from 'react';
+import React, {createContext, useContext, type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {frameSpec} from '@portico/design';
 import type {TopBarBack} from '../layout/TopBar';
+import {StartFocusScope} from '../focus';
 import {useTheme} from '../theme';
 import {FrameColumn, useFrameMetrics} from './metrics';
 import {PageHeader} from './PageHeader';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
 import {SheetBar, SheetFrame, useInSheet, type SheetBarProps} from './SheetFrame';
 import type {OverlayReason} from '../overlays/types';
+
+/** Set around the page the list frame places beside its list: that page's left edge is already the column's. */
+const BesideList = createContext(false);
 
 export type SettingsListFrameProps = Readonly<{
   /** The sheet's bar while the list shows (Settings, Done). Phone only; wider forms have the shell's navigation. */
@@ -19,11 +23,18 @@ export type SettingsListFrameProps = Readonly<{
   /** The selected page, a `SettingsPageFrame`. On a phone it takes the list's place inside the same sheet. */
   page?: ReactNode;
   testID?: string;
+  /** TV: the control the page starts on (R1), by its `focusId` or `testID`. Never in the rail. */
+  startFocus?: string;
+  /** TV: the key hints under the list (R11: "Up Down Choose a page", ...). */
+  hints?: ReactNode;
 }>;
 
 /** Frame 3, the index of Settings. Phone: one full-height sheet with one bar; the list, or the selected page in its
  * place. Tablet and TV: the list in its own column beside the page, each with its own scroll. */
-export function SettingsListFrame({bar, open, onOpenChange, list, page, testID}: SettingsListFrameProps) {
+export function SettingsListFrame({startFocus, ...props}: SettingsListFrameProps) {
+  return <StartFocusScope id={startFocus}><SettingsListBody {...props}/></StartFocusScope>;
+}
+function SettingsListBody({bar, open, onOpenChange, list, page, hints, testID}: Omit<SettingsListFrameProps, 'startFocus'>) {
   const frame = useFrameMetrics(), {form} = frame, width = frameSpec.settings.listWidth[form];
   // A TV row's focus ring is drawn outside the row: the list's scroll box leaves it that room so it is never cut.
   const theme = useTheme(), ring = form === 'tv' ? theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv : 0;
@@ -32,8 +43,11 @@ export function SettingsListFrame({bar, open, onOpenChange, list, page, testID}:
   </SheetFrame>;
   return <View testID={testID} style={{flex: 1, flexDirection: 'row', paddingLeft: frame.gutter, gap: frameSpec.settings.gap[form]}}>
     {/* The list's column is already placed from the gutter, so the cards in it start at the column's own edges. */}
-    <ScrollView style={{flexGrow: 0, width: width + 2 * ring, marginLeft: -ring}} contentContainerStyle={{paddingTop: frame.titleTop || frame.headerGap, paddingBottom: frame.bottomClear, paddingHorizontal: ring}}><FrameColumn.Provider value>{list}</FrameColumn.Provider></ScrollView>
-    <View style={{flex: 1}}>{page}</View>
+    <View style={{width}}>
+      <ScrollView style={{flex: 1, width: width + 2 * ring, marginLeft: -ring}} contentContainerStyle={{paddingTop: frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}><FrameColumn.Provider value>{list}</FrameColumn.Provider></ScrollView>
+      {form === 'tv' && hints ? <View style={{paddingBottom: frame.bottomClear}}>{hints}</View> : null}
+    </View>
+    <View style={{flex: 1}}><BesideList.Provider value>{page}</BesideList.Provider></View>
   </View>;
 }
 
@@ -50,13 +64,20 @@ export type SettingsPageFrameProps = Readonly<{
   /** The whole page can't load. One section failing is a `StateRow` in that section's card instead. */
   state?: PageStateProps;
   testID?: string;
+  /** TV: the control the page starts on (R1), by its `focusId` or `testID`. Never in the rail. */
+  startFocus?: string;
 }>;
 
 /** Frame 4, one settings or owner page, or a form: its header, an intro, then sections of rows. Which header it
  * gets depends only on where it is (rule 3): the compact bar inside a sheet, Back and a large title full screen on
  * a phone, the page title in the column beside the list on a tablet and TV. */
-export function SettingsPageFrame({title, back, action, intro, children, state, testID}: SettingsPageFrameProps) {
+export function SettingsPageFrame({startFocus, ...props}: SettingsPageFrameProps) {
+  return <StartFocusScope id={startFocus}><SettingsPageBody {...props}/></StartFocusScope>;
+}
+function SettingsPageBody({title, back, action, intro, children, state, testID}: Omit<SettingsPageFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), inSheet = useInSheet(), beside = frame.form !== 'phone' && !inSheet;
+  // A page drawn on its own on a tablet or TV (no list beside it) keeps the page's left gutter, so nothing starts at x = 0 (r7 S6).
+  const besideList = useContext(BesideList), alone = beside && !besideList;
   const header = inSheet ? <SheetBar title={title} back={back} action={action}/>
     : beside ? <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, marginTop: frame.titleTop || frame.headerGap, marginBottom: frame.headerGap}]}>{title}</Text>
     : <PageHeader title={title} back={back}/>;
@@ -64,7 +85,7 @@ export function SettingsPageFrame({title, back, action, intro, children, state, 
     {intro !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: beside ? 0 : frame.gutter, maxWidth: frameSpec.settings.paragraphMax}]}>{intro}</Text>}
     {children}
   </>;
-  return <View testID={testID} style={{flex: 1}}>
+  return <View testID={testID} style={{flex: 1, paddingLeft: alone ? frame.gutter : 0}}>
     {header}
     {state ? <PageStateFrame {...state}/> : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingRight: beside ? frame.rightGutter : 0, gap: frame.sectionGap}}>
       {/* Beside the list the frame has already placed this column's edges, so its sections start at the column. */}

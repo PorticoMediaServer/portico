@@ -16,6 +16,26 @@ const ScrollRowContext = createContext<((change: 1 | -1) => void) | undefined>(u
 export function FocusScrollRowScope({count, children}: {count: (change: 1 | -1) => void; children: React.ReactNode}) {
   return <ScrollRowContext.Provider value={count}>{children}</ScrollRowContext.Provider>;
 }
+/**
+ * R1 start focus (tv-focus "START" marks). A TV frame names the control its page starts on (the first Continue
+ * Watching card on Home, Play or Resume on a title, the first row of a list, sheet or panel, Cancel in a confirmation)
+ * by that control's `focusId` or `testID`, and the frame wraps its content in this scope. The control then asks for
+ * focus through the same preferred ask every kit control already has (`useFocusTarget`), so Android TV and tvOS place
+ * it the same way and there is one mechanism. The rail is outside every frame, so a page never starts in it.
+ * Phones and tablets ignore it.
+ */
+const StartFocusContext = createContext<string | undefined>(undefined);
+export function StartFocusScope({id, children}: {id?: string; children: React.ReactNode}) {
+  const {isTV} = useTheme(), outer = useContext(StartFocusContext);
+  // A frame inside a frame (a sheet over a page) names its own start; one that names none keeps the page's.
+  const value = isTV ? id ?? outer : undefined;
+  return value === outer ? <>{children}</> : <StartFocusContext.Provider value={value}>{children}</StartFocusContext.Provider>;
+}
+/** Whether the control with these ids is its frame's start. */
+export function useIsStartFocus(childId: string | undefined, testID: string | undefined): boolean {
+  const start = useContext(StartFocusContext);
+  return start !== undefined && (start === childId || start === testID);
+}
 export function FocusProvider({registry, children}: {registry?: FocusRegistry; children: React.ReactNode}) {
   const parent = useContext(RegistryContext), own = useRef<FocusRegistry | undefined>(undefined);
   if (!own.current) own.current = createFocusRegistry();
@@ -96,6 +116,8 @@ function inheritedEdges(registry: FocusRegistry, regionId: string): Partial<Reco
   }
   return out;
 }
+/** Counts focus arriving anywhere in the app, so a repeated start-focus ask can tell that something else took it. */
+let focusSerial = 0;
 export type FocusTargetOptions<T extends FocusHost = View> = {focusId?: string; testID?: string; disabled?: boolean; ref?: React.ForwardedRef<T>;
   /** TV-FOCUS-REVIEW step 4: ask for native focus once when this becomes true, the same on Android TV and tvOS. It
    * replaces `hasTVPreferredFocus`, which tvOS re-applies on every later layout change and so takes focus back
@@ -125,12 +147,26 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
     scrollRow(1);
     return () => scrollRow(-1);
   }, [disabled, scrollRow]);
-  const asked = useRef(false);
+  const asked = useRef(false), landed = useRef(false);
+  // R1: the frame's start focus (StartFocusScope) is a preferred ask like any other.
+  const start = useIsStartFocus(childId, stableTestID), wanted = preferred || start;
   useLayoutEffect(() => {
-    if (!preferred) {asked.current = false; return;}
+    if (!wanted) {asked.current = false; return;}
     if (asked.current || disabled || preferredBlocked) return;
-    asked.current = true; if (native.current) registry?.notePreferred?.(native.current); requestNativeFocus(native.current);
-  }, [disabled, native, preferred, preferredBlocked, registry]);
+    asked.current = true; landed.current = false; if (native.current) registry?.notePreferred?.(native.current); requestNativeFocus(native.current);
+    // Android TV drops an ask made before the view (or the layer it is in) can take focus natively, and then nothing is
+    // focused at all. Ask again on the next frames, for at most about half a second, until focus lands here; any other
+    // focus in the app (the person moved, a newer ask) ends it, so it never pulls focus back.
+    if (typeof requestAnimationFrame !== 'function') return;
+    const serial = focusSerial;
+    let frames = 0, live = true;
+    const again = () => {
+      if (!live || landed.current || focusSerial !== serial || ++frames > 30) return;
+      requestNativeFocus(native.current); requestAnimationFrame(again);
+    };
+    requestAnimationFrame(again);
+    return () => {live = false;};
+  }, [disabled, native, wanted, preferredBlocked, registry]);
   const config = regionId ? registry?.config(regionId) : undefined;
   const inherited = registry && regionId ? inheritedEdges(registry, regionId) : {};
   // Edge props below also point at neighbour regions from destinations(); a
@@ -181,7 +217,7 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
     }
   }
   return {ref: setRef, testID: stableTestID, waiting: item?.waiting ?? false, ...edgeProps,
-    onFocus: () => {if (registry && address && !disabled) registry.didFocus(address);},
+    onFocus: () => {focusSerial++; landed.current = true; if (registry && address && !disabled) registry.didFocus(address);},
     onBlur: () => {if (registry && address) registry.didBlur(address);},
   };
 }
