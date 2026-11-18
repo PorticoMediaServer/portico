@@ -301,7 +301,8 @@ func analysisRunKey(spec AnalysisSpec, key string) string {
 
 func analysisNeedsHardware(s AnalysisSpec) bool {
 	return (s.Kind == "image" || s.Kind == "trickplay" || s.Kind == "scenes" || s.Kind == "segment_frames") && s.SourceVideo.DynamicRange == "dolby_vision" &&
-		DolbyVisionBaseRange(s.SourceVideo.DolbyVisionProfile, s.SourceVideo.DolbyVisionCompatibility) == ""
+		DolbyVisionBaseRange(s.SourceVideo.DolbyVisionProfile, s.SourceVideo.DolbyVisionCompatibility) == "" &&
+		!(s.SourceVideo.DolbyVisionProfile == 5 && CurrentToolchain().macSoftwareDolbyVision())
 }
 func analysisPreviewTone(video PreviewVideoFacts, preview bool) (string, bool, error) {
 	if !preview {
@@ -312,6 +313,9 @@ func analysisPreviewTone(video PreviewVideoFacts, preview bool) (string, bool, e
 		dynamic = DolbyVisionBaseRange(video.DolbyVisionProfile, video.DolbyVisionCompatibility)
 		if dynamic == "" {
 			tools := CurrentToolchain()
+			if video.DolbyVisionProfile == 5 && tools.macSoftwareDolbyVision() {
+				return "," + softwareDolbyVision(DefaultToneMapAlgorithm, dolbyVisionSDR, "yuv420p"), false, nil
+			}
 			if tools == nil || !tools.Filters["libplacebo"] || !tools.VulkanAvailable {
 				return "", false, ErrInvalidConfiguration
 			}

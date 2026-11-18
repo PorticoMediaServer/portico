@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"errors"
 	"math"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -131,11 +132,14 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 	if target.BitDepth == 10 {
 		pixel, surface = "yuv420p10le", "p010le"
 	}
-	// A Dolby Vision profile without a base layer is only converted correctly
-	// through libplacebo's reshaping, which runs on system frames. Force the
-	// software pipeline for that picture so a GPU host does not hold device
-	// frames the filter cannot take (VS-1e; hardware tone mapping is HW-3).
-	if r.ConvertVideo && target.DolbyVisionProfile > 0 && DolbyVisionBaseRange(target.DolbyVisionProfile, target.DolbyVisionCompatibility) == "" {
+	reshapeDV := r.ConvertVideo && target.DolbyVisionProfile > 0 && DolbyVisionBaseRange(target.DolbyVisionProfile, target.DolbyVisionCompatibility) == ""
+	macDV5 := runtime.GOOS == "darwin" && reshapeDV && target.DolbyVisionProfile == 5 && (r.ToneMap || target.DynamicRange == "hdr10")
+	softwareDV5 := macDV5 && r.Toolchain.macSoftwareDolbyVision()
+	videoToolboxDV5 := macDV5 && !r.DisableHardwareDecode && r.Toolchain != nil && r.Toolchain.Filters["tonemap_videotoolbox"] &&
+		r.Probe.Available && r.Probe.Backend == BackendVideoToolbox && r.Probe.DolbyVisionFilters
+	// libplacebo starts on system frames. Keep that path on the software
+	// pipeline, and let the Mac filters handle their own surfaces.
+	if reshapeDV && !softwareDV5 && !videoToolboxDV5 {
 		r.Probe = HardwareProbe{Backend: BackendSoftware, Identity: r.Probe.Identity}
 	}
 
@@ -227,6 +231,8 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 		}
 	}
 	out.Backend = backend
+	videoToolboxDV5 = videoToolboxDV5 && backend == BackendVideoToolbox
+	macReshape := softwareDV5 || videoToolboxDV5
 	if r.CopyVideo {
 		if target.DolbyVisionProfile > 0 && r.Target != nil && !target.CopyDolbyVision {
 			base := DolbyVisionBaseRange(target.DolbyVisionProfile, target.DolbyVisionCompatibility)
@@ -282,27 +288,18 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 			filter := map[HardwareBackend]string{BackendNVENC: "tonemap_cuda", BackendVAAPI: "tonemap_vaapi", BackendQSV: "vpp_qsv"}[backend]
 			native = native && r.Toolchain.Filters[filter]
 		}
-		if r.ToneMap && !native && r.Toolchain != nil && (!r.Toolchain.Filters["zscale"] || !r.Toolchain.Filters["tonemap"]) &&
+		if r.ToneMap && !native && !macReshape && r.Toolchain != nil && (!r.Toolchain.Filters["zscale"] || !r.Toolchain.Filters["tonemap"]) &&
 			((!r.Toolchain.VulkanAvailable && !r.Toolchain.OpenCLAvailable) || spec.upload != "") {
 			return out, errors.New("hdr_tone_mapping_filter_unavailable")
 		}
-		if target.DolbyVisionProfile > 0 {
-			compatible := DolbyVisionBaseRange(target.DolbyVisionProfile, target.DolbyVisionCompatibility) != ""
-			if !compatible {
-				// A profile without a base layer needs libplacebo's reshaping.
-				// The HDR-to-HDR reshape runs that filter without any tone
-				// mapping, so it needs the Vulkan device and the filter itself;
-				// every other conversion is judged by its tone-map route.
-				reshapeOnly := !r.ToneMap && target.DynamicRange != "sdr"
-				if reshapeOnly {
-					if r.Toolchain == nil || !r.Toolchain.VulkanAvailable || !r.Toolchain.Filters["libplacebo"] {
-						return out, errors.New("dolby_vision_reshaping_unavailable")
-					}
-				} else if !r.ToneMap || r.Toolchain == nil || !r.Toolchain.VulkanAvailable {
-					return out, errors.New("dolby_vision_reshaping_unavailable")
-				}
-				native = false
+		if reshapeDV && !macReshape {
+			// A profile without a base layer needs libplacebo's reshaping.
+			// Reshaping without tone mapping also checks the filter itself.
+			reshapeOnly := !r.ToneMap && target.DynamicRange != "sdr"
+			if r.Toolchain == nil || !r.Toolchain.VulkanAvailable || reshapeOnly && !r.Toolchain.Filters["libplacebo"] || !reshapeOnly && !r.ToneMap {
+				return out, errors.New("dolby_vision_reshaping_unavailable")
 			}
+			native = false
 		}
 		useNativeDeinterlace := native && r.Deinterlace && r.Probe.DeinterlaceFilters && nativeDeinterlace(backend) != "" && r.MaxFrameRate == 0
 		decode := ExecutionSoftware
@@ -320,7 +317,7 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 		filters := []string{}
 		composite := ""
 		hardwareFrames := decode == ExecutionHardware
-		if hardwareFrames && (!native || r.Deinterlace && !useNativeDeinterlace || r.MaxFrameRate > 0) {
+		if hardwareFrames && (!native && !videoToolboxDV5 || r.Deinterlace && !useNativeDeinterlace || r.MaxFrameRate > 0) {
 			filters = append(filters, "hwdownload", "format="+hardwareDownloadFormat(r.SourceBitDepth))
 			hardwareFrames = false
 		}
@@ -386,9 +383,24 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 				}
 			}
 		} else {
-			if r.ToneMap {
-				if r.Toolchain != nil && r.Toolchain.VulkanAvailable && spec.upload == "" && (target.DolbyVisionProfile > 0 && DolbyVisionBaseRange(target.DolbyVisionProfile,
-					target.DolbyVisionCompatibility) == "" || !r.Toolchain.Filters["zscale"] || !r.Toolchain.Filters["tonemap"]) {
+			if macReshape {
+				colour := dolbyVisionSDR
+				if target.DynamicRange == "hdr10" {
+					colour = "p=bt2020:t=smpte2084:m=bt2020:r=tv"
+				}
+				if videoToolboxDV5 {
+					if !hardwareFrames {
+						out.Input = append(out.Input, "-init_hw_device", "videotoolbox=tone", "-filter_hw_device", "tone")
+						filters = append(filters, "format=p010le", "hwupload")
+					}
+					filters = append(filters, videoToolboxToneMap(algorithm, colour, surface))
+					toneExecution = ExecutionHardware
+				} else {
+					filters = append(filters, softwareDolbyVision(algorithm, colour, pixel))
+				}
+			} else if r.ToneMap {
+				if r.Toolchain != nil && r.Toolchain.VulkanAvailable && spec.upload == "" &&
+					(reshapeDV || !r.Toolchain.Filters["zscale"] || !r.Toolchain.Filters["tonemap"]) {
 					out.Input = append(out.Input, "-init_hw_device", "vulkan=tone", "-filter_hw_device", "tone")
 					filters = append(filters, "format=yuv420p10le,hwupload,libplacebo=tonemapping=bt.2390:colorspace=bt709:color_primaries=bt709:color_trc=bt709:format=yuv420p,hwdownload,format=yuv420p")
 					toneExecution = ExecutionHardware
@@ -403,7 +415,7 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 			// A Dolby Vision profile without a base layer keeps its HDR range
 			// through libplacebo's reshaping alone; there is no tone mapping
 			// to apply when the target range is HDR10 or HLG.
-			if !r.ToneMap && target.DolbyVisionProfile > 0 && DolbyVisionBaseRange(target.DolbyVisionProfile, target.DolbyVisionCompatibility) == "" && target.DynamicRange != "sdr" &&
+			if !macReshape && !r.ToneMap && reshapeDV && target.DynamicRange != "sdr" &&
 				r.Toolchain != nil && r.Toolchain.VulkanAvailable && r.Toolchain.Filters["libplacebo"] {
 				transfer := "smpte2084"
 				if target.DynamicRange == "hlg" {
@@ -549,9 +561,8 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 			}
 			out.Stages = append(out.Stages, HardwareStage{StageDeinterlace, execution})
 		}
-		if r.ToneMap || toneExecution == ExecutionHardware {
-			// A tone map or a Dolby Vision reshape that ran on the Vulkan
-			// device is a hardware stage, whatever the decoder and encoder do.
+		if r.ToneMap || macReshape || toneExecution == ExecutionHardware {
+			// Report reshaping even when the picture's dynamic range is kept.
 			out.Stages = append(out.Stages, HardwareStage{StageToneMap, toneExecution})
 		}
 		if (r.MaxHeight > 0 || r.MaxWidth > 0) && len(hdr10PlusOptions) == 0 {

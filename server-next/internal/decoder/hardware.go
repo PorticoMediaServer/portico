@@ -90,6 +90,7 @@ const (
 // HardwareProbe is the cached result of one bounded encode. NativeFilters says
 // whether the backend's own tone-map/scale filters ran, not merely its encoder.
 type HardwareProbe struct {
+	DolbyVisionFilters      bool            `json:"-"`
 	BurnInFilters           bool            `json:"-"`
 	DeinterlaceFilters      bool            `json:"-"`
 	DecodeCodecs            map[string]bool `json:"-"`
@@ -229,6 +230,16 @@ type hardwareProbeCell struct {
 	device  string
 }
 
+const dolbyVisionSDR = "p=bt709:t=bt709:m=bt709:r=tv"
+
+func softwareDolbyVision(algorithm, colour, pixel string) string {
+	return "format=yuv420p10le,tonemapx=tonemap=" + algorithm + ":" + colour + ":format=" + pixel
+}
+
+func videoToolboxToneMap(algorithm, colour, surface string) string {
+	return "tonemap_videotoolbox=tonemap=" + algorithm + ":" + colour + ":format=" + surface + ",hwdownload,format=" + surface
+}
+
 // HardwareDetector caches measured backend/device results by FFmpeg runtime
 // identity. Replacing that runtime or explicitly reproving a cell retires its
 // prior observation without invalidating peer devices.
@@ -285,6 +296,7 @@ func invalidHardwareObservation(out HardwareProbe, reason string) HardwareProbe 
 	out.Available, out.Reason, out.Identity = false, reason, ""
 	out.NativeFilters, out.ScaleFilters, out.ToneMapFilters, out.ToneMapWithoutMastering, out.DeinterlaceFilters = false, false, false, false, false
 	out.OutputEncoders, out.OutputQuality, out.DecodeCodecs = nil, nil, nil
+	out.DolbyVisionFilters = false
 	return out
 }
 
@@ -301,13 +313,8 @@ func probeCommand(ctx context.Context, executable string, args []string, librari
 	return mediaexec.CommandContext(ctx, mediaexec.Job{Executable: executable, Args: args, Hardware: true, Libraries: libraries, ReadPaths: readPaths})
 }
 
-// ReshapesDolbyVision says whether converting this request tone maps with
-// libplacebo, the one FFmpeg tone mapper that applies a Dolby Vision stream's
-// reshaping metadata (its apply_dolbyvision option is on by default). Profile 5
-// files have no HDR10 or SDR base layer, so every other tone mapper treats
-// their IPT-PQ-C2 picture as HDR10 and shows the well-known purple and green
-// cast (COMPAT-04). It mirrors BuildConversion's choice of tone mapper; a test
-// holds the two together.
+// ReshapesDolbyVision checks that the conversion uses a filter that applies
+// Dolby Vision reshaping metadata. Profile 5 has no compatible base picture.
 func ReshapesDolbyVision(r ConversionRequest) bool {
 	if !r.ConvertVideo {
 		return false
@@ -321,7 +328,8 @@ func ReshapesDolbyVision(r ConversionRequest) bool {
 		return false
 	}
 	graph, err := BuildConversion(r)
-	return err == nil && strings.Contains(strings.Join(graph.Video, " "), "libplacebo=")
+	filters := strings.Join(graph.Video, " ")
+	return err == nil && (strings.Contains(filters, "libplacebo=") || strings.Contains(filters, "tonemapx=") || strings.Contains(filters, "tonemap_videotoolbox="))
 }
 
 //go:embed probeassets/hdr10.hevc
@@ -543,6 +551,15 @@ func (d *HardwareDetector) probe(ctx context.Context, executable string, backend
 		cancel()
 		bounded, cancel = context.WithTimeout(ctx, timeout)
 		out.ToneMapWithoutMastering = runner.probeHDRFilters(bounded, executable, probeArgs(spec, device, chain), hdrUnmasteredProbeClip) == nil
+		cancel()
+	}
+	if out.Available && backend == BackendVideoToolbox {
+		// VideoToolbox encoding can work without the Metal device used by
+		// the Dolby Vision filter. Try the actual upload, filter and download.
+		args := probeArgs(spec, device, "format=p010le,hwupload,"+videoToolboxToneMap(DefaultToneMapAlgorithm, dolbyVisionSDR, "nv12"))
+		args = append([]string{"-init_hw_device", "videotoolbox=tone", "-filter_hw_device", "tone"}, args...)
+		bounded, cancel := context.WithTimeout(ctx, timeout)
+		out.DolbyVisionFilters = runner.probeHDRFilters(bounded, executable, args, hdrUnmasteredProbeClip) == nil
 		cancel()
 	}
 	if out.Available {
