@@ -394,7 +394,7 @@ sub drawNow(room as object)
     meta = m.top.findNode("nowMeta")
     if entry = invalid
         title.text = "Nothing chosen yet"
-        if room.you.mayControl = true then meta.text = "Queue titles from Portico on your phone or computer." else meta.text = "The host picks what to watch."
+        if room.you.mayControl = true then meta.text = "Press * on any title and choose Watch with group." else meta.text = "The host picks what to watch."
         art.uri = ""
         m.top.findNode("nowReady").text = ""
         m.top.findNode("nowState").text = ""
@@ -493,7 +493,7 @@ sub drawQueue(room as object)
     empty = m.top.findNode("queueEmpty")
     empty.text = ""
     if room.queue.count() = 0
-        if room.you.mayControl = true then empty.text = "Nothing queued. Queue titles from Portico on your phone or computer." else empty.text = "Nothing queued."
+        if room.you.mayControl = true then empty.text = "Nothing queued. Press * on any title and choose Add to group queue." else empty.text = "Nothing queued."
     end if
     shift = m.top.findNode("left").translation[1]
     space = t.footY - 24 - (t.queueY + shift)
@@ -748,7 +748,7 @@ sub openSheet(kind as string)
     else
         width = f.rightEdge - pad
         m.top.findNode("sheetTitle").text = "Start a group"
-        words.text = "You get a code to share. Then queue titles from Portico on your phone or computer."
+        words.text = "You get a code to share. Then press * on any title and choose Watch with group."
         words.width = width
         group.fieldWidth = width
         name.fieldWidth = width

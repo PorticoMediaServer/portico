@@ -52,7 +52,8 @@ sub main()
     same("ended", [endedText("ended_by_host"), endedText("no_host"), endedText("everyone_left"), endedText("restart")], ["The host ended the group.", "The host was away too long, so the group ended.", "Everyone left.", "The group is over."])
     same("host away", [hostAwayText(102, 600), hostAwayText(0, 492), hostAwayText(-5, -1)], ["The host’s connection dropped. The group pauses in 1:42 unless they return.", "The host’s connection dropped. The group ends in 8:12 unless they return.", "The host’s connection dropped. The group ends in 0:00 unless they return."])
 
-    ' the queue is sent whole: the entries left, by their entryId
+    ' the queue is sent whole: what is there by entry, a new title by item
+    same("queue add", [formatJson(queueWith(playing, "i9"))], ["{""entries"":[{""entryId"":""e1""},{""entryId"":""e2""},{""itemId"":""i9""}]}"])
     same("queue remove", [formatJson(queueWithout(playing, "e1"))], ["{""entries"":[{""entryId"":""e2""}]}"])
     same("after", [entryAfter(playing, "e1").entryId, yes(entryAfter(playing, "e2") = invalid), roomEntry(playing).itemId], ["e2", "yes", "i1"])
 
