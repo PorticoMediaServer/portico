@@ -2,8 +2,8 @@ import {headerWordmark} from '../kit/shell/brand';
 import React, {useEffect, useState, useSyncExternalStore} from 'react';
 import {Image, ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import Svg, {Defs, LinearGradient, Rect, Stop, SvgXml} from 'react-native-svg';
-import {brandSymbol} from '../../assets/brandSymbol';
+import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
+import {BrandSymbol} from '../kit/shell/BrandSymbol';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import type {Library} from '../../../../packages/client-core/src';
 import {Focusable} from '../kit/controls';
@@ -21,12 +21,10 @@ type RailEntry = Readonly<{key: string; label: string; icon: IconName; destinati
 
 /** foldable1/tablet: the 84 pt medium rail replaces the phone tab bar. Search,
  * Home, Live TV, Saved, Settings and Profile stay put; only the libraries scroll. */
-export function MediumRail({libraries, hasLiveTV, destination, profile, unread, serverAction, onNavigate, onProfile, profileRef, short, expanded = false, onToggle, brand = false, serverName, notificationAction, activity}: {
+export function MediumRail({libraries, hasLiveTV, destination, profile, unread, serverAction, onNavigate, onProfile, profileRef, short, expanded = false, onToggle, serverName, notificationAction, activity}: {
   /** The owner's server activity: the rail's button draws the glyph (tablet-play 6), the sidebar a count. */
   activity?: NativeOwnerActivity;
   expanded?: boolean; onToggle?: () => void; serverName?: string;
-  /** tablet-play6: the sidebar folded under an open panel is the rail with the brand mark and no toggle. */
-  brand?: boolean;
   libraries: readonly Library[]; hasLiveTV: boolean; destination: ShellDestination; profile: ProfileOption; unread: boolean;
   /** Owner/administrator-only Server activity, icon-only as tablet 2/3 draw it. */
   serverAction?: Readonly<{id: string; label: string; onPress: () => void}>;
@@ -68,12 +66,14 @@ export function MediumRail({libraries, hasLiveTV, destination, profile, unread, 
     <BlurView pointerEvents="none" style={{position: 'absolute', inset: 0}} blurType="dark" blurAmount={18} reducedTransparencyFallbackColor={theme.colors.raised}/>
     <View pointerEvents="none" style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink, opacity: .72}}/>
     <View style={{flex: 1, alignItems: 'center', paddingTop: padding.top, paddingBottom: padding.bottom}}>
-      {(onToggle || brand) && !expanded && <View style={{height: 44, alignItems: 'center', justifyContent: 'center'}}><SvgXml xml={brandSymbol} width={19} height={28}/></View>}
-      {onToggle && <View style={{width: '100%', height: expanded ? 48 : 44, paddingHorizontal: expanded ? 24 : 0, flexDirection: 'row', alignItems: 'center', justifyContent: expanded ? 'space-between' : 'center'}}>
+      {/* The Portico mark heads the rail on every form, open and collapsed (tablet 11: the wordmark beside the collapse
+          glyph; collapsed, the symbol above the expand glyph). The toggle sits with it only where the rail can open. */}
+      {!expanded && <View style={{height: 44, alignItems: 'center', justifyContent: 'center'}}><BrandSymbol width={19} height={28}/></View>}
+      {(expanded || onToggle) && <View style={{width: '100%', height: expanded ? 48 : 44, paddingHorizontal: expanded ? 24 : 0, flexDirection: 'row', alignItems: 'center', justifyContent: expanded ? 'space-between' : 'center'}}>
         {expanded && <Image accessible accessibilityLabel={defaultI18n.t('next.platform.appName')} source={require('../../assets/wordmark.png')} resizeMode="contain" style={{...headerWordmark.tabletRail, flexShrink: 0}}/>}
-        <Focusable testID="sidebar-toggle" accessibilityRole="button" accessibilityLabel={defaultI18n.t(expanded ? 'web.shell.collapse' : 'web.shell.expand')} accessibilityState={{expanded}} onPress={onToggle} focusRadius={12} style={{width: 44, height: 44, alignItems: 'center', justifyContent: 'center'}}>
+        {onToggle && <Focusable testID="sidebar-toggle" accessibilityRole="button" accessibilityLabel={defaultI18n.t(expanded ? 'web.shell.collapse' : 'web.shell.expand')} accessibilityState={{expanded}} onPress={onToggle} focusRadius={12} style={{width: 44, height: 44, alignItems: 'center', justifyContent: 'center'}}>
           <Svg width={22} height={22} viewBox="0 0 24 24" color={theme.colors.textSecondary}><Rect x={3.5} y={4.5} width={17} height={15} rx={3} fill="none" stroke="currentColor" strokeWidth={2}/><Rect x={8.5} y={4.5} width={1.5} height={15} fill="currentColor"/></Svg>
-        </Focusable>
+        </Focusable>}
       </View>}
       {top.map(item)}
       {expanded && <Text style={[nativeType({size: 12, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {alignSelf: 'flex-start', marginTop: 14, marginLeft: 24, marginBottom: 4, color: theme.colors.textTertiary}]}>{defaultI18n.t('web.shell.libraries')}</Text>}

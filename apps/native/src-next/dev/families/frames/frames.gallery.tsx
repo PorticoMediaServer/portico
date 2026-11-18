@@ -49,8 +49,8 @@ export function Window({children}: {children: ReactNode}) {
   return <View style={{height: window.height, marginHorizontal: -theme.gutter}}>{children}</View>;
 }
 
-/** A page as the app shows it: with the shell's own tab bar on a phone and its rail on a tablet, so the frame is judged
- * where it lives. The TV rail needs a signed-in session and is not drawn here. */
+/** A page as the app shows it: with the shell's own tab bar on a phone, its rail on a tablet and its rail on a TV, so the
+ * frame is judged where it lives. Every rail draws the Portico mark at its top. */
 export function Page({children, destination}: {children: ReactNode; destination: ShellDestination}) {
   const theme = useTheme(), window = useWindowDimensions(), insets = useSafeAreaInsets(), {form} = useFrameMetrics();
   const landscape = window.width > window.height, rail = form === 'medium' || form === 'expanded', sidebar = theme.layoutMode === 'desktop';
@@ -61,8 +61,8 @@ export function Page({children, destination}: {children: ReactNode; destination:
         pushes the page right under the shell's one rail scrim, a solid panel running into an even dim (tv-2-rail-open). */}
     <View style={{position: 'absolute', top: 0, bottom: form === 'phone' ? phoneBarHeight(insets.bottom, landscape) : 0, left: inset, right: 0, transform: railOpen ? [{translateX: theme.spec.navigation.tv.contentShift}] : undefined}}><NativePageInsetProvider value={inset}>{children}</NativePageInsetProvider></View>
     {form === 'tv' && <View pointerEvents="none" style={{position: 'absolute', inset: 0, experimental_backgroundImage: tvRailScrim(theme.colors.ink, railOpen)}}/>}
-    {rail && <MediumRail expanded={sidebar} brand={sidebar} serverName={f('serverName')} libraries={libraries} hasLiveTV destination={destination} profile={{id: 'gallery', name: f('profileInitial'), initial: f('profileInitial'), color: 'blue'}} unread
-      notificationAction={{label: f('notifications'), onPress: none}} serverAction={{id: 'activity', label: f('serverActivity'), onPress: none}} onNavigate={none} onProfile={none} profileRef={profileRef} short={window.height < theme.layout.breakpoint.phone}/>}
+    {rail && <MediumRail expanded={sidebar} serverName={f('serverName')} libraries={libraries} hasLiveTV destination={destination} profile={{id: 'gallery', name: f('profileInitial'), initial: f('profileInitial'), color: 'blue'}} unread
+      notificationAction={{label: f('notifications'), onPress: none}} serverAction={{id: 'activity', label: f('serverActivity'), onPress: none}} onNavigate={none} onProfile={none} profileRef={profileRef} short={window.height - insets.top - insets.bottom < 800}/>}
     {form === 'phone' && <PhoneTabBar destination={destination} hasLiveTV onSelect={none} landscape={landscape}/>}
     {/* TV: the shell's own rail, collapsed, over the page's left edge as the app draws it. */}
     {form === 'tv' && <FocusProvider><TVRail authority={galleryAuthority} libraries={libraries} hasLiveTV destination={destination} profile={{id: 'gallery', name: f('profileInitial'), initial: f('profileInitial'), color: 'blue'}} onNavigate={none} onProfile={none} profileRef={profileRef} onExpandedChange={setRailOpen}/></FocusProvider>}
@@ -113,10 +113,10 @@ function SettingsList() {
   const list = <View>{form !== 'phone' && <LargeTitleHeader title={f('settings')} style={{paddingHorizontal: 0}}/>}{form === 'phone' && <ShortcutTiles testID="frames-settings-tiles" actions={tiles}/>}
     <SettingsNav testID="frames-settings-nav" accountPages={settingsPages.account} serverPages={settingsPages.server} viewerRole="owner" serverName={f('serverName')} selectedId={form === 'tv' ? 'playback' : page ?? (wide ? 'playback' : '')} onNavigate={form === 'tv' ? none : setPage} mode={form === 'tv' ? 'account' : 'combined'}/></View>;
   const hints = <KeyHints hints={[{key: [f('keyUp'), f('keyDown')], label: f('hintChoosePage')}, {key: f('keyRight'), label: f('hintEditRows')}, {key: f('keyLeft'), label: f('hintPages')}]}/>;
-  return <Window><SettingsListFrame testID="frames-settings-list" startFocus={focusTestID('frames-settings-nav', JSON.stringify(['account', 'playback']))} hints={hints} open onOpenChange={none} bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
-    page={page || wide ? <SettingsPageFrame title={f('playback')} back={{label: f('settings'), onPress: () => setPage(undefined)}} intro={f('playbackIntro')}><PlaybackSections/></SettingsPageFrame> : undefined}/></Window>;
+  return <Page destination={{kind: 'settings'}}><SettingsListFrame testID="frames-settings-list" startFocus={focusTestID('frames-settings-nav', JSON.stringify(['account', 'playback']))} hints={hints} open onOpenChange={none} bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
+    page={page || wide ? <SettingsPageFrame title={f('playback')} back={{label: f('settings'), onPress: () => setPage(undefined)}} intro={f('playbackIntro')}><PlaybackSections/></SettingsPageFrame> : undefined}/></Page>;
 }
-const SettingsPage = () => <Window><SettingsPageFrame testID="frames-settings-page" startFocus="frames-settings-source1" title={f('liveTv')} back={{label: f('settings'), onPress: none}} intro={f('liveTvIntro')}><StateSections/></SettingsPageFrame></Window>;
+const SettingsPage = () => <Page destination={{kind: 'settings'}}><SettingsPageFrame testID="frames-settings-page" startFocus="frames-settings-source1" title={f('liveTv')} back={{label: f('settings'), onPress: none}} intro={f('liveTvIntro')}><StateSections/></SettingsPageFrame></Page>;
 
 const Sheet = () => <Window><BrowseFrame header={{title: f('liveTv')}}><View/></BrowseFrame>
   <SheetFrame kind="task" task="task" testID="frames-sheet" startFocus="frames-sheet-playlist" hints={<KeyHints hints={[{key: f('keyOk'), label: f('hintChoose')}, {key: f('keyBack'), label: f('hintClose')}]}/>} open onOpenChange={none} title={f('addSource')}>
