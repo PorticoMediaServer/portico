@@ -23,6 +23,9 @@
   <script type="text/brightscript" uri="pkg:/source/Address.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Dialog.brs"/>
   <children>
+    <!-- Holds focus for the server rows (and while nothing can be pressed): the page itself cannot take focus
+         back from its own button row while it is already in the focus chain. -->
+    <Group id="rowStop" focusable="true"/>
     <Group id="code" visible="false">
       <Poster id="codeMark" uri="pkg:/images/wordmark.png" width="176" height="40"/>
       <!-- bottom-aligned on its line, so a second line goes up and the steps never move -->

@@ -22,6 +22,8 @@
   <script type="text/brightscript" uri="JoinPages.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <children>
+    <!-- Holds focus for the address box: the page cannot take focus back from its own keyboard while it is in the focus chain. -->
+    <Group id="boxStop" focusable="true"/>
     <Poster id="mark" uri="pkg:/images/wordmark.png" width="176" height="40"/>
     <Label id="eyebrow"/>
     <Label id="title" width="1600"/>

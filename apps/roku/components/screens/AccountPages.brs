@@ -390,7 +390,7 @@ end sub
 sub focusList()
     count = m.rows.getChildCount()
     if count = 0 and not m.listButtons.visible
-        m.top.setFocus(true)     ' still looking: nothing to press yet
+        m.top.findNode("rowStop").setFocus(true)     ' still looking: nothing to press yet
         return
     end if
     if count = 0 then m.inRows = false
@@ -406,7 +406,7 @@ sub focusList()
         if bottom + shift > frames().signIn.rowsHeight then shift = frames().signIn.rowsHeight - bottom
         m.rows.translation = [0, shift]
     end if
-    if m.inRows then m.top.setFocus(true) else m.listButtons.active = true
+    if m.inRows then m.top.findNode("rowStop").setFocus(true) else m.listButtons.active = true
 end sub
 
 ' --- opening a server: its challenge, a note for it from Services, the note back to it -------
