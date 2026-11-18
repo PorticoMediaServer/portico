@@ -29,5 +29,8 @@ func (s *Server) startReading(ctx context.Context) error {
 	s.reading.FromHome = s.fromHome
 	s.reading.Copies = filepath.Join(s.dataDir, "download-copies")
 	s.readingRoutes()
+	s.jobs.Tidy("deleted annotations", 24*time.Hour, func(ctx context.Context) error {
+		return s.db.RemoveOldAnnotationMarkers(ctx, s.now())
+	})
 	return nil
 }
