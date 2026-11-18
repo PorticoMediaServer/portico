@@ -2,7 +2,15 @@ package api
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
+	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -159,5 +167,49 @@ func TestOwnerDashboard(t *testing.T) {
 	list, _ := s.Backups().List()
 	if len(list) != 1 || !d.Backups.Read || d.Backups.Last == nil || d.Backups.Last.ID != list[0].ID || !d.Backups.Last.Scheduled {
 		t.Errorf("the newest backup reads %+v; the folder holds %+v", d.Backups, list)
+	}
+}
+
+// The owner's own certificate inside the warning time they chose raises "the secure connection
+// could not renew" (console rule 10), and the alert goes once a renewed one is in its files.
+func TestAnExpiringCertificateRaisesAnAlert(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s).AccessToken
+	keys := filepath.Join(s.dataDir, "Keys")
+	write := func(expires time.Time) {
+		t.Helper()
+		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tmpl := &x509.Certificate{SerialNumber: big.NewInt(time.Now().UnixNano()), Subject: pkix.Name{CommonName: "media.example.com"},
+			DNSNames: []string{"media.example.com"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: expires}
+		der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := x509.MarshalECPrivateKey(key)
+		os.MkdirAll(keys, 0o700)
+		os.WriteFile(filepath.Join(keys, "certificate.pem"), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600)
+		os.WriteFile(filepath.Join(keys, "certificate.key"), pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: raw}), 0o600)
+	}
+	alerted := func() bool {
+		t.Helper()
+		var d Dashboard
+		if w := call(t, s, "GET", "/v1/admin/dashboard", owner, nil, &d); w.Code != 200 {
+			t.Fatalf("the Dashboard answered %d: %s", w.Code, w.Body)
+		}
+		return slices.ContainsFunc(d.Alerts, func(a DashboardAlert) bool { return a.Code == "certificate_not_renewed" && a.Params["which"] == "own" })
+	}
+	write(time.Now().Add(3 * 24 * time.Hour))
+	s.certs.Use(tlsport.Source{Domain: "media.example.com", CertificateFile: "certificate.pem", KeyFile: "certificate.key", WarnBefore: 14 * 24 * time.Hour})
+	s.certs.Check()
+	if !alerted() {
+		t.Fatal("a certificate three days from expiring raised no alert")
+	}
+	write(time.Now().Add(90 * 24 * time.Hour))
+	s.certs.Check()
+	if alerted() {
+		t.Fatal("the alert stayed after a renewed certificate was put in its files")
 	}
 }
