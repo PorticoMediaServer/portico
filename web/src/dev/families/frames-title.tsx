@@ -164,7 +164,7 @@ function Show({opened}: {opened?: string}) {
 }
 /** A long-running show with the season menu open (desktop-detail f6; phone-detail d2 frame 5): tiles, four to a row. */
 function ShowSeasons() {
-  const art = useReferenceArtwork(), [tab, setTab] = useState('episodes'), [open, setOpen] = useState(true), [selected, setSelected] = useState('s3');
+  const art = useReferenceArtwork(), [tab, setTab] = useState('episodes'), [open, setOpen] = useState(true), [selected, setSelected] = useState('s3'), wide = useWide();
   const rows = [{id: 's1', label: f('season1'), years: f('seasonYears1'), count: f('count13'), watched: true}, {id: 's2', label: f('season2'), years: f('seasonYears2'), count: f('count22'), watched: true},
     {id: 's3', label: f('season3'), years: f('seasonYears3'), count: f('season3Count'), progress: 4 / 24}, {id: 's4', label: f('season4'), years: f('seasonYears4'), count: f('count22')},
     {id: 's5', label: f('season5'), years: f('seasonYears5'), count: f('count22')}, {id: 's0', label: f('specials'), count: f('count12'), special: true}];
@@ -175,7 +175,7 @@ function ShowSeasons() {
     <PanelBlock label={f('episodes')}><ShowBar season={f('season3')} count={f('season3Count')} progress={{watched: 4, total: 24, label: f('season3Progress')}}
       menu={<SeasonMenu open={open} onOpenChange={setOpen} label={f('season3')} title={f('seasonMenu')} heading={f('seasonsHeading')} rows={rows} selectedId={selected} watchedLabel={f('watched')} onSelect={setSelected}
         jump={{placeholder: f('jumpSeason'), range: f('seasonRange'), maximum: 36, onJump: async () => true}} />} />
-      <EpisodeTiles episodes={[...episodes, ...episodes.map(episode => ({...episode, id: `${episode.id}-b`, watched: false}))]} layout="grid" /></PanelBlock>
+      <EpisodeTiles episodes={[...episodes, ...episodes.map(episode => ({...episode, id: `${episode.id}-b`, watched: false}))]} layout={wide ? 'grid' : 'list'} /></PanelBlock>
   </TitleFrame></Page>;
 }
 /** A season's own page: the show as its kicker, its episodes. */

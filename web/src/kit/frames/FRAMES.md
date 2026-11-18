@@ -263,11 +263,14 @@ One frame for every kind of title page, its regions written once as data (`frame
 
 The collapsed bar is sticky under the shell's bar and takes no room until the tabs pass under it: at phone width Back,
 the title centred and Play on with the tabs under it; from 600 the title, the tabs beside it, the primary and the
-`pinned` actions (desktop-detail f3, f4). Loading keeps the boxes, says nothing it does not know (the time left) and
+`pinned` actions (desktop-detail f3, f4). A screen that holds `collapsed` (a tab opened directly) gets the bar in place
+of the hero and the page's tabs, with the panel under it. An action marked `wide` (Watched) is drawn only from 1024; up
+to 1024 it is in More (phone-detail d1). Loading keeps the boxes, says nothing it does not know (the time left) and
 keeps skeleton cards in the panel.
 
 Parts (`title-parts.tsx`): `PanelBlock`, `PanelHeading`, `PanelText`, `AboutTable`, `CastRow`, `TrackPicker`,
-`NumberedRow`, `OwnerCard`, `EpisodeNeighbour`, and, moved from the show page (one copy; `screens/detail/Show.tsx` and
+`NumberedRow`, `OwnerCard`, `EpisodeNeighbour`, `VersionRows` (Play a different version, R9 `versions`), `EpisodeDisplay`
+(the owner's Episode display, R9 `choice`), and, moved from the show page (one copy; `screens/detail/Show.tsx` and
 `SeasonMenu.tsx` draw them): `SeasonBar` (season trigger, count, watched progress, episode order, Filters, Hide watched,
 list or tiles, the season's ⋯; this replaces the stand-in), `SeasonMenu` (every season with its years, count and
 progress, Specials, a box to type a season number past 30), `EpisodeList` with `episodeRowClass` and
@@ -275,7 +278,8 @@ progress, Specials, a box to type a season number past 30), `EpisodeList` with `
 tile's parts (`[class*="episodeCopy"]`) instead of counting its children: the tile has hidden accessible spans first, so
 the counted rules had put the synopsis under the picture on the show page's list.
 
-Gallery: `dev/families/frames-title.tsx` (family `frames-title`): the same cases as native. The frames family's old
+Gallery: `dev/families/frames-title.tsx` (family `frames-title`): the same cases as native, with versions, file-info
+(the kit's `FileInfoBody` on the `details` form) and episode-display. The frames family's old
 `title`, `title-missing` and `title-loading` cases are these now.
 
 For Stage 2: the person and collection screens and the album, artist and book pages still draw `CoverHero` and their
