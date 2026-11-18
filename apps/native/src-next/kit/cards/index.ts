@@ -1,4 +1,4 @@
-export {PosterCard, WideCard, SquareCard, CircleCard, EpisodeTile, CoverCard, RankedCard} from './MediaCards';
+export {PosterCard, WideCard, wideDetailHeight, SquareCard, CircleCard, EpisodeTile, CoverCard, RankedCard} from './MediaCards';
 export type {PosterCardProps, WideCardProps, SquareCardProps, CircleCardProps, EpisodeTileProps, CoverCardProps, RankedCardProps} from './MediaCards';
 export {LiveCard, CollectionBanner, CollectionTile, GenreTile, LibraryCard, LibraryRow, SeriesTile, PlaylistMosaic, NotInterestedButton} from './SurfaceCards';
 export type {LiveCardProps, CollectionCardProps, GenreTileProps, LibraryCardProps, SeriesTileProps, PlaylistMosaicProps} from './SurfaceCards';
