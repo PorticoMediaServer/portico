@@ -27,6 +27,11 @@ for table in ('frames', 'colours', 'typeRoles'):
         elif part.group(0) == '}': seen.pop()
         elif part.group(1) in seen[-1]: bad.append('%s() names %s twice' % (table, part.group(1)))
         else: seen[-1].add(part.group(1))
+# One entry per line in alphabetical order, so changes to different screens do not collide.
+for table in ('colours', 'typeRoles', 'frames'):
+    names = re.findall(r'^ {8}(\w+):', body(table), re.M)
+    out = next((b for a, b in zip(names, names[1:]) if a.lower() > b.lower()), None)
+    if out: bad.append('%s() is out of alphabetical order at %s' % (table, out))
 for path in sorted(glob.glob('components/**/*.brs', recursive=True) + glob.glob('source/*.brs')):
     src = open(path).read()
     uses = [('', a, b) for a, b in re.findall(r'frames\(\)\.(\w+)(?:\.(\w+))?', src)]
@@ -53,6 +58,6 @@ for path in sorted(glob.glob('components/**/*.brs', recursive=True) + glob.glob(
         if r not in roles:
             bad.append('%s: type role %s' % (path, r))
 for line in sorted(set(bad)):
-    print(line if 'twice' in line else 'MISSING ' + line)
-print('theme check: %d missing or given twice' % len(set(bad)))
+    print(line if 'twice' in line or 'order' in line else 'MISSING ' + line)
+print('theme check: %d missing, given twice or out of order' % len(set(bad)))
 sys.exit(1 if bad else 0)
