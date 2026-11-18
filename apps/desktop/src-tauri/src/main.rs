@@ -7,11 +7,32 @@ use tauri_plugin_opener::OpenerExt;
 /// The app's own pages: Tauri serves the built web app at tauri://localhost (macOS, Linux) and
 /// http://tauri.localhost (Windows); a debug build may load the web app's dev server instead.
 fn own_page(url: &Url) -> bool {
+    // A file the page made itself (recovery codes) is a blob: of the page's own address.
+    if url.scheme() == "blob" {
+        return Url::parse(url.path()).is_ok_and(|inner| inner.scheme() != "blob" && own_page(&inner));
+    }
     match (url.scheme(), url.host_str(), url.port()) {
         ("tauri", Some("localhost"), None) | ("http", Some("tauri.localhost"), None) => true,
         ("http", Some("127.0.0.1"), Some(5174)) => cfg!(debug_assertions),
         _ => false,
     }
+}
+
+/// Save on a title: the server's own file at its media address with `save=1`, which the server
+/// sends as an attachment, so the window downloads it instead of leaving the app.
+fn server_save(url: &Url) -> bool {
+    matches!(url.scheme(), "http" | "https") && url.path().starts_with("/v1/media/") && url.query_pairs().any(|(key, value)| key == "save" && value == "1")
+}
+
+/// Downloads go to the person's Downloads folder under the name the page gave, as in a browser,
+/// numbered when that name is taken.
+fn download_destination(folder: &std::path::Path, suggested: &std::path::Path) -> std::path::PathBuf {
+    let name = suggested.file_name().map(|name| std::path::PathBuf::from(name)).unwrap_or_else(|| "Portico download".into());
+    let (stem, extension) = (name.file_stem().unwrap_or_default().to_string_lossy().into_owned(), name.extension().map(|e| e.to_string_lossy().into_owned()));
+    (0..).map(|n| {
+        let base = if n == 0 { stem.clone() } else { format!("{stem} ({n})") };
+        folder.join(match &extension { Some(extension) => format!("{base}.{extension}"), None => base })
+    }).find(|path| !path.exists()).expect("a free name")
 }
 
 /// A link to anywhere else (the terms, help, web.getportico.tv) opens in the person's browser,
@@ -32,7 +53,7 @@ fn main() {
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(600.0, 600.0)
                 .on_navigation(move |url| {
-                    if own_page(url) {
+                    if own_page(url) || server_save(url) {
                         return true;
                     }
                     if outside(url) {
@@ -45,6 +66,17 @@ fn main() {
                         let _ = browser.opener().open_url(url.as_str(), None::<&str>);
                     }
                     tauri::webview::NewWindowResponse::Deny
+                })
+                .on_download(|webview, event| {
+                    use tauri::Manager;
+                    if let tauri::webview::DownloadEvent::Requested { destination, .. } = event {
+                        let paths = webview.app_handle().path();
+                        // Without a desktop's folder settings, the usual Downloads in the home folder.
+                        let Some(folder) = paths.download_dir().or_else(|_| paths.home_dir().map(|home| home.join("Downloads"))).ok() else { return false };
+                        let _ = std::fs::create_dir_all(&folder);
+                        *destination = download_destination(&folder, destination);
+                    }
+                    true
                 })
                 .initialization_script(smoke::collect())
                 .on_page_load(|window, payload| smoke::loaded(&window, payload.event()))
@@ -108,6 +140,28 @@ mod tests {
             "https://tauri.localhost/", "tauri://evil.example/", "http://192.168.1.5:32400/"] {
             assert!(!own_page(&Url::parse(page).unwrap()), "{page}");
         }
+    }
+
+    #[test]
+    fn the_pages_own_files_and_the_servers_saves_download_in_the_window() {
+        assert!(own_page(&Url::parse("blob:tauri://localhost/0b6c1d3e-1f2a-4b5c-8d9e-0f1a2b3c4d5e").unwrap()));
+        assert!(own_page(&Url::parse("blob:http://tauri.localhost/0b6c1d3e").unwrap()));
+        assert!(!own_page(&Url::parse("blob:https://evil.example/0b6c1d3e").unwrap()));
+        assert!(server_save(&Url::parse("http://192.168.1.5:32500/v1/media/g/source?save=1").unwrap()));
+        for not_a_save in ["http://192.168.1.5:32500/v1/media/g/source", "https://evil.example/download?save=1", "https://server/v1/items?save=1"] {
+            assert!(!server_save(&Url::parse(not_a_save).unwrap()), "{not_a_save}");
+        }
+    }
+
+    #[test]
+    fn a_download_takes_a_free_name_in_the_downloads_folder() {
+        let folder = std::env::temp_dir().join(format!("portico-downloads-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        let first = download_destination(&folder, std::path::Path::new("/somewhere/recovery-codes.txt"));
+        assert_eq!(first, folder.join("recovery-codes.txt"));
+        std::fs::write(&first, "x").unwrap();
+        assert_eq!(download_destination(&folder, std::path::Path::new("recovery-codes.txt")), folder.join("recovery-codes (1).txt"));
+        std::fs::remove_dir_all(&folder).unwrap();
     }
 
     #[test]
