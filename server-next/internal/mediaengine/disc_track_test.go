@@ -27,6 +27,11 @@ func TestATrackIsReadOutOfADiscsMainFeature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if err := streams.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
 	for _, index := range []string{"bluray-two-clip-bdmv/BDMV/index.bdmv", "dvd-two-title-video-ts/VIDEO_TS/VIDEO_TS.IFO", "bluray-udf250.iso"} {
 		path, err := filepath.Abs(filepath.Join("..", "..", "..", "fixtures", "discs", index))
 		if err != nil {
