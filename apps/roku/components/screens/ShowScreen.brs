@@ -4,6 +4,8 @@
 sub init()
     c = colours()
     f = frames()
+    ' a play started from this page: on the way back the row follows what played (onActive)
+    m.top.observeField("open", "onOpenAsked")
     m.tabsY = f.title.tabsY
     m.hero = m.top.findNode("hero")
     m.hero.translation = [f.gutter, f.title.copyTop]
@@ -46,7 +48,44 @@ sub onDetail(event as object)
         m.sections.item = result.data
         m.full = result.data
         drawTop()
+        if m.follow = true then followNext(result.data.nextEpisode)
     end if
+end sub
+
+' The episode the row follows back to, once, when it is in this season; else `at` as it was.
+function followedTo(seasonId as string, episodes as object, at as integer) as integer
+    if m.followTo = invalid or m.followTo.season <> seasonId then return at
+    for i = 0 to episodes.count() - 1
+        if episodes[i].id = m.followTo.episode
+            m.followTo = invalid
+            return i
+        end if
+    end for
+    return at
+end function
+
+sub onOpenAsked(event as object)
+    if event.getData().play = true then m.fromPlayer = true
+end sub
+
+' Back from the player after Up next played on, perhaps into another season: the row goes to the
+' show's next episode (the one that was playing when it was left part-way, else the one after it),
+' on its own season (walk result pages-01, fault 11).
+sub followNext(upNext as dynamic)
+    m.follow = false
+    if upNext = invalid or upNext.parentId = invalid then return
+    for i = 0 to m.list.count() - 1
+        if m.list[i].id = upNext.parentId
+            m.followTo = {season: upNext.parentId, episode: upNext.id}
+            m.kept.delete(upNext.parentId)
+            if m.seasons.index <> i
+                m.seasons.index = i
+                m.shown = ""
+                showSeason()
+            end if
+            return
+        end if
+    end for
 end sub
 
 sub onSeasons(event as object)
@@ -107,6 +146,7 @@ sub showSeason()
         at = 0
         if nextUp > 0 then at = nextUp
     end if
+    at = followedTo(season.id, episodes, at)
     if at > 0 then m.episodes.jumpTo = at
     if not m.started
         m.started = true
@@ -402,6 +442,10 @@ sub onActive()
     if not m.top.active then return
     ' back from the player (or a page opened from here): the season's ticks, progress and Up next
     ' are read again; the first time the page is shown counts even before its episodes arrive
+    if m.fromPlayer = true
+        m.fromPlayer = false
+        m.follow = true          ' onDetail moves to the show's next episode, in whatever season
+    end if
     if m.shownOnce = true and m.started then reread()
     m.shownOnce = true
     focusStop()
@@ -549,6 +593,7 @@ sub onEpisodesAgain(event as object)
     newest = newestPlayed(ctx.items)
     if newest.at >= 0 and m.newest <> invalid and newest.when > m.newest then at = newest.at
     m.newest = newest.when
+    at = followedTo(id, ctx.items, at)
     m.kept[id] = at
     m.shown = ""
     showSeason()
