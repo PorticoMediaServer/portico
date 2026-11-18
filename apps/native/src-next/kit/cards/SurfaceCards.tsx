@@ -25,7 +25,7 @@ export type LiveCardProps = CardProps & {
 export function LiveCard(props: LiveCardProps) {
   const t = useTheme(), width = props.width ?? (t.isTV ? 400 : 244), height = t.isTV ? 225 : 140, pad = t.isTV ? 22 : 14;
   return <CardFrame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={height} />}>
-    {s => <ArtFrame height={height} radius={12} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={t.spec.card.hover.liveScale} selected={props.selection?.selected}>
+    {s => <><ArtFrame height={height} radius={12} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={t.spec.card.hover.liveScale} selected={props.selection?.selected}>
       <AmbientArt palette={{first: t.colors.ambient, second: t.colors.raised}} treatment="cover" visible={props.visible} priority={props.priority} />
       {props.badge !== undefined && <View style={{position: 'absolute', top: pad / 2, left: pad / 2}}><Badge>{props.badge}</Badge></View>}
       {!!props.count && <View style={{position: 'absolute', top: pad / 2, right: pad / 2, minWidth: t.isTV ? 36 : 24, height: t.isTV ? 36 : 24, paddingHorizontal: 6, borderRadius: t.isTV ? 18 : 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.accent}}>
@@ -44,12 +44,13 @@ export function LiveCard(props: LiveCardProps) {
         </View>
         <View style={{marginTop: 'auto'}}>
           <Text numberOfLines={1} style={[t.type.liveTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
-          <Parts parts={props.caption} />
           {props.range && <Text numberOfLines={1} style={[t.type.cardSubtitle, {color: t.colors.textTertiary, marginTop: 3}]}>{props.range}</Text>}
           <Progress value={props.progress} style={{marginTop: t.isTV ? 12 : 10}} />
         </View>
       </View>
-    </ArtFrame>}
+    </ArtFrame>
+    {/* The card's caption, under its art as a poster's is: a recorded show's "6 recordings  2 unwatched" (desktop-live live-recorded). */}
+    {!!props.caption?.length && <View style={{marginTop: t.isTV ? 12 : 8}}><Parts parts={props.caption} /></View>}</>}
   </CardFrame>;
 }
 

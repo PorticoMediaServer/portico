@@ -34,7 +34,7 @@ const f = (name: FixtureName) => formatMessage(newFramesFixtureMessages[`next.ne
 const none = () => {};
 const selection: LayoutSelection = {active: false, isSelected: () => false, onToggle: none, onEnter: none};
 const card = ({onFocus, onBlur, focusId, testID}: LayoutItemContext) => ({onFocus, onBlur, focusId, testID});
-const fact = (id: string, text: string, role: 'identity' | 'context' | 'supplement' = 'context') => ({id, text, role});
+const fact = (id: string, text: string, role: 'identity' | 'context' | 'supplement' | 'status' = 'context') => ({id, text, role});
 /** The reference pool keeps shows apart from films. */
 const shows = new Set(['severance', 'the-last-of-us', 'silo', 'slow-horses']);
 const poster = (id: string) => asset(`pool/${shows.has(id) ? 'tv' : 'movies'}/${id}.jpg`);
@@ -255,13 +255,15 @@ function LiveUpcoming() {
 /** desktop-live live-recorded: each show a live card with its channel, its corner badge or unwatched count, and its line. */
 const recordedShows = [[channels.ad, 'pClockmakers', 'recordings6', undefined, 2], [channels.pk, 'pStoryTime', 'recordings3', undefined, 2], [channels.n24, 'pWorldTonight', 'yesterday430', undefined, undefined],
   [channels.lm, 'pQuietHarbor', 'quietHarborFacts', 'kept', undefined], [channels.ad, 'pWildPlains', 'recordingsThree', 'kept', undefined], [channels.ss, 'pCycling', 'today130', 'incomplete', undefined]] as const;
+/** The line under a recorded show: its parts, the unwatched one in accent. */
+const recordedLine = (line: string) => line.split(' · ').map((text, index) => fact(`line${index}`, text, / unwatched$/.test(text) ? 'status' : 'context'));
 function LiveRecorded() {
   const {theme, frame, phone} = useScale(), [room, measure] = useRoom(), columns = phone ? 1 : frame.form === 'tv' ? 3 : 2, gap = theme.space.sm;
   const width = (room - gap * (columns - 1)) / columns;
   return <Page destination={{kind: 'live'}}><FocusProvider><LiveFrame testID="frames-live-recorded" {...recordingsHeader('recorded', phone)} chips={<RecordingsChips value="recorded"/>}
     toolbar={<><Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{f('recordedCounts')}</Text></>}>
     <View onLayout={measure} style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
-      {recordedShows.map(([channel, title, line, badge, count]) => <LiveCard key={title} title={f(title)} channel={channel.name} mark={channel.mark} caption={[fact('line', f(line))]} badge={badge && f(badge)} count={count} width={width} onNavigate={none}/>)}
+      {recordedShows.map(([channel, title, line, badge, count]) => <LiveCard key={title} title={f(title)} channel={channel.name} mark={channel.mark} caption={recordedLine(f(line))} badge={badge && f(badge)} count={count} width={width} onNavigate={none}/>)}
     </View>
   </LiveFrame></FocusProvider></Page>;
 }

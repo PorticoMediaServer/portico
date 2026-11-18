@@ -213,12 +213,14 @@ function LiveUpcoming() {
 /** desktop-live live-recorded: each show a live card with its channel, its corner badge or unwatched count, and its line. */
 const recordedShows = [[channels.ad, 'pClockmakers', 'recordings6', undefined, 2], [channels.pk, 'pStoryTime', 'recordings3', undefined, 2], [channels.n24, 'pWorldTonight', 'yesterday430', undefined, undefined],
   [channels.lm, 'pQuietHarbor', 'quietHarborFacts', 'kept', undefined], [channels.ad, 'pWildPlains', 'recordingsThree', 'kept', undefined], [channels.ss, 'pCycling', 'today130', 'incomplete', undefined]] as const;
+/** The line under a recorded show: its parts, the unwatched one in accent. */
+const recordedLine = (line: string) => line.split(' · ').map((text, index) => fact(`line${index}`, text, / unwatched$/.test(text) ? 'status' : 'context'));
 function LiveRecorded() {
   const phone = usePhone();
   return <Page current="liveTvShort"><LiveFrame {...recordings('recorded', phone)} toolbar={<><small style={{color: 'var(--color-text-secondary)'}}>{f('recordedCounts')}</small><span style={{flex: 1}}/><Button variant="text" size="small" icon="i-chdown" onClick={none}>{f('sortRecent')}</Button></>}>
     <div className={page.cardGrid}>
-      {recordedShows.map(([channel, title, line, badge, count]) => <LiveCard key={title} channel={{sourceId: 'demo', id: channel.id, name: channel.name, mark: channel.mark}} programme={{title: f(title), facts: [fact('line', f(line))]}}
-        badge={badge && f(badge)} count={count} style={{width: '100%'}} onNavigate={none}/>)}
+      {recordedShows.map(([channel, title, line, badge, count]) => <LiveCard key={title} channel={{sourceId: 'demo', id: channel.id, name: channel.name, mark: channel.mark}} programme={{title: f(title), facts: []}}
+        caption={recordedLine(f(line))} badge={badge && f(badge)} count={count} style={{width: '100%'}} onNavigate={none}/>)}
     </div>
   </LiveFrame></Page>;
 }
