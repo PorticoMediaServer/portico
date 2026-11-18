@@ -44,6 +44,9 @@ function kitPages() as object
         {title: "In a section: error and empty rows (the kit has no loading row: a section waits in its own place)", parts: [
             {c: "StateRow", at: [200, 200], f: {kind: "error", title: "Couldn't load this row", reason: "The server didn't answer.", action: "Try again"}},
             {c: "StateRow", at: [200, 480], f: {kind: "empty", title: "Nothing here yet", reason: "What you add shows here."}}]},
+        {title: "A person's face: their picture cut round, or their initials over a tint picked by their name", parts: [
+            {c: "Face", at: [200, 200], f: {size: 280, name: "Steven Spielberg", photo: ""}}, {c: "Face", at: [560, 200], f: {size: 280, name: "Zendaya", photo: ""}},
+            {c: "Face", at: [920, 200], f: {size: 280, name: "Timothée Chalamet", photo: ""}}]},
         {title: "The whole-page state", parts: [{c: "PageState", at: [0, 0], f: {icon: "warning", title: "Can't reach the server", body: "You're still signed in. Try again in a moment.", buttons: [{id: "a", text: "Try again now", icon: "refresh"}], footnote: "A footnote line"}}]},
         {title: "Keys", parts: [
             {c: "Key", at: [200, 200], f: {text: "a", role: "keyLetter"}}, {c: "Key", at: [320, 200], f: {text: "b", role: "keyLetter", on: true}},

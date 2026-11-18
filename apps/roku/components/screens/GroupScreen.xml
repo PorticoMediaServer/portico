@@ -20,13 +20,7 @@
   <children>
     <Group id="rows"/>
     <Group id="head">
-      <Group id="face" visible="false">
-        <Poster id="faceDisc" uri="pkg:/images/disc.png"/>
-        <Label id="initials" horizAlign="center" vertAlign="center"/>
-        <MaskGroup id="faceClip" maskUri="pkg:/images/disc.png">
-          <Poster id="photo" loadDisplayMode="scaleToZoom"/>
-        </MaskGroup>
-      </Group>
+      <Face id="face" visible="false"/>
       <Group id="words">
         <Label id="eyebrow"/>
         <Label id="name"/>

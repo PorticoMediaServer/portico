@@ -8,16 +8,9 @@ sub init()
     m.smallTitle = m.top.findNode("smallTitle")
     m.name = m.top.findNode("name")
     m.about = m.top.findNode("about")
-    face = m.top.findNode("face")
-    face.translation = [f.gutter, f.group.eyebrowY]
-    for each id in ["faceDisc", "initials", "photo"]
-        node = m.top.findNode(id)
-        node.width = g.face
-        node.height = g.face
-    end for
-    m.top.findNode("faceClip").maskSize = [g.face, g.face]
-    m.top.findNode("faceDisc").blendColor = c.raisedBright
-    setType(m.top.findNode("initials"), "personFace", c.textSecondary)
+    m.face = m.top.findNode("face")
+    m.face.translation = [f.gutter, f.group.eyebrowY]
+    m.face.size = g.face
     setType(m.top.findNode("eyebrow"), "eyebrow", c.accentStrong)
     setType(m.top.findNode("factsStrong"), "metaStrong", c.text)
     setType(m.top.findNode("facts"), "meta", c.textSecondary)
@@ -55,9 +48,8 @@ sub onItem()
     m.top.findNode("words").translation = [x, 0]
     m.name.width = frames().rightEdge - x
     if m.isPerson
-        m.top.findNode("initials").text = initialsOf(item.title)
-        m.top.findNode("initials").visible = true
-        m.top.findNode("faceClip").visible = false
+        m.face.photo = ""
+        m.face.name = item.title
         m.top.art = ""
         placeWords("", item.title, "", "", "")
         api("GET", "/v1/people/" + item.id, invalid, "onPerson", {generation: m.generation})
@@ -173,11 +165,10 @@ sub onPerson(event as object)
     end if
     person = result.data
     photo = pick(person.images, ["portrait", "photo", "profile", "poster"])
-    m.top.findNode("faceClip").visible = (photo <> "")
-    m.top.findNode("initials").visible = (photo = "")
+    m.face.name = person.name
     if photo <> ""
         m.top.art = "poster|" + photo
-        m.top.findNode("photo").uri = imageUrl(photo, frames().group.face, frames().group.face)
+        m.face.photo = imageUrl(photo, frames().group.face, frames().group.face)
     end if
     born = ""
     if person.birthDate <> invalid then born = "Born " + dateText(person.birthDate)
