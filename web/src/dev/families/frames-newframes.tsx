@@ -5,10 +5,11 @@ import {libraryTabs} from '@core/presentation/library-tabs';
 import {browseToolbarModel} from '@portico/client-core/kit-model';
 import type {FactPart} from '@portico/client-core/kit-model';
 import {newFramesFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/newframes-fixtures.ts';
+import {titleFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/title-fixtures.ts';
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
 import {AmbientArt, ChannelMark} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
-import {CircleCard, GenreTile, LiveCard, PosterCard, QuickTile, ResumeCard, SquareCard, WideCard} from '../../kit/cards';
+import {CircleCard, EpisodeTile, GenreTile, LiveCard, PosterCard, QuickTile, ResumeCard, SquareCard, WideCard} from '../../kit/cards';
 import {BrowseToolbar, LibraryMenu, LibrarySwitcher, SongRow} from '../../kit/browse';
 import {Button, Chip, Segmented, Switch, Tabs, TextField} from '../../kit/controls';
 import {RecordingStorage} from '../../kit/dvr/RecordingsLayout';
@@ -92,11 +93,14 @@ function Scopes() {
   return <>{scopes.map(([name, count], index) => <Chip key={name} variant="search" selected={index === 0} count={count} retry={name === 'scopePeople' || name === 'scopeLive'}
     dim={index > 0 && count === undefined && name !== 'scopePeople' && name !== 'scopeLive'} onClick={none}>{f(name)}</Chip>)}</>;
 }
+/** Search's Episodes row: the kit's episode tile, as the live Search page draws a found episode (Search.tsx): the still with its
+ * length, the title, the show and the code, two lines of synopsis (final-desktop-6 "Episodes 4 of 10"). */
 function EpisodesShelf() {
-  const art = useReferenceArtwork(), phone = usePhone();
-  const items = [['episode1', 'episodeCode1', .2], ['episode2', 'episodeCode2', undefined], ['episode3', 'episodeCode3', undefined], ['episode4', 'episodeCode4', undefined]] as const;
+  const art = useReferenceArtwork(), phone = usePhone(), ep = (name: string) => formatMessage(titleFixtureMessages[`next.title.fixture.${name}` as keyof typeof titleFixtureMessages]);
+  const items = [['episode1', 'episodeCode1', .67, 1], ['episode2', 'episodeCode2', undefined, 2], ['episode3', 'episodeCode3', undefined, 3], ['episode4', 'episodeCode4', undefined, 4]] as const;
   return <Shelf heading={f('episodes')} subtitle="4" platform={platform(phone)} items={items} getKey={item => item[0]}
-    renderItem={([title, code, progress]) => <WideCard model={{title: f(title), caption: [fact('show', f('tlou'), 'identity'), fact('code', f(code))], detail: [], progress}} artwork={art('bd-tlou.jpg')} style={{width: 'var(--card-wide-width)'}} onNavigate={none}/>}/>;
+    renderItem={([title, code, progress, n]) => <EpisodeTile context="search" artworkKind="still" artwork={art(n % 2 ? 'pool/tv/the-last-of-us--bd.jpg' : 'bd-tlou.jpg')} length={ep(`ep${n}Length`)} description={ep(`ep${n}Synopsis`)}
+      model={{title: f(title), caption: [fact('show', f('tlou'), 'identity'), fact('code', f(code))], detail: [], progress}} style={{width: 'var(--card-wide-width)'}} onNavigate={none}/>}/>;
 }
 function SearchResults() {
   const art = useReferenceArtwork(), phone = usePhone();
