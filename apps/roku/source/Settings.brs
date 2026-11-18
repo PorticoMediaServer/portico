@@ -193,3 +193,27 @@ function deviceIcon(platform as dynamic) as string
     if platform = "roku" or platform = "tvos" or platform = "androidtv" or platform = "firetv" or platform = "webos" or platform = "tizen" then return "tvDevice"
     return "browser"
 end function
+
+' Search settings (tv-more frame 34): the rows whose name, help or section title holds the words,
+' grouped by page in the list's order; a page whose title holds them is a match with no rows of its
+' own. [{page (its place in pages), rows: [{row, section}]}]; nothing for no words.
+function settingsMatches(pages as object, query as string) as object
+    words = lcase(query.trim())
+    out = []
+    if words = "" then return out
+    for i = 0 to pages.count() - 1
+        page = pages[i]
+        found = []
+        for each section in page.sections
+            for each row in section.rows
+                if row.label <> invalid
+                    text = lcase(row.label) + " " + lcase(section.title)
+                    if row.help <> invalid then text = text + " " + lcase(row.help)
+                    if instr(1, text, words) > 0 then found.push({row: row, section: section})
+                end if
+            end for
+        end for
+        if found.count() > 0 or instr(1, lcase(page.title), words) > 0 then out.push({page: i, rows: found})
+    end for
+    return out
+end function
