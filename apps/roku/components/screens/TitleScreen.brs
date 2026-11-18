@@ -157,8 +157,14 @@ sub onPressed(event as object)
     end if
 end sub
 
-' The "..." button and * open the title's menu; Details is left out, as this is its page.
+' The "..." button and * open the title's menu; Details is left out, as this is its page. * on a
+' More like this card opens that card's own menu, as on any other card.
 sub openMenu()
+    related = m.sections.focusedRelated
+    if m.stop = 1 and related <> invalid and related.id <> invalid
+        m.top.menu = cardMenu(related, [], [])
+        return
+    end if
     if m.full = invalid or m.full.state = invalid then return
     m.top.menu = cardMenu(m.full, [], ["details"])
 end sub
@@ -168,6 +174,7 @@ sub onMenuChosen(event as object)
 end sub
 
 sub cardMenuChanged(item as object)
+    if m.full = invalid or item.id <> m.full.id then return     ' a More like this card's change: the page is the same
     m.full = item
     draw()
 end sub

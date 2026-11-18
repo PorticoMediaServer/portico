@@ -24,6 +24,7 @@ sub init()
     setType(m.top.findNode("about"), "about", c.textSecondary)
     setType(m.top.findNode("tagline"), "body", c.textTertiary)
     m.related.observeField("selectedIndex", "onRelatedSelected")
+    m.related.observeField("focusedIndex", "onRelatedFocused")
     m.cast.observeField("selectedIndex", "onCastSelected")
     m.people = []
     m.relatedItems = []
@@ -178,6 +179,11 @@ end sub
 sub onCastSelected(event as object)
     at = event.getData()
     if at >= 0 and at < m.people.count() then m.top.chosen = m.people[at]
+end sub
+
+sub onRelatedFocused(event as object)
+    at = event.getData()
+    if at >= 0 and at < m.relatedItems.count() then m.top.focusedRelated = m.relatedItems[at]
 end sub
 
 sub onRelatedSelected(event as object)
