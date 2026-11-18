@@ -516,6 +516,8 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		Settings: owner, TranscodingEnabled: owner.ConversionMode != "never", FragmentedOutput: fragmented, NoConverter: !converter,
 		Connection:  streaming.DeliveryContext{NetworkClass: streaming.NetworkRemote},
 		Preferences: saved(r.Preferences),
+		// What the default audio preference "@original" plays.
+		OriginalLanguage: r.Item.OriginalLanguage,
 	}
 	if isSTRM {
 		request.File.Size = facts.ObservedSize

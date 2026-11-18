@@ -366,3 +366,15 @@ func TestStateSentToAMergedAwayTitleReachesTheOneThatRemains(t *testing.T) {
 		t.Fatalf("the title that remains did not get the edits: %+v", item.State)
 	}
 }
+
+// A match keeps the language the title was made in, from TMDB's answer, and playback is given
+// it: what the default audio choice "the original language" plays.
+func TestAMatchKeepsTheOriginalLanguageForPlayback(t *testing.T) {
+	sh := newShelf(t, "Heat.mkv")
+	heat := sh.unmatched()[0].ItemID
+	sh.do("PUT", "/v1/admin/items/"+heat+"/match", MatchRequest{Provider: "tmdb", ID: "949"}, nil, 200)
+	item, err := sh.s.db.PlaybackItem(context.Background(), db.Viewer{UserID: 1, ProfileID: 1}, heat)
+	if err != nil || item.OriginalLanguage != "en" {
+		t.Fatalf("after matching Heat the playback item's original language is %q (%v), want en", item.OriginalLanguage, err)
+	}
+}
