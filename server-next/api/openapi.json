@@ -7780,6 +7780,9 @@
       },
       "MemberLimits": {
         "properties": {
+          "allowLiveTv": {
+            "type": "boolean"
+          },
           "allowTokens": {
             "type": "boolean"
           },
@@ -7834,12 +7837,16 @@
           "allowUnrated",
           "blockedLabels",
           "allowWatchTogether",
-          "allowTokens"
+          "allowTokens",
+          "allowLiveTv"
         ],
         "type": "object"
       },
       "MemberLimitsEdit": {
         "properties": {
+          "allowLiveTv": {
+            "type": "boolean"
+          },
           "allowTokens": {
             "type": "boolean"
           },
