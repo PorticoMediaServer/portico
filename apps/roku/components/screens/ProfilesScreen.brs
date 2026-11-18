@@ -101,10 +101,10 @@ sub onSelected(event as object)
     result = event.getData()
     if result.ok and result.data.accessToken <> invalid
         m.top.chosen = {session: result.data, profile: m.top.profiles[m.focus]}
-    else if m.stage = "pin" and result.status <> 0
+    else if m.stage = "pin" and result.error.code = "profile_pin_invalid"
         m.pad.wrong = true
-        if result.status = 429 then m.pinNote.text = result.error.message
     else if m.stage = "pin"
+        ' any other refusal (too many tries, a limit on the account) is not a wrong PIN: give the reason
         m.pinNote.text = result.error.message
     else
         m.note.text = result.error.message
