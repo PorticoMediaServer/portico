@@ -375,7 +375,7 @@ sub onActive()
     else if m.onActions
         m.actions.active = true
     else if m.onAbout
-        m.top.setFocus(true)
+        m.top.findNode("aboutStop").setFocus(true)
     else if m.onFilters
         m.filters.active = true
     else if m.focus < m.shown.count()
@@ -420,7 +420,7 @@ end sub
 
 ' The biography read in full has closed: focus is back on it.
 sub onReaderClosed()
-    m.top.setFocus(true)
+    m.top.findNode("aboutStop").setFocus(true)
 end sub
 
 function canReadAbout() as boolean
@@ -431,7 +431,7 @@ sub toAbout()
     m.onFilters = false
     m.onAbout = true
     paintAbout()
-    m.top.setFocus(true)
+    m.top.findNode("aboutStop").setFocus(true)
 end sub
 
 sub toFilters()

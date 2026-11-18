@@ -31,6 +31,8 @@
   <script type="text/brightscript" uri="pkg:/source/Live.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
+    <!-- Takes focus back from Undo: the player cannot take focus back from its own child. -->
+    <Group id="undoStop" focusable="true"/>
     <Rectangle width="1920" height="1080" color="0x000000FF"/>
     <Video id="video" width="1920" height="1080" enableUI="false"/>
     <!-- The overlay (tv-player frame 1): a top row, the seek bar, the time row and the button row.
