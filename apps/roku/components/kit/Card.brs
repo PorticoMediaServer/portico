@@ -8,6 +8,7 @@ sub init()
     m.madeRule = m.top.findNode("madeRule")
     m.madeTitle = m.top.findNode("madeTitle")
     m.art = m.top.findNode("art")
+    m.tiles = m.top.findNode("tiles")
     m.shade = m.top.findNode("shade")
     m.title = m.top.findNode("title")
     m.sub = m.top.findNode("sub")
@@ -152,6 +153,14 @@ sub onContent()
         m.art.uri = item.art
     end if
     m.made.visible = (item.art = "" and not overlay and (not under or item.oneLine = true))
+    ' four posters, when the content carries them, cover the one picture
+    mosaic = (item.tiles <> invalid and item.tiles.count() = 4)
+    m.tiles.visible = mosaic
+    if mosaic
+        for i = 0 to 3
+            m.tiles.getChild(i).uri = item.tiles[i]
+        end for
+    end if
     m.plate.visible = (item.art <> "" and (overlay or not item.whole))
     m.shade.visible = overlay
     m.title.visible = overlay
@@ -295,6 +304,12 @@ sub grow(s as float)
     m.art.width = w
     m.art.height = h
     m.art.translation = [0, 0]
+    for i = 0 to 3
+        tile = m.tiles.getChild(i)
+        tile.width = w / 2
+        tile.height = h / 2
+        tile.translation = [(i mod 2) * w / 2, int(i / 2) * h / 2]
+    end for
     if aside
         ' a cover on a wide card: whole, at the right, with the title and progress beside it on the plate
         m.art.width = h - 24 * s
