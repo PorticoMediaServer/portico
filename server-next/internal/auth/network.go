@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -80,19 +81,23 @@ func (n Networks) Client(r *http.Request) (netip.Addr, bool) {
 	return peer, true
 }
 
-// ThroughUnlistedProxy reports whether a request carries X-Forwarded-For from an address
+// forwardingHeaders are what reverse proxies add to what they pass on. Only X-Forwarded-For
+// is ever read for an address; any of them shows a proxy passed the request on.
+var forwardingHeaders = []string{"X-Forwarded-For", "X-Real-IP", "Forwarded", "X-Forwarded-Host", "X-Forwarded-Proto"}
+
+// ThroughUnlistedProxy reports whether a request carries a forwarding header from an address
 // that is not one of the owner's trusted proxies. The header is still not believed, but
 // it shows the request was passed on by something, so the connection's own address is that
 // thing's and not the person's.
 func (n Networks) ThroughUnlistedProxy(r *http.Request) bool {
-	if len(r.Header.Values("X-Forwarded-For")) == 0 {
+	if !slices.ContainsFunc(forwardingHeaders, func(name string) bool { return len(r.Header.Values(name)) > 0 }) {
 		return false
 	}
 	ap, err := netip.ParseAddrPort(r.RemoteAddr)
 	return err != nil || !within(n.Proxies, ap.Addr().Unmap().WithZone(""))
 }
 
-// UnlistedLocalProxy reports whether a request carries X-Forwarded-For from an address on
+// UnlistedLocalProxy reports whether a request carries a forwarding header from an address on
 // this machine or a private network that is not one of the owner's trusted proxies: almost
 // always the owner's own reverse proxy, not yet listed. The header is still not believed.
 // Until the proxy is listed, everyone who comes through it is one address to this server.

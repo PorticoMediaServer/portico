@@ -205,3 +205,18 @@ func TestContainerSigns(t *testing.T) {
 		}
 	}
 }
+
+// A reverse proxy that marks what it passes on with another header than X-Forwarded-For
+// (nginx set to send only X-Real-IP, one that sends the standard Forwarded) is a proxy all
+// the same: unlisted, on this machine, its visitors are not at home.
+func TestAnyForwardingHeaderFromAnUnlistedProxyIsNeverHome(t *testing.T) {
+	n := Networks{Home: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}}
+	for _, header := range []string{"X-Real-IP", "Forwarded", "X-Forwarded-Host", "X-Forwarded-Proto"} {
+		r := httptest.NewRequest("GET", "/", nil)
+		r.RemoteAddr = "127.0.0.1:4000"
+		r.Header.Set(header, "203.0.113.9")
+		if n.FromHome(r) || !n.UnlistedLocalProxy(r) {
+			t.Errorf("a request passed on with %s counts as from home", header)
+		}
+	}
+}
