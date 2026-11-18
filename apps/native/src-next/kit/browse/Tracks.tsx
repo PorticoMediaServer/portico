@@ -99,17 +99,18 @@ export function SongRow({row, onPlay, onMore, selection, selected = false, onSel
   const menuAnchorRef = useRef<View>(null);
   const caption = row.text.caption.filter(part => part.id === (ranked ? 'album' : 'artist'));
   if (tv) return <TVTrackRow {...{focusId, testID, onFocus, onBlur, disabled, index, previousFocused}} row={row} selected={selected} selectionMode={onSelectionChange !== undefined} selection={selection} onPress={onSelectionChange ?? (() => onPlay(row.id))} onMenu={onMore ? () => onMore(row.id) : undefined} showArtwork showCaption/>;
-  return <View style={{height: grow ? undefined : ranked ? 62 : 58, minHeight: ranked ? 62 : 58, paddingVertical: grow ? 6 : undefined, flexDirection: 'row', alignItems: 'center', gap: tv ? 20 : 14, paddingLeft: 6, paddingRight: 12, borderRadius: 10, backgroundColor: selected ? alpha(theme.colors.accent, .18) : undefined}}>
+  // Rule 10: the title is a row label, two lines before any ellipsis; the row is at least its drawn height and grows for a second line.
+  return <View style={{minHeight: ranked ? 62 : 58, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: tv ? 20 : 14, paddingLeft: 6, paddingRight: 12, borderRadius: 10, backgroundColor: selected ? alpha(theme.colors.accent, .18) : undefined}}>
     {selection}
     <CardFrame menuAnchorRef={menuAnchorRef} moreExpanded={isMenuOpen?.(row.id)} title={row.text.title} primaryAction="play" onPlay={() => onPlay(row.id)} onMore={onMore ? () => onMore(row.id, menuAnchorRef) : undefined}
       selection={{active: !!onSelectionChange, selected, onToggle: onSelectionChange ?? onEnter, onEnter}}
-      accessibilityLabel={onSelectionChange ? trackLabel(row) : t('next.browse.native.play', {title: trackLabel(row)})} style={{flex: 1, height: grow ? undefined : '100%'}} pressableStyle={{flex: 1, justifyContent: 'center'}}>
+      accessibilityLabel={onSelectionChange ? trackLabel(row) : t('next.browse.native.play', {title: trackLabel(row)})} style={{flex: 1, alignSelf: 'stretch'}} pressableStyle={{flex: 1, justifyContent: 'center'}}>
       {() =>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 20 : 14, flex: 1, minWidth: 0}}>
         {ranked && row.number !== undefined && <TrackNumber number={row.number} playing={row.playing} width={22} size={tv ? 22 : 15} weight={700}/>}
         {row.artwork && <View style={{width: tv ? 72 : ranked ? 46 : 44, height: tv ? 72 : ranked ? 46 : 44, borderRadius: 6, overflow: 'hidden'}}>{row.artwork}</View>}
         <View style={{flex: 1, minWidth: 0}}>
-          <Text numberOfLines={grow ? undefined : 1} style={[browseType(theme, tv ? 24 : 15, 700), {color: row.playing ? theme.colors.accentStrong : theme.colors.text}]}>{row.text.title}</Text>
+          <Text numberOfLines={grow ? undefined : 2} style={[browseType(theme, tv ? 24 : 15, 700), {color: row.playing ? theme.colors.accentStrong : theme.colors.text}]}>{row.text.title}</Text>
           {caption.length > 0 && <View style={{flexDirection: 'row', gap: 10, marginTop: 2}}>{caption.map(part => <Text key={part.id} numberOfLines={grow ? undefined : 1} style={[browseType(theme, 13, 400), {color: theme.colors.textTertiary, flexShrink: 1}]}>{part.text}</Text>)}</View>}
         </View>
         {duration && <Text style={[browseType(theme, tv ? 20 : 13), {color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{duration.text}</Text>}

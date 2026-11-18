@@ -202,16 +202,17 @@
 .levels > i:nth-child(2) { height: 14px; }
 .levels > i:nth-child(3) { height: 6px; }
 .levels > i:nth-child(4) { height: 11px; }
-.songRow { position: relative; display: flex; align-items: center; gap: 14px; height: 62px; padding: 0 14px 0 6px; border-radius: 10px; transition: background 140ms var(--ease-out); }
+/* Rule 10: a song's title is a row label, two lines before any ellipsis; the row is at least its drawn height and grows for a second line. */
+.songRow { position: relative; display: flex; align-items: center; gap: 14px; min-height: 62px; padding: 0 14px 0 6px; border-radius: 10px; transition: background 140ms var(--ease-out); }
 .songRow:hover, .songRow:focus-within { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
 .songNumber { flex: none; width: 22px; display: grid; place-items: center; font-size: 15px; font-weight: 700; color: var(--browse-muted); font-variant-numeric: tabular-nums; }
-.songMain { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1; height: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.songMain { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1; align-self: stretch; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .songArtwork { display: block; position: relative; width: 46px; height: 46px; border-radius: 6px; overflow: hidden; flex: none; }
 .songText { min-width: 0; flex: 1; }
-.songText b { display: block; font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.songText b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 15px; font-weight: 700; overflow: hidden; }
 .songText small { display: flex; gap: 12px; font-size: 13px; color: var(--browse-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .songDuration { font-size: 13px; color: var(--browse-muted); font-variant-numeric: tabular-nums; flex: none; }
-.songRow[data-context="search"] { height: 58px; padding: 0 12px 0 6px; }
+.songRow[data-context="search"] { min-height: 58px; padding: 0 12px 0 6px; }
 .songRow[data-context="search"]:hover, .songRow[data-context="search"]:focus-within { background: var(--color-raised); }
 .songRow[data-context="search"] .songArtwork { width: 44px; height: 44px; }
 .songRow[data-context="search"] .songArtwork::after { content: ''; position: absolute; inset: 0; background: color-mix(in srgb, var(--color-ink) 55%, transparent); opacity: 0; transition: opacity 160ms var(--ease-out); }
