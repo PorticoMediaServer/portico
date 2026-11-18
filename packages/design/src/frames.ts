@@ -72,7 +72,7 @@ export const frame = {
   audio: {
     topBar: forms(46, 46, 46, 40),
     /** A phone's and a TV's artwork size; a tablet's and the web's is the room there is, up to this. */
-    artwork: {...forms(334, 600, 600, 480), web: 600},
+    artwork: {...forms(334, 600, 600, 560), web: 600},
     inset: forms(28, 40, 56, 96),
     /** Two title lines and a byline, bottom-aligned. */
     titleSlot: forms(96, 104, 104, 200),

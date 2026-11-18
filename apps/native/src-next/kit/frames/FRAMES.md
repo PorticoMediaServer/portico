@@ -163,6 +163,10 @@ Left for Stage 2, listed so it is not forgotten:
 - `PlayerUpNext` and `PlayerLiveActions` keep the sizes and tints they had in the screen. Reading them from
   `frameSpec.player` is Stage 2 work.
 - The TV panel opens each list in place under its heading (owner's decision, below): built into `PlayerPanelGroup` when the TV player moves in Stage 2.
+- Audio player, still short of the mock-ups (`final3-desktop-13-now-playing.jpg`; tablet-play frames 9 and 10): the volume line under the transport, the queue as a panel with Up next and Lyrics tabs, and Save as playlist at its foot. The frame has the places (`body`, the side column); the parts are Stage 2.
+- A card's own menu (long press, or ⋯ on a pointer) has no gallery case here: `detail-phone-5-menu-file-info.jpg` and `detail-tv-5c-episode-menu.jpg` draw it. Stage 2 adds the case with the first screen that opens one.
+
+Round 7 (18 Nov): a wide tablet's hero and title artwork now fades out by its alpha mask as TV's does (`kit/artwork/Surfaces.tsx`), so the title page has no hard edge where the picture starts. The TV audio player is one centred row (artwork 560) with no empty lower half. The Record glyph (`i-rec`) is a solid dot.
 
 ## Decided by the owner (Justin, 18 Nov)
 
