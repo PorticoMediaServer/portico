@@ -274,7 +274,7 @@ sub onMe(event as object)
         return
     end if
     m.rail.profileName = profile.name
-    m.rail.profileColour = "0x28587AFF"
+    m.rail.profileColour = faceColour(profile.color)
     showHome()
 end sub
 

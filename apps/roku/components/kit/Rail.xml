@@ -19,20 +19,22 @@
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
-    <Rectangle id="dim" width="1920" height="1080" color="0x071018FF" opacity="0.5" visible="false"/>
+    <Rectangle id="dim" width="1920" height="1080" opacity="0.5" visible="false"/>
     <Poster id="edge" uri="pkg:/images/rail-scrim.png" width="200" height="1080"/>
-    <Rectangle id="panel" width="440" height="1080" color="0x0B1822FF" visible="false"/>
+    <Rectangle id="panel" width="440" height="1080" visible="false"/>
     <Poster id="mark" uri="pkg:/images/mark.png" width="33" height="44" translation="[88,56]"/>
     <Poster id="wordmark" uri="pkg:/images/wordmark.png" width="149" height="34" translation="[88,61]" visible="false"/>
-    <Poster id="plate" uri="pkg:/images/round-14.9.png" blendColor="0x162C3AFF" width="344" height="72" visible="false"/>
+    <Poster id="plate" uri="pkg:/images/round-14.9.png" width="344" height="72" visible="false"/>
     <Poster id="ring" uri="pkg:/images/focus-14.9.png" width="416" height="144" visible="false"/>
     <Group id="fixed"/>
     <Group id="window" translation="[0,302]">
       <Group id="list"/>
     </Group>
-    <!-- more libraries above or below: the list's edge fades, as the season list's does -->
-    <Poster id="fadeTop" uri="pkg:/images/fade-white-up.png" width="440" height="64" visible="false"/>
-    <Poster id="fadeBottom" uri="pkg:/images/fade-white-down.png" width="440" height="64" visible="false"/>
+    <!-- more libraries above or below (the season list's cue): the next row peeks in half faded,
+         and the words say how many -->
+    <Poster id="fadeBottom" uri="pkg:/images/fade-white-down.png" width="440" height="36" visible="false"/>
+    <Label id="moreAbove" height="28" vertAlign="center" visible="false"/>
+    <Label id="moreBelow" height="28" vertAlign="center" visible="false"/>
     <Group id="foot" translation="[0,884]"/>
   </children>
 </component>

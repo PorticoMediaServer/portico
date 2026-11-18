@@ -1,20 +1,30 @@
-' Rows are 72 px apart.
+' Rows are 72 px apart. When the libraries are more than fit, the list shows whole rows, the next
+' one peeks in half faded, and each end that has more says how many in words ("2 more below"), as
+' the season list does: an entry is never faded, so none looks switched off.
 sub init()
+    c = colours()
     m.dim = m.top.findNode("dim")
+    m.dim.color = c.ink
     m.panel = m.top.findNode("panel")
+    m.panel.color = c.railPanel
     m.mark = m.top.findNode("mark")
     m.wordmark = m.top.findNode("wordmark")
     m.plate = m.top.findNode("plate")
+    m.plate.blendColor = c.raisedHigh
     m.ring = m.top.findNode("ring")
     m.window = m.top.findNode("window")
     m.list = m.top.findNode("list")
     m.foot = m.top.findNode("foot")
     m.fixed = m.top.findNode("fixed")
-    m.fadeTop = m.top.findNode("fadeTop")
     m.fadeBottom = m.top.findNode("fadeBottom")
+    m.moreAbove = m.top.findNode("moreAbove")
+    m.moreBelow = m.top.findNode("moreBelow")
+    setType(m.moreAbove, "micro", c.textTertiary)
+    setType(m.moreBelow, "micro", c.textTertiary)
     m.rows = []       ' every focus stop in order: Search, Home, the libraries, Live TV, Saved, Settings, the profile
     m.count = 0       ' how many libraries there are
-    m.fits = 0        ' how many of them show at once
+    m.fits = 0        ' how many of them show whole at once
+    m.lift = 0        ' room above the list for its "more above" words, once it has moved
     m.listFirst = 0   ' where the libraries start in m.rows
     m.listTop = 302
     m.focus = 0
@@ -92,16 +102,21 @@ sub onEntries()
     m.listTop = y
     m.listFirst = m.rows.count()
     m.count = libraries.count()
-    m.fits = int((868 - y - 72 * bottoms.count()) / 72)
-    if m.fits > m.count then m.fits = m.count
+    room = 868 - y - 72 * bottoms.count()     ' between Home and Live TV
+    m.fits = m.count
+    used = m.count * 72
+    if used > room
+        ' a 28 px line of words at each end and half a row peeking in below the whole rows
+        m.fits = int((room - 28 * 2 - 36) / 72)
+        used = 28 * 2 + m.fits * 72 + 36
+    end if
     for i = 0 to libraries.count() - 1
         row = makeRow(m.list, i * 72, libraries[i])
         row.y = -1
         m.rows.push(row)
     end for
     m.window.translation = [0, m.listTop]
-    m.window.clippingRect = [0, 0, 440, m.fits * 72]
-    y = m.listTop + m.fits * 72
+    y = m.listTop + used
     for each entry in bottoms
         row = makeRow(m.fixed, y, entry)
         row.y = y
@@ -121,8 +136,6 @@ sub onEntries()
     m.profileUnder = under
     row.label.height = 56
     row.label.translation = [141, 2]
-    m.fadeTop.translation = [0, m.listTop]
-    m.fadeBottom.translation = [0, m.listTop + m.fits * 72 - 64]
     onProfile()
     onCurrent()
 end sub
@@ -165,7 +178,9 @@ sub paint()
     m.panel.visible = m.open
     m.wordmark.visible = m.open
     m.mark.visible = not m.open
-    ' keep the library in focus (the current page's, when closed) inside those shown
+    ' keep the library in focus inside those shown whole; closed, the window is the first one that
+    ' holds the current page's library, so it is the same on every page with the same current entry
+    if not m.open then m.scroll = 0
     at = m.focus - m.listFirst
     if at >= 0 and at < m.count
         if at < m.scroll then m.scroll = at
@@ -173,16 +188,24 @@ sub paint()
     end if
     if m.scroll > m.count - m.fits then m.scroll = m.count - m.fits
     if m.scroll < 0 then m.scroll = 0
-    m.list.translation = [0, -72 * m.scroll]
-    m.fadeTop.visible = (m.scroll > 0)
-    m.fadeBottom.visible = (m.scroll + m.fits < m.count)
-    if m.open then tone = "0x0B1822FF" else tone = "0x071018FF"
-    m.fadeTop.blendColor = tone
-    m.fadeBottom.blendColor = tone
-    across = 170                      ' closed, the rail is only its icons: the fades stay off the page
-    if m.open then across = 440
-    m.fadeTop.width = across
-    m.fadeBottom.width = across
+    rest = m.count - m.scroll - m.fits
+    m.lift = 0
+    if m.scroll > 0 then m.lift = 28
+    peek = 0
+    if rest > 0 then peek = 36
+    m.list.translation = [0, m.lift - 72 * m.scroll]
+    m.window.clippingRect = [0, m.lift, 440, m.fits * 72 + peek]
+    m.fadeBottom.visible = (rest > 0)
+    m.fadeBottom.translation = [0, m.listTop + m.lift + m.fits * 72]
+    if m.open then m.fadeBottom.blendColor = c.railPanel else m.fadeBottom.blendColor = c.ink
+    if m.open then m.fadeBottom.width = 440 else m.fadeBottom.width = 170     ' closed: off the page
+    ' the words go with the names, so only on the open rail
+    m.moreAbove.visible = (m.open and m.scroll > 0)
+    m.moreAbove.text = m.scroll.toStr() + " more above"
+    m.moreAbove.translation = [141, m.listTop]
+    m.moreBelow.visible = (m.open and rest > 0)
+    m.moreBelow.text = rest.toStr() + " more below"
+    m.moreBelow.translation = [141, m.listTop + m.lift + m.fits * 72 + peek]
     for i = 0 to m.rows.count() - 1
         row = m.rows[i]
         isCurrent = (row.id = m.top.current)
@@ -199,7 +222,7 @@ sub paint()
     m.ring.visible = m.open
     if m.open
         y = m.rows[m.focus].y
-        if y < 0 then y = m.listTop + 72 * (m.focus - m.listFirst - m.scroll)
+        if y < 0 then y = m.listTop + m.lift + 72 * (m.focus - m.listFirst - m.scroll)
         m.plate.translation = [60, y]
         m.ring.translation = [24, y - 36]
     end if
