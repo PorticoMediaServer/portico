@@ -81,6 +81,9 @@ type StartRequest struct {
 	// on one clock, so every position in it is a place in the whole title. Plan it with
 	// PlanRequest.Joined and the whole title's length.
 	Parts []JoinedPart
+	// Disc, for the main feature of a film disc, opens the title for each converter run; Path
+	// is then the disc's index file. Plan it with PlanRequest.Disc. Its output is kept on disk.
+	Disc func() (*PlaybackInput, error)
 	// PositionMs is where the viewer starts, so the converter starts there too.
 	PositionMs int64
 	// Subtitles are the text subtitles offered in the playlist, the selected one
@@ -248,6 +251,12 @@ func (s *Streams) Start(ctx context.Context, r StartRequest) (Stream, error) {
 			source = remoteFile{storage: first.Remote, path: first.Path, size: first.Size, modified: first.Modified}
 		}
 	}
+	if r.Disc != nil {
+		open = func(context.Context, float64) (*PlaybackInput, subtitles.WindowInput, error) {
+			input, err := r.Disc()
+			return input, nil, err
+		}
+	}
 	// A file that cannot be opened is refused now, in plain words, not as a
 	// failed conversion a moment later.
 	probe, _, _, err := source.Open(ctx)
@@ -264,7 +273,7 @@ func (s *Streams) Start(ctx context.Context, r StartRequest) (Stream, error) {
 		originals: append([]TextRenditionPlan{}, r.OriginalSubtitles...),
 		duration:  plan.Duration, text: append([]TextRenditionPlan{}, r.Subtitles...), burn: r.Burn, burnLoad: r.BurnLoad,
 		changed: make(chan struct{}), replaced: r.Replaced, failedHook: r.Failed, served: -1, audio: r.Audio, seekIndex: r.SeekIndex,
-		openInput: open, parts: append([]JoinedPart(nil), r.Parts...), initialPosition: float64(r.PositionMs) / 1000,
+		openInput: open, disc: r.Disc != nil, parts: append([]JoinedPart(nil), r.Parts...), initialPosition: float64(r.PositionMs) / 1000,
 	}
 	s.Stop(r.SessionID)
 	if err := s.install(st); err != nil {

@@ -264,8 +264,8 @@ type PlaybackStart struct {
 	Subtitles *SubtitlePick     `json:"subtitles,omitempty"`
 	// Network is cellular when the app knows it is on mobile data. The server tells home from away.
 	Network string `json:"network,omitempty"`
-	// DiscTitle names one title of a disc. Disc playback is not available yet: a start that
-	// names one is refused with 501 disc_playback_unavailable.
+	// DiscTitle names one title of a disc. A disc plays its main feature only: a start that
+	// names a title is refused with 501 disc_playback_unavailable.
 	DiscTitle JSON `json:"discTitle,omitempty"`
 	// RequestID is the request from another device this start answers, when playback moves
 	// here: until this device reports playing, the two count as one stream.

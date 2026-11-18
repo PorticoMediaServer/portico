@@ -101,6 +101,10 @@ func DiscTitle(file string) bool {
 	return discFolder(folder) && discTitle(folder, path.Base(filepath.ToSlash(file)))
 }
 
+// DiscFolder is the folder the disc reader is handed for the file DiscTitle names: the disc
+// itself (the folder that holds BDMV) for a Blu-ray, the VIDEO_TS folder for a DVD.
+func DiscFolder(file string) string { return readerFolder(filepath.Dir(file)) }
+
 // discTitle reports whether a file inside a disc folder is the one that stands for the disc.
 func discTitle(folder, name string) bool {
 	if strings.EqualFold(folder, "BDMV") {
