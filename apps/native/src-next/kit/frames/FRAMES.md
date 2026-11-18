@@ -179,6 +179,15 @@ Round 7 (18 Nov): a wide tablet's hero and title artwork now fades out by its al
 - **Button labels are never shrunk and never cut.** Buttons are sized so standard labels fit on every form; a long translation makes the button wider or takes a second line. An ellipsis on a button label is a fault. In the kit: no label is shrunk to fit, and every labelled `Button` lets its label take a second line, its height being a minimum (the face every button already had at larger text). `labelLines` raises the limit.
 - Also settled: the Watch Together pill comes in Stage 2; phone transport is 76 / 76 / 58; TV player type takes the nearest roles; Start over is a button on a tablet; the synopsis is two lines; both missing-art looks stay; the tablet gutter is 28; web Settings is a full page at phone width; the audio queue uses the kit's song row; web cards carry their second line; the native backdrop comes in Stage 2.
 
+## The backdrop (owner, 17 and 18 Nov)
+
+ONE backdrop everywhere. `kit/shell/Layer.tsx` is the only file that draws it (#4189). A layer is anything that must
+hide what is beneath it (the app root, a stack screen, the TV route layer, a full-window page over the shell); whoever
+mounts one puts it on `Layer`. A frame, a screen and a page draw no backdrop and no page colour: they are transparent on
+their layer. The exceptions are in that file and nowhere else: the audio player's layer is a glow from the playing
+item's artwork, the video player's is black. A sheet, menu or dialog is a plain kit surface. The same file sets the
+status bar (light content; hidden only on the full-window video player). `test/next-one-backdrop.test.ts` holds the rule.
+
 ## What a screen may do
 
 - Choose the frame and pass it data, text and callbacks.

@@ -160,6 +160,13 @@ Round 7 (18 Nov): in the upright live strip Go to live sits on a row of its own 
 - **Button labels are never shrunk and never cut.** Buttons are sized so standard labels fit on every form; a long translation makes the button wider or takes a second line. An ellipsis on a button label is a fault. In the native kit: no label is shrunk to fit, and every labelled `Button` lets its label take a second line, its height being a minimum.
 - Also settled: the Watch Together pill comes in Stage 2; phone transport is 76 / 76 / 58; TV player type takes the nearest roles; Start over is a button on a tablet; the synopsis is two lines; both missing-art looks stay; the tablet gutter is 28; web Settings is a full page at phone width; the audio queue uses the kit's song row; web cards carry their second line; the native backdrop comes in Stage 2.
 
+## The backdrop (owner, 17 and 18 Nov)
+
+ONE backdrop everywhere: `body` draws it (`kit/backdrop.css`). A frame, a screen and a page draw no backdrop and no page
+colour. A sheet, menu or dialog is a plain kit surface. The exceptions: the audio player is a glow from the playing
+item's artwork, the video player is black. Round 8 removes the remaining local draws (`ColourBackdrop` in boot, the
+account pages and states, and three stylesheets that repeat the glow variables) and adds the guard the native app has.
+
 ## What a screen may do
 
 - Choose the frame and pass it data, text and callbacks.
