@@ -57,9 +57,26 @@ func TestAssistant(t *testing.T) {
 		names = append(names, tool.(map[string]any)["name"].(string))
 	}
 	slices.Sort(names)
-	want := []string{"get_title", "list_children", "list_libraries", "list_titles", "mark_watched", "now_playing", "search_titles", "server_status"}
+	want := []string{"get_title", "list_children", "list_libraries", "list_recordings", "list_titles", "list_unmatched", "mark_watched", "now_playing",
+		"recent_messages", "search_titles", "server_status", "server_storage", "start_scan", "tv_guide"}
 	if !slices.Equal(names, want) {
 		t.Errorf("an administrator key's assistant has tools %v, want only %v", names, want)
+	}
+	// Rule 34's tools answer through their routes, as the key: the administrator key starts a
+	// scan and reads; a key that may only read cannot start one.
+	for _, tool := range []struct {
+		name string
+		args map[string]any
+	}{{"start_scan", map[string]any{"library": th.libs["shows"].PublicID}}, {"list_unmatched", map[string]any{"library": th.libs["movies"].PublicID}},
+		{"server_storage", nil}, {"recent_messages", nil}} {
+		if text, failed := toolCall(t, s, admin.Secret, tool.name, tool.args); failed {
+			t.Errorf("%s failed: %s", tool.name, text)
+		}
+	}
+	var looker KeyCreated
+	call(t, s, "POST", "/v1/admin/api-keys", owner, KeyCreate{Name: "Reader", Scopes: []string{"read"}}, &looker)
+	if _, failed := toolCall(t, s, looker.Secret, "start_scan", map[string]any{"library": th.libs["shows"].PublicID}); !failed {
+		t.Error("a read-only key started a scan")
 	}
 	if code, _ := rpc(t, s, owner, "tools/list", nil); code != 403 {
 		t.Errorf("a signed-in app at the assistant address answered %d, want 403", code)
