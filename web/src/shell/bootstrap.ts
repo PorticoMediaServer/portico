@@ -374,11 +374,11 @@ export class ShellBootstrap {
           {authority: 'local', accountId: session.viewer.accountId, serverId: held.serverId});
         if (!isCurrent()) {api.getRouteConnection()?.dispose(); return;}
         const marker = entry?.connection.pin.serverId === held.serverId && entry.remembered?.profileId === held.profileId ? entry.remembered : undefined;
-        const resumed = await resumeRememberedProfile(api, session, direct, marker, signal);
+        const resumed = await resumeRememberedProfile(api, restored.session, direct, marker, signal);
         if (!isCurrent()) {api.getRouteConnection()?.dispose(); return;}
-        if (store && resumed && resumed !== session) {
-          await saveResumedProfile(api, session, resumed, store.connectionStorage(held.serverId), signal);
-          session = resumed;
+        if (store && resumed && resumed !== restored.session) {
+          await saveResumedProfile(api, restored.session, resumed, store.connectionStorage(held.serverId), signal);
+          session = selectedViewerRecord(api.baseUrl, resumed).session;
         }
         if (marker?.familyId === held.familyId) {
           if (!resumed) await store?.setRemembered(held.serverId, held.familyId, undefined, held.profileId).catch(() => {});

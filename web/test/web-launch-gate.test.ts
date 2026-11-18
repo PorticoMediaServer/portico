@@ -67,12 +67,14 @@ test('the account\'s only profile with no PIN opens without asking', async () =>
 test('the browser replays a PIN grant from the protected sign-in record after reload', async () => {
   gate.resetTabSessionGate();
   const marker = {familyId: 'family-a', profileId: 'alex', pinToken: 'grant'};
-  const l = launch(() => direct([profile('main', false, true), profile('alex', true)]), session, marker,
+  const held = {...session, refreshToken: 'synthetic_refresh_for_resume'};
+  const l = launch(() => direct([profile('main', false, true), profile('alex', true)]), held, marker,
     () => ({...session, accessToken: 'resumed'}));
   await l.bootstrap.start();
   assert.deepEqual(l.bodies, [{pinToken: 'grant'}]);
   assert.notEqual(l.bootstrap.getSnapshot().phase, 'choose-profile');
   assert.equal((await l.store.selected())?.connection.session.accessToken, 'resumed');
+  assert.equal((await l.store.selected())?.connection.session.refreshToken, held.refreshToken, 'the browser can renew the sign-in after replay');
   assert.deepEqual((await l.store.selected())?.remembered, marker);
   l.bootstrap.dispose();
 });
