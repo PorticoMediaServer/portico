@@ -75,6 +75,38 @@ sub main()
     answer(lastSent(), {ok: true, status: 200, data: {session: {accessToken: "t", twoStepSetupRequired: true}}})
     check("a sign-in that still needs two-step set-up is not let through", m.top.signedIn = invalid and m.stage = "code" and instr(1, m.nodes.codeNote.text, "Set up two-step sign-in") = 1)
 
+    ' servers found on this network: listed under their own name only when they answer as the server
+    ' that announced itself, and opened held to that id
+    fresh()
+    go("local")
+    m.discovery = {isSameNode: function(other as object) as boolean : return true : end function}
+    found = {data: [{id: "srv_home", fp: "f", ip: "192.168.1.20", port: 32500}, {id: "srv_fake", fp: "f", ip: "192.168.1.30", port: 32500}],
+        getData: function() as object : return m.data : end function, getRoSGNode: function() as object : return m.node : end function, node: m.discovery}
+    onFound(found)
+    checks = []
+    for each request in m.sent
+        if request.callback = "onNearbySystem" then checks.push(request)
+    end for
+    check("each found server is asked at its own address", checks.count() = 2 and checks[0].origin = "http://192.168.1.20:32500" and checks[1].origin = "http://192.168.1.30:32500")
+    answer(checks[0], {ok: true, status: 200, data: {id: "srv_home", name: "Home"}})
+    answer(checks[1], {ok: true, status: 200, data: {id: "srv_other", name: "Impostor"}})
+    check("only the one that answers as itself is listed", m.listed.count() = 1 and m.listed[0].name = "Home")
+    openNearby(m.listed[0])
+    opening = lastSent()
+    check("opening it goes the typed address's way, to its own address", opening.callback = "onSystem" and opening.origin = "http://192.168.1.20:32500")
+    answer(opening, {ok: true, status: 200, data: {id: "srv_changed", name: "Home", signInMethods: ["password"]}})
+    check("and stops if it then answers as another server", m.stage = "local")
+
+    ' a late check of a found server after Back is dropped
+    fresh()
+    go("local")
+    m.discovery = {isSameNode: function(other as object) as boolean : return true : end function}
+    onFound({data: [{id: "srv_home", fp: "f", ip: "192.168.1.20", port: 32500}], getData: function() as object : return m.data : end function, getRoSGNode: function() as object : return {isSameNode: function(o as object) as boolean : return true : end function} : end function})
+    pending = lastSent()
+    onKeyEvent("back", true)
+    answer(pending, {ok: true, status: 200, data: {id: "srv_home", name: "Home"}})
+    check("a found server's late answer after Back lists nothing", m.listed = invalid or m.listed.count() = 0)
+
     ? "PASSED "; m.passed; " FAILED "; m.failed
 end sub
 
@@ -82,8 +114,16 @@ end sub
 sub fresh()
     m.sent = []
     m.nodes = {}
-    m.top = {signedIn: invalid, active: false, nodes: m.nodes, findNode: function(id as string) as object
-        if m.nodes[id] = invalid then m.nodes[id] = {id: id, text: "", control: "", observeField: function(field as string, callback as string) as boolean : return true : end function}
+    m.top = {signedIn: invalid, active: false, nodes: m.nodes, setFocus: function(on as boolean) as boolean : return true : end function, findNode: function(id as string) as object
+        if m.nodes[id] = invalid then m.nodes[id] = {id: id, text: "", control: "", children: [], observeField: function(field as string, callback as string) as boolean : return true : end function,
+            removeChildrenIndex: function(count as integer, at as integer) as boolean : m.children = [] : return true : end function,
+            createChild: function(kind as string) as object
+                child = {translation: [0, 0], rowHeight: 84, model: invalid, on: false, separator: false}
+                m.children.push(child)
+                return child
+            end function,
+            getChildCount: function() as integer : return m.children.count() : end function,
+            getChild: function(i as integer) as object : return m.children[i] : end function}
         return m.nodes[id]
     end function}
     init()
@@ -103,6 +143,7 @@ end function
 sub answer(request as object, result as object)
     event = {result: result, ctx: request.ctx, getData: function() as object : return m.result : end function, getRoSGNode: function() as object : return m : end function}
     if request.callback = "onSystem" then onSystem(event)
+    if request.callback = "onNearbySystem" then onNearbySystem(event)
     if request.callback = "onCode" then onCode(event)
     if request.callback = "onPasswordAnswer" then onPasswordAnswer(event)
     if request.callback = "onFactorAnswer" then onFactorAnswer(event)
@@ -129,7 +170,7 @@ function colours() as object
 end function
 
 function frames() as object
-    return {gutter: 0, signIn: {markX: 0, markY: 0, doorTitleY: 0, doorButtonsY: 0, doorNoteY: 0, pageX: 0, eyebrowY: 0, titleY: 0, bodyY: 0,
+    return {gutter: 0, signIn: {markX: 0, markY: 0, doorTitleY: 0, doorButtonsY: 0, doorNoteY: 0, localTitleY: 0, localBodyY: 0, nearbyLabelY: 0, nearbyRowsY: 0, elsewhereLabelY: 0, localButtonsY: 0, localNoteY: 0, pageX: 0, eyebrowY: 0, titleY: 0, bodyY: 0,
         buttonsY: 0, noteY: 0, pressY: 0, factorTitleY: 0, factorBodyY: 0, factorBoxesY: 0, cardX: 0, cardY: 0, keysX: 0, keysY: 0}}
 end function
 
