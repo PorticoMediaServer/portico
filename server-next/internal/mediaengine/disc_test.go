@@ -79,8 +79,8 @@ func TestPlayingADiscIsRefusedInPlainWords(t *testing.T) {
 	}
 }
 
-// A film disc kept as a folder plays its main feature as the server's stream, never as the
-// folder itself, its picture converted: its playlist names segments that are the title's
+// A film disc, kept as a folder or as an image, plays its main feature as the server's stream,
+// never as the disc itself, its picture converted: its playlist names segments that are the title's
 // picture, a segment past the Blu-ray's first clip (a seek) plays from its place, and the disc
 // played again resumes where it was left.
 func TestADiscPlaysItsMainFeature(t *testing.T) {
@@ -92,11 +92,23 @@ func TestADiscPlaysItsMainFeature(t *testing.T) {
 	// The server finds that reader once it has asked the FFmpeg what it can do, which happens
 	// beside the house's start; the scan may come first.
 	t.Setenv("PORTICO_PORTICO-DISC", reader)
-	for _, fixture := range []string{"bluray-two-clip-bdmv", "dvd-two-title-video-ts"} {
+	for _, fixture := range []string{"bluray-two-clip-bdmv", "dvd-two-title-video-ts", "bluray-udf250.iso"} {
 		t.Run(fixture, func(t *testing.T) {
 			h, d := newHouse(t, ffmpeg, ffprobe)
 			library := filepath.Join(t.TempDir(), "Films")
-			if err := os.CopyFS(filepath.Join(library, "Disc Film (2019)"), os.DirFS(filepath.Join("..", "..", "..", "fixtures", "discs", fixture))); err != nil {
+			source, film := filepath.Join("..", "..", "..", "fixtures", "discs", fixture), filepath.Join(library, "Disc Film (2019)")
+			var err error
+			if strings.HasSuffix(fixture, ".iso") {
+				if err = os.MkdirAll(film, 0o755); err == nil {
+					var image []byte
+					if image, err = os.ReadFile(source); err == nil {
+						err = os.WriteFile(filepath.Join(film, "Disc Film (2019).iso"), image, 0o644)
+					}
+				}
+			} else {
+				err = os.CopyFS(film, os.DirFS(source))
+			}
+			if err != nil {
 				t.Fatal(err)
 			}
 			lib, err := d.CreateLibrary(context.Background(), "Films", db.LibraryMovies, "en", []string{library})
@@ -112,6 +124,12 @@ func TestADiscPlaysItsMainFeature(t *testing.T) {
 				t.Fatalf("the library lists %+v", page.Items)
 			}
 			item := page.Items[0].ID
+			// The scan read the disc's main feature: its length is the title's.
+			var options api.PlaybackOptions
+			h.call("GET", "/v1/items/"+item+"/playback-options", nil, &options, 200)
+			if len(options.Versions) != 1 || options.Versions[0].DurationMs < 71_900 || options.Versions[0].DurationMs > 72_100 {
+				t.Fatalf("the scan stored %+v", options.Versions)
+			}
 
 			var session api.PlaybackSession
 			h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: item}, &session, 201)

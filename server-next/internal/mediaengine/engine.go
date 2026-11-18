@@ -288,8 +288,8 @@ func (e *Engine) source(ctx context.Context, version db.PlaybackVersion) (string
 		return path, place, remoteID, facts, nil
 	}
 	if scan.DiscTitle(place.Path) {
-		// A film disc kept as a folder. The file the scanner lists for it is the disc's index,
-		// which ffprobe cannot read: Plan measures the disc's main feature (disc.go). A server
+		// A film disc: an image, or a folder whose index file the scanner lists. ffprobe reads
+		// neither: Plan measures the disc's main feature (disc.go). A server
 		// without the disc reader, and for now a disc on remote storage, says so plainly.
 		if remoteID != 0 || !discPlayable() {
 			return "", place, 0, mediafacts.Facts{}, playback.ErrDisc

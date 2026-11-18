@@ -51,9 +51,9 @@ var (
 	ErrUpdateRequired = errors.New("the app needs updating")
 	// ErrSourceUnavailable: the file cannot be reached right now.
 	ErrSourceUnavailable = errors.New("the file can't be reached")
-	// ErrDisc: the title is a film disc kept as a folder, and this server cannot read discs (its
-	// media tools have no disc reader, it is not Linux, or its sandbox is off), or the disc is on
-	// remote storage.
+	// ErrDisc: the title is a film disc (an image or a folder), and this server cannot read it
+	// (its media tools have no disc reader, it is not Linux, or for a folder its sandbox is off),
+	// or the disc is on remote storage.
 	// Trying again does not help.
 	ErrDisc = errors.New("discs can't be played on this server")
 	// ErrConversionBroken: this server could not start converting at all. It is the server's
