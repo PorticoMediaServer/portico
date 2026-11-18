@@ -16,7 +16,6 @@ import {compileFunction} from 'node:vm';
 import {parseSync, transformSync} from 'rolldown/utils';
 import * as receiverQueries from '../../../../packages/client-core/src/query/receiver.ts';
 import * as serverClock from '../../../../packages/client-core/src/server-clock.ts';
-import * as userMutationClock from '../../../../packages/client-core/src/query/user-mutation-clock.ts';
 import * as nativeStopScope from '../../src-next/platform/native-stop-scope.ts';
 import * as shellPlayback from '../../src-next/shell/playback.ts';
 import * as controlModel from '../../src-next/kit/controls/control-model.ts';
@@ -87,7 +86,6 @@ const leaf = (source, react, native) => source === '@portico/design' ? design : 
   : /client-core\/src\/query\/catalogue-reads(?:\.ts)?$/.test(source) ? catalogueReads
   : /client-core\/src\/playback-v1\/preparing-cleanup(\.ts)?$/.test(source) ? preparingCleanup
   : /client-core\/src\/query\/receiver(\.ts)?$/.test(source) ? receiverQueries
-  : /\/query\/user-mutation-clock(?:\.ts)?$/.test(source) ? userMutationClock
   : /(^|\/)native-stop-scope$/.test(source) ? nativeStopScope
   : /\/personal-history-actions(?:\.ts)?$/.test(source) ? personalHistoryActions
   : /client-core\/src\/query\/native-account-client(?:\.ts)?$/.test(source) ? nativeAccountClient

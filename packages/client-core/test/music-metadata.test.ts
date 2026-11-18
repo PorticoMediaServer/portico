@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseLocalBook,parseMusicDetails,parseMusicObservation,parseMusicPolicy} from '../src/music-metadata.ts';
-import {MetadataReviewService} from '../src/metadata-review.ts';
 const id='11111111-1111-1111-1111-111111111111';
 const policy={revision:2,localMode:'prefer',musicBrainzEnabled:true,acoustidEnabled:false,acoustidConfigured:false,fingerprintAllowed:false};
 const evidence={fingerprintStatus:'not_available',providerError:'',confidence:.9,margin:.2,strongSignals:3,algorithm:'music-evidence-v1'};
@@ -27,27 +26,6 @@ test('policy and observation projections reject malformed values and drop privat
  for(const patch of [{confidence:NaN},{confidence:1.01},{margin:-1},{strongSignals:1.5}])assert.throws(()=>parseMusicObservation({...evidence,...patch}));
  const out=parseMusicObservation({...evidence,fingerprint:'private'});assert.equal((out as any).fingerprint,undefined);
 });
-test('music policy is an owner action using both current job and library policy revisions',async()=>{
- let raw=state();const writes:any[]=[];
- const service=new MetadataReviewService({scope:{serverId:'server',viewerId:'owner'},api:{request:async<T>(path,method,body)=>{if(method==='GET')return raw as T;writes.push({path,method,body});raw={...raw,revision:4,status:'pending',policy:{...raw.policy,revision:3,acoustidEnabled:true}};return {entityId:'song',status:'pending'} as T;}}});
- await service.select({kind:'song',entityId:'song',libraryId:'library'});
- await service.configureMusic({localMode:'supplement',musicBrainzEnabled:true,acoustidEnabled:true});
- assert.deepEqual(writes,[{path:'/v1/items/song/metadata/musicbrainz/policy',method:'POST',body:{expectedRevision:3,expectedPolicyRevision:2,localMode:'supplement',musicBrainzEnabled:true,acoustidEnabled:true}}]);
- assert.equal(service.getSnapshot().data!.policy!.revision,3);service.dispose();
-});
-test('policy cannot write from absent capability or stale scope; conflicts refresh without replay',async()=>{
- let raw=state(),writes=0,denied='';raw.actions=['select','retry','search'];
- const service=new MetadataReviewService({scope:{serverId:'server',viewerId:'owner'},api:{request:async<T>(_path,method)=>{if(method==='GET'){if(denied)throw Object.assign(new Error('Denied'),{code:denied});return raw as T;}writes++;raw={...raw,revision:5,policy:{...raw.policy,revision:4}};throw Object.assign(new Error('Changed'),{code:'metadata_conflict'});}}});
- await service.select({kind:'song',entityId:'song',libraryId:'library'});assert.throws(()=>service.configureMusic({localMode:'off',musicBrainzEnabled:false,acoustidEnabled:false}));
- raw.actions.push('policy');await service.refresh();await service.configureMusic({localMode:'off',musicBrainzEnabled:false,acoustidEnabled:false});assert.equal(writes,1);assert.equal(service.getSnapshot().data!.revision,5);
- // A moved fence on a read is a newer answer, not a refusal: the page shows it (step 7 slice 2).
- raw.viewerFence='different';await service.refresh();assert.equal(service.getSnapshot().data!.scope.viewerFence,'different');assert.equal(service.getSnapshot().data!.revision,5);
- // What still ends the page: an answer older than the one shown, and the server's own refusal.
- raw={...raw,revision:4};await service.refresh();assert.equal(service.getSnapshot().data,null);assert.equal(service.getSnapshot().error!.code,'metadata_scope_changed');
- for(const code of ['unauthorized','forbidden']){raw={...raw,revision:5};await service.refresh();assert.equal(service.getSnapshot().data!.revision,5);denied=code;await service.refresh();assert.equal(service.getSnapshot().data,null,code);assert.equal(service.getSnapshot().error!.code,code);denied='';}
- service.dispose();
-});
-
 test('local audiobook policy uses library identity and revision; ignores late cancelled responses',async()=>{
  const {saveLocalBookPolicy,parseLocalAudioPolicy}=await import('../src/music-metadata.ts');
  const policy=parseLocalAudioPolicy({revision:4,localMode:'prefer'}),calls:any[]=[];const c=new AbortController();

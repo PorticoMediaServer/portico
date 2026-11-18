@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {HttpLocalApi, RequestTimeoutError, requestDeadlineMs} from '../src/index.ts';
 import {presentError} from '../src/presentation/index.ts';
-import {awaitWebClaim} from '../src/claim-web.ts';
 
 /** A server that accepts the request and never answers; it only ends when the request is aborted. */
 function silentServer() {
@@ -56,23 +55,6 @@ test('claim approval waits through the ten-minute decision window and remains bo
   assert.ok(await pending instanceof RequestTimeoutError);
   assert.equal(server.seen[0]?.aborted, true);
   assert.equal(requestDeadlineMs('/v1/networking/claim/prepare', 'POST'), 60_000);
-});
-
-test('the real claim adapter accepts approval arriving after the ordinary write deadline', async t => {
-  t.mock.timers.enable({apis: ['setTimeout']});
-  const fetcher = ((_input: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((resolve, reject) => {
-    const timer = setTimeout(() => resolve(new Response(' \n' + JSON.stringify({
-      state: 'installed', identity: {serverId: 'server-1', localGeneration: '7'},
-      installationAcknowledged: true, approvalRequired: false, actions: [],
-    }))), 90_000);
-    init?.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); });
-  })) as typeof fetch;
-  const api = new HttpLocalApi('http://192.168.1.20:32500', '', fetcher);
-  const pending = awaitWebClaim(api, {serverId: 'server-1', publicKey: 'pubkey', fingerprint: 'fp'}, {operationId: 'op-1', localGeneration: '7', revision: '3'});
-  t.mock.timers.tick(90_001);
-  const status = await pending;
-  assert.equal(status.state, 'installed');
-  assert.equal(status.installationAcknowledged, true);
 });
 
 test('a long poll may wait as long as it asked the server to hold it, plus a margin', () => {

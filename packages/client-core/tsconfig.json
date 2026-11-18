@@ -20,7 +20,6 @@
     "src/setup-machine.ts",
     "src/setup-store.ts",
     "src/setup-controller.ts",
-    "src/setup-custody.ts",
     "src/setup-adapter.ts",
     "src/setup-slot-store.ts",
     "src/session-lifecycle-runtime.ts",

@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {clearPersonalHistory} from '../src/personal-history-actions.ts';
 import {readCollectionSuccessor} from '../src/query/collection-successor.ts';
-import {readUserMutationClockOffset} from '../src/query/user-mutation-clock.ts';
 import type {DownloadReceipt} from '../src/downloads.ts';
 import type {ReadingLocation} from '../src/reading.ts';
 import {refreshOfflineReadingProgressResponse, syncOfflineReadingObservationResponse} from '../src/reading-offline-coordination.ts';
@@ -30,12 +29,6 @@ test('collection walk keeps its ten-page budget and cancellation never starts an
   const api = {request: async <T>() => {count++; return {items: [], nextCursor: 'next'} as T;}};
   assert.equal(await readCollectionSuccessor(api, 'collection', 'absent', controller.signal), undefined); assert.equal(count, 10);
   controller.abort(); await assert.rejects(readCollectionSuccessor(api, 'collection', 'absent', controller.signal), {name: 'AbortError'}); assert.equal(count, 10);
-});
-test('native mutation clock samples once through its captured transport and rejects noninteger time', async () => {
-  let count = 0; const serverTimeMs = Date.now() + 5000, before = Date.now();
-  const offset = await readUserMutationClockOffset({request: async <T>(path: string) => {count++; assert.equal(path, '/v1/user-mutations/policy'); return {serverTimeMs} as T;}});
-  assert.equal(count, 1); assert.ok(offset <= serverTimeMs - before && offset >= serverTimeMs - Date.now());
-  await assert.rejects(readUserMutationClockOffset({request: async <T>() => ({serverTimeMs: 1.5}) as T}), /mutation_clock/);
 });
 test('offline reading operations preserve payload and return the original transport promise', async () => {
   const calls: unknown[][] = [], held = new Promise<unknown>(() => {});

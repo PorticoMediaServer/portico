@@ -5,7 +5,6 @@ import {homeRowHeading, isPersonalRowId, validateHomeRow} from '../src/home.ts';
 import {validateContentProjection as parseContentProjection} from '../src/library-content.ts';
 import {itemRecommendationsFromRelated, fetchItemRecommendations, fetchShowRecommendations, moreLikeThisRow, titleRecommendationRows, validateItemRecommendations} from '../src/recommendations.ts';
 import {serverTextLabel} from '../src/presentation/server-text.ts';
-import {HomeRowPager} from '../src/home-row-page.ts';
 import {resetSkippedParts, skippedParts} from '../src/tolerant.ts';
 
 // Recommendations P7: personal rows, their parameterised titles and the See all page.
@@ -129,79 +128,9 @@ test('cast, creator and genre groups fill the existing title rows in server orde
   assert.deepEqual(skippedParts(), before, 'extras and an empty genre group do not raise the Support count');
 });
 
-test('See all pages the whole row and starts again on a stale cursor', async () => {
-  const calls: string[] = [];
-  let stale = true;
-  const api = {request: async <T>(path: string) => {
-    calls.push(path);
-    if (path.includes('cursor=c1')) {
-      if (stale) { stale = false; throw Object.assign(new Error('changed'), {code: 'stale_continuation'}); }
-      return row({entries: [entry('m2'), entry('m3')], nextCursor: ''}) as T;
-    }
-    return row() as T;
-  }};
-  const pager = new HomeRowPager(api, 'for_you:genre:drama');
-  await pager.load();
-  assert.equal(calls[0], '/v1/home/rows/for_you%3Agenre%3Adrama?limit=60');
-  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['m1', 'm2']);
-  await pager.more();
-  assert.equal(pager.getSnapshot().restarts, 1, 'a stale cursor restarts from the first page');
-  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['m1', 'm2']);
-  await pager.more();
-  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['m1', 'm2', 'm3'], 'a repeated entry is dropped, nothing is capped');
-  assert.equal(pager.getSnapshot().nextCursor, '');
-  await pager.more();
-  assert.equal(calls.length, 4, 'no cursor, no request');
-  pager.dispose();
-});
-
 // A screen that is open is never blanked: a refused cursor starts the row again
 // behind what is shown, and the first page replaces it when it arrives.
-test('stale cursor restart keeps the grid on screen until its replacement first page arrives', async () => {
-  let resolveRestart!: (value: unknown) => void;
-  const restart = new Promise<unknown>(resolve => { resolveRestart = resolve; });
-  let first = true;
-  const api = {request: async <T,>(path: string) => {
-    if (path.includes('cursor=')) throw Object.assign(new Error('changed'), {code: 'stale_continuation'});
-    if (first) { first = false; return row() as T; }
-    return restart as T;
-  }};
-  const pager = new HomeRowPager(api, 'for_you:genre:drama');
-  await pager.load();
-  const loading = pager.more();
-  await new Promise(setImmediate);
-  const shown = pager.getSnapshot().entries.map(card => card.id);
-  assert.equal(pager.getSnapshot().phase, 'ready');
-  assert.ok(shown.length > 0 && !shown.includes('fresh'), 'the entries already shown stay');
-  assert.notEqual(pager.getSnapshot().row, undefined);
-  assert.equal(pager.getSnapshot().nextCursor, '', 'the refused cursor is not offered again');
-  assert.equal(pager.getSnapshot().restarts, 1);
-  resolveRestart(row({entries: [entry('fresh')], nextCursor: ''}));
-  await loading;
-  assert.deepEqual(pager.getSnapshot().entries.map(card => card.id), ['fresh']);
-  pager.dispose();
-});
-
 // Deep-list refresh: a title removed from a page the viewer scrolled into goes on the next quiet refresh.
-test('a quiet refresh reads every page scrolled into again, so a title removed deep in the row goes', async () => {
-  let removed = false;
-  const api = {request: async <T,>(path: string) => {
-    if (path.includes('cursor=c1')) return row({entries: removed ? [entry('m3')] : [entry('m3'), entry('m4')], nextCursor: 'c2'}) as T;
-    if (path.includes('cursor=c2')) return row({entries: [entry('m5')], nextCursor: ''}) as T;
-    return row() as T;
-  }};
-  const pager = new HomeRowPager(api, 'for_you:genre:drama');
-  await pager.load();
-  await pager.more();
-  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['m1', 'm2', 'm3', 'm4']);
-  removed = true;
-  await pager.revalidate();
-  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['m1', 'm2', 'm3', 'm5'], 'm4 is gone; the next page now begins where the re-read ended');
-  assert.equal(pager.getSnapshot().nextCursor, '');
-  assert.equal(pager.getSnapshot().phase, 'ready');
-  pager.dispose();
-});
-
 
 test('an empty visible first page keeps its ranked continuation', () => {
   const read = itemRecommendationsFromRelated({groups: [{relation: 'more_like_this', items: [], nextCursor: 'next'}]}, 'seed');

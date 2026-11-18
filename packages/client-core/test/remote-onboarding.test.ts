@@ -5,7 +5,6 @@ import {ApiError,HttpLocalApi} from '../src/index.ts';
 import {routeOrigin,probeRoute,serverPin,verifyRoutes,type ServerPin,type VerifiedRoutes} from '../src/route-identity.ts';
 import {RouteConnection,discoveredRoutes} from '../src/route-connection.ts';
 import {SetupCodeService,normalizeSetupCode,type SetupCodeJournal} from '../src/setup-code.ts';
-import {setupQR} from '../src/setup-qr.ts';
 import {addressClass,formatIP,parseDirectName} from '../src/network-locality.ts';
 const delay=(ms=10)=>new Promise<void>(r=>setTimeout(r,ms));
 const keys=generateKeyPairSync('ed25519');
@@ -113,11 +112,6 @@ test('a committed private grant resumes after restart and is acknowledged only a
 test('failed intent persistence performs no create call',async()=>{
  let creates=0;const service=new SetupCodeService('local:one',{create:async()=>{creates++;return authorization();},poll:async()=>'',cancel:async()=>{}},{change:async()=>{throw new Error('storage unavailable');}});
  await service.start();assert.equal(service.getSnapshot().phase,'error');assert.equal(creates,0);service.pause();
-});
-test('local QR code matches a fixed independent byte-mode version-5-L vector',()=>{
- const matrix=setupQR('https://web.getportico.tv/device#code=ABCD-EFGH');assert.equal(matrix.length,37);assert.ok(matrix.every(row=>row.length===37));
- const digest=createHash('sha256').update(matrix.map(row=>row.map(b=>b?'1':'0').join('')).join('\n')).digest('hex');
- assert.equal(digest,'d92dac9c374ae275b21b212a1f6c8dadce0fc5fbf47f623f3bd508b58ab0b318');assert.throws(()=>setupQR('a'.repeat(107)));
 });
 test('signed routes may carry the signing key’s certificate (Hosted 784d3de5); anything else unknown is refused',async()=>{
  const expected={accountId:'account',serverId:pin.serverId};
