@@ -38,6 +38,7 @@ func init() {
 		"POST /v1/me/two-factor":                     "starts two-step sign-in again, replacing what was not confirmed",
 		"POST /v1/me/two-factor/confirm":             "sets the state",
 		"POST /v1/me/two-factor/recovery-codes":      "replaces the codes; the answer is the only copy either way",
+		"POST /v1/me/two-factor/verify":              "sets the state; a code already used is refused the same way",
 		"POST /v1/profiles/{id}/select":              "sets the device's profile",
 		"POST /v1/admin/members/{id}/password-reset": "replaces the member's reset code",
 		"POST /v1/system/identity-proof":             "changes nothing",
