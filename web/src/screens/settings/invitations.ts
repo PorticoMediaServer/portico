@@ -1,8 +1,7 @@
 import {serverNow} from '@core/server-clock.ts';
-import {PeopleInvitationsClient, type PeopleInvitationQuery, type ServerInvitation, type ServerShortInvitation} from '@core/direct-account.ts';
+import {PeopleInvitationsClient, type InvitationCreateInput, type InvitationEditInput, type PeopleInvitationQuery, type ServerInvitation, type ServerShortInvitation} from '@core/direct-account.ts';
 import {parseJoinLink} from '@core/join-link.ts';
 import {CodedError} from '@core/server-messages.ts';
-import type {RouteRequest} from '../../../../packages/contracts/src/routes.ts';
 import type {SettingsPeopleApi} from '@core/settings-people.ts';
 import type {TableQuery} from '../../kit/settings/table-model';
 
@@ -68,7 +67,7 @@ export class SettingsInvitations {
       return shareLink(this.origin, this.serverId, link.code);
     });
   }
-  create(input: RouteRequest<'post_admin_access_invitations'>, capture: InvitationLifetime) {
+  create(input: InvitationCreateInput, capture: InvitationLifetime) {
     return this.perform(capture, async signal => this.checkInvitation(await this.client.create(input, signal)));
   }
   /** The code a person types. On the rebuilt server it is the invitation's own
@@ -82,7 +81,7 @@ export class SettingsInvitations {
       return result;
     });
   }
-  edit(invitation: ServerInvitation, input: RouteRequest<'put_admin_access_invitation'>, capture: InvitationLifetime) {
+  edit(invitation: ServerInvitation, input: InvitationEditInput, capture: InvitationLifetime) {
     return this.perform(capture, async signal => {
       this.checkInvitation(invitation);
       const result = this.checkInvitation(await this.client.edit(invitation.id, input, signal));

@@ -135,7 +135,7 @@ export {libraryNavigationIcon} from './presentation/library-navigation.ts';
 
 
 export {PeopleInvitationsClient,parsePublicInvitation,privatePersonNotes,personIdentity} from './direct-account.ts';
-export type {ServerInvitation,ServerShortInvitation,PeopleMember,PublicInvitation} from './direct-account.ts';
+export type {ServerInvitation,ServerShortInvitation,PublicInvitation,InvitationAccess,InvitationCreateInput,InvitationEditInput} from './direct-account.ts';
 export {highestRatingChoices} from './profile-limits.ts';
 
 export * from './account-reset.ts';
