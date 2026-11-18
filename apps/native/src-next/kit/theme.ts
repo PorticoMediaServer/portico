@@ -46,7 +46,8 @@ export function nativeType(style: TypeStyle, textScale = 1): TextStyle {
 /** One form's column of a form-scale table: `pick(formScale.card, 'expanded').poster` is 150. */
 type Picked<T> = T extends ByForm<infer V> ? V : {[K in keyof T]: Picked<T[K]>};
 function pick<T>(table: T, form: FrameForm): Picked<T> {
-  if (table && typeof table === 'object' && 'phone' in table && 'tv' in table) return (table as ByForm<unknown>)[form] as Picked<T>;
+  if (!table || typeof table !== 'object') return table as Picked<T>;
+  if ('phone' in table && 'tv' in table) return (table as ByForm<unknown>)[form] as Picked<T>;
   return Object.fromEntries(Object.entries(table as object).map(([key, value]) => [key, pick(value, form)])) as Picked<T>;
 }
 const scales = Object.fromEntries((['phone', 'medium', 'expanded', 'tv'] as const).map(form =>
