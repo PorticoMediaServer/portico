@@ -177,10 +177,12 @@ sub onPage(event as object)
         if m.grid.content = invalid then m.grid.content = createObject("roSGNode", "ContentNode")
         m.grid.content.removeChildrenIndex(m.grid.content.getChildCount(), 0)
     end if
-    for each item in fresh
-        card = gridCard(item)
-        card.art = imageUrl(card.art, 200, 300)
+    for i = 0 to fresh.count() - 1
+        item = fresh[i]
+        card = cardOf(item, "")
         m.grid.content.createChild("ContentNode").addFields(card)
+        ' a collection with no picture of its own borrows one from what it holds
+        if card.art = "" and item.kind = "collection" then askArt(m.items.count() + i, item)
     end for
     m.items.append(fresh)
     if ctx.first = true
@@ -192,6 +194,31 @@ sub onPage(event as object)
         if m.items.count() > 0 then m.grid.jumpToItem = 0
         focusRegion()
     end if
+end sub
+
+' A card for the grid; `art` is a picture borrowed from what the title holds, "" for its own.
+function cardOf(item as object, art as string) as object
+    card = gridCard(item)
+    if art <> "" then card.art = art
+    card.art = imageUrl(card.art, 200, 300)
+    return card
+end function
+
+' A collection shows its first title's poster when it has none of its own.
+sub askArt(at as integer, item as object)
+    api("GET", "/v1/items?collection=" + item.id + "&sort=order&limit=1", invalid, "onArtFound", {generation: m.generation, at: at})
+end sub
+
+sub onArtFound(event as object)
+    result = event.getData()
+    ctx = event.getRoSGNode().ctx
+    if ctx.generation <> m.generation or not result.ok or result.data.items = invalid or result.data.items.count() = 0 then return
+    if ctx.at >= m.items.count() then return
+    art = pick(result.data.items[0].images, ["poster", "cover"])
+    if art = "" then return
+    node = createObject("roSGNode", "ContentNode")
+    node.addFields(cardOf(m.items[ctx.at], art))
+    m.grid.content.replaceChild(node, ctx.at)
 end sub
 
 ' The grid's part of the page could not load, or has nothing: one row in its place (rule 9).
@@ -327,10 +354,12 @@ function onKeyEvent(key as string, press as boolean) as boolean
     ' the views: moving along them changes the list as focus lands
     if key = "right" and m.view < m.detail.views.count() - 1
         m.view = m.view + 1
+        m.tool = 0      ' another view's toolbar starts at its first control, not the one this view remembered
         loadList()
     else if key = "left"
         if m.view = 0 then return false
         m.view = m.view - 1
+        m.tool = 0
         loadList()
     else if key = "down"
         m.region = "tools"

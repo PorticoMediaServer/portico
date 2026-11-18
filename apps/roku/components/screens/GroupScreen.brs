@@ -9,7 +9,7 @@ sub init()
     m.name = m.top.findNode("name")
     m.about = m.top.findNode("about")
     face = m.top.findNode("face")
-    face.translation = [f.gutter, f.title.copyTop + 16]
+    face.translation = [f.gutter, f.group.eyebrowY]
     for each id in ["faceDisc", "initials", "photo"]
         node = m.top.findNode(id)
         node.width = g.face
@@ -69,14 +69,14 @@ sub onItem()
     placeRows()
 end sub
 
-' The words in their slots from the frame's copyTop: eyebrow, name, the facts line (its first part
+' The words in their slots from frames().group.eyebrowY: eyebrow, name, the facts line (its first part
 ' in bold), then the description cut by line count. A name too long for one line steps down a size
 ' and wraps, never cut, and takes its extra height from the description's lines.
 sub placeWords(eyebrow as string, name as string, strong as string, facts as string, about as string)
     f = frames()
     g = f.group
     m.top.findNode("eyebrow").text = eyebrow
-    m.top.findNode("eyebrow").translation = [0, f.title.copyTop]
+    m.top.findNode("eyebrow").translation = [0, g.eyebrowY]
     c = colours()
     m.name.wrap = false
     setType(m.name, "display", c.text)
@@ -318,7 +318,9 @@ sub placeRows()
         m.shown[i].node.visible = false
     end for
     g = frames().group
-    if m.focus = 0 then m.rows.translation = [0, g.rowsY] else m.rows.translation = [0, g.scrolledY - m.focus * m.block]
+    rowsY = g.rowsY
+    if not m.isPerson then rowsY = g.actionRowsY     ' a collection's row sits under its action row's place
+    if m.focus = 0 then m.rows.translation = [0, rowsY] else m.rows.translation = [0, g.scrolledY - m.focus * m.block]
     m.head.visible = (m.focus = 0 and not m.state.visible)
     m.smallTitle.visible = (m.focus > 0)
     m.top.quiet = (m.focus > 0)     ' the art dims once rows lie over it

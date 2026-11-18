@@ -289,6 +289,29 @@ function whyFailed(result as object) as string
     return "The server couldn't send it. Try again in a moment."
 end function
 
+' Results that share a title and a year with another in the same row (the same film in two
+' libraries) are told apart by their library's name: the second line of each of them, "" for the rest.
+function copyNames(items as object, libraryNames as object) as object
+    seen = {}
+    for each item in items
+        key = item.title + "|" + yearOf(item)
+        if seen[key] = invalid then seen[key] = 0
+        seen[key] = seen[key] + 1
+    end for
+    out = []
+    for each item in items
+        name = ""
+        if seen[item.title + "|" + yearOf(item)] > 1 and item.libraryId <> invalid and libraryNames[item.libraryId] <> invalid then name = libraryNames[item.libraryId]
+        out.push(name)
+    end for
+    return out
+end function
+
+function yearOf(item as object) as string
+    if item.year = invalid then return ""
+    return item.year.toStr()
+end function
+
 ' How many a search group found: "20+" when the server stopped counting at 20.
 function foundText(group as object) as string
     if group.total = invalid then return ""

@@ -39,7 +39,18 @@ sub init()
     m.rows = []          ' {kind, items, node, y}: a shelf, or the row saying the search failed
     m.focus = -1         ' -1 the keyboard, otherwise a row of results
     m.asked = ""
+    m.libraryNames = {}
+    api("GET", "/v1/libraries", invalid, "onLibraries")
     showPrompt()
+end sub
+
+' The libraries' names, for telling apart the same title found in two of them.
+sub onLibraries(event as object)
+    result = event.getData()
+    if not result.ok or result.data.items = invalid then return
+    for each library in result.data.items
+        m.libraryNames[library.id] = library.name
+    end for
 end sub
 
 sub showPrompt()
@@ -133,7 +144,10 @@ sub showGroups(groups as object)
             shelf.subheading = foundText(group)
             cards = createObject("roSGNode", "ContentNode")
             size = shelfMetrics(shape).card
-            for each item in items
+            copies = []
+            if group.kind <> "person" then copies = copyNames(items, m.libraryNames)
+            for n = 0 to items.count() - 1
+                item = items[n]
                 card = invalid
                 if group.kind = "person"
                     card = personCard({personId: item.id, name: item.name, role: "", image: item.image})
@@ -145,17 +159,50 @@ sub showGroups(groups as object)
                     if group.kind = "track" or group.kind = "album" or group.kind = "audiobook" then card.artHeight = 200
                 end if
                 card.art = imageUrl(card.art, size[0], 300)
+                if n < copies.count() and copies[n] <> ""
+                    ' an episode keeps its show and number and adds the library; any other title says only the library
+                    if group.kind = "episode" then card.sub = card.sub + "   " + copies[n] else card.sub = copies[n]
+                end if
                 cards.createChild("ContentNode").addFields(card)
             end for
             shelf.cards = cards
             shelf.translation = [0, y]
             shelf.observeField("selectedIndex", "onSelected")
-            m.rows.push({kind: group.kind, items: items, node: shelf, y: y})
+            m.rows.push({kind: group.kind, items: items, node: shelf, y: y, shape: shape})
             y = y + shelfMetrics(shape).block
         end if
     end for
     m.focus = -1
     m.page.translation = [0, s.keysY]
+    clipResults()
+end sub
+
+' How tall a card's picture is in each shelf shape (its words are under it).
+function pictureHeight(shape as string) as integer
+    if shape = "gridPoster" then return 300
+    if shape = "person" then return 150
+    return shelfMetrics(shape).card[0] * 9 / 16       ' an episode's still
+end function
+
+' Rows below the one in focus run on down the screen; the first that does not fit is cut through
+' its pictures, never through a line of its words (and left out if not even its heading fits).
+sub clipResults()
+    s = frames().search
+    bottom = 1080
+    top = m.page.translation[1]
+    for each row in m.rows
+        if row.shape <> invalid
+            y = top + row.y
+            g = shelfMetrics(row.shape)
+            if y + g.headingGap + g.card[1] > 1080
+                bottom = y + g.headingGap + pictureHeight(row.shape)
+                if bottom > 1080 then bottom = 1080
+                if y + g.headingGap > 1080 then bottom = y
+                exit for
+            end if
+        end if
+    end for
+    m.results.clippingRect = [s.resultsX - 40, 0, 1920 - s.resultsX + 40, bottom]
 end sub
 
 sub moveTo(i as integer)
@@ -165,6 +212,7 @@ sub moveTo(i as integer)
         return
     end if
     m.page.translation = [0, frames().search.keysY - m.rows[i].y]
+    clipResults()
     m.rows[i].node.active = true
 end sub
 
