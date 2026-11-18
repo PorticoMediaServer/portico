@@ -1,7 +1,7 @@
 ' The tabs, in today's order, and what each reads (the routes the other apps use):
 ' My List and Favorites are titles (GET /v1/items?inList / ?favorite): the films, shows and
 ' collections this app has pages for; Playlists, Collections and Saved views are the profile's
-' lists (GET /v1/lists?kind=); History is GET /v1/history, newest first, its films and episodes.
+' lists (GET /v1/lists?kind=); History is GET /v1/history, newest first: films, episodes, songs and audiobooks.
 function savedTabs() as object
     return [
         {id: "list", text: "My List", query: "inList=true", empty: "My List is empty", body: "Add a title to My List from its page and it waits for you here."},
@@ -131,7 +131,7 @@ sub ask(at as integer)
     source = m.sources[at]
     m.asking = m.asking + 1
     path = source.path + "&limit=100&total=true"
-    if source.cursor <> invalid then path = path + "&cursor=" + source.cursor
+    if source.cursor <> invalid then path = path + "&cursor=" + source.cursor.encodeUriComponent()
     api("GET", path, invalid, "onPage", {generation: m.generation, at: at})
 end sub
 
@@ -316,7 +316,7 @@ sub onCardSelected(event as object)
     if spec.kind = "saved_view" then path = "/v1/items?library=" + entry.library + "&" + entry.query
     about = ""
     if entry.description <> invalid then about = entry.description
-    m.top.open = {item: {kind: "savedList", id: entry.id, title: entry.name, eyebrow: spec.eyebrow, heading: spec.heading, path: path, summary: about, counts: {children: entry.count}, images: {}}, play: false}
+    m.top.open = {item: {kind: "savedList", listKind: spec.kind, id: entry.id, title: entry.name, eyebrow: spec.eyebrow, heading: spec.heading, path: path, summary: about, counts: {children: entry.count}, images: {}}, play: false}
 end sub
 
 ' Down from a shape's last row goes to the next shape in the same column; Up from its first row
