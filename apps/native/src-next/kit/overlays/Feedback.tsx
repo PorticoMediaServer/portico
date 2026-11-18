@@ -48,6 +48,7 @@ export function Toast({id, message, accessibilityLabel, icon, leading, action, a
   const drag = useAnimatedStyle(() => ({opacity: opacity.value, transform: [{translateX: x.value}, {translateY: y.value}]}));
   // R12 (packages/design `toastCards`): with an action, the form's card; a confirmation with none, the top pill. TV keeps its own.
   const acts = Boolean(action && (!theme.isTV || actionOnTV)), card = toastCards[theme.form], pill = card !== null && !acts;
+  const wide = card?.action === 'text' && acts;
   const shape = card === null ? {gap: 14, borderRadius: 20, padding: 20, paddingLeft: 28, maxWidth: 900}
     : pill ? {gap: 8, borderRadius: toastPill.radius, minHeight: toastPill.height, paddingHorizontal: toastPill.paddingX, maxWidth: 560}
     : {gap: card.gap, borderRadius: card.radius, paddingTop: card.padding[0], paddingRight: card.padding[1], paddingBottom: card.padding[2], paddingLeft: card.padding[3], maxWidth: card.inset === null ? 560 : undefined};
@@ -57,8 +58,9 @@ export function Toast({id, message, accessibilityLabel, icon, leading, action, a
     onAccessibilityAction={event => {if (event.nativeEvent.actionName === 'activate' && action) {action.onPress(); onDismiss(id, 'action');} else if (event.nativeEvent.actionName === 'dismiss') onDismiss(id, 'accessibility');}}>
     {recipe.nativeBlur && <BlurView pointerEvents="none" style={StyleSheet.absoluteFill} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={theme.colors.raisedBright}/>}
     {leading}{icon && <Icon name={icon} size={theme.isTV ? 28 : 20} color={theme.colors.accentStrong}/>}
-    <Text accessibilityLabel={accessibilityLabel} numberOfLines={theme.isTV ? 1 : 2} style={[theme.isTV ? theme.type.body : nativeType({size: 14.5, lineHeight: 'normal', weight: 400, tracking: 0}, theme.textScale), {color: theme.colors.textSecondary, flexShrink: 1, flexGrow: card?.inset != null ? 1 : 0}]}>{message}</Text>
-    {acts && action && <Button variant={card?.action === 'text' ? 'text' : 'glass'} size="small" style={card ? {minHeight: card.actionHeight} : undefined} onFocus={() => pause(true, 'focus')} onBlur={() => pause(false, 'focus')} onPress={() => {action.onPress(); onDismiss(id, 'action');}}>{action.label}</Button>}
+    {/* A wider card's message is 15 semibold in the text colour, its action an accent text button (desktop-browse). */}
+    <Text accessibilityLabel={accessibilityLabel} numberOfLines={theme.isTV ? 1 : 2} style={[theme.isTV ? theme.type.body : nativeType({size: wide ? 15 : 14.5, lineHeight: 'normal', weight: wide ? 600 : 400, tracking: 0}, theme.textScale), {color: wide ? theme.colors.text : theme.colors.textSecondary, flexShrink: 1, flexGrow: card?.inset != null ? 1 : 0}]}>{message}</Text>
+    {acts && action && <Button variant={wide ? 'text' : 'glass'} size="small" style={card ? {minHeight: card.actionHeight} : undefined} textStyle={wide ? {color: theme.colors.accentStrong} : undefined} onFocus={() => pause(true, 'focus')} onBlur={() => pause(false, 'focus')} onPress={() => {action.onPress(); onDismiss(id, 'action');}}>{action.label}</Button>}
   </Animated.View></GestureDetector>;
 }
 
