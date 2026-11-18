@@ -139,21 +139,3 @@ function secondsOf(iso as string) as integer
     return t.asSeconds()
 end function
 
-' "3:30" by the TV's own clock, with " PM" when asked for. (Named for the guide: Watch Together's
-' clockOf is a length.)
-function guideTime(seconds as integer, suffix as boolean) as string
-    t = createObject("roDateTime")
-    t.fromSeconds(seconds)
-    t.toLocalTime()
-    h = t.getHours()
-    half = "AM"
-    if h >= 12 then half = "PM"
-    h = h mod 12
-    if h = 0 then h = 12
-    mins = t.getMinutes()
-    text = h.toStr() + ":"
-    if mins < 10 then text = text + "0"
-    text = text + mins.toStr()
-    if suffix then text = text + " " + half
-    return text
-end function
