@@ -5,12 +5,21 @@ SCRIPT_REPO="https://github.com/quietvoid/dovi_tool.git"
 SCRIPT_COMMIT="26ed61ff36f946313889a09c0d2da202e9ceb97a"
 
 ffbuild_enabled() {
-    [[ $TARGET == linux* ]]
+    [[ $TARGET == linux* || $TARGET == mac* ]]
 }
 
 ffbuild_dockerbuild() {
     git-mini-clone "$SCRIPT_REPO" "$SCRIPT_COMMIT" dovi
     cd dovi/dolby_vision
+
+    if [[ $TARGET == mac* ]]; then
+        # Built for the Mac itself with the runner's stable Rust, as Linux's compiler image takes
+        # stable Rust when it is built; cargo-c pinned, so a cold cache builds the same library.
+        command -v cargo-cinstall > /dev/null || cargo install --locked cargo-c --version =0.10.26
+        cargo cinstall --locked --features capi --release --library-type staticlib \
+            --prefix "$FFBUILD_PREFIX" --libdir lib
+        return
+    fi
 
     # Rust links the library for the target with the same compiler the other libraries use.
     local rust_target="${FFBUILD_RUST_TARGET//-/_}"

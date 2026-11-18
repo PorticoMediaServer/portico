@@ -7,7 +7,7 @@ SCRIPT_REPO2="https://code.videolan.org/videolan/libdvdnav.git"
 SCRIPT_COMMIT2="2ffc50b5c37a6ddc086829203fc44e95588198dd"
 
 ffbuild_enabled() {
-    [[ $TARGET == linux* ]]
+    [[ $TARGET == linux* || $TARGET == mac* ]]
 }
 
 ffbuild_dockerstage() {
@@ -19,13 +19,19 @@ ffbuild_dockerbuild() {
         --prefix="$FFBUILD_PREFIX"
         --buildtype=release
         -Ddefault_library=static
-        --cross-file=/cross.meson
     )
+    # In the container the patches are mounted at /patches; on the Mac they are read where they are.
+    local patches=/patches
+    if [[ $TARGET == mac* ]]; then
+        patches="$BUILDER_ROOT"/patches/portico
+    else
+        myconf+=(--cross-file=/cross.meson)
+    fi
 
     git-mini-clone "$SCRIPT_REPO" "$SCRIPT_COMMIT" dvdread
     cd dvdread
     # Portico never loads a decryption module.
-    patch -p1 < /patches/libdvdread-no-decryption.patch
+    patch -p1 < "$patches"/libdvdread-no-decryption.patch
     mkdir build && cd build
     meson setup "${myconf[@]}" -Dlibdvdcss=disabled ..
     ninja -j$(nproc)
