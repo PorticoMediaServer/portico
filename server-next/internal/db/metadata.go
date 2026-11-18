@@ -290,6 +290,30 @@ func (d *DB) Seasons(ctx context.Context, showID int64) (map[int]int64, error) {
 	return out, rows.Err()
 }
 
+// says is whether the answer gives a value for a field; a field it cannot speak to counts as
+// given, as it did before.
+func (d *ItemDetails) says(field string) bool {
+	switch field {
+	case FieldTitle:
+		return d.Title != ""
+	case FieldOriginalTitle:
+		return d.OriginalTitle != ""
+	case FieldSummary:
+		return d.Summary != ""
+	case FieldTagline:
+		return d.Tagline != ""
+	case FieldYear:
+		return d.Year != 0
+	case FieldReleaseDate:
+		return d.ReleaseDate != ""
+	case FieldContentRating:
+		return d.ContentRating != ""
+	case FieldRating:
+		return d.CommunityRating != 0
+	}
+	return true
+}
+
 func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	if err := metadataJobItem(b.tx, d.JobID, itemID); err != nil {
 		return err
@@ -309,10 +333,11 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	sources := fieldSources(local)
 	keep := keptFields(locked, sources)
 	sets, args := "refreshed_at = ?, updated_at = ?, revision = revision + 1", []any{now, now}
-	// A field a person edited and later unlocked is the provider's again from this answer on.
+	// A field a person edited and later unlocked is the provider's again from the answer that
+	// gives it; an answer that says nothing for it leaves it the person's.
 	unlocked := false
 	for field, source := range sources {
-		if source == SourceEdit && !keep[field] {
+		if source == SourceEdit && !keep[field] && (d.Replace || d.says(field)) {
 			delete(sources, field)
 			unlocked = true
 		}
