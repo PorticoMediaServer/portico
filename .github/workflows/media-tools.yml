@@ -352,6 +352,22 @@ jobs:
           grep -E '^(=== RUN|--- |PASS|FAIL|ok|panic|\s+\S+_test.go)' "$RUNNER_TEMP/disc.log" || true
           if grep -qE '^\s*--- SKIP' "$RUNNER_TEMP/disc.log"; then echo "a disc test was skipped, so the bundle was not tested by it"; exit 1; fi
           [ "${passed:-0}" = 1 ]
+      - name: Real files played through the media engine, each conversion the server asks for (Windows)
+        # Windows has no "test" stage either: the same media matrix as Linux's and the Mac's, with
+        # the bundle as the server's FFmpeg. A skipped case, or a file the server cannot reach, fails.
+        if: inputs.platform == 'windows-x64'
+        working-directory: server-next
+        env:
+          GOWORK: 'off'
+          PORTICO_MEDIA_MATRIX: '1'
+          PORTICO_FFMPEG: ${{ runner.temp }}\bundle\bin\ffmpeg.exe
+          PORTICO_FFPROBE: ${{ runner.temp }}\bundle\bin\ffprobe.exe
+        run: |
+          go test ./internal/mediaengine -run '^TestMediaMatrix$' -count=1 -v > "$RUNNER_TEMP/matrix.log" 2>&1 && passed=1
+          grep -E '^\s*(--- |PASS|FAIL|ok|panic)|_test.go:[0-9]+:' "$RUNNER_TEMP/matrix.log" || true
+          [ "${passed:-0}" = 1 ] || grep -vE '"event":"conversion_started"|^=== ' "$RUNNER_TEMP/matrix.log"
+          if grep -qE '^\s*--- SKIP' "$RUNNER_TEMP/matrix.log"; then echo "a real-media case was skipped, so the bundle did not convert it"; exit 1; fi
+          [ "${passed:-0}" = 1 ]
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: portico-media-tools-${{ env.PLATFORM }}
