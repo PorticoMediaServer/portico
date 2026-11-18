@@ -3,7 +3,8 @@
      "Up Down Choose a page"). Laid out left to right and centred on the line it is placed on. -->
 <component name="KeyHints" extends="LayoutGroup">
   <interface>
-    <!-- [{keys: ["Up", "Down"], text: "Choose a page"}] -->
+    <!-- [{keys: ["Up", "Down"], text: "Choose a page"}]; `before` puts words ahead of the keys
+         ("Press [Back] to change the server address.", auth-02) -->
     <field id="hints" type="array" onChange="onHints"/>
     <!-- The smaller line under a sign-in page (auth-04): words 20 px in the quieter colour, hints closer. Set before `hints`. -->
     <field id="small" type="boolean"/>

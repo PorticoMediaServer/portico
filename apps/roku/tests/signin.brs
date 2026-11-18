@@ -129,7 +129,12 @@ function colours() as object
 end function
 
 function frames() as object
-    return {signIn: {cardX: 0, cardY: 0}}
+    return {gutter: 0, signIn: {markX: 0, markY: 0, doorTitleY: 0, doorButtonsY: 0, doorNoteY: 0, pageX: 0, eyebrowY: 0, titleY: 0, bodyY: 0,
+        buttonsY: 0, noteY: 0, pressY: 0, factorTitleY: 0, factorBodyY: 0, factorBoxesY: 0, cardX: 0, cardY: 0, keysX: 0, keysY: 0}}
+end function
+
+function typeRoles() as object
+    return {authBody: [400, 26, 38]}
 end function
 
 sub setType(node as object, role as string, colour as string)

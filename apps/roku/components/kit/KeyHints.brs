@@ -12,6 +12,12 @@ sub onHints()
     spacings = []
     for each hint in m.top.hints
         if spacings.count() > 0 then spacings[spacings.count() - 1] = apart
+        if hint.before <> invalid
+            ahead = m.top.createChild("Label")
+            ahead.text = hint.before
+            hintWords(ahead)
+            spacings.push(10)
+        end if
         for each key in hint.keys
             cap = m.top.createChild("Group")
             label = createObject("roSGNode", "Label")
@@ -33,8 +39,13 @@ sub onHints()
         end for
         words = m.top.createChild("Label")
         words.text = hint.text
-        if m.top.small then setType(words, "caption", c.textTertiary) else setType(words, "meta", c.textSecondary)
+        hintWords(words)
         spacings.push(12)
     end for
     m.top.itemSpacings = spacings
+end sub
+
+sub hintWords(label as object)
+    c = colours()
+    if m.top.small then setType(label, "caption", c.textTertiary) else setType(label, "meta", c.textSecondary)
 end sub
