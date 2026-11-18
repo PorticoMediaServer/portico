@@ -4470,6 +4470,41 @@ export interface TitleRef {
   title: string;
 }
 
+export interface TopShelf {
+  sections: TopShelfSection[];
+}
+
+export interface TopShelfEntry {
+  id: string;
+  title: string;
+  showTitle?: string;
+  imageUrl: string;
+  displayUrl: string;
+  playUrl?: string;
+  progressPercent?: number;
+}
+
+export interface TopShelfSection {
+  id: string;
+  title: string;
+  titleText: TopShelfText;
+  entries: TopShelfEntry[];
+}
+
+export interface TopShelfText {
+  code: string;
+}
+
+export interface TopShelfToken {
+  token: string;
+  expiresAt: string;
+  feedUrl: string;
+}
+
+export interface TopShelfTokenRequest {
+  installationId: string;
+}
+
 export interface TrashEmptied {
   removed: number;
 }
@@ -4738,6 +4773,8 @@ export interface Routes {
   'PUT /v1/items/{id}/state': {access: 'withProfile'; request: StateRequest; response: StateReply};
   'POST /v1/items/state:undo': {access: 'withProfile'; request: UndoRequest; response: undefined};
   'GET /v1/events': {access: 'withProfile'; request: undefined; response: undefined};
+  'POST /v1/topshelf/token': {access: 'withProfile'; request: TopShelfTokenRequest; response: TopShelfToken};
+  'GET /v1/topshelf': {access: 'public'; request: undefined; response: TopShelf};
   'GET /v1/tags': {access: 'withProfile'; request: undefined; response: TagPage};
   'GET /v1/items/{id}/files': {access: 'admin'; request: undefined; response: ItemFiles};
   'GET /v1/images/{id}': {access: 'public'; request: undefined; response: undefined};

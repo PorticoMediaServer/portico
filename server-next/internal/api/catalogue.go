@@ -287,50 +287,7 @@ func (s *Server) catalogueRoutes() {
 		if !withHidden && r.URL.Query().Get("hidden") != "" {
 			return Home{}, ErrField("hidden", `Leave this out, or send "include".`)
 		}
-		moods, err := s.db.MoodRows(r.Context(), viewer(r))
-		if err != nil {
-			return Home{}, err
-		}
-		home := []HomeRow{
-			{ID: "continue", Title: "Continue Watching", Shape: "landscape", Items: []Item{}},
-			{ID: "continue_listening", Title: "Continue Listening", Shape: "poster", Items: []Item{}},
-			{ID: "continue_books", Title: "Continue your books", Shape: "poster", Items: []Item{}},
-			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: []Item{}},
-			{ID: "popular", Title: popularHomeTitle, Shape: "poster", Items: []Item{}},
-			{ID: "recently_released", Title: "Recently Released", Shape: "poster", Items: []Item{}},
-			{ID: "trending", Title: "Trending now", Shape: "poster", Items: []Item{}},
-		}
-		continuing, err := s.pageHomeRows(r, home, "")
-		if err != nil {
-			return Home{}, err
-		}
-		collections, err := s.addedCollectionHomeRows(r)
-		if err != nil {
-			return Home{}, err
-		}
-		home = append(home, collections...)
-		for _, mood := range moods {
-			home = append(home, HomeRow{ID: mood.Key, Title: moodRowTitle(mood.Label), Reason: because(mood.Because),
-				Shape: "poster", Items: itemShapes(mood.Items), NextCursor: mood.NextCursor})
-		}
-		becauseRows, err := s.becauseHomeRows(r, "")
-		if err != nil {
-			return Home{}, err
-		}
-		home = append(home, becauseRows...)
-		views, err := s.savedViewRows(r)
-		if err != nil {
-			return Home{}, err
-		}
-		onNow, err := s.initialOnNowHomeRow(r)
-		if err != nil {
-			return Home{}, err
-		}
-		home = append(home, onNow)
-		rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, append(home, views...), withHidden)
-		if err == nil {
-			err = s.fillViewRows(r, rows)
-		}
+		rows, continuing, err := s.homeRows(r, withHidden)
 		if err != nil {
 			return Home{}, err
 		}
@@ -366,6 +323,59 @@ func (s *Server) catalogueRoutes() {
 	feed := &Route{Pattern: "GET /v1/events", Access: WithProfile, Scope: ScopeRead}
 	s.routes = append(s.routes, feed)
 	s.mux.HandleFunc(feed.Pattern, func(w http.ResponseWriter, r *http.Request) { s.events(w, r, feed) })
+}
+
+// homeRows is Home's rows in the profile's order, with the hidden ones when withHidden, and
+// the Continue Watching titles the spotlight starts from. The Top Shelf reads the same rows.
+func (s *Server) homeRows(r *http.Request, withHidden bool) ([]HomeRow, []db.Item, error) {
+	moods, err := s.db.MoodRows(r.Context(), viewer(r))
+	if err != nil {
+		return nil, nil, err
+	}
+	home := []HomeRow{
+		{ID: "continue", Title: "Continue Watching", Shape: "landscape", Items: []Item{}},
+		{ID: "continue_listening", Title: "Continue Listening", Shape: "poster", Items: []Item{}},
+		{ID: "continue_books", Title: "Continue your books", Shape: "poster", Items: []Item{}},
+		{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: []Item{}},
+		{ID: "popular", Title: popularHomeTitle, Shape: "poster", Items: []Item{}},
+		{ID: "recently_released", Title: "Recently Released", Shape: "poster", Items: []Item{}},
+		{ID: "trending", Title: "Trending now", Shape: "poster", Items: []Item{}},
+	}
+	continuing, err := s.pageHomeRows(r, home, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	collections, err := s.addedCollectionHomeRows(r)
+	if err != nil {
+		return nil, nil, err
+	}
+	home = append(home, collections...)
+	for _, mood := range moods {
+		home = append(home, HomeRow{ID: mood.Key, Title: moodRowTitle(mood.Label), Reason: because(mood.Because),
+			Shape: "poster", Items: itemShapes(mood.Items), NextCursor: mood.NextCursor})
+	}
+	becauseRows, err := s.becauseHomeRows(r, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	home = append(home, becauseRows...)
+	views, err := s.savedViewRows(r)
+	if err != nil {
+		return nil, nil, err
+	}
+	onNow, err := s.initialOnNowHomeRow(r)
+	if err != nil {
+		return nil, nil, err
+	}
+	home = append(home, onNow)
+	rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, append(home, views...), withHidden)
+	if err == nil {
+		err = s.fillViewRows(r, rows)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	return rows, continuing, nil
 }
 
 // browseBy says what a library of each kind can be browsed by. Sorts list the direction each
