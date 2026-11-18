@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Open-source licenses (states frame 30), opened from Settings > This device in the page's place:
+     Portico's own licence and source, then every component the app holds, from the generated list
+     (source/licences.json, tools/licences.py). OK on a component opens its licence, which takes
+     focus a paragraph at a time; only the paragraphs near focus are drawn. Back goes one step back. -->
+<component name="LicencesPage" extends="Group">
+  <interface>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- Set true when Back leaves the list: Settings takes focus again. -->
+    <field id="done" type="boolean" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="LicencesPage.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Group id="list"/>
+    <Group id="licence" visible="false">
+      <Label id="licenceTitle"/>
+      <Label id="licenceMeta" wrap="true" maxLines="3"/>
+      <Group id="paragraphs"/>
+    </Group>
+  </children>
+</component>

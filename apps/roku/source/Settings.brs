@@ -89,7 +89,8 @@ function settingsPages() as object
             {title: "About Portico", note: "Terms of Use and Privacy Policy: getportico.tv/terms and getportico.tv/privacy. Metadata and artwork are provided by TMDB and other providers configured on your server. Recommendation tags and similar titles in part from the Portico Title Dataset (CC BY-SA 4.0), built from Wikipedia and Wikidata.", rows: [
                 {type: "info", id: "appVersion", label: "App version"},
                 {type: "info", id: "server", label: "Server"},
-                {type: "info", id: "serverVersion", label: "Server version"}
+                {type: "info", id: "serverVersion", label: "Server version"},
+                {type: "action", id: "licences", label: "Open-source licenses", value: "View licenses", control: "open"}
             ]}
         ]}
     ]

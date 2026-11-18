@@ -309,7 +309,7 @@ ICONS = {
     'collection': [28],
     'film': [32],
     'folder': [32],
-    'forward': [28],
+    'forward': [24, 28],
     'globe': [28],
     'home': [32],
     'info': [28],
