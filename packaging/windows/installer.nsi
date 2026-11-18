@@ -26,9 +26,11 @@ UninstPage uninstConfirm
 UninstPage instfiles
 
 ; Ends every running copy of the installed program, and waits until it has gone: Windows keeps
-; a running program's files. It ends the way a sign-out from Windows ends it.
+; a running program's files. It ends the way a sign-out from Windows ends it. The program's path
+; comes from CIM: this installer is 32-bit, and a 32-bit PowerShell gets no Path from Get-Process
+; for a 64-bit program.
 !macro StopPortico
-  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "$$p = @(Get-Process portico-server -ErrorAction SilentlyContinue | Where-Object Path -eq '$INSTDIR\portico-server.exe'); $$p | Stop-Process -Force; $$p | Wait-Process -Timeout 30"`
+  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "$$ids = @(Get-CimInstance Win32_Process | Where-Object ExecutablePath -eq '$INSTDIR\portico-server.exe' | ForEach-Object ProcessId); if (-not $$ids) { exit 0 }; Stop-Process -Id $$ids -Force -ErrorAction SilentlyContinue; foreach ($$i in 1..30) { if (-not (Get-Process -Id $$ids -ErrorAction SilentlyContinue)) { exit 0 }; Start-Sleep 1 }; exit 1"`
   Pop $2
 !macroend
 
