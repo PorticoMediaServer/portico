@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultI18n} from '../../../packages/i18n/src';
 import {channelTint, programmeTimeRange} from '../../../packages/client-core/src/presentation/kit-model';
-import {SEARCH_CHIPS, orderedSearchGroups, searchGroupLabel, topSearchResult, topResultKindLabel} from '../../../packages/client-core/src/presentation/search-model';
+import {SEARCH_CHIPS, orderedSearchGroups, searchGroupLabel, topResultKindLabel} from '../../../packages/client-core/src/presentation/search-model';
 import {nowNext} from '../../../packages/client-core/src/guide/now-next';
 import {serverNow} from '../../../packages/client-core/src/server-clock';
 import {browseType} from '../src-next/kit/browse/presentation';
@@ -32,7 +32,7 @@ async function mountSearch({hasLiveTV, onNow, typed = false, at = now}: {hasLive
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34, left: 0, right: 0})},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel},
+    '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topResultKindLabel},
     '../../../../../packages/client-core/src/guide/now-next': {nowNext}, '../../../../../packages/client-core/src/server-clock': {serverNow: () => at},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/cards': {GenreTile: 'GenreTile', LiveCard: 'LiveCard'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame'},
     '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', TextField: 'TextField'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},

@@ -5,7 +5,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {repeat} from '../../../../../packages/client-core/src/timer';
 import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core/src/search';
-import {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
+import {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import {Artwork, StandardBackdrop} from '../../kit/artwork';
 import {GenreTile, LiveCard, type CardSelection} from '../../kit/cards';
 import {CardFrame, Parts} from '../../kit/cards/primitives';
@@ -62,7 +62,7 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
   // only a query that matched nothing anywhere draws the no-match page.
   const emptyAll = empty && state.group === 'all', emptyIn = empty && state.group !== 'all' ? state.group : undefined;
   const loading = state.search.phase === 'loading' && !state.groups.length;
-  const top = state.group === 'all' ? topSearchResult(state.text, state.groups) : undefined;
+  const top = state.group === 'all' ? state.search.data?.topResult : undefined;
   const run = useCallback((work: Promise<void>) => {void work.catch(runtime.reportError);}, [runtime]);
   const initialized = useRef(false);
   useEffect(() => {

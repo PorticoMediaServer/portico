@@ -8,7 +8,7 @@ import {t, locale} from '../detail/text';
 import {createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent} from 'react';
 import {preferenceValue} from '@core/preferences.ts';
 import {searchDependencies, searchQueryProblem, type SearchEntry, type SearchGroup, type SearchGroupResult} from '@core/search.ts';
-import {SEARCH_CHIPS, searchChipOffered, searchGroupLabel, topSearchResult} from '@core/presentation/search-model.ts';
+import {SEARCH_CHIPS, searchChipOffered, searchGroupLabel} from '@core/presentation/search-model.ts';
 import {Button, Chip, TextField} from '../../kit/controls';
 import {useSelectionRangePreview, type CardSelection, type CardSelectionIntent, PosterCard, SquareCard, CircleCard, EpisodeTile, GenreTile, LiveCard, CoverCard} from '../../kit/cards';
 import {useCardHold} from '../../kit/cards/useCardHold';
@@ -125,7 +125,7 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
   const removeRecent = recent.length ? (query: string) => { if (recent.includes(query)) eraseRecent(() => binding.removeRecent(query)); } : undefined;
   const clearRecentHistory = recent.length ? () => eraseRecent(() => binding.clearRecent()) : undefined;
   const showing = snapshot.data?.query.q === text.trim() && snapshot.data.query.group === (group ?? '') ? snapshot.data : null;
-  const groups = showing ? snapshot.groups : [], top = showing && !group && !selection?.isActive() ? topSearchResult(text, service.getSnapshot().groups) : undefined;
+  const groups = showing ? snapshot.groups : [], top = showing && !group && !selection?.isActive() ? showing.topResult : undefined;
   // Frame 4: a photo-less artist's circle is cut from one of their own albums in this answer.
   const topAlbumArt = top ? artistAlbumArt(top.entry, groups) : undefined;
   useLayoutEffect(() => {if (selection && top?.entry && 'libraryId' in top.entry) return selection.register(top.entry, -1);}, [selection, top?.entry, selectionEpoch, snapshot.generation]);
