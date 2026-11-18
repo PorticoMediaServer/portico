@@ -4,8 +4,8 @@
      MainScene's own, not a page in the stack. -->
 <component name="AudioScreen" extends="Group">
   <interface>
-    <!-- {item, queue, startOver}: the title to start, what POST /v1/queues builds (unset: from the
-         item), and for a book, whether from its start. -->
+    <!-- {item, queue, startOver, startAtMs}: the title to start, what POST /v1/queues builds (unset:
+         from the item), and for a book, from its start or from a chapter. -->
     <field id="play" type="assocarray" alwaysNotify="true" onChange="onPlay"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <!-- Set true when the viewer leaves the full screen; the music carries on. -->

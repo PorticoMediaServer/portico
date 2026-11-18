@@ -19,3 +19,10 @@ function imageUrl(path as dynamic, w as integer, h as integer) as string
     if path = invalid or path = "" then return ""
     return m.global.origin + path + "?w=" + w.toStr() + "&h=" + h.toStr()
 end function
+
+' A cover's colour for the room behind it: the server's small preblurred copy (ambient-v2, the
+' saturated wash the native apps use), drawn large.
+function ambientUrl(path as dynamic) as string
+    if path = invalid or path = "" then return ""
+    return m.global.origin + path + "?size=ambient-v2"
+end function

@@ -378,6 +378,8 @@ def main():
     save_png(shade(8, 64, [(0, '#ffffff', 0), (1, '#ffffff', 1)]), 'fade-white-down.png')
     # the light and shade over a profile's face (Who's watching)
     save_png(face_shade(), 'face-shade.png')
+    # a book's cover on an author's or a series' row (collections frame 44)
+    save_png(card_mask(128, 128, 10), 'mask-128x128.png')
 
     for i, (first, second) in enumerate(COVER_TINTS):
         generated_cover(first, second).convert('RGB').save(os.path.join(OUT, 'cover-%d.jpg' % i), quality=88)

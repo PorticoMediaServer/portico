@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One book in an author's or a series' list (collections frames 44 and 45): its cover with your place
+     along its foot, "Book 1" above the title for a series, who read it, where you are ("Chapter 15 of
+     22, 4 h 34 min left") and its length on the right. The row in focus has the list focus look. -->
+<component name="BookRow" extends="Group">
+  <interface>
+    <!-- {art, number, title, sub, place, length, progress}: number is the "Book 1" line, place the line
+         in the accent, progress (0 to 1, invalid for none) the bar on the cover. -->
+    <field id="model" type="assocarray" onChange="layout"/>
+    <field id="rowWidth" type="float" value="1124"/>
+    <field id="rowHeight" type="float" value="168"/>
+    <field id="on" type="boolean" onChange="paint"/>
+  </interface>
+  <script type="text/brightscript" uri="BookRow.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Poster id="ring" uri="pkg:/images/focus-14.9.png" visible="false"/>
+    <Poster id="plate" uri="pkg:/images/round-14.9.png" visible="false"/>
+    <Poster id="coverBack" uri="pkg:/images/round-10.9.png" width="128" height="128"/>
+    <MaskGroup id="coverClip" maskUri="pkg:/images/mask-128x128.png" maskSize="[128,128]">
+      <Poster id="cover" width="128" height="128" loadDisplayMode="scaleToFill"/>
+    </MaskGroup>
+    <Rectangle id="track" height="6" visible="false"/>
+    <Rectangle id="bar" height="6" visible="false"/>
+    <Label id="number"/>
+    <Label id="title"/>
+    <Label id="sub"/>
+    <Label id="place"/>
+    <Label id="length" horizAlign="right" width="200"/>
+  </children>
+</component>

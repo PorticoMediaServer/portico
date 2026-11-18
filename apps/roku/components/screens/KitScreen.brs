@@ -74,6 +74,7 @@ function kitPages() as object
             {c: "Key", at: [200, 200], f: {text: "a", role: "keyLetter"}}, {c: "Key", at: [320, 200], f: {text: "b", role: "keyLetter", on: true}},
             {c: "Key", at: [440, 200], f: {glyph: "backspace", role: "button"}}, {c: "Key", at: [200, 340], f: {text: "7", role: "padKey", width: 148, height: 118}},
             {c: "Key", at: [380, 340], f: {text: "Forgot PIN?", glass: true, width: 484}}]},
+        {title: "Book rows: a series' book under way, a book not started", parts: [{c: "BookRow", at: [200, 200], f: {model: {art: "pkg:/images/cover-3.jpg", number: "Book 1", title: "A book under way", sub: "Read by its narrator", place: "Chapter 6 of 17, 5 h 33 min left", length: "8 h 13 min", progress: 0.32}, on: true}}, {c: "BookRow", at: [200, 400], f: {model: {art: "pkg:/images/cover-5.jpg", title: "A book not started", sub: "Read by its narrator", length: "10 h 53 min"}}}]},
         {title: "The keyboard (Search's)", parts: [
             {c: "Keyboard", at: [200, 120], f: {}}]},
         {title: "The name panel (a new playlist named on the TV, tv-focus 41)", parts: [

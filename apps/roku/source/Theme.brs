@@ -63,6 +63,12 @@ function frames() as object
         ' Now playing for music and audiobooks: every control placed from here; only Up next changes.
         audio: {fromY: 120, artX: 200, artY: 230, art: 600, titleX: 880, titleY: 230, titleWidth: 500, titleHeight: 330,
             controlsY: 590, controlsHeight: 274, nextX: 1460, nextY: 230, nextWidth: 360, nextHeight: 640}
+        ' An audiobook, an author or a series (collections frames 43 to 45): the cover on the left; beside it the
+        ' series or eyebrow, the title, the facts, your place, the buttons, then the chapters under their heading
+        ' (`row` apart). An author's circle or a series' cover is smaller and higher (`group` at `groupY`), its words
+        ' `groupDrop` lower, and its books' rows (`bookRow` tall, `bookGap` between) start at `booksY`.
+        book: {coverX: 200, coverY: 96, cover: 420, wordsX: 700, eyebrowY: 96, titleY: 132, metaY: 316, progressY: 380, progressWidth: 380, buttonsY: 426, listY: 592, listWidth: 1124, row: 68,
+            groupY: 120, group: 380, groupDrop: 54, booksY: 560, bookRow: 168, bookGap: 10}
         ' A library or Search (frame "Browse"): the page title's line; Home's moderate hero with its
         ' words from `heroTop`, and the heading of the row in focus on `rowsY`.
         browse: {titleY: 64, heroTop: 110, rowsY: 520}
@@ -172,10 +178,13 @@ function typeRoles() as object
         about: [400, 24, 35]                ' a title page's or a person's About text
         ' the steps on a sign-in page (auth.html .tvl .lede)
         authBody: [400, 26, 38]
+        authorInitials: [800, 130, 0]       ' an author's initials over the blur of their covers (collections frame 44)
         authTitle: [800, 72, 0]             ' before a profile is chosen: a page's title (auth.html .tvl h1, Who's watching)
         badge: [800, 18, 0]                 ' a small badge on a card
         body: [400, 24, 33]
         bodyStrong: [700, 24, 33]
+        ' where you are in a book on an author's or a series' row ("Chapter 15 of 22, 4 h 34 min left")
+        bookPlace: [700, 22, 0]
         button: [700, 26, 0]
         caption: [400, 20, 27]
         cardSubtitle: [400, 20, 0]

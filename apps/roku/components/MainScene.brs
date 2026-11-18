@@ -246,7 +246,7 @@ sub playAudio(ask as object)
         m.audioWatched = true
     end if
     m.top.findNode("nowPlaying").visible = false
-    player.play = {item: ask.item, queue: ask.queue, startOver: ask.startOver}
+    player.play = {item: ask.item, queue: ask.queue, startOver: ask.startOver, startAtMs: ask.startAtMs}
     player.visible = true
     m.rail.visible = false
     player.active = true
@@ -342,8 +342,8 @@ sub onOpenAsk(ask as object)
         playAudio(ask)
         return
     end if
-    ' an audiobook plays there too
-    if kind = "audiobook"
+    ' Resume or Play on an audiobook plays it there too; its card opens its page
+    if kind = "audiobook" and ask.play = true
         playAudio(ask)
         return
     end if
@@ -363,6 +363,7 @@ sub onOpenAsk(ask as object)
     end if
     page = invalid
     if kind = "album" or kind = "artist" then page = push("MusicScreen")
+    if kind = "audiobook" or kind = "author" or kind = "series" then page = push("BookScreen")
     if kind = "list" then page = push("LibraryScreen")     ' Search's See all, a genre's titles
     if kind = "live"
         showLive()      ' Search's Live TV chip: the guide
@@ -581,6 +582,11 @@ sub setArt(art as string)
         m.backdrop.poster = ""
         m.backdrop.tint = "pkg:/images/cover-" + mid(art, 7) + ".jpg"
         m.backdrop.art = ""
+    else if left(art, 5) = "glow|"
+        ' a music or book page: the room takes its colour from the cover (tv-more frame 6)
+        m.backdrop.poster = ""
+        m.backdrop.tint = ""
+        m.backdrop.art = ambientUrl(mid(art, 6))
     else
         m.backdrop.poster = ""
         m.backdrop.tint = ""
