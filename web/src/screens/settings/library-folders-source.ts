@@ -1,7 +1,7 @@
 import type {ContentScope, LibraryContentApi} from '@core/library-content.ts';
-import {readOwnerLibraryInventoryConfig as readLibraryInventoryConfig, type InventoryConfig, type SourceSettings} from '@core/library-inventory.ts';
+import {readOwnerLibraryInventoryConfig, type InventoryConfig, type SourceSettings} from '@core/library-inventory.ts';
 import {settingsSaveConflict} from '@core/settings-document.ts';
-import {removeOwnerLibraryFolder as removeLibraryFolder, saveOwnerLibraryFolder as saveLibraryFolder, scanLibraryFolder, checkLibraryFolder} from '@core/server-admin/libraries.ts';
+import {removeOwnerLibraryFolder, saveOwnerLibraryFolder, scanLibraryFolder, checkLibraryFolder} from '@core/server-admin/libraries.ts';
 
 /** The canonical folder fields, with the library revision captured by this source. */
 export type SettingsLibraryFolderEdit = Omit<SourceSettings, 'expectedRevision'>;
@@ -60,13 +60,13 @@ export class SettingsLibraryFoldersSource {
   save = (libraryId: string, sourceId: string | undefined, edit: SettingsLibraryFolderEdit, revision?: number): Promise<boolean> => {
     const captured = this.captured(libraryId);
     if (!captured || (sourceId !== undefined && !captured.sources.some(item => item.id === sourceId))) return Promise.resolve(false);
-    return this.command(libraryId, captured, signal => saveLibraryFolder(this.api, libraryId, sourceId, {...edit, expectedRevision: revision ?? captured.revision}, signal));
+    return this.command(libraryId, captured, signal => saveOwnerLibraryFolder(this.api, libraryId, sourceId, {...edit, expectedRevision: revision ?? captured.revision}, signal));
   };
   /** Remove exactly a captured folder at the captured library revision. */
   remove = (libraryId: string, sourceId: string, revision?: number): Promise<boolean> => {
     const captured = this.captured(libraryId);
     if (!captured || !captured.sources.some(item => item.id === sourceId)) return Promise.resolve(false);
-    return this.command(libraryId, captured, signal => removeLibraryFolder(this.api, libraryId, sourceId, revision ?? captured.revision, signal));
+    return this.command(libraryId, captured, signal => removeOwnerLibraryFolder(this.api, libraryId, sourceId, revision ?? captured.revision, signal));
   };
   scan = (libraryId: string, sourceId: string): Promise<boolean> => {
     const captured = this.captured(libraryId);
@@ -81,7 +81,7 @@ export class SettingsLibraryFoldersSource {
     const request = new AbortController();this.request = request;
     const retained = this.state.libraryId === libraryId ? this.state.config : undefined;
     const mutation = this.state.libraryId === libraryId ? this.state.mutation : 'idle';
-    const pending = readLibraryInventoryConfig(this.api, this.bound, libraryId, request.signal).then(config => {
+    const pending = readOwnerLibraryInventoryConfig(this.api, this.bound, libraryId, request.signal).then(config => {
       if (this.owns(request, libraryId)) this.publish({libraryId, config, loading: false, mutation: 'idle'});
     }).catch(error => {
       // An error means this selection has no current configuration; a genuine reread is the only recovery.
@@ -100,7 +100,7 @@ export class SettingsLibraryFoldersSource {
       } catch (error) {
         if (!this.ownsCommand(request, libraryId)) return false;
         if (settingsSaveConflict(error)) {
-          const config = await readLibraryInventoryConfig(this.api, this.bound, libraryId, request.signal).catch(() => undefined);
+          const config = await readOwnerLibraryInventoryConfig(this.api, this.bound, libraryId, request.signal).catch(() => undefined);
           if (this.ownsCommand(request, libraryId)) this.publish({libraryId, config, loading: false, mutation: config ? 'rejected' : 'reconciliation', error});
           return false;
         }
@@ -112,7 +112,7 @@ export class SettingsLibraryFoldersSource {
       }
       if (!this.ownsCommand(request, libraryId)) return false;
       try {
-        const config = await readLibraryInventoryConfig(this.api, this.bound, libraryId, request.signal);
+        const config = await readOwnerLibraryInventoryConfig(this.api, this.bound, libraryId, request.signal);
         if (!this.ownsCommand(request, libraryId)) return false;
         this.publish({libraryId, config, loading: false, mutation: 'idle'});
         return true;

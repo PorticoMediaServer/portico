@@ -208,9 +208,6 @@ export class LibraryManagementService{
  private async request(api:LibraryContentApi,path:string,method:string,body:unknown,c:AbortController):Promise<unknown>{let timer:ReturnType<typeof setTimeout>|undefined;let abort=()=>{};try{return await Promise.race([api.request(path,method,body,c.signal),new Promise<never>((_,reject)=>{abort=()=>reject(new Failure('cancelled','Library request cancelled.'));c.signal.addEventListener('abort',abort,{once:true});timer=setTimeout(()=>{reject(new Failure('timeout','The server took too long. Refresh to check the current state.',true));c.abort();},this.timeoutMs);})]);}finally{if(timer)clearTimeout(timer);c.signal.removeEventListener('abort',abort);}}
 }
 
-export {LibraryInventoryService,fetchInventoryStatus,inventoryStatusMessage,scanProgress} from './library-inventory.ts';
-export type {ScanProgress,ViewerInventoryStatus} from './library-inventory.ts';
-
 /** Read-only, folders-only server explorer. A writable check touches only the
  * selected directory and is requested explicitly by single-folder callers. */
 /** The server's own classification of a chosen folder: the longest published
