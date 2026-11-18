@@ -257,6 +257,17 @@ func mergeInto(b *batchTx, library, from, into, now int64) error {
 	return nil
 }
 
+// MergedInto is the public id of the title a merged-away public id now names: ErrNotFound for
+// an id that was never merged away.
+func (d *DB) MergedInto(ctx context.Context, publicID string) (string, error) {
+	var kept string
+	err := d.read.QueryRowContext(ctx, mergedIntoSQL, KeyMerged, publicID).Scan(&kept)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return kept, err
+}
+
 // mergedIntoSQL finds the title a merged-away public id now names. item_keys is keyed by
 // library first, so the libraries (a handful) are named to keep it a key lookup.
 const mergedIntoSQL = `SELECT i.public_id FROM item_keys k JOIN items i ON i.id = k.item_id

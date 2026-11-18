@@ -4,7 +4,7 @@ package api
 func init() {
 	safeToRepeat(map[string]string{
 		"POST /v1/admin/items/{id}/metadata/refresh": "a repeat asks the provider again, as a second press of Refresh would",
-		"POST /v1/admin/items/{id}/merge":            "the title merged away is gone after the first, so a repeat is not found and changes nothing",
+		"POST /v1/admin/items/{id}/merge":            "the title merged away is this one after the first, so a repeat answers the same and changes nothing",
 		"POST /v1/admin/versions/{id}/split":         "the version is its title's only one after the first, so a repeat is refused and changes nothing",
 		"POST /v1/admin/items/{id}/artwork/find":     "a repeat fetches the provider's pictures again and adds none it already has (one row per picture address)",
 		"POST /v1/admin/items/{id}/artwork":          "an upload of the same picture is the row it made the first time, used and locked again",

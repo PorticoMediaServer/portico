@@ -281,6 +281,10 @@ func (s *Server) merge(r *http.Request, req MergeRequest) (MatchResult, error) {
 		return MatchResult{}, ErrField("itemId", "Name the title to merge into this one.")
 	}
 	if err := s.db.SeesItem(r.Context(), viewer(r), req.ItemID); err != nil {
+		// The same merge sent again after its answer was lost: the other title is this one now.
+		if kept, merged := s.db.MergedInto(r.Context(), req.ItemID); errors.Is(err, db.ErrNotFound) && merged == nil && kept == id {
+			return MatchResult{ItemID: id}, nil
+		}
 		return MatchResult{}, refuse(err)
 	}
 	return MatchResult{ItemID: id}, refuse(s.db.MergeItems(r.Context(), req.ItemID, id))
