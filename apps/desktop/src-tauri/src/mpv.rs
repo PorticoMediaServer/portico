@@ -210,6 +210,25 @@ impl Mpv {
         })
     }
 
+    /// Shows the file's own audio track and subtitle the presentation names, by their stream
+    /// number in the file (the server's id for them): `None` leaves mpv's choice, a subtitle of
+    /// -1 turns subtitles off.
+    pub fn tracks(&self, audio: Option<i64>, subtitle: Option<i64>) -> Result<(), String> {
+        self.with(false, &[], |running| {
+            let list = Self::request(running, json!(["get_property", "track-list"]))?;
+            if let Some(stream) = audio {
+                let id = track(&list, "audio", stream).ok_or("track_unavailable")?;
+                Self::request(running, json!(["set_property", "aid", id]))?;
+            }
+            match subtitle {
+                Some(-1) => { Self::request(running, json!(["set_property", "sid", "no"]))?; }
+                Some(stream) => { let id = track(&list, "sub", stream).ok_or("track_unavailable")?; Self::request(running, json!(["set_property", "sid", id]))?; }
+                None => {}
+            }
+            Ok(())
+        })
+    }
+
     pub fn observe(&self) -> Reading {
         let read = |running: &mut Running, name: &str| Self::request(running, json!(["get_property", name])).ok();
         self.with(false, &[], |running| {
@@ -241,9 +260,24 @@ impl Mpv {
     }
 }
 
+/// mpv's id for the track of `kind` that is stream `stream` in the file (`ff-index`).
+fn track(list: &Value, kind: &str, stream: i64) -> Option<i64> {
+    list.as_array()?.iter().find(|t| t["type"] == kind && t["ff-index"] == stream && t["external"] != true)?.get("id")?.as_i64()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_track_is_found_by_its_stream_number_in_the_file() {
+        let list = json!([{"id": 1, "type": "video", "ff-index": 0}, {"id": 1, "type": "audio", "ff-index": 1}, {"id": 2, "type": "audio", "ff-index": 2},
+            {"id": 1, "type": "sub", "ff-index": 3}, {"id": 2, "type": "sub", "ff-index": 4}, {"id": 3, "type": "sub", "ff-index": 0, "external": true}]);
+        assert_eq!(track(&list, "audio", 2), Some(2));
+        assert_eq!(track(&list, "sub", 4), Some(2));
+        assert_eq!(track(&list, "sub", 0), None, "a subtitle added beside the file is not a stream of it");
+        assert_eq!(track(&list, "audio", 9), None);
+    }
 
     #[cfg(unix)]
     #[test]

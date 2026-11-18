@@ -281,6 +281,16 @@ export function seekNeedsServer(session: Session): boolean {
 
 const LOST_SESSION_RESTART_MS = 5000;
 
+/** The original file's own tracks a presentation shows: the server names an in-file track by its stream
+ * number (`server-next/internal/playback/choose.go`, TrackID); a subtitle the device draws from the
+ * file is one of them, and none at all reads as off. */
+function fileTracks(p: Session['presentation']): Readonly<{audio?: number; subtitle?: number}> {
+  const stream = (id?: string) => id !== undefined && /^\d{1,5}$/.test(id) ? Number(id) : undefined;
+  const audio = stream(p.audioTrackId);
+  const subtitle = !p.subtitle ? -1 : p.subtitle.delivery === 'device' ? stream(p.subtitle.trackId) : undefined;
+  return Object.freeze({...(audio !== undefined ? {audio} : {}), ...(subtitle !== undefined ? {subtitle} : {})});
+}
+
 export class PlaybackSessionController {
   private readonly client: SessionsClient;
   private readonly player: MediaPlayer;
@@ -449,6 +459,7 @@ export class PlaybackSessionController {
       url: session.presentation.url, generation: session.presentation.generation, mode: session.presentation.mode,
       startPositionMs: startPositionMs !== undefined ? Math.max(0, Math.round(startPositionMs)) : session.presentation.startPositionMs, subtitles: session.presentation.subtitles, autoplay,
       sessionId: session.id, ...(session.itemId ? {itemId: session.itemId} : {}), engine: session.presentation.engine,
+      ...(session.presentation.route === 'original' ? {fileTracks: fileTracks(session.presentation)} : {}),
       ...(session.presentation.bitrateKbps ? {bitrateKbps: session.presentation.bitrateKbps} : {}),
     });
   }
