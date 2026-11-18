@@ -313,8 +313,12 @@ func probeCommand(ctx context.Context, executable string, args []string, librari
 	return mediaexec.CommandContext(ctx, mediaexec.Job{Executable: executable, Args: args, Hardware: true, Libraries: libraries, ReadPaths: readPaths})
 }
 
-// ReshapesDolbyVision checks that the conversion uses a filter that applies
-// Dolby Vision reshaping metadata. Profile 5 has no compatible base picture.
+// ReshapesDolbyVision says whether converting this request uses a filter that
+// applies a Dolby Vision stream's reshaping metadata: libplacebo, or on a Mac
+// tonemap_videotoolbox or tonemapx. Profile 5 files have no HDR10 or SDR base
+// layer, so any other tone mapper treats their IPT-PQ-C2 picture as HDR10 and
+// shows the well-known purple and green cast (COMPAT-04). It mirrors
+// BuildConversion's choice of filter; a test holds the two together.
 func ReshapesDolbyVision(r ConversionRequest) bool {
 	if !r.ConvertVideo {
 		return false
