@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Live TV, the guide (tv.html frame 6): one focus region of channels and a time grid with the
+     now-line. OK on a programme opens its side sheet with Watch live first. -->
+<component name="LiveScreen" extends="Group">
+  <interface>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="art" type="string"/>
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+  </interface>
+  <script type="text/brightscript" uri="LiveScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Label id="pageTitle" text="Live TV"/>
+    <Label id="state" visible="false"/>
+    <Group id="header"/>
+    <Group id="window">
+      <Group id="rows"/>
+      <Poster id="ring" uri="pkg:/images/focus-14.9.png" visible="false"/>
+    </Group>
+    <Rectangle id="nowLine" width="2" visible="false"/>
+    <Poster id="nowPill" uri="pkg:/images/round-10.9.png" height="34" visible="false"/>
+    <Label id="nowText" height="34" vertAlign="center" horizAlign="center" visible="false"/>
+    <Timer id="minute" duration="60" repeat="true"/>
+  </children>
+</component>
