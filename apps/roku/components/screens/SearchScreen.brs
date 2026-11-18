@@ -119,7 +119,9 @@ end sub
 
 sub onActive()
     if not m.top.active then return
-    if m.focus >= 0 and m.focus < m.rows.count() then m.rows[m.focus].node.active = true else m.keyboard.active = true
+    ' back from a page: focus where the page left it, or the keyboard if that row has gone, and
+    ' m.focus says which, so a typed letter (or any key) goes where the ring is
+    if m.focus >= 0 and m.focus < m.rows.count() then moveTo(m.focus) else moveTo(-1)
 end sub
 
 sub onTyped()
@@ -201,6 +203,7 @@ end function
 sub showGroups(groups as object)
     m.page.removeChildrenIndex(m.page.getChildCount(), 0)
     m.failed.visible = false
+    inRows = (m.focus >= 0)     ' focus was in a row, which these new rows replace
     m.rows = []
     s = frames().search
     y = 0
@@ -272,6 +275,9 @@ sub showGroups(groups as object)
     m.focus = -1
     m.page.translation = [0, s.keysY]
     clipResults()
+    ' new results replace the rows: focus in a row that has gone goes to the keyboard as m.focus
+    ' says, never left on nothing while the ring is drawn somewhere else
+    if inRows and m.top.isInFocusChain() then moveTo(-1)
 end sub
 
 ' How tall a card's picture is in each shelf shape (its words are under it).
