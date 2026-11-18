@@ -219,11 +219,7 @@ end function
 
 function lastSeenServer(iso as dynamic) as string
     if iso = invalid then return ""
-    when = createObject("roDateTime")
-    when.fromISO8601String(iso)
-    when.toLocalTime()
-    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    return "Active " + months[when.getMonth() - 1] + " " + when.getDayOfMonth().toStr()
+    return "Active " + serverDayWords(iso)
 end function
 
 ' A group's label, then its rows on one raised card (or one line saying there is nothing).
