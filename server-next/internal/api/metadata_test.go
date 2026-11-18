@@ -353,8 +353,14 @@ func TestAMatchKeepsTheOriginalLanguageForPlayback(t *testing.T) {
 	sh := newShelf(t, "Heat.mkv")
 	heat := sh.unmatched()[0].ItemID
 	sh.do("PUT", "/v1/admin/items/"+heat+"/match", MatchRequest{Provider: "tmdb", ID: "949"}, nil, 200)
-	item, err := sh.s.db.PlaybackItem(context.Background(), db.Viewer{UserID: 1, ProfileID: 1}, heat)
-	if err != nil || item.OriginalLanguage != "en" {
-		t.Fatalf("after matching Heat the playback item's original language is %q (%v), want en", item.OriginalLanguage, err)
+	// A refresh also records whether the title is still running: both must be kept.
+	for _, step := range []string{"matching", "refreshing"} {
+		if step == "refreshing" {
+			sh.do("POST", "/v1/admin/items/"+heat+"/metadata/refresh", nil, nil, 200)
+		}
+		item, err := sh.s.db.PlaybackItem(context.Background(), db.Viewer{UserID: 1, ProfileID: 1}, heat)
+		if err != nil || item.OriginalLanguage != "en" {
+			t.Fatalf("after %s Heat the playback item's original language is %q (%v), want en", step, item.OriginalLanguage, err)
+		}
 	}
 }
