@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -21,10 +20,10 @@ import (
 )
 
 // discReader is the disc reader that came with an FFmpeg, which the server reads discs with,
-// or "" when there is none or the server cannot hand it a folder (it is not Linux).
+// or "" when the bundle does not have one.
 func discReader(ffmpeg string) string {
 	reader, err := exec.LookPath(filepath.Join(filepath.Dir(ffmpeg), mediatools.Name("portico-disc")))
-	if err != nil || runtime.GOOS != "linux" {
+	if err != nil {
 		return ""
 	}
 	return reader

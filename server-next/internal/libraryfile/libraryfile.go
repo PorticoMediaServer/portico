@@ -37,9 +37,8 @@ var ErrOutside = errors.New("not a file inside a library folder")
 // anything is served. A file whose real location is inside it is refused.
 var ServerData string
 
-// private reports whether a real path (links already followed) is the server's
-// data folder or inside it.
-func private(real string) bool {
+// private reports whether a real path (links already followed) overlaps server data.
+func private(real string, directory bool) bool {
 	if ServerData == "" {
 		return false
 	}
@@ -48,7 +47,16 @@ func private(real string) bool {
 		return false // no data folder there, so nothing is inside it
 	}
 	relative, err := filepath.Rel(data, real)
-	return err == nil && (relative == "." || filepath.IsLocal(relative))
+	if err == nil && (relative == "." || filepath.IsLocal(relative)) {
+		return true
+	}
+	if directory {
+		// A reader allowed to open members of a disc folder must not get
+		// authority over server data nested beneath it either.
+		relative, err = filepath.Rel(real, data)
+		return err == nil && filepath.IsLocal(relative)
+	}
+	return false
 }
 
 // beneath reports whether a path is written beneath one of the folders. It
@@ -76,8 +84,14 @@ func Resolve(path string, folders []string) (string, error) {
 	if !beneath(path, folders) {
 		return "", ErrOutside
 	}
+	return ResolveReadPath(path, false)
+}
+
+// ResolveReadPath resolves a file or disc folder already identified from a
+// library walk. A directory grants access to its contents.
+func ResolveReadPath(path string, directory bool) (string, error) {
 	real, err := filepath.EvalSymlinks(path)
-	if err != nil || private(real) {
+	if err != nil || !filepath.IsAbs(real) || private(real, directory) {
 		return "", ErrOutside
 	}
 	return real, nil
@@ -105,7 +119,7 @@ func Open(path string, folders []string) (*os.File, error) {
 	// the very file that was opened: a link swapped in between the open and
 	// the look then matches nothing and is refused, not trusted.
 	real, err := filepath.EvalSymlinks(path)
-	if err != nil || private(real) {
+	if err != nil || private(real, false) {
 		file.Close()
 		return nil, ErrOutside
 	}

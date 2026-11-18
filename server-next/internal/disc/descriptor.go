@@ -4,30 +4,68 @@ import (
 	"context"
 	"io"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 )
 
-// RunDescriptor never resolves a library pathname. Directory descriptors must be
-// mounted by the sandbox; unsupported platforms refuse instead of falling back.
-func (t Tool) runDescriptor(ctx context.Context, file *os.File, directory bool, args ...string) ([]byte, error) {
-	if file == nil {
-		return nil, ErrProtocol
+const imageDescriptorPath = "/dev/fd/3"
+
+// LocalInput is a library disc opened read-only. On Linux the child gets only
+// the descriptor. Other platforms reopen the admitted path.
+type LocalInput struct {
+	*os.File
+	directory bool
+}
+
+// OpenLocalInput opens the disc identified by the scan or playback's library lookup.
+func OpenLocalInput(path string, directory bool) (LocalInput, error) {
+	if runtime.GOOS != "linux" {
+		var err error
+		path, err = libraryfile.ResolveReadPath(path, directory)
+		if err != nil {
+			return LocalInput{}, err
+		}
 	}
+	file, err := os.Open(path)
+	return LocalInput{File: file, directory: directory}, err
+}
+
+func (in LocalInput) Path() string {
+	switch {
+	case runtime.GOOS != "linux":
+		return in.Name()
+	case in.directory:
+		return "/disc"
+	default:
+		return imageDescriptorPath
+	}
+}
+
+func (in LocalInput) Job(job mediaexec.Job) mediaexec.Job {
+	if runtime.GOOS != "linux" {
+		job.ReadPaths = append(job.ReadPaths, in.Path())
+	} else {
+		job.Files = append(job.Files, in.File)
+		if in.directory {
+			job.InputFD, job.InputMount = 3, in.Path()
+		}
+	}
+	return job
+}
+
+func (t Tool) runInput(ctx context.Context, job mediaexec.Job) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	binary := t.Binary
-	if binary == "" {
-		binary = mediatools.Resolve("portico-disc")
+	job.Executable = t.Binary
+	if job.Executable == "" {
+		job.Executable = mediatools.Resolve("portico-disc")
 	}
-	job := mediaexec.Job{Executable: binary, Args: args, Files: []*os.File{file}, MaxFileBytes: mediaexec.NoOutputFiles}
-	if directory {
-		job.InputFD = 3
-		job.InputMount = "/disc"
-	}
+	job.MaxFileBytes = mediaexec.NoOutputFiles
 	cmd, err := mediaexec.CommandContext(ctx, job)
 	if err != nil {
 		return nil, err
@@ -41,36 +79,38 @@ func (t Tool) runDescriptor(ctx context.Context, file *os.File, directory bool, 
 	}
 	return out.data, nil
 }
-func DescriptorPath(directory bool) string {
-	if directory {
-		return "/disc"
-	}
-	return "/dev/fd/3"
-}
-func (t Tool) ProbeDescriptor(ctx context.Context, file *os.File, directory bool) (Probe, error) {
-	raw, err := t.runDescriptor(ctx, file, directory, "probe", DescriptorPath(directory))
+
+func (t Tool) probeInput(ctx context.Context, job mediaexec.Job) (Probe, error) {
+	raw, err := t.runInput(ctx, job)
 	if err != nil {
 		return Probe{}, err
 	}
 	return DecodeProbe(raw)
 }
-func (t Tool) SeekDescriptor(ctx context.Context, file *os.File, directory bool, playlist int, ms int64) (Seek, error) {
+
+func (t Tool) ProbeInput(ctx context.Context, in LocalInput) (Probe, error) {
+	return t.probeInput(ctx, in.Job(mediaexec.Job{Args: []string{"probe", in.Path()}}))
+}
+
+func (t Tool) SeekInput(ctx context.Context, in LocalInput, playlist int, ms int64) (Seek, error) {
 	if playlist < 0 || playlist > 99999 || ms < 0 {
 		return Seek{}, ErrProtocol
 	}
-	raw, err := t.runDescriptor(ctx, file, directory, "seek", DescriptorPath(directory), strconv.Itoa(playlist), strconv.FormatInt(ms, 10))
+	args := []string{"seek", in.Path(), strconv.Itoa(playlist), strconv.FormatInt(ms, 10)}
+	raw, err := t.runInput(ctx, in.Job(mediaexec.Job{Args: args}))
 	if err != nil {
 		return Seek{}, err
 	}
 	return DecodeSeek(raw, playlist, ms)
 }
 
-// EntryPointsDescriptor lists a Blu-ray title's entry points, one for each stepMs of it.
-func (t Tool) EntryPointsDescriptor(ctx context.Context, file *os.File, directory bool, title Title, stepMs int64) (EntryPoints, error) {
+// EntryPointsInput lists a Blu-ray title's entry points, one for each stepMs of it.
+func (t Tool) EntryPointsInput(ctx context.Context, in LocalInput, title Title, stepMs int64) (EntryPoints, error) {
 	if title.Playlist == nil {
 		return EntryPoints{}, ErrProtocol
 	}
-	raw, err := t.runDescriptor(ctx, file, directory, "entry-points", DescriptorPath(directory), strconv.Itoa(*title.Playlist), strconv.FormatInt(stepMs, 10))
+	args := []string{"entry-points", in.Path(), strconv.Itoa(*title.Playlist), strconv.FormatInt(stepMs, 10)}
+	raw, err := t.runInput(ctx, in.Job(mediaexec.Job{Args: args}))
 	if err != nil {
 		return EntryPoints{}, err
 	}

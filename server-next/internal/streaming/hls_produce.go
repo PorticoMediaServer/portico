@@ -310,7 +310,11 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 					chapterIndex++
 				}
 			}
-			args = append(args, "-protocol_whitelist", "file,pipe", "-format_whitelist", "ffmetadata", "-f", "ffmetadata", "-i", "pipe:4", "-map_chapters", strconv.Itoa(chapterIndex))
+			chapters := "pipe:4"
+			if len(input.ChapterMetadata) != 0 {
+				chapters = "pipe:0"
+			}
+			args = append(args, "-protocol_whitelist", "file,pipe", "-format_whitelist", "ffmetadata", "-f", "ffmetadata", "-i", chapters, "-map_chapters", strconv.Itoa(chapterIndex))
 			if residual > 0 {
 				args = append(args, "-ss", strconv.FormatFloat(float64(residual)/1000, 'f', 3, 64))
 			}
@@ -500,9 +504,6 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		if input.File != nil {
 			_, _ = input.File.Seek(0, io.SeekStart)
 		}
-		// The one media executor (mediaexec): sandboxed where the platform can,
-		// the input only as descriptor 3, writes only into this session's folder,
-		// and its own process group, so cancelling reaches the whole sandbox.
 		var progress *vod.ConversionProgressWriter
 		if plan != nil && (plan.VideoAction == "convert" || plan.AudioAction == "convert" || plan.BurnIn != nil) {
 			observe, finish := h.observeConversion(id)
@@ -510,10 +511,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			args = append([]string{"-progress", "pipe:1", "-stats_period", "1", "-nostats"}, args...)
 			progress = vod.NewConversionProgressWriter(observe)
 		}
-		// One reservation per hardware converter, taken before the child starts and
-		// released only after it has been waited or cancelled and reaped. A slot
-		// this adapter cannot give right now returns to the existing fallback: the
-		// same path a refused hardware encoder already takes.
+		// A hardware reservation lasts until the converter has been reaped.
 		releasePermit := func() {}
 		// Only a hardware ENCODE takes a session slot: a hardware decoder, tone
 		// mapper or filter does not open an encoder session, and counting it would
@@ -558,6 +556,9 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			return &notStarted{err}, why
 		}
 		cmd.WaitDelay = 2 * time.Second
+		if len(input.ChapterMetadata) != 0 {
+			cmd.Stdin = bytes.NewReader(input.ChapterMetadata)
+		}
 		if progress != nil {
 			cmd.Stdout = progress
 		} else if bookCold {

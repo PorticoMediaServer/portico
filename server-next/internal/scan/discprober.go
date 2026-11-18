@@ -3,7 +3,6 @@ package scan
 import (
 	"context"
 	"errors"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -13,8 +12,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 )
 
-// probeDisc reads a film disc with the disc reader, which is confined and handed the disc image
-// or (directory) the disc's folder itself, never its path. The disc is one title that plays
+// probeDisc reads the disc image or folder found by the library walk. The disc is one title that plays
 // its main feature: the longest title of at least a minute. A copy-protected disc is refused
 // as one; a disc with no title long enough is not a film.
 func probeDisc(ctx context.Context, input string, directory bool) (Facts, error) {
@@ -23,12 +21,12 @@ func probeDisc(ctx context.Context, input string, directory bool) (Facts, error)
 	if _, err := exec.LookPath(mediatools.Resolve("portico-disc")); err != nil {
 		return Facts{}, ErrNoDiscReader
 	}
-	file, err := os.Open(input)
+	source, err := disc.OpenLocalInput(input, directory)
 	if err != nil {
 		return Facts{}, err
 	}
-	defer file.Close()
-	found, err := disc.Tool{}.ProbeDescriptor(ctx, file, directory)
+	defer source.Close()
+	found, err := disc.Tool{}.ProbeInput(ctx, source)
 	var exit *exec.ExitError
 	switch {
 	case errors.Is(err, disc.ErrEncrypted):
