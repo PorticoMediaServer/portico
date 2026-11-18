@@ -3,7 +3,7 @@ import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {AmbientArt, Artwork, StandardBackdrop} from '../../kit/artwork';
+import {AmbientArt, Artwork} from '../../kit/artwork';
 import {PosterCard, type CardSelection} from '../../kit/cards';
 import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import {CardFrame} from '../../kit/cards/primitives';
@@ -135,7 +135,7 @@ export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
     // A failed page further along keeps the members already shown and offers to try again.
     : error ? <StateView variant="inline" {...runtime.error(error, props.onRetry)}/> : null;
   const placeholder = () => <View style={{flex: 1, borderRadius: compact ? 0 : 8, backgroundColor: compact ? 'transparent' : theme.colors.raised}}/>;
-  return <View style={{flex: 1}} testID="native-collection">{theme.isTV && <StandardBackdrop/>}
+  return <View style={{flex: 1}} testID="native-collection">
     {!tv && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5}}><TopBar overArtwork back={{label: t('action.back'), onPress: props.onBack, testID: 'collection-back'}}/></View>}
     {tv ? <ScrollView>{hero}<View style={{paddingLeft: 200, paddingRight: 96, paddingTop: 34, paddingBottom: 80}}>
       {toolbar}

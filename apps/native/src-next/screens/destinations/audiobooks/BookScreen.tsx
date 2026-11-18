@@ -4,7 +4,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
-import {AmbientArt, Artwork, StandardBackdrop, missingArt} from '../../../kit/artwork';
+import {AmbientArt, Artwork, missingArt} from '../../../kit/artwork';
 import {CoverHero} from '../../../kit/layout/CoverHero';
 import {Button, Focusable} from '../../../kit/controls';
 import {FocusRegion} from '../../../kit/focus';
@@ -226,7 +226,7 @@ export function BookScreen({controller, entry, runtime, actions, openEntry, onBa
       </View> : null}
     </View>
   </>;
-  return <View testID={tv ? 'native-tv-book' : 'native-phone-book'} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
+  return <View testID={tv ? 'native-tv-book' : 'native-phone-book'} style={{flex: 1}}>
     <View pointerEvents="none" style={{position: 'absolute', inset: 0, overflow: 'hidden'}}>
       {runtime.ambient(entity.posterUrl) ? <AmbientArt source={runtime.ambient(entity.posterUrl)} treatment="title" style={{position: 'absolute', inset: 0}}/> : null}
       <View style={{position: 'absolute', inset: 0, backgroundColor: alpha(theme.colors.ink, .45)}}/>

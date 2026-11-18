@@ -3,7 +3,6 @@ import {Text, View} from 'react-native';
 import {FormScrollView} from '../../platform/keyboard';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {ColourBackdrop} from '../../kit/artwork';
 import {nativeType, useTheme} from '../../kit/theme';
 import {useMotion} from '../../kit/useMotion';
 import type {StateAction} from '../../kit/states/types';
@@ -23,8 +22,7 @@ export function PhoneAccountForm({title, body, beforeActions, primaryAction, sec
     action={visible ? value : {...value, disabled: true}} variant={primary ? 'primary' : 'glass'}
     style={{alignSelf: 'stretch', width: '100%', minHeight: 48, height: undefined, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 11}}
     textStyle={{fontSize: 16 * theme.textScale}}/>;
-  return <View testID={testID} style={[{flex: 1, backgroundColor: theme.colors.ink}, style]}>
-    <ColourBackdrop shape="top"/>
+  return <View testID={testID} style={[{flex: 1}, style]}>
     <Animated.View pointerEvents={visible ? 'auto' : 'none'} accessibilityElementsHidden={!visible}
       importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={[{flex: 1}, animated]}>
         <FormScrollView bottomOffset={80} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"

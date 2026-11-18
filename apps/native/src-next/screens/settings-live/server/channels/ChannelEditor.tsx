@@ -4,7 +4,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {ownerItemArtworkPath} from '../../../../../../../packages/client-core/src/owner-upload-requests';
 import {validBuilder} from '../../../../../../../packages/client-core/src/server-admin/owner-channel-draft';
 import {defaultI18n,type MessageId} from '../../../../../../../packages/i18n/src';
-import {Artwork,StandardBackdrop} from '../../../../kit/artwork';
+import {Artwork} from '../../../../kit/artwork';
+import {Layer} from '../../../../kit/shell/Layer';
 import {Button,Select,Switch,TextField} from '../../../../kit/controls';
 import {shellType} from '../../../../kit/shell/visual';
 import {useTheme} from '../../../../kit/theme';
@@ -24,7 +25,7 @@ export function NativeChannelEditor({group,runtime,editor}:{group:NativeChannels
  const valid=!!draft.name.trim()&&zoneValid&&validBuilder(builder),preview=state.previewFor===draft?state.preview:undefined;
  useEffect(()=>{if(!valid||locked||editor.conflict)return;const timer=setTimeout(()=>{if(group.current()&&source.getSnapshot().editor===editor)void source.preview(editor);},600);return()=>clearTimeout(timer);},[source,editor,valid,locked,group]);
  const close=()=>{if(current()&&!state.busy){if(previewOpen)setPreviewOpen(undefined);else source.close(editor);}};
- return <Modal visible={current()} animationType={motion.reduce?'fade':'slide'} presentationStyle="fullScreen" onRequestClose={close}><View style={{flex:1,paddingTop:insets.top,paddingBottom:insets.bottom}}><StandardBackdrop/>
+ return <Modal visible={current()} animationType={motion.reduce?'fade':'slide'} presentationStyle="fullScreen" onRequestClose={close}><Layer style={{paddingTop:insets.top,paddingBottom:insets.bottom}}>
   <View style={{minHeight:56,paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:10}}><Button variant="text" size="compact" disabled={state.busy} onPress={close}>{t('builder.cancel')}</Button><Text style={[shellType(17,700),{flex:1,textAlign:'center',color:theme.colors.text}]}>{editor.templateName?t('builder.reviewTemplate',{name:editor.templateName}):t(editor.document?'builder.editTitle':'builder.newTitle')}</Text><Button size="compact" disabled={state.busy||state.uncertain||editor.conflict} loading={state.busy} onPress={()=>{if(!current())return;setTried(true);if(valid)void source.save(editor);}}>{t(state.pendingCreate?'action.tryAgain':editor.document?'builder.save':'builder.create')}</Button></View>
   <FormScrollView contentContainerStyle={{padding:20,gap:14,paddingBottom:40}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
    <TextField label={t('builder.name')} value={draft.name} maxLength={120} editable={!locked} error={tried&&!draft.name.trim()?t('builder.error.name'):undefined} onChangeText={name=>change({name})}/><TextField label={t('builder.description')} value={draft.description} maxLength={2048} editable={!locked} onChangeText={description=>change({description})}/>
@@ -45,8 +46,8 @@ export function NativeChannelEditor({group,runtime,editor}:{group:NativeChannels
    {editor.document&&<Button disabled={state.busy} onPress={()=>{if(current())void source.reloadEditor(editor);}}>{t('action.refresh')}</Button>}
   </FormScrollView>
   <View testID="channel-preview-bar" style={{paddingHorizontal:20,paddingVertical:12,borderTopWidth:1,borderColor:theme.colors.lineSoft,backgroundColor:theme.colors.raised,flexDirection:'row',alignItems:'center',gap:12}}><View style={{flex:1}}><Text style={{color:theme.colors.text}}>{state.previewLoading?t('builder.previewing'):preview?t('builder.matches',{count:preview.titles}):t('builder.preview')}</Text>{preview&&<Text style={{color:theme.colors.textSecondary}}>{t('builder.hours',{hours:Number(preview.hours.toFixed(1))})}</Text>}</View><Button size="compact" disabled={!preview||state.previewLoading} onPress={()=>{if(current()&&preview)setPreviewOpen(preview);}}>{t('builder.preview')}</Button></View>
-  <Modal visible={current()&&!!preview&&previewOpen===preview} animationType={motion.reduce?'fade':'slide'} presentationStyle="fullScreen" onRequestClose={()=>setPreviewOpen(undefined)}><View style={{flex:1,paddingTop:insets.top,paddingBottom:insets.bottom}}><StandardBackdrop/><Button variant="text" onPress={()=>setPreviewOpen(undefined)}>{t('action.back')}</Button><FormScrollView contentContainerStyle={{padding:20,gap:18}}>
+  <Modal visible={current()&&!!preview&&previewOpen===preview} animationType={motion.reduce?'fade':'slide'} presentationStyle="fullScreen" onRequestClose={()=>setPreviewOpen(undefined)}><Layer style={{paddingTop:insets.top,paddingBottom:insets.bottom}}><Button variant="text" onPress={()=>setPreviewOpen(undefined)}>{t('action.back')}</Button><FormScrollView contentContainerStyle={{padding:20,gap:18}}>
    {preview&&<><Text style={{color:theme.colors.text}}>{t('builder.matches',{count:preview.titles})}</Text>{preview.unplaceable>0&&<Text style={{color:theme.colors.textSecondary}}>{t('builder.unresolved',{count:preview.unplaceable})}</Text>}{preview.sample.map(sample=><View key={sample.id} style={{flexDirection:'row',gap:12,alignItems:'center'}}><Artwork source={runtime.artwork(ownerItemArtworkPath(sample.id,'poster'))} alt={sample.title} width={60} height={90}/><Text style={{flex:1,color:theme.colors.text}}>{[sample.title,sample.episodeTitle,sample.year].filter(Boolean).join(' · ')}</Text></View>)}<Text style={{color:theme.colors.text}}>{t('builder.firstDay')}</Text>{preview.today.map((row,index)=><Text key={index} style={{color:theme.colors.textSecondary}}>{new Intl.DateTimeFormat(runtime.text.locale,{timeZone:draft.timeZone,hour:'numeric',minute:'2-digit'}).format(new Date(row.startsAt))} · {row.title?.title??t('builder.nothingScheduled')}</Text>)}</>}
-  </FormScrollView></View></Modal>
- </View></Modal>;
+  </FormScrollView></Layer></Modal>
+ </Layer></Modal>;
 }

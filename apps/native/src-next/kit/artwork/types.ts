@@ -84,14 +84,6 @@ export type AmbientArtProps = Readonly<{
   onStatusChange?: (status: ArtworkStatus) => void;
   testID?: string;
 }>;
-export type ColourBackdropProps = Readonly<{
-  shape?: 'side' | 'round' | 'top';
-  fill?: boolean;
-  width?: number;
-  height?: number;
-  style?: StyleProp<ViewStyle>;
-  testID?: string;
-}>;
 export type CircleArtProps = Readonly<{
   covers: readonly ArtworkSource[];
   initials?: string;

@@ -286,14 +286,14 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
     const captured = (snapshot.entry.displayTitle || snapshot.entry.title).trim();
     if (!theme.isTV && presented.category === 'permission') {
       return <View style={{flex: 1}}>
-        <StateLayout testID="watch-title-restricted" icon="i-lock" contentTop={250} backdropHeight={420}
+        <StateLayout testID="watch-title-restricted" icon="i-lock" contentTop={250}
           title={presented.title} body={presented.body}/>
         {headerFor(false)}
       </View>;
     }
     if (!theme.isTV && presented.category === 'not-found' && captured && props.serverName) {
       return <View style={{flex: 1}}>
-        <StateLayout testID="watch-title-removed" icon="i-not" contentTop={250} backdropHeight={420}
+        <StateLayout testID="watch-title-removed" icon="i-not" contentTop={250}
           title={t('next.states.removed', {title: captured, server: props.serverName})}
           body={t('next.states.removedBody')}
           primaryAction={props.search ? {id: 'search', label: t('next.states.searchTitle', {title: captured}), icon: 'i-search', onPress: () => props.search?.(captured)} : undefined}

@@ -2,7 +2,6 @@ import React, {useRef, useState} from 'react';
 import {Image, Text, View, useWindowDimensions} from 'react-native';
 import Svg, {Circle, Path} from 'react-native-svg';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {ColourBackdrop} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {Dialog, OverlaysProvider} from '../../kit/overlays';
@@ -28,8 +27,7 @@ export function ServerIdentityFailure({failure, onRetry, onChoose, onForget, onE
     if (busy) return; setBusy(true);
     try {await onForget(); onChoose();} catch (error) {onError(error);} finally {setBusy(false);}
   };
-  const page = <View style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <View pointerEvents="none" style={{position: 'absolute', inset: 0}}><ColourBackdrop shape={tv ? 'side' : 'top'} fill={tv}/></View>
+  const page = <View style={{flex: 1}}>
     {tv ? <View pointerEvents="none" accessible={false} style={{position: 'absolute', left: 72, top: 58, bottom: 56, width: 64}}>
       <View style={{width: 28, height: 40, marginLeft: 16, overflow: 'hidden'}}><Image source={require('../../../assets/wordmark.png')} style={{height: 40, width: 173}} resizeMode="contain"/></View>
       <View style={{marginTop: 64, height: 64, alignItems: 'center', justifyContent: 'center'}}><View style={{position: 'absolute', left: -16, top: 18, bottom: 18, width: 4, borderRadius: 2, backgroundColor: theme.colors.accent}}/><Icon name="i-home" size={30}/></View>
@@ -72,7 +70,7 @@ export function ServerIdentityFailure({failure, onRetry, onChoose, onForget, onE
         <Button focusId="cancel" ref={cancel} variant="glass" preferredFocus disabled={busy} onPress={() => setConfirm(false)}>{t('action.cancel')}</Button>
       </View>}><View/></Dialog>
   </View>;
-  return <OverlaysProvider><View testID="server-identity-failure" style={{flex: 1, backgroundColor: theme.colors.ink, overflow: 'hidden'}}>
+  return <OverlaysProvider><View testID="server-identity-failure" style={{flex: 1, overflow: 'hidden'}}>
     {tv ? <View style={{position: 'absolute', left: layout.left, top: layout.top, width: layout.width, height: layout.height,
       transformOrigin: 'top left', transform: [{scale: layout.scale}]}}>{page}</View> : page}
   </View></OverlaysProvider>;

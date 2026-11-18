@@ -26,7 +26,6 @@ import {PosterCard} from '../../kit/cards';
 import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import type {NativeGenreBrowseDestination} from './genre-browse';
 import {GenreFilters} from './GenreFilters';
-import {StandardBackdrop} from '../../kit/artwork';
 import {TVRow} from '../../kit/layout/TVRow';
 import {usePageWidth} from '../../kit/layout/page-inset';
 import {TopBar} from '../../kit/layout/TopBar';
@@ -62,7 +61,7 @@ export function GenreBrowseScreen({focusScope, name, value, destination, activat
     return () => clearTimeout(timer);
   }, [state.phase]);
   return place(<View testID="native-search-genre" pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
-    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{position: 'absolute', inset: 0, display: active.visible || stacked ? 'flex' : 'none'}}>{theme.isTV && <StandardBackdrop/>}
+    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{position: 'absolute', inset: 0, display: active.visible || stacked ? 'flex' : 'none'}}>
     <View>
       <TopBar back={{label: t('web.shell.search'), onPress: onBack, testID: 'search-genre-back'}}/>
       <Text accessibilityRole="header" style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, marginHorizontal: 20, marginBottom: 8}]}>{name}</Text>

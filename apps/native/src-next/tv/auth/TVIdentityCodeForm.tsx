@@ -1,7 +1,6 @@
 import React from 'react';
 import {Image, Text, View, useWindowDimensions} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {ColourBackdrop} from '../../kit/artwork';
 import {Focusable} from '../../kit/controls/Focusable';
 import {FocusProvider, FocusRegion} from '../../kit/focus';
 import {nativeType, useTheme} from '../../kit/theme';
@@ -54,10 +53,9 @@ function IdentityCodeForm({server, code, wrong, busy, onChange, onSubmit}: TVIde
   // code field at 380 (label 34 above it), the quiet home line at 486 and the keys at
   // 560. A refused code takes frame 2b's line under the field and moves the rest down.
   const helpTop = wrong ? 528 : 486, keysTop = wrong ? 602 : 560;
-  return <View testID="tv-identity-code" style={{flex: 1, backgroundColor: theme.colors.ink}}>
+  return <View testID="tv-identity-code" style={{flex: 1}}>
     <View style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height,
       transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
-      <ColourBackdrop shape="side" fill/>
       {/* The drawn rail is the shell's; this check runs before a shell exists, so the
         wordmark symbol keeps the same stand-in as the identity-failure screen. */}
       <View pointerEvents="none" style={{position: 'absolute', left: 88, top: 58, width: 28, height: 40, overflow: 'hidden'}}>

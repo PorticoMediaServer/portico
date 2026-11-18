@@ -21,7 +21,6 @@ import {SavedSortMenu} from './SavedSortMenu';
 import {SavedLoading, SavedTail} from './SavedLoading';
 import {savedNearEnd} from './paging';
 import type {NativeSavedSelectionPort} from './SavedScreen';
-import {StandardBackdrop} from '../../kit/artwork';
 import {TVRow} from '../../kit/layout/TVRow';
 import {TopBar} from '../../kit/layout/TopBar';
 
@@ -90,7 +89,7 @@ export function SavedListScreen({route, destination, activation, runtime, action
     }
   };
   return <View testID={`native-saved-list-${route.view}`} pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
-    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} onLayout={event => setPaneWidth(event.nativeEvent.layout.width)} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
+    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} onLayout={event => setPaneWidth(event.nativeEvent.layout.width)} style={{flex: 1}}>
     {!inline && <TopBar surface back={{label: t('saved.title'), onPress: back, testID: 'saved-list-back'}} title={title}/>}
     <ScrollView onLayout={event => {viewport.current.height = event.nativeEvent.layout.height; next();}}
       onContentSizeChange={(_width, height) => {viewport.current.extent = height; next();}}

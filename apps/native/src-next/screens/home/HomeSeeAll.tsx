@@ -10,7 +10,7 @@ import type {ContentEntry} from '../../../../../packages/client-core/src/library
 import {Button, Chip, Focusable} from '../../kit/controls';
 import {FiltersButton, QuickToggle, SortMenu, ViewToggle} from '../../kit/browse';
 import {CardFrame, Parts} from '../../kit/cards/primitives';
-import {MediaArt, StandardBackdrop} from '../../kit/artwork';
+import {MediaArt} from '../../kit/artwork';
 import {browseType} from '../../kit/browse/presentation';
 import {PosterCard} from '../../kit/cards';
 import {cardTitleLine} from '../../kit/cards/caption-metrics';
@@ -161,7 +161,7 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
       <View style={{marginLeft: tv ? 'auto' : 8}}>{countLabel}</View>
     </View>}
   </View>;
-  return <View testID="home-see-all" style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
+  return <View testID="home-see-all" style={{flex: 1}}>
     {artwork && <View pointerEvents="none" style={{position: 'absolute', inset: 0, opacity: .26}}><AmbientArt source={runtime.ambient(artwork.backdropUrl ?? artwork.posterUrl)} treatment="hero" visible={active}/></View>}
     <FocusRegion id={gridId} entry={playable ? 'play' : 'back'} enabled={active} style={{flex: 1}}>
       {(tv || !!data.error) && <>{header}{toolbar}</>}

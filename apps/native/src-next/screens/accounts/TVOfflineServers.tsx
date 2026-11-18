@@ -2,7 +2,6 @@ import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {ColourBackdrop} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
 import {FocusProvider, FocusRegion} from '../../kit/focus';
 import {Icon} from '../../kit/Icon';
@@ -63,8 +62,7 @@ function TVOfflineList({rows, busy, activeId, retryIn, retryProgress, current, o
   const entryRevision = useTVBusyEntryRevision(busy);
   useDestinationEntryFocus({visible: !busy, intent: 'enter', revision: entryRevision},
     first ? {regionId: 'accounts.offline.rows', childId: `retry:${first.id}`} : undefined);
-  return <View testID="tv-offline-servers" style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <ColourBackdrop shape="side" fill/>
+  return <View testID="tv-offline-servers" style={{flex: 1}}>
     <ScrollView contentContainerStyle={{paddingHorizontal: theme.layout.gutter.tvAuth, paddingTop: 80, paddingBottom: 80, gap: 24}}>
       <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{t('accounts.session.portico')}</Text>
       <Text accessibilityRole="header" style={[nativeType({size: 44, lineHeight: 52, weight: 700, tracking: -.03}, theme.textScale), {color: theme.colors.text}]}>{t('accounts.tvOffline.title')}</Text>

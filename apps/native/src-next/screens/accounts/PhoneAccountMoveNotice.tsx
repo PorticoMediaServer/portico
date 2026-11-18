@@ -3,7 +3,6 @@ import {Image, ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {MoveCollisionDetails} from '../../../../../packages/client-core/src/account-move';
-import {ColourBackdrop} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
 import {Icon, type IconName} from '../../kit/Icon';
 import {nativeType, useTheme} from '../../kit/theme';
@@ -40,8 +39,7 @@ export function PhoneAccountMoveNotice({state, busy = false}: {state: PhoneAccou
     : state.kind === 'collision' ? {label: t('accounts.signIn.back'), press: state.onBack}
     : state.kind === 'confirm' ? {label: t('accounts.invitation.notYou'), press: state.onNotYou} : undefined;
   const safePadding = Math.max(112, insets.top + 42, insets.bottom + 64);
-  return <View testID={`accounts-move-${state.kind}`} style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <ColourBackdrop shape="top"/>
+  return <View testID={`accounts-move-${state.kind}`} style={{flex: 1}}>
     <Image source={require('../../../assets/wordmark.png')} accessibilityLabel={t('accounts.brand')} resizeMode="contain"
       style={{position: 'absolute', left: 22, top: Math.max(70, insets.top), width: 17 * 512 / 117, height: 17}}/>
     <ScrollView contentContainerStyle={{flexGrow: 1, paddingHorizontal: 30, paddingVertical: safePadding}}>

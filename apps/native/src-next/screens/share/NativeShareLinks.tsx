@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {StandardBackdrop} from '../../kit/artwork';
+import {Layer} from '../../kit/shell/Layer';
 import {StateView} from '../../kit/states';
 import {nativeAccounts} from '../../platform/accounts';
 import {nativeAppSessions} from '../../platform/app-session-storage';
@@ -40,12 +40,11 @@ export function NativeShareLinks({runtime, online, onRestart}: {runtime: Restore
   }, [link, runtime, online]);
   if (!unavailable) return null;
   const offline = unavailable === 'offline';
-  return <View testID="share-link-unavailable" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
-    <StandardBackdrop/>
+  return <Layer testID="share-link-unavailable" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
     <View style={{flex: 1, justifyContent: 'center'}}>
       <StateView variant="centered" title={defaultI18n.t(offline ? 'next.states.linkServerOffline' : 'next.states.linkNoAccess')}
         body={defaultI18n.t(offline ? 'next.states.linkServerOfflineBody' : 'next.states.linkNoAccessBody')}
         primaryAction={{id: 'home', label: defaultI18n.t('web.shell.home'), onPress: () => setUnavailable(undefined)}}/>
     </View>
-  </View>;
+  </Layer>;
 }

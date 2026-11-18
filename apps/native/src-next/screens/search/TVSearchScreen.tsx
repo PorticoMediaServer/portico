@@ -6,7 +6,7 @@ import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core
 import {cardText} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Artwork, StandardBackdrop, missingArt} from '../../kit/artwork';
+import {Artwork, missingArt} from '../../kit/artwork';
 import {Chip, Focusable} from '../../kit/controls';
 import {ArtFrame, CardFrame, Parts, Progress} from '../../kit/cards/primitives';
 import {FocusRegion, useFocusRegistry} from '../../kit/focus';
@@ -123,8 +123,7 @@ export function TVSearchScreen({focusScope, destination, runtime, activation, ex
   const run = (work: Promise<void>) => {void work.catch(runtime.reportError);};
   const resultsWidth = Math.max(0, dimensions.width - resultsLeft - theme.layout.gutter.tvRight);
   return <View testID="native-tv-search-screen" pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
-    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <StandardBackdrop/>
+    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}>
     {voice.field}
     <View testID="tv-search-query" accessibilityLabel={t('web.shell.search')} style={{position: 'absolute', left: theme.gutter, top: 64, width: 500, height: 80, borderRadius: 16,
       backgroundColor: alpha(theme.colors.text, .08), paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', gap: 16}}>

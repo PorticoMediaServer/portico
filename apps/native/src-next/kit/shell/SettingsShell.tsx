@@ -32,14 +32,14 @@ export function ShortcutTiles({actions, testID}: {testID?: string; actions: read
 }
 
 /** The accepted sheet owns gesture/back/focus lifecycles. Real settings content is supplied by the caller. */
-/** One surface: a sheet that draws a background under its header (Settings' standard backdrop) shows it under its body too, so
- * the header, the search field's row and the list sit on the same colour (owner, 13 Nov). Without one the body is ink. */
+/** One surface: the header, the search field's row and the list sit on the same colour (owner, 13 Nov). As a sheet it is a
+ * plain ink surface; as a page it is transparent on its layer's backdrop. */
 export function SettingsSheet({profile, shortcuts, children, ...surface}: Omit<BottomSheetProps, 'title' | 'children'> & {profile: ReactNode; shortcuts: ReactNode; children: ReactNode}) {
   const theme = useTheme();
   const {height} = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const page = surface.host === 'inline' && surface.presentation === 'page';
-  return <BottomSheet {...surface} title={defaultI18n.t('web.shell.settings')} detents={surface.detents ?? [height - Math.max(insets.top, 62)]} contentStyle={[surface.surfaceBackground ? undefined : {backgroundColor: theme.colors.ink}, surface.contentStyle]} style={[{backgroundColor: theme.colors.ink}, page ? undefined : {borderTopLeftRadius: 16, borderTopRightRadius: 16}, surface.style]} headerAction={<Button testID={controlID(surface.testID, 'done')} variant="text" size="small" onPress={() => surface.onOpenChange(false, 'close-button')} style={{height: 32, paddingHorizontal: 8}} textStyle={shellType(16, 700)}>{defaultI18n.t('action.done')}</Button>}>
+  return <BottomSheet {...surface} title={defaultI18n.t('web.shell.settings')} detents={surface.detents ?? [height - Math.max(insets.top, 62)]} contentStyle={surface.contentStyle} style={[page ? {backgroundColor: 'transparent'} : {backgroundColor: theme.colors.ink, borderTopLeftRadius: 16, borderTopRightRadius: 16}, surface.style]} headerAction={<Button testID={controlID(surface.testID, 'done')} variant="text" size="small" onPress={() => surface.onOpenChange(false, 'close-button')} style={{height: 32, paddingHorizontal: 8}} textStyle={shellType(16, 700)}>{defaultI18n.t('action.done')}</Button>}>
     {profile}{shortcuts}{children}
   </BottomSheet>;
 }

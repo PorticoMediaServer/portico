@@ -7,7 +7,7 @@ import type {Library} from '../../../../../packages/client-core/src/index';
 import type {PersonalResource} from '../../../../../packages/client-core/src/personal-saved';
 import type {PlaylistCard, PlaylistListFilter, SavedRoute} from '../../../../../packages/client-core/src/saved';
 import {Chip, Focusable} from '../../kit/controls';
-import {Artwork, type ArtworkSource, StandardBackdrop} from '../../kit/artwork';
+import {Artwork, type ArtworkSource} from '../../kit/artwork';
 
 import {Icon, type IconName} from '../../kit/Icon';
 import {Banner, Menu, type MenuEntry} from '../../kit/overlays';
@@ -166,7 +166,7 @@ export function SavedDirectoryScreen({route, destination, activation, runtime, l
   };
   const empty = (id: MessageId, body: MessageId) => <StateView variant="inline" title={t(id)} body={t(body)}/>;
   return <View testID={`native-saved-directory-${route.view}`} pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
-    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
+    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}>
     <TopBar surface safeArea={!inline} back={inline ? undefined : {label: t('saved.title'), onPress: back, testID: 'saved-directory-back'}} title={inline ? undefined : title}
       trailing={createEnabled && <Focusable testID={`saved-new-${route.view}`} accessibilityRole="button" accessibilityLabel={t(route.view === 'playlists' ? 'web.saved.newPlaylist' : 'web.saved.newCollection')}
         onPress={() => setCreating(true)} style={{width: 38, height: 38, alignItems: 'center', justifyContent: 'center'}}>

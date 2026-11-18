@@ -1,6 +1,7 @@
 import {groupPort, subscribeGroupPort} from '../settings-live/group-port';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {Dimensions, StatusBar, View, useWindowDimensions} from 'react-native';
+import {Dimensions, View, useWindowDimensions} from 'react-native';
+import {LayerStatusBar} from '../../kit/shell/Layer';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Animated, {cancelAnimation, useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {sameFence, type PlaybackFence} from '../../../../../packages/player-core/src';
@@ -124,20 +125,8 @@ export function NativeWatchHost({authority, current, playback, outlet, runtime, 
     [window.width, window.height, posture, expanded, panelOpen, isTV, fence, source.entry]);
   const television = useMemo(() => isTV ? nativeWatchTVPresentation(input.window, !expanded, panelOpen ? state.panel : undefined) : undefined, [isTV, input.window, expanded, panelOpen, state.panel]);
   const layout = useMemo(() => isTV ? television?.layout : resolvePlayerPresentation(input), [input, isTV, television]);
-  // The full-window player has no system status bar. This host owns its own stack entry and
-  // pops only that entry, so a later owner's entry is never overridden by this cleanup.
+  // The full-window player has no system status bar: the layer rule's own entry, mounted while it fills the window.
   const fullWindow = layout?.mode === 'full-window';
-  const statusEntry = useRef<ReturnType<typeof StatusBar.pushStackEntry> | undefined>(undefined);
-  useLayoutEffect(() => {
-    if (isTV || !fullWindow) return;
-    const entry = StatusBar.pushStackEntry({hidden: true, animated: true});
-    statusEntry.current = entry;
-    return () => {
-      if (statusEntry.current !== entry) return;
-      statusEntry.current = undefined;
-      StatusBar.popStackEntry(entry);
-    };
-  }, [fullWindow, isTV]);
   // The request dies with the host that made it; the native slot stays owner-fenced.
   useLayoutEffect(() => () => controls.releaseFullWindow(), [controls]);
   // Only the watch page may ask. Eligibility is published in a layout turn, never during render,
@@ -265,6 +254,7 @@ export function NativeWatchHost({authority, current, playback, outlet, runtime, 
     <NativeWatchPicture authority={authority} fence={fence} outlet={outlet} current={measuredCurrent} style={positioned(layout.surface)}/>
     {television ? <View testID="watch-tv-canvas" pointerEvents="box-none" style={{position: 'absolute', left: television.canvas.left, top: television.canvas.top,
       width: television.canvas.width, height: television.canvas.height, transformOrigin: 'top left', transform: [{scale: television.canvas.scale}]}}>{content}</View> : content}
+    {fullWindow && !isTV && <LayerStatusBar kind="player"/>}
   </View>;
 }
 

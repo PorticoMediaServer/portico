@@ -100,7 +100,7 @@ test('phone See all composes the drawn header, separate controls and three-colum
   assert.equal(skeletonGrid.props.gap, grid.props.gap);
 });
 
-test('Notifications takes its top from the shared Settings pieces: the Settings sheet and its backdrop on phone, the backdrop on tablet (W4 F14)', async () => {
+test('Notifications is the Settings sheet on a phone and a plain page on its layer on a tablet (W4 F14)', async () => {
   const h = host(); let phone = true;
   const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'./OwnFeedbackReport': {OwnFeedbackReport: 'OwnFeedbackReport'}, './notification-route': await import('../src-next/screens/notifications/notification-route.ts'), 
     react: h.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
@@ -115,14 +115,14 @@ test('Notifications takes its top from the shared Settings pieces: the Settings 
   const pending = h.render(() => NativeNotificationsScreen({context: {}, route: {kind: 'notifications'}, runtime: {text: {t}}, profileService: feed, retirement: {subscribe: () => () => {}, getSnapshot: () => undefined}}));
   const sheet = h.render(() => pending.type(pending.props));
   assert.equal(sheet.type, 'SettingsSheet'); assert.equal(sheet.props.open, true);
-  assert.equal(sheet.props.surfaceBackground.type, 'SettingsBackdrop', 'the Settings sheet carries the shared Settings top (the teal wash), never a flat ink one');
+  assert.equal(sheet.props.surfaceBackground, undefined, 'a sheet is a plain surface: it draws no backdrop of its own');
   assert.equal(sheet.props.style.backgroundColor, undefined);
   assert.deepEqual(sheet.props.detents, [782]);
   assert.equal(sheet.props.style.paddingTop, 0); assert.equal(sheet.props.showGrabber, false);
   assert.equal(sheet.props.headerContent.props.style.height, 56);
   phone = false; const tablet = h.render(() => pending.type(pending.props));
   assert.equal(tablet.type, 'View'); assert.equal(tablet.props.style.paddingTop, 61);
-  assert.equal(tablet.props.children[0].type, 'SettingsBackdrop', 'a tablet Notifications page draws the shared Settings top');
+  assert.ok(!JSON.stringify(tablet.props.children).includes('Backdrop'), 'a tablet Notifications page stands on its layer and draws no backdrop of its own');
 });
 
 test('the shared touch entry menu composes offered Play, My List, playlist and recommendation actions', async () => {

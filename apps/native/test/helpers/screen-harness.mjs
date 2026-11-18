@@ -82,7 +82,9 @@ function railHoldLeaf(react) {
   return hooks;
 }
 // Moved core operations execute against the fixture's captured API; no request is mocked here.
-const leaf = (source, react, native) => source === '@portico/design' ? design : /client-core\/src\/query\/playback(\.ts)?$/.test(source) ? playbackQueries
+// The layer host (the one backdrop) is a plain host element in every shallow fixture.
+const layerHost = {Layer: 'Layer', LayerStatusBar: 'LayerStatusBar'};
+const leaf = (source, react, native) => source === '@portico/design' ? design : /(^|\/)kit\/shell\/Layer$/.test(source) ? layerHost : /client-core\/src\/query\/playback(\.ts)?$/.test(source) ? playbackQueries
   : /client-core\/src\/query\/catalogue-actions(?:\.ts)?$/.test(source) ? catalogueActions
   : /client-core\/src\/query\/catalogue-reads(?:\.ts)?$/.test(source) ? catalogueReads
   : /client-core\/src\/playback-v1\/preparing-cleanup(\.ts)?$/.test(source) ? preparingCleanup

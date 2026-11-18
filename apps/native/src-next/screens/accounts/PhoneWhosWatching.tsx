@@ -1,7 +1,6 @@
 import React from 'react';
 import {ScrollView, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {StandardBackdrop} from '../../kit/artwork';
 import {TopBar} from '../../kit/layout/TopBar';
 import {useTheme} from '../../kit/theme';
 
@@ -15,8 +14,7 @@ export function PhoneWhosWatching({testID, picker, children, onBack, backDisable
   testID: string; picker: React.ReactNode; children?: React.ReactNode; onBack?: () => void; backDisabled?: boolean;
 }) {
   const theme = useTheme();
-  return <View testID={testID} style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <StandardBackdrop/>
+  return <View testID={testID} style={{flex: 1}}>
     {onBack ? <TopBar back={{label: t('action.back'), onPress: onBack, disabled: backDisabled, testID: `${testID}-back`}}/> : <TopBar/>}
     <ScrollView style={{flex: 1}} contentContainerStyle={{paddingHorizontal: 24, paddingTop: onBack ? 28 : 56, paddingBottom: 40}}>
       {picker}
