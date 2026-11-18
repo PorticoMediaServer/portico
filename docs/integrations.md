@@ -1,183 +1,72 @@
 # Integrations
 
-Portico exposes one versioned native API, with two documentation tags:
+Outside tools use Portico's own API: `/v1`, described route by route in
+[`server-next/API.md`](../server-next/API.md) and generated as
+[`server-next/api/openapi.json`](../server-next/api/openapi.json). Portico is pre-release; the API's
+compatibility promise starts with the first stable release.
 
-- **Integrations** covers automation, notifications, catalogue facts, permitted
-  session monitoring and native remote controls. These routes are intended for
-  third-party tools as well as Portico's clients.
-- **Clients** covers the full Portico client experience, including playback,
-  account/profile selection and presentation-specific operations.
+## Credentials
 
-The tags do not grant access. Every request still uses the same account, profile,
-credential scopes, library restrictions, admission and revocation checks. The
-route registry is the source for both generated contracts and OpenAPI tags.
+- **Server API keys** (Settings → Integrations, owner only) carry scopes: `read`, `playback`,
+  `library` (scans and changed files) and `admin`. A key's secret is shown once.
+- **Personal tokens and app passwords** belong to one person and profile (`/v1/me/tokens`,
+  `/v1/me/app-passwords`). An app password has no scopes: its tool may do what that person may.
+- Every key, token and app password is turned into its person and profile in one place. It is
+  refused wherever that person could not sign in: outside viewing hours, away from home for an
+  account limited to home, from a blocked network, or for an account that is turned off. No key
+  can make or revoke keys, change a password, PIN or sign-in setting, change the owner or an
+  administrator, or restore a backup.
 
-Within `/v1`, documented Integrations operations preserve their methods, paths,
-field meanings, IDs, paging, error meanings and authorization scopes. Additive
-optional fields are allowed; consumers must ignore unknown fields. Breaking
-changes require a new major API version and a documented transition. Clients
-routes also use `/v1` contracts, but may add client capabilities and negotiated
-presentation versions more frequently; their documentation identifies those
-negotiations. Reliability fixes may reject previously accepted invalid requests.
-Portico is pre-release: these promises start with the first stable release.
+## Changed files and scans
 
-## Integrations compatibility
+- `POST /v1/admin/libraries/{id}/scan` with `{"folder": "<path>"}` scans one folder of a library
+  (`allFiles` rescans every file). It answers `202` with a job, and joins a scan already asked
+  for. It needs a key with `library`, or the owner or an administrator.
+- The assistant address's `report_changed_files` tool and the compatible
+  `/Library/Media/Updated` route do the same for a list of paths: each library folder that holds
+  a path is scanned, and a path outside every library is ignored.
 
-The owner enables **Integrations compatibility** in Settings → Integrations.
-It is off by default. It translates a limited set of existing tools' requests to
-Portico's native API; it is not a player API. It does not register with another
-service, discover public accounts, contact Portico Services, or send metadata to
-a vendor. Local accounts remain local. Tools you configure receive the facts
-permitted by the chosen credential and can store them themselves.
+## Webhooks
 
-Create a dedicated named API key for tools that accept keys. For tools that ask
-for a username and password, create a named integration app password for one
-Portico account/profile and the necessary scopes. Use that account's username
-and the app password in the tool. Actual account passwords, profile passwords,
-PINs and owner API keys are not accepted as compatibility passwords.
+The owner adds up to 20 (`/v1/admin/webhooks`), each with its own events, address and secret,
+and can send a test. Nothing is sent anywhere the owner did not add.
 
-The owner can Reveal and Copy keys and app passwords later. These secrets are
-recoverable in the local database and its backups; actual account/profile
-passwords and PINs remain one-way hashes. TV shared screens never display these
-secrets. Revoking an app password also revokes its derived integration tokens.
-Disabling compatibility prevents those tokens from being used.
+## Assistants (MCP)
 
-### Qualification status
+With **Assistants** on (Settings → Integrations, off by default), a key may use `POST /v1/mcp`.
+The tools offered: find and read titles, see what is playing, mark watched, scan and report
+changed files, list unmatched titles, and read the guide and recordings. With `admin` they can
+also read status, storage and recent messages. Nothing deletes or reconfigures.
 
-These are bounded adapter recipes, not a claim that arbitrary Jellyfin tools or
-players work. Released-tool qualification is still pending; see the
-[qualification matrix](integration-qualification.md) for the required actual
-clients, pins and request evidence. A successful connection check or HTTP 200
-alone does not qualify a tool. Keep today's registered aliases until that
-matrix proves which spellings a supported released recipe needs.
+## Jellyfin-compatible routes
 
-### Reported version
+For companion tools that only know Jellyfin, such as Sonarr, Radarr, Bazarr, Seerr and Home
+Assistant. They are off by default. The owner turns them on with `compatibleRoutes` in the
+integrations settings (`PUT /v1/admin/settings/integrations`); the apps have no switch for it
+yet. Turning them off ends every sign-in made through them.
 
-Compatibility clients ask the server for its version before signing in
-(`System/Info/Public`). Portico never publishes its own build before sign-in, so
-it reports the fixed compatibility version **10.10.0** (product name "Portico").
-This reported value is an adapter identity convention, not evidence of player
-or tool compatibility. Signed-in people see Portico's real version in About.
+- They are a fixed list of 30 operations, answered at `/` and `/mediabrowser`, in any
+  capitalization. Each one runs the ordinary `/v1` route as the tool's person, so every
+  restriction applies.
+- Sign in with the person's username and an **app password**, never their real password. A
+  tool that then asks for a key gets one with the same access.
+- Before sign-in they report Jellyfin version 10.10.0 (product name "Portico"), so tools'
+  version checks pass. Portico's own build is never shown before sign-in.
+- Nothing can be played through them: media facts are given, never a media address.
+- `/Library/Media/Updated` with paths scans the folders those paths are in, `/Library/Refresh`
+  scans every library, and `/Items/{id}/Refresh` scans that title's library.
+- `/Sessions/{id}/Playing/Stop` stops a stream. Pause, resume and seek of another device are
+  not built yet.
 
-Setup instructions sometimes name the connection type offered by another tool.
-That label describes which option to select in that tool, rather than changing
-Portico's accounts or API model.
+For a tool, select its **Emby / Jellyfin** (or **Jellyfin**) connection and enter Portico's
+address, the username and the app password. The tool must see media at the same paths Portico
+does; set up path mapping in the tool if not.
 
-### Sonarr and Radarr
+None of these recipes is qualified against a released tool yet; see
+[integration-qualification.md](integration-qualification.md).
 
-Select the tool's **Emby / Jellyfin** connection, use Portico's URL and a dedicated
-API key with `read` and `library` scopes. Paths must match the paths visible to
-Portico, including container mounts; configure path mappings in the tool when
-necessary. Optional administrator notifications also require native owner
-authority and `admin` scope. Disable that option when the key lacks it.
+## DLNA
 
-Library updates report the specific changed paths. Portico accepts work only
-when it can preserve strict targeting; it never substitutes a full-library scan.
-
-### Lidarr
-
-The stock **Emby / Jellyfin** connection is not yet qualified. The current
-adapter accepts `/mediabrowser` spellings, but the inspected Lidarr source does
-not itself demonstrate that prefix; configured base URLs can introduce it.
-Real changed paths retain strict targeting. A collection label such as `music`
-is not a filesystem path. The stock no-path `/Library/Refresh` fallback currently
-invokes native `/v1/integrations/refresh` and may queue broader refresh work when
-authorized; it is not refused unconditionally and is not an exact changed-path
-notification. Use the native recipe below when strict targeting is required.
-Qualify a released Lidarr Custom Script invocation separately before claiming
-that named recipe works with its actual import/move/delete environment paths.
-
-### Bazarr
-
-Use its server connection and a dedicated `read`/`library` key. Item/provider
-lookup and numbered-season episode lookup use native catalogue identities.
-Validation-only refresh rereads eligible subtitle sidecars without enriching
-metadata or replacing artwork. Unavailable stored media evidence is an explicit
-refusal, not permission to run a broader scan or media probe.
-
-### Seerr and Jellyseerr
-
-For the initial administrator wizard, select its **Jellyfin** connection and enter
-Portico's URL, username and a dedicated app password bound to a genuine owner or
-administrator. Give the grant only the scopes needed by the configured features.
-The wizard can create and retrieve a key within that grant's authority; it cannot
-retrieve a different grant's keys or acquire broader scopes.
-
-Pre-issued-key configuration remains an alternative where the tool provides it.
-For end users, use the tool's own local accounts. Portico account passwords
-are not compatibility credentials. Quick Connect is not provided. Seerr is the
-current combined project; a supported Jellyseerr release needs its own reviewed
-pin and trace. Legacy Overseerr and Tautulli are Plex tools and are outside this
-adapter. Optional avatar fallback is not full account parity.
-
-### Home Assistant
-
-Stock Home Assistant entity/session monitoring is supported by the
-[session repair merged in #882](https://github.com/PorticoMediaServer/portico/pull/882).
-Qualification against a released Home Assistant version and its declared Python
-dependency remains pending.
-
-Choose the **Jellyfin** integration and enter Portico's URL, username and dedicated
-app password with `read` and `playback` scopes. The stock integration exposes
-**session monitoring only**, within the bound account/profile's authority.
-Server-wide monitoring requires native administrator authority and appropriate
-scope. App version comes from the stored device fact; position, state and check-in
-time come from one consistent native session sample. An unknown app version
-is an empty string.
-
-The adapter deliberately reports nested `SupportsMediaControl=false`: Home
-Assistant couples transport controls to browse, search and playback-start, which
-this adapter cannot promise. Native pause, resume, seek and stop endpoints remain
-available to separately configured automation with their existing authority and
-revision checks. Volume/mute, playback-start, media-source streaming and third-party
-player setup are outside this tier. Full stock-tool qualification is a release gate;
-a passing adapter test alone does not establish Home Assistant setup acceptance.
-
-### Jellystat
-
-Configure Portico's URL and a suitable scoped API key. Use REST polling:
-`JF_USE_WEBSOCKETS=false`. A server-wide statistics credential requires native
-administrator authority; a limited grant must not acquire global sessions or
-counts. Polling observes activity from the time Jellystat is configured and may
-miss activity between polls. It does not import a complete historical ledger.
-
-The inspected Jellystat client requests `/Items/{id}/playbackinfo`. That exact
-mixed-case path is absent: the adapter has `/Items/{id}/PlaybackInfo` and an
-entirely lowercase path, with their existing prefixed aliases. Routing is case
-sensitive. This Jellystat recipe is **not qualified** while that request fails;
-REST polling configuration alone does not resolve it. No endpoint is added here.
-
-No Playback Reporting plugin, plugin SQL endpoint or WebSocket protocol is
-provided. The plugin list is empty. Read-only media facts are not playback URLs.
-
-## Native changed-path notifications
-
-Send a dedicated key with `library` scope to the native endpoint:
-
-```http
-POST /v1/libraries/paths-changed
-Authorization: Bearer <key>
-Content-Type: application/json
-
-{"mode":"strict","paths":[{"path":"/media/Movies/Arrival (2016)","change":"changed"}]}
-```
-
-Use absolute paths as Portico sees them. Changes can be `added`, `changed` or
-`removed`. A successful response queues targeted background work; it does not
-mean matching and analysis have completed. Keep the reported directory narrow.
-A source root, unresolved path or unsupported source is not a request to broaden
-the scan. Handle a refusal explicitly, correct the path or source configuration,
-and retry according to the response. Do not fall back to a full-library scan.
-
-For outgoing events, use the existing native webhook endpoints documented in
-OpenAPI. Webhooks are configured by the owner; no third-party destination is
-added automatically. Treat payloads as permitted server metadata and configure
-the destination accordingly.
-
-## Boundaries
-
-The compatibility routes cover integration setup, permitted catalogue reads,
-strict path notifications, sessions and native controls. They do not implement
-Plex authentication/server discovery, proprietary plugins, third-party players,
-streaming, transcoding or downloads. Larger applications should use Portico's
-native Clients and Integrations routes and their generated contracts.
+One switch in the `remote-access` settings, off by default. It answers on its own UPnP addresses
+outside `/v1`, to the home networks only and never through a proxy, and serves original files
+with no sign-in.

@@ -7,7 +7,7 @@ Both ratchets share the planner's comparison range. PRs use their merge base wit
 ## Sign-in and authority
 
 - **Bind to the sign-in, never the token.** An operation that spans several steps (a setup, an owner move, an email change, a deletion) keeps the account, its auth epoch and its session family. A routine refresh rotates the token inside the same family, and the operation carries on. An epoch change, a revocation, or another family, account or mode refuses it.
-  - Server: `FamilyBinding` and `AuthorizeFamilyBindingTx` in `server/internal/identity/family_binding.go`.
+  - Server: a renewal rotates the refresh token inside the same sign-in; an older refresh token used again ends it, and a token that is no longer good is answered `401` (`server-next/API.md`, "Sign-in").
   - Clients: `compareSessionAuthority` and `bindAuthority` in `packages/client-core/src/session-authority.ts`.
   - Check: no new `accessToken ===` or `!==` comparisons in client code (ratchet `token-compare`).
 
@@ -40,22 +40,21 @@ Both ratchets share the planner's comparison range. PRs use their merge base wit
 
 ## API contracts
 
-- **Responses decode open; unions are tagged.** Every response union has a `variant` (or `kind`) tag, unknown tags decode to a typed unknown, and requests decode exactly.
-  - Check: apigen refuses an untagged response union, and refuses a grandfathered tag that no longer matches anything.
-- **Generated files come from their scripts, never from hand edits.** That covers OpenAPI, contracts (including the development contracts) and route lanes.
-  - Check: CI regenerates them and fails on any difference (`ci/run.py build`).
+- **Contracts come from the server's route table, never from hand edits.** `go run ./cmd/portico-contracts` in `server-next` writes `packages/contracts/src/next/api.ts` and `server-next/api/openapi.json` from the routes and their Go types.
+  - Check: `TestContractsAreCurrent` (run in merge CI with `CONTRACTS_CHECK=1`) fails when the committed files differ from what the route table makes.
+  - The older files beside them in `packages/contracts/src` (`routes.ts`, `schemas.ts`, `types.ts` and the rest) are a frozen copy from the previous server that nothing regenerates. Use `next/api.ts` for anything new.
 
 ## Strings and privacy
 
 - **Every user-facing string goes through the catalogue** (`packages/i18n`). New keys land in en-US only; other languages follow.
   - Check: `lint:strings`, including raw-error and glossary checks.
 - **No external fonts or CDNs.** Nothing Portico ships may make a viewer's browser contact a font service or a public CDN. The only exception is Google's Cast SDK.
-  - Check: `scripts/check-no-external-fonts.mjs` against a built web bundle. It isn't part of CI yet, because CI doesn't build the bundle.
+  - Check: `scripts/check-no-external-fonts.mjs` against the built web bundle in the web static job (`ci/run.py`).
 
 ## Database
 
-- **Every write goes through the write gate and its budgets** (`server/internal/dbwork`).
-  - Check: `TestWriteCensus` lists every write path and fails on an unreviewed one.
+- **Only `internal/db` runs SQL, through one writer.** People's actions go ahead of background work, and one request is one transaction (`server-next/RULES.md`, rules 1-9).
+  - Check: `server-next/budget_test.go` holds the table, trigger, `CHECK`, file and data-layer budgets. The one-writer and SQL-only-in-`internal/db` rules are kept by review.
 
 ## Git and CI
 
