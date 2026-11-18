@@ -2745,6 +2745,7 @@
   --frame-row-art-download: 44px;
   --frame-quick-tile: 58px;
   --frame-quick-tile-width: 190px;
+  --frame-quick-tile-gap: 12px;
   --frame-browse-grid-gap: 4px;
   --frame-browse-grid-card: 100px;
   --frame-browse-grid-column-gap: 10px;
@@ -3729,6 +3730,7 @@
   --frame-row-art-download: 48px;
   --frame-quick-tile: 76px;
   --frame-quick-tile-width: 350px;
+  --frame-quick-tile-gap: 12px;
   --frame-browse-grid-gap: 12px;
   --frame-browse-grid-card: 130px;
   --frame-browse-grid-column-gap: 16px;
@@ -4714,6 +4716,7 @@
   --frame-row-art-download: 48px;
   --frame-quick-tile: 76px;
   --frame-quick-tile-width: 350px;
+  --frame-quick-tile-gap: 12px;
   --frame-browse-grid-gap: 26px;
   --frame-browse-grid-card: 160px;
   --frame-browse-grid-column-gap: 20px;
@@ -5698,6 +5701,7 @@
   --frame-row-art-download: 72px;
   --frame-quick-tile: 112px;
   --frame-quick-tile-width: 420px;
+  --frame-quick-tile-gap: 16px;
   --frame-browse-grid-gap: 24px;
   --frame-browse-grid-card: 200px;
   --frame-browse-grid-column-gap: 28px;

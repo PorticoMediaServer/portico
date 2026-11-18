@@ -5,16 +5,18 @@ import {libraryTabs} from '@core/presentation/library-tabs';
 import {browseToolbarModel} from '@portico/client-core/kit-model';
 import type {FactPart} from '@portico/client-core/kit-model';
 import {newFramesFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/newframes-fixtures.ts';
+import {titleFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/title-fixtures.ts';
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
 import {AmbientArt, ChannelMark} from '../../kit/artwork';
-import {CircleCard, GenreTile, LiveCard, PosterCard, QuickTile, ResumeCard, SquareCard, WideCard} from '../../kit/cards';
+import {Icon} from '../../kit/Icon';
+import {CircleCard, EpisodeTile, GenreTile, LiveCard, PosterCard, QuickTile, ResumeCard, SquareCard, WideCard} from '../../kit/cards';
 import {BrowseToolbar, LibraryMenu, LibrarySwitcher, SongRow} from '../../kit/browse';
 import {Button, Chip, Segmented, Switch, Tabs, TextField} from '../../kit/controls';
 import {RecordingStorage} from '../../kit/dvr/RecordingsLayout';
 import {RuleCard} from '../../kit/dvr/RuleCard';
 import {ArtBox, BrowseFrame, LiveFrame, ReaderFrame, SearchFrame, Section, SectionCard, type FramePane} from '../../kit/frames';
 import {Shelf} from '../../kit/layout';
-import {AiringRow, ChannelRow, ConflictCard, GuideGrid, RecordingRow, type GuideChannel, type GuideCell} from '../../kit/live';
+import {AiringRow, ChannelRow, ConflictCard, GuideGrid, GuideGroups, GuidePicker, RecordingRow, type GuideChannel, type GuideCell} from '../../kit/live';
 import {usePhone} from '../../kit/overlays/shared';
 import {ReaderAnnotations, ReaderPanel} from '../../kit/reader/ReaderPanel';
 import {ReaderDisplayPopover, ReaderDisplaySheet} from '../../kit/reader/ReaderDisplay';
@@ -91,11 +93,14 @@ function Scopes() {
   return <>{scopes.map(([name, count], index) => <Chip key={name} variant="search" selected={index === 0} count={count} retry={name === 'scopePeople' || name === 'scopeLive'}
     dim={index > 0 && count === undefined && name !== 'scopePeople' && name !== 'scopeLive'} onClick={none}>{f(name)}</Chip>)}</>;
 }
+/** Search's Episodes row: the kit's episode tile, as the live Search page draws a found episode (Search.tsx): the still with its
+ * length, the title, the show and the code, two lines of synopsis (final-desktop-6 "Episodes 4 of 10"). */
 function EpisodesShelf() {
-  const art = useReferenceArtwork(), phone = usePhone();
-  const items = [['episode1', 'episodeCode1', .2], ['episode2', 'episodeCode2', undefined], ['episode3', 'episodeCode3', undefined], ['episode4', 'episodeCode4', undefined]] as const;
+  const art = useReferenceArtwork(), phone = usePhone(), ep = (name: string) => formatMessage(titleFixtureMessages[`next.title.fixture.${name}` as keyof typeof titleFixtureMessages]);
+  const items = [['episode1', 'episodeCode1', .67, 1], ['episode2', 'episodeCode2', undefined, 2], ['episode3', 'episodeCode3', undefined, 3], ['episode4', 'episodeCode4', undefined, 4]] as const;
   return <Shelf heading={f('episodes')} subtitle="4" platform={platform(phone)} items={items} getKey={item => item[0]}
-    renderItem={([title, code, progress]) => <WideCard model={{title: f(title), caption: [fact('show', f('tlou'), 'identity'), fact('code', f(code))], detail: [], progress}} artwork={art('bd-tlou.jpg')} style={{width: 'var(--card-wide-width)'}} onNavigate={none}/>}/>;
+    renderItem={([title, code, progress, n]) => <EpisodeTile context="search" artworkKind="still" artwork={art(n % 2 ? 'pool/tv/the-last-of-us--bd.jpg' : 'bd-tlou.jpg')} length={ep(`ep${n}Length`)} description={ep(`ep${n}Synopsis`)}
+      model={{title: f(title), caption: [fact('show', f('tlou'), 'identity'), fact('code', f(code))], detail: [], progress}} style={{width: 'var(--card-wide-width)'}} onNavigate={none}/>}/>;
 }
 function SearchResults() {
   const art = useReferenceArtwork(), phone = usePhone();
@@ -132,26 +137,29 @@ const guide: readonly GuideChannel[] = [
 ];
 const ruler = (['time330', 'time400', 'time430', 'time500', 'time530', 'time600'] as const).map((label, index) => ({at: index * 30, label: f(label)}));
 const Grid = () => <GuideGrid channels={guide} span={210} now={35} ruler={ruler} nowLabel={f('nowTime')} channelLabel={f('channel')} onCell={none}/>;
-function Groups() {
-  const groups = [['groupAll', 14], ['groupFavorites', 3], ['groupNews', 2], ['groupSports', 2], ['groupMovies', 2], ['groupKids', 1], ['groupDocumentary', 1]] as const;
-  return <>{groups.map(([name, count], index) => <Chip key={name} variant="search" selected={index === 0} count={count} icon={name === 'groupFavorites' ? 'i-star' : undefined} onClick={none}>{f(name)}</Chip>)}</>;
-}
+const groups = ([['groupAll', 14], ['groupFavorites', 3], ['groupNews', 2], ['groupSports', 2], ['groupMovies', 2], ['groupKids', 1], ['groupDocumentary', 1]] as const)
+  .map(([name, count]) => ({id: name, label: f(name), count, icon: name === 'groupFavorites' ? 'i-star' as const : undefined}));
+const Groups = () => <GuideGroups groups={groups} value="groupAll" onValueChange={none}/>;
 function Switcher() {
-  // phone-guide g1 draws the source picker as a chip at the head of the groups.
-  return usePhone() ? <Chip trailingIcon="i-chdown" onClick={none}>{f('allChannels')}</Chip> : <Button size="small" icon="i-chdown" onClick={none}>{f('allChannels')}</Button>;
+  // At phone width the source picker is an outlined chip heading the groups (phone-guide g1); wider, the kit's chip with its chevron.
+  return <Chip variant={usePhone() ? 'pill' : undefined} trailingIcon="i-chdown" onClick={none}>{f('allChannels')}</Chip>;
 }
 function GuideTools() {
   const phone = usePhone();
+  // At phone width the day and the sort are the guide's quiet pickers, text on one line (phone-guide g1).
+  if (phone) return <><GuidePicker icon="i-cal" label={f('todayShort')} value={f('guideDate')} onPress={none}/><span style={{flex: 1}}/><GuidePicker label={f('sortByNumber')} onPress={none}/></>;
   return <>
-    <Button size="small" icon="i-cal" onClick={none}>{f(phone ? 'todayShort' : 'today')}</Button>
-    {!phone && <><Button size="small" icon="i-left" onClick={none}>{f('back2h')}</Button><Button size="small" onClick={none}>{f('now')}</Button><Button size="small" icon="i-right" onClick={none}>{f('ahead2h')}</Button></>}
+    <Chip icon="i-cal" trailingIcon="i-chdown" onClick={none}>{f('today')}</Chip>
+    <Button size="small" icon="i-left" onClick={none}>{f('back2h')}</Button><Button size="small" onClick={none}>{f('now')}</Button><Button size="small" onClick={none}>{f('ahead2h')}<Icon name="i-right" size={16}/></Button>
     <span style={{flex: 1}}/>
-    <Button variant="text" size="small" icon="i-chdown" onClick={none}>{f('sortByNumber')}</Button>
-    {!phone && <Segmented value="grid" onValueChange={none} items={[{value: 'grid', label: f('grid'), icon: 'i-grid'}, {value: 'list', label: f('list'), icon: 'i-list'}]}/>}
+    <Chip prefix={defaultI18n.t('next.browse.sort')} trailingIcon="i-chdown" onClick={none}>{f('sortByNumber')}</Chip>
+    <Segmented value="grid" onValueChange={none} items={[{value: 'grid', label: f('grid'), icon: 'i-grid'}, {value: 'list', label: f('list'), icon: 'i-list'}]}/>
   </>;
 }
 function PhoneActions({list = false}: {list?: boolean}) {
-  return <><Segmented value={list ? 'list' : 'guide'} onValueChange={none} items={[{value: 'list', label: f('list')}, {value: 'guide', label: f('guide')}]}/><Button variant="icon" icon="i-rec" iconOnly aria-label={f('tabRecordings')} onClick={none}/></>;
+  // phone-guide g1: List | Guide with their glyphs, and Recordings as a bare glyph in the title row.
+  return <><Segmented value={list ? 'list' : 'guide'} onValueChange={none} items={[{value: 'list', label: f('list'), icon: 'i-list'}, {value: 'guide', label: f('guide'), icon: 'i-grid'}]}/>
+    <Button variant="text" icon="i-rec-ring" iconOnly aria-label={f('tabRecordings')} onClick={none}/></>;
 }
 const LiveTabs = ({value}: {value: 'guide' | 'recordings'}) => <Tabs value={value} onValueChange={none} items={[{value: 'guide', label: f('tabGuide')}, {value: 'recordings', label: <>{f('tabRecordings')} <small style={{color: 'var(--color-record)'}}>{f('conflictTab')}</small></>}]}/>;
 function PaneChannel() {
@@ -172,9 +180,16 @@ function ProgrammeBody() {
   </>;
 }
 const programmePane = (): FramePane => ({title: f('pStoryTime'), subtitle: f('codeS3E1'), eyebrow: <PaneChannel/>, close: {label: f('close'), onPress: none}, children: <ProgrammeBody/>});
+/** The source's facts beside the title (desktop-live guide): its name in the text colour, then its count and reach in the
+ * secondary grey, at a row's help size, spaced as a facts line. */
+function LiveFacts() {
+  const [source, ...rest] = f('liveFacts').split(' · ');
+  return <span style={{display: 'flex', gap: 'var(--space-sm)', fontSize: 'var(--type-row-help-size)', lineHeight: 'var(--type-row-help-line)', color: 'var(--color-text-secondary)'}}>
+    <b style={{color: 'var(--color-text)'}}>{source}</b>{rest.map(part => <span key={part}>{part}</span>)}</span>;
+}
 function LiveGuide({details = false}: {details?: boolean}) {
   const phone = usePhone();
-  return <Page current="liveTvShort"><LiveFrame title={f('liveTv')} switcher={<Switcher/>} facts={<small style={{color: 'var(--color-text-tertiary)'}}>{f('liveFacts')}</small>} actions={phone && <PhoneActions/>}
+  return <Page current="liveTvShort"><LiveFrame title={f('liveTv')} switcher={<Switcher/>} facts={<LiveFacts/>} actions={phone && <PhoneActions/>}
     tabs={!phone && <LiveTabs value="guide"/>} chips={<Groups/>} lead={!phone && !details && <OnNowShelf/>} toolbar={<GuideTools/>} details={details ? programmePane() : undefined} hints={!phone && f('keyboardHint')}>
     <Grid/>
   </LiveFrame></Page>;
@@ -191,7 +206,7 @@ function LiveList() {
 function recordings(value: 'upcoming' | 'recorded' | 'rules', phone: boolean) {
   const chips = [['upcoming', 'upcoming', 8], ['recorded', 'recorded', 20], ['rules', 'seriesRules', 4], ['history', 'history', undefined], ['storage', 'storage', undefined]] as const;
   if (phone) return {title: f('recordings'), back: {label: f('liveTv'), onPress: none}, tabs: <Tabs value={value} onValueChange={none} items={[{value: 'upcoming', label: f('upcoming')}, {value: 'recorded', label: f('recorded')}, {value: 'rules', label: f('seriesRules')}, {value: 'history', label: f('history')}]}/>};
-  return {title: f('liveTv'), switcher: <Switcher/>, facts: <small style={{color: 'var(--color-text-tertiary)'}}>{f('liveFacts')}</small>, tabs: <LiveTabs value="recordings"/>,
+  return {title: f('liveTv'), switcher: <Switcher/>, facts: <LiveFacts/>, tabs: <LiveTabs value="recordings"/>,
     chips: <>{chips.map(([id, name, count]) => <Chip key={id} variant="search" selected={id === value} count={count} onClick={none}>{f(name)}</Chip>)}<span style={{flex: 1}}/>
       <RecordingStorage used={f('storageUsed')} free={f('storageFree')} remaining={f('storageNote')} label={f('storageUsed')} fraction={.14}/></>};
 }
@@ -210,12 +225,17 @@ function LiveUpcoming() {
     {phone && <StorageMeter used={f('storageUsed')} free={f('storageFree')} value={.14} note={f('storageNote')}/>}
   </LiveFrame></Page>;
 }
+/** desktop-live live-recorded: each show a live card with its channel, its corner badge or unwatched count, and its line. */
+const recordedShows = [[channels.ad, 'pClockmakers', 'recordings6', undefined, 2], [channels.pk, 'pStoryTime', 'recordings3', undefined, 2], [channels.n24, 'pWorldTonight', 'yesterday430', undefined, undefined],
+  [channels.lm, 'pQuietHarbor', 'quietHarborFacts', 'kept', undefined], [channels.ad, 'pWildPlains', 'recordingsThree', 'kept', undefined], [channels.ss, 'pCycling', 'today130', 'incomplete', undefined]] as const;
+/** The line under a recorded show: its parts, the unwatched one in accent. */
+const recordedLine = (line: string) => line.split(' · ').map((text, index) => fact(`line${index}`, text, / unwatched$/.test(text) ? 'status' : 'context'));
 function LiveRecorded() {
-  const art = useReferenceArtwork(), phone = usePhone();
-  const items = [['pClockmakers', 'recordings6', 'bd-matrix'], ['pStoryTime', 'recordings3', 'bd-toystory'], ['pWorldTonight', 'yesterday430', 'bd-sev'], ['pQuietHarbor', 'quietHarborFacts', 'bd-spirited']] as const;
+  const phone = usePhone();
   return <Page current="liveTvShort"><LiveFrame {...recordings('recorded', phone)} toolbar={<><small style={{color: 'var(--color-text-secondary)'}}>{f('recordedCounts')}</small><span style={{flex: 1}}/><Button variant="text" size="small" icon="i-chdown" onClick={none}>{f('sortRecent')}</Button></>}>
-    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 'var(--space-sm)', padding: '0 var(--g)'}}>
-      {items.map(([title, caption, path]) => <WideCard key={title} model={{title: f(title), caption: [fact('caption', f(caption))], detail: []}} artwork={art(`${path}.jpg`)} onNavigate={none}/>)}
+    <div className={page.cardGrid}>
+      {recordedShows.map(([channel, title, line, badge, count]) => <LiveCard key={title} channel={{sourceId: 'demo', id: channel.id, name: channel.name, mark: channel.mark}} programme={{title: f(title), facts: []}}
+        under={recordedLine(f(line))} badge={badge && f(badge)} count={count} style={{width: '100%'}} onNavigate={none}/>)}
     </div>
   </LiveFrame></Page>;
 }
@@ -321,6 +341,7 @@ function useListenHeader(kind: 'music' | 'audiobook', tab: string) {
     switcher: <LibrarySwitcher libraries={libraries} value={library} onValueChange={setLibrary} compact={phone}/>,
     menu: <LibraryMenu owner onSaveView={none} onMarkAll={none} onEditPins={none} onLibrarySettings={none} onScan={none}/>,
     trailing: kind === 'music' && !phone ? <Button icon="i-shuffle" onClick={none}>{f('shuffleAll')}</Button> : undefined,
+    counts: f(kind === 'music' ? 'musicCounts' : 'bookCounts').split(' · ').map((text, index) => fact(`count${index}`, text)),
     tabs: {value: current, onValueChange: setCurrent, items: libraryTabs(kind).map(item => ({value: item.id, label: defaultI18n.t(item.label)}))}};
 }
 const albums = [['after-hours', 'aAfterHours', 'rWeeknd'], ['damn', 'aDamn', 'rKendrick'], ['rumours', 'aRumours', 'rFleetwood'], ['abbey-road-2019-mix', 'aAbbey', 'rBeatles'],
@@ -331,10 +352,12 @@ function Songs({count = 4}: {count?: number}) {
   return <div className={page.inset}>{songs.slice(0, count).map(([title, duration, path, by], index) => <SongRow key={title} context="search" onPlay={none}
     row={{id: title, playing: index === 0, artwork: <ArtBox kind="square" icon="i-music" source={art(`pool/albums/${path}.jpg`)}/>, duration: fact('duration', f(duration)), text: {id: title, title: f(title), caption: [fact('artist', f(by))], detail: []}}}/>)}</div>;
 }
-/** Recently played: quick tiles two lines deep, four across from tablet width and two at phone width (final3-desktop-12, phone-app 15a). */
+/** Recently played: quick tiles two rows deep, as many across as tiles of about their own width fit, two to four
+ * (final3-desktop-12, phone-app 15a; the native gallery's rule). */
 function RecentlyPlayed() {
-  const art = useReferenceArtwork(), phone = usePhone();
-  return <Section title={f('recentlyPlayed')}><div className={page.tiles}>{albums.slice(0, phone ? 4 : 8).map(([id, name, by]) =>
+  const art = useReferenceArtwork(), width = typeof window === 'undefined' ? 1440 : window.innerWidth;
+  const columns = Math.min(4, Math.max(2, Math.round(width / frameSpec.quickTile.width[frameForm(width)])));
+  return <Section title={f('recentlyPlayed')}><div className={page.tiles} style={{'--columns': columns} as CSSProperties}>{albums.slice(0, columns * 2).map(([id, name, by]) =>
     <QuickTile key={id} visible model={{title: f(name), caption: [fact('by', f(by), 'identity')]}} artwork={art(`pool/albums/${id}.jpg`)} playing={id === 'after-hours'} onPause={none} onNavigate={none}/>)}</div></Section>;
 }
 function Music({tab = 'discover'}: {tab?: 'discover' | 'songs'}) {

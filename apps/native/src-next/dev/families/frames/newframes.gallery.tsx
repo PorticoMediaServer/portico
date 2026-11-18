@@ -1,5 +1,5 @@
 import React, {useMemo, useState} from 'react';
-import {Text, View} from 'react-native';
+import {Text, View, type LayoutChangeEvent} from 'react-native';
 import {defaultI18n, formatMessage} from '../../../../../../packages/i18n/src';
 import {browseToolbarModel} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {libraryTabs} from '../../../../../../packages/client-core/src/presentation/library-tabs';
@@ -12,7 +12,7 @@ import {BrowseToolbar, LibraryMenu, LibrarySwitcher} from '../../../kit/browse';
 import {SongRow} from '../../../kit/browse/Tracks';
 import {BrowseFrame, LiveFrame, SearchFrame, Section, SectionCard, SplitFrame, type FramePane} from '../../../kit/frames';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
-import {AiringRow, ChannelRow, ConflictCard, GuideGrid, RecordingRow, RuleCard, type GuideChannel} from '../../../kit/live';
+import {AiringRow, ChannelRow, ConflictCard, GuideGrid, GuideGroups, GuidePicker, RecordingRow, RuleCard, type GuideChannel} from '../../../kit/live';
 import {Row, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
 import {DownloadRow, StorageMeter} from '../../../kit/saved';
 import {SearchHistory, TopResult} from '../../../kit/search';
@@ -34,7 +34,7 @@ const f = (name: FixtureName) => formatMessage(newFramesFixtureMessages[`next.ne
 const none = () => {};
 const selection: LayoutSelection = {active: false, isSelected: () => false, onToggle: none, onEnter: none};
 const card = ({onFocus, onBlur, focusId, testID}: LayoutItemContext) => ({onFocus, onBlur, focusId, testID});
-const fact = (id: string, text: string, role: 'identity' | 'context' | 'supplement' = 'context') => ({id, text, role});
+const fact = (id: string, text: string, role: 'identity' | 'context' | 'supplement' | 'status' = 'context') => ({id, text, role});
 /** The reference pool keeps shows apart from films. */
 const shows = new Set(['severance', 'the-last-of-us', 'silo', 'slow-horses']);
 const poster = (id: string) => asset(`pool/${shows.has(id) ? 'tv' : 'movies'}/${id}.jpg`);
@@ -45,7 +45,7 @@ const book = (id: string) => asset(`pool/books/${id}.jpg`);
 function useScale() { const theme = useTheme(), frame = useFrameMetrics(); return {theme, frame, tv: frame.form === 'tv', phone: frame.form === 'phone'}; }
 function SearchField({value}: {value?: string}) {
   const {theme, tv} = useScale();
-  const field = <TextField variant="search" value={value ?? ''} placeholder={f('searchPlaceholder')} accessibilityLabel={f('search')} onChangeText={none}
+  const field = <TextField variant="search" leadingIcon="i-search" value={value ?? ''} placeholder={f('searchPlaceholder')} accessibilityLabel={f('search')} onChangeText={none}
     trailing={value ? <Button variant="icon" size="small" icon="i-x" iconOnly accessibilityLabel={f('clearText')} onPress={none}/> : undefined}/>;
   return tv ? <View style={{gap: theme.space.sm}}>{field}</View> : field;
 }
@@ -62,10 +62,15 @@ const genres = [['genreAnimation', 'titles14', 'p-spirited'], ['genreSciFi', 'ti
 /** phone-app 7: a touch tile fans two posters at its right; TV draws the backdrop. */
 const fans = ['spirited-away', 'inside-out', 'interstellar', 'dune', 'blade-runner', 'alien', 'the-dark-knight', 'barbie'];
 const fan = (index: number) => [poster(fans[index % fans.length]!), poster(fans[(index + 3) % fans.length]!)];
+/** A grid's room: the window's estimate first, then what the row really gets (a tablet's page sits beside its rail). */
+function useRoom() {
+  const {frame} = useScale(), [room, setRoom] = useState(frame.width - frame.gutter - frame.rightGutter);
+  return [room, (event: LayoutChangeEvent) => setRoom(event.nativeEvent.layout.width)] as const;
+}
 function GenreTiles({count = 6}: {count?: number}) {
-  const {theme, frame, tv, phone} = useScale(), columns = phone ? 2 : tv ? 3 : 4, gap = theme.space.sm;
-  const width = (frame.width - frame.gutter - frame.rightGutter - gap * (columns - 1)) / columns;
-  return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
+  const {theme, frame, tv, phone} = useScale(), [room, measure] = useRoom(), columns = phone ? 2 : tv ? 3 : 4, gap = theme.space.sm;
+  const width = (room - gap * (columns - 1)) / columns;
+  return <View onLayout={measure} style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
     {genres.slice(0, count).map(([name, titles, art], index) => <GenreTile key={name} title={f(name)} caption={[fact('count', f(titles), 'supplement')]} variant="video" width={width} height={phone ? 84 : width * .42}
       backdrop={asset(`${art}.jpg`)} covers={fan(index)} onNavigate={none}/>)}
   </View>;
@@ -141,15 +146,17 @@ const guide: readonly GuideChannel[] = [
 ];
 const ruler = (['time330', 'time400', 'time430', 'time500', 'time530', 'time600'] as const).map((label, index) => ({at: index * 30, label: f(label)}));
 function Grid() { return <GuideGrid channels={guide} span={210} now={35} ruler={ruler} nowLabel={f('nowTime')} channelLabel={f('channel')} onCell={none}/>; }
-function Groups() {
-  const groups = [['groupAll', 14], ['groupFavorites', 3], ['groupNews', 2], ['groupSports', 2], ['groupMovies', 2], ['groupKids', 1], ['groupDocumentary', 1]] as const;
-  return <>{groups.map(([name, count], index) => <Chip key={name} selected={index === 0} count={count} icon={name === 'groupFavorites' ? 'i-star' : undefined} onPress={none}>{f(name)}</Chip>)}</>;
-}
-function Switcher() { return <Button variant="glass" size="small" trailingIcon="i-chdown" onPress={none}>{f('allChannels')}</Button>; }
+const groups = ([['groupAll', 14], ['groupFavorites', 3], ['groupNews', 2], ['groupSports', 2], ['groupMovies', 2], ['groupKids', 1], ['groupDocumentary', 1]] as const)
+  .map(([name, count]) => ({id: name, label: f(name), count, icon: name === 'groupFavorites' ? 'i-star' as const : undefined}));
+function Groups() { return <GuideGroups groups={groups} value="groupAll" onValueChange={none}/>; }
+// On a phone the source picker is an outlined chip at the head of the groups, their height (phone-guide g1); a button elsewhere.
+function Switcher() { const {phone} = useScale(); return phone ? <Chip variant="pill" trailingIcon="i-chdown" onPress={none}>{f('allChannels')}</Chip> : <Button variant="glass" size="small" trailingIcon="i-chdown" onPress={none}>{f('allChannels')}</Button>; }
 function GuideTools({list = false}: {list?: boolean}) {
   const {phone} = useScale();
+  // A phone's day and sort are the guide's quiet pickers, text on one line (phone-guide g1).
+  if (phone) return <><GuidePicker icon="i-cal" label={f('todayShort')} value={f('guideDate')} onPress={none}/><View style={{flex: 1}}/><GuidePicker label={f('sortByNumber')} onPress={none}/></>;
   return <>
-    <Button variant="glass" size="small" icon="i-cal" trailingIcon="i-chdown" onPress={none}>{f(phone ? 'todayShort' : 'today')}</Button>
+    <Button variant="glass" size="small" icon="i-cal" trailingIcon="i-chdown" onPress={none}>{f('today')}</Button>
     {!phone && !list && <><Button variant="glass" size="small" icon="i-left" onPress={none}>{f('back2h')}</Button><Button variant="glass" size="small" onPress={none}>{f('now')}</Button><Button variant="glass" size="small" trailingIcon="i-right" onPress={none}>{f('ahead2h')}</Button></>}
     <View style={{flex: 1}}/>
     <Button variant="text" size="small" trailingIcon="i-chdown" onPress={none}>{f('sortByNumber')}</Button>
@@ -157,10 +164,11 @@ function GuideTools({list = false}: {list?: boolean}) {
 }
 /** The title row's buttons: a phone's List | Guide and Recordings; a tablet's Grid | List; TV's Today, Now and Recordings. */
 function LiveActions({list = false}: {list?: boolean}) {
-  const {phone, tv} = useScale();
+  const {phone, tv, theme} = useScale();
   if (tv) return <><Button variant="glass" size="small" trailingIcon="i-chdown" onPress={none}>{f('todayShort')}</Button><Button variant="glass" size="small" onPress={none}>{f('now')}</Button><Button variant="glass" size="small" icon="i-rec" onPress={none}>{f('tabRecordings')}</Button></>;
-  const view = <Segmented variant="glass" value={list ? 'list' : 'grid'} onValueChange={none} items={[{value: 'list', label: f('list')}, {value: 'grid', label: f(phone ? 'guide' : 'grid')}]}/>;
-  return phone ? <>{view}<Button variant="icon" size="small" icon="i-rec" iconOnly accessibilityLabel={f('tabRecordings')} onPress={none}/></> : view;
+  const view = <Segmented variant="glass" value={list ? 'list' : 'grid'} onValueChange={none} items={[{value: 'list', label: f('list'), icon: 'i-list'}, {value: 'grid', label: f(phone ? 'guide' : 'grid'), icon: 'i-grid'}]}/>;
+  // A phone's Recordings is a bare glyph in the title row, as a bar's actions are.
+  return phone ? <>{view}<Button variant="text" icon="i-rec-ring" iconColor={theme.colors.text} iconOnly accessibilityLabel={f('tabRecordings')} onPress={none}/></> : view;
 }
 function LiveTabs({value}: {value: 'guide' | 'recordings'}) {
   const {phone, tv} = useScale();
@@ -187,7 +195,7 @@ function ProgrammeBody() {
     <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{f('storySynopsis')}</Text>
     <View style={{gap: theme.space.xs}}>
       <Button icon="i-play" align="stretch" preferredFocus={tv} onPress={none}>{f('watchLive')}</Button>
-      <View style={{flexDirection: tv ? 'column' : 'row', flexWrap: 'wrap', gap: theme.space.xs}}>
+      <View style={{flexDirection: tv ? 'column' : 'row', flexWrap: tv ? undefined : 'wrap', gap: theme.space.xs}}>
         <Button variant="glass" icon="i-rec" iconColor={theme.colors.record} align={tv ? 'stretch' : undefined} onPress={none}>{f('recording')}</Button>
         <Button variant="glass" icon="i-repeat" align={tv ? 'stretch' : undefined} onPress={none}>{f('recordSeries')}</Button>
       </View>
@@ -202,10 +210,16 @@ function ProgrammeBody() {
     </View>
   </>;
 }
+/** The source's facts beside the title (desktop-live guide): its name in the text colour, then its count and reach in the
+ * secondary grey, at a row's help size. */
+function LiveFacts() {
+  const {theme} = useScale(), [source, ...rest] = f('liveFacts').split(' · ');
+  return <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}><Text style={{color: theme.colors.text, fontFamily: theme.type.listLabel.fontFamily}}>{source}</Text>{rest.map(part => `   ${part}`).join('')}</Text>;
+}
 function LiveGuide({details = false}: {details?: boolean}) {
   const {theme} = useScale(), web = theme.platform === 'web';
   return <Page destination={{kind: 'live'}}><FocusProvider><LiveFrame testID={details ? 'frames-live-details' : 'frames-live-guide'} title={f('liveTv')} switcher={<Switcher/>}
-    facts={<Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{f('liveFacts')}</Text>} actions={<LiveActions/>} tabs={<LiveTabs value="guide"/>} chips={<Groups/>}
+    facts={<LiveFacts/>} actions={<LiveActions/>} tabs={<LiveTabs value="guide"/>} chips={<Groups/>}
     lead={web && <OnNowRow/>} toolbar={<GuideTools/>} details={details ? programmePane() : undefined} hints={web && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{f('keyboardHint')}</Text>}>
     <Grid/>
   </LiveFrame></FocusProvider></Page>;
@@ -247,16 +261,23 @@ function LiveUpcoming() {
     {phone && <Storage/>}
   </LiveFrame></FocusProvider></Page>;
 }
+/** desktop-live live-recorded: each show a live card with its channel, its corner badge or unwatched count, and its line. */
+const recordedShows = [[channels.ad, 'pClockmakers', 'recordings6', undefined, 2], [channels.pk, 'pStoryTime', 'recordings3', undefined, 2], [channels.n24, 'pWorldTonight', 'yesterday430', undefined, undefined],
+  [channels.lm, 'pQuietHarbor', 'quietHarborFacts', 'kept', undefined], [channels.ad, 'pWildPlains', 'recordingsThree', 'kept', undefined], [channels.ss, 'pCycling', 'today130', 'incomplete', undefined]] as const;
+/** The line under a recorded show: its parts, the unwatched one in accent. */
+const recordedLine = (line: string) => line.split(' · ').map((text, index) => fact(`line${index}`, text, / unwatched$/.test(text) ? 'status' : 'context'));
 function LiveRecorded() {
+  const {theme, phone} = useScale();
+  return <Page destination={{kind: 'live'}}><FocusProvider><LiveFrame testID="frames-live-recorded" {...recordingsHeader('recorded', phone)} chips={<RecordingsChips value="recorded"/>}
+    toolbar={<><Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{f('recordedCounts')}</Text></>}><RecordedTiles/></LiveFrame></FocusProvider></Page>;
+}
+/** Measured inside the page (beside the rail), so the tiles fill the page's width, not the window's. */
+function RecordedTiles() {
   const {theme, frame, phone} = useScale(), columns = phone ? 1 : frame.form === 'tv' ? 3 : 2, gap = theme.space.sm;
   const width = (frame.width - frame.gutter - frame.rightGutter - gap * (columns - 1)) / columns;
-  const items = [['pClockmakers', 'recordings6', 'bd-matrix'], ['pStoryTime', 'recordings3', 'bd-toystory'], ['pWorldTonight', 'yesterday430', 'bd-sev'], ['pQuietHarbor', 'quietHarborFacts', 'bd-spirited']] as const;
-  return <Page destination={{kind: 'live'}}><FocusProvider><LiveFrame testID="frames-live-recorded" {...recordingsHeader('recorded', phone)} chips={<RecordingsChips value="recorded"/>}
-    toolbar={<><Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{f('recordedCounts')}</Text></>}>
-    <View style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
-      {items.map(([title, caption, art]) => <WideCard key={title} title={f(title)} artwork={asset(`${art}.jpg`)} width={width} caption={[fact('caption', f(caption))]} onNavigate={none}/>)}
-    </View>
-  </LiveFrame></FocusProvider></Page>;
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
+    {recordedShows.map(([channel, title, line, badge, count]) => <LiveCard key={title} title={f(title)} channel={channel.name} mark={channel.mark} under={recordedLine(f(line))} badge={badge && f(badge)} count={count} width={width} onNavigate={none}/>)}
+  </View>;
 }
 function rulePane(): FramePane {
   return {title: f('pClockmakers'), subtitle: f('ruleCounts'), close: {label: f('close'), onPress: none}, children: <RuleBody/>,
@@ -307,16 +328,23 @@ function PosterRow({title, subtitle}: {title: string; subtitle?: string}) {
     renderItem={([id, name, line], context) => <PosterCard {...card(context)} title={name} artwork={poster(id)} progress={id === 'the-last-of-us' ? .18 : undefined} caption={[fact('caption', line, 'identity')]} width={width} onNavigate={none}/>}/>;
 }
 const savedTabs = (value: string) => ({value, onValueChange: none, items: (['myList', 'favorites', 'playlists', 'collections', 'savedViews', 'history', 'downloads'] as const).map(name => ({value: name, label: f(name)}))});
-/** My List's Filters bar: the library's own toolbar (Filters, quick chips, the count, sort, grid or list). */
+/** My List's Filters bar: the library's own toolbar (Filters, quick chips, the count, sort, grid or list) with Select, and
+ * the chips tablet 11 draws for a list of what you saved: Unplayed, In progress, Played, Favorites (a My List chip would
+ * filter the page to itself). */
 function SavedToolbar() {
-  const model = useMemo(() => browseToolbarModel(capability, 'movie', [], {field: 'added', direction: 'desc'}, {t: defaultI18n.t, owner: true}), []);
-  return <BrowseToolbar model={model} labels={labels} resultCount={f('titles18Count')} onFilters={none} onQuickChange={none} onSortChange={none} view={{value: 'grid', onValueChange: none}}/>;
+  const model = useMemo(() => {
+    const library = browseToolbarModel(capability, 'movie', [], {field: 'added', direction: 'desc'}, {t: defaultI18n.t, owner: true}), offered = [...library.quick, ...library.filterQuick];
+    return {...library, quick: (['unwatched', 'in-progress', 'watched', 'favorites'] as const).flatMap(id => offered.filter(quick => quick.id === id))};
+  }, []);
+  return <BrowseToolbar model={model} labels={labels} resultCount={f('titles18Count')} onFilters={none} onQuickChange={none} onSortChange={none} onSelect={none} view={{value: 'grid', onValueChange: none}}/>;
 }
 /** My List's own posters in the library frame's grid. A constant, so the grid keeps one collection. */
 const myList = libraryPosters.slice(0, 18);
-function SavedList() {
+// The grid measures the page it is drawn in, so its hook runs inside the gallery `Page` (beside the rail), not around it.
+const SavedList = () => <Page destination={{kind: 'saved'}}><SavedGrid/></Page>;
+function SavedGrid() {
   const {grid} = useGrid(myList);
-  return <Page destination={{kind: 'saved'}}><BrowseFrame testID="frames-saved" header={{title: f('saved'), tabs: savedTabs('myList')}} toolbar={<SavedToolbar/>} grid={grid}/></Page>;
+  return <BrowseFrame testID="frames-saved" header={{title: f('saved'), tabs: savedTabs('myList')}} toolbar={<SavedToolbar/>} grid={grid}/>;
 }
 /** A phone's Saved is a page of entries (phone-app 9): My List's row, the downloads on this phone, then the other lists. */
 function Saved() {
@@ -375,15 +403,16 @@ function useListenHeader(kind: 'music' | 'audiobook', tab: string) {
     switcher: <LibrarySwitcher libraries={libraries} value={library} onValueChange={setLibrary} trigger={phone ? 'name' : 'chevron'}/>,
     menu: <LibraryMenu owner ownerTag={<OwnerTag compact/>} onSaveView={none} onMarkAll={none} onEditPins={none} onLibrarySettings={none} onScan={none}/>,
     trailing: kind === 'music' && !phone ? <Button variant="glass" size="small" icon="i-shuffle" onPress={none}>{f('shuffleAll')}</Button> : undefined,
+    counts: f(kind === 'music' ? 'musicCounts' : 'bookCounts').split(' · ').map((text, index) => fact(`count${index}`, text)),
     tabs: {value: current, onValueChange: setCurrent, items: libraryTabs(kind).map(item => ({value: item.id, label: defaultI18n.t(item.label)}))}};
 }
 const albums = [['after-hours', 'aAfterHours', 'rWeeknd'], ['damn', 'aDamn', 'rKendrick'], ['rumours', 'aRumours', 'rFleetwood'], ['abbey-road-2019-mix', 'aAbbey', 'rBeatles'],
   ['hit-me-hard-and-soft', 'aHitMe', 'rBillie'], ['random-access-memories', 'aRam', 'rDaftPunk'], ['1989-taylor-s-version-deluxe', 'a1989', 'rTaylor'], ['thriller', 'aThriller', 'rJackson'], ['the-wall', 'aWall', 'rFloyd']] as const;
 /** Recently played: quick tiles two lines deep, as many across as tiles of about their own width fit, two to four (final3-desktop-12, phone-app 15a). */
 function RecentlyPlayed() {
-  const {theme, frame} = useScale(), gap = theme.space.sm, room = frame.width - frame.gutter - frame.rightGutter;
+  const {frame} = useScale(), gap = frameSpec.quickTile.gap[frame.form], [room, measure] = useRoom();
   const columns = Math.min(4, Math.max(2, Math.round((room + gap) / (frameSpec.quickTile.width[frame.form] + gap)))), width = (room - gap * (columns - 1)) / columns;
-  return <Section title={f('recentlyPlayed')}><View style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
+  return <Section title={f('recentlyPlayed')}><View onLayout={measure} style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
     {albums.slice(0, columns * 2).map(([id, name, by], index) => index === 0
       ? <QuickTile key={id} focusId={`frames-music-tile-${id}`} title={f(name)} artwork={album(id)} caption={[fact('by', f(by), 'identity')]} width={width} playing onPause={none} onNavigate={none}/>
       : <QuickTile key={id} focusId={`frames-music-tile-${id}`} title={f(name)} artwork={album(id)} caption={[fact('by', f(by), 'identity')]} width={width} onNavigate={none}/>)}

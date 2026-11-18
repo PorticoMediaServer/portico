@@ -21,9 +21,20 @@ export type LiveCardProps = Omit<CardProps, 'model'> & Readonly<{
   large?: boolean;
   onRemind?: () => void;
   reminderSet?: boolean;
+  /** A recording's corner badge, top left: Kept, Incomplete (desktop-live live-recorded). The channel row moves under it. */
+  badge?: string;
+  /** A recorded show's unwatched count, a round mark top right; absent or 0 draws nothing (desktop-live live-recorded). */
+  count?: number;
+  /** The line under the card: a recorded show's "6 recordings  2 unwatched", a status part in accent (desktop-live live-recorded). */
+  under?: readonly FactPart[];
 }>;
-export function LiveCard({channel, programme, logo, tint, results, large, onRemind, reminderSet, ...props}: LiveCardProps) {
-  return <CardFrame {...props} className={cx(results && styles.liveResults, large && styles.liveLarge, props.className)} model={{title: programme?.title ?? channel.name, caption: []}} additionalDescription={[channel.name, channel.number, ...(programme?.facts.map(part => part.text) ?? []), ...(programme?.extra?.map(part => part.text) ?? []), programme?.remaining, programme?.live ? defaultI18n.t('next.cards.live') : undefined, programme?.isNew ? defaultI18n.t('next.cards.new') : undefined, programme?.premiere ? defaultI18n.t('next.cards.premiere') : undefined, programme?.recording ? defaultI18n.t('next.cards.recording') : undefined]} kind="live" style={{...tintStyle(tint), ...props.style}} overlay={onRemind && <button type="button" disabled={props.disabled} className={styles.remind} aria-label={defaultI18n.t('guide.remind')} aria-pressed={reminderSet} onClick={onRemind}><Icon name="i-bell" size={16} /></button>}>
+export function LiveCard({under, ...props}: LiveCardProps) {
+  if (!under?.length) return <LiveTile {...props}/>;
+  return <div className={styles.liveCaptioned} style={props.style}><LiveTile {...props} style={undefined} accessibleCaption={under}/><Facts parts={under} className={styles.liveCaption}/></div>;
+}
+function LiveTile({channel, programme, logo, tint, results, large, onRemind, reminderSet, badge, count, accessibleCaption = [], ...props}: Omit<LiveCardProps, 'under'> & {accessibleCaption?: readonly FactPart[]}) {
+  return <CardFrame {...props} className={cx(results && styles.liveResults, large && styles.liveLarge, props.className)} model={{title: programme?.title ?? channel.name, caption: []}} additionalDescription={[channel.name, channel.number, ...(programme?.facts.map(part => part.text) ?? []), ...(programme?.extra?.map(part => part.text) ?? []), programme?.remaining, programme?.live ? defaultI18n.t('next.cards.live') : undefined, programme?.isNew ? defaultI18n.t('next.cards.new') : undefined, programme?.premiere ? defaultI18n.t('next.cards.premiere') : undefined, programme?.recording ? defaultI18n.t('next.cards.recording') : undefined, ...accessibleCaption.map(part => part.text)]} kind="live" style={{...tintStyle(tint), ...props.style}} overlay={onRemind && <button type="button" disabled={props.disabled} className={styles.remind} aria-label={defaultI18n.t('guide.remind')} aria-pressed={reminderSet} onClick={onRemind}><Icon name="i-bell" size={16} /></button>}>
+    {badge !== undefined && <span className={styles.liveBadge}>{badge}</span>}{!!count && <span className={styles.liveCount}>{count}</span>}
     <span className={styles.channel}>{channel.mark ? <ChannelMark mark={channel.mark} source={logo} size={34} visible={props.visible} /> : <span className={styles.channelPlaceholder}>{logo && <Artwork source={logo} fit="contain" alt="" visible={props.visible}/>}</span>}<span className={styles.channelName}>{channel.name}{channel.favorite && <Icon name="i-star" size={13}/>}{channel.number && <span className={styles.channelNumber}>{channel.number}</span>}</span>
       {programme?.live && <span className={styles.liveFlag}>{defaultI18n.t('next.cards.live')}</span>}
     </span>
