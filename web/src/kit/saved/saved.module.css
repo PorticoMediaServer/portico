@@ -13,12 +13,17 @@
 .downloadWords { flex: 1; min-width: 0; display: grid; gap: var(--space-px-2); font-size: var(--type-row-help-size); color: var(--color-text-secondary); }
 .downloadWords b { font-size: var(--type-list-label-size); font-weight: var(--type-list-label-weight); color: var(--color-text); }
 .downloadWords small { font-size: inherit; color: var(--color-text-tertiary); }
+.downloadStatus { display: grid; gap: var(--space-px-2); }
 .downloadWords [data-tone='warning'] { color: var(--color-amber); }
 .downloadWords [data-tone='error'] { color: var(--color-record); }
 .downloadWords [data-tone='ready'] { color: var(--color-healthy); }
 .bar { display: block; height: 3px; margin-top: var(--space-tight); border-radius: 2px; background: color-mix(in srgb, var(--color-text) 14%, transparent); }
 .bar i { display: block; height: 100%; border-radius: inherit; background: var(--color-accent-strong); }
-/* Try again sits under the words, past the poster (tablet 11b). */
+/* Try again (and at phone width the row's buttons) sits under the words, past the poster (tablet 11b, collections-36b). */
 .downloadMain { flex: 1; min-width: 0; display: grid; justify-items: start; gap: var(--space-xs); }
 .downloadMain > .downloadOpen { width: 100%; }
-.retry { margin-left: calc(var(--space-px-48) + var(--space-sm)); }
+.downloadButtons { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
+.downloadMain > .downloadButtons { margin-left: calc(var(--frame-row-art-download) + var(--space-sm)); }
+/* From 1024 (collections-34): the words, where it is and the buttons are three columns that line up from row to row. */
+.download[data-wide] { display: grid; grid-template-columns: minmax(0, 2.5fr) minmax(0, 1fr) minmax(max-content, 1fr); column-gap: var(--space-md); }
+.download[data-wide] > .downloadButtons { justify-content: flex-end; }
