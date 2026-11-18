@@ -102,7 +102,7 @@ function PlaybackSections() {
 /** Rule 9 in one page: a section that failed, one that kept its last list and says it is old, one loading and one empty. */
 function StateSections() {
   return <>
-    <SectionCard label={f('sources')}><StateRow kind="error" icon="i-warn" title={f('sourcesFailed')} reason={f('sourcesReason')} action={{label: f('tryAgain'), onPress: none}} /></SectionCard>
+    <SectionCard label={f('tuners')}><StateRow kind="error" icon="i-warn" title={f('tunersFailed')} reason={f('sourcesReason')} action={{label: f('tryAgain'), onPress: none}} /></SectionCard>
     <SectionCard label={f('sources')} stale={{label: f('sourcesStale'), retryLabel: f('tryAgain'), onRetry: none}}>
       <SettingsRow label={f('source1')} help={f('source1Meta')}>{value('')}</SettingsRow>
       <SettingsRow label={f('source2')} help={f('source2Meta')}>{value('')}</SettingsRow>
@@ -120,7 +120,7 @@ function SettingsList() {
   return <Page current="settings"><SettingsListFrame bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
     page={page || wide ? <SettingsPageFrame title={f('playback')} back={{label: f('settings'), onPress: () => setPage(undefined)}} intro={f('playbackIntro')}><PlaybackSections /></SettingsPageFrame> : undefined} /></Page>;
 }
-const SettingsPage = () => <Window><SettingsPageFrame title={f('liveTv')} back={{label: f('settings'), onPress: none}} intro={f('playbackIntro')}><StateSections /></SettingsPageFrame></Window>;
+const SettingsPage = () => <Window><SettingsPageFrame title={f('liveTv')} back={{label: f('settings'), onPress: none}} intro={f('liveTvIntro')}><StateSections /></SettingsPageFrame></Window>;
 
 const Sheet = () => <Window><BrowseFrame header={{title: f('liveTv')}} />
   <SheetFrame open onOpenChange={none} task="task" title={f('addSource')}>

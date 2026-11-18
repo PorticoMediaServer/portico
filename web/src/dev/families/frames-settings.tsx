@@ -254,12 +254,12 @@ function ToastShape({shape}: {shape: 'card' | 'pill' | 'player'}) {
 
 /** Frame 9 in full (states 3, 4a, 4c): retry countdown, what still works, the buttons, Details open for the owner, help. */
 function CantReach() {
-  const art = useReferenceArtwork(), [open, setOpen] = useState(true);
+  const art = useReferenceArtwork(), [open, setOpen] = useState(true), phone = useFrameForm() === 'phone';
   return <Page current="home"><PageStateFrame icon="i-srvoff" tone="warning" title={fx('cantReach')} body={fx('cantReachBody')}
     retry={{progress: .4, label: f('retryIn'), detail: fx('retryDetail')}}
     downloads={<DownloadsStillPlay covers={['pool/shows/slow-horses.jpg', 'pool/movies/dune.jpg', 'pool/movies/alien.jpg'].map(art)} title={f('downloadsPlay')} detail={f('downloadsTitles')} onOpen={none} />}
     primaryAction={{id: 'retry', label: f('tryAgainNow'), icon: 'i-retry', onPress: none}} secondaryAction={{id: 'switch', label: fx('switchServer'), icon: 'i-swap', onPress: none}}
-    details={{open, onOpenChange: setOpen, content: <DetailsPanel audience="owner" facts={[{id: 'home', label: f('homeAddress'), status: {label: f('noAnswer'), tone: 'warning'}}, {id: 'secure', label: f('secureAddress'), status: {label: f('noAnswer'), tone: 'warning'}}, {id: 'device', label: f('thisComputer'), status: {label: f('online'), tone: 'healthy'}}]}
+    details={{open, onOpenChange: setOpen, content: <DetailsPanel audience="owner" facts={[{id: 'home', label: f('homeAddress'), status: {label: f('noAnswer'), tone: 'warning'}}, {id: 'secure', label: f('secureAddress'), status: {label: f('noAnswer'), tone: 'warning'}}, {id: 'device', label: t(phone ? 'next.states.thisPhone' : 'next.states.thisComputer'), status: {label: f('online'), tone: 'healthy'}}]}
       owner={{ownerMark: null, ownerTag: null, paragraphs: [f('ownerHelp')], codes: ['SRV-OFFLINE'], actions: [{id: 'copy', label: f('copyDetails'), onPress: none}]}} />}}
     help={f('stateHelp')} /></Page>;
 }
