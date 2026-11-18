@@ -164,6 +164,9 @@ export const frame = {
    * values are its mock-ups', desktop-player 1 and 7). Scrims are stops of the dim colour: alpha, then how far from the edge. */
   player: {
     edge: forms(14, 32, 40, 96), top: forms(4, 26, 30, 64), bottom: forms(8, 32, 24, 56),
+    /** Where a card over the picture (Up next, Still watching) ends above the bottom edge: the controls' bottom on a phone, a
+     * tablet and the web; on TV it stands clear of the controls, its foot 288 up (player-tv 5, tv-focus 31). */
+    cardBottom: forms(8, 32, 24, 288),
     /** Scrubber to the time read-outs, read-outs to the controls row, and between controls at either end. */
     timesGap: forms(8, 8, 8, 10), controlsGap: forms(10, 8, 10, 22), endGap: forms(2, 6, 6, 12), titleGap: forms(6, 16, 18, 24),
     scrim: {top: [[.84, 0], [.38, 130], [0, 240]], bottom: [[.94, 0], [.62, 150], [0, 340]]},

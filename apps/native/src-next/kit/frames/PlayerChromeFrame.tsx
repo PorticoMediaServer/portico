@@ -109,7 +109,7 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
     {tv && !!panel && <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.panelDim)}]}/>}
     {top}
     {(phone || upright) && centre}
-    {!!card && !panel && <View pointerEvents="box-none" style={{position: 'absolute', right: edge, bottom: upright ? spec.portrait.bottom : Math.max(spec.bottom[form], insets.bottom), maxWidth: '100%'}}>{card}</View>}
+    {!!card && !panel && <View pointerEvents="box-none" style={{position: 'absolute', right: edge, bottom: upright ? spec.portrait.bottom : Math.max(spec.cardBottom[form], insets.bottom), maxWidth: '100%'}}>{card}</View>}
     {/* The prompt corner rides on the bar's box, which keeps its size while the chrome is hidden, so a prompt never moves. */}
     <View pointerEvents="box-none" style={{position: 'absolute', left: 0, right: 0, bottom: 0}}>
       {!upright && !panel && !card && !banded && <View pointerEvents="box-none" style={{alignItems: 'flex-end', paddingHorizontal: edge, paddingBottom: theme.space.sm}}>{prompts}</View>}
