@@ -46,8 +46,12 @@ func (s *Server) keyCheck(r *http.Request, key db.KeyCaller, err error, scope Sc
 		return Caller{}, err
 	}
 	// A key is no way round the account's limits: one made at home, or while the hours were
-	// open, would otherwise work from anywhere at any time.
+	// open, would otherwise work from anywhere at any time. Nor round "Only the owner" from
+	// outside, on the compatible routes and the assistant address as on every other.
 	if err := s.db.AccountOpen(r.Context(), key.UserID, s.fromHome(r), s.now()); err != nil {
+		return Caller{}, err
+	}
+	if err := s.refuseNonOwnerAway(r, key.UserID); err != nil {
 		return Caller{}, err
 	}
 	switch {
