@@ -119,7 +119,7 @@ The server runs these as separate programs. Portico builds them itself with [thi
 - libbluray and libdvdread are patched so they never load a decryption module; no libdvdcss, libaacs or libbdplus is built or shipped.
 - Each bundle's `manifest.json` lists every library built in, with its licence and exact source, and its `LICENSES/` folder holds each library's licence text. Packaging carries the bundle over unchanged into `third_party/ffmpeg/`.
 - Each release attaches the complete source: jellyfin-ffmpeg's source, each platform's library sources, and this repository's `third_party/ffmpeg` and `third_party/portico-disc` at the release commit. See [RELEASING.md](RELEASING.md#the-media-tools-ffmpeg).
-- Until their build exists, the Windows and macOS servers carry a development engine instead: upstream jellyfin-ffmpeg 8.1.3-1 (GPL-3.0-or-later), pinned in `scripts/development-engine.py`, whose source is attached to the same release.
+- Until its build is in the release, the macOS server carries a development engine instead: upstream jellyfin-ffmpeg 8.1.3-1 (GPL-3.0-or-later), pinned in `scripts/development-engine.py`, whose source is attached to the same release.
 
 ## The media engine in the apps
 
