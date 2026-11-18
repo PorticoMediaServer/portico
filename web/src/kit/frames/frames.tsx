@@ -1,6 +1,6 @@
 import type {ReactNode, RefObject} from 'react';
 import {defaultI18n} from '@i18n';
-import {overlayForm, type OverlayTask} from '@design';
+import {overlayForm, popoverWidth, type OverlayTask} from '@design';
 import {AuthError, AuthKicker, AuthStage} from '../accounts';
 import type {ArtworkSource} from '../artwork';
 import {Button, Tabs, type ChoiceItem} from '../controls';
@@ -96,7 +96,7 @@ export function SheetFrame({open, onOpenChange, task, title, subtitle, action, c
   if (form.kind === 'sheet') return <BottomSheet open={open} onOpenChange={onOpenChange} title={title} subtitle={about} fitContent dialog
     leading={bar.leading === 'cancel' ? <Button variant="text" size="small" className={styles.barCancel} onClick={() => onOpenChange(false, 'close-button')}>{t('next.overlays.cancel')}</Button> : undefined}
     headerAction={bar.trailing === 'action' ? barAction : undefined} showCloseButton={bar.trailing === 'done'} footer={footer}>{children}</BottomSheet>;
-  if (form.kind === 'popover' && anchorRef) return <Popover open={open} onOpenChange={onOpenChange} anchorRef={anchorRef} modal={form.modal} placement="bottom-start" title={title} width={340}
+  if (form.kind === 'popover' && anchorRef) return <Popover open={open} onOpenChange={onOpenChange} anchorRef={anchorRef} modal={form.modal} placement="bottom-start" title={title} width={popoverWidth.min.web} className={styles.taskPopover}
     description={bar.title === 'start' ? <span className={styles.popoverHead}><b>{title}</b>{about && <span>{about}</span>}</span> : undefined}>{children}</Popover>;
   if (form.kind === 'side' && !form.modal) return <SidePanel open={open} onOpenChange={onOpenChange} title={title} description={about} footer={footer} topInset={0} width={440}>{children}</SidePanel>;
   return <Dialog open={open} onOpenChange={onOpenChange} title={title} description={about} responsive={false} placement={form.kind === 'side' ? 'right' : 'center'} width={form.kind === 'side' ? 440 : undefined}

@@ -188,7 +188,7 @@ function DetailsSheet() {
 function ActionsMenu() {
   const art = useReferenceArtwork(), anchor = useRef<HTMLDivElement>(null);
   return <Page current="movies"><div style={{padding: 'var(--frame-title-top) var(--page-gutter) 0', display: 'flex', gap: 'var(--space-sm)'}}>
-    {['alien', 'blade-runner', 'dune'].map((id, index) => <div key={id} ref={index === 0 ? anchor : undefined} style={{width: 'var(--card-poster-width)'}}><PosterCard model={{title: index === 0 ? f('cardTitle') : id, caption: []}} artwork={art(`pool/movies/${id}.jpg`)} onNavigate={none} /></div>)}
+    {([['alien', f('cardTitle')], ['spirited-away', fx('spirited')], ['dune', f('fileTitle')]] as const).map(([id, title], index) => <div key={id} ref={index === 0 ? anchor : undefined} style={{width: 'var(--card-poster-width)'}}><PosterCard model={{title, caption: []}} artwork={art(`pool/movies/${id}.jpg`)} onNavigate={none} /></div>)}
   </div>
     <SheetFrame open onOpenChange={none} task="actions" title={f('cardTitle')} subtitle={f('cardFacts')} anchorRef={anchor}>
       <MenuGroup><MenuItem icon="i-play">{fx('play')}</MenuItem><MenuItem icon="i-plus">{f('addMyList')}</MenuItem><MenuItem icon="i-check">{f('markWatched')}</MenuItem><MenuItem icon="i-stack">{f('addCollection')}</MenuItem></MenuGroup>

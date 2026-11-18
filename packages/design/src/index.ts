@@ -336,7 +336,7 @@ export {frame as frameSpec, frameForm} from './frames.ts';
 export {emphasis, iconClass, formSizes, byForm} from './scale.ts';
 export type {ScaleForm, ByForm, EmphasisLevel, IconClass} from './scale.ts';
 export type {FrameSpec, FrameForm} from './frames.ts';
-export {overlayForms, overlayForm, toastCards, toastPill} from './overlay-forms.ts';
+export {overlayForms, overlayForm, toastCards, toastPill, popoverWidth} from './overlay-forms.ts';
 export {frameRegions, titleKinds, type FrameRegion, type RegionForm, type TitleRegion, type TitleKind} from './frame-regions.ts';
 export type {OverlayTask, OverlayForm, OverlayFormKind, OverlayBar, OverlayFoot, ToastCard, ToastPill} from './overlay-forms.ts';
 

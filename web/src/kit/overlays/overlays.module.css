@@ -70,8 +70,10 @@
 .sheetFooter > *, .panelFooter > * { flex: 1 1 0; min-width: 0; }
 .dialogFooter[data-foot="halves"] > * { flex: 1 1 0; }
 /* R9 bar anatomy: the item an overlay is about, grey beside its title; a task's bar is Cancel · centred title · action. */
-.sheetSubtitle { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 15px; font-weight: 600; line-height: normal; color: var(--color-text-tertiary); }
-.sheetHeading:has(> .sheetSubtitle) > .sheetTitle { flex: 0 1 auto; }
+/* The item stays beside a title that fits with it on one line, else it wraps under the title; the title never wraps for it. */
+.sheetTitles { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; }
+.sheetTitles > .sheetTitle { flex: 0 1 auto; max-width: 100%; }
+.sheetSubtitle { flex: 0 1 auto; min-width: 0; margin: 0; font-size: 15px; font-weight: 600; line-height: normal; color: var(--color-text-tertiary); }
 .sheetHeading[data-centred] { display: grid; grid-template-columns: 1fr auto 1fr; }
 .sheetHeading[data-centred] > .sheetTitle { font-size: var(--type-bar-title-size); line-height: var(--type-bar-title-line); font-weight: var(--type-bar-title-weight); letter-spacing: 0; text-align: center; }
 .sheetHeading[data-centred] > :first-child { justify-self: start; } .sheetHeading[data-centred] > :last-child { justify-self: end; }
