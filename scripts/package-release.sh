@@ -6,8 +6,7 @@
 # a .deb and an .rpm (nfpm); Windows a portable .zip and an NSIS Setup.exe
 # (makensis); macOS the payload directory the DMG step turns into an app.
 # PORTICO_UNSEALED=1 packages an --unsealed build (no manifest.sig); it must match the build's
-# manifest, and every asset name then says UNSEALED-NOT-FOR-USE (and -ENGINE for a development
-# engine) so it can't be mistaken for a release.
+# manifest, and every asset name then says UNSEALED-NOT-FOR-USE so it can't be mistaken for a release.
 set -euo pipefail
 if [[ $# -ne 7 ]]; then echo "usage: $0 OS ARCH VERSION STAGE_DIR WEB_DIR OUT_DIR BUILD_NUMBER" >&2; exit 2; fi
 OS="$1"; ARCH="$2"; VERSION="$3"; STAGE="$4"; WEB="$5"; OUT="$6"; BUILD_NUMBER="$7"
@@ -22,9 +21,10 @@ SEALED_FILES=("$STAGE/manifest.sig"); SUFFIX=""
 if [[ "${PORTICO_UNSEALED:-}" == 1 ]]; then
   SEALED_FILES=()
   SUFFIX="-UNSEALED-NOT-FOR-USE"
-  if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("engine",{}).get("development") else 1)' "$STAGE/manifest.json"; then SUFFIX="$SUFFIX-ENGINE"; fi
 fi
-for required in "$STAGE/$EXE" "$STAGE/manifest.json" ${SEALED_FILES[@]+"${SEALED_FILES[@]}"} "$STAGE/third_party/ffmpeg/toolchain-manifest.json" "$STAGE/third_party/rclone/bundle-manifest.json" "$WEB/index.html"; do
+# The media tools carry manifest.json (Portico's own build) or toolchain-manifest.json (the development engine).
+[[ -s "$STAGE/third_party/ffmpeg/manifest.json" || -s "$STAGE/third_party/ffmpeg/toolchain-manifest.json" ]] || { echo "missing release input: the media tools' manifest" >&2; exit 1; }
+for required in "$STAGE/$EXE" "$STAGE/manifest.json" ${SEALED_FILES[@]+"${SEALED_FILES[@]}"} "$STAGE/third_party/rclone/bundle-manifest.json" "$WEB/index.html"; do
   [[ -s "$required" ]] || { echo "missing release input: $required" >&2; exit 1; }
 done
 if [[ "${PORTICO_UNSEALED:-}" == 1 ]]; then

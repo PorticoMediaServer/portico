@@ -191,12 +191,12 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # Internal NOT-FOR-USE images (scripts/release-version.py; .github/workflows/release.yml): the
 # release workflow's already-built, already-tested unsealed Linux payload for each architecture,
-# with its development FFmpeg engine, from the build context `payload` (payload/linux-amd64,
+# with its media tools, from the build context `payload` (payload/linux-amd64,
 # payload/linux-arm64). The qualified image is the final stage below; this one is never the default.
 FROM runtime-base AS unsealed
 ARG TARGETOS
 ARG TARGETARCH
-LABEL tv.getportico.release="NOT-FOR-USE: unsealed, development FFmpeg engine"
+LABEL tv.getportico.release="NOT-FOR-USE: unsealed internal build"
 COPY --from=payload ${TARGETOS}-${TARGETARCH}/portico-server /usr/local/bin/portico-server
 COPY --from=payload ${TARGETOS}-${TARGETARCH}/manifest.json /opt/portico/manifest.json
 COPY --from=payload ${TARGETOS}-${TARGETARCH}/web/ /opt/portico/web/

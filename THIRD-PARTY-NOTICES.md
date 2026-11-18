@@ -111,14 +111,15 @@ Portico ships rclone **1.75.2** (MIT), upstream source revision `be8d6044eacb843
 
 If you point Portico at your own rclone, it needs at least **1.70.0**, the first version with `--max-connections`. (`--vfs-read-chunk-streams` needs 1.68.0, and `--vfs-cache-min-free-space` needs 1.64.0.) The pinned flag audit and the release changelog show that the other read-only serve, range, cache, retry, logging, pacing and credential options Portico uses are all older than 1.70.0. See [the bundle contract](third_party/rclone/README.md). Portico verifies the rclone it ships through build provenance hashes. A custom rclone is only checked by running `version`, with a five-second limit, and isn't approved file by file.
 
-## FFmpeg and FFprobe on the server
+## FFmpeg, FFprobe and portico-disc on the server
 
-The server runs these as separate programs. The qualified server build is FFmpeg **8.1.2**, component release `ffmpeg-8.1.2-portico.1`, pinned in [third_party/ffmpeg/sources.lock.json](third_party/ffmpeg/sources.lock.json).
+The server runs these as separate programs. Portico builds them itself with [third_party/ffmpeg/build.sh](third_party/ffmpeg/build.sh): FFmpeg from jellyfin-ffmpeg at the tag in [third_party/ffmpeg/upstream.lock](third_party/ffmpeg/upstream.lock), built with jellyfin-ffmpeg's own builder, with Portico's patches and library recipes in `third_party/ffmpeg/`, and the `portico-disc` reader from [third_party/portico-disc](third_party/portico-disc).
 
-- Linux and Windows builds use the BtbN recipe at revision `48576f197ad1c2afb2e0b8efe204919a1afbff54`. macOS uses the Homebridge recipe at `4920fab9d6ac56999ce7e961b240659b4da078a5`. Both apply the recorded Portico patches.
-- The build must use `--enable-gpl --enable-version3`, and can't use `nonfree` or libfdk-aac. The result is GPL-3.0-or-later. The codecs and filters compiled into it keep their own notices.
-
-Each qualified bundle's `licenses` folder and source archive are the real inventory for that platform's build, including the external libraries its recipe pulls in. Packaging carries the bundle over unchanged. See [third_party/ffmpeg/NOTICE.md](third_party/ffmpeg/NOTICE.md). This repository holds the recipes, not the finished bundles, so it can't list every dependency of a release that hasn't been inspected. Don't swap in an FFmpeg from your PATH and call it the qualified build.
+- The build uses `--enable-gpl --enable-version3`, and refuses `nonfree` and libfdk-aac. The programs are GPL-3.0-or-later. The libraries built into them keep their own licences.
+- libbluray and libdvdread are patched so they never load a decryption module; no libdvdcss, libaacs or libbdplus is built or shipped.
+- Each bundle's `manifest.json` lists every library built in, with its licence and exact source, and its `LICENSES/` folder holds each library's licence text. Packaging carries the bundle over unchanged into `third_party/ffmpeg/`.
+- Each release attaches the complete source: jellyfin-ffmpeg's source, each platform's library sources, and this repository's `third_party/ffmpeg` and `third_party/portico-disc` at the release commit. See [RELEASING.md](RELEASING.md#the-media-tools-ffmpeg).
+- Until their build exists, the Windows and macOS servers carry a development engine instead: upstream jellyfin-ffmpeg 8.1.3-1 (GPL-3.0-or-later), pinned in `scripts/development-engine.py`, whose source is attached to the same release.
 
 ## The media engine in the apps
 

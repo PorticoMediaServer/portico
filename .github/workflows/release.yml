@@ -10,9 +10,11 @@ name: Release
 #  - A pull request that changes the release machinery, or a dispatch on another branch, is a
 #    proof: the same builds, version 0.0.0, no signing, no seal and no draft.
 #
-# Internal 0.0.N releases carry a development FFmpeg engine (scripts/development-engine.py), so
-# every server build is --unsealed and its assets say UNSEALED-NOT-FOR-USE-ENGINE. The sealed
-# server build (the first release-seal approval) arrives with the qualified FFmpeg toolchain.
+# The Linux server builds and the container image carry Portico's own media tools (ffmpeg,
+# ffprobe and the portico-disc reader), built from this commit by media-tools.yml; their library
+# sources are attached for the GPL. Windows and macOS still carry the development engine
+# (scripts/development-engine.py) until their media tools build exists. Internal 0.0.N server
+# builds are --unsealed and their assets say UNSEALED-NOT-FOR-USE.
 
 on:
   workflow_dispatch:
@@ -36,6 +38,8 @@ on:
       - scripts/seal-release-artifacts.py
       - scripts/write-public-update-manifest.mjs
       - scripts/rclone-bundle.py
+      - .github/workflows/media-tools.yml
+      - third_party/ffmpeg/build.sh
       - packaging/**
       - Dockerfile
 
@@ -108,10 +112,23 @@ jobs:
             [ "$value" = true ] || echo "not signed: $name (proof run, or its secrets are not set)"
           done
 
-  gate:
-    # Test the server actually shipped, including the tagged decoders. Each job
-    # runs its default merge tier over the full module; media-tier qualification is separate.
+  media-tools:
+    # Portico's own ffmpeg, ffprobe and disc reader, from this commit, for each Linux server build.
+    # The build job of media-tools.yml asks for packages: write because its other stages save
+    # build caches; the bundle stage only reads them.
     needs: identity
+    strategy:
+      fail-fast: false
+      matrix: {platform: [linux-x64, linux-arm64]}
+    uses: ./.github/workflows/media-tools.yml
+    with: {platform: '${{ matrix.platform }}', stage: bundle, ref: '${{ needs.identity.outputs.sha }}'}
+    permissions: {contents: read, packages: write}
+
+  gate:
+    # Test the server actually shipped, including the tagged decoders, with the media tools it
+    # ships. Each job runs its default merge tier over the full module; media-tier qualification
+    # is separate.
+    needs: [identity, media-tools]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -134,11 +151,18 @@ jobs:
             if [ -e "/proc/sys/${key//.//}" ]; then sudo sysctl -w "$setting"; fi
           done
           bwrap --unshare-all --die-with-parent --ro-bind / / --proc /proc --dev /dev --cap-drop ALL /bin/true
-      - name: The engine the release ships
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: portico-media-tools-linux-x64, path: '${{ runner.temp }}/download'}
+      - name: The media tools the release ships
         run: |
-          python3 ../scripts/development-engine.py fetch --target linux-x64 --output "$RUNNER_TEMP/engine"
-          echo "PORTICO_FFMPEG=$RUNNER_TEMP/engine/bin/ffmpeg" >> "$GITHUB_ENV"
-          echo "PORTICO_FFPROBE=$RUNNER_TEMP/engine/bin/ffprobe" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/engine"
+          tar -xJf "$RUNNER_TEMP/download/portico-media-tools-linux-x64.tar.xz" -C "$RUNNER_TEMP/engine"
+          {
+            echo "PORTICO_FFMPEG=$RUNNER_TEMP/engine/bin/ffmpeg"
+            echo "PORTICO_FFPROBE=$RUNNER_TEMP/engine/bin/ffprobe"
+            echo "PORTICO_DISC_TEST_BINARY=$RUNNER_TEMP/engine/bin/portico-disc"
+            echo "PORTICO_DISC_TEST_FFMPEG=$RUNNER_TEMP/engine/bin/ffmpeg"
+          } >> "$GITHUB_ENV"
           echo "$RUNNER_TEMP/engine/bin" >> "$GITHUB_PATH"
       - name: Server build, vet and default-tier tests (${{ matrix.mode }})
         env: {MODE: '${{ matrix.mode }}'}
@@ -152,7 +176,7 @@ jobs:
           status=0
           go test -tags "$tags" -timeout=25m -json ./... > "../ci-results/server-$MODE.jsonl" || status=$?
           cat "../ci-results/server-$MODE.jsonl"
-          python3 ../ci/go_test_policy.py "../ci-results/server-$MODE.jsonl" "$status" "$RUNNER_TEMP/engine/toolchain-manifest.json"
+          python3 ../ci/go_test_policy.py "../ci-results/server-$MODE.jsonl" "$status" "$RUNNER_TEMP/engine/manifest.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: ${{ !cancelled() }}
         with: {name: 'gate-results-${{ matrix.mode }}', path: ci-results/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
@@ -174,7 +198,7 @@ jobs:
   server:
     # Cross-compiled on Linux (CGO off), so these run no tests of their own: the gate tested this
     # commit. Windows gets its NSIS installer here.
-    needs: [identity, gate, web]
+    needs: [identity, gate, web, media-tools]
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
@@ -196,8 +220,17 @@ jobs:
           python3 -m pip install --user -r scripts/requirements-release.txt
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.43.4
           sudo apt-get update -qq && sudo apt-get install -y -qq nsis zip
-      - name: Development engine (NOT FOR USE)
-        run: python3 scripts/development-engine.py fetch --target '${{ matrix.target }}' --output .release/engine
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: matrix.os == 'linux'
+        with: {name: 'portico-media-tools-${{ matrix.target }}', path: .release/download}
+      - name: Media tools (Portico's own on Linux; the development engine, NOT FOR USE, on Windows)
+        run: |
+          set -euo pipefail
+          if [ '${{ matrix.os }}' = linux ]; then
+            mkdir -p .release/engine && tar -xJf '.release/download/portico-media-tools-${{ matrix.target }}.tar.xz' -C .release/engine
+          else
+            python3 scripts/development-engine.py fetch --target '${{ matrix.target }}' --output .release/engine
+          fi
       - name: Build (unsealed) and package
         env: {VERSION: '${{ needs.identity.outputs.version }}', BUILD: '${{ needs.identity.outputs.build }}', PORTICO_UNSEALED: '1'}
         run: |
@@ -342,7 +375,7 @@ jobs:
             --label org.opencontainers.image.version="$VERSION" \
             --label org.opencontainers.image.revision='${{ needs.identity.outputs.sha }}' \
             --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" \
-            --output "type=oci,dest=dist/portico-server-image-UNSEALED-NOT-FOR-USE-ENGINE.oci.tar,name=ghcr.io/porticomediaserver/portico-server:$VERSION" .
+            --output "type=oci,dest=dist/portico-server-image-UNSEALED-NOT-FOR-USE.oci.tar,name=ghcr.io/porticomediaserver/portico-server:$VERSION" .
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with: {name: assets-docker, path: dist/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
 
@@ -647,6 +680,8 @@ jobs:
         with: {pattern: 'assets-*', path: dist, merge-multiple: true}
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with: {pattern: 'manifest-server-*', path: manifests, merge-multiple: true}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {pattern: 'portico-media-tools-*-library-sources', path: .release/library-sources, merge-multiple: true}
       - name: Engine source, update feed and checksums
         env:
           VERSION: ${{ needs.identity.outputs.version }}
@@ -655,15 +690,20 @@ jobs:
           APPLE_SIGNED: ${{ needs.identity.outputs.apple_signing }}
         run: |
           set -euo pipefail
+          # The complete source of the media tools: jellyfin-ffmpeg's tagged source (also the
+          # development engine's), third_party/ffmpeg and third_party/portico-disc of this commit,
+          # and each platform's library sources.
           python3 scripts/development-engine.py source --output dist/jellyfin-ffmpeg-8.1.3-1-source.tar.gz
+          for p in linux-x64 linux-arm64; do mv ".release/library-sources/library-sources-$p.tar.zst" "dist/portico-media-tools-$p-library-sources.tar.zst"; done
           node scripts/write-public-update-manifest.mjs "$VERSION" "$GITHUB_REPOSITORY" unsealed
-          s=-UNSEALED-NOT-FOR-USE-ENGINE
+          s=-UNSEALED-NOT-FOR-USE
           expected=(
             "portico-media-server-linux-x64$s.tar.gz" "portico-media-server-linux-x64$s.deb" "portico-media-server-linux-x64$s.rpm"
             "portico-media-server-linux-arm64$s.tar.gz" "portico-media-server-linux-arm64$s.deb" "portico-media-server-linux-arm64$s.rpm"
             "Portico-Media-Server-Windows-x64-Setup$s.exe" "Portico-Media-Server-Windows-x64-Portable$s.zip"
             "Portico-Media-Server-macOS-arm64$s.pkg" "Portico-Media-Server-macOS-arm64$s.dmg"
             "portico-server-image$s.oci.tar" jellyfin-ffmpeg-8.1.3-1-source.tar.gz portico-update-manifest.json
+            portico-media-tools-linux-x64-library-sources.tar.zst portico-media-tools-linux-arm64-library-sources.tar.zst
             media-engine-android-THIRD-PARTY-NOTICES.txt
           )
           a=""; [ "$ANDROID_SIGNED" = true ] || a=-DEBUG-SIGNED-NOT-FOR-USE
@@ -745,7 +785,8 @@ jobs:
           cat > notes.md <<EOF
           **Internal build, NOT FOR USE.** Portico $VERSION, build $BUILD, from $SHA.
 
-          - **Server:** unsealed, with a development FFmpeg engine (upstream jellyfin-ffmpeg 8.1.3-1; its source is attached). No disc reading, no qualified HDR features, no music analysis (Sonic). Music conversion needs the qualified engine (libsoxr); it is not in this build. Linux x64 and ARM64, Windows x64, and macOS Apple Silicon only. The update feed lists no build, so no server offers this as an update.
+          - **Server:** unsealed. Linux x64 and ARM64, Windows x64, and macOS Apple Silicon only. The update feed lists no build, so no server offers this as an update.
+          - **Media tools:** the Linux builds and the container image carry Portico's own build of FFmpeg (jellyfin-ffmpeg 8.1.3-1 with Portico's patches, GPL-3.0-or-later) and the portico-disc reader, so they play Blu-ray and DVD folders and images. Windows and macOS still carry a development engine (upstream jellyfin-ffmpeg 8.1.3-1, no disc reading). The complete source is attached: jellyfin-ffmpeg's source, each platform's library sources, and Portico's patches and build script in this commit's \`third_party/ffmpeg\`. No music analysis (Sonic) in this build.
           - **macOS server:** $([ "$MAC_SIGNED" = true ] && { [ "$MAC_INSTALLER_SIGNED" = true ] && echo 'the app, the installer package and the disk image are signed with Developer ID and notarised' || echo 'the app and the disk image are signed with Developer ID and notarised; the installer package is unsigned'; } || echo 'unsigned').
           - **Android and Fire TV:** $([ "$ANDROID_SIGNED" = true ] && echo 'signed with the Portico app signing key' || echo 'debug-signed') (tv.getportico.app). Sideloaded APKs on certified Android devices need tv.getportico.app and this key registered in Android developer verification.
           - **iPhone, iPad and Apple TV:** $([ "$APPLE_SIGNED" = true ] && echo 'App Store-signed .ipa files' || echo 'unsigned archives').

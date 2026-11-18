@@ -8,12 +8,11 @@ if [[ $# -ne 4 ]]; then echo "usage: $0 VERSION PAYLOAD_DIR OUT_DIR BUILD_NUMBER
 VERSION="$1"; PAYLOAD="$2"; OUT="$3"; BUILD_NUMBER="$4"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # PORTICO_UNSEALED=1: an --unsealed build (scripts/package-release.sh). Its binaries are code-signed
-# when an identity is given but never sealed, and the file names say UNSEALED-NOT-FOR-USE(-ENGINE).
+# when an identity is given but never sealed, and the file names say UNSEALED-NOT-FOR-USE.
 SUFFIX=""
 if [[ "${PORTICO_UNSEALED:-}" == 1 ]]; then
   python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("sealed") is False else 1)' "$PAYLOAD/manifest.json" || { echo "PORTICO_UNSEALED=1 needs an unsealed build" >&2; exit 1; }
   SUFFIX="-UNSEALED-NOT-FOR-USE"
-  if python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("engine",{}).get("development") else 1)' "$PAYLOAD/manifest.json"; then SUFFIX="$SUFFIX-ENGINE"; fi
 fi
 DMG_ROOT="$OUT/dmg-root"
 APP="$DMG_ROOT/Portico Media Server.app"

@@ -16,7 +16,15 @@ name: Media tools
 #
 # The kept layers are container images named build-cache-ffmpeg-* in the project's registry.
 # They are build caches. Nothing here signs or publishes a release.
+#
+# release.yml calls this with stage "bundle" for each platform a release ships, so every release
+# carries the media tools built from its own commit, and their library sources for the GPL offer.
 on:
+  workflow_call:
+    inputs:
+      platform: {type: string, required: true}
+      stage: {type: string, default: bundle}
+      ref: {description: The commit to build, type: string, default: ''}
   pull_request:
     paths:
       - third_party/ffmpeg/**
@@ -56,6 +64,8 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
           sparse-checkout: |
             third_party/ffmpeg
             third_party/portico-disc
@@ -64,17 +74,19 @@ jobs:
       - name: Everything that needs no compiler
         run: third_party/ffmpeg/build.sh check "$PLATFORM"
       - name: The same for Linux arm64, on a pull request
-        if: github.event_name == 'pull_request'
+        if: inputs.stage == ''
         run: third_party/ffmpeg/build.sh prepare linux-arm64 && third_party/ffmpeg/build.sh check linux-arm64
 
   sources:
-    if: github.event_name == 'workflow_dispatch' && inputs.stage == 'sources'
+    if: inputs.stage == 'sources'
     needs: check
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
           sparse-checkout: |
             third_party/ffmpeg
             third_party/portico-disc
@@ -90,7 +102,7 @@ jobs:
           retention-days: 30
 
   build:
-    if: github.event_name == 'workflow_dispatch' && contains(fromJSON('["compiler","libraries","helper","configure","bundle"]'), inputs.stage)
+    if: contains(fromJSON('["compiler","libraries","helper","configure","bundle"]'), inputs.stage)
     needs: check
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ fromJSON('{"compiler":100,"libraries":200,"helper":30,"configure":40,"bundle":120}')[inputs.stage] }}
@@ -102,6 +114,8 @@ jobs:
         run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL && df -h / | tail -1
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
           sparse-checkout: |
             third_party/ffmpeg
             third_party/portico-disc
@@ -162,18 +176,29 @@ jobs:
           path: .media-tools/${{ env.PLATFORM }}/portico-media-tools-${{ env.PLATFORM }}.tar.xz
           retention-days: ${{ inputs.platform == 'linux-arm64' && 3 || 30 }}
           compression-level: 0
+      # The library half of the complete source the GPL requires with the programs; the FFmpeg half
+      # is jellyfin-ffmpeg's tagged source with third_party/ffmpeg of the same commit.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: inputs.stage == 'bundle'
+        with:
+          name: portico-media-tools-${{ env.PLATFORM }}-library-sources
+          path: .media-tools/${{ env.PLATFORM }}/library-sources-${{ env.PLATFORM }}.tar.zst
+          retention-days: 30
+          compression-level: 0
 
   verify:
     # A bundle for arm64 is cross-compiled on x86, so the checks that run its programs happen
     # here, on an arm64 runner: they start, need no extra library, list every wanted feature,
     # and the disc reader reads the fixture discs. Only then is it kept under its real name.
-    if: github.event_name == 'workflow_dispatch' && inputs.stage == 'bundle' && inputs.platform == 'linux-arm64'
+    if: inputs.stage == 'bundle' && inputs.platform == 'linux-arm64'
     needs: build
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
           sparse-checkout: |
             third_party/ffmpeg
             fixtures/discs
@@ -207,7 +232,7 @@ jobs:
   test:
     # The new server's whole test suite, media tests included, with the bundle as its FFmpeg, and
     # the disc tests with the bundle's helper. Not part of ci/required.
-    if: github.event_name == 'workflow_dispatch' && inputs.stage == 'test'
+    if: inputs.stage == 'test'
     runs-on: ${{ inputs.platform == 'linux-arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 40
     permissions:
