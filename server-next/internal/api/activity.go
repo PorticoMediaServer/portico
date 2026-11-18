@@ -2,6 +2,7 @@ package api
 
 import (
 	"cmp"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -24,6 +25,7 @@ type NowPlaying struct {
 	// does not have. Kind is still given: it names no title.
 	ItemID     string `json:"itemId,omitempty"`
 	Title      string `json:"title,omitempty"`
+	Image      string `json:"image,omitempty"`
 	Kind       string `json:"kind"`
 	State      string `json:"state"`
 	PositionMs int64  `json:"positionMs"`
@@ -145,6 +147,10 @@ func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
 	if err != nil {
 		return Page[NowPlaying]{}, err
 	}
+	pictures, err := s.db.DashboardPictures(r.Context(), slices.Collect(maps.Keys(titles)))
+	if err != nil {
+		return Page[NowPlaying]{}, err
+	}
 	people, err := s.db.ViewingNames(r.Context(), profiles)
 	if err != nil {
 		return Page[NowPlaying]{}, err
@@ -161,6 +167,7 @@ func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
 			Route: v.Plan.Route, Delivery: decisions(v.Plan), StartedAt: v.StartedAt.UTC()}
 		if title, ok := titles[v.Item.ID]; ok {
 			item.ItemID, item.Title, item.DurationMs = v.Item.PublicID, title, v.Item.DurationMS
+			item.Image = imageAddress(pictures[v.Item.ID])
 			if v.Item.Kind == db.KindEpisode && v.Item.Root != nil {
 				item.ShowID, item.ShowTitle = v.Item.Root.PublicID, v.Item.Root.Title
 				if v.Item.Parent != nil && v.Item.Parent.Kind == db.KindSeason {

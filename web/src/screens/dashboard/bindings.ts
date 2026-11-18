@@ -64,7 +64,7 @@ export type DashboardBindings = Readonly<{
     fixPermissions?: () => Promise<void>;
     reportError: (error: unknown) => void;
   }>;
-  artwork: (itemId: string, kind: 'poster' | 'backdrop' | 'square', revision?: string) => ArtworkSource | undefined;
+  artwork: (path: string | undefined, pixels: number, aspect: number) => ArtworkSource | undefined;
   dispose: () => void;
 }>;
 export type DashboardBindingOptions = Pick<DashboardBindings, 'scope' | 'role' | 'context' | 'isCurrent' | 'isMainProfile' | 'events' | 'artwork' | 'subscribeAuthority'> & {

@@ -1,9 +1,13 @@
 package api
 
 import (
+	"context"
 	"slices"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
 // The owner's activity popover: every stream counted, the three newest shown in Now playing's
@@ -66,5 +70,48 @@ func TestNowPlayingNamesAnEpisodesShowAndNumbers(t *testing.T) {
 	if got.ID != session.ID || got.ShowTitle != "Dark" || got.ShowID == "" || got.SeasonNumber == nil || *got.SeasonNumber != 1 ||
 		got.EpisodeNumber == nil || *got.EpisodeNumber != 2 {
 		t.Errorf("the episode reads %+v", got)
+	}
+}
+
+func TestDashboardCarriesThePlayedTitlesPicture(t *testing.T) {
+	th := newTheatre(t)
+	s, owner := th.s, th.owner.AccessToken
+	ada := addMember(t, s, owner, "ada", "admin")
+	music, no := []string{th.libs[db.LibraryMusic].PublicID}, false
+	if code := status(t, s, "PATCH", "/v1/admin/members/"+ada.ID, owner, MemberEdit{AllLibraries: &no, Libraries: &music}); code != 200 {
+		t.Fatalf("limiting the administrator answered %d", code)
+	}
+	admin := signInAs(t, s, "ada", testPassword, 1).AccessToken
+	for _, sample := range []struct {
+		id   string
+		role db.ImageRole
+		hash string
+	}{{th.film, db.ImagePoster, strings.Repeat("a", 64)}, {th.eps[0], db.ImageThumb, strings.Repeat("b", 64)}} {
+		if _, err := s.db.UploadPicture(context.Background(), sample.id, db.NewPicture{Role: sample.role, Hash: sample.hash}); err != nil {
+			t.Fatal(err)
+		}
+		session := th.play(owner, sample.id)
+		want := "/v1/images/" + sample.hash
+		playing := get[Page[NowPlaying]](t, s, owner, "/v1/admin/sessions").Items
+		if len(playing) != 1 || playing[0].Image != want {
+			t.Fatalf("Now playing for %s: %+v, want %s", sample.id, playing, want)
+		}
+		held := get[Page[NowPlaying]](t, s, admin, "/v1/admin/sessions").Items
+		if len(held) != 1 || held[0].Image != "" {
+			t.Fatalf("Now playing for the limited administrator: %+v", held)
+		}
+		if code := status(t, s, "DELETE", "/v1/playback/sessions/"+session.ID, owner, PlaybackStop{PositionMs: ptr(hour)}); code != 204 {
+			t.Fatalf("stopping playback answered %d", code)
+		}
+		plays := get[Page[PlayEntry]](t, s, owner, "/v1/admin/play-history").Items
+		if len(plays) == 0 || plays[0].Image != want {
+			t.Fatalf("Play history for %s: %+v, want %s", sample.id, plays, want)
+		}
+		for _, play := range get[Page[PlayEntry]](t, s, admin, "/v1/admin/play-history").Items {
+			if play.Image != "" {
+				t.Fatalf("Play history revealed an image for a withheld title: %+v", play)
+			}
+		}
+		th.clock.Add(time.Second)
 	}
 }

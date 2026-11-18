@@ -86,8 +86,7 @@ export function NativeDashboardScreen({controller, ports, runtime, deniedFallbac
             const sessionFacts = sessionFactParts({...session, kind: session.kind === 'live' || session.kind === 'channel' ? 'channel' : session.kind === 'audio' ? 'audio' : 'vod', location: session.location === 'other' ? 'unknown' : session.location}, runtime.text);
             const location = sessionFacts.find(fact => fact.id === 'location');
             const delivery = sessionFacts.find(fact => fact.id === 'delivery');
-            const art = session.item?.art.find(value => value.role === 'backdrop') ?? session.item?.art[0];
-            const source = art && runtime.artwork(`/v1/items/${encodeURIComponent(art.id)}/art/${encodeURIComponent(art.kind)}`);
+            const source = runtime.artwork(session.image);
             return <Focusable key={session.id} focusId={session.id} testID={`dashboard-session-${session.id}`} onFocus={() => {const window = state.sessionWindow; if (window) {lease = controller.focusSession(session.id, window); if (index >= state.sessions.length - 2 && window.error === undefined) void controller.nextSessions(window);}}} onBlur={() => {if (state.sessionWindow && lease) controller.blurSession(session.id, lease, state.sessionWindow);}} accessibilityRole="text" accessibilityLabel={cardAccessibilityLabel(identity.title, sessionFacts, [], identity.secondary)} focusKind="row" style={{minHeight: theme.isTV ? 120 : 150, flexDirection: 'row', gap: 22, alignItems: 'center', padding: theme.isTV ? 16 : 12, marginBottom: 8, borderRadius: 18, backgroundColor: theme.colors.raised}}>
               {source && <View style={{width: theme.isTV ? 130 : 110, height: theme.isTV ? 76 : 70, borderRadius: 10, overflow: 'hidden'}}><Artwork source={source}/></View>}
               <View style={{flex: 1, gap: theme.isTV ? 8 : 10}}><Text numberOfLines={1} style={[shellType(theme.isTV ? 26 : 20, 700), {color: theme.colors.text}]}>{identity.title}</Text>

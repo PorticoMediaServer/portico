@@ -40,7 +40,7 @@ function HistoryTable({bindings: b}: {bindings: DashboardBindings}) {
   const failed = state.failed || people.failed;
   useEffect(() => {const reset = () => setCursor(''); const offs = ['session.updated', 'playback.history'].map(type => b.events?.on(type, reset)); offs.push(b.events?.onResync?.(reset)); return () => offs.forEach(off => off?.());}, [b, setCursor]);
   const tableRows = useMemo(() => rows.map((entry): SettingsTableRow => {
-    const artwork = entry.itemId ? b.artwork(entry.itemId, entry.kind === 'song' || entry.kind === 'audiobook_file' ? 'square' : 'poster') : undefined;
+    const artwork = b.artwork(entry.image, 400, entry.kind === 'song' || entry.kind === 'audiobook_file' ? 1 : 2 / 3);
     return {id: entry.id, label: entry.title, cells: {
       // The library, or "Removed" once it is (console rules 16 and 19).
       title: {title: (entry.kind === 'episode' || entry.kind === 'audiobook_file') && entry.parentTitle ? entry.parentTitle : entry.title, meta: [entry.kind === 'episode' ? [entry.episode !== undefined && (entry.season === undefined ? t('title.episodeOnly', {episode: entry.episode}) : t('title.episodeCode', {season: entry.season, episode: entry.episode})), entry.title].filter(Boolean).join(' ') : entry.kind === 'audiobook_file' ? undefined : entry.parentTitle, entry.libraryName ?? t('next.dashboard.removed')].filter(Boolean).join(' · '), artwork},
