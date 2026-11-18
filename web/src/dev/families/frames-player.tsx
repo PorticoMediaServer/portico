@@ -10,10 +10,12 @@ import {EpisodeTile} from '../../kit/cards';
 import {Button, Chip, Tabs, TextField} from '../../kit/controls';
 import {AudioPlayerFrame, EpisodeList, PlayerChromeFrame, SeasonBar, episodeRowClass, type AudioControl} from '../../kit/frames';
 import {HeroFacts} from '../../kit/layout';
-import {SeekLine, type TrackChoice} from '../../kit/media';
+import {PlaybackInfo, SeekLine, type PlaybackInfoProjection, type TrackChoice} from '../../kit/media';
+import {playbackInfoCopy} from '../../screens/watch/info-copy';
+import {galleryCase} from './dock';
 import {Dialog} from '../../kit/overlays';
 import {usePhone} from '../../kit/overlays/shared';
-import {AudioPanel, PlayerControl, PlayerEndCard, PlayerEpisodes, PlayerLive, PlayerOptions, PlayerPill, PlayerPrompt, PlayerScrubPreview, PlayerTitle, PlayerUpNext, PlayerVolume, QueueGroup, QueueRow,
+import {AudioPanel, PlayerControl, PlayerEndCard, PlayerStillWatching, PlayerEpisodes, PlayerLive, PlayerOptions, PlayerPill, PlayerPrompt, PlayerScrubPreview, PlayerTitle, PlayerUpNext, PlayerVolume, QueueGroup, QueueRow,
   type PlayerEpisodeList, type PlayerOptionsModel, type PlayerPanel, type PlayerPanelContext, type PlayerRadioChoice} from '../../kit/player';
 import {Icon} from '../../kit/Icon';
 import {livePlayerPort} from '../live-player-fixture';
@@ -150,12 +152,16 @@ function PlayerPanelCase({panel}: {panel: PlayerPanel}) {
     panel={<PlayerOptions model={optionsModel} context={context} i18n={defaultI18n} reportError={none} openSettings={none} info={{} as never} />} />;
 }
 const episodeList: PlayerEpisodeList = {seasonId: 's1', seasons: [{id: 's1', number: 1, title: ''}, {id: 's2', number: 2, title: ''}],
-  rows: (['episode1', 'episode2', 'episode3'] as const).map((name, index) => ({itemId: name, title: f(name), number: index + 1, stillUrl: 'bd-tlou.jpg', overview: f('tlouSynopsis'),
-    durationSeconds: [4860, 3180, 4560][index], progressSeconds: index === 1 ? 842 : index === 0 ? 4860 : undefined, watched: index === 0, playing: index === 1, next: index === 2}))};
+  rows: ([f('episode1'), f('episode2'), f('episode3'), p('episode4')]).map((title, index) => ({itemId: `episode${index + 1}`, title, number: index + 1, stillUrl: index === 3 ? 'pool/tv/the-last-of-us--bd.jpg' : 'bd-tlou.jpg',
+    overview: f('tlouSynopsis'), airDate: ['2023-01-15', '2023-01-22', '2023-01-29', '2023-02-05'][index], durationSeconds: [4860, 3180, 4560, 2760][index],
+    progressSeconds: index === 1 ? 842 : undefined, watched: index === 0, playing: index === 1, next: index === 2}))};
+/** Episodes per form (owner ruling 5): the drawer across the bottom on the web (desktop-player f6), over the whole
+ * window on a phone on its side; upright, Episodes is the watch page's own tab under the picture (phone-player 4). */
 function PlayerEpisodesCase() {
   const art = useReferenceArtwork(), upright = usePhone(), sideways = useSideways(), anchor = useRef<HTMLButtonElement>(null);
-  const context: PlayerPanelContext = {panel: 'episodes', snapshot: {} as PlayerPanelContext['snapshot'], layout: upright || sideways ? 'phone' : 'desktop', landscape: sideways, phoneTop: 220, close: none, show: none, returnFocusRef: anchor};
-  return <Player state="paused" opened="episodes" panelCovers={sideways ? 'all' : upright ? undefined : 'bar'} panel={<PlayerEpisodes episodes={episodeList} context={context} artwork={art} onPlay={none} onSeason={none} reportError={none} />} />;
+  if (upright) return <Player state="paused" opened="episodes" />;
+  const context: PlayerPanelContext = {panel: 'episodes', snapshot: {} as PlayerPanelContext['snapshot'], layout: sideways ? 'phone' : 'desktop', landscape: sideways, phoneTop: 220, close: none, show: none, returnFocusRef: anchor};
+  return <Player state="paused" opened="episodes" panelCovers={sideways ? 'all' : 'bar'} panel={<PlayerEpisodes episodes={episodeList} context={context} artwork={art} onPlay={none} onSeason={none} reportError={none} />} />;
 }
 /** Up next over the credits: desktop-player 4 (Play now, Skip credits, Watch credits and the scene after the credits)
  * and 4s (the countdown), phone-player 6. */
@@ -171,6 +177,39 @@ function PlayerEndCase() {
   const related = (['spirited-away', 'inside-out', 'alien', 'blade-runner', 'dune', 'barbie'] as const).map(id => ({id, title: id.split('-').map(word => word[0]!.toUpperCase() + word.slice(1)).join(' '), poster: art(`pool/movies/${id}.jpg`)}));
   return <Player card={<div style={{position: 'absolute', inset: 0}}><PlayerEndCard layout={upright ? 'phone' : 'desktop'} canReplay onReplay={none} onClose={none} reportError={none} artwork={() => undefined}
     card={{title: f('insideOut'), year: 2015, genres: ['Animation', 'Family'], related, rating: {value: null, set: async () => {}}, back: none, openRelated: none}} /></div>} />;
+}
+
+/** Still watching? (phone-player 6e): the kit's prompt over the paused player; nothing starts until the viewer says so. */
+const PlayerStillWatchingCase = () => <Player state="paused" card={<PlayerStillWatching episode={f('upNextCode')} title={f('episode3')} onContinue={none} onReplay={none} onClose={none} />} />;
+
+/** Playback info (playback-info 1, 15): the kit's panel beside the paused picture on the web, a sheet under an upright
+ * phone's picture, with one converted film's route, reason and sections. */
+const infoProjection: PlaybackInfoProjection = {itemTitle: p('infoTitle'), deviceName: p('infoDevice'), route: 'converted', explanation: p('infoReason'), networkAndBitrate: p('infoNetwork'), sections: [
+  {kind: 'picture', route: 'converted', losses: [p('infoVisionLost')], rows: [
+    {field: 'container', source: p('infoMkv'), delivered: p('infoMp4'), changed: true}, {field: 'codec', source: p('infoHevc'), delivered: p('infoHevc'), changed: false},
+    {field: 'hdr', source: p('infoVision'), delivered: p('infoHdr10'), changed: true}, {field: 'bitDepth', source: p('info10bit'), delivered: p('info10bit'), changed: false},
+    {field: 'resolution', source: p('info4k'), delivered: p('info4k'), changed: false}, {field: 'frameRate', source: p('infoFps'), delivered: p('infoFps'), changed: false}]},
+  {kind: 'sound', route: 'converted', losses: [p('infoAtmosLost')], rows: [
+    {field: 'format', source: p('infoDdp'), delivered: p('infoAac'), changed: true}, {field: 'channels', source: p('info51'), delivered: p('info51'), changed: false},
+    {field: 'sampleRate', source: p('info48'), delivered: p('info48'), changed: false}, {field: 'output', delivered: p('infoDecoded'), changed: false}]},
+  {kind: 'subtitles', route: 'original', losses: [], rows: [{field: 'track', source: p('infoSrt'), delivered: p('infoSrt'), changed: false}, {field: 'shown', delivered: p('infoDrawn'), changed: false}]},
+]};
+function PlayerInfoCase() {
+  const upright = usePhone(), anchor = useRef<HTMLElement>(null), copy = useMemo(() => playbackInfoCopy(defaultI18n), []);
+  return <Player state="paused" card={<PlaybackInfo projection={infoProjection} copy={copy} layout={upright ? 'phone' : 'desktop'} open onOpenChange={none} returnFocusRef={anchor} phoneTop={upright ? 220 : undefined} />} />;
+}
+
+/** The player minimised into the dock (desktop-player f5, phone-player 5) and playing on another device (tablet-play 13,
+ * phone-player 7): the dock family's own bar at the foot of a page. */
+const dockCases = {
+  video: [galleryCase({}), galleryCase({layout: 'phone', web: true})], music: [galleryCase({kind: 'music'}), galleryCase({layout: 'phone', kind: 'music', web: true})],
+  casting: [galleryCase({remote: 'playing', remoteKind: 'cast'}), galleryCase({layout: 'phone', remote: 'playing', remoteKind: 'cast'})],
+  connecting: [galleryCase({remote: 'connecting', remoteKind: 'cast'}), galleryCase({layout: 'phone', remote: 'connecting', remoteKind: 'cast'})],
+} as const;
+function PlayerDockCase({kind}: {kind: keyof typeof dockCases}) {
+  const upright = usePhone(), Bar = dockCases[kind][upright ? 1 : 0];
+  return <Layer><img src={reference('bd-sev.jpg')} alt="" style={{position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: .45}} />
+    <div style={{position: 'absolute', left: 0, right: 0, bottom: 0}}><Bar /></div></Layer>;
 }
 
 /** The Live TV player's own chrome (kit/player `PlayerLive`; desktop-live "live-player", phone-player 1c), drawn from
@@ -269,6 +308,9 @@ export default defineGalleryFamily({id: 'frames-player', labelKey: 'next.platfor
   section('player-episodes', 'playerEpisodes', PlayerEpisodesCase),
   section('player-up-next', 'playerUpNext', () => <PlayerUpNextCase variant="plain" />), section('player-up-next-credits', 'playerUpNextCredits', () => <PlayerUpNextCase variant="credits" />),
   section('player-up-next-countdown', 'playerUpNextCountdown', () => <PlayerUpNextCase variant="countdown" />), section('player-end-card', 'playerEndCard', PlayerEndCase),
+  section('player-still-watching', 'playerStillWatching', PlayerStillWatchingCase), section('player-info', 'playerInfo', PlayerInfoCase),
+  section('player-dock', 'playerDock', () => <PlayerDockCase kind="video" />), section('player-dock-music', 'playerDock', () => <PlayerDockCase kind="music" />),
+  section('player-casting', 'playerDock', () => <PlayerDockCase kind="casting" />), section('player-casting-connecting', 'playerDock', () => <PlayerDockCase kind="connecting" />),
   section('player-live-controls', 'playerLiveControls', () => <PlayerLiveCase />), section('player-live-guide', 'playerLiveGuide', () => <PlayerLiveCase guide />),
   section('audio', 'audio', () => <Audio variant="music" />), section('audio-lyrics', 'audioLyrics', () => <Audio variant="lyrics" />), section('audio-lyrics-choose', 'audioLyricsChoose', () => <Audio variant="choose" />),
   section('audio-save', 'audioSave', () => <Audio variant="save" />), section('audio-queue', 'audioQueue', () => <Audio variant="queue" />),
