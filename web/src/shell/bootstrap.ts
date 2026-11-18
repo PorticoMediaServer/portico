@@ -354,7 +354,7 @@ export class ShellBootstrap {
     const savedViewer = selected.session.viewer;
     const store = this.environment.rememberedSessions?.();
     // Read the marker before restoration can renew a session that was idle.
-    const entry = !admittedProfile(savedViewer.serverId) ? await store?.selected() : undefined;
+    const entry = store && !admittedProfile(savedViewer.serverId) ? await store.selected() : undefined;
     if (!isCurrent()) return;
     let restored: Awaited<ReturnType<typeof restoreBrowserConnection>>;
     try { restored = await this.environment.restore(selected.session); }
@@ -493,7 +493,7 @@ export class ShellBootstrap {
     const artwork = authenticatedArtwork({api, auth, identity: {serverId: session.viewer.serverId, viewerId: viewerId(session), authorityKey}, currentToken: () => session.accessToken, isCurrent});
     cleanups.push(() => artwork.dispose());
     // Choosing the open profile again is the management unlock (PR-1): only a remembered sign-in is ever locked, so it stays remembered.
-    const switchProfile=async(profileId:string,pin:string,signal:AbortSignal)=>{if(!isCurrent())throw new Error('The viewer changed.');await (this.environment.actions?.()??browserAppSessionActions()).switchProfile(api,session,profileId,pin,signal,isCurrent,true);if(isCurrent())this.restart();};
+    const switchProfile=async(profileId:string,pin:string,signal:AbortSignal)=>{if(!isCurrent())throw new Error('The viewer changed.');await (this.environment.actions?.()??browserAppSessionActions()).switchProfile(api,session,profileId,pin,signal,isCurrent,profileId===session.viewer.profileId);if(isCurrent())this.restart();};
     const display=browserServerDisplay();display.remember(api,facts().serverName);
     const saved=(await (this.environment.actions?.()??browserAppSessionActions()).store.read()).servers;
     const savedServers=await display.choices(saved.map(value=>({pin:value.connection.pin,origin:value.connection.logicalOrigin,signIn:value.signIn})),signal);
