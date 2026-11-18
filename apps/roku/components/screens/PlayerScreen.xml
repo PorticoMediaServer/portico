@@ -18,6 +18,7 @@
   <script type="text/brightscript" uri="PlayerScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/AppLog.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Queue.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>

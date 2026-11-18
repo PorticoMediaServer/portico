@@ -357,6 +357,10 @@ function accountRows(spec as object) as object
         return [{label: spec.label, help: help, icon: spec.icon, act: does}]
     else if id = "licences"
         return [{label: spec.label, value: spec.value, control: spec.control, act: does}]
+    else if id = "sendLog"
+        help = spec.help
+        if m.reportSaid <> invalid then help = m.reportSaid
+        return [{label: spec.label, help: help, control: spec.control, act: does}]
     end if
     return [{label: spec.label, icon: wordsOrNone(spec.icon), danger: (spec.danger = true), act: does}]
 end function
@@ -378,7 +382,7 @@ function advancedSummary(page as object) as string
     return changed.join(" · ")
 end function
 
-' --- This device: Open-source licenses -----------------------------------------------------------
+' --- This device: Open-source licenses and Send app log ---------------------------------------------
 
 ' The licences take the page's place (states frame 30); Back there returns to This device's row.
 sub openLicences()
@@ -400,6 +404,36 @@ sub onLicencesDone()
     m.region = "rows"
     m.list.setFocus(true)     ' the licences are inside the screen: the list group takes focus back
     paint()
+end sub
+
+' Send app log: a report to the server's owner, with this app's log only when the box is ticked.
+' The box starts off every time and is never remembered (the app-log rules, 12 Nov).
+sub reportSheet()
+    words = "Off"
+    if m.asking.include then words = "On"
+    rows = [{id: "include", text: "Include this app's log", value: words, focus: true},
+        {id: "send", text: "Send report", gapBefore: true}]
+    m.top.menu = {eyebrow: "This device", title: "Send app log", status: "Sent to the server owner, who can reply in your notifications. The log is what this app did recently: screens, playback and errors, no passwords, addresses or what you typed.", rows: rows, hints: [{keys: ["OK"], text: "Choose"}, {keys: ["Back"], text: "Close"}]}
+end sub
+
+sub reportChosen(chosen as string, a as object)
+    if chosen = "include"
+        a.include = not a.include
+        m.asking = a
+        reportSheet()
+        return
+    end if
+    m.asking = invalid
+    body = {kind: "problem", message: "Sent from Settings on this TV.", context: {app: "Portico for Roku", version: createObject("roAppInfo").getVersion(), screen: "Settings"}}
+    if a.include then body.log = m.global.appLog.join(chr(10))
+    m.reportSaid = "Sending…"
+    redraw()
+    api("POST", "/v1/reports", body, "onReported", invalid, false, createObject("roDeviceInfo").getRandomUUID())
+end sub
+
+sub onReported(event as object)
+    if event.getData().ok then m.reportSaid = "Sent to the server owner." else m.reportSaid = "Couldn't send it. Try again in a moment."
+    redraw()
 end sub
 
 ' --- focus ----------------------------------------------------------------------------------------
@@ -623,6 +657,9 @@ sub act(a as object)
         m.confirm.model = {title: "Reset recommendations?", body: "Portico will forget what it has learned about your taste. Your watch history, ratings and lists stay.", verb: "Reset"}
     else if a.id = "licences"
         openLicences()
+    else if a.id = "sendLog"
+        m.asking = {kind: "report", include: false}     ' the log is off every time (the app-log rules)
+        reportSheet()
     end if
     ' a row that only shows a fact does nothing
 end sub
@@ -664,6 +701,10 @@ sub onMenuChosen()
     a = m.asking
     if a = invalid then return
     spec = a.spec
+    if a.kind = "report"
+        reportChosen(chosen, a)
+        return
+    end if
     if a.kind = "choice"
         value = spec.choices[chosen.toInt()][0]
         if spec.composite <> invalid then save(compositePatch(spec.composite, value), spec) else save({key: spec.key, value: value}, spec)

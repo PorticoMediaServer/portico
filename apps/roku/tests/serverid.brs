@@ -45,7 +45,7 @@ sub fresh(serverId as string)
     m.store = {refreshtoken: "kept-token"}
     m.pending = {}
     m.held = {result: invalid}
-    m.waiting = [{reply: m.held, public: false}]
+    m.waiting = [{method: "GET", path: "/v1/me", reply: m.held, public: false}]
     m.renewing = false
     m.clock = {totalMilliseconds: function() as integer : return 0 : end function}
     m.top = {serverChanged: "", signInEnded: false, session: {origin: "http://home.example", serverId: serverId, refreshToken: "kept-token", installationId: "i"}}
@@ -96,4 +96,8 @@ sub storeWrite(values as object)
     for each key in values
         m.store[lcase(key)] = values[key]
     end for
+end sub
+
+' The app's log (source/AppLog.brs): a failed answer is written to it; here the line goes nowhere.
+sub logApp(level as string, area as string, message as string)
 end sub

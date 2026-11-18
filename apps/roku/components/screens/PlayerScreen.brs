@@ -966,6 +966,7 @@ sub fail(message as string)
     m.notice.icon = "warning"
     m.notice.title = "Playback failed"
     m.notice.body = message
+    logApp("error", "playback", "failed: item " + m.top.item.id + ", Roku Video error " + m.video.errorCode.toStr())
     m.notice.buttons = [{id: "retry", text: "Try again", icon: "refresh"}]
     m.notice.visible = true
     m.notice.active = true
