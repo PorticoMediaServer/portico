@@ -25,6 +25,13 @@ function cardMenu(item as object, extras as object, skip as object) as object
             rows.push({id: "card:play", text: "Play", icon: "play"})
         end if
     end if
+    ' in a Watch Together group, whoever may control playback can put a film or an episode on for
+    ' the group, or queue it (tv-more frame 13); the player follows the group's clock
+    group = m.global.together
+    if video and group.phase = "live" and group.room.you <> invalid and group.room.you.mayControl = true
+        rows.push({id: "card:together", text: "Watch with group", icon: "people"})
+        rows.push({id: "card:groupQueue", text: "Add to group queue", icon: "listPlus"})
+    end if
     ' films and shows are watched (the mock-ups' word); music is played
     word = "played"
     if video or item.kind = "show" or item.kind = "season" then word = "watched"
@@ -114,6 +121,11 @@ function cardMenuChosen(which as string) as boolean
         m.top.open = {item: item, play: true, startOver: false}
     else if id = "beginning"
         m.top.open = {item: item, play: true, startOver: true}
+    else if id = "together"
+        m.global.together.ask = {do: "watch", itemId: item.id}
+        m.top.open = {item: item, play: true, together: true}
+    else if id = "groupQueue"
+        m.global.together.ask = {do: "add", itemId: item.id}
     else if id = "show"
         m.top.open = {item: {id: item.rootId, kind: "show", title: item.rootTitle}, play: false}
     else if id = "season"
