@@ -255,7 +255,7 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 		strconv.Itoa(from),
 		"-hls_segment_filename",
 		filepath.Join(outputDir, strings.ReplaceAll(renditionSegmentFile(r, 0), "000000", "%06d")),
-		filepath.Join(outputDir, fmt.Sprintf("audio-%d-window.m3u8", r.Ordinal)),
+		filepath.ToSlash(filepath.Join(outputDir, fmt.Sprintf("audio-%d-window.m3u8", r.Ordinal))),
 	)
 	run, cancel := context.WithTimeout(ctx, 6*time.Hour)
 	started, finished := h.conversionCount()

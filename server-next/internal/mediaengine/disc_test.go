@@ -251,7 +251,7 @@ func discPicture(t *testing.T, h *house, ffprobe, header, segment string) float6
 	out, err := exec.Command(ffprobe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,height,start_time", "-of", "csv=p=0", file).CombinedOutput()
 	// A copied transport stream keeps its program, and ffprobe lists the picture under it too.
 	line, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
-	fields := strings.Split(line, ",")
+	fields := strings.Split(strings.TrimSpace(line), ",")
 	if len(fields) != 3 {
 		t.Fatalf("%s is not a picture: %q (%v)", segment, out, err)
 	}

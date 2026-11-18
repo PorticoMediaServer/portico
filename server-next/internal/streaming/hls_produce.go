@@ -415,10 +415,11 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 				strconv.Itoa(from),
 				"-hls_segment_filename",
 				filepath.Join(outputDir, "segment-%06d."+ext),
-				filepath.Join(outputDir, "window.m3u8"),
+				filepath.ToSlash(filepath.Join(outputDir, "window.m3u8")),
 			)
 		} else {
-			args = append(args, "-hls_playlist_type", "event", "-hls_segment_filename", filepath.Join(dir, "segment-%06d."+ext), filepath.Join(dir, "master.m3u8"))
+			args = append(args, "-hls_playlist_type", "event", "-hls_segment_filename", filepath.Join(dir, "segment-%06d."+ext),
+				filepath.ToSlash(filepath.Join(dir, "master.m3u8")))
 		}
 		return args, stages, nil
 	}
