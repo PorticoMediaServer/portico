@@ -94,6 +94,7 @@ type Engine struct {
 
 	mu    sync.Mutex
 	facts map[string]mediafacts.Facts // by path, size and modified time
+	discs map[string]*measuredDisc    // a disc's main feature, by its index file's path, size and modified time
 	music map[string]*measuredMusic   // the same, for the exact measurement of a music file
 	live  []measuredInput             // what was measured of each live channel's input
 }
@@ -104,7 +105,7 @@ type Engine struct {
 // do its housekeeping.
 func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 	e := &Engine{db: d, ctx: ctx, log: o.Log, probe: mediafacts.Probe{Binary: o.FFprobe, CodecSetup: true}, facts: map[string]mediafacts.Facts{}, remote: o.Remote, strm: o.STRM,
-		by: map[string]*place{}, folder: o.Folder, program: o.FFmpeg, kept: o.Kept, settings: o.Settings, subtitleDir: o.SubtitleDir,
+		discs: map[string]*measuredDisc{}, by: map[string]*place{}, folder: o.Folder, program: o.FFmpeg, kept: o.Kept, settings: o.Settings, subtitleDir: o.SubtitleDir,
 		// No limit of its own: a limit here would refuse the fifth remote film being converted
 		// at once, since a converter is not made to wait for a slot.
 		processes: &processpool.Supervisor{}}
@@ -221,6 +222,8 @@ type planned struct {
 	strmFileID int64
 	// parts are an audiobook's files in order when it is in several, played as one book.
 	parts []streaming.JoinedPart
+	// disc is the main feature of a film disc, which path is the index file of.
+	disc *measuredDisc
 	// subtitles are served as WebVTT or original packets beside the stream.
 	subtitles []subtitleTrack
 	// nudgeMs is the viewer's subtitle timing nudge. sent says the server moves it into the
@@ -286,8 +289,12 @@ func (e *Engine) source(ctx context.Context, version db.PlaybackVersion) (string
 	}
 	if scan.DiscTitle(place.Path) {
 		// A film disc kept as a folder. The file the scanner lists for it is the disc's index,
-		// which ffprobe cannot read, and no build ships a disc reader yet: say so plainly.
-		return "", place, 0, mediafacts.Facts{}, playback.ErrDisc
+		// which ffprobe cannot read: Plan measures the disc's main feature (disc.go). A server
+		// without the disc reader, and for now a disc on remote storage, says so plainly.
+		if remoteID != 0 || !discPlayable() {
+			return "", place, 0, mediafacts.Facts{}, playback.ErrDisc
+		}
+		return path, place, 0, mediafacts.Facts{}, nil
 	}
 	key := fmt.Sprint(remoteID, "\x00", path, "\x00", place.Size, "\x00", place.ModifiedNS)
 	e.mu.Lock()
@@ -476,14 +483,21 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	if err != nil {
 		return playback.Plan{}, err
 	}
+	var disc *measuredDisc
+	if scan.DiscTitle(place.Path) {
+		if disc, err = e.measureDisc(ctx, path, place); err != nil {
+			return playback.Plan{}, err
+		}
+		facts = disc.facts
+	}
 	// A version's files are joined into one stream on one clock. A position is
 	// a place in the whole film, episode or book (playback rule 60 for books).
 	isSTRM := strings.EqualFold(filepath.Ext(path), ".strm")
 	var parts []streaming.JoinedPart
-	if !isSTRM {
+	if !isSTRM && disc == nil {
 		parts, err = e.bookParts(ctx, r, remoteID, facts)
 	}
-	if err == nil && parts == nil && !isSTRM {
+	if err == nil && parts == nil && !isSTRM && disc == nil {
 		parts, err = e.videoParts(ctx, r, remoteID)
 	}
 	if err != nil {
@@ -508,6 +522,13 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		measured := streaming.SourceFromFacts(request.File)
 		measured.Remote = true
 		request.Measured = &measured
+	}
+	if disc != nil {
+		// Never the original, and the picture is converted (DeliveryInput.Disc). The index
+		// file's size says nothing of the title's bitrate.
+		request.File.Size = 0
+		measured := streaming.SourceFromFacts(request.File)
+		request.Measured, request.Disc = &measured, true
 	}
 	connection(&request.Connection, r)
 	// After connection: the member's limits apply only away from home.
@@ -548,7 +569,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		for _, part := range parts {
 			request.File.Duration += float64(part.DurationUS) / 1e6
 		}
-	} else if !isSTRM {
+	} else if !isSTRM && disc == nil {
 		if music := e.musicPlan(ctx, r, request, path, place, remoteID, facts, converter); music != nil {
 			return *music, nil
 		}
@@ -588,7 +609,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		}
 	}
 	plan, err := e.planWithHardware(ctx, tools, request)
-	if err == nil && plan.ToneMap && plan.HardwareBackend != "software" && !facts.FrameHDRChecked && !isSTRM {
+	if err == nil && plan.ToneMap && plan.HardwareBackend != "software" && !facts.FrameHDRChecked && !isSTRM && disc == nil {
 		facts = e.observeToneMappingSource(ctx, path, place, remoteID, facts)
 		request.File.Streams = facts.Streams
 		plan, err = e.planWithHardware(ctx, tools, request)
@@ -633,7 +654,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	out := playback.Plan{Mode: "stream", Player: plan.Engine, Route: routes[plan.Strategy], Container: plan.OutputContainer,
 		BitrateKbps: (plan.VideoBitrateBPS + plan.AudioBitrateBPS) / 1000, Quality: q,
 		Audio:  &playback.Decision{Action: action(plan.AudioAction), Reasons: plan.ReasonCodes, To: plan.OutputAudioCodec, Channels: plan.AudioChannels},
-		Detail: &planned{plan: plan, request: request, path: path, place: place, remoteID: remoteID, strmFileID: r.Version.FileID, parts: parts}}
+		Detail: &planned{plan: plan, request: request, path: path, place: place, remoteID: remoteID, strmFileID: r.Version.FileID, parts: parts, disc: disc}}
 	if plan.Strategy == streaming.DeliveryOriginal {
 		out.Mode, out.Audio.Action = "direct", "direct"
 		out.Audio.Reasons, out.Audio.To = nil, ""
@@ -817,6 +838,9 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 			return playback.Stream{}, playback.ErrSourceUnavailable
 		}
 		start.Path, start.Source = "", streaming.RemoteFile(storage, p.path, p.place.Size, start.Modified)
+	}
+	if p.disc != nil {
+		start.Disc = p.disc.open
 	}
 	if p.burn != nil {
 		// Read when the converter first needs it, after the source is confined.

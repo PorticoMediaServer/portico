@@ -173,6 +173,7 @@ const DownmixITULimited = "itu_limited"
 // the viewer's resolved position. Planning is a pure function of it, which is
 // what makes the decision matrix testable without a database.
 type DeliveryInput struct {
+	// Disc is one title of a film disc: never the original, and its picture is converted.
 	Disc bool
 	// Joined is a title in several files that the server plays as one: there is no single
 	// original to hand the device. JoinedPartsDiffer says its files are not encoded alike,
@@ -537,6 +538,10 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 		audioRules = append(audioRules, RouteRejection{ReasonBitrateExceedsPolicy, fmt.Sprintf("audio %d>%d", max(audio.BitRate, audio.MaxBitRate), in.Target.MaxAudioBitrateBPS)})
 	}
 
+	// A disc title's picture is converted. A copied picture is cut on its keyframes, and a disc
+	// title has no index of them: finding them reads the whole title (hls_copy_timeline.go).
+	discPictureConverted := RouteRejection{RejectContainer, "disc_picture_converted"}
+
 	// Route 1: the original file.
 	{
 		rejections := excluded(DeliveryOriginal)
@@ -621,6 +626,9 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 		if in.JoinedPartsDiffer {
 			rejections = append(rejections, RouteRejection{RejectAudioCodec, "joined_parts_differ"})
 		}
+		if in.Disc {
+			rejections = append(rejections, discPictureConverted)
+		}
 		// remuxable describes the source and the device, not the preferences:
 		// it is what decides which refusal a closed policy is reported as.
 		remuxable = len(r) == 0 && len(pictureRules) == 0 && len(audioRules) == 0
@@ -650,6 +658,9 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 		rejections = append(rejections, pictureRules...)
 		if !conversionAllowed {
 			rejections = append(rejections, RouteRejection{RejectTranscodingDisabled, ""})
+		}
+		if in.Disc {
+			rejections = append(rejections, discPictureConverted)
 		}
 		if audio == nil {
 			rejections = append(rejections, RouteRejection{RejectNoAudio, ""})
