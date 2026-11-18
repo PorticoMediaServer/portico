@@ -17,6 +17,7 @@ button.control.control[data-kind='skip'] { --control-icon: var(--frame-player-tr
 button.control.control[data-kind='primary'] { --control-height: var(--frame-player-transport-primary); --control-icon: var(--frame-player-transport-primary-icon); color: var(--color-ink); }
 button.control.control[data-kind='tool'] { --control-height: var(--frame-player-transport-control); --control-icon: var(--frame-player-transport-tool-icon); color: var(--color-text-secondary); }
 button.control.control[data-kind='picture'] { --control-height: var(--spec-transport-control-size-web); --control-icon: var(--frame-player-transport-tool-icon); color: var(--color-text); }
+button.control.control[data-kind='resume'] { --control-height: var(--frame-player-resume); --control-icon: var(--frame-player-resume-icon); color: var(--color-text); }
 button.control.control[data-tone='secondary'] { color: var(--color-text-secondary); }
 button.control.control[aria-pressed='true'] { color: var(--color-accent-strong); }
 /* The audio player's classes (frameSpec.audio.icons): its own box and glyphs; shuffle and repeat smaller and dimmer. */

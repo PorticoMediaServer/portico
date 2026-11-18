@@ -19,6 +19,8 @@ export type PlayerControlProps = Readonly<{
   /** A top-bar button over the picture: on a glass disc from tablet width (desktop-player), a plain white glyph on a
    * phone (phone-player). */
   onPicture?: boolean;
+  /** The paused picture's resume disc (desktop-player f6): a large glass disc with a white Play glyph, in the frame's `resume` place. */
+  resume?: boolean;
   /** One of the bar's own tools (subtitles, picture in picture, full screen, mute): R4's secondary class. */
   tool?: boolean;
   /** Skip back or forward: the seconds, drawn inside the arrow. */
@@ -33,9 +35,9 @@ export type PlayerControlProps = Readonly<{
 /** One round transport or tool button: the kit Button at the transport's icon classes (R4, R6: frameSpec.player.transport).
  * Every transport glyph is white; the 10 and 30 arrows are drawn larger than Previous and Next with a legible numeral;
  * a tool is smaller and dimmer. A control the title doesn't support stays in its place with `disabled`. */
-export function PlayerControl({icon, label, onPress, disabled, active, primary = false, onPicture = false, tool = false, skip, busy = false, open = false, tone, audio = false}: PlayerControlProps) {
-  const kind = primary ? 'primary' : onPicture ? 'picture' : tool ? 'tool' : skip !== undefined ? 'skip' : 'step';
-  const button = <Button size="transport" variant={primary ? 'primary' : onPicture ? 'glass' : 'icon'} className={onPicture ? `${styles.control} ${styles.onPicture}` : styles.control} data-kind={kind} data-tone={tone} data-audio={audio || undefined} data-open={open || undefined} 
+export function PlayerControl({icon, label, onPress, disabled, active, primary = false, onPicture = false, tool = false, skip, busy = false, open = false, tone, audio = false, resume = false}: PlayerControlProps) {
+  const kind = resume ? 'resume' : primary ? 'primary' : onPicture ? 'picture' : tool ? 'tool' : skip !== undefined ? 'skip' : 'step';
+  const button = <Button size="transport" variant={primary ? 'primary' : onPicture || resume ? 'glass' : 'icon'} className={onPicture || resume ? `${styles.control} ${styles.onPicture}` : styles.control} data-kind={kind} data-tone={tone} data-audio={audio || undefined} data-open={open || undefined} 
     iconOnly icon={icon} aria-label={label} title={label} aria-pressed={active} aria-expanded={open || undefined} disabled={disabled} loading={busy} onClick={onPress} />;
   return skip === undefined ? button : <span className={styles.skip}>{button}<small aria-hidden="true">{skip}</small></span>;
 }

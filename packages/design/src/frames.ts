@@ -191,6 +191,9 @@ export const frame = {
     panel: {width: forms(356, 380, 380, 680),
       /** A panel that asks to be wide (Playback info's table, playback-info 3 and 4): TV's is 960; every other form keeps `width`. */
       wideWidth: forms(356, 380, 380, 960), padding: forms(16, 24, 24, 56), row: forms(52, 52, 52, 64), still: forms(112, 132, 132, 200), iconTile: forms(30, 30, 30, 44), grab: {width: 36, height: 5, top: 8}},
+    /** The web's Episodes drawer across the bottom (desktop-player f6), and the paused picture's resume disc above it: a
+     * glass disc with a white Play glyph in the middle of what the drawer leaves (`PlayerChromeFrame` `resume`). */
+    drawer: 480, resume: {disc: 88, icon: 36},
     /** Skip intro and Up next: the white prompt and the round dismiss beside it, and how far the corner sits above the bottom edge. */
     prompt: {height: forms(44, 52, 52, 72), radius: forms(10, 12, 12, 14), paddingX: forms(18, 24, 24, 36), dismiss: forms(0, 48, 44, 0), gap: 10, bottom: forms(26, 64, 64, 96)},
   },
