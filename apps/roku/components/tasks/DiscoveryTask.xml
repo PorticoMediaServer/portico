@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Asks this network once for Portico servers (multicast DNS, source/Mdns.brs) and lists those that
+     answer within 3.5 seconds, as the native apps do. Set control to "run"; read `found`. -->
+<component name="DiscoveryTask" extends="Task">
+  <interface>
+    <!-- [{id, fp, ip, port}], one per server id, set once when the listening ends. -->
+    <field id="found" type="array"/>
+  </interface>
+  <script type="text/brightscript" uri="DiscoveryTask.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Mdns.brs"/>
+</component>

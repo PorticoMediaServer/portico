@@ -14,12 +14,29 @@ sub init()
         m.top.findNode(id).translation = [f.pageX, lines[id]]
     end for
     m.top.findNode("server").translation = [f.pageX - 3, f.titleY]     ' 3 left: the capital's own margin
+    ' Use a local server, at the gutter like the front door
+    m.top.findNode("localMark").translation = [frames().gutter, f.markY]
+    lines = {localTitle: [f.localTitleY, "authTitle", c.text], localBody: [f.localBodyY, "authBody", c.textSecondary],
+        nearbyLabel: [f.nearbyLabelY, "groupLabel", c.textSecondary], elsewhereLabel: [f.elsewhereLabelY, "groupLabel", c.textSecondary],
+        localNote: [f.localNoteY, "body", c.danger]}
+    for each id in lines
+        label = m.top.findNode(id)
+        label.translation = [frames().gutter, lines[id][0]]
+        setType(label, lines[id][1], lines[id][2])
+    end for
+    m.top.findNode("nearbyRows").translation = [frames().gutter, f.nearbyRowsY]
+    m.top.findNode("localButtons").translation = [frames().gutter, f.localButtonsY]
+    m.top.findNode("localButtons").buttons = [{id: "type", text: "Type an address", icon: ""}]
+    m.top.findNode("localButtons").observeField("pressed", "onDoor")
     m.top.findNode("press").hints = [{before: "Press", keys: ["Back"], text: "to change the server address."}]
     m.door = m.top.findNode("door")
     m.code = m.top.findNode("code")
     m.factor = m.top.findNode("factor")
     m.doorButtons = m.top.findNode("doorButtons")
     m.doorNote = m.top.findNode("doorNote")
+    m.localNote = m.top.findNode("localNote")
+    m.local = m.top.findNode("local")
+    m.nearbyRows = m.top.findNode("nearbyRows")
     m.codeButtons = m.top.findNode("codeButtons")
     m.codeNote = m.top.findNode("codeNote")
     m.factorPad = m.top.findNode("factorPad")
@@ -45,12 +62,16 @@ sub init()
     }
     ' "Sign in with Portico Account" joins this row when that flow is built (the next change).
     m.doorButtons.buttons = [{id: "local", text: "Use a local server", icon: ""}]
-    m.doorButtons.observeField("pressed", "onDoor")
+    m.doorButtons.observeField("pressed", "showLocal")
     m.codeButtons.observeField("pressed", "onCodeButton")
     m.factorPad.observeField("entered", "onFactor")
     m.poll.observeField("fire", "onPoll")
     m.stage = "door"
     m.typed = ""
+    m.expectedId = ""      ' a found server's id, which its /v1/system must name
+    m.nearby = []
+    m.listed = []          ' the found servers drawn, in their order
+    m.nearbyAt = -1        ' the found server in focus, or -1 for Type an address
     m.step = 0
 end sub
 
@@ -68,6 +89,8 @@ sub onActive()
         m.codeButtons.active = true
     else if m.stage = "factor"
         m.factorPad.active = true
+    else if m.stage = "local"
+        paintNearby()
     else
         m.doorButtons.active = true
     end if
@@ -77,6 +100,7 @@ sub go(stage as string)
     m.stage = stage
     m.step = m.step + 1
     m.door.visible = (stage = "door")
+    m.local.visible = (stage = "local")
     m.code.visible = (stage = "code")
     m.factor.visible = (stage = "factor")
     if stage <> "code" then m.poll.control = "stop"
@@ -90,8 +114,11 @@ end sub
 ' gone back or chosen another server is dropped: a sign-in one server gave is never kept under
 ' another server's address.
 
-sub ask(method as string, path as string, body as dynamic, callback as string, code = "" as string)
-    api(method, path, body, callback, {step: m.step, origin: m.origin, code: code}, true, "", m.origin)
+sub ask(method as string, path as string, body as dynamic, callback as string, code = "" as string, origin = "" as string, more = {} as object)
+    if origin = "" then origin = m.origin
+    ctx = {step: m.step, origin: origin, code: code}
+    ctx.append(more)
+    api(method, path, body, callback, ctx, true, "", origin)
 end sub
 
 function late(event as object) as boolean
@@ -142,27 +169,119 @@ end sub
 
 ' --- the front door and the server's address ------------------------------------------------
 
-sub onDoor()
+' --- Use a local server: servers found on this network, then a typed address ---------------------
+
+sub showLocal()
     m.doorNote.text = ""
+    go("local")
+    m.localNote.text = ""
+    m.nearby = []
+    m.nearbyAt = -1
+    m.nearbyRows.removeChildrenIndex(m.nearbyRows.getChildCount(), 0)
+    m.top.findNode("nearbyLabel").text = "Looking on this network…"
+    m.discovery = createObject("roSGNode", "DiscoveryTask")
+    m.discovery.observeField("found", "onFound")
+    m.discovery.control = "run"
+    paintNearby()
+end sub
+
+' Each answer is only a hint: the server is asked at its own address, and listed under the name it
+' gives there only when it names the same id.
+sub onFound(event as object)
+    if m.stage <> "local" or not event.getRoSGNode().isSameNode(m.discovery) then return
+    found = event.getData()
+    if found.count() = 0 then m.top.findNode("nearbyLabel").text = "No Portico server answered on this network"
+    for each record in found
+        m.nearby.push({id: record.id, ip: record.ip, candidates: addressCandidates(record.ip + ":" + record.port.toStr()), origin: ""})
+        checkNearby(m.nearby.count() - 1)
+    end for
+end sub
+
+sub checkNearby(index as integer)
+    entry = m.nearby[index]
+    if entry.candidates.count() = 0 then return      ' it did not answer as itself at its address: not listed
+    ask("GET", "/v1/system", invalid, "onNearbySystem", "", entry.candidates.shift(), {index: index})
+end sub
+
+sub onNearbySystem(event as object)
+    if late(event) then return
+    ctx = event.getRoSGNode().ctx
+    result = event.getData()
+    entry = m.nearby[ctx.index]
+    if result.ok and result.data <> invalid and result.data.id = entry.id
+        entry.origin = ctx.origin
+        entry.name = result.data.name
+        entry.setupRequired = (result.data.setupRequired = true)
+        drawNearby()
+    else
+        checkNearby(ctx.index)
+    end if
+end sub
+
+sub drawNearby()
+    m.nearbyRows.removeChildrenIndex(m.nearbyRows.getChildCount(), 0)
+    m.listed = []
+    y = 0
+    for each entry in m.nearby
+        if entry.origin <> "" and m.listed.count() < 4      ' four rows fit above Somewhere else
+            row = m.nearbyRows.createChild("ListRow")
+            help = entry.ip
+            if entry.setupRequired then help = "Nobody has set it up yet"
+            row.model = {label: entry.name, help: help, scope: "", value: "", control: "", switchOn: false, icon: "server", danger: false}
+            row.translation = [0, y]
+            row.separator = (y > 0)
+            y = y + row.rowHeight
+            m.listed.push(entry)
+        end if
+    end for
+    m.top.findNode("nearbyLabel").text = "On this network"
+    paintNearby()
+end sub
+
+' Focus starts on Type an address; servers that turn up appear above it and never take the focus.
+sub paintNearby()
+    for i = 0 to m.nearbyRows.getChildCount() - 1
+        m.nearbyRows.getChild(i).on = (i = m.nearbyAt)
+    end for
+    if m.nearbyAt >= 0 then m.top.setFocus(true) else m.top.findNode("localButtons").active = true
+end sub
+
+' A found server goes on exactly as a typed address does, held to the id it announced.
+sub openNearby(entry as object)
+    m.localNote.color = colours().danger
+    if entry.setupRequired
+        m.localNote.text = "Nobody has set up " + entry.name + " yet. Set it up from a phone or a computer, then come back here."
+        return
+    end if
+    m.expectedId = entry.id
+    m.candidates = [entry.origin]
+    m.localNote.color = colours().textSecondary
+    m.localNote.text = "Looking for the server…"
+    tryNext()
+end sub
+
+sub onDoor()
+    m.localNote.text = ""
     typeIn("Server address", "The address of your Portico server, such as 192.168.1.20 or media.example.com.", m.typed, false, "address")
 end sub
 
 sub tryAddress(typed as string)
     m.typed = typed
+    m.expectedId = ""
     m.candidates = addressCandidates(typed)
     if m.candidates.count() = 0
-        m.doorNote.text = "Enter a server address."
+        m.localNote.text = "Enter a server address."
         return
     end if
-    m.doorNote.color = colours().textSecondary
-    m.doorNote.text = "Looking for the server…"
+    m.localNote.color = colours().textSecondary
+    m.localNote.text = "Looking for the server…"
     tryNext()
 end sub
 
 sub tryNext()
     if m.candidates.count() = 0
-        m.doorNote.color = colours().danger
-        m.doorNote.text = "No Portico server answered at that address. Check the address, and that this TV is on the same network as the server."
+        m.localNote.color = colours().danger
+        m.localNote.text = "No Portico server answered at that address. Check the address, and that this TV is on the same network as the server."
         return
     end if
     m.origin = m.candidates.shift()
@@ -173,17 +292,18 @@ end sub
 sub onSystem(event as object)
     result = event.getData()
     if late(event) then return
-    if not result.ok or result.data = invalid or result.data.id = invalid
+    ' a found server must answer as the server that announced itself
+    if not result.ok or result.data = invalid or result.data.id = invalid or (m.expectedId <> "" and result.data.id <> m.expectedId)
         tryNext()
         return
     end if
     m.system = result.data
-    m.doorNote.color = colours().danger
+    m.localNote.color = colours().danger
     if m.system.setupRequired = true
-        m.doorNote.text = m.system.name + " has not been set up yet. Set it up from a phone or a computer, then come back here."
+        m.localNote.text = m.system.name + " has not been set up yet. Set it up from a phone or a computer, then come back here."
         return
     end if
-    m.doorNote.text = ""
+    m.localNote.text = ""
     showCode()
 end sub
 
@@ -266,8 +386,7 @@ sub onCodeButton(event as object)
         m.codeNote.text = ""
         typeIn("Username", "Your username on " + m.system.name + ".", "", false, "username")
     else
-        go("door")
-        onDoor()
+        showLocal()
     end if
 end sub
 
@@ -334,6 +453,9 @@ function onKeyEvent(key as string, press as boolean) as boolean
     if not press then return false
     if key = "back"
         if m.stage = "code"
+            showLocal()      ' the step before: Use a local server
+            return true
+        else if m.stage = "local"
             go("door")
             return true
         else if m.stage = "factor"
@@ -342,6 +464,21 @@ function onKeyEvent(key as string, press as boolean) as boolean
             return true
         end if
         return false   ' Back at the front door leaves the app
+    end if
+    if m.stage = "local"
+        count = m.nearbyRows.getChildCount()
+        if key = "up" and m.nearbyAt = -1 and count > 0
+            m.nearbyAt = count - 1
+        else if key = "up" and m.nearbyAt > 0
+            m.nearbyAt = m.nearbyAt - 1
+        else if key = "down" and m.nearbyAt >= 0
+            m.nearbyAt = m.nearbyAt + 1
+            if m.nearbyAt >= count then m.nearbyAt = -1
+        else if key = "OK" and m.nearbyAt >= 0
+            openNearby(m.listed[m.nearbyAt])
+            return true
+        end if
+        paintNearby()
     end if
     ' nothing lies to the left of these pages: the edge stops
     return key = "left" or key = "up" or key = "down"

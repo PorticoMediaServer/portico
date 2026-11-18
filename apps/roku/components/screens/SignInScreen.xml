@@ -24,6 +24,17 @@
       <ButtonRow id="doorButtons"/>
       <Label id="doorNote" width="1000" wrap="true" maxLines="3"/>
     </Group>
+    <!-- Use a local server: the servers that answered on this network, then a typed address -->
+    <Group id="local" visible="false">
+      <Poster id="localMark" uri="pkg:/images/wordmark.png" width="176" height="40"/>
+      <Label id="localTitle" text="Use a local server"/>
+      <Label id="localBody" text="Servers on this Wi‑Fi turn up by themselves. Anywhere else, type its address."/>
+      <Label id="nearbyLabel"/>
+      <Group id="nearbyRows"/>
+      <Label id="elsewhereLabel" text="Somewhere else"/>
+      <ButtonRow id="localButtons"/>
+      <Label id="localNote" width="1400" wrap="true" maxLines="2"/>
+    </Group>
     <Group id="code" visible="false">
       <Poster id="codeMark" uri="pkg:/images/wordmark.png" width="176" height="40"/>
       <Label id="eyebrow" text="Sign in to"/>
