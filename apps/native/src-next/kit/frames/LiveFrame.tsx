@@ -46,9 +46,10 @@ export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, l
   const edge = {paddingLeft: frame.gutter, paddingRight: frame.rightGutter};
   const titleRow = back && form === 'phone'
     ? <View style={{paddingTop: insets.top}}><TopBar safeArea={false} back={back} center={<Text accessibilityRole="header" numberOfLines={2} style={[theme.type.barTitle, {color: theme.colors.text, textAlign: 'center'}]}>{title}</Text>}/></View>
-    : <View style={[edge, {paddingTop: Math.max(frame.titleTop, insets.top + frame.headerGap), flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.sm}]}>
+    // A phone's title row holds the title, List | Guide and Recordings on one line (final3-phone-07): its items sit the small gap apart.
+    : <View style={[edge, {paddingTop: Math.max(frame.titleTop, insets.top + frame.headerGap), flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: form === 'phone' ? theme.space.xs : theme.space.sm}]}>
       <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, flexShrink: 1}]}>{title}</Text>
-      {switcher}
+      {form !== 'phone' && switcher}
       <View style={{flex: 1}}/>
       {form === 'expanded' && facts}
       {actions}
@@ -56,7 +57,8 @@ export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, l
   const header = <View style={{gap: frame.headingGap, paddingBottom: frame.headingGap}}>
     {titleRow}
     {tabs}
-    {chips && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow: 0}} contentContainerStyle={[edge, {gap: theme.space.xs, alignItems: 'center'}]}>{chips}</ScrollView></TVRow>}
+    {/* On a phone the source picker heads the chips, so the title row keeps List | Guide beside the title (phone-guide g1, as the web). */}
+    {(chips || form === 'phone' && switcher) && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow: 0}} contentContainerStyle={[edge, {gap: theme.space.xs, alignItems: 'center'}]}>{form === 'phone' && !back && switcher}{chips}</ScrollView></TVRow>}
     {toolbar && form !== 'tv' && <View style={[edge, {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.xs}]}>{toolbar}</View>}
   </View>;
   const page = <View testID={testID} style={{flex: 1}}>

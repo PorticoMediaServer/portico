@@ -6,7 +6,7 @@ import {AmbientArt, Artwork, ChannelMark, CoverFan, CoverMosaic, GeneratedArt, M
 import {Icon} from '../Icon';
 import {useTheme} from '../theme';
 import {CardOverlays} from './MediaCards';
-import {ArtFrame, Caption, CardFrame, Parts, Progress, Scrim, alpha, titleStyle, type CardProps} from './primitives';
+import {ArtFrame, Badge, Caption, CardFrame, Parts, Progress, Scrim, alpha, titleStyle, type CardProps} from './primitives';
 
 export type LiveCardProps = CardProps & {
   channel: string;
@@ -17,14 +17,23 @@ export type LiveCardProps = CardProps & {
   flags?: readonly FactPart[];
   range?: string;
   progress?: number;
+  /** A recording's corner badge, top left: Kept, Incomplete (desktop-live live-recorded). The channel row moves under it. */
+  badge?: string;
+  /** A recorded show's unwatched count, a round mark top right; absent or 0 draws nothing (desktop-live live-recorded). */
+  count?: number;
+  /** The line under the card (desktop-live live-recorded: "6 recordings  2 unwatched", the unwatched part in accent). */
+  under?: readonly FactPart[];
 };
 export function LiveCard(props: LiveCardProps) {
   const t = useTheme(), width = props.width ?? (t.isTV ? 400 : 244), height = t.isTV ? 225 : 140, pad = t.isTV ? 22 : 14;
   return <CardFrame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={height} />}>
-    {s => <ArtFrame height={height} radius={12} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={t.spec.card.hover.liveScale} selected={props.selection?.selected}>
+    {s => <><ArtFrame height={height} radius={12} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={t.spec.card.hover.liveScale} selected={props.selection?.selected}>
       <AmbientArt palette={{first: t.colors.ambient, second: t.colors.raised}} treatment="cover" visible={props.visible} priority={props.priority} />
+      {props.badge !== undefined && <View style={{position: 'absolute', top: pad / 2, left: pad / 2}}><Badge>{props.badge}</Badge></View>}
+      {!!props.count && <View style={{position: 'absolute', top: pad / 2, right: pad / 2, minWidth: t.isTV ? 36 : 24, height: t.isTV ? 36 : 24, paddingHorizontal: 6, borderRadius: t.isTV ? 18 : 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.accent}}>
+        <Text style={[t.type.badge, {color: t.colors.text}]}>{props.count}</Text></View>}
       <View style={{flex: 1, padding: pad}}>
-        <View style={{flexDirection: 'row', gap: 10, alignItems: 'center'}}>
+        <View style={{flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: props.badge !== undefined ? pad * 1.5 : 0}}>
           <ChannelMark mark={props.mark} source={props.logo} size={t.isTV ? 48 : 34} visible={props.visible} />
           <View style={{flex: 1, minWidth: 0}}>
             <Text numberOfLines={1} style={[t.type.liveChannel, {color: t.colors.textSecondary}]}>{props.channel}</Text>
@@ -42,7 +51,10 @@ export function LiveCard(props: LiveCardProps) {
           <Progress value={props.progress} style={{marginTop: t.isTV ? 12 : 10}} />
         </View>
       </View>
-    </ArtFrame>}
+    </ArtFrame>
+    {/* The line under the card: a recorded show's "6 recordings  2 unwatched" (desktop-live live-recorded). On now cards keep
+        their caption inside the tile (mock.html home). */}
+    {!!props.under?.length && <View style={{marginTop: t.isTV ? 12 : 8}}><Parts parts={props.under} /></View>}</>}
   </CardFrame>;
 }
 

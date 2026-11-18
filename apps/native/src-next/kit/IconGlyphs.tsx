@@ -162,6 +162,7 @@ export function IconGlyph({name}: {name: IconName}) {
     case "i-queue": return <G><Path d="M4 6.5h16M4 12h16M4 17.5h8" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" /><Path d="M15.5 14.6v5.8c0 .5.5.8.9.5l4.1-2.9a.6.6 0 0 0 0-1l-4.1-2.9c-.4-.3-.9 0-.9.5z" fill="currentColor" /></G>;
     case "i-radio": return <G><G fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Rect x="3" y="8.5" width="18" height="12" rx="2.5" /><Path d="M6.5 8.5 16 3.5" /><Circle cx="9" cy="14.5" r="2.5" /><Path d="M15 12.5h2.5M15 16.5h2.5" /></G></G>;
     case "i-rec": return <G><Circle cx="12" cy="12" fill="currentColor" r="6" /></G>;
+    case "i-rec-ring": return <G><Circle cx="12" cy="12" fill="none" r="8.5" stroke="currentColor" strokeWidth="2" /><Circle cx="12" cy="12" fill="currentColor" r="4" /></G>;
     case "i-refresh": return <G><G fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"><Path d="M19.5 11a7.5 7.5 0 0 0-13.6-3.9M4.5 4v3.6h3.6M4.5 13a7.5 7.5 0 0 0 13.6 3.9M19.5 20v-3.6h-3.6" /></G></G>;
     case "i-reload": return <G><Path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4v4h-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" /></G>;
     case "i-repeat": return <G><Path d="M4.5 11V9.5A2.5 2.5 0 0 1 7 7h12.5M17 4.5 19.5 7 17 9.5M19.5 13v1.5A2.5 2.5 0 0 1 17 17H4.5M7 19.5 4.5 17 7 14.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" /></G>;

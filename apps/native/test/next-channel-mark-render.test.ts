@@ -73,13 +73,13 @@ test('LiveCard forwards the authoritative mark and logo without a palette overri
       '../../../../../packages/i18n/src/index': {defaultI18n: {}},
       '../artwork/index': {...Object.fromEntries(['AmbientArt', 'Artwork', 'ChannelMark', 'CoverFan', 'CoverMosaic', 'MediaArt'].map(name => [name, name])), GeneratedCoverClearance: {Provider: 'Provider'}},
       '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => theme}, './MediaCards': {CardOverlays: 'CardOverlays'},
-      './primitives': Object.fromEntries(['ArtFrame', 'Caption', 'CardFrame', 'Parts', 'Progress', 'Scrim', 'alpha', 'titleStyle'].map(name => [name, name])),
+      './primitives': Object.fromEntries(['ArtFrame', 'Badge', 'Caption', 'CardFrame', 'Parts', 'Progress', 'Scrim', 'alpha', 'titleStyle'].map(name => [name, name])),
     });
     const mark = {sourceId: 'actual', id: 'channel', text: 'AC', seed: 'actual:channel'}, logo = {uri: 'https://server.test/logo', cacheKey: 'authority:logo'}, onFocus = () => {};
     const frame: Element = LiveCard({title: 'Actual programme', channel: 'Actual channel', mark, logo, onFocus, visible: false});
     assert.equal(frame.props.onFocus, onFocus); assert.equal(frame.props.width, isTV ? 400 : 244);
-    const art: Element = frame.props.children({focused: false, hovered: false, holding: false}), nodes = elements(art);
-    assert.equal(art.props.height, isTV ? 225 : 140);
+    const card: Element = frame.props.children({focused: false, hovered: false, holding: false}), nodes = elements(card);
+    assert.equal(nodes.find(node => node.type === 'ArtFrame')!.props.height, isTV ? 225 : 140);
     const channel = nodes.find(node => node.type === 'ChannelMark')!;
     assert.equal(channel.props.mark, mark); assert.equal(channel.props.source, logo); assert.equal(channel.props.size, isTV ? 48 : 34); assert.equal(channel.props.visible, false);
     assert.equal(Object.hasOwn(channel.props, 'tint'), false);

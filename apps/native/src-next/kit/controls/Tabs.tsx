@@ -7,8 +7,11 @@ import {Focusable, type FocusableProps} from './Focusable';
 import {colorAlpha, enabledChoice, minimumHitSlop} from './control-model';
 import {useControlValue} from './useControlValue';
 import {TVRow} from '../layout/TVRow';
+import {Icon, type IconName} from '../Icon';
 
-export type TabItem = {value: string; label: React.ReactNode; count?: string | number; disabled?: boolean; panel?: React.ReactNode};
+export type TabItem = {value: string; label: React.ReactNode; count?: string | number; disabled?: boolean; panel?: React.ReactNode;
+  /** Segmented only: a glyph before the label (List | Guide, final3-phone-07), as the web's. */
+  icon?: IconName};
 export type TabsProps = {
   items: readonly TabItem[];
   value?: string;
@@ -102,7 +105,11 @@ export function Segmented({items, value, defaultValue, onValueChange, variant = 
           typeof childProps?.style === 'function' ? childProps.style(state) : childProps?.style]}>
         {state => <>
           {theme.isTV ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, {borderRadius: 12, backgroundColor: selected ? colorAlpha(theme.colors.accent, state.focused ? .4 : .26) : state.focused ? colorAlpha(theme.colors.text, .2) : 'transparent'}]} /> : null}
-          <ChoiceLabel wrap={!theme.isTV || theme.fontScale > 1} style={[theme.type.button, {textAlign: 'center'}, {color: selected || state.focused ? theme.colors.text : theme.isTV ? theme.colors.textSecondary : theme.colors.textTertiary, fontSize: (theme.isTV ? 24 : phone ? 13 : 14) * theme.textScale}]}>{item.label}</ChoiceLabel>
+          {item.icon ? <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.isTV ? 10 : 6}}>
+            <Icon name={item.icon} size={theme.isTV ? 24 : 16} color={selected || state.focused ? theme.colors.text : theme.isTV ? theme.colors.textSecondary : theme.colors.textTertiary}/>
+            <ChoiceLabel wrap={!theme.isTV || theme.fontScale > 1} style={[theme.type.button, {textAlign: 'center'}, {color: selected || state.focused ? theme.colors.text : theme.isTV ? theme.colors.textSecondary : theme.colors.textTertiary, fontSize: (theme.isTV ? 24 : phone ? 13 : 14) * theme.textScale}]}>{item.label}</ChoiceLabel>
+          </View>
+          : <ChoiceLabel wrap={!theme.isTV || theme.fontScale > 1} style={[theme.type.button, {textAlign: 'center'}, {color: selected || state.focused ? theme.colors.text : theme.isTV ? theme.colors.textSecondary : theme.colors.textTertiary, fontSize: (theme.isTV ? 24 : phone ? 13 : 14) * theme.textScale}]}>{item.label}</ChoiceLabel>}
         </>}
       </Focusable>;
     })}

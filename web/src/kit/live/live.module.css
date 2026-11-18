@@ -21,7 +21,12 @@
 .guideCell[data-empty] { background: repeating-linear-gradient(135deg, var(--color-raised) 0 8px, transparent 8px 16px); color: var(--color-text-tertiary); }
 .guideCell[data-selected] { background: var(--color-raised-bright); box-shadow: inset 0 0 0 2px var(--color-accent-strong); }
 .guideTitle, .guideDetail { display: flex; align-items: center; gap: var(--space-tight); min-width: 0; }
-.guideTitle b { font-size: var(--type-card-title-size); font-weight: var(--type-card-title-weight); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.guideTitle b { font-size: var(--type-card-title-size); font-weight: var(--type-card-title-weight); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: normal; word-break: normal; min-width: 0; }
+/* A title wraps only between words: one whose word is wider than its cell is one line ending in "…"; under 2.5rem of room the
+   title is left out, so a clipped start shows its chevron alone. */
+.guideTitle b[data-one-line] { display: block; white-space: nowrap; text-overflow: ellipsis; }
+.guideCell { container-type: inline-size; }
+@container (max-width: 3.75rem) { .guideTitle b { display: none; } }
 .guideDetail { font-size: var(--type-card-subtitle-size); color: var(--color-text-tertiary); white-space: nowrap; }
 .guideDetail > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .guideDetail em { font-style: normal; color: var(--color-record); }
@@ -77,3 +82,8 @@
 .conflictHead > span { display: grid; gap: var(--space-px-2); color: var(--color-text); }
 .conflictHead b { font-size: var(--type-list-label-size); font-weight: var(--type-list-label-weight); }
 .conflictHead small { font-size: var(--type-row-help-size); color: var(--color-text-secondary); }
+/* The guide's quiet pickers (phone-guide g1): text on the page, a glyph, a strong label, its value, a chevron. */
+.picker { display: inline-flex; align-items: center; gap: var(--space-tight); min-height: var(--target-touch, 44px); padding: 0; border: 0; background: transparent; color: var(--color-text-secondary); font: inherit; font-size: var(--type-body-size, 15px); white-space: nowrap; cursor: pointer; }
+.picker > svg { color: var(--color-text-tertiary); flex: none; }
+.picker b { color: var(--color-text); font-weight: var(--type-body-strong-weight, 600); }
+.picker:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; border-radius: 6px; }
