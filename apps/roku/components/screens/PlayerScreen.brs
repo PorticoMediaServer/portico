@@ -74,6 +74,17 @@ sub init()
     m.queue = invalid    ' this play's queue (source/Queue.brs), once the server has made it
     m.queueAsked = false
     m.next = invalid     ' the entry after this one, when there is one
+    m.undo = m.top.findNode("undo")
+    m.undoRow = m.top.findNode("undoRow")
+    m.undoRow.observeField("pressed", "onUndo")
+    m.top.findNode("undoRun").observeField("state", "onUndoRun")
+    setType(m.top.findNode("undoText"), "bodyStrong", c.text)
+    m.top.findNode("count").observeField("fire", "onCount")
+    m.prefs = invalid    ' the profile's playback settings, once read
+    m.cardMode = ""      ' what the Up next card is showing, or "" when it is away
+    m.counting = false   ' the card is counting down to the next title
+    m.backSeconds = 10
+    m.forwardSeconds = 30
     ' every fixed line of the overlay and of what sits over the picture comes from the player's frame
     f = frames().player
     m.f = f
@@ -99,6 +110,10 @@ sub init()
     m.top.findNode("waitText").translation = [260, f.waitY + 142]
     ' Playback failed sits under the title row, at the player's left line
     m.notice.translation = [f.left - frames().gutter, f.noticeDrop]
+    m.top.findNode("undoPlate").blendColor = c.promptPlate
+    m.top.findNode("undoTick").blendColor = c.accentStrong
+    m.top.findNode("undoTrack").color = c.glass
+    m.top.findNode("undoLeft").color = c.accentStrong
     m.top.findNode("unPlate").blendColor = c.promptPlate
     m.top.findNode("unBack").color = c.raised
     m.top.findNode("unStill").blendColor = c.stillDim
@@ -117,7 +132,8 @@ end sub
 sub makeButtons(hasPrevious as boolean, hasNext as boolean)
     m.buttons.removeChildrenIndex(m.buttons.getChildCount(), 0)
     m.row = []
-    specs = [{kind: "back", icon: "skip-back-44", size: 64, seconds: "10"}, {kind: "play", icon: "pause-40", size: 88}, {kind: "forward", icon: "skip-forward-44", size: 64, seconds: "30"}]
+    ' the skip arrows carry the profile's own amounts
+    specs = [{kind: "back", icon: "skip-back-44", size: 64, seconds: m.backSeconds.toStr()}, {kind: "play", icon: "pause-40", size: 88}, {kind: "forward", icon: "skip-forward-44", size: 64, seconds: m.forwardSeconds.toStr()}]
     ' Previous and Next flank the transport when the queue has something that way
     if hasPrevious then specs.unshift({kind: "previous", icon: "previous-32", size: 64})
     if hasNext then specs.push({kind: "next", icon: "next-32", size: 64})
@@ -290,6 +306,7 @@ sub start()
     if m.startKey = invalid then m.startKey = createObject("roDeviceInfo").getRandomUUID()
     api("POST", "/v1/playback/sessions", body, "onSession", invalid, false, m.startKey)
     if m.options = invalid then api("GET", "/v1/items/" + item.id + "/playback-options", invalid, "onOptions")
+    if m.prefs = invalid then api("GET", "/v1/preferences?deviceClass=television", invalid, "onPrefs")
 end sub
 
 sub onOptions(event as object)
@@ -670,7 +687,7 @@ end sub
 sub leave(tell as boolean)
     if m.ended then return
     m.ended = true
-    for each timer in [m.report, m.tick, m.hide, m.settle, m.again, m.retry]
+    for each timer in [m.report, m.tick, m.hide, m.settle, m.again, m.retry, m.top.findNode("count")]
         timer.control = "stop"
     end for
     busy(invalid)
@@ -760,7 +777,7 @@ end sub
 function activeMarker(at as float) as dynamic
     if m.options = invalid or m.options.markers = invalid then return invalid
     for each marker in m.options.markers
-        if at >= marker.startMs / 1000 and at < marker.endMs / 1000 - 0.5 and m.dismissed[marker.id] <> true then return marker
+        if at >= marker.startMs / 1000 and at < marker.endMs / 1000 - 0.5 and m.dismissed[marker.id] <> true and skipMode(marker.type) <> "off" then return marker
     end for
     return invalid
 end function
@@ -769,23 +786,34 @@ end function
 sub updatePrompt()
     if m.failed or m.ended or m.session = invalid then return
     at = m.video.position
+    if m.cardMode = "end" or m.cardMode = "count" or m.cardMode = "still" then return
     marker = activeMarker(at)
+    if marker <> invalid and skipMode(marker.type) = "auto" and marker.automaticSafe = true
+        autoSkip(marker)
+        return
+    end if
     key = ""
     if marker <> invalid then key = marker.id
     ' Up next: during closing credits, or an episode's last 30 seconds when it has none marked
     closing = marker <> invalid and (marker.type = "credits" or marker.type = "outro") and marker.startMs / 1000 >= m.duration / 2
     tail = m.top.item.kind = "episode" and m.duration >= 600 and at >= m.duration - 30 and at < m.duration - 1
-    if m.next <> invalid and (closing or (tail and marker = invalid)) and m.dismissed["next"] <> true then key = "next"
-    if key = "next" then m.top.findNode("unWhen").text = "Starts in " + clockText(m.duration - at)
+    if m.next <> invalid and (closing or (tail and marker = invalid)) and m.dismissed["next"] <> true and not passoutDue() then key = "next"
+    if key = "next" and m.cardMode = "offer" and not m.counting then m.top.findNode("unWhen").text = offerWhen(m.duration - at)
     if key = m.promptKey then return
     m.promptKey = key
     if key = "next"
         if not closing then marker = invalid
-        showUpNext(marker)
+        showUpNext(marker, "offer")
+        m.top.findNode("unWhen").text = offerWhen(m.duration - at)
+        ' "Start the next episode during the credits": only credits the server is sure of, and
+        ' never when a scene follows them
+        if marker <> invalid and pref("playback.autoplayNext") = true and pref("playback.startNextDuringCredits") = true and marker.automaticSafe = true and marker.endMs / 1000 >= m.duration - 3
+            countDown(int(pref("playback.upNextCountdownMs") / 1000))
+        end if
         focusPrompt()
         return
     end if
-    m.upNext.visible = false
+    stopCard()
     if marker = invalid
         m.prompt.visible = false
         if not m.top.hasFocus() and not m.controls.visible then m.top.setFocus(true)
@@ -810,24 +838,79 @@ end sub
 ' The prompt takes focus by itself only while no control has it (the overlay is down).
 sub focusPrompt()
     if m.controls.visible or m.failed or not m.top.isInFocusChain() then return
-    if m.upNext.visible then m.unRow.active = true else if m.prompt.visible then m.prompt.active = true
+    if m.undo.visible
+        m.undoRow.active = true
+    else if m.upNext.visible
+        m.unRow.active = true
+    else if m.prompt.visible
+        m.prompt.active = true
+    end if
 end sub
+
+' The card's last line while the credits run: when the next title will start by itself, if it will.
+function offerWhen(left as float) as string
+    if pref("playback.autoplayNext") <> true then return ""
+    return "Starts in " + clockText(left + pref("playback.upNextCountdownMs") / 1000)
+end function
 
 sub onPrompt(event as object)
     which = event.getData()
-    if which = "next"
+    if which = "next" or which = "still"
         advance("next")
         return
     else if which = "credits"
         ' Watch credits: the card goes away for this title
         m.dismissed["next"] = true
-        m.upNext.visible = false
+        stopCard()
         m.promptKey = ""
         m.top.setFocus(true)
         return
     end if
     marker = activeMarker(m.video.position)
     if marker = invalid then return
+    m.top.setFocus(true)
+    skipTo(marker)
+    lower()
+end sub
+
+' --- the profile's playback settings --------------------------------------------------------
+
+' What the server's settings are until the profile's own arrive (GET /v1/preferences, the same
+' values the other apps and the Settings screen read).
+function playbackDefaults() as object
+    return {"playback.autoplayNext": true, "playback.upNextCountdownMs": 10000, "playback.startNextDuringCredits": false, "playback.passoutProtection": true, "playback.passoutAfterEpisodes": 3, "playback.introSkip": "ask", "playback.creditsSkip": "ask", "playback.recapSkip": "ask", "playback.skipBackMs": 10000, "playback.skipForwardMs": 30000}
+end function
+
+function pref(key as string) as dynamic
+    if m.prefs <> invalid and m.prefs[key] <> invalid then return m.prefs[key]
+    return playbackDefaults()[key]
+end function
+
+sub onPrefs(event as object)
+    result = event.getData()
+    if result.ok and result.data.effective <> invalid then m.prefs = result.data.effective
+    m.backSeconds = int(pref("playback.skipBackMs") / 1000)
+    m.forwardSeconds = int(pref("playback.skipForwardMs") / 1000)
+    followQueue()
+end sub
+
+' Ask each time, skip automatically, or never, for a kind of segment.
+function skipMode(kind as string) as string
+    if kind = "intro" then return pref("playback.introSkip")
+    if kind = "recap" then return pref("playback.recapSkip")
+    if kind = "credits" or kind = "outro" then return pref("playback.creditsSkip")
+    return "ask"
+end function
+
+' "Still watching?" is due when this many titles have played to their end in a row untouched.
+function passoutDue() as boolean
+    if m.queue = invalid or m.queue.automaticAdvances = invalid or pref("playback.passoutProtection") <> true then return false
+    return m.queue.automaticAdvances >= pref("playback.passoutAfterEpisodes")
+end function
+
+' --- an automatic skip, and its Undo -------------------------------------------------------
+
+sub skipTo(marker as object)
     m.dismissed[marker.id] = true
     ' an intro or recap lands a second before it ends; closing credits land exactly where they end
     target = marker.endMs / 1000
@@ -835,10 +918,78 @@ sub onPrompt(event as object)
     if target < marker.startMs / 1000 then target = marker.startMs / 1000
     m.prompt.visible = false
     m.promptKey = ""
-    m.top.setFocus(true)
     m.pending = target
     applySeek()
+end sub
+
+' Skipped by itself (the viewer chose Skip automatically and the server is sure of the segment):
+' says so for six seconds with Undo, which goes back to where the segment began.
+sub autoSkip(marker as object)
+    skipTo(marker)
+    m.controls.visible = false
+    m.undoMarker = marker
+    words = {intro: "Skipped intro", recap: "Skipped recap", credits: "Skipped credits", outro: "Skipped outro"}
+    label = m.top.findNode("undoText")
+    label.text = words[marker.type]
+    if label.text = "" then label.text = "Skipped"
+    width = label.boundingRect().width
+    m.top.findNode("undoTrack").width = width
+    m.undoRow.buttons = [{id: "undo", text: "Undo", icon: "restart"}]
+    m.undoRow.translation = [70 + width + 28, 16]
+    plateWidth = 70 + width + 28 + m.undoRow.boundingRect().width + 16
+    m.top.findNode("undoPlate").width = plateWidth
+    m.top.findNode("undoShrink").keyValue = [width * 1.0, 0.0]
+    m.undo.translation = [m.f.right - plateWidth, m.f.promptBottom - 104]
+    m.undo.visible = true
+    m.top.findNode("undoRun").control = "start"
+    focusPrompt()
+end sub
+
+sub onUndoRun(event as object)
+    if event.getData() <> "stopped" then return
+    m.undo.visible = false
+    if m.undoRow.isInFocusChain() then m.top.setFocus(true)
+end sub
+
+sub onUndo()
+    m.top.findNode("undoRun").control = "stop"
+    m.undo.visible = false
+    m.top.setFocus(true)
+    if m.undoMarker = invalid then return
+    m.pending = m.undoMarker.startMs / 1000
+    m.undoMarker = invalid
+    applySeek()
     lower()
+end sub
+
+' --- the wait before the next title --------------------------------------------------------
+
+sub onCount()
+    m.countLeft = m.countLeft - 1
+    if m.countLeft <= 0
+        m.top.findNode("count").control = "stop"
+        m.counting = false
+        advance("completion")
+        return
+    end if
+    m.top.findNode("unWhen").text = "Playing in " + m.countLeft.toStr() + "s"
+end sub
+
+' Puts the Up next card away, and any count it was running.
+sub stopCard()
+    m.top.findNode("count").control = "stop"
+    m.counting = false
+    m.cardMode = ""
+    m.upNext.visible = false
+end sub
+
+sub countDown(seconds as integer)
+    m.countLeft = seconds
+    m.top.findNode("unWhen").text = "Playing in " + seconds.toStr() + "s"
+    count = m.top.findNode("count")
+    count.control = "stop"
+    count.control = "start"
+    m.counting = true
 end sub
 
 ' --- the queue: Previous, Next, Up next and the end of a title ------------------------------
@@ -921,6 +1072,10 @@ sub fresh()
 end sub
 
 sub hideAll()
+    m.top.findNode("count").control = "stop"
+    m.counting = false
+    m.cardMode = ""
+    m.undo.visible = false
     m.controls.visible = false
     m.prompt.visible = false
     m.upNext.visible = false
@@ -929,8 +1084,15 @@ sub hideAll()
 end sub
 
 ' The Up next card for the entry after this one, with Play now first.
-sub showUpNext(marker as dynamic)
+' mode: "offer" during the credits; at the end, "count" (playing after the chosen wait), "end"
+' (auto-play off: waits for Play now) or "still" (Still watching?, after the chosen number of episodes).
+sub showUpNext(marker as dynamic, mode as string)
+    m.cardMode = mode
     entry = m.next
+    labels = {offer: "Up next", count: "Up next", end: "Up next", still: "Still watching?"}
+    m.top.findNode("unLabel").text = labels[mode]
+    whens = {offer: "", count: "", end: "Ready when you are", still: "Playback paused after several episodes. Confirm to keep going."}
+    m.top.findNode("unWhen").text = whens[mode]
     still = pick(entry.images, ["thumb", "still", "backdrop"])
     m.top.findNode("unStill").uri = imageUrl(still, 256, 144)
     title = m.top.findNode("unTitle")
@@ -939,14 +1101,16 @@ sub showUpNext(marker as dynamic)
     if entry.durationMs <> invalid then sub_ = (sub_ + "   " + durationText(entry.durationMs)).trim()
     m.top.findNode("unSub").text = sub_
     buttons = [{id: "next", text: "Play now", icon: "play"}]
+    if mode = "still" then buttons = [{id: "still", text: "I’m still watching", icon: "play"}]
     if marker <> invalid and marker.endMs / 1000 < m.duration - 3 then buttons.push({id: "skip", text: "Skip credits", icon: ""})
-    buttons.push({id: "credits", text: "Watch credits", icon: ""})
+    if mode = "offer" then buttons.push({id: "credits", text: "Watch credits", icon: ""})
     m.unRow.buttons = buttons
     ' a title wraps rather than being cut: the lines under it, and the card, grow to fit
     y = 60 + title.boundingRect().height + 4
     m.top.findNode("unSub").translation = [306, y]
-    m.top.findNode("unWhen").translation = [306, y + 36]
-    rowY = y + 36 + 34
+    when = m.top.findNode("unWhen")
+    when.translation = [306, y + 36]
+    rowY = y + 36 + when.boundingRect().height + 14
     if rowY < 200 then rowY = 200
     m.unRow.translation = [26, rowY]
     height = rowY + 72 + 24
@@ -959,7 +1123,21 @@ end sub
 ' The end of the title: the next entry plays; a film with nothing after it gets Finished.
 sub ended()
     if m.next <> invalid
-        advance("completion")
+        m.promptKey = ""
+        m.controls.visible = false
+        if passoutDue()
+            showUpNext(invalid, "still")
+        else if pref("playback.autoplayNext") <> true
+            showUpNext(invalid, "end")
+        else if pref("playback.upNextCountdownMs") <= 0
+            advance("completion")
+            return
+        else
+            showUpNext(invalid, "count")
+            countDown(int(pref("playback.upNextCountdownMs") / 1000))
+        end if
+        m.top.setFocus(true)
+        focusPrompt()
     else if m.top.item.kind = "movie"
         showFinished()
     else
@@ -1122,7 +1300,7 @@ sub paint()
             m.ring.height = across
             m.ring.translation = [spot.x + spot.size / 2 - across / 2, m.f.buttonsY + 44 - across / 2]
             m.ring.visible = true
-            names = {back: "Back 10 seconds", forward: "Forward 30 seconds", play: "Pause", previous: "Previous", next: "Next"}
+            names = {back: "Back " + m.backSeconds.toStr() + " seconds", forward: "Forward " + m.forwardSeconds.toStr() + " seconds", play: "Pause", previous: "Previous", next: "Next"}
             text = names[spot.kind]
             if spot.kind = "play" and paused then text = "Play"
             showLabel(flab, text, spot.x + spot.size / 2, m.f.buttonsY + (88 - spot.size) / 2 - 12)
@@ -1280,10 +1458,10 @@ function onKeyEvent(key as string, press as boolean) as boolean
         togglePause()
         return true
     else if key = "rewind" or key = "replay"
-        nudge(-10)
+        nudge(-m.backSeconds)
         return true
     else if key = "fastforward"
-        nudge(30)
+        nudge(m.forwardSeconds)
         return true
     end if
     if key = "options"
@@ -1302,9 +1480,9 @@ function onKeyEvent(key as string, press as boolean) as boolean
         end if
         kind = m.row[m.focus].kind
         if kind = "back"
-            nudge(-10)
+            nudge(-m.backSeconds)
         else if kind = "forward"
-            nudge(30)
+            nudge(m.forwardSeconds)
         else if kind = "play"
             togglePause()
         else if kind = "previous" or kind = "next"
@@ -1315,9 +1493,9 @@ function onKeyEvent(key as string, press as boolean) as boolean
             return true
         end if
     else if key = "left"
-        if m.focus < 0 then nudge(-10) else if m.focus > 0 then m.focus = m.focus - 1
+        if m.focus < 0 then nudge(-m.backSeconds) else if m.focus > 0 then m.focus = m.focus - 1
     else if key = "right"
-        if m.focus < 0 then nudge(30) else if m.focus < m.row.count() - 1 then m.focus = m.focus + 1
+        if m.focus < 0 then nudge(m.forwardSeconds) else if m.focus < m.row.count() - 1 then m.focus = m.focus + 1
     else if key = "up"
         m.focus = -1
     else if key = "down"

@@ -54,6 +54,18 @@
     <!-- Skip intro, Skip credits: at the lower right, above where the overlay goes, so it never
          moves when the overlay comes up. It takes focus only while the overlay is down. -->
     <ButtonRow id="prompt" visible="false"/>
+    <!-- After an automatic skip (tv-player frame 3, below): what was skipped, for six seconds, and Undo. -->
+    <Group id="undo" visible="false">
+      <Poster id="undoPlate" uri="pkg:/images/round-20.9.png" height="104"/>
+      <Poster id="undoTick" uri="pkg:/images/i-check-28.png" translation="[30,26]" width="28" height="28"/>
+      <Label id="undoText" translation="[70,18]" height="36" vertAlign="center"/>
+      <Rectangle id="undoTrack" translation="[30,70]" height="4"/>
+      <Rectangle id="undoLeft" translation="[30,70]" height="4"/>
+      <ButtonRow id="undoRow"/>
+      <Animation id="undoRun" duration="6" easeFunction="linear">
+        <FloatFieldInterpolator id="undoShrink" key="[0.0, 1.0]" keyValue="[200.0, 0.0]" fieldToInterp="undoLeft.width"/>
+      </Animation>
+    </Group>
     <!-- Up next during the credits (tv-player frame 5): the next title, Play now focused, Watch
          credits beside it puts the card away. In the same place as the skip prompt. -->
     <Group id="upNext" visible="false">
@@ -92,5 +104,7 @@
     <Timer id="settle" duration="0.6"/>
     <Timer id="again" duration="1"/>
     <Timer id="retry" duration="3"/>
+    <!-- Counts down the wait before the next episode, once a second. -->
+    <Timer id="count" duration="1" repeat="true"/>
   </children>
 </component>
