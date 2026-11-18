@@ -62,7 +62,6 @@ func TestDefaultDataFolder(t *testing.T) {
 		{"linux", nil, true, "/config"},
 		{"darwin", nil, false, "/home/a/Library/Application Support/Portico"},
 		{"windows", map[string]string{"LOCALAPPDATA": `C:\Users\a\AppData\Local`}, false, `C:\Users\a\AppData\Local\Portico`},
-		{"windows", map[string]string{"PORTICO_SERVICE": "1", "LOCALAPPDATA": `C:\x`}, false, `C:\ProgramData\Portico`},
 	} {
 		got, err := dataFolder(c.goos, func(name string) string { return c.env[name] }, "/home/a", c.docker)
 		if err != nil || got != c.want {

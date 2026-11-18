@@ -50,12 +50,6 @@ func separateConversions(goos string, env func(string) string, home string, dock
 	}
 	if goos == "windows" {
 		base := env("LOCALAPPDATA")
-		if env("PORTICO_SERVICE") == "1" {
-			base = env("ProgramData")
-			if base == "" {
-				base = `C:\ProgramData`
-			}
-		}
 		if base == "" {
 			return ""
 		}

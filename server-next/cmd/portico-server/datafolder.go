@@ -9,7 +9,7 @@ import (
 
 // defaultData is where the server keeps everything when it was given no data folder: a place
 // that is the same whatever folder it was started in. A service started by launchd starts in
-// "/", and one started by Windows in System32.
+// "/", and one started at sign-in on Windows in System32.
 func defaultData() (string, error) {
 	home, _ := os.UserHomeDir()
 	_, docker := os.Stat("/.dockerenv")
@@ -17,19 +17,15 @@ func defaultData() (string, error) {
 }
 
 // dataFolder is defaultData for a system and environment given to it. The release packages
-// say what they are with PORTICO_CONTAINER=1 and PORTICO_SERVICE=1.
+// say what they are with PORTICO_CONTAINER=1 and, for a Linux service, PORTICO_SERVICE=1.
 func dataFolder(goos string, env func(string) string, home string, docker bool) (string, error) {
 	service := env("PORTICO_SERVICE") == "1"
 	switch {
 	case docker || env("PORTICO_CONTAINER") == "1":
 		return "/config", nil
 	case goos == "windows":
+		// The Windows install runs as the signed-in owner, as a run by hand does: their folder.
 		base := env("LOCALAPPDATA")
-		if service {
-			if base = env("ProgramData"); base == "" {
-				base = `C:\ProgramData`
-			}
-		}
 		if base == "" {
 			return "", errors.New("no data folder was given and LOCALAPPDATA is not set")
 		}
