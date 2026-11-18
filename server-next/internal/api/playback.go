@@ -347,7 +347,8 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 		return PlaybackSession{}, err
 	}
 	if len(req.DiscTitle) > 0 && string(req.DiscTitle) != "null" {
-		return PlaybackSession{}, notYet("disc_playback_unavailable", "This server can't play discs yet.")
+		// A disc plays its main feature (scanning rule 40); no other title of it can be chosen.
+		return PlaybackSession{}, notYet("disc_playback_unavailable", "A disc plays its main feature; another title of it can't be chosen.")
 	}
 	if c := CallerFrom(r.Context()); c.Role == roleCast {
 		in.Moving = s.castMoving(c.SessionID, req.ItemID)
