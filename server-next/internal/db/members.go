@@ -76,6 +76,8 @@ type AccountLimits struct {
 	// What the account may do at all; a profile's own switch can only narrow these. The
 	// Downloads switch is beside the limits on the member.
 	AllowWatchTogether, AllowTokens bool
+	// AllowLiveTV: the account may watch Live TV at all (Live TV and DVR read it).
+	AllowLiveTV bool
 }
 
 const memberColumns = `u.id, u.public_id, u.username, ifnull(u.email, ''), u.role, u.disabled_at IS NOT NULL, u.state, u.created_at,
@@ -84,7 +86,7 @@ const memberColumns = `u.id, u.public_id, u.username, ifnull(u.email, ''), u.rol
 	ifnull((SELECT max(s.last_used_at) FROM sessions s WHERE s.user_id = u.id), 0),
 	(SELECT json_group_array(name) FROM (SELECT p.name FROM profiles p WHERE p.user_id = u.id ORDER BY p.is_primary DESC, p.position, p.id)),
 	u.home_only, u.viewing_hours, u.max_rating_age, u.allow_unrated, u.max_profiles,
-	u.allow_watch_together, u.allow_tokens,
+	u.allow_watch_together, u.allow_tokens, u.allow_live_tv,
 	ifnull((SELECT group_concat(t.public_id, ' ') FROM account_restrictions r JOIN tags t ON t.id = r.tag_id WHERE r.user_id = u.id), ''),
 	u.portico_account_id IS NOT NULL`
 
@@ -97,7 +99,7 @@ func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &m.State, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &m.AllowDownloads, &libraries,
 		&active, &profiles,
 		&l.HomeOnly, &hours, &l.MaxRatingAge, &l.AllowUnrated, &l.MaxProfiles,
-		&l.AllowWatchTogether, &l.AllowTokens, &labels, &m.PorticoAccount)
+		&l.AllowWatchTogether, &l.AllowTokens, &l.AllowLiveTV, &labels, &m.PorticoAccount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNotFound
 	}
@@ -363,9 +365,9 @@ func setAccountLimits(tx *sql.Tx, userID int64, l AccountLimits) error {
 		return err
 	}
 	if _, err := tx.Exec(`UPDATE users SET home_only = ?, viewing_hours = ?, max_rating_age = ?, allow_unrated = ?,
-		max_profiles = ?, allow_watch_together = ?, allow_tokens = ? WHERE id = ?`,
+		max_profiles = ?, allow_watch_together = ?, allow_tokens = ?, allow_live_tv = ? WHERE id = ?`,
 		l.HomeOnly, hours, l.MaxRatingAge, l.AllowUnrated, l.MaxProfiles,
-		l.AllowWatchTogether, l.AllowTokens, userID); err != nil {
+		l.AllowWatchTogether, l.AllowTokens, l.AllowLiveTV, userID); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM account_restrictions WHERE user_id = ?`, userID); err != nil {

@@ -42,7 +42,8 @@ func TestAnInvitationCarriesTheAccountsLimits(t *testing.T) {
 		t.Fatalf("the same invitation accepted at home answered %d %s", w.Code, w.Body)
 	}
 	got := memberNamed(t, s, owner, "kim").Limits
-	if !got.HomeOnly || got.MaxRatingAge == nil || *got.MaxRatingAge != 13 || got.MaxProfiles == nil || *got.MaxProfiles != 2 || !got.AllowTokens {
+	if !got.HomeOnly || got.MaxRatingAge == nil || *got.MaxRatingAge != 13 || got.MaxProfiles == nil || *got.MaxProfiles != 2 || !got.AllowTokens ||
+		!got.AllowLiveTv {
 		t.Fatalf("the account made from the invitation is held to %+v", got)
 	}
 

@@ -103,3 +103,43 @@ func TestProfileRecordingChoiceCannotLiftTheAccount(t *testing.T) {
 		t.Fatalf("booking passed the account ceiling: %d %s", w.Code, w.Body)
 	}
 }
+
+// The owner turns Live TV off for a member's whole account: none of its profiles is offered
+// the guide or a channel, a profile's own switch cannot lift it, and on again it is back. An
+// invitation can carry it off from the account's first sign-in.
+func TestTheAccountsLiveTVSwitch(t *testing.T) {
+	s, owner, _ := recordable(t)
+	max := addMember(t, s, owner, "max", "member")
+	member := signInAs(t, s, "max", testPassword, 7).AccessToken
+	if w := call(t, s, "GET", "/v1/live/channels", member, nil, nil); w.Code != 200 {
+		t.Fatalf("a member reading the guide answered %d", w.Code)
+	}
+	off, on := false, true
+	var edited Member
+	if w := call(t, s, "PATCH", "/v1/admin/members/"+max.ID, owner, MemberEdit{Limits: &MemberLimitsEdit{AllowLiveTv: &off}}, &edited); w.Code != 200 || edited.Limits.AllowLiveTv {
+		t.Fatalf("turning the account's Live TV off answered %d %+v", w.Code, edited.Limits)
+	}
+	member = signInAs(t, s, "max", testPassword, 8).AccessToken // a change of limits ends the account's sign-ins
+	if w := call(t, s, "GET", "/v1/live/channels", member, nil, nil); w.Code != 404 {
+		t.Fatalf("with the account's Live TV off the guide answered %d", w.Code)
+	}
+	var mine Page[Profile]
+	call(t, s, "GET", "/v1/profiles", member, nil, &mine)
+	path := "/v1/profiles/" + mine.Items[0].ID + "/restrictions"
+	if read := get[Restrictions](t, s, member, path); read.AccountAllowLiveTV {
+		t.Fatalf("the profile does not say its account is held: %+v", read)
+	}
+	status(t, s, "PUT", path, member, map[string]any{"allowLiveTv": true})
+	if w := call(t, s, "GET", "/v1/live/channels", member, nil, nil); w.Code != 404 {
+		t.Fatalf("a profile's own switch lifted the account's: %d", w.Code)
+	}
+	call(t, s, "PATCH", "/v1/admin/members/"+max.ID, owner, MemberEdit{Limits: &MemberLimitsEdit{AllowLiveTv: &on}}, nil)
+	member = signInAs(t, s, "max", testPassword, 9).AccessToken
+	if w := call(t, s, "GET", "/v1/live/channels", member, nil, nil); w.Code != 200 {
+		t.Fatalf("on again the guide answered %d", w.Code)
+	}
+	var inv Invitation
+	if w := call(t, s, "POST", "/v1/admin/invitations", owner, InvitationCreate{Limits: &MemberLimitsEdit{AllowLiveTv: &off}}, &inv); w.Code >= 300 || inv.Limits.AllowLiveTv {
+		t.Fatalf("an invitation without Live TV answered %d %+v", w.Code, inv.Limits)
+	}
+}
