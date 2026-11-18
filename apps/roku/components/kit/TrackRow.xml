@@ -1,17 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One song or chapter in a list (the audio player's Up next or a book's chapters): its cover or its
-     number, the title over a second line, the duration on the right. The row in focus has the list
-     focus look (rule 11). -->
+<!-- One song or chapter in a list (the audio player's Up next, an album's tracks, a book's chapters):
+     its cover or its number, the title over a second line, the duration on the right. The row in focus
+     has the list focus look (rule 11). -->
 <component name="TrackRow" extends="Group">
   <interface>
-    <!-- {art, number, title, sub, duration, playing, done, progress}: art is a picture's address;
-         without one the number is drawn in its place. The playing one reads in the accent; a done one
-         (a chapter already heard) is dimmed with a tick for its number; progress (0 to 1) draws how far
-         in it is, a thin line under the title (collections frame 43). -->
+    <!-- {art, number, title, sub, duration, playing, done, progress, menu, meter}: art is a
+         picture's address; without one the number is drawn in its place, or the level meter when `meter`
+         is set (the song playing in an album's list, tv-more frame 6). The playing one reads in the accent;
+         a done one (a chapter already heard) is dimmed with a tick for its number; progress (0 to 1)
+         draws how far in it is, a thin line under the title (collections frame 43); menu draws a
+         "..." at the row's right end that opens its menu. -->
     <field id="model" type="assocarray" onChange="layout"/>
     <field id="rowWidth" type="float" value="360"/>
     <field id="rowHeight" type="float" value="88"/>
     <field id="on" type="boolean" onChange="paint"/>
+    <!-- Focus is on the row's "..." (Right from the row reaches it). -->
+    <field id="moreOn" type="boolean" onChange="paint"/>
   </interface>
   <script type="text/brightscript" uri="TrackRow.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
@@ -24,8 +28,11 @@
     <Label id="title"/>
     <Label id="sub"/>
     <Label id="duration" horizAlign="right" width="80"/>
+    <LevelMeter id="meter" visible="false"/>
     <Poster id="tick" uri="pkg:/images/i-check-28.png" width="24" height="24" visible="false"/>
     <Rectangle id="track" height="5" visible="false"/>
     <Rectangle id="bar" height="5" visible="false"/>
+    <Poster id="morePlate" uri="pkg:/images/disc.png" width="48" height="48" visible="false"/>
+    <Poster id="more" uri="pkg:/images/i-more-28.png" width="28" height="28" visible="false"/>
   </children>
 </component>

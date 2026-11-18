@@ -28,6 +28,10 @@ sub layout()
     tick = m.top.findNode("tick")
     tick.visible = (model.done = true and not hasArt)
     if tick.visible then number.visible = false
+    ' the song playing in an album's list: the level meter in its number's place
+    meter = m.top.findNode("meter")
+    meter.visible = (model.meter = true and not hasArt)
+    if meter.visible then number.visible = false
     x = 96
     title = m.top.findNode("title")
     title.text = model.title
@@ -47,6 +51,17 @@ sub layout()
     if sub_.text = "" then title.translation = [x, h / 2 - 16]
     duration.translation = [w - 96, h / 2 - 12]
     tick.translation = [32, h / 2 - 12]
+    meter.translation = [34, h / 2 - 11]
+    ' the "...": the duration moves in beside it
+    hasMenu = (model.menu = true)
+    m.top.findNode("morePlate").visible = hasMenu
+    m.top.findNode("more").visible = hasMenu
+    if hasMenu
+        duration.translation = [w - 160, h / 2 - 12]
+        m.top.findNode("morePlate").translation = [w - 60, h / 2 - 24]
+        m.top.findNode("more").translation = [w - 50, h / 2 - 14]
+        title.width = w - x - 170
+    end if
     ' the chapter under way: how far in it is, a thin line under its title
     track = m.top.findNode("track")
     bar = m.top.findNode("bar")
@@ -76,6 +91,9 @@ sub paint()
     ring.width = w + out * 2
     ring.height = h + out * 2
     ring.visible = on
+    ' the "..." in focus is the pale plate; the row keeps its own plate behind it
+    if m.top.moreOn then m.top.findNode("morePlate").blendColor = c.plateOn else m.top.findNode("morePlate").blendColor = c.glass
+    if m.top.moreOn then m.top.findNode("more").blendColor = c.actionInk else m.top.findNode("more").blendColor = c.text
     ' the playing one reads in the accent, one already heard is dimmed
     model = m.top.model
     title = m.top.findNode("title")

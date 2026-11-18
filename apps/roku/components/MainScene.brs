@@ -245,6 +245,12 @@ end sub
 
 sub onNowPlaying(event as object)
     m.top.findNode("nowPlaying").now = event.getData()
+    ' a page that lists songs marks the one playing
+    if m.screen <> invalid and m.screen.hasField("playingId")
+        id = ""
+        if event.getData().itemId <> invalid then id = event.getData().itemId
+        if m.screen.playingId <> id then m.screen.playingId = id
+    end if
     if m.top.findNode("nowPlaying").visible or event.getData().title = invalid then showCard()
 end sub
 
@@ -296,6 +302,17 @@ end sub
 
 sub onOpenAsk(ask as object)
     kind = ask.item.kind
+    ' a song's menu puts it into what is playing
+    if ask.enqueue <> invalid
+        m.top.findNode("audioPlayer").enqueue = {item: ask.item, placement: ask.enqueue}
+        return
+    end if
+    ' Play on an album or an artist plays it in the audio player
+    if ask.play = true and (kind = "album" or kind = "artist")
+        if ask.queue = invalid then ask.queue = {source: {container: ask.item.id}}
+        playAudio(ask)
+        return
+    end if
     ' a song plays in the audio player
     if kind = "track"
         playAudio(ask)
@@ -321,6 +338,7 @@ sub onOpenAsk(ask as object)
         return
     end if
     page = invalid
+    if kind = "album" or kind = "artist" then page = push("MusicScreen")
     if kind = "list" then page = push("LibraryScreen")     ' Search's See all, a genre's titles
     if kind = "movie" then page = push("TitleScreen")
     if kind = "show" then page = push("ShowScreen")

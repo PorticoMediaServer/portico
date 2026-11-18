@@ -15,6 +15,8 @@
     <field id="now" type="assocarray"/>
     <!-- From the card: "previous", "play", "next" or "stop". -->
     <field id="command" type="string" alwaysNotify="true" onChange="onCommand"/>
+    <!-- From a song's menu: {item, placement} puts the song next or at the end of what is playing. -->
+    <field id="enqueue" type="assocarray" alwaysNotify="true" onChange="onEnqueue"/>
   </interface>
   <script type="text/brightscript" uri="AudioScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>

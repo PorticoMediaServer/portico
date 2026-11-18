@@ -72,6 +72,7 @@ sub send(req as object, retried as boolean)
     end if
     x = newTransfer(origin + req.path)
     if req.public <> true and s <> invalid and s.accessToken <> invalid then x.addHeader("Authorization", "Bearer " + s.accessToken)
+    if req.ifMatch <> invalid and req.ifMatch <> "" then x.addHeader("If-Match", req.ifMatch)
     method = req.method
     body = ""
     if req.body <> invalid then body = formatJson(req.body)
