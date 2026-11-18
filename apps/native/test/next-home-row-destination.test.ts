@@ -40,10 +40,11 @@ test('real row outlet retains its exact controller through a title and cancels o
     const initial = rows.render({})[0], source = initial.props.source;
     assert.ok(source.controller instanceof NativeHomeRowController);
     assert.equal(source.controller.rowId, 'continue');
-    const query = {libraryId: '*', pivot: 'items', query: {variant: 'predicate', field: 'homeRow', operator: 'equals', value: 'continue'}, sort: [{field: 'groupOrder', direction: 'asc'}]};
-    source.controller.wholeGroup = () => query;
+    const homeRow = {id: 'continue'};
+    source.controller.queueSource = () => homeRow;
+    source.controller.getSnapshot = () => ({phase: 'ready'});
     initial.props.onPlay(true);
-    assert.equal(starts.length, 1); assert.strictEqual(starts[0].query, query); assert.equal(starts[0].shuffle, true);
+    assert.equal(starts.length, 1); assert.deepEqual(starts[0].source, {homeRow}); assert.equal(starts[0].shuffle, true);
     assert.equal(starts[0].signal.aborted, false);
     const song = {id: 'song', kind: 'song', title: 'Song', libraryId: 'music', playback: {itemId: 'song'}};
     initial.props.onOpen(song, () => true);
@@ -75,7 +76,7 @@ for (const isTV of [false, true]) test(`${isTV ? 'TV' : 'handheld'} SeeAll kind 
     api: {request() {throw new Error('unexpected eager request');}}};
   const rows = createNativeHomeRows(context, (error: unknown) => {throw error;});
   try {
-    navigation.open({kind: 'home-see-all', destination: {type: 'row', rowId: 'actual-row'}}, authority);
+    navigation.open({kind: 'home-see-all', destination: {type: 'row', rowId: 'recently_added'}}, authority);
     rows.reconcile();
     assert.deepEqual(rows.render({})[0].props.source.controller.kinds.map((kind: {id: string}) => kind.id),
       isTV ? ['movie', 'audiobook'] : ['movie', 'book', 'comic', 'books', 'audiobook']);

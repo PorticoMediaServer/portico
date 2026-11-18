@@ -27,6 +27,7 @@ import {homeBrowseLabel} from './browse-label';
 import {homeSeeAllCardWidth, homeSeeAllQuickOrder} from './see-all-model';
 import {homeCardText} from './model';
 import {NativeHomeRowController} from './row-controller';
+import {hasHomeRowQueue} from '../../../../../packages/client-core/src/home-row-browse';
 import {TVRow} from '../../kit/layout/TVRow';
 import {TopBar, BarSurface} from '../../kit/layout/TopBar';
 
@@ -104,7 +105,7 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
   // The outer boundary owns error/loading presentation; this ready view only narrows its props.
   if (state.phase === 'error' || !state.row || !state.capabilities || !state.sort) return null;
   const row = state.row;
-  const model = browseToolbarModel(state.capabilities, 'movies', state.filters, state.sort, {t: runtime.text.t, locale: runtime.text.locale,
+  const model = browseToolbarModel(state.capabilities, state.capabilities.library.kind || 'movies', state.filters, state.sort, {t: runtime.text.t, locale: runtime.text.locale,
     textEntry: !theme.isTV, scope: 'group', owner: runtime.getSnapshot().account.viewerRole === 'owner'});
   const total = state.counts.find(value => value.id === (state.selectedKind ?? 'all'));
   const title = serverTextLabel(labels, row.titleText, row.title);
@@ -114,6 +115,7 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
   const artwork = row.entries.find(entry => entry.backdropUrl || entry.posterUrl);
   const tv = theme.isTV, phone = !tv && theme.platform === 'phone', gutter = tv ? 200 : theme.gutter, cardScale = (runtime.appearanceCardSizePercent ?? 100) / 100,
     width = homeSeeAllCardWidth(surface, gutter, tv ? 200 : theme.spec.card.width.poster[theme.platform], cardScale, phone);
+  const playable = hasHomeRowQueue(row.id);
   const header = <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)} style={{paddingLeft: gutter, paddingRight: tv ? 96 : theme.gutter, paddingTop: tv ? 64 : top, paddingBottom: tv ? 24 : 16}}>
         {tv ? <Focusable focusId="back" onPress={onBack} accessibilityRole="button" accessibilityLabel={t('next.home.shell.home')} style={{height: tv ? 32 : 28, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start'}}>
           <Icon name="i-left" size={tv ? 22 : 16} color={theme.colors.textTertiary}/><Text style={[nativeType({size: tv ? 22 : 14, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary}]}>{t('next.home.shell.home')}</Text>
@@ -123,12 +125,12 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
         {reason && <Text style={[nativeType({size: tv ? 24 : phone ? 14 : 15, weight: 400, tracking: 0, lineHeight: tv ? 34.8 : phone ? 21 : 22}, theme.textScale), {maxWidth: tv ? 1100 : undefined, color: theme.colors.textSecondary, marginBottom: 24}]}>{reasonParts
           ? reasonParts.map((part, index) => part.titleId ? <Text key={index} style={{color: theme.colors.text, fontWeight: '700'}}>{part.text}</Text> : part.text)
           : serverTextLabel(labels, reason)}</Text>}
-        <View style={{flexDirection: 'row', gap: tv ? 16 : 10}}><Button focusId="play" icon="i-play" size={tv ? 'hero' : undefined} style={phone ? {flex: 1} : undefined} onPress={() => onPlay(false)}>{t('entry.play')}</Button>
-          <Button focusId="shuffle" variant="glass" icon="i-shuffle" size={tv ? 'hero' : undefined} style={phone ? {flex: 1} : undefined} onPress={() => onPlay(true)}>{t('title.shuffle')}</Button></View>
+        {playable && <View style={{flexDirection: 'row', gap: tv ? 16 : 10}}><Button focusId="play" icon="i-play" size={tv ? 'hero' : undefined} style={phone ? {flex: 1} : undefined} onPress={() => onPlay(false)}>{t('entry.play')}</Button>
+          <Button focusId="shuffle" variant="glass" icon="i-shuffle" size={tv ? 'hero' : undefined} style={phone ? {flex: 1} : undefined} onPress={() => onPlay(true)}>{t('title.shuffle')}</Button></View>}
       </View>;
-  const sortControl = <FocusItem focusId="sort"><SortMenu scope={gridId} sorts={model.sorts} value={model.sort} label={value => homeBrowseLabel(value, labels)} onValueChange={controller.setSort} onReshuffle={onReshuffle}/></FocusItem>;
-  const filterControl = <FocusItem focusId="filters"><FiltersButton count={state.filters.length} onPress={onFilters}/></FocusItem>;
-  const kindControls = <>
+  const sortControl = model.sorts.length > 0 && <FocusItem focusId="sort"><SortMenu scope={gridId} sorts={model.sorts} value={model.sort} label={value => homeBrowseLabel(value, labels)} onValueChange={controller.setSort} onReshuffle={onReshuffle}/></FocusItem>;
+  const filterControl = model.groups.length > 0 && <FocusItem focusId="filters"><FiltersButton count={state.filters.length} onPress={onFilters}/></FocusItem>;
+  const kindControls = controller.kinds.length > 0 && <>
     <FocusItem focusId="kind:all"><Chip selected={!state.selectedKind} onPress={() => controller.selectKind(undefined)} count={state.counts.find(value => value.id === 'all')?.total}>{t('search.chip.all')}</Chip></FocusItem>
     {controller.kinds.map(kind => <FocusItem key={kind.id} focusId={`kind:${kind.id}`}><Chip selected={state.selectedKind === kind.id} onPress={() => controller.selectKind(kind.id)} count={state.counts.find(value => value.id === kind.id)?.total}>{kindLabel(kind.id)}</Chip></FocusItem>)}
   </>;
@@ -161,7 +163,7 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
   </View>;
   return <View testID="home-see-all" style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     {artwork && <View pointerEvents="none" style={{position: 'absolute', inset: 0, opacity: .26}}><AmbientArt source={runtime.ambient(artwork.backdropUrl ?? artwork.posterUrl)} treatment="hero" visible={active}/></View>}
-    <FocusRegion id={gridId} entry="play" enabled={active} style={{flex: 1}}>
+    <FocusRegion id={gridId} entry={playable ? 'play' : 'back'} enabled={active} style={{flex: 1}}>
       {(tv || !!data.error) && <>{header}{toolbar}</>}
       {data.error ? <StateView {...runtime.error(data.error, () => controller.collection.ensureRange(0, 0), 'home')} variant="centered"/> :
         <WindowedGrid header={tv ? undefined : header} stickyHeader={tv ? undefined : toolbar}

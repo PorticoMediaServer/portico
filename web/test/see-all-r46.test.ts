@@ -13,14 +13,15 @@ registerHooks({load(url, context, next) {
 }});
 
 const {createSeeAllSpecimen} = await import('../src/dev/entries/see-all.tsx');
-const {validateHomeRow} = await import('@core/home.ts');
-const {parseBrowseCapabilities, parseBrowseResult, parseBrowseCounts, acrossLibraries} = await import('@core/browse.ts');
+const {fetchHomeRow} = await import('@core/home.ts');
+const {readHomeRowCapabilities, homeRowPivot} = await import('@core/home-row-browse.ts');
+const {BrowseController} = await import('../src/screens/browse/controller.ts');
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-test('the public specimen is the drawn recommendation row over the across-libraries titles vocabulary', async () => {
+test('the public specimen describes a plain recommendation row with the drawn title and reason', async () => {
   const specimen = createSeeAllSpecimen();
-  const row = validateHomeRow(await specimen.request(`/v1/home/rows/${specimen.rowId}?limit=1`));
+  const row = await fetchHomeRow(specimen, specimen.rowId, {limit: 1});
   assert.equal(row.id, 'recommended');
   assert.equal(row.title, 'Recommended for you');
   assert.equal(row.titleText?.code, 'home.row.recommended');
@@ -32,66 +33,49 @@ test('the public specimen is the drawn recommendation row over the across-librar
   assert.equal(row.total, 72);
   assert.equal(row.cacheTtlMs, 300_000);
 
-  const capabilities = parseBrowseCapabilities(await specimen.request('/v1/browse-capabilities?pivot=titles'));
-  // A group across libraries names no library, and the scope chips need the library filter.
-  assert.equal(capabilities.library.id, acrossLibraries);
-  assert.equal(capabilities.library.kind, '');
-  assert.equal(capabilities.resolvedPivot?.id, 'titles');
+  const capabilities = await readHomeRowCapabilities(specimen, specimen.rowId, undefined);
   assert.deepEqual(capabilities.resolvedPivot?.supportedViews, ['grid', 'list']);
-  assert.ok(capabilities.fields.some(field => field.id === 'library' && field.operators.includes('in')));
-  assert.ok(capabilities.fields.some(field => field.id === 'homeRow'));
-  assert.equal(capabilities.sorts.find(sort => sort.id === 'groupOrder')?.requiresGroup, true);
-  assert.equal(capabilities.quickFilters.find(quick => quick.id === 'unwatched')?.query.field, 'playState');
-  // An opaque cursor keeps the server's own relative lifetime.
-  assert.equal(capabilities.queryLimits.cursorTtlMs, 1_800_000);
+  assert.deepEqual(capabilities.resolvedPivot?.sorts, []);
+  assert.deepEqual(capabilities.fields, []);
 });
 
-test('the drawn page is the row own order, 72 titles in 49 films, 16 shows and 7 anime', async () => {
+test('the drawn row pages through all 72 titles in its own order', async () => {
   const specimen = createSeeAllSpecimen();
-  const page = parseBrowseResult(await specimen.request('/v1/browse', 'POST', {pivot: 'titles',
-    query: {variant:'predicate',field: 'homeRow', operator: 'equals', value: 'recommended'}, sort: [{field: 'groupOrder', direction: 'asc'}],
-    displayHomeRow: 'recommended', limit: 60, range: {start: 0}}));
-  assert.equal(page.pivot, 'titles');
-  assert.equal(page.pageInfo.total, 72);
-  assert.equal(page.pageInfo.start, 0);
-  assert.equal(page.entries.length, 60);
-  assert.deepEqual(page.entries.slice(0, 19).map(entry => entry.title), [
-    'JUJUTSU KAISEN', 'Toy Story 3', 'My Hero Academia', 'Forrest Gump', 'Spider-Man: Into the Spider-Verse',
-    'One Night Only', 'Drawn Together', 'The Mandalorian', "One Flew Over the Cuckoo's Nest", 'Spirited Away',
-    'The Godfather', 'Toy Story 2', 'Demon Slayer: Kimetsu no Yaiba', 'You+Me - Against the World',
-    'The Godfather Part II', 'Spider-Man: Across the Spider-Verse', 'Practical Magic 2', 'WALL·E', 'Stranger Things']);
-  assert.deepEqual(page.entries.slice(0, 3).map(entry => entry.kind), ['show', 'movie', 'show']);
-  assert.deepEqual(page.entries.slice(0, 3).map(entry => entry.libraryId), ['anime', 'movies', 'anime']);
-
-  const counts = parseBrowseCounts(await specimen.request('/v1/browse/counts', 'POST', {pivot: 'titles', queries: [
-    {id: 'all', query: null},
-    {id: 'movie', query: {variant:'predicate',field: 'library', operator: 'in', value: ['movies']}},
-    {id: 'tv', query: {variant:'predicate',field: 'library', operator: 'in', value: ['tv']}},
-    {id: 'anime', query: {variant:'predicate',field: 'library', operator: 'in', value: ['anime']}},
-  ]}), ['all', 'movie', 'tv', 'anime']);
-  assert.deepEqual(counts.map(count => count.total), [72, 49, 16, 7]);
-});
-
-test('the page answers the screen own filters and sorts through the same canonical documents', async () => {
-  const specimen = createSeeAllSpecimen();
-  const filtered = parseBrowseResult(await specimen.request('/v1/browse', 'POST', {
-    query: {variant:'group',all: [{variant:'predicate',field: 'homeRow', operator: 'equals', value: 'recommended'}, {variant:'predicate',field: 'playState', operator: 'equals', value: 'unplayed'}]},
-    sort: [{field: 'title', direction: 'asc'}], limit: 60, range: {start: 0}}));
-  assert.equal(filtered.pageInfo.total, 72);
-  assert.deepEqual(filtered.entries.slice(0, 3).map(entry => entry.title), ['12 Angry Men', 'Alien', 'Aliens']);
-  // A title sort is the server's answer, so the rail's anchors are absent rather than guessed.
-  assert.deepEqual(filtered.positionIndex, []);
-
-  const watched = parseBrowseResult(await specimen.request('/v1/browse', 'POST', {
-    query: {variant:'predicate',field: 'playState', operator: 'equals', value: 'played'}, sort: [{field: 'groupOrder', direction: 'asc'}], limit: 60, range: {start: 0}}));
-  assert.equal(watched.pageInfo.total, 0);
-  assert.equal(watched.entries.length, 0);
-
-  const second = parseBrowseResult(await specimen.request('/v1/browse', 'POST', {
-    query: null, sort: [{field: 'groupOrder', direction: 'asc'}], limit: 60, range: {start: 60}}));
+  const first = await fetchHomeRow(specimen, specimen.rowId, {limit: 60});
+  assert.equal(first.total, 72);
+  assert.equal(first.entries.length, 60);
+  assert.deepEqual(first.entries.slice(0, 3).map(entry => entry.title), ['JUJUTSU KAISEN', 'Toy Story 3', 'My Hero Academia']);
+  assert.deepEqual(first.entries.slice(0, 3).map(entry => entry.libraryId), ['anime', 'movies', 'anime']);
+  const second = await fetchHomeRow(specimen, specimen.rowId, {cursor: first.nextCursor, limit: 60});
   assert.equal(second.entries.length, 12);
-  assert.equal(second.pageInfo.hasMore, false);
-  assert.equal(specimen.records.filter(event => event.kind === 'browse').length, 3);
+  assert.equal(second.hasMore, false);
+  assert.equal(new Set([...first.entries, ...second.entries].map(entry => entry.id)).size, 72);
+});
+
+test('the web controller sends a Discover row scope and its applied filter to the row and facets', async () => {
+  const requests: URL[] = [];
+  const api = {async request<T>(path: string): Promise<T> {
+    const url = new URL(path, 'http://test');
+    requests.push(url);
+    if (url.pathname === '/v1/libraries/films') return {id: 'films', name: 'Films', kind: 'movies', filters: [{id: 'genre', type: 'tag'}]} as T;
+    if (url.pathname === '/v1/home/rows/recently_added') return {id: 'recently_added', title: 'Recently Added', shape: 'poster', items: [], total: 0} as T;
+    if (url.pathname === '/v1/facets') return {facet: 'genre', values: [{value: 'drama', label: 'Drama', count: 1}]} as T;
+    throw new Error(`unexpected_fixture_request: ${path}`);
+  }};
+  const predicates = [{variant: 'predicate', field: 'genre', operator: 'equals', value: 'drama'}] as const;
+  const controller = new BrowseController(api, {libraryId: 'films', pivot: homeRowPivot, homeRowId: 'recently_added', predicates}, () => true);
+  try {
+    await controller.load();
+    const signal = new AbortController().signal;
+    assert.equal((await controller.count(predicates, signal)).total, 0);
+    assert.equal((await controller.facets('genre', '', predicates, signal)).values[0].label, 'Drama');
+    const facet = requests.find(url => url.pathname === '/v1/facets')!;
+    assert.equal(facet.searchParams.get('homeRow'), 'recently_added');
+    for (const request of requests.filter(url => url.pathname !== '/v1/libraries/films')) {
+      assert.equal(request.searchParams.get('library'), 'films');
+      assert.equal(request.searchParams.get('genre'), 'drama');
+    }
+  } finally {controller.dispose();}
 });
 
 test('the entry loads the registered production row route through genuine providers on the development server only', () => {

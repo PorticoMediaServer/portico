@@ -601,7 +601,12 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {}}).catch(context.effects.reportError);}} />
     : browse ? <LibraryScreen {...bindings}/> : <LibraryDiscoveryScreen menuContext={context} service={resources.service} route={contentRoute} musicMixes={musicMixes} mixesTarget={search.section === 'mixes'} reportError={context.effects.reportError} header={<LibraryIdentity {...header} action={shuffleAll}/>} empty={empty}
       appearance={appearanceBase} preferences={appearance} reducedMotion={appearance.reducedMotion} artwork={context.artwork} env={bindings.env}
-      actions={discoveryActions} nowPlayingAlbumId={nowPlayingAlbumId} onSeeAll={section => {if (!resources.life.current() || resources.service.getSnapshot().phase !== 'ready' || !discoverySections(resources.service.getSnapshot()).includes(section)) return;const target = section.seeAll;if (target) navigate({pivot: target.pivot, query: target.query, sort: target.sort});}}
+      actions={discoveryActions} nowPlayingAlbumId={nowPlayingAlbumId} onSeeAll={section => {
+        const target = section.seeAll;
+        if (!target || !resources.life.current() || resources.service.getSnapshot().phase !== 'ready' || !discoverySections(resources.service.getSnapshot()).includes(section)) return;
+        if ('rowId' in target) void router.navigate({to: '/home/rows/$rowId', params: {rowId: target.rowId}, search: {libraryId: library.id}}).catch(context.effects.reportError);
+        else navigate({pivot: target.pivot, query: target.query, sort: target.sort});
+      }}
       selectionInput={context.identity && (context.identity.viewer.authority === 'local' || context.identity.viewer.authority === 'hosted') ? {context: resources.screen, playback: runtime,
         principal: {serverId: context.identity.viewer.serverId, authority: context.identity.viewer.authority, accountId: context.identity.viewer.accountId, profileId: context.identity.viewer.profileId}} : undefined}/>}
     {saving && <SaveView context={context} definition={saving} onClose={() => setSaving(undefined)}/>}</>;

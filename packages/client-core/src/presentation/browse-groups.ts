@@ -28,7 +28,7 @@ export function groupSort(chosen: BrowseSortSelection | undefined, ownOrder: boo
 }
 
 /** The groups that span libraries. */
-export type AcrossGroup = 'person' | 'cast' | 'crew' | 'list' | 'savedCollection' | 'homeRow' | 'watchlist' | 'favorites' | 'history';
+export type AcrossGroup = 'person' | 'cast' | 'crew' | 'list' | 'savedCollection' | 'watchlist' | 'favorites' | 'history';
 
 /** The condition that names a group across libraries. */
 export function acrossCondition(group: AcrossGroup, value = ''): BrowseNode {
@@ -47,13 +47,13 @@ export function acrossCondition(group: AcrossGroup, value = ''): BrowseNode {
 export const acrossPivot = (group: AcrossGroup): 'titles' | 'items' => (group === 'list' || group === 'history' ? 'items' : 'titles');
 
 /** Whether a group across libraries has an order of its own on the server (a playlist's, a personal collection's, a row's, the history's most recent first). */
-export const acrossOwnOrder = (group: AcrossGroup): boolean => group === 'list' || group === 'savedCollection' || group === 'homeRow' || group === 'history';
+export const acrossOwnOrder = (group: AcrossGroup): boolean => group === 'list' || group === 'savedCollection' || group === 'history';
 
 /**
  * The surface a group is entered through, by the field that names it, for a vocabulary that lists
  * its surfaces. A library's and the across-libraries vocabulary share these names.
  */
-export const groupSurfaces: Readonly<Record<string, string>> = {collection: 'collection-titles', memberOf: 'container-titles', person: 'person-titles', cast: 'cast-titles', crew: 'crew-titles', list: 'list-titles', savedCollection: 'saved-collection-titles', episodeGroup: 'episode-group', homeRow: 'row-titles', search: 'search-results'};
+export const groupSurfaces: Readonly<Record<string, string>> = {collection: 'collection-titles', memberOf: 'container-titles', person: 'person-titles', cast: 'cast-titles', crew: 'crew-titles', list: 'list-titles', savedCollection: 'saved-collection-titles', episodeGroup: 'episode-group', search: 'search-results'};
 
 /** One of a show's episode groups (`all`, `specials`, `unassigned_absolute`, `range:N`) as a condition. */
 export const episodeGroupCondition = (showId: string, group: string): BrowseNode => ({variant: 'predicate', field: 'episodeGroup', operator: 'equals', value: `${showId}/${group}`});
@@ -95,17 +95,4 @@ export type WholeGroupQuery = Readonly<{libraryId: string; pivot: string; query:
  */
 export function episodeGroupQuery(libraryId: string, showId: string, group: string): WholeGroupQuery {
   return Object.freeze({libraryId, pivot: 'episodes', query: Object.freeze({variant: 'group' as const, all: Object.freeze([episodeGroupCondition(showId, group)])}), sort: Object.freeze([Object.freeze({field: groupOrderSort, direction: 'asc' as const})])});
-}
-
-/** Kinds played one at a time: a Home row of these plays them, not the titles that hold them. */
-const playedOneAtATime: ReadonlySet<string> = new Set(['song', 'episode', 'audiobook_file', 'chapter']);
-
-/**
- * A Home row played whole: the server reads the row through Home when Play is pressed (at most
- * its first 500 titles) and plays exactly that, in the row's order, across libraries. A row of
- * songs or episodes plays those; a row of titles plays each title's own list.
- */
-export function homeRowQuery(rowId: string, entryKinds: readonly string[]): WholeGroupQuery {
-  const pivot = entryKinds.some(kind => playedOneAtATime.has(kind)) ? 'items' : 'titles';
-  return Object.freeze({libraryId: '*', pivot, query: Object.freeze({variant: 'group' as const, all: Object.freeze([acrossCondition('homeRow', rowId)])}), sort: Object.freeze([Object.freeze({field: groupOrderSort, direction: 'asc' as const})])});
 }

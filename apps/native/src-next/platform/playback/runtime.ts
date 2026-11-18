@@ -11,7 +11,6 @@ import {PlaybackService, type LocalSession, type PlaybackSession} from '../../..
 import {signInHolds} from './paint-authority';
 import {DetailService, type DetailProjection} from '../../../../../packages/client-core/src/detail';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import type {WholeGroupQuery} from '../../../../../packages/client-core/src/presentation/browse-groups';
 import {encodedRoutePath, routePath} from '../../../../../packages/contracts/src/routes';
 import {SessionsClient} from '../../../../../packages/client-core/src/playback-v1/sessions';
 import {localV1Http} from '../../../../../packages/client-core/src/playback-v1/local-http';
@@ -27,7 +26,7 @@ import {legacyChannel} from '../../../../../packages/client-core/src/guide/legac
 import type {HomeChannel} from '../../../../../packages/client-core/src/home';
 import type {HomeSelectionPlaybackPort, HomeSelectionPlaybackRequest} from '../../../../../packages/client-core/src/home-selection/types';
 import type {SelectionContext} from '../../../../../packages/client-core/src/selection-model/index';
-import {obj, parseDiscTitleRef, parseQueue, parseSession, type DiscTitleRef, type Session, type PlaybackOptions, type QueueHeader} from '../../../../../packages/client-core/src/playback-v1/types';
+import {obj, parseDiscTitleRef, parseQueue, parseSession, type DiscTitleRef, type Session, type PlaybackOptions, type QueueHeader, type Selector} from '../../../../../packages/client-core/src/playback-v1/types';
 import type {PlaybackChoices} from '../../../../../packages/client-core/src/playback-v1/choices';
 import type {SegmentInput} from '../../../../../packages/client-core/src/playback-v1/queue';
 import {qualityOptionRequest, type QualityOption} from '../../../../../packages/client-core/src/playback-v1/quality';
@@ -936,9 +935,9 @@ export class NativePlaybackRuntime {
   /** Play the server-owned whole group, never the screen's loaded preview.
    * The caller supplies its genuine route/member lifetime through adoption. */
   /** O-159: a group or shuffle start is named by its first entry once the queue knows it. */
-  startGroup = (input: Readonly<{query: WholeGroupQuery; shuffle: boolean; signal: AbortSignal; isCurrent: () => boolean}>): Promise<void> =>
+  startGroup = (input: Readonly<{source: Selector; shuffle: boolean; signal: AbortSignal; isCurrent: () => boolean}>): Promise<void> =>
     this.watchedStart({}, () => this.startGroup({...input, ...this.retryLifetime()}), () => this.startGroupNow(input));
-  private startGroupNow = async (input: Readonly<{query: WholeGroupQuery; shuffle: boolean; signal: AbortSignal; isCurrent: () => boolean}>): Promise<void> => {
+  private startGroupNow = async (input: Readonly<{source: Selector; shuffle: boolean; signal: AbortSignal; isCurrent: () => boolean}>): Promise<void> => {
     const admitted = () => !input.signal.aborted && this.currentAuthority() && input.isCurrent();
     if (!admitted()) throw Object.assign(new Error('native_group_retired'), {name: 'AbortError'});
     const epoch = this.beginOperation(), valid = () => this.startOperationCurrent(epoch) && admitted();
@@ -953,7 +952,7 @@ export class NativePlaybackRuntime {
       this.rememberCurrent(); assertCurrent();
       this.entry = undefined; this.subject = undefined; this.options = undefined;
       this.expanded = true; this.expandAtStart = epoch; this.preparing = true;this.startAdmission = true;
-      await this.queue.playSegments([{source: {query: input.query}, ...(input.shuffle ? {order: {mode: 'shuffle' as const}} : {})}], {signal: scoped.signal, isCurrent: valid});
+      await this.queue.playSegments([{source: input.source, ...(input.shuffle ? {order: {mode: 'shuffle' as const}} : {})}], {signal: scoped.signal, isCurrent: valid});
       assertCurrent();
     } catch (error) {
       if (this.startOperationCurrent(epoch) && this.currentAuthority()) {await this.queue.cancel(); this.playback.leave(); this.changed();}

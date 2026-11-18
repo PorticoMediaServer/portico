@@ -9,11 +9,10 @@ function text(value: unknown, max = 256): string | undefined {
   return value;
 }
 export type LibraryScreenSearch = Readonly<{view?: ContentView; entityId?: string; category?: string; pivot?: string; tab?: string; section?: 'mixes'; unmatched?: boolean; query?: BrowseNode; sort?: readonly BrowseSortSelection[]; q?: string}>;
-export type HomeRowScreenSearch = Readonly<{query?: BrowseNode; sort?: readonly BrowseSortSelection[]}>;
-/** A See all page owns only the toolbar's scoped filters and order; its row and
- * vocabulary come from the route's own row, never from the address. */
+export type HomeRowScreenSearch = Readonly<{libraryId?: string; query?: BrowseNode; sort?: readonly BrowseSortSelection[]}>;
 export function parseHomeRowScreenSearch(raw: Record<string, unknown>): HomeRowScreenSearch {
-  return queryAndSort(raw);
+  const libraryId = text(raw.libraryId);
+  return {...queryAndSort(raw), ...(libraryId ? {libraryId} : {})};
 }
 /** A saved or shared view may arrive as one top-level conjunction. The toolbar chips and the
  * empty state name each condition, so the controller keeps those leaves apart; `{all: [...]}`

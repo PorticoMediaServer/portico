@@ -63,14 +63,15 @@ test('expanded Search shelves keep every loaded result and prefetch ten cards be
 test('phone See all composes the drawn header, separate controls and three-column grid from one width', async () => {
   const h = host(), selected: unknown[] = [];
   const row = {id: 'recommended', title: 'Recommended', reason: {text: 'Your actual recommendation reason'}, entries: []};
-  const state = {phase: 'ready', row, capabilities: {}, sort: {field: 'groupOrder'}, filters: [], counts: [{id: 'all', total: 72}]};
+  const state = {phase: 'ready', row, capabilities: {library: {kind: 'movie'}}, sort: {field: 'groupOrder'}, filters: [], counts: [{id: 'all', total: 72}]};
   const controller = {subscribe: () => () => {}, getSnapshot: () => state, rowId: row.id, kinds: [{id: 'movies'}], setSort() {}, setFilters() {}, selectKind: (id: unknown) => selected.push(id), collection: {subscribe: () => () => {}, getSnapshot: () => ({})}};
   const {HomeSeeAll} = await screenModule(new URL('../src-next/screens/home/HomeSeeAll.tsx', import.meta.url), {
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
     './generated-poster': {generatedPoster: () => null},
     react: h.react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', useWindowDimensions: () => ({width: 390, height: 844})},
     '../../../../../packages/i18n/src': {defaultI18n: {has: () => false}},
-    '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => ({sorts: [], sort: {}, quick: [{id: 'unwatched', active: false, query: {}, label: {text: 'Unwatched'}}]})},
+    '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => ({sorts: [], sort: {}, groups: [], quick: [{id: 'unwatched', active: false, query: {}, label: {text: 'Unwatched'}}]})},
+    '../../../../../packages/client-core/src/home-row-browse': await import('../../../packages/client-core/src/home-row-browse'),
     '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_labels: unknown, value: any, fallback: any) => value ?? fallback}, '../../../../../packages/client-core/src/presentation/home-row-reason': {homeRowReasonParts: () => undefined},
     '../../../../../packages/client-core/src/home-selection': {homeEntryCapabilities: () => ({})},
     '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'}, '../../kit/browse': {FiltersButton: 'FiltersButton', QuickToggle: 'QuickToggle', SortMenu: 'SortMenu', ViewToggle: 'ViewToggle'},
