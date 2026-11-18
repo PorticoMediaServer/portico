@@ -9,7 +9,7 @@ import type {ChannelMarkProps} from './types';
 export function ChannelMark({mark, source, size = 34, sized = false, alt, visible = true, style, onStatusChange}: ChannelMarkProps) {
   const theme = useTheme();
   return <View accessible={Boolean(alt)} accessibilityRole={alt ? 'image' : undefined} accessibilityLabel={alt} style={[{width: size, height: size, borderRadius: size * 8 / 34, overflow: 'hidden'}, style, {backgroundColor: channelTint(mark.seed)}]}>
-    <View style={[StyleSheet.absoluteFillObject, {justifyContent: 'center', alignItems: 'center'}]}><Text accessible={false} numberOfLines={1} adjustsFontSizeToFit allowFontScaling={false} style={{fontFamily: fontFamilies[800], fontSize: size * (mark.text.length > 2 ? 0.32 : 0.38), color: theme.colors.text, width: size - 4, textAlign: 'center', letterSpacing: -0.01 * size}}>{mark.text}</Text></View>
+    <View style={[StyleSheet.absoluteFillObject, {justifyContent: 'center', alignItems: 'center'}]}><Text accessible={false} numberOfLines={1} allowFontScaling={false} style={{fontFamily: fontFamilies[800], fontSize: size * (mark.text.length > 2 ? 0.32 : 0.38), color: theme.colors.text, width: size - 4, textAlign: 'center', letterSpacing: -0.01 * size}}>{mark.text}</Text></View>
     {source ? <Artwork source={source} sized={sized} visible={visible} fit="contain" onStatusChange={onStatusChange}/> : null}
   </View>;
 }
