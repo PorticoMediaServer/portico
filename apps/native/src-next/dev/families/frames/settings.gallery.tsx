@@ -269,8 +269,8 @@ function Account() {
   const avatar = useRef<View>(null), [open, setOpen] = useState(false), theme = useTheme(), settled = useSettled();
   useEffect(() => setOpen(settled), [settled]);
   return <OverlaysProvider><Page destination={{kind: 'home'}}><View style={{paddingTop: 60}}><PosterRow title={f('recent')} fresh/><PosterRow title={fx('newOnServer')}/></View></Page>
-    <TopRight><ProfileAvatar ref={avatar} profile={me} unread size={theme.isTV ? 64 : 34} onPress={() => setOpen(true)}/></TopRight>
-    <AccountMenu profile={me} accountLine={f('serverName')} open={open} onOpenChange={setOpen} anchorRef={avatar} viewerRole="owner" profiles={{profiles: others, selectedId: 'demo', onSelect: none, onManage: none}}
+    <TopRight><ProfileAvatar testID="account-avatar" ref={avatar} profile={me} unread size={theme.isTV ? 64 : 34} onPress={() => setOpen(true)}/></TopRight>
+    <AccountMenu testID="account-menu" profile={me} accountLine={f('serverName')} open={open} onOpenChange={setOpen} anchorRef={avatar} viewerRole="owner" profiles={{profiles: others, selectedId: 'demo', onSelect: none, onManage: none}}
       actions={theme.isTV ? accountActions.filter(action => ['server', 'notifications', 'together'].includes(action.id)) : accountActions}
       serverAction={{id: 'server-settings', label: t('next.shell.serverSettings'), icon: 'i-server', onPress: none}}/></OverlaysProvider>;
 }
