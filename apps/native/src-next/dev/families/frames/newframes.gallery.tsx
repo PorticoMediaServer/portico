@@ -326,10 +326,15 @@ function PosterRow({title, subtitle}: {title: string; subtitle?: string}) {
     renderItem={([id, name, line], context) => <PosterCard {...card(context)} title={name} artwork={poster(id)} progress={id === 'the-last-of-us' ? .18 : undefined} caption={[fact('caption', line, 'identity')]} width={width} onNavigate={none}/>}/>;
 }
 const savedTabs = (value: string) => ({value, onValueChange: none, items: (['myList', 'favorites', 'playlists', 'collections', 'savedViews', 'history', 'downloads'] as const).map(name => ({value: name, label: f(name)}))});
-/** My List's Filters bar: the library's own toolbar (Filters, quick chips, the count, sort, grid or list). */
+/** My List's Filters bar: the library's own toolbar (Filters, quick chips, the count, sort, grid or list) with Select, and
+ * the chips tablet 11 draws for a list of what you saved: Unplayed, In progress, Played, Favorites (a My List chip would
+ * filter the page to itself). */
 function SavedToolbar() {
-  const model = useMemo(() => browseToolbarModel(capability, 'movie', [], {field: 'added', direction: 'desc'}, {t: defaultI18n.t, owner: true}), []);
-  return <BrowseToolbar model={model} labels={labels} resultCount={f('titles18Count')} onFilters={none} onQuickChange={none} onSortChange={none} view={{value: 'grid', onValueChange: none}}/>;
+  const model = useMemo(() => {
+    const library = browseToolbarModel(capability, 'movie', [], {field: 'added', direction: 'desc'}, {t: defaultI18n.t, owner: true}), offered = [...library.quick, ...library.filterQuick];
+    return {...library, quick: (['unwatched', 'in-progress', 'watched', 'favorites'] as const).flatMap(id => offered.filter(quick => quick.id === id))};
+  }, []);
+  return <BrowseToolbar model={model} labels={labels} resultCount={f('titles18Count')} onFilters={none} onQuickChange={none} onSortChange={none} onSelect={none} view={{value: 'grid', onValueChange: none}}/>;
 }
 /** My List's own posters in the library frame's grid. A constant, so the grid keeps one collection. */
 const myList = libraryPosters.slice(0, 18);
