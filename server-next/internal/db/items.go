@@ -151,13 +151,6 @@ const (
 	maxPageSize     = 200
 )
 
-// sortSpec is the columns a sort orders by, before the id that makes every position unique.
-// When nullable, rows without a value come last in either direction, as a second run.
-type sortSpec struct {
-	columns  []string
-	nullable bool
-}
-
 // The four sorts a library tab opens in have an index each (library, kind, column, id), so a
 // page of them costs the same anywhere in a library of any size. The others order by a fact
 // with no index: the list is read once and the page picked out of it. See sortFor.
@@ -173,9 +166,9 @@ var sortSpecs = map[string]sortSpec{
 	SortCriticRating:    {columns: []string{"i.critic_rating"}, nullable: true},
 	SortLatest:          {columns: []string{"i.last_child_added_at"}, nullable: true},
 	SortResolution:      {columns: []string{"i.best_width"}, nullable: true},
-	SortUserRating:      {columns: []string{ownState("rating")}, nullable: true},
-	SortLastPlayed:      {columns: []string{ownState("last_played_at")}, nullable: true},
-	SortPlayCount:       {columns: []string{ownState("nullif(play_count, 0)")}, nullable: true},
+	SortUserRating:      {columns: []string{ownState("rating")}, nullable: true, state: "rating IS NOT NULL"},
+	SortLastPlayed:      {columns: []string{ownState("last_played_at")}, nullable: true, state: "last_played_at IS NOT NULL"},
+	SortPlayCount:       {columns: []string{ownState("nullif(play_count, 0)")}, nullable: true, state: "play_count <> 0"},
 }
 
 // seriesOrder is a series' own order, as volumeOrder has it: by volume number, then the
@@ -544,7 +537,7 @@ func listRun(ctx context.Context, tx *sql.Tx, acc access, where *query, spec sor
 		run.add(` AND `, spec.columns[0], ` IS NULL`)
 		columns = []string{"i.id"}
 	} else if spec.nullable {
-		run.add(` AND `, spec.columns[0], ` IS NOT NULL`)
+		run.add(` AND `, spec.columns[0], ` IS NOT NULL`, spec.stateFilter())
 	}
 	direction, compare := "", ">"
 	if q.Desc {
