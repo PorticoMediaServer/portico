@@ -364,6 +364,14 @@ export interface Challenge {
   expiresAt: string;
 }
 
+export interface ChangedPaths {
+  paths: string[];
+}
+
+export interface ChangedScans {
+  folders: number;
+}
+
 export interface CodeCollect {
   deviceSecret: string;
 }
@@ -4855,6 +4863,7 @@ export interface Routes {
   'PATCH /v1/admin/libraries/{id}': {access: 'owner'; request: LibraryEdit; response: AdminLibrary};
   'DELETE /v1/admin/libraries/{id}': {access: 'owner'; request: undefined; response: Job};
   'POST /v1/admin/libraries/{id}/scan': {access: 'owner'; request: ScanRequest; response: Job};
+  'POST /v1/libraries/changed': {access: 'owner'; request: ChangedPaths; response: ChangedScans};
   'DELETE /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: ScanStatus};
   'GET /v1/admin/libraries/{id}/skipped': {access: 'owner'; request: undefined; response: SkippedFilePage};

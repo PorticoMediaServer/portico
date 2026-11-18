@@ -549,7 +549,7 @@ or restore a backup.
 
 | Route | Who | Purpose |
 |---|---|---|
-| `POST /v1/libraries/changed` | A key allowed Libraries; the owner and administrators | Files changed at these paths: the folders are scanned, and a path outside every library is ignored |
+| `POST /v1/libraries/changed` | A key allowed Libraries, or the owner | Files changed at these paths (`{paths: [...]}`, 1 to 1,000): the library folders holding them are scanned; the answer says how many (`{folders}`), and a path outside every library is ignored |
 | `POST /v1/mcp` | A key, while "Assistants" is on | The assistant address. Tools offered: find and read titles, see what is playing, mark watched, scan and report changed files, list unmatched titles, read the guide and recordings, and with Administer read status, storage and recent messages. Nothing that deletes or reconfigures |
 
 The Jellyfin-compatible routes (30 behaviours, their own document, off until the owner turns

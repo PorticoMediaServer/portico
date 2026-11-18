@@ -480,6 +480,7 @@ func (s *Server) libraryRoutes() {
 	Handle(s, "PATCH /v1/admin/libraries/{id}", Owner, s.editLibrary)
 	Handle(s, "DELETE /v1/admin/libraries/{id}", Owner, s.deleteLibrary).Status = http.StatusAccepted
 	Handle(s, "POST /v1/admin/libraries/{id}/scan", Owner, s.startScan).with(ScopeLibrary).Status = http.StatusAccepted
+	Handle(s, "POST /v1/libraries/changed", Owner, s.changedPaths).with(ScopeLibrary)
 	Handle(s, "DELETE /v1/admin/libraries/{id}/scan", Owner, s.cancelScan).with(ScopeLibrary)
 	Handle(s, "GET /v1/admin/libraries/{id}/scan", Owner, s.scanStatus).with(ScopeLibrary)
 	Handle(s, "GET /v1/admin/libraries/{id}/skipped", Owner, s.skippedFiles)

@@ -1225,6 +1225,31 @@
         ],
         "type": "object"
       },
+      "ChangedPaths": {
+        "properties": {
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "paths"
+        ],
+        "type": "object"
+      },
+      "ChangedScans": {
+        "properties": {
+          "folders": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "folders"
+        ],
+        "type": "object"
+      },
       "CodeCollect": {
         "properties": {
           "deviceSecret": {
@@ -27226,6 +27251,49 @@
         "x-access": "withProfile",
         "x-audience": "Integrations",
         "x-scope": "read"
+      }
+    },
+    "/v1/libraries/changed": {
+      "post": {
+        "operationId": "post_v1_libraries_changed",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangedPaths"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangedScans"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/libraries/{id}": {
