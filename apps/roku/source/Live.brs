@@ -219,3 +219,28 @@ end function
 function notRecordedSheet(message as string) as object
     return {title: "This program wasn’t recorded", body: message, rows: [{id: "ok", text: "OK"}]}
 end function
+
+' A reminder shows two minutes before its programme starts on every open app, or when an app opens
+' later while the programme is still on, and never once it has ended (definition 11, rule 62). From
+' the profile's reminders ([{programme, title, channel, starts, ends}]) and those already shown:
+' the one to show now, and how many seconds until the next comes due (-1 for none).
+function reminderDue(reminders as object, now as integer, shown as object) as object
+    out = {due: invalid, wait: -1}
+    for each r in reminders
+        if shown[r.programme] = invalid and now < r.ends
+            if now >= r.starts - 120
+                if out.due = invalid then out.due = r
+            else if out.wait < 0 or r.starts - 120 - now < out.wait
+                out.wait = r.starts - 120 - now
+            end if
+        end if
+    end for
+    return out
+end function
+
+' The note's words: the catalogue's guide.reminder before the start; once it has started (an app
+' opened late) the catalogue has none, so it says it is on now.
+function reminderWords(r as object, now as integer) as string
+    if now < r.starts then return r.title + " starts in 2 minutes on " + r.channel
+    return r.title + " is on now on " + r.channel
+end function

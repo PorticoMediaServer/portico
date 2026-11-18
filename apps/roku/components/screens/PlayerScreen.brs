@@ -153,10 +153,6 @@ sub init()
     m.miniGuide.observeField("dismissed", "closeMiniGuide")
     m.confirm = m.top.findNode("confirm")
     m.confirm.observeField("chosen", "onLiveConfirm")
-    m.top.findNode("noteTimer").observeField("fire", "hideNote")
-    m.top.findNode("recNotePlate").blendColor = c.promptPlate
-    m.top.findNode("recNoteDot").blendColor = c.danger
-    setType(m.top.findNode("recNoteText"), "bodyStrong", c.text)
     m.liveCaptions = false
     m.captionsOn = false
     m.video.observeField("availableSubtitleTracks", "onLiveTracks")
@@ -1526,19 +1522,12 @@ end sub
 
 sub showNote(text as string)
     note = m.top.findNode("recNote")
-    label = m.top.findNode("recNoteText")
-    label.text = text
-    w = 52 + label.boundingRect().width + 24
-    m.top.findNode("recNotePlate").width = w
-    note.translation = [m.f.right - w, m.f.top + 88]
-    note.visible = true
-    timer = m.top.findNode("noteTimer")
-    timer.control = "stop"
-    timer.control = "start"
+    note.text = text
+    note.show = true
 end sub
 
 sub hideNote()
-    m.top.findNode("recNote").visible = false
+    m.top.findNode("recNote").show = false
 end sub
 
 sub onLiveConfirm()

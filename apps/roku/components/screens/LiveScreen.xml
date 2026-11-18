@@ -9,6 +9,8 @@
     <field id="open" type="assocarray" alwaysNotify="true"/>
     <field id="menu" type="assocarray" alwaysNotify="true"/>
     <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+    <!-- The scene says a sheet was closed with Back (Back from Record series returns to the programme's sheet). -->
+    <field id="menuClosed" type="boolean" alwaysNotify="true" onChange="onMenuClosed"/>
   </interface>
   <script type="text/brightscript" uri="LiveScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>

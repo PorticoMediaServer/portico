@@ -220,10 +220,8 @@ sub onMenuChosen(event as object)
     if chosen = "play"
         ' the recording is a title in the Recorded TV library: read it, then play it as any title
         api("GET", "/v1/items/" + rec.itemId, invalid, "onTitle")
-    else if chosen = "cancel"
-        m.confirm.model = {title: "Cancel recording " + rec.title + "?", body: "It won’t be recorded. A series rule, if there is one, stays in place.", verb: "Cancel recording"}
-    else if chosen = "stop"
-        m.confirm.model = {title: "Stop recording " + rec.title + "?", body: "What has been recorded so far is kept.", verb: "Stop recording"}
+    else if chosen = "cancel" or chosen = "stop"
+        m.confirm.model = recordingConfirm(rec.title, rec)
     else if chosen = "delete"
         ' a recording that failed or was skipped takes nothing on disk, and its question names no size
         size = ""
@@ -240,9 +238,8 @@ end sub
 sub onConfirm()
     takeFocus()
     if m.confirm.chosen <> "confirm" then return
-    path = "/v1/dvr/recordings/" + m.sheetRec.id
-    if m.asked = "stop" then path = path + "?action=stop"
-    api("DELETE", path, invalid, "onChanged")
+    ' cancel, stop (a recording now) or delete (a recording made) are the one route (source/Live.brs)
+    api("DELETE", recordingCancelPath(m.sheetRec), invalid, "onChanged")
 end sub
 
 ' The lists as the server has them now; focus stays on the row's place.

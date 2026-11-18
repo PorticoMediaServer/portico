@@ -190,6 +190,9 @@ function frames() as object
             ' heading at `peekY`
             episodesX: 600, episodesY: 248, bandHeadBottom: 648, bandMetaMid: 680, bandTextY: 708,
             bandResumeMid: 848, creditsX: 1264, creditsY: 616, bandHintMid: 878, peekY: 944}
+        ' A short note at the top right (kit/Toast): its right edge and its top line, under the
+        ' player's top row (tv-player frame 11, below).
+        toast: {right: 1824, top: 168}
         ' Watch Together (tv-more frames 11 to 17). The lobby: its card from `cardY` (`cardWidth` x
         ' `cardHeight`, words `cardPad` inside) with its headline on `ledeY`, words on `wordsY` and
         ' buttons on `cardButtonsY`; "Groups you're in" on `groupsHeadY`, its rows from `groupsY`.

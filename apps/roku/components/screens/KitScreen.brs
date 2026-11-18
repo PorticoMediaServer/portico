@@ -66,6 +66,7 @@ function kitPages() as object
         {title: "The level meter that marks what is playing", parts: [{c: "LevelMeter", at: [200, 200], f: {}}]},
         {title: "The now-playing card, at rest", parts: [{c: "NowPlaying", at: [0, 0], f: {now: {title: "A song", artist: "Its artist", art: art, position: 60, duration: 225, paused: false, hasNext: true}}}]},
         {title: "Channel badges (kit/ChannelMark): initials on the name's tint, 56 and 64; a channel with a logo shows the logo", parts: [{c: "ChannelMark", at: [200, 200], f: {channel: {name: "Summit Sports Extra", logo: ""}}}, {c: "ChannelMark", at: [320, 200], f: {size: 64, channel: {name: "Northwind News", logo: ""}}}]},
+        {title: "A note at the top right (kit/Toast): the live player's Recording scheduled, and a reminder coming due", parts: [{c: "Toast", at: [0, 0], f: {text: "Recording scheduled: Cycling: Mountain Stage", dot: true, seconds: 3600, show: true}}]},
         {title: "In a section: error and empty rows (the kit has no loading row: a section waits in its own place)", parts: [
             {c: "StateRow", at: [200, 200], f: {kind: "error", title: "Couldn't load this row", reason: "The server didn't answer.", action: "Try again"}},
             {c: "StateRow", at: [200, 480], f: {kind: "empty", title: "Nothing here yet", reason: "What you add shows here."}}]},
