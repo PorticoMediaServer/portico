@@ -620,7 +620,6 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
       ['console transcode capacity', '/v1/admin/transcode/capacity', () => consoleClient.transcodeCapacity()],
       ['console telemetry', '/v1/admin/telemetry?window=10m', () => consoleClient.telemetry()],
       ['console telemetry now', '/v1/admin/telemetry/now', () => consoleClient.telemetryNow()],
-      ['console attention', '/v1/admin/attention', () => consoleClient.attention()],
       ['console playback history', '/v1/admin/playback/history?period=24h&cursor=&limit=50', () => consoleClient.playbackHistory()],
       ['console feedback reports', '/v1/admin/feedback?cursor=', () => consoleClient.reports(true)],
     ];
@@ -628,6 +627,7 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
       await rec.check('owner', name, 'GET', path, run);
     }
     consoleClient.dispose();
+    rec.skip('console attention', 'the old GET /v1/admin/attention read is gone; the rebuilt Dashboard reads its own attention');
     // The web console's administration documents: app-composed GET paths, client-core parsers.
     async function envelopeRead<T>(name: string, path: string, parse: (raw: unknown) => T): Promise<void> {
       await rec.check('owner', name, 'GET', path, async () => parseEnvelope(await api.request<unknown>(path), serverId, parse).result);
