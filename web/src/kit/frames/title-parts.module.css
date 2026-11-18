@@ -21,10 +21,10 @@
 .tiles > * { width: 100%; }
 .tiles[data-layout=list] { display: flex; flex-direction: column; gap: 12px; }
 .tiles[data-layout=list] .episodeRow > button { display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: auto 1fr; column-gap: 24px; text-align: left; }
-.tiles[data-layout=list] .episodeRow > button > [class*="_art_"] { grid-column: 1; grid-row: 1 / 3; }
-.tiles[data-layout=list] .episodeRow > button > [class*="episodeCopy"] { grid-column: 2; grid-row: 1; margin-top: 0; align-self: end; }
-.tiles[data-layout=list] .episodeRow > button > [class*="description"] { grid-column: 2; grid-row: 2; align-self: start; }
-.episodeRow [class*="episodeTitle"] { font-size: var(--type-wide-title-size); }
+.tiles[data-layout=list] .episodeRow > button > [data-part=art] { grid-column: 1; grid-row: 1 / 3; }
+.tiles[data-layout=list] .episodeRow > button > [data-part=copy] { grid-column: 2; grid-row: 1; margin-top: 0; align-self: end; }
+.tiles[data-layout=list] .episodeRow > button > [data-part=description] { grid-column: 2; grid-row: 2; align-self: start; }
+.episodeRow [data-part=title] { font-size: var(--type-wide-title-size); }
 .episodeRow [data-role="status"] { color: var(--color-accent-strong); font-weight: var(--type-caption-strong-weight); }
 .episodeRow [data-role="supplement"] { color: var(--color-text-secondary); }
 .expanded { grid-column: 1 / -1; margin-top: -28px; }
@@ -32,7 +32,7 @@
 .episodeNav { display: flex; align-items: center; gap: 14px; margin: 0 -8px; padding: 8px; border: 0; border-radius: 12px; background: none; color: inherit; text-align: left; cursor: pointer; }
 .episodeNav:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
 .episodeNav:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 0; }
-.episodeNavArt { position: relative; width: 112px; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; flex: none; background: var(--color-raised); }
+.episodeNavArt { position: relative; width: var(--frame-title-neighbour-art); aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; flex: none; background: var(--color-raised); }
 .episodeNavArt > * { width: 100%; height: 100%; }
 .episodeNavCopy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .episodeNavCopy small { display: flex; align-items: center; gap: 2px; font-size: var(--type-caption-strong-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-tertiary); }
@@ -67,10 +67,10 @@
   .tiles { gap: 24px 12px; }
   .tiles[data-layout=list] { gap: 20px; }
   .tiles[data-layout=list] .episodeRow > button { grid-template-columns: 136px minmax(0, 1fr); column-gap: 14px; }
-  .tiles[data-layout=list] .episodeRow > button > [class*="_art_"] { grid-row: 1; }
-  .tiles[data-layout=list] .episodeRow > button > [class*="episodeCopy"] { align-self: center; }
-  .tiles[data-layout=list] .episodeRow > button > [class*="episodeCopy"] > :first-child { font-size: var(--type-episode-title-size); }
-  .tiles[data-layout=list] .episodeRow > button > [class*="description"] { grid-column: 1 / -1; grid-row: 2; margin-top: 9px; }
+  .tiles[data-layout=list] .episodeRow > button > [data-part=art] { grid-row: 1; }
+  .tiles[data-layout=list] .episodeRow > button > [data-part=copy] { align-self: center; }
+  .tiles[data-layout=list] .episodeRow > button > [data-part=copy] > :first-child { font-size: var(--type-episode-title-size); }
+  .tiles[data-layout=list] .episodeRow > button > [data-part=description] { grid-column: 1 / -1; grid-row: 2; margin-top: 9px; }
   .expanded { margin-top: -24px; }
 }
 /* A phone (phone-detail d2, phone-app ep-bar): the season and its count, Hide watched at the end; the order, Filters and ⋯ wrap onto the row under them. */
@@ -82,9 +82,9 @@
 }
 @media (min-width: 600px) and (max-width: 1023px) {
   .tiles[data-layout=list] .episodeRow > button { grid-template-columns: 210px minmax(0, 1fr); column-gap: 18px; }
-  .tiles[data-layout=list] .episodeRow > button > [class*="_art_"] { grid-row: 1 / 3; }
-  .tiles[data-layout=list] .episodeRow > button > [class*="episodeCopy"] { align-self: end; }
-  .tiles[data-layout=list] .episodeRow > button > [class*="description"] { grid-column: 2; margin-top: 6px; }
+  .tiles[data-layout=list] .episodeRow > button > [data-part=art] { grid-row: 1 / 3; }
+  .tiles[data-layout=list] .episodeRow > button > [data-part=copy] { align-self: end; }
+  .tiles[data-layout=list] .episodeRow > button > [data-part=description] { grid-column: 2; margin-top: 6px; }
 }
 
 /* A block's heading (rule 6 row heading), its count and grey note, and its control at the end. */
@@ -96,7 +96,7 @@
 
 /* The About table: labels in the tertiary grey, values white; links underlined (desktop-detail f3). */
 .about { margin: 0; display: grid; gap: var(--space-px-12); }
-.about > div { display: grid; grid-template-columns: minmax(96px, 140px) minmax(0, 1fr); column-gap: var(--space-sm); }
+.about > div { display: grid; grid-template-columns: var(--frame-title-about-label) minmax(0, 1fr); column-gap: var(--space-sm); }
 .about dt { font-size: var(--type-row-help-size); line-height: var(--type-row-label-line); color: var(--color-text-tertiary); }
 .about dd { margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-label-line); color: var(--color-text); }
 .link { border: 0; padding: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--color-text) 40%, transparent); text-underline-offset: 3px; }
@@ -104,7 +104,7 @@
 .link:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 2px; border-radius: 2px; }
 @media (max-width: 599px) {
   .about { gap: 0; padding: 0 var(--space-px-12); border-radius: var(--frame-card-radius); background: var(--color-raised); }
-  .about > div { padding: var(--space-px-12) 0; grid-template-columns: 104px minmax(0, 1fr); }
+  .about > div { padding: var(--space-px-12) 0; grid-template-columns: var(--frame-title-about-label) minmax(0, 1fr); }
   .about > div + div { border-top: 1px solid var(--color-line); }
   .about dd { font-weight: var(--type-row-label-weight); }
 }
@@ -115,7 +115,7 @@
 .castGroup + .castGroup { padding-top: var(--space-md); border-top: 1px solid var(--color-line); }
 .person { width: 120px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: center; cursor: pointer; }
 .person:disabled { cursor: default; }
-.person > span:first-child { width: 96px; height: 96px; margin-bottom: var(--space-control-gap); }
+.person > span:first-child { width: var(--frame-title-cast-circle); height: var(--frame-title-cast-circle); margin-bottom: var(--space-control-gap); }
 .person b { font-size: var(--type-card-title-size); line-height: var(--type-card-title-line); font-weight: var(--type-card-title-weight); }
 .person small { font-size: var(--type-card-subtitle-size); line-height: var(--type-card-subtitle-line); color: var(--color-text-tertiary); }
 .person:focus-visible { outline: none; }
@@ -135,7 +135,7 @@
 .picker:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 2px; }
 
 /* A numbered row (desktop-detail f8): the large outlined number, the poster, the words, the state and action. */
-.numbered { display: grid; grid-template-columns: 56px 106px minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-sm); padding: var(--space-px-12) 0; }
+.numbered { display: grid; grid-template-columns: var(--frame-title-number) var(--frame-title-numbered-art) minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-sm); padding: var(--space-px-12) 0; }
 .numbered + .numbered { border-top: 1px solid var(--color-line); }
 .number { justify-self: center; font-size: var(--type-lockup-medium-size); line-height: var(--type-lockup-medium-line); font-weight: var(--type-row-label-weight); color: transparent; -webkit-text-stroke: 1.5px color-mix(in srgb, var(--color-text) 30%, transparent); }
 .numberedArt { position: relative; aspect-ratio: 2 / 3; border-radius: 6px; overflow: hidden; background: var(--color-raised); }
@@ -149,7 +149,7 @@
 .numberedEnd > span[data-accent] { color: var(--color-accent-strong); font-weight: var(--type-row-label-weight); }
 @media (max-width: 599px) {
   /* A phone (phone-detail d3 frame 8): the poster, then the words with the state and the action on a line under them. */
-  .numbered { grid-template-columns: 56px minmax(0, 1fr); align-items: start; }
+  .numbered { grid-template-columns: var(--frame-title-number) minmax(0, 1fr); align-items: start; }
   .number { display: none; }
   .numberedArt { grid-row: 1 / 3; }
   .numberedEnd { grid-column: 2; flex-direction: row; align-items: center; justify-content: space-between; margin-top: var(--space-tight); }
@@ -190,7 +190,7 @@
 .display header b { font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-row-label-weight); }
 .display header span { margin-left: auto; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--color-line); font-size: var(--type-row-help-size); color: var(--color-text-secondary); }
 .display > p { margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-secondary); }
-.displayRow { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: var(--space-sm); }
+.displayRow { display: grid; grid-template-columns: var(--frame-title-choice-label) minmax(var(--frame-title-choice-min), 1fr); align-items: center; gap: var(--space-sm); }
 .displayRow > span { font-size: var(--type-row-help-size); font-weight: var(--type-row-label-weight); }
 .readsAs { margin: 0; padding: 12px; border-radius: var(--frame-card-radius); background: var(--color-raised); font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
 .readsAs b { color: var(--color-text); }

@@ -93,11 +93,13 @@ export function TopBar({back, overArtwork = false, title, leadingTitle, center, 
 
 /** The widest the labelled back button draws (styles.back maxWidth). */
 const backRoom = 118;
+/** The round glass control's size (phone-detail's 38 pt circle); a frame that places one reads it from here. */
+export const roundBarSize = 38;
 const styles = StyleSheet.create({
   row: {height: 44, paddingLeft: 12, paddingRight: 10, flexDirection: 'row', alignItems: 'center'},
   back: {height: 38, maxWidth: 118, marginLeft: -4, paddingRight: 6, justifyContent: 'center'},
   backContent: {flexDirection: 'row', alignItems: 'center'},
-  round: {width: 38, height: 38, borderRadius: 19},
+  round: {width: roundBarSize, height: roundBarSize, borderRadius: roundBarSize / 2},
   // Symmetric, so the title stays centred on the screen: clear of the arrow and the trailing actions on both sides.
   centre: {position: 'absolute', left: 56, right: 56, top: 0, height: 44, alignItems: 'center', justifyContent: 'center'},
   trailing: {marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 6},

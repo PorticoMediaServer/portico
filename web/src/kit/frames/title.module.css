@@ -59,9 +59,9 @@
 .title[data-cover] .head { grid-template-rows: auto auto; padding-top: calc(var(--space-px-12) + var(--button-hero-height) + var(--space-sm)); }
 .cover { grid-row: 1; justify-self: center; position: relative; overflow: hidden; border-radius: var(--frame-card-radius); background: var(--color-raised); box-shadow: 0 24px 60px -20px color-mix(in srgb, var(--color-ink) 80%, transparent); }
 .cover > * { position: absolute; inset: 0; width: 100%; height: 100%; }
-.cover[data-shape=square] { width: min(220px, 60vw); aspect-ratio: 1; } /* R5 interim: the phone cover sizes (phone-app 13, phone-detail d3 frame 7) */
-.cover[data-shape=poster] { width: min(180px, 48vw); aspect-ratio: 2 / 3; }
-.cover[data-shape=circle] { width: 104px; aspect-ratio: 1; border-radius: 50%; }
+.cover[data-shape=square] { width: min(var(--frame-title-cover-square), 60vw); aspect-ratio: 1; } /* frameSpec.hero.title.cover, per form */
+.cover[data-shape=poster] { width: min(var(--frame-title-cover-poster), 48vw); aspect-ratio: 2 / 3; }
+.cover[data-shape=circle] { width: var(--frame-title-cover-circle); aspect-ratio: 1; border-radius: 50%; }
 .title[data-cover] .top { grid-row: 1; position: absolute; inset: 0 0 auto; }
 .title[data-cover] .ident { grid-area: auto; grid-row: 2; padding-top: var(--space-sm); padding-bottom: 0; }
 .title[data-cover] .body { grid-row: 3; }
@@ -104,9 +104,6 @@
   .actions > .primary, .actions > .resume { flex: 0 1 300px; } /* R5 interim: the upright tablet's primary (tablet f8, foldable f2 frame 2) */
   .actions { justify-content: center; }
   .synopsis { text-align: center; align-self: center; }
-  .cover[data-shape=square] { width: 280px; }
-  .cover[data-shape=poster] { width: 220px; }
-  .cover[data-shape=circle] { width: 160px; }
   .barRow { display: flex; gap: var(--space-md); min-height: 64px; padding: 0 var(--g); } /* R5 interim: desktop-detail f3's bar */
   .barBack { display: contents; }
   .barTitle { flex: none; text-align: left; padding-right: var(--space-md); border-right: 1px solid var(--color-line); }
@@ -158,19 +155,18 @@
   .barBack { display: none; }
 
   /* A cover page: the cover and the words side by side; a square or poster at the left, a circle at the right. */
-  .title[data-cover] .head { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: none; align-items: center; column-gap: 56px; min-height: 0; padding: var(--frame-title-top) var(--g) 0; } /* R5 interim: desktop-listen's 56 between cover and words */
+  .title[data-cover] .head { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: none; align-items: center; column-gap: var(--frame-title-cover-gap); min-height: 0; padding: var(--frame-title-top) var(--g) 0; }
   .title[data-cover] .cover { grid-row: 1; grid-column: 1; justify-self: start; }
   .title[data-cover] .copy { grid-row: 1; grid-column: 2; padding: 0; }
   .title[data-cover] .ident, .title[data-cover] .body { grid-row: auto; padding: 0; }
   .title[data-cover=circle] .head { grid-template-columns: minmax(0, 1fr) auto; }
   .title[data-cover=circle] .cover { grid-column: 2; }
   .title[data-cover=circle] .copy { grid-column: 1; }
-  .cover[data-shape=square], .cover[data-shape=poster] { width: 340px; } /* R5 interim: desktop-listen album and book */
-  .cover[data-shape=circle] { width: 340px; box-shadow: 0 0 0 32px color-mix(in srgb, var(--color-text) 3%, transparent), 0 0 0 33px color-mix(in srgb, var(--color-text) 8%, transparent), 0 30px 80px -24px color-mix(in srgb, var(--color-ink) 90%, transparent); overflow: visible; }
+  .cover[data-shape=circle] { box-shadow: 0 0 0 32px color-mix(in srgb, var(--color-text) 3%, transparent), 0 0 0 33px color-mix(in srgb, var(--color-text) 8%, transparent), 0 30px 80px -24px color-mix(in srgb, var(--color-ink) 90%, transparent); overflow: visible; }
   .cover[data-shape=circle] > * { border-radius: 50%; overflow: hidden; }
 
   /* The panel and its side (desktop-detail f8, desktop-listen). */
   .content { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 64px; align-items: start; }
-  .content:has(> .aside) { grid-template-columns: minmax(0, 1fr) 360px; padding-right: var(--g); } /* R5 interim: desktop-listen's side column */
+  .content:has(> .aside) { grid-template-columns: minmax(0, 1fr) var(--frame-title-side); padding-right: var(--g); }
   .content:has(> .aside) .aside { padding: 0; }
 }

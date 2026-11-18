@@ -73,6 +73,20 @@ export const frame = {
       creditsGap: 6,
       /** The fixed action row: 18 under the art box on a phone, under the synopsis inside it elsewhere. Its height is the hero button's. */
       actionGap: forms(18, 24, 24, 26),
+      /** R5 interim (family C): a biography with Read more shows this many lines (desktop-detail f7, phone-detail d3). */
+      readMoreLines: 4,
+      /** A cover page's cover, its width per form (a poster is 1.5 times as tall): phone-app 13 and phone-detail d3 frame 7
+       * (220 square, 180 poster, 104 circle), tablet f8, desktop-listen album, artist and book (340). R5 interim. */
+      cover: {square: {...forms(220, 280, 300, 400), web: 340}, poster: {...forms(180, 220, 260, 340), web: 340}, circle: {...forms(104, 160, 300, 280), web: 340}},
+      /** Between a cover and its words, side by side (desktop-listen 56), and the played line's width under them. R5 interim. */
+      coverGap: 56, coverResumeWidth: 320,
+      /** The side column beside the panel (desktop-listen 360). R5 interim. */
+      side: 360,
+      /** The panel's parts (kit `title-parts`), R5 interim: About's label column (desktop-detail f3 140, phone-detail d1
+       * 104); cast circles (phone-detail 64, tablet and web 96, TV 150); Films in order's number column and still
+       * (desktop-detail f8 56 / 106, phone 56, TV 140); Previous / Next's still (desktop-detail f5, 112 wide, 16:9); a
+       * choice row's label and the narrowest its choices go (desktop-detail f4 120 / 200). */
+      parts: {aboutLabel: forms(104, 140, 140, 140), castCircle: forms(64, 96, 96, 150), number: 56, numberedArt: forms(56, 106, 106, 140), neighbourArt: 112, choiceLabel: 120, choiceMin: 200},
     },
     /** A lockup's line box. The mock-ups' one-line lockups are set at .94; at that a title that wraps has its descenders in the next line's capitals, so the frames use 1.04. */
     lockupLine: 1.04, lockupTracking: -.045,
