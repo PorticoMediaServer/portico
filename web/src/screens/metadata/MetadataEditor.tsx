@@ -376,7 +376,7 @@ function History({data, busy, onUndo, onAll}: {data: RepairData; busy: boolean; 
     <h3>{t('web.metadata.recentChanges')}</h3>
     {data.history.length ? data.history.map(row => <div key={row.id} className={styles.historyRow}>
       <div><b>{t('web.metadata.history', {trigger: row.trigger})}</b>{row.observedAt ? <small>{defaultI18n.dateTime(row.observedAt)}</small> : null}</div>
-      <Button size="small" disabled={busy} onClick={() => onUndo(row.id)}>{t('web.metadata.undoToHere')}</Button>
+      <Button size="small" disabled={busy} onClick={() => onUndo(row.id)}>{t('web.metadata.undoThisChange')}</Button>
     </div>) : <p className={styles.working}>{t('web.metadata.noHistory')}</p>}
   </div>;
 }
