@@ -122,6 +122,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
     if key = "right"
         if m.row < 4 and m.col < 2 and not (m.row = 3 and m.col = 1) then m.col = m.col + 1
     else if key = "left"
+        if (m.col = 0 or m.row = 4) and m.top.passLeft then return false     ' on to what lies left of the pad
         if m.row < 4 and m.col > 0 then m.col = m.col - 1
     else if key = "down"
         if m.row < 3 and not (m.row = 2 and m.col = 2) then m.row = m.row + 1 else if (m.row = 3 or (m.row = 2 and m.col = 2)) and hasExtra then m.row = 4

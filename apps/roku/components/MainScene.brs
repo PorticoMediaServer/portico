@@ -176,6 +176,8 @@ sub onSheetChosen(event as object)
         m.sheet.visible = false
         which = event.getData()
         if which = "switch"
+            ' choosing again: the profile this TV remembered is forgotten, and Who's watching shows
+            storeWrite({pinProfile: "", pinToken: ""})
             api("GET", "/v1/profiles", invalid, "onProfiles")
         else if which = "server"
             showServer()
@@ -259,7 +261,7 @@ end sub
 
 sub onSignedOut()
     m.global.appLog = []     ' the app's log goes with the sign-in
-    storeWrite({refreshToken: "", renewalId: "", profileId: ""})
+    storeWrite({refreshToken: "", renewalId: "", profileId: "", pinProfile: "", pinToken: ""})
     m.task.session = {origin: storeRead("origin"), installationId: installationId()}
     showSignIn()
 end sub
@@ -495,6 +497,8 @@ sub onSignedIn(event as object)
     ' the server's id is kept beside its address: no renewal sends the token where it is not (ApiTask.renew)
     m.task.session = {origin: signIn.origin, serverId: signIn.serverId, accessToken: session.accessToken, refreshToken: session.refreshToken, installationId: installationId()}
     storeWrite({origin: signIn.origin, serverId: signIn.serverId, serverName: signIn.serverName, refreshToken: session.refreshToken, renewalId: ""})
+    m.rememberProfiles = (signIn.rememberProfiles = true)
+    storeWrite({pinProfile: "", pinToken: ""})      ' a new sign-in: nothing remembered from an earlier one
     if session.viewer <> invalid and session.viewer.profileId <> invalid
         enter()
     else
@@ -507,6 +511,7 @@ sub showProfiles(profiles as object)
     show("ProfilesScreen")
     m.screen.serverName = storeRead("serverName")
     m.screen.last = storeRead("profileId")
+    m.screen.remember = (m.rememberProfiles = true)
     m.screen.profiles = profiles
     m.screen.observeField("chosen", "onProfileChosen")
     m.screen.active = true
@@ -514,7 +519,11 @@ sub showProfiles(profiles as object)
 end sub
 
 sub onProfileChosen(event as object)
-    chosen = event.getData()
+    useProfile(event.getData())
+end sub
+
+' A profile chosen (on Who's watching, or remembered): its tokens, then Home.
+sub useProfile(chosen as object)
     session = m.task.session
     session.accessToken = chosen.session.accessToken
     if chosen.session.refreshToken <> invalid
@@ -523,12 +532,38 @@ sub onProfileChosen(event as object)
     end if
     m.task.session = session
     storeWrite({profileId: chosen.profile.id})
+    ' a PIN profile remembered on this TV: its token stands in for the PIN while the sign-in lasts
+    if chosen.pinToken <> invalid and chosen.pinToken <> "" then storeWrite({pinProfile: chosen.profile.id, pinToken: chosen.pinToken})
     enter()
 end sub
 
+' Who's watching, or straight into the PIN profile this TV remembers (owner's rule, 18 Nov: a
+' remembered profile is not asked for again while the device stays signed in).
 sub onProfiles(event as object)
     result = event.getData()
-    if result.ok and result.data.items <> invalid then showProfiles(result.data.items) else showSignIn()
+    if not result.ok or result.data.items = invalid
+        showSignIn()
+        return
+    end if
+    m.listedProfiles = result.data.items
+    for each profile in result.data.items
+        if storeRead("pinToken") <> "" and profile.id = storeRead("pinProfile")
+            api("POST", "/v1/profiles/" + profile.id + "/select", {pinToken: storeRead("pinToken")}, "onRemembered", {profile: profile})
+            return
+        end if
+    end for
+    showProfiles(result.data.items)
+end sub
+
+sub onRemembered(event as object)
+    result = event.getData()
+    if result.ok and result.data.accessToken <> invalid
+        useProfile({session: result.data, profile: event.getRoSGNode().ctx.profile})
+        return
+    end if
+    ' the PIN was changed, or the owner now asks every time: forgotten, and Who's watching shows
+    storeWrite({pinProfile: "", pinToken: ""})
+    showProfiles(m.listedProfiles)
 end sub
 
 ' Signed in with a profile: the rail's facts, then Home.
@@ -548,6 +583,7 @@ sub onMe(event as object)
         end if
         return
     end if
+    m.rememberProfiles = (result.data.rememberProfiles = true)
     profile = result.data.profile
     if profile = invalid
         api("GET", "/v1/profiles", invalid, "onProfiles")
