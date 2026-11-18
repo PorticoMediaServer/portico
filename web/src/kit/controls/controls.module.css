@@ -96,6 +96,8 @@
 .chip[data-variant="applied"]:hover:not(:disabled) .removeGlyph {background: color-mix(in srgb, var(--color-text) 14%, transparent); color: var(--color-text);}
 .chip[data-variant="pill"] {height: 34px; padding: 0 12px; margin: 0 3px; border-radius: 17px; gap: 6px; background: color-mix(in srgb, var(--color-text) 10%, transparent); font-size: 13.5px; font-variant-numeric: tabular-nums;}
 .chip[data-variant="pill"]:hover:not(:disabled) {background: color-mix(in srgb, var(--color-text) 20%, transparent);}
+/* At phone width a pill is outlined, as native's (final3-phone-07: the guide's "All channels ⌄"). */
+@media (max-width: 599px) {.chip[data-variant="pill"] {background: transparent; border: 1px solid var(--color-line-strong);} .chip[data-variant="pill"]:hover:not(:disabled) {background: color-mix(in srgb, var(--color-text) 7%, transparent);}}
 .chip[data-phone] {height: 34px; padding: 0 13px; border-radius: 9px; font-size: 13.5px; gap: 6px;}
 .chip[data-phone] .count {font-size: 12px; font-weight: 700;}
 .chip[data-variant="search"] .count {font-size: inherit; font-variant-numeric: tabular-nums;}

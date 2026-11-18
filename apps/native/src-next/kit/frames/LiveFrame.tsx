@@ -46,7 +46,8 @@ export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, l
   const edge = {paddingLeft: frame.gutter, paddingRight: frame.rightGutter};
   const titleRow = back && form === 'phone'
     ? <View style={{paddingTop: insets.top}}><TopBar safeArea={false} back={back} center={<Text accessibilityRole="header" numberOfLines={2} style={[theme.type.barTitle, {color: theme.colors.text, textAlign: 'center'}]}>{title}</Text>}/></View>
-    : <View style={[edge, {paddingTop: Math.max(frame.titleTop, insets.top + frame.headerGap), flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.sm}]}>
+    // A phone's title row holds the title, List | Guide and Recordings on one line (final3-phone-07): its items sit the small gap apart.
+    : <View style={[edge, {paddingTop: Math.max(frame.titleTop, insets.top + frame.headerGap), flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: form === 'phone' ? theme.space.xs : theme.space.sm}]}>
       <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, flexShrink: 1}]}>{title}</Text>
       {form !== 'phone' && switcher}
       <View style={{flex: 1}}/>

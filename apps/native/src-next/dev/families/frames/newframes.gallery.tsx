@@ -12,7 +12,7 @@ import {BrowseToolbar, LibraryMenu, LibrarySwitcher} from '../../../kit/browse';
 import {SongRow} from '../../../kit/browse/Tracks';
 import {BrowseFrame, LiveFrame, SearchFrame, Section, SectionCard, SplitFrame, type FramePane} from '../../../kit/frames';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
-import {AiringRow, ChannelRow, ConflictCard, GuideGrid, RecordingRow, RuleCard, type GuideChannel} from '../../../kit/live';
+import {AiringRow, ChannelRow, ConflictCard, GuideGrid, GuideGroups, GuidePicker, RecordingRow, RuleCard, type GuideChannel} from '../../../kit/live';
 import {Row, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
 import {DownloadRow, StorageMeter} from '../../../kit/saved';
 import {SearchHistory, TopResult} from '../../../kit/search';
@@ -146,16 +146,17 @@ const guide: readonly GuideChannel[] = [
 ];
 const ruler = (['time330', 'time400', 'time430', 'time500', 'time530', 'time600'] as const).map((label, index) => ({at: index * 30, label: f(label)}));
 function Grid() { return <GuideGrid channels={guide} span={210} now={35} ruler={ruler} nowLabel={f('nowTime')} channelLabel={f('channel')} onCell={none}/>; }
-function Groups() {
-  const groups = [['groupAll', 14], ['groupFavorites', 3], ['groupNews', 2], ['groupSports', 2], ['groupMovies', 2], ['groupKids', 1], ['groupDocumentary', 1]] as const;
-  return <>{groups.map(([name, count], index) => <Chip key={name} selected={index === 0} count={count} icon={name === 'groupFavorites' ? 'i-star' : undefined} onPress={none}>{f(name)}</Chip>)}</>;
-}
-// On a phone the source picker is a chip at the head of the groups, their height (phone-guide g1); a button elsewhere.
-function Switcher() { const {phone} = useScale(); return phone ? <Chip trailingIcon="i-chdown" onPress={none}>{f('allChannels')}</Chip> : <Button variant="glass" size="small" trailingIcon="i-chdown" onPress={none}>{f('allChannels')}</Button>; }
+const groups = ([['groupAll', 14], ['groupFavorites', 3], ['groupNews', 2], ['groupSports', 2], ['groupMovies', 2], ['groupKids', 1], ['groupDocumentary', 1]] as const)
+  .map(([name, count]) => ({id: name, label: f(name), count, icon: name === 'groupFavorites' ? 'i-star' as const : undefined}));
+function Groups() { return <GuideGroups groups={groups} value="groupAll" onValueChange={none}/>; }
+// On a phone the source picker is an outlined chip at the head of the groups, their height (phone-guide g1); a button elsewhere.
+function Switcher() { const {phone} = useScale(); return phone ? <Chip variant="pill" trailingIcon="i-chdown" onPress={none}>{f('allChannels')}</Chip> : <Button variant="glass" size="small" trailingIcon="i-chdown" onPress={none}>{f('allChannels')}</Button>; }
 function GuideTools({list = false}: {list?: boolean}) {
   const {phone} = useScale();
+  // A phone's day and sort are the guide's quiet pickers, text on one line (phone-guide g1).
+  if (phone) return <><GuidePicker icon="i-cal" label={f('todayShort')} value={f('guideDate')} onPress={none}/><View style={{flex: 1}}/><GuidePicker label={f('sortByNumber')} onPress={none}/></>;
   return <>
-    <Button variant="glass" size="small" icon="i-cal" trailingIcon="i-chdown" onPress={none}>{f(phone ? 'todayShort' : 'today')}</Button>
+    <Button variant="glass" size="small" icon="i-cal" trailingIcon="i-chdown" onPress={none}>{f('today')}</Button>
     {!phone && !list && <><Button variant="glass" size="small" icon="i-left" onPress={none}>{f('back2h')}</Button><Button variant="glass" size="small" onPress={none}>{f('now')}</Button><Button variant="glass" size="small" trailingIcon="i-right" onPress={none}>{f('ahead2h')}</Button></>}
     <View style={{flex: 1}}/>
     <Button variant="text" size="small" trailingIcon="i-chdown" onPress={none}>{f('sortByNumber')}</Button>
@@ -163,10 +164,11 @@ function GuideTools({list = false}: {list?: boolean}) {
 }
 /** The title row's buttons: a phone's List | Guide and Recordings; a tablet's Grid | List; TV's Today, Now and Recordings. */
 function LiveActions({list = false}: {list?: boolean}) {
-  const {phone, tv} = useScale();
+  const {phone, tv, theme} = useScale();
   if (tv) return <><Button variant="glass" size="small" trailingIcon="i-chdown" onPress={none}>{f('todayShort')}</Button><Button variant="glass" size="small" onPress={none}>{f('now')}</Button><Button variant="glass" size="small" icon="i-rec" onPress={none}>{f('tabRecordings')}</Button></>;
-  const view = <Segmented variant="glass" value={list ? 'list' : 'grid'} onValueChange={none} items={[{value: 'list', label: f('list')}, {value: 'grid', label: f(phone ? 'guide' : 'grid')}]}/>;
-  return phone ? <>{view}<Button variant="icon" size="small" icon="i-rec" iconOnly accessibilityLabel={f('tabRecordings')} onPress={none}/></> : view;
+  const view = <Segmented variant="glass" value={list ? 'list' : 'grid'} onValueChange={none} items={[{value: 'list', label: f('list'), icon: 'i-list'}, {value: 'grid', label: f(phone ? 'guide' : 'grid'), icon: 'i-grid'}]}/>;
+  // A phone's Recordings is a bare glyph in the title row, as a bar's actions are.
+  return phone ? <>{view}<Button variant="text" icon="i-rec-ring" iconColor={theme.colors.text} iconOnly accessibilityLabel={f('tabRecordings')} onPress={none}/></> : view;
 }
 function LiveTabs({value}: {value: 'guide' | 'recordings'}) {
   const {phone, tv} = useScale();
