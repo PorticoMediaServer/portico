@@ -8,7 +8,7 @@ import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
 import {Button, Select, Switch, Tabs, TextField} from '../../kit/controls';
 import {Segmented} from '../../kit/controls/Choices';
 import {PageStateFrame, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, StateRow} from '../../kit/frames';
-import {MenuGroup, MenuItem, MenuSeparator, Popover} from '../../kit/overlays';
+import {MenuGroup, MenuItem, MenuSeparator, Popover, ToastHost} from '../../kit/overlays';
 import {useFrameForm} from '../../kit/overlays';
 import {LocalServerSignIn, PorticoServerSignIn, ServerProfilePIN, ServerProfiles} from '../../kit/accounts';
 import {ServerChallenge, TwoStepCode, twoStepReady} from '../../kit/accounts/ServerChallenge';
@@ -243,6 +243,15 @@ function Notifications() {
     <Popover open onOpenChange={none} anchorRef={bell} title={f('notifications')} placement="bottom-end" width={452}><NotificationList /></Popover></OverPage>;
 }
 
+/** R12's three toast shapes over a real page (packages/design `toastCards`, `toastPill`): with Undo, the form's card
+ * (desktop-browse; phone-player); a confirmation with no action, the top pill (desktop-listen); in the player, the card at
+ * the start (desktop-player). Held for ten minutes so a look finds it. */
+function ToastShape({shape}: {shape: 'card' | 'pill' | 'player'}) {
+  const message = shape === 'pill' ? t('next.overlays.native.addedToMyList') : t('next.overlays.removedMyList');
+  return <OverPage><ToastHost placement={shape === 'player' ? 'player' : undefined} onDismiss={none}
+    toast={{id: shape, message, durationMs: 600_000, ...(shape === 'pill' ? {icon: 'i-check' as const, tone: 'success' as const} : {action: {label: t('next.overlays.undo'), onAction: none}})}} /></OverPage>;
+}
+
 /** Frame 9 in full (states 3, 4a, 4c): retry countdown, what still works, the buttons, Details open for the owner, help. */
 function CantReach() {
   const art = useReferenceArtwork(), [open, setOpen] = useState(true);
@@ -271,5 +280,6 @@ export default defineGalleryFamily({id: 'frames-settings', labelKey: 'next.platf
   section('sign-in-server', 'signIn', SignInServer), section('sign-in-locked', 'signIn', SignInLocked), section('sign-in-code', 'signIn', SignInCode), section('sign-in-portico', 'signIn', SignInPortico),
   section('whos-watching', 'signIn', WhosWatching), section('profile-pin', 'signIn', ProfilePIN),
   section('account-menu', 'sheet', Account), section('notifications', 'sheet', Notifications),
+  section('toast-card', 'sheet', () => <ToastShape shape="card" />), section('toast-pill', 'sheet', () => <ToastShape shape="pill" />), section('toast-player', 'sheet', () => <ToastShape shape="player" />),
   section('state-cant-reach', 'state', CantReach), section('state-not-found', 'state', NotFound), section('state-went-wrong', 'state', WentWrong), section('state-playback-failed', 'state', PlaybackFailed),
 ]});

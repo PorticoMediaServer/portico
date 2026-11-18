@@ -3,6 +3,7 @@ import {AccessibilityInfo, AppState, StyleSheet, Text, View} from 'react-native'
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {cancelAnimation, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {toastCards, toastPill} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {Button} from '../controls/Button';
@@ -45,18 +46,23 @@ export function Toast({id, message, accessibilityLabel, icon, leading, action, a
     }
   }).onFinalize(() => {runOnJS(pause)(false, 'gesture');});
   const drag = useAnimatedStyle(() => ({opacity: opacity.value, transform: [{translateX: x.value}, {translateY: y.value}]}));
-  return <GestureDetector gesture={pan}><Animated.View testID={testID} accessible focusable={false} accessibilityLabel={accessibilityLabel ?? (typeof message === 'string' ? message : undefined)} accessibilityLiveRegion="polite" style={[{flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: theme.isTV ? 20 : 14, overflow: 'hidden', padding: theme.isTV ? 20 : 10, paddingLeft: theme.isTV ? 28 : 18, backgroundColor: alpha(theme.colors.raisedBright, 0.95), borderColor: alpha(theme.colors.text, 0.1), borderWidth: 1, maxWidth: theme.isTV ? 900 : 560}, drag]}
+  // R12 (packages/design `toastCards`): with an action, the form's card; a confirmation with none, the top pill. TV keeps its own.
+  const acts = Boolean(action && (!theme.isTV || actionOnTV)), card = toastCards[theme.form], pill = card !== null && !acts;
+  const shape = card === null ? {gap: 14, borderRadius: 20, padding: 20, paddingLeft: 28, maxWidth: 900}
+    : pill ? {gap: 8, borderRadius: toastPill.radius, minHeight: toastPill.height, paddingHorizontal: toastPill.paddingX, maxWidth: 560}
+    : {gap: card.gap, borderRadius: card.radius, paddingTop: card.padding[0], paddingRight: card.padding[1], paddingBottom: card.padding[2], paddingLeft: card.padding[3], maxWidth: card.inset === null ? 560 : undefined};
+  return <GestureDetector gesture={pan}><Animated.View testID={testID} accessible focusable={false} accessibilityLabel={accessibilityLabel ?? (typeof message === 'string' ? message : undefined)} accessibilityLiveRegion="polite" style={[{flexDirection: 'row', alignItems: 'center', overflow: 'hidden', backgroundColor: alpha(theme.colors.raisedBright, 0.95), borderColor: alpha(theme.colors.text, 0.1), borderWidth: 1}, shape, drag]}
     onTouchStart={() => pause(true, 'touch')} onTouchEnd={() => pause(false, 'touch')} onTouchCancel={() => pause(false, 'touch')}
     accessibilityActions={[{name: 'dismiss', label: defaultI18n.t('next.overlays.native.dismissToast')}, ...(action && (!theme.isTV || actionOnTV) ? [{name: 'activate', label: action.label}] : [])]}
     onAccessibilityAction={event => {if (event.nativeEvent.actionName === 'activate' && action) {action.onPress(); onDismiss(id, 'action');} else if (event.nativeEvent.actionName === 'dismiss') onDismiss(id, 'accessibility');}}>
     {recipe.nativeBlur && <BlurView pointerEvents="none" style={StyleSheet.absoluteFill} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={theme.colors.raisedBright}/>}
     {leading}{icon && <Icon name={icon} size={theme.isTV ? 28 : 20} color={theme.colors.accentStrong}/>}
-    <Text accessibilityLabel={accessibilityLabel} numberOfLines={theme.isTV ? 1 : 2} style={[theme.isTV ? theme.type.body : nativeType({size: 14.5, lineHeight: 'normal', weight: 400, tracking: 0}, theme.textScale), {color: theme.colors.textSecondary, flexShrink: 1}]}>{message}</Text>
-    {action && (!theme.isTV || actionOnTV) && <Button variant="glass" size="small" onFocus={() => pause(true, 'focus')} onBlur={() => pause(false, 'focus')} onPress={() => {action.onPress(); onDismiss(id, 'action');}}>{action.label}</Button>}
+    <Text accessibilityLabel={accessibilityLabel} numberOfLines={theme.isTV ? 1 : 2} style={[theme.isTV ? theme.type.body : nativeType({size: 14.5, lineHeight: 'normal', weight: 400, tracking: 0}, theme.textScale), {color: theme.colors.textSecondary, flexShrink: 1, flexGrow: card?.inset != null ? 1 : 0}]}>{message}</Text>
+    {acts && action && <Button variant={card?.action === 'text' ? 'text' : 'glass'} size="small" style={card ? {minHeight: card.actionHeight} : undefined} onFocus={() => pause(true, 'focus')} onBlur={() => pause(false, 'focus')} onPress={() => {action.onPress(); onDismiss(id, 'action');}}>{action.label}</Button>}
   </Animated.View></GestureDetector>;
 }
 
-export function ToastHost({toast, onDismiss, bottomOffset = 84, obstructionTop, topOffset = 80, testID}: ToastHostProps) {
+export function ToastHost({toast, onDismiss, bottomOffset = 84, obstructionTop, topOffset = 80, placement, testID}: ToastHostProps) {
   const theme = useTheme();
   const motion = useMotion();
   // Do not spend an Undo deadline before the OS answers the initial AT query.
@@ -116,9 +122,16 @@ export function ToastHost({toast, onDismiss, bottomOffset = 84, obstructionTop, 
     return () => {listener.remove(); clock.dispose();};
   }, [clock]);
   const pause = useCallback((paused: boolean, reason = 'touch') => clock.pause(reason, paused), [clock]);
-  const animation = useAnimatedStyle(() => ({opacity: opacity.value, transform: motion.reduce ? [] : [{translateY: (1 - entry.value) * 24}]}));
+  // R12: the card above the bar or the player's controls (a phone's spans the window less its inset; wider, centred, or
+  // at the start inside the player); the pill at the top centre, entering from above; TV top trailing.
+  const card = toastCards[theme.form], pill = card !== null && !hasAction, start = card?.playerInset != null && placement === 'player', rise = pill ? -24 : 24;
+  const animation = useAnimatedStyle(() => ({opacity: opacity.value, transform: motion.reduce ? [] : [{translateY: (1 - entry.value) * rise}]}));
   if (!displayed) return null;
-  return <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, {zIndex: theme.layers.notice, justifyContent: theme.isTV ? 'flex-start' : 'flex-end', alignItems: theme.isTV ? 'flex-end' : 'center', paddingHorizontal: theme.isTV ? 96 : 16, paddingTop: topOffset + insets.top, paddingBottom: toastClearance({bottomOffset, safeBottom: insets.bottom, obstructionTop})}]}>
+  const place = card === null ? {justifyContent: 'flex-start', alignItems: 'flex-end', paddingHorizontal: 96, paddingTop: topOffset + insets.top} as const
+    : pill ? {justifyContent: 'flex-start', alignItems: 'center', paddingHorizontal: 16, paddingTop: insets.top + toastPill.top} as const
+    : {justifyContent: 'flex-end', alignItems: card.inset !== null ? 'stretch' : start ? 'flex-start' : 'center', paddingHorizontal: card.inset ?? (start ? card.playerInset! : 16),
+      paddingBottom: toastClearance({bottomOffset, safeBottom: insets.bottom, obstructionTop, gap: card.bottom})} as const;
+  return <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, {zIndex: theme.layers.notice}, place]}>
     <Animated.View style={animation}><Toast {...displayed} onDismiss={dismiss} onPauseChange={pause} testID={testID}/></Animated.View>
   </View>;
 }

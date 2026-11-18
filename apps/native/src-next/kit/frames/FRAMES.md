@@ -457,6 +457,27 @@ Kit: `SheetFrame` takes `task` (native `kind: 'task'`), `title`, `subtitle?` (th
 no ring until a key is pressed (web: the document's last input; Android's touch rule is the rules hand's); a menu row
 that does not fit takes a second line.
 
+Round 8 part 2: inside a side panel, a dialog or a popover the frame sets the column (native `FrameColumn`), so the page
+gutter and card inset are zero there (the surface's own padding is the edge); a phone sheet keeps them. On TV a task's own
+action is the last stop of the side sheet, the sheet's width, with the key hints still at the foot; File info on TV takes
+the side sheet's own heading. Every focusable in a TV sheet needs a stable testID (the frame names its Cancel and action
+`<testID>-cancel` / `-action`).
+
+### R12: feedback (toasts) by form
+
+`toastCards` and `toastPill` in `packages/design/src/overlay-forms.ts`, beside R9; the web reads them as `--toast-*`
+(tokens.mjs). A toast with an action is the form's CARD: on a phone the window's width less 8 each side, above the tab bar
+or the player's controls, padding 10/8/10/14, the action a tinted button 36 high (phone-player); wider, centred 36 above
+the edge (or above the bar or the dock), radius 14, padding 14/14/14/22, gap 22, the action an accent text button 36 high
+(desktop-browse); inside the player a wider form stands it 24 in from the start (desktop-player; `placement="player"` on
+`ToastHost`). A confirmation with no action is the PILL, 40 high, radius 20, padding 0 16, at the top centre (under the
+desktop top bar on web; desktop-listen). TV keeps its own toast (top trailing). Kit: native `ToastHost` / `Toast`, web
+`ToastHost` / `Toast`; a screen passes only the message, the action and, in the player, the placement.
+Gallery: web `frames-settings` toast-card, toast-pill, toast-player; native `overlays-toast` (pill), `overlays-toast-action`
+(card), `overlays-toast-player` (tablet). Also new in `frames-settings`: settings-integrations (+ -failed: the switches'
+refused save as rule 9's error row) and overlay-two-step (+ -refused: the two-step code box over the page it guards; web
+kit `TwoStepCode`, shared with the sign-in step).
+
 ### Regions added (`frameRegions` in `packages/design/src/frame-regions.ts`)
 
 - `SettingsListFrame`: `profile?`, `shortcuts?` (phone), and on native `search?` (the frame draws search, profile,

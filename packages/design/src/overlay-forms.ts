@@ -137,3 +137,32 @@ export const overlayForms: Readonly<Record<OverlayTask, Readonly<Record<FrameFor
 export function overlayForm(task: OverlayTask, frameForm: FrameForm): OverlayForm | null {
   return overlayForms[task][frameForm];
 }
+
+/**
+ * R12, feedback by form: where a toast stands and its shape. Drawn from desktop-browse (with Undo: a card centred 36 above
+ * the bottom edge, padding 14/14/14/22, gap 22, the action an accent text button 36 high), desktop-player (the same card
+ * 24 in from the start, above the controls), desktop-listen (a confirmation with no action: a pill 40 high at the top
+ * centre, radius 20, padding 0 16) and phone-player (the card the window's width less 8 each side, above the bar or the
+ * player's controls, padding 10/8/10/14, the action a tinted button 36 high). TV keeps its own toast (`feedback.toast`,
+ * top trailing): `null`.
+ */
+export type ToastCard = Readonly<{
+  radius: number;
+  /** Top, end, bottom, start. */
+  padding: readonly [number, number, number, number];
+  gap: number;
+  /** The card spans the window less this on each side (a phone); `null`: it takes its content's width. */
+  inset: number | null;
+  /** The gap between the card and the bar, the player's controls or the window's edge under it. */
+  bottom: number;
+  /** Inside the player, wider forms: the card stands this far in from the start, not centred. */
+  playerInset: number | null;
+  /** `tinted`: the glass button; `text`: the accent text button. */
+  action: 'tinted' | 'text';
+  actionHeight: number;
+}>;
+export type ToastPill = Readonly<{height: number; radius: number; paddingX: number; top: number}>;
+const phoneCard: ToastCard = {radius: 14, padding: [10, 8, 10, 14], gap: 12, inset: 8, bottom: 12, playerInset: null, action: 'tinted', actionHeight: 36};
+const wideCard: ToastCard = {radius: 14, padding: [14, 14, 14, 22], gap: 22, inset: null, bottom: 36, playerInset: 24, action: 'text', actionHeight: 36};
+export const toastPill: ToastPill = {height: 40, radius: 20, paddingX: 16, top: 22};
+export const toastCards: Readonly<Record<FrameForm, ToastCard | null>> = {phone: phoneCard, medium: wideCard, expanded: wideCard, tv: null};

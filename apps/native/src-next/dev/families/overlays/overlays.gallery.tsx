@@ -114,12 +114,14 @@ function DialogCase() {
     <ToastHost toast={removed ? {id: 'removed', message: t('downloads.removeFromDevice'), action: {label: t('action.undo'), onPress: () => setRemoved(false)}} : null} onDismiss={() => setRemoved(false)}/>
   </Scene>;
 }
-function ToastCase({artwork = false, withAction = false}: {artwork?: boolean; withAction?: boolean}) {
+/** R12's shapes (packages/design `toastCards`): with Undo the form's card, with none the top pill, `player` the card at the
+ * start inside the player on wider forms. Held for a minute so a look can find it. */
+function ToastCase({artwork = false, withAction = false, player = false}: {artwork?: boolean; withAction?: boolean; player?: boolean}) {
   const [artStatus, setArtStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [toast, setToast] = useState<ToastMessage | null>({id: 'added', message: t('next.overlays.native.addedToMyList'), ...(withAction ? {action: {label: t('action.undo'), onPress: () => setToast(null)}} : {})});
+  const [toast, setToast] = useState<ToastMessage | null>({id: 'added', message: t('next.overlays.native.addedToMyList'), durationMs: 60_000, ...(withAction ? {action: {label: t('action.undo'), onPress: () => setToast(null)}} : {})});
   const [saved, setSaved] = useState(true);
   const update = () => {setSaved(value => !value); setToast({id: `saved-${Date.now()}`, message: t(saved ? 'entry.removeFromWatchlist' : 'next.overlays.native.addedToMyList'), action: {label: t('action.undo'), onPress: () => setSaved(saved)}});};
-  return <Scene><View testID={`overlays-toast-art-status-${artStatus}`}/><Button testID="overlays-button-5" variant="glass" onPress={update}>{t(saved ? 'entry.removeFromWatchlist' : 'entry.addToWatchlist')}</Button><ToastHost toast={toast ? {...toast, leading: artwork ? <Artwork source={{uri: 'http://100.120.50.24:8787/assets/pool/movies/dune-part-two.jpg', cacheKey: 'reference:dune-part-two:sharp'}} sized width={28} height={42} style={{borderRadius: 5}} onLoad={() => setArtStatus('ready')} onError={() => setArtStatus('error')} testID="overlays-toast-artwork"/> : undefined} : null} onDismiss={() => setToast(null)} testID="overlays-toast"/></Scene>;
+  return <Scene><View testID={`overlays-toast-art-status-${artStatus}`}/><Button testID="overlays-button-5" variant="glass" onPress={update}>{t(saved ? 'entry.removeFromWatchlist' : 'entry.addToWatchlist')}</Button><ToastHost toast={toast ? {...toast, leading: artwork ? <Artwork source={{uri: 'http://100.120.50.24:8787/assets/pool/movies/dune-part-two.jpg', cacheKey: 'reference:dune-part-two:sharp'}} sized width={28} height={42} style={{borderRadius: 5}} onLoad={() => setArtStatus('ready')} onError={() => setArtStatus('error')} testID="overlays-toast-artwork"/> : undefined} : null} onDismiss={() => setToast(null)} placement={player ? 'player' : undefined} testID="overlays-toast"/></Scene>;
 }
 function BannerCase() {
   const [visible, setVisible] = useState(true);
@@ -128,6 +130,7 @@ function BannerCase() {
 function ModalPopoverCase() {return <PopoverCase modal/>;}
 function FullSheetCase() {return <SheetCase full/>;}
 function ActionToastCase() {return <ToastCase withAction/>;}
+function PlayerToastCase() {return <ToastCase withAction player/>;}
 function ArtToastCase() {return <ToastCase artwork withAction/>;}
 function ReducedMenuCase() {return <ThemeProvider reduceMotion><MemberMenu/></ThemeProvider>;}
 function ReducedSheetCase() {return <ThemeProvider reduceMotion><SheetCase/></ThemeProvider>;}
@@ -145,6 +148,7 @@ const galleries: readonly Gallery[] = [
   {id: 'overlays-toast', title: 'next.overlays.native.toast', render: ToastCase, platforms: ['phone', 'tablet', 'tv']},
   {id: 'overlays-toast-action', title: 'next.overlays.native.toast', render: ActionToastCase, platforms: ['phone', 'tablet', 'tv']},
   {id: 'overlays-toast-artwork', title: 'next.overlays.native.toast', render: ArtToastCase, platforms: ['phone', 'tablet', 'tv']},
+  {id: 'overlays-toast-player', title: 'next.overlays.native.toast', render: PlayerToastCase, platforms: ['tablet']},
   {id: 'overlays-banner', title: 'next.overlays.native.banner', render: BannerCase, platforms: ['phone', 'tablet', 'tv']},
 ];
 export default galleries;
