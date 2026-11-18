@@ -8,6 +8,7 @@
   <script type="text/brightscript" uri="MainScene.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/AppLog.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Settings.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Address.brs"/>

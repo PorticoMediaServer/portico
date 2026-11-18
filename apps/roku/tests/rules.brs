@@ -21,6 +21,22 @@ sub main()
     same("address " + "user@host", addressCandidates("user@host"), [])
     same("address " + "", addressCandidates(""), [])
 
+    ' the app's log holds none of the never-list, whatever a line was given (source/AppLog.brs)
+    never = [["password hunter2", "hunter2"], ["PIN 4821", "4821"], ["two-step code 731942", "731942"], ["recovery code ABCD-EFGH-1234", "ABCD-EFGH"],
+        ["setup code 4821-7731", "4821-7731"], ["pairing K7P2-9QX4", "K7P2-9QX4"], ["move code MV7Q-ABCD-EFGH", "ABCD"], ["invitation ZX81-PQ44", "ZX81-PQ44"],
+        ["join https://getportico.tv/join/abc123", "abc123"], ["sign-in note: the kitchen tablet", "kitchen"], ["key ptk_live_9f8e7d6c5b4a3f2e1d0c9b8a", "9f8e7d6c"],
+        ["sent eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.abcdefghijklmnop", "eyJhbGci"], ["cookie sid=abc", "sid=abc"], ["Authorization: Bearer abc.def", "abc.def"],
+        ["GET https://demo.getportico.tv/v1/items", "demo.getportico"], ["GET /v1/media/gr9a8b7c6d5e4f3a2b1c0d/segment/12.ts", "gr9a8b7c6d"],
+        ["server demo.getportico.tv:32500", "getportico"], ["from 192.168.1.20", "192.168"], ["from fe80::1:2:3", "fe80"], ["art pkg:/images/x.png", "images/x"],
+        ["GET /v1/search?q=breaking bad", "breaking"]]
+    leaks = []
+    for each pair in never
+        if instr(1, appLogClean(pair[0]), pair[1]) > 0 then leaks.push(pair[0] + " -> " + appLogClean(pair[0]))
+    end for
+    if leaks.count() > 0 then print leaks
+    same("app log never-list", [leaks.count(), appLogClean("item itm_7jbe5dt5mnxgrtxv"), appLogClean("PUT /v1/items/itm_7jbe5dt5mnxgrtxv/state answered 409 conflict, request 8f2c")], [0, "item itm_7jbe5dt5mnxgrtxv", "PUT /v1/items/itm_7jbe5dt5mnxgrtxv/state answered 409 conflict, request 8f2c"])
+    same("app log ring", appLogKeep(["aaaa", "bbbb"], "cc", 8), ["bbbb", "cc"])
+
     same("tint " + "Persuasion", [coverTint("Persuasion").toStr()], ["6"])
     same("tint " + "The Lost World", [coverTint("The Lost World").toStr()], ["2"])
     same("tint " + "Little Nemo in Slumberland", [coverTint("Little Nemo in Slumberland").toStr()], ["2"])

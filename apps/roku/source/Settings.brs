@@ -106,7 +106,8 @@ function settingsPages() as object
                 {type: "info", id: "appVersion", label: "App version"},
                 {type: "info", id: "server", label: "Server"},
                 {type: "info", id: "serverVersion", label: "Server version"},
-                {type: "action", id: "licences", label: "Open-source licenses", value: "View licenses", control: "open"}
+                {type: "action", id: "licences", label: "Open-source licenses", value: "View licenses", control: "open"},
+                {type: "action", id: "sendLog", label: "Send app log", help: "Sent to the server owner, without passwords.", control: "open"}
             ]}
         ]}
     ]

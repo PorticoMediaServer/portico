@@ -3,7 +3,7 @@
 # the app's pure rules against what the other Portico apps and a reference QR library answer.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/rules.brs source/Address.brs source/Present.brs source/Qr.brs source/Capabilities.brs source/Settings.brs source/Mdns.brs source/Server.brs 2>&1) || true
+out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/rules.brs source/Address.brs source/Present.brs source/Qr.brs source/Capabilities.brs source/Settings.brs source/Mdns.brs source/Server.brs source/AppLog.brs 2>&1) || true
 echo "$out" | tail -20
 echo "$out" | grep -q '^PASSED [0-9]* FAILED 0$'
 # The renewal's server check (security finding F9): the refresh token goes only to the server whose id

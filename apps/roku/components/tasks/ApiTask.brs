@@ -116,6 +116,13 @@ sub finish(msg as object)
 end sub
 
 sub answer(req as object, result as object)
+    if not result.ok
+        ' the app's log: the route, the status, the server's error code and its request id
+        said = req.method + " " + req.path + " answered " + result.status.toStr()
+        if result.error <> invalid and result.error.code <> invalid then said = said + " " + result.error.code
+        if result.error <> invalid and result.error.requestId <> invalid then said = said + ", request " + result.error.requestId
+        logApp("warn", "network", said)
+    end if
     if req.reply <> invalid then req.reply.result = result
 end sub
 

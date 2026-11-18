@@ -8,6 +8,10 @@ sub init()
     m.task = createObject("roSGNode", "ApiTask")
     m.global.addFields({api: m.task, origin: "", pageShownAgain: 0})
     m.task.observeField("signInEnded", "onSignInEnded")
+    ' the app's own log, a ring of recent lines (source/AppLog.brs)
+    m.global.addFields({appLog: []})
+    info = createObject("roDeviceInfo")
+    logApp("info", "app", "Portico " + createObject("roAppInfo").getVersion() + " on Roku OS " + info.getOSVersion().major + "." + info.getOSVersion().minor + ", " + info.getModel())
     m.task.control = "run"
     ' Roku's own dialogs (the keyboard) wear Portico's colours.
     palette = createObject("roSGNode", "RSGPalette")
@@ -85,6 +89,7 @@ end sub
 
 ' One screen at a time fills the page; the rail shows only once someone is signed in with a profile.
 sub show(component as string)
+    logApp("info", "screen", component)
     m.sheet.visible = false     ' a menu belongs to the page that opened it, and goes with it
     m.screens.removeChildrenIndex(m.screens.getChildCount(), 0)
     m.screen = m.screens.createChild(component)
@@ -96,6 +101,7 @@ end sub
 
 ' Open a page over the one showing; Back returns to it exactly as it was left.
 function push(component as string) as object
+    logApp("info", "screen", component)
     m.screen.visible = false
     if m.screen.hasField("covered") then m.screen.covered = true
     m.screen = m.screens.createChild(component)
@@ -223,6 +229,7 @@ sub onSignOutAnswer()
 end sub
 
 sub onSignedOut()
+    m.global.appLog = []     ' the app's log goes with the sign-in
     storeWrite({refreshToken: "", renewalId: "", profileId: ""})
     m.task.session = {origin: storeRead("origin"), installationId: installationId()}
     showSignIn()
@@ -401,6 +408,7 @@ end sub
 sub showSignIn(why = "" as string)
     if m.screen <> invalid and m.screen.subtype() = "SignInScreen" then return
     m.entered = false
+    m.global.appLog = []     ' a sign-in that ended, or another server: the app's log starts again
     show("SignInScreen")
     m.screen.observeField("signedIn", "onSignedIn")
     m.screen.address = addressShown(storeRead("origin"))
