@@ -31,6 +31,7 @@ export const liveMessages = {
   'next.live.moreAirings': 'More airings',
   'next.live.airingsOn': '{title} on {channel}, {day}',
   'next.live.recordingOptions': 'Recording now. Open recording options',
+  'next.live.recordingBookedOptions': 'Will record. Open recording options',
   'next.live.recordingCancelled': 'Recording canceled.',
   'next.live.recordingNow': 'Recording now',
   'next.live.laterToday': 'Later today',

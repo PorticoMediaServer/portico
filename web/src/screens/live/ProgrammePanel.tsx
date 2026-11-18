@@ -60,6 +60,9 @@ export type ProgrammePanelViewProps = Readonly<{
 
 /** The drawn programme panel (desktop-live.html#live-sheet). Presentation only: every
  * role, value and action is a real fact the bound wrapper supplies. */
+/** A booked airing that has not started will record; only one on now is recording now. */
+export const recordingOptionsKey = (future: boolean) => future ? 'next.live.recordingBookedOptions' as const : 'next.live.recordingOptions' as const;
+
 export function ProgrammePanelView({channel, programme, now, timezone, snapshot, choice, seriesOpen,
   reminders, onClose, onWatch, onRecord, onCancelRecording, onRecordSeries, onFavorite, onSeriesOpenChange, onChoice, onReminder, onProgrammeReminder, onViewRecordings}: ProgrammePanelViewProps) {
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -130,8 +133,8 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
     <div className={styles.programmeActions}>
       {onWatch && !future && <Button className={styles.programmeAction} variant="primary" icon="i-play" onClick={onWatch} disabled={!channel.tuneAvailable}>{watchLabel}</Button>}
       {canRecord && (recordingFact
-        ? <Menu open={recordingOpen} onOpenChange={open => setRecordingOpen(open)} trigger={<Button className={styles.programmeAction} variant="glass" aria-label={t('next.live.recordingOptions')} aria-haspopup="menu" disabled={busy || !snapshot.recording}><span className={styles.recordingDot} aria-hidden="true"/>{t('next.kit.recording')}</Button>}
-          title={t('next.live.recordingOptions')} items={recordingMenu}/>
+        ? <Menu open={recordingOpen} onOpenChange={open => setRecordingOpen(open)} trigger={<Button className={styles.programmeAction} variant="glass" aria-label={t(recordingOptionsKey(future))} aria-haspopup="menu" disabled={busy || !snapshot.recording}><span className={styles.recordingDot} aria-hidden="true"/>{t('next.kit.recording')}</Button>}
+          title={t(recordingOptionsKey(future))} items={recordingMenu}/>
         : <Button className={styles.programmeAction} variant={future ? "primary" : "glass"} icon="i-rec" onClick={onRecord} disabled={busy} loading={snapshot.busy === 'record'}>{t('guide.record')}</Button>)}
       {canRecord && <Button className={`${styles.programmeAction} ${seriesOpen ? styles.programmeActionOpen : ''}`} variant="glass"
         icon="i-series" aria-expanded={seriesOpen} disabled={busy} onClick={() => onSeriesOpenChange(!seriesOpen)}>{t('guide.recordSeries')}</Button>}
