@@ -42,12 +42,12 @@ func (p Probe) analysisOutput(ctx context.Context, path string, limit int, args 
 		e = err
 	} else if p.Supervisor != nil {
 		var cmd *exec.Cmd
-		if cmd, e = mediaexec.Command(probeJob(binary, args, path)); e == nil {
+		if cmd, e = mediaexec.Command(p.job(binary, args, path)); e == nil {
 			e = p.Supervisor.Run(ctx, path, cmd, func(r io.Reader) error { _, e := io.Copy(out, r); return e })
 		}
 	} else {
 		var cmd *exec.Cmd
-		if cmd, e = mediaexec.CommandContext(ctx, probeJob(binary, args, path)); e == nil {
+		if cmd, e = mediaexec.CommandContext(ctx, p.job(binary, args, path)); e == nil {
 			cmd.Stdout = out
 			cmd.Stderr = io.Discard
 			cmd.WaitDelay = time.Second

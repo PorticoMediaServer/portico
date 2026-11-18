@@ -11,6 +11,13 @@ import (
 // refresh reads one library file by path, a remote probe reads a private
 // loopback bridge. Either way the probe may read that one input and nothing
 // else (mediaexec).
+// job is the probe's job for input, Waiting as the probe is.
+func (p Probe) job(binary string, args []string, input string) mediaexec.Job {
+	job := probeJob(binary, args, input)
+	job.Waiting = p.Waiting
+	return job
+}
+
 func probeJob(binary string, args []string, input string) mediaexec.Job {
 	job := mediaexec.Job{Executable: binary, Args: args}
 	if u, err := url.Parse(input); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
