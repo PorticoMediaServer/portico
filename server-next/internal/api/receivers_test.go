@@ -129,10 +129,14 @@ func TestMovingPlaybackToAnotherDevice(t *testing.T) {
 	}
 	th.answer(tv, asked.ID, ReceiverAnswer{Answer: "allowed"})
 
-	// The TV takes the queue on at the same entry and starts there, within the limit of one.
+	// The TV takes the queue on at the same entry, repeating as it did, and starts there,
+	// within the limit of one.
+	if w := call(t, th.s, "PATCH", "/v1/queues/"+made.Queue.ID, phone, QueueChange{Repeat: "all"}, nil); w.Code != 200 {
+		t.Fatalf("repeat all on the phone answered %d: %s", w.Code, w.Body)
+	}
 	var copied QueueCreated
 	if w := call(t, th.s, "POST", "/v1/queues", tv, QueueCreate{Source: playqueue.QueueSource{Queue: made.Queue.ID}}, &copied); w.Code != 201 ||
-		copied.Queue.Total != made.Queue.Total || copied.Queue.Current.Position != made.Queue.Current.Position {
+		copied.Queue.Total != made.Queue.Total || copied.Queue.Current.Position != made.Queue.Current.Position || copied.Queue.Repeat != "all" {
 		t.Fatalf("the TV's copy of the queue answered %d %+v", w.Code, copied.Queue)
 	}
 	code, onTV := th.start(tv, "", PlaybackStart{Queue: &playback.QueueLink{QueueID: copied.Queue.ID, EntryID: copied.Queue.Current.EntryID},

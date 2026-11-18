@@ -279,6 +279,8 @@ type NewQueue struct {
 	// InOrder says Items are already in the order to play: a slice of a shuffled selection.
 	InOrder   bool
 	Selection string
+	// Repeat is off (empty), one or all: a queue moved to another device keeps it.
+	Repeat string
 	// IdempotencyKey and RequestHash make a repeated request return what it made the first time.
 	IdempotencyKey string
 	RequestHash    string
@@ -333,8 +335,8 @@ func insertQueue(tx *sql.Tx, n NewQueue, publicID string) error {
 		n.Viewer.ProfileID, n.DeviceID, medium, n.Now.Add(-queueIdle).UnixMilli()); err != nil {
 		return err
 	}
-	res, err := tx.Exec(`INSERT INTO play_queues (public_id, profile_id, device_id, medium, shuffle_seed, selection, created_at, played_at)
-		VALUES (?, ?, ?, ?, ?, nullif(?, ''), ?, ?)`, publicID, n.Viewer.ProfileID, n.DeviceID, medium, n.ShuffleSeed, n.Selection, at, at)
+	res, err := tx.Exec(`INSERT INTO play_queues (public_id, profile_id, device_id, medium, shuffle_seed, selection, repeat, created_at, played_at)
+		VALUES (?, ?, ?, ?, ?, nullif(?, ''), ifnull(nullif(?, ''), 'off'), ?, ?)`, publicID, n.Viewer.ProfileID, n.DeviceID, medium, n.ShuffleSeed, n.Selection, n.Repeat, at, at)
 	if err != nil {
 		return err
 	}

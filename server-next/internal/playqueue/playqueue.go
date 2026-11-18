@@ -325,7 +325,7 @@ func (s *Service) Create(ctx context.Context, c Caller, in CreateInput) (db.Queu
 		if len(copied.Items) == 0 {
 			return db.Queue{}, ErrUnsupported
 		}
-		n.Items, n.Start, n.ShuffleSeed, n.Selection, n.InOrder = copied.Items, copied.Start, copied.ShuffleSeed, copied.Selection, true
+		n.Items, n.Start, n.ShuffleSeed, n.Selection, n.InOrder, n.Repeat = copied.Items, copied.Start, copied.ShuffleSeed, copied.Selection, true, copied.Repeat
 		return s.db.CreateQueue(ctx, n)
 	}
 	if src.Radio != "" {
