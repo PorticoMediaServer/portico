@@ -4,7 +4,7 @@ sub init()
     m.rail = m.top.findNode("rail")
     m.screen = invalid
     m.task = createObject("roSGNode", "ApiTask")
-    m.global.addFields({api: m.task, origin: ""})
+    m.global.addFields({api: m.task, origin: "", pageShownAgain: 0})
     m.task.observeField("signInEnded", "onSignInEnded")
     m.task.control = "run"
     ' Roku's own dialogs (the keyboard) wear Portico's colours.
@@ -109,6 +109,8 @@ sub pop()
     m.screens.removeChildIndex(count - 1)
     m.screen = m.screens.getChild(count - 2)
     m.screen.visible = true
+    ' a page shown again: its cards draw their cut pictures again (kit/Card)
+    m.global.pageShownAgain = m.global.pageShownAgain + 1
     if count = 2 and m.railHome <> invalid
         m.rail.current = m.railHome
         m.railHome = invalid
