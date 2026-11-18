@@ -133,7 +133,8 @@ func main() {
 		}
 		fmt.Printf("streams: %d started, start p50 %.1f p99 %.1f ms; %d MiB read, mebibyte reads p99 %.1f max %.1f ms\n",
 			report.StreamStarts.N, report.StreamStarts.P50, report.StreamStarts.P99, report.StreamedMiB, report.Chunks.P99, report.Chunks.Max)
-		fmt.Printf("server: %.2f cores on average, peak memory %d MiB; failures %v\n", report.ServerCPU, report.ServerPeakRSS/mib, report.Failures)
+		fmt.Printf("server: %.2f cores on average, peak memory %d MiB; this driver %.2f cores; failures %v\n",
+			report.ServerCPU, report.ServerPeakRSS/mib, report.DriverCPU, report.Failures)
 		printBars(report.Bars)
 		writeReport(*out, report)
 		return

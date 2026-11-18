@@ -38,6 +38,7 @@ type Wire struct {
 	StreamedMiB   int64             `json:"mibStreamed"`
 	ServerCPU     float64           `json:"serverCpuCoresOnAverage"`
 	ServerPeakRSS int64             `json:"serverPeakRssBytes"`
+	DriverCPU     float64           `json:"driverCpuCoresOnAverage"`
 	Bars          []Bar             `json:"bars"`
 }
 
@@ -55,6 +56,7 @@ type person struct {
 	w          *wire
 	token      string
 	restricted bool
+	sees       map[string]bool // the libraries the profile may see
 }
 
 // httpCrowd is an ordinary busy evening at a real server, through its own routes: people
@@ -90,8 +92,15 @@ func httpCrowd(ctx context.Context, base, setupCodeFile, media, document string,
 		}
 	}
 	log.Printf("set up: %d profiles, %d films to stream; %d people for %s", len(open)+len(restricted), len(films), people, length)
+	// Each kind of request alone first, one after another, so what a request costs is told
+	// apart from waiting behind 199 others.
+	for n, profile := range []string{open[0], restricted[0]} {
+		if p := w.signIn(fmt.Sprint("alone-", n), profile, n == 1); p != nil {
+			p.alone(ctx, libraries)
+		}
+	}
 
-	cpu := cpuSeconds(pid)
+	cpu, mine := cpuSeconds(pid), cpuSeconds(os.Getpid())
 	ctx, cancel := context.WithTimeout(ctx, length)
 	defer cancel()
 	started := time.Now()
@@ -132,7 +141,8 @@ func httpCrowd(ctx context.Context, base, setupCodeFile, media, document string,
 	elapsed := time.Since(started)
 	out := Wire{People: people, Streams: streams, Seconds: elapsed.Seconds(), Requests: map[string]Timing{}, Failures: w.failures,
 		StreamStarts: summarise(starts), Chunks: summarise(chunks), Stalls: int(stalls), NotDirect: int(notDirect), StreamedMiB: streamed / mib,
-		ServerCPU: (cpuSeconds(pid) - cpu) / elapsed.Seconds(), ServerPeakRSS: serverPeakRSS(pid)}
+		ServerCPU: (cpuSeconds(pid) - cpu) / elapsed.Seconds(), ServerPeakRSS: serverPeakRSS(pid),
+		DriverCPU: (cpuSeconds(os.Getpid()) - mine) / elapsed.Seconds()}
 	var pages, counts []time.Duration
 	for name, samples := range w.times {
 		out.Requests[name] = summarise(append([]time.Duration(nil), samples...))
@@ -248,7 +258,15 @@ func (w *wire) signIn(name, profile string, restricted bool) *person {
 	if !w.call("choose profile", "POST", "/v1/profiles/"+profile+"/select", in.Session.AccessToken, api.ProfileSelect{}, &session) {
 		return nil
 	}
-	return &person{w: w, token: session.AccessToken, restricted: restricted}
+	p := &person{w: w, token: session.AccessToken, restricted: restricted, sees: map[string]bool{}}
+	var mine api.Libraries
+	if !w.call("libraries", "GET", "/v1/libraries", p.token, nil, &mine) {
+		return nil
+	}
+	for _, lib := range mine.Items {
+		p.sees[lib.ID] = true
+	}
+	return p
 }
 
 func (w *wire) choose(in api.SignInResponse, profile string) string {
@@ -257,11 +275,55 @@ func (w *wire) choose(in api.SignInResponse, profile string) string {
 	return session.AccessToken
 }
 
-// browse is one person moving about the seeded libraries until ctx ends.
-func (p *person) browse(ctx context.Context, r *rand.Rand, libraries []api.AdminLibrary) {
+// alone sends each kind of browsing request 15 times, one at a time, over the libraries the
+// profile may see, timed under "alone <kind>".
+func (p *person) alone(ctx context.Context, libraries []api.AdminLibrary) {
 	who := " (unrestricted)"
 	if p.restricted {
 		who = " (restricted)"
+	}
+	r := rand.New(rand.NewPCG(1, 2))
+	var ids, words []string
+	for i := range 15 {
+		var page api.ItemPage
+		var lib api.AdminLibrary
+		for lib = pick(r, libraries); !p.sees[lib.ID]; lib = pick(r, libraries) {
+		}
+		list := "/v1/items?limit=50&library=" + lib.ID + "&kind=" + seed.LeafKind(lib.Kind).String() + "&sort=title"
+		var home struct{ Rows []struct{ ID string } }
+		p.get(ctx, "alone home"+who, "/v1/home", &home)
+		for _, row := range home.Rows {
+			p.get(ctx, "alone home row "+row.ID+who, "/v1/home/rows/"+url.PathEscape(row.ID)+"?limit=40", nil)
+		}
+		p.get(ctx, "alone first page"+who, list, &page)
+		p.get(ctx, "alone count"+who, list+"&total=true&limit=1", nil)
+		genre := list + "&genre=" + url.QueryEscape(seed.Genres(lib.Kind)[i%len(seed.Genres(lib.Kind))])
+		p.get(ctx, "alone genre page"+who, genre, nil)
+		p.get(ctx, "alone count genre"+who, genre+"&total=true&limit=1", nil)
+		for _, it := range page.Items {
+			word, _, _ := strings.Cut(it.Title, " ")
+			ids, words = append(ids, it.ID), append(words, word)
+		}
+		if len(ids) > 0 {
+			id := pick(r, ids)
+			p.get(ctx, "alone title"+who, "/v1/items/"+id, nil)
+			p.get(ctx, "alone related"+who, "/v1/items/"+id+"/related", nil)
+			p.get(ctx, "alone search"+who, "/v1/search?q="+url.QueryEscape(pick(r, words)), nil)
+		}
+	}
+}
+
+// browse is one person moving about the seeded libraries until ctx ends.
+func (p *person) browse(ctx context.Context, r *rand.Rand, all []api.AdminLibrary) {
+	who := " (unrestricted)"
+	if p.restricted {
+		who = " (restricted)"
+	}
+	var libraries []api.AdminLibrary // a profile held to some libraries browses only those
+	for _, lib := range all {
+		if p.sees[lib.ID] {
+			libraries = append(libraries, lib)
+		}
 	}
 	var next string          // the list this person is scrolling down
 	var seen, words []string // titles met while browsing, and words of their names to search for

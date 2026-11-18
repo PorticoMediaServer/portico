@@ -335,15 +335,23 @@ jobs:
           "$WORK/bin/portico-seed" -db "$WORK/data/main.db" -items "$WIRE_ITEMS" -phase import 2>&1 | tail -2
           ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i testsrc2=size=1920x1080:rate=24 -f lavfi -i sine=frequency=440:sample_rate=48000 \
             -t 60 -c:v libx264 -preset veryfast -b:v 8M -pix_fmt yuv420p -c:a aac -ac 2 "$WORK/media/film.mkv"
-      - name: Start the server, then 200 people for ten minutes
+      - name: Start the server, then 200 people for ten minutes, with no network but loopback
         working-directory: server-next
         run: |
-          # TMDB is pointed at a closed port: nothing here reaches an outside service.
-          PORTICO_TMDB_ORIGIN=http://127.0.0.1:9 "$WORK/bin/portico-server" -data "$WORK/data" -listen 127.0.0.1:32500 > "$WORK/server.log" 2>&1 &
-          echo "$!" > "$WORK/server.pid"
+          # The server and the driver share a network with only loopback: seeded libraries are TMDB and MusicBrainz
+          # libraries, and nothing here may reach an outside service.
+          cat > "$WORK/evening.sh" <<'SCRIPT'
+          set -eu
+          "$WORK/bin/portico-server" -data "$WORK/data" -listen 127.0.0.1:32500 > "$WORK/server.log" 2>&1 &
+          server=$!
           for _ in $(seq 120); do [ -f "$WORK/data/setup-code.txt" ] && curl -s -o /dev/null http://127.0.0.1:32500/ && break; sleep 1; done
           "$WORK/bin/portico-load" -mode http -url http://127.0.0.1:32500 -setup-code "$WORK/data/setup-code.txt" -media "$WORK/media/film.mkv" \
-            -pid "$(cat "$WORK/server.pid")" -people 200 -streams "$WIRE_STREAMS" -crowd-time 10m -out "$WORK/wire.json" | tee "$WORK/wire.txt"
+            -pid "$server" -people 200 -streams "$WIRE_STREAMS" -crowd-time 10m -out "$WORK/wire.json" > "$WORK/wire.txt" 2>&1 || true
+          kill "$server"; wait "$server" || true
+          SCRIPT
+          sudo systemd-run --quiet --wait --collect --pipe -p PrivateNetwork=yes --uid="$(id -u)" --gid="$(id -g)" \
+            --working-directory="$PWD" -E WORK="$WORK" -E WIRE_STREAMS="$WIRE_STREAMS" -E PATH="$PATH" bash "$WORK/evening.sh"
+          cat "$WORK/wire.txt"
           {
             echo "### A real server over HTTP: 200 people, $WIRE_STREAMS streaming by direct play, $WIRE_ITEMS items"
             echo
@@ -353,9 +361,9 @@ jobs:
             cat "$WORK/wire.txt"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Stop the server
+      - name: The server's last log lines
         if: always()
-        run: kill "$(cat "$WORK/server.pid")" 2>/dev/null; sleep 5; tail -n 40 "$WORK/server.log" || true
+        run: tail -n 40 "$WORK/server.log" || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
