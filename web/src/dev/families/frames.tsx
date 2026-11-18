@@ -5,9 +5,9 @@ import type {FactPart} from '@portico/client-core/kit-model';
 import {framesFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/frames-fixtures.ts';
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
 import {AmbientArt, type ArtworkImage, type ArtworkSource} from '../../kit/artwork';
-import {PosterCard, SquareCard, WideCard} from '../../kit/cards';
+import {EpisodeTile, PosterCard, SquareCard, WideCard} from '../../kit/cards';
 import {Button, Switch, Tabs, TextField} from '../../kit/controls';
-import {ArtBox, AudioPlayerFrame, BrowseFrame, HomeHero, PageStateFrame, PlayerChromeFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame,
+import {ArtBox, AudioPlayerFrame, BrowseFrame, EpisodeRows, HomeHero, SeasonBar, PageStateFrame, PlayerChromeFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame,
   type AudioControl, type AudioOption} from '../../kit/frames';
 import {Icon} from '../../kit/Icon';
 import {HeroFacts, Shelf} from '../../kit/layout';
@@ -99,14 +99,21 @@ const BrowseList = () => <Page current="movies"><BrowseFrame header={{title: f('
 </BrowseFrame></Page>;
 const BrowseLoading = () => <Window><BrowseFrame header={{title: f('movies')}} state={{kind: 'loading'}} /></Window>;
 
+/** A show's episode list as the title page and the watch page draw it (phone-player 4, tablet-play 3): the kit's season
+ * bar, then the kit's episode tiles as rows with their states. */
+const episodes = [
+  {name: 'episode1', number: 'episodeNumber1', status: 'episodeWatched', length: 'episodeLength1', watched: true, progress: undefined, playing: false, art: true},
+  {name: 'episode2', number: 'episodeNumber2', status: 'episodePlaying', length: 'episodeLeft2', watched: false, progress: .29, playing: true, art: true},
+  {name: 'episode3', number: 'episodeNumber3', status: 'episodeUpNext', length: 'episodeLength3', watched: false, progress: undefined, playing: false, art: false},
+] as const;
 function Episodes() {
-  const art = useReferenceArtwork();
-  return <Section title={f('episodes')}><div style={{display: 'grid', gap: 'var(--space-sm)', margin: '0 var(--g)'}}>
-    {(['episode1', 'episode2', 'episode3'] as const).map(name => <div key={name} style={{display: 'flex', alignItems: 'center', gap: 'var(--space-sm)'}}>
-      <div style={{width: 'calc(var(--card-poster-width) * 1.15)', flex: 'none'}}><ArtBox kind="wide" icon="i-tv" source={name === 'episode3' ? undefined : art('bd-tlou.jpg')} /></div>
-      <div><b className={`${frame.rowLabel} ${frame.clamp2}`}>{f(name)}</b><p className={frame.rowHelp}>{f(`${name}Meta`)}</p></div>
-    </div>)}
-  </div></Section>;
+  const art = useReferenceArtwork(), [hide, setHide] = useState(false);
+  return <div style={{display: 'grid', gap: 'var(--space-sm)', margin: '0 var(--g)'}}>
+    <SeasonBar label={f('episodesSeason')} count={f('episodesCount')} onSeasons={none} hideWatched={hide} hideWatchedLabel={f('hideWatched')} onHideWatched={setHide} />
+    <EpisodeRows>{episodes.map(episode => <EpisodeTile key={episode.name} context="detail" artworkKind="still" artwork={episode.art ? art('bd-tlou.jpg') : undefined} playing={episode.playing} watched={episode.watched}
+      model={{title: f(episode.name), caption: [{id: 'episode', text: f(episode.number), role: 'context'}], detail: [], progress: episode.progress}}
+      playback={[{id: 'state', text: f(episode.status), role: 'identity'}, {id: 'length', text: f(episode.length), role: 'context'}]} description={f('tlouSynopsis')} onNavigate={none} />)}</EpisodeRows>
+  </div>;
 }
 function Title({variant}: {variant: 'full' | 'missing' | 'loading'}) {
   const art = useReferenceArtwork(), [tab, setTab] = useState('more'), full = variant !== 'missing', phone = usePhone();
@@ -177,10 +184,12 @@ function SignIn() {
 const Still = () => <img src="http://100.120.50.24:8787/assets/bd-tlou.jpg" alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}} />;
 /** The players' own scrubber and read-outs (kit/media SeekLine, kit/player PlayerTimes) at a still position. */
 function Scrubber({scrubbing = false, live = false, chapters = true}: {scrubbing?: boolean; live?: boolean; chapters?: boolean}) {
-  return <SeekLine variant="player" value={live ? .96 : .2} buffered={[{start: .2, end: live ? 1 : .34}]}
+  // On touch the knob goes with the finger to the time being previewed (phone-player 1b); a pointer's preview is a hover and the knob stays (desktop-player 1).
+  const upright = usePhone(), sideways = useLandscapePhone(), touch = upright || sideways, at = live ? .96 : scrubbing && touch ? .65 : .29;
+  return <SeekLine variant="player" value={at} buffered={[{start: at, end: live ? 1 : at + .14}]}
     marks={chapters && !live ? [{id: 'intro', start: .02, end: .08, kind: 'intro'}, {id: 'c1', start: .31, kind: 'chapter'}, {id: 'c2', start: .62, kind: 'chapter'}, {id: 'credits', start: .95, end: 1, kind: 'credits'}] : []}
-    hover={scrubbing ? .6 : null} overlay={scrubbing ? <PlayerScrubPreview at={.6} time={f('previewTime')}><Still /></PlayerScrubPreview> : undefined}
-    input={{min: 0, max: 1, step: .001, value: live ? .96 : .2, onChange: none, 'aria-label': f('seek')}} />;
+    hover={scrubbing ? .65 : null} overlay={scrubbing ? <PlayerScrubPreview at={.65} time={f('previewTime')}><Still /></PlayerScrubPreview> : undefined}
+    input={{min: 0, max: 1, step: .001, value: at, onChange: none, 'aria-label': f('seek')}} />;
 }
 /** From 1024 the bar has room for volume, speed and picture in picture. */
 function useWide() {
@@ -189,12 +198,13 @@ function useWide() {
   return wide;
 }
 /** The watch page under an upright phone's picture (phone-player 4): the title page's own content, without its art. */
-function WatchPage() {
+function WatchPage({paused = false}: {paused?: boolean}) {
   const [tab, setTab] = useState('episodes');
   return <div className={frame.frame} style={{display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', padding: 'var(--space-sm) 0 var(--frame-bottom-clear)'}}>
     <div style={{margin: '0 var(--g)', display: 'grid', gap: 'var(--space-tight)'}}><h1 className={frame.pageTitle}>{f('tlou')}</h1><p className={frame.rowLabel}>{f('videoLead')}  {f('videoSubtitle')}</p><HeroFacts parts={fact(f('tlouFacts'))} platform="phone-web" /></div>
-    <div style={{margin: '0 var(--g)', display: 'flex', gap: 'var(--spec-hero-actions-gap-phone)'}}><Button variant="primary" phone icon="i-pause" style={{flex: 1}}>{f('pause')}</Button>
-      {([['i-plus', 'myList'], ['i-dl', 'download'], ['i-more', 'more']] as const).map(([icon, name]) => <Button key={name} phone iconOnly icon={icon} aria-label={f(name)} />)}</div>
+    <div style={{margin: '0 var(--g)', display: 'flex', gap: 'var(--spec-hero-actions-gap-phone)'}}><Button variant="primary" phone icon={paused ? 'i-play' : 'i-pause'} style={{flex: 1}}>{f(paused ? 'play' : 'pause')}</Button>
+      {/* The web has no downloads, so its row is Add and More. */}
+      {([['i-plus', 'myList'], ['i-more', 'more']] as const).map(([icon, name]) => <Button key={name} phone iconOnly icon={icon} aria-label={f(name)} />)}</div>
     <Tabs phone items={[{value: 'episodes', label: f('episodes')}, {value: 'more', label: f('moreLikeThis')}, {value: 'details', label: f('details')}]} value={tab} onValueChange={setTab} style={{padding: '0 var(--g)'}} />
     <Episodes />
   </div>;
@@ -207,13 +217,13 @@ function useLandscapePhone() {
 }
 /** The video player filled with the kit's player parts, with what each mock-up puts in each place for its form
  * (desktop-player 1, phone-player 2c on its side, phone-player 4 upright). Nothing moves between the states. */
-function Player({state = 'playing', over}: {state?: 'playing' | 'paused' | 'buffering' | 'scrubbing' | 'live' | 'missing'; /** A panel or prompt of the player's own, drawn over it as the player screen does. */ over?: ReactNode}) {
+function Player({state = 'playing', panel, panelCovers, card}: {state?: 'playing' | 'paused' | 'buffering' | 'scrubbing' | 'live' | 'missing'; /** One of the player's own panels, open, and what it lies over. */ panel?: ReactNode; panelCovers?: 'bar' | 'all'; /** Up next, over the credits. */ card?: ReactNode}) {
   const [volume, setVolume] = useState(.7), upright = usePhone(), sideways = useLandscapePhone(), desktop = useWide() && !sideways, live = state === 'live', missing = state === 'missing';
   const tool = (icon: AudioControl['icon'], name: FixtureName, disabled = false) => <PlayerControl onPicture icon={icon} label={f(name)} disabled={disabled} onPress={none} />;
   const subtitles = <PlayerPill icon="i-cc" name={f('subtitles')} value={f('english')} label={f('subtitles')} disabled={missing} onPress={none} />;
   const audio = <PlayerPill icon="i-audio" name={f('audio')} value={f('english')} label={f('audio')} disabled={missing} onPress={none} />;
   const quality = <PlayerPill icon={desktop ? undefined : 'i-quality'} qualifier={f('qualityAuto')} value={f('qualityValue')} label={f('qualityShort')} onPress={none} />;
-  return <div data-mode={upright ? 'portrait' : undefined} style={{position: 'relative', height: '100%'}}><PlayerChromeFrame chromeVisible picture={<Still />} close={tool('i-down', 'close')} title={<PlayerTitle title={f('tlou')} lead={f('videoLead')} subtitle={f('videoSubtitle')} />}
+  return <div data-mode={upright ? 'portrait' : undefined} style={{position: 'relative', height: '100%'}}><PlayerChromeFrame chromeVisible scrubbing={state === 'scrubbing'} panel={panel} panelCovers={panelCovers} card={card} picture={<Still />} close={tool('i-down', 'close')} title={<PlayerTitle title={f('tlou')} lead={f('videoLead')} subtitle={f('videoSubtitle')} />}
     tools={desktop ? <>{tool('i-cast', 'playOn')}{tool('i-more', 'more')}{tool('i-x', 'dismiss')}</> : <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{upright && tool('i-cc', 'subtitles', missing)}{tool('i-settings', 'playerSettings')}</>}
     scrubber={<Scrubber scrubbing={state === 'scrubbing'} live={live} chapters={!missing} />}
     times={{position: f('elapsed'), remaining: f('remaining'), duration: f('duration'), endsAt: live ? undefined : f('endsAt'), live: live ? f('live') : undefined}}
@@ -224,8 +234,8 @@ function Player({state = 'playing', over}: {state?: 'playing' | 'paused' | 'buff
     trailing={desktop ? <><PlayerVolume value={volume} muted={false} label={f('volume')} muteLabel={f('volume')} onChange={setVolume} onMute={none} /><PlayerControl icon="i-cc" label={f('subtitles')} disabled={missing} onPress={none} />{quality}
         <PlayerPill value={f('speedShort')} label={f('speed')} disabled={live} onPress={none} /><PlayerControl icon="i-pip" label={f('pictureInPicture')} onPress={none} /><PlayerControl icon="i-full" label={f('fullScreen')} onPress={none} /></>
       : upright ? <>{quality}<PlayerControl icon="i-full" label={f('fullScreen')} onPress={none} /></> : <>{subtitles}{audio}{quality}</>}
-    prompts={state === 'playing' && !over ? <PlayerPrompt label={f('skipIntro')} onPress={none} dismiss={{label: f('dismiss'), onPress: none}} /> : undefined}
-    body={<WatchPage />} />{over}</div>;
+    prompts={state === 'playing' ? <PlayerPrompt label={f('skipIntro')} onPress={none} dismiss={{label: f('dismiss'), onPress: none}} /> : undefined}
+    body={<WatchPage paused={state === 'paused'} />} /></div>;
 }
 
 /** The player's own panels (kit/player), each over the player as the player screen draws it, with a fixed sample of
@@ -249,7 +259,7 @@ function PlayerPanelCase({panel}: {panel: PlayerPanel}) {
   const upright = usePhone(), sideways = useLandscapePhone(), anchor = useRef<HTMLButtonElement>(null);
   const context: PlayerPanelContext = {panel, snapshot: {queueView: {remainingCount: 3}} as unknown as PlayerPanelContext['snapshot'], layout: upright || sideways ? 'phone' : 'desktop', landscape: sideways,
     phoneTop: 220, available: ['options', 'subtitles', 'audio', 'quality', 'speed', 'episodes', 'queue'], close: none, show: none, returnFocusRef: anchor};
-  return <Player state="paused" over={<PlayerOptions model={optionsModel} context={context} i18n={defaultI18n} reportError={none} openSettings={none} />} />;
+  return <Player state="paused" panelCovers={sideways ? 'all' : undefined} panel={<PlayerOptions model={optionsModel} context={context} i18n={defaultI18n} reportError={none} openSettings={none} />} />;
 }
 const episodeList: PlayerEpisodeList = {seasonId: 's1', seasons: [{id: 's1', number: 1, title: ''}, {id: 's2', number: 2, title: ''}],
   rows: (['episode1', 'episode2', 'episode3'] as const).map((name, index) => ({itemId: name, title: f(name), number: index + 1, stillUrl: 'bd-tlou.jpg', overview: f('tlouSynopsis'),
@@ -257,11 +267,11 @@ const episodeList: PlayerEpisodeList = {seasonId: 's1', seasons: [{id: 's1', num
 function PlayerEpisodesCase() {
   const art = useReferenceArtwork(), upright = usePhone(), sideways = useLandscapePhone(), anchor = useRef<HTMLButtonElement>(null);
   const context: PlayerPanelContext = {panel: 'episodes', snapshot: {} as PlayerPanelContext['snapshot'], layout: upright || sideways ? 'phone' : 'desktop', landscape: sideways, phoneTop: 220, close: none, show: none, returnFocusRef: anchor};
-  return <Player state="paused" over={<PlayerEpisodes episodes={episodeList} context={context} artwork={art} onPlay={none} onSeason={none} reportError={none} />} />;
+  return <Player state="paused" panelCovers={sideways ? 'all' : upright ? undefined : 'bar'} panel={<PlayerEpisodes episodes={episodeList} context={context} artwork={art} onPlay={none} onSeason={none} reportError={none} />} />;
 }
 function PlayerUpNextCase() {
   const upright = usePhone(), sideways = useLandscapePhone(), wide = useWide();
-  return <Player state="playing" over={<PlayerUpNext layout={upright || sideways ? 'phone' : wide ? 'desktop' : 'tablet'} heading={f('upNextHeading')} still={<Still />} title={f('episode3')} facts={[f('upNextCode'), f('upNextDuration')]}
+  return <Player state="playing" card={<PlayerUpNext layout={upright || sideways ? 'phone' : wide ? 'desktop' : 'tablet'} heading={f('upNextHeading')} still={<Still />} title={f('episode3')} facts={[f('upNextCode'), f('upNextDuration')]}
     when={f('upNextWhen')} progress={.4} actions={[{id: 'play', label: f('upNextPlayNow'), primary: true, glyph: 'play', onPress: none}, {id: 'credits', label: f('upNextWatchCredits'), onPress: none}]} />} />;
 }
 
@@ -269,7 +279,7 @@ function PlayerUpNextCase() {
  * and programme lockup, Record, the programme-long bar with the live edge and Go to live, channel down and up, and
  * Guide with its short guide. It is drawn from one port of channel facts, here a fixed sample. */
 function PlayerLiveCase({guide = false}: {guide?: boolean}) {
-  const [volume, setVolume] = useState(.7), pointer = useWide() && !useLandscapePhone();
+  const [volume, setVolume] = useState(.7), wide = useWide(), sideways = useLandscapePhone(), pointer = wide && !sideways;
   return <div style={{position: 'relative', height: '100%', overflow: 'hidden', background: 'var(--color-ink)'}}>
     <div style={{position: 'absolute', inset: 0, display: 'grid'}}><Still /></div>
     <PlayerLive port={livePlayerPort} playing initialMiniGuideOpen={guide} onCollapse={none} onStop={none} onPlayPause={none} onSkip={none} onSeek={none} onMore={none} reportError={none}
@@ -288,12 +298,12 @@ function Audio({variant}: {variant: 'music' | 'missing' | 'book' | 'loading'}) {
   const queue = <div style={{display: 'grid', gap: 'var(--space-sm)'}}><h3 className={frame.groupLabel}>{f('upNext')}</h3>{(['queue1', 'queue2', 'queue3', 'queue4', 'queue5', 'queue6'] as const).map(name => <span key={name} className={frame.rowLabel}>{f(name)}</span>)}</div>;
   return <Window><AudioPlayerFrame loading={variant === 'loading'}
     close={control('i-down', 'close')} more={control('i-more', 'more')} context={book ? f('playingFromListening') : missing ? f('playingFromField') : f('playingFrom')}
-    artwork={missing ? undefined : art(book ? 'pool/albums/rumours.jpg' : 'pool/albums/random-access-memories.jpg')} icon={book ? 'i-book' : 'i-music'}
+    artwork={missing ? undefined : art(book ? 'pool/books/the-hobbit.jpg' : 'pool/albums/after-hours.jpg')} icon={book ? 'i-book' : 'i-music'}
     title={book ? f('hobbit') : missing ? f('longSong') : f('songTitle')} byline={book ? f('tolkien') : missing ? f('choir') : f('songArtist')} detail={book ? f('chapter') : undefined}
-    scrubber={<><SeekLine variant="player" value={.34} input={{min: 0, max: 1, step: .001, value: .34, onChange: none, 'aria-label': f('seek')}} /><PlayerTimes position={f('elapsed')} remaining={f('remaining')} /></>} transport={book ? reading : music} nextLine={book ? f('timeLeft') : missing ? undefined : f('songNext')}
-    options={book ? [option('speed', undefined, 'speedValue'), option('sleep', undefined, 'sleepValue'), option('chapters', undefined, 'chaptersValue'), option('thisPhone', 'i-cast')]
-      : [option('lyrics', 'i-lyrics', undefined, missing), option('thisPhone', 'i-cast'), option('queue', 'i-queue')]}
-    upNext={queue} /></Window>;
+    scrubber={<><SeekLine variant="player" value={.34} input={{min: 0, max: 1, step: .001, value: .34, onChange: none, 'aria-label': f('seek')}} /><PlayerTimes position={f(book ? 'bookElapsed' : 'audioElapsed')} remaining={f(book ? 'bookRemaining' : 'audioRemaining')} /></>} transport={book ? reading : music} nextLine={book ? f('timeLeft') : missing ? undefined : f('songNext')}
+    options={book ? [option('speed', undefined, 'speedValue'), option('sleep', undefined, 'sleepValue'), option('chapters', undefined, 'chaptersValue'), option('thisBrowser', 'i-cast')]
+      : [option('lyrics', 'i-lyrics', undefined, missing), option('thisBrowser', 'i-cast'), option('upNext', 'i-queue')]}
+    upNext={missing ? undefined : queue} /></Window>;
 }
 
 const State = () => <Page current="home"><PageStateFrame icon="i-srvoff" title={f('cantReach')} body={f('cantReachBody')} retry={{progress: .6, label: f('retryLabel'), detail: f('retryDetail')}}
