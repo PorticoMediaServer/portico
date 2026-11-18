@@ -87,6 +87,9 @@ export type WebPlaybackEnvironment = Readonly<{
   equalizerPort?: EqualizerPort;
   /** Build-time platform injection. null disables the browser music engine. */
   createPlayer?: (video: VideoLike, options: WebMediaPlayerOptions) => PlaybackMediaPort;
+  /** A second player the device carries (the desktop app's mpv), for the presentations the
+   * server plans for it (`engine: 'mpv'`); everything else stays with the page's own player. */
+  secondEngine?: (options: Readonly<{resolveUrl(path: string): string}>) => PlaybackMediaPort;
   createRender?: ((service: PlaybackService, video: VideoLike) => RenderEngine) | null;
   capabilities?: () => Promise<CapabilityDocument>;
   subtitleSurface?: boolean;

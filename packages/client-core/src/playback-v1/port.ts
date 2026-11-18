@@ -26,6 +26,9 @@ export type PlayerSource = Readonly<{
   subtitles: readonly SidecarSubtitle[];
   /** Start playing once loaded, or stay paused at the start position. */
   autoplay: boolean;
+  /** The player the server planned this presentation for: the device's own (`native`) or mpv,
+   * on a device that carries both (the desktop app). Absent means `native`. */
+  engine?: 'native' | 'mpv';
   /** The session and item this presentation belongs to (identity for native engines' bindings; web ignores them). */
   sessionId?: string;
   itemId?: string;
