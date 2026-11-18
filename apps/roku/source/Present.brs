@@ -105,7 +105,7 @@ end function
 ' The art a page stands on: the title's backdrop; with only a poster, "poster|<path>" (the poster is
 ' shown whole at the right); with no picture at all, "cover|<n>", its generated cover's tint.
 function pageArt(item as object) as string
-    art = pick(item.images, ["backdrop", "still"])
+    art = pick(item.images, ["backdrop", "still", "thumb"])
     if art <> "" then return art
     poster = pick(item.images, ["poster", "cover"])
     if poster <> "" then return "poster|" + poster

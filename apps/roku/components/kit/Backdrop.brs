@@ -23,8 +23,11 @@ sub onPoster()
     m.top.findNode("poster").uri = m.top.poster
 end sub
 
+' A title with no picture: its tint's landscape picture (images/tint-N.jpg), drawn for the art
+' window's shape. The scene names the cover's own picture (cover-N.jpg), which is portrait and,
+' stretched to the window, showed its glow as a hard band along the top.
 sub onTint()
-    m.tint.uri = m.top.tint
+    m.tint.uri = m.top.tint.replace("/cover-", "/tint-")
     if m.top.tint <> "" then m.tint.opacity = 1 else m.tint.opacity = 0
     m.scrim.visible = (m.top.tint <> "" or m.shown <> "")
 end sub

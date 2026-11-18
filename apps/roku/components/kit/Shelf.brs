@@ -21,9 +21,10 @@ sub onShape()
     m.list.rowItemSize = [[size[0], size[1] + k.cardPad * 2]]
     m.list.rowItemSpacing = [[k.cardGap, 0]]
     m.list.focusXOffset = [m.top.slotX]
-    if m.top.slotX > k.safeLeft
-        m.list.clippingRect = [m.top.slotX - 26, -40, 1920, size[1] + 120]
-    end if
+    ' Nothing is drawn left of the focus slot: the cards a row has slid past are cut just inside
+    ' the gap before it (the card in focus grows by less than that gap), so none shows under the rail.
+    listY = g.headingGap - k.cardPad
+    m.top.findNode("window").clippingRect = [m.top.slotX - k.cardGap + 2, listY - 40, 1920, size[1] + k.cardPad * 2 + 80]
     ' The ring goes round the grown card, its inner edge two pixels clear of the picture.
     grow = (k.focusScale - 1) / 2
     out = k.focusSpread + 6

@@ -1,58 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The lockup at the top of a page: what a title is, in words. Two uses:
-     "spotlight" has buttons and takes focus; "preview" describes the card in focus and has none;
-     "title" is a title page's own lockup, whose page draws the buttons. -->
+<!-- The words at the top of Home and of a title page, at the moderate size (rule 14), each in a
+     fixed slot measured from the hero's top (rule 12): the eyebrow, the title on the bottom of its
+     slot, the meta line, two lines of synopsis, then
+       "preview" (Home): the OK and * hints for the card in focus (the hero never takes focus);
+       "title" (a title page): the credits line and the page's action row.
+     A missing line leaves its space, so nothing under it ever moves. The screen places the hero
+     at its frame's line (frames().browse.heroTop or frames().title.copyTop). -->
 <component name="Hero" extends="Group">
   <interface>
     <field id="mode" type="string" value="preview" onChange="onModel"/>
-    <!-- From heroFor(): {eyebrow, title, year, facts, tag, progress, left, synopsis}. -->
+    <!-- {eyebrow, eyebrowMore, link, title, year, facts, tag, progress, left, synopsis, credits}.
+         `link` true makes the eyebrow a focus stop above the action row (a film's collection). -->
     <field id="model" type="assocarray" onChange="onModel"/>
-    <!-- Spotlight only: [{id, text, icon}] and how many pages the dots show. -->
+    <!-- Title mode: the action row, [{id, text, icon}] (ButtonRow). -->
     <field id="buttons" type="array" alias="buttonRow.buttons"/>
-    <field id="pages" type="integer" onChange="onDots"/>
-    <field id="page" type="integer" onChange="onDots"/>
-    <!-- Preview only: what OK does ("Resume", "Play", "Open"). -->
+    <!-- Preview mode: what OK does ("Resume", "Details"). -->
     <field id="okText" type="string" onChange="onModel"/>
+    <!-- Title mode: true once focus is below the hero; only the title shows, folded up to a page
+         title above the section strip (tv-detail frame 3). -->
+    <field id="folded" type="boolean" onChange="onModel"/>
+    <!-- Preview mode, while Home has nothing yet: outlines of the lines in their slots (rule 9). -->
+    <field id="loading" type="boolean" onChange="onLoading"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- A button's id, or "link" for the eyebrow. -->
     <field id="pressed" type="string" alwaysNotify="true" alias="buttonRow.pressed"/>
   </interface>
   <script type="text/brightscript" uri="Hero.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <children>
-    <Group id="block" translation="[200,0]">
-      <Group id="words">
-      <Label id="eyebrow" width="1100"/>
-      <Label id="title" width="1100" wrap="true" maxLines="2"/>
-      <LayoutGroup id="meta" layoutDirection="horiz" vertAlignment="center" itemSpacings="[26]">
-        <Label id="year"/>
-        <Label id="facts"/>
-        <Group id="tagBox">
-          <Poster id="tagLine" uri="pkg:/images/line-10.9.png" blendColor="0x3B5668FF" height="36"/>
-          <Label id="tag" height="36" vertAlign="center" translation="[13,0]"/>
-        </Group>
-        <Group id="progressBox">
-          <Rectangle id="track" width="160" height="6" color="0x35505FFF" translation="[0,15]"/>
-          <Rectangle id="bar" height="6" color="0x409FD4FF" translation="[0,15]"/>
-          <Rectangle width="160" height="36" opacity="0"/>
-        </Group>
-        <Label id="left"/>
-      </LayoutGroup>
-      <Label id="synopsis" width="800" wrap="true" maxLines="2"/>
+    <Group id="outline" visible="false"/>
+    <Group id="eyebrowBox">
+      <Poster id="linkPlate" uri="pkg:/images/round-10.9.png" visible="false"/>
+      <Poster id="linkRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
+      <Poster id="linkIcon" uri="pkg:/images/i-collection-28.png" width="28" height="28" translation="[0,3]"/>
+      <Label id="eyebrow"/>
+      <Label id="eyebrowMore"/>
+    </Group>
+    <Label id="title"/>
+    <Group id="details">
+    <LayoutGroup id="meta" layoutDirection="horiz" vertAlignment="center" itemSpacings="[26]">
+      <Label id="year"/>
+      <Label id="facts"/>
+      <Group id="tagBox">
+        <Poster id="tagLine" uri="pkg:/images/line-10.9.png" height="36"/>
+        <Label id="tag" height="36" vertAlign="center" translation="[13,0]"/>
       </Group>
-      <LayoutGroup id="hints" layoutDirection="horiz" vertAlignment="center" itemSpacings="[12, 68, 12]">
-        <Group id="okKey">
-          <Poster uri="pkg:/images/line-10.9.png" blendColor="0x3B5668FF" width="46" height="36"/>
-          <Label id="okKeyText" text="OK" width="46" height="36" horizAlign="center" vertAlign="center"/>
-        </Group>
-        <Label id="okText"/>
-        <Group id="starKey">
-          <Poster uri="pkg:/images/line-10.9.png" blendColor="0x3B5668FF" width="46" height="36"/>
-          <Label id="starKeyText" text="*" width="46" height="36" horizAlign="center" vertAlign="center"/>
-        </Group>
-        <Label id="starText" text="More options"/>
-      </LayoutGroup>
-      <ButtonRow id="buttonRow"/>
-      <Group id="dots"/>
+      <Group id="progressBox">
+        <Rectangle id="track" width="160" height="6" translation="[0,15]"/>
+        <Rectangle id="bar" height="6" translation="[0,15]"/>
+        <Rectangle width="160" height="36" opacity="0"/>
+      </Group>
+      <Label id="left"/>
+    </LayoutGroup>
+    <Label id="synopsis" width="800" wrap="true" maxLines="2"/>
+    <KeyHints id="hints"/>
+    <Label id="credits" width="1300"/>
+    <ButtonRow id="buttonRow"/>
     </Group>
   </children>
 </component>

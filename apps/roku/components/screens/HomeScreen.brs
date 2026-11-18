@@ -1,22 +1,31 @@
+' Home opens on the first card of the first row (Continue Watching when there is one). Up and Down
+' move between rows, each row keeps its card, and the hero and the backdrop describe the card in
+' focus wherever it is. Back goes to that opening state, and from there leaves the app.
 sub init()
+    f = frames()
+    m.rowsY = f.browse.rowsY
     m.page = m.top.findNode("page")
     m.hero = m.top.findNode("hero")
+    m.hero.translation = [f.gutter, f.browse.heroTop]
+    ' rows leaving upwards are cut a little above the slot's heading, under the hero's hints
+    m.top.findNode("window").clippingRect = [0, m.rowsY - 30, 1920, 1080 - m.rowsY + 30]
     m.notice = m.top.findNode("notice")
     m.slide = m.top.findNode("slide")
     m.slideTo = m.top.findNode("slideTo")
-    m.turn = m.top.findNode("turn")
     m.rows = []        ' {row, shelf, y, asked}; shelf is made when focus comes near
-    m.spots = []
-    m.spot = 0
-    m.focus = -2       ' -2 nothing to focus yet, -1 the spotlight, otherwise a row
-    m.hero.observeField("pressed", "onHeroPressed")
+    m.details = {}     ' item id -> the item in full, for the hero's synopsis
+    m.rest = m.top.findNode("rest")
+    m.rest.observeField("fire", "readDetail")
+    m.loadingDelay = m.top.findNode("loadingDelay")
+    m.loadingDelay.observeField("fire", "onLoadingDelay")
+    m.focus = -2       ' -2 nothing to focus yet, otherwise the row in focus
     m.notice.observeField("pressed", "load")
-    m.turn.observeField("fire", "onTurn")
     load()
 end sub
 
 sub load()
     m.notice.visible = false
+    m.loadingDelay.control = "start"
     api("GET", "/v1/home", invalid, "onHome")
 end sub
 
@@ -32,16 +41,13 @@ sub onHome(event as object)
         return
     end if
     home = result.data
-    m.spots = []
-    if home.spotlight <> invalid
-        for each spot in home.spotlight
-            if not isReading(spot.entry) then m.spots.push(spot)
-        end for
-    end if
+    ' a late answer never takes focus from the rail or a sheet: only a Home that had it keeps it
+    own = m.top.isInFocusChain()
     for each entry in m.rows
         if entry.shelf <> invalid then m.page.removeChild(entry.shelf)
     end for
     m.rows = []
+    m.focus = -2
     for each row in home.rows
         row.items = withoutReading(row.items)
         ' A row is kept if it has titles, or will read them as it comes near (`deferred`).
@@ -50,7 +56,9 @@ sub onHome(event as object)
         end if
     end for
     place()
-    if m.spots.count() = 0 and m.rows.count() = 0
+    if rowFrom(0, 1) < 0
+        ' only rows that read their titles later: read them in turn until one has some
+        if readDeferred() then return
         say("", "Nothing here yet", "Titles show up on Home as they are added to this server's libraries.", [{id: "retry", text: "Look again", icon: "refresh"}])
         return
     end if
@@ -60,7 +68,7 @@ sub onHome(event as object)
         m.keep = invalid
         for i = 0 to m.rows.count() - 1
             if m.rows[i].row.id = keep.row and m.rows[i].row.items.count() > 0
-                moveTo(i)
+                moveTo(i, own)
                 at = keep.at
                 if at > m.rows[i].row.items.count() - 1 then at = m.rows[i].row.items.count() - 1
                 if at > 0 then m.rows[i].shelf.jumpTo = at
@@ -69,23 +77,60 @@ sub onHome(event as object)
         end for
     end if
     m.keep = invalid
-    if m.spots.count() > 0 then moveTo(-1) else moveTo(rowFrom(0, 1))
-    if m.spots.count() > 1 then m.turn.control = "start"
+    moveTo(rowFrom(0, 1), own)
 end sub
 
 ' A whole-page message in place of Home, with focus on its button.
+' Home has been loading for 300 ms: the hero's lines and the first row as outlines. Home itself
+' keeps focus; an outline never takes it.
+sub onLoadingDelay()
+    if m.focus <> -2 or m.notice.visible then return
+    row = m.top.findNode("loadingRow")
+    if row.getChildCount() = 0
+        g = shelfMetrics("landscape")
+        k = metrics()
+        x = frames().gutter
+        heading = row.createChild("Poster")
+        heading.translation = [x, m.rowsY + 6]
+        heading.width = 300
+        heading.height = 32
+        for i = 0 to 3
+            card = row.createChild("Poster")
+            card.translation = [x + i * (g.card[0] + k.cardGap), m.rowsY + g.headingGap]
+            card.width = g.card[0]
+            card.height = g.card[1]
+        end for
+        for each part in row.getChildren(-1, 0)
+            part.uri = "pkg:/images/round-14.9.png"
+            part.blendColor = colours().raisedHigh
+        end for
+    end if
+    row.visible = true
+    m.hero.visible = true
+    m.hero.loading = true
+end sub
+
+sub stopLoading()
+    m.loadingDelay.control = "stop"
+    m.top.findNode("loadingRow").visible = false
+    m.hero.loading = false
+end sub
+
 sub say(icon as string, title as string, body as string, buttons as object)
+    stopLoading()
     m.focus = -2
     m.hero.visible = false
+    m.top.art = ""
     m.notice.icon = icon
     m.notice.title = title
     m.notice.body = body
     m.notice.buttons = buttons
     m.notice.visible = true
-    m.notice.active = true
+    if m.top.isInFocusChain() then m.notice.active = true
 end sub
 
-' Give each row its place down the page. A row with nothing to show yet takes no room.
+' Give each row its place down the page. A row with nothing to show yet takes no room. A row that
+' fills in above the one in focus never moves it: the page keeps the focused row in its slot.
 sub place()
     y = 0
     for each entry in m.rows
@@ -93,13 +138,14 @@ sub place()
         if entry.row.items.count() > 0 then y = y + shelfMetrics(entry.row.shape).block
         if entry.shelf <> invalid then entry.shelf.translation = [0, entry.y]
     end for
+    if m.focus >= 0 and m.slide.state <> "running" then m.page.translation = [0, m.rowsY - m.rows[m.focus].y]
 end sub
 
-' The address of more of a row's titles: the row names its library and query (API.md, Home).
+' The address of more of a row's titles: every row, built-in, saved view or collection, goes on
+' at /v1/home/rows/{id}, the same way See all pages it.
 function rowItemsPath(row as object, cursor as dynamic) as string
-    path = "/v1/items?library=" + row.library
-    if row.query <> invalid and row.query <> "" then path = path + "&" + row.query
-    if cursor <> invalid then path = path + "&cursor=" + cursor
+    path = "/v1/home/rows/" + row.id
+    if cursor <> invalid then path = path + "?cursor=" + cursor
     return path
 end function
 
@@ -107,7 +153,7 @@ end function
 sub readRow(i as integer)
     entry = m.rows[i]
     row = entry.row
-    if entry.asked or row.library = invalid then return
+    if entry.asked then return
     if row.deferred = true and row.items.count() = 0
         entry.asked = true
         api("GET", rowItemsPath(row, invalid), invalid, "onRowItems", {index: i, id: row.id})
@@ -125,7 +171,10 @@ sub onRowItems(event as object)
     if entry.row.id <> ctx.id then return
     entry.asked = false
     if not result.ok
-        entry.row.nextCursor = invalid   ' the row stops where it is; nothing moves
+        ' a row that has titles keeps its cursor, and the next card in focus asks again; an unread
+        ' row is not asked again and again
+        entry.row.deferred = false
+        if m.focus = -2 then onHomeEmpty()
         return
     end if
     more = withoutReading(result.data.items)
@@ -138,7 +187,32 @@ sub onRowItems(event as object)
         place()
         if m.focus >= 0 then makeNear(m.focus)
     end if
+    if m.focus = -2 then onHomeEmpty()
 end sub
+
+' Home has nothing to focus yet: the first row that has titles takes focus, or the next deferred
+' row is read, or, when none is left, Home says it is empty.
+sub onHomeEmpty()
+    first = rowFrom(0, 1)
+    if first >= 0
+        m.hero.visible = true
+        moveTo(first, m.top.isInFocusChain())
+    else if not readDeferred()
+        say("", "Nothing here yet", "Titles show up on Home as they are added to this server's libraries.", [{id: "retry", text: "Look again", icon: "refresh"}])
+    end if
+end sub
+
+' Ask for the first deferred row that has not read its titles; false when there is none.
+function readDeferred() as boolean
+    for i = 0 to m.rows.count() - 1
+        row = m.rows[i].row
+        if row.deferred = true and row.items.count() = 0
+            if not m.rows[i].asked then readRow(i)
+            return true
+        end if
+    end for
+    return false
+end function
 
 sub onActive()
     if not m.top.active then return
@@ -150,9 +224,9 @@ sub onActive()
     end if
     if m.notice.visible
         m.notice.active = true
-    else if m.focus = -1
-        m.hero.active = true
-    else if m.focus >= 0
+    else if m.focus = -2
+        m.top.setFocus(true)     ' still loading: Home holds focus until a row can take it
+    else
         m.rows[m.focus].shelf.active = true
     end if
 end sub
@@ -195,38 +269,26 @@ sub makeNear(i as integer)
     end for
 end sub
 
-' The nearest row at or after i (or before it, going up) that has cards; -1 for the spotlight, -2 for none.
+' The nearest row at or after i (or before it, going up) that has cards; -1 for none.
 function rowFrom(i as integer, direction as integer) as integer
     while i >= 0 and i < m.rows.count()
         if m.rows[i].row.items.count() > 0 then return i
         i = i + direction
     end while
-    if i < 0 and m.spots.count() > 0 then return -1
-    return -2
+    return -1
 end function
 
-' Move focus to the spotlight (-1) or a row, and bring the page to it.
-sub moveTo(i as integer)
+' Move focus to a row, and slide the page so that row's heading sits on the slot. `grab` false only
+' marks where focus will be, for a page that does not have focus now (the rail or a sheet has it).
+sub moveTo(i as integer, grab = true as boolean)
+    if i < 0 then return
+    stopLoading()
     makeNear(i)
-    if i >= 0 then makeShelf(i)
     m.focus = i
-    pageY = 830
-    first = rowFrom(0, 1)
-    if i = -1
-        m.hero.mode = "spotlight"
-        showSpot()
-        m.hero.visible = true
-        if m.top.visible then m.hero.active = true
-    else
-        m.hero.mode = "preview"
-        m.hero.visible = (i = first)
-        pageY = 507 - m.rows[i].y
-        if i = first then pageY = 595 - m.rows[i].y
-        if m.top.visible then m.rows[i].shelf.active = true
-        describe()
-    end if
+    if grab then m.rows[i].shelf.active = true
+    describe()
     m.slide.control = "stop"
-    m.slideTo.keyValue = [m.page.translation, [0, pageY]]
+    m.slideTo.keyValue = [m.page.translation, [0, m.rowsY - m.rows[i].y]]
     m.slide.control = "start"
 end sub
 
@@ -238,66 +300,46 @@ function focusedItem() as dynamic
     return entry.row.items[at]
 end function
 
-' The hero and the backdrop follow the card in focus.
+' The hero and the backdrop follow the card in focus. The card's own words show at once; its
+' synopsis and the rest fill their slots when the title is read in full, so nothing moves.
 sub describe()
     item = focusedItem()
     if item = invalid then return
-    model = heroFor(item)
+    full = m.details[item.id]
+    if full = invalid
+        m.rest.control = "stop"
+        m.rest.control = "start"
+        full = item
+    end if
+    model = heroFor(full)
     m.top.art = model.art
-    if m.focus <> rowFrom(0, 1) then return
     ok = "Details"
     if m.rows[m.focus].row.id = "continue" then ok = "Resume"
     m.hero.okText = ok
     m.hero.model = model
 end sub
 
-sub showSpot()
-    spot = m.spots[m.spot]
-    model = heroFor(spot.entry)
-    model.eyebrow = spot.reason.text.fallback
-    buttons = []
-    if spot.play
-        text = "Play"
-        target = spot.resumeTarget
-        if target <> invalid
-            if progressOf(target) >= 0
-                text = "Resume"
-            else if target.kind = "episode" and episodeCode(target) <> ""
-                text = "Play " + episodeCode(target)
-            end if
-        end if
-        buttons.push({id: "play", text: text, icon: "play"})
-    end if
-    if spot.myList
-        if spot.entry.state.inList
-            buttons.push({id: "list", text: "My List", icon: "check"})
-        else
-            buttons.push({id: "list", text: "My List", icon: "plus"})
-        end if
-    end if
-    buttons.push({id: "details", text: "Details", icon: ""})
-    m.hero.pages = m.spots.count()
-    m.hero.page = m.spot
-    m.hero.buttons = buttons
-    m.hero.model = model
-    m.top.art = model.art
+sub readDetail()
+    item = focusedItem()
+    if item = invalid or m.details[item.id] <> invalid then return
+    api("GET", "/v1/items/" + item.id, invalid, "onDetail", {id: item.id})
 end sub
 
-' The spotlight turns by itself only while it is the opening state; focus stays where it is.
+sub onDetail(event as object)
+    result = event.getData()
+    if not result.ok then return
+    m.details[event.getRoSGNode().ctx.id] = result.data
+    item = focusedItem()
+    if item <> invalid and item.id = event.getRoSGNode().ctx.id then describe()
+end sub
+
 sub onCovered()
     if m.top.covered then m.covered = true
 end sub
 
+' The opening state: the page at the top, focus on the first row at the card it remembers.
 sub onToTop()
-    if m.focus = -2 then return
-    if m.spots.count() > 0 then moveTo(-1) else moveTo(rowFrom(0, 1))
-end sub
-
-sub onTurn()
-    ' never behind the rail or a sheet: the page you left is the page you come back to
-    if m.focus <> -1 or not m.top.isInFocusChain() then return
-    m.spot = (m.spot + 1) mod m.spots.count()
-    showSpot()
+    if m.focus >= 0 then moveTo(rowFrom(0, 1))
 end sub
 
 sub onCardFocused(event as object)
@@ -308,59 +350,35 @@ end sub
 
 sub onCardSelected(event as object)
     item = focusedItem()
-    if item <> invalid then m.top.open = {item: item, play: m.rows[m.focus].row.id = "continue"}
+    if item = invalid then return
+    if m.rows[m.focus].row.id = "continue" then m.top.open = {item: item, play: true} else openPage(item)
 end sub
 
-sub onHeroPressed(event as object)
-    spot = m.spots[m.spot]
-    which = event.getData()
-    if which = "play"
-        target = spot.entry
-        if spot.resumeTarget <> invalid then target = spot.resumeTarget
-        m.top.open = {item: target, play: true}
-    else if which = "details"
-        m.top.open = {item: spot.entry, play: false}
-    else if which = "list"
-        ' My List changes at once on the screen; the server is told, and a refusal puts it back.
-        spot.entry.state.inList = not spot.entry.state.inList
-        m.spots[m.spot] = spot
-        showSpot()
-        api("PUT", "/v1/items/" + spot.entry.id + "/state", {inList: spot.entry.state.inList, madeAgoMs: 0}, "onListSaved", {index: m.spot, id: spot.entry.id})
+' Open a title's page. An episode has none of its own: its show's page opens (a show page starts
+' on the season with something left to play).
+sub openPage(item as object)
+    if item.kind = "episode" and item.rootId <> invalid
+        m.top.open = {item: {id: item.rootId, kind: "show", title: item.rootTitle}, play: false}
+    else
+        m.top.open = {item: item, play: false}
     end if
-end sub
-
-sub onListSaved(event as object)
-    if event.getData().ok then return
-    ctx = event.getRoSGNode().ctx
-    if ctx.index >= m.spots.count() or m.spots[ctx.index].entry.id <> ctx.id then return
-    spot = m.spots[ctx.index]
-    spot.entry.state.inList = not spot.entry.state.inList
-    m.spots[ctx.index] = spot
-    if m.focus = -1 and m.spot = ctx.index then showSpot()
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
     holdKey(key, press and (key = "up" or key = "down"))
     if not press then return false
-    if key = "options" and m.focus <> -2
+    if key = "options" and m.focus >= 0
         openMenu()
         return true
     end if
     return pressKey(key)
 end function
 
-' The title the * menu is about: the card in focus, or the spotlight's title.
-function menuItem() as dynamic
-    if m.focus = -1 then return m.spots[m.spot].entry
-    return focusedItem()
-end function
-
 sub openMenu()
-    item = menuItem()
+    item = focusedItem()
     if item = invalid then return
     m.menuFor = item
-    inContinue = (m.focus >= 0 and m.rows[m.focus].row.id = "continue")
-    m.top.menu = titleMenu(item, inContinue)
+    m.top.menu = titleMenu(item, m.rows[m.focus].row.id = "continue")
 end sub
 
 sub onMenuChosen(event as object)
@@ -368,11 +386,9 @@ sub onMenuChosen(event as object)
     which = event.getData()
     if item = invalid then return
     if which = "play"
-        target = item
-        if m.focus = -1 and m.spots[m.spot].resumeTarget <> invalid then target = m.spots[m.spot].resumeTarget
-        m.top.open = {item: target, play: true}
+        m.top.open = {item: item, play: true}
     else if which = "details"
-        m.top.open = {item: item, play: false}
+        openPage(item)
     else
         change = titleMenuChange(item, which)
         if change <> invalid
@@ -382,7 +398,7 @@ sub onMenuChosen(event as object)
     end if
 end sub
 
-' Home is read again after a change made from a menu, once focus has left the row it was made in.
+' Home is read again after a change made from a menu.
 sub onMenuSaved(event as object)
     if event.getData().ok then refresh()
 end sub
@@ -390,26 +406,27 @@ end sub
 ' Read Home again and keep focus where it was: the same row, and the same place along it (the
 ' next card, or the last one, when the card in focus has gone).
 sub refresh()
-    if m.focus = -2 then return
-    m.keep = {row: "", at: 0}
-    if m.focus >= 0 then m.keep = {row: m.rows[m.focus].row.id, at: m.rows[m.focus].shelf.focusedIndex}
+    if m.focus < 0 then return
+    m.keep = {row: m.rows[m.focus].row.id, at: m.rows[m.focus].shelf.focusedIndex}
+    m.details = {}     ' progress and played may have changed
     api("GET", "/v1/home", invalid, "onHome")
 end sub
 
 function pressKey(key as string) as boolean
-    if m.focus = -2 then return false
+    if m.focus < 0 then return false
     if key = "down"
         target = rowFrom(m.focus + 1, 1)
         if target >= 0 then moveTo(target)
         return true
     else if key = "up"
         target = rowFrom(m.focus - 1, -1)
-        if m.focus >= 0 and target <> -2 then moveTo(target)
+        if target >= 0 then moveTo(target)
         return true
     else if key = "back"
         ' Back from anywhere on Home is the opening state; from there it leaves the app.
-        if m.focus >= 0 and m.spots.count() > 0
-            moveTo(-1)
+        first = rowFrom(0, 1)
+        if m.focus <> first
+            moveTo(first)
             return true
         end if
     end if

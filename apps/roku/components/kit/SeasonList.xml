@@ -14,7 +14,7 @@
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
     <Group id="window">
-      <Poster id="plate" uri="pkg:/images/round-14.9.png" blendColor="0x162C3AFF" width="350" height="90" translation="[-10,0]"/>
+      <Poster id="plate" uri="pkg:/images/round-14.9.png" width="350" height="90" translation="[-10,0]"/>
       <Group id="rows"/>
     </Group>
     <Label id="moreAbove" translation="[22,2]" visible="false"/>

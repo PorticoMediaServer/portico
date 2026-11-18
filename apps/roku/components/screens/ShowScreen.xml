@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A show's page: its seasons down the left, the season's episodes in a row beside them, and a band
-     under the row describing whatever has focus. Then More like this and Details, as on a film's page. -->
+<!-- A show's page, on the Title page frame like a film's: the hero and its action row, the section
+     strip at frames().title.tabsY and the episode row at rowY. Below the hero, the page folds up:
+     the seasons down the left, the season's episodes in a row beside them, and a band under the
+     row describing whatever has focus. Then More like this and Details, as on a film's page. -->
 <component name="ShowScreen" extends="Group">
   <interface>
     <field id="item" type="assocarray" onChange="onItem"/>
@@ -9,27 +11,41 @@
     <!-- True while the page's rows and words lie over the art: the scene dims it. -->
     <field id="quiet" type="boolean"/>
     <field id="open" type="assocarray" alwaysNotify="true"/>
+    <!-- Asks the scene for the side sheet (the "..." button, or *); the choice comes back in menuChosen. -->
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
   </interface>
   <script type="text/brightscript" uri="ShowScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <children>
-    <Group id="top">
-      <Hero id="hero" mode="title"/>
-      <ButtonRow id="buttons" translation="[200,484]"/>
-    </Group>
-    <Label id="title" translation="[197,58]" width="1500" visible="false"/>
-    <Group id="lower" translation="[0,536]">
-    <TitleSections id="sections" translation="[0,164]" lead="Episodes" section="lead"/>
-    <Group id="episodesPart">
-      <SeasonList id="seasons" translation="[200,262]"/>
-      <Shelf id="episodes" shape="episode" slotX="600" translation="[0,202]"/>
-      <Label id="bandHead" translation="[600,640]"/>
-      <Label id="bandFacts" translation="[600,640]"/>
-      <Label id="bandText" translation="[600,682]" width="1100" wrap="true" maxLines="2"/>
-    </Group>
+    <Hero id="hero" mode="title"/>
+    <!-- Placed so the strip lands on tabsY at the top of the page, and at 164 once folded. -->
+    <!-- Placed so the strip lands on tabsY at the top of the page, and on foldedTabsY once folded:
+         what it holds is placed on the folded page's lines from frames().title. -->
+    <Group id="lower">
+      <TitleSections id="sections" lead="Episodes" section="lead" peek="true"/>
+      <Group id="episodesPart">
+        <SeasonList id="seasons"/>
+        <Shelf id="episodes" shape="episode"/>
+        <!-- The band about what has focus (tv-detail frame 6), every line in its own slot. -->
+        <Label id="bandHead" wrap="true" maxLines="2"/>
+        <Label id="bandCode" height="36" vertAlign="center"/>
+        <Label id="bandFacts" height="36" vertAlign="center"/>
+        <Label id="bandText" wrap="true" maxLines="3"/>
+        <Group id="bandResume">
+          <Rectangle id="resumeTrack" width="220" height="6"/>
+          <Rectangle id="resumeBar" height="6"/>
+          <Label id="resumeWord" text="Resume" height="36" vertAlign="center"/>
+          <Label id="resumeLeft" height="36" vertAlign="center"/>
+        </Group>
+        <Group id="credits"/>
+        <KeyHints id="bandHint"/>
+      </Group>
     </Group>
     <Timer id="rest" duration="0.15"/>
+    <!-- An episode's synopsis is read once focus rests on it (a season's list carries none). -->
+    <Timer id="bandRest" duration="0.35"/>
   </children>
 </component>

@@ -39,15 +39,30 @@ function frames() as object
         player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470},
         ' Every page beside the rail: its content starts at `gutter` and ends at `rightEdge`.
         gutter: 200, rightEdge: 1824,
-        ' A library or Search (frame "Browse"): the page title's line.
-        browse: {titleY: 64},
+        ' A library or Search (frame "Browse"): the page title's line; Home's moderate hero with its
+        ' words from `heroTop`, and the heading of the row in focus on `rowsY`.
+        browse: {titleY: 64, heroTop: 110, rowsY: 520},
         ' A library (tv.html frame 4): the toolbar under the page title, the count, then the grid's first cards.
         grid: {toolsY: 144, countY: 236, cardsY: 318},
         ' Search (tv.html frame 5): the box on the page title's line, the keys under it, the results
         ' column from `resultsX`; the row in focus is brought up level with the keys.
         search: {boxWidth: 500, boxHeight: 80, keysY: 176, resultsX: 780},
-        ' A title page (frame "Title page"): its words start at `copyTop`, `copyWidth` wide.
-        title: {copyTop: 80, copyWidth: 960},
+        ' A title page (frame "Title page"): its words and action row start at `copyTop`, `copyWidth`
+        ' wide; the section strip is fixed at `tabsY` and the first row at `rowY`.
+        title: {copyTop: 80, copyWidth: 960, tabsY: 628, rowY: 712,
+            ' below the hero the page folds up (tv-detail frame 3): the strip at `foldedTabsY`, the
+            ' section's row heading at `foldedHeadingY`
+            foldedTabsY: 164, foldedHeadingY: 263,
+            ' Details: the facts' column (Released, Directed by...) beside About
+            factsX: 1148,
+            ' a show's Episodes, folded (tv-detail frames 5 and 6): the season list and the episode
+            ' stills from `episodesY`, the episode slot at `episodesX`; under them the band about what has
+            ' focus: its heading ending on `bandHeadBottom`, the meta line on `bandMetaMid`, three lines of
+            ' synopsis from `bandTextY`, the Resume line on `bandResumeMid`; the credits column at
+            ' `creditsX` from `creditsY`, its * hint on `bandHintMid`; then More like this peeking, its
+            ' heading at `peekY`
+            episodesX: 600, episodesY: 248, bandHeadBottom: 648, bandMetaMid: 680, bandTextY: 708,
+            bandResumeMid: 848, creditsX: 1264, creditsY: 616, bandHintMid: 878, peekY: 944},
         ' A person or a collection (tv-detail frames 9 and 10): the words in fixed slots from the title
         ' frame's copyTop (a person's beside a face `face` across); between a collection's description
         ' and `rowsY` lies the place of its action row; the first row's heading is fixed at `rowsY`, and
@@ -68,7 +83,7 @@ end function
 ' The ten-foot type scale (packages/design typeScale.tenFoot): [weight, size, line height or 0].
 function typeRoles() as object
     return {
-        lockup: [800, 120, 0], lockupLong: [800, 84, 0], display: [800, 96, 0], lede: [400, 30, 42], title: [800, 44, 0], heading: [600, 32, 0],
+        lockup: [800, 100, 0], lockupLong: [800, 56, 0], display: [800, 96, 0], lede: [400, 30, 42], title: [800, 44, 0], heading: [600, 32, 0],
         rowHeading: [700, 32, 0], rowSubtitle: [400, 20, 0], nav: [700, 24, 0],
         cardTitle: [600, 22, 0], cardSubtitle: [400, 20, 0], wideTitle: [700, 26, 0],
         meta: [400, 24, 0], metaStrong: [700, 24, 0], eyebrow: [600, 24, 0], synopsis: [400, 24, 35],

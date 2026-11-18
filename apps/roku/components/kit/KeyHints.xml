@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A line of remote-key hints: each key on an outlined keycap, then what it does ("OK Play",
+     "Up Down Choose a page"). Laid out left to right and centred on the line it is placed on. -->
+<component name="KeyHints" extends="LayoutGroup">
+  <interface>
+    <!-- [{keys: ["Up", "Down"], text: "Choose a page"}] -->
+    <field id="hints" type="array" onChange="onHints"/>
+  </interface>
+  <script type="text/brightscript" uri="KeyHints.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+</component>
