@@ -243,8 +243,8 @@ table held in memory by that package's service.
   delivery) and counts into `daily_totals` through `console.Count(metric, n)`, which adds to
   today's rows every few minutes and when the server stops. Playback's admission reads the
   upload speed from `streaming` when a play starts away from home and may refuse it; a stream
-  already playing is never changed. "Keep play history" removes the owner's old rows only once the profile's own
-  History no longer needs them; nothing else removes a play. Play history is for the owner and
+  already playing is never changed. Play history is kept indefinitely: there is no "Keep play
+  history" setting, and nothing removes a play (console rule 20). Play history is for the owner and
   administrators; its list is in time order only, and a filter by kind or text and the
   summary read the plays of their range, an accepted cost bounded at a million plays.
   Removing a library or an account clears `play_history.library_id`, `user_id` and
