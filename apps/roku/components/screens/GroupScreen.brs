@@ -520,7 +520,6 @@ sub onPlay(event as object)
     ' a list or saved view from Saved: the server builds the whole run, not only the 200 titles read here
     item = m.top.item
     if item.kind = "savedList" and item.listKind = "saved_view" then queue = {source: {homeRow: {id: "view:" + item.id}}}
-    if item.kind = "savedList" and item.listKind <> "saved_view" then queue = {source: {list: item.id}}
     if event.getData() = "shuffle"
         ' the server plays startAt first and shuffles the rest, so the first is picked here
         first = items[rnd(items.count()) - 1]
