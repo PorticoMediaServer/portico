@@ -58,7 +58,8 @@ export function FieldTile({label, summary, active = false, open = false, onOpenC
       <View style={{flex: 1, minWidth: 0, flexDirection: desktop && !open ? 'column' : 'row', alignItems: desktop && !open ? 'flex-start' : 'center', gap: desktop && !open ? 2 : 10, paddingRight: desktop && !open ? 26 : 0}}>
         <Text numberOfLines={1} style={[browseType(theme, tv ? 24 : desktop && !open ? 12.5 : 15, 600), {color: desktop && !open ? theme.colors.textTertiary : theme.colors.text, flexShrink: 1}]}>{label}</Text>
         <Text numberOfLines={1} style={[browseType(theme, tv ? 24 : desktop && !open ? 15 : 14, active ? 700 : tv ? 500 : 600), {color: active ? theme.colors.accentStrong : theme.colors.textTertiary, marginLeft: desktop && !open ? 0 : 'auto', flexShrink: 1}]}>{summary ?? t('next.browse.native.any')}</Text>
-        <Icon name={more ? 'i-plus' : open ? tv ? 'i-down' : 'i-up' : 'i-right'} size={tv ? 24 : 16} color={active ? theme.colors.accentStrong : theme.colors.textTertiary} style={desktop && !open ? {position: 'absolute', right: 0, top: 5} : undefined}/>
+        {/* TV draws a closed field as its name and value only; the open one keeps its chevron (final3-tv-08). */}
+        {(more || open || !tv) && <Icon name={more ? 'i-plus' : open ? tv ? 'i-down' : 'i-up' : 'i-right'} size={tv ? 24 : 16} color={active ? theme.colors.accentStrong : theme.colors.textTertiary} style={desktop && !open ? {position: 'absolute', right: 0, top: 5} : undefined}/>}
       </View>
     </Focusable>
     {open && children && <View style={{paddingHorizontal: tv ? 20 : desktop ? 16 : 14, paddingTop: tv ? 6 : undefined, paddingBottom: tv ? 22 : 14, gap: tv ? 14 : 12}}>{children}</View>}
