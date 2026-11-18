@@ -251,3 +251,43 @@ func TestSignInOnATVByCode(t *testing.T) {
 		t.Errorf("approving without a sign-in answered %d, want 401", code)
 	}
 }
+
+// When the owner requires two-step of everyone, a phone that signed in before that, and has
+// never set two-step up, cannot sign a TV in: the TV does no two-step of its own, so it would
+// be a new sign-in that never had it. Once the person sets it up, the same phone approves.
+func TestATVApprovalNeedsTwoStepWhereTheOwnerRequiresIt(t *testing.T) {
+	s, owner, _, _ := twoMembers(t)
+	now := time.Now()
+	s.setClock(func() time.Time { return now })
+	phone := signInAs(t, s, "max", testPassword, 2)
+	saveSignIn(t, s, owner, `{"requireTwoStep":"everyone"}`, 200)
+	tv := func() CodeStarted {
+		var out CodeStarted
+		if w := call(t, s, "POST", "/v1/auth/codes", "", CodeStart{Device: DeviceInfo{InstallationID: device(7).InstallationID, Name: "TV"}}, &out); w.Code != 200 {
+			t.Fatalf("start answered %d: %s", w.Code, w.Body)
+		}
+		return out
+	}
+	first := tv()
+	if w := call(t, s, "POST", "/v1/auth/codes/"+first.Code+"/approve", phone.AccessToken, CodeDecision{}, nil); w.Code != 403 {
+		t.Fatalf("a phone without two-step approved a TV: %d %s", w.Code, w.Body)
+	}
+	if code := status(t, s, "POST", "/v1/auth/codes/"+first.Code+"/approve", phone.AccessToken, CodeDecision{Deny: true}); code != 204 {
+		t.Errorf("denying from the same phone answered %d, want 204", code)
+	}
+
+	var setupInfo TwoFactorSetup
+	if w := call(t, s, "POST", "/v1/me/two-factor", phone.AccessToken, TwoFactorEnrol{CurrentPassword: testPassword}, &setupInfo); w.Code != 200 {
+		t.Fatalf("starting two-step answered %d: %s", w.Code, w.Body)
+	}
+	secret, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(setupInfo.Secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code := status(t, s, "POST", "/v1/me/two-factor/confirm", phone.AccessToken, TwoFactorVerify{Code: auth.TOTPCode(secret, auth.TOTPStep(now))}); code != 200 {
+		t.Fatalf("confirming two-step answered %d", code)
+	}
+	if code := status(t, s, "POST", "/v1/auth/codes/"+tv().Code+"/approve", phone.AccessToken, CodeDecision{}); code != 204 {
+		t.Errorf("with two-step set up the phone's approval answered %d, want 204", code)
+	}
+}
