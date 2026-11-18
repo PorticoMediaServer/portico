@@ -127,6 +127,7 @@ type ItemQuery struct {
 	Limit       int
 	WithTotal   bool
 	HomeAt      time.Time // server clock for an initial Home activity window
+	HomeFirst   bool      // Home's own first page of a row: a Continue source is read only as far as the page
 	homePopular int64     // end of the seven-day ranking window, kept in its cursor
 
 	trendingVersion          int64

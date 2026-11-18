@@ -21,7 +21,7 @@ func showNextEpisode(ctx context.Context, tx *sql.Tx, v Viewer, acc access, show
 	case !errors.Is(err, sql.ErrNoRows):
 		return nil, err
 	default:
-		items, err = continueNext(ctx, tx, v, acc, "", nil, 1, show)
+		items, err = continueNext(ctx, tx, v, acc, "", nil, nil, 1, show)
 		if err != nil {
 			return nil, err
 		}

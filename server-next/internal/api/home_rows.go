@@ -119,7 +119,7 @@ func (s *Server) pageHomeRows(r *http.Request, rows []HomeRow, library string) (
 			rows[n].Items, rows[n].NextCursor = itemShapes(items), db.RecentlyAddedCursor(items)
 			continue
 		}
-		page, err := s.db.HomeRowItems(r.Context(), viewer(r), rows[n].ID, db.ItemQuery{Library: library, Limit: 40, HomeAt: s.now()})
+		page, err := s.db.HomeRowItems(r.Context(), viewer(r), rows[n].ID, db.ItemQuery{Library: library, Limit: 40, HomeAt: s.now(), HomeFirst: true})
 		if err != nil {
 			return nil, refuse(err)
 		}
