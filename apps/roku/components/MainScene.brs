@@ -113,6 +113,11 @@ end sub
 sub onMenu(event as object)
     page = event.getRoSGNode()
     if not page.isSameNode(m.screen) then return
+    ' a page whose sheet no longer applies (the title ended under the player's options) closes it
+    if event.getData().close = true
+        if m.sheet.visible then closeSheet()
+        return
+    end if
     m.sheet.model = event.getData()
     m.sheet.visible = true
     m.sheet.active = true
