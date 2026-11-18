@@ -295,15 +295,39 @@ def read_ts(expr, imports):
 
 
 # Icon name in the registry -> the sizes (px) the app draws it at.
+# Entries are kept one per line in alphabetical order so that changes to different screens do not
+# collide; a new entry goes in its alphabetical place.
 ICONS = {
-    'search': [32], 'home': [32], 'film': [32], 'tv': [32], 'book': [32], 'music': [32], 'folder': [32],
-    'live': [32], 'bookmark': [32], 'settings': [32], 'warning': [32], 'refresh': [28], 'server': [28], 'play': [28, 40], 'pause': [40], 'lock': [28], 'plus': [28], 'check': [28], 'info': [28], 'close': [28], 'forward': [28],
-    'collection': [28], 'more': [28], 'watched': [28], 'success': [28],
-    'next': [32],
-    'previous': [32],
-    'restart': [28],
+    'book': [32],
+    'bookmark': [32],
+    'check': [28],
     'chevronDown': [20],
     'chevronUp': [20],
+    'close': [28],
+    'collection': [28],
+    'film': [32],
+    'folder': [32],
+    'forward': [28],
+    'home': [32],
+    'info': [28],
+    'live': [32],
+    'lock': [28],
+    'more': [28],
+    'music': [32],
+    'next': [32],
+    'pause': [40],
+    'play': [28, 40],
+    'plus': [28],
+    'previous': [32],
+    'refresh': [28],
+    'restart': [28],
+    'search': [32],
+    'server': [28],
+    'settings': [32],
+    'success': [28],
+    'tv': [32],
+    'warning': [32],
+    'watched': [28],
 }
 
 
