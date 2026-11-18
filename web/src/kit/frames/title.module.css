@@ -102,7 +102,9 @@
   .barRow { display: flex; gap: var(--space-md); min-height: 64px; padding: 0 var(--g); } /* R5 interim: desktop-detail f3's bar */
   .barBack { display: contents; }
   .barTitle { flex: none; text-align: left; padding-right: var(--space-md); border-right: 1px solid var(--color-line); }
-  .barTabs { display: block; flex: 1; min-width: 0; margin: 0; align-self: stretch; }
+  .barTabs { display: flex; align-items: flex-end; flex: 1; min-width: 0; margin: 0; align-self: stretch; }
+  .barTabs > * { border: 0; box-shadow: none; }
+  .barTabs > *::before, .barTabs > *::after { display: none; }
   .barTabsUnder { display: none; }
   .barEnd { margin-left: auto; }
   .barEnd > button { display: inline-flex; }

@@ -46,18 +46,18 @@ const tabs = (value: string, onValueChange: (value: string) => void, show = fals
   ...(show ? [{value: 'episodes', label: f('episodes')}] : []), {value: 'more', label: f('moreLikeThis')}, {value: 'details', label: f('details')}]});
 
 /** A film: the collection kicker, the facts, Play with My List, Watched, Download and More, the picker row and the tabs. */
-function filmFrame(tab: string, setTab: (value: string) => void): Omit<TitleFrameProps, 'children'> {
+function filmFrame(tab: string, setTab: (value: string) => void, tv = false): Omit<TitleFrameProps, 'children'> {
   return {back, topAction: playOn, art: <AmbientArt treatment="title" foreground={asset('pool/movies/dune-part-two--bd.jpg')}/>,
     kicker: {icon: 'i-layers', label: f('duneCollection'), detail: f('duneCollectionCount'), onPress: none}, title: f('dune2'), metadata: <Meta text={f('dune2Facts')} tags={[f('dune2Rating')]}/>,
     primary: {icon: 'i-play', label: f('play'), onPress: none},
-    actions: [{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), labelled: true, onPress: none}, {icon: 'i-dl', label: f('download'), labelled: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}],
+    actions: [{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), labelled: true, onPress: none}, ...(tv ? [] : [{icon: 'i-dl' as const, label: f('download'), labelled: true, onPress: none}]), {icon: 'i-more', label: f('more'), onPress: none}],
     tagline: f('dune2Tagline'), synopsis: f('dune2Synopsis'),
     credits: [{label: f('directedBy'), names: [link(f('dune2Director'))]}, {label: f('starring'), names: (['dune2Cast1', 'dune2Cast2', 'dune2Cast3', 'dune2Cast4'] as const).map(name => link(f(name)))}],
     picker: <TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none}/>, tabs: tabs(tab, setTab)};
 }
 function Film({more = false}: {more?: boolean}) {
-  const [tab, setTab] = useState('more'), [open, setOpen] = useState(more);
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-film" {...filmFrame(tab, setTab)}>
+  const [tab, setTab] = useState('more'), [open, setOpen] = useState(more), {isTV} = useTheme();
+  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-film" {...filmFrame(tab, setTab, isTV)}>
     <Posters title={f('moreLikeDune')} items={moreLikeDune}/>
   </TitleFrame>
   {more && <Menu open={open} onOpenChange={setOpen} title={f('dune2')} items={[
@@ -69,7 +69,7 @@ function FilmResume() {
   const [tab, setTab] = useState('more');
   return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-film-resume" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('bd-insideout.jpg')}/>} title={f('insideOut')} metadata={<Meta text={f('insideOutFacts')} tags={[f('insideOutRating')]}/>}
     primary={{icon: 'i-play', label: f('resume'), progress: .09, remaining: f('insideOutLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none}}
-    actions={[{icon: 'i-check', label: f('myList'), labelled: true, active: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-check', label: f('myList'), labelled: true, active: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     tagline={f('insideOutTagline')} synopsis={f('insideOutSynopsis')} credits={[{label: f('directedBy'), names: 'Pete Docter'}, {label: f('starring'), names: 'Amy Poehler, Phyllis Smith, Richard Kind, Bill Hader'}]}
     picker={<TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none}/>} tabs={tabs(tab, setTab)}>
     <Posters title={f('moreLikeInsideOut')} items={moreLikeInsideOut}/>
@@ -94,8 +94,8 @@ function DuneDetails() {
 }
 /** Details with the hero gone: the collapsed bar (title, tabs, Play and +) as the page shows it once scrolled (desktop-detail f3; phone-detail d1 frame 2; detail-tv-4). */
 function FilmDetails() {
-  const [tab, setTab] = useState('details');
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-film-details" {...filmFrame(tab, setTab)} collapsed><DuneDetails/></TitleFrame></Page>;
+  const [tab, setTab] = useState('details'), {isTV} = useTheme();
+  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-film-details" {...filmFrame(tab, setTab, isTV)} collapsed><DuneDetails/></TitleFrame></Page>;
 }
 
 type Episode = Readonly<{id: string; title: string; label: string; length: string; synopsis: string; progress?: number; watched?: boolean; status?: string; art: string}>;
@@ -235,7 +235,7 @@ function Book() {
   return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-book" back={back} cover={{shape: 'square', node: <Artwork source={asset('pool/books/harry-potter-and-the-philosopher-s-stone.jpg')} style={{width: '100%', height: '100%'}}/>}}
     kicker={{label: f('bookSeries'), detail: f('bookSeriesDetail'), onPress: none}} title={f('book')} metadata={<Meta text={f('bookFacts')}/>}
     primary={{icon: 'i-play', label: f('resumeChapter'), progress: .32, remaining: f('bookLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none}}
-    actions={[{icon: 'i-restart', label: f('startOver'), labelled: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-plus', label: f('myList'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-plus', label: f('myList'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     aside={<><View><PanelHeading title={f('aboutBook')}/><AboutTable rows={[{label: f('author'), values: [link(f('authorValue'))]}, {label: f('narrator'), values: [link(f('narratorValue'))]}, {label: f('published'), values: [{text: f('publishedValue')}]}]}/></View>
       <OwnerCard title={f('files')} mark={f('ownerOnly')} body={f('filesBody')} actions={[{icon: 'i-folder', label: f('manage'), onPress: none}]}/></>}>
     <PanelBlock><PanelHeading title={f('chapters')}/><Songs rows={rows}/></PanelBlock>
@@ -250,8 +250,8 @@ function Missing() {
 }
 /** Loading: the card's title and art are known; the facts and words are skeletons, the buttons are in place but say nothing they do not know, the tab panel keeps skeleton cards. */
 function Loading() {
-  const [tab, setTab] = useState('more');
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-loading" {...filmFrame(tab, setTab)} kicker={undefined} state={{kind: 'loading'}}/></Page>;
+  const [tab, setTab] = useState('more'), {isTV} = useTheme();
+  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-loading" {...filmFrame(tab, setTab, isTV)} kicker={undefined} state={{kind: 'loading'}}/></Page>;
 }
 
 const whole = {screen: true} as const;

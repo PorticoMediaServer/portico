@@ -23,9 +23,7 @@ Each section fills the window and adapts to it, so the same id is captured on a 
 | `frames-browse-home` | Browse: Home, the moderate hero and two rows |
 | `frames-browse-list` | Browse: a pushed list with Back, a title and a header action |
 | `frames-browse-loading` | Browse: loading, in the loaded page's boxes |
-| `frames-title` | Title page with artwork, three round buttons, a synopsis and tabs |
-| `frames-title-missing` | Title page with no artwork, a long title, no round buttons, no synopsis |
-| `frames-title-loading` | Title page loading |
+| `frames-title-*` | The title page's forms (`title.gallery.tsx`): `-film`, `-film-resume`, `-film-more`, `-film-details`, `-show`, `-show-seasons`, `-show-episode`, `-season`, `-episode`, `-person`, `-collection`, `-album`, `-artist`, `-book`, `-missing`, `-loading` (the old `frames-title` is `-film-resume`) |
 | `frames-settings-list` | Settings list (phone: the sheet; tablet and TV: list beside a page) |
 | `frames-settings-page` | A settings page with an in-section error, kept data marked old, loading and empty |
 | `frames-sheet` | A bottom sheet (side panel on wide forms and TV) |

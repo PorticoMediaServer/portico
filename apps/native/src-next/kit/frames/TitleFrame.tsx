@@ -127,10 +127,10 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
       style={[{width: actionHeight, height: actionHeight}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .55)}]}/>;
   // While loading the row keeps its buttons but says nothing it does not know yet (the time left).
   const resume = primary?.progress !== undefined && !loading, lineUnder = resume && (stacked || !!cover);
-  const lead = primary && {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, preferredFocus: !tvCollapsed, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1, maxWidth: form === 'medium' ? 300 : undefined} : undefined};
-  const row = (primary || actions.length > 0) && <View style={{minHeight: actionHeight, flexDirection: 'row', flexWrap: stacked ? 'nowrap' : 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.spec.hero.actions.gap[theme.platform]}}>
+  const lead = primary && {icon: primary.icon, disabled: primary.disabled, onPress: primary.onPress, testID: primary.testID, preferredFocus: !tvCollapsed, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1, maxWidth: form === 'medium' ? 300 : undefined} : undefined};
+  const row = (primary || actions.length > 0) && <View style={{minHeight: actionHeight, alignSelf: stacked ? 'stretch' : undefined, flexDirection: 'row', flexWrap: stacked ? 'nowrap' : 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.spec.hero.actions.gap[theme.platform]}}>
     {lead && (resume && !lineUnder ? <ResumeButton {...lead} size="hero" progress={primary!.progress!} remaining={primary!.remaining}>{primary!.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero">{primary!.label}</Button>)}
-    {primary?.startOver && !lineUnder && !loading && <Button variant="glass" size="hero" icon="i-restart" onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
+    {primary?.startOver && !stacked && !loading && <Button variant="glass" size="hero" icon="i-restart" onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
     {actions.map(side)}
   </View>;
   const track = theme.spec.card.progress.height[theme.platform];
@@ -219,7 +219,7 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
   return <View testID={testID} style={{flex: 1}}>
     <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)}>
       {head}
-      {tabs && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? frame.headerGap : 0})}</View>}
+      {tabs && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>}
       {content}
     </ScrollView>
     {bar}

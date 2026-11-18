@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState, type ComponentType, type ReactNode} from 'react';
+import {Fragment, useEffect, useRef, useState, type ComponentType, type ReactNode} from 'react';
 import {formatMessage, type MessageId} from '@i18n';
 import type {FactPart} from '@portico/client-core/kit-model';
 import {titleFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/title-fixtures.ts';
@@ -13,7 +13,7 @@ import {HeroFacts, Shelf} from '../../kit/layout';
 import {Menu, MenuGroup, MenuItem, MenuSeparator} from '../../kit/overlays';
 import {usePhone} from '../../kit/overlays/shared';
 import {EpisodeDetailsLayout} from '../../kit/title/TitleParts';
-import {Page, useReferenceArtwork} from './frames';
+import {Page, useReferenceArtwork, useWide} from './frames';
 
 /** Family C, the title page's forms: every kind of title page filled in full on the one `TitleFrame`, from the parts
  * its tab panel and side are built from. The same ids as the native gallery (`dev/families/frames/title.gallery.tsx`).
@@ -123,12 +123,15 @@ const tlouEpisodes: readonly Episode[] = [
 ];
 function EpisodeTiles({episodes, layout, opened}: {episodes: readonly Episode[]; layout: 'list' | 'grid'; opened?: string}) {
   const art = useReferenceArtwork();
-  return <EpisodeList layout={layout}>{episodes.map(episode => <div key={episode.id} style={{display: 'contents'}}>
+  // An episode opens under its row: after the last tile of the row it is in (desktop-detail f5), as the show page does.
+  const columns = 4, at = opened ? episodes.findIndex(episode => episode.id === opened) : -1;
+  const rowEnd = at < 0 ? -1 : layout === 'list' ? at : Math.min(episodes.length - 1, Math.floor(at / columns) * columns + columns - 1);
+  return <EpisodeList layout={layout} columns={columns}>{episodes.map((episode, index) => <Fragment key={episode.id}>
     <EpisodeTile className={episodeRowClass} context="detail" artworkKind="still" artwork={art(episode.art)} watched={episode.watched} expanded={episode.id === opened} length={episode.length}
       model={{title: episode.title, caption: [{id: 'episode', text: episode.label, role: 'context'}, ...(episode.status ? [{id: 'continue', text: episode.status, role: 'status' as const}, {id: 'left', text: episode.left!, role: 'context' as const}] : [])], detail: [], progress: episode.progress}}
       airDate={episode.date ? {id: 'air-date', text: episode.date, role: 'context'} : undefined} description={episode.synopsis} onNavigate={none} />
-    {episode.id === opened && <EpisodeListOpened><OpenedEpisode /></EpisodeListOpened>}
-  </div>)}</EpisodeList>;
+    {index === rowEnd && <EpisodeListOpened><OpenedEpisode /></EpisodeListOpened>}
+  </Fragment>)}</EpisodeList>;
 }
 /** The episode opened in place under its row (desktop-detail f5; phone-detail d2 frame 4): the kit's episode layout. */
 function OpenedEpisode() {
@@ -157,10 +160,10 @@ function showFrame(art: ReturnType<typeof useReferenceArtwork>, tab: string, set
     cast: <CastRow groups={[showCast]} />, tabs: tabs(tab, setTab, true)};
 }
 function Show({opened}: {opened?: string}) {
-  const art = useReferenceArtwork(), [tab, setTab] = useState('episodes');
+  const art = useReferenceArtwork(), [tab, setTab] = useState('episodes'), wide = useWide();
   return <Page current="movies"><TitleFrame {...showFrame(art, tab, setTab)}>
     <PanelBlock label={f('episodes')}><ShowBar season={f('season1')} count={f('episodeCount')} progress={{watched: 1, total: 4, label: f('seasonProgress')}} />
-      <EpisodeTiles episodes={tlouEpisodes} layout={opened ? 'grid' : 'list'} opened={opened} /></PanelBlock>
+      <EpisodeTiles episodes={tlouEpisodes} layout={wide ? 'grid' : 'list'} opened={opened} /></PanelBlock>
   </TitleFrame></Page>;
 }
 /** A long-running show with the season menu open (desktop-detail f6; phone-detail d2 frame 5): tiles, four to a row. */
@@ -277,7 +280,7 @@ function Book() {
   return <Page current="movies"><TitleFrame back={back} cover={{shape: 'square', node: <Artwork source={art('pool/books/harry-potter-and-the-philosopher-s-stone.jpg')} alt="" />}}
     kicker={{label: f('bookSeries'), detail: f('bookSeriesDetail'), onPress: none}} title={f('book')} metadata={<Meta text={f('bookFacts')} />}
     primary={{icon: 'i-play', label: f('resumeChapter'), progress: .32, remaining: f('bookLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none}}
-    actions={[{icon: 'i-restart', label: f('startOver'), labelled: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-plus', label: f('myList'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-plus', label: f('myList'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     aside={<><div><PanelHeading title={f('aboutBook')} /><PanelText>{f('bookAbout')}</PanelText>
       <AboutTable rows={[{label: f('author'), values: [link(f('authorValue'))]}, {label: f('narrator'), values: [link(f('narratorValue'))]}, {label: f('published'), values: [{text: f('publishedValue')}]}]} /></div>
       <OwnerCard title={f('files')} mark={f('ownerOnly')} body={f('filesBody')} actions={[{icon: 'i-folder', label: f('manage'), onPress: none}]} /></>}>
@@ -303,7 +306,7 @@ export default defineGalleryFamily({id: 'frames-title', labelKey: 'next.platform
   section('title-film', 'titleFilm', () => <Film />, 1300),
   section('title-film-resume', 'titleFilmResume', FilmResume),
   section('title-film-more', 'titleFilmMore', () => <Film more />),
-  section('title-film-details', 'titleFilmDetails', FilmDetails),
+  section('title-film-details', 'titleFilmDetails', FilmDetails, 900),
   section('title-show', 'titleShow', () => <Show />, 1300),
   section('title-show-seasons', 'titleShowSeasons', ShowSeasons, 1300),
   section('title-show-episode', 'titleShowEpisode', () => <Show opened="e3" />, 1500),

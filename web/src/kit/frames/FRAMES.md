@@ -31,11 +31,15 @@ which never move, and one flexible region, the only place that may change when c
   `Section` is only for a block that is not a row of cards, and a `Shelf` never goes inside one. The frame spaces them.
 - `HomeHero`: the kit `Hero`'s data and render props only (`candidates`, `renderArtwork`, `renderActions`, ...).
   Its sizes are rule 14's.
-- `TitleFrame`: `art` (the kit `AmbientArt treatment="title"`), `back`, `topAction?`, `title`, `metadata?` (facts and the
-  rating badge), `primary` (with `progress` and `remaining` it is Resume, with the played part along its lower edge),
-  `actions?` (in order: `labelled` ones such as Start over and My List, then round ones such as watched and More; one
-  the title doesn't support stays with `disabled`), `tagline?`, `synopsis?`, `credits?` (Directed by, Starring), `tabs?`,
-  `children` (the tab panel), `state?`.
+- `TitleFrame`: its regions are `frameRegions.title` in `packages/design/src/frame-regions.ts` (which forms draw each, and
+  which regions each kind of title page fills: `titleKinds`). `art` (the kit `AmbientArt treatment="title"`) or `cover`
+  (`{node, shape: 'poster' | 'square' | 'circle'}`: a person, artist, album or book), `back`, `topAction?`, `kicker?`
+  (`{label, icon?, detail?, onPress?}`: "Dune collection · 2 films", "Acting", "Album"), `title`, `metadata?`, `picker?`
+  (`TrackPicker`, up to 1024), `primary?` (with `progress` and `remaining` it is Resume), `actions?`
+  (`labelled`, `active`, `pinned` for the collapsed bar; one the title doesn't support stays with `disabled`),
+  `tagline?` and `credits?` (from 1024), `synopsis?`, `readMore?`, `cast?` (an open foldable's left
+  page), `tabs?`, `children` (the tab panel), `aside?` (beside the panel on wide forms, under it otherwise),
+  `collapsed?` (set by the frame from the scroll; pass it to hold it), `state?`.
 - `SettingsListFrame`: `bar`, `list`, `page?`.
 - `SettingsPageFrame`: `title`, `back?`, `action?`, `status?` (Saving, Saved), `intro?`, `children`
   (`SectionCard`s), `state?`.
@@ -104,8 +108,8 @@ Changed in the fix round after the first captures:
 - `PlayerChromeFrame` takes `card` (Up next: alone in the picture's corner, controls hidden), `panel` with
   `panelCovers` (`bar` for the Episodes drawer, `all` on a phone on its side) and `scrubbing` (the transport makes way
   for the preview at phone width). At phone width a prompt sits in the strip's bottom row, where it covers nothing.
-- `SeasonBar` and `EpisodeRows` (in `kit/frames`): the bar over a show's episodes, and the kit `EpisodeTile`s laid out
-  as rows. The show page's own copy of the row rules (`screens/detail/show.module.css` `.episodeRow`) goes in Stage 2.
+- `SeasonBar` and the episode list (in `kit/frames`): the bar over a show's episodes, and the kit `EpisodeTile`s laid out
+  as rows. Round 8 moved the show page's own bar and rows into the kit in their place.
 - Skip arrows weigh the same as Previous and Next. `AudioPlayerFrame` is re-laid: the title follows the artwork, and
   from 1024 the column sits centred beside the Up next panel under a bar across the window.
 
@@ -123,8 +127,6 @@ Live screens whose look changes with this foundation:
 
 For Stage 2, so two drawings are not inherited:
 
-- `SeasonBar` here is a stand-in for the gallery's watch page, not the native part's equal: it has no owner `settings` menu, takes its Hide watched label as a prop, and draws the season trigger as a small Button. The live show page draws it as `Chip variant="toolbar"` with `SeasonMenu` (`screens/detail/Show.tsx`), which is also what the mock-up's `ep-bar` draws. Stage 2 moves the show page's bar into the kit with the owner variant and deletes this one.
-- `EpisodeRows` lays `EpisodeTile` out by the order of its children (`:nth-child`), so a change inside the tile breaks it silently. Stage 2 gives the web tile a `layout="row"` prop, as the native kit has, when it moves `show.module.css` `.episodeRow`, and deletes these rules.
 
 Changed in the final round before the owner's review (r6):
 
@@ -148,6 +150,39 @@ Left for Stage 2, listed so it is not forgotten:
 - A card's own menu (⋯) has no gallery case with fixed inputs: `motion-11-desktop-pages-menus-panels.jpg` draws it. Stage 2 adds the case with the first screen that opens one.
 
 Round 7 (18 Nov): in the upright live strip Go to live sits on a row of its own above the bar's live end, so it covers neither the bar nor the read-out; the gallery's page under the strip carries the channel mark, the Live mark, Guide and Record. The Record glyph (`i-rec`) is a solid dot. A sheet's handle shows keyboard focus by its own colour, not a ring.
+
+## Round 8: the title page's forms (family C, 18 Nov)
+
+One frame for every kind of title page, its regions written once as data (`frameRegions.title`, `titleKinds`).
+`TitleFrame` now lives in `TitleFrame.tsx` with `title.module.css`; its parts are `title-parts.tsx`.
+
+| Width | Layout |
+|---|---|
+| Up to 1023, taller than wide | One centred column: the art box with Back and Play on as glass discs, the kicker, title and facts hanging from its bottom edge; the action row (round buttons), the played line with Start over, the synopsis, the picker row; the tabs; the panel; the side under it. A cover page puts the cover centred above the words (phone-detail d1, d3; tablet f8) |
+| 600 to 1023, wider than tall | Two pages (foldable f2): the title and the cast at the left, sticky; the tabs and their panel at the right |
+| From 1024 | The words over the art at the left: kicker, title, facts, tagline, synopsis, credits, then the row with labelled buttons and Resume carrying its played part. A cover page: square or poster at the left, circle at the right (desktop-listen, desktop-detail f7). The side beside the panel (desktop-detail f8) |
+
+The collapsed bar is sticky under the shell's bar and takes no room until the tabs pass under it: at phone width Back,
+the title centred and Play on with the tabs under it; from 600 the title, the tabs beside it, the primary and the
+`pinned` actions (desktop-detail f3, f4). Loading keeps the boxes, says nothing it does not know (the time left) and
+keeps skeleton cards in the panel.
+
+Parts (`title-parts.tsx`): `PanelBlock`, `PanelHeading`, `PanelText`, `AboutTable`, `CastRow`, `TrackPicker`,
+`NumberedRow`, `OwnerCard`, `EpisodeNeighbour`, and, moved from the show page (one copy; `screens/detail/Show.tsx` and
+`SeasonMenu.tsx` draw them): `SeasonBar` (season trigger, count, watched progress, episode order, Filters, Hide watched,
+list or tiles, the season's ⋯; this replaces the stand-in), `SeasonMenu` (every season with its years, count and
+progress, Specials, a box to type a season number past 30), `EpisodeList` with `episodeRowClass` and
+`EpisodeListOpened` (the episodes as a list or tiles, an episode opened under its row). The list's rules now name the
+tile's parts (`[class*="episodeCopy"]`) instead of counting its children: the tile has hidden accessible spans first, so
+the counted rules had put the synopsis under the picture on the show page's list.
+
+Gallery: `dev/families/frames-title.tsx` (family `frames-title`): the same cases as native. The frames family's old
+`title`, `title-missing` and `title-loading` cases are these now.
+
+For Stage 2: the person and collection screens and the album, artist and book pages still draw `CoverHero` and their
+own panels; the show page's Details (`ShowDetails`, `ShowPeople`) and the episode opened in place
+(`EpisodeDetailsLayout`, `EpisodeBody`) still draw their own tables and people; `AboutTable`, `CastRow` and
+`EpisodeNeighbour` are their kit forms (`EpisodeNeighbour` is already the show page's).
 
 ## Decided by the owner (Justin, 18 Nov)
 

@@ -64,17 +64,17 @@ export type TitleFrameProps = Readonly<{
   state?: Readonly<{kind: 'loading'}> | PageStateProps;
 }>;
 
-/** Watches the tabs' top edge against the shell's bar: once they pass under it the collapsed bar shows. */
-function useCollapsed(target: React.RefObject<HTMLElement | null>, forced?: boolean) {
+/** Watches the tabs' top edge against the collapsed bar's own sticky place (under the shell's bar): once the tabs pass
+ * under it the bar shows. Any scroll (the window's or a container's) is heard at the document. */
+function useCollapsed(tabsTop: React.RefObject<HTMLElement | null>, slot: React.RefObject<HTMLElement | null>, forced?: boolean) {
   const [passed, setPassed] = useState(false);
   useEffect(() => {
-    const element = target.current;
-    if (!element || forced !== undefined || typeof IntersectionObserver === 'undefined') return;
-    const top = parseFloat(getComputedStyle(element).getPropertyValue('--shell-top')) || 0;
-    const observer = new IntersectionObserver(([entry]) => setPassed(!!entry && !entry.isIntersecting && entry.boundingClientRect.top < top + 1), {rootMargin: `-${top}px 0px 0px 0px`});
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [target, forced]);
+    if (forced !== undefined) return;
+    const check = () => { const tabs = tabsTop.current, bar = slot.current; if (tabs && bar) setPassed(tabs.getBoundingClientRect().top < bar.getBoundingClientRect().top); };
+    check();
+    document.addEventListener('scroll', check, {capture: true, passive: true});
+    return () => document.removeEventListener('scroll', check, {capture: true});
+  }, [tabsTop, slot, forced]);
   return forced ?? passed;
 }
 
@@ -88,7 +88,7 @@ const names = (value: TitleCredit['names']) => typeof value === 'string' ? value
  * window is two pages (the title, and the tabs with their panel); from 1024 the words sit over the art at the left. */
 export function TitleFrame({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, children, aside, collapsed, state}: TitleFrameProps) {
   const phone = usePhone(), failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
-  const tabsTop = useRef<HTMLDivElement>(null), shown = useCollapsed(tabsTop, collapsed);
+  const tabsTop = useRef<HTMLDivElement>(null), slot = useRef<HTMLDivElement>(null), shown = useCollapsed(tabsTop, slot, collapsed);
   const disc = (action: TitleAction) => <Button variant="glass" size="small" iconOnly icon={action.icon} aria-label={action.label} disabled={action.disabled} onClick={action.onPress} className={styles.disc} />;
   const backButton = disc({icon: 'i-left', label: back.label, onPress: back.onPress});
   if (failure) return <div className={styles.title}><div className={styles.top}>{backButton}</div><PageStateFrame {...failure} /></div>;
@@ -98,7 +98,7 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
   // While loading the action row keeps its buttons but says nothing it does not know yet (the time left).
   const resume = primary?.progress !== undefined && !loading;
   // Resume carries its played part from 1024 (desktop-detail f2); up to 1024, and on a cover page, the played part is the line under the row (CSS shows one).
-  const plain = primary && <Button variant="primary" phone={phone} icon={primary.icon} disabled={primary.disabled || loading} onClick={primary.onPress} className={styles.primary} data-paired={resume && !cover || undefined}>{primary.label}</Button>;
+  const plain = primary && <Button variant="primary" phone={phone} icon={primary.icon} disabled={primary.disabled} onClick={primary.onPress} className={styles.primary} data-paired={resume && !cover || undefined}>{primary.label}</Button>;
   const lead = primary && <>{resume && !cover && <ResumeButton icon={primary.icon} progress={primary.progress!} remaining={primary.remaining} disabled={primary.disabled} onClick={primary.onPress} className={styles.resume}>{primary.label}</ResumeButton>}{plain}</>;
   const row = (primary || actions.length > 0) && <div className={styles.actions}>
     {lead}
@@ -124,7 +124,7 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
   const pinned = actions.filter(action => action.pinned);
   return <div className={styles.title} data-cover={cover?.shape} data-collapsed={shown || undefined} data-panel={tabs ? undefined : 'bare'}>
     {/* The collapsed bar (desktop-detail f3; phone-detail d1 frame 2): sticky under the shell's bar, taking no room until it shows. */}
-    <div className={styles.barSlot} aria-hidden={!shown} inert={!shown}>
+    <div ref={slot} className={styles.barSlot} aria-hidden={!shown} inert={!shown}>
       <div className={styles.bar}>
         <div className={styles.barRow}>
           <span className={styles.barBack}>{backButton}</span>

@@ -20,10 +20,10 @@
 .tiles { display: grid; grid-template-columns: repeat(var(--episode-columns), minmax(0, 1fr)); gap: 28px 16px; align-items: start; }
 .tiles > * { width: 100%; }
 .tiles[data-layout=list] { display: flex; flex-direction: column; gap: 12px; }
-.tiles[data-layout=list] .episodeRow > button { display: grid; grid-template-columns: 220px minmax(0, 1fr); column-gap: 24px; text-align: left; }
-.tiles[data-layout=list] .episodeRow > button > :first-child { grid-column: 1; grid-row: 1 / 3; }
-.tiles[data-layout=list] .episodeRow > button > :nth-child(2) { grid-column: 2; margin-top: 0; align-self: end; }
-.tiles[data-layout=list] .episodeRow > button > :nth-child(3) { grid-column: 2; align-self: start; }
+.tiles[data-layout=list] .episodeRow > button { display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: auto 1fr; column-gap: 24px; text-align: left; }
+.tiles[data-layout=list] .episodeRow > button > [class*="_art_"] { grid-column: 1; grid-row: 1 / 3; }
+.tiles[data-layout=list] .episodeRow > button > [class*="episodeCopy"] { grid-column: 2; grid-row: 1; margin-top: 0; align-self: end; }
+.tiles[data-layout=list] .episodeRow > button > [class*="description"] { grid-column: 2; grid-row: 2; align-self: start; }
 .episodeRow [class*="episodeTitle"] { font-size: var(--type-wide-title-size); }
 .episodeRow [data-role="status"] { color: var(--color-accent-strong); font-weight: var(--type-caption-strong-weight); }
 .episodeRow [data-role="supplement"] { color: var(--color-text-secondary); }
@@ -67,10 +67,10 @@
   .tiles { gap: 24px 12px; }
   .tiles[data-layout=list] { gap: 20px; }
   .tiles[data-layout=list] .episodeRow > button { grid-template-columns: 136px minmax(0, 1fr); column-gap: 14px; }
-  .tiles[data-layout=list] .episodeRow > button > :first-child { grid-row: 1; }
-  .tiles[data-layout=list] .episodeRow > button > :nth-child(2) { align-self: center; }
-  .tiles[data-layout=list] .episodeRow > button > :nth-child(2) > :first-child { font-size: var(--type-episode-title-size); }
-  .tiles[data-layout=list] .episodeRow > button > :nth-child(3) { grid-column: 1 / -1; margin-top: 9px; }
+  .tiles[data-layout=list] .episodeRow > button > [class*="_art_"] { grid-row: 1; }
+  .tiles[data-layout=list] .episodeRow > button > [class*="episodeCopy"] { align-self: center; }
+  .tiles[data-layout=list] .episodeRow > button > [class*="episodeCopy"] > :first-child { font-size: var(--type-episode-title-size); }
+  .tiles[data-layout=list] .episodeRow > button > [class*="description"] { grid-column: 1 / -1; grid-row: 2; margin-top: 9px; }
   .expanded { margin-top: -24px; }
 }
 /* A phone (phone-detail d2, phone-app ep-bar): the season and its count, Hide watched at the end; the order, Filters and ⋯ wrap onto the row under them. */
@@ -82,16 +82,17 @@
 }
 @media (min-width: 600px) and (max-width: 1023px) {
   .tiles[data-layout=list] .episodeRow > button { grid-template-columns: 210px minmax(0, 1fr); column-gap: 18px; }
-  .tiles[data-layout=list] .episodeRow > button > :first-child { grid-row: 1 / 3; }
-  .tiles[data-layout=list] .episodeRow > button > :nth-child(2) { align-self: end; }
-  .tiles[data-layout=list] .episodeRow > button > :nth-child(3) { grid-column: 2; margin-top: 6px; }
+  .tiles[data-layout=list] .episodeRow > button > [class*="_art_"] { grid-row: 1 / 3; }
+  .tiles[data-layout=list] .episodeRow > button > [class*="episodeCopy"] { align-self: end; }
+  .tiles[data-layout=list] .episodeRow > button > [class*="description"] { grid-column: 2; margin-top: 6px; }
 }
 
 /* A block's heading (rule 6 row heading), its count and grey note, and its control at the end. */
-.heading { display: flex; align-items: baseline; gap: var(--space-sm); margin-bottom: var(--frame-heading-gap); }
+.heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-control-gap) var(--space-sm); margin-bottom: var(--frame-heading-gap); }
+.heading h2 { flex: 0 1 auto; max-width: 100%; }
 .heading h2 { margin: 0; display: flex; align-items: baseline; gap: var(--space-control-gap); font-size: var(--type-row-heading-size); line-height: var(--type-row-heading-line); font-weight: var(--type-row-heading-weight); letter-spacing: var(--type-row-heading-tracking); }
 .heading h2 small, .note { font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-row-help-weight); color: var(--color-text-tertiary); }
-.headingEnd { margin-left: auto; display: flex; align-items: center; gap: var(--space-control-gap); }
+.headingEnd { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-control-gap); }
 
 /* The About table: labels in the tertiary grey, values white; links underlined (desktop-detail f3). */
 .about { margin: 0; display: grid; gap: var(--space-px-12); }
@@ -144,11 +145,14 @@
 .numberedCopy b { font-size: var(--type-row-heading-size); line-height: var(--type-row-heading-line); font-weight: var(--type-row-heading-weight); }
 .numberedCopy p { margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-secondary); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .numberedEnd { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-control-gap); }
-.numberedEnd > span { display: inline-flex; align-items: center; gap: var(--space-tight); font-size: var(--type-row-help-size); color: var(--color-text-secondary); }
+.numberedEnd > span { white-space: nowrap; display: inline-flex; align-items: center; gap: var(--space-tight); font-size: var(--type-row-help-size); color: var(--color-text-secondary); }
 .numberedEnd > span[data-accent] { color: var(--color-accent-strong); font-weight: var(--type-row-label-weight); }
 @media (max-width: 599px) {
-  .numbered { grid-template-columns: 56px minmax(0, 1fr) auto; }
+  /* A phone (phone-detail d3 frame 8): the poster, then the words with the state and the action on a line under them. */
+  .numbered { grid-template-columns: 56px minmax(0, 1fr); align-items: start; }
   .number { display: none; }
+  .numberedArt { grid-row: 1 / 3; }
+  .numberedEnd { grid-column: 2; flex-direction: row; align-items: center; justify-content: space-between; margin-top: var(--space-tight); }
   .numberedCopy b { font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); }
   .numberedCopy p { display: none; }
 }

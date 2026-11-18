@@ -31,11 +31,15 @@ which never move, and one flexible region, the only place that may change when c
   `Section` is only for a block that is not a row of cards, and a `Row` never goes inside one. The frame spaces them.
 - `HomeHero`: the kit `Hero`'s data and render props only (`candidates`, `renderArtwork`, `renderActions`, ...).
   Its sizes are rule 14's.
-- `TitleFrame`: `art` (the kit `AmbientArt treatment="title"`), `back`, `topAction?`, `title`, `metadata?` (facts and the
-  rating badge), `primary` (with `progress` and `remaining` it is Resume, with the played part along its lower edge),
-  `actions?` (in order: `labelled` ones such as Start over and My List, then round ones such as watched and More; one
-  the title doesn't support stays with `disabled`), `tagline?`, `synopsis?`, `credits?` (Directed by, Starring), `tabs?`,
-  `children` (the tab panel), `state?`.
+- `TitleFrame`: its regions are `frameRegions.title` in `packages/design/src/frame-regions.ts` (which forms draw each, and
+  which regions each kind of title page fills: `titleKinds`). `art` (the kit `AmbientArt treatment="title"`) or `cover`
+  (`{node, shape: 'poster' | 'square' | 'circle'}`: a person, artist, album or book), `back`, `topAction?`, `kicker?`
+  (`{label, icon?, detail?, onPress?}`: "Dune collection · 2 films", "Acting", "Album"), `title`, `metadata?`, `picker?`
+  (`TrackPicker`, phone and upright tablet), `primary?` (with `progress` and `remaining` it is Resume), `actions?`
+  (`labelled`, `active`, `pinned` for the collapsed bar; one the title doesn't support stays with `disabled`),
+  `tagline?` and `credits?` (tablet on its side and TV), `synopsis?`, `readMore?`, `cast?` (an open foldable's left
+  page), `tabs?`, `children` (the tab panel), `aside?` (beside the panel on wide forms, under it otherwise),
+  `collapsed?` (touch: set by the frame from the scroll; TV: set by the screen when focus enters the panel), `state?`.
 - `SettingsListFrame`: `bar`, `open`, `onOpenChange`, `list`, `page?`.
 - `SettingsPageFrame`: `title`, `back?`, `action?`, `intro?`, `children` (`SectionCard`s), `state?`.
 - `SheetFrame`: `open`, `onOpenChange`, `children`, and `kind: 'bottom'` with `title`, `footer?`, or
@@ -167,6 +171,46 @@ Left for Stage 2, listed so it is not forgotten:
 - A card's own menu (long press, or ⋯ on a pointer) has no gallery case here: `detail-phone-5-menu-file-info.jpg` and `detail-tv-5c-episode-menu.jpg` draw it. Stage 2 adds the case with the first screen that opens one.
 
 Round 7 (18 Nov): a wide tablet's hero and title artwork now fades out by its alpha mask as TV's does (`kit/artwork/Surfaces.tsx`), so the title page has no hard edge where the picture starts. The TV audio player is one centred row (artwork 560) with no empty lower half. The Record glyph (`i-rec`) is a solid dot.
+
+## Round 8: the title page's forms (family C, 18 Nov)
+
+One frame for every kind of title page, its regions written once as data (`frameRegions.title`, `titleKinds`).
+
+| Form | Layout |
+|---|---|
+| Phone, and a tablet upright (`medium`, taller than wide) | One centred column: the art box with Back and Play on as glass discs, the kicker, title and facts hanging from its bottom edge; then the action row (round buttons), the played line with Start over, the synopsis, the picker row; the tabs; the panel; the side under it. A cover page puts the cover centred above the words. Ruling 6, tablet f8, phone-detail d1 |
+| An open foldable on its side (`medium`, wider than tall) | Two pages on the crease (foldable f2): the title and the cast on the left, the tabs and their panel on the right, each scrolling on its own |
+| A tablet on its side (`expanded`) | The words over the shaded art at the left: kicker, title, facts, tagline, synopsis, credits, then the action row with labelled buttons. A cover page: a square or poster at the left, a circle at the right (desktop-listen, desktop-detail f7). The side beside the panel |
+| TV | As a tablet on its side, with no discs. `collapsed` (focus in the panel) is the title and the tabs at the top (detail-tv-4, 5a) |
+
+The collapsed bar (touch): once the tabs pass under it. A phone and an upright tablet: Back, the title centred and Play
+on, with the tabs under it (phone-detail d1 frame 2). A tablet on its side: Back, the title, the tabs, the primary and
+the actions marked `pinned` (desktop-detail f3).
+
+Loading keeps the loaded page's boxes: the title the card already had, the facts and synopsis as skeletons, the action
+row in place without the time left, and skeleton cards in the panel. The frame draws no page colour (R10); the title
+screen's TV ink under the page is gone (`screens/watch/TitleScreen.tsx`).
+
+Parts for the panel and the side, in `kit/frames/title-parts.tsx` (the web kit has the same names):
+`PanelBlock` (a block at the gutter), `PanelHeading` (heading, count, grey note, control at the end), `AboutTable`
+(label and value rows, values that open something underlined; a raised card on a phone), `CastRow` (circles with name
+and role; a sideways row on a phone and TV, wrapping groups on a tablet), `TrackPicker` (the audio and subtitles row),
+`NumberedRow` ("Films in order"), `OwnerCard` ("This collection", "Files"), `EpisodeNeighbour` (Previous and Next
+episode). Moved into the kit, one copy: `kit/layout/SeasonSheet.tsx` (from `screens/watch/SeasonsSheet.tsx`, which now
+maps the show's seasons and groups to its rows). The kit `EpisodeTile layout="row"` on a tablet puts the synopsis
+beside the picture under the title and the length on the picture (R7, tablets.md SC-5).
+
+Gallery: `dev/families/frames/title.gallery.tsx`, `frames-title-*`: film, film-resume, film-more, film-details (the
+collapsed bar), show, show-seasons (the season sheet), show-episode (an episode opened in place), season, episode,
+person, collection, album, artist, book, missing, loading. The old `frames-title`, `-missing` and `-loading` cases are
+these now.
+
+Still the screens' own, for Stage 2 (they read the title controller or TV shelves directly):
+`screens/watch/TitlePeople.tsx` (TV paging and focus; Stage 2 draws it on `CastRow`), `TitleEpisodePlate.tsx` (the
+episode opened in place; the gallery's is built from the kit parts), `screens/people/PersonScreen.tsx` and
+`screens/collections/CollectionScreen.tsx` (they still use `CoverHero`; Stage 2 puts them on `TitleFrame` with `cover`).
+`HeroMetadata` outlines a fact with the id `runtime`; on a title page the runtime is plain (phone-detail d1), so the
+gallery gives it another id. The rules hand should make that a rule (Home outlines it, a title page does not).
 
 ## Decided by the owner (Justin, 18 Nov)
 
