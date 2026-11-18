@@ -7,6 +7,7 @@ import {useMotion} from '../useMotion';
 import {colorAlpha, focusScale, type FocusKind} from './control-model';
 import {useFocusedMenu} from './useFocusedMenu';
 import {useOverlayPaintMode} from '../overlays/OverlayPaintContext';
+import {useInTopLayer} from '../overlays/OverlayHost';
 import {useCovered, useFocusTarget} from '../focus';
 import {useNativeObservation} from '../dev-observation';
 import {focusFromTouch, noteTouch} from './touch-focus';
@@ -84,7 +85,8 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
   // ring on screen is always the control that answers. Blur is still recorded so no stale ring returns.
   // The ring is derived from native focus alone: every native focus and blur is recorded, and the ring shows only
   // while native focus is here, on a live (interactive, uncovered) control. It can never show where focus is not.
-  const focused = nativeFocused && !inert;
+  // R1, TV: only the top layer draws a ring (`useInTopLayer`); a control left focused under an open sheet draws none.
+  const topLayer = useInTopLayer(), focused = nativeFocused && !inert && (!isTV || topLayer);
   const [hovered, setHovered] = useState(false);
   const scale = useSharedValue(1);
   const halo = useSharedValue(0);
