@@ -1,6 +1,10 @@
 package api
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
+)
 
 // The owner and administrators see every stream and can stop one with a message the viewer is
 // told; a member sees neither. The stop is in the activity record, which only the owner reads.
@@ -69,5 +73,30 @@ func TestNowPlayingAndStop(t *testing.T) {
 	call(t, th.s, "GET", "/v1/admin/audit?action=stream.", owner, nil, &record)
 	if len(record.Items) != 1 || record.Items[0].Actor != "ada" || record.Items[0].Detail != "Server going down" {
 		t.Errorf("the activity record of stops: %+v", record.Items)
+	}
+}
+
+// Now playing marks a conversion the graphics device does (console rule 6), and only that.
+func TestNowPlayingSaysWhenTheGraphicsDeviceConverts(t *testing.T) {
+	th := newTheatre(t)
+	owner := th.owner.AccessToken
+	session := th.play(owner, th.film)
+	read := func() NowPlaying {
+		t.Helper()
+		var playing Page[NowPlaying]
+		if w := call(t, th.s, "GET", "/v1/admin/sessions", owner, nil, &playing); w.Code != 200 || len(playing.Items) != 1 {
+			t.Fatalf("Now playing answered %d: %s", w.Code, w.Body)
+		}
+		return playing.Items[0]
+	}
+	if p := read(); p.Hardware {
+		t.Errorf("a film playing as it is reads as converted on hardware: %+v", p)
+	}
+	if code := status(t, th.s, "PATCH", "/v1/playback/sessions/"+session.ID, owner,
+		PlaybackChange{Quality: &playback.Quality{Mode: "fixed", ID: "720p-high"}}); code != 200 {
+		t.Fatalf("quality change: %d", code)
+	}
+	if p := read(); !p.Hardware || p.ConvertingToHeight != 720 {
+		t.Errorf("a conversion on the graphics device reads %+v", p)
 	}
 }

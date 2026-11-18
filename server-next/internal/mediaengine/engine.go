@@ -662,6 +662,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		}
 		if plan.VideoAction == "convert" {
 			out.ConvertingToHeight = plan.TargetHeight
+			out.Hardware = plan.HardwareBackend != "" && plan.HardwareBackend != "software"
 		}
 	}
 	// Every text subtitle of the version is served beside the stream as WebVTT, whichever

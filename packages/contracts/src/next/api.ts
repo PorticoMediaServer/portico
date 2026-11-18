@@ -2607,6 +2607,7 @@ export interface NowPlaying {
   seasonNumber?: number;
   episodeNumber?: number;
   convertingToHeight?: number;
+  hardware?: boolean;
   username: string;
   profile?: string;
   deviceName: string;

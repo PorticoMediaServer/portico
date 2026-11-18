@@ -36,6 +36,9 @@ type NowPlaying struct {
 	// ConvertingToHeight, while the picture is converted, is the height of the quality it is
 	// converted to as the settings name it: "Converting to 1080p".
 	ConvertingToHeight int `json:"convertingToHeight,omitempty"`
+	// Hardware is true while the picture is converted on the graphics device: "with Hardware"
+	// (console rule 6).
+	Hardware bool `json:"hardware,omitempty"`
 	// Username, then Profile when its name differs, then DeviceName name the person.
 	Username   string `json:"username"`
 	Profile    string `json:"profile,omitempty"`
@@ -168,7 +171,7 @@ func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
 				}
 			}
 		}
-		item.ConvertingToHeight = v.Plan.ConvertingToHeight
+		item.ConvertingToHeight, item.Hardware = v.Plan.ConvertingToHeight, v.Plan.Hardware
 		if !v.BufferingSince.IsZero() {
 			since := v.BufferingSince.UTC()
 			item.State, item.BufferingSince, item.Problem = playback.StateBuffering, &since, s.now().Sub(v.BufferingSince) >= ProblemAfter

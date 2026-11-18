@@ -53,6 +53,10 @@ func (f *fakeEngine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	if route == playback.RouteOriginal {
 		plan.Mode = "direct"
 	}
+	// The pretend server converts on its graphics device.
+	if route == playback.RouteConverted {
+		plan.ConvertingToHeight, plan.Hardware = r.Choice.Quality.MaxHeight, true
+	}
 	// With no audio chosen, the track marked default plays.
 	for _, t := range r.Version.Tracks {
 		if plan.AudioTrackID == "" && t.Kind == db.StreamAudio && t.Default {

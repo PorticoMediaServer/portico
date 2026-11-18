@@ -293,7 +293,8 @@ func TestAScannedFilmPlaysAsItIsAndConverted(t *testing.T) {
 	// Now playing says what it converts to as the quality is named, not the picture's own size.
 	var playing api.Page[api.NowPlaying]
 	h.call("GET", "/v1/admin/sessions", nil, &playing, 200)
-	if len(playing.Items) != 1 || playing.Items[0].ConvertingToHeight != 240 {
+	// The test machine converts on its processor, so it is not marked Hardware.
+	if len(playing.Items) != 1 || playing.Items[0].ConvertingToHeight != 240 || playing.Items[0].Hardware {
 		t.Fatalf("Now playing of the 240p conversion: %+v", playing.Items)
 	}
 	if code, _, _ = h.media(first.URL); code != http.StatusNotFound {
