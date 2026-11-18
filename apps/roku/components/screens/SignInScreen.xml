@@ -39,7 +39,8 @@
       <Poster id="codeMark" uri="pkg:/images/wordmark.png" width="176" height="40"/>
       <Label id="eyebrow" text="Sign in to"/>
       <Label id="server" width="860"/>
-      <MultiStyleLabel id="how" width="800" wrap="true" maxLines="4"/>
+      <!-- 760 wide, as auth.html .tvl .lede: the steps break where auth-02 breaks them -->
+      <MultiStyleLabel id="how" width="760" wrap="true" maxLines="4"/>
       <ButtonRow id="codeButtons"/>
       <Label id="codeNote" width="820" wrap="true" maxLines="2"/>
       <KeyHints id="press" small="true"/>
