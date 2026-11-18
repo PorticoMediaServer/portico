@@ -60,9 +60,6 @@ export type ProgrammePanelViewProps = Readonly<{
 
 /** The drawn programme panel (desktop-live.html#live-sheet). Presentation only: every
  * role, value and action is a real fact the bound wrapper supplies. */
-/** A booked airing that has not started will record; only one on now is recording now. */
-export const recordingOptionsKey = (future: boolean) => future ? 'next.live.recordingBookedOptions' as const : 'next.live.recordingOptions' as const;
-
 export function ProgrammePanelView({channel, programme, now, timezone, snapshot, choice, seriesOpen,
   reminders, onClose, onWatch, onRecord, onCancelRecording, onRecordSeries, onFavorite, onSeriesOpenChange, onChoice, onReminder, onProgrammeReminder, onViewRecordings}: ProgrammePanelViewProps) {
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -71,6 +68,8 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
   const airing = !!programme && programme.start <= now && programme.end > now;
   const ended = !!programme && programme.end <= now;
   const future = !!programme && programme.start > now;
+  // A booked airing that has not started will record; only one on now is recording now.
+  const recordingName = t(future ? 'next.live.recordingBookedOptions' : 'next.live.recordingOptions');
   const facts = programme ? programmeFactParts({startMs: programme.start, endMs: programme.end,
     episode: programme.episode ? {mode: 'seasonal', season: programme.episode.season, episode: programme.episode.number} : undefined,
     subtitle: programme.subtitle, categories: programme.categories, year: programme.year, rating: programme.rating, flags: programme.flags,
@@ -133,8 +132,8 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
     <div className={styles.programmeActions}>
       {onWatch && !future && <Button className={styles.programmeAction} variant="primary" icon="i-play" onClick={onWatch} disabled={!channel.tuneAvailable}>{watchLabel}</Button>}
       {canRecord && (recordingFact
-        ? <Menu open={recordingOpen} onOpenChange={open => setRecordingOpen(open)} trigger={<Button className={styles.programmeAction} variant="glass" aria-label={t(recordingOptionsKey(future))} aria-haspopup="menu" disabled={busy || !snapshot.recording}><span className={styles.recordingDot} aria-hidden="true"/>{t('next.kit.recording')}</Button>}
-          title={t(recordingOptionsKey(future))} items={recordingMenu}/>
+        ? <Menu open={recordingOpen} onOpenChange={open => setRecordingOpen(open)} trigger={<Button className={styles.programmeAction} variant="glass" aria-label={recordingName} aria-haspopup="menu" disabled={busy || !snapshot.recording}><span className={styles.recordingDot} aria-hidden="true"/>{t('next.kit.recording')}</Button>}
+          title={recordingName} items={recordingMenu}/>
         : <Button className={styles.programmeAction} variant={future ? "primary" : "glass"} icon="i-rec" onClick={onRecord} disabled={busy} loading={snapshot.busy === 'record'}>{t('guide.record')}</Button>)}
       {canRecord && <Button className={`${styles.programmeAction} ${seriesOpen ? styles.programmeActionOpen : ''}`} variant="glass"
         icon="i-series" aria-expanded={seriesOpen} disabled={busy} onClick={() => onSeriesOpenChange(!seriesOpen)}>{t('guide.recordSeries')}</Button>}
