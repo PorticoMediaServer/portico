@@ -491,3 +491,29 @@ function seasonLine(season as object) as object
     if played <= 0 or total = 0 then return {text: countText(total, "episode", "episodes"), progress: -1}
     return {text: played.toStr() + " of " + total.toStr() + " watched", progress: played / total}
 end function
+
+' The chapter marks of the book's first version, as the other apps read them (client-core
+' book-chapters): its chapter markers, or for a book in several files, its parts.
+function bookChapters(book as object) as object
+    out = []
+    if book.versions = invalid or book.versions.count() = 0 then return out
+    version = book.versions[0]
+    if version.markers <> invalid
+        n = 0
+        for each mark in version.markers
+            if mark.kind = "chapter" and mark.endMs > mark.startMs
+                n = n + 1
+                title = mark.title
+                if title = invalid or title = "" then title = "Chapter " + n.toStr()
+                out.push({title: title, startMs: mark.startMs, endMs: mark.endMs})
+            end if
+        end for
+    end if
+    if out.count() = 0 and version.parts <> invalid and version.parts.count() > 1
+        for i = 0 to version.parts.count() - 1
+            part = version.parts[i]
+            out.push({title: "Part " + (i + 1).toStr(), startMs: part.offsetMs, endMs: part.offsetMs + part.durationMs})
+        end for
+    end if
+    return out
+end function

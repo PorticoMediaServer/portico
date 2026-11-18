@@ -197,9 +197,10 @@ function onKeyEvent(key as string, press as boolean) as boolean
         end if
         return true
     else if key = "up"
+        if m.stop = 0 then return false      ' Up from the top goes on to the scene (the now-playing card)
         if m.stop = 2 and hasRelated
             moveTo(1)
-        else if m.stop > 0
+        else
             moveTo(0)
         end if
         return true

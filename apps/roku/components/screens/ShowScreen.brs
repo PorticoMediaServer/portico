@@ -514,7 +514,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
             focusStop()
             return true
         end if
-        return key = "up" or key = "down"
+        return key = "down"      ' Up from the top goes on to the scene (the now-playing card)
     end if
     if m.stop = 0
         if key = "left" and m.inRow

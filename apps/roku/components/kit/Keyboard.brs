@@ -139,7 +139,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
     if key = "up" or key = "down" or key = "left" or key = "right"
         moved = pressKey(key)
-        if key = "up" or key = "down" then return true    ' the top and bottom rows stop
+        if key = "down" then return true    ' the bottom row stops; Up from the top row goes on to the scene (the now-playing card)
         return moved
     end if
     return false

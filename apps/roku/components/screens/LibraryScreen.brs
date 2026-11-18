@@ -763,6 +763,8 @@ function onKeyEvent(key as string, press as boolean) as boolean
                 m.region = "views"
             else if hasSwitcher()
                 m.region = "switch"
+            else
+                return false        ' Up from the top goes on to the scene (the now-playing card)
             end if
         else if key = "OK"
             spec = m.toolSpecs[m.tool]
@@ -823,8 +825,8 @@ function onKeyEvent(key as string, press as boolean) as boolean
         changeView()
     else if key = "down"
         m.region = "tools"
-    else if key <> "up" and key <> "right"
-        return false
+    else if key <> "right"
+        return false              ' Up from the views goes on to the scene
     end if
     focusRegion()
     return true

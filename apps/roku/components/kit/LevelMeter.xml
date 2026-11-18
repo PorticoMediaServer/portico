@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The still level meter that marks what is playing (tv-player frame 8, tv-more frame 6): three bars,
+     never animated, as the design draws it everywhere. 21 across, 22 high. -->
+<component name="LevelMeter" extends="Group">
+  <interface>
+    <field id="color" type="string" onChange="paint"/>
+  </interface>
+  <script type="text/brightscript" uri="LevelMeter.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+</component>

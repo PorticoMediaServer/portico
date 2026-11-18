@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One song or chapter in a list (the audio player's Up next or a book's chapters): its cover or its
+     number, the title over a second line, the duration on the right. The row in focus has the list
+     focus look (rule 11). -->
+<component name="TrackRow" extends="Group">
+  <interface>
+    <!-- {art, number, title, sub, duration, playing, done, progress}: art is a picture's address;
+         without one the number is drawn in its place. The playing one reads in the accent; a done one
+         (a chapter already heard) is dimmed with a tick for its number; progress (0 to 1) draws how far
+         in it is, a thin line under the title (collections frame 43). -->
+    <field id="model" type="assocarray" onChange="layout"/>
+    <field id="rowWidth" type="float" value="360"/>
+    <field id="rowHeight" type="float" value="88"/>
+    <field id="on" type="boolean" onChange="paint"/>
+  </interface>
+  <script type="text/brightscript" uri="TrackRow.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Poster id="ring" uri="pkg:/images/focus-14.9.png" visible="false"/>
+    <Poster id="plate" uri="pkg:/images/round-14.9.png" visible="false"/>
+    <Poster id="artBack" uri="pkg:/images/round-10.9.png" width="72" height="72" translation="[8,8]"/>
+    <Poster id="art" width="72" height="72" translation="[8,8]"/>
+    <Label id="number" width="72" height="72" translation="[8,8]" horizAlign="center" vertAlign="center"/>
+    <Label id="title"/>
+    <Label id="sub"/>
+    <Label id="duration" horizAlign="right" width="80"/>
+    <Poster id="tick" uri="pkg:/images/i-check-28.png" width="24" height="24" visible="false"/>
+    <Rectangle id="track" height="5" visible="false"/>
+    <Rectangle id="bar" height="5" visible="false"/>
+  </children>
+</component>

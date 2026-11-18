@@ -56,6 +56,12 @@ function kitPages() as object
             {id: "quality", text: "Quality", icon: "", heading: true, value: "Automatic"}, {id: "q1", text: "Automatic", icon: "", under: "quality", current: true},
             {id: "q2", text: "1080p High", icon: "", under: "quality"}, {id: "subtitles", text: "Subtitles", icon: "", heading: true, value: "Off"}],
             hints: [{keys: ["OK"], text: "Choose"}, {keys: ["Back"], text: "Close"}]}}}]},
+        {title: "Track rows: a song, a chapter already heard, the chapter playing (in focus)", parts: [
+            {c: "TrackRow", at: [200, 200], f: {model: {art: art, title: "A song", sub: "Its artist", duration: "3:45"}}},
+            {c: "TrackRow", at: [200, 320], f: {model: {number: "2", title: "A chapter already heard", duration: "22:15", done: true}}},
+            {c: "TrackRow", at: [200, 440], f: {model: {number: "3", title: "The chapter playing", duration: "35:19", playing: true, progress: 0.45}, on: true}}]},
+        {title: "The level meter that marks what is playing", parts: [{c: "LevelMeter", at: [200, 200], f: {}}]},
+        {title: "The now-playing card, at rest", parts: [{c: "NowPlaying", at: [0, 0], f: {now: {title: "A song", artist: "Its artist", art: art, position: 60, duration: 225, paused: false, hasNext: true}}}]},
         {title: "In a section: error and empty rows (the kit has no loading row: a section waits in its own place)", parts: [
             {c: "StateRow", at: [200, 200], f: {kind: "error", title: "Couldn't load this row", reason: "The server didn't answer.", action: "Try again"}},
             {c: "StateRow", at: [200, 480], f: {kind: "empty", title: "Nothing here yet", reason: "What you add shows here."}}]},

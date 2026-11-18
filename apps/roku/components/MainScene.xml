@@ -14,6 +14,10 @@
   <children>
     <Backdrop id="backdrop"/>
     <Group id="screens"/>
+    <!-- Now playing for music and audiobooks: the scene's own, over the pages, not one of them. -->
+    <AudioScreen id="audioPlayer" visible="false"/>
+    <!-- While music plays and its screen is away: the small card at the top right of every page. -->
+    <NowPlaying id="nowPlaying" visible="false"/>
     <Rail id="rail" visible="false"/>
     <Sheet id="sheet" visible="false"/>
     <!-- Signing out asks first, wherever it was chosen (the rail's profile menu, later Settings too). -->

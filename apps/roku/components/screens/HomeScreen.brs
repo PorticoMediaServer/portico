@@ -490,7 +490,9 @@ function pressKey(key as string) as boolean
         return true
     else if key = "up"
         target = rowFrom(m.focus - 1, -1)
-        if target >= 0 then moveTo(target)
+        ' Up from the first row goes on to the scene (the now-playing card)
+        if target < 0 then return false
+        moveTo(target)
         return true
     else if key = "back"
         ' Back from anywhere on Home is the opening state; from there it leaves the app.

@@ -362,9 +362,6 @@ end function
 function onKeyEvent(key as string, press as boolean) as boolean
     holdKey(key, press and (key = "up" or key = "down"))
     if not press or m.state.visible then return false
-    if key = "up" or key = "down"
-        pressKey(key)
-        return true
-    end if
+    if key = "up" or key = "down" then return pressKey(key)     ' Up at the top goes on to the scene
     return false
 end function

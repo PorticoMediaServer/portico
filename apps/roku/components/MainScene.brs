@@ -191,9 +191,83 @@ sub closeSheet()
     if m.screen <> invalid then m.screen.active = true
 end sub
 
+' A song (or a run of them), or an audiobook, plays in the audio player, which covers the page until it is left.
+sub playAudio(ask as object)
+    player = m.top.findNode("audioPlayer")
+    if m.audioWatched <> true
+        player.observeField("closed", "onAudioClosed")
+        player.observeField("now", "onNowPlaying")
+        card = m.top.findNode("nowPlaying")
+        card.observeField("command", "onCardCommand")
+        card.observeField("dismissed", "onCardDismissed")
+        m.audioWatched = true
+    end if
+    m.top.findNode("nowPlaying").visible = false
+    player.play = {item: ask.item, queue: ask.queue, startOver: ask.startOver}
+    player.visible = true
+    m.rail.visible = false
+    player.active = true
+end sub
+
+sub onAudioClosed()
+    m.top.findNode("audioPlayer").visible = false
+    m.rail.visible = true
+    showCard()
+    if m.screen <> invalid then m.screen.active = true
+end sub
+
+' The card shows on the pages while music plays and its screen is away, never over a video.
+sub showCard()
+    now = m.top.findNode("audioPlayer").now
+    playing = (now <> invalid and now.title <> invalid)
+    overVideo = (m.screen <> invalid and m.screen.subtype() = "PlayerScreen")
+    m.top.findNode("nowPlaying").visible = playing and not m.top.findNode("audioPlayer").visible and not overVideo
+end sub
+
+sub onNowPlaying(event as object)
+    m.top.findNode("nowPlaying").now = event.getData()
+    if m.top.findNode("nowPlaying").visible or event.getData().title = invalid then showCard()
+end sub
+
+sub onCardCommand(event as object)
+    kind = event.getData()
+    if kind = "open"
+        card = m.top.findNode("nowPlaying")
+        card.active = false
+        card.visible = false
+        player = m.top.findNode("audioPlayer")
+        player.visible = true
+        m.rail.visible = false
+        player.active = true
+    else
+        m.top.findNode("audioPlayer").command = kind
+        if kind = "stop" and m.screen <> invalid then m.screen.active = true
+    end if
+end sub
+
+sub onCardDismissed()
+    if m.cardFrom <> invalid
+        m.cardFrom.setFocus(true)
+        m.cardFrom = invalid
+    else if m.screen <> invalid
+        m.screen.active = true
+    end if
+end sub
+
+' The node deepest in the focus chain: the one a key would reach now.
+function focusedLeaf() as dynamic
+    node = m.top
+    while node.focusedChild <> invalid and not node.focusedChild.isSameNode(node)
+        node = node.focusedChild
+    end while
+    if node.isSameNode(m.top) then return invalid
+    return node
+end function
+
 sub onPlayerClosed()
     m.rail.visible = true
     pop()
+    showCard()
 end sub
 
 ' A page asks for a title to be opened or played.
@@ -203,7 +277,22 @@ end sub
 
 sub onOpenAsk(ask as object)
     kind = ask.item.kind
+    ' a song plays in the audio player
+    if kind = "track"
+        playAudio(ask)
+        return
+    end if
+    ' an audiobook plays there too
+    if kind = "audiobook"
+        playAudio(ask)
+        return
+    end if
     if ask.play = true and (kind = "movie" or kind = "episode" or kind = "channel")
+        ' a video sets the music aside (Roku plays one stream at a time); its card comes back, paused,
+        ' when the video ends, as the other apps do
+        music = m.top.findNode("audioPlayer")
+        if music.now <> invalid and music.now.title <> invalid then music.command = "park"
+        m.top.findNode("nowPlaying").visible = false
         player = push("PlayerScreen")
         player.observeField("closed", "onPlayerClosed")
         player.item = ask.item
@@ -556,6 +645,12 @@ function onKeyEvent(key as string, press as boolean) as boolean
     ' Back from Who's watching while someone is signed in with a profile goes to Home too
     if key = "back" and m.screen <> invalid and m.entered = true and m.screen.subtype() = "ProfilesScreen"
         showHome()
+        return true
+    end if
+    ' Up from a page's top reaches the now-playing card, which opens in place
+    if key = "up" and m.top.findNode("nowPlaying").visible
+        m.cardFrom = focusedLeaf()      ' where focus goes back to when the card folds away
+        m.top.findNode("nowPlaying").active = true
         return true
     end if
     return false
