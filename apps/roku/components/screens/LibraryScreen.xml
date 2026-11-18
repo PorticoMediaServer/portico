@@ -8,6 +8,8 @@
     <field id="library" type="assocarray" onChange="onLibrary"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="art" type="string"/>
+    <!-- Set to the id of another library of the same kind chosen from the name's menu: the scene opens it. -->
+    <field id="switchTo" type="string" alwaysNotify="true"/>
     <field id="open" type="assocarray" alwaysNotify="true"/>
     <field id="menu" type="assocarray" alwaysNotify="true"/>
     <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
@@ -19,6 +21,8 @@
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <children>
     <Label id="name"/>
+    <!-- Beside the name when other libraries hold the same kind: OK on the name lists them. -->
+    <Poster id="chevron" uri="pkg:/images/i-chevronDown-20.png" width="20" height="20" visible="false"/>
     <Group id="views"/>
     <Rectangle id="viewMark" height="3" visible="false"/>
     <Poster id="viewRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
