@@ -83,9 +83,9 @@ function useGrid(items: readonly Poster[] = posters) {
   const element = <WindowedGrid ref={grid} collection={collection} getKey={item => item.id} itemWidth={width} itemHeight={width * 1.5 + caption} captionHeight={caption} selection={selection} gap={frameSpec.browse.grid.columnGap[frame.form]} rowGap={frameSpec.browse.grid.rowGap[frame.form]}
     gutter={frame.gutter} rightGutter={frame.rightGutter} paddingBottom={frame.bottomClear} onVisibleRange={(first, last) => setVisible(previous => previous.first === first && previous.last === last ? previous : {first, last})}
     renderPlaceholder={() => null}
-    renderItem={(item, context) => <PosterCard {...card(context)} preferredFocus={context.index === 0} title={item.title} caption={year(item)} artwork={item.art} width={width} watched={watched.has(item.id)} progress={progress[item.id]} onNavigate={none}/>}/>;
+    renderItem={(item, context) => <PosterCard {...card(context)} focusId={item.id} title={item.title} caption={year(item)} artwork={item.art} width={width} watched={watched.has(item.id)} progress={progress[item.id]} onNavigate={none}/>}/>;
   const alphabet = <AlphabetRail positionIndex={positionIndex} total={items.length} firstVisible={visible.first} lastVisible={visible.last} onJump={index => grid.current?.scrollToIndex(index)} height={Math.min(514, frame.width)}/>;
-  return {grid: element, alphabet};
+  return {grid: element, alphabet, start: items[0]!.id};
 }
 
 function PosterRow({title, subtitle, fresh = false, start = 0}: {title: string; subtitle?: string; fresh?: boolean; start?: number}) {
@@ -105,7 +105,7 @@ type Continuing = typeof continuing[number];
 function ContinueRow({onFocusEntry}: {onFocusEntry?: (entry: Continuing) => void}) {
   const theme = useTheme(), width = theme.spec.card.width.wide[theme.column];
   return <Row title={f('continueWatching')} items={continuing} getKey={item => item.id} itemWidth={width} itemHeight={width * 9 / 16} selection={selection}
-    renderItem={(item, context) => <WideCard {...card(context)} onFocus={() => {context.onFocus?.(); onFocusEntry?.(item);}} preferredFocus={continuing.indexOf(item) === 0} title={item.title} artwork={item.art} width={width} progress={item.progress}
+    renderItem={(item, context) => <WideCard {...card(context)} onFocus={() => {context.onFocus?.(); onFocusEntry?.(item);}} title={item.title} artwork={item.art} width={width} progress={item.progress}
       caption={item.caption} detail={[{id: 'remaining', text: item.left, role: 'context'}]} primaryAction="play" onPlay={none} onNavigate={none}/>}/>;
 }
 
@@ -139,7 +139,7 @@ function BrowseHome() {
     renderArtwork={(entry, context) => <AmbientArt foreground={art(entry.id)} visible={context.visible} foregroundStyle={context.foregroundStyle} onReady={context.onReady} onError={context.onError}/>}
     renderActions={() => <><Button icon="i-play" onPress={none}>{t('next.home.resume')}</Button><Button variant="glass" icon="i-plus" onPress={none}>{f('myList')}</Button></>}/>;
   return <Page destination={{kind: 'home'}}>
-    <BrowseFrame testID="frames-browse-home" hero={hero}>
+    <BrowseFrame testID="frames-browse-home" startFocus={continuing[0]!.id} hero={hero}>
       <ContinueRow onFocusEntry={entry => setFocused(heroes.find(item => item.id === entry.id) as HeroEntry)}/>
       <PosterRow fresh title={f('newOnServer')} subtitle={l('next.libraryFrames.fixture.newSubtitle')} start={20}/>
       {!theme.isTV && <LiveRow/>}
@@ -154,14 +154,14 @@ function BrowseHome() {
 
 /** The Movies tab: the grid with its rail under the Filters bar. */
 function BrowseList({menuOpen = false}: {menuOpen?: boolean}) {
-  const header = useLibraryHeader({menuOpen}), {toolbar} = useToolbar(false), {grid, alphabet} = useGrid();
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-list" header={header} toolbar={toolbar} grid={grid} alphabet={alphabet}/></Page>;
+  const header = useLibraryHeader({menuOpen}), {toolbar} = useToolbar(false), {grid, alphabet, start} = useGrid();
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-list" startFocus={start} header={header} toolbar={toolbar} grid={grid} alphabet={alphabet}/></Page>;
 }
 
 /** The Discover tab: Continue Watching, then rows with New badges, See all and their grey subtitle. */
 function BrowseDiscover({kind = 'movie'}: {kind?: string}) {
   const header = useLibraryHeader({tab: 'discover', kind});
-  return <Page destination={{kind: 'library', libraryId: kind}}><BrowseFrame testID={`frames-browse-${kind === 'music' ? 'music' : 'discover'}`} header={header}>
+  return <Page destination={{kind: 'library', libraryId: kind}}><BrowseFrame testID={`frames-browse-${kind === 'music' ? 'music' : 'discover'}`} startFocus={kind === 'music' ? 'hobbit' : continuing[0]!.id} header={header}>
     {kind === 'music' ? <ListeningRow/> : <ContinueRow/>}
     <PosterRow fresh title={l('next.libraryFrames.fixture.recentlyAdded')} subtitle={l('next.libraryFrames.fixture.newSubtitle')} start={20}/>
     <PosterRow title={l('next.libraryFrames.fixture.recommended')} start={4}/>
@@ -171,8 +171,8 @@ function BrowseDiscover({kind = 'movie'}: {kind?: string}) {
 /** Filters open over (or docked beside) a filtered grid: applied chips with Clear all, and the count. */
 function BrowseFilters() {
   const header = useLibraryHeader(), {toolbar, open, setOpen} = useToolbar(true);
-  const {grid, alphabet} = useGrid(animated);
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-filters" header={header} toolbar={toolbar} grid={grid} alphabet={alphabet}
+  const {grid, alphabet, start} = useGrid(animated);
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-filters" startFocus={start} header={header} toolbar={toolbar} grid={grid} alphabet={alphabet}
     filters={{open, onClose: () => setOpen(false), onClear: none, onDone: () => setOpen(false), count: count(6), save: {canSave: true, onSave: none}, children: <FiltersFields/>}}/></Page>;
 }
 
@@ -181,9 +181,9 @@ function BrowseCollections() {
   const theme = useTheme(), frame = useFrameMetrics(), header = useLibraryHeader({tab: 'collections'});
   const width = theme.isTV ? 520 : Math.min(350, frame.width - frame.gutter - frame.rightGutter);
   const tiles = ([['dune', 'collectionDune', 'twoFilms', ['dune', 'dune-part-two']], ['alien', 'collectionAlien', 'twoFilms', ['alien', 'aliens']], ['avengers', 'collectionAvengers', 'fourFilms', ['avengers-endgame', 'avengers-infinity-war']], ['pixar', 'collectionToyStory', 'sixFilms', ['inside-out', 'incredibles-2', 'monsters-inc']]] as const);
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-collections" header={header}>
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-collections" startFocus="dune" header={header}>
     <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.spec.shelf.gap[theme.column], paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
-      {tiles.map(([id, name, films, covers]) => <CollectionTile key={id} width={width} title={l(`next.libraryFrames.fixture.${name}`)} covers={covers.map(cover => asset(`pool/movies/${cover}.jpg`))} backdrop={asset(`pool/movies/${covers[0]}--bd.jpg`)}
+      {tiles.map(([id, name, films, covers]) => <CollectionTile key={id} focusId={id} width={width} title={l(`next.libraryFrames.fixture.${name}`)} covers={covers.map(cover => asset(`pool/movies/${cover}.jpg`))} backdrop={asset(`pool/movies/${covers[0]}--bd.jpg`)}
         caption={[{id: 'count', text: l(`next.libraryFrames.fixture.${films}`), role: 'identity'}]} onNavigate={none}/>)}
     </View>
   </BrowseFrame></Page>;
@@ -191,8 +191,8 @@ function BrowseCollections() {
 
 /** See all: a pushed page with Back and a plain title, Play and Shuffle beside it, the Filters bar and the grid. */
 function BrowseSeeAll() {
-  const {toolbar} = useToolbar(false, recent.length), {grid, alphabet} = useGrid(recent);
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-see-all" header={{title: f('newOnServer'), back: {label: f('movies'), onPress: none}, intro: l('next.libraryFrames.fixture.seeAllBody'),
+  const {toolbar} = useToolbar(false, recent.length), {grid, alphabet, start} = useGrid(recent);
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-see-all" startFocus={start} header={{title: f('newOnServer'), back: {label: f('movies'), onPress: none}, intro: l('next.libraryFrames.fixture.seeAllBody'),
     actions: <><Button icon="i-play" onPress={none}>{f('play')}</Button><Button variant="glass" icon="i-shuffle" onPress={none}>{l('next.libraryFrames.fixture.shuffle')}</Button></>}}
     toolbar={toolbar} grid={grid} alphabet={alphabet}/></Page>;
 }
@@ -202,7 +202,7 @@ function BrowseEmpty() {
   const header = useLibraryHeader(), {toolbar} = useToolbar(true), movies = f('movies');
   const empty = <FilteredEmpty description={t('next.browse.native.filteredEmptyDescription', {library: movies, genre: l('next.libraryFrames.fixture.animation').toLocaleLowerCase('en-US'), decade: '2010'})} onClearFilters={none}
     suggestionsLabel={t('next.browse.native.orTry')} suggestions={[{id: 'year', label: l('next.libraryFrames.fixture.withoutYear'), count: 6, onSelect: none}, {id: 'genre', label: l('next.libraryFrames.fixture.withoutGenre'), count: 11, onSelect: none}]}/>;
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-empty" header={header} toolbar={toolbar} grid={empty}/></Page>;
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><BrowseFrame testID="frames-browse-empty" startFocus="clear-filters" header={header} toolbar={toolbar} grid={empty}/></Page>;
 }
 
 /** Loading keeps the header, tabs and toolbar the loaded page has, and draws the grid's boxes. */

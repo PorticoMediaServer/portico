@@ -57,7 +57,7 @@ export function HeroMetadata({facts, centered = false, runtimeChip = false}: {fa
   return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centered ? 'center' : 'flex-start', columnGap: heroSpec.facts.gap[theme.column], rowGap: heroSpec.facts.rowGap[theme.column]}}>
     {/* A rating and a season count are outlined chips, and on Home a runtime (phone-detail 1, mock.html home); the rest is plain text. */}
     {facts.map(fact => <Text key={fact.id} style={[theme.type.meta, {includeFontPadding: false, color: fact.id === 'year' || fact.role === 'identity' ? theme.colors.text : theme.colors.textSecondary, fontFamily: fact.id === 'year' || fact.role === 'identity' ? theme.type.bodyStrong.fontFamily : theme.type.meta.fontFamily},
-      (fact.id === 'rating' || (runtimeChip && fact.id === 'runtime') || fact.id === 'seasons') && {paddingHorizontal: theme.space.tight, paddingVertical: theme.space.hairline, borderWidth: theme.space.hairline, borderColor: theme.colors.textTertiary, borderRadius: theme.baseRadii.control / 2, overflow: 'hidden'}]}>{fact.text}</Text>)}
+      (fact.id === 'content-rating' || (runtimeChip && fact.id === 'duration') || fact.id === 'season-count') && {paddingHorizontal: theme.space.tight, paddingVertical: theme.space.hairline, borderWidth: theme.space.hairline, borderColor: theme.colors.textTertiary, borderRadius: theme.baseRadii.control / 2, overflow: 'hidden'}]}>{fact.text}</Text>)}
   </View>;
 }
 

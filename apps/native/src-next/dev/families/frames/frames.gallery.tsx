@@ -37,7 +37,7 @@ export const libraries = ([['movie', 'movies'], ['tv', 'tvShows'], ['anime', 'an
 export const selection: LayoutSelection = {active: false, isSelected: () => false, onToggle: none, onEnter: none};
 export const card = ({onFocus, onBlur, focusId, testID}: LayoutItemContext) => ({onFocus, onBlur, focusId, testID});
 /** Fixture facts: the first is the year; a runtime, a season count and a rating carry the ids the kit draws as chips. */
-const chip = (part: string) => /^\d+ h( \d+ min)?$|^\d+ min$/.test(part) ? 'runtime' : / seasons?$/.test(part) ? 'seasons' : /^(G|PG|PG-13|R|TV-[A-Z0-9]+)$/.test(part) ? 'rating' : undefined;
+const chip = (part: string) => /^\d+ h( \d+ min)?$|^\d+ min$/.test(part) ? 'duration' : / seasons?$/.test(part) ? 'season-count' : /^(G|PG|PG-13|R|TV-[A-Z0-9]+)$/.test(part) ? 'content-rating' : undefined;
 export const fact = (text: string) => text.split(' · ').map((part, index) => ({id: chip(part) ?? (index === 0 ? 'year' : `fact-${index}`), text: part, role: index === 0 ? 'identity' as const : 'context' as const}));
 
 const posters = ['spirited-away', 'inside-out', 'alien', 'blade-runner', 'dune', 'barbie', 'back-to-the-future', 'the-dark-knight', 'avatar', 'aliens'].map(id => ({id, title: id.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' '), art: asset(`pool/movies/${id}.jpg`)}));
