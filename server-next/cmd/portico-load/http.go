@@ -35,9 +35,14 @@ type Wire struct {
 	Chunks        Timing            `json:"mebibyteReads"`
 	Stalls        int               `json:"chunksOverOneSecond"`
 	NotDirect     int               `json:"streamsNotPlayedDirectly"`
+	Converting    int               `json:"convertingStreams"`
+	LateSegments  int               `json:"convertedSegmentsLate"`
+	ConvertSpeed  []float64         `json:"conversionSpeedsTimesRealTime"`
+	ConvertStarts Timing            `json:"conversionStarts"`
 	StreamedMiB   int64             `json:"mibStreamed"`
 	ServerCPU     float64           `json:"serverCpuCoresOnAverage"`
 	ServerPeakRSS int64             `json:"serverPeakRssBytes"`
+	DriverCPU     float64           `json:"driverCpuCoresOnAverage"`
 	Bars          []Bar             `json:"bars"`
 }
 
@@ -55,6 +60,7 @@ type person struct {
 	w          *wire
 	token      string
 	restricted bool
+	sees       map[string]bool // the libraries the profile may see
 }
 
 // httpCrowd is an ordinary busy evening at a real server, through its own routes: people
@@ -63,7 +69,7 @@ type person struct {
 // between requests, half of them on a restricted profile. Every person is a device of its
 // own, signed in with a password. The server was seeded before it started; this sets it up,
 // adds a library of real films for the streams, and plays.
-func httpCrowd(ctx context.Context, base, setupCodeFile, media, document string, pid, people, streams int, length time.Duration) Wire {
+func httpCrowd(ctx context.Context, base, setupCodeFile, media, convertMedia, document string, pid, people, streams, converting int, length time.Duration) Wire {
 	w := &wire{base: strings.TrimRight(base, "/"), password: randomText(), times: map[string][]time.Duration{}, failures: map[string]int{}}
 	code, err := os.ReadFile(setupCodeFile)
 	if err != nil {
@@ -75,7 +81,11 @@ func httpCrowd(ctx context.Context, base, setupCodeFile, media, document string,
 	admin := w.choose(owner, owner.Profiles[0].ID)
 	w.must("PATCH", "/v1/admin/playback/stream-limits", admin, api.StreamLimitsEdit{Total: new(int), PerPerson: new(int)}, nil)
 	open, restricted := w.profiles(admin, owner.Profiles[0].ID)
-	films := w.films(admin, media, min(streams, 20))
+	films := w.films(admin, "Load films", media, min(streams, 20))
+	var conversions []string
+	if converting > 0 {
+		conversions = w.films(admin, "Load conversions", convertMedia, converting)
+	}
 	capabilities := profileDocument(document)
 	libraries := w.libraries(admin)
 	// A server that has just started on a seeded database builds its search index first, and
@@ -90,14 +100,22 @@ func httpCrowd(ctx context.Context, base, setupCodeFile, media, document string,
 		}
 	}
 	log.Printf("set up: %d profiles, %d films to stream; %d people for %s", len(open)+len(restricted), len(films), people, length)
+	// Each kind of request alone first, one after another, so what a request costs is told
+	// apart from waiting behind 199 others.
+	for n, profile := range []string{open[0], restricted[0]} {
+		if p := w.signIn(fmt.Sprint("alone-", n), profile, n == 1); p != nil {
+			p.alone(ctx, libraries)
+		}
+	}
 
-	cpu := cpuSeconds(pid)
+	cpu, mine := cpuSeconds(pid), cpuSeconds(os.Getpid())
 	ctx, cancel := context.WithTimeout(ctx, length)
 	defer cancel()
 	started := time.Now()
 	var wg sync.WaitGroup
-	var streamed, notDirect, stalls int64
-	var starts, chunks []time.Duration
+	var streamed, notDirect, stalls, late int64
+	var starts, chunks, convertStarts []time.Duration
+	var speeds []float64
 	var mu sync.Mutex
 	for n := range people {
 		wg.Go(func() {
@@ -109,12 +127,23 @@ func httpCrowd(ctx context.Context, base, setupCodeFile, media, document string,
 				if p == nil {
 					return
 				}
-				s := p.play(ctx, r, films[n%len(films)], capabilities)
+				// The first `converting` players declare nothing (the baseline device: H.264 8-bit
+				// only) and play the HEVC 10-bit film, so the server converts the picture.
+				item, declared := films[n%len(films)], capabilities
+				if n < converting {
+					item, declared = conversions[n], nil
+				}
+				s := p.play(ctx, r, item, declared)
 				mu.Lock()
-				streamed, stalls = streamed+s.bytes, stalls+int64(s.stalls)
-				starts, chunks = append(starts, s.start), append(chunks, s.chunks...)
-				if !s.direct {
+				streamed += s.bytes
+				switch {
+				case n < converting:
+					late, convertStarts = late+int64(s.stalls), append(convertStarts, s.start)
+					speeds = append(speeds, s.speed)
+				case !s.direct:
 					notDirect++
+				default:
+					stalls, chunks, starts = stalls+int64(s.stalls), append(chunks, s.chunks...), append(starts, s.start)
 				}
 				mu.Unlock()
 				return
@@ -132,7 +161,9 @@ func httpCrowd(ctx context.Context, base, setupCodeFile, media, document string,
 	elapsed := time.Since(started)
 	out := Wire{People: people, Streams: streams, Seconds: elapsed.Seconds(), Requests: map[string]Timing{}, Failures: w.failures,
 		StreamStarts: summarise(starts), Chunks: summarise(chunks), Stalls: int(stalls), NotDirect: int(notDirect), StreamedMiB: streamed / mib,
-		ServerCPU: (cpuSeconds(pid) - cpu) / elapsed.Seconds(), ServerPeakRSS: serverPeakRSS(pid)}
+		Converting: converting, LateSegments: int(late), ConvertSpeed: speeds, ConvertStarts: summarise(convertStarts),
+		ServerCPU: (cpuSeconds(pid) - cpu) / elapsed.Seconds(), ServerPeakRSS: serverPeakRSS(pid),
+		DriverCPU: (cpuSeconds(os.Getpid()) - mine) / elapsed.Seconds()}
 	var pages, counts []time.Duration
 	for name, samples := range w.times {
 		out.Requests[name] = summarise(append([]time.Duration(nil), samples...))
@@ -151,6 +182,7 @@ func httpCrowd(ctx context.Context, base, setupCodeFile, media, document string,
 		{"stream starts p99", "at most 1,000 ms", start.P99, "ms", start.P99 <= 1000},
 		{"mebibyte reads over a second", "0", float64(stalls), "reads", stalls == 0},
 		{"streams not played directly", "0", float64(notDirect), "streams", notDirect == 0},
+		{"converted segments late", "0", float64(late), "segments", late == 0},
 		{"failed requests", "0", float64(sum(w.failures)), "requests", sum(w.failures) == 0},
 	}
 	return out
@@ -186,7 +218,7 @@ func (w *wire) profiles(admin, main string) (open, restricted []string) {
 
 // films copies the real film into a library of its own, n times, scans it and answers the
 // titles. The seeded libraries' folders do not exist here, so nothing else is scanned.
-func (w *wire) films(admin, media string, n int) []string {
+func (w *wire) films(admin, library, media string, n int) []string {
 	folder, err := os.MkdirTemp(filepath.Dir(media), "films-")
 	if err != nil {
 		log.Fatal(err)
@@ -196,7 +228,7 @@ func (w *wire) films(admin, media string, n int) []string {
 		log.Fatal(err)
 	}
 	for i := range n {
-		name := fmt.Sprintf("Load Film %02d (2020)", i+1)
+		name := fmt.Sprintf("%s %02d (2020)", library, i+1)
 		if err := os.MkdirAll(filepath.Join(folder, name), 0o755); err != nil {
 			log.Fatal(err)
 		}
@@ -206,7 +238,7 @@ func (w *wire) films(admin, media string, n int) []string {
 	}
 	off := false
 	var lib api.AdminLibrary
-	w.must("POST", "/v1/admin/libraries", admin, api.LibraryCreate{Name: "Load films", Kind: "movies", Folders: []string{folder},
+	w.must("POST", "/v1/admin/libraries", admin, api.LibraryCreate{Name: library, Kind: "movies", Folders: []string{folder},
 		Options: &api.LibraryOptions{Watch: &off}}, &lib)
 	w.must("POST", "/v1/admin/libraries/"+lib.ID+"/scan", admin, api.ScanRequest{}, nil)
 	for deadline := time.Now().Add(5 * time.Minute); ; time.Sleep(time.Second) {
@@ -231,7 +263,7 @@ func (w *wire) libraries(admin string) []api.AdminLibrary {
 	w.must("GET", "/v1/admin/libraries", admin, nil, &page)
 	var out []api.AdminLibrary
 	for _, lib := range page.Items {
-		if lib.Name != "Load films" {
+		if !strings.HasPrefix(lib.Name, "Load ") {
 			out = append(out, lib)
 		}
 	}
@@ -248,7 +280,15 @@ func (w *wire) signIn(name, profile string, restricted bool) *person {
 	if !w.call("choose profile", "POST", "/v1/profiles/"+profile+"/select", in.Session.AccessToken, api.ProfileSelect{}, &session) {
 		return nil
 	}
-	return &person{w: w, token: session.AccessToken, restricted: restricted}
+	p := &person{w: w, token: session.AccessToken, restricted: restricted, sees: map[string]bool{}}
+	var mine api.Libraries
+	if !w.call("libraries", "GET", "/v1/libraries", p.token, nil, &mine) {
+		return nil
+	}
+	for _, lib := range mine.Items {
+		p.sees[lib.ID] = true
+	}
+	return p
 }
 
 func (w *wire) choose(in api.SignInResponse, profile string) string {
@@ -257,11 +297,55 @@ func (w *wire) choose(in api.SignInResponse, profile string) string {
 	return session.AccessToken
 }
 
-// browse is one person moving about the seeded libraries until ctx ends.
-func (p *person) browse(ctx context.Context, r *rand.Rand, libraries []api.AdminLibrary) {
+// alone sends each kind of browsing request 15 times, one at a time, over the libraries the
+// profile may see, timed under "alone <kind>".
+func (p *person) alone(ctx context.Context, libraries []api.AdminLibrary) {
 	who := " (unrestricted)"
 	if p.restricted {
 		who = " (restricted)"
+	}
+	r := rand.New(rand.NewPCG(1, 2))
+	var ids, words []string
+	for i := range 15 {
+		var page api.ItemPage
+		var lib api.AdminLibrary
+		for lib = pick(r, libraries); !p.sees[lib.ID]; lib = pick(r, libraries) {
+		}
+		list := "/v1/items?limit=50&library=" + lib.ID + "&kind=" + seed.LeafKind(lib.Kind).String() + "&sort=title"
+		var home struct{ Rows []struct{ ID string } }
+		p.get(ctx, "alone home"+who, "/v1/home", &home)
+		for _, row := range home.Rows {
+			p.get(ctx, "alone home row "+row.ID+who, "/v1/home/rows/"+url.PathEscape(row.ID)+"?limit=40", nil)
+		}
+		p.get(ctx, "alone first page"+who, list, &page)
+		p.get(ctx, "alone count"+who, list+"&total=true&limit=1", nil)
+		genre := list + "&genre=" + url.QueryEscape(seed.Genres(lib.Kind)[i%len(seed.Genres(lib.Kind))])
+		p.get(ctx, "alone genre page"+who, genre, nil)
+		p.get(ctx, "alone count genre"+who, genre+"&total=true&limit=1", nil)
+		for _, it := range page.Items {
+			word, _, _ := strings.Cut(it.Title, " ")
+			ids, words = append(ids, it.ID), append(words, word)
+		}
+		if len(ids) > 0 {
+			id := pick(r, ids)
+			p.get(ctx, "alone title"+who, "/v1/items/"+id, nil)
+			p.get(ctx, "alone related"+who, "/v1/items/"+id+"/related", nil)
+			p.get(ctx, "alone search"+who, "/v1/search?q="+url.QueryEscape(pick(r, words)), nil)
+		}
+	}
+}
+
+// browse is one person moving about the seeded libraries until ctx ends.
+func (p *person) browse(ctx context.Context, r *rand.Rand, all []api.AdminLibrary) {
+	who := " (unrestricted)"
+	if p.restricted {
+		who = " (restricted)"
+	}
+	var libraries []api.AdminLibrary // a profile held to some libraries browses only those
+	for _, lib := range all {
+		if p.sees[lib.ID] {
+			libraries = append(libraries, lib)
+		}
 	}
 	var next string          // the list this person is scrolling down
 	var seen, words []string // titles met while browsing, and words of their names to search for
@@ -342,6 +426,7 @@ type played struct {
 	stalls int
 	bytes  int64
 	direct bool
+	speed  float64 // a converted stream's first 30 seconds, in times real time
 }
 
 // play is one player: it says what it can do, starts the film, reads a mebibyte of it every
@@ -349,7 +434,7 @@ type played struct {
 // every ten seconds, and stops when ctx ends.
 func (p *person) play(ctx context.Context, r *rand.Rand, item string, capabilities json.RawMessage) played {
 	var out played
-	if !p.w.call("capabilities", "PUT", "/v1/devices/current/capabilities", p.token, capabilities, nil) {
+	if capabilities != nil && !p.w.call("capabilities", "PUT", "/v1/devices/current/capabilities", p.token, capabilities, nil) {
 		return out
 	}
 	p.w.call("playback options", "GET", "/v1/items/"+item+"/playback-options", p.token, nil, nil)
@@ -371,6 +456,10 @@ func (p *person) play(ctx context.Context, r *rand.Rand, item string, capabiliti
 	media := session.Presentation.URL
 	if !strings.HasPrefix(media, "http") {
 		media = p.w.base + media
+	}
+	if !out.direct {
+		p.playHLS(ctx, session, media, began, &out)
+		return out
 	}
 	var size, offset int64 = 0, -1
 	position := time.Now()
@@ -410,6 +499,132 @@ func (p *person) play(ctx context.Context, r *rand.Rand, item string, capabiliti
 	ms := time.Since(position).Milliseconds()
 	p.w.send("DELETE", "/v1/playback/sessions/"+session.ID, p.token, api.PlaybackStop{PositionMs: &ms, ProgressToken: session.ProgressToken})
 	return out
+}
+
+// playHLS is a player of a converted stream: it fills 30 seconds as fast as the server makes
+// them, then fetches each segment as playback nears it, counting every segment that arrives
+// after the moment it was due on screen, and reporting progress every ten seconds.
+func (p *person) playHLS(ctx context.Context, session api.PlaybackSession, master string, began time.Time, out *played) {
+	base := master[:strings.LastIndex(master, "/")+1]
+	media := master
+	if text, ok := p.fetchText(ctx, master); !ok {
+		return
+	} else {
+		for _, line := range strings.Split(text, "\n") {
+			if line = strings.TrimSpace(line); strings.HasSuffix(line, ".m3u8") && !strings.HasPrefix(line, "#") {
+				media = base + line // the first rendition: the original's size
+				break
+			}
+		}
+	}
+	text, ok := p.fetchText(ctx, media)
+	if !ok {
+		return
+	}
+	base = media[:strings.LastIndex(media, "/")+1]
+	var parts []string
+	var at []float64 // where each segment starts
+	var clock float64
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(line, "#EXT-X-MAP:"):
+			if uri := attribute(line, "URI"); uri != "" {
+				parts, at = append(parts, uri), append(at, -1)
+			}
+		case strings.HasPrefix(line, "#EXTINF:"):
+			length, _ := strconv.ParseFloat(strings.TrimSuffix(strings.SplitN(line[len("#EXTINF:"):], ",", 2)[0], ","), 64)
+			at = append(at, clock)
+			clock += length
+		case line != "" && !strings.HasPrefix(line, "#"):
+			parts = append(parts, line)
+		}
+	}
+	const ahead = 30.0
+	var playing time.Time // when the picture started; moved on by each wait
+	report := time.Now()
+	for i, part := range parts {
+		if ctx.Err() != nil {
+			break
+		}
+		if !playing.IsZero() && at[i] > ahead {
+			// A player holds about 30 seconds: it asks for more as playback nears the end of that.
+			select {
+			case <-ctx.Done():
+			case <-time.After(time.Until(playing.Add(time.Duration((at[i] - ahead) * float64(time.Second))))):
+			}
+		}
+		n, ok := p.fetchSegment(ctx, base+part)
+		if !ok {
+			break
+		}
+		out.bytes += n
+		if at[i] < 0 {
+			continue
+		}
+		if playing.IsZero() {
+			playing, out.start = time.Now(), time.Since(began) // the first picture
+			continue
+		}
+		if due := playing.Add(time.Duration(at[i] * float64(time.Second))); time.Now().After(due) {
+			out.stalls++
+			playing = playing.Add(time.Since(due)) // the picture waited
+		}
+		if out.speed == 0 && at[i] >= ahead {
+			out.speed = at[i] / time.Since(playing).Seconds()
+		}
+		if time.Since(report) > 10*time.Second {
+			report = time.Now()
+			ms := time.Since(playing).Milliseconds()
+			p.w.call("progress", "PUT", "/v1/playback/sessions/"+session.ID+"/progress", p.token, api.PlaybackProgress{State: "playing", PositionMs: ms}, nil)
+		}
+	}
+	p.w.send("DELETE", "/v1/playback/sessions/"+session.ID, p.token, api.PlaybackStop{ProgressToken: session.ProgressToken})
+}
+
+func (p *person) fetchText(ctx context.Context, address string) (string, bool) {
+	req, _ := http.NewRequestWithContext(ctx, "GET", address, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		p.w.fail("playlist", fmt.Sprint(resp.StatusCode, " ", string(raw)))
+		return "", false
+	}
+	return string(raw), true
+}
+
+// fetchSegment waits for a segment the server is still making, as a player retries.
+func (p *person) fetchSegment(ctx context.Context, address string) (int64, bool) {
+	for deadline := time.Now().Add(time.Minute); ctx.Err() == nil; time.Sleep(200 * time.Millisecond) {
+		req, _ := http.NewRequestWithContext(ctx, "GET", address, nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			break
+		}
+		n, _ := io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			return n, true
+		}
+		if time.Now().After(deadline) {
+			p.w.fail("segment", fmt.Sprint(resp.StatusCode))
+			break
+		}
+	}
+	return 0, false
+}
+
+func attribute(line, name string) string {
+	_, rest, found := strings.Cut(line, name+`="`)
+	if !found {
+		return ""
+	}
+	value, _, _ := strings.Cut(rest, `"`)
+	return value
 }
 
 // readRange reads one mebibyte from offset, as a player does, with no sign-in: the address
