@@ -36,7 +36,7 @@ import {hostedSignInUnavailable} from './hosted-sign-in-unavailable';
 import {rememberNativeSignInHint} from './sign-in-ended';
 import {admitNativeSignIn} from './native-session-lifecycle';
 import {createNativeOwnerRecoveryContact} from './owner-recovery-contact';
-import {requestOwnerResetFile, verifyOwnerResetFile} from '../../../../packages/client-core/src/account-reset';
+import {enterOwnerResetSession, requestOwnerResetFile} from '../../../../packages/client-core/src/account-reset';
 
 
 /** The original issuer of a fresh grant, so cleanup can end it over the same route. */
@@ -181,9 +181,11 @@ export class NativeServerSignIn {
       if (!this.ownerResetReady || !api || !server || !routes || this.ownerResetGrant) throw mismatch();
       const original = {origin: api.baseUrl, routes, pin: {...routes.pin}};
       const before = await nativeAppSessions.read(); this.assertCurrent();
-      const result = await verifyOwnerResetFile(api, code, false, this.controller.signal);
-      if (result.kind !== 'signed-in' || !result.resetFileOwnerSession || result.passwordChangeRequired || result.accountScoped
-        || result.session.refreshToken || result.session.viewer.serverId !== server.id || result.session.viewer.role !== 'owner'
+      // The rebuilt server answers the reset file's code with an ordinary owner sign-in (`POST /v1/auth/owner-reset/session`),
+      // kept as any sign-in is, as on the web.
+      const result = await enterOwnerResetSession(api, code, this.controller.signal);
+      if (result.kind !== 'signed-in' || result.passwordChangeRequired || result.accountScoped || result.snapshot.twoStepSetupRequired
+        || result.session.viewer.serverId !== server.id || result.session.viewer.role !== 'owner'
         || result.session.installationId !== this.installation?.installationId || Date.parse(result.session.expiresAt) <= serverNow()
         || result.snapshot.account.role !== 'owner' || result.snapshot.account.disabled || !result.snapshot.capabilities.manageServer
         || result.snapshot.account.primaryProfileId !== result.session.viewer.profileId

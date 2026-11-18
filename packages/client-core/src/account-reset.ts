@@ -1,6 +1,4 @@
-import {routeBody} from '../../contracts/src/routes.ts';
-import {routePath} from '../../contracts/src/route-paths.ts';
-import {parseTaggedSignIn,parseDirectSignIn,signInDevice,type DirectSignIn,type ProfileAPI} from './profile-management.ts';
+import {parseDirectSignIn,signInDevice,type DirectSignIn,type ProfileAPI} from './profile-management.ts';
 import {serverPath} from './query/server-api.ts';
 import {parseTwoFactorState} from './identity-restrictions.ts';
 
@@ -37,11 +35,6 @@ export async function requestOwnerResetFile(api:ProfileAPI,username?:string,sign
  * nobody in, and the server signs every device of the owner out. */
 export async function finishOwnerReset(api:ProfileAPI,code:string,newPassword:string,turnOffTwoStep:boolean,signal?:AbortSignal):Promise<void>{
  await api.request(serverPath('POST /v1/auth/owner-reset/confirm'),'POST',{code:code.trim(),newPassword,...(turnOffTwoStep?{turnOffTwoStep:true}:{})},signal);
-}
-export async function verifyOwnerResetFile(api:ProfileAPI,code:string,turnOffTwoStep=false,signal?:AbortSignal):Promise<DirectSignIn>{
- const out=parseTaggedSignIn(await api.request(routePath('post_auth_owner_reset_verify'),'POST',routeBody('post_auth_owner_reset_verify',{code:code.trim(),turnOffTwoStep}),signal),['password-change','owner-session'],(tag,signedIn)=>signedIn.kind==='signed-in'&&(tag==='owner-session'?signedIn.resetFileOwnerSession===true:signedIn.passwordChangeRequired));
- if(out.kind!=='signed-in'||(!out.passwordChangeRequired&&!out.resetFileOwnerSession)||out.session.refreshToken)throw new Error('The reset file did not return the expected session.');
- return out;
 }
 /** Enters a Portico-sign-in server as its existing owner using the reset file, with an ordinary refreshable server session. */
 export async function enterOwnerResetSession(api:ProfileAPI,code:string,signal?:AbortSignal):Promise<DirectSignIn>{
