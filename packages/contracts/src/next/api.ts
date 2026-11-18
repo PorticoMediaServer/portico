@@ -1677,6 +1677,7 @@ export interface LibraryChannelPreviewTitle {
   season?: number;
   episode?: number;
   year?: number;
+  images?: Record<string, string>;
 }
 
 export interface LibraryChannelQuality {

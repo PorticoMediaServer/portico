@@ -5596,6 +5596,12 @@
           "id": {
             "type": "string"
           },
+          "images": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
           "season": {
             "type": "integer"
           },
