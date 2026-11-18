@@ -26,7 +26,7 @@ import {Block, Page, Region, Window, asset, card, f, fact, libraries, none, sele
  * from the app's own kit parts, reference text and the capture run's artwork. FRAMES.md lists the regions per form. */
 const t = defaultI18n.t;
 const l = (id: LibraryFramesFixtureId) => formatMessage(libraryFramesFixtureMessages[id]);
-const posters = libraryFramesPosters.map(([id, year]) => ({id, year, title: l(`next.libraryFrames.fixture.poster.${id}`), art: asset(`pool/movies/${id}.jpg`)}));
+export const posters = libraryFramesPosters.map(([id, year]) => ({id, year, title: l(`next.libraryFrames.fixture.poster.${id}`), art: asset(`pool/movies/${id}.jpg`)}));
 type Poster = typeof posters[number];
 const year = (poster: Poster) => [{id: 'year', text: String(poster.year), role: 'identity' as const}];
 const watched = new Set(['alien', 'blade-runner']), progress: Readonly<Record<string, number>> = {'avengers-endgame': .4, barbie: .7};
@@ -74,7 +74,7 @@ function FiltersFields() {
 }
 
 /** The poster grid: the kit's WindowedGrid of PosterCards with title and year, and the A–Z rail beside it. */
-function useGrid(items: readonly Poster[] = posters, filtersDocked = false) {
+export function useGrid(items: readonly Poster[] = posters, filtersDocked = false) {
   const theme = useTheme(), frame = useFrameMetrics(), [visible, setVisible] = useState({first: 0, last: 0}), grid = useRef<React.ComponentRef<typeof WindowedGrid>>(null);
   const {width} = browseGridCard(frame, filtersDocked), caption = cardCaptionHeight(theme, 2);
   const positionIndex = useMemo(() => Object.fromEntries([...new Set(items.map(item => /^\d/.test(item.title) ? '#' : item.title[0]!.toUpperCase()))].map(key => [key, items.findIndex(item => (/^\d/.test(item.title) ? '#' : item.title[0]!.toUpperCase()) === key)])), [items]);
