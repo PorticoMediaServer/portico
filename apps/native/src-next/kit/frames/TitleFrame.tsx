@@ -7,7 +7,7 @@ import {Button, ResumeButton} from '../controls/Button';
 import {Tabs, type TabItem} from '../controls/Tabs';
 import {Icon, type IconName} from '../Icon';
 import {Lockup} from '../layout/Lockup';
-import {RoundBarButton, type TopBarBack} from '../layout/TopBar';
+import {RoundBarButton, roundBarSize, type TopBarBack} from '../layout/TopBar';
 import {alpha} from '../shell/visual';
 import {SkeletonBlock} from '../states/SkeletonBlock';
 import {buttonGeometry} from '../controls/control-model';
@@ -100,14 +100,14 @@ const titlePrimaryId = 'title-primary';
 function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
-  const [scrollY, setScrollY] = useState(0), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY);
+  const [passed, setPassed] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY);
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   if (failure) return <View testID={testID} style={{flex: 1}}>
     {!tv && <View style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, top: insets.top + theme.space.tight}}><RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/></View>}
     <PageStateFrame {...failure}/>
   </View>;
   const height = split ? spec.height.phone : spec.height[form], lockup = split ? spec.lockup.phone : spec.lockup[form], actionHeight = theme.spec.button.hero.height[theme.column];
-  const discTop = insets.top + theme.space.tight, discRow = discTop + 38 + theme.space.sm;
+  const discTop = insets.top + theme.space.tight, discRow = discTop + roundBarSize + theme.space.sm;
   const centre = stacked ? 'center' as const : 'flex-start' as const;
   const tvCollapsed = tv && !!collapsed;
 
@@ -128,7 +128,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {Array.from({length: spec.synopsisLines[form]}, (_, index) => <SkeletonBlock key={index} width={index === 0 ? '96%' : '70%'} height={theme.type.intro.lineHeight ?? theme.type.intro.fontSize}/>)}
   </View> : (tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{gap: spec.creditsGap, alignItems: stacked ? 'center' : undefined, maxWidth: stacked ? undefined : theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>
     {!stacked && tagline !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{tagline}</Text>}
-    {synopsis !== undefined && <Text numberOfLines={readMore ? 4 : spec.synopsisLines[form]} style={[theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax, textAlign: stacked ? 'center' : 'left'}]}>{synopsis}</Text>}
+    {synopsis !== undefined && <Text numberOfLines={readMore ? spec.readMoreLines : spec.synopsisLines[form]} style={[theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax, textAlign: stacked ? 'center' : 'left'}]}>{synopsis}</Text>}
     {readMore && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
       <Button variant="text" size="xs" trailingIcon="i-chdown" onPress={readMore.onPress}>{readMore.label}</Button>
       {readMore.note !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{readMore.note}</Text>}
@@ -151,7 +151,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {actions.filter(action => !action.wide || !stacked).map(side)}
   </View>;
   const track = theme.spec.card.progress.height[theme.column];
-  const resumeLine = lineUnder ? <View style={{gap: theme.space.tight, width: '100%', maxWidth: cover && !stacked ? 320 : undefined}}>
+  const resumeLine = lineUnder ? <View style={{gap: theme.space.tight, width: '100%', maxWidth: cover && !stacked ? spec.coverResumeWidth : undefined}}>
     <View accessibilityRole="progressbar" accessibilityValue={{min: 0, max: 1, now: primary!.progress}} style={{height: track, borderRadius: track, overflow: 'hidden', backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
       <View style={{width: `${primary!.progress! * 100}%`, height: track, backgroundColor: theme.colors.accentStrong}}/></View>
     <View style={{minHeight: buttonGeometry('xs', theme.column, 'text').height, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}><Text style={[theme.type.rowHelp, {color: theme.colors.text}]}>{primary!.remaining}</Text>
@@ -165,12 +165,11 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {topAction && <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress} disabled={topAction.disabled} testID={topAction.testID}/>}
   </View>;
   const body = <View style={{gap: theme.space.sm, alignItems: stacked ? 'center' : 'flex-start', alignSelf: 'stretch'}}>{stacked ? <>{row}{resumeLine}{words}{pickerRow}</> : <>{words}<View style={{marginTop: spec.actionGap[form] - theme.space.sm, gap: theme.space.sm}}>{row}{resumeLine}</View></>}</View>;
-  // R5 interim: the cover sizes drawn per form (phone-app 13 and phone-detail d3: 220 square, 180 poster, 104 circle; tablet f8 larger; desktop-listen 340).
-  const coverSize = {square: forms(220, 280, 300, 400), poster: forms(180, 220, 260, 340), circle: forms(104, 160, 300, 280)}[cover?.shape ?? 'square'][split ? 'phone' : form];
+  const coverSize = spec.cover[cover?.shape ?? 'square'][split ? 'phone' : form];
   const coverBox = cover && <View style={{width: coverSize, height: cover.shape === 'poster' ? coverSize * 1.5 : coverSize, borderRadius: cover.shape === 'circle' ? coverSize / 2 : frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{typeof cover.node === 'function' ? cover.node(coverSize) : cover.node}</View>;
   const head = cover ? stacked
     ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{discs}{coverBox}<View style={{alignSelf: 'stretch'}}>{identity}</View><View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View></View>
-    : <View style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: theme.space.xl}}>
+    : <View style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: spec.coverGap}}>
       {discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
     : tvCollapsed ? <View style={{paddingTop: frame.titleTop, paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>{identity}</View>
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
@@ -204,14 +203,14 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
       {tv && seasons && !loading && <View style={{flexDirection: 'row', gap: seasonColumn.gap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
         <View style={{width: seasonColumn.width}}>{seasons.column}</View><View style={{flex: 1, minWidth: 0}}>{seasons.episodes}</View></View>}
       {panel}</View>
-    {aside && !loading && <View style={{width: besideAside ? 360 : undefined, alignSelf: besideAside ? undefined : 'stretch', marginRight: besideAside ? frame.rightGutter : 0, paddingHorizontal: besideAside ? 0 : frame.gutter, gap: frame.sectionGap}}>{aside}</View>}{/* R5 interim: desktop-listen's 360 side column */}
+    {aside && !loading && <View style={{width: besideAside ? spec.side : undefined, alignSelf: besideAside ? undefined : 'stretch', marginRight: besideAside ? frame.rightGutter : 0, paddingHorizontal: besideAside ? 0 : frame.gutter, gap: frame.sectionGap}}>{aside}</View>}
   </View>;
   const tabBar = (style?: object) => tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} disabled={loading} style={style} contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
 
   // The collapsed bar (touch): it shows once the tabs pass under it. A phone and an upright tablet: Back, the title
   // centred and Play on, with the tabs under it; a tablet on its side: the title, the tabs, the primary and the pinned actions.
   const barHeight = insets.top + 56; // R5 interim: rule 3's 56 bar under the status bar
-  const shown = !tv && !split && (collapsed ?? scrollY > tabsY - barHeight);
+  const shown = !tv && !split && (collapsed ?? passed);
   // Held collapsed by the screen (a tab's content opened directly): the bar stands in place of the hero and the page's
   // tabs, and the panel starts under it (phone-detail d1 frame 2, desktop-detail f3).
   const held = shown && collapsed === true;
@@ -221,7 +220,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
       <View style={{height: barHeight, paddingTop: insets.top, paddingHorizontal: theme.space.sm, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>
         <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress}/>
         <Text accessibilityRole="header" style={[theme.type.barTitle, {flex: 1, textAlign: 'center', color: theme.colors.text}]}>{title}</Text>
-        {topAction ? <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress}/> : <View style={{width: 38}}/>}
+        {topAction ? <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress}/> : <View style={{width: roundBarSize}}/>}
       </View>
       {tabBar()}
     </> : <View style={{minHeight: barHeight, paddingTop: insets.top, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
@@ -244,7 +243,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   </View>;
   return <View testID={testID} style={{flex: 1}}>
     {held && bar}
-    <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)}>
+    <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setPassed(event.nativeEvent.contentOffset.y > tabsY - barHeight)}>
       {!held && head}
       {tabs && !held && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>}
       {content}
@@ -253,4 +252,3 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   </View>;
 }
 
-const forms = (phone: number, medium: number, expanded: number, tv: number) => ({phone, medium, expanded, tv});

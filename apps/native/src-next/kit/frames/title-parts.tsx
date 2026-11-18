@@ -6,7 +6,10 @@ import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
 import {TVRow} from '../layout/TVRow';
 import {useTheme} from '../theme';
+import {frameSpec} from '@portico/design';
 import {useFrameMetrics} from './metrics';
+
+const sizes = frameSpec.hero.title.parts;
 
 /** R5 interim: the 12 between a table's rows and a row's padding (desktop-detail f3), until the rules hand names it. */
 const rowPad = 12;
@@ -39,7 +42,7 @@ export function AboutTable({rows}: Readonly<{rows: readonly Readonly<{label: str
   const theme = useTheme(), frame = useFrameMetrics(), phone = frame.form === 'phone';
   return <View style={phone ? {borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised, paddingHorizontal: theme.space.sm} : {gap: rowPad}}>
     {rows.map((row, index) => <View key={row.label} style={{flexDirection: 'row', gap: theme.space.sm, paddingVertical: phone ? rowPad : 0, borderTopWidth: phone && index > 0 ? 1 : 0, borderTopColor: theme.colors.line}}>
-      <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, width: phone ? 104 : 140}]}>{row.label}</Text>{/* R5 interim: the label column (desktop-detail f3 140, phone-detail d1 104) */}
+      <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, width: sizes.aboutLabel[frame.form]}]}>{row.label}</Text>
       <Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.text, fontFamily: phone ? theme.type.rowLabel.fontFamily : undefined}]}>{row.values.map((value, position) => <Text key={position}>{position > 0 ? ', ' : ''}
         {value.onPress ? <Text accessibilityRole="link" onPress={value.onPress} style={{textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .4), color: phone ? theme.colors.accentStrong : theme.colors.text}}>{value.text}</Text> : value.text}</Text>)}</Text>
     </View>)}
@@ -53,8 +56,7 @@ const initials = (name: string) => name.split(/\s+/u).filter(Boolean).slice(0, 2
  * under a rule, wrapping, on a tablet. */
 export function CastRow({groups}: Readonly<{groups: readonly (readonly CastPerson[])[]}>) {
   const theme = useTheme(), frame = useFrameMetrics(), scroll = frame.form === 'phone' || frame.form === 'tv';
-  // R4/R5 interim: the circle sizes drawn per form (phone-detail 64, tablet and web 96, TV 150).
-  const size = frame.form === 'phone' ? 64 : frame.form === 'tv' ? 150 : 96, width = size + (frame.form === 'tv' ? 50 : frame.form === 'phone' ? 14 : 24);
+  const size = sizes.castCircle[frame.form], width = size + (frame.form === 'tv' ? 50 : frame.form === 'phone' ? 14 : 24);
   const person = (entry: CastPerson) => <Focusable key={entry.id} focusKind="card" focusRadius={size / 2} disabled={!entry.onPress} focusableWhenDisabled={false} accessibilityRole="button"
     accessibilityLabel={[entry.name, entry.role].filter(Boolean).join(', ')} onPress={entry.onPress} style={{width, alignItems: 'center'}}>
     <PersonCircle size={size} initials={initials(entry.name)} source={entry.portrait} covers={[]} alt=""/>
@@ -84,10 +86,10 @@ export function NumberedRow({number, artwork, title, facts, synopsis, status, ac
   number: number; artwork?: ArtworkSource; title: string; facts?: ReactNode; synopsis?: string;
   status?: Readonly<{label: string; icon?: IconName; accent?: boolean}>; action?: ReactNode; progress?: number; onPress?: () => void;
 }>) {
-  const theme = useTheme(), frame = useFrameMetrics(), phone = frame.form === 'phone', art = phone ? 56 : frame.form === 'tv' ? 140 : 106;
+  const theme = useTheme(), frame = useFrameMetrics(), phone = frame.form === 'phone', art = sizes.numberedArt[frame.form];
   return <Focusable focusKind="row" focusRadius={frame.cardRadius} accessibilityRole="button" accessibilityLabel={title} onPress={onPress} disabled={!onPress} focusableWhenDisabled={false}
     style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, paddingVertical: rowPad}}>
-    {!phone && <Text style={[theme.type.pageTitle, {width: 56, textAlign: 'center', color: alpha(theme.colors.text, .3)}]}>{number}</Text>}
+    {!phone && <Text style={[theme.type.pageTitle, {width: sizes.number, textAlign: 'center', color: alpha(theme.colors.text, .3)}]}>{number}</Text>}
     <View style={{width: art, height: art * 1.5, borderRadius: 6, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
       <Artwork source={artwork} width={art} height={art * 1.5}/>
       {progress !== undefined && <View style={{position: 'absolute', left: 0, bottom: 0, height: 3, width: `${progress * 100}%`, backgroundColor: theme.colors.accentStrong}}/>}
@@ -124,7 +126,7 @@ export function OwnerCard({title, mark, body, actions = []}: Readonly<{title: st
 export function EpisodeNeighbour({direction, label, title, detail, artwork, onPress}: Readonly<{direction: 'previous' | 'next'; label: string; title: string; detail?: string; artwork?: ArtworkSource; onPress: () => void}>) {
   const theme = useTheme();
   return <Focusable focusKind="row" accessibilityRole="button" accessibilityLabel={`${label}: ${title}`} onPress={onPress} style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, padding: 8, borderRadius: 12}}>
-    <View style={{width: 112, height: 63, borderRadius: 8, overflow: 'hidden', backgroundColor: theme.colors.raised}}><Artwork source={artwork} width={112} height={63}/></View>
+    <View style={{width: sizes.neighbourArt, height: sizes.neighbourArt * 9 / 16, borderRadius: 8, overflow: 'hidden', backgroundColor: theme.colors.raised}}><Artwork source={artwork} width={sizes.neighbourArt} height={sizes.neighbourArt * 9 / 16}/></View>
     <View style={{flex: 1, minWidth: 0, gap: 2}}>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 2}}>{direction === 'previous' && <Icon name="i-left" size={14} color={theme.colors.textTertiary}/>}
         <Text style={[theme.type.cardSubtitle, {color: theme.colors.textTertiary}]}>{label}</Text>{direction === 'next' && <Icon name="i-right" size={14} color={theme.colors.textTertiary}/>}</View>
@@ -191,8 +193,8 @@ export function EpisodeDisplay({title, mark, intro, rows, preview}: Readonly<{ti
       <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{intro}</Text>
     </View>
     {rows.map(row => <View key={row.label} style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.sm}}>
-      <Text style={[theme.type.rowHelp, {width: 120, color: theme.colors.text, fontFamily: theme.type.rowLabel.fontFamily}]}>{row.label}</Text>
-      <View style={{flex: 1, minWidth: 200}}><Segmented fill accessibilityLabel={row.label} items={row.items} value={row.value} onValueChange={row.onValueChange}/></View>
+      <Text style={[theme.type.rowHelp, {width: sizes.choiceLabel, color: theme.colors.text, fontFamily: theme.type.rowLabel.fontFamily}]}>{row.label}</Text>
+      <View style={{flex: 1, minWidth: sizes.choiceMin}}><Segmented fill accessibilityLabel={row.label} items={row.items} value={row.value} onValueChange={row.onValueChange}/></View>
     </View>)}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap, padding: rowPad, borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised}}>
       <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{preview.label}</Text>
