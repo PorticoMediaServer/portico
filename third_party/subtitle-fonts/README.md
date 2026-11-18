@@ -13,4 +13,4 @@ A styled subtitle names its own fonts and usually carries them. When it does not
 
 The files are unmodified copies from the Ubuntu package `fonts-noto-core`; `provenance.json` records each package version and digest. Licence text: `OFL-1.1.txt`.
 
-Chinese, Japanese and Korean are not here. The server already carries Noto Sans CJK for burned-in subtitles (`server/internal/mediaexec/fonts`, about 16 MB) and serves that one copy to the browser at `GET /v1/subtitle-fonts/cjk`, fetched only when a subtitle has CJK letters.
+Chinese, Japanese and Korean are not here. The server already carries Noto Sans CJK for burned-in subtitles (`server-next/internal/mediaexec/fonts`, about 16 MB) and serves that one copy to the browser at `GET /v1/subtitle-fonts/cjk`, fetched only when a subtitle has CJK letters.
