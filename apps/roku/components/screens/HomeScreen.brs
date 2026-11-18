@@ -66,14 +66,15 @@ sub onHome(event as object)
     if m.keep <> invalid and m.keep.row <> ""
         keep = m.keep
         m.keep = invalid
-        for i = 0 to m.rows.count() - 1
-            if m.rows[i].row.id = keep.row and m.rows[i].row.items.count() > 0
-                moveTo(i, own)
-                at = keep.at
-                if at > m.rows[i].row.items.count() - 1 then at = m.rows[i].row.items.count() - 1
-                if at > 0 then m.rows[i].shelf.jumpTo = at
-                return
-            end if
+        ids = [keep.row]
+        ids.append(keep.after)
+        for each id in ids
+            for i = 0 to m.rows.count() - 1
+                if m.rows[i].row.id = id and m.rows[i].row.items.count() > 0
+                    moveTo(i, own)
+                    return
+                end if
+            end for
         end for
     end if
     m.keep = invalid
@@ -170,6 +171,7 @@ sub onRowItems(event as object)
     entry = m.rows[ctx.index]
     if entry.row.id <> ctx.id then return
     entry.asked = false
+    dropSkeleton(entry)
     if not result.ok
         ' a row that has titles keeps its cursor, and the next card in focus asks again; an unread
         ' row is not asked again and again
@@ -183,6 +185,7 @@ sub onRowItems(event as object)
     entry.row.deferred = false
     if entry.shelf <> invalid
         appendCards(entry.shelf.cards, entry.row.shape, more)
+        if ctx.index = m.focus then describe()     ' focus may be waiting where the skeleton was
     else
         place()
         if m.focus >= 0 then makeNear(m.focus)
@@ -256,6 +259,12 @@ function makeShelf(i as integer) as dynamic
     shelf.observeField("focusedIndex", "onCardFocused")
     shelf.observeField("selectedIndex", "onCardSelected")
     entry.shelf = shelf
+    ' Home read again: the row keeps the card it had (the last one, when it has fewer now)
+    if m.memory <> invalid and m.memory[row.id] <> invalid
+        at = m.memory[row.id]
+        if at > row.items.count() - 1 then at = row.items.count() - 1
+        if at > 0 then shelf.jumpTo = at
+    end if
     return shelf
 end function
 
@@ -296,7 +305,8 @@ function focusedItem() as dynamic
     if m.focus < 0 then return invalid
     entry = m.rows[m.focus]
     at = entry.shelf.focusedIndex
-    if at < 0 or at >= entry.row.items.count() then at = 0
+    if at < 0 then at = 0
+    if at >= entry.row.items.count() then return invalid     ' the skeleton card: no title yet
     return entry.row.items[at]
 end function
 
@@ -346,6 +356,24 @@ sub onCardFocused(event as object)
     if m.focus < 0 or not event.getRoSGNode().isSameNode(m.rows[m.focus].shelf) then return
     describe()
     readRow(m.focus)   ' rows keep going: the next page is asked for about ten cards before the end
+    ' focus reached the last loaded card before the next page came: one skeleton card after it,
+    ' and focus can wait on it; the first card of the page takes its place when it arrives
+    entry = m.rows[m.focus]
+    if entry.row.nextCursor <> invalid and entry.skeleton <> true and entry.shelf.focusedIndex >= entry.row.items.count() - 1
+        entry.skeleton = true
+        ' made whole before it joins the row: the card in that slot draws it at once
+        card = createObject("roSGNode", "ContentNode")
+        card.addFields({skeleton: true, kind: "", art: "", title: ""})
+        entry.shelf.cards.appendChild(card)
+    end if
+end sub
+
+' The skeleton card at a row's end goes as the next page arrives (or fails).
+sub dropSkeleton(entry as object)
+    if entry.skeleton <> true or entry.shelf = invalid then return
+    entry.skeleton = false
+    cards = entry.shelf.cards
+    cards.removeChildIndex(cards.getChildCount() - 1)
 end sub
 
 sub onCardSelected(event as object)
@@ -407,7 +435,15 @@ end sub
 ' next card, or the last one, when the card in focus has gone).
 sub refresh()
     if m.focus < 0 then return
-    m.keep = {row: m.rows[m.focus].row.id, at: m.rows[m.focus].shelf.focusedIndex}
+    m.keep = {row: m.rows[m.focus].row.id, after: []}
+    ' every row's card, and the rows after the one in focus: if that row has gone (its last
+    ' card went), focus moves to the row below it at the card it remembers (tv-focus frame 49)
+    m.memory = {}
+    for i = 0 to m.rows.count() - 1
+        entry = m.rows[i]
+        if entry.shelf <> invalid then m.memory[entry.row.id] = entry.shelf.focusedIndex
+        if i > m.focus then m.keep.after.push(entry.row.id)
+    end for
     m.details = {}     ' progress and played may have changed
     api("GET", "/v1/home", invalid, "onHome")
 end sub

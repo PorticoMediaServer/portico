@@ -99,6 +99,20 @@ sub onContent()
         if name.boundingRect().height > 40 then part.translation = [-10, 222] else part.translation = [-10, 194]
         return
     end if
+    ' A row's next page is on its way: one still card of the row's shape stands at its end
+    ' (tv-focus frame 5), the plain plate and nothing on it.
+    c = colours()
+    if item.skeleton = true
+        m.clip.visible = false
+        m.over.visible = false
+        m.h = m.fullH
+        m.under.translation = [0, 0]
+        m.plate.height = m.h
+        m.plate.blendColor = c.raisedHigh
+        m.plate.visible = true
+        return
+    end if
+    m.plate.blendColor = c.raised
     ' A cover is shown whole, in its own shape; other art fills the card.
     ' An episode card: the picture is 16:9 at the top and the words go under it.
     under = (item.under = true)
