@@ -236,7 +236,16 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
       context = Object.freeze({...context!, facts});
       const held = profiles.find(value => value.id === restored.session.viewer.profileId);
       const marker = selected.remembered;
-      const resumed = admitted ? undefined : await resumeRememberedProfile(restored.api, restored.session, snapshot, marker, signal);
+      const proved = {serverId, api: restored.api, session: restored.session, installation, prepared, selected, server, account: snapshot, ...(hint ? {hint} : {})};
+      let resumed: LocalSession | undefined;
+      try {
+        if (!admitted) resumed = await resumeRememberedProfile(restored.api, restored.session, snapshot, marker, signal);
+      } catch (error) {
+        check();
+        // The proved route still serves the PIN screen and Forgot PIN after a rejected replay.
+        if (error instanceof ApiError && error.code === 'profile_pin_reentry') connected = Object.freeze(proved);
+        throw error;
+      }
       check();
       const session = resumed ?? restored.session;
       if (resumed && resumed !== restored.session)
@@ -249,9 +258,10 @@ export function createNativeLifecyclePorts(overrides: Pick<NativeLifecycleDeps, 
       check();
       // The last-seen PIN state is a cache for offline openings; failing to save it never fails the connection.
       if (held) await own(() => deps.sessions.setProfilePinRequired(serverId, restored.session.sessionFamilyId, held.pinRequired)).catch(() => {});
-      connected = Object.freeze({serverId, api: restored.api, session, installation, prepared, selected, server, account: snapshot, ...(hint ? {hint} : {})});
+      connected = Object.freeze({...proved, session});
       return Object.freeze({...facts, ...(!admitted ? {remembered: !!resumed} : {})});
     } catch (error) {
+      if (api && connected?.api === api) throw error;
       releaseQuietly('lifecycle failed route', () => api?.getRouteConnection()?.dispose());
       releaseQuietly('lifecycle failed token', () => api?.setAccessToken(''));
       if (!borrowed) releaseQuietly('lifecycle failed installation', () => installation.dispose());

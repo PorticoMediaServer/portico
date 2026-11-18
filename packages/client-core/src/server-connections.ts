@@ -137,7 +137,7 @@ export async function saveResumedProfile(api:HttpLocalApi,previous:LocalSession,
  const check=()=>checkRestoreCancellation(signal);
  await storage.change(current=>{
   check();
-  if(!current||current.session.accessToken!==previous.accessToken||current.session.sessionFamilyId!==previous.sessionFamilyId)throw selectionChanged();
+  if(!current||compareSessionAuthority(previous,current.session)!=='same')throw selectionChanged();
   return {...current,session};
  },check);
  check();

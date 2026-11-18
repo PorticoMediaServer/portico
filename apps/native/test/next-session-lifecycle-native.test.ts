@@ -315,7 +315,9 @@ test('launch replays the saved PIN grant, and falls back to PIN re-entry if the 
   assert.equal(life.getSnapshot().state.kind, 'enteringPin');
   assert.equal(rejected.entry()?.remembered, undefined);
   assert.equal(rejected.entry()?.connection.session.sessionFamilyId, 'family-a');
-  life.dispose();
+  assert.equal(rejected.ports.connection('a')?.api, rejected.apis[0], 'PIN recovery keeps its proved route');
+  assert.equal(rejected.apis[0].route.disposed, 0);
+  life.dispose(); rejected.ports.releaseConnection();
 });
 
 
