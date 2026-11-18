@@ -21,22 +21,8 @@ export type WatchBindings = Readonly<{
   skips: Readonly<{back: number; forward: number}>;
   reportError: (error: unknown) => void;
 }>;
-export type WatchPanel = 'options' | 'subtitles-audio' | 'subtitles' | 'audio' | 'quality' | 'speed' | 'episodes' | 'chapters' | 'queue' | 'play-on' | 'info' | 'file-info' | 'versions' | 'equalizer';
-export type WatchPanelContext = Readonly<{
-  panel: WatchPanel | null;
-  snapshot: WebPlaybackRuntimeSnapshot;
-  layout: 'desktop' | 'phone';
-  /** A compact video window wider than it is tall uses the authored side sheet. */
-  landscape?: boolean;
-  phoneTop: number;
-  /** Current parent-offered title panels and the existing guarded feedback action. */
-  available?: readonly WatchPanel[];
-  reportProblem?: Readonly<{label: string; action: () => void | Promise<void>}>;
-  close: () => void;
-  /** Navigate the parent's open panel, e.g. a phone row to its own sub-panel. */
-  show: (panel: WatchPanel) => void;
-  returnFocusRef: RefObject<HTMLButtonElement | null>;
-}>;
+export type {PlayerPanel as WatchPanel, PlayerPanelContext as WatchPanelContext} from '../../kit/player/panel-types';
+import type {PlayerPanel as WatchPanel, PlayerPanelContext as WatchPanelContext} from '../../kit/player/panel-types';
 /** The parent validates/reads one set and owns authenticated tile delivery and retirement. */
 export type WatchTrickplay = Readonly<{
   fence: QueuePlaybackFence;

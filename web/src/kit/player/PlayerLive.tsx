@@ -1,12 +1,12 @@
 import {useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
-import {ChannelMark} from '../../kit/artwork';
-import {Button} from '../../kit/controls';
-import {PanelPresence, useLeavingPresence} from '../../kit/overlays';
-import {Icon, type IconName} from '../../kit/Icon';
-import {liveRailDragHeld, liveRailDragSeek, liveBehindLabel, liveNextLine, liveRail, liveRecordLabel, liveSeekSeconds, liveTimeRange, liveRailValueText} from './live-chrome-model';
-import type {LiveChromeDrag, LiveChromePort} from './live-chrome-types';
-import styles from './live-chrome.module.css';
+import {ChannelMark} from '../artwork';
+import {Button} from '../controls';
+import {PanelPresence, useLeavingPresence} from '../overlays';
+import {Icon, type IconName} from '../Icon';
+import {liveRailDragHeld, liveRailDragSeek, liveBehindLabel, liveNextLine, liveRail, liveRecordLabel, liveSeekSeconds, liveTimeRange, liveRailValueText} from './live-model';
+import type {LiveChromeDrag, LiveChromePort} from './live-types';
+import styles from './live.module.css';
 import {tunerHandover, tunerHandoverLines, tunerHandoverNow, tunerHandoverTick} from '@core/live-handover.ts';
 
 const t = defaultI18n.t;
@@ -19,7 +19,7 @@ function LiveControl({icon, label, onClick, main, small, disabled}: {icon: IconN
   </button>;
 }
 
-export type LiveChromeProps = Readonly<{
+export type PlayerLiveProps = Readonly<{
   port: LiveChromePort;
   playing: boolean;
   onCollapse: () => void;
@@ -43,7 +43,7 @@ export type LiveChromeProps = Readonly<{
  * programme-span seek rail, live edge and Go to live, channel surf, Guide mini guide and Record.
  * Presentation only: every fact is a genuine channel/guide/session fact supplied by the port,
  * and every action rechecks that port's exact channel fence before it runs. */
-export function LiveChrome({port, playing, onCollapse, onStop, onPlayPause, onSkip, onSeek, onMore, right, onMiniGuideOpenChange, onDragChange, initialMiniGuideOpen = false, canPlayPause = true, canSeek = true, reportError}: LiveChromeProps) {
+export function PlayerLive({port, playing, onCollapse, onStop, onPlayPause, onSkip, onSeek, onMore, right, onMiniGuideOpenChange, onDragChange, initialMiniGuideOpen = false, canPlayPause = true, canSeek = true, reportError}: PlayerLiveProps) {
   const [miniGuide, setMiniGuide] = useState(initialMiniGuideOpen), [recordingBusy, setRecordingBusy] = useState(false), [scrub, setScrub] = useState<number>();
   // A-05: the mini guide stays mounted while it leaves.
   const guidePresence = useLeavingPresence(miniGuide ? true : null);

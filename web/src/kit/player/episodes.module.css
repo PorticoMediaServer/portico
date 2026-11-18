@@ -1,6 +1,8 @@
 /* desktop-player f6: the Episodes drawer over the paused picture. Every value is the frame's. */
 .drawer { position: absolute; z-index: var(--layer-hero-navigation); left: 0; right: 0; bottom: 0; height: 480px; padding: 74px 0 0; pointer-events: auto;
   background: linear-gradient(180deg, transparent 0, color-mix(in srgb, var(--color-ink) 84%, transparent) 90px, color-mix(in srgb, var(--color-ink) 97%, transparent) 230px); }
+/* The drawer takes focus when it opens so its keys work; the ring belongs to the card that is focused next, not to the drawer's whole width. */
+.drawer:focus { outline: none; }
 .head { display: flex; align-items: center; gap: 16px; padding: 0 40px; margin-bottom: 12px; }
 .head h3 { margin: 0; font-size: var(--type-fixed-size-26px); line-height: var(--type-fixed-line-1point-2); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-025em); }
 .chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 0; border-radius: 17px; font: inherit; font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-700);
