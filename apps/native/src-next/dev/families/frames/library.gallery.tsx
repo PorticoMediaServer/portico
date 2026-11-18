@@ -8,12 +8,12 @@ import {libraryTabs} from '../../../../../../packages/client-core/src/presentati
 import type {BrowseNode, BrowseSortSelection} from '../../../../../../packages/client-core/src/browse';
 import {AmbientArt} from '../../../kit/artwork/index';
 import {BrowseToolbar, FilterBuilder, FilteredEmpty, LibraryMenu, LibrarySwitcher, type FilterFieldState} from '../../../kit/browse';
-import {CollectionTile, LiveCard, PosterCard, SquareCard, WideCard} from '../../../kit/cards';
+import {CollectionTile, LiveCard, PosterCard, SquareCard, WideCard, wideDetailHeight} from '../../../kit/cards';
 import {cardCaptionHeight} from '../../../kit/cards/caption-metrics';
 import {Button, KeyHints} from '../../../kit/controls';
-import {BrowseFrame, HomeHero, browseGridCard} from '../../../kit/frames';
+import {BrowseFrame, HomeHero, browseGridCard, type HomeHeroEntry} from '../../../kit/frames';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
-import {AlphabetRail, Row, WindowedGrid, type HeroCandidate} from '../../../kit/layout';
+import {AlphabetRail, Row, WindowedGrid} from '../../../kit/layout';
 import {OwnerTag} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
 import {frameSpec} from '@portico/design';
@@ -94,7 +94,7 @@ function PosterRow({title, subtitle, fresh = false, start = 0}: {title: string; 
     renderItem={(item, context) => <PosterCard {...card(context)} title={item.title} caption={year(item)} artwork={item.art} width={width} isNew={fresh && items.indexOf(item) < 3} onNavigate={none}/>}/>;
 }
 
-/** Continue Watching: an episode says its number and name, a film its year; the time left follows (phone: inside, with the number). */
+/** Continue Watching: an episode says its number and name, a film its year; the time left follows (phone: inside, with the number; tablet: under the picture). */
 const continuing = [
   {id: 'tlou', title: f('tlou'), art: wides[0]!.art, progress: .25, caption: [{id: 'episode-label', text: l('next.libraryFrames.fixture.episodeLabel'), role: 'identity' as const}, {id: 'episode-title', text: l('next.libraryFrames.fixture.episodeTitle'), role: 'context' as const}], left: l('next.libraryFrames.fixture.timeLeft')},
   {id: 'inside-out', title: f('insideOut'), art: wides[1]!.art, progress: .3, caption: [{id: 'year', text: '2015', role: 'identity' as const}], left: l('next.libraryFrames.fixture.filmLeft')},
@@ -104,7 +104,8 @@ const continuing = [
 type Continuing = typeof continuing[number];
 function ContinueRow({onFocusEntry}: {onFocusEntry?: (entry: Continuing) => void}) {
   const theme = useTheme(), width = theme.spec.card.width.wide[theme.column];
-  return <Row title={f('continueWatching')} items={continuing} getKey={item => item.id} itemWidth={width} itemHeight={width * 9 / 16} selection={selection}
+  const detail = wideDetailHeight(theme);
+  return <Row title={f('continueWatching')} items={continuing} getKey={item => item.id} itemWidth={width} itemHeight={width * 9 / 16 + detail} captionHeight={detail} selection={selection}
     renderItem={(item, context) => <WideCard {...card(context)} onFocus={() => {context.onFocus?.(); onFocusEntry?.(item);}} title={item.title} artwork={item.art} width={width} progress={item.progress}
       caption={item.caption} detail={[{id: 'remaining', text: item.left, role: 'context'}]} primaryAction="play" onPlay={none} onNavigate={none}/>}/>;
 }
@@ -127,20 +128,23 @@ function ListeningRow() {
     renderItem={(item, context) => <SquareCard {...card(context)} width={width} title={item.title} caption={[{id: 'by', text: item.by, role: 'identity'}]} artwork={item.art} progress={item.progress} onNavigate={none}/>}/>;
 }
 
-const heroes = continuing.map(item => ({id: item.id, title: item.title, overview: f('tlouSynopsis'), facts: fact(f('tlouFacts')), art: item.art, reason: item.caption.map(part => part.text).join('  ')}));
-type HeroEntry = typeof heroes[number] & HeroCandidate;
+/** The hero follows the focused card (final3-tv-01): an episode's number and name are the kicker over the show's title; its facts,
+ * then the progress and the time left. */
+const heroFacts: Readonly<Record<string, LibraryFramesFixtureId>> = {tlou: 'next.libraryFrames.fixture.tlouHeroFacts', 'inside-out': 'next.libraryFrames.fixture.insideOutHeroFacts',
+  rick: 'next.libraryFrames.fixture.rickHeroFacts', spirited: 'next.libraryFrames.fixture.spiritedHeroFacts'};
+const heroes: readonly HomeHeroEntry[] = continuing.map(item => ({id: item.id, title: item.title, overview: f('tlouSynopsis'), facts: fact(l(heroFacts[item.id]!)), progress: item.progress, remaining: item.left,
+  reason: item.caption.some(part => part.id === 'episode-label') ? item.caption.map(part => part.text).join('  ') : undefined}));
+const art = (id: string) => continuing.find(item => item.id === id)?.art;
 
 function BrowseHome() {
-  const theme = useTheme(), {form} = useFrameMetrics(), [focused, setFocused] = useState<HeroEntry>(heroes[0] as HeroEntry), profileRef = useRef<View>(null);
-  const art = (id: string) => heroes.find(entry => entry.id === id)?.art;
-  const hero = <HomeHero candidates={heroes as HeroEntry[]} activeIndex={0} onIndexChange={none} focusedEntry={focused}
+  const theme = useTheme(), {form} = useFrameMetrics(), [focused, setFocused] = useState<HomeHeroEntry>(heroes[0]!), profileRef = useRef<View>(null);
+  const hero = <HomeHero candidates={heroes} activeIndex={0} onIndexChange={none} focusedEntry={focused}
     hints={() => <KeyHints hints={[{key: t('next.layout.ok'), label: t('next.home.resume')}, {key: t('next.layout.holdOk'), label: t('next.layout.moreOptions')}]}/>}
-    renderReason={entry => entry.reason}
     renderArtwork={(entry, context) => <AmbientArt foreground={art(entry.id)} visible={context.visible} foregroundStyle={context.foregroundStyle} onReady={context.onReady} onError={context.onError}/>}
     renderActions={() => <><Button icon="i-play" onPress={none}>{t('next.home.resume')}</Button><Button variant="glass" icon="i-plus" onPress={none}>{f('myList')}</Button></>}/>;
   return <>
     <BrowseFrame testID="frames-browse-home" startFocus={continuing[0]!.id} hero={hero}>
-      <ContinueRow onFocusEntry={entry => setFocused(heroes.find(item => item.id === entry.id) as HeroEntry)}/>
+      <ContinueRow onFocusEntry={entry => setFocused(heroes.find(item => item.id === entry.id)!)}/>
       <PosterRow fresh title={f('newOnServer')} subtitle={l('next.libraryFrames.fixture.newSubtitle')} start={20}/>
       {!theme.isTV && <LiveRow/>}
       <ListeningRow/>

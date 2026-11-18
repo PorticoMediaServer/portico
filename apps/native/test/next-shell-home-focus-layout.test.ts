@@ -46,7 +46,7 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
       '../../../../../packages/client-core/src/presentation/errors': {presentError},
       '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_: unknown, text: string) => text},
       '../../../../../packages/client-core/src/presentation/kit-model': {},
-      '../../platform/ArtworkPipeline': {}, '../../kit/artwork': {}, '../../kit/controls': {Button: 'Button'}, '../../kit/cards': {},
+      '../../platform/ArtworkPipeline': {}, '../../kit/artwork': {}, '../../kit/controls': {Button: 'Button'}, '../../kit/cards': {wideDetailHeight: () => 0},
       '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
       '../../kit/focus/initial-entry': {createInitialRegionEntry},
       '../../shell/tv-focus': {tvFocusIds, tvHomeRegionMap}, './tv-presentation': {tvHomeRows}, '../../shell/home-paging': {NativeHomePaging}, './home-window': homeWindow, './home-start': homeStart,
