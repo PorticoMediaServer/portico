@@ -178,7 +178,9 @@ export function EpisodeTile(props: EpisodeTileProps) {
     : props.playing ? <Badge kind="playing">{defaultI18n.t('next.dock.playing')}</Badge> : props.watched ? <Badge kind="watched">{defaultI18n.t('next.cards.watched')}</Badge> : undefined;
   const art = (focused: boolean, hovered: boolean, holding: boolean) => <ArtFrame width={artWidth} height={height} radius={row ? 8 : undefined} focused={focused} hovered={hovered} holding={holding} hoverScale={t.spec.card.hover.episodeScale} selected={props.selection?.selected || props.open}>
     <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="still" backdropFallback={props.backdropFallback} source={props.artwork} fallback={fallbackFor(props, 'still', artWidth, height)} width={artWidth} height={height} />
-    {props.length && pictured && <View style={{position: 'absolute', right: t.spec.episode.duration.inset[t.column], top: t.spec.episode.duration.inset[t.column]}}><Badge>{props.length}</Badge></View>}
+    {/* The length's corner is the top right; on a row's small picture a status chip takes the top, so the length sits at the bottom right (tablet-play 2a). */}
+    {props.length && pictured && <View style={[{position: 'absolute', right: t.spec.episode.duration.inset[t.column]}, row && chip
+      ? {bottom: t.spec.episode.duration.inset[t.column] + t.spec.card.progress.height[t.column]} : {top: t.spec.episode.duration.inset[t.column]}]}><Badge>{props.length}</Badge></View>}
     {chip && <View style={{position: 'absolute', left: t.isTV ? 16 : 8, top: t.isTV ? 14 : 8}}>{chip}</View>}
     <Marks watched={props.watched && !pictured} progress={props.progress} />
     {/* A phone's row: the episode that is playing carries the playing mark on its picture (phone-player 4). */}
@@ -204,7 +206,7 @@ export function EpisodeTile(props: EpisodeTileProps) {
     {!props.disabled && !props.selection?.active && (props.onDownload || props.onMore) && <CardAction name={props.onDownload ? 'i-dl' : 'i-more'} label={props.onDownload ? defaultI18n.t('next.cards.download') : defaultI18n.t('card.more', {title: props.title})} onPress={props.onDownload ?? props.onMore!} size={t.isTV ? 38 : 44} color={t.colors.textTertiary} style={{position: 'absolute', right: 0, top: (height - (t.isTV ? 38 : 44)) / 2, backgroundColor: 'transparent'}} />}
   </View> : <Overlays props={props} hovered={s.hovered} holding={s.holding} height={height} playSize={48} persistentPlay={!t.isTV} episode />}>
     {s => <><View style={[{flexDirection: row ? 'row' : 'column', gap: row ? wide ? 18 : 14 : 0, alignItems: wide ? 'flex-start' : row ? 'center' : undefined},
-      /* A tablet row that is playing is raised (tablet-play 2a). */ wide && props.playing && {padding: t.space.xs, margin: -t.space.xs, borderRadius: t.spec.card.badge.radius[t.column] * 2, backgroundColor: t.colors.raised}]}>{art(s.focused, s.hovered, s.holding)}{text}</View>
+      /* A tablet row that is playing is raised (tablet-play 2a). */ wide && props.playing && {padding: t.space.xs, margin: -t.space.xs, borderRadius: t.spec.card.badge.radius[t.column] * 2, backgroundColor: t.colors.raisedHigh}]}>{art(s.focused, s.hovered, s.holding)}{text}</View>
       {props.synopsis && !wide && <Text numberOfLines={row ? 2 : 3} style={[row ? titleStyle(t, 13, 600) : t.type.episodeBody, {color: t.colors.textSecondary, marginTop: row ? 9 : 8, lineHeight: row ? 18.85 * t.textScale : undefined}]}>{props.synopsis}</Text>}
     </>}
   </CardFrame>;
