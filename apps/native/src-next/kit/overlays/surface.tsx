@@ -123,9 +123,8 @@ export function Dialog(props: DialogProps) {
   if (props.placement === 'side') return <BottomSheet {...props} fitContent scrollable={props.scrollable ?? true} />;
   if (theme.platform !== 'phone') return <CenteredDialog {...props}/>;
   const headerContext = props.headerContext == null ? props.headerContext : <View style={{paddingHorizontal: dialogSheetGutter}}>{props.headerContext}</View>;
-  // R9 `confirm` on a phone: the foot's buttons are equal halves (one button the full width), never hugging the left.
-  const footer = props.footer == null ? props.footer : <OverlayFootRow layout="halves">{props.footer}</OverlayFootRow>;
-  return <BottomSheet {...props} footer={footer} headerContext={headerContext} contentStyle={[{paddingHorizontal: dialogSheetGutter}, props.contentStyle]} fitContent scrollable={props.scrollable ?? true} />;
+  // R9 `confirm` on a phone: the bottom sheet lays the foot out in equal halves itself.
+  return <BottomSheet {...props} headerContext={headerContext} contentStyle={[{paddingHorizontal: dialogSheetGutter}, props.contentStyle]} fitContent scrollable={props.scrollable ?? true} />;
 }
 function useScrimStyle(progress: {value: number}) {
   return useAnimatedStyle(() => ({opacity: progress.value}));

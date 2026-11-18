@@ -72,7 +72,9 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
   const [anchor, setAnchor] = useState<{x: number; y: number; width: number; height: number}>();
   // With `maxWidth`, the surface takes its content's width between `width` and it: the content is laid out once at its own
   // width (start-aligned) and measured, then stretches to the surface.
+  // Measured again at every open: the same popover can open on other content.
   const [natural, setNatural] = useState<number>();
+  useEffect(() => {if (!open) setNatural(undefined);}, [open]);
   const shownWidth = maxWidth === undefined ? width : Math.min(maxWidth, Math.max(width, natural ?? width));
   const [height, setHeight] = useState(1);
   const dismiss = useCallback((reason: OverlayReason) => onOpenChange(false, reason), [onOpenChange]);

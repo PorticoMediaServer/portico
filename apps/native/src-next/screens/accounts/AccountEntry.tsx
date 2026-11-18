@@ -45,6 +45,7 @@ import type {ResetFileLocation} from '../../../../../packages/client-core/src/ac
 import {NativeSetup} from './NativeSetup';
 import {PhoneFindServer} from './PhoneFindServer';
 import {PhoneServerSignIn} from './PhoneServerSignIn';
+import {PhonePINEntry} from './PhonePINEntry';
 import {PhoneNoServers} from './PhoneNoServers';
 import {qrScannerAvailable, scanQRCode} from '../../platform/qr-scanner';
 import type {AccountDownloadsEntry} from './downloads-entry-model';
@@ -868,6 +869,10 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       accessibilityLabel={t(passwordShown ? 'accounts.signIn.hidePassword' : 'accounts.signIn.showPassword')} accessibilityState={{selected: passwordShown}}
       disabled={busy} style={{height: 40, width: 40, paddingHorizontal: 0}} onPress={() => {if (lifetime.current && stageRef.current === stage && !busyRef.current && !acting.current) setPasswordShown(value => !value);}}/> : undefined}/>;
   const codeField = (label: string, value: string, change: (next: string) => void) => field(label, value, change, false, undefined, undefined, undefined, undefined, true);
+  // A two-step code on a phone or tablet is six boxes in two threes (auth.html 6, account-10 frame 3, account-31 frame 3);
+  // TV keeps its own code field.
+  const twoStepField = (value: string, change: (next: string) => void) => theme.isTV ? codeField(t('auth.verificationCode'), value, change)
+    : <PhonePINEntry length={6} label={t('auth.verificationCode')} value={value} onChange={change} busy={busy} error={Boolean(stageError)}/>;
   const fields = (...children: React.ReactNode[]) => theme.isTV ? <TVAccountFields>{children}</TVAccountFields>
     : <View style={{alignSelf: 'stretch', gap: 14, marginBottom: 20}}>{children}</View>;
   const action = (id: string, label: string, work: () => Promise<void>, disabled = false) => ({id, label, disabled: busy || disabled, loading: busy, onPress: () => {void run(work);}});
@@ -1351,7 +1356,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       && account.current === opening.source && registerDraftRev.current === revision;
     const edit = (apply: (next: string) => void) => (next: string) => {registerDraftRev.current++; apply(next);};
     return layout(t('auth.enterVerificationCode'), t('services.signin.twoStep'),
-      fields(recovery ? field(t('services.signin.recovery'), entered, edit(setRecoveryCode)) : codeField(t('auth.verificationCode'), entered, edit(setCode))),
+      fields(recovery ? field(t('services.signin.recovery'), entered, edit(setRecoveryCode)) : twoStepField(entered, edit(setCode))),
       action('factor', t('action.continue'), async () => {
         const source = opening?.source;
         if (!opening || !source || !entered || !formLive() || source.factorChallengeIdentity() !== opening.witness) return;
@@ -1369,7 +1374,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       }, !entered),
       recovery ? undefined : <Button variant="link" disabled={busy} onPress={() => {if (!formLive()) return; registerDraftRev.current++; setRecoveryCode(''); setRecovery(true);}}>{`${t('services.signin.lostPhone')} ${t('services.signin.recovery')}`}</Button>);
   }
-  if (stage === 'factor') return layout(t('auth.enterVerificationCode'), undefined, fields(codeField(t('auth.verificationCode'), code, setCode)), action('factor', t('action.continue'), async () => {
+  if (stage === 'factor') return layout(t('auth.enterVerificationCode'), undefined, fields(twoStepField(code, setCode)), action('factor', t('action.continue'), async () => {
     if (memberFactorOperation.current && memberFactorOperation.current === operation.current) {
       const result = await memberFactorOperation.current.completeMemberMoveFactor(code); memberFactorOperation.current = undefined; stopMemberMove(); consume(result);
     } else consume(await (operation.current!.directoryChallengePending() ? operation.current!.completeDirectorySecondFactor(code) : operation.current!.completeSecondFactor(code)));

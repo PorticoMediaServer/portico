@@ -82,7 +82,7 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
     '../../platform/portico-sign-in': {NativePorticoSignIn: Portico, porticoUsernameUnavailable: () => false},
     '../../platform/server-connections': {browseNearby: async () => []},
     '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../platform/tv-menu': {useTVMenuCapture() {}},
-    './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, './PhoneServerSignIn': {PhoneServerSignIn: 'PhoneServerSignIn'}, './PhoneAccountSignIn': {PhoneAccountSignIn: 'AccountSignIn'},
+    './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, './PhoneServerSignIn': {PhoneServerSignIn: 'PhoneServerSignIn'}, './PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, './PhoneAccountSignIn': {PhoneAccountSignIn: 'AccountSignIn'},
     './LegalAgreement': legal, './PhoneAccountForm': {PhoneAccountForm: 'AccountForm'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'Strength'},
     '../../platform/negotiation': {negotiationRefusal: () => undefined}, './ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'},
   };
@@ -193,10 +193,11 @@ test('local two-step uses numeric one-time-code autofill and keeps the local com
   await act(() => {f.tree().props.onUsernameChange('person'); f.tree().props.onPasswordChange('password');});
   await act(() => f.tree().props.onSignIn());
   assert.equal(f.tree().props.title, 'auth.enterVerificationCode');
-  const code = f.fields()[0].props;
-  assert.equal(code.keyboardType, 'number-pad'); assert.equal(code.inputMode, 'numeric');
-  assert.equal(code.textContentType, 'oneTimeCode'); assert.equal(code.autoComplete, 'one-time-code');
-  await act(() => code.onChangeText('001122')); await act(() => f.tree().props.primaryAction.onPress());
+  // On a phone the code is the six boxes (account-31 frame 3); PhonePINEntry's one input carries the number pad and
+  // one-time-code autofill.
+  const code = nodes(f.tree().props.beforeActions).find(node => node.type === 'PhonePINEntry')!.props;
+  assert.equal(code.length, 6);
+  await act(() => code.onChange('001122')); await act(() => f.tree().props.primaryAction.onPress());
   assert.deepEqual(f.calls.factor, ['001122']); assert.equal(f.calls.complete, 1); assert.equal(f.calls.prepare, 0);
 });
 

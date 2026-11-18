@@ -29,9 +29,12 @@ export function ServerChallenge({busy, error, onCode, onBack}: {busy?: boolean; 
   return <AuthStage legal={false}><h1>{t(recovery ? 'services.signin.recovery' : 'web.direct.codeTitle')}</h1>
     <p className={styles.lede}>{t(recovery ? 'services.signin.recoveryBody' : 'services.signin.twoStep')}</p><AuthError error={error} />
     <form className={styles.form} onSubmit={event => {event.preventDefault(); if (!busy && ready) {onCode(code); setCode('');}}}>
-      <TwoStepCode value={code} onChange={setCode} recovery={recovery} onRecoveryChange={setRecovery} disabled={busy} autoFocus />
+      {/* account-10 frame 4: on the sign-in page the way back from a recovery code is the link under Continue. */}
+      {recovery ? <TextField variant="auth" label={t('accounts.signIn.recoveryCode')} placeholder={t('services.recovery.codePlaceholder')} autoComplete="one-time-code" value={code} onChange={event => setCode(event.currentTarget.value)} disabled={busy} autoFocus />
+        : <TwoStepCode value={code} onChange={setCode} recovery={false} onRecoveryChange={setRecovery} disabled={busy} autoFocus />}
       <Button className={styles.submit} variant="primary" type="submit" loading={busy} disabled={!ready}>{t('action.continue')}</Button>
     </form>
-    <AuthLinks><button type="button" disabled={busy} onClick={() => {setCode(''); onBack();}}>{t('auth.backToSignIn')}</button></AuthLinks>
+    <AuthLinks>{recovery ? <button type="button" disabled={busy} onClick={() => {setCode(''); setRecovery(false);}}>{t('services.signin.authenticator')}</button>
+      : <button type="button" disabled={busy} onClick={() => {setCode(''); onBack();}}>{t('auth.backToSignIn')}</button>}</AuthLinks>
   </AuthStage>;
 }

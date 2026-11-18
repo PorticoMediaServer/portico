@@ -3,7 +3,7 @@ import {AccessibilityInfo, AppState, StyleSheet, Text, View} from 'react-native'
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {cancelAnimation, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {toastCards, toastPill} from '@portico/design';
+import {frameSpec, toastCards, toastPill} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {Button} from '../controls/Button';
@@ -128,7 +128,8 @@ export function ToastHost({toast, onDismiss, bottomOffset = 84, obstructionTop, 
   const animation = useAnimatedStyle(() => ({opacity: opacity.value, transform: motion.reduce ? [] : [{translateY: (1 - entry.value) * rise}]}));
   if (!displayed) return null;
   const place = card === null ? {justifyContent: 'flex-start', alignItems: 'flex-end', paddingHorizontal: 96, paddingTop: topOffset + insets.top} as const
-    : pill ? {justifyContent: 'flex-start', alignItems: 'center', paddingHorizontal: 16, paddingTop: insets.top + toastPill.top} as const
+    // The pill stands under a page's compact top bar, never over it.
+    : pill ? {justifyContent: 'flex-start', alignItems: 'center', paddingHorizontal: 16, paddingTop: insets.top + frameSpec.header.bar + toastPill.top} as const
     : {justifyContent: 'flex-end', alignItems: card.inset !== null ? 'stretch' : start ? 'flex-start' : 'center', paddingHorizontal: card.inset ?? (start ? card.playerInset! : 16),
       paddingBottom: toastClearance({bottomOffset, safeBottom: insets.bottom, obstructionTop, gap: card.bottom})} as const;
   return <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, {zIndex: theme.layers.notice}, place]}>
