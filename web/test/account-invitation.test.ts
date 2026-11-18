@@ -18,7 +18,7 @@ function response() {
     session: {accessToken: 'issued-access', refreshToken: 'issued-refresh-credential', sessionFamilyId: 'issued-family', tokenGeneration: '1', installationId: 'i'.repeat(43), deviceId: 'device',
       expiresAt: '2099-01-01T00:00:00Z', authorizationHorizon: '2099-02-01T00:00:00Z', viewer: {authority: 'local', serverId, accountId: 'created-account', profileId: 'main', role: 'member'}}};
 }
-function fixture(destination: 'adopt' | 'server-origin' = 'adopt') {
+function fixture(destination: 'adopt' | 'server-origin' = 'adopt', servedOrigin?: string) {
   const calls: {path: string; body?: unknown}[] = [], retired: string[] = [], admitted: string[] = [], tokens: string[] = [];
   let selected: unknown, proofRefused=false;
   let currentOrigin = origin, previewAnswer: unknown = preview, failSignIn = false;
@@ -46,7 +46,7 @@ function fixture(destination: 'adopt' | 'server-origin' = 'adopt') {
     actions: {} as never, environment: () => ({storage}), restore: async () => undefined,
     inspect: async () => {if(proofRefused)throw Object.assign(new Error('unproven'),{code:'identity_mismatch'});return pin;}, connect: (async () => ({api, connection})) as never,
     remember: async (_api, session, _env, _hosted, current) => {assert.equal(current?.(), true); admitted.push(session.sessionFamilyId);selected = {signIn: 'local', connection: {pin, session}};},
-    retire: async (_api, session) => {retired.push(session.sessionFamilyId);if (retirementGate) await retirementGate;}, invitationDestination: destination,
+    retire: async (_api, session) => {retired.push(session.sessionFamilyId);if (retirementGate) await retirementGate;}, invitationDestination: destination, servedOrigin: () => servedOrigin,
   }, probe);
   return {entry, calls, retired, admitted, tokens, refuseProof:()=>{proofRefused=true;}, successorGrant: () => {family = 'successor-family';token = 'successor-access';},
     holdRetirement: () => {retirementGate = new Promise(resolve => {releaseRetirement = resolve;});}, releaseRetirement: () => {releaseRetirement?.();}, preview: (value: unknown) => {previewAnswer = value;}, failSignIn: (value: boolean) => {failSignIn = value;},
@@ -59,6 +59,27 @@ test('invitation code reaches only the verified server after kind/proof/link own
   assert.deepEqual(f.calls.map(value => value.path), ['/v1/system', '/v1/auth/invitations/' + code]);
   assert.equal(f.entry.getSnapshot().invitation?.libraries[0].name, 'Actual library');
   assert.equal(f.entry.getSnapshot().phase, 'password'); assert.equal(f.calls[1].body, undefined); f.entry.dispose();
+});
+// "Have an invitation? Join this server" on a server's own page: the button says "Join and sign in".
+test('joining on the joined server\'s own page keeps the sign-in; joining another server from a page hands over to that server', async () => {
+  setInstallationIdentity({installationId: 'i'.repeat(43), name: 'Test browser', platform: 'web', app: 'portico', appVersion: '1'});
+  try {
+    const here = fixture('server-origin', origin + '/'); await here.entry.inspectInvitation(link);
+    await here.entry.joinLocal('new_user', 'long enough Password 1', 'New person');
+    assert.deepEqual(here.admitted, ['issued-family'], 'kept and selected like any sign-in');
+    assert.deepEqual(here.retired, [], 'never signed out again');
+    assert.equal(here.entry.getSnapshot().phase, 'joined');
+    assert.deepEqual(here.entry.getSnapshot().joined, {origin, signIn: 'local'});
+    here.entry.dispose();
+    for (const served of [undefined, 'https://another-server.example']) {
+      const elsewhere = fixture('server-origin', served); await elsewhere.entry.inspectInvitation(link);
+      await elsewhere.entry.joinLocal('new_user', 'long enough Password 1', 'New person');
+      assert.deepEqual(elsewhere.admitted, [], `${served ?? 'web.getportico.tv'}: not kept on this page`);
+      assert.deepEqual(elsewhere.retired, ['issued-family']);
+      assert.deepEqual(elsewhere.entry.getSnapshot().joined, {origin, signIn: 'local'});
+      elsewhere.entry.dispose();
+    }
+  } finally {setInstallationIdentity(undefined);}
 });
 test('a link naming another identity is refused before the invitation secret is sent', async () => {
   const f = fixture(); await f.entry.inspectInvitation({...link, id: 'srv_' + 'x'.repeat(43)});

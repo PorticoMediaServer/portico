@@ -264,7 +264,10 @@ export class BrowserAccountEntry {
    if(!op.current())throw new Error('Sign-in was cancelled.');
    if(!this.state.server||result.snapshot.serverId!==this.state.server.id)throw new Error('The server identity changed.');
    if(this.joinedAccountId&&result.snapshot.account.id!==this.joinedAccountId)throw new CodedError('identity_mismatch','The invitation account changed.');
-   if(this.state.invitation&&this.ports.invitationDestination==='server-origin'){
+   // "Join and sign in" on the joined server's own page keeps the sign-in it answered with; joining another server
+   // from here (or from web.getportico.tv) hands the person to that server's own page to sign in there.
+   const joinedHere=!!this.state.invitation&&this.ports.invitationDestination==='server-origin'&&!!this.state.origin&&savedServerIsThisPage(this.state.origin,this.ports.servedOrigin?.());
+   if(this.state.invitation&&this.ports.invitationDestination==='server-origin'&&!joinedHere){
     await this.retire(api,result.session);
     if(op.current())this.publish({...this.state,phase:'joined',joined:{origin:this.state.origin!,signIn:this.state.server.signIn},busy:false,error:undefined});
     this.invitationCapability=undefined;return;
@@ -282,6 +285,11 @@ export class BrowserAccountEntry {
    // Cleanup is for this exact superseded account grant only. It never runs
    // before durable admission, and never revokes the current or a peer family.
    if(previous?.signIn===installed.signIn&&previous.connection.session.viewer.role==='account'&&previous.connection.session.viewer.authority===result.session.viewer.authority&&previous.connection.session.viewer.accountId===result.snapshot.account.id&&sameServerPin(previous.connection.pin,pin)&&shouldRetireAccountSession(previous.connection.session,result.session))void this.retire(api,previous.connection.session).catch(()=>{});
+   if(joinedHere){
+    // Kept and selected like any sign-in; the page then opens this server again, signed in.
+    if(op.current())this.publish({...this.state,snapshot:result.snapshot,phase:'joined',joined:{origin:this.state.origin!,signIn:this.state.server.signIn},busy:false,error:undefined});
+    this.invitationCapability=undefined;return;
+   }
    const continuation=directSignInContinuation(result);
    this.publish({...this.state,snapshot:result.snapshot,busy:false,error:undefined,phase:continuation==='viewer'?'ready':continuation==='profile-selection'?'profiles':continuation,...(memberMove||this.state.memberMovePending?{memberMoveCompleted:true as const,memberMovePending:undefined}:{})});
    this.watchAuthority();
