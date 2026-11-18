@@ -46,13 +46,14 @@ export function Tabs({items, value, defaultValue, onValueChange, disabled, passi
   // W-17: on TV the strip is a plain row. A horizontal ScrollView is focusable on Android, so with
   // passive (unfocusable) tabs it took D-pad focus itself: no visible focus, and Right went nowhere.
   // A TV strip has a few tabs and never needs to scroll.
-  const stripStyle = [styles.tabs, {gap: tabsSpec.gap[theme.platform], paddingHorizontal: theme.gutter, borderBottomColor: theme.colors.line}, contentContainerStyle];
+  // The rule under the tabs is the strip's box's, not the tabs' own row's: it runs the page's full width however few tabs there are.
+  const stripStyle = [styles.tabs, {gap: tabsSpec.gap[theme.platform], paddingHorizontal: theme.gutter}, contentContainerStyle];
   const strip = (children: React.ReactNode) => theme.isTV
     ? <View focusable={false} style={[stripStyle, {alignSelf: 'flex-start'}]} accessibilityRole={passive ? undefined : 'tablist'} accessibilityLabel={accessibilityLabel}>{children}</View>
     : <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{overflow: 'visible'}} contentContainerStyle={stripStyle}
       accessibilityRole={passive ? undefined : 'tablist'} accessibilityLabel={accessibilityLabel}>{children}</ScrollView></TVRow>;
   return <View style={style} testID={testID}>
-    {strip(items.map(item => {
+    <View style={{borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>{strip(items.map(item => {
         const childProps = itemProps?.(item);
         const blocked = disabled || item.disabled;
         const selected = item.value === current;
@@ -70,7 +71,7 @@ export function Tabs({items, value, defaultValue, onValueChange, disabled, passi
           <ChoiceLabel wrap={theme.fontScale > 1} count={item.count} countStyle={countStyle} style={[theme.type.tab, {color: selected ? theme.colors.text : theme.colors.textTertiary}]}>{item.label}</ChoiceLabel>
           {selected ? <View pointerEvents="none" style={[styles.underline, {height: tabsSpec.underline[theme.platform], backgroundColor: theme.colors.accent}]} /> : null}
         </Focusable>;
-    }))}
+    }))}</View>
     {active?.panel !== undefined ? <View role="tabpanel" accessibilityLabelledBy={`${id}-${active.value}`}>{active.panel}</View> : null}
   </View>;
 }
@@ -106,4 +107,4 @@ export function Segmented({items, value, defaultValue, onValueChange, variant = 
   </View>;
 }
 
-const styles = StyleSheet.create({tabs: {flexDirection: 'row', alignItems: 'stretch', borderBottomWidth: 1}, underline: {position: 'absolute', left: 0, right: 0, bottom: -1, borderRadius: 3}, segmented: {flexDirection: 'row', alignSelf: 'flex-start'}, segment: {alignItems: 'center', justifyContent: 'center', flexShrink: 1, minWidth: 38}});
+const styles = StyleSheet.create({tabs: {flexDirection: 'row', alignItems: 'stretch'}, underline: {position: 'absolute', left: 0, right: 0, bottom: -1, borderRadius: 3}, segmented: {flexDirection: 'row', alignSelf: 'flex-start'}, segment: {alignItems: 'center', justifyContent: 'center', flexShrink: 1, minWidth: 38}});

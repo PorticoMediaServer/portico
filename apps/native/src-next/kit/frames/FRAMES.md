@@ -95,12 +95,35 @@ The player's own panels are kit parts too, small ones: a header and a list.
 | `PlayerPanel` | A panel's header (title, back, close, a note) and its scrolling list | A column on the picture's right edge on a tablet and TV; a sheet from the bottom on a phone |
 | `PlayerPanelGroup` | One list in a panel: its label, the current choice beside it, its rows on one card | |
 | `PlayerPanelRow` | A choice (ticked when selected, dimmed in place when unavailable) or an options entry (icon, current value, chevron) | |
-| `PlayerEpisodeRow` | One episode in the Episodes panel: picture or placeholder, title, facts, two lines of synopsis | |
 | `PlayerUpNext` | The Up next card over the credits. Moved from `screens/watch/UpNextCard.tsx`; the watch screen draws this same part | TV card; `compact` on a phone and tablet |
 | `PlayerLiveActions` | Live TV: Record and More at the top of the player. Moved from `screens/watch/TVLiveActions.tsx`; the watch screen draws this same part | |
 | `PlayerChannelStep` | Live TV: channel down or up with the channel it goes to | |
 
 Guide is the kit Button and Go to live is a `PlayerPill`, in the frame's `leading` and `trailing` places.
+
+Changed in the fix round after the first device captures (the reviewer's S-1 to S-18):
+
+- `PlayerChromeFrame` takes `panel` and `card` and places them itself. A panel is a sheet under the picture in the
+  upright form, a column beside the picture on a tablet (the picture and its controls take the room left), and lies
+  over the picture's right side on a phone on its side and a TV, where the controls hide. `card` (Up next) sits alone
+  in the picture's bottom right corner with the controls hidden. `scrubbing` hides the transport for the preview.
+- The upright form is chosen by the window's shape (`usePlayerUpright`: narrower than 4:3), so a tablet in portrait
+  and an open foldable get the 16:9 strip with the watch page under it, not only a phone.
+- `PlayerControl` is a plain glyph on a phone and tablet and sits on a disc only where the mock-ups draw one (a TV's
+  controls, a tablet's top bar); `skip` draws 10 or 30 inside the arrow; `plain` is TV's bare shuffle and repeat.
+- `PlayerPill` with a `name` is a two-line tile on TV. `PlayerScrubBar` has the spec's small knob, `tone="white"` and
+  `knob={false}` for the audio player, and `liveEdge` for live TV. `PlayerTitle` takes `mark`, `live` and `detail`.
+- `PlayerPanel` fills the box the frame gives it (its top no longer moves with its content), has a grab handle as a
+  sheet, and is titled by its own list. `PlayerPanelGroup` rules its rows with hairlines and takes a `note`;
+  `PlayerPanelRow` marks the choice with its tick alone and takes `qualifier` and `trailing`.
+- An episode row is the kit `EpisodeTile layout="row"` and the bar over the list is the kit `SeasonBar` (moved from
+  `screens/watch/TitleSeasonBar.tsx`; the title screen draws the same part). `PlayerEpisodeRow` is gone.
+- Kit `Button`: no label is shrunk to fit any more (`adjustsFontSizeToFit` drew labels at 4 to 6 px on devices); an
+  icon-only button keeps the button's corners unless it is the round `icon` variant. Kit `Tabs`: the rule runs the
+  page's width. Kit `HeroMetadata`: facts with the ids `runtime`, `seasons` and `rating` are outlined chips.
+- `AudioPlayerFrame` is re-laid per form (the title follows the artwork; a tablet keeps the column beside an Up next
+  panel under a bar across the window) and takes `favourite`. `SettingsListFrame` gives its list a column, so cards in
+  it start at the column's edge. `TitleFrame`'s action row has the page's width.
 
 Left for Stage 2, listed so it is not forgotten:
 

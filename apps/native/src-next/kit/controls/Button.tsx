@@ -43,7 +43,8 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
   const geometry = buttonGeometry(size, theme.platform, variant);
   const nativeStyle = StyleSheet.flatten(typeof style === 'function' ? undefined : style);
   const height = typeof nativeStyle?.height === 'number' ? nativeStyle.height : geometry.height;
-  const radius = typeof nativeStyle?.borderRadius === 'number' ? nativeStyle.borderRadius : iconOnly ? height / 2 : geometry.radius;
+  // A round icon button is the `icon` variant (and the round transport size). An icon-only action beside labelled ones (Add, Download, More) keeps the button's own corners.
+  const radius = typeof nativeStyle?.borderRadius === 'number' ? nativeStyle.borderRadius : variant === 'icon' ? height / 2 : geometry.radius;
   const glyphSize = iconSize ?? geometry.icon;
   const recipe = glassRecipe();
   const white = variant === 'primary';
@@ -85,8 +86,9 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
         {icon || loading ? <View style={{width: glyphSize, height: glyphSize, alignItems: 'center', justifyContent: 'center'}}>
           {loading ? <ActivityIndicator size={glyphSize} color={glyphColor} /> : icon ? <Icon name={icon} size={glyphSize} color={glyphColor} /> : null}
         </View> : null}
-        {/* A control's label is never cut (owner's rule): a one-line label that does not fit shrinks a little first ("Continue readi…", W4 F11). */}
-        {!iconOnly ? <Text {...labelObservation.textProps} numberOfLines={grow ? undefined : labelLines} ellipsizeMode="tail" {...(!grow && labelLines === 1 ? {adjustsFontSizeToFit: true, minimumFontScale: .8} : {})} style={labelStyle}>{children}</Text> : null}
+        {/* A one-line label is never shrunk to fit: `adjustsFontSizeToFit` drew labels at 4 to 6 px on Android and tvOS, and on iOS inside a
+            fixed-width button, whatever floor it was given. A label that must not be cut gets `labelLines={2}` or a wider button. */}
+        {!iconOnly ? <Text {...labelObservation.textProps} numberOfLines={grow ? undefined : labelLines} ellipsizeMode="tail" style={labelStyle}>{children}</Text> : null}
         {inline && fraction !== undefined && !iconOnly ? <View style={[styles.inlineTrack, {backgroundColor: colorAlpha(white ? theme.colors.ink : theme.colors.text, .16)}]}><View style={[styles.fill, {width: `${fraction * 100}%`, backgroundColor: white ? theme.colors.accent : theme.colors.accentStrong}]} /></View> : null}
         {remaining !== undefined && !iconOnly ? <>
           <Text numberOfLines={grow ? undefined : 1} style={[theme.type.button, {fontSize: (theme.isTV ? 22 : geometry.fontSize) * theme.textScale, color: white ? colorAlpha(theme.colors.ink, .66) : theme.colors.textTertiary, flexShrink: grow ? 1 : undefined}, textStyle]}>{remaining}</Text>

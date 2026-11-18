@@ -1,4 +1,5 @@
 import {createContext, useContext} from 'react';
+import {useWindowDimensions} from 'react-native';
 import {frameForm, frameSpec, type FrameForm} from '@portico/design';
 import {useTheme} from '../theme';
 import {usePageWidth} from '../layout/page-inset';
@@ -30,4 +31,11 @@ export function useFrameMetrics(): FrameMetrics {
     cardInset: column ? 0 : form === 'phone' ? frameSpec.card.phoneInset : gutter, cardPadding: frameSpec.card.padding[form], cardRadius: frameSpec.card.radius[form],
     sectionGap: rhythm.section[form], headingGap: rhythm.headingGap[form], headerGap: rhythm.headerGap[form], titleTop: rhythm.titleTop[form],
     bottomClear: rhythm.bottomClear[form], rowTwoLine: rhythm.rowTwoLine[form]};
+}
+
+/** The video player's upright form: a window too narrow for its height to give the picture the whole of it (a phone, a
+ * tablet in portrait, an open foldable). The picture is then a 16:9 strip with the watch page under it. */
+export function usePlayerUpright(): boolean {
+  const theme = useTheme(), window = useWindowDimensions();
+  return !theme.isTV && window.width / window.height < frameSpec.player.portrait.maxAspect;
 }
