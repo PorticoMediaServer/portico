@@ -65,9 +65,9 @@ export function PlayerPanelGroup({label, note, heading, children}: {label?: stri
   const list = heading ? heading.open ? rows : [] : rows;
   return <View style={{gap: theme.space.xs}}>
     {label !== undefined && <Text accessibilityRole="header" style={[theme.type.rowHelp, {color: theme.colors.textSecondary, fontFamily: theme.type.groupLabel.fontFamily}]}>{label}</Text>}
-    {/* Not clipped: a focused row's ring and glow spread past the card (player-tv 4); Android cuts any drawing at a clipping
-        parent's edge. The rows round their own focus. */}
-    <View style={{borderRadius: frameSpec.card.radius.phone, backgroundColor: theme.colors.raisedHigh}}>
+    {/* Not clipped on TV: a focused row's ring and glow spread past the card (player-tv 4), and Android cuts any drawing at a
+        clipping parent's edge; the rows round their own focus. Elsewhere the card clips its rows' fills to its corners. */}
+    <View style={{borderRadius: frameSpec.card.radius.phone, overflow: theme.isTV ? undefined : 'hidden', backgroundColor: theme.colors.raisedHigh}}>
       {head}
       {list.map((row, index) => <View key={index} style={(index > 0 || head) && {borderTopWidth: theme.space.hairline, borderTopColor: theme.colors.line}}>{row}</View>)}
     </View>

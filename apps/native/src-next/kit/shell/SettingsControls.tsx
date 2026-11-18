@@ -44,8 +44,9 @@ export type SettingsRowProps = {
 /** A settings group: one raised card of rows, one per meaning (settings.html, owner-libraries). */
 export function SettingsGroup({children, style, testID}: {children: ReactNode; style?: StyleProp<ViewStyle>; testID?: string}) {
   const theme = useTheme();
-  // Not clipped: a focused row's ring and glow spread past the card, and Android cuts any drawing at a clipping parent.
-  return <View testID={testID} style={[{backgroundColor: theme.colors.raised, borderRadius: 14}, style]}>{children}</View>;
+  // Not clipped on TV: a focused row's ring and glow spread past the card, and Android cuts any drawing at a clipping parent.
+  // Elsewhere the card clips its rows' fills (a tinted or pressed first or last row) to its corners.
+  return <View testID={testID} style={[{backgroundColor: theme.colors.raised, borderRadius: 14, overflow: theme.isTV ? undefined : 'hidden'}, style]}>{children}</View>;
 }
 /** A slotted control keeps its sole focus target. A TV readable row intentionally has no OK action. */
 export function SettingsRow({label, highlightQuery, description, scope, icon, navigates = false, accessibilityLabel, control, value, onPress, readable = false, toggle, dependent = false, continuesBranch = false, highlighted = false, destructive = false, first = false, style, nextFocusLeft, testID}: SettingsRowProps) {
@@ -92,7 +93,7 @@ export function ChoiceMatrix({rows, options, onChange, testID}: {testID?: string
   // Settings pane is too narrow for it); otherwise each row is a settings row with its choice as the value.
   const table = !theme.isTV && theme.platform !== 'phone' && width >= 200 + options.length * 104;
   if (!table) return <View onLayout={event => setWidth(event.nativeEvent.layout.width)}>{rows.map((row, index) => <SettingsRow key={row.id} label={row.label} first={index === 0} control={<Select testID={controlID(testID, 'row', row.id)} accessibilityLabel={row.label} value={row.value} options={options} onValueChange={value => onChange(row.id, value)} style={{backgroundColor: 'transparent', paddingHorizontal: 0}}/>}/>)}</View>;
-  return <View onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{backgroundColor: theme.colors.raised, borderRadius: 14}}>
+  return <View onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{backgroundColor: theme.colors.raised, borderRadius: 14, overflow: theme.isTV ? undefined : 'hidden'}}>
     <View style={{flexDirection: 'row', paddingTop: 18, paddingBottom: 8}}><View style={{flex: 1}}/>{options.map(option => <Text key={option.value} style={[shellType(14, 700), {color: theme.colors.textSecondary, width: 104, textAlign: 'center'}]}>{option.label}</Text>)}</View>
     {rows.map(row => <View key={row.id} accessibilityRole="radiogroup" accessibilityLabel={row.label} style={{flexDirection: 'row', minHeight: 52, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft}}>
       <View style={{flex: 1, paddingVertical: 16, paddingHorizontal: 22}}><Text style={[shellType(16), {color: theme.colors.text}]}>{row.label}</Text>{row.defaultHint}</View>
@@ -102,7 +103,7 @@ export function ChoiceMatrix({rows, options, onChange, testID}: {testID?: string
 }
 export function ChoiceCards({label, value, options, onChange, testID}: {testID?: string; label: string; value: string; options: readonly SelectOption[]; onChange: (value: string) => void}) {
   const theme = useTheme();
-  return <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{borderRadius: 14, backgroundColor: theme.colors.raised}}>{options.map((option, index) => <Focusable key={option.value} testID={controlID(testID, 'option', option.value)} accessibilityRole="radio" accessibilityLabel={typeof option.label === 'string' ? option.label : undefined} accessibilityHint={typeof option.description === 'string' ? option.description : undefined} accessibilityState={{checked: option.value === value}} disabled={option.disabled} onPress={() => onChange(option.value)} focusRadius={0} style={{flexDirection: 'row', gap: 16, paddingVertical: 17, paddingHorizontal: 22, borderTopWidth: index ? 1 : 0, borderTopColor: theme.colors.lineSoft, backgroundColor: option.value === value ? alpha(theme.colors.accent, .13) : 'transparent'}}>
+  return <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{borderRadius: 14, overflow: theme.isTV ? undefined : 'hidden', backgroundColor: theme.colors.raised}}>{options.map((option, index) => <Focusable key={option.value} testID={controlID(testID, 'option', option.value)} accessibilityRole="radio" accessibilityLabel={typeof option.label === 'string' ? option.label : undefined} accessibilityHint={typeof option.description === 'string' ? option.description : undefined} accessibilityState={{checked: option.value === value}} disabled={option.disabled} onPress={() => onChange(option.value)} focusRadius={0} style={{flexDirection: 'row', gap: 16, paddingVertical: 17, paddingHorizontal: 22, borderTopWidth: index ? 1 : 0, borderTopColor: theme.colors.lineSoft, backgroundColor: option.value === value ? alpha(theme.colors.accent, .13) : 'transparent'}}>
     {option.value === value && <View style={{position: 'absolute', left: 0, top: 14, bottom: 14, width: 3, borderRadius: 3, backgroundColor: theme.colors.accent}}/>}
     <View style={{width: 22, height: 22, marginTop: 1, borderRadius: 11, borderWidth: 2, borderColor: option.value === value ? theme.colors.accentStrong : theme.colors.lineStrong, alignItems: 'center', justifyContent: 'center'}}>{option.value === value && <View style={{width: 9.2, height: 9.2, borderRadius: 5, backgroundColor: theme.colors.text}}/>}</View>
     <View style={{flex: 1}}><Text style={[shellType(16), {color: theme.colors.text}]}>{option.label}</Text>{option.description && <Text style={[shellType(14, 400, 20.3), {marginTop: 4, color: theme.colors.textTertiary}]}>{option.description}</Text>}</View>
