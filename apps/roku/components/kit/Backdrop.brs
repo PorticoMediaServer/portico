@@ -5,6 +5,7 @@ sub init()
     m.tint = m.top.findNode("tint")
     m.rest = m.top.findNode("rest")
     m.fade = m.top.findNode("fade")
+    m.fadeTime = m.fade.duration
     m.fadeIn = m.top.findNode("fadeIn")
     m.fadeOut = m.top.findNode("fadeOut")
     m.top.findNode("window").clippingRect = [0, 0, 1344, 756]
@@ -69,6 +70,8 @@ end sub
 ' Bring the back picture in (or just take the front one out) and exchange their roles.
 sub swap(bringIn as boolean)
     m.fade.control = "finish"
+    ' Reduce motion (Settings, Appearance): a quicker fade
+    if m.global.looks <> invalid and m.global.looks.reduceMotion = true then m.fade.duration = m.fadeTime / 3 else m.fade.duration = m.fadeTime
     release()
     m.fadeOut.fieldToInterp = m.front.id + ".opacity"
     m.fadeOut.keyValue = [m.front.opacity, 0.0]

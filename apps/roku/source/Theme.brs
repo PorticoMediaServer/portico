@@ -140,6 +140,13 @@ function metrics() as object
     return {safeLeft: 200, safeRight: 56, railWidth: 150, railOpenWidth: 440, pageShift: 270, cardGap: 28, cardPad: 16, focusScale: 1.08, focusSpread: 30}
 end function
 
+' How much a card or face grows in focus: metrics().focusScale, or none at all with Reduce motion on
+' (Settings, Appearance; MainScene keeps it in m.global.looks).
+function focusZoom() as float
+    if m.global <> invalid and m.global.looks <> invalid and m.global.looks.reduceMotion = true then return 1
+    return metrics().focusScale
+end function
+
 ' The ten-foot type scale (packages/design typeScale.tenFoot): [weight, size, line height or 0].
 ' Entries are kept one per line in alphabetical order so that changes to different screens do not
 ' collide; a new entry goes in its alphabetical place.
