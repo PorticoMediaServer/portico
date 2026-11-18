@@ -35,10 +35,10 @@ export function ViewToggle({value, onValueChange, itemProps}: {itemProps?: (valu
   return <View accessibilityRole="radiogroup" style={{flexDirection: 'row', padding: phone ? 0 : 3, borderRadius: 11, backgroundColor: phone ? 'transparent' : theme.colors.raisedHigh}}>{(['grid', 'list'] as const).map(choice => <Focusable key={choice} focusId={`view-${choice}`} {...itemProps?.(choice)} accessibilityRole="radio" accessibilityLabel={t(choice === 'grid' ? 'next.browse.native.grid' : 'next.browse.native.list')} accessibilityState={{checked: value === choice}} onPress={() => onValueChange(choice)} focusKind="row" focusRadius={8} style={{width: phone ? 32 : 38, height: phone ? 30 : 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: value === choice ? phone ? theme.colors.raisedHigh : theme.colors.raisedBright : 'transparent'}}><Icon name={choice === 'grid' ? 'i-grid' : 'i-list'} size={20} color={value === choice ? theme.colors.text : theme.colors.textTertiary}/></Focusable>)}</View>;
 }
 export function CardSizeButton({value, options, onValueChange}: NonNullable<BrowseToolbarProps['cardSize']>) {
-  const anchorRef = useRef<View>(null), [open, setOpen] = useState(false);
-  // desktop-browse grid: the card-size glyph sits bare beside grid / list, as on the web.
+  const theme = useTheme(), anchorRef = useRef<View>(null), [open, setOpen] = useState(false);
+  // desktop-browse grid: the card-size glyph sits bare beside grid / list, grey like the view toggle's, as on the web.
   return <>
-    <Button ref={anchorRef} variant="text" size="compact" iconOnly icon="i-size" accessibilityLabel={t('next.browse.native.cardSize')} accessibilityState={{expanded: open}} onPress={() => setOpen(!open)}/>
+    <Button ref={anchorRef} variant="text" iconColor={theme.colors.textSecondary} size="compact" iconOnly icon="i-size" accessibilityLabel={t('next.browse.native.cardSize')} accessibilityState={{expanded: open}} onPress={() => setOpen(!open)}/>
     <Popover open={open} onOpenChange={setOpen} anchorRef={anchorRef} returnFocusRef={anchorRef} title={t('next.browse.native.cardSize')} placement="bottom-end">
       {options.map(option => <MenuRow key={option.value} label={option.label} selected={option.value === value} preferredFocus={option.value === value} accessibilityRole="radio" accessibilityState={{checked: option.value === value}} onPress={() => {onValueChange(option.value); setOpen(false);}}/>)}
     </Popover>
