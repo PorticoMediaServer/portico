@@ -40,6 +40,13 @@ export async function readBrowseFacetResponse(api: BrowseReadApi, libraryId: str
   if (libraryId === acrossLibraries) return api.request(browseContextFacetsPath(libraryId, field, pivot, query, search, limit), 'GET', undefined, signal);
   // A library's authors are its people by that role, not a counted facet of the list.
   if (field === 'author') return readRebuiltReadingFacet(api as ServerRequester, {libraryId, field, q: search, limit}, signal);
+  // A library's collections are its own titles of kind collection, not a counted facet of the list.
+  if (field === 'collection') {
+    const wanted = search.trim().toLocaleLowerCase(), page = await readItems(api as ServerRequester, {library: libraryId, kind: 'collection', sort: 'title'}, {limit: 200}, signal);
+    const values = page.items.filter(item => !wanted || item.title.toLocaleLowerCase().includes(wanted))
+      .map(item => ({value: item.id, label: item.title, count: item.counts?.children ?? 0}));
+    return {field, total: values.length, values: values.slice(0, limit)};
+  }
   // The counted filter itself is left out, so its other choices keep their counts.
   const others = conditions(query).flatMap(node => 'all' in node ? node.all : [node]).filter(node => !('field' in node) || node.field !== field);
   const facet = await readFacet(api as ServerRequester, field, libraryItemQuery({id: libraryId}, pivot, others, []), signal);

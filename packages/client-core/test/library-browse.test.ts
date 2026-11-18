@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {libraryBrowseCapabilities, libraryItemQuery, libraryQueryControls} from '../src/library-browse.ts';
 
-import {BrowseQueryBuilder, parseBrowseCapabilities} from '../src/browse.ts';
+import {BrowseQueryBuilder, parseBrowseCapabilities, parseBrowseFacets} from '../src/browse.ts';
+import {readBrowseFacetResponse} from '../src/query/browse-reads.ts';
 import {browseToolbarModel} from '../src/presentation/kit-model/index.ts';
 import {defaultI18n} from '../../i18n/src/index.ts';
 import {readItems} from '../src/items.ts';
@@ -62,4 +63,23 @@ test('the advertised In progress filter reaches reading and watch rows, the shar
     const older = parseBrowseCapabilities(libraryBrowseCapabilities({...wire, filters: wire.filters!.filter(f => f.id !== 'inProgress')}, pivot!));
     assert.equal(older.quickFilters.some(q => q.id === 'in-progress'), false);
   }
+});
+
+test('the owner\'s file size sort and matched filter, and the collection filter, reach the list and read back from a saved view', async () => {
+  const films = {id: 'lib', name: 'Films', kind: 'movies', views: [{kind: 'movie'}, {kind: 'collection'}], sorts: [{id: 'title', order: 'asc'}, {id: 'fileSize', order: 'desc'}],
+    filters: [{id: 'collection', type: 'collection'}, {id: 'matched', type: 'boolean'}]} as never;
+  const caps = parseBrowseCapabilities(libraryBrowseCapabilities(films, 'movies'));
+  assert.deepEqual(caps.sorts.map(sort => sort.id), ['title', 'fileSize']);
+  assert.deepEqual(caps.fields.map(field => [field.id, field.controlHint]), [['collection', 'facet-multi-select'], ['matched', 'toggle']]);
+  const nodes = [{variant: 'predicate', field: 'collection', operator: 'equals', value: 'itm_set'}, {variant: 'predicate', field: 'matched', operator: 'equals', value: false}] as const;
+  const query = libraryItemQuery({id: 'lib'}, 'movies', nodes as never, [{field: 'fileSize', direction: 'desc'}]);
+  assert.deepEqual(query, {library: 'lib', kind: 'movie', collection: 'itm_set', matched: false, sort: 'fileSize', order: 'desc'});
+  const {library: _, ...stored} = query as Record<string, unknown>;
+  assert.deepEqual(libraryQueryControls(new URLSearchParams(Object.entries(stored).map(([k, v]) => [k, String(v)])).toString()),
+    {pivot: 'movies', nodes, sorts: [{field: 'fileSize', direction: 'desc'}]});
+  const asked: string[] = [];
+  const api = {request: async <T>(path: string): Promise<T> => {asked.push(path); return {items: [{id: 'itm_set', kind: 'collection', title: 'Northern Lights', counts: {children: 3}}, {id: 'itm_two', kind: 'collection', title: 'Other'}]} as T;}};
+  const facets = parseBrowseFacets(await readBrowseFacetResponse(api as never, 'lib', 'collection', 'movies', undefined, 'north', 50), 'collection');
+  assert.deepEqual(facets.values.map(value => [value.value, value.label, value.count]), [['itm_set', 'Northern Lights', 3]]);
+  assert.match(asked[0]!, /library=lib/); assert.match(asked[0]!, /kind=collection/);
 });

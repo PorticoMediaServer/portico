@@ -34,7 +34,7 @@ const pivots: readonly Readonly<{id: string; kind: string; labelKey: string; vie
   {id: 'genres', kind: 'genre', labelKey: 'library.tab.genres', views: ['grid']},
 ];
 /** The server's sort names and the app's. */
-const sortIds: Readonly<Record<string, string>> = {title: 'title', added: 'added', year: 'year', release: 'releaseDate', latest: 'latestAired'};
+const sortIds: Readonly<Record<string, string>> = {title: 'title', added: 'added', year: 'year', release: 'releaseDate', latest: 'latestAired', fileSize: 'fileSize'};
 const wireSort = (field: string): string | undefined => Object.entries(sortIds).find(([, id]) => id === field)?.[0];
 /** The server's filters as the controls know them. */
 const fields: Readonly<Record<string, Readonly<{id: string; facet?: string} & Record<string, unknown>>>> = {
@@ -44,6 +44,10 @@ const fields: Readonly<Record<string, Readonly<{id: string; facet?: string} & Re
   favorite: {id: 'favorite', labelKey: 'browse.field.favorite', type: 'boolean', operators: ['equals'], controlHint: 'toggle', complexity: 'quick'},
   inList: {id: 'watchlisted', labelKey: 'browse.field.watchlisted', type: 'boolean', operators: ['equals'], controlHint: 'toggle', complexity: 'quick'},
   resolution: {id: 'resolution', labelKey: 'browse.field.resolution', type: 'enum', operators: ['equals', 'in'], controlHint: 'facet-multi-select', complexity: 'standard', facet: 'resolution'},
+  // A collection of this library, chosen from the library's own collections (`readBrowseFacetResponse`).
+  collection: {id: 'collection', labelKey: 'browse.field.collection', type: 'identity-set', operators: ['equals', 'in', 'contains-any'], controlHint: 'facet-multi-select', complexity: 'standard', facet: 'collection'},
+  // Matched to a title or not: the server offers it to the owner and administrators only.
+  matched: {id: 'matched', labelKey: 'browse.field.match', type: 'boolean', operators: ['equals'], controlHint: 'toggle', complexity: 'advanced'},
   // A book's or audiobook's authors, ticked from the library's own Authors list; several can be.
   author: {id: 'author', labelKey: 'browse.field.author', type: 'identity-set', operators: ['in', 'contains-any', 'equals'], controlHint: 'facet-multi-select', complexity: 'quick', facet: 'author'},
 };
@@ -169,6 +173,8 @@ export function itemListFilters(nodes: readonly BrowseNode[], sorts: readonly Br
     const {field, operator, value} = node;
     if (field === 'genre' && ['in', 'contains-any', 'equals', 'contains-all'].includes(operator) && query.genre === undefined) query.genre = String(one(value));
     else if (field === 'resolution' && ['in', 'equals'].includes(operator) && query.resolution === undefined) query.resolution = String(one(value));
+    else if (field === 'collection' && ['in', 'contains-any', 'equals'].includes(operator) && query.collection === undefined) query.collection = String(one(value));
+    else if (field === 'matched' && operator === 'equals' && typeof value === 'boolean') query.matched = value;
     // A book's authors (people), one or several from the Authors list or the filter's own control:
     // the server takes them as one condition, "any:" or "all:" of their ids.
     else if (field === 'author' && ['in', 'contains-any', 'equals', 'contains-all'].includes(operator) && query.author === undefined) query.author = authors(operator, value);
@@ -225,6 +231,8 @@ export function libraryQueryControls(query: string): Readonly<{pivot: string; no
     if (name === 'kind' || name === 'order') continue;
     if (name === 'genre') nodes.push({variant: 'predicate', field: 'genre', operator: 'equals', value});
     else if (name === 'resolution') nodes.push({variant: 'predicate', field: 'resolution', operator: 'equals', value});
+    else if (name === 'collection') nodes.push({variant: 'predicate', field: 'collection', operator: 'equals', value});
+    else if (name === 'matched' && (value === 'true' || value === 'false')) nodes.push({variant: 'predicate', field: 'matched', operator: 'equals', value: value === 'true'});
     else if (name === 'watched' && (value === 'true' || value === 'false')) nodes.push({variant: 'predicate', field: 'playState', operator: 'equals', value: value === 'true' ? 'played' : 'unplayed'});
     else if (name === 'inProgress' && value === 'true') nodes.push({variant: 'predicate', field: 'playState', operator: 'equals', value: 'in-progress'});
     else if ((name === 'favorite' || name === 'inList') && (value === 'true' || value === 'false')) nodes.push({variant: 'predicate', field: name === 'favorite' ? 'favorite' : 'watchlisted', operator: 'equals', value: value === 'true'});
