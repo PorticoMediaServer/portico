@@ -32,6 +32,7 @@ type shimSpec struct {
 	FileBytes  int64 `json:"f"`
 	CPUSeconds int   `json:"c,omitempty"`
 	Background bool  `json:"b,omitempty"`
+	Waiting    bool  `json:"w,omitempty"`
 }
 
 // Options configure the server's media processes. Configure is called once at
@@ -167,7 +168,7 @@ func shimArgv(job Job, inner []string) []string {
 	if helper == "" || runtime.GOOS == "windows" {
 		return inner
 	}
-	spec := shimSpec{Instance: instance, Ledger: ledger, InstanceGuard: guard, FileBytes: job.MaxFileBytes, CPUSeconds: job.MaxCPUSeconds, Background: job.Background}
+	spec := shimSpec{Instance: instance, Ledger: ledger, InstanceGuard: guard, FileBytes: job.MaxFileBytes, CPUSeconds: job.MaxCPUSeconds, Background: job.Background, Waiting: job.Waiting}
 	raw, _ := json.Marshal(spec)
 	return append([]string{helper, ShimFlag, base64.RawURLEncoding.EncodeToString(raw), "--"}, inner...)
 }

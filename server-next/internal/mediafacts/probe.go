@@ -81,6 +81,9 @@ type Source struct {
 type Probe struct {
 	// CodecSetup asks the existing playback probe for setup hashes; scans leave it off.
 	CodecSetup bool
+	// Waiting is the playback probe's: someone pressed Play, so its reads run at the server's
+	// own priority and are not held behind conversions (mediaexec.Job.Waiting).
+	Waiting    bool
 	ReadGuard  func(context.Context, string) error
 	Binary     string
 	Supervisor *processpool.Supervisor
@@ -194,7 +197,7 @@ func (p Probe) run(ctx context.Context, path, input string, options, args []stri
 		// descriptor mount it stays unreadable.
 		return nil, fmt.Errorf("media probe failed: %w", errDirectoryReader)
 	} else if p.Supervisor != nil {
-		cmd, err := mediaexec.Command(probeJob(bin, args, path))
+		cmd, err := mediaexec.Command(p.job(bin, args, path))
 		if err != nil {
 			return nil, fmt.Errorf("media probe failed: %w", err)
 		}
@@ -204,7 +207,7 @@ func (p Probe) run(ctx context.Context, path, input string, options, args []stri
 		}
 		runErr = p.Supervisor.Run(ctx, key, cmd, func(r io.Reader) error { _, e := io.Copy(out, r); return e })
 	} else {
-		cmd, err := mediaexec.CommandContext(ctx, probeJob(bin, args, path))
+		cmd, err := mediaexec.CommandContext(ctx, p.job(bin, args, path))
 		if err != nil {
 			return nil, fmt.Errorf("media probe failed: %w", err)
 		}
