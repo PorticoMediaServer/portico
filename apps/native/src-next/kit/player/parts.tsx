@@ -85,8 +85,8 @@ export function PlayerScrubBar({value, buffered = [], marks = [], preview, films
     </>}
     {withKnob && <View pointerEvents="none" style={{position: 'absolute', top: (compact ? track : knob) / 2 - knob / 2, left: `${Math.max(0, Math.min(1, value)) * 100}%`, marginLeft: -knob / 2, width: knob, height: knob, borderRadius: knob / 2, backgroundColor: theme.colors.white}}/>}
     {preview}
-    {/* The landing picture sits over the knob; near either end the strip stops at the bar's edge. */}
-    {filmstrip !== undefined && <View pointerEvents="none" onLayout={event => setStrip(event.nativeEvent.layout.width)} style={{position: 'absolute', bottom: knob + film.lift, left: Math.max(0, Math.min(width - strip, value * width - strip / 2)), opacity: strip > 0 && width > 0 ? 1 : 0}}>{filmstrip}</View>}
+    {/* The landing picture sits over the knob (tv-player 2); the strip's ends run off the screen's edge when the knob is near one. */}
+    {filmstrip !== undefined && <View pointerEvents="none" onLayout={event => setStrip(event.nativeEvent.layout.width)} style={{position: 'absolute', bottom: knob + film.lift, left: value * width - strip / 2, opacity: strip > 0 && width > 0 ? 1 : 0}}>{filmstrip}</View>}
     {labels?.map(label => <Text key={label.text} numberOfLines={1} style={[theme.type.playerTime, {position: 'absolute', top: knob + film.labelGap, color: theme.colors.textSecondary}, label.end ? {right: 0} : {left: `${label.at * 100}%`}]}>{label.text}</Text>)}
   </View>;
 }

@@ -104,7 +104,8 @@ export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, 
       {!upright && !panel && !card && <View pointerEvents="box-none" style={{alignItems: 'flex-end', paddingHorizontal: edge, paddingBottom: theme.space.sm}}>{prompts}</View>}
       {upright ? <View pointerEvents="box-none">
         <View pointerEvents="box-none" style={[row, {gap: theme.space.xs, paddingLeft: spec.portrait.timeInset, paddingRight: edge, paddingBottom: spec.portrait.bottom, minHeight: theme.targets.touch}]}>
-          <View style={[shown, {flexShrink: 1}]}>{times.behind !== undefined ? position : times.live !== undefined ? remaining : <Text style={time}><Text style={strong}>{times.position}</Text>{times.duration !== undefined ? ` / ${times.duration}` : ''}</Text>}</View>
+          {/* The read-out gives way first, so the options at the row's end always keep the gutter. */}
+          <View style={[shown, {flexShrink: 1, minWidth: 0, overflow: 'hidden'}]}>{times.behind !== undefined ? position : times.live !== undefined ? remaining : <Text style={time}><Text style={strong}>{times.position}</Text>{times.duration !== undefined ? ` / ${times.duration}` : ''}</Text>}</View>
           {/* A prompt's own place in the strip, between the read-out and the options: it covers neither them nor the transport. */}
           <View pointerEvents="box-none" style={{flex: 1, minWidth: 0, alignItems: 'flex-end'}}>{!panel && !card && prompts}</View>
           <View pointerEvents={touch} style={[row, {gap: spec.endGap[form]}, shown]}>{trailing}</View>

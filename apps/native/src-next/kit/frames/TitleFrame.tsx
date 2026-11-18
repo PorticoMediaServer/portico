@@ -1,6 +1,7 @@
 import React, {type ReactNode} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {frameSpec} from '@portico/design';
 import {Button, ResumeButton} from '../controls/Button';
 import {Tabs, type TabItem} from '../controls/Tabs';
@@ -16,7 +17,9 @@ import {PageStateFrame, type PageStateProps} from './PageStateFrame';
 
 export type TitleAction = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; testID?: string;
   /** Shown with its label where there is room (a tablet and TV): Start over, My List. A round button on a phone. */
-  labelled?: boolean}>;
+  labelled?: boolean;
+  /** On (in My List, watched): tinted in the accent (phone-detail 1). */
+  active?: boolean}>;
 /** The one flexible button. With `progress` it is Resume. On a tablet and TV the time left is beside its label, the
  * played part runs along its lower edge and Start over is the button after it (detail-desktop 2, detail-tv 2). On a
  * phone the played part, the time left and Start over are one line under the action row (detail-phone 3). */
@@ -79,9 +82,9 @@ export function TitleFrame({art, back, topAction, title, metadata, primary, acti
       {credits.map((credit, index) => <Text key={credit.label}>{index > 0 ? '    ' : ''}{credit.label} <Text style={{color: theme.colors.textSecondary}}>{credit.names}</Text></Text>)}</Text>}
   </View> : null;
   const side = (action: TitleAction) => action.labelled && !stacked
-    ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
-    : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
-      style={{width: actionHeight, height: actionHeight}}/>;
+    ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
+    : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
+      style={[{width: actionHeight, height: actionHeight}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha)}]}/>;
   const lead = {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, preferredFocus: true, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1} : undefined};
   const row = <View style={{height: actionHeight, flexDirection: 'row', alignItems: 'center', gap: theme.spec.hero.actions.gap[theme.platform]}}>
     {primary.progress !== undefined && !stacked ? <ResumeButton {...lead} size="hero" progress={primary.progress} remaining={primary.remaining}>{primary.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero">{primary.label}</Button>}
@@ -100,6 +103,14 @@ export function TitleFrame({art, back, topAction, title, metadata, primary, acti
   return <ScrollView testID={testID} style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}}>
     <View style={{height}}>
       {art}
+      {/* A tablet's title, facts and synopsis are over the picture, so the picture is shaded behind them (the web's hero does the same; a phone's words are under its picture and a TV's art has its own). */}
+      {!stacked && !tv && <Svg pointerEvents="none" accessible={false} width="100%" height="100%" style={StyleSheet.absoluteFill}>
+        <Defs>
+          <LinearGradient id="title-shade-side" x1="0" y1="0" x2="1" y2="0">{spec.shade.side.map(([opacity, at]) => <Stop key={at} offset={at} stopColor={theme.colors.ink} stopOpacity={opacity}/>)}</LinearGradient>
+          <LinearGradient id="title-shade-foot" x1="0" y1="1" x2="0" y2="0">{spec.shade.foot.map(([opacity, at]) => <Stop key={at} offset={at} stopColor={theme.colors.ink} stopOpacity={opacity}/>)}</LinearGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#title-shade-side)"/><Rect width="100%" height="100%" fill="url(#title-shade-foot)"/>
+      </Svg>}
       {!tv && <View pointerEvents="box-none" style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, right: theme.space.sm, top: insets.top + theme.space.tight, flexDirection: 'row', justifyContent: 'space-between'}}>
         <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/>
         {topAction && <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress} disabled={topAction.disabled} testID={topAction.testID}/>}
