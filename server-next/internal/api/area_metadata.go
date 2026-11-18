@@ -50,6 +50,10 @@ func (s *Server) startMetadata(ctx context.Context) error {
 	s.editorRoutes()
 	s.collectionRoutes()
 	s.artworkRoutes()
+	s.jobs.Tidy("unused pictures", 24*time.Hour, func(ctx context.Context) error {
+		_, err := s.SweepPictures(ctx)
+		return err
+	})
 	s.metadataJobs()
 	s.picturePass()
 	// What a scan found is looked up when it ends.
