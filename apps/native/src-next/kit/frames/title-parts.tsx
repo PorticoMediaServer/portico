@@ -166,8 +166,9 @@ export const seasonColumn = {width: 330, gap: 70, rowGap: 6} as const;
  * File info's order: the edition or the picture summary, then the rest. The whole row is the button and plays that
  * version at once. On a phone the rows sit on one raised card with hairlines; on TV each is a full-width row. */
 export function VersionRows({rows, onChoose}: Readonly<{rows: readonly Readonly<{id: string; heading: string; detail: string}>[]; onChoose: (id: string) => void}>) {
+  // The sheet places its own column; the rows add no gutter of the page's.
   const theme = useTheme(), frame = useFrameMetrics(), card = !theme.isTV;
-  return <View style={[{marginHorizontal: frame.gutter}, card && {borderRadius: frame.cardRadius, backgroundColor: theme.colors.raisedHigh, overflow: 'hidden'}]}>
+  return <View style={card ? {borderRadius: frame.cardRadius, backgroundColor: theme.colors.raisedHigh, overflow: 'hidden'} : undefined}>
     {rows.map((row, index) => <Focusable key={row.id} focusId={`version-${row.id}`} focusKind="row" focusRadius={card ? 0 : frame.cardRadius} accessibilityRole="button" onPress={() => onChoose(row.id)}
       style={{paddingHorizontal: theme.space.sm, paddingVertical: rowPad, borderTopWidth: card && index > 0 ? 1 : 0, borderTopColor: theme.colors.line, borderRadius: card ? 0 : frame.cardRadius}}>
       <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{row.heading}</Text>
@@ -192,9 +193,9 @@ export function EpisodeDisplay({title, mark, intro, rows, preview}: Readonly<{ti
       </View>
       <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{intro}</Text>
     </View>
-    {rows.map(row => <View key={row.label} style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.sm}}>
+    {rows.map((row, index) => <View key={row.label} style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.sm}}>
       <Text style={[theme.type.rowHelp, {width: sizes.choiceLabel, color: theme.colors.text, fontFamily: theme.type.rowLabel.fontFamily}]}>{row.label}</Text>
-      <View style={{flex: 1, minWidth: sizes.choiceMin}}><Segmented fill accessibilityLabel={row.label} items={row.items} value={row.value} onValueChange={row.onValueChange}/></View>
+      <View style={{flex: 1, minWidth: sizes.choiceMin}}><Segmented fill testID={`episode-display-${index}`} accessibilityLabel={row.label} items={row.items} value={row.value} onValueChange={row.onValueChange}/></View>
     </View>)}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap, padding: rowPad, borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised}}>
       <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{preview.label}</Text>
