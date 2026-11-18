@@ -10,6 +10,6 @@ export function sendOwnerChannelLogo(api: Pick<HttpLocalApi, 'routeFetch' | 'bas
 }
 export const ownerItemArtworkPath = (id: string, kind: string) => encodedRoutePath('get_items_id_art_kind', {id, kind});
 export const ownerLibraryChannelLogoPath = (id: string) => encodedRoutePath('get_library_channels_id_logo', {id: encodeURIComponent(id)});
-/** Avatar paths/bodies were issued by the core identity/profile service. */
-export const uploadOwnerProfileAvatar = (api: Pick<HttpLocalApi, 'routeFetch' | 'baseUrl'>, path: string, token: string, body: BodyInit, contentType: string, signal?: AbortSignal) => api.routeFetch(api.baseUrl + path, {method: 'POST', signal, headers: {Authorization: 'Bearer ' + token, 'Content-Type': contentType}, body});
-export const uploadOwnerMemberAvatar = (api: Pick<HttpLocalApi, 'routeFetch' | 'baseUrl'>, path: string, token: string, body: BodyInit, contentType: string) => api.routeFetch(api.baseUrl + path, {method: 'POST', redirect: 'error', credentials: 'omit', referrerPolicy: 'no-referrer', headers: {Authorization: 'Bearer ' + token, 'Content-Type': contentType}, body});
+/** Avatar paths/bodies were issued by the core identity/profile service; the selected session renews on a 401. */
+export const uploadOwnerProfileAvatar = (api: Pick<HttpLocalApi, 'uploadPicture'>, path: string, body: Blob | ArrayBuffer | ArrayBufferView, contentType: string, signal?: AbortSignal) => api.uploadPicture(path, 'POST', body, contentType, signal);
+export const uploadOwnerMemberAvatar = (api: Pick<HttpLocalApi, 'uploadPicture'>, path: string, body: Blob | ArrayBuffer | ArrayBufferView, contentType: string) => api.uploadPicture(path, 'POST', body, contentType);

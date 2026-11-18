@@ -203,6 +203,9 @@ export function SettingsEntry() {
     const requestMetadataUpload: typeof originalApi.requestMetadataUpload = async <T,>(path: string, body: Blob, input?: AbortSignal): Promise<T> => {
       assert();const value = await originalApi.requestMetadataUpload<T>(path, body, signal(input));assert();return value;
     };
+    const uploadPicture: typeof originalApi.uploadPicture = async (path, method, body, contentType, input) => {
+      assert();const value = await originalApi.uploadPicture(path, method, body, contentType, signal(input));assert();return value;
+    };
     const requestBounded: typeof originalApi.requestBounded = async <T,>(path: string, maxBytes: number, input: AbortSignal): Promise<T> => {
       assert();const value = await originalApi.requestBounded<T>(path, maxBytes, signal(input));assert();return value;
     };
@@ -223,6 +226,7 @@ export function SettingsEntry() {
       if (property === 'requestConsole') return requestConsole;
       if (property === 'requestCertificate') return requestCertificate;
       if (property === 'requestMetadataUpload') return requestMetadataUpload;
+      if (property === 'uploadPicture') return uploadPicture;
       if (property === 'requestBounded') return requestBounded;
       if (property === 'requestLyrics') return requestLyrics;
       if (property === 'routeFetch') return routeFetch;
@@ -247,7 +251,7 @@ export function SettingsEntry() {
     const profiles = route.scope === 'account' && route.section === 'profile' && viewer.authority === 'local'
       ? new ProfileSettingsSource(api, {serverId: viewer.serverId, accountId: viewer.accountId, profileId: viewer.profileId}, current, async (path, body, contentType, signal) => {
         if (!current()) throw new Error('shell_authority_retired');
-        const response = await uploadOwnerProfileAvatar(api, path, context.session().accessToken, body as BodyInit, contentType, signal);
+        const response = await uploadOwnerProfileAvatar(api, path, body, contentType, signal);
         if (!response.ok) throw Object.assign(new Error('Profile picture could not be saved.'), {status: response.status});
         return response.json();
       }, buildContext.observeDirect) : undefined;
@@ -415,7 +419,7 @@ export function SettingsEntry() {
       (role === 'owner' || role === 'admin') && (viewer.authority === 'local' || viewer.authority === 'hosted') ? {
         inputActivity, client: new SettingsPeopleClient(api, current, () => buildContext.facts.identity.libraries), devices: createPeopleDevicesApi(api, current), memberProfiles: createPeopleMemberProfilesApi(api, current, async (path, body, contentType) => {
           assert();
-          const response = await uploadOwnerMemberAvatar(api, path, context.session().accessToken, body as BodyInit, contentType);
+          const response = await uploadOwnerMemberAvatar(api, path, body, contentType);
           if (!response.ok) throw Object.assign(new Error('Profile picture could not be saved.'), {status: response.status});
           return response.json();
         }, context.artwork), get serverName() {return buildContext.facts.serverName;}, get libraries() {return buildContext.facts.identity.libraries;}, subscribe: listener => subscribeFacts(buildContext, listener), memberResetCodes,

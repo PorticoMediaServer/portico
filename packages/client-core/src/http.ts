@@ -657,7 +657,7 @@ export class HttpLocalApi {
         // Per-request protocol headers (If-Match, Idempotency-Key, merge-patch Content-Type); never Authorization.
         ...Object.fromEntries(Object.entries(extra ?? {}).filter(([k]) => k.toLowerCase() !== 'authorization')),
       },
-      ...(body === undefined ? {} : { body: typeof Blob !== 'undefined' && body instanceof Blob ? body : transportJSON(body) }),
+      ...(body === undefined ? {} : { body: typeof Blob !== 'undefined' && body instanceof Blob || body instanceof ArrayBuffer || ArrayBuffer.isView(body) ? body as BodyInit : transportJSON(body) }),
     });
     if (token) this.sentWith.set(response, token);
     if (this.writeListeners.size && response.ok) this.announceWrite(path, method, response);
@@ -712,6 +712,11 @@ export class HttpLocalApi {
       if (!response.ok) throw new ApiError(response.status, value?.error?.code ?? value?.code ?? 'request_failed', value?.error?.message ?? 'Artwork upload failed.', false);
       return value as T;
     });
+  }
+  /** A picture (a profile picture, a channel logo) sent as its own bytes under the selected session: a 401 renews and
+   * resends once (the server did not act on it), and an ended sign-in goes to sign-in like any other request. */
+  uploadPicture(path: string, method: 'POST' | 'PUT', body: Blob | ArrayBuffer | ArrayBufferView, contentType: string, signal?: AbortSignal): Promise<Response> {
+    return this.exchange(path, method, body, signal, {'Content-Type': contentType}, false, true);
   }
   /** Open the live Messages stream with the selected session's renewal; the caller owns its lifetime. */
   openOwnerLogEvents(headers: Record<string, string>, signal: AbortSignal): Promise<Response> {

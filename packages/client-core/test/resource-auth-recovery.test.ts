@@ -27,3 +27,17 @@ for (const resource of ['lyrics', 'artwork'] as const) {
   }
  });
 }
+
+test('a picture upload (profile picture, channel logo) renews a refused sign-in and resends the same bytes once', async () => {
+ const sent: string[] = [];
+ const api = new HttpLocalApi('https://fixture.invalid', 'old', async (_url, init) => {
+  const headers = new Headers(init?.headers), token = headers.get('Authorization')!;
+  sent.push(`${init?.method} ${token} ${headers.get('Content-Type')} ${await (init!.body as Blob).text()}`);
+  return Response.json(token === 'Bearer old' ? {error: {code: 'unauthorized'}} : {ok: true}, {status: token === 'Bearer old' ? 401 : 200});
+ });
+ api.setOutboxSession(session('old'));
+ api.setAuthRecovery({token: async token => token, recover: async () => {api.setOutboxSession(session('new'));return 'new';}});
+ const response = await api.uploadPicture('/v1/admin/library-channels/ch1/logo', 'PUT', new Blob(['logo'], {type: 'image/png'}), 'image/png');
+ assert.deepEqual(await response.json(), {ok: true});
+ assert.deepEqual(sent, ['PUT Bearer old image/png logo', 'PUT Bearer new image/png logo']);
+});
