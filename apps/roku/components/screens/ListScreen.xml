@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A playlist or a collection from Saved (collections frames 18 to 20): the mosaic, its name, how
+     many and how long, who made it; Play all and Shuffle; then its titles as rows in its own order.
+     OK on a row plays from it; * on a row opens its menu: Go to item, and for a list the viewer may
+     change, Move up, Move down and Remove (a collection: Remove only). Renaming and deleting a list
+     stay on a phone, tablet or computer (collections frame 20). -->
+<component name="ListScreen" extends="Group">
+  <interface>
+    <!-- {kind: "savedList", id, title, eyebrow, listKind, role, revision} -->
+    <field id="item" type="assocarray" onChange="onItem"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="art" type="string"/>
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+  </interface>
+  <script type="text/brightscript" uri="ListScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Group id="cover">
+      <Poster id="coverPlate" uri="pkg:/images/round-14.9.png"/>
+      <Group id="tiles">
+        <Poster loadDisplayMode="scaleToZoom"/>
+        <Poster loadDisplayMode="scaleToZoom"/>
+        <Poster loadDisplayMode="scaleToZoom"/>
+        <Poster loadDisplayMode="scaleToZoom"/>
+      </Group>
+    </Group>
+    <Label id="eyebrow"/>
+    <Label id="name"/>
+    <Label id="factsStrong"/>
+    <Label id="facts"/>
+    <ButtonRow id="actions" visible="false"/>
+    <!-- the rows scroll in a window under the buttons; the row in focus has the plate and the ring -->
+    <Group id="window">
+      <Group id="rows">
+        <Poster id="rowPlate" uri="pkg:/images/round-14.9.png" visible="false"/>
+        <Poster id="rowRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
+      </Group>
+    </Group>
+    <KeyHints id="hint"/>
+    <PageState id="state" visible="false"/>
+  </children>
+</component>

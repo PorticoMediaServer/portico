@@ -6,7 +6,7 @@
 <component name="GroupScreen" extends="Group">
   <interface>
     <!-- A collection item, {kind: "person", id, title} for a person, or {kind: "savedList", id, title,
-         eyebrow, heading, path, summary, counts, images} for a playlist, collection or saved view from Saved. -->
+         eyebrow, heading, path, summary, counts, images} for a saved view from Saved (a playlist or collection opens ListScreen). -->
     <field id="item" type="assocarray" onChange="onItem"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="art" type="string"/>

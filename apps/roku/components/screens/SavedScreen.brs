@@ -634,7 +634,19 @@ sub focusRegion()
 end sub
 
 sub onActive()
-    if m.top.active then focusRegion()
+    if not m.top.active then return
+    if m.covered = true
+        ' back from a page opened here: the tab is read again (a title removed from a list, a list's
+        ' order changed), with focus kept on the same card
+        m.covered = false
+        if tabSpec().id <> "history" and m.sources.count() > 0 and m.sources[m.at].grid <> invalid then m.keepAt = m.sources[m.at].grid.itemFocused
+        load()
+    end if
+    focusRegion()
+end sub
+
+sub onCovered()
+    if m.top.covered then m.covered = true
 end sub
 
 sub onToTop()

@@ -415,7 +415,9 @@ sub onOpenAsk(ask as object)
         return
     end if
     if kind = "movie" then page = push("TitleScreen")
-    if kind = "savedList" then page = push("GroupScreen")    ' a profile's playlist, collection or saved view (Saved)
+    ' a profile's playlist or collection from Saved is a page of rows; a saved view, a page of what it finds
+    if kind = "savedList" and (ask.item.listKind = "playlist" or ask.item.listKind = "collection") then page = push("ListScreen")
+    if kind = "savedList" and ask.item.listKind = "saved_view" then page = push("GroupScreen")
     if kind = "show" then page = push("ShowScreen")
     if kind = "collection" or kind = "person" then page = push("GroupScreen")
     if kind = "recordings" then page = push("RecordingsScreen")    ' Live TV's Recordings
