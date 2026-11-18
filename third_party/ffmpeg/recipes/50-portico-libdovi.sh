@@ -5,7 +5,7 @@ SCRIPT_REPO="https://github.com/quietvoid/dovi_tool.git"
 SCRIPT_COMMIT="26ed61ff36f946313889a09c0d2da202e9ceb97a"
 
 ffbuild_enabled() {
-    [[ $TARGET == linux* ]]
+    [[ $TARGET == linux* || $TARGET == win64 ]]
 }
 
 ffbuild_dockerbuild() {

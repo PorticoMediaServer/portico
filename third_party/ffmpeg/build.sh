@@ -34,8 +34,10 @@ STAGE="${1:?usage: build.sh <stage> <platform>}"
 PLATFORM="${2:?usage: build.sh <stage> <platform>}"
 
 case "$PLATFORM" in
-    linux-x64) TARGET=linux64 MACHINE=x86_64 ;;
-    linux-arm64) TARGET=linuxarm64 MACHINE=aarch64 ;;
+    linux-x64) TARGET=linux64 MACHINE="Linux x86_64" EXE= ;;
+    linux-arm64) TARGET=linuxarm64 MACHINE="Linux aarch64" EXE= ;;
+    # Cross-compiled on Linux with upstream's MinGW compiler; run and verified on Windows (Git Bash).
+    windows-x64) TARGET=win64 MACHINE="MINGW64_NT* x86_64" EXE=.exe ;;
     *) echo "build.sh: no build for $PLATFORM yet" >&2; exit 2 ;;
 esac
 VARIANT=gpl
@@ -411,29 +413,41 @@ in_image() {
 helper() {
     library_image
     mkdir -p "$WORK/out"
-    in_image -v "$ROOT/third_party/portico-disc:/disc:ro" -v "$WORK/out:/out" "$LIBRARY_IMAGE" bash -e <<'EOF'
+    in_image -e EXE="$EXE" -v "$ROOT/third_party/portico-disc:/disc:ro" -v "$WORK/out:/out" "$LIBRARY_IMAGE" bash -e <<'EOF'
 modules="libbluray dvdnav dvdread libudfread"
 libs="$(pkg-config --static --libs $modules)"
 case "$libs" in *dvdcss*|*aacs*|*bdplus*) echo "a decryption library is in the link line: $libs" >&2; exit 1 ;; esac
-$CC $CFLAGS -std=c11 -O2 -Wall -Wextra -Werror -D_FILE_OFFSET_BITS=64 -fPIE $(pkg-config --cflags $modules) \
-    /disc/portico-disc.c -o /out/portico-disc $LDFLAGS -pie $libs
+if [[ -n "$EXE" ]]; then
+    # Windows: the manifest makes the helper's arguments and paths UTF-8, so a disc in a folder
+    # named in any language opens. (MinGW's linker makes a Windows program relocatable by itself.)
+    echo '1 24 "/disc/portico-disc.manifest"' > /tmp/manifest.rc
+    ${FFBUILD_CROSS_PREFIX}windres /tmp/manifest.rc -O coff -o /tmp/manifest.o
+    extra=/tmp/manifest.o
+else
+    extra="-fPIE -pie"
+fi
+$CC $CFLAGS -std=c11 -O2 -Wall -Wextra -Werror -D_FILE_OFFSET_BITS=64 $extra $(pkg-config --cflags $modules) \
+    /disc/portico-disc.c -o /out/portico-disc$EXE $LDFLAGS $libs
 EOF
     if runs_here; then
-        read_fixture_discs "$WORK/out/portico-disc"
+        read_fixture_discs "$WORK/out/portico-disc$EXE"
     else
-        say "the helper is built for $MACHINE and this machine is $(uname -m): the verify stage reads the fixture discs with it"
+        say "the helper is built for $MACHINE and this machine is $(uname -sm): the verify stage reads the fixture discs with it"
     fi
 }
 
 # Whether this machine can run the programs being built.
-runs_here() { [[ "$(uname -m)" == "$MACHINE" ]]; }
+runs_here() { [[ "$(uname -sm)" == $MACHINE ]]; }
 
 read_fixture_discs() {
     local helper="$1" disc
-    for disc in bluray-two-clip-bdmv bluray-udf250.iso dvd-two-title-video-ts; do
-        "$helper" probe "$ROOT/fixtures/discs/$disc" > "$WORK/probe.json" ||
-            fail "the helper could not read fixtures/discs/$disc"
-        say "helper read $disc: $(head -c 120 "$WORK/probe.json")"
+    # The same disc again from a folder whose name is not plain ASCII, as a person's folders often are.
+    rm -rf "$WORK/Vidéos 映画"
+    mkdir -p "$WORK/Vidéos 映画"
+    cp -R "$ROOT/fixtures/discs/dvd-two-title-video-ts" "$WORK/Vidéos 映画/"
+    for disc in "$ROOT"/fixtures/discs/{bluray-two-clip-bdmv,bluray-udf250.iso,dvd-two-title-video-ts} "$WORK/Vidéos 映画/dvd-two-title-video-ts"; do
+        "$helper" probe "$disc" > "$WORK/probe.json" || fail "the helper could not read $disc"
+        say "helper read ${disc#"$ROOT"/}: $(head -c 120 "$WORK/probe.json")"
     done
 }
 
@@ -496,10 +510,10 @@ compile() { ffmpeg_build 0; }
 # ---------------------------------------------------------------------------------------------
 package() {
     local bundle="$WORK/bundle" tool
-    [[ -x "$WORK/ffbuild/prefix/bin/ffmpeg" && -x "$WORK/out/portico-disc" ]] || fail "run the compile and helper stages first"
+    [[ -x "$WORK/ffbuild/prefix/bin/ffmpeg$EXE" && -x "$WORK/out/portico-disc$EXE" ]] || fail "run the compile and helper stages first"
     rm -rf "$bundle"
     mkdir -p "$bundle/bin" "$bundle/LICENSES"
-    cp "$WORK/ffbuild/prefix/bin/ffmpeg" "$WORK/ffbuild/prefix/bin/ffprobe" "$WORK/out/portico-disc" "$bundle/bin/"
+    cp "$WORK/ffbuild/prefix/bin/ffmpeg$EXE" "$WORK/ffbuild/prefix/bin/ffprobe$EXE" "$WORK/out/portico-disc$EXE" "$bundle/bin/"
     cp "$SRC/COPYING.GPLv3" "$bundle/LICENSES/GPL-3.0.txt"
     [[ -d "$WORK/licences" ]] && cp -R "$WORK/licences/." "$bundle/LICENSES/"
     [[ -s "$WORK/recipes.txt" ]] || plan
@@ -545,7 +559,7 @@ EOF
     if runs_here; then
         verify
     else
-        say "built for $MACHINE on $(uname -m): NOT verified here; run the verify stage on a $MACHINE machine"
+        say "built for $PLATFORM on $(uname -sm): NOT verified here; run the verify stage on a $PLATFORM machine"
     fi
 }
 
@@ -553,26 +567,30 @@ EOF
 # (an unpacked bundle from another machine).
 verify() {
     local bundle="${MEDIA_TOOLS_BUNDLE:-$WORK/bundle}" tool
-    [[ -x "$bundle/bin/ffmpeg" && -x "$bundle/bin/portico-disc" ]] || fail "no bundle in $bundle"
-    runs_here || fail "this machine is $(uname -m) and the bundle is for $MACHINE"
+    [[ -x "$bundle/bin/ffmpeg$EXE" && -x "$bundle/bin/portico-disc$EXE" ]] || fail "no bundle in $bundle"
+    runs_here || fail "this machine is $(uname -sm) and the bundle is for $PLATFORM"
     mkdir -p "$WORK"
     say "the programs start and need nothing beyond the operating system"
     "$bundle/bin/ffmpeg" -hide_banner -version | head -1
     "$bundle/bin/ffprobe" -hide_banner -version | head -1
+    # On Windows (Git Bash's ldd) everything a program loads must come from the Windows folder.
+    local system='^\s*(linux-vdso|/lib(64)?/ld-linux|lib(c|m|dl|pthread|rt|mvec|gcc_s)\.so)'
+    [[ -n "$EXE" ]] && system='=> /c/Windows/'
     for tool in ffmpeg ffprobe portico-disc; do
-        if ldd "$bundle/bin/$tool" | grep -vE '^\s*(linux-vdso|/lib(64)?/ld-linux|lib(c|m|dl|pthread|rt|mvec|gcc_s)\.so)' | grep -q .; then
-            ldd "$bundle/bin/$tool" >&2
+        [[ -n "$EXE" ]] && echo "$tool loads: $(ldd "$bundle/bin/$tool$EXE" | awk '{ print $1 }' | xargs)"
+        if ldd "$bundle/bin/$tool$EXE" | grep -viE "$system" | grep -q .; then
+            ldd "$bundle/bin/$tool$EXE" >&2
             fail "$tool needs a library that is not part of the operating system"
         fi
     done
 
     say "the feature list has everything wanted"
-    local ffmpeg="$bundle/bin/ffmpeg" kind name where missing=0
+    local ffmpeg="$bundle/bin/ffmpeg$EXE" kind name where missing=0
     declare -A listing
     for kind in decoders encoders demuxers muxers filters protocols bsfs hwaccels devices; do
-        listing[$kind]="$("$ffmpeg" -hide_banner "-$kind" 2> /dev/null)"
+        listing[$kind]="$("$ffmpeg" -hide_banner "-$kind" 2> /dev/null | tr -d '\r')"
     done
-    "$ffmpeg" -hide_banner -buildconf | tr -s ' ' '\n' > "$WORK/built-options.txt"
+    "$ffmpeg" -hide_banner -buildconf | tr -d '\r' | tr -s ' ' '\n' > "$WORK/built-options.txt"
     has() { grep -qE "(^|[ ,])$2([ ,]|\$)" <<< "${listing[$1]}"; }
     while read -r kind name where; do
         case "$kind" in
@@ -585,7 +603,7 @@ verify() {
     done < <(grep -Ev '^(#|$)' "$WANTED")
     [[ $missing == 0 ]] || fail "$missing wanted feature(s) are missing from the bundle"
 
-    read_fixture_discs "$bundle/bin/portico-disc"
+    read_fixture_discs "$bundle/bin/portico-disc$EXE"
     say "verified: $PLATFORM"
 }
 

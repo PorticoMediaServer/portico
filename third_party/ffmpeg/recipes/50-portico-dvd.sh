@@ -7,7 +7,7 @@ SCRIPT_REPO2="https://code.videolan.org/videolan/libdvdnav.git"
 SCRIPT_COMMIT2="2ffc50b5c37a6ddc086829203fc44e95588198dd"
 
 ffbuild_enabled() {
-    [[ $TARGET == linux* ]]
+    [[ $TARGET == linux* || $TARGET == win64 ]]
 }
 
 ffbuild_dockerstage() {
