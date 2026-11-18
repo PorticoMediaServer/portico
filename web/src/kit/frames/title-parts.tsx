@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState, type CSSProperties, type ReactNode} from 'react';
 import type {ArtworkSource} from '../artwork';
 import {Artwork, PersonCircle, nameInitials} from '../artwork';
-import {Button, Chip, Switch, TextField} from '../controls';
+import {Button, Chip, Segmented, Switch, TextField} from '../controls';
 import {Icon, type IconName} from '../Icon';
 import {Popover} from '../overlays';
 import styles from './title-parts.module.css';
@@ -190,4 +190,26 @@ export function PanelBlock({label, children}: Readonly<{label?: string; children
  * grey line under a list (desktop-detail f7 "Only titles on this server are listed"). */
 export function PanelText({tone = 'body', children}: Readonly<{tone?: 'body' | 'note'; children: ReactNode}>) {
   return <p className={styles.text} data-tone={tone}>{children}</p>;
+}
+
+/** "Play a different version" (detail-phone 9b, desktop-detail 9b): one row of two lines per version, in File info's
+ * order: the edition or the picture summary, then the rest. The whole row is the button and plays that version at once;
+ * hovered or focused it lightens and shows a play mark. On a phone the rows sit on one raised card with hairlines. */
+export function VersionRows({rows, onChoose}: Readonly<{rows: readonly Readonly<{id: string; heading: string; detail: string}>[]; onChoose: (id: string) => void}>) {
+  return <div className={styles.versions}>{rows.map(row => <button key={row.id} type="button" className={styles.version} onClick={() => onChoose(row.id)}>
+    <span><b>{row.heading}</b><small>{row.detail}</small></span><Icon name="i-play" size={16} /></button>)}</div>;
+}
+
+/** The owner's Episode display (desktop-detail f4): how a show's episodes are grouped, numbered and ordered, for everyone
+ * on the server. Its heading and the "For everyone" mark, a line on what it does, one choice per row, and how an
+ * episode will read. It commits as you choose (R9 `choice`). */
+export function EpisodeDisplay({title, mark, intro, rows, preview}: Readonly<{title: string; mark: string; intro: string;
+  rows: readonly Readonly<{label: string; items: readonly Readonly<{value: string; label: string}>[]; value: string; onValueChange: (value: string) => void}>[];
+  /** "Reads as" and the episode as it will read ("S1 E3", "Long, Long Time"). */
+  preview: Readonly<{label: string; code: string; title: string}>}>) {
+  return <div className={styles.display}>
+    <header><b>{title}</b><span>{mark}</span></header><p>{intro}</p>
+    {rows.map(row => <div key={row.label} className={styles.displayRow}><span>{row.label}</span><Segmented aria-label={row.label} items={row.items} value={row.value} onValueChange={row.onValueChange} /></div>)}
+    <p className={styles.readsAs}>{preview.label} <b>{preview.code}</b> {preview.title}</p>
+  </div>;
 }

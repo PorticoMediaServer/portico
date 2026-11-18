@@ -165,7 +165,7 @@ export const seasonColumn = {width: 330, gap: 70, rowGap: 6} as const;
  * version at once. On a phone the rows sit on one raised card with hairlines; on TV each is a full-width row. */
 export function VersionRows({rows, onChoose}: Readonly<{rows: readonly Readonly<{id: string; heading: string; detail: string}>[]; onChoose: (id: string) => void}>) {
   const theme = useTheme(), frame = useFrameMetrics(), card = !theme.isTV;
-  return <View style={[{marginHorizontal: frame.gutter}, card && {borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised, overflow: 'hidden'}]}>
+  return <View style={[{marginHorizontal: frame.gutter}, card && {borderRadius: frame.cardRadius, backgroundColor: theme.colors.raisedHigh, overflow: 'hidden'}]}>
     {rows.map((row, index) => <Focusable key={row.id} focusId={`version-${row.id}`} focusKind="row" focusRadius={card ? 0 : frame.cardRadius} accessibilityRole="button" onPress={() => onChoose(row.id)}
       style={{paddingHorizontal: theme.space.sm, paddingVertical: rowPad, borderTopWidth: card && index > 0 ? 1 : 0, borderTopColor: theme.colors.line, borderRadius: card ? 0 : frame.cardRadius}}>
       <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{row.heading}</Text>

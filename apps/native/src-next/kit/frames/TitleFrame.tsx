@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState, type ReactNode} from 'react';
+import React, {useState, type ReactNode} from 'react';
 import {ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
@@ -100,15 +100,7 @@ const titlePrimaryId = 'title-primary';
 function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
-  const [scrollY, setScrollY] = useState(0), [tabsBox, setTabsBox] = useState({y: Number.POSITIVE_INFINITY, height: 0}), tabsY = tabsBox.y;
-  const scroller = useRef<ScrollView>(null);
-  const barHeight = insets.top + 56; // R5 interim: rule 3's 56 bar under the status bar
-  // Held collapsed (the screen opened a tab's content), the page is where scrolling would have put it: the tab panel
-  // starts under the bar (phone-detail d1 frame 2, desktop-detail f3). On a phone the bar carries the tabs, so the page's
-  // own tabs sit under it; on a tablet the bar is one row and the page's tabs scroll past it.
-  useEffect(() => {
-    if (collapsed && !tv && !split && Number.isFinite(tabsBox.y)) scroller.current?.scrollTo({y: Math.max(0, stacked ? tabsBox.y - barHeight : tabsBox.y + tabsBox.height - barHeight), animated: false});
-  }, [collapsed, tv, split, stacked, tabsBox, barHeight]);
+  const [scrollY, setScrollY] = useState(0), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY);
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   if (failure) return <View testID={testID} style={{flex: 1}}>
     {!tv && <View style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, top: insets.top + theme.space.tight}}><RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/></View>}
@@ -218,9 +210,13 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
 
   // The collapsed bar (touch): it shows once the tabs pass under it. A phone and an upright tablet: Back, the title
   // centred and Play on, with the tabs under it; a tablet on its side: the title, the tabs, the primary and the pinned actions.
+  const barHeight = insets.top + 56; // R5 interim: rule 3's 56 bar under the status bar
   const shown = !tv && !split && (collapsed ?? scrollY > tabsY - barHeight);
+  // Held collapsed by the screen (a tab's content opened directly): the bar stands in place of the hero and the page's
+  // tabs, and the panel starts under it (phone-detail d1 frame 2, desktop-detail f3).
+  const held = shown && collapsed === true;
   const pinned = actions.filter(action => action.pinned);
-  const bar = shown && <View style={{position: 'absolute', left: 0, right: 0, top: 0, zIndex: theme.layers.sticky, backgroundColor: alpha(theme.colors.ink, .92), borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>
+  const bar = shown && <View style={{position: held ? 'relative' : 'absolute', left: 0, right: 0, top: 0, zIndex: theme.layers.sticky, backgroundColor: alpha(theme.colors.ink, .92), borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>
     {stacked ? <>
       <View style={{height: barHeight, paddingTop: insets.top, paddingHorizontal: theme.space.sm, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>
         <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress}/>
@@ -247,12 +243,13 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     <ScrollView style={{flex: 1}} contentContainerStyle={{paddingTop: insets.top, paddingBottom: frame.bottomClear}}>{tabBar()}{content}</ScrollView>
   </View>;
   return <View testID={testID} style={{flex: 1}}>
-    <ScrollView ref={scroller} style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)}>
-      {head}
-      {tabs && <View onLayout={event => setTabsBox({y: event.nativeEvent.layout.y, height: event.nativeEvent.layout.height})}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>}
+    {held && bar}
+    <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)}>
+      {!held && head}
+      {tabs && !held && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>}
       {content}
     </ScrollView>
-    {bar}
+    {!held && bar}
   </View>;
 }
 
