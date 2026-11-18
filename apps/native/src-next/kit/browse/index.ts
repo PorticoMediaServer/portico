@@ -1,6 +1,6 @@
 export {LibraryHeader, LibraryExpandedHeader, LibraryMediumHeader, StickyBrowseHeader, LibrarySwitcher, LibraryMenu} from './Library';
 export type {LibraryMenuProps} from './Library';
-export {BrowseToolbar, FiltersButton, QuickToggle, SortMenu, ViewToggle, CardSizeButton, SaveViewButton, AppliedFilterChips} from './Toolbar';
+export {BrowseToolbar, FiltersButton, QuickToggle, SortMenu, ViewToggle, SaveViewButton, AppliedFilterChips} from './Toolbar';
 export {FilterBuilder, FieldTile, FacetChips, MatchMode} from './Filters';
 export {FiltersPane, FiltersDock, FiltersOver, libraryFiltersTabletPane, type FiltersPaneGeometry} from './FiltersPane';
 export {FilteredEmpty, RelaxSuggestions} from './FilteredEmpty';

@@ -13,7 +13,7 @@ function elements(node: any): Element[] {
 const bareText = (node: Element): unknown[] => node.type === 'Text' ? [] : [node.props.children].flat(Infinity)
   .filter(child => typeof child === 'string' || typeof child === 'number');
 
-test('a toolbar with a view toggle, a card size and Save draws no bare text between them', async () => {
+test('a toolbar with a view toggle and Save draws no bare text between them', async () => {
   for (const width of [390, 820]) {
     const host = hooks(), theme = createTheme({width, isTV: false});
     const {BrowseToolbar} = await screenModule(new URL('../src-next/kit/browse/Toolbar.tsx', import.meta.url), {
@@ -27,11 +27,11 @@ test('a toolbar with a view toggle, a card size and Save draws no bare text betw
     });
     const tree = host.render(() => BrowseToolbar({model: {quick: [], applied: [], sorts: [], sort: {field: 'title', direction: 'asc', flippable: false}},
       labels: {sort: () => '', quick: () => ''}, resultCount: '8 books', onQuickChange() {}, onFilters() {}, onSortChange() {},
-      view: {value: 'grid', onValueChange() {}}, cardSize: {value: 'medium', options: [], onValueChange() {}}, save: {canSave: true, onSave() {}}}));
+      view: {value: 'grid', onValueChange() {}}, save: {canSave: true, onSave() {}}}));
     const nodes = elements(tree), drawn = nodes.map(node => node.type);
     assert.ok(drawn.some(type => (type as {name?: string})?.name === 'ViewToggle'), `${width}: the view toggle is drawn`);
-    // phone-app 5: a phone draws the count and grid / list only (its Save view is in the Filters sheet).
-    assert.equal(drawn.some(type => (type as {name?: string})?.name === 'CardSizeButton'), width >= 600, `${width}: card size only on a wide toolbar`);
+    // Owner, 18 Nov: a phone or tablet toolbar is one row (Filters, sort, the chips' rail, grid / list): no Save view, no count line.
+    assert.ok(!drawn.some(type => (type as {name?: string})?.name === 'SaveViewButton'), `${width}: no Save view on a touch toolbar`);
     for (const node of nodes) assert.deepEqual(bareText(node), [], `${width}: ${String((node.type as {name?: string})?.name ?? node.type)} holds no bare text`);
   }
 });

@@ -29,8 +29,9 @@ test('A21: a collection card\'s years stay grey; only the watched share is blue 
   assert.match(css, /\.collectionDetail > \[data-fact='watched'\] \{ color:var\(--color-accent-strong\); font-weight:700; \}/);
 });
 
-test('A23/A24: the phone count row has no Save view link, and the divider after Filters only draws when something follows', () => {
+test('A23/A24 (owner, 18 Nov): at phone width the toolbar is one row with no count line and no Save view; the divider after Filters only draws when something follows', () => {
   const toolbar = read('../src/kit/browse/BrowseToolbar.tsx');
-  assert.match(toolbar, /<div className=\{styles\.phoneCount\}><ResultCount [^>]*>\{resultCount\}<\/ResultCount>\{\/\* phone-app 5: Save this view lives in the ⋯ menu\. \*\/\}<span className=\{styles\.phoneView\}>/);
-  assert.match(toolbar, /\{\(sortInFirstRow \|\| actions != null && actions !== false \|\| quick\.length > 0\) && <span className=\{styles\.separator\} aria-hidden="true"\/>\}/);
+  assert.match(toolbar, /<div className=\{styles\.toolbarMain\}>\{filters\}\{sort\}\n\s*<div className=\{styles\.chipRail\}>/);
+  assert.doesNotMatch(toolbar, /phoneCount/);
+  assert.match(toolbar, /\{\(actions != null && actions !== false \|\| quick\.length > 0\) && <span className=\{styles\.separator\} aria-hidden="true"\/>\}/);
 });
