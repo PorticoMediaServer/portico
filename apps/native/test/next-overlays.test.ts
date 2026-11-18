@@ -79,15 +79,17 @@ test('a touched toast retains its remaining time, overlapping holds do not resum
   assert.deepEqual(expired, ['second', 'fourth']);
 });
 
-test('the stack says when any surface is open, once on the first open and once on the last close', () => {
+test('the stack tells its listeners on every change (the top surface matters on TV), and isOpen flips once each way', () => {
   const stack = createOverlayStack(), seen: boolean[] = [];
   const stop = stack.subscribe(() => seen.push(stack.isOpen()));
+  const flips = () => seen.filter((value, index) => index === 0 || value !== seen[index - 1]);
   assert.equal(stack.isOpen(), false);
   const closeMenu = stack.register({}, () => {}), closePicker = stack.register({}, () => {});
   closeMenu(); assert.equal(stack.isOpen(), true);
   closePicker(); closePicker();
-  assert.deepEqual(seen, [true, false]);
-  stop(); stack.register({}, () => {}); assert.deepEqual(seen, [true, false]);
+  assert.deepEqual(flips(), [true, false]);
+  const heard = seen.length;
+  stop(); stack.register({}, () => {}); assert.equal(seen.length, heard);
 });
 
 test('Back and Escape reach only the top surface and a lower close cannot steal focus', () => {

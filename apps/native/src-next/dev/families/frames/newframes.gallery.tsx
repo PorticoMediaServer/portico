@@ -267,7 +267,7 @@ function RecordedTiles() {
   const {theme, frame, phone} = useScale(), columns = phone ? 1 : frame.form === 'tv' ? 3 : 2, gap = theme.space.sm;
   const width = (frame.width - frame.gutter - frame.rightGutter - gap * (columns - 1)) / columns;
   return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap, marginLeft: frame.gutter, marginRight: frame.rightGutter}}>
-    {recordedShows.map(([channel, title, line, badge, count]) => <LiveCard key={title} title={f(title)} channel={channel.name} mark={channel.mark} caption={recordedLine(f(line))} badge={badge && f(badge)} count={count} width={width} onNavigate={none}/>)}
+    {recordedShows.map(([channel, title, line, badge, count]) => <LiveCard key={title} title={f(title)} channel={channel.name} mark={channel.mark} under={recordedLine(f(line))} badge={badge && f(badge)} count={count} width={width} onNavigate={none}/>)}
   </View>;
 }
 function rulePane(): FramePane {

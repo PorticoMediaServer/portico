@@ -220,7 +220,7 @@ function LiveRecorded() {
   return <Page current="liveTvShort"><LiveFrame {...recordings('recorded', phone)} toolbar={<><small style={{color: 'var(--color-text-secondary)'}}>{f('recordedCounts')}</small><span style={{flex: 1}}/><Button variant="text" size="small" icon="i-chdown" onClick={none}>{f('sortRecent')}</Button></>}>
     <div className={page.cardGrid}>
       {recordedShows.map(([channel, title, line, badge, count]) => <LiveCard key={title} channel={{sourceId: 'demo', id: channel.id, name: channel.name, mark: channel.mark}} programme={{title: f(title), facts: []}}
-        caption={recordedLine(f(line))} badge={badge && f(badge)} count={count} style={{width: '100%'}} onNavigate={none}/>)}
+        under={recordedLine(f(line))} badge={badge && f(badge)} count={count} style={{width: '100%'}} onNavigate={none}/>)}
     </div>
   </LiveFrame></Page>;
 }

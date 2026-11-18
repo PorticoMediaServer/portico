@@ -21,6 +21,8 @@ export type LiveCardProps = CardProps & {
   badge?: string;
   /** A recorded show's unwatched count, a round mark top right; absent or 0 draws nothing (desktop-live live-recorded). */
   count?: number;
+  /** The line under the card (desktop-live live-recorded: "6 recordings  2 unwatched", the unwatched part in accent). */
+  under?: readonly FactPart[];
 };
 export function LiveCard(props: LiveCardProps) {
   const t = useTheme(), width = props.width ?? (t.isTV ? 400 : 244), height = t.isTV ? 225 : 140, pad = t.isTV ? 22 : 14;
@@ -44,13 +46,15 @@ export function LiveCard(props: LiveCardProps) {
         </View>
         <View style={{marginTop: 'auto'}}>
           <Text numberOfLines={1} style={[t.type.liveTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
+          <Parts parts={props.caption} />
           {props.range && <Text numberOfLines={1} style={[t.type.cardSubtitle, {color: t.colors.textTertiary, marginTop: 3}]}>{props.range}</Text>}
           <Progress value={props.progress} style={{marginTop: t.isTV ? 12 : 10}} />
         </View>
       </View>
     </ArtFrame>
-    {/* The card's caption, under its art as a poster's is: a recorded show's "6 recordings  2 unwatched" (desktop-live live-recorded). */}
-    {!!props.caption?.length && <View style={{marginTop: t.isTV ? 12 : 8}}><Parts parts={props.caption} /></View>}</>}
+    {/* The line under the card: a recorded show's "6 recordings  2 unwatched" (desktop-live live-recorded). On now cards keep
+        their caption inside the tile (mock.html home). */}
+    {!!props.under?.length && <View style={{marginTop: t.isTV ? 12 : 8}}><Parts parts={props.under} /></View>}</>}
   </CardFrame>;
 }
 

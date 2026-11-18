@@ -156,7 +156,7 @@ export function useOverlayLifecycle(open: boolean, modal: boolean, dismiss: (rea
         else registry?.restore(opener);
       }
     };
-  }, [open, modal, registry, regionId]);
+  }, [open, modal, registry, regionId, layer]);
   // The overlay's layer id, for its `FocusBoundary` (only the top layer draws a ring); none while it is not open.
   return open ? layer : undefined;
 }
