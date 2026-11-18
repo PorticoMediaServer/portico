@@ -126,6 +126,13 @@ For Stage 2, so two drawings are not inherited:
 - `SeasonBar` here is a stand-in for the gallery's watch page, not the native part's equal: it has no owner `settings` menu, takes its Hide watched label as a prop, and draws the season trigger as a small Button. The live show page draws it as `Chip variant="toolbar"` with `SeasonMenu` (`screens/detail/Show.tsx`), which is also what the mock-up's `ep-bar` draws. Stage 2 moves the show page's bar into the kit with the owner variant and deletes this one.
 - `EpisodeRows` lays `EpisodeTile` out by the order of its children (`:nth-child`), so a change inside the tile breaks it silently. Stage 2 gives the web tile a `layout="row"` prop, as the native kit has, when it moves `show.module.css` `.episodeRow`, and deletes these rules.
 
+Changed in the final round before the owner's review (r6):
+
+- `PlayerLive` upright (owner, 18 Nov): when its box is a short strip (a container query on its own height, so the live screen's full-window form is untouched until Stage 2 puts it in a strip), Guide, Record and More are icons in the top row, the transport with channel down and up is in the middle of the picture, and the time, how far behind live, Go to live and the options are along the bottom. The channel and programme are named on the page under the strip.
+- `AudioPlayerFrame`: the artwork, title, scrubber and transport are one group; from 1024 the group is centred in the height.
+- The transport hides while the scrubber is held on a phone on its side too. A phone-width toast's message wraps and is never cut.
+- The gallery's sign-in case sits on the window's backdrop like every other page.
+
 Left for Stage 2, listed so it is not forgotten:
 
 - `PlayerLive` draws its own top bar, bar and controls row instead of filling `PlayerChromeFrame`. It matches the

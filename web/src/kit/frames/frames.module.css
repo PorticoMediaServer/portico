@@ -210,10 +210,11 @@
 .audioNext b { color: var(--color-text); font-weight: var(--type-group-label-weight); }
 .audioWords h1 { margin: 0; font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); letter-spacing: var(--type-title-tracking); }
 .audioWords > p { min-height: var(--type-row-help-line); }
-.audioScrubber { min-height: var(--frame-audio-scrubber); margin-top: auto; flex: none; display: flex; flex-direction: column; justify-content: center; gap: var(--frame-player-times-gap); }
+.audioScrubber { min-height: var(--frame-audio-scrubber); margin-top: 0; flex: none; display: flex; flex-direction: column; justify-content: center; gap: var(--frame-player-times-gap); }
 .audioTransport { height: var(--frame-audio-transport); flex: none; display: flex; align-items: center; justify-content: space-between; }
 .audioActive { color: var(--color-accent-strong); }
-.audioNext { height: var(--frame-audio-next-line); flex: none; text-align: center; }
+/* The artwork, title, scrubber and transport are one group; what is left of the height is under it, above the next line. */
+.audioNext { height: var(--frame-audio-next-line); flex: none; text-align: center; margin-top: auto; }
 .audioOptions { height: var(--frame-audio-bottom-row); flex: none; display: flex; }
 /* A bottom-row slot is the kit's text button with its icon or value over its label, as wide as its share of the row. */
 .audioOption { flex: 1; min-width: 0; height: 100%; flex-direction: column; gap: var(--space-tight); color: var(--color-text); }
@@ -229,12 +230,13 @@
 .audioUpNext { display: none; }
 @media (min-width: 1024px) {
   /* From 1024 (desktop-listen "now", tablet-play 9): the bar spans the window; the phone's column sits centred in the room beside the Up next panel. */
-  .audio { display: grid; grid-template-columns: minmax(0, 1fr) var(--frame-audio-up-next); grid-template-rows: var(--frame-audio-top-bar) auto auto 1fr auto auto auto auto; column-gap: var(--frame-audio-gap); max-width: none; margin: 0; padding: var(--frame-header-gap) var(--g) var(--frame-bottom-clear); }
+  .audio { display: grid; grid-template-columns: minmax(0, 1fr) var(--frame-audio-up-next); grid-template-rows: var(--frame-audio-top-bar) 1fr auto auto auto auto auto auto 1fr; column-gap: var(--frame-audio-gap); max-width: none; margin: 0; padding: var(--frame-header-gap) var(--g) var(--frame-bottom-clear); }
   .audioTop { grid-column: 1 / -1; } .audioContext { flex-direction: row; align-items: baseline; gap: var(--space-tight); } .audioContext > b { font-size: var(--type-row-help-size); }
   .audioArtSpace, .audioWords, .audioScrubber, .audioTransport, .audioNext, .audioOptions { grid-column: 1; justify-self: center; width: min(100%, var(--frame-audio-artwork)); }
   .audioArtSpace { padding-top: 0; display: grid; justify-items: center; }
   .audioArt { width: min(100%, calc(100dvh - var(--frame-audio-top-bar) - var(--frame-audio-title-slot) - var(--frame-audio-scrubber) - var(--frame-audio-transport) - var(--frame-audio-next-line) - var(--frame-audio-bottom-row) - var(--frame-header-gap) - var(--space-sm) - var(--frame-bottom-clear))); }
-  .audioArtSpace { grid-row: 2; } .audioWords { grid-row: 3; } .audioScrubber { grid-row: 5; margin-top: 0; } .audioTransport { grid-row: 6; } .audioNext { grid-row: 7; } .audioOptions { grid-row: 8; }
+  /* The group is centred in the height under the bar; nothing stretches inside it. */
+  .audioArtSpace { grid-row: 3; } .audioWords { grid-row: 4; } .audioScrubber { grid-row: 5; } .audioTransport { grid-row: 6; } .audioNext { grid-row: 7; margin-top: 0; } .audioOptions { grid-row: 8; }
   .audioUpNext { display: block; grid-column: 2; grid-row: 2 / -1; overflow-y: auto; min-height: 0; }
 }
 
@@ -247,3 +249,6 @@
 .episodeRows > * > button > :first-child { grid-column: 1; grid-row: 1; }
 .episodeRows > * > button > :nth-child(2) { grid-column: 2; margin-top: 0; align-self: center; }
 .episodeRows > * > button > :nth-child(3) { grid-column: 1 / -1; }
+
+/* A phone on its side: the finger is on the scrubber, so the transport in the middle of the picture makes way for the preview (phone-player 1b). */
+@media (max-height: 500px) { .player[data-scrubbing='true'] .playerCentre { opacity: 0; pointer-events: none; } }
