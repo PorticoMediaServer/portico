@@ -29,6 +29,12 @@ sub init()
     m.state.observeField("pressed", "onItem")
     m.generation = 0
     m.block = shelfMetrics("gridPoster").block
+    ' a person's Filters, and the biography read in full
+    m.filters = m.top.findNode("filters")
+    m.filters.buttons = [{id: "filters", text: "Filters", icon: "sliders"}]
+    m.filters.observeField("pressed", "onFilters")
+    m.reader = m.top.findNode("reader")
+    m.reader.observeField("closed", "onReaderClosed")
 end sub
 
 sub onItem()
@@ -39,6 +45,12 @@ sub onItem()
     m.slots = []         ' one for each row asked for, in the order they are shown: {heading, path, state, items, node, focus, total}
     m.shown = []         ' the slots on the page, top to bottom
     m.focus = 0          ' which of them has focus
+    m.onAbout = false    ' true while a person's biography holds focus
+    m.onFilters = false  ' true while a person's Filters chip holds focus
+    m.role = "all"       ' a person's rows shown: "all", "cast" (acting) or "crew" (the rest)
+    m.biography = ""
+    m.filters.visible = false
+    paintAbout()
     m.detail = invalid   ' a collection's own facts, once read
     m.detailFailed = false
     m.onActions = false  ' true while a collection's Play all and Shuffle hold focus
@@ -196,7 +208,10 @@ sub onPerson(event as object)
         facts = facts + countText(person.titleCount, "title", "titles") + " on this server"
     end if
     about = ""
-    if person.biography <> invalid then about = oneParagraph(person.biography)
+    if person.biography <> invalid
+        about = oneParagraph(person.biography)
+        m.biography = person.biography
+    end if
     names = {actor: "Acting", director: "Directing", writer: "Writing", producer: "Production", composer: "Music", creator: "Created"}
     works = ""
     if person.roles <> invalid
@@ -206,9 +221,18 @@ sub onPerson(event as object)
             if works <> "" then works = works + ", "
             works = works + name
             askRow(name, "/v1/items?person=" + person.id + "&role=" + role.role + "&sort=release&order=desc")
+            m.slots[m.slots.count() - 1].role = role.role
         end for
     end if
     placeWords(works, person.name, born, facts, about)
+    ' Filters only when there is something to filter: rows of acting and rows of other work
+    cast = false
+    crew = false
+    for each slot in m.slots
+        if slot.role = "actor" then cast = true else crew = true
+    end for
+    m.filters.visible = (cast and crew)
+    if m.filters.visible then m.filters.translation = [frames().rightEdge - m.filters.getChild(0).buttonWidth, frames().group.filtersY]
 end sub
 
 ' Nothing on the page could load: the whole-page state in its place (rule 9).
@@ -312,7 +336,9 @@ sub placeRows()
     waiting = false
     for each slot in m.slots
         if slot.state = "wait" then waiting = true
-        if slot.node <> invalid
+        if slot.node <> invalid and not roleShown(slot)
+            slot.node.visible = false
+        else if slot.node <> invalid
             slot.node.visible = not waiting
             if not waiting
                 slot.node.translation = [0, m.shown.count() * m.block]
@@ -333,10 +359,11 @@ sub placeRows()
     m.smallTitle.visible = (m.focus > 0)
     m.top.quiet = (m.focus > 0)     ' the art dims once rows lie over it
     ' focus lands on Play all, or else the first row, once there is one, if the page itself still holds it
+    ' (a collection has Play all; a person has the biography and Filters; no page has both)
     if m.top.hasFocus() and m.actions.visible
         m.onActions = true
         m.actions.active = true
-    else if m.shown.count() > 0 and m.top.hasFocus()
+    else if m.shown.count() > 0 and m.top.hasFocus() and not m.onAbout
         m.shown[0].focus.active = true
     end if
 end sub
@@ -347,6 +374,10 @@ sub onActive()
         m.state.active = true
     else if m.onActions
         m.actions.active = true
+    else if m.onAbout
+        m.top.setFocus(true)
+    else if m.onFilters
+        m.filters.active = true
     else if m.focus < m.shown.count()
         m.shown[m.focus].focus.active = true
     else
@@ -361,7 +392,94 @@ sub onSelected(event as object)
     if at >= 0 and at < row.items.count() then m.top.open = {item: row.items[at], play: false}
 end sub
 
+' A row is shown under a person's Filters: every row for All, acting for Cast, the rest for Crew.
+function roleShown(slot as object) as boolean
+    if not m.isPerson or m.role = "all" or slot.role = invalid then return true
+    if m.role = "cast" then return slot.role = "actor"
+    return slot.role <> "actor"
+end function
+
+' The biography has focus: the plate behind it and the ring round it.
+sub paintAbout()
+    plate = m.top.findNode("aboutPlate")
+    ring = m.top.findNode("aboutRing")
+    plate.visible = m.onAbout
+    ring.visible = m.onAbout
+    if not m.onAbout then return
+    pad = metrics().cardPad
+    words = m.about.boundingRect()
+    plate.translation = [m.about.translation[0] - pad, m.about.translation[1] - pad]
+    plate.width = m.about.width + pad * 2
+    plate.height = words.height + pad * 2
+    plate.blendColor = colours().glass
+    out = metrics().focusSpread + 6
+    ring.translation = [plate.translation[0] - out, plate.translation[1] - out]
+    ring.width = plate.width + out * 2
+    ring.height = plate.height + out * 2
+end sub
+
+' The biography read in full has closed: focus is back on it.
+sub onReaderClosed()
+    m.top.setFocus(true)
+end sub
+
+function canReadAbout() as boolean
+    return m.isPerson and m.biography <> "" and m.about.visible
+end function
+
+sub toAbout()
+    m.onFilters = false
+    m.onAbout = true
+    paintAbout()
+    m.top.setFocus(true)
+end sub
+
+sub toFilters()
+    m.onAbout = false
+    paintAbout()
+    m.onFilters = true
+    m.filters.active = true
+end sub
+
+sub toFirstRow()
+    m.onAbout = false
+    m.onFilters = false
+    paintAbout()
+    m.focus = 0
+    placeRows()
+    if m.shown.count() > 0 then m.shown[0].focus.active = true
+end sub
+
+' Filters: All, Cast or Crew, in the side sheet; the choice comes back in onMenuChosen.
+sub onFilters()
+    rows = []
+    for each choice in [{id: "all", text: "All"}, {id: "cast", text: "Cast"}, {id: "crew", text: "Crew"}]
+        rows.push({id: "role:" + choice.id, text: choice.text, icon: "", current: (m.role = choice.id)})
+    end for
+    m.top.menu = {eyebrow: m.top.item.title, title: "Filters", status: "", rows: rows, hints: [{keys: ["OK"], text: "Choose"}, {keys: ["Back"], text: "Close"}]}
+end sub
+
 function pressKey(key as string) as boolean
+    ' the person's own stops above the rows: the biography, then Filters
+    if m.onAbout
+        if key <> "down" then return false
+        if m.filters.visible then toFilters() else toFirstRow()
+        return true
+    end if
+    if m.onFilters
+        if key = "down"
+            toFirstRow()
+            return true
+        else if key = "up" and canReadAbout()
+            toAbout()
+            return true
+        end if
+        return false
+    end if
+    if key = "up" and m.focus = 0 and m.isPerson and (m.filters.visible or canReadAbout())
+        if m.filters.visible then toFilters() else toAbout()
+        return true
+    end if
     if key = "down" and m.focus < m.shown.count() - 1
         m.focus = m.focus + 1
     else if key = "up" and m.focus > 0
@@ -413,6 +531,11 @@ sub onPlay(event as object)
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
+    ' OK on the biography reads it in full
+    if press and key = "OK" and m.onAbout and not m.state.visible
+        m.reader.model = {eyebrow: m.top.findNode("eyebrow").text, title: m.top.item.title, text: m.biography}
+        return true
+    end if
     if press and key = "options" then return cardKey()
     holdKey(key, press and (key = "up" or key = "down"))
     if press and not m.state.visible and (m.onActions or (key = "up" and m.focus = 0 and m.actions.visible)) then return actionsKey(key)
@@ -434,7 +557,16 @@ function cardKey() as boolean
 end function
 
 sub onMenuChosen(event as object)
-    cardMenuChosen(event.getData())
+    which = event.getData()
+    if left(which, 5) = "role:"
+        ' Filters chosen in the sheet: the rows change under the chip, and focus stays on it
+        m.role = mid(which, 6)
+        m.focus = 0
+        placeRows()
+        m.onFilters = true
+        return
+    end if
+    cardMenuChosen(which)
 end sub
 
 ' The card takes the title's new state (its watched tick); the row keeps its place.
