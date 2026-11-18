@@ -29,3 +29,5 @@ echo "$out" | grep -q '^PASSED [0-9]* FAILED 0$'
 # Every frame number, colour and type role the app reads is in source/Theme.brs. BrightScript only
 # finds a missing one when the screen that reads it opens, and then the app stops.
 python3 tools/theme-check.py
+# The open-source licences the app lists are made from the files the package holds (tools/licences.py).
+python3 tools/licences.py --check

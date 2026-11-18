@@ -34,11 +34,12 @@ sub layout()
     switch = m.top.findNode("switch")
     value = m.top.findNode("value")
     control = model.control
-    chevron.visible = (control = "choice" or control = "expand" or control = "collapse")
+    chevron.visible = (control = "choice" or control = "expand" or control = "collapse" or control = "open")
     switch.visible = (control = "switch")
     if control = "choice" then chevron.uri = "pkg:/images/i-chevronUpDown-24.png"
     if control = "expand" then chevron.uri = "pkg:/images/i-chevronDown-24.png"
     if control = "collapse" then chevron.uri = "pkg:/images/i-chevronUp-24.png"
+    if control = "open" then chevron.uri = "pkg:/images/i-forward-24.png"      ' "open": a page or a step of its own
     if switch.visible then switch.uri = "pkg:/images/switch-" + onOff(model.switchOn) + ".png"
     valueRight = right
     if chevron.visible then valueRight = right - 24 - 12

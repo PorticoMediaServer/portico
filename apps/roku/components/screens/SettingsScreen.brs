@@ -355,6 +355,8 @@ function accountRows(spec as object) as object
         help = spec.help
         if m.resetDone then help = "Recommendations reset."
         return [{label: spec.label, help: help, icon: spec.icon, act: does}]
+    else if id = "licences"
+        return [{label: spec.label, value: spec.value, control: spec.control, act: does}]
     end if
     return [{label: spec.label, icon: wordsOrNone(spec.icon), danger: (spec.danger = true), act: does}]
 end function
@@ -376,9 +378,37 @@ function advancedSummary(page as object) as string
     return changed.join(" · ")
 end function
 
+' --- This device: Open-source licenses -----------------------------------------------------------
+
+' The licences take the page's place (states frame 30); Back there returns to This device's row.
+sub openLicences()
+    if m.licences = invalid
+        m.licences = m.top.createChild("LicencesPage")
+        m.licences.observeField("done", "onLicencesDone")
+    end if
+    m.licences.visible = true
+    m.pages.visible = false
+    m.top.findNode("fadeTop").visible = false
+    m.top.findNode("fadeBottom").visible = false
+    m.region = "licences"
+    m.licences.active = true
+end sub
+
+sub onLicencesDone()
+    m.licences.visible = false
+    m.pages.visible = true
+    m.region = "rows"
+    m.list.setFocus(true)     ' the licences are inside the screen: the list group takes focus back
+    paint()
+end sub
+
 ' --- focus ----------------------------------------------------------------------------------------
 
 sub onActive()
+    if m.top.active and m.region = "licences"     ' the licences page takes the focus itself
+        m.licences.active = true
+        return
+    end if
     if not m.top.active then return
     if m.state.visible
         m.state.active = true
@@ -400,6 +430,7 @@ sub onToTop()
 end sub
 
 sub paint()
+    if m.region = "licences" then return     ' the licences page paints itself
     c = colours()
     has = m.top.hasFocus() or m.list.hasFocus()     ' the list group holds focus after the dialog
     inList = (m.region = "list")
@@ -585,6 +616,8 @@ sub act(a as object)
         m.top.account = "signout"      ' the scene asks first, as it does from the rail's profile menu
     else if a.id = "reset"
         m.confirm.model = {title: "Reset recommendations?", body: "Portico will forget what it has learned about your taste. Your watch history, ratings and lists stay.", verb: "Reset"}
+    else if a.id = "licences"
+        openLicences()
     end if
     ' a row that only shows a fact does nothing
 end sub
