@@ -322,3 +322,27 @@ func TestMatchesCarryTheServersPosterAndWhy(t *testing.T) {
 		t.Errorf("an unknown poster address answered %d", w.Code)
 	}
 }
+
+// A merge sent again after its answer was lost answers as the first did and changes nothing:
+// the title merged away is the kept one now. Another title that was never merged into this
+// one is still not found.
+func TestAMergeSentAgainAnswersTheSame(t *testing.T) {
+	sh := newShelf(t, "Heat.mkv", "Zzyzx Home Video (2011).mkv")
+	list := sh.unmatched()
+	if len(list) != 2 {
+		t.Fatalf("unmatched: %+v", list)
+	}
+	heat, zzyzx := list[0].ItemID, list[1].ItemID
+	var first, again MatchResult
+	sh.do("POST", "/v1/admin/items/"+heat+"/merge", MergeRequest{ItemID: zzyzx}, &first, 200)
+	sh.do("POST", "/v1/admin/items/"+heat+"/merge", MergeRequest{ItemID: zzyzx}, &again, 200)
+	if first.ItemID != heat || again.ItemID != heat {
+		t.Fatalf("a merge and its repeat kept %s and %s, want %s", first.ItemID, again.ItemID, heat)
+	}
+	var item Item
+	sh.do("GET", "/v1/items/"+heat, nil, &item, 200)
+	if len(item.Versions) != 2 {
+		t.Fatalf("after a merge and its repeat the title has %d versions, want 2", len(item.Versions))
+	}
+	sh.do("POST", "/v1/admin/items/"+heat+"/merge", MergeRequest{ItemID: "itm_neverthere"}, nil, 404)
+}
