@@ -50,6 +50,8 @@ export type OverlayTask =
   | 'task'
   /** Read-only facts about an item: File info, Playback info. */
   | 'details'
+  /** Play a different version: one two-line row per version that plays it at once. */
+  | 'versions'
   /** Narrowing a list: the library's Filters. */
   | 'filters'
   /** Settings: the index and a page. */
@@ -104,6 +106,14 @@ export const overlayForms: Readonly<Record<OverlayTask, Readonly<Record<FrameFor
     medium: form('side', false, bar('none', 'start', 'close', true), 'none'),
     expanded: form('side', false, bar('none', 'start', 'close', true), 'none'),
     tv: form('side', true, tvBar, 'full'),
+  },
+  /** detail-phone 9b (a sheet: the title, the film under it, Done), desktop-detail 9b (a centred dialog over the dimmed
+   * page: the title, the film under it, a round x, no foot), detail-tv-8b (the side sheet, OK Play and Back Close). */
+  versions: {
+    phone: form('sheet', true, bar('none', 'start', 'done', true), 'none'),
+    medium: form('dialog', true, bar('none', 'start', 'close', true), 'none'),
+    expanded: form('dialog', true, bar('none', 'start', 'close', true), 'none'),
+    tv: form('side', true, tvBar, 'hints'),
   },
   filters: {
     phone: form('sheet', true, bar('none', 'start', 'done'), 'halves'),

@@ -7,7 +7,7 @@ export type {PlayerReadouts, PlayerChromeFrameProps, AudioPlayerFrameProps, Audi
 export type {SettingsListFrameProps, SettingsPageFrameProps, SheetFrameProps, SheetBarProps, SignInFrameProps, PageStateProps, PageHeaderProps, FrameBack} from './frames';
 export {Section, SectionCard, StateRow, ArtBox, ArtPlaceholder, type StateRowProps, type SectionStale} from './parts';
 export {TitleFrame, type TitleFrameProps, type TitleAction, type TitlePrimary, type TitleCredit, type TitleKicker, type TitleCover} from './TitleFrame';
-export {SeasonBar, SeasonMenu, EpisodeList, EpisodeListOpened, EpisodeNeighbour, episodeRowClass, PanelBlock, PanelHeading, PanelText, AboutTable, CastRow, TrackPicker, NumberedRow, OwnerCard,
+export {SeasonBar, SeasonMenu, EpisodeList, EpisodeListOpened, EpisodeNeighbour, episodeRowClass, PanelBlock, PanelHeading, PanelText, AboutTable, CastRow, TrackPicker, NumberedRow, OwnerCard, VersionRows, EpisodeDisplay,
   type SeasonMenuRow, type AboutValue, type CastPerson} from './title-parts';
 // Round 8, the kinds of screen that had no frame.
 export {SearchFrame, LiveFrame, SplitFrame, ReaderFrame, type SearchFrameProps, type SearchNone, type LiveFrameProps, type SplitFrameProps, type FramePane, type ReaderFrameProps} from './newframes';

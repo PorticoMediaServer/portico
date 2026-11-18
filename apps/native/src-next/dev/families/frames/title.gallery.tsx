@@ -300,7 +300,7 @@ const dune2Files: readonly FileFacts[] = [
 function Versions() {
   const [tab, setTab] = useState('more'), [open, setOpen] = useState(true), {isTV} = useTheme();
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-versions" {...filmFrame(tab, setTab, isTV)}><Posters title={f('moreLikeDune')} items={moreLikeDune}/></TitleFrame>
-    <SheetFrame kind="task" task="actions" open={open} onOpenChange={setOpen} title={f('versionTitle')} subtitle={f('dune2')} startFocus="version-v2">
+    <SheetFrame kind="task" task="versions" open={open} onOpenChange={setOpen} title={f('versionTitle')} subtitle={f('dune2')} startFocus="version-v2">
       <VersionRows onChoose={() => setOpen(false)} rows={(['1', '2', '3'] as const).map(n => ({id: `v${n}`, heading: f(`version${n}`), detail: f(`version${n}Detail`)}))}/>
     </SheetFrame></Page>;
 }

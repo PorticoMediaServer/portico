@@ -83,6 +83,12 @@
 .barSlot { position: sticky; top: var(--shell-top, 0px); height: 0; z-index: var(--layer-sticky); }
 .bar { position: absolute; inset: 0 0 auto; background: color-mix(in srgb, var(--color-ink) 88%, transparent); -webkit-backdrop-filter: blur(22px) saturate(1.2); backdrop-filter: blur(22px) saturate(1.2); box-shadow: 0 1px 0 color-mix(in srgb, var(--color-text) 8%, transparent); opacity: 0; visibility: hidden; transform: translateY(-6px); transition: opacity var(--motion-fast, 160ms) var(--ease-out), transform var(--motion-fast, 160ms) var(--ease-out), visibility 0s linear var(--motion-fast, 160ms); }
 .title[data-collapsed] .bar { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+/* Held collapsed: the bar takes its room and the hero and the page's tabs are not drawn (not in two pages, which have no bar). */
+@media not ((min-width: 600px) and (max-width: 1023px) and (orientation: landscape)) {
+  .title[data-held] .barSlot { height: auto; margin-top: var(--shell-top, 0px); }
+  .title[data-held] .bar { position: relative; }
+  .title[data-held] .head, .title[data-held] .cast, .title[data-held] .tabs { display: none; }
+}
 .barRow { display: grid; grid-template-columns: var(--button-hero-height) minmax(0, 1fr) var(--button-hero-height); align-items: center; gap: var(--space-control-gap); min-height: var(--frame-header-bar, 56px); padding: 0 var(--space-sm); } /* R5 interim: the bar is rule 3's 56 */
 .barTitle { grid-column: 2; text-align: center; font-size: var(--type-bar-title-size); line-height: var(--type-bar-title-line); font-weight: var(--type-bar-title-weight); }
 .barBack { grid-column: 1; }

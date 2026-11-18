@@ -7,11 +7,14 @@ import {AmbientArt, Artwork, PersonCircle, nameInitials} from '../../kit/artwork
 import {CollectionBanner, EpisodeTile, PosterCard, SquareCard} from '../../kit/cards';
 import {TrackTable, type TrackRowData} from '../../kit/browse';
 import {Button, Chip} from '../../kit/controls';
-import {AboutTable, CastRow, EpisodeList, EpisodeListOpened, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PanelText, SeasonBar, SeasonMenu, TitleFrame, TrackPicker, episodeRowClass,
+import {AboutTable, CastRow, EpisodeDisplay, EpisodeList, EpisodeListOpened, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PanelText, SeasonBar, SeasonMenu, SheetFrame, TitleFrame, TrackPicker, VersionRows, episodeRowClass,
   type CastPerson, type TitleFrameProps} from '../../kit/frames';
 import {HeroFacts, Shelf} from '../../kit/layout';
 import {Menu, MenuGroup, MenuItem, MenuSeparator} from '../../kit/overlays';
 import {usePhone} from '../../kit/overlays/shared';
+import {FileInfoBody} from '../../kit/overlays/FileInfo';
+import {fileInfoModel, type FileFacts} from '@core/presentation/kit-model';
+import {defaultI18n} from '@i18n';
 import {EpisodeDetailsLayout} from '../../kit/title/TitleParts';
 import {Page, useReferenceArtwork, useWide} from './frames';
 
@@ -100,17 +103,10 @@ function DuneDetails() {
       covers={[art('pool/movies/dune.jpg'), art('pool/movies/dune-part-two.jpg')]} artwork={art('pool/movies/dune-part-two--bd.jpg')} onNavigate={none} /></PanelBlock>
   </>;
 }
-/** Details, scrolled: the hero gone, the collapsed bar with the title, the tabs, Play and + (desktop-detail f3; phone-detail d1 frame 2). */
+/** Details, held collapsed: the hero gone, the collapsed bar with the title, the tabs, Play and + (desktop-detail f3; phone-detail d1 frame 2). */
 function FilmDetails() {
   const art = useReferenceArtwork(), [tab, setTab] = useState('details');
-  // The case opens scrolled to the tabs, so the frame's own scroll test shows the bar.
-  useEffect(() => {
-    const tabsTop = document.querySelector<HTMLElement>('[data-title-tabs-top]');
-    let scroller = tabsTop?.parentElement;
-    while (scroller && !(scroller.scrollHeight > scroller.clientHeight && /auto|scroll/.test(getComputedStyle(scroller).overflowY))) scroller = scroller.parentElement;
-    if (tabsTop && scroller) scroller.scrollTop += tabsTop.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 4;
-  }, []);
-  return <Page current="movies"><TitleFrame {...filmFrame(art, tab, setTab)}><DuneDetails /></TitleFrame></Page>;
+  return <Page current="movies"><TitleFrame {...filmFrame(art, tab, setTab)} collapsed><DuneDetails /></TitleFrame></Page>;
 }
 
 /** A show's episodes (desktop-detail f5, tablet f8, phone-detail d2): the season bar and the episode rows. */
@@ -301,6 +297,49 @@ function Loading() {
   return <Page current="movies"><TitleFrame {...filmFrame(art, tab, setTab)} kicker={undefined} state={{kind: 'loading'}} /></Page>;
 }
 
+/** The overlays a title page opens, each on the R9 table's form for its task (SheetFrame), over the page it opens from. */
+const dune2Files: readonly FileFacts[] = [
+  {id: 'v1', edition: "Director's Cut", available: true, width: 3840, height: 1608, videoCodec: 'hevc', dynamicRange: 'dolby_vision', bitDepth: 10, bitRate: 44_000_000, container: 'mkv', sizeBytes: 61.4 * 1024 ** 3, durationSeconds: 9960,
+    audio: [{id: 'a1', language: 'en', codec: 'truehd', channels: 8, objectAudio: 'atmos'}, {id: 'a2', language: 'en', codec: 'ac3', channels: 6}, {id: 'a3', language: 'fr', codec: 'eac3', channels: 8}, {id: 'a4', language: 'es', codec: 'eac3', channels: 8}],
+    subtitles: [{id: 's1', language: 'en'}, {id: 's2', language: 'en', hearingImpaired: true}, {id: 's3', language: 'fr'}, {id: 's4', language: 'es'}]},
+  {id: 'v2', available: true, width: 3840, height: 1608, videoCodec: 'hevc', dynamicRange: 'dolby_vision', bitDepth: 10, bitRate: 41_000_000, container: 'mkv', sizeBytes: 58.2 * 1024 ** 3, durationSeconds: 9960,
+    audio: [{id: 'a1', language: 'en', codec: 'truehd', channels: 8, objectAudio: 'atmos'}, {id: 'a2', language: 'en', codec: 'ac3', channels: 6}], subtitles: [{id: 's1', language: 'en'}, {id: 's2', language: 'en', hearingImpaired: true}, {id: 's3', language: 'fr'}]},
+  {id: 'v3', available: true, width: 1920, height: 804, videoCodec: 'h264', bitRate: 7_000_000, container: 'mkv', sizeBytes: 9.8 * 1024 ** 3, durationSeconds: 9960,
+    audio: [{id: 'a1', language: 'en', codec: 'ac3', channels: 6}], subtitles: [{id: 's1', language: 'en'}, {id: 's2', language: 'es'}]},
+];
+/** Play a different version (desktop-detail 9b, detail-phone 9b). */
+function Versions() {
+  const art = useReferenceArtwork(), [tab, setTab] = useState('more'), [open, setOpen] = useState(true);
+  return <Page current="movies"><TitleFrame {...filmFrame(art, tab, setTab)}><Posters title={f('moreLikeDune')} items={moreLikeDune} /></TitleFrame>
+    <SheetFrame task="versions" open={open} onOpenChange={setOpen} title={f('versionTitle')} subtitle={f('dune2')}>
+      <VersionRows onChoose={() => setOpen(false)} rows={(['1', '2', '3'] as const).map(n => ({id: `v${n}`, heading: f(`version${n}`), detail: f(`version${n}Detail`)}))} />
+    </SheetFrame></Page>;
+}
+/** File info for a film with three versions (desktop-detail f10, detail-phone 5 frame 11): the kit's File info content on the R9 `details` form. */
+function FileInfoCase() {
+  const art = useReferenceArtwork(), [tab, setTab] = useState('more'), [open, setOpen] = useState(true), phone = usePhone();
+  const model = fileInfoModel(dune2Files, {audience: 'viewer'}, {t: defaultI18n.t}, phone ? 'phone' : undefined);
+  return <Page current="movies"><TitleFrame {...filmFrame(art, tab, setTab)}><Posters title={f('moreLikeDune')} items={moreLikeDune} /></TitleFrame>
+    <SheetFrame task="details" open={open} onOpenChange={setOpen} title={f('fileInfo')} subtitle={f('dune2')}>
+      <FileInfoBody model={model} layout={phone ? 'phone' : 'desktop'} onManage={none} />
+    </SheetFrame></Page>;
+}
+/** The owner's Episode display (desktop-detail f4): a show's Details with the Show settings card; Change opens the choices beside it (R9 `choice`). */
+function EpisodeDisplayCase() {
+  const art = useReferenceArtwork(), [tab, setTab] = useState('details'), [open, setOpen] = useState(true), change = useRef<HTMLSpanElement>(null);
+  const [group, setGroup] = useState('season'), [number, setNumber] = useState('season'), [order, setOrder] = useState('oldest');
+  return <Page current="movies"><TitleFrame {...showFrame(art, tab, setTab)} collapsed>
+    <PanelBlock label={f('showSettings')}><OwnerCard title={f('showSettings')} mark={f('ownerOnly')} body={f('showSettingsBody')} />
+      <div style={{display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-sm)'}}><span ref={change}><Button variant="glass" size="small" onClick={() => setOpen(true)}>{f('change')}</Button></span></div></PanelBlock>
+    <SheetFrame task="choice" open={open} onOpenChange={setOpen} title={f('episodeDisplay')} anchorRef={change}>
+      <EpisodeDisplay title={f('episodeDisplay')} mark={f('forEveryone')} intro={f('episodeDisplayIntro')} preview={{label: f('readsAs'), code: f('ep3Code'), title: f('ep3')}} rows={[
+        {label: f('groupEpisodes'), items: [{value: 'season', label: f('bySeason')}, {value: 'one', label: f('inOneList')}, {value: 'ranges', label: f('ranges')}], value: group, onValueChange: setGroup},
+        {label: f('numberThem'), items: [{value: 'season', label: f('bySeason')}, {value: 'across', label: f('acrossSeasons')}], value: number, onValueChange: setNumber},
+        {label: f('order'), items: [{value: 'oldest', label: f('oldestFirst')}, {value: 'newest', label: f('newestFirst')}], value: order, onValueChange: setOrder}]} />
+    </SheetFrame>
+  </TitleFrame></Page>;
+}
+
 const section = (id: string, label: string, render: ComponentType, height = 900): GalleryCase => ({id, labelKey: `next.platform.frame.${label}` as MessageId, width: 1440, height, render});
 export default defineGalleryFamily({id: 'frames-title', labelKey: 'next.platform.frame.titleFamily', cases: [
   section('title-film', 'titleFilm', () => <Film />, 1300),
@@ -319,4 +358,7 @@ export default defineGalleryFamily({id: 'frames-title', labelKey: 'next.platform
   section('title-book', 'titleBook', Book, 1400),
   section('title-missing', 'titleMissing', Missing),
   section('title-loading', 'titleLoading', Loading),
+  section('title-versions', 'titleVersions', Versions),
+  section('title-file-info', 'titleFileInfo', FileInfoCase),
+  section('title-episode-display', 'titleEpisodeDisplay', EpisodeDisplayCase, 1100),
 ]});

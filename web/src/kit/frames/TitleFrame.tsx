@@ -125,7 +125,10 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
     {kicker.detail !== undefined && <span className={styles.kickerDetail}>{kicker.detail}</span>}
   </p>;
   const pinned = actions.filter(action => action.pinned);
-  return <div className={styles.title} data-cover={cover?.shape} data-collapsed={shown || undefined} data-panel={tabs ? undefined : 'bare'}>
+  // Held collapsed by the screen (a tab's content opened directly): the bar stands in place of the hero and the page's
+  // tabs, and the panel starts under it (desktop-detail f3, phone-detail d1 frame 2).
+  const held = collapsed === true;
+  return <div className={styles.title} data-cover={cover?.shape} data-collapsed={shown || undefined} data-held={held || undefined} data-panel={tabs ? undefined : 'bare'}>
     {/* The collapsed bar (desktop-detail f3; phone-detail d1 frame 2): sticky under the shell's bar, taking no room until it shows. */}
     <div ref={slot} className={styles.barSlot} aria-hidden={!shown} inert={!shown}>
       <div className={styles.bar}>
