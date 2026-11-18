@@ -54,6 +54,7 @@ sub init()
     words = m.top.findNode("words")
     setType(words, "authBody", c.textSecondary)
     words.width = 820
+    words.height = 100          ' room for two lines: left to itself the label drew one, cut short
     words.translation = [inner, t.wordsY]
     m.lobbyButtons = m.top.findNode("lobbyButtons")
     m.lobbyButtons.translation = [inner, t.cardButtonsY]
@@ -860,7 +861,7 @@ sub focusSheet()
     else if at = "submit" and m.submit.buttons.count() > 0
         m.submit.active = true
     else
-        m.top.setFocus(true)
+        m.top.findNode("rowStop").setFocus(true)
     end if
     paintSheet()
 end sub
@@ -952,7 +953,7 @@ sub focusNow(given = false as boolean)
     if m.view = "lobby"
         if m.groupIds = invalid then m.groupIds = []
         if not hasStop(lobbyStops(), m.focusKey) then m.focusKey = "buttons"
-        if m.focusKey = "buttons" then m.lobbyButtons.active = true else m.top.setFocus(true)
+        if m.focusKey = "buttons" then m.lobbyButtons.active = true else m.top.findNode("rowStop").setFocus(true)
         paintRows()
         return
     end if
@@ -972,7 +973,7 @@ sub focusNow(given = false as boolean)
     else if key = "invite"
         m.inviteButton.active = true
     else
-        m.top.setFocus(true)
+        m.top.findNode("rowStop").setFocus(true)
     end if
     paintRows()
 end sub
