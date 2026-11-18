@@ -67,9 +67,24 @@ function settingsPages() as object
                 {composite: "playbackMethod", type: "choice", label: "Playback method", scope: "This device", help: "Automatic plays the original file when this device can, and converts it when it can’t.", choices: [["automatic", "Automatic (recommended)"], ["original", "Always play the original"], ["convert", "Always convert"]]}
             ]}
         ]},
+        ' Music & audiobooks (tv-more frame 27): only what the server applies to this TV's listening. The
+        ' Roku plays songs one after another itself, with no volume leveling, crossfade, equalizer,
+        ' lyrics, speed or skip buttons, so those rows would change nothing here and are left out.
+        {id: "music", title: "Music & audiobooks", icon: "music", intro: "", sections: [
+            {title: "Audiobooks", rows: [
+                {key: "audiobooks.resumeRewindMs", type: "choice", label: "Rewind when resuming", choices: [[0, "Start where I stopped"], [5000, "5 seconds earlier"], [15000, "15 seconds earlier"], [30000, "30 seconds earlier"]]}
+            ]},
+            {title: "Quality", rows: [
+                {key: "music.qualityAway", type: "choice", label: "Away from home", scope: "This device", help: "On any other network. At home, music plays as the original file.", choices: [["original", "Original"], ["cd-quality", "CD quality"], ["320", "320 kbps"], ["96", "96 kbps"]]}
+            ]}
+        ]},
+        ' Appearance (tv-more frame 28). Card size and Text size are left out: every page here is laid
+        ' out from fixed frames for one card size and one type scale. Layout is for Android boxes only.
+        ' Reduce motion comes with the focus zoom it turns off (kit/Card and kit/Shelf).
         {id: "appearance", title: "Appearance", icon: "sliders", gapBefore: true, intro: "", sections: [
             {title: "", rows: [
-                {key: "notifications.badges", type: "switch", label: "Notification dot", help: "On the profile item in the rail."}
+                {key: "appearance.showBackdrops", type: "switch", label: "Show backdrops", help: "Artwork behind title pages and Home.", scope: "All TVs"},
+                {key: "notifications.badges", type: "switch", label: "Show a dot for new notifications", help: "On the profile item in the rail."}
             ]}
         ]},
         {id: "region", title: "Language & region", icon: "globe", intro: "", sections: [
@@ -128,6 +143,12 @@ function compositePatch(id as string, choice as string) as object
     if choice = "original" then return {"delivery.directPlay": "require", "delivery.directStream": "never", "delivery.transcode": "never"}
     if choice = "convert" then return {"delivery.directPlay": "never", "delivery.directStream": "never", "delivery.transcode": "require"}
     return {"delivery.directPlay": "prefer", "delivery.directStream": "allow", "delivery.transcode": "allow"}
+end function
+
+' The profile's Appearance settings this TV honours, from its preferences (GET /v1/preferences):
+' Show backdrops. MainScene keeps them in m.global.looks.
+function appearanceLooks(values as object) as object
+    return {showBackdrops: (values["appearance.showBackdrops"] <> false)}
 end function
 
 ' The languages offered for adding, in the shared order (language-list.ts COMMON_LANGUAGES).
