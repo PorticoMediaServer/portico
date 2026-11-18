@@ -290,13 +290,13 @@ CREATE INDEX items_descendants ON items (root_id, kind, parent_index, index_numb
 -- Three reads of the matcher, each over top-level titles (an episode follows its show):
 -- titles no provider has been asked about yet, a library's Unmatched items list (looked up
 -- without a confident answer; a title kept as it is is off the list), and matched titles by
--- when they were last refreshed. The first also holds albums (kind 6), which are what a music
--- provider is asked about, so an album added later to an artist already matched is found.
+-- when they were last refreshed. The first and the due list also hold albums (kind 6), what a
+-- music provider is asked about: an album added later to a matched artist is found and refreshed.
 CREATE INDEX items_to_match ON items (library_id, id) WHERE match_state = 0 AND (parent_id IS NULL OR kind = 6);
 CREATE INDEX items_unmatched ON items (library_id, sort_title, id) WHERE match_state = 3;
 CREATE INDEX items_to_refresh ON items (library_id, refreshed_at, id) WHERE match_state IN (1, 2) AND parent_id IS NULL;
 -- The matched titles due a refresh, in the order they fall due: a read of only what is due.
-CREATE INDEX items_due ON items (library_id, refresh_due, id) WHERE match_state IN (1, 2) AND parent_id IS NULL;
+CREATE INDEX items_due ON items (library_id, refresh_due, id) WHERE match_state IN (1, 2) AND (parent_id IS NULL OR kind = 6);
 
 -- large. "This folder, file or embedded ID means that item." Unique, so a rescan or a repeated
 -- job cannot create a second copy of a title, and a merged title stays merged.
