@@ -104,7 +104,9 @@ function frames() as object
         ' words in fixed slots from `eyebrowY` (a person's beside a face `face` across, its top on the
         ' same line); a person's first row's heading on `rowsY`, a collection's on `actionRowsY`, which
         ' leaves the place of its action row above it; once focus goes down the row in focus sits at `scrolledY`.
-        group: {face: 280, nameY: 132, factsY: 260, aboutY: 306, rowsY: 440, scrolledY: 164, eyebrowY: 96, actionRowsY: 520}
+        group: {face: 280, nameY: 132, factsY: 260, aboutY: 306, rowsY: 440, scrolledY: 164, eyebrowY: 96, actionRowsY: 520,
+            ' a person's Filters chip, its top on `filtersY`, ending at the page's right edge
+            filtersY: 432}
         ' Live TV's guide: the toolbar beside the page title, the filter chips' line, the time header, the
         ' first row and the row pitch, the channel column, and the
         ' grid from `gridX` at `perMinute` px a minute; `shown` rows fit on the screen.

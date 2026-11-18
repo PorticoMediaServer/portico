@@ -12,7 +12,7 @@
     <field id="art" type="string"/>
     <field id="quiet" type="boolean"/>
     <field id="open" type="assocarray" alwaysNotify="true"/>
-    <!-- Asks the scene for a title's menu (*); the choice comes back in menuChosen. -->
+    <!-- Asks the scene for the side sheet (a title's menu on *, a person's Filters); the choice comes back in menuChosen. -->
     <field id="menu" type="assocarray" alwaysNotify="true"/>
     <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
   </interface>
@@ -31,11 +31,19 @@
         <Label id="name"/>
         <Label id="factsStrong"/>
         <Label id="facts"/>
+        <!-- A person's biography is a stop of its own: the plate and ring while it has focus. -->
+        <Group id="aboutStop">
+          <Poster id="aboutRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
+          <Poster id="aboutPlate" uri="pkg:/images/round-14.9.png" visible="false"/>
+        </Group>
         <Label id="about" wrap="true"/>
       </Group>
       <!-- A collection's Play all and Shuffle, in the action row's fixed slot. -->
       <ButtonRow id="actions" visible="false"/>
+      <!-- A person's Filters (All, Cast, Crew), at the end of the first row's heading. -->
+      <ButtonRow id="filters" visible="false"/>
     </Group>
+    <TextPanel id="reader"/>
     <Label id="smallTitle" visible="false"/>
     <PageState id="state" visible="false"/>
   </children>
