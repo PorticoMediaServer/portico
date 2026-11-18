@@ -30,14 +30,11 @@ import {browserAppSessions, browserConnectionEnvironment, restoreBrowserConnecti
 import {browserAppSessionActions, type BrowserAppSessionActions} from './app-sessions';
 import {browserServerDisplay} from './server-display';
 import {BrowserProfileRecovery} from './profile-recovery';
-import {dispatchPorticoReturn, type CapturedPorticoReturn} from './portico-return-dispatch';
-import {createBrowserOwnerClaim, type BrowserOwnerClaim} from './owner-claim';
+import type {CapturedPorticoReturn} from './portico-return-dispatch';
 import type {PorticoServerAccess} from './portico-server-access';
 import {CapturedAccountIdentityFailure, type AccountIdentityFailureBinding} from './account-identity-failure';
 
 type InvitationCapability=Readonly<{code:string}|{shortCode:string}>;
-type OwnerReturnController=Pick<BrowserOwnerClaim,'pendingReturn'|'finish'|'cancel'>;
-type AdmittedCompletion=Readonly<{api:HttpLocalApi;result:Extract<DirectSignIn,{kind:'signed-in'}>}>;
 /** The owner's reset in progress: the username typed when the file was asked for. The code is held privately and
  * proved only when the new password is set (`POST /v1/auth/owner-reset/confirm`). */
 export type OwnerResetDetails=Readonly<{username:string}>;
@@ -69,7 +66,6 @@ type EntryPorts = Readonly<{
  temporary?:(source:HttpLocalApi,session:LocalSession)=>HttpLocalApi;
  invitationDestination?:'adopt'|'server-origin';
  observeSelection?:(changed:()=>void)=>()=>void;
- ownerReturn?:()=>OwnerReturnController;
  setupRequired?:(origin:string,pin:ServerPin)=>void;
  rememberName?:(api:HttpLocalApi,name:string)=>void;
  serverName?:(serverId:string)=>string|undefined;
@@ -85,7 +81,6 @@ export class BrowserAccountEntry {
  private readonly retiredListeners=new Set<()=>void>();private offSelection?:()=>void;
  private epoch=0;private controller?:AbortController;private api?:HttpLocalApi;private session?:LocalSession;
  private challenge?:Extract<DirectSignIn,{kind:'challenge'}>;private challengeRevision?:number;private disposed=false;
- private ownerReturn?:OwnerReturnController;
  private invitationCapability?:InvitationCapability;private joinedAccountId?:string;private joinedUsername?:string;
  private ownerResetCode?:string;
  private moveProof?:Readonly<{code:string;revision:number;preview:MoveCodePreview}>;
@@ -108,9 +103,8 @@ export class BrowserAccountEntry {
  private release(){
   this.identityFailure?.dispose();this.identityFailure=undefined;
   this.clearHostedChallenge();
-  this.stopAuthorityWatch();const api=this.api,ownerReturn=this.ownerReturn,hadAuthority=!!this.session||!!this.challenge||!!ownerReturn;this.ownerResetCode=undefined;
-  this.api=undefined;this.session=undefined;this.challenge=undefined;this.challengeRevision=undefined;this.moveProof=undefined;this.porticoMoveProof=undefined;this.ownerReturn=undefined;
-  if(ownerReturn)void ownerReturn.cancel().catch(()=>{});
+  this.stopAuthorityWatch();const api=this.api,hadAuthority=!!this.session||!!this.challenge;this.ownerResetCode=undefined;
+  this.api=undefined;this.session=undefined;this.challenge=undefined;this.challengeRevision=undefined;this.moveProof=undefined;this.porticoMoveProof=undefined;
   if(hadAuthority)this.retired();
   api?.getRouteConnection()?.dispose();
  }
@@ -641,24 +635,6 @@ export class BrowserAccountEntry {
  }
  /** Canonical return controllers already remembered a signed-in result. Only
   * reread its exact admitted selection; never repeat accept/remember here. */
- private async discardReturn(api:HttpLocalApi,session:LocalSession){
-  const pin=api.getRouteConnection()?.pin;
-  try{await this.ports.store.connectionStorage(session.viewer.serverId).change(current=>
-   current&&pin&&sameServerPin(current.pin,pin)&&current.session.sessionFamilyId===session.sessionFamilyId&&
-   current.session.viewer.serverId===session.viewer.serverId&&current.session.viewer.authority===session.viewer.authority&&current.session.viewer.accountId===session.viewer.accountId?undefined:current);}
-  finally{try{await this.retire(api,session);}finally{api.getRouteConnection()?.dispose();}}
- }
- private async admittedCompletion({api,result}:AdmittedCompletion,op:ReturnType<BrowserAccountEntry['operation']>){
-  if(!op.current()){await this.discardReturn(api,result.session);return;}
-  const pin=api.getRouteConnection()?.pin;this.api=api;
-  if(!pin)throw new CodedError('invalid_return',unreadableServerResponse);
-  const selected=await this.ports.store.selected(),saved=selected?.connection.session;
-  if(!op.current()){await this.discardReturn(api,result.session);return;}
-  if(selected?.signIn!=='portico'||!sameServerPin(selected.connection.pin,pin)||!saved||saved.sessionFamilyId!==result.session.sessionFamilyId||
-    result.snapshot.serverId!==pin.serverId||result.snapshot.account.id!==saved.viewer.accountId||(['serverId','authority','accountId','profileId','role'] as const).some(key=>saved.viewer[key]!==result.session.viewer[key])){await this.discardReturn(api,result.session);throw new CodedError('cancelled','The server selection changed.');}
-  this.api=api;this.session=result.session;
-  await this.restoreProfiles({pin,session:result.session});
- }
  /** On a Portico Accounts server's own page, signing in goes on at web.getportico.tv
   * (`portico-handoff.ts`), with the invitation being joined. */
  porticoHandoff(hostedOrigin:string,pageOrigin=location.origin){
@@ -699,31 +675,11 @@ export class BrowserAccountEntry {
   }catch(error){if(op.current())this.publish({...state,busy:false,error});}
  }
  async finishPorticoReturn(captured:CapturedPorticoReturn){
-  // A note for this tab's own Portico Account sign-in is exactly `note` and `state`, which no
-  // continuation journal accepts; anything else goes on to the journals as before.
+  // A note for this tab's own Portico Account sign-in is exactly `note` and `state`.
   const returned=readReturnFragment(captured.fragment);
   if(returned){await this.finishAccountReturn(captured,returned);return;}
-  // Cancel prior entry work BEFORE selecting an owner journal. Calling cancel
-  // between pendingReturn and finish would delete that very captured attempt.
-  this.cancel();const op=this.operation();this.publish({phase:'checking',busy:true});
-  let owner:OwnerReturnController|undefined;
-  try{
-   // Only the protected owner journal selects this continuation.
-   owner=this.ports.ownerReturn?.();
-   const pending=await owner?.pendingReturn();
-   if(!op.current()){await owner?.cancel();return;}
-   if(!owner||!pending)throw new CodedError('invalid_return',unreadableServerResponse);
-   dispatchPorticoReturn(captured,pending);
-   this.ownerReturn=owner;
-   this.stopAuthorityWatch();
-   await this.admittedCompletion(await owner.finish(captured),op);
-  }catch(error){if(op.current()){
-   // The domain preserves a legitimate journal for malformed/mixed callbacks;
-   // a valid owner's one-shot exchange is terminal on failure. Do not turn a
-   // rejected URL into cancellation of a protected pending attempt.
-   if(this.ownerReturn===owner)this.ownerReturn=undefined;
-   this.release();this.publish({phase:'welcome',error});
-  }}
+  // Only this tab's own Portico Account sign-in comes back to this page; any other callback is not one it started.
+  this.cancel();this.release();this.publish({phase:'welcome',error:new CodedError('invalid_return',unreadableServerResponse)});
  }
  async completeChallenge(code:string){
   const state=this.state,api=this.api,challenge=this.challenge,revision=this.challengeRevision;if(state.phase!=='challenge'||!api||!challenge||revision===undefined)return;
@@ -842,7 +798,7 @@ export function createBrowserAccountEntry(options:Pick<EntryPorts,'invitationDes
  return new BrowserAccountEntry({
   store:browserAppSessions(),actions:browserAppSessionActions(),environment:browserConnectionEnvironment,
   restore:restoreBrowserConnection,inspect:inspectDirectServer,connect:connectPairedServer,remember:rememberNativeSession,
-  observeSelection:observeBrowserSessionChanges,ownerReturn:createBrowserOwnerClaim,
+  observeSelection:observeBrowserSessionChanges,
   setupRequired:(origin)=>location.assign(new URL('/setup',origin).href),
   rememberName:(api,name)=>browserServerDisplay().remember(api,name),
   serverName:id=>browserServerDisplay().name(id),servedOrigin:currentServedServerOrigin,...options,

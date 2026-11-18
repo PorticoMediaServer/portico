@@ -1,9 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readServerSystem, readDirectAccount, readViewerIdentity, revokeCurrentSession,
-  readOwnerClaim, cancelOwnerClaim, prepareOwnerClaim, previewLocalInvitation, acceptLocalInvitation,
   lookupBrowserHostedClaim, decideBrowserHostedClaim, completeBrowserHostedReturn, readConnectionFacts} from '../src/query/connection-operations.ts';
-import {routePath} from '../../contracts/src/routes.ts';
 import {routePath as hostedPath, encodedRoutePath} from '../../contracts/src/hosted/routes.ts';
 
 test('connection reads and sign-out keep the captured requester, response and cancellation', async () => {
@@ -13,28 +11,12 @@ test('connection reads and sign-out keep the captured requester, response and ca
   assert.equal(await readServerSystem(api, signal), response);
   assert.deepEqual(await readDirectAccount(api, signal), {me: response, profiles: response});
   await revokeCurrentSession(api, signal);
-  assert.equal(await readOwnerClaim(api, signal), response);
   assert.deepEqual(calls, [
-    ['/v1/system','GET'],['/v1/me','GET'],['/v1/profiles','GET'],['/v1/auth/session','DELETE'],[routePath('get_networking_claim'),'GET'],
+    ['/v1/system','GET'],['/v1/me','GET'],['/v1/profiles','GET'],['/v1/auth/session','DELETE'],
   ].map(([path,method]) => [path,method,undefined,signal]));
   // Who the sign-in acts for comes back in the shape a session keeps, on the server it was asked of.
   const me = {request: async <T,>(): Promise<T> => ({account: {id: 'acct', username: 'sam', role: 'owner'}, profile: {id: 'main'}, role: 'owner', canManageAccount: true}) as T};
   assert.deepEqual(await readViewerIdentity(me, {serverId: 'srv'}), {viewer: {accountId: 'acct', profileId: 'main', serverId: 'srv', authority: 'local', role: 'owner'}});
-});
-
-test('claim and invitation intents preserve omission, frozen authority witnesses and bodies', async () => {
-  const calls: unknown[][] = [], signal = new AbortController().signal, expected = Object.freeze({revision: 7});
-  const api = {request: async <T,>(...args: unknown[]): Promise<T> => {calls.push(args); return undefined as T;}};
-  await cancelOwnerClaim(api, expected, signal);
-  await prepareOwnerClaim(api, 'switch', undefined, expected, signal);
-  await prepareOwnerClaim(api, 'change-owner', 'administrator', expected, signal);
-  const capability = Object.freeze({shortCode:'BOUND'});
-  await previewLocalInvitation(api, capability, signal);
-  await acceptLocalInvitation(api, capability, 'alex', 'private-input', '  ', signal);
-  assert.deepEqual(calls.map(c=>c[2]), [{expected},{purpose:'switch',expected},
-    {purpose:'change-owner',previousOwnerRole:'administrator',expected},capability,
-    {shortCode:'BOUND',username:'alex',password:'private-input'}]);
-  assert.ok(calls.every(c=>c[1]==='POST' && c[3]===signal));
 });
 
 test('Hosted claims carry the exact token and encode return IDs once', async () => {

@@ -5,7 +5,7 @@ import {AppSessionStore, type AppSessionRecord} from '@core/app-sessions.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import type {DirectSnapshot} from '@core/profile-management.ts';
 import type {RememberedServer} from '@core/server-connections.ts';
-import {dispatchPorticoReturn, type CapturedPorticoReturn} from '../src/platform/portico-return-dispatch.ts';
+import type {CapturedPorticoReturn} from '../src/platform/portico-return-dispatch.ts';
 import {BrowserAccountEntry} from '../src/platform/account-entry.ts';
 
 const origin = 'https://owner-return.example', serverId = 'srv_' + 's'.repeat(43);
@@ -65,7 +65,7 @@ async function fixture() {
     environment: () => ({storage: store.connectionStorage(serverId)}),
     restore: async captured => {events.push('restore');return {api, session: captured!};},
     inspect: async () => pin, connect: (async () => ({api, connection: api.getRouteConnection()})) as never,
-    remember: async () => {remembers++;}, ownerReturn: ()=>owner,
+    remember: async () => {remembers++;},
     observeSelection: hint => {hints.add(hint);return () => {hints.delete(hint);};},
     retire: async (_api, value) => {retired.push(value.sessionFamilyId);},
   });
@@ -78,19 +78,7 @@ async function fixture() {
   };
 }
 
-test('protected owner KIND selects the same controller before any generic restore and never remembers again', async () => {
-  const f = await fixture();await f.entry.finishPorticoReturn(callback);
-  assert.equal(f.events[0], 'owner:pending');assert.equal(f.events[1], 'owner:finish');
-  assert.equal(f.ownerFinishes, 1);assert.equal(f.remembers, 0);
-  assert.equal((await f.store.selected())?.connection.session.viewer.role, 'account');
-  assert.equal(f.entry.getSnapshot().phase, 'profiles');assert.equal(f.entry.getSnapshot().snapshot?.account.role, 'owner');
-  assert.doesNotMatch(JSON.stringify(f.entry.getSnapshot()), /private-code|refresh-returned|access-returned|actual-owner-transaction/);f.entry.dispose();
-});
-test('an old entry observer retires before the owner controller publishes its own admission', async () => {
-  const f = await fixture();await f.entry.loadProfiles();await settle();assert.equal(f.hints.size, 1);
-  f.events.length = 0;await f.entry.finishPorticoReturn(callback);
-  assert.deepEqual(f.events.slice(0, 2), ['owner:pending', 'owner:finish']);assert.equal(f.entry.getSnapshot().phase, 'profiles');f.entry.dispose();
-});
+// The old server's owner-claim journal is gone: a callback that is not this tab's own account sign-in is refused.
 test('a return without a protected owner pending is refused', async () => {
   const f = await fixture();f.noOwner();await f.entry.finishPorticoReturn(normalCallback);
   assert.equal(f.ownerFinishes, 0);assert.equal(f.entry.getSnapshot().phase, 'welcome');
@@ -99,41 +87,5 @@ test('a return without a protected owner pending is refused', async () => {
 test('a no-code fragment cannot invent owner authority without protected owner KIND', async () => {
   const f = await fixture();f.noOwner();await f.entry.finishPorticoReturn(callback);
   assert.equal(f.ownerFinishes, 0);assert.equal(f.entry.getSnapshot().phase, 'welcome');
-  assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'original-owner');f.entry.dispose();
-});
-test('a mixed callback cannot exchange or cancel the legitimate selected owner journal', async () => {
-  const f = await fixture();await f.entry.finishPorticoReturn({...callback, fragment: callback.fragment + '&code=not-owner-input'});
-  assert.equal(f.ownerFinishes, 0);assert.equal(f.pending, true);assert.equal(f.cancels, 0);
-  assert.equal(f.entry.getSnapshot().phase, 'welcome');f.entry.dispose();assert.equal(f.pending, true);
-});
-test('a selected successor is preserved and only the unused returned owner family is retired', async () => {
-  const f = await fixture();f.supersede();await f.entry.finishPorticoReturn(callback);
-  assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'successor');assert.deepEqual(f.retired, ['returned-owner']);
-  assert.equal((await f.store.read()).revision, f.returnedRevision, 'unused-return cleanup must not invalidate the successor pending revision');
-  assert.equal(f.notifications, f.returnedNotifications, 'a nonmatching cleanup is not a committed selection change');
-  assert.equal(f.entry.getSnapshot().phase, 'welcome');assert.equal(f.remembers, 0);f.entry.dispose();
-});
-test('a mismatched returned viewer cannot be selected or repaired from the stored profile', async () => {
-  const f = await fixture();f.mismatch();await f.entry.finishPorticoReturn(callback);
-  assert.equal(await f.store.selected(), undefined);assert.deepEqual(f.retired, ['returned-owner']);assert.equal(f.entry.getSnapshot().phase, 'welcome');f.entry.dispose();
-});
-test('cancelling an owner exchange quarantines only its late returned family and preserves a successor', async () => {
-  for (const successor of [false, true]) {
-    const f = await fixture();if (successor) f.supersede();f.hold();
-    const work = f.entry.finishPorticoReturn(callback);await settle();f.entry.cancel();f.release();await work;
-    assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, successor ? 'successor' : undefined);
-    assert.equal((await f.store.read()).revision, f.returnedRevision + (successor ? 0 : 1));
-    assert.equal(f.notifications, f.returnedNotifications + (successor ? 0 : 1));
-    assert.deepEqual(f.retired, ['returned-owner']);assert.equal(f.ownerFinishes, 1);
-    assert.equal(f.entry.getSnapshot().phase, 'welcome');f.entry.dispose();
-  }
-});
-test('cancelling while protected pending is read cannot start the owner exchange', async () => {
-  const f = await fixture();f.holdPending();const work = f.entry.finishPorticoReturn(callback);await settle();f.entry.cancel();f.releasePending();await work;
-  assert.equal(f.ownerFinishes, 0);assert.equal(f.pending, false);assert.equal(f.entry.getSnapshot().phase, 'welcome');f.entry.dispose();
-});
-test('a terminal owner exchange failure does not fall back to member admission', async () => {
-  const f = await fixture();f.failExchange();await f.entry.finishPorticoReturn(callback);
-  assert.equal(f.ownerFinishes, 1);assert.equal(f.remembers, 0);assert.equal(f.entry.getSnapshot().phase, 'welcome');
   assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'original-owner');f.entry.dispose();
 });

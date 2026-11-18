@@ -36,27 +36,6 @@ export function issueTopShelfToken(api: {request(path: string, method: 'POST', b
 export function revokeCurrentSession(api: ViewerRequester, signal?: AbortSignal): Promise<void> {
   return callServer(api, 'DELETE /v1/auth/session', {signal}).then(() => {});
 }
-export function readOwnerClaim<T = unknown>(api: ViewerRequester, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('get_networking_claim'), 'GET', undefined, signal);
-}
-export function cancelOwnerClaim<T = unknown>(api: ViewerRequester, expected: unknown, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('post_networking_claim_cancel'), 'POST', {expected}, signal);
-}
-export function prepareOwnerClaim<T = unknown>(api: ViewerRequester, purpose: 'switch' | 'change-owner', previousOwnerRole: string | undefined, expected: unknown, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('post_networking_claim_prepare'), 'POST', {purpose, ...(purpose === 'change-owner' ? {previousOwnerRole} : {}), expected}, signal);
-}
-export function exchangeOwnerReturn<T = unknown>(api: ViewerRequester, input: {handoff: {transactionId: string}; record: {state: string; verifier: string; installationId: string}; registrationId: string; serverChallenge: string; purpose: string}, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('post_auth_portico_return_exchange'), 'POST', {
-    transactionId: input.handoff.transactionId, state: input.record.state, verifier: input.record.verifier,
-    registrationId: input.registrationId, installationId: input.record.installationId, serverChallenge: input.serverChallenge, purpose: input.purpose,
-  }, signal);
-}
-export function previewLocalInvitation<T = unknown>(api: ViewerRequester, capability: unknown, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('preview_invitation'), 'POST', capability, signal);
-}
-export function acceptLocalInvitation<T = unknown>(api: ViewerRequester, capability: object, username: string, password: string, name: string, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('post_access_invitations_accept'), 'POST', {...capability, username, password, ...(name.trim() ? {name: name.trim()} : {})}, signal);
-}
 /** Adapt the server's code protocol to the existing protected TV journal. */
 export async function createLocalTVAuthorization<T = unknown>(api: ViewerRequester, _requestId: string, signal?: AbortSignal): Promise<T> {
   const device = installationIdentity();
