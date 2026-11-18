@@ -9,7 +9,9 @@
 #   build.sh <stage> <platform>
 #
 # Stages, in order. Each can be run alone; the slow ones keep their results in the project's
-# container registry so that a later change does not repeat them.
+# container registry so that a later change does not repeat them. macOS has no containers: its
+# libraries are built on the Mac itself, as upstream's buildmac.sh does, into /opt/ffbuild/prefix,
+# which the workflow keeps between runs. On macOS the compiler stage does not exist.
 #
 #   prepare    unpack the pinned source and lay Portico's additions on it     (seconds)
 #   check      everything that needs no compiler: patches apply, recipes parse,
@@ -38,6 +40,8 @@ case "$PLATFORM" in
     linux-arm64) TARGET=linuxarm64 MACHINE="Linux aarch64" EXE= ;;
     # Cross-compiled on Linux with upstream's MinGW compiler; run and verified on Windows (Git Bash).
     windows-x64) TARGET=win64 MACHINE="MINGW64_NT* x86_64" EXE=.exe ;;
+    # Built natively on a Mac runner (no containers there), as upstream's buildmac.sh does.
+    macos-arm64) TARGET=macarm64 MACHINE="Darwin arm64" EXE= ;;
     *) echo "build.sh: no build for $PLATFORM yet" >&2; exit 2 ;;
 esac
 VARIANT=gpl
@@ -53,11 +57,24 @@ REGISTRY="${MEDIA_TOOLS_REGISTRY:-ghcr.io/porticomediaserver}"
 COMPILER_IMAGE_NAME="$REGISTRY/build-cache-ffmpeg-compiler"
 LIBRARY_CACHE="$REGISTRY/build-cache-ffmpeg-libraries:$TARGET"
 LIBRARY_IMAGE="portico-media-tools-libraries:$TARGET"
+# Where the libraries are installed: inside the container on Linux; on the Mac itself, upstream's folder.
+PREFIX=/opt/ffbuild
+[[ "$TARGET" == mac* ]] && PREFIX=/opt/ffbuild/prefix
+
+# Upstream's macOS base libraries (images/macos) name their sources inside their build steps, not in
+# the variables a recipe uses. They are linked into the programs, so their sources and licences are
+# collected like any recipe's; prepare refuses if upstream has changed what they fetch.
+# name | what it fetches | the archive's SHA-256, or the commit of the tag it checks out | that tag
+MAC_BASE_SOURCES=(
+    "01-gettext|https://mirrors.edge.kernel.org/gnu/gettext/gettext-1.0.tar.gz|85d99b79c981a404874c02e0342176cf75c7698e2b51fe41031cf6526d974f1a|"
+    "04-brotli|https://github.com/google/brotli/archive/refs/tags/v1.2.0.tar.gz|816c96e8e8f193b40151dad7e8ff37b1221d019dbcb9c35cd3fadbfe6477dfec|"
+    "05-libpng|https://github.com/glennrp/libpng.git|3061454d980de7d53608f594194cfac722721d2a|v1.6.58"
+)
 
 say() { echo "== $*"; }
 fail() { echo "build.sh: $*" >&2; exit 1; }
 lock() { sed -n "s/^$1=//p" "$HERE/upstream.lock"; }
-sha256_of() { sha256sum "$1" | cut -d' ' -f1; }
+sha256_of() { if command -v sha256sum > /dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 wanted() { awk -v kind="$1" '$1 == kind { print $2 }' "$WANTED"; }
 
 need_prepared() { [[ -f "$BUILDER/generate.sh" ]] || fail "run 'build.sh prepare $PLATFORM' first"; }
@@ -91,9 +108,13 @@ prepare() {
 
     # libbluray is upstream's recipe; Portico only adds the patch that stops it loading a
     # decryption module. If upstream reshapes the recipe this refuses instead of guessing.
-    local bluray="$BUILDER/scripts.d/50-libbluray.sh"
+    # In the container the patches are mounted at /patches; on the Mac they are read where they are.
+    local bluray="$BUILDER/scripts.d/50-libbluray.sh" patches=/patches
+    [[ "$TARGET" == mac* ]] && patches='"$BUILDER_ROOT"/patches/portico'
     [[ "$(grep -c '^    cd libbluray$' "$bluray")" == 1 ]] || fail "upstream's libbluray recipe changed shape"
-    sed -i 's|^    cd libbluray$|    cd libbluray\n    patch -p1 < /patches/libbluray-no-decryption.patch|' "$bluray"
+    awk -v patches="$patches" '{ print } $0 == "    cd libbluray" { print "    patch -p1 < " patches "/libbluray-no-decryption.patch" }' \
+        "$bluray" > "$WORK/libbluray.sh"
+    cat "$WORK/libbluray.sh" > "$bluray" && rm "$WORK/libbluray.sh"
     cat >> "$bluray" <<'EOF'
 
 ffbuild_dockerstage() {
@@ -101,7 +122,21 @@ ffbuild_dockerstage() {
 }
 EOF
 
-    local name
+    local name url pin tag
+    if [[ "$TARGET" == mac* ]]; then
+        for name in "${MAC_BASE_SOURCES[@]}"; do
+            IFS='|' read -r name url pin tag <<< "$name"
+            grep -qF -- "$url" "$BUILDER/images/macos/$name.sh" && { [[ -z "$tag" ]] || grep -qF -- "git checkout $tag" "$BUILDER/images/macos/$name.sh"; } ||
+                fail "upstream's macOS base library $name no longer fetches what MAC_BASE_SOURCES pins"
+            # The sources stage reads these, as it does a recipe's.
+            if [[ "$url" == *.git ]]; then
+                printf '\nSCRIPT_REPO="%s"\nSCRIPT_COMMIT="%s"\n' "$url" "$pin" >> "$BUILDER/images/macos/$name.sh"
+            else
+                printf '\nSCRIPT_URL="%s"\nSCRIPT_SHA256="%s"\n' "$url" "$pin" >> "$BUILDER/images/macos/$name.sh"
+            fi
+        done
+    fi
+
     for name in "${PATCHES[@]}"; do
         cp "$HERE/$name.patch" "$SRC/debian/patches/$name.patch"
         echo "$name.patch" >> "$SRC/debian/patches/series"
@@ -116,10 +151,12 @@ plan() {
     (
         cd "$BUILDER"
         set +eu
+        export FFBUILD_PREFIX="$PREFIX"
         source util/vars.sh "$TARGET" "$VARIANT"
         source "variants/${TARGET}-${VARIANT}.sh"
-        export FFBUILD_PREFIX=/opt/ffbuild
         : > "$WORK/recipes.txt"
+        # The macOS base libraries are built first and linked in like any recipe's.
+        [[ "$TARGET" == mac* ]] && for script in "${MAC_BASE_SOURCES[@]}"; do echo "images/macos/${script%%|*}.sh"; done >> "$WORK/recipes.txt"
         get_output() {
             (
                 SELF="$1"
@@ -136,7 +173,7 @@ plan() {
             FF_LDEXEFLAGS+=" $(get_output "$script" ldexeflags)"
             FF_LIBS+=" $(get_output "$script" libs)"
         done
-        for name in FF_CONFIGURE FF_CFLAGS FF_CXXFLAGS FF_LDFLAGS FF_LDEXEFLAGS FF_LIBS; do
+        for name in FF_CONFIGURE FF_CFLAGS FF_CXXFLAGS FF_LDFLAGS FF_LDEXEFLAGS FF_LIBS FFBUILD_TARGET_FLAGS FF_HOST_CFLAGS FF_HOST_LDFLAGS; do
             printf '%s=%q\n' "$name" "$(xargs <<< "${!name}")"
         done > "$WORK/ffmpeg-options.sh"
     )
@@ -168,15 +205,22 @@ check() {
     done
 
     say "the build plan has Portico's recipes and no FDK AAC"
-    ( cd "$BUILDER" && GITHUB_REPOSITORY=local/portico ./generate.sh "$TARGET" "$VARIANT" ) || problem "upstream's generator failed"
-    for file in "$HERE"/recipes/*.sh; do
-        name="$(basename "$file" .sh)"
-        grep -q "AS layer-$name\$" "$BUILDER/Dockerfile" || problem "the build plan has no step for $name"
-    done
-    grep -qi 'fdk' "$BUILDER/Dockerfile" && problem "the build plan still builds FDK AAC"
+    plan
+    if [[ "$TARGET" == mac* ]]; then
+        for file in "$HERE"/recipes/*.sh; do
+            grep -qxF "scripts.d/$(basename "$file")" "$WORK/recipes.txt" || problem "the build plan has no step for $(basename "$file" .sh)"
+        done
+        grep -qi 'fdk' "$WORK/recipes.txt" && problem "the build plan still builds FDK AAC"
+    else
+        ( cd "$BUILDER" && GITHUB_REPOSITORY=local/portico ./generate.sh "$TARGET" "$VARIANT" ) || problem "upstream's generator failed"
+        for file in "$HERE"/recipes/*.sh; do
+            name="$(basename "$file" .sh)"
+            grep -q "AS layer-$name\$" "$BUILDER/Dockerfile" || problem "the build plan has no step for $name"
+        done
+        grep -qi 'fdk' "$BUILDER/Dockerfile" && problem "the build plan still builds FDK AAC"
+    fi
 
     say "FFmpeg's option list has everything wanted and nothing refused"
-    plan
     for name in $(wanted configure); do
         grep -qxF -- "$name" "$WORK/configure-options.txt" || problem "wanted option is not in the plan: $name"
     done
@@ -320,6 +364,7 @@ compiler_ref() {
 }
 
 compiler() {
+    [[ "$TARGET" == mac* ]] && fail "macOS has no compiler image: the libraries stage builds on the Mac itself"
     local ref
     ref="$(compiler_ref)"
     if docker manifest inspect "$ref" > /dev/null 2>&1; then
@@ -349,6 +394,7 @@ build_plan() {
 # even when a later library fails, so a failure never costs more than the library that failed.
 # LIBRARY=<recipe name> builds that one library alone (and what it needs), saving nothing.
 libraries() {
+    [[ "$TARGET" == mac* ]] && { mac_libraries; return; }
     need_prepared
     builder
     build_plan
@@ -410,10 +456,70 @@ in_image() {
 }
 
 # ---------------------------------------------------------------------------------------------
+# macOS: upstream's buildmac.sh in Portico's stages. Its variant's settings (compiler flags, where
+# pkg-config looks, the oldest macOS the programs run on) hold for every step.
+mac_env() {
+    export BUILDER_ROOT="$BUILDER" FFBUILD_PREFIX="$PREFIX" PATH="/opt/ffbuild/bin:$PATH"
+    set +eu
+    source "$BUILDER/variants/${TARGET}-${VARIANT}.sh"
+    set -eu
+}
+
+# Every library, built on the Mac as buildmac.sh builds them, into $PREFIX. Each finished step is
+# marked there and the workflow keeps the folder, also after a failure, so a later run builds only
+# what is not built yet. LIBRARY=<recipe name> builds that one recipe again alone.
+mac_libraries() {
+    need_prepared
+    [[ -d /opt/ffbuild && -w /opt/ffbuild ]] || fail "/opt/ffbuild must exist and be writable by this user"
+    mkdir -p "$PREFIX/.portico-steps" "$BUILDER/build"
+    (
+        mac_env
+        # Upstream's steps are written for its own shell, where only a step's last command stops the build.
+        set +eu +o pipefail
+        # Upstream's tools (Homebrew packages and its helper commands) are not kept: installed every run.
+        cd "$BUILDER/build"
+        rm -rf /opt/ffbuild/bin
+        source "$BUILDER/images/macos/00-dep.sh"
+        ffbuild_macbase || exit $?
+        steps=("$BUILDER"/images/macos/0[1-9]*.sh "$BUILDER"/scripts.d/*.sh)
+        if [[ -n "${LIBRARY:-}" ]]; then
+            steps=("$BUILDER"/scripts.d/*-"$LIBRARY".sh)
+            [[ ${#steps[@]} == 1 ]] || { echo "no step for library '$LIBRARY'" >&2; exit 1; }
+            rm -f "$PREFIX/.portico-steps/${steps[0]##*/}"
+        fi
+        for step in "${steps[@]}"; do
+            [[ -f "$PREFIX/.portico-steps/${step##*/}" ]] && { say "kept from an earlier run: ${step##*/}"; continue; }
+            cd "$BUILDER/build"
+            source "$step"
+            echo "${step##*/}" > "$WORK/step.txt"
+            if [[ "$step" == */images/macos/* ]]; then
+                say "step ${step##*/}"
+                ffbuild_macbase || exit $?
+            else
+                ffbuild_enabled || continue
+                say "step ${step##*/}"
+                ffbuild_dockerbuild || exit $?
+            fi
+            touch "$PREFIX/.portico-steps/${step##*/}"
+        done
+    ) || fail "LIBRARY FAILED: $(cat "$WORK/step.txt" 2> /dev/null) (its own output is just above; finished steps are marked in $PREFIX)"
+    say "every library is built in $PREFIX"
+}
+
+# ---------------------------------------------------------------------------------------------
 helper() {
-    library_image
     mkdir -p "$WORK/out"
-    in_image -e EXE="$EXE" -v "$ROOT/third_party/portico-disc:/disc:ro" -v "$WORK/out:/out" "$LIBRARY_IMAGE" bash -e <<'EOF'
+    if [[ "$TARGET" == mac* ]]; then
+        # The Mac's own compiler, against the same libraries; macOS programs are position-independent already.
+        ( mac_env
+          modules="libbluray dvdnav dvdread libudfread"
+          libs="$(pkg-config --static --libs $modules)"
+          case "$libs" in *dvdcss*|*aacs*|*bdplus*) fail "a decryption library is in the link line: $libs" ;; esac
+          clang -std=c11 -O2 -Wall -Wextra -Werror -D_FILE_OFFSET_BITS=64 $(pkg-config --cflags $modules) \
+              "$ROOT/third_party/portico-disc/portico-disc.c" -o "$WORK/out/portico-disc" $libs )
+    else
+        library_image
+        in_image -e EXE="$EXE" -v "$ROOT/third_party/portico-disc:/disc:ro" -v "$WORK/out:/out" "$LIBRARY_IMAGE" bash -e <<'EOF'
 modules="libbluray dvdnav dvdread libudfread"
 libs="$(pkg-config --static --libs $modules)"
 case "$libs" in *dvdcss*|*aacs*|*bdplus*) echo "a decryption library is in the link line: $libs" >&2; exit 1 ;; esac
@@ -429,6 +535,7 @@ fi
 $CC $CFLAGS -std=c11 -O2 -Wall -Wextra -Werror -D_FILE_OFFSET_BITS=64 $extra $(pkg-config --cflags $modules) \
     /disc/portico-disc.c -o /out/portico-disc$EXE $LDFLAGS $libs
 EOF
+    fi
     if runs_here; then
         read_fixture_discs "$WORK/out/portico-disc$EXE"
     else
@@ -472,26 +579,36 @@ configured_name() {
 
 ffmpeg_build() {
     local stop_after_configure="$1"
-    library_image
+    # In the container the build folder is /ffbuild; on the Mac it is built where it is.
+    local root=/ffbuild target_flags='$FFBUILD_TARGET_FLAGS' host_flags=""
+    [[ "$TARGET" == mac* ]] || library_image
     plan
     source "$WORK/ffmpeg-options.sh"
+    if [[ "$TARGET" == mac* ]]; then
+        root="$WORK/ffbuild" target_flags="$FFBUILD_TARGET_FLAGS"
+        host_flags="--host-cflags='$FF_HOST_CFLAGS' --host-ldflags='$FF_HOST_LDFLAGS'"
+    fi
     rm -rf "$WORK/ffbuild"
     mkdir -p "$WORK/ffbuild/ffmpeg"
     tar -C "$SRC" --exclude=./builder --exclude=./msys2 -cf - . | tar -C "$WORK/ffbuild/ffmpeg" -xf -
     cat > "$WORK/ffbuild/run.sh" <<EOF
 set -e
-cd /ffbuild/ffmpeg
-ln -s /ffbuild/ffmpeg/debian/patches patches
-quilt push -a > /ffbuild/patches.log
-./configure --prefix=/ffbuild/prefix \$FFBUILD_TARGET_FLAGS --extra-version=Portico \\
+cd $root/ffmpeg
+ln -s $root/ffmpeg/debian/patches patches
+quilt push -a > $root/patches.log
+./configure --prefix=$root/prefix $target_flags $host_flags --extra-version=Portico \\
     --extra-cflags='$FF_CFLAGS' --extra-cxxflags='$FF_CXXFLAGS' --extra-ldflags='$FF_LDFLAGS' \\
     --extra-ldexeflags='$FF_LDEXEFLAGS' --extra-libs='$FF_LIBS' $FF_CONFIGURE ||
     { tail -60 ffbuild/config.log; exit 1; }
 [[ "$stop_after_configure" == 1 ]] && exit 0
-make -j\$(nproc)
+make -j\$(getconf _NPROCESSORS_ONLN)
 make install
 EOF
-    in_image -v "$WORK/ffbuild:/ffbuild" "$LIBRARY_IMAGE" bash /ffbuild/run.sh
+    if [[ "$TARGET" == mac* ]]; then
+        ( mac_env && bash "$WORK/ffbuild/run.sh" )
+    else
+        in_image -v "$WORK/ffbuild:/ffbuild" "$LIBRARY_IMAGE" bash /ffbuild/run.sh
+    fi
 
     say "FFmpeg's configure step switched on everything wanted"
     local kind name macro missing=0
@@ -554,7 +671,8 @@ manifest = {'schemaVersion': 2, 'target': platform, 'ffmpeg': 'jellyfin-ffmpeg '
             'licence': 'GPL-3.0-or-later', 'licenceText': 'LICENSES/GPL-3.0.txt', 'libraries': libraries, 'files': files}
 (bundle / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 EOF
-    tar -C "$bundle" -cJf "$WORK/portico-media-tools-$PLATFORM.tar.xz" .
+    # (COPYFILE_DISABLE: macOS's tar would otherwise add its file attributes as extra files.)
+    COPYFILE_DISABLE=1 tar -C "$bundle" -cJf "$WORK/portico-media-tools-$PLATFORM.tar.xz" .
     say "bundle: $WORK/portico-media-tools-$PLATFORM.tar.xz ($(du -sh "$WORK/portico-media-tools-$PLATFORM.tar.xz" | cut -f1))"
     if runs_here; then
         verify
@@ -578,7 +696,15 @@ verify() {
     [[ -n "$EXE" ]] && system='=> /c/Windows/'
     for tool in ffmpeg ffprobe portico-disc; do
         [[ -n "$EXE" ]] && echo "$tool loads: $(ldd "$bundle/bin/$tool$EXE" | awk '{ print $1 }' | xargs)"
-        if ldd "$bundle/bin/$tool$EXE" | grep -viE "$system" | grep -q .; then
+        if [[ "$TARGET" == mac* ]]; then
+            # A plain arm64 program that loads only macOS's own libraries and frameworks, and has no
+            # rpath that could make it look elsewhere (the release signs the programs as they are).
+            otool -L "$bundle/bin/$tool"
+            [[ "$(lipo -archs "$bundle/bin/$tool")" == arm64 ]] || fail "$tool is not a plain arm64 program"
+            otool -L "$bundle/bin/$tool" | tail -n +2 | awk '{ print $1 }' | grep -vE '^(/usr/lib/|/System/Library/)' &&
+                fail "$tool needs a library that is not part of the operating system"
+            [[ "$(otool -l "$bundle/bin/$tool")" != *LC_RPATH* ]] || fail "$tool has an rpath"
+        elif ldd "$bundle/bin/$tool$EXE" | grep -viE "$system" | grep -q .; then
             ldd "$bundle/bin/$tool$EXE" >&2
             fail "$tool needs a library that is not part of the operating system"
         fi
