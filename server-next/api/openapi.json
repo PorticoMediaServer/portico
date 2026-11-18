@@ -22030,11 +22030,11 @@
           }
         },
         "tags": [
-          "Integrations"
+          "Clients"
         ],
         "x-access": "owner",
-        "x-audience": "Integrations",
-        "x-scope": "admin"
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/settings/remote-access": {
@@ -22104,11 +22104,11 @@
           }
         },
         "tags": [
-          "Integrations"
+          "Clients"
         ],
         "x-access": "owner",
-        "x-audience": "Integrations",
-        "x-scope": "admin"
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/settings/{name}": {
