@@ -1,13 +1,17 @@
 ' Focus: Play first; Down reaches the songs (a list that keeps its row), and on an artist Right from
-' the songs reaches its albums. Left from the buttons or the songs opens the rail.
+' the songs reaches its albums; on an album Down from the last song reaches More like this. Left from
+' the buttons or the songs opens the rail. The room takes its colour from the cover.
 sub init()
     c = colours()
     m.f = frames().music
+    m.top.findNode("circleBack").color = c.ink
     m.buttons = m.top.findNode("buttons")
     m.buttons.observeField("pressed", "onPressed")
     m.rows = m.top.findNode("rows")
     m.albums = m.top.findNode("albums")
     m.albums.observeField("selectedIndex", "onAlbum")
+    m.related = m.top.findNode("related")
+    m.related.observeField("selectedIndex", "onRelatedChosen")
     m.state = m.top.findNode("state")
     m.state.observeField("pressed", "onRetry")
     m.top.findNode("coverBack").blendColor = c.raised
@@ -16,7 +20,7 @@ sub init()
     setType(m.top.findNode("meta"), "meta", c.textSecondary)
     setType(m.top.findNode("songsHeading"), "rowHeading", c.text)
     m.songs = []
-    m.focus = 0          ' 0 the buttons, 1 the songs, 2 the albums
+    m.focus = 0          ' 0 the buttons, 1 the songs, 2 the albums, 3 an album's More like this
     m.onMore = false     ' focus is on the song row's "..." rather than the row
     m.row = 0
     m.scroll = 0
@@ -74,6 +78,10 @@ sub place()
     window = m.top.findNode("window")
     window.translation = [x, listY]
     window.clippingRect = [-50, -40, listWidth() + 100, 1080 - listY]
+    ' an album's songs stop above its More like this row
+    if not a then window.clippingRect = [-50, -40, listWidth() + 100, f.relatedY - listY]
+    m.related.slotX = frames().gutter
+    m.related.translation = [0, f.relatedY]
     m.albums.slotX = f.albumsX
     m.albums.translation = [0, f.albumsY]
 end sub
@@ -115,6 +123,8 @@ sub onDetail(event as object)
         if d.year <> invalid then parts.push(d.year.toStr())
         m.cover = pick(d.images, ["cover", "poster"])
         m.top.findNode("cover").uri = imageUrl(m.cover, m.f.cover, m.f.cover)
+        if m.cover <> "" then m.top.art = "glow|" + m.cover
+        api("GET", "/v1/items/" + d.id + "/related", invalid, "onRelatedRead", {id: d.id})
     end if
     m.detail = d
     m.metaParts = parts
@@ -169,11 +179,52 @@ sub onAlbums(event as object)
     m.albums.heading = "Albums"
     m.albums.cards = cards
     m.albums.visible = (m.albumItems.count() > 0)
-    ' the artist's circle is cut from their album art
+    ' the artist's circle is cut from their album art, newest first (the list is sorted by year)
+    tiles = m.top.findNode("circleArt")
+    tiles.removeChildrenIndex(tiles.getChildCount(), 0)
     if m.albumItems.count() > 0
+        for each tile in circleTiles(m.albumItems.count(), 412, 3)       ' frame 9's hairlines are 3 px
+            poster = tiles.createChild("Poster")
+            poster.loadDisplayMode = "scaleToZoom"
+            poster.translation = [tile.x, tile.y]
+            poster.width = tile.w
+            poster.height = tile.h
+            poster.uri = imageUrl(pick(m.albumItems[tile.index].images, ["cover", "poster"]), 412, 412)
+        end for
         art = pick(m.albumItems[0].images, ["cover", "poster"])
-        m.top.findNode("circleArt").uri = imageUrl(art, 412, 412)
+        if art <> "" then m.top.art = "glow|" + art
     end if
+end sub
+
+' More like this (GET /v1/items/{id}/related, as the other apps read it): every group's albums once, not this one.
+sub onRelatedRead(event as object)
+    result = event.getData()
+    if not result.ok or event.getRoSGNode().ctx.id <> m.top.item.id then return
+    m.relatedItems = []
+    seen = {}
+    seen[m.top.item.id] = true
+    for each group in result.data.groups
+        for each item in group.items
+            if seen[item.id] <> true
+                seen[item.id] = true
+                m.relatedItems.push(item)
+            end if
+        end for
+    end for
+    cards = createObject("roSGNode", "ContentNode")
+    for each item in m.relatedItems
+        card = cardFor(item, "square")
+        card.art = imageUrl(card.art, 214, 214)
+        cards.createChild("ContentNode").addFields(card)
+    end for
+    m.related.heading = "More like this"
+    m.related.cards = cards
+    m.related.visible = (m.relatedItems.count() > 0)
+end sub
+
+sub onRelatedChosen(event as object)
+    at = event.getData()
+    if m.relatedItems <> invalid and at >= 0 and at < m.relatedItems.count() then m.top.open = {item: m.relatedItems[at], play: false}
 end sub
 
 sub drawRows()
@@ -248,6 +299,8 @@ sub onActive()
         m.rows.setFocus(true)
     else if m.focus = 2
         m.albums.active = true
+    else if m.focus = 3
+        m.related.active = true
     else
         m.focus = 0
         m.buttons.active = true
@@ -417,6 +470,12 @@ function onKeyEvent(key as string, press as boolean) as boolean
             m.buttons.active = true
             paintRows()
             return true
+        else if key = "down" and m.row = m.songs.count() - 1 and not m.artist and m.related.visible
+            m.onMore = false
+            m.focus = 3
+            m.related.active = true
+            paintRows()
+            return true
         else if key = "right" and m.artist and m.albums.visible
             m.onMore = false
             m.focus = 2
@@ -427,6 +486,14 @@ function onKeyEvent(key as string, press as boolean) as boolean
         return pressKey(key)
     else if m.focus = 2
         if key = "left"
+            m.focus = 1
+            m.rows.setFocus(true)
+            paintRows()
+            return true
+        end if
+        return false
+    else if m.focus = 3
+        if key = "up"
             m.focus = 1
             m.rows.setFocus(true)
             paintRows()

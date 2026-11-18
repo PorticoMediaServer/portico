@@ -31,6 +31,8 @@
   <script type="text/brightscript" uri="pkg:/components/kit/CardMenu.brs"/>
   <children>
     <Rectangle id="back" width="1920" height="1080"/>
+    <!-- the room takes its colour from the cover (tv-07-f7): the cover's preblurred wash, dimmed -->
+    <Poster id="glow" width="1920" height="1080" loadDisplayMode="scaleToFill" opacity="0.45"/>
     <Poster id="fromIcon" uri="pkg:/images/i-music-32.png" width="28" height="28"/>
     <Label id="from"/>
     <Poster id="artBack" uri="pkg:/images/round-20.9.png"/>

@@ -24,7 +24,9 @@
     <Poster id="coverBack" uri="pkg:/images/round-20.9.png"/>
     <Poster id="cover" loadDisplayMode="scaleToFill"/>
     <MaskGroup id="circle" maskUri="pkg:/images/mask-circle-412.png" maskSize="[412,412]">
-      <Poster id="circleArt" width="412" height="412" loadDisplayMode="scaleToFill"/>
+      <!-- the hairlines between the albums show this -->
+      <Rectangle id="circleBack" width="412" height="412"/>
+      <Group id="circleArt"/>
     </MaskGroup>
     <Label id="eyebrow"/>
     <Label id="title" wrap="true" maxLines="2"/>
@@ -35,6 +37,8 @@
       <Group id="rows"/>
     </Group>
     <Shelf id="albums" shape="square" visible="false"/>
+    <!-- an album's More like this, under its songs (tv-more frame 6) -->
+    <Shelf id="related" shape="square" visible="false"/>
     <PageState id="state" visible="false"/>
   </children>
 </component>

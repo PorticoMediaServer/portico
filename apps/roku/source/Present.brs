@@ -694,3 +694,16 @@ function bookChapters(book as object) as object
     end if
     return out
 end function
+
+' How an artist's circle is cut from their albums, newest first (tv-more frame 9): one fills it; two
+' split it down the middle, the newest on the right; three put the newest on the left half and the
+' other two stacked on the right; four or more show the four newest two by two. `gap` is the hairline
+' between them. Each tile is {index (into the albums), x, y, w, h}.
+function circleTiles(count as integer, size as integer, gap as integer) as object
+    half = (size - gap) / 2
+    far = (size + gap) / 2
+    if count <= 1 then return [{index: 0, x: 0, y: 0, w: size, h: size}]
+    if count = 2 then return [{index: 1, x: 0, y: 0, w: half, h: size}, {index: 0, x: far, y: 0, w: half, h: size}]
+    if count = 3 then return [{index: 0, x: 0, y: 0, w: half, h: size}, {index: 1, x: far, y: 0, w: half, h: half}, {index: 2, x: far, y: far, w: half, h: half}]
+    return [{index: 0, x: 0, y: 0, w: half, h: half}, {index: 1, x: far, y: 0, w: half, h: half}, {index: 2, x: 0, y: far, w: half, h: half}, {index: 3, x: far, y: far, w: half, h: half}]
+end function
