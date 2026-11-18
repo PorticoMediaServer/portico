@@ -194,9 +194,9 @@ func (s *Server) compatOp(r *http.Request, op string, values []string) (any, err
 		return []any{}, nil
 	case compat.NotifyAdmins:
 		return nil, s.compatNotifyAdmins(r, c)
+	case compat.MediaUpdated, compat.LibraryRefresh, compat.ItemRefresh:
+		return nil, s.compatRefresh(r, c, op, values)
 	}
-	// Reports of changed files, a library refresh and a title's subtitle refresh wait for the
-	// scan services they would hand over to.
 	return nil, refusal(http.StatusNotImplemented, "not_available", "This server cannot take this request yet.", false)
 }
 

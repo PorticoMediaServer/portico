@@ -550,7 +550,10 @@ password, PIN or two-step sign-in, change who is owner or administrator, or rest
 
 The Jellyfin-compatible routes (30 behaviours, their own document, off until the owner turns
 them on) sign in with an app password and nothing else; a tool that then asks for "a key" is
-given access equal to that app password. DLNA (one switch in the `remote-access` document, off by default) answers on its own
+given access equal to that app password. A tool's report of changed files (`/Library/Media/Updated`
+with paths) scans each library folder the paths are in; `/Library/Refresh` scans every library and
+`/Items/{id}/Refresh` the title's library, all through the ordinary scan route, so they take the owner's key with the
+`library` scope. DLNA (one switch in the `remote-access` document, off by default) answers on its own
 UPnP addresses outside `/v1`, to the home networks only, never through a proxy, and serves
 original files with no sign-in.
 
