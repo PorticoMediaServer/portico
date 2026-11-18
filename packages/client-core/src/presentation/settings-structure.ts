@@ -4,9 +4,24 @@ import type {PreferencePatch, PreferenceValue} from '../preferences.ts';
 import type {ServerFormId} from '../server-admin/server-forms.ts';
 
 /**
- * Account and Server pages and rows for Settings navigation, rendering and search.
- * Registry keys and capabilities control which authored rows are available.
- * Dedicated pages such as General render from settings-spec.ts and keep these rows searchable on native.
+ * The one Settings screen, authored (Justin, 2 Oct 2026). Personal and server settings are one
+ * destination: pages listed under two headings, **Account** (personal) and **Server** (owners).
+ *
+ * The preference registry and the server's capabilities are vocabulary, not layout. This file is
+ * the layout: which pages exist, in what order, which rows each holds, what each row says and
+ * which control it uses. A registry key no row references does not appear. Every client draws
+ * this structure with its own controls — a two-pane screen on the web and iPad, a pushed list on
+ * iPhone, a column of pages beside the rows on television — and none of them invents a row.
+ *
+ * Rows:
+ * - `preference`: one registry key (`operations/preferences.go` stays the storage and validation
+ *   contract).
+ * - `composite`: one decision a person makes that reads and writes several keys ("Playback
+ *   method"), or a value this device keeps for itself ("Default library view").
+ * - `action`: something done, not set (Sign out, Reset recommendations, Link a TV).
+ * - `custom`: a panel the client draws natively (profiles, devices, the subtitle preview).
+ * - `server-setting`: one value of a server settings document (`server-admin/server-forms.ts`),
+ *   edited as a draft and saved with the page's one Save.
  */
 
 export type SettingsPlatform = 'web' | 'phone' | 'tv';
