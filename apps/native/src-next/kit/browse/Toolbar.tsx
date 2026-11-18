@@ -15,8 +15,9 @@ import MaskedView from '@react-native-masked-view/masked-view';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 
 const t = defaultI18n.t;
-/** A tablet toolbar narrower than this (beside a docked Filters pane) keeps only Filters, sort and grid / list in its bar. */
-const narrowToolbar = 700;
+/** A tablet toolbar narrower than this (an upright tablet, or beside a docked Filters pane) keeps only Filters, sort and grid /
+ * list in its bar: everything on one line needs about this much before the quick chips have room. */
+const narrowToolbar = 860;
 
 export function FiltersButton({count = 0, onPress, open = false}: {count?: number; onPress: () => void; open?: boolean}) {
   const theme = useTheme(), tv = theme.isTV, phone = theme.platform === 'phone';
@@ -118,8 +119,9 @@ export function ChipRail({children}: {children: ReactNode}) {
 /** The host pins this measured block above its windowed grid; it never owns scrolling data. */
 export function BrowseToolbar({model, platform, sticky = false, resultCount, onQuickChange, onFilters, filtersOpen = false, onSortChange, onReshuffle, labels, applied = [], onRemoveFilter, onClearFilters, view, cardSize, save, onJump, onSelect, selection, children, testID}: BrowseToolbarProps) {
   const theme = useTheme(), {width} = useWindowDimensions(), target = browsePlatform(theme, platform), phone = target === 'phone', tv = target === 'tv';
-  // Beside a docked Filters pane (tablet 4) the bar is Filters, sort and grid / list; the count moves to the applied filters'
-  // line, and the quick chips, card size and Save view (also in ⋯ and the pane) step out, so nothing is cut.
+  // Narrow (tablet 5 upright, tablet 4 beside the docked pane): the bar is Filters, sort and grid / list; the second line is the
+  // quick chips (tablet 5) or, once filters apply, the applied chips (tablet 4), with the count at its end. Card size and Save
+  // view (also in ⋯ and the pane) step out, so nothing is cut.
   const [room, setRoom] = useState(0), narrow = !phone && !tv && room > 0 && room < narrowToolbar;
   if (applied.length > 0 && !onRemoveFilter) throw new Error('Applied browse filters need a real remove callback.');
   if (selection) return <View testID={testID}>{selection}</View>;
@@ -145,7 +147,8 @@ export function BrowseToolbar({model, platform, sticky = false, resultCount, onQ
         {save && <SaveViewButton {...save}/>}
       </View>
     </View>}
-    {(applied.length > 0 || tv || narrow) && <View style={{paddingHorizontal: phone ? 20 : theme.gutter, paddingTop: tv ? 24 : 10}}>
+    {narrow && applied.length === 0 ? <View style={{flexDirection: 'row', gap: 8, minHeight: 40, marginTop: 10, paddingHorizontal: theme.gutter}}><ChipRail>{quick}{children}</ChipRail><View style={{justifyContent: 'center'}}>{count}</View></View>
+    : (applied.length > 0 || tv || narrow) && <View style={{paddingHorizontal: phone ? 20 : theme.gutter, paddingTop: tv ? 24 : 10}}>
       <AppliedFilterChips platform={target} filters={applied} onRemove={id => onRemoveFilter!(id)} onClear={onClearFilters}>{tv ? count : narrow && <View style={{marginLeft: 'auto'}}>{count}</View>}</AppliedFilterChips>
     </View>}
   </View>;
