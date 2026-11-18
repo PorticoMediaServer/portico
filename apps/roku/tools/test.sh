@@ -35,3 +35,6 @@ echo "$out" | grep -q '^PASSED *[0-9]* FAILED *0$'
 python3 tools/theme-check.py
 # The open-source licences the app lists are made from the files the package holds (tools/licences.py).
 python3 tools/licences.py --check
+# roUrlTransfer cannot be made on the screen's thread (createObject gives invalid there, and the next
+# call stops the app): only tasks may use it. Screens encode with String.encodeUriComponent().
+if grep -rln 'roUrlTransfer' components source | grep -v '^components/tasks/'; then echo "roUrlTransfer outside components/tasks/"; exit 1; fi
