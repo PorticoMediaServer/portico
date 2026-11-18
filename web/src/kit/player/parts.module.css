@@ -13,7 +13,9 @@
 /* A transport button with the seconds it skips drawn inside its arrow. */
 .skip { position: relative; display: inline-grid; }
 .skip > small { position: absolute; inset: 0; display: grid; place-items: center; padding-top: var(--space-hairline); pointer-events: none; font-size: var(--type-player-skip-size); font-weight: var(--type-player-skip-weight); }
-.skip > button > svg { width: calc(var(--control-icon) + var(--space-tight)); height: calc(var(--control-icon) + var(--space-tight)); }
+/* The arrow's ring is drawn small in its box, so it is enlarged to weigh the same as Previous and Next beside it, and is as bright. */
+.skip > button { color: var(--color-text); }
+.skip > button > svg { width: calc(var(--control-icon) * 1.4); height: calc(var(--control-icon) * 1.4); }
 
 .times { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-xs); font-size: var(--type-player-time-size); font-weight: var(--type-player-time-weight); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
 .times b { color: var(--color-text); font-weight: var(--type-button-weight); }

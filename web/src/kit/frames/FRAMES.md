@@ -99,6 +99,16 @@ were moved, not copied: the screens draw these same parts.
 | `PlayerUpNext` | The Up next card over the credits (`layout`: desktop, tablet, phone) | The player's bottom right corner |
 | `PlayerLive` | The Live TV chrome from one `LiveChromePort`: channel and programme lockup, Record, the programme-long bar with the live edge and Go to live, channel down and up, Guide and its short guide | One layout that narrows; it is not built on `PlayerChromeFrame` |
 
+Changed in the fix round after the first captures:
+
+- `PlayerChromeFrame` takes `card` (Up next: alone in the picture's corner, controls hidden), `panel` with
+  `panelCovers` (`bar` for the Episodes drawer, `all` on a phone on its side) and `scrubbing` (the transport makes way
+  for the preview at phone width). At phone width a prompt sits in the strip's bottom row, where it covers nothing.
+- `SeasonBar` and `EpisodeRows` (in `kit/frames`): the bar over a show's episodes, and the kit `EpisodeTile`s laid out
+  as rows. The show page's own copy of the row rules (`screens/detail/show.module.css` `.episodeRow`) goes in Stage 2.
+- Skip arrows weigh the same as Previous and Next. `AudioPlayerFrame` is re-laid: the title follows the artwork, and
+  from 1024 the column sits centred beside the Up next panel under a bar across the window.
+
 Left for Stage 2, listed so it is not forgotten:
 
 - `PlayerLive` draws its own top bar, bar and controls row instead of filling `PlayerChromeFrame`. It matches the

@@ -267,6 +267,14 @@ export type PlayerChromeFrameProps = Readonly<{
   leading?: ReactNode; trailing?: ReactNode;
   /** `PlayerPrompt`: Skip intro, Up next. The prompt corner, bottom right above the bar; it stays when the chrome hides. */
   prompts?: ReactNode;
+  /** `PlayerUpNext`, over the credits: it sits alone in the picture's bottom right corner and the controls hide while
+   * it shows (desktop-player 4, phone-player 6). */
+  card?: ReactNode;
+  /** One of the player's own panels, open (`PlayerOptions`, `PlayerEpisodes`). `panelCovers` says what it lies over,
+   * which hides: `bar` for the Episodes drawer (desktop-player 6), `all` on a phone on its side (phone-player 3). */
+  panel?: ReactNode; panelCovers?: 'bar' | 'all';
+  /** A phone: the finger is on the scrubber, so the transport in the middle of the picture makes way for the preview. */
+  scrubbing?: boolean;
   /** An upright phone only: the watch page under the picture (the title page's own content). */
   body?: ReactNode;
 }>;
@@ -276,16 +284,17 @@ export type PlayerChromeFrameProps = Readonly<{
  * read-outs either side of the scrubber. An upright phone (phone-player 4): the picture is a 16:9 strip with the
  * chrome inside it, the scrubber on its lower edge, and the watch page below. No backdrop under the picture; every
  * region is fixed; the parts that fill it are `kit/player`'s. */
-export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, body}: PlayerChromeFrameProps) {
+export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, panelCovers, scrubbing, body}: PlayerChromeFrameProps) {
+  const covered = card ? 'all' : panel ? panelCovers : undefined, shown = chromeVisible && covered !== 'all';
   const right = times.live ? <b className={styles.playerLive}>{times.live}</b> : <b>{times.remaining}</b>;
-  return <div className={`${styles.frame} ${styles.player}`} data-chrome={chromeVisible}>
+  return <div className={`${styles.frame} ${styles.player}`} data-chrome={shown} data-covered={covered} data-scrubbing={scrubbing || undefined}>
     <div className={styles.playerStage}>
       <div className={styles.playerPicture}>{picture}</div>
       <div className={styles.playerShade} />
-      <div className={styles.playerTop} inert={!chromeVisible}>{close}<div className={styles.playerTitle}>{title}</div><div className={styles.playerTools}>{tools}</div></div>
+      <div className={styles.playerTop} inert={!shown}>{close}<div className={styles.playerTitle}>{title}</div><div className={styles.playerTools}>{tools}</div></div>
       <div className={styles.playerBottom}>
-        <div className={styles.playerPrompts}>{prompts}</div>
-        <div className={styles.playerBar} inert={!chromeVisible}>
+        <div className={styles.playerPrompts}>{!card && !panel && prompts}</div>
+        <div className={styles.playerBar} inert={!shown || covered === 'bar'}>
           <div className={styles.playerSeek}>{scrubber}</div>
           <span className={styles.playerPosition}><b>{times.position}</b></span>
           <span className={styles.playerRemaining}><span className={styles.playerEnds}>{times.endsAt}</span>{right}</span>
@@ -295,6 +304,7 @@ export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, 
           <div className={styles.playerTrailing}>{trailing}</div>
         </div>
       </div>
+      {card}{panel}
     </div>
     {body !== undefined && <div className={styles.playerBody}>{body}</div>}
   </div>;
