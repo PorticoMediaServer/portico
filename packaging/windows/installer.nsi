@@ -1,12 +1,17 @@
 Unicode true
 
+; Portico runs as the person who installs it, as Plex does: it starts when they sign in to
+; Windows, as them, so it reads the media their own account can (their folders, and network
+; shares they have signed in to), and keeps its data in their %LOCALAPPDATA%\Portico. The
+; installer needs administrator rights only for Program Files and the firewall rule.
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
 !define PRODUCT_NAME "Portico Media Server"
 !define PRODUCT_PUBLISHER "Justin Ehler"
 !define PRODUCT_WEB_SITE "https://getportico.tv"
-!define SERVICE_NAME "PorticoMediaServer"
+!define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
+!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Portico Media Server"
 
 Name "${PRODUCT_NAME}"
 Icon "portico.ico"
@@ -20,80 +25,70 @@ Page instfiles
 UninstPage uninstConfirm
 UninstPage instfiles
 
-Section "Install"
-  SetShellVarContext all
-  ; Use the candidate's control command even when the installed binary predates SCM.
-  InitPluginsDir
-  SetOutPath "$PLUGINSDIR"
-  File /oname=portico-service-control.exe "${STAGE_DIR}\portico-server.exe"
-  nsExec::ExecToLog /TIMEOUT=60000 '"$PLUGINSDIR\portico-service-control.exe" --service-stop'
+; Ends every running copy of the installed program, and waits until it has gone: Windows keeps
+; a running program's files. It ends the way a sign-out from Windows ends it. The program's path
+; comes from CIM: this installer is 32-bit, and a 32-bit PowerShell gets no Path from Get-Process
+; for a 64-bit program.
+!macro StopPortico
+  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "$$ids = @(Get-CimInstance Win32_Process | Where-Object ExecutablePath -eq '$INSTDIR\portico-server.exe' | ForEach-Object ProcessId); if (-not $$ids) { exit 0 }; Stop-Process -Id $$ids -Force -ErrorAction SilentlyContinue; foreach ($$i in 1..30) { if (-not (Get-Process -Id $$ids -ErrorAction SilentlyContinue)) { exit 0 }; Start-Sleep 1 }; exit 1"`
   Pop $2
-  StrCmp $2 "0" service_stopped
+!macroend
+
+Section "Install"
+  SetShellVarContext current
+  ; An install from before 18 Nov 2026 ran Portico as a Windows service: it is removed. Its data
+  ; in %ProgramData%\Portico is left where it is.
+  nsExec::ExecToLog 'sc.exe stop PorticoMediaServer'
+  Pop $2
+  nsExec::ExecToLog 'sc.exe delete PorticoMediaServer'
+  Pop $2
+  !insertmacro StopPortico
+  StrCmp $2 "0" stopped
   MessageBox MB_ICONSTOP "Portico could not stop. Installation files have been left in place." /SD IDOK
   SetErrorLevel 1
   Abort
-service_stopped:
-  ; Retire the old scheduled launch rather than keeping a second startup path.
-  nsExec::ExecToLog /TIMEOUT=60000 'schtasks.exe /End /TN "Portico Media Server"'
-  Pop $2
-  nsExec::ExecToLog /TIMEOUT=60000 'schtasks.exe /Delete /TN "Portico Media Server" /F'
-  Pop $2
+stopped:
   SetOutPath "$INSTDIR"
   File /r "${STAGE_DIR}\*"
-  Delete "$INSTDIR\start-portico.cmd"
-  Delete "$INSTDIR\startup-task.xml"
   WriteRegStr HKLM "Software\Portico Media Server" "InstallDir" "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Portico Media Server" "DisplayName" "${PRODUCT_NAME}"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Portico Media Server" "DisplayVersion" "${PRODUCT_VERSION}"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Portico Media Server" "Publisher" "${PRODUCT_PUBLISHER}"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Portico Media Server" "URLInfoAbout" "${PRODUCT_WEB_SITE}"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Portico Media Server" "UninstallString" '"$INSTDIR\Uninstall.exe"'
-  ReadEnvStr $0 "ProgramData"
-  StrCmp $0 "" 0 +2
-  StrCpy $0 "C:\ProgramData"
-  StrCpy $0 "$0\Portico"
-  CreateDirectory "$0"
-  CreateDirectory "$0 Transcode"
-  nsExec::ExecToLog /TIMEOUT=60000 '"$INSTDIR\portico-server.exe" --service-install'
-  Pop $2
-  StrCmp $2 "0" 0 install_failed
-  nsExec::ExecToLog 'icacls.exe "$0" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "NT SERVICE\${SERVICE_NAME}:(OI)(CI)F"'
-  Pop $2
-  StrCmp $2 "0" 0 install_failed
-  nsExec::ExecToLog 'icacls.exe "$0 Transcode" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "NT SERVICE\${SERVICE_NAME}:(OI)(CI)F"'
-  Pop $2
-  StrCmp $2 "0" 0 install_failed
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayName" "${PRODUCT_NAME}"
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "URLInfoAbout" "${PRODUCT_WEB_SITE}"
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
   nsExec::ExecToLog 'netsh.exe advfirewall firewall delete rule name="Portico Media Server"'
   Pop $2
   nsExec::ExecToLog 'netsh.exe advfirewall firewall add rule name="Portico Media Server" dir=in action=allow program="$INSTDIR\portico-server.exe" enable=yes profile=any protocol=TCP localport=32500'
   Pop $2
-  StrCmp $2 "0" 0 install_failed
-  nsExec::ExecToLog /TIMEOUT=60000 '"$INSTDIR\portico-server.exe" --service-start'
-  Pop $2
-  StrCmp $2 "0" service_started
-install_failed:
-  MessageBox MB_ICONSTOP "Portico could not install or start its Windows service. Your server data has been kept." /SD IDOK
+  StrCmp $2 "0" firewall_set
+  MessageBox MB_ICONSTOP "Portico could not add its firewall rule." /SD IDOK
   SetErrorLevel 1
   Abort
-service_started:
+firewall_set:
+  ; Started at each sign-in, as the person signing in. Settings > Apps > Startup can turn it off.
+  WriteRegStr HKCU "${RUN_KEY}" "${PRODUCT_NAME}" '"$INSTDIR\portico-server.exe"'
   CreateDirectory "$SMPROGRAMS\Portico Media Server"
   WriteINIStr "$SMPROGRAMS\Portico Media Server\Portico Media Server.url" "InternetShortcut" "URL" "http://127.0.0.1:32500/"
+  CreateShortcut "$SMPROGRAMS\Portico Media Server\Start Portico Media Server.lnk" "$INSTDIR\portico-server.exe"
+  ; Started now as well, through Explorer: this installer runs with administrator rights, and
+  ; Explorer starts the program with the owner's ordinary ones, as a sign-in does.
+  Exec '"$WINDIR\explorer.exe" "$INSTDIR\portico-server.exe"'
 SectionEnd
 
 Section "Uninstall"
-  SetShellVarContext all
-  nsExec::ExecToLog /TIMEOUT=60000 '"$INSTDIR\portico-server.exe" --service-uninstall'
-  Pop $2
-  StrCmp $2 "0" service_removed
-  MessageBox MB_ICONSTOP "Portico could not remove its service. Installation files have been kept." /SD IDOK
+  SetShellVarContext current
+  !insertmacro StopPortico
+  StrCmp $2 "0" stopped
+  MessageBox MB_ICONSTOP "Portico could not stop. Installation files have been kept." /SD IDOK
   SetErrorLevel 1
   Abort
-service_removed:
+stopped:
+  DeleteRegValue HKCU "${RUN_KEY}" "${PRODUCT_NAME}"
   nsExec::ExecToLog 'netsh.exe advfirewall firewall delete rule name="Portico Media Server"'
   Pop $2
   RMDir /r "$SMPROGRAMS\Portico Media Server"
-  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Portico Media Server"
+  DeleteRegKey HKLM "${UNINSTALL_KEY}"
   DeleteRegKey HKLM "Software\Portico Media Server"
   RMDir /r "$INSTDIR"
 SectionEnd

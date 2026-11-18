@@ -25,8 +25,8 @@ unattended installation of these preview builds.
 
 Portico stores server data separately from the application. Linux packages use
 `/var/lib/portico` as a system service, or `~/.local/share/portico` for a
-user launch. Windows uses `%LOCALAPPDATA%\Portico`, or `%ProgramData%\Portico`
-for its service. macOS uses `~/Library/Application Support/Portico`. Containers
+user launch. Windows uses `%LOCALAPPDATA%\Portico`, the folder of the user it
+runs as. macOS uses `~/Library/Application Support/Portico`. Containers
 use their mounted `/config`. `PORTICO_DATA_DIR` overrides the data path; the
 former state-directory variable is not supported.
 
@@ -69,14 +69,11 @@ with the same command. Confirm its status after installation.
 
 ### Windows
 
-Run the Setup.exe as administrator. In an elevated PowerShell window:
-
-```powershell
-Get-Service PorticoMediaServer
-Restart-Service PorticoMediaServer
-Stop-Service PorticoMediaServer
-Start-Service PorticoMediaServer
-```
+Run the Setup.exe signed in as the person Portico should run as; it asks for
+administrator rights. Portico starts at once and at each of that person's
+sign-ins. To stop it, end `portico-server.exe` in Task Manager (a sign-out also
+stops it); to start it again, choose **Start Portico Media Server** in the Start
+menu. **Settings > Apps > Startup** turns off the start at sign-in.
 
 ### macOS
 
@@ -141,24 +138,28 @@ do not make the whole Let’s Encrypt directory writable. Configure the actual
 certificate/key paths in the console. Certificate renewal must preserve that
 read access.
 
-## Windows service
+## Windows install
 
-The installer registers **Portico Media Server** (`PorticoMediaServer`) with
-Windows Services, starting automatically at boot as LocalService. Its worker
-restarts after a restore or the owner Restart action without stopping the
-service. Stopping the service drains active work before installation files can
-be replaced. Run a newer installer into the same directory to upgrade. The
-uninstaller removes the service and firewall rule, retaining your data folder.
-The state folder is restricted to administrators, SYSTEM and the service SID.
+Portico runs as the user who installed it, as Plex does, not as a Windows
+service: the installer adds a start at that user's sign-in (the `Portico Media
+Server` value of `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`) and
+starts it once at the end, with that user's ordinary rights. It reads what the
+user can read: their own folders, mapped drives and network shares they have
+signed in to. Its data is in their `%LOCALAPPDATA%\Portico`, conversions in
+`%LOCALAPPDATA%\Portico Transcode`. It runs while that user is signed in, and
+opens no window; its log is in the data folder's `logs`. A standard user who
+installs with someone else's administrator password gets the start at sign-in
+of that administrator: install signed in as the user Portico should run as.
 
-Grant `NT SERVICE\PorticoMediaServer` read access to selected local libraries
-and write access where you enable deletion or recordings. Junctions, symbolic
-links and mounted-volume library roots are resolved and opened as directory
-handles; links within a library still follow the storage safety rules. Mapped
-user drive letters are not service paths. For an authenticated NAS, use a UNC
-path and configure an account with access in Services > Log On. An upgrade
-retains that account. The installer adds a TCP 32500 firewall rule; adjust it
-if you choose another listening port.
+Run a newer installer into the same directory to upgrade: it ends the running
+server first and starts the new one. An install from before 18 November 2026
+ran a Windows service; the installer removes it and leaves its data in
+`%ProgramData%\Portico`. The uninstaller ends the server and removes the start
+at sign-in, the Start menu entries and the firewall rule, retaining the data
+folder. Junctions, symbolic links and mounted-volume library roots are resolved
+and opened as directory handles; links within a library still follow the
+storage safety rules. The installer adds a TCP 32500 firewall rule; adjust it if
+you choose another listening port.
 
 ## macOS service
 

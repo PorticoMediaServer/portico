@@ -32,6 +32,7 @@ import (
 )
 
 func main() {
+	useParentConsole()
 	// The sandbox around ffmpeg and ffprobe starts this same binary again as its helper.
 	// That must be answered before anything else, flags included.
 	for _, helper := range []func([]string) (bool, error){reading.RunHelper, decoder.RunHelper, mediaexec.RunHelper} {
@@ -43,7 +44,6 @@ func main() {
 			os.Exit(0)
 		}
 	}
-	answerService()
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if stopped(log, run(log)) {
 		os.Exit(1)
@@ -68,7 +68,6 @@ func run(log *slog.Logger) (err error) {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	watchService(stop)
 
 	// The data folder is used from here on by its full path: the media tools' sandbox gives a
 	// conversion only an absolute output folder, so a relative one (the default) made every
@@ -97,7 +96,7 @@ func run(log *slog.Logger) (err error) {
 	defer closeServerLog(serverLog, log, &err)
 	held.Warn(log)
 	// Refused here, after the log has opened, so that the reason is in the log file: a service
-	// on Windows or under launchd has no other place to say why it did not start.
+	// under launchd, or the server Windows starts at sign-in, has no other place to say why.
 	if err := oldServerData(*data); err != nil {
 		held.Drop()
 		return err

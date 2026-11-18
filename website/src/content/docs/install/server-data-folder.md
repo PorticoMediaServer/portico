@@ -13,13 +13,13 @@ The Portico data folder holds the server database and the working files Portico 
 
 | Installation | Default data folder |
 | --- | --- |
-| Windows installer | `%ProgramData%\Portico Media Server` |
+| Windows installer | `%LOCALAPPDATA%\Portico` |
 | macOS package | `/Library/Application Support/Portico Media Server` |
 | Linux DEB or RPM | `/var/lib/portico-media-server` |
 | Docker image | `/var/lib/portico` inside the container |
 | Windows or Linux portable archive | `state` beside the launcher |
 
-The installed packages run as services. These are service data folders, separate from your desktop account's application preferences. Docker needs a persistent volume mounted at its data path.
+The Windows installer runs Portico as the signed-in user, so its data folder is in that user's profile. The other installed packages run as services. These are service data folders, separate from your desktop account's application preferences. Docker needs a persistent volume mounted at its data path.
 
 Portable launchers accept an absolute `PORTICO_STATE_DIR` to use another folder. Changing a service's data path also requires the appropriate filesystem permissions and, on Linux, a writable path in its systemd sandbox. See the installation instructions for your platform.
 
