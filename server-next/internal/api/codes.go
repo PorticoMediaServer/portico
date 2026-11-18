@@ -114,18 +114,11 @@ func (s *Server) decideCode(r *http.Request, req CodeDecision) (None, error) {
 	} else if wait > 0 {
 		return None{}, errTooManyAttempts(wait)
 	}
-	// A TV approved here does not do two-step itself (Justin, 18 Nov), so where the owner
-	// requires two-step of this account, it must be set up first: a phone signed in before
-	// the owner required it would otherwise sign a new device in that never had it.
+	// A TV approved here does not do two-step itself (Justin, 18 Nov), so the sign-in that
+	// approves it must have shown its own.
 	if !req.Deny {
-		if account, err := s.db.Account(r.Context(), caller.UserID); err != nil {
+		if err := s.secondStepOwed(r); err != nil {
 			return None{}, err
-		} else if s.signInSettings().TwoStepRequired(account.Role) {
-			if two, err := s.db.TwoFactor(r.Context(), caller.UserID); err != nil {
-				return None{}, err
-			} else if !two.Enabled {
-				return None{}, refusal(http.StatusForbidden, "two_step_setup_required", "Set up two-step sign-in before you approve a TV.", false)
-			}
 		}
 	}
 	// Only the main profile carries the account's role, so only an approval from there

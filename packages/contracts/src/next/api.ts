@@ -4713,6 +4713,7 @@ export interface Routes {
   'GET /v1/me/two-factor': {access: 'signedIn'; request: undefined; response: TwoFactorState};
   'POST /v1/me/two-factor': {access: 'signedIn'; request: TwoFactorEnrol; response: TwoFactorSetup};
   'POST /v1/me/two-factor/confirm': {access: 'signedIn'; request: TwoFactorVerify; response: RecoveryCodes};
+  'POST /v1/me/two-factor/verify': {access: 'signedIn'; request: TwoFactorVerify; response: undefined};
   'POST /v1/me/two-factor/recovery-codes': {access: 'signedIn'; request: TwoFactorProof; response: RecoveryCodes};
   'DELETE /v1/me/two-factor': {access: 'signedIn'; request: TwoFactorProof; response: undefined};
   'POST /v1/auth/codes': {access: 'public'; request: CodeStart; response: CodeStarted};

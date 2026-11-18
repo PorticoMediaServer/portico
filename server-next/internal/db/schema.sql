@@ -713,9 +713,9 @@ CREATE TABLE sessions (
   revoked_at            INTEGER,
   revoked_reason        TEXT,
   remote_addr           TEXT,
-  -- When a main profile entered with a remembered PIN last counts as having typed it; NULL
-  -- when the PIN was typed and is not remembered, or there is none.
-  manage_until_at       INTEGER
+  -- Until when a main profile entered with a remembered PIN counts as having typed it; NULL when typed and not remembered, or there is none.
+  manage_until_at       INTEGER,
+  second_step_at        INTEGER -- when this sign-in showed a two-step code; NULL: only the password, or approved from another device
 ) STRICT;
 CREATE INDEX sessions_user ON sessions (user_id);
 CREATE INDEX sessions_profile ON sessions (profile_id) WHERE profile_id IS NOT NULL;
