@@ -136,8 +136,11 @@ sub onSheetChosen(event as object)
 end sub
 
 sub onSheetClosed()
+    own = (m.sheetIsOwn = true)
     m.sheetIsOwn = false
     closeSheet()
+    ' the page that asked for the menu hears that it closed (Settings goes back a step)
+    if not own and m.screen <> invalid and m.screen.hasField("menuClosed") then m.screen.menuClosed = true
 end sub
 
 sub onSignedOut()
@@ -433,6 +436,14 @@ sub onRailChosen(event as object)
         show("SearchScreen")
         m.screen.observeField("art", "onArt")
         m.screen.observeField("open", "onOpen")
+        m.rail.visible = true
+        m.rail.current = id
+        m.screen.active = true
+        return
+    end if
+    if id = "settings"
+        show("SettingsScreen")
+        m.screen.observeField("menu", "onMenu")
         m.rail.visible = true
         m.rail.current = id
         m.screen.active = true

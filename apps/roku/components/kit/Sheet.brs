@@ -22,6 +22,7 @@ sub init()
     title = m.top.findNode("title")
     title.width = m.width
     setType(title, "title", c.text)
+    title.lineSpacing = 0     ' a two-line title (a setting's name) sits as tight as drawn
     status = m.top.findNode("status")
     status.width = m.width
     setType(status, "bodyStrong", c.textSecondary)
@@ -60,15 +61,25 @@ sub onModel()
     if body.text <> "" then y = y + 8 + body.boundingRect().height + 8
     m.listTop = y + 20
     m.window.translation = [m.x, m.listTop]
-    m.window.clippingRect = [-60, -40, m.width + 120, 1080 - m.listTop + 40]
+    ' the rows end above the remote's keys at the foot, when the sheet has them
+    hints = m.top.findNode("hints")
+    m.bottom = 1080 - 20
+    if model.hints <> invalid then hints.hints = model.hints else hints.hints = []
+    if model.hints <> invalid then m.bottom = frames().sheet.hintsY - 46
+    hints.translation = [m.x, frames().sheet.hintsY]
+    m.window.clippingRect = [-60, -40, m.width + 120, m.bottom - m.listTop + 40]
     m.open = ""
     if model.open <> invalid then m.open = model.open
     m.scroll = 0
     build(currentId())
 end sub
 
-' The row to start on: the current choice under the open heading, else the first current row.
+' The row to start on: one marked `focus`, else the current choice under the open heading, else
+' the first current row.
 function currentId() as string
+    for each spec in m.top.model.rows
+        if spec.focus = true then return spec.id
+    end for
     for each spec in m.top.model.rows
         if spec.current = true and (m.open = "" or spec.under = m.open) then return spec.id
     end for
@@ -137,6 +148,14 @@ sub build(focusId as string)
             side.vertAlign = "center"
             side.horizAlign = "right"
             setType(side, "listLabel", c.accentStrong)
+        else if spec.value <> invalid and spec.value <> ""
+            side.text = spec.value
+            side.width = 300
+            side.translation = [m.width - 330, 0]
+            side.height = 64
+            side.vertAlign = "center"
+            side.horizAlign = "right"
+            setType(side, "metaStrong", c.textSecondary)
         else if spec.detail <> invalid and spec.detail <> ""
             label.height = 40
             label.translation = [x, 4]
@@ -180,7 +199,7 @@ sub paint()
     count = m.ys.count()
     if count = 0 then return
     ' keep the row in focus on the screen
-    room = 1080 - m.listTop - 60
+    room = m.bottom - m.listTop - 40
     y = m.ys[m.focus]
     if y - m.scroll > room - 64 then m.scroll = y - (room - 64)
     if y - m.scroll < 0 then m.scroll = y

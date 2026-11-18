@@ -49,6 +49,11 @@ sub main()
     same("profile roku_hd", [formatJson(sorted(rokuProfile({uhd: false})))], [formatJson(sorted(recorded.roku_hd))])
     same("profile roku_4k", [formatJson(sorted(rokuProfile({uhd: true, av1: true, dolbyVision: true})))], [formatJson(sorted(recorded.roku_4k))])
 
+    ' Settings' two composite choices write what packages/client-core compositePatch writes, and read back the same
+    same("playback method", [formatJson(sorted(compositePatch("playbackMethod", "original"))), formatJson(sorted(compositePatch("playbackMethod", "convert"))), compositeValue("playbackMethod", compositePatch("playbackMethod", "original")), compositeValue("playbackMethod", compositePatch("playbackMethod", "convert")), compositeValue("playbackMethod", compositePatch("playbackMethod", "automatic"))], [formatJson(sorted({"delivery.directPlay": "require", "delivery.directStream": "never", "delivery.transcode": "never"})), formatJson(sorted({"delivery.directPlay": "never", "delivery.directStream": "never", "delivery.transcode": "require"})), "original", "convert", "automatic"])
+    same("still watching", [compositeValue("stillWatching", compositePatch("stillWatching", "0")), compositeValue("stillWatching", compositePatch("stillWatching", "4")), formatJson(compositePatch("stillWatching", "0"))], ["0", "4", formatJson({"playback.passoutProtection": false})])
+    same("language moves", [movedLanguage(["en", "fr", "de"], 1, -1).join(","), movedLanguage(["en", "fr"], 1, 1).join(","), withoutLanguage(["en", "fr", "de"], 1).join(","), languagesWords([]), languagesWords(["@appLanguage", "fr"])], ["fr,en,de", "en,fr", "en,de", "None chosen", "Portico’s language, French"])
+
     print "PASSED " + m.passed.toStr() + " FAILED " + m.failed.toStr()
 end sub
 

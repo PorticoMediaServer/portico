@@ -39,6 +39,8 @@ function colours() as object
         raised: "0x10212DFF"                ' surface
         raisedBright: "0x1D3848FF"          ' surface
         raisedHigh: "0x162C3AFF"            ' surface
+        ' the 1 px line between a list's rows
+        separator: "0x3B566873"
         stillDim: "0x707070FF"              ' the dimming on a prompt's picture
         text: "0xEDF5FAFF"                  ' text
         textSecondary: "0xBDCCD6FF"         ' text
@@ -61,6 +63,8 @@ function frames() as object
         ' A library or Search (frame "Browse"): the page title's line; Home's moderate hero with its
         ' words from `heroTop`, and the heading of the row in focus on `rowsY`.
         browse: {titleY: 64, heroTop: 110, rowsY: 520}
+        ' The red-verb dialog: a panel `width` wide from `x`, its words and buttons `pad` inside it.
+        dialog: {x: 510, width: 900, pad: 52}
         ' A library (tv.html frame 4): the toolbar under the page title, the count, then the grid's first cards.
         grid: {toolsY: 144, countY: 236, cardsY: 318}
         ' A person or a collection (tv-detail frames 9 and 10): the words in fixed slots from the title
@@ -82,8 +86,13 @@ function frames() as object
         ' Search (tv.html frame 5): the box on the page title's line, the keys under it, the results
         ' column from `resultsX`; the row in focus is brought up level with the keys.
         search: {boxWidth: 500, boxHeight: 80, keysY: 176, resultsX: 780}
-        ' The side panel every menu and picker opens in, its words from `top` and its rows from `rowsX`. Back closes it.
-        sheet: {x: 1200, width: 720, top: 64, rowsX: 1260, rowsWidth: 600}
+        ' Settings: the list column from `listX` (its key hints centred on `hintsY` and 50 under it), then the
+        ' chosen page at `pageX`: title at `top`, content `headerGap` under it, an intro `introWidth` wide,
+        ' sections `sectionGap` apart; a row in focus is kept between `scrollTop` and `foot`.
+        settings: {top: 64, listX: 200, listWidth: 480, listRow: 56, hintsY: 956, pageX: 760, pageWidth: 1064, introWidth: 900, headerGap: 28, row: 84, sectionGap: 44, scrollTop: 120, foot: 1024}
+        ' The side panel every menu and picker opens in, its words from `top`, its rows from `rowsX` and
+        ' the remote's keys at its foot on `hintsY`. Back closes it.
+        sheet: {x: 1200, width: 720, top: 64, rowsX: 1260, rowsWidth: 600, hintsY: 1006}
         ' Before a profile is chosen (frame "Sign-in"): a hand-off to a phone (the TV code page, Forgot
         ' PIN?): words from `pageX`, the eyebrow, title, body and buttons on their lines, the QR card's
         ' corner; the wordmark's corner; Who's watching (auth.html frame 16): the title's bottom line,

@@ -2,7 +2,7 @@
 <!-- A row of buttons that takes focus as one region: Left and Right move, the ends stop, OK presses. -->
 <component name="ButtonRow" extends="Group">
   <interface>
-    <!-- [{id, text, icon}], and for Resume also {progress, detail} -->
+    <!-- [{id, text, icon}], for Resume also {progress, detail}, and danger for a destructive one -->
     <field id="buttons" type="array" onChange="onButtons"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="pressed" type="string" alwaysNotify="true"/>
