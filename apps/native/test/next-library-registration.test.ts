@@ -32,6 +32,7 @@ test('the handheld Library module self-registers real actions and a captured rec
     '../destinations/lifetime': {nativeDestinationLifetime}, '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},
   });
   const {createNativeLibrarySelection} = await screenModule(new URL('../src-next/screens/library/selection.tsx', import.meta.url), {
+    '../../platform/offline-downloads': {},
     react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/errors': {presentError},
     '../../../../../packages/client-core/src/catalogue-query-selection': catalogueQuerySelection, '../../../../../packages/client-core/src/selection-model': selectionModel,

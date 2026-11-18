@@ -11,6 +11,8 @@ export type NativeDownloadRequest = Readonly<{
   reading?: true;
   /** The single item to ask the server's real quality menu for. */
   itemId?: string;
+  /** Exact membership of a multi-title selection. */
+  itemIds?: readonly string[];
   /** A whole show/season/album/book/playlist goes through the durable request. */
   container?: Readonly<{kind: NativeDownloadContainerKind; id: string}>;
   /** The real control the page raised this from, for an anchored presentation. */
@@ -28,15 +30,21 @@ const publish = () => {for (const listener of [...listeners]) listener();};
 
 /** A newer intent replaces the sheet's request; the sheet is never stacked. */
 export function askNativeDownload(request: NativeDownloadRequest): void {
-  if (!request.title || !(request.itemId || request.container?.id || request.queryAction)) return;
+  if (!request.title || !(request.itemId || request.itemIds?.length || request.container?.id || request.queryAction)) return;
   const previous = current;
   current = Object.freeze({...request,
+    ...(request.itemIds ? {itemIds: Object.freeze([...request.itemIds])} : {}),
     ...(request.container ? {container: Object.freeze({...request.container})} : {}),
     ...(request.lifetime ? {lifetime: Object.freeze({...request.lifetime})} : {}),
   });
   openingKeys.set(current, ++nextOpeningKey);
   if (previous?.queryAction && previous.queryAction !== current.queryAction) previous.queryAction.dispose();
   publish();
+}
+
+export function askNativeSelectionDownload(title: string, entries: readonly {id: string}[], lifetime: NonNullable<NativeDownloadRequest['lifetime']>): void {
+  const ids = entries.map(entry => entry.id);
+  askNativeDownload({title, ...(ids.length === 1 ? {itemId: ids[0]} : {itemIds: ids}), lifetime});
 }
 
 /** Presentation keys distinguish repeated equal-valued requests; they confer no authority. */

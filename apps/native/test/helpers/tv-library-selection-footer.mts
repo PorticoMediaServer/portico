@@ -15,6 +15,7 @@ export function registerLibrarySelectionFooterTests({bindings, overlayBindings, 
     const b = await bindings(), o = await overlayBindings(b), selection = await import('../../../../packages/client-core/src/selection-model');
     const scope = await import('../../src-next/screens/destinations/lifetime'), display = await import('../../src-next/shell/selection-display');
     const module = await screenModule(new URL('../../src-next/screens/library/selection.tsx', import.meta.url), {
+      '../../platform/offline-downloads': {},
       react: b.react, 'react-native': b.native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})},
       '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/errors': await import('../../../../packages/client-core/src/presentation/errors'),
       '../../../../../packages/client-core/src/catalogue-query-selection': await import('../../../../packages/client-core/src/catalogue-query-selection'),

@@ -82,6 +82,7 @@ export const selectionNativeMessages = {
   'next.selection.native.delete': 'Delete',
   'next.selection.native.deleteCount': 'Delete {count, number} titles',
   'next.selection.native.deleteLimit': 'Delete at most 200 titles at once. Select fewer, or narrow the view with a filter first.',
+  'next.selection.native.downloadLimit': 'Download at most 200 titles at once. Select fewer, or narrow the view with a filter first.',
   'next.selection.native.neverSplit': 'Delete is never split into batches: what you confirm is exactly what goes.',
   'next.selection.native.deleteLibraries': 'Delete works on one library at a time',
   'next.selection.native.deleteBlocked': 'Deleting is turned off for the {library} library. Turn it on under Server › Libraries › Settings.',

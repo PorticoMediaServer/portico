@@ -4,13 +4,13 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import type {HomeSelectionController} from '../../../../packages/client-core/src/home-selection/index';
 import {selectionFourthAction, type SelectionActionReason, type SelectionActionRule} from '../../../../packages/client-core/src/selection-model/index';
-import {SelectionBar, SelectionPhoneActionBar, type SelectionBarProps} from '../kit/selection';
+import {SelectionBar, SelectionPhoneActionBar, type SelectionActionOffer, type SelectionBarProps} from '../kit/selection';
 import {useTheme} from '../kit/theme';
 import type {NativeShellRuntime} from './runtime';
 import {tvFocusIds} from './tv-focus';
 import {nativeSelectionCommand, nativeSelectionOffers} from './selection-actions';
 import {selectedItemsLabel} from './selection-display';
-import {queryDeleteLimit, queryDeleteSelector} from '../../../../packages/client-core/src/query/catalogue-query-delete';
+import {catalogueQueryLimit, catalogueQuerySelector} from '../../../../packages/client-core/src/query/catalogue-query-delete';
 
 const t = defaultI18n.t;
 const reason = (value: SelectionActionReason): string => t(value === 'unsupported-sort' ? 'next.selection.unsupportedSort'
@@ -30,20 +30,27 @@ export function HomeSelectionBars({controller, runtime, ownerTag, reportError}: 
   if (!snapshot.selection.active) return null;
   const {target, summary} = snapshot.selection;
   const query = target?.mode === 'query' ? target : undefined;
-  const queryDelete = !!query && runtime?.getSnapshot().account.viewerRole === 'owner' && !!queryDeleteSelector(query);
+  const queryDelete = !!query && runtime?.getSnapshot().account.viewerRole === 'owner' && !!catalogueQuerySelector(query);
   const queryDeleteOpen = !!query && !!snapshot.deletion;
   const deleteRule: SelectionActionRule = !queryDelete ? {state: 'hidden'}
-    : query.total > queryDeleteLimit ? {state: 'explain', reason: 'delete-limit'}
+    : query.total > catalogueQueryLimit ? {state: 'explain', reason: 'delete-limit'}
     : summary.unavailableActions?.delete ? {state: 'disabled', reason: summary.unavailableActions.delete} : {state: 'ready'};
-  const offers = nativeSelectionOffers(query ? {...snapshot.actions, download: {state: 'hidden'}, delete: deleteRule} : snapshot.actions, reason);
-  const actions = queryDeleteOpen ? offers.map(offer => ({...offer, disabled: true})) : offers;
+  const queryDownload = !!query && !theme.isTV && controller.queryDownloadOffered();
+  const offers = nativeSelectionOffers(query ? {...snapshot.actions, download: queryDownload ? snapshot.actions.download : {state: 'hidden'}, delete: deleteRule} : snapshot.actions, reason);
+  const downloadOverLimit = !!query && query.total > catalogueQueryLimit;
+  const downloading = snapshot.action.phase === 'working' && snapshot.action.action === 'download';
+  const actions = offers.map<SelectionActionOffer>(offer => offer.id === 'download' && downloadOverLimit
+    ? {...offer, disabled: true, wholeQueryUnavailable: true, reason: t('next.selection.native.downloadLimit')}
+    : queryDeleteOpen || downloading ? {...offer, disabled: true} : offer);
   const fourthSlot = selectionFourthAction(snapshot.selection.summary) === 'mark-watched' ? 'watched' : 'myList';
   const props: SelectionBarProps = {testID: theme.isTV && runtime ? tvFocusIds(runtime.getSnapshot().authority).surface('selection-bar') : undefined, count: summary.count, selectionLabel: selectedItemsLabel(summary), selectAllLabel: t('next.home.native.selectRow'),
     onSelectAll: () => {if (!queryDeleteOpen) controller.selectRow();},
     onCancel: () => {setMenu(null); if (controller.getSnapshot() === snapshot) {if (queryDeleteOpen) controller.closeDelete(); else controller.clear();}},
     onAction: action => {
       if (query) {
-        if (action === 'download' || queryDeleteOpen) return;
+        if (queryDeleteOpen || downloading) return;
+        if (action === 'download' && (!queryDownload || downloadOverLimit || controller.getSnapshot() !== snapshot
+          || snapshot.editor || snapshot.picker || snapshot.rating || snapshot.mixedEdit)) return;
         if (action === 'delete') {
           if (!queryDelete || deleteRule.state === 'disabled' || controller.getSnapshot() !== snapshot || snapshot.editor || snapshot.picker || snapshot.rating
             || snapshot.mixedEdit || snapshot.action.phase !== 'idle') return;

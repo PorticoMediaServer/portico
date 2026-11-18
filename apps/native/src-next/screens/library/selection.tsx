@@ -1,5 +1,7 @@
 import {nativeSelectionActionUnavailable, nativeSelectionUnavailableActions} from './selection-unavailable-actions';
-import {queryDeleteLimit, queryDeleteSelector, resolveQueryDelete} from '../../../../../packages/client-core/src/query/catalogue-query-delete';
+import {catalogueQueryLimit, catalogueQuerySelector, resolveCatalogueQuery} from '../../../../../packages/client-core/src/query/catalogue-query-delete';
+import {askNativeSelectionDownload} from '../downloads/request';
+import {offlineDownloads} from '../../platform/offline-downloads';
 import React, {useRef, useState, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -190,17 +192,30 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     const role = context.playback.getSnapshot().session?.role;
     return role === undefined || role === 'local';
   };
-  const execute = async (action: 'play' | 'playNext' | 'playLater', view: SelectionSnapshot<BrowseSelectionContext>) => {
+  // Rebuilt Browse describes title kinds and membership; the native device owns Download availability.
+  const queryDownloadOffered = (view: SelectionSnapshot<BrowseSelectionContext> | undefined) =>
+    !!view && view === snapshot() && view.target?.mode === 'query' && visible()
+    && !!context.session()?.deviceId && offlineDownloads.getSnapshot().supported && !!catalogueQuerySelector(view.target);
+  const execute = async (action: 'play' | 'playNext' | 'playLater' | 'download', view: SelectionSnapshot<BrowseSelectionContext>) => {
     // A retained menu acts on the selection it was drawn for, never on a successor.
     if (view !== snapshot()) return;
     const current = producer, op = current?.model.captureOperation();
     if (!current || !op || !visible() || pending || destinations || bulkController || personal?.service.getSnapshot().busy
       || !!personal?.service.getSnapshot().results.length) return;
     const query = op.target.mode === 'query' ? op.target : undefined;
-    if (nativeSelectionActionUnavailable(view.summary, action) || query && !queryExecutable(query, action === 'play' ? 'play' : 'queue')) return;
-    const controller = new AbortController(), live = () => !controller.signal.aborted && visible() && producer === current && current.model.isOperationCurrent(op);
+    const downloadQuery = action === 'download' ? query : undefined;
+    if (action === 'download' ? !downloadQuery || !queryDownloadOffered(view) || downloadQuery.total > catalogueQueryLimit
+      : nativeSelectionActionUnavailable(view.summary, action) || query && !queryExecutable(query, action === 'play' ? 'play' : 'queue')) return;
+    const routeRevision = downloadQuery ? context.navigation.getSnapshot().revision : undefined;
+    const controller = new AbortController(), live = () => !controller.signal.aborted && visible() && producer === current && current.model.isOperationCurrent(op)
+      && (!downloadQuery || context.navigation.getSnapshot().revision === routeRevision);
     pending = controller; emit();
     try {
+      if (downloadQuery) {
+        const entries = await resolveCatalogueQuery(context.api, downloadQuery, controller.signal, 'download');
+        if (live()) askNativeSelectionDownload(selectedItemsLabel(view.summary), entries, {signal: controller.signal, isCurrent: live});
+        return;
+      }
       if (action === 'play') await current.play();
       else {
         const port = context.playback.cataloguePlayback?.();
@@ -282,7 +297,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
   };
   const queryDeleteOffered = (view: SelectionSnapshot<BrowseSelectionContext> | undefined) =>
     !!view && view === snapshot() && view.target?.mode === 'query' && visible()
-    && context.session()?.viewer.role === 'owner' && !!queryDeleteSelector(view.target);
+    && context.session()?.viewer.role === 'owner' && !!catalogueQuerySelector(view.target);
   // The same admin dialog takes either the explicit picks or the resolved whole view.
   const openAdmin = async (kind: 'edit' | 'delete', view: SelectionSnapshot<BrowseSelectionContext>) => {
     if (view !== snapshot() || kind === 'delete' && nativeSelectionActionUnavailable(view.summary, 'delete')) return;
@@ -291,7 +306,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
       || !!personal?.service.getSnapshot().results.length || personal?.service.getSnapshot().busy || !visible()) return;
     const op = model.captureOperation();
     if (!op) return;
-    if (op.target.mode === 'query' && (kind !== 'delete' || !queryDeleteOffered(view) || op.target.total > queryDeleteLimit)) return;
+    if (op.target.mode === 'query' && (kind !== 'delete' || !queryDeleteOffered(view) || op.target.total > catalogueQueryLimit)) return;
     const routeRevision = context.navigation.getSnapshot().revision;
     const controller = new AbortController(), live = () => !controller.signal.aborted && visible() && producer === current
       && context.navigation.getSnapshot().revision === routeRevision && model.isOperationCurrent(op);
@@ -301,7 +316,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
         requestId: services.requestId, signal: controller.signal, isCurrent: live};
       if (op.target.mode === 'query') emit();
       const pickedEntries = op.target.mode === 'query'
-        ? await resolveQueryDelete(options.api, op.target, options.signal) : entriesFor(view.selectedKeys);
+        ? await resolveCatalogueQuery(options.api, op.target, options.signal, 'delete') : entriesFor(view.selectedKeys);
       if (!live() || op.target.mode === 'explicit' && (!pickedEntries.length || pickedEntries.length !== view.selectedKeys.length)) return;
       bulk = new NativeBulkMedia(options, pickedEntries);
       stopBulk = bulk.subscribe(emit);
@@ -338,7 +353,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
         || !!bulkController) return;
       if (producer.selectWhole(id)) emit();
     },
-    queryDeleteOffered,
+    queryDeleteOffered, queryDownloadOffered,
     bulk: () => bulk, openAdmin, closeBulk: (expected: NativeBulkMedia) => {closeBulk(expected); emit();},
     entries: () => entriesFor(selectedKeys()).filter(leaf)};
   // useSyncExternalStore compares snapshots by identity: one layout object per
@@ -392,7 +407,7 @@ type Store = {subscribe(listener: () => void): () => void; getSnapshot(): number
   personalBusy(): boolean; resultsToken(): number;
   applyPersonal(action: 'myList' | 'removeMyList' | 'favorite' | 'watched' | 'unwatched', view: SelectionSnapshot<BrowseSelectionContext>): Promise<void>; retryPersonal(): Promise<void>;
   loadedCount(): number; busy(): boolean; active(): boolean; queueControl(): boolean; clear(): void;
-  execute(action: 'play' | 'playNext' | 'playLater', view: SelectionSnapshot<BrowseSelectionContext>): Promise<void>;
+  execute(action: 'play' | 'playNext' | 'playLater' | 'download', view: SelectionSnapshot<BrowseSelectionContext>): Promise<void>;
   cancel(view: SelectionSnapshot<BrowseSelectionContext>): void;
   whole(): Readonly<{id: string; total: number}> | undefined;
   wholeUnavailable(): BrowseWholeSelectionUnavailable | undefined;
@@ -401,6 +416,7 @@ type Store = {subscribe(listener: () => void): () => void; getSnapshot(): number
   openDestination(kind: 'playlist' | 'collection', view: SelectionSnapshot<BrowseSelectionContext>): void; closeDestinations(expected?: NativeLoadedDestinations): void;
   bulk(): NativeBulkMedia | undefined; openAdmin(kind: 'edit' | 'delete', view: SelectionSnapshot<BrowseSelectionContext>): Promise<void>; closeBulk(expected: NativeBulkMedia): void;
   queryDeleteOffered(view: SelectionSnapshot<BrowseSelectionContext> | undefined): boolean;
+  queryDownloadOffered(view: SelectionSnapshot<BrowseSelectionContext> | undefined): boolean;
   entries(): readonly ContentEntry[]};
 
 function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: string) => React.ReactNode}) {
@@ -428,9 +444,14 @@ function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: 
   if (explicit && summary?.every.delete) actions.push({id: 'delete', disabled: store.busy()});
   if (explicit && summary?.every.watched) actions.push({id: 'watched', disabled: store.busy()}, {id: 'unwatched', disabled: store.busy()});
   if (queryTarget && store.queryDeleteOffered(state)) {
-    actions.push(queryTarget.total > queryDeleteLimit
+    actions.push(queryTarget.total > catalogueQueryLimit
       ? {id: 'delete', disabled: true, wholeQueryUnavailable: true, reason: defaultI18n.t('next.selection.tooMany')}
       : {id: 'delete', disabled: store.busy()});
+  }
+  if (queryTarget && !theme.isTV && store.queryDownloadOffered(state)) {
+    actions.push(queryTarget.total > catalogueQueryLimit
+      ? {id: 'download', disabled: true, wholeQueryUnavailable: true, reason: defaultI18n.t('next.selection.native.downloadLimit')}
+      : {id: 'download', disabled: store.busy()});
   }
   actions = nativeSelectionUnavailableActions(actions, summary);
   if (actions.some(action => ['removeMyList', 'favorite', 'watched', 'unwatched', 'edit', 'delete', 'download'].includes(action.id))) actions.push({id: 'more', disabled: store.busy()});
@@ -450,7 +471,7 @@ function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: 
     ...(wholeUnavailable ? {selectAllUnavailable: {label: defaultI18n.t('next.selection.selectAllUnavailableLabel'), reason: defaultI18n.t(wholeUnavailable.reason === 'source_changed' ? 'next.selection.selectAllSourceChanged' : 'next.selection.selectAllSearchNotBounded')}} : whole ? {selectAllLabel: defaultI18n.t('next.selection.selectAll', {count: whole.total}), onSelectAll: () => store.selectWhole(state!, whole.id)} : {}),
     fourthSlot: summary && selectionFourthAction(summary) === 'mark-watched' ? 'watched' : 'myList',
     onAction: action => {
-      if (action === 'play' || action === 'playNext' || action === 'playLater') {setMenu(null); void store.execute(action, state!);}
+      if (action === 'play' || action === 'playNext' || action === 'playLater' || action === 'download') {setMenu(null); void store.execute(action, state!);}
       else if (action === 'myList' || action === 'removeMyList' || action === 'favorite' || action === 'watched' || action === 'unwatched') {setMenu(null); void store.applyPersonal(action, state!);}
       else if (action === 'playlist' || action === 'collection') {setMenu(null); store.openDestination(action, state!);}
       else if (action === 'edit' || action === 'delete') {setMenu(null); void store.openAdmin(action, state!);}
