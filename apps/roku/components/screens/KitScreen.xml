@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The shared elements page (design/ui-v1/system-decisions.html, decision 4): every shared element
+     drawn by the app's own components with sample content, one page at a time, Left and Right to step.
+     Development builds only: MainScene opens it for the launch parameter devKit (bin/roku-kit). -->
+<component name="KitScreen" extends="Group">
+  <interface>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+  </interface>
+  <script type="text/brightscript" uri="KitScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Group id="page"/>
+    <Label id="caption"/>
+  </children>
+</component>
