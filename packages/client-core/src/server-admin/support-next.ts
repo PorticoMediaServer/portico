@@ -2,10 +2,12 @@ import type {Capability, DataFolderPermissions} from '../../../contracts/src/nex
 import type {HttpLocalApi} from '../index.ts';
 import {callServer} from '../query/server-api.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
-import {SUPPORT_COMPONENTS, type SupportComponent} from './support-source.ts';
 import type {MessageId} from '../../../i18n/src/index.ts';
 
 export const OWNER_SUPPORT_WINDOWS = [60, 360, 1440, 4320, 10080] as const;
+/** The four parts the drawn export offers; the server decides what each one holds. */
+export const SUPPORT_COMPONENTS = Object.freeze(['runtime', 'client', 'audit', 'snapshot'] as const);
+export type SupportComponent = typeof SUPPORT_COMPONENTS[number];
 export type OwnerSupportOptions = Readonly<{windowMinutes: typeof OWNER_SUPPORT_WINDOWS[number]; components: readonly SupportComponent[]; includePaths: boolean}>;
 export type OwnerSupportFacts = Readonly<{capabilities: readonly Capability[]; permissions: DataFolderPermissions}>;
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);

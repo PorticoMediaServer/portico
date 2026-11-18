@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {linkAbortSignals, throwIfAborted} from '../src/abort-lifetime.ts';
 import {HttpLocalApi} from '../src/index.ts';
-import {SettingsSupportSource} from '../src/server-admin/support-source.ts';
 import type {ConsoleAPI} from '../src/console.ts';
 
 function tracked() {
@@ -126,46 +125,6 @@ test('deadline keeps TimeoutError classification while caller cancellation keeps
     assert.throws(() => throwIfAborted(timed.signal), error => error instanceof Error && error.name === 'TimeoutError');
     assert.equal(cleared, 2); assert.equal(timeoutCaller.listeners.size, 0);
   } finally {globalThis.setTimeout = originalSet; globalThis.clearTimeout = originalClear;}
-});
-
-test('a healthy Support source works with the native AbortSignal surface', async () => {
-  const scope = {serverId: 'server-review', viewerFence: 'a'.repeat(64)};
-  const calls: string[] = [];
-  const api: ConsoleAPI = {async request<T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal): Promise<T> {
-    assert.ok(signal); assert.equal(signal.aborted, false); calls.push(path);
-    let value: unknown;
-    if (path === '/v1/admin/diagnostics/capabilities') value = {items: [{capability: 'live_tv', available: true, checkedAt: '2026-10-26T23:00:00Z'}]};
-    else if (path === '/v1/admin/console/alerts') value = {scope, data: []};
-    else if (path === '/v1/console/registry') value = {scope, data: {exportOptions: {includePaths: true}}};
-    else assert.fail('unexpected source route: ' + path);
-    return value as T;
-  }};
-  const failures: unknown[] = [];
-  const support = new SettingsSupportSource(api, scope.serverId, scope.viewerFence, () => true, error => failures.push(error));
-  try {
-    await support.load();
-    assert.equal(support.getSnapshot().phase, 'ready'); assert.equal(support.getSnapshot().supportsPaths, true);
-    assert.equal(calls.length, 3); assert.deepEqual(failures, []);
-  } finally {support.dispose();}
-});
-
-test('source retirement aborts original pending reads and refuses their late publication', async () => {
-  const pending: {signal: AbortSignal; finish: (value: unknown) => void}[] = [];
-  const api: ConsoleAPI = {request<T>(_path: string, _method?: string, _body?: unknown, signal?: AbortSignal): Promise<T> {
-    assert.ok(signal);
-    return new Promise<T>(resolve => pending.push({signal, finish: value => resolve(value as T)}));
-  }};
-  const failures: unknown[] = [];
-  const support = new SettingsSupportSource(api, 'server-review', 'a'.repeat(64), () => true, error => failures.push(error));
-  const reads = [support.load()];
-  await Promise.resolve();
-  assert.equal(pending.length, 3);
-  support.dispose();
-  for (const read of pending) {assert.equal(read.signal.aborted, true); read.finish({});}
-  await Promise.all(reads);
-  assert.equal(support.getSnapshot().phase, 'idle');
-  await support.load();
-  assert.equal(pending.length, 3); assert.deepEqual(failures, []);
 });
 
 test('bounded support and certificate transport refuse pre-aborted IO and preserve actual replies', async () => {

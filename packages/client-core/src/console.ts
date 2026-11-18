@@ -7,7 +7,6 @@ import {wireInstants} from './wire-units.ts';
 import {parseFeedbackList,parseFeedbackReport,type FeedbackItemStatus} from './notifications.ts';
 /** Selected-server operations wire contract. No Hosted transport is accepted. */
 import {parseTelemetryReading,parseTelemetrySample,parseTranscodeCapacity,type TelemetryWindow} from './telemetry.ts';
-import {parseAttention} from './attention.ts';
 import {parsePlaybackHistory,type PlaybackHistoryPeriod} from './playback-history.ts';
 import {firstOfEach,keepReadable,noteSkipped} from './tolerant.ts';
 import {serverNow} from './server-clock.ts';
@@ -224,7 +223,6 @@ export class ConsoleClient {
  /** Status and reply behind the read revision. The caller keeps one operationId per
   * intended change, so a retry after a lost answer is the same transition. */
  transitionFeedback(id:string,change:FeedbackTransition){return this.call(encodedRoutePath('post_admin_feedback_reports_id_status',{id:encodeURIComponent(id)}),'POST',{...change},parseFeedbackReport);}
- accountOptions(){return this.call(routePath("get_admin_console_accounts"),'GET',undefined,v=>list(v,row=>{if(!obj(row)||!id(row.id)||!text(row.label,128))invalid();return {id:row.id as string,label:row.label as string};},1000));}
  streamOptions(){return this.call(routePath("get_admin_console_stream_options"),'GET',undefined,parseStreamOptions);}
  jobs(cursor=''){return this.call(routePath("get_admin_console_jobs") + "?cursor=" + (encodeURIComponent(cursor)),'GET',undefined,v=>parsePage(v,parseJob));}
  jobKinds(){return this.call(routePath("get_admin_console_job_kinds"),'GET',undefined,v=>list(v,k=>{const d=base(k);if(!id(d.kind)||typeof d.resourceRequired!=='boolean')invalid();return d as JobKind;}));}
@@ -244,7 +242,6 @@ export class ConsoleClient {
  /** Charted host and GPU history. The server chooses the resolution per window. */
  telemetry(window:TelemetryWindow,context:ReportContext){const q=reportQuery(context);q.set('window',window);return this.call(routePath('get_admin_telemetry')+'?'+q,'GET',undefined,v=>{const out=parseTelemetryReading(v);verifyReportInterval(out,context,window,window==='live'||window==='10m');return out;});}
  telemetryNow(){return this.call(routePath("get_admin_telemetry_now"),'GET',undefined,parseTelemetrySample);}
- attention(){return this.call(routePath("get_admin_attention"),'GET',undefined,parseAttention);}
  playbackHistory(period:PlaybackHistoryPeriod='24h',cursor='',limit=50){
   return this.call(routePath("get_admin_playback_history") + "?" + (new URLSearchParams({period,cursor,limit:String(limit)})),'GET',undefined,parsePlaybackHistory);
  }
