@@ -1,6 +1,7 @@
 import React, {useId, type ReactNode} from 'react';
 import {Text, View} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
+import {frameSpec} from '@portico/design';
 import {Artwork, type ArtworkSource} from '../artwork';
 import {Button} from '../controls/Button';
 import {Chip} from '../controls/Chip';
@@ -56,14 +57,22 @@ export type TopResultProps = Readonly<{
  * is a card the width of the page with a round Play; wider forms put the words beside the picture with the title's own
  * buttons. The live phone screen's copy (`screens/search/SearchScreen.tsx` `SearchTopResult`) moves onto this in Stage 2. */
 export function TopResult({eyebrow, title, facts, synopsis, artwork, actions, play, onPress}: TopResultProps) {
-  const theme = useTheme(), frame = useFrameMetrics(), gradient = useId(), phone = frame.form === 'phone';
+  const theme = useTheme(), frame = useFrameMetrics(), gradient = useId(), phone = frame.form === 'phone', tv = frame.form === 'tv';
   const width = frame.width - 2 * frame.cardInset, height = phone ? width * .5 : Math.min(width * .32, frame.form === 'tv' ? 300 : 360);
   const words = <View style={{gap: theme.space.tight}}>
     <Text style={[theme.type.rowHelp, {color: theme.colors.accentStrong, fontFamily: theme.type.listLabel.fontFamily}]}>{eyebrow}</Text>
     <Text accessibilityRole="header" style={[phone ? theme.type.rowHeading : theme.type.pageTitle, {color: theme.colors.text}]}>{title}</Text>
     {facts}
-    {!phone && synopsis !== undefined && <Text numberOfLines={2} style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{synopsis}</Text>}
+    {!phone && !tv && synopsis !== undefined && <Text numberOfLines={2} style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{synopsis}</Text>}
   </View>;
+  // TV (final3-tv-09): beside the keyboard, the 16:9 picture with the words beside it; the title's buttons are its page's.
+  if (tv) {
+    const art = frameSpec.search.topResultArt;
+    return <Focusable accessibilityLabel={title} onPress={onPress} focusRadius={frame.cardRadius} style={{flexDirection: 'row', alignItems: 'center', gap: frame.headingGap * 2, marginHorizontal: frame.cardInset}}>
+      <View style={{width: art, height: art * 9 / 16, borderRadius: frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}><Artwork source={artwork} height={art * 9 / 16}/></View>
+      <View style={{flex: 1}}>{words}</View>
+    </Focusable>;
+  }
   return <View style={{marginHorizontal: frame.cardInset}}>
     <Focusable accessibilityLabel={title} onPress={onPress} focusRadius={frame.cardRadius} style={{height, borderRadius: frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
       <View style={{position: 'absolute', top: 0, bottom: 0, right: 0, width: phone ? width : width * .62}}><Artwork source={artwork} height={height}/></View>
