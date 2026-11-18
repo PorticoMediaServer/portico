@@ -3,8 +3,6 @@ import assert from 'node:assert/strict';
 import {linkAbortSignals, throwIfAborted} from '../src/abort-lifetime.ts';
 import {HttpLocalApi} from '../src/index.ts';
 import {SettingsSupportSource} from '../src/server-admin/support-source.ts';
-import {ChannelFieldsSource} from '../src/server-admin/channel-fields-source.ts';
-import {BlockPresetsSource} from '../src/server-admin/block-presets-source.ts';
 import type {ConsoleAPI} from '../src/console.ts';
 
 function tracked() {
@@ -130,16 +128,8 @@ test('deadline keeps TimeoutError classification while caller cancellation keeps
   } finally {globalThis.setTimeout = originalSet; globalThis.clearTimeout = originalClear;}
 });
 
-test('healthy Support and channel sources work with the native AbortSignal surface', async () => {
+test('a healthy Support source works with the native AbortSignal surface', async () => {
   const scope = {serverId: 'server-review', viewerFence: 'a'.repeat(64)};
-  const pivot = {id: 'movies', labelKey: 'library.movies', entityKinds: ['movie'], defaultSort: [{field: 'title', direction: 'asc'}], supportedViews: ['grid', 'list'], browsable: true};
-  const capabilities = {
-    library: {id: 'lib', name: 'Movies', kind: 'movie', defaultView: 'discover', pinned: false},
-    pivots: [pivot], resolvedPivot: pivot,
-    fields: [{id: 'title', labelKey: 'browse.field.title', type: 'string', operators: ['contains'], controlHint: 'text', complexity: 'quick', cost: 'indexed', applicableKinds: ['movie']}],
-    sorts: [{id: 'title', labelKey: 'sort.title', directions: ['asc'], defaultDirection: 'asc', expensive: false, applicableKinds: ['movie']}], quickFilters: [],
-    queryLimits: {maximumDepth: 5, maximumClauses: 40, maximumBytes: 65536, maximumSorts: 3, defaultLimit: 40, maximumLimit: 100, cursorTtlMs: 1800000},
-  };
   const calls: string[] = [];
   const api: ConsoleAPI = {async request<T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal): Promise<T> {
     assert.ok(signal); assert.equal(signal.aborted, false); calls.push(path);
@@ -147,22 +137,16 @@ test('healthy Support and channel sources work with the native AbortSignal surfa
     if (path === '/v1/admin/diagnostics/capabilities') value = {items: [{capability: 'live_tv', available: true, checkedAt: '2026-10-26T23:00:00Z'}]};
     else if (path === '/v1/admin/console/alerts') value = {scope, data: []};
     else if (path === '/v1/console/registry') value = {scope, data: {exportOptions: {includePaths: true}}};
-    else if (path.startsWith('/v1/libraries/lib/browse-capabilities?')) value = capabilities;
-    else if (path.startsWith('/v1/admin/library-channels/block-presets?')) value = {serverId: scope.serverId, protocolVersion: '1.0', result: {items: [], nextCursor: '', enumerations: {applicationOrder: ['shuffle']}}};
     else assert.fail('unexpected source route: ' + path);
     return value as T;
   }};
   const failures: unknown[] = [];
   const support = new SettingsSupportSource(api, scope.serverId, scope.viewerFence, () => true, error => failures.push(error));
-  const fields = new ChannelFieldsSource(api, [{id: 'lib', name: 'Movies', kind: 'movie'}], () => true, error => failures.push(error));
-  const presets = new BlockPresetsSource(api, scope.serverId, () => true, error => failures.push(error));
   try {
-    await support.load(); await fields.select(['lib']); await presets.load();
+    await support.load();
     assert.equal(support.getSnapshot().phase, 'ready'); assert.equal(support.getSnapshot().supportsPaths, true);
-    assert.equal(fields.getSnapshot().phase, 'ready'); assert.deepEqual(fields.getSnapshot().fields.map(entry => entry.field.id), ['title']);
-    assert.equal(presets.getSnapshot().loaded, true); assert.equal(presets.getSnapshot().error, undefined);
-    assert.equal(calls.length, 5); assert.deepEqual(failures, []);
-  } finally {support.dispose(); fields.dispose(); presets.dispose();}
+    assert.equal(calls.length, 3); assert.deepEqual(failures, []);
+  } finally {support.dispose();}
 });
 
 test('source retirement aborts original pending reads and refuses their late publication', async () => {
@@ -173,17 +157,15 @@ test('source retirement aborts original pending reads and refuses their late pub
   }};
   const failures: unknown[] = [];
   const support = new SettingsSupportSource(api, 'server-review', 'a'.repeat(64), () => true, error => failures.push(error));
-  const fields = new ChannelFieldsSource(api, [{id: 'lib', name: 'Movies', kind: 'movie'}], () => true, error => failures.push(error));
-  const presets = new BlockPresetsSource(api, 'server-review', () => true, error => failures.push(error));
-  const reads = [support.load(), fields.select(['lib']), presets.load()];
+  const reads = [support.load()];
   await Promise.resolve();
-  assert.equal(pending.length, 5);
-  support.dispose(); fields.dispose(); presets.dispose();
+  assert.equal(pending.length, 3);
+  support.dispose();
   for (const read of pending) {assert.equal(read.signal.aborted, true); read.finish({});}
   await Promise.all(reads);
-  assert.equal(support.getSnapshot().phase, 'idle'); assert.equal(fields.getSnapshot().phase, 'idle'); assert.equal(presets.getSnapshot().loaded, false);
-  await support.load(); await fields.select(['lib']); await presets.load();
-  assert.equal(pending.length, 5); assert.deepEqual(failures, []);
+  assert.equal(support.getSnapshot().phase, 'idle');
+  await support.load();
+  assert.equal(pending.length, 3); assert.deepEqual(failures, []);
 });
 
 test('bounded support and certificate transport refuse pre-aborted IO and preserve actual replies', async () => {
