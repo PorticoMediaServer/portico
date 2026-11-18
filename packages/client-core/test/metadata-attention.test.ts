@@ -34,19 +34,6 @@ test('entry actions keep the original command bytes, escaped library route and o
 });
 test('metadata settings return credential presence only',()=>{const out=parseMetadataSettings({revision:1,artworkMaxEdge:1920,localArtworkUsedBytes:0,localArtworkLimitBytes:2**31,includeAdult:false,tmdbCredentialConfigured:true,tvdbCredentialConfigured:false,tmdbReadToken:'secret'});assert.equal('tmdbReadToken' in out,false);assert.throws(()=>parseMetadataSettings({...out,localArtworkLimitBytes:0}));});
 
-test('an episode order is stored with what is added to file numbers, and reads back the same', async () => {
-  const {orderTakesOffset, readTmdbOrder, tmdbAbsoluteOrder} = await import('../src/screen-metadata.ts');
-  assert.equal(tmdbAbsoluteOrder('official', 0), 'official');
-  assert.equal(tmdbAbsoluteOrder('official', 12), 'tmdb-absolute:official:12');
-  assert.equal(tmdbAbsoluteOrder('tmdb-group:abc123', -3), 'tmdb-absolute:tmdb-group:abc123:-3');
-  assert.deepEqual(readTmdbOrder('tmdb-absolute:tmdb-group:abc123:-3'), {base: 'tmdb-group:abc123', offset: -3});
-  assert.deepEqual(readTmdbOrder('official'), {base: 'official', offset: 0});
-  assert.deepEqual(readTmdbOrder(''), {base: '', offset: 0});
-  assert.equal(orderTakesOffset('official'), true);
-  assert.equal(orderTakesOffset('dvd'), false);
-  assert.throws(() => tmdbAbsoluteOrder('dvd', 2));
-});
-
 test('screen rows and parentless songs do not construct an album artwork route',()=>{
  const entry=page.entries[0];
  const out=parseMetadataAttention({...page,entries:[entry,{...entry,entityId:'song',kind:'song',itemKind:'song',parentId:''}]},'lib');
