@@ -132,6 +132,17 @@ sub onMenu(event as object)
     m.sheet.active = true
 end sub
 
+' The profile and server menu (tv-more frame 10): its rows are this scene's own. `focusOn` names the
+' row focus starts on when the menu opens again for what one of its rows opened ("" for the first).
+sub openProfileMenu(focusOn as string)
+    m.sheetIsOwn = true
+    m.sheet.model = {eyebrow: storeRead("serverName"), title: m.rail.profileName, status: "", rows: [
+        {id: "switch", text: "Switch profile", icon: "", focus: focusOn = "switch"},
+        {id: "signout", text: "Sign out", icon: "", gapBefore: true, focus: focusOn = "signout"}]}
+    m.sheet.visible = true
+    m.sheet.active = true
+end sub
+
 sub onSheetChosen(event as object)
     if m.sheetIsOwn = true
         m.sheetIsOwn = false
@@ -140,6 +151,7 @@ sub onSheetChosen(event as object)
         if which = "switch"
             api("GET", "/v1/profiles", invalid, "onProfiles")
         else if which = "signout"
+            m.signOutFromMenu = true      ' Back or Cancel returns to the menu's Sign out row
             askSignOut()
         end if
         return
@@ -172,8 +184,13 @@ end sub
 
 sub onSignOutAnswer()
     if m.confirm.chosen = "confirm"
+        m.signOutFromMenu = false
         ' the server is told this sign-in is over; the TV forgets it either way
         api("DELETE", "/v1/auth/session", invalid, "onSignedOut")
+    else if m.signOutFromMenu = true
+        ' Back returns to the opener (DESIGN.md, TV focus): the profile menu, on Sign out
+        m.signOutFromMenu = false
+        openProfileMenu("signout")
     else if m.screen <> invalid
         m.screen.active = true
     end if
@@ -478,13 +495,7 @@ sub onRailChosen(event as object)
         return
     end if
     if id = "profile"
-        ' the profile and server menu (tv-more frame 10): its rows are this scene's own
-        m.sheetIsOwn = true
-        m.sheet.model = {eyebrow: storeRead("serverName"), title: m.rail.profileName, status: "", rows: [
-            {id: "switch", text: "Switch profile", icon: ""},
-            {id: "signout", text: "Sign out", icon: "", gapBefore: true}]}
-        m.sheet.visible = true
-        m.sheet.active = true
+        openProfileMenu("")
         return
     end if
     if id = "search"
@@ -528,6 +539,7 @@ end sub
 sub onSettingsAsk(event as object)
     m.sheetIsOwn = true
     onSheetChosen(event)
+    m.signOutFromMenu = false     ' asked from Settings: Back returns to its row there
 end sub
 
 sub onRailLeft()
