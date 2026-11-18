@@ -38,12 +38,7 @@
         </Group>
         <Label id="pressRest" text="to change the server address."/>
       </LayoutGroup>
-      <Poster uri="pkg:/images/round-20.9.png" blendColor="0x0C1A25F2" width="720" height="656" translation="[1060,212]"/>
-      <Poster uri="pkg:/images/line-20.9.png" blendColor="0x1C3341FF" width="720" height="656" translation="[1060,212]"/>
-      <QrCode id="qr" translation="[1270,264]"/>
-      <Label id="where" translation="[1060,600]" width="720" horizAlign="center"/>
-      <Label id="digits" translation="[1060,640]" width="720" horizAlign="center"/>
-      <Label id="keep" translation="[1120,762]" width="600" horizAlign="center" wrap="true" maxLines="2" text="This code refreshes by itself. Leave this screen open while you sign in."/>
+      <QrCard id="card" note="This code refreshes by itself. Leave this screen open while you sign in."/>
     </Group>
     <Group id="factor" visible="false">
       <Poster uri="pkg:/images/wordmark.png" width="176" height="40" translation="[120,72]"/>

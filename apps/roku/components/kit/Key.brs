@@ -37,6 +37,9 @@ sub onPaint()
         m.plate.blendColor = c.raisedBright
         m.label.color = c.text
         m.icon.blendColor = c.text
+    else if m.top.glass
+        m.plate.blendColor = c.glass
+        m.label.color = c.text
     else
         m.plate.blendColor = c.key
         m.label.color = c.textSecondary

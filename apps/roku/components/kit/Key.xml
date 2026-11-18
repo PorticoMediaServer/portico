@@ -11,6 +11,8 @@
     <field id="width" type="float" value="75" onChange="onChange"/>
     <field id="height" type="float" value="72" onChange="onChange"/>
     <field id="on" type="boolean" onChange="onPaint"/>
+    <!-- The wide key under the number pad (Forgot PIN?): auth-04 draws it as a glass button, white words. -->
+    <field id="glass" type="boolean" onChange="onPaint"/>
   </interface>
   <script type="text/brightscript" uri="Key.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>

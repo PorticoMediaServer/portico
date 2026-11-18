@@ -52,7 +52,7 @@ sub main()
     onKeyEvent("back", true)
     choose(b)
     answer(codeFromA, {ok: true, status: 200, data: {code: "AAAA-AAAA", deviceSecret: "secret-a"}})
-    check("a late code from another server is not shown", m.pending = invalid and m.nodes.digits.text = "")
+    check("a late code from another server is not shown", m.pending = invalid and m.nodes.card.code = "")
 
     ' a two-step sign-in that ran out is not a wrong code: back to the code page with the server's reason
     fresh()
@@ -126,6 +126,10 @@ end function
 
 function colours() as object
     return {text: "", accentStrong: "", danger: "", textTertiary: "", textSecondary: ""}
+end function
+
+function frames() as object
+    return {signIn: {cardX: 0, cardY: 0}}
 end function
 
 sub setType(node as object, role as string, colour as string)
