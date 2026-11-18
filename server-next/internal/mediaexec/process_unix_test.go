@@ -395,11 +395,20 @@ func TestAViewersMediaJobYieldsToTheServerAndBackgroundToBoth(t *testing.T) {
 		t.Fatal(err)
 	}
 	ffmpeg := decodertest.QualifiedFFmpeg(t)
+	// A read someone is waiting on keeps the server's own priority, whatever this test runs at.
+	own := func(pid string) int {
+		stat, err := os.ReadFile("/proc/" + pid + "/stat")
+		if err != nil {
+			t.Fatal(err)
+		}
+		nice, _ := strconv.Atoi(strings.Fields(string(stat[strings.LastIndexByte(string(stat), ')')+1:]))[16])
+		return nice
+	}
 	for _, c := range []struct {
-		background bool
-		want       int
-	}{{false, playbackNice}, {true, backgroundNice}} {
-		cmd, err := Command(Job{Executable: ffmpeg, Background: c.background,
+		background, waiting bool
+		want                int
+	}{{false, false, playbackNice}, {true, false, backgroundNice}, {false, true, own("self")}} {
+		cmd, err := Command(Job{Executable: ffmpeg, Background: c.background, Waiting: c.waiting,
 			Args: []string{"-hide_banner", "-loglevel", "error", "-re", "-f", "lavfi", "-i", "nullsrc=s=16x16:d=3", "-f", "null", "-"}})
 		if err != nil {
 			t.Fatal(err)
