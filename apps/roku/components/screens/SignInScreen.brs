@@ -277,10 +277,11 @@ sub onFactorAnswer(event as object)
     if late(event) then return
     if result.ok and result.data.session <> invalid
         finish(event, result.data)
-    else if result.status = 400 or result.status = 401 or result.status = 403 or result.status = 422
+    else if result.error.code = "two_factor_invalid"
         m.factorPad.wrong = true
     else
-        ' The waiting sign-in ended (or the server is out of reach): back to the code screen with the reason.
+        ' The waiting sign-in ran out or ended (or the server is out of reach): no code can work
+        ' now, so back to the code screen with the reason.
         go("code")
         m.codeNote.text = result.error.message
         newCode()
@@ -291,6 +292,14 @@ end sub
 sub finish(event as object, signIn as object)
     m.poll.control = "stop"
     if signIn.session = invalid then return
+    if signIn.session.twoStepSetupRequired = true
+        ' The server refuses everything from this sign-in until two-step sign-in is set up, and a
+        ' television cannot set it up: say so here rather than fail at the next screen.
+        go("code")
+        m.codeNote.text = "Set up two-step sign-in for this account on a phone or computer, then sign in here again."
+        newCode()
+        return
+    end if
     profiles = []
     if signIn.profiles <> invalid then profiles = signIn.profiles
     m.top.signedIn = {origin: event.getRoSGNode().ctx.origin, serverName: m.system.name, session: signIn.session, profiles: profiles}

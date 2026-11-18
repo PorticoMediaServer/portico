@@ -54,6 +54,27 @@ sub main()
     answer(codeFromA, {ok: true, status: 200, data: {code: "AAAA-AAAA", deviceSecret: "secret-a"}})
     check("a late code from another server is not shown", m.pending = invalid and m.nodes.digits.text = "")
 
+    ' a two-step sign-in that ran out is not a wrong code: back to the code page with the server's reason
+    fresh()
+    choose(a)
+    m.username = "sam"
+    signInWithPassword("pw")
+    answer(lastSent(), {ok: true, status: 200, data: {challenge: {token: "challenge-a"}}})
+    onFactor({getData: function() as string : return "123456" : end function})
+    answer(lastSent(), {ok: false, status: 403, error: {code: "two_factor_invalid", message: "That code is not right."}})
+    check("a wrong two-step code keeps the pad up", m.stage = "factor" and m.nodes.factorPad.wrong = true)
+    onFactor({getData: function() as string : return "123456" : end function})
+    answer(lastSent(), {ok: false, status: 401, error: {code: "unauthorized", message: "This sign-in took too long. Sign in again."}})
+    check("a two-step sign-in that ran out goes back with the reason", m.stage = "code" and m.nodes.codeNote.text = "This sign-in took too long. Sign in again.")
+
+    ' an account that must still set up two-step sign-in is told so, and is not let through
+    fresh()
+    choose(a)
+    m.username = "sam"
+    signInWithPassword("pw")
+    answer(lastSent(), {ok: true, status: 200, data: {session: {accessToken: "t", twoStepSetupRequired: true}}})
+    check("a sign-in that still needs two-step set-up is not let through", m.top.signedIn = invalid and m.stage = "code" and instr(1, m.nodes.codeNote.text, "Set up two-step sign-in") = 1)
+
     ? "PASSED "; m.passed; " FAILED "; m.failed
 end sub
 
