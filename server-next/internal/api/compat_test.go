@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -169,6 +170,25 @@ func TestCompatibleRoutesForTools(t *testing.T) {
 	call(t, s, "POST", "/v1/admin/api-keys", owner, KeyCreate{Name: "Sonarr", Scopes: []string{"read"}}, &key)
 	if code, _, _ := compatCall(s, "POST", "/Library/Media/Updated?api_key="+key.Secret, `{"Updates":[]}`, nil); code != 403 {
 		t.Errorf("a read-only key reporting changed files answered %d, want 403", code)
+	}
+
+	// Sonarr, with a key that may scan, reports an imported episode: the shows library's folder
+	// is scanned; Radarr's whole-server refresh and Bazarr's title refresh scan as well.
+	var scanner KeyCreated
+	call(t, s, "POST", "/v1/admin/api-keys", owner, KeyCreate{Name: "Sonarr", Scopes: []string{"library"}}, &scanner)
+	showLib := th.libs["shows"]
+	changed := `{"Updates":[{"Path":"` + filepath.ToSlash(filepath.Join(showLib.Paths[0].Path, "New Show", "Season 1", "New Show - S01E01.mkv")) +
+		`","UpdateType":"Created"}]}`
+	for _, c := range []struct{ path, body string }{
+		{"/Library/Media/Updated", changed}, {"/Library/Refresh", ""}, {"/Items/" + episode + "/Refresh", ""},
+	} {
+		if code, _, _ := compatCall(s, "POST", c.path+"?api_key="+scanner.Secret, c.body, nil); code != 204 && code != 200 {
+			t.Errorf("%s with a library key answered %d", c.path, code)
+		}
+		var st ScanStatus
+		if w := call(t, s, "GET", "/v1/admin/libraries/"+showLib.PublicID+"/scan", owner, nil, &st); w.Code != 200 || st.Job == nil {
+			t.Errorf("after %s the shows library has no scan: %d %+v", c.path, w.Code, st)
+		}
 	}
 
 	// Off closes the routes; on again, the old sign-in no longer works.
