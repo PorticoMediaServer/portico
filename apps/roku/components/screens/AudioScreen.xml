@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Now playing for music and audiobooks (frame "Audio player", tv.html frame 7): the cover, the title
+     slot, the scrubber, transport and Up next, every part placed from frames().audio. It is
+     MainScene's own, not a page in the stack. -->
+<component name="AudioScreen" extends="Group">
+  <interface>
+    <!-- {item, queue, startOver}: the title to start, what POST /v1/queues builds (unset: from the
+         item), and for a book, whether from its start. -->
+    <field id="play" type="assocarray" alwaysNotify="true" onChange="onPlay"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- Set true when the viewer leaves the full screen; the music carries on. -->
+    <field id="closed" type="boolean" alwaysNotify="true"/>
+    <!-- What is playing, for the now-playing card: {title, artist, album, art, position, duration,
+         paused, hasNext}, or {} once nothing plays. -->
+    <field id="now" type="assocarray"/>
+    <!-- From the card: "previous", "play", "next" or "stop". -->
+    <field id="command" type="string" alwaysNotify="true" onChange="onCommand"/>
+  </interface>
+  <script type="text/brightscript" uri="AudioScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Queue.brs"/>
+  <children>
+    <Rectangle id="back" width="1920" height="1080"/>
+    <Poster id="fromIcon" uri="pkg:/images/i-music-32.png" width="28" height="28"/>
+    <Label id="from"/>
+    <Poster id="artBack" uri="pkg:/images/round-20.9.png"/>
+    <Poster id="artMark" uri="pkg:/images/i-music-32.png" width="96" height="96"/>
+    <Poster id="art" loadDisplayMode="scaleToFill"/>
+    <Label id="title" wrap="true" maxLines="2"/>
+    <Label id="artist"/>
+    <Label id="album"/>
+    <Rectangle id="track" height="6"/>
+    <Rectangle id="played" height="6"/>
+    <Label id="at"/>
+    <Label id="length" horizAlign="right" width="200"/>
+    <Group id="transport"/>
+    <!-- A book's chapter line: which chapter is playing, under the transport. -->
+    <Label id="chapterLine"/>
+    <Poster id="ring" uri="pkg:/images/focus-disc.png" visible="false"/>
+    <Label id="nextHeading" text="Up next"/>
+    <Label id="nextCount"/>
+    <Group id="nextWindow">
+      <Group id="nextRows"/>
+    </Group>
+    <Audio id="audio"/>
+    <Timer id="report" duration="10" repeat="true"/>
+    <Timer id="again" duration="1"/>
+  </children>
+</component>

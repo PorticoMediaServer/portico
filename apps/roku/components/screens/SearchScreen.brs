@@ -379,9 +379,6 @@ function onKeyEvent(key as string, press as boolean) as boolean
         m.keyboard.typed = key
         return true
     end if
-    if key = "up" or key = "down"
-        pressKey(key)
-        return true
-    end if
+    if key = "up" or key = "down" then return pressKey(key)     ' Up at the top goes on to the scene
     return false
 end function

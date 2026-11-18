@@ -60,6 +60,9 @@ end function
 ' that changes to different screens do not collide; a new entry goes in its alphabetical place.
 function frames() as object
     return {
+        ' Now playing for music and audiobooks: every control placed from here; only Up next changes.
+        audio: {fromY: 120, artX: 200, artY: 230, art: 600, titleX: 880, titleY: 230, titleWidth: 500, titleHeight: 330,
+            controlsY: 590, controlsHeight: 274, nextX: 1460, nextY: 230, nextWidth: 360, nextHeight: 640}
         ' A library or Search (frame "Browse"): the page title's line; Home's moderate hero with its
         ' words from `heroTop`, and the heading of the row in focus on `rowsY`.
         browse: {titleY: 64, heroTop: 110, rowsY: 520}
@@ -78,6 +81,8 @@ function frames() as object
         guide: {headerY: 244, rowsY: 296, pitch: 100, cell: 90, channelWidth: 300, chipsY: 144, gridX: 520, perMinute: 8, shown: 7, toolbarX: 380, toolbarY: 56}
         ' Every page beside the rail: its content starts at `gutter`.
         gutter: 200
+        ' The now-playing card at the empty end of every page's header row: its corner, its size at rest and open.
+        nowPlaying: {right: 1824, top: 44, width: 440, height: 84, openWidth: 700, openHeight: 470}
         ' The video player: the picture is the page. The top row hangs from `top`; the seek bar,
         ' the time row and the button row sit on their own lines; everything runs from `left` to `right`.
         ' Over it: the waiting spinner's line, how far below a page notice Playback failed sits, the foot of the prompts at the lower right, and the Finished page's lines.

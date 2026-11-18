@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The now-playing card (tv-player frames 8 to 10): while music plays and its screen is away, a small
+     card at the top right of every page says what is playing; focused, it opens in place into
+     Previous, Pause, Next, Stop and Now playing. Down or Back folds it away. -->
+<component name="NowPlaying" extends="Group">
+  <interface>
+    <!-- {title, artist, album, art, position, duration, paused, hasNext} from the audio player. -->
+    <field id="now" type="assocarray" onChange="paint"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- "previous", "play", "next", "stop" or "open" (the full screen), chosen with OK. -->
+    <field id="command" type="string" alwaysNotify="true"/>
+    <!-- Set true when Down or Back folds the card away. -->
+    <field id="dismissed" type="boolean" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="NowPlaying.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Rectangle id="dim" width="1920" height="1080" opacity="0.5" visible="false"/>
+    <Group id="card">
+      <Poster id="plate" uri="pkg:/images/round-20.9.png"/>
+      <Poster id="artBack" uri="pkg:/images/round-10.9.png"/>
+      <Poster id="art" loadDisplayMode="scaleToFill"/>
+      <Label id="playingLabel" text="Playing"/>
+      <Label id="title"/>
+      <Label id="artist"/>
+      <Label id="album"/>
+      <LevelMeter id="meter"/>
+      <Poster id="pausedMark" uri="pkg:/images/i-pause-40.png" width="24" height="24"/>
+      <Rectangle id="lineTrack" height="4"/>
+      <Rectangle id="line" height="4"/>
+      <Label id="at"/>
+      <Label id="length" horizAlign="right" width="200"/>
+      <Group id="controls"/>
+      <Poster id="ring" uri="pkg:/images/focus-disc.png" visible="false"/>
+      <Button id="open" text="Now playing" icon="maximize"/>
+      <Label id="hint" text="Back   Fold away"/>
+    </Group>
+  </children>
+</component>
