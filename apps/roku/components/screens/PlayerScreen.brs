@@ -797,7 +797,7 @@ sub updatePrompt()
     ' Up next: during closing credits, or an episode's last 30 seconds when it has none marked
     closing = marker <> invalid and (marker.type = "credits" or marker.type = "outro") and marker.startMs / 1000 >= m.duration / 2
     tail = m.top.item.kind = "episode" and m.duration >= 600 and at >= m.duration - 30 and at < m.duration - 1
-    if m.next <> invalid and (closing or (tail and marker = invalid)) and m.dismissed["next"] <> true and not passoutDue() then key = "next"
+    if m.next <> invalid and (closing or (tail and marker = invalid)) and m.dismissed["next"] <> true and not passoutCheckDue() then key = "next"
     if key = "next" and m.cardMode = "offer" and not m.counting then m.top.findNode("unWhen").text = offerWhen(m.duration - at)
     if key = m.promptKey then return
     m.promptKey = key
@@ -878,7 +878,7 @@ end sub
 ' What the server's settings are until the profile's own arrive (GET /v1/preferences, the same
 ' values the other apps and the Settings screen read).
 function playbackDefaults() as object
-    return {"playback.autoplayNext": true, "playback.upNextCountdownMs": 10000, "playback.startNextDuringCredits": false, "playback.passoutProtection": true, "playback.passoutAfterEpisodes": 3, "playback.introSkip": "ask", "playback.creditsSkip": "ask", "playback.recapSkip": "ask", "playback.skipBackMs": 10000, "playback.skipForwardMs": 30000}
+    return {"playback.autoplayNext": true, "playback.upNextCountdownMs": 10000, "playback.startNextDuringCredits": false, "playback.introSkip": "ask", "playback.creditsSkip": "ask", "playback.recapSkip": "ask", "playback.skipBackMs": 10000, "playback.skipForwardMs": 30000}
 end function
 
 function pref(key as string) as dynamic
@@ -902,10 +902,10 @@ function skipMode(kind as string) as string
     return "ask"
 end function
 
-' "Still watching?" is due when this many titles have played to their end in a row untouched.
-function passoutDue() as boolean
-    if m.queue = invalid or m.queue.automaticAdvances = invalid or pref("playback.passoutProtection") <> true then return false
-    return m.queue.automaticAdvances >= pref("playback.passoutAfterEpisodes")
+' "Still watching?" is the server's decision, sent with the queue (postPlay.passoutCheckDue), as
+' the other apps read it; the player keeps no rule of its own for it.
+function passoutCheckDue() as boolean
+    return m.queue <> invalid and m.queue.postPlay <> invalid and m.queue.postPlay.passoutCheckDue = true
 end function
 
 ' --- an automatic skip, and its Undo -------------------------------------------------------
@@ -1125,7 +1125,7 @@ sub ended()
     if m.next <> invalid
         m.promptKey = ""
         m.controls.visible = false
-        if passoutDue()
+        if passoutCheckDue()
             showUpNext(invalid, "still")
         else if pref("playback.autoplayNext") <> true
             showUpNext(invalid, "end")
