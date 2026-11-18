@@ -4,7 +4,6 @@ import {FormScrollView} from '../../platform/keyboard';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {parseJoinLink} from '../../../../../packages/client-core/src/join-link';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {ColourBackdrop} from '../../kit/artwork';
 import {Button, TextField, FormError} from '../../kit/controls';
 import {nativeType, useTheme} from '../../kit/theme';
 import {qrScannerAvailable, scanQRCode} from '../../platform/qr-scanner';
@@ -51,8 +50,7 @@ export function PhoneNoServers({busy, error, onFind, onRefresh, onShare, onSignO
       if (current()) redraw(value => value + 1);
     });
   };
-  return <View testID="phone-no-servers" style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <ColourBackdrop shape="top"/>
+  return <View testID="phone-no-servers" style={{flex: 1}}>
     <FormScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingHorizontal: 24, paddingTop: insets.top + 24, paddingBottom: Math.max(24, insets.bottom + 16), gap: 20}}>
       {onBack && <Button variant="text" disabled={busy} onPress={onBack} style={{alignSelf: 'flex-start'}}>{t('action.back')}</Button>}
       <View style={{gap: 12}}>

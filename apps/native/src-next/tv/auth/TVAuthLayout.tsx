@@ -4,7 +4,7 @@ import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-nati
 import {useMotion} from '../../kit/useMotion';
 import {Image, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewProps} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {ColourBackdrop, ProfileFace, type ProfileOption} from '../../kit/artwork';
+import {ProfileFace, type ProfileOption} from '../../kit/artwork';
 import {nativeType, useTheme} from '../../kit/theme';
 import {shellLayout} from '../../shell/model';
 import {useNativeObservation} from '../../kit/dev-observation';
@@ -14,7 +14,7 @@ import type {StateLayoutProps} from '../../kit/states/StateLayout';
 /** The account family's one design canvas, backdrop and brand position. */
 export function TVAccountCanvas({children, testID, shape = 'side', onAccessibilityEscape}: Pick<ViewProps, 'children' | 'testID' | 'onAccessibilityEscape'> & {shape?: 'side' | 'round'}) {
   const theme = useTheme(), window = useWindowDimensions(), canvas = shellLayout(window.width, window.height, true);
-  const rootStyle = {flex: 1, backgroundColor: theme.colors.ink};
+  const rootStyle = {flex: 1};
   const wordmarkStyle = {position: 'absolute' as const, left: theme.layout.gutter.tvAuth, top: tvAccountSpec.wordmark.top,
     width: tvAccountSpec.wordmark.width, height: tvAccountSpec.wordmark.height};
   const root = useNativeObservation<View>({kind: 'view', semanticId: testID,
@@ -26,7 +26,6 @@ export function TVAccountCanvas({children, testID, shape = 'side', onAccessibili
   return <View ref={root.ref} testID={testID} onAccessibilityEscape={onAccessibilityEscape} style={rootStyle}>
     <View style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height,
       transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
-      <ColourBackdrop shape={shape} fill/>
       <Image ref={wordmark.ref} source={require('../../../assets/wordmark.png')} accessibilityLabel={defaultI18n.t('accounts.brand')}
         resizeMode="contain" style={wordmarkStyle}/>
       {children}

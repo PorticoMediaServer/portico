@@ -26,5 +26,5 @@ export type PageStateProps = Readonly<{
 export function PageStateFrame({downloads, ...props}: PageStateProps) {
   // R1: a page state starts on its primary action (tv-focus 47).
   const primaryAction = props.primaryAction && {...props.primaryAction, preferredFocus: props.primaryAction.preferredFocus ?? true};
-  return <StateLayout {...props} primaryAction={primaryAction} beforeActions={downloads} backdropShape="none" style={{backgroundColor: 'transparent'}}/>;
+  return <StateLayout {...props} primaryAction={primaryAction} beforeActions={downloads} style={{backgroundColor: 'transparent'}}/>;
 }

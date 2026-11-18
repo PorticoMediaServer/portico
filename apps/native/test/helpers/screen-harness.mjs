@@ -98,7 +98,9 @@ function frameMetricsLeaf(react) {
   return contexts;
 }
 // Moved core operations execute against the fixture's captured API; no request is mocked here.
-const leaf = (source, react, native) => source === '@portico/design' ? design : /client-core\/src\/query\/playback(\.ts)?$/.test(source) ? playbackQueries
+// The layer host (the one backdrop) is a plain host element in every shallow fixture.
+const layerHost = {Layer: 'Layer', LayerStatusBar: 'LayerStatusBar'};
+const leaf = (source, react, native) => source === '@portico/design' ? design : /(^|\/)kit\/shell\/Layer$/.test(source) ? layerHost : /client-core\/src\/query\/playback(\.ts)?$/.test(source) ? playbackQueries
   : /client-core\/src\/query\/catalogue-query-delete(?:\.ts)?$/.test(source) ? catalogueQueryDelete
   : /\/downloads\/request$/.test(source) ? downloadRequest
   : /client-core\/src\/query\/catalogue-actions(?:\.ts)?$/.test(source) ? catalogueActions

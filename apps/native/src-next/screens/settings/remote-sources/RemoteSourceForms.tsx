@@ -6,7 +6,6 @@ import type {AdminLibrary} from '../../../../../../packages/contracts/src/next/a
 import {Button} from '../../../kit/controls/Button';
 import {TextField} from '../../../kit/controls/TextField';
 import {useTheme} from '../../../kit/theme';
-import {StandardBackdrop} from '../../../kit/artwork';
 import {FormScrollView} from '../../../platform/keyboard';
 import type {NativeRemoteSourcesController} from './controller';
 import {FormError} from '../../../kit/controls';
@@ -35,7 +34,7 @@ const presetLabel = (preset: RemotePreset): MessageId => (`next.settingsSpec.ser
 
 export function Page({title, t, busy, onCancel, children, footer, wizardStep}: {title: string; t: Translate; busy: boolean; onCancel: () => void; children: React.ReactNode; footer: React.ReactNode; wizardStep?: number}) {
   const theme = useTheme(), wizard = useContext(SourceWizardContext), step = wizardStep ?? wizard?.step;
-  return <View style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
+  return <View style={{flex: 1}}>
     <View style={{padding: 20, flexDirection: 'row', alignItems: 'center', gap: 16}}>
       <Button variant="text" size="small" disabled={busy} onPress={onCancel}>{t('next.remoteSources.cancel')}</Button>
       <Text accessibilityRole="header" style={[theme.type.bodyStrong, {color: theme.colors.text, flex: 1}]}>{title}</Text>

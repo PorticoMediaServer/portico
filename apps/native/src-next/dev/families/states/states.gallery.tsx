@@ -44,7 +44,7 @@ function evidenceActions(): NativeStatesEvidenceActions {
 function Canvas({children, landscape = false, style}: {children: React.ReactNode; landscape?: boolean; style?: StyleProp<ViewStyle>}) {
   const theme = useTheme();
   return <View style={[{width: theme.isTV ? 1920 : landscape ? 844 : 390, height: theme.isTV ? 1080 : landscape ? 390 : 844,
-    marginLeft: -theme.gutter, backgroundColor: theme.colors.ink, overflow: 'hidden'}, style]}><OverlaysProvider>{children}</OverlaysProvider></View>;
+    marginLeft: -theme.gutter, overflow: 'hidden'}, style]}><OverlaysProvider>{children}</OverlaysProvider></View>;
 }
 
 function Connection({detailsInitially = false, owner = false, testID}: {detailsInitially?: boolean; owner?: boolean; testID?: string}) {
@@ -101,7 +101,7 @@ function Crash() {
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
   return <Canvas>{loading ? <HomeSkeleton elapsedMs={0} /> : <StateLayout testID={`${prefix}.state`} icon="i-warn" tone="error" title={t('next.states.crashed')} body={t('next.states.native.phoneCrashBody')}
-    contentTop={theme.isTV ? undefined : 250} backdropHeight={460}
+    contentTop={theme.isTV ? undefined : 250}
     primaryAction={{id: 'retry', label: t('next.states.tryAgain'), icon: 'i-retry', onPress: () => setLoading(true), preferredFocus: theme.isTV}}
     secondaryAction={{id: 'details', label: t('next.states.copyDetails'), icon: 'i-copy', onPress: () => evidenceActions().copyDetails([
       [t('next.states.when'), fixture.since], [t('next.states.app'), fixture.appVersion], [t('next.states.where'), t('next.states.native.homeLoading')],
@@ -118,7 +118,7 @@ function Empty({kind = 'saved', testID}: {testID?: string; kind?: 'saved' | 'mem
   return <Canvas>{home ? <HomeSkeleton elapsedMs={1000} /> : theme.isTV ? <View style={{position: 'absolute', left: 510, top: 220, width: 900}}>
     <StateView testID={`${prefix}.view`} variant="centered" icon={kind === 'saved' ? 'i-bookmark' : kind === 'recordings' ? 'i-rec' : 'i-clock'} title={title} body={body}
       primaryAction={kind === 'member' || kind === 'downloads' ? undefined : {id: 'browse', label: t('next.states.goHome'), onPress: () => setHome(true), preferredFocus: theme.isTV}} style={{paddingHorizontal: 0}} />
-  </View> : <StateLayout testID={`${prefix}.state`} title={title} body={body} icon={kind === 'saved' ? 'i-bookmark' : kind === 'recordings' ? 'i-rec' : kind === 'downloads' ? 'i-dl' : 'i-clock'} contentTop={kind === 'saved' ? 178 : kind === 'member' ? 286 : kind === 'downloads' ? 154 : 250} backdropShape={kind === 'downloads' ? 'none' : undefined} detailsPresentation={kind === 'member' ? 'link' : undefined}
+  </View> : <StateLayout testID={`${prefix}.state`} title={title} body={body} icon={kind === 'saved' ? 'i-bookmark' : kind === 'recordings' ? 'i-rec' : kind === 'downloads' ? 'i-dl' : 'i-clock'} contentTop={kind === 'saved' ? 178 : kind === 'member' ? 286 : kind === 'downloads' ? 154 : 250} detailsPresentation={kind === 'member' ? 'link' : undefined}
     primaryAction={kind === 'recordings' ? {id: 'guide', label: t('next.states.openGuide'), icon: 'i-guide', onPress: () => setHome(true)} : undefined}
     detailsAction={kind === 'member' ? {id: 'switch', label: t('next.states.switchServer'), icon: 'i-server', onPress: () => setHome(true)} : undefined} />}</Canvas>;
 }
@@ -127,7 +127,7 @@ function RemovedTitle() {
   const prefix = 'dev.states.removedtitle';
   const [removed, setRemoved] = useState(false), [searching, setSearching] = useState(false);
   return removed ? <LoadingHome testID={`${prefix}.recovery`} /> : <Canvas>{searching ? <StateView testID={`${prefix}.view`} icon="i-search" title={t('next.states.noMatches', {query: fixture.removedTitle})} body={t('next.states.noMatchesBody')}
-    primaryAction={{id: 'back', label: t('action.back'), onPress: () => setSearching(false)}} /> : <StateLayout testID={`${prefix}.state`} contentTop={250} backdropHeight={420} icon="i-not"
+    primaryAction={{id: 'back', label: t('action.back'), onPress: () => setSearching(false)}} /> : <StateLayout testID={`${prefix}.state`} contentTop={250} icon="i-not"
     title={t('next.states.removed', {title: fixture.removedTitle, server: fixture.server})} body={t('next.states.removedBody')}
     primaryAction={{id: 'search', label: t('next.states.searchTitle', {title: fixture.removedTitle}), icon: 'i-search', onPress: () => setSearching(true)}}
     secondaryAction={{id: 'remove', label: t('next.states.removeContinue'), onPress: () => setRemoved(true)}} />}</Canvas>;
@@ -136,7 +136,7 @@ function RemovedTitle() {
 function RestrictedTitle() {
   const prefix = 'dev.states.restrictedtitle';
   const [home, setHome] = useState(false), [profiles, setProfiles] = useState(false);
-  return home ? <LoadingHome testID={`${prefix}.recovery`} /> : <Canvas><StateLayout testID={`${prefix}.state`} contentTop={250} backdropHeight={420} icon="i-lock"
+  return home ? <LoadingHome testID={`${prefix}.recovery`} /> : <Canvas><StateLayout testID={`${prefix}.state`} contentTop={250} icon="i-lock"
     title={t('next.states.restricted', {profile: fixture.profile})} body={t('next.states.restrictedBody')}
     primaryAction={{id: 'home', label: t('next.states.goHome'), onPress: () => setHome(true)}}
     secondaryAction={{id: 'profiles', label: t('next.states.switchProfile'), icon: 'i-switch', onPress: () => setProfiles(true)}} />
@@ -243,7 +243,7 @@ function PlayerFailure({detailsInitially = false, owner = false, testID}: {detai
 function UpdateServer() {
   const prefix = 'dev.states.updateserver';
   const [downloads, setDownloads] = useState(false), [servers, setServers] = useState(false);
-  return downloads ? <Empty testID={`${prefix}.recovery`} kind="downloads" /> : <Canvas><StateLayout testID={`${prefix}.state`} icon="i-update" tone="warning" contentTop={150} backdropHeight={300}
+  return downloads ? <Empty testID={`${prefix}.recovery`} kind="downloads" /> : <Canvas><StateLayout testID={`${prefix}.state`} icon="i-update" tone="warning" contentTop={150}
     kicker={globalThis.__PORTICO_NATIVE_STATES_OWNER__?.updateTag}
     title={t('next.states.native.updateServer')} body={t('next.states.native.updateServerBody', {server: fixture.server, minimum: fixture.minimumServer, version: fixture.oldServer})}
     primaryAction={{id: 'instructions', label: t('next.states.native.updateServerHelp'), trailingIcon: 'i-ext', iconSize: 18, onPress: () => evidenceActions().openServerUpdateHelp()}}

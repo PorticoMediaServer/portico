@@ -3,7 +3,6 @@ import {Image, Text, View} from 'react-native';
 import {FormScrollView} from '../../platform/keyboard';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {ColourBackdrop} from '../../kit/artwork';
 import {Button, TextField} from '../../kit/controls';
 import {nativeType, useTheme} from '../../kit/theme';
 import {LegalAgreement} from './LegalAgreement';
@@ -20,8 +19,7 @@ export function PhoneAccountSignIn({busy, error, passwordEnabled, registration, 
 }) {
   const theme = useTheme(), insets = useSafeAreaInsets(), t = defaultI18n.t;
   const label = (value: string) => <Text style={{fontSize: 13 * theme.textScale, fontWeight: '600', color: theme.colors.textSecondary}}>{value}</Text>;
-  return <View testID="accounts-welcome" style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <ColourBackdrop shape="top"/>
+  return <View testID="accounts-welcome" style={{flex: 1}}>
     <FormScrollView bottomOffset={80} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       contentContainerStyle={{flexGrow: 1, paddingHorizontal: 22, paddingTop: Math.max(70, insets.top), paddingBottom: Math.max(42, insets.bottom)}}>
       <View style={{width: '100%', maxWidth: 520, alignSelf: 'center', flexGrow: 1}}>

@@ -10,7 +10,6 @@ import {viewerQueriesFor} from '../../shell/freshness';
 import {AddLibraryPage} from '../settings-live/owner-libraries/AddLibraryPage';
 import {nativeRouteCrypto} from '../../platform/server-connections';
 import {useTheme} from '../../kit/theme';
-import {StandardBackdrop} from '../../kit/artwork';
 
 /** Setup reuses the real owner library editor and server folder explorer, after
  * normal session admission. No setup token or pending claim can reach this page. */
@@ -42,7 +41,7 @@ export function PhoneFirstLibrary({context, onDone}: {context: NativeShellBootst
   const state = useSyncExternalStore(value.controller.subscribe, value.controller.getSnapshot);
   useLayoutEffect(() => () => {value.ticket.retire(); if (live.current === value.ticket) live.current = undefined;}, [value]);
   const finish = () => {if (!current() || value.ticket.flight) return; value.assertOwner(); value.ticket.retire(); if (live.current === value.ticket) live.current = undefined; onDone();};
-  return <View style={{flex: 1}}><StandardBackdrop/>
+  return <View style={{flex: 1}}>
     <View style={{paddingHorizontal: 20, paddingTop: 30, paddingBottom: 18}}><Text style={[theme.type.title, {color: theme.colors.text}]}>{defaultI18n.t('web.setup.firstLibrary')}</Text></View>
     <AddLibraryPage firstRun api={value.api} serverName={context.serverName} busy={state.busy || value.ticket.flight} error={state.error}
       onCancel={finish} onCreate={input => {

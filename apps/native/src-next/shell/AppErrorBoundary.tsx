@@ -76,7 +76,7 @@ function AppFailure({failedAt, onRetry}: {failedAt: number; onRetry: () => void}
   };
   return <StateLayout testID="native-app-failed" icon="i-warn" tone="error"
     title={t('next.states.crashed')} body={t('next.states.native.phoneCrashBody')}
-    contentTop={theme.isTV ? undefined : 250} backdropHeight={460}
+    contentTop={theme.isTV ? undefined : 250}
     primaryAction={{id: 'retry-app', label: t('next.states.tryAgain'), icon: 'i-retry', onPress: onRetry, preferredFocus: theme.isTV}}
     secondaryAction={theme.isTV ? undefined : {id: 'copy-details', label: t('next.states.copyDetails'), icon: 'i-copy', loading: copying, disabled: copying, onPress: () => {void copy();}}}>
     {copyError && <FormError placement="inline">{copyError}</FormError>}

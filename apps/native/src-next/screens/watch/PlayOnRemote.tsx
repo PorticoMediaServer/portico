@@ -10,6 +10,7 @@ import {Icon, type IconName} from '../../kit/Icon';
 import {BottomSheet} from '../../kit/overlays';
 import {useOverlayLifecycle} from '../../kit/overlays/OverlayHost';
 import {useSurfaceMotion} from '../../kit/overlays/surface';
+import {Layer} from '../../kit/shell/Layer';
 import {nativeType, useTheme} from '../../kit/theme';
 import {BlurView} from '../../platform/native-blur';
 import {isTablet} from '../../platform/device-platform';
@@ -111,7 +112,8 @@ export function NativePlayOnPhoneRemote(props: NativePlayOnRemoteProps) {
     animationType={animation.motion.reduce ? 'none' : 'slide'} presentationStyle={animation.motion.reduce ? 'overFullScreen' : 'fullScreen'}
     statusBarTranslucent navigationBarTranslucent supportedOrientations={['portrait', 'landscape']} onRequestClose={props.close}>
     <Animated.View testID="play-on-remote" accessibilityViewIsModal onAccessibilityEscape={props.close}
-      pointerEvents={open ? 'auto' : 'none'} style={[{flex: 1, backgroundColor: theme.colors.ink}, fade]}>
+      pointerEvents={open ? 'auto' : 'none'} style={[{flex: 1}, fade]}>
+      <Layer style={{position: 'absolute', inset: 0}}/>
       <AmbientArt source={props.ambient} treatment="cover" width={viewport.width} height={viewport.height} visible={open}/>
       <ScrollView contentContainerStyle={{flexGrow: 1, alignItems: 'center', paddingTop: insets.top, paddingBottom: Math.max(40, insets.bottom), paddingHorizontal: 24}}>
         <View style={{width: '100%', maxWidth: 500, minHeight: 48, flexDirection: 'row', alignItems: 'center'}}>

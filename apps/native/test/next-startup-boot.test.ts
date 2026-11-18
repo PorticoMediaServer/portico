@@ -77,7 +77,7 @@ test(`${name} boot uses the bound wordmark and backdrop geometry without moving 
   try {
     const image = f.nodes().find(node => node.type === 'Image')!;
     assert.equal(image.props.style.width, width); assert.equal(image.props.style.height, width * 405 / 1774);
-    assert.equal(f.nodes().find(node => node.type === 'ColourBackdrop')!.props.shape, shape);
+    assert.ok(f.nodes().find(node => node.type === 'Layer'), 'boot stands on a layer of its own while it covers the shell');
     const before = {...image.props.style}; await f.update({waiting: startupWait(1_000, true)});
     assert.deepEqual(f.nodes().find(node => node.type === 'Image')!.props.style, before);
     assert.equal(f.nodes().find(node => node.type?.name === 'BootSpinner')!.props.size, spinner);

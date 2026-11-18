@@ -1,5 +1,6 @@
 import {NativeTVReceiver} from '../screens/settings-live/NativeTVReceiver';
 import {CoveredLayer} from '../kit/focus/CoveredLayer';
+import {Layer} from '../kit/shell/Layer';
 import {createNativeListeningPlaylist} from './listening-playlist';
 import {createNativeListeningQueuePolicy} from './listening-queue-policy';
 import {createNativeListeningSongDetail} from './listening-song-detail';
@@ -470,6 +471,9 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
         {/* TV: the shell's layer stack says whether a route is on top. Under the player or the listening
             screen, and with no route open, the route layer is covered: nothing in it takes D-pad focus and the
             empty container never holds focus over the page (W-9, W-12). Overlays and music navigation stay above. */}
+        {/* TV has no native stack: an open route is one layer over the shell's page. Only one route page shows at a
+            time, so the layer covers the page beneath and draws the backdrop here, once, for all of them. */}
+        {Platform.isTV && route.kind !== 'shell' && <Layer pointerEvents="none" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}/>}
         {Platform.isTV ? (options?.wrapPages ?? (value => value))(<CoveredLayer covered={options?.covered ?? route.kind === 'shell'} hostRef={options?.hostRef} style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}} testID="native-shell-routes">{pages}</CoveredLayer>) : pages}
         {options?.rail}
         {musicNavigation.render()}

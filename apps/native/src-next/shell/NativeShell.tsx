@@ -8,7 +8,7 @@ import {DockClearanceProvider} from '../kit/dock/DockClearance';
 import {ListeningCoverProvider, useListeningTabBarPaint} from '../kit/dock/ListeningCoverBridge';
 import {SurfacePaintHost} from '../kit/overlays/SurfacePaintHost';
 import {AccountMenu} from '../kit/shell';
-import {StandardBackdrop} from '../kit/artwork';
+import {Layer} from '../kit/shell/Layer';
 import {nativeShellBackTransition} from './playback';
 import {useTheme} from '../kit/theme';
 import {useMotion} from '../kit/useMotion';
@@ -367,7 +367,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const renderShellPage = ({presentation, top, tabActive, modal}: NativeStackPage) => {
     const page = presentation.route.kind === 'shell' ? presentation.route.destination : presentation.destination;
     if (modal) return <View style={{flex: 1, paddingLeft: sideNavigation ? sideWidth : 0, paddingBottom: settingsSheet ? 0 : pageBottom}}>
-      {!settingsSheet && <StandardBackdrop/>}
+      {!settingsSheet && <Layer style={{position: 'absolute', inset: 0}}/>}
       {runtime.renderDestination(page, openLibrary)}
     </View>;
     return <View style={{flex: 1, paddingLeft: sideNavigation ? sideWidth : 0}}>
@@ -440,7 +440,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     {theme.isTV ? <TVProfileMenu snapshot={snapshot} open={accountOpen} onOpenChange={setAccountOpen} returnFocusRef={avatarRef}/>
       : <AccountMenu {...snapshot.account} profile={snapshot.profile} open={accountOpen} onOpenChange={setAccountOpen} anchorRef={avatarRef} returnFocusRef={avatarRef}/>}
   </>;
-  return <NativeStackSlotsProvider value={stacks ? slots : undefined}><View testID="native-shell" style={{flex: 1, backgroundColor: theme.colors.ink, overflow: 'hidden'}}>
+  return <NativeStackSlotsProvider value={stacks ? slots : undefined}><View testID="native-shell" style={{flex: 1, overflow: 'hidden'}}>
     {theme.isTV ? <View style={{position: 'absolute', left: layout.left, top: layout.top, width: layout.width, height: layout.height, transformOrigin: 'top left', transform: [{scale: layout.scale}]}}>{content}</View> : content}
     {runtime.playback && (() => {
       const playback = <NativePlaybackLayer adapter={runtime.playback} runtime={runtime} authority={snapshot.authority} contentInset={sideWidth} onTVListeningPresenceChange={theme.isTV ? setTVListeningPresent : undefined}/>;

@@ -1,7 +1,6 @@
 import React, {useEffect} from 'react';
 import {Platform, Text, View, type StyleProp, type ViewStyle} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
-import {ColourBackdrop} from '../artwork';
 import {Icon} from '../Icon';
 import {nativeType, useTheme} from '../theme';
 import {useMotion} from '../useMotion';
@@ -19,8 +18,6 @@ export type StateRetry = Readonly<{
 export type StateLayoutProps = StateContentProps & Readonly<{
   /** A containing transition may focus the real heading after its cover leaves. */
   titleRef?: React.Ref<Text>;
-  backdropShape?: 'side' | 'round' | 'top' | 'none';
-  backdropHeight?: number;
   shell?: React.ReactNode;
   alive?: React.ReactNode;
   retry?: StateRetry;
@@ -41,7 +38,7 @@ export type StateLayoutProps = StateContentProps & Readonly<{
 
 /** Full-page state anatomy; all recovery, retry timing and navigation are supplied. */
 export function StateLayout({title, body, icon, tone = 'neutral', primaryAction, secondaryAction, additionalActions, variant = 'page', frozenPicture, playerChrome,
-  backdropShape, backdropHeight, shell, alive, retry, beforeActions, detailsAction, detailsPresentation = 'row', details, help, kicker, children, visible = true, contentTop, contentStyle, avoidKeyboard = false, style, testID, titleRef}: StateLayoutProps) {
+  shell, alive, retry, beforeActions, detailsAction, detailsPresentation = 'row', details, help, kicker, children, visible = true, contentTop, contentStyle, avoidKeyboard = false, style, testID, titleRef}: StateLayoutProps) {
   const theme = useTheme();
   const policy = useMotion();
   const tv = theme.isTV;
@@ -61,14 +58,11 @@ export function StateLayout({title, body, icon, tone = 'neutral', primaryAction,
   const bodySize = tv ? 28 : player ? 14 : 15;
   // Frame 9: centred with full-width buttons on a phone; on a tablet at the gutter with buttons at their own width, as on TV (tablets SC-11).
   const stacked = !tv && !player && theme.platform === 'phone';
-  const shape = backdropShape ?? (tv ? 'side' : 'top');
   const left = tv ? player ? 96 : theme.gutter : player ? 64 : stacked ? 24 : theme.gutter;
   const buttonStyle: ViewStyle | undefined = stacked ? {width: '100%', height: 50} : player && !tv ? {height: 40, paddingHorizontal: 16} : undefined;
   const action = (item: StateAction, primary: boolean) => <StateActionButton testID={testID} key={item.id} action={visible ? item : {...item, disabled: true}} size={player && !tv ? 'small' : 'hero'} variant={primary ? 'primary' : 'glass'} style={buttonStyle} textStyle={player && !tv ? {fontSize: 14.5 * theme.textScale} : undefined} />;
-  return <View testID={testID} style={[{flex: 1, backgroundColor: theme.colors.ink, overflow: 'hidden'}, style]}>
-    <View pointerEvents="none" style={{position: 'absolute', inset: 0}}>
-      {player ? frozenPicture : shape !== 'none' ? <ColourBackdrop shape={shape} height={backdropHeight} fill={shape !== 'top'} /> : null}
-    </View>
+  return <View testID={testID} style={[{flex: 1, overflow: 'hidden'}, style]}>
+    {player && <View pointerEvents="none" style={{position: 'absolute', inset: 0}}>{frozenPicture}</View>}
     {shell}
     <Animated.View pointerEvents={visible ? 'box-none' : 'none'} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
       style={[{position: 'absolute', inset: 0, justifyContent: contentTop === undefined ? 'center' : 'flex-start', paddingTop: contentTop, paddingBottom: keyboardHeight}, animated]}>

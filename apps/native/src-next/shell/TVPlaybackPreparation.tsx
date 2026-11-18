@@ -1,7 +1,7 @@
 import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {useTheme} from '../kit/theme';
-import {StandardBackdrop} from '../kit/artwork';
+import {Layer} from '../kit/shell/Layer';
 
 /**
  * The one line a TV shows while a playback start is still being prepared. The host gives it the
@@ -18,11 +18,10 @@ export function TVPlaybackPreparation({message}: {message: string}): React.React
   const theme = useTheme();
   if (!message) return null;
   return (
-    <View pointerEvents="none" accessible role="status" accessibilityLiveRegion="polite"
-      style={[StyleSheet.absoluteFill, styles.backdrop, {backgroundColor: theme.colors.ink}]}>
-      <StandardBackdrop />
+    <Layer pointerEvents="none" accessible role="status" accessibilityLiveRegion="polite"
+      style={[StyleSheet.absoluteFill, styles.backdrop]}>
       <Text style={[theme.type.body, styles.line, {color: theme.colors.textSecondary}]}>{message}</Text>
-    </View>
+    </Layer>
   );
 }
 

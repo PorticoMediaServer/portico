@@ -102,7 +102,7 @@ const renderRowSelection: TrackSelection['renderControl'] = (row, selected, onPr
 
 function BrowseStage({children, height = 844}: {children: React.ReactNode; height?: number}) {
   const theme = useTheme();
-  return <OverlaysProvider><View testID="browse-reference-stage" style={{width: theme.isTV ? 1920 : theme.platform === 'phone' ? 390 : 1440, height: theme.isTV ? 1080 : height, marginHorizontal: -theme.gutter, backgroundColor: theme.colors.ink}}>{children}</View></OverlaysProvider>;
+  return <OverlaysProvider><View testID="browse-reference-stage" style={{width: theme.isTV ? 1920 : theme.platform === 'phone' ? 390 : 1440, height: theme.isTV ? 1080 : height, marginHorizontal: -theme.gutter}}>{children}</View></OverlaysProvider>;
 }
 
 function HeaderCase({initial = 'movies', switchOpen = false, menuOpen = false, owner = false, ownerTag}: {initial?: string; switchOpen?: boolean; menuOpen?: boolean; owner?: boolean; ownerTag?: React.ReactNode}) {

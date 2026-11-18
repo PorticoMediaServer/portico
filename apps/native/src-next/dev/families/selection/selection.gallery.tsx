@@ -130,7 +130,7 @@ function SelectionExample({scenario, deniedDestination = false, previewReadURL}:
       ...(change.remove.length ? [{id: `${id}-remove`, text: t('next.selection.listRemove', {field: field.label, values: defaultI18n.list(change.remove), count: editorCount})}] : []),
     ];
   });
-  return <View testID={`${prefix}.frame`} accessibilityLabel={fixture.scenarios[scenario]} style={{backgroundColor: theme.colors.ink, width: theme.isTV ? 1724 : dimensions.width, height: theme.isTV ? 700 : dimensions.height, marginLeft: -theme.gutter}}>
+  return <View testID={`${prefix}.frame`} accessibilityLabel={fixture.scenarios[scenario]} style={{width: theme.isTV ? 1724 : dimensions.width, height: theme.isTV ? 700 : dimensions.height, marginLeft: -theme.gutter}}>
     <>
       <SelectionBar {...barProps} />
       <View style={{flexDirection: 'row', gap: 18, padding: 20, flexWrap: 'wrap'}}>{movieEntries.map(movie => <PosterCard testID={`${prefix}.movie.${movie.id}`} key={movie.id} title={movie.title} width={theme.isTV ? 200 : 108} artwork={art(movie.artworkIndex)} density="grid"

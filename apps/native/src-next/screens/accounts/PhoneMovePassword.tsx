@@ -4,7 +4,6 @@ import {FormScrollView} from '../../platform/keyboard';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
-import {ColourBackdrop} from '../../kit/artwork';
 import {Button, TextField, FormError} from '../../kit/controls';
 import {nativeType, useTheme} from '../../kit/theme';
 import type {NativeMemberAccountMove} from '../../platform/member-account-move';
@@ -25,8 +24,7 @@ export function PhoneMovePassword<Result>({controller, serverName, onBack}: {
     void controller.proveOldPassword(username, supplied);
   };
   const back = () => {if (!state.busy) {setPassword(''); setShowPassword(false); controller.cancel(); onBack();}};
-  return <View testID="accounts-move-password" style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <ColourBackdrop shape="top"/>
+  return <View testID="accounts-move-password" style={{flex: 1}}>
     <FormScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{flexGrow: 1, paddingHorizontal: 22,
       paddingTop: Math.max(104, insets.top + 54), paddingBottom: Math.max(30, insets.bottom + 16)}}>
       <Text accessibilityRole="header" style={[nativeType({size: 34, lineHeight: 35.36, weight: 800, tracking: -.04}, theme.textScale),

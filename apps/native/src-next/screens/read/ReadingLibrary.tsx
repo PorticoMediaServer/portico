@@ -8,7 +8,7 @@ import type {BrowseCapabilities} from '../../../../../packages/client-core/src/b
 import {readLibrarySummaries, type LibrarySummary} from '../../../../../packages/client-core/src/library-summary';
 import {readingDuration} from '../../../../../packages/client-core/src/reading-manifest-facts';
 import {authorPredicate, libraryTabs, readingTabModel, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
-import {GeneratedCover, StandardBackdrop, type ArtworkSource} from '../../kit/artwork';
+import {GeneratedCover, type ArtworkSource} from '../../kit/artwork';
 import {PhoneReadingBookCover} from './PhoneReadingBookCard';
 import {ReadResumeCard} from '../../kit/cards';
 import {Focusable} from '../../kit/controls';
@@ -229,7 +229,7 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
     // the shell rail is already outside this view.
     const next = Math.round(event.nativeEvent.layout.width);
     if (next > 0 && next !== paneWidth) setPaneWidth(next);
-  }}>{theme.isTV && <StandardBackdrop/>}
+  }}>
     {tablet ? <View style={{paddingTop: insets.top + 6, paddingHorizontal: theme.gutter}}>
       <Focusable accessibilityRole="button" focusKind="row" accessibilityLabel={defaultI18n.t('next.browse.native.libraries')} onPress={onBack}
         style={{height: 44, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start'}}>
