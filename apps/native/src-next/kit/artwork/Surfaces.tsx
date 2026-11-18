@@ -132,7 +132,8 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
   const music = treatment === 'music';
   const person = treatment === 'person';
   // TV: a title page fades its art into the ambient wash as Home's hero does; a side scrim to ink left a hard edge where the art began.
-  const maskedHero = theme.isTV && (treatment === 'hero' || treatment === 'title');
+  // The same on a wide tablet, where the art also sits in the right part of the hero: it fades into the wash by alpha, with no edge.
+  const maskedHero = (theme.isTV || desktop) && (treatment === 'hero' || treatment === 'title');
   // phone-detail `.th` and `.amb-l` (W1): on a phone title page the backdrop fades out by alpha and the blurred backdrop
   // washes the top of the page behind it, past the hero, so the page takes its colour from the art and no edge shows.
   // Only a title page that has a backdrop (film, show, collection): other "title" callers keep their own washes.

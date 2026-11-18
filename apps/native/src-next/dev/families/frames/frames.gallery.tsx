@@ -167,7 +167,7 @@ function SettingsList() {
   const [page, setPage] = useState<string>(), {form} = useFrameMetrics(), wide = form !== 'phone';
   const tiles = ([['profiles', 'i-person', 'settingsSwitchProfile'], ['servers', 'i-server', 'switchServer'], ['notifications', 'i-bell', 'notifications'], ['together', 'i-people', 'settingsTogether']] as const).map(([id, icon, name]) => ({id, icon, label: f(name), onPress: none}));
   const list = <View>{form !== 'phone' && <LargeTitleHeader title={f('settings')} style={{paddingHorizontal: 0}}/>}{form === 'phone' && <ShortcutTiles testID="frames-settings-tiles" actions={tiles}/>}
-    <SettingsNav testID="frames-settings-nav" accountPages={settingsPages.account} serverPages={settingsPages.server} viewerRole="owner" serverName={f('serverName')} selectedId={page ?? (wide ? 'playback' : '')} onNavigate={setPage} mode={form === 'tv' ? 'account' : 'combined'}/></View>;
+    <SettingsNav testID="frames-settings-nav" accountPages={settingsPages.account} serverPages={settingsPages.server} viewerRole="owner" serverName={f('serverName')} selectedId={form === 'tv' ? 'playback' : page ?? (wide ? 'playback' : '')} onNavigate={form === 'tv' ? none : setPage} mode={form === 'tv' ? 'account' : 'combined'}/></View>;
   return <Window><SettingsListFrame testID="frames-settings-list" open onOpenChange={none} bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
     page={page || wide ? <SettingsPageFrame title={f('playback')} back={{label: f('settings'), onPress: () => setPage(undefined)}} intro={f('playbackIntro')}><PlaybackSections/></SettingsPageFrame> : undefined}/></Window>;
 }

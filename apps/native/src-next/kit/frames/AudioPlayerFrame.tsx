@@ -120,9 +120,13 @@ export function AudioPlayerFrame({close, more, context, artwork, icon, title, by
       {upNext !== undefined && <ScrollView style={{width: panel, flexGrow: 0}} contentContainerStyle={{paddingRight: frame.gutter, paddingBottom: frame.bottomClear}}>{upNext}</ScrollView>}
     </View>
   </View>;
-  return <View testID={testID} style={{flex: 1, flexDirection: 'row', gap: spec.gap[form], paddingTop: frame.titleTop + frame.headerGap, paddingLeft: inset, paddingRight: frame.rightGutter, paddingBottom: frame.bottomClear}}>
-    <View style={{width: column}}>{top}<View style={{marginTop: spec.gap[form] / 2}}>{art}</View></View>
-    <View style={{width: spec.controlsWidth[form], height: spec.topBar[form] + spec.gap[form] / 2 + column, paddingTop: spec.topBar[form] + spec.gap[form] / 2, justifyContent: 'center'}}>{words}<View style={{marginTop: spec.gap[form] / 2}}>{seek}</View>{buttons}{next}{bottom}</View>
-    {upNext !== undefined && <ScrollView style={{flex: 1, minWidth: spec.upNextWidth[form], marginTop: spec.topBar[form] + spec.gap[form] / 2}}>{upNext}</ScrollView>}
+  // TV (music-plus "np-tv"): the artwork, the title and controls beside it and Up next are one row, centred in the screen's height.
+  const row = spec.topBar[form] + spec.gap[form] / 2 + column;
+  return <View testID={testID} style={{flex: 1, justifyContent: 'center', paddingLeft: inset, paddingRight: frame.rightGutter}}>
+    <View style={{height: row, flexDirection: 'row', gap: spec.gap[form]}}>
+      <View style={{width: column}}>{top}<View style={{marginTop: spec.gap[form] / 2}}>{art}</View></View>
+      <View style={{width: spec.controlsWidth[form], paddingTop: spec.topBar[form] + spec.gap[form] / 2, justifyContent: 'center'}}>{words}<View style={{marginTop: spec.gap[form] / 2}}>{seek}</View>{buttons}{next}{bottom}</View>
+      {upNext !== undefined && <ScrollView style={{flex: 1, minWidth: spec.upNextWidth[form], marginTop: spec.topBar[form] + spec.gap[form] / 2}}>{upNext}</ScrollView>}
+    </View>
   </View>;
 }
