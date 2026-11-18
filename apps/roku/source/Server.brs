@@ -119,11 +119,7 @@ end function
 function serverScanWords(library as object) as string
     if library.scanning = true then return "Scanning"
     if library.lastScanFinishedAt = invalid then return "Not scanned yet"
-    when = createObject("roDateTime")
-    when.fromISO8601String(library.lastScanFinishedAt)
-    when.toLocalTime()
-    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    return "Scanned " + months[when.getMonth() - 1] + " " + when.getDayOfMonth().toStr()
+    return "Scanned " + serverDayWords(library.lastScanFinishedAt)
 end function
 
 function serverRoleWords(role as string) as string
