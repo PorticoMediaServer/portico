@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Rate this" and five stars (tv-player frame 7): the stars up to your rating are lit; Left and Right
+     move, OK on a star rates the title that many stars, and OK on the star it already has clears it,
+     as the other apps do. -->
+<component name="StarRow" extends="Group">
+  <interface>
+    <!-- Your rating in whole stars, 0 for none. -->
+    <field id="stars" type="integer" onChange="paint"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- The star OK was pressed on, 1 to 5. -->
+    <field id="pressed" type="integer" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="StarRow.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Label id="label" text="Rate this" height="56" vertAlign="center"/>
+    <Group id="discs"/>
+    <Poster id="ring" uri="pkg:/images/focus-disc.png" visible="false"/>
+  </children>
+</component>

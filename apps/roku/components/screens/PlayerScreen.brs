@@ -64,9 +64,12 @@ sub init()
     m.finRow = m.top.findNode("finRow")
     m.finRow.observeField("pressed", "onFinished")
     setType(m.top.findNode("unLabel"), "groupLabel", c.accentStrong)
-    setType(m.top.findNode("unTitle"), "heading", c.text)
-    setType(m.top.findNode("unSub"), "meta", c.textSecondary)
-    setType(m.top.findNode("unWhen"), "help", c.textTertiary)
+    setType(m.top.findNode("unTitle"), "upNextTitle", c.text)
+    setType(m.top.findNode("unSub"), "factLabel", c.textSecondary)
+    setType(m.top.findNode("unWhen"), "tag", c.textTertiary)
+    setType(m.top.findNode("unWhenTime"), "groupLabel", c.text)
+    m.top.findNode("unTrack").color = c.barTrack
+    m.top.findNode("unBar").color = c.white
     setType(m.top.findNode("finLabel"), "eyebrow", c.accentStrong)
     setType(m.top.findNode("finTitle"), "finishedTitle", c.text)
     m.top.findNode("finTitle").lineSpacing = -40     ' two lines set close, as the frame draws them, ending above the year line
@@ -130,6 +133,9 @@ sub init()
     m.top.findNode("finTitle").translation = [f.left, f.finished.titleY]
     m.top.findNode("finMeta").translation = [f.left, f.finished.metaY]
     m.finRow.translation = [f.left, f.finished.buttonsY]
+    m.finStars = m.top.findNode("finStars")
+    m.finStars.translation = [f.left, f.finished.rateY]
+    m.finStars.observeField("pressed", "onRate")
     m.finRelated = m.top.findNode("finRelated")
     m.finRelated.slotX = f.left
     m.finRelated.translation = [0, f.finished.rowY]
@@ -1008,13 +1014,13 @@ sub updatePrompt()
     closing = marker <> invalid and (marker.type = "credits" or marker.type = "outro") and marker.startMs / 1000 >= m.duration / 2
     tail = m.top.item.kind = "episode" and m.duration >= 600 and at >= m.duration - 30 and at < m.duration - 1
     if m.next <> invalid and (closing or (tail and marker = invalid)) and m.dismissed["next"] <> true and not passoutCheckDue() then key = "next"
-    if key = "next" and m.cardMode = "offer" and not m.counting then m.top.findNode("unWhen").text = offerWhen(m.duration - at)
+    if key = "next" and m.cardMode = "offer" and not m.counting then offerWhen(m.duration - at)
     if key = m.promptKey then return
     m.promptKey = key
     if key = "next"
         if not closing then marker = invalid
         showUpNext(marker, "offer")
-        m.top.findNode("unWhen").text = offerWhen(m.duration - at)
+        offerWhen(m.duration - at)
         ' "Start the next episode during the credits": only credits the server is sure of, and
         ' never when a scene follows them
         if marker <> invalid and pref("playback.autoplayNext") = true and pref("playback.startNextDuringCredits") = true and marker.automaticSafe = true and marker.endMs / 1000 >= m.duration - 3
@@ -1058,10 +1064,22 @@ sub focusPrompt()
 end sub
 
 ' The card's last line while the credits run: when the next title will start by itself, if it will.
-function offerWhen(left as float) as string
-    if pref("playback.autoplayNext") <> true then return ""
-    return "Starts in " + clockText(left + pref("playback.upNextCountdownMs") / 1000)
-end function
+sub offerWhen(left as float)
+    if pref("playback.autoplayNext") <> true
+        setWhen("", "")
+        return
+    end if
+    setWhen("Starts in", clockText(left + pref("playback.upNextCountdownMs") / 1000))
+end sub
+
+' The card's last line: its words in grey and the time after them in white.
+sub setWhen(words as string, time as string)
+    when = m.top.findNode("unWhen")
+    if when.text = words and m.top.findNode("unWhenTime").text = time and not m.counting then return
+    when.text = words
+    m.top.findNode("unWhenTime").text = time
+    layoutCard()
+end sub
 
 sub onPrompt(event as object)
     which = event.getData()
@@ -1182,7 +1200,7 @@ sub onCount()
         advance("completion")
         return
     end if
-    m.top.findNode("unWhen").text = "Playing in " + m.countLeft.toStr() + "s"
+    setWhen("Playing in", m.countLeft.toStr() + "s")
 end sub
 
 ' Puts the Up next card away, and any count it was running.
@@ -1195,11 +1213,12 @@ end sub
 
 sub countDown(seconds as integer)
     m.countLeft = seconds
-    m.top.findNode("unWhen").text = "Playing in " + seconds.toStr() + "s"
+    m.countFrom = seconds
     count = m.top.findNode("count")
     count.control = "stop"
     count.control = "start"
     m.counting = true
+    setWhen("Playing in", seconds.toStr() + "s")
 end sub
 
 ' --- Live TV: the normal player with a channel in it ----------------------------------------
@@ -1437,6 +1456,7 @@ sub showUpNext(marker as dynamic, mode as string)
     m.top.findNode("unLabel").text = labels[mode]
     whens = {offer: "", count: "", end: "Ready when you are", still: "Playback paused after several episodes. Confirm to keep going."}
     m.top.findNode("unWhen").text = whens[mode]
+    m.top.findNode("unWhenTime").text = ""
     still = pick(entry.images, ["thumb", "still", "backdrop"])
     m.top.findNode("unStill").uri = imageUrl(still, 256, 144)
     title = m.top.findNode("unTitle")
@@ -1449,19 +1469,52 @@ sub showUpNext(marker as dynamic, mode as string)
     if marker <> invalid and marker.endMs / 1000 < m.duration - 3 then buttons.push({id: "skip", text: "Skip credits", icon: ""})
     if mode = "offer" then buttons.push({id: "credits", text: "Watch credits", icon: ""})
     m.unRow.buttons = buttons
-    ' a title wraps rather than being cut: the lines under it, and the card, grow to fit
-    y = 60 + title.boundingRect().height + 4
-    m.top.findNode("unSub").translation = [306, y]
-    when = m.top.findNode("unWhen")
-    when.translation = [306, y + 36]
-    rowY = y + 36 + when.boundingRect().height + 14
-    if rowY < 200 then rowY = 200
-    m.unRow.translation = [26, rowY]
-    height = rowY + 72 + 24
-    m.top.findNode("unPlate").height = height
-    m.upNext.translation = [m.f.right - 680, m.f.promptBottom - height]
+    layoutCard()
     m.upNext.visible = true
     m.prompt.visible = false
+end sub
+
+' The frame's card: 26 in from its edges, the words 24 after the 256 wide still and set on its
+' middle, then the count's line (18 below, while it counts) and the buttons 24 below. A title wraps
+' rather than being cut: the lines under it, and the card, grow to fit.
+sub layoutCard()
+    label = m.top.findNode("unLabel")
+    title = m.top.findNode("unTitle")
+    sub_ = m.top.findNode("unSub")
+    when = m.top.findNode("unWhen")
+    whenTime = m.top.findNode("unWhenTime")
+    titleHeight = title.boundingRect().height
+    whenHeight = 0
+    if when.text <> "" or whenTime.text <> "" then whenHeight = 10 + when.boundingRect().height
+    if when.text = "" and whenTime.text <> "" then whenHeight = 10 + whenTime.boundingRect().height
+    words = 24 + 6 + titleHeight + 4 + 27 + whenHeight
+    top = 26
+    if words < 144 then top = 26 + (144 - words) / 2
+    label.translation = [306, top]
+    title.translation = [306, top + 30]
+    y = top + 30 + titleHeight + 4
+    sub_.translation = [306, y]
+    y = y + 27 + 10
+    when.translation = [306, y]
+    whenTime.translation = [306 + when.boundingRect().width + 6, y]
+    bottom = top + words
+    if bottom < 26 + 144 then bottom = 26 + 144
+    track = m.top.findNode("unTrack")
+    bar = m.top.findNode("unBar")
+    track.visible = m.counting
+    bar.visible = m.counting
+    if m.counting
+        track.translation = [26, bottom + 18]
+        bar.translation = track.translation
+        part = 0
+        if m.countFrom > 0 then part = (m.countFrom - m.countLeft) / m.countFrom
+        bar.width = 628 * part
+        bottom = bottom + 18 + 4
+    end if
+    m.unRow.translation = [26, bottom + 24]
+    height = bottom + 24 + 72 + 26
+    m.top.findNode("unPlate").height = height
+    m.upNext.translation = [m.f.right - 680, m.f.promptBottom - height]
 end sub
 
 ' The end of the title: the next entry plays; a film with nothing after it gets Finished.
@@ -1505,7 +1558,35 @@ sub showFinished()
     m.finished.visible = true
     m.finRow.active = true
     m.finRelated.visible = false
+    m.finStars.visible = false
+    api("GET", "/v1/items/" + item.id, invalid, "onFinishedItemRead", {id: item.id})
     api("GET", "/v1/items/" + item.id + "/related", invalid, "onFinishedRelatedRead", {id: item.id})
+end sub
+
+' Rate this shows your rating, which the server keeps out of ten; the stars are whole, as the other apps draw them.
+sub onFinishedItemRead(event as object)
+    result = event.getData()
+    if not result.ok or not m.finished.visible or event.getRoSGNode().ctx.id <> m.top.item.id then return
+    stars = 0
+    if result.data.state <> invalid and result.data.state.rating <> invalid then stars = int(result.data.state.rating / 2 + 0.5)
+    m.finStars.stars = stars
+    m.finStars.visible = true
+end sub
+
+' OK on a star rates it that many; on the star it already has, the rating is cleared.
+sub onRate(event as object)
+    star = event.getData()
+    before = m.finStars.stars
+    stars = star
+    if star = before then stars = 0
+    m.finStars.stars = stars
+    rating = invalid
+    if stars > 0 then rating = stars * 2
+    api("PUT", "/v1/items/" + m.top.item.id + "/state", {rating: rating, madeAgoMs: 0}, "onRated", {before: before})
+end sub
+
+sub onRated(event as object)
+    if not event.getData().ok then m.finStars.stars = event.getRoSGNode().ctx.before      ' not saved: the stars go back
 end sub
 
 ' More like this film: the related groups in one row, as the title page reads them.
@@ -1842,8 +1923,20 @@ function onKeyEvent(key as string, press as boolean) as boolean
     if not press then return false
     if m.finished.visible
         if key = "back" then leave(false)
-        if key = "down" and m.finRelated.visible then m.finRelated.active = true
-        if key = "up" and m.finRelated.isInFocusChain() then m.finRow.active = true
+        ' the buttons, then Rate this, then More like this
+        if key = "down"
+            if m.finRow.isInFocusChain() and m.finStars.visible
+                m.finStars.active = true
+            else if not m.finRelated.isInFocusChain() and m.finRelated.visible
+                m.finRelated.active = true
+            end if
+        else if key = "up"
+            if m.finRelated.isInFocusChain() and m.finStars.visible
+                m.finStars.active = true
+            else if m.finRelated.isInFocusChain() or m.finStars.isInFocusChain()
+                m.finRow.active = true
+            end if
+        end if
         return true
     end if
     if m.notice.visible

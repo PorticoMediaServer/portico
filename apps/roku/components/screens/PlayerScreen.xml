@@ -81,13 +81,20 @@
          credits beside it puts the card away. In the same place as the skip prompt. -->
     <Group id="upNext" visible="false">
       <Poster id="unPlate" uri="pkg:/images/round-20.9.png" width="680" height="296"/>
-      <Rectangle id="unBack" translation="[26,26]" width="256" height="144"/>
-      <Poster id="unStill" translation="[26,26]" width="256" height="144"/>
-      <Label id="unLabel" translation="[306,30]" text="Up next"/>
-      <Label id="unTitle" translation="[306,60]" width="350" wrap="true" maxLines="3"/>
-      <Label id="unSub" translation="[306,104]" width="350"/>
-      <Label id="unWhen" translation="[306,140]" width="350" wrap="true" maxLines="2"/>
-      <ButtonRow id="unRow" translation="[26,200]"/>
+      <MaskGroup id="unClip" maskUri="pkg:/images/mask-256x144.png" maskSize="[256,144]" translation="[26,26]">
+        <Rectangle id="unBack" width="256" height="144"/>
+        <Poster id="unStill" width="256" height="144"/>
+      </MaskGroup>
+      <Label id="unLabel" text="Up next"/>
+      <Label id="unTitle" width="350" wrap="true" maxLines="3"/>
+      <Label id="unSub" width="350"/>
+      <!-- "Starts in" and, in white, the time (tv-player frame 5) -->
+      <Label id="unWhen" width="350" wrap="true" maxLines="2"/>
+      <Label id="unWhenTime"/>
+      <!-- the count when the next episode starts during the credits by itself (frame 5, below) -->
+      <Rectangle id="unTrack" width="628" height="4" visible="false"/>
+      <Rectangle id="unBar" height="4" visible="false"/>
+      <ButtonRow id="unRow"/>
     </Group>
     <!-- The end of a film with nothing queued (tv-player frame 7): its art comes back behind Finished. -->
     <Group id="finished" visible="false">
@@ -98,6 +105,8 @@
       <Label id="finTitle" width="760" wrap="true" maxLines="2"/>
       <Label id="finMeta" width="1100"/>
       <ButtonRow id="finRow"/>
+      <!-- Rate this, once the title's own read says what you gave it (tv-player frame 7). -->
+      <StarRow id="finStars" visible="false"/>
       <!-- More like this film, from the title page's related read (tv-player frame 7). -->
       <Shelf id="finRelated" shape="poster" visible="false"/>
     </Group>

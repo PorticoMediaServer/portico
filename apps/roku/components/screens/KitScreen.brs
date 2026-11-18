@@ -86,6 +86,7 @@ function kitPages() as object
             {c: "KeyHints", at: [200, 200], f: {hints: [{keys: ["OK"], text: "Play"}, {keys: ["Up", "Down"], text: "Choose a page"}]}},
             {c: "KeyHints", at: [200, 320], f: {small: true, hints: [{keys: ["Play/Pause"], text: "Delete a digit"}, {keys: ["Back"], text: "Other profiles"}]}},
             {c: "KeyHints", at: [200, 440], f: {small: true, hints: [{before: "Press", keys: ["Back"], text: "to change the server address."}]}}]},
+        {title: "Rate this: no rating, three stars", parts: [{c: "StarRow", at: [200, 200], f: {}}, {c: "StarRow", at: [200, 320], f: {stars: 3}}]},
         {title: "QR cards: with a code, and without", parts: [
             {c: "QrCard", at: [120, 212], f: {link: "https://web.getportico.tv/tv?code=7KQM-4TXP", address: "web.getportico.tv/tv", code: "7KQM-4TXP", note: "This code refreshes by itself."}},
             {c: "QrCard", at: [1060, 212], f: {link: "https://demo.getportico.tv/settings/profile", address: "demo.getportico.tv/settings/profile", note: "Scan the code with your phone, or go to this address on a computer."}}]},
