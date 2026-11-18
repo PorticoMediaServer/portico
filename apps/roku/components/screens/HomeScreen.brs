@@ -19,7 +19,12 @@ sub init()
     m.loadingDelay = m.top.findNode("loadingDelay")
     m.loadingDelay.observeField("fire", "onLoadingDelay")
     m.focus = -2       ' -2 nothing to focus yet, otherwise the row in focus
-    m.notice.observeField("pressed", "load")
+    m.notice.observeField("pressed", "onNotice")
+    m.retry = m.top.findNode("retry")
+    m.retry.observeField("fire", "onRetryTick")
+    m.facts = m.top.findNode("facts")
+    m.facts.observeField("closed", "onFactsClosed")
+    m.tries = 0         ' tries that found no server, since `since` (the time of day of the first)
     ' Customize Home: a button after the last row, and the panel it opens over Home
     m.customizeLine = m.top.findNode("customizeLine")
     m.customize = m.top.findNode("customize")
@@ -45,8 +50,10 @@ function homePath() as string
 end function
 
 sub load()
-    m.notice.visible = false
-    m.loadingDelay.control = "start"
+    ' while Home is trying again by itself its notice stays up, saying so, until the server answers
+    if m.tries = 0 then m.notice.visible = false else m.notice.status = "Trying again now"
+    m.retry.control = "stop"
+    if m.tries = 0 then m.loadingDelay.control = "start"
     api("GET", homePath(), invalid, "onHome", {path: homePath()})
 end sub
 
@@ -56,14 +63,23 @@ sub onHome(event as object)
     if event.getRoSGNode().ctx.path <> homePath() then return
     if not result.ok
         if result.status = 0
-            say("warning", "Can't reach the server", "You're still signed in. Try again in a moment.", [{id: "retry", text: "Try again now", icon: "refresh"}])
+            unreachable()
         else
             ' the server answered and refused (viewing hours, away from home): its own sentence says why
+            m.tries = 0
             say("warning", "Home isn't available right now", result.error.message, [{id: "retry", text: "Try again now", icon: "refresh"}])
         end if
         return
     end if
     home = result.data
+    if m.tries > 0
+        ' the server answers again: the notice goes and Home opens as usual
+        m.tries = 0
+        m.retry.control = "stop"
+        m.notice.status = ""
+        m.notice.footnote = ""
+        m.notice.visible = false
+    end if
     ' a late answer never takes focus from the rail or a sheet: only a Home that had it keeps it
     own = m.top.isInFocusChain()
     for each entry in m.rows
@@ -156,12 +172,62 @@ sub stopLoading()
     m.hero.loading = false
 end sub
 
+' No answer from the server (states frame 5): you are still signed in, and Home keeps trying every
+' 30 seconds, saying when it will next try and how long it has been trying.
+sub unreachable()
+    if m.tries = 0
+        now = createObject("roDateTime")
+        now.toLocalTime()
+        m.since = hourMinuteText(now.getHours(), now.getMinutes())
+    end if
+    m.tries = m.tries + 1
+    name = storeRead("serverName")
+    if name = "" then name = "the server"
+    m.serverName = name
+    ' the first time the whole notice; after that only its words change, so focus stays where it is
+    if m.tries = 1
+        say("server", "Can't reach " + name, "You're still signed in. Portico keeps trying and opens your Home the moment the server answers.", [{id: "retry", text: "Try again now", icon: "refresh"}, {id: "details", text: "Details", icon: ""}])
+        m.notice.footnote = "If the server is asleep or switched off, it may need waking. Check that this TV is on the same network as the server."
+    end if
+    m.countdown = 30
+    showCountdown()
+    m.retry.control = "start"
+end sub
+
+sub showCountdown()
+    m.notice.status = "Trying again in " + countText(m.countdown, "second", "seconds")
+    m.notice.statusMore = triesText(m.tries, m.since)
+end sub
+
+sub onRetryTick()
+    m.countdown = m.countdown - 1
+    if m.countdown > 0
+        showCountdown()
+    else
+        load()
+    end if
+end sub
+
+sub onNotice(event as object)
+    if event.getData() = "details"
+        m.facts.model = {eyebrow: "Details", title: "Can't reach " + m.serverName, text: "Server: " + m.serverName + chr(10) + "Address: " + m.global.origin + chr(10) + chr(10) + "What happened: the server did not answer. It may be asleep or switched off, or this TV may not be on its network." + chr(10) + chr(10) + "Tries: " + triesText(m.tries, m.since) + chr(10) + "This TV tries again every 30 seconds while Home is open."}
+    else
+        load()
+    end if
+end sub
+
+sub onFactsClosed()
+    m.notice.active = true
+end sub
+
 sub say(icon as string, title as string, body as string, buttons as object)
     stopLoading()
     m.focus = -2
     m.hero.visible = false
     m.top.art = ""
     m.notice.icon = icon
+    m.notice.status = ""
+    m.notice.footnote = ""
     m.notice.title = title
     m.notice.body = body
     m.notice.buttons = buttons

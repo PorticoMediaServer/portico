@@ -21,6 +21,7 @@
   </interface>
   <script type="text/brightscript" uri="HomeScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
@@ -38,6 +39,10 @@
       </Group>
     </Group>
     <PageState id="notice" visible="false"/>
+    <!-- The server can't be reached (states frame 5): Home tries again every 30 seconds by itself,
+         counting down a second at a time; Details opens the plain facts. -->
+    <Timer id="retry" duration="1" repeat="true"/>
+    <TextPanel id="facts"/>
     <!-- The hero's description is read once focus rests on a card (a row's titles carry no synopsis). -->
     <Timer id="rest" duration="0.35"/>
     <!-- Nothing shows for the first 300 ms of loading; then outlines of the real sizes (rule 9). -->

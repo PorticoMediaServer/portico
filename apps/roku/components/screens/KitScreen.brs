@@ -90,6 +90,8 @@ function kitPages() as object
         {title: "QR cards: with a code, and without", parts: [
             {c: "QrCard", at: [120, 212], f: {link: "https://web.getportico.tv/tv?code=7KQM-4TXP", address: "web.getportico.tv/tv", code: "7KQM-4TXP", note: "This code refreshes by itself."}},
             {c: "QrCard", at: [1060, 212], f: {link: "https://demo.getportico.tv/settings/profile", address: "demo.getportico.tv/settings/profile", note: "Scan the code with your phone, or go to this address on a computer."}}]},
+        {title: "A long text read in full (a biography, Home's Details when the server can't be reached)", parts: [
+            {c: "TextPanel", at: [0, 0], f: {model: {eyebrow: "An eyebrow", title: "A panel's title", text: "A long text, read in full. Up and Down scroll it when it runs past the panel."}}}]},
         {title: "The season list (five whole, the next peeking)", parts: [{c: "SeasonList", at: [200, 160], f: {seasons: sampleSeasons()}}]},
         {title: "The confirm dialog (focus starts on Cancel)", parts: [{c: "Confirm", at: [0, 0], f: {model: {title: "Sign out of Portico Demo on this TV?", body: "You'll need to sign this TV in again.", verb: "Sign out"}}}]},
         {title: "The side panel a panel or picker opens on (Customize Home, File info): the scrim and the panel from x", parts: [

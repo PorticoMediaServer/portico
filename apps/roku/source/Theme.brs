@@ -139,7 +139,13 @@ function frames() as object
             pinX: 240, pinWidth: 640, pinFaceY: 238, pinTitleY: 462, pinNameY: 540, boxesY: 619, pinNoteY: 775, keysX: 1176, keysY: 219, hintsY: 988, doorButtonsY: 576, doorNoteY: 690, doorTitleY: 416, factorBodyY: 512, factorBoxesY: 640, factorTitleY: 420, noteY: 760, pressY: 976, localTitleY: 127, localBodyY: 229, nearbyLabelY: 300, nearbyRowsY: 340, elsewhereLabelY: 700, localButtonsY: 740, localNoteY: 840}
         ' The whole page could not load (frame "Page states"): icon, title and one sentence from `y`,
         ' `width` wide, then buttons on `buttonsY`.
-        state: {y: 300, width: 1000, buttonsY: 760}
+        state: {y: 300, width: 1000, buttonsY: 760,
+            ' the line a page that keeps trying by itself says so on (states frame 5)
+            statusY: 690}
+        ' A long text read in full (a person's biography): the panel from `x`, its words from `pad` inside
+        ' it to `padRight` from the screen's edge; the eyebrow on `top`, the title ending `titleGap` above
+        ' `textY`, the text from `textY` to `textBottom`, the key hints on `hintsY`.
+        textPanel: {x: 1020, pad: 56, padRight: 96, top: 64, titleGap: 24, textY: 220, textBottom: 960, hintsY: 1006}
         ' A title page (frame "Title page"): its words and action row start at `copyTop`, `copyWidth`
         ' wide; the section strip is fixed at `tabsY` and the first row at `rowY`.
         title: {copyTop: 80, copyWidth: 960, tabsY: 628, rowY: 712,

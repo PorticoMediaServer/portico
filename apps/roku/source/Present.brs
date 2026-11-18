@@ -31,6 +31,22 @@ function timeLeftText(item as object) as string
     return durationText(item.durationMs - item.state.positionMs) + " left"
 end function
 
+' A time of day as the TV says it: 16, 2 -> "4:02 PM"; 0, 30 -> "12:30 AM".
+function hourMinuteText(hour as integer, minute as integer) as string
+    half = "AM"
+    if hour >= 12 then half = "PM"
+    h = hour mod 12
+    if h = 0 then h = 12
+    m2 = minute.toStr()
+    if minute < 10 then m2 = "0" + m2
+    return h.toStr() + ":" + m2 + " " + half
+end function
+
+' How long a page has kept trying: "1 try since 4:02 PM", "6 tries since 4:02 PM".
+function triesText(tries as integer, since as string) as string
+    return countText(tries, "try", "tries") + " since " + since
+end function
+
 ' Reading (books, comics, magazines) is not on TV (definition, area 10: decision of 21 Oct), so a
 ' title that is a publication is left out of rows on this app.
 function isReading(item as object) as boolean
