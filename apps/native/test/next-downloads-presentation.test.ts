@@ -28,7 +28,7 @@ const copy: NativeDownloadsCopy = {emptyBody: 'downloads.emptyBody', storageLimi
   otherProfiles: 'downloads.used', stoppedAt: 'server.plays.stoppedAt', stoppedHelp: 'downloads.paused'};
 const text = {t: defaultI18n.t};
 function entry(patch: Partial<OfflineEntry> = {}): OfflineEntry {
-  return {id: 'local-copy', itemId: 'actual-item', owner: 'current-viewer', title: 'Stored title: Special Edition', subtitle: 'opaque legacy prose', quality: 'original', artworkUrl: '',
+  return {id: 'local-copy', itemId: 'actual-item', downloadId: 'dl_copy', owner: 'current-viewer', title: 'Stored title: Special Edition', subtitle: 'opaque legacy prose', quality: 'original', artworkUrl: '',
     state: 'ready', error: '', waiting: '', held: false, bytes: 1024 ** 3, bytesDone: 1024 ** 3, addedAt: 1, onServer: true, changedOnServer: false, ...patch};
 }
 

@@ -122,3 +122,14 @@ test('a ready-title read already in flight cannot restore a cancelled preparatio
  await f.offline.cancelPending(p.id);release(d);await settle();
  assert.equal(JSON.parse(f.disk.state).wanted[owner]?.[p.id], undefined);assert.equal(f.started.length, 0);
 });
+
+test('open removes pre-rebuild entries without a download ID and keeps rebuilt copies', async t => {
+  const f = await offlineFixture(); t.after(() => f.offline.dispose());
+  f.seed('old-copy', 'film', {meta: {owner, receipt: {receiptId: 'old-receipt'}}});
+  f.seed('current-copy', 'film', {meta: {owner, downloadId: 'dl_new', bundle: 4}});
+  f.offline.adopt(viewer);
+  await f.offline.open();
+  assert.deepEqual(f.removed, ['old-copy']);
+  assert.deepEqual([...f.entries.keys()], ['current-copy']);
+  assert.deepEqual(f.offline.getSnapshot().entries.map(entry => entry.id), ['current-copy']);
+});
