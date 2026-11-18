@@ -49,7 +49,6 @@ func (e *Engine) StartLive(ctx context.Context, r live.Conversion) (*live.Play, 
 		Preferences: saved(r.Preferences),
 	}
 	connection(&request.Connection, playback.PlanRequest{Network: r.Network})
-	holdToLimits(&request, r.Limits)
 	if len(r.Capabilities) > 0 {
 		if device, err := streaming.ParseCapabilityDocument(r.Capabilities); err == nil {
 			request.Device = &device

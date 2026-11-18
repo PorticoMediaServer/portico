@@ -124,7 +124,6 @@ func TestAnAccountHeldToHomeAndToViewingHours(t *testing.T) {
 		"a rating of 40":               `{"maxRatingAge":40}`,
 		"no profiles at all":           `{"maxProfiles":0}`,
 		"three profiles":               `{"maxProfiles":3}`,
-		"a cap of nothing":             `{"remoteMaxBitrateKbps":0}`,
 		"a label nobody has":           `{"blockedLabels":["tag_nothing"]}`,
 	} {
 		if code := status(t, s, "PATCH", "/v1/admin/members/"+max.ID, owner, json.RawMessage(`{"limits":`+bad+`}`)); code != 400 {

@@ -7808,16 +7808,6 @@
               }
             ]
           },
-          "remoteMaxBitrateKbps": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "viewingHours": {
             "anyOf": [
               {
@@ -7862,9 +7852,6 @@
             "type": "integer"
           },
           "maxRatingAge": {
-            "type": "integer"
-          },
-          "remoteMaxBitrateKbps": {
             "type": "integer"
           },
           "viewingHours": {

@@ -460,14 +460,6 @@ func (s saved) PreferenceSource(key string) string {
 	return "default"
 }
 
-// holdToLimits applies what the viewer's account is held to: a video bitrate cap on any
-// connection that is not the home network.
-func holdToLimits(request *streaming.PlanRequest, limits db.PlayLimits) {
-	if limits.RemoteMaxBitrateKbps > 0 && request.Connection.NetworkClass != streaming.NetworkLocal {
-		request.MemberCeiling = streaming.ReplanCeilings{Remote: true, MaxVideoBitrateBPS: limits.RemoteMaxBitrateKbps * 1000}
-	}
-}
-
 // Plan asks the media engine how the version reaches the device.
 func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -510,8 +502,6 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		request.Measured = &measured
 	}
 	connection(&request.Connection, r)
-	// After connection: the member's limits apply only away from home.
-	holdToLimits(&request, r.Limits)
 	if len(r.Capabilities) > 0 {
 		// A document this server cannot read (a newer or an older version, or damaged) is not a
 		// reason to refuse: the device is planned for as one that has said nothing, which plays

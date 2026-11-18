@@ -122,12 +122,11 @@ func scramble(r *rand.Rand, v any) any {
 	return v
 }
 
-// What a device says about itself can only narrow what it is given. The owner's and the
-// member's limits are applied after the document: a client that claims to play anything,
-// or sends a damaged document, is never sent a picture above the member's limit and is
-// never given a conversion the owner has turned off. Nothing it sends makes planning fail
-// in any way but a plain refusal.
-func TestNoDocumentWidensTheOwnersOrTheMembersLimits(t *testing.T) {
+// What a device says about itself can only narrow what it is given. The owner's switch is
+// applied after the document: a client that claims to play anything, or sends a damaged
+// document, is never given a conversion the owner has turned off. Nothing it sends makes
+// planning fail in any way but a plain refusal.
+func TestNoDocumentWidensTheOwnersLimits(t *testing.T) {
 	r := rand.New(rand.NewSource(1))
 	rows := matrixRows()
 	check := func(doc *CapabilityDocument) {
@@ -136,28 +135,15 @@ func TestNoDocumentWidensTheOwnersOrTheMembersLimits(t *testing.T) {
 			if source.Video == nil {
 				continue
 			}
-			ceiling := ReplanCeilings{Remote: true, MaxVideoBitrateBPS: []int{1_000_000, 4_000_000, 20_000_000}[r.Intn(3)], MaxVideoHeight: []int{480, 720, 1080}[r.Intn(3)]}
 			conversion := r.Intn(3) > 0
 			plan, err := Plan(PlanRequest{Measured: &source, Device: doc, Settings: DefaultDeliveryConfiguration(), Toolchain: matrixToolchain(),
-				TranscodingEnabled: conversion, FragmentedOutput: true, MemberCeiling: ceiling})
+				TranscodingEnabled: conversion, FragmentedOutput: true})
 			if err != nil {
 				continue // refused: nothing was sent
 			}
-			converts := plan.VideoAction == "convert"
-			if !conversion && (converts || plan.AudioAction == "convert") {
-				t.Fatalf("%s: a conversion was planned with conversion turned off", row.source)
-			}
-			rate, height := int(max(source.Video.BitRate, source.Video.MaxBitRate, source.BitRate, source.MaxBitRate)), source.Video.Height
-			if converts {
-				rate = plan.VideoBitrateBPS
-				if plan.TargetHeight > 0 {
-					height = min(height, plan.TargetHeight)
-				}
-			}
-			if rate > ceiling.MaxVideoBitrateBPS || height > ceiling.MaxVideoHeight {
+			if !conversion && (plan.VideoAction == "convert" || plan.AudioAction == "convert") {
 				raw, _ := json.Marshal(doc)
-				t.Fatalf("%s reached the device at %d bps and %dp (%s), above the member's limit of %d bps and %dp, for the document %s",
-					row.source, rate, height, plan.Strategy, ceiling.MaxVideoBitrateBPS, ceiling.MaxVideoHeight, raw)
+				t.Fatalf("%s: a conversion was planned with conversion turned off, for the document %s", row.source, raw)
 			}
 		}
 	}

@@ -588,13 +588,11 @@ CREATE TABLE users (
   -- home_only: usable on the home network only. viewing_hours: the times of the week it may
   -- be used, as JSON; NULL is any time. max_rating_age and allow_unrated bind every profile
   -- as well as the profile's own.
-  -- remote_max_bitrate_kbps: the most video bitrate away from home; NULL is no cap.
   -- max_profiles: how many profiles the account may have; NULL is the server's eight.
   home_only           INTEGER NOT NULL DEFAULT 0 CHECK (home_only IN (0, 1)),
   viewing_hours       TEXT,
   max_rating_age      INTEGER,
   allow_unrated       INTEGER NOT NULL DEFAULT 0 CHECK (allow_unrated IN (0, 1)),
-  remote_max_bitrate_kbps INTEGER,
   max_profiles        INTEGER,
   two_factor_secret   BLOB,
   two_factor_enabled_at INTEGER,
