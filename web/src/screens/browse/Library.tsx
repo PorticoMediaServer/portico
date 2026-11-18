@@ -77,9 +77,9 @@ export const browseLabels: BrowseLabels = {
 /** A library tab's grid on the library frame (`BrowseFrame`): the library's header, its toolbar, the grid and Filters. Until
  *  its grid has come from the viewer's cache (`controller` absent) the frame draws the header over the grid's loading boxes. */
 export function LibraryScreen(props: Omit<LibraryBindings, 'controller'> & {controller?: LibraryBindings['controller']}) {
-  const {controller} = props;
+  const {controller} = props, header = useLibraryHeader(props);
   // `grid` says the loading boxes are a grid's (the frame draws its own while `state` is loading).
-  if (!controller) return <BrowseFrame header={useLibraryHeader(props)} grid state={{kind: 'loading'}}/>;
+  if (!controller) return <BrowseFrame header={header} grid state={{kind: 'loading'}}/>;
   return <LoadedLibraryScreen {...props} controller={controller}/>;
 }
 function LoadedLibraryScreen(bindings: LibraryBindings) {

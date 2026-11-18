@@ -14,8 +14,11 @@ test('J-4: the desktop rail sits 18px from the window edge in the page gutter at
 });
 
 test('W2-A3: a grid that draws the rail keeps at least 56px on its right, 10px clear of the rail at 1024', () => {
-  assert.match(css, /\.results:has\(> \.rail\) \{ margin-right: calc\(max\(var\(--shell-gutter\), 56px\) - var\(--grid-overflow, 0px\)\); \}/);
-  assert.match(css, /\.results:has\(> \.rail\) \{ margin-right: calc\(44px - var\(--grid-overflow, 0px\)\); \} \.rail \{ right: calc\(-36px \+ var\(--grid-overflow, 0px\)\); \}/, 'medium widths keep the rail 8px clear');
+  // The library frame's grid region keeps one shell gutter (kit frames browse.module.css `.content`); the results add the
+  // rest of the rail's room, so the drawn right edge is still max(gutter, 56) (44 at medium widths) from the window.
+  assert.match(readFileSync(new URL('../src/kit/frames/browse.module.css', import.meta.url), 'utf8'), /\.content \{[^}]*padding: 0 var\(--g\);/);
+  assert.match(css, /\.results:has\(> \.rail\) \{ margin-right: calc\(max\(var\(--shell-gutter\), 56px\) - var\(--shell-gutter\) - var\(--grid-overflow, 0px\)\); \}/);
+  assert.match(css, /\.results:has\(> \.rail\) \{ margin-right: calc\(44px - var\(--shell-gutter\) - var\(--grid-overflow, 0px\)\); \} \.rail \{ right: calc\(-36px \+ var\(--grid-overflow, 0px\)\); \}/, 'medium widths keep the rail 8px clear');
 });
 
 test('J-4: the rail keeps 21px rows whenever the window holds # and A–Z', () => {
