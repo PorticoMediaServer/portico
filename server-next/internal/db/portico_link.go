@@ -473,7 +473,7 @@ type PorticoSignIn struct {
 
 // SignInWithPortico starts a session for the account on this server that carries the proven
 // Portico Account, bringing its username and email address up to date. With no such account,
-// a valid invitation creates one, with the role and libraries the invitation carries. The
+// a valid invitation creates one, with the role, libraries and limits the invitation carries. The
 // Portico Account's id is the identity: no username or email address ever matches a person
 // to an account. joined says an account was created.
 //
@@ -538,10 +538,10 @@ func joinWithPortico(tx *sql.Tx, p PorticoSignIn) (int64, error) {
 	}
 	at := p.Now.UnixMilli()
 	var invitation int64
-	var role string
+	var role, limits string
 	var allLibraries bool
 	err := tx.QueryRow(`UPDATE invitations SET state = 'accepted', accepted_at = ? WHERE code_hash = ? AND state = 'open' AND expires_at > ?
-		RETURNING id, role, all_libraries`, at, p.InvitationHash, at).Scan(&invitation, &role, &allLibraries)
+		RETURNING id, role, all_libraries, limits`, at, p.InvitationHash, at).Scan(&invitation, &role, &allLibraries, &limits)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, ErrNotMember
 	}
@@ -564,6 +564,9 @@ func joinWithPortico(tx *sql.Tx, p PorticoSignIn) (int64, error) {
 	}
 	if _, err := tx.Exec(`UPDATE users SET password_hash = NULL, password_changed_at = NULL, portico_account_id = ?, email = nullif(?, ''),
 		all_libraries = ? WHERE id = ?`, p.AccountID, p.Email, allLibraries, userID); err != nil {
+		return 0, err
+	}
+	if err := holdToInvitation(tx, userID, limits); err != nil {
 		return 0, err
 	}
 	if _, err := tx.Exec(`INSERT INTO library_access (library_id, user_id) SELECT library_id, ? FROM library_access WHERE invitation_id = ?`, userID, invitation); err != nil {

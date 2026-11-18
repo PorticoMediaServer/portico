@@ -1273,6 +1273,7 @@ export interface Invitation {
   createdAt: string;
   expiresAt: string;
   acceptedAt?: string;
+  limits: MemberLimits;
 }
 
 export interface InvitationAccept {
@@ -1288,6 +1289,7 @@ export interface InvitationCreate {
   libraries?: string[];
   note?: string;
   expiresInDays?: number;
+  limits?: MemberLimitsEdit;
 }
 
 export interface InvitationEdit {
@@ -1296,6 +1298,7 @@ export interface InvitationEdit {
   libraries?: string[];
   note?: string;
   expiresInDays?: number;
+  limits?: MemberLimitsEdit;
 }
 
 export interface InvitationPage {
