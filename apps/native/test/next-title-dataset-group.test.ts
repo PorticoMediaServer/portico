@@ -12,10 +12,10 @@ const t = (id: string) => id;
 async function fixture(on: boolean | undefined, tv = false, saving = false) {
   const outer = hooks(), inner = hooks(); let active = outer;
   const react = {...outer.react, useState: (...args: unknown[]) => active.react.useState(...args)};
-  let draft: Record<string, unknown> = {name: 'Server', ...(on === undefined ? {} : {'recommendations.titleDataset': on})};
+  let draft: Record<string, unknown> = on === undefined ? {} : {download: on};
   const saves: Record<string, unknown>[] = [];
   const runtimeForm = {getSnapshot: () => ({saving: false}), set: (change: (value: Record<string, unknown>) => Record<string, unknown>) => {draft = change(draft);}};
-  const group = {mount: 1, forms: {runtime: runtimeForm}, set: {save: async () => {saves.push(draft);}}};
+  const group = {mount: 1, forms: {titleData: runtimeForm}, set: {save: async () => {saves.push(draft);}}};
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/TitleDatasetGroup.tsx', import.meta.url), {
     react, 'react-native': {Text: 'Text', View: 'View'},
     '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsRowIndex},
@@ -44,8 +44,7 @@ test('the switch shows the owner setting, on when never saved, and saves a chang
   byId(f.render(), 'metadata.titleDataset')!.props.onCheckedChange(false);
   await Promise.resolve();
   assert.equal(f.saves.length, 1);
-  assert.equal(f.saves[0]!['recommendations.titleDataset'], false);
-  assert.equal(f.saves[0]!.name, 'Server', 'the rest of the document is kept');
+  assert.deepEqual(f.saves[0], {download: false});
 });
 
 test('on TV the switch is the panel\'s focusable switch row', async () => {
@@ -55,7 +54,7 @@ test('on TV the switch is the panel\'s focusable switch row', async () => {
   assert.equal(control.props.checked, true);
   control.props.onChange(false);
   await Promise.resolve();
-  assert.equal(f.saves[0]!['recommendations.titleDataset'], false);
+  assert.equal(f.saves[0]!.download, false);
 });
 
 test('on TV a save in progress keeps the switch focusable and ignores presses', async () => {

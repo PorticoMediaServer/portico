@@ -20,7 +20,7 @@ import {putSettingsDocument, type SettingsDocumentAPI} from '../settings-documen
  * (effective values, choices the server offers, the revision to save against).
  */
 
-export type ServerFormId = 'runtime' | 'connectivity' | 'remote' | 'certificate' | 'alerts' | 'liveDefaults' | 'recording' | 'maintenance' | 'logs' | 'segments';
+export type ServerFormId = 'runtime' | 'connectivity' | 'remote' | 'certificate' | 'alerts' | 'liveDefaults' | 'recording' | 'maintenance' | 'logs' | 'segments' | 'titleData';
 
 export type ServerFormDeps = Readonly<{
   api: SettingsDocumentAPI;
@@ -257,6 +257,7 @@ const FACTORIES: Readonly<Record<ServerFormId, (deps: ServerFormDeps) => DraftFo
   runtime: runtimeForm, connectivity: connectivityForm, remote: remoteAccessForm, certificate: certificateForm, alerts: alertsForm,
   liveDefaults: liveDefaultsForm, recording: recordingForm, maintenance: maintenanceForm, logs: logsForm,
   segments: deps => namedSettingsForm(deps, 'segments'),
+  titleData: deps => namedSettingsForm(deps, 'title_data'),
 };
 
 export function createServerForm(id: ServerFormId, deps: ServerFormDeps): DraftForm<any, any> {
