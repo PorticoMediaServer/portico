@@ -203,7 +203,7 @@ export const shared = {
   'next.collection.empty': 'Nothing in this collection yet',
   'next.collection.automaticDescription': 'Portico put this together from the films’ details, and adds new ones as they arrive.',
   'next.watch.episodesWillRead': 'Episodes will read',
-  'next.watch.wasSeason': 'was S{season} E{episode}',
+  'next.watch.wasSeason': 'was S{season, number, ::group-off} E{episode, number, ::group-off}',
   'next.watch.guestStars': 'Guest stars',
   'next.watch.asCharacter': 'as {character}',
   'next.watch.andMore': 'and {count} more',

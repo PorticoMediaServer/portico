@@ -38,3 +38,10 @@ test('an older server with no spotlight has none, and an absent grant does not o
   const current = await fetchHome({request: async <T>() => ({rows: [], spotlight: [{entry: movie, reason}]}) as T});
   assert.equal(homeEntryCapabilities(current.spotlight[0].entry, {platform: 'web', playbackAvailable: true}).playable, false);
 });
+
+test('a dated show\'s episode code is drawn as a code, never with a thousands separator (Morning Tide S2026 E316)', async () => {
+  const {defaultI18n} = await import('../../i18n/src/index.ts');
+  for (const key of ['next.home.playEpisode', 'next.home.resumeEpisode', 'next.layout.playEpisode', 'next.watch.wasSeason'] as const)
+    assert.doesNotMatch(defaultI18n.t(key, {season: 2026, episode: 1316}), /2,026|1,316/, key);
+  assert.equal(defaultI18n.t('next.home.playEpisode', {season: 2026, episode: 316}), 'Play S2026 E316');
+});
