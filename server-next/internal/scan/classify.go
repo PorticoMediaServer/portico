@@ -94,16 +94,26 @@ func discFolder(name string) bool {
 	return strings.EqualFold(name, "BDMV") || strings.EqualFold(name, "VIDEO_TS")
 }
 
-// DiscTitle reports whether a path is the file the scanner lists for a film disc kept as a
-// folder (BDMV/index.bdmv, VIDEO_TS/VIDEO_TS.IFO): the disc's index, not something to play.
+// DiscTitle reports whether a path is the file the scanner lists for a film disc: a disc image,
+// or the index of a disc kept as a folder (BDMV/index.bdmv, VIDEO_TS/VIDEO_TS.IFO), which is
+// not something to play.
 func DiscTitle(file string) bool {
 	folder := path.Base(path.Dir(filepath.ToSlash(file)))
-	return discFolder(folder) && discTitle(folder, path.Base(filepath.ToSlash(file)))
+	return discImage(file) || discFolder(folder) && discTitle(folder, path.Base(filepath.ToSlash(file)))
 }
 
-// DiscFolder is the folder the disc reader is handed for the file DiscTitle names: the disc
-// itself (the folder that holds BDMV) for a Blu-ray, the VIDEO_TS folder for a DVD.
-func DiscFolder(file string) string { return readerFolder(filepath.Dir(file)) }
+// DiscInput is what the disc reader is handed for the file DiscTitle names: the image itself,
+// or, for a disc kept as a folder (directory), the disc (the folder that holds BDMV) for a
+// Blu-ray and the VIDEO_TS folder for a DVD.
+func DiscInput(file string) (input string, directory bool) {
+	if discImage(file) {
+		return file, false
+	}
+	return readerFolder(filepath.Dir(file)), true
+}
+
+// discImage reports whether a file is a disc image.
+func discImage(file string) bool { return strings.EqualFold(path.Ext(filepath.ToSlash(file)), ".iso") }
 
 // discTitle reports whether a file inside a disc folder is the one that stands for the disc.
 func discTitle(folder, name string) bool {

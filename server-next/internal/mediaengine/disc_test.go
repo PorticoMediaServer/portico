@@ -80,9 +80,9 @@ func TestPlayingADiscIsRefusedInPlainWords(t *testing.T) {
 	}
 }
 
-// A film disc kept as a folder plays its main feature as the server's stream, never as the
-// folder itself. A Blu-ray's picture is copied where the device plays it, cut on the title's
-// entry points as the disc reader lists them: to a device that plays its sound too it is
+// A film disc, kept as a folder or as an image, plays its main feature as the server's stream,
+// never as the disc itself. A Blu-ray's picture is copied where the device plays it, cut on the
+// title's entry points as the disc reader lists them: to a device that plays its sound too it is
 // repackaged, and to a browser only the sound is converted. A DVD's picture is converted. Its
 // playlist names segments that are the title's picture, a segment past the Blu-ray's first clip
 // (a seek) plays from its place, and the disc played again resumes where it was left.
@@ -104,6 +104,7 @@ func TestADiscPlaysItsMainFeature(t *testing.T) {
 		{"bluray-two-clip-bdmv", "tvos", playback.RouteRepackaged, "copy"},
 		{"bluray-two-clip-bdmv", "chromium", playback.RouteConverted, "copy"},
 		{"dvd-two-title-video-ts", "chromium", playback.RouteConverted, "transcode"},
+		{"bluray-udf250.iso", "chromium", playback.RouteConverted, "copy"},
 	} {
 		t.Run(c.fixture+"/"+c.profile, func(t *testing.T) {
 			h, d := newHouse(t, ffmpeg, ffprobe)
@@ -119,7 +120,18 @@ func TestADiscPlaysItsMainFeature(t *testing.T) {
 			}
 			h.call("PUT", "/v1/devices/"+h.device+"/capabilities", profile.Document, nil, 204)
 			library := filepath.Join(t.TempDir(), "Films")
-			if err := os.CopyFS(filepath.Join(library, "Disc Film (2019)"), os.DirFS(filepath.Join("..", "..", "..", "fixtures", "discs", c.fixture))); err != nil {
+			source, film := filepath.Join("..", "..", "..", "fixtures", "discs", c.fixture), filepath.Join(library, "Disc Film (2019)")
+			if strings.HasSuffix(c.fixture, ".iso") {
+				if err = os.MkdirAll(film, 0o755); err == nil {
+					var image []byte
+					if image, err = os.ReadFile(source); err == nil {
+						err = os.WriteFile(filepath.Join(film, "Disc Film (2019).iso"), image, 0o644)
+					}
+				}
+			} else {
+				err = os.CopyFS(film, os.DirFS(source))
+			}
+			if err != nil {
 				t.Fatal(err)
 			}
 			lib, err := d.CreateLibrary(context.Background(), "Films", db.LibraryMovies, "en", []string{library})
@@ -135,6 +147,12 @@ func TestADiscPlaysItsMainFeature(t *testing.T) {
 				t.Fatalf("the library lists %+v", page.Items)
 			}
 			item := page.Items[0].ID
+			// The scan read the disc's main feature: its length is the title's.
+			var options api.PlaybackOptions
+			h.call("GET", "/v1/items/"+item+"/playback-options", nil, &options, 200)
+			if len(options.Versions) != 1 || options.Versions[0].DurationMs < 71_900 || options.Versions[0].DurationMs > 72_100 {
+				t.Fatalf("the scan stored %+v", options.Versions)
+			}
 
 			var session api.PlaybackSession
 			h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: item}, &session, 201)

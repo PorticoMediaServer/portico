@@ -57,14 +57,16 @@ func TestADiscIsItsMainFeature(t *testing.T) {
 	}
 }
 
-// With the disc reader installed, the two disc folders kept as fixtures are read for real.
+// With the disc reader installed, the disc folders and the disc image kept as fixtures are read
+// for real.
 // Where it is not installed this cannot be shown, and the test says so.
 func TestTheDiscReaderReadsTheFixtureDiscs(t *testing.T) {
 	reader := mediatools.Resolve("portico-disc")
 	if _, err := exec.LookPath(reader); err != nil {
 		t.Skip("the disc reader (portico-disc) is not installed here, so reading a real disc folder is not shown by this run")
 	}
-	for folder, kind := range map[string]string{"bluray-two-clip-bdmv/BDMV/index.bdmv": "bluray", "dvd-two-title-video-ts/VIDEO_TS/VIDEO_TS.IFO": "dvd"} {
+	for folder, kind := range map[string]string{"bluray-two-clip-bdmv/BDMV/index.bdmv": "bluray", "dvd-two-title-video-ts/VIDEO_TS/VIDEO_TS.IFO": "dvd",
+		"bluray-udf250.iso": "bluray"} {
 		file, err := filepath.Abs(filepath.Join("..", "..", "..", "fixtures", "discs", folder))
 		if err != nil {
 			t.Fatal(err)

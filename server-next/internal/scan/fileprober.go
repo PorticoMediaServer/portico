@@ -85,12 +85,16 @@ func (FileProber) probe(ctx context.Context, path string, packets bool) (Facts, 
 	// scan lists for it is only the disc's index, which the media tool cannot read.
 	if folder, ok := discOf(path); ok {
 		if folder, err := filepath.EvalSymlinks(folder); err == nil {
-			return probeDisc(ctx, folder)
+			return probeDisc(ctx, readerFolder(folder), true)
 		}
 	}
 	real, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return Facts{}, err
+	}
+	if discImage(real) {
+		// A disc image too, which the media tool cannot read either.
+		return probeDisc(ctx, real, false)
 	}
 	prober := mediafacts.Probe{ScanCommand: pooled}
 	found, err := prober.Inspect(ctx, real)
