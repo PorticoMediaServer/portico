@@ -1493,11 +1493,7 @@ sub pressTool(kind as string)
         api("POST", "/v1/dvr/recordings", {programme: p.id}, "onLiveRecorded", {id: p.id})
     else if kind = "booked"
         m.hide.control = "stop"       ' the controls stay up under the question
-        if m.liveBooking.state = "scheduled"
-            m.confirm.model = {title: "Cancel recording " + p.title + "?", body: "It won’t be recorded. A series rule, if there is one, stays in place.", verb: "Cancel recording"}
-        else
-            m.confirm.model = {title: "Stop recording " + p.title + "?", body: "What has been recorded so far is kept.", verb: "Stop recording"}
-        end if
+        m.confirm.model = recordingConfirm(p.title, m.liveBooking)
     else
         openMore()
     end if
@@ -1538,9 +1534,7 @@ sub onLiveConfirm()
     m.top.setFocus(true)
     raise()
     if m.confirm.chosen <> "confirm" or m.liveBooking = invalid then return
-    path = "/v1/dvr/recordings/" + m.liveBooking.id
-    if m.liveBooking.state = "recording" then path = path + "?action=stop"
-    api("DELETE", path, invalid, "onLiveCancelled", {id: m.liveBooking.id})
+    api("DELETE", recordingCancelPath(m.liveBooking), invalid, "onLiveCancelled", {id: m.liveBooking.id})
 end sub
 
 sub onLiveCancelled(event as object)
@@ -1557,18 +1551,14 @@ sub openMore()
     row = {channel: m.liveChannel, programmes: m.top.item.programmes}
     model = programmeSheet(row, m.liveProgramme, createObject("roDateTime").asSeconds())
     if m.liveCanRecord and m.liveProgramme <> invalid then model.rows.push({id: "series", text: "Record series…", icon: "repeat"})
-    if m.liveChannel.favorite = true
-        model.rows.push({id: "favorite", text: "Remove channel from Favorites", icon: "heartFilled"})
-    else
-        model.rows.push({id: "favorite", text: "Add channel to Favorites", icon: "heart"})
-    end if
+    model.rows.push(favoriteRow(m.liveChannel))
     m.top.menu = model
 end sub
 
 ' A choice from More: a series rule (its channel choice first), or the channel's Favorites mark.
 function liveChoice(id as string) as boolean
     if id = "series"
-        api("POST", "/v1/dvr/rules?preview=true", {programme: m.liveProgramme.id}, "onLiveSeries")
+        api("POST", "/v1/dvr/rules?preview=true", {programme: m.liveProgramme.id}, "onLiveSeries", {id: m.liveProgramme.id})
     else if id = "rule:this" or id = "rule:any"
         api("POST", "/v1/dvr/rules", {programme: m.liveProgramme.id, anyChannel: id = "rule:any"}, "onLiveRule")
     else if id = "favorite"
@@ -1581,7 +1571,7 @@ end function
 
 sub onLiveSeries(event as object)
     result = event.getData()
-    if m.liveProgramme = invalid then return
+    if m.liveProgramme = invalid or event.getRoSGNode().ctx.id <> m.liveProgramme.id then return     ' an answer for a programme no longer on
     if result.ok then m.top.menu = seriesSheet(result.data, m.liveChannel.name, m.liveProgramme.title) else m.top.menu = notRecordedSheet(result.error.message)
 end sub
 
