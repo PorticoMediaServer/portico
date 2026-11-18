@@ -1,0 +1,82 @@
+/* Live TV's parts. The guide's scale (R5 interim, the rules hand owns the final numbers): minutes to pixels 3 at phone
+   width (phone-guide g1), 4 to 1023 (tablet-play 6), 8 from 1024 (desktop-live live-guide); the channel column, a row and
+   the ruler. Inside a frame the parts take the frame's gutter (--g). */
+.guide { --guide-px: 3px; --guide-channel: 56px; --guide-row: 72px; --guide-ruler: 36px; --guide-gap: 4px;
+  display: grid; grid-template-columns: var(--guide-channel) minmax(0, 1fr); padding-left: var(--g, 0); color: var(--color-text); }
+@media (min-width: 600px) { .guide { --guide-px: 4px; --guide-channel: 176px; } }
+@media (min-width: 1024px) { .guide { --guide-px: 8px; --guide-channel: 220px; --guide-row: 76px; } }
+.guideChannels { display: grid; grid-auto-rows: var(--guide-row); row-gap: var(--guide-gap); grid-template-rows: var(--guide-ruler); }
+.guideChannel { display: flex; align-items: center; gap: var(--space-px-12); min-width: 0; }
+.guideChannel > span:last-child { display: grid; min-width: 0; }
+.guideChannel b { font-size: var(--type-list-label-size); font-weight: var(--type-list-label-weight); }
+.guideChannel b i { color: var(--color-accent-strong); font-style: normal; }
+.guideChannel small, .guideRuler { font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
+@media (max-width: 599px) { .guideChannel { flex-direction: column; align-items: flex-start; justify-content: center; gap: var(--space-px-2); } }
+.guideScroll { overflow-x: auto; scrollbar-width: none; padding-right: var(--g, 0); }
+.guideLane { position: relative; width: calc(var(--span) * var(--guide-px)); display: grid; grid-auto-rows: var(--guide-row); row-gap: var(--guide-gap); grid-template-rows: var(--guide-ruler); }
+.guideRuler { position: relative; display: flex; align-items: center; }
+.guideLane > .guideRuler > span { position: absolute; left: calc(var(--at) * var(--guide-px)); height: 100%; display: flex; align-items: center; padding-left: var(--space-xs); border-left: var(--space-hairline) solid var(--color-line); color: var(--color-text-secondary); }
+.guideNow { position: absolute; left: calc(var(--now) * var(--guide-px)); transform: translateX(-50%); padding: var(--space-px-2) var(--space-xs); border-radius: var(--radius-small); background: var(--color-accent-strong); color: var(--color-ink); font-size: var(--type-card-subtitle-size); font-weight: var(--type-list-label-weight); z-index: 1; }
+.guideRow { position: relative; }
+.guideCell { position: absolute; top: 0; bottom: 0; left: calc(var(--from) * var(--guide-px)); width: calc((var(--to) - var(--from)) * var(--guide-px) - var(--guide-gap)); overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center; gap: var(--space-px-2); padding: 0 var(--space-control-gap); border: 0; border-radius: var(--radius-control); background: var(--color-raised-high); color: var(--color-text); text-align: left; font: inherit; cursor: pointer; }
+.guideCell[data-past] { color: var(--color-text-tertiary); }
+.guideCell[data-empty] { background: repeating-linear-gradient(135deg, var(--color-raised) 0 8px, transparent 8px 16px); color: var(--color-text-tertiary); }
+.guideCell[data-selected] { background: var(--color-raised-bright); box-shadow: inset 0 0 0 2px var(--color-accent-strong); }
+.guideTitle, .guideDetail { display: flex; align-items: center; gap: var(--space-tight); min-width: 0; }
+.guideTitle b { font-size: var(--type-card-title-size); font-weight: var(--type-card-title-weight); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.guideDetail { font-size: var(--type-card-subtitle-size); color: var(--color-text-tertiary); white-space: nowrap; }
+.guideDetail > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.guideDetail em { font-style: normal; color: var(--color-record); }
+.clip { font-style: normal; color: var(--color-text-tertiary); }
+.dot { flex: none; width: var(--space-xs); height: var(--space-xs); border-radius: 50%; background: var(--color-record); }
+.guideLine { position: absolute; left: calc(var(--now) * var(--guide-px) - 1px); top: calc(var(--guide-ruler) / 2); bottom: 0; width: 2px; background: var(--color-accent-strong); pointer-events: none; }
+.progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: color-mix(in srgb, var(--color-text) 12%, transparent); }
+.progress[data-inline] { position: relative; display: block; border-radius: 2px; margin: var(--space-tight) 0; }
+.progress i { display: block; height: 100%; background: var(--color-accent-strong); border-radius: inherit; }
+.flag { flex: none; padding: 0 var(--space-px-5); border-radius: var(--radius-small); background: var(--color-accent); color: var(--color-text); font-size: var(--type-card-subtitle-size); font-weight: var(--type-list-label-weight); }
+.flag[data-flag='live'] { background: color-mix(in srgb, var(--color-record) 24%, transparent); color: var(--color-record); }
+.flag[data-flag='premiere'] { background: transparent; box-shadow: inset 0 0 0 1px var(--color-accent-strong); color: var(--color-accent-strong); }
+
+/* The channel list. */
+.channelRow { width: 100%; display: flex; gap: var(--space-sm); padding: var(--space-sm) var(--g, 0); border: 0; border-bottom: var(--space-hairline) solid var(--color-line); background: transparent; color: var(--color-text); text-align: left; font: inherit; cursor: pointer; }
+.channelMark { display: grid; justify-items: center; align-content: start; gap: var(--space-tight); font-size: var(--type-card-subtitle-size); color: var(--color-text-tertiary); }
+.channelWords { flex: 1; min-width: 0; display: grid; gap: var(--space-px-2); }
+.channelWords > b { font-size: var(--type-list-label-size); font-weight: var(--type-list-label-weight); }
+.channelWords > small { font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
+.channelLine { display: flex; align-items: center; gap: var(--space-tight); font-size: var(--type-row-help-size); color: var(--color-text-secondary); }
+.channelLine em { font-style: normal; color: var(--color-record); }
+.channelLine small { margin-left: auto; font-size: inherit; }
+
+/* An airing in a list. */
+.airing { display: flex; align-items: center; gap: var(--space-sm); border-top: var(--space-hairline) solid var(--color-line); min-height: var(--space-px-56); }
+.airing > button { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-xs) 0; border: 0; background: transparent; color: var(--color-text); text-align: left; font: inherit; cursor: pointer; }
+.airingTime { flex: none; width: var(--space-px-76); font-size: var(--type-row-label-size); color: var(--color-text-secondary); }
+.airingWords { display: grid; min-width: 0; }
+.airingWords b { font-size: var(--type-row-label-size); font-weight: var(--type-row-label-weight); }
+.airingWords strong { font-weight: var(--type-list-label-weight); margin-right: var(--space-xs); }
+.airingWords small { font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
+
+/* Recordings. */
+.recording { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-xs) var(--g, 0); }
+.recordingTime { flex: none; width: var(--space-px-100); display: grid; }
+.recordingTime b { font-size: var(--type-list-label-size); font-weight: var(--type-list-label-weight); }
+.recordingTime small, .recordingLine[data-quiet] { font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
+.recordingOpen { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-sm); padding: 0; border: 0; background: transparent; color: var(--color-text); text-align: left; font: inherit; cursor: pointer; }
+.recordingArt { flex: none; width: var(--space-px-160); aspect-ratio: 16 / 9; border-radius: var(--radius-artwork); overflow: hidden; background: var(--color-raised); }
+.recordingArt > * { width: 100%; height: 100%; }
+@media (max-width: 599px) { .recordingArt { display: none; } .recordingTime { width: var(--space-px-76); } }
+.recordingWords { display: grid; gap: var(--space-px-2); min-width: 0; }
+.recordingWords > b { font-size: var(--type-list-label-size); font-weight: var(--type-list-label-weight); }
+.recordingLine { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-tight); font-size: var(--type-row-help-size); color: var(--color-text-secondary); }
+.recordingStatus { flex: none; font-size: var(--type-row-help-size); font-weight: var(--type-list-label-weight); color: var(--color-text-secondary); }
+.recordingStatus[data-inline] { display: none; }
+@media (max-width: 599px) { .recordingStatus[data-inline] { display: block; } .recordingStatus:not([data-inline]) { display: none; } }
+.recordingStatus[data-tone='record'] { color: var(--color-record); }
+.recordingStatus[data-tone='accent'] { color: var(--color-accent-strong); }
+.conflict { margin: 0 var(--card, 0); padding: var(--frame-card-padding); display: grid; gap: var(--space-sm); justify-items: start; border-radius: var(--frame-card-radius); box-shadow: inset 0 0 0 1px var(--color-record); background: var(--color-raised); }
+.conflict .recording { --g: 0px; width: 100%; box-sizing: border-box; }
+.conflictHead { display: flex; gap: var(--space-xs); align-items: flex-start; color: var(--color-record); }
+.conflictHead > span { display: grid; gap: var(--space-px-2); color: var(--color-text); }
+.conflictHead b { font-size: var(--type-list-label-size); font-weight: var(--type-list-label-weight); }
+.conflictHead small { font-size: var(--type-row-help-size); color: var(--color-text-secondary); }

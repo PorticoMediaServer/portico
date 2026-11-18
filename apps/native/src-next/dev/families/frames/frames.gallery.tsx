@@ -28,7 +28,7 @@ import type {Gallery} from '../../gallery-registry';
 type FixtureName = keyof typeof framesFixtureMessages extends `next.frames.fixture.${infer Name}` ? Name : never;
 const f = (name: FixtureName) => formatMessage(framesFixtureMessages[`next.frames.fixture.${name}`]);
 /** The reference artwork the capture run serves (the same files the mock-ups use). */
-const asset = (path: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${path}`, cacheKey: `frames-reference:${path}`});
+export const asset = (path: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${path}`, cacheKey: `frames-reference:${path}`});
 const none = () => {};
 /** A stand-in signed-in scope for the shell's TV rail, which names its focus stops by it. */
 const galleryAuthority = {serverId: 'gallery', userId: 'gallery', profileId: 'gallery', epoch: '1', viewerFence: '1'} as never;
@@ -45,14 +45,14 @@ const posters = ['spirited-away', 'inside-out', 'alien', 'blade-runner', 'dune',
 const wides = [{id: 'tlou', title: f('tlou'), art: asset('bd-tlou.jpg')}, {id: 'inside-out', title: f('insideOut'), art: asset('bd-insideout.jpg')}, {id: 'spirited', title: f('spirited'), art: asset('bd-spirited.jpg')}];
 
 /** One whole window for a frame: frames keep their own safe areas and gutters, so the Kit page's gutter is undone. */
-function Window({children}: {children: ReactNode}) {
+export function Window({children}: {children: ReactNode}) {
   const theme = useTheme(), window = useWindowDimensions();
   return <View style={{height: window.height, marginHorizontal: -theme.gutter}}>{children}</View>;
 }
 
 /** A page as the app shows it: with the shell's own tab bar on a phone and its rail on a tablet, so the frame is judged
  * where it lives. The TV rail needs a signed-in session and is not drawn here. */
-function Page({children, destination}: {children: ReactNode; destination: ShellDestination}) {
+export function Page({children, destination}: {children: ReactNode; destination: ShellDestination}) {
   const theme = useTheme(), window = useWindowDimensions(), insets = useSafeAreaInsets(), {form} = useFrameMetrics();
   const landscape = window.width > window.height, rail = form === 'medium' || form === 'expanded', sidebar = theme.layoutMode === 'desktop';
   const inset = rail ? sidebar ? sidebarWidth : mediumRailMetrics.width : 0;

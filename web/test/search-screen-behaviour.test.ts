@@ -40,7 +40,7 @@ async function mount(context: any, options: {text?: string; remember?: boolean; 
     '../../platform/freshness': {useFreshDocument() {}, useQuery}, '../../shell/viewport': {useShellWidth: () => 1440},
     '../../shell/title-menu': {useTitleMenu: () => ({open() {}, menu: null, play: () => undefined})},
     '../detail/Loading': {useLoadingClock: () => 0}, '../detail/ScreenProblem': {ScreenProblem: 'ScreenProblem'},
-    './RecentSearches': {RecentSearches: 'RecentSearches'}, './TopResult': {TopResult: 'TopResult'}, './AllResultsRow': {AllResultsRow: 'AllResultsRow'},
+    '../../kit/search': {SearchHistory: 'SearchHistory', TopResultCard: 'TopResultCard'}, './TopResult': {TopResult: 'TopResult'}, './AllResultsRow': {AllResultsRow: 'AllResultsRow'},
     './window': {appendedWindow: () => ({collection: {}, set(items: any[]) { calls.push({name: 'window', args: [items]}); }, dispose() {}})},
     './search.module.css': {default: {}},
   });
@@ -88,18 +88,18 @@ test('ArrowDown focuses the first result while other keys preserve their default
 test('failed Clear keeps real history and reports failure; explicit retry clears both', async context => {
   let failed = true;
   const f = await mount(context, {text: '', failClear: () => failed});
-  one(f.flat(), 'RecentSearches').props.onClear(); await f.settle();
-  assert.deepEqual(one(f.flat(), 'RecentSearches').props.queries, ['Stored Query']);
+  one(f.flat(), 'SearchHistory').props.clear.onPress(); await f.settle();
+  assert.deepEqual(one(f.flat(), 'SearchHistory').props.items.map((item: any) => item.query), ['Stored Query']);
   assert.equal(textOf(all(f.flat(), 'p').find(node => node.props.role === 'alert')), t('web.search.clearFailed'));
-  failed = false; one(f.flat(), 'RecentSearches').props.onClear(); await f.settle();
-  assert.deepEqual(one(f.flat(), 'RecentSearches').props.queries, []);
+  failed = false; one(f.flat(), 'SearchHistory').props.clear.onPress(); await f.settle();
+  assert.deepEqual(one(f.flat(), 'SearchHistory').props.items, []);
   assert.equal(all(f.flat(), 'p').some(node => node.props.role === 'alert'), false);
   assert.equal(f.calls.filter(call => call.name === 'clearRecent').length, 2);
 });
 
 test('a retired screen does not submit or apply a recent-query selection', async context => {
   const f = await mount(context, {text: ''}); f.retire();
-  one(f.flat(), 'RecentSearches').props.onSelect('Stored Query');
+  one(f.flat(), 'SearchHistory').props.items[0].onPress();
   one(f.flat(), 'form').props.onSubmit({preventDefault() {}});
   assert.equal(one(f.flat(), 'TextField').props.value, '');
   assert.equal(selects(f).length, 0);

@@ -1,0 +1,9 @@
+/* A stand-in for the reading engine's page in the reader cases: the engine sets its own type from the book's display
+   settings (Literata at size 5, justified; this stand-in takes the kit's own type), two columns from 1024 and one below. Not a kit style. */
+.page { max-width: 1080px; margin: 0 auto; padding: var(--space-px-96) var(--space-px-64); columns: 2; column-gap: var(--space-px-96); font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); color: var(--color-text-secondary); text-align: justify; }
+.page p { margin: 0; }
+.indent { text-indent: 1.5em; }
+.chapter { text-align: center; margin-bottom: var(--space-px-48) !important; }
+.chapter small { display: block; font-family: var(--font); font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
+.chapter span { font-size: var(--type-display-size); line-height: var(--type-display-line); }
+@media (max-width: 599px) { .page { columns: 1; padding: var(--space-px-72) var(--space-md); } }

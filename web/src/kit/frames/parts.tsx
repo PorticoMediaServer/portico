@@ -20,8 +20,8 @@ export function ArtBox({kind, source, icon, alt = ''}: {kind: 'poster' | 'square
 
 /** A block that is not a row of cards (a title page's episode list or details): its heading at the gutter, then its
  * content. A row of cards is the kit `Shelf`, which draws its own heading; never put a `Shelf` inside a `Section`. */
-export function Section({title, trailing, children}: {title: string; trailing?: ReactNode; children: ReactNode}) {
-  return <section><div className={styles.sectionHead}><h2 className={styles.rowHeading}>{title}</h2>{trailing}</div>{children}</section>;
+export function Section({title, subtitle, trailing, children}: {title: string; /** A quieter line beside the heading: "Movies, TV Shows and Anime". */ subtitle?: string; trailing?: ReactNode; children: ReactNode}) {
+  return <section><div className={styles.sectionHead}><div className={styles.sectionTitle}><h2 className={styles.rowHeading}>{title}</h2>{subtitle && <span className={styles.rowHelp}>{subtitle}</span>}</div>{trailing}</div>{children}</section>;
 }
 
 /** Rule 9, stale data: the section keeps what it last had and says so beside its label. */

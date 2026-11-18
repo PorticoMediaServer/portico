@@ -8,13 +8,13 @@ import {episodeCode} from '@core/presentation/card-caption.ts';
 import {AmbientArt} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
 import {SearchResultHero, TitleFactsLine} from '../../kit/title/TitleParts';
-import {Artwork, nameInitials} from '../../kit/artwork';
+import {nameInitials} from '../../kit/artwork';
+import {TopResultCard} from '../../kit/search';
 import {TitleActions} from '../detail/Detail';
 import {t, environment} from '../detail/text';
 import type {SearchBindings} from './bindings';
 import detailStyles from '../detail/detail.module.css';
 import {runScreenCommand} from '../detail/context';
-import styles from './search.module.css';
 
 export function TopResult({binding, result, fallbackArtwork, compact, onOpen}: {binding: SearchBindings; result: TopSearchResult; fallbackArtwork?: string; compact?: boolean; onOpen?: () => void}) {
   const entry = result.entry, title = binding.topTitle, show = binding.topShow;
@@ -57,13 +57,9 @@ export function TopResult({binding, result, fallbackArtwork, compact, onOpen}: {
     const initials = nameInitials(entry.title);
     const background = source ? binding.context.artwork.foreground(source, 640, 3 / 2) : undefined;
     const ring = artist && source ? binding.context.artwork.foreground(source, 240, 1) : undefined;
-    return <section className={styles.phoneTop} aria-label={t('search.topResult')}>
-      {background && <Artwork className={styles.phoneTopBg} source={background} alt="" />}
-      <button type="button" className={styles.phoneTopOpen} aria-label={phoneTitle} onClick={onOpen ?? (() => runScreenCommand(binding.context, () => binding.open(entry)))} />
-      {artist && <span className={styles.phoneTopRing}>{ring ? <Artwork source={ring} alt="" /> : initials}</span>}
-      <span className={styles.phoneTopCopy}><small>{t('search.topResult')}</small><b>{phoneTitle}</b><TitleFactsLine parts={allFacts} /></span>
-      {play && <Button className={styles.phoneTopPlay} variant="primary" icon="i-play" iconOnly aria-label={t('next.controls.play')} onClick={play} />}
-    </section>;
+    return <TopResultCard eyebrow={t('search.topResult')} title={phoneTitle} facts={<TitleFactsLine parts={allFacts} />} background={background}
+      ring={artist ? {source: ring, initials} : undefined} onOpen={onOpen ?? (() => runScreenCommand(binding.context, () => binding.open(entry)))}
+      play={play && {label: t('next.controls.play'), onPress: play}} />;
   }
   return <SearchResultHero title={media?.displayTitle ?? entry.title} eyebrow={t('search.topResult')} facts={<TitleFactsLine parts={allFacts} />} synopsis={movie?.item.overview ?? series?.show.overview ?? media?.overview}
     artwork={<AmbientArt treatment="title" source={preferenceValue<boolean>(preferences, 'appearance.showBackdrops') ? binding.context.artwork.ambient(source) : undefined} foreground={preferenceValue<boolean>(preferences, 'appearance.showBackdrops') ? binding.context.artwork.foreground(source, 1600, 16 / 9) : undefined} foregroundFrameStyle={{left: '30%', width: '70%', height: '100%'}} position="50% 6%" />}

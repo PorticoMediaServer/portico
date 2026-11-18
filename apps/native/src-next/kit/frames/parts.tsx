@@ -35,11 +35,11 @@ export function ArtBox({kind, source, icon, width, alt}: {kind: MediaArtKind; so
 
 /** A block that is not a row of cards (a title page's episode list or details): its heading at the gutter, then its
  * content. A row of cards is the kit `Row`, which draws its own heading; never put a `Row` inside a `Section`. */
-export function Section({title, trailing, children}: {title: string; trailing?: ReactNode; children: ReactNode}) {
+export function Section({title, subtitle, trailing, children}: {title: string; /** A quieter line beside the heading: "Movies, TV Shows and Anime". */ subtitle?: string; trailing?: ReactNode; children: ReactNode}) {
   const theme = useTheme(), frame = useFrameMetrics();
   return <View>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, marginLeft: frame.gutter, marginRight: frame.rightGutter, marginBottom: frame.headingGap}}>
-      <Text accessibilityRole="header" style={[theme.type.rowHeading, {flex: 1, color: theme.colors.text}]}>{title}</Text>{trailing}
+      <Text accessibilityRole="header" style={[theme.type.rowHeading, {flex: 1, color: theme.colors.text}]}>{title}{subtitle !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{'   '}{subtitle}</Text>}</Text>{trailing}
     </View>
     {children}
   </View>;

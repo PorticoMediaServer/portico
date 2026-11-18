@@ -13,7 +13,14 @@ which never move, and one flexible region, the only place that may change when c
 | Screen | Frame | Flexible region |
 |---|---|---|
 | Home | `BrowseFrame` with `hero={<HomeHero/>}` | the rows |
-| A library, Live TV, Saved, Search results, See all, any list or grid | `BrowseFrame` with `header` | the rows or grid |
+| A library, See all, any list or grid | `BrowseFrame` with `header` | the rows or grid |
+| Search: before typing, results, no matches, TV with its keyboard | `SearchFrame` | the results |
+| Live TV: the guide, the channel list, Recordings (Upcoming, Recorded, Series rules) | `LiveFrame` (its `details` is `SplitFrame`'s pane) | the guide, the list or the recordings |
+| Saved: My List and its tabs | `BrowseFrame` with `header` (named use `saved`) | the rows or grid |
+| Saved: Downloads | `SplitFrame` with Rules as its pane from tablet width, around `BrowseFrame` (named use `downloads`) | the rows |
+| Music and Audiobooks libraries, Discover, Songs | `BrowseFrame` with `header` (named uses `music`, `audiobooks`) | the rows or grid |
+| A page with a second pane: a programme, a rule, Downloads' Rules | `SplitFrame` | the page |
+| The reader (books, comics, PDFs) | `ReaderFrame`: the web kit's, inside the reading guest's web view (`screens/read/NativeReadingGuestHost.tsx`); there is no native reader frame | the page |
 | A film, show, season, person, album, artist, book, collection | `TitleFrame` | the synopsis and the tab panel |
 | Settings (the list) | `SettingsListFrame` | the groups |
 | One settings or owner page, a form | `SettingsPageFrame` | the sections |
@@ -167,6 +174,39 @@ Left for Stage 2, listed so it is not forgotten:
 - A card's own menu (long press, or ⋯ on a pointer) has no gallery case here: `detail-phone-5-menu-file-info.jpg` and `detail-tv-5c-episode-menu.jpg` draw it. Stage 2 adds the case with the first screen that opens one.
 
 Round 7 (18 Nov): a wide tablet's hero and title artwork now fades out by its alpha mask as TV's does (`kit/artwork/Surfaces.tsx`), so the title page has no hard edge where the picture starts. The TV audio player is one centred row (artwork 560) with no empty lower half. The Record glyph (`i-rec`) is a solid dot.
+
+## Round 8: the kinds of screen that had no frame
+
+Each frame's required regions are data: `frameRegions` in `packages/design/src/frame-regions.ts` (keys `search`, `live`,
+`split`, `reader`, and the named uses `saved`, `downloads`, `music`, `audiobooks`, each listing the BrowseFrame regions it
+fills). Gallery cases: `frames-search-empty`, `-search-results`, `-search-none`, `-live-guide`, `-live-details`,
+`-live-list`, `-live-upcoming`, `-live-recorded`, `-live-rules`, `-saved`, `-downloads`, `-music`, `-music-songs`,
+`-audiobooks` (`dev/families/frames/newframes.gallery.tsx`).
+
+- `SearchFrame`: `title?` (phone, before typing), `field`, `cancel?` (phone, with text), `keyboard?` (TV: the field and the on-screen keyboard in a column on the left), `scopes?` (the type chips with counts), `notice?` (part of a search ran late), `none?` (`{title, body?, action?}`: no matches, drawn large at the top of the results), `children` (the flexible region).
+- `LiveFrame`: `title`, `back?` (a phone's Recordings page), `switcher?` (All channels), `facts?` (expanded: the source, channels, how far the guide reaches), `actions?` (a phone's List | Guide and Recordings; TV's Today, Now, Recordings), `tabs?` (Guide | Recordings; a phone's Recordings views), `chips?` (groups, or Recordings' views and storage), `lead?` (expanded: On now), `toolbar?` (day, 2 h steps, Now, sort, Grid | List), `children`, `details?` (a `FramePane`), `hints?`, `state?`.
+- `SplitFrame`: `children` (the page, a frame) and `pane?` (`FramePane`: `title`, `eyebrow?`, `subtitle?`, `close`, `children`, `footer?`). From tablet width the pane is a raised column on the right and the page takes the rest; on a phone it is a bottom sheet; on TV the same column (Back closes it). Pane width is R5 interim (`paneSpec` / `--pane-width`).
+
+Parts, the same names in both apps:
+
+| Part | Where | What it is |
+|---|---|---|
+| `SearchHistory` | `kit/search` | Recent searches: rows with × on a phone, chips wider; Clear in the heading |
+| `TopResult` | `kit/search` | The Top result: a page-wide card with a round Play on a phone, words beside the picture with the title's buttons wider |
+| `GuideGrid` | `kit/live` | The guide: channel column, time ruler with now, rows of programmes, the now-line |
+| `ChannelRow` | `kit/live` | One channel in the list: mark and number, what is on, time left and bar, what is next |
+| `AiringRow` | `kit/live` | One airing: More airings, Later on, Coming up |
+| `RecordingRow`, `ConflictCard` | `kit/live` | Upcoming and Recording now; a tuner conflict |
+| `RuleCard` | `kit/live` | One series rule |
+| `StorageMeter` | `kit/saved` | How much room is used: Downloads (and Recordings) |
+| `DownloadRow` | `kit/saved` | One download: poster, facts, where it is, its bar, Play / Try again / More |
+
+`Section` takes `subtitle?` (a quieter line beside the heading). 
+
+Left for Stage 2, so it is not forgotten:
+- `screens/search/SearchScreen.tsx` still draws its own Recent searches rows and Top result (its tests read them); `screens/settings-live/LiveScreen.tsx` and `RecordingsScreen.tsx` their own guide, list, rows and programme details; `screens/downloads/DownloadsScreen.tsx` its own rows and Rules. Each is bound to its controller, so each moves onto these parts with its screen.
+- TV search's keyboard is the screen's `NativeTVKeyboard` (`screens/search/TVKeyboard.tsx`), drawn by the gallery from there: it reads destination focus, so it moves to the kit with the TV search screen.
+- Music, Audiobooks and Saved are named uses of `BrowseFrame`: the library switcher, counts line, tabs, toolbar and grid are the library frame's regions (stage1/r8-library). Until they land, the gallery cases draw the kit `Tabs` at the head of the rows and rows in place of the grid.
 
 ## Decided by the owner (Justin, 18 Nov)
 

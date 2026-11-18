@@ -1,0 +1,51 @@
+/* Round 8 frames: Search, Live TV, a page with a second pane. Measurements are --frame-* tokens; the few this file adds
+   are marked R5 interim and named for the rules hand (the pane's width per form). Like frames.module.css, inside the
+   shell the gutter is the shell's and a grouped card sits 16 from the edge at phone width, at the gutter from 600. */
+.frame { --g: var(--shell-gutter, var(--page-gutter)); --card: var(--frame-card-inset); color: var(--color-text); font-family: var(--font); }
+@media (min-width: 600px) { .frame { --card: var(--g); } }
+.pageTitle, .rowHeading, .intro, .paneTitle, .paneSubtitle { margin: 0; }
+.pageTitle { font-size: var(--type-page-title-size); line-height: var(--type-page-title-line); font-weight: var(--type-page-title-weight); letter-spacing: var(--type-page-title-tracking); text-wrap: balance; }
+.rowHeading { font-size: var(--type-row-heading-size); line-height: var(--type-row-heading-line); font-weight: var(--type-row-heading-weight); letter-spacing: var(--type-row-heading-tracking); }
+.intro { font-size: var(--type-intro-size); line-height: var(--type-intro-line); font-weight: var(--type-intro-weight); color: var(--color-text-secondary); max-width: var(--frame-paragraph-max); }
+.edge { padding: 0 var(--g); }
+.rows { display: flex; flex-direction: column; gap: var(--frame-section-gap); padding-bottom: var(--frame-bottom-clear); }
+.chips { display: flex; align-items: center; gap: var(--space-xs); padding: 0 var(--g); overflow-x: auto; scrollbar-width: none; }
+@media (min-width: 1024px) { .chips { flex-wrap: wrap; overflow: visible; } }
+
+/* Search. The field and chips sit at the title line (under the nav from 1024), then the results. */
+.search { padding-top: calc(var(--spec-navigation-mobile-web-top-height) + var(--frame-header-gap)); }
+@media (min-width: 1024px) { .search { padding-top: var(--frame-title-top); } }
+.searchHead { display: grid; gap: var(--frame-heading-gap); margin-bottom: var(--frame-section-gap); }
+.searchHead > .pageTitle { padding: 0 var(--g); }
+.searchField { display: flex; align-items: center; gap: var(--space-sm); padding: 0 var(--g); }
+.searchField > div { flex: 1; min-width: 0; }
+.none { display: grid; gap: var(--frame-heading-gap); justify-items: start; }
+
+/* Live TV. At phone width the title row carries the view switch; from 600 the library header with the tabs under it. */
+.live { padding-bottom: 0; }
+.live > header, .live > .pushed { margin-bottom: var(--frame-heading-gap); }
+.liveHead { display: flex; align-items: center; gap: var(--space-sm); padding: calc(var(--spec-navigation-mobile-web-top-height) + var(--frame-header-gap)) var(--g) 0; }
+.liveHead > .pageTitle { flex: 1; min-width: 0; }
+.tabs [role='tablist'] { padding-left: var(--g); padding-right: var(--g); }
+.live > .tabs { margin-bottom: var(--frame-heading-gap); }
+.liveEnd { display: flex; align-items: center; gap: var(--space-sm); }
+.live > .chips { margin-bottom: var(--frame-heading-gap); }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-xs); margin-bottom: calc(var(--frame-heading-gap) - var(--frame-section-gap)); }
+.hints { font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
+
+/* A page with a second pane. R5 interim: the pane is 380 wide to 1023 (tablet-play 6, 7) and 600 from 1024
+   (desktop-live live-sheet); the rules hand names it --frame-pane-width. */
+.split { --pane-width: 380px; display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100%; }
+@media (min-width: 1024px) { .split { --pane-width: 600px; } }
+.split[data-pane] { grid-template-columns: minmax(0, 1fr) var(--pane-width); }
+.splitPage { min-width: 0; }
+.pane { --top: 0px; position: sticky; top: var(--top); align-self: start; height: calc(100dvh - var(--top)); display: flex; flex-direction: column;
+  background: var(--color-raised); color: var(--color-text); font-family: var(--font); box-sizing: border-box; }
+/* From 1024 the pane starts under the shell's top bar. */
+@media (min-width: 1024px) { .pane { --top: var(--spec-navigation-top-height); } }
+.paneHead { display: flex; align-items: flex-start; gap: var(--space-sm); padding: var(--frame-card-padding) var(--frame-card-padding) 0; }
+.paneHead > div { flex: 1; min-width: 0; display: grid; gap: var(--space-tight); }
+.paneTitle { font-size: var(--type-page-title-size); line-height: var(--type-page-title-line); font-weight: var(--type-page-title-weight); letter-spacing: var(--type-page-title-tracking); text-wrap: balance; }
+.paneSubtitle { font-size: var(--type-list-label-size); font-weight: var(--type-list-label-weight); }
+.paneBody { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--frame-heading-gap); padding: var(--frame-card-padding); --g: 0px; --card: 0px; }
+.paneFoot { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--frame-card-padding) var(--frame-card-padding); border-top: var(--space-hairline) solid var(--color-line); }

@@ -14,7 +14,14 @@ which never move, and one flexible region, the only place that may change when c
 | Screen | Frame | Flexible region |
 |---|---|---|
 | Home | `BrowseFrame` with `hero={<HomeHero/>}` | the rows |
-| A library, Live TV, Saved, Search results, See all, any list or grid | `BrowseFrame` with `header` | the rows or grid |
+| A library, See all, any list or grid | `BrowseFrame` with `header` | the rows or grid |
+| Search: before typing, results, no matches | `SearchFrame` | the results |
+| Live TV: the guide, the channel list, Recordings (Upcoming, Recorded, Series rules) | `LiveFrame` (its `details` is `SplitFrame`'s pane) | the guide, the list or the recordings |
+| Saved: My List and its tabs | `BrowseFrame` with `header` (named use `saved`) | the rows or grid |
+| Saved: Downloads | `SplitFrame` with Rules as its pane from tablet width, around `BrowseFrame` (named use `downloads`) | the rows |
+| Music and Audiobooks libraries, Discover, Songs | `BrowseFrame` with `header` (named uses `music`, `audiobooks`) | the rows or grid |
+| A page with a second pane: a programme, a rule, Downloads' Rules | `SplitFrame` | the page |
+| The reader (books, comics, PDFs) | `ReaderFrame` (the kit's `ReaderChrome`; the native apps draw it too, in the reading guest) | the page |
 | A film, show, season, person, album, artist, book, collection | `TitleFrame` | the synopsis and the tab panel |
 | Settings (the list) | `SettingsListFrame` | the groups |
 | One settings or owner page, a form | `SettingsPageFrame` | the sections |
@@ -148,6 +155,39 @@ Left for Stage 2, listed so it is not forgotten:
 - A card's own menu (⋯) has no gallery case with fixed inputs: `motion-11-desktop-pages-menus-panels.jpg` draws it. Stage 2 adds the case with the first screen that opens one.
 
 Round 7 (18 Nov): in the upright live strip Go to live sits on a row of its own above the bar's live end, so it covers neither the bar nor the read-out; the gallery's page under the strip carries the channel mark, the Live mark, Guide and Record. The Record glyph (`i-rec`) is a solid dot. A sheet's handle shows keyboard focus by its own colour, not a ring.
+
+## Round 8: the kinds of screen that had no frame
+
+Each frame's required regions are data: `frameRegions` in `packages/design/src/frame-regions.ts` (keys `search`, `live`,
+`split`, `reader`, and the named uses `saved`, `downloads`, `music`, `audiobooks`, each listing the BrowseFrame regions it
+fills). Gallery cases: `frames-search-empty`, `-search-results`, `-search-none`, `-live-guide`, `-live-details`,
+`-live-list`, `-live-upcoming`, `-live-recorded`, `-live-rules`, `-saved`, `-downloads`, `-music`, `-music-songs`,
+`-audiobooks`, `-reader`, `-reader-contents`, `-reader-display` (family `frames-newframes`, `dev/families/frames-newframes.tsx`).
+
+- `SearchFrame`: `title?` (phone, before typing), `field`, `cancel?` (phone, with text), `scopes?` (the type chips with counts), `notice?` (part of a search ran late), `none?` (`{title, body?, action?}`: no matches, drawn large at the top of the results), `children` (the flexible region).
+- `LiveFrame`: `title`, `back?` (a phone's Recordings page), `switcher?` (All channels), `facts?` (expanded: the source, channels, how far the guide reaches), `actions?` (a phone's List | Guide and Recordings; TV's Today, Now, Recordings), `tabs?` (Guide | Recordings; a phone's Recordings views), `chips?` (groups, or Recordings' views and storage), `lead?` (expanded: On now), `toolbar?` (day, 2 h steps, Now, sort, Grid | List), `children`, `details?` (a `FramePane`), `hints?`, `state?`. The header is the kit `LibraryHeader` from 600, as `kit/dvr` RecordingsLayout draws it.
+- `SplitFrame`: `children` (the page, a frame) and `pane?` (`FramePane`: `title`, `eyebrow?`, `subtitle?`, `close`, `children`, `footer?`). From tablet width the pane is a raised column on the right and the page takes the rest; on a phone it is a bottom sheet; on TV the same column (Back closes it). Pane width is R5 interim (`paneSpec` / `--pane-width`).
+- `ReaderFrame` is the kit's `ReaderChrome` under the frame's name (bar, tools, page, page arrows, progress, `panel`, and the display settings as `ReaderDisplayPopover` / `ReaderDisplaySheet` / `ReaderDisplaySidePanel`). One copy: the native apps draw it in their reading guest.
+
+Parts, the same names in both apps:
+
+| Part | Where | What it is |
+|---|---|---|
+| `SearchHistory` | `kit/search` | Recent searches: rows with × on a phone, chips wider; Clear in the heading |
+| `TopResultCard` | `kit/search` | The phone Top result (moved from `screens/search/TopResult.tsx`); from 600 the Top result is the kit title's `SearchResultHero` |
+| `GuideGrid` | `kit/live` | The guide: channel column, time ruler with now, rows of programmes, the now-line |
+| `ChannelRow` | `kit/live` | One channel in the list: mark and number, what is on, time left and bar, what is next |
+| `AiringRow` | `kit/live` | One airing: More airings, Later on, Coming up |
+| `RecordingRow`, `ConflictCard` | `kit/live` | Upcoming and Recording now; a tuner conflict |
+| `RuleCard` | `kit/dvr` (already in the kit) | One series rule |
+| `StorageMeter` | `kit/saved` | How much room is used: Downloads (and a phone's Recordings; wider, Recordings uses `kit/dvr` RecordingStorage) |
+| `DownloadRow` | `kit/saved` | One download: poster, facts, where it is, its bar, Play / Try again / More |
+
+`Section` takes `subtitle?` (a quieter line beside the heading). `SearchHistory` and `TopResultCard` were moved out of `screens/search`; the Search screen draws them. The reader's bar title and author take a second line instead of an ellipsis (no cut text). 
+
+Left for Stage 2, so it is not forgotten:
+- `screens/live/GuideScreen.tsx`, `ProgrammePanel.tsx` and `RecordingsScreen.tsx` still draw their own grid, list, rows and pane, and `kit/dvr` RecordingsLayout is LiveFrame's header for those pages; `screens/saved/Downloads.tsx` its own rows. Each is bound to its controller and moves onto these parts with its screen.
+- Music, Audiobooks and Saved are named uses of `BrowseFrame`: the library switcher, counts line, tabs, toolbar and grid are the library frame's regions (stage1/r8-library). Until they land, the gallery cases draw the kit `Tabs` at the head of the rows and rows in place of the grid.
 
 ## Decided by the owner (Justin, 18 Nov)
 
