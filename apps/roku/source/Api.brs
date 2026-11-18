@@ -6,11 +6,13 @@
 ' Pass origin while signing in: the request then goes to that server and no other, whatever server
 ' the app has turned to by the time it is sent.
 ' Pass ifMatch for a change the server asks to name what it changes (a queue's entries take "*").
-function api(method as string, path as string, body as dynamic, callback as string, ctx = invalid as dynamic, isPublic = false as boolean, key = "" as string, origin = "" as string, ifMatch = "" as string) as object
+' Pass token with origin for a sign-in of its own there (Portico Services' for a Portico Account),
+' sent as the bearer instead of the app's.
+function api(method as string, path as string, body as dynamic, callback as string, ctx = invalid as dynamic, isPublic = false as boolean, key = "" as string, origin = "" as string, ifMatch = "" as string, token = "" as string) as object
     reply = createObject("roSGNode", "ApiReply")
     if ctx <> invalid then reply.ctx = ctx
     reply.observeField("result", callback)
-    m.global.api.request = {method: method, path: path, body: body, reply: reply, public: isPublic, key: key, origin: origin, ifMatch: ifMatch}
+    m.global.api.request = {method: method, path: path, body: body, reply: reply, public: isPublic, key: key, origin: origin, ifMatch: ifMatch, token: token}
     return reply
 end function
 

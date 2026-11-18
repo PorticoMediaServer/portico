@@ -56,7 +56,11 @@ sub send(req as object, retried as boolean)
         return
     end if
     x = newTransfer(origin + req.path)
-    if req.public <> true and s <> invalid and s.accessToken <> invalid then x.addHeader("Authorization", "Bearer " + s.accessToken)
+    if req.token <> invalid and req.token <> ""
+        x.addHeader("Authorization", "Bearer " + req.token)
+    else if req.public <> true and s <> invalid and s.accessToken <> invalid
+        x.addHeader("Authorization", "Bearer " + s.accessToken)
+    end if
     if req.ifMatch <> invalid and req.ifMatch <> "" then x.addHeader("If-Match", req.ifMatch)
     method = req.method
     body = ""
@@ -105,7 +109,11 @@ sub finish(msg as object)
         renew()
         return
     end if
-    if status >= 200 and status < 300
+    if status >= 200 and status < 300 and p.req.path = "/v1/servers?signature=rsa" and not listHolds(data, listAccount(p.req))
+        ' Portico Services' list of the account's servers must hold its second signature (roRSA works only on
+        ' a task's thread, so it is checked here): the screens never see a list that does not
+        answer(p.req, {ok: false, status: status, error: {code: "list_unchecked", message: "This TV could not check the list of servers from Portico Services. Try again later.", retry: true}})
+    else if status >= 200 and status < 300
         answer(p.req, {ok: true, status: status, data: data})
     else
         err = {code: "unreachable", message: "The server could not be reached.", retry: true}
@@ -231,3 +239,61 @@ end sub
 sub ended()
     m.top.signInEnded = true
 end sub
+
+' --- The account's server list: its RSA signature, then its rules; what holds is pinned (_scratch/roku/ACCOUNT-SIGNATURE.md)
+
+' The account the list must belong to: the screen that asked passes it in its ctx.
+function listAccount(req as object) as string
+    if req.reply = invalid or req.reply.ctx = invalid or not isText(req.reply.ctx.accountId) then return ""
+    return req.reply.ctx.accountId
+end function
+
+function listHolds(data as dynamic, accountId as string) as boolean
+    if data = invalid or data.list = invalid or data.listRsa = invalid then return false
+    known = false
+    for each id in listKeyIds()
+        if data.listRsa.keyId = id then known = true
+    end for
+    if not known or data.list.payload = invalid or data.listRsa.signature = invalid then return false
+    if len(data.list.payload) > 1400000 then return false      ' more than 1 MiB of payload, as client-core refuses
+    payload = base64urlBytes(data.list.payload)
+    rsa = createObject("roRSA")
+    if rsa = invalid or rsa.SetPublicKey("pkg:/source/services-list-" + data.listRsa.keyId + ".pem") <> 1 then return false
+    rsa.SetDigestAlgorithm("sha256")
+    if rsa.Verify(digestOf(payload), base64urlBytes(data.listRsa.signature)) <> 1 then return false
+    list = parseJson(payload.toAsciiString())
+    ' held per account, as the native apps keep it: another account's list does not hold this one back
+    held = invalid
+    if storeRead("porticoListVersion:" + accountId) <> "" then held = storeRead("porticoListVersion:" + accountId).toFloat()
+    if listRules(list, accountId, held, serverIdOf) <> "" then return false
+    ' pinned: the version (a lower one is refused from now on) and each server's key fingerprint, which a
+    ' server found on the home network must announce (Use a local server)
+    prints = {}
+    for each server in list.servers
+        prints[server.serverId] = bytesBase64url(digestOf(base64urlBytes(server.publicKey)))
+    end for
+    pinned = {}
+    pinned["porticoListVersion:" + accountId] = list.version.toStr()
+    pinned["porticoPrints:" + accountId] = formatJson(prints)
+    storeWrite(pinned)
+    return true
+end function
+
+function digestOf(bytes as object) as object
+    digest = createObject("roEVPDigest")
+    digest.Setup("sha256")
+    out = createObject("roByteArray")
+    out.fromHexString(digest.Process(bytes))
+    return out
+end function
+
+' A server's id: srv_ + base64url(SHA-256("portico.server.identity.v1" 0x00 + its public key)).
+function serverIdOf(publicKey as string) as string
+    key = base64urlBytes(publicKey)
+    if key.count() <> 32 then return ""     ' an Ed25519 key is 32 bytes
+    bytes = createObject("roByteArray")
+    bytes.fromAsciiString("portico.server.identity.v1")
+    bytes.push(0)
+    bytes.append(key)
+    return "srv_" + bytesBase64url(digestOf(bytes))
+end function

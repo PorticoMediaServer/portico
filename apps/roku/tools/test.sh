@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/rules.brs source/Address.brs source/Present.brs source/Qr.brs \
-  source/Capabilities.brs source/Settings.brs source/Mdns.brs source/Server.brs source/ServerPages.brs source/AppLog.brs 2>&1) || true
+  source/Capabilities.brs source/Settings.brs source/Mdns.brs source/Server.brs source/ServerPages.brs source/AppLog.brs source/Servers.brs 2>&1) || true
 echo "$out" | tail -20
 echo "$out" | grep -q '^PASSED [0-9]* FAILED 0$'
 # The renewal's server check (security finding F9): the refresh token goes only to the server whose id
@@ -12,7 +12,7 @@ echo "$out" | grep -q '^PASSED [0-9]* FAILED 0$'
 out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/serverid.brs components/tasks/ApiTask.brs 2>&1) || true
 echo "$out" | tail -20
 echo "$out" | grep -q '^PASSED *[0-9]* FAILED *0$'
-out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/scene.brs components/MainScene.brs 2>&1) || true
+out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/scene.brs components/MainScene.brs source/Servers.brs 2>&1) || true
 echo "$out" | tail -20
 echo "$out" | grep -q '^PASSED *[0-9]* FAILED *0$'
 # kit/ListRow's own code with stand-in nodes: a row whose model leaves out a key it does not use lays out.
@@ -39,3 +39,8 @@ python3 tools/licences.py --check
 # roUrlTransfer cannot be made on the screen's thread (createObject gives invalid there, and the next
 # call stops the app): only tasks may use it. Screens encode with String.encodeUriComponent().
 if grep -rln 'roUrlTransfer' components source | grep -v '^components/tasks/'; then echo "roUrlTransfer outside components/tasks/"; exit 1; fi
+# The Portico Account pages with stand-ins: each request goes to the service or server that issued
+# its step, and late answers are dropped. Nothing calls Portico Services.
+out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/account.brs components/screens/AccountPages.brs source/Servers.brs 2>&1) || true
+echo "$out" | tail -20
+echo "$out" | grep -q '^PASSED *[0-9]* FAILED *0$'

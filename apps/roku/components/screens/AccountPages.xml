@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Signing in with a Portico Account, as the native TV app does: a code from Portico Services
+     approved at web.getportico.tv/device (auth.html frame 8), the account's servers to choose from
+     (connect.html frame 7), then the chosen server's own sign-in, and the pages for what can go
+     wrong on the way (frames 8 to 13 and 35). Part of SignInScreen; placed from frames().signIn. -->
+<component name="AccountPages" extends="Group">
+  <interface>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- Set when a server has signed this TV in: {origin, serverName, session, profiles}. -->
+    <field id="signedIn" type="assocarray"/>
+    <!-- Set when the viewer leaves: "door" (Back to the front door) or "local" (Use a local server). -->
+    <field id="leave" type="string" alwaysNotify="true"/>
+    <function name="start"/>
+    <!-- Opens one of the account's servers with the Portico Account sign-in this TV keeps (Switch server). -->
+    <function name="resume"/>
+  </interface>
+  <script type="text/brightscript" uri="AccountPages.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Secret.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Servers.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Address.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Dialog.brs"/>
+  <children>
+    <Group id="code" visible="false">
+      <Poster id="codeMark" uri="pkg:/images/wordmark.png" width="176" height="40"/>
+      <!-- bottom-aligned on its line, so a second line goes up and the steps never move -->
+      <Label id="codeTitle" text="Activate Portico on this TV" width="940" height="240" vertAlign="bottom" wrap="true" maxLines="2"/>
+      <MultiStyleLabel id="codeHow" width="760" wrap="true" maxLines="4"/>
+      <ButtonRow id="codeButtons"/>
+      <Label id="codeNote" width="820" wrap="true" maxLines="2"/>
+      <Label id="terms" width="900" wrap="true" maxLines="2" text="By continuing, you agree to Portico’s terms and privacy policy.&#10;getportico.tv/terms      getportico.tv/privacy"/>
+      <QrCard id="card" note="This code refreshes by itself. Leave this screen open while you sign in."/>
+    </Group>
+    <Group id="list" visible="false">
+      <Poster id="listMark" uri="pkg:/images/wordmark.png" width="176" height="40"/>
+      <Label id="signedInAs"/>
+      <Label id="listTitle" text="Choose a server"/>
+      <Label id="listBody" text="Choose the server to watch from."/>
+      <Group id="window">
+        <Group id="rows"/>
+      </Group>
+      <ButtonRow id="listButtons"/>
+      <!-- when every server is away (connect.html frame 37): when it checks again, and what to look at -->
+      <Label id="listCount"/>
+      <Label id="listHelp" width="1400" wrap="true" maxLines="2"/>
+    </Group>
+    <JoinPages id="joinPages" visible="false"/>
+    <Group id="state" visible="false">
+      <Poster id="stateMark" uri="pkg:/images/wordmark.png" width="176" height="40"/>
+      <PageState id="page" small="true"/>
+    </Group>
+    <!-- the code's polling, a server's or Portico Accounts' next check, and the countdown to it -->
+    <Timer id="poll" duration="5"/>
+    <Timer id="again"/>
+    <Timer id="tick" duration="1" repeat="true"/>
+  </children>
+</component>

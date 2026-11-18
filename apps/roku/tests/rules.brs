@@ -65,11 +65,36 @@ sub main()
 
     ' Pin and Unpin keep every other pin where it was; a pin is added at the end, never twice
     same("pins", [withPin(["library:a", "playlist:p"], "collection:c", true).join(","), withPin(["playlist:p", "library:a"], "playlist:p", true).join(","), withPin(["library:a", "playlist:p"], "playlist:p", false).join(",")], ["library:a,playlist:p,collection:c", "library:a,playlist:p", "library:a"])
+    ' Portico Services' list after its signature holds: never an older version, every id the digest of its key
+    idOf = function(key as string) as string
+        return "srv_" + key
+    end function
+    good = {kind: "portico.server-list", accountId: "acc_a", version: 7, servers: [{serverId: "srv_k1", publicKey: "k1", name: "Home", addresses: ["https://a"]}]}
+    same("server list rules", [listRules(good, "acc_a", invalid, idOf), listRules(good, "acc_a", 7, idOf), listRules(good, "acc_a", 8, idOf),
+        listRules({kind: "portico.server-list", accountId: "acc_a", version: 7, servers: [{serverId: "srv_x", publicKey: "k1", name: "Home", addresses: []}]}, "acc_a", invalid, idOf),
+        listRules(invalid, "acc_a", invalid, idOf), listRules({kind: "other"}, "acc_a", invalid, idOf)], ["", "", "older", "id", "unreadable", "unreadable"])
+    ' another account's list is refused; a second account's lower version is its own (held per account by ApiTask)
+    same("server list account", [listRules(good, "acc_b", invalid, idOf), listRules(good, "", invalid, idOf)], ["account", "account"])
+    same("server list shape", [listRules({kind: "portico.server-list", accountId: "acc_a", version: 0, servers: []}, "acc_a", invalid, idOf),
+        listRules({kind: "portico.server-list", accountId: "acc_a", version: 7.5, servers: []}, "acc_a", invalid, idOf),
+        listRules({kind: "portico.server-list", accountId: "acc_a", version: 7, servers: [{serverId: "srv_k1", publicKey: "k1", addresses: []}]}, "acc_a", invalid, idOf),
+        listRules({kind: "portico.server-list", accountId: "acc_a", version: 7, servers: [{serverId: "srv_k1", publicKey: "k1", name: "H", addresses: [3]}]}, "acc_a", invalid, idOf)], ["unreadable", "unreadable", "unreadable", "unreadable"])
+    same("base64url", [bytesBase64url(base64urlBytes("_-8")), base64urlBytes("AAEC").toHexString()], ["_-8", "000102"])
     same("file sizes", [sizeText(1600000000), sizeText(42000000), sizeText(42582), sizeText(0)], ["1.6 GB", "42 MB", "43 KB", ""])
     ' an artist's circle: two albums split it with the newest on the right; three or more cut the right half
     two = circleTiles(2, 412, 3)
     three = circleTiles(3, 412, 3)
     same("circle tiles", [circleTiles(1, 412, 3).count().toStr(), two[1].index.toStr(), two[1].x.toStr(), three[2].y.toStr(), three[2].h.toStr(), circleTiles(7, 412, 3).count().toStr()], ["1", "0", "207.5", "207.5", "204.5", "4"])
+    ' the servers this TV remembers (Switch server): one entry per address, the newest fields winning
+    list = withServer([], {origin: "https://a", name: "A", refreshToken: "r1"})
+    list = withServer(list, {origin: "https://b", name: "B"})
+    list = withServer(list, {origin: "https://a", refreshToken: "r2"})
+    same("servers kept", [list.count().toStr(), list[0].name, list[0].refreshToken, list[1].name], ["2", "A", "r2", "B"])
+    same("server forgotten", [withoutServer(list, "https://a").count().toStr(), withoutServer(list, "https://a")[0].name], ["1", "B"])
+    same("servers read", [rememberedServers("").count().toStr(), rememberedServers("not json").count().toStr(), rememberedServers(formatJson(list)).count().toStr()], ["0", "0", "2"])
+    ' Services' signed list: a base64url payload (here {"servers":[{"serverId":"srv_a","name":"Ünïcode home"}]})
+    same("server list read", [listedServers("eyJzZXJ2ZXJzIjpbeyJzZXJ2ZXJJZCI6InNydl9hIiwibmFtZSI6IsOcbsOvY29kZSBob21lIn1dfQ")[0].name, listedServers(invalid).count().toStr()], ["Ünïcode home", "0"])
+
     same("duration", [durationText(3840000), durationText(3120000), durationText(3600000), durationText(20000)], ["1 h 4 min", "52 min", "1 h", "1 min"])
     same("episode", [episodeCode({parentIndex: 1, index: 3}), episodeCode({index: 3})], ["S1 E3", ""])
     same("time left", [timeLeftText({durationMs: 7200000, state: {positionMs: 3360000}}), timeLeftText({durationMs: 7200000, state: {}})], ["1 h 4 min left", ""])

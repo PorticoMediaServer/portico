@@ -165,7 +165,20 @@ function frames() as object
         ' face, title, name, boxes and note lines, the number pad's corner, the key hints' line
         signIn: {pageX: 120, eyebrowY: 354, titleY: 385, bodyY: 494, buttonsY: 656, cardX: 1060, cardY: 212,
             markX: 120, markY: 72, whoTitleBottom: 391, facesY: 470, facePitch: 296, whoNoteY: 860,
-            pinX: 240, pinWidth: 640, pinFaceY: 238, pinTitleY: 462, pinNameY: 540, boxesY: 619, pinRememberY: 790, pinNoteY: 860, keysX: 1176, keysY: 219, hintsY: 988, doorButtonsY: 576, doorNoteY: 690, doorTitleY: 416, factorBodyY: 512, factorBoxesY: 640, factorTitleY: 420, noteY: 760, pressY: 976, localTitleY: 127, localBodyY: 229, nearbyLabelY: 300, nearbyRowsY: 340, elsewhereLabelY: 700, localButtonsY: 740, localNoteY: 840}
+            pinX: 240, pinWidth: 640, pinFaceY: 238, pinTitleY: 462, pinNameY: 540, boxesY: 619, pinRememberY: 790, pinNoteY: 860, keysX: 1176, keysY: 219, hintsY: 988, doorButtonsY: 576, doorNoteY: 690, doorTitleY: 416, factorBodyY: 512, factorBoxesY: 640, factorTitleY: 420, noteY: 760, pressY: 976, localTitleY: 127, localBodyY: 229, nearbyLabelY: 300, nearbyRowsY: 340, elsewhereLabelY: 700, localButtonsY: 740, localNoteY: 840,
+            ' a Portico Account's code page (auth.html frame 8): its title's bottom line, steps, buttons and terms;
+            ' the server chooser (connect.html frame 7) at the gutter: "Signed in as", title, words, the
+            ' rows' room from `rowsY`, the buttons under it
+            activateTitleBottom: 452, activateBodyY: 470, activateButtonsY: 628, termsY: 937,
+            chooserEyebrowY: 121, chooserTitleY: 151, chooserBodyY: 253, rowsY: 350, rowsHeight: 360, chooserButtonsY: 737,
+            ' under the chooser's buttons when every server is away (connect.html frame 37): the countdown and the help line
+            chooserCountY: 830, chooserHelpY: 870,
+            ' a Portico Account with no server (connect.html frames 35 and 38): the header, the notice's
+            ' slot, the two tiles; the invitation's page (frame 36): its two boxes, the keyboard, the side
+            startEyebrowY: 97, startTitleY: 127, startBodyY: 229, noticeY: 330,
+            tilesY: 456, tileHeight: 450, joinTileX: 190, joinTileWidth: 820, setupTileX: 1032, setupTileWidth: 790,
+            addressLabelY: 297, addressBoxY: 330, codeLabelY: 437, codeBoxY: 470, fieldWidth: 860, keyboardY: 604,
+            sideX: 1160, sideTitleY: 300, sideTextY: 365, easierTextY: 490, joinNoteY: 600}
         ' The whole page could not load (frame "Page states"): icon, title and one sentence from `y`,
         ' `width` wide, then buttons on `buttonsY`.
         state: {y: 300, width: 1000, buttonsY: 760,

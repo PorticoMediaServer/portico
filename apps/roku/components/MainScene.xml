@@ -15,6 +15,7 @@
   <script type="text/brightscript" uri="pkg:/source/Capabilities.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Live.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Servers.brs"/>
   <children>
     <Backdrop id="backdrop"/>
     <Group id="screens"/>
