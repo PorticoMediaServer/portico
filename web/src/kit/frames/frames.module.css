@@ -72,7 +72,7 @@
 .barCancel.barCancel { color: var(--color-text); padding-inline: 0; }
 /* A task's popover takes its content's width between the rule's minimum and maximum (packages/design popoverWidth), at most
    the window less the gutters: a choice is never cut (desktop-detail f4). */
-.taskPopover.taskPopover { width: max-content; min-width: min(var(--popover-min-width), calc(100vw - 2 * var(--page-gutter))); max-width: min(var(--popover-max-width), calc(100vw - 2 * var(--page-gutter))); }
+.taskPopover.taskPopover { padding: var(--space-sm); width: max-content; min-width: min(var(--popover-min-width), calc(100vw - 2 * var(--page-gutter))); max-width: min(var(--popover-max-width), calc(100vw - 2 * var(--page-gutter))); }
 .popoverHead { display: flex; flex-direction: column; gap: 2px; padding-bottom: var(--space-xs); color: var(--color-text-tertiary); font-weight: 600; }
 .popoverHead > b { color: var(--color-text); font-size: var(--type-row-label-size); font-weight: 700; }
 .pageBack { display: none; }
