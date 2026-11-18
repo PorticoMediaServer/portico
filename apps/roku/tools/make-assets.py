@@ -346,7 +346,7 @@ ICONS = {
     'tablet': [28],
     'tv': [32],
     'tvDevice': [28],
-    'warning': [32],
+    'warning': [28, 32],
     'watched': [28],
 }
 

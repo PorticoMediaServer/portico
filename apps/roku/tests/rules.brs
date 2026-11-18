@@ -81,6 +81,19 @@ sub main()
     plain = playbackInfoRows({decision: {video: {action: "direct"}, audio: {action: "copy", reasons: ["stream_normalized"]}}, source: {videoCodec: "h264"}})
     same("playback info repackaged", [plain[0].value, plain[1].value, plain.count().toStr()], ["Original picture and sound, repackaged for this device.", "The stream’s timing is repaired as it plays.", "3"])
 
+    ' Server settings' words (source/Server.brs), as the web says them
+    upload = serverAlertWords({code: "upload_budget_exhausted", params: {}, count: 2})
+    other = serverAlertWords({code: "something_new", params: {message: "Check the disk"}})
+    scan = serverTaskWords({libraryName: "Movies", phase: "reading", analyzed: 51, total: 80}, true)
+    pages = []
+    for each page in serverPages("admin")
+        pages.push(page.id)
+    end for
+    same("server words", [upload.title, other.title, serverNowPlayingWords([{username: "sam", away: false}, {username: "priya", away: true}]), serverNowPlayingWords([]), scan.help, scan.value, pages.join(",")],
+        ["Upload speed is holding back 2 streams", "Check the disk", "2 people, 1 at home, 1 away", "Nothing is playing", "Library scan   51 of 80 files", "64%", "dashboard,people"])
+    remote = serverRemoteRows({outside: {checkedAt: "2026-11-18T10:00:00Z", addresses: [{address: "203.0.113.5", port: 32500, reachable: true}]}, managedCertificate: {ready: true, name: "x.direct.getportico.tv"}, router: {state: "open", protocol: "UPnP"}, routerIPv6: {state: "off"}, warnings: []})
+    same("server remote", [remote.count(), remote[0].value, remote[1].label, remote[2].value, remote[3].value, serverRemoteRows({})[0].value], [4, "Reachable from outside", "203.0.113.5:32500", "Serving", "Port opened", "Not checked from outside"])
+
     ' Settings' two composite choices write what packages/client-core compositePatch writes, and read back the same
     same("playback method", [formatJson(sorted(compositePatch("playbackMethod", "original"))), formatJson(sorted(compositePatch("playbackMethod", "convert"))), compositeValue("playbackMethod", compositePatch("playbackMethod", "original")), compositeValue("playbackMethod", compositePatch("playbackMethod", "convert")), compositeValue("playbackMethod", compositePatch("playbackMethod", "automatic"))], [formatJson(sorted({"delivery.directPlay": "require", "delivery.directStream": "never", "delivery.transcode": "never"})), formatJson(sorted({"delivery.directPlay": "never", "delivery.directStream": "never", "delivery.transcode": "require"})), "original", "convert", "automatic"])
     same("still watching", [compositeValue("stillWatching", compositePatch("stillWatching", "0")), compositeValue("stillWatching", compositePatch("stillWatching", "4")), formatJson(compositePatch("stillWatching", "0"))], ["0", "4", formatJson({"playback.passoutProtection": false})])
