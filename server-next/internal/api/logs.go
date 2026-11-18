@@ -112,9 +112,6 @@ func (s *Server) logRoutes() {
 	})
 	// Record more detail is the owner's (definition 12: administrators read Messages only).
 	Handle(s, "PUT /v1/admin/logs/detail", Owner, func(r *http.Request, req LogDetail) (LogDetailState, error) {
-		if err := s.mayReadMessages(r); err != nil {
-			return LogDetailState{}, err
-		}
 		if req.Minutes < 0 || req.Minutes > 240 {
 			return LogDetailState{}, ErrField("minutes", "Record more detail for 1 to 240 minutes, or 0 to stop.")
 		}
