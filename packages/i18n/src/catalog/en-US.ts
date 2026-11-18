@@ -1230,7 +1230,6 @@ export const enUS = {
   'about.report.confirmBody': 'It holds what this app logged while something went wrong. That can include the names of titles and of this device. It never includes your password or sign-in.',
   'about.report.send': 'Send',
   'about.report.sent': 'The report was sent to the owner of {server}.',
-  'about.report.failed': 'The report couldn’t be sent. Try again later.',
 
   // ── Open-source licenses (Settings › About) ──────────────────────
   'licenses.title': 'Open-source licenses',
