@@ -71,6 +71,7 @@ end sub
 
 ' One screen at a time fills the page; the rail shows only once someone is signed in with a profile.
 sub show(component as string)
+    m.sheet.visible = false     ' a menu belongs to the page that opened it, and goes with it
     m.screens.removeChildrenIndex(m.screens.getChildCount(), 0)
     m.screen = m.screens.createChild(component)
     m.rail.visible = false
@@ -95,6 +96,7 @@ end function
 sub pop()
     count = m.screens.getChildCount()
     if count < 2 then return
+    m.sheet.visible = false
     m.screens.removeChildIndex(count - 1)
     m.screen = m.screens.getChild(count - 2)
     m.screen.visible = true
