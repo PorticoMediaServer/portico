@@ -4,7 +4,8 @@ import {clockText} from '../../../../../packages/client-core/src/presentation/ki
 import type {TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
 import type {ArtworkSource} from '../../kit/artwork';
 import {nativeType, useTheme} from '../../kit/theme';
-import {useMotion} from '../../kit/useMotion';
+import {frameSpec} from '@portico/design';
+import {PlayerFilmstrip} from '../../kit/player/parts';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {SCRUB_CARD, nativeTrickplayWindow, scrubCardCentre as cardCentre} from './trickplay-frame';
 
@@ -26,34 +27,25 @@ export type NativeTrickplayStripProps = Readonly<{
   end: number;
 }>;
 
-const SMALL = {width: 256, height: 144}, LARGE = {width: 480, height: 270};
-const SLOTS = [-2, -1, 0, 1, 2] as const;
+const SLOTS = [-2, -1, 0, 1, 2] as const, FILM = frameSpec.player.filmstrip;
 
-function Tile({set, artwork, seconds, large, shadows}: {set?: TrickplaySet | null; artwork?: NativeTrickplayStripProps['artwork']; seconds: number; large: boolean; shadows: boolean}) {
-  const theme = useTheme(), box = large ? LARGE : SMALL;
+/** One tile's picture: the frame's window of its trickplay sheet. */
+function Picture({set, artwork, seconds, large}: {set?: TrickplaySet | null; artwork?: NativeTrickplayStripProps['artwork']; seconds: number; large: boolean}) {
   // A download's sheets are files on this device, not server paths for the authority's resolver.
-  const frame = nativeTrickplayWindow(set, seconds, box), image = frame ? frame.tileUrl.startsWith('file://') ? {uri: frame.tileUrl, headers: undefined} : artwork?.(frame.tileUrl) : undefined;
-  // The tile's shadow follows the effects tier: the strip's five deep shadows are the costliest
-  // thing a low-end TV draws while scrubbing.
-  return <View style={[{width: box.width, height: box.height, borderRadius: 12, overflow: 'hidden', backgroundColor: '#0b1822', opacity: large ? 1 : .78,
-    borderWidth: 1.5, borderColor: large ? '#edf5fa4d' : '#edf5fa29'}, shadows && (large ? styles.shadowLarge : styles.shadowSmall)]}>
-    {frame && image && <View style={[styles.window, frame.window, {transform: [{scaleX: frame.scaleX}, {scaleY: frame.scaleY}]}]}>
-      {/* The sheet at its own size: the same decode for every tile on it, shared, never upscaled. */}
-      <Image source={{uri: image.uri, ...(image.headers ? {headers: {...image.headers}} : {})}} resizeMethod="scale" fadeDuration={0} style={[styles.sheet, frame.sheet]}/>
-    </View>}
-    <View style={{position: 'absolute', bottom: large ? 14 : 10, alignSelf: 'center', paddingHorizontal: large ? 14 : 10, paddingVertical: large ? 5 : 3, borderRadius: 8, backgroundColor: '#071018c7'}}>
-      <Text style={[nativeType({size: large ? 30 : 18, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: large ? '#edf5fa' : '#c9d9e3', fontVariant: ['tabular-nums']}]}>{clockText(seconds)}</Text>
-    </View>
+  const frame = nativeTrickplayWindow(set, seconds, large ? FILM.large : FILM.small), image = frame ? frame.tileUrl.startsWith('file://') ? {uri: frame.tileUrl, headers: undefined} : artwork?.(frame.tileUrl) : undefined;
+  if (!frame || !image) return null;
+  return <View style={[styles.window, frame.window, {transform: [{scaleX: frame.scaleX}, {scaleY: frame.scaleY}]}]}>
+    {/* The sheet at its own size: the same decode for every tile on it, shared, never upscaled. */}
+    <Image source={{uri: image.uri, ...(image.headers ? {headers: {...image.headers}} : {})}} resizeMethod="scale" fadeDuration={0} style={[styles.sheet, frame.sheet]}/>
   </View>;
 }
 
-/** Strip height 270; the small tiles sit on the same bottom line. It hangs
+/** The strip is the kit's `PlayerFilmstrip`; this fills its tiles from the session's trickplay sheets. It hangs
  * 12 above the bar (tv-player 2), which is the top 40 of the timeline box. */
 export function NativeTrickplayStrip({set, artwork, seconds, start, end}: NativeTrickplayStripProps) {
-  const shadows = useMotion().effects.shadows;
   const step = set ? set.intervalSeconds : 10;
-  return <View pointerEvents="none" style={{position: 'absolute', bottom: 52, alignSelf: 'center', flexDirection: 'row', alignItems: 'flex-end', gap: 20}}>
-    {SLOTS.map(slot => <Tile key={slot} set={set} artwork={artwork} large={slot === 0} shadows={shadows} seconds={Math.max(start, Math.min(end, seconds + slot * step))}/>)}
+  return <View pointerEvents="none" style={{position: 'absolute', bottom: 52, alignSelf: 'center'}}>
+    <PlayerFilmstrip frames={SLOTS.map(slot => {const at = Math.max(start, Math.min(end, seconds + slot * step)); return {time: clockText(at) ?? '', picture: <Picture set={set} artwork={artwork} seconds={at} large={slot === 0}/>};})}/>
   </View>;
 }
 
@@ -79,8 +71,6 @@ export function NativeScrubPreview({set, artwork, seconds, left, fallback}: Read
 
 const styles = StyleSheet.create({
   shadowCard: {shadowColor: '#000', shadowOpacity: .9, shadowRadius: 17, shadowOffset: {width: 0, height: 18}},
-  shadowLarge: {shadowColor: '#000', shadowOpacity: .95, shadowRadius: 35, shadowOffset: {width: 0, height: 30}},
-  shadowSmall: {shadowColor: '#000', shadowOpacity: .9, shadowRadius: 25, shadowOffset: {width: 0, height: 24}},
   window: {position: 'absolute', left: 0, top: 0, overflow: 'hidden', transformOrigin: 'left top'},
   sheet: {position: 'absolute'},
 });

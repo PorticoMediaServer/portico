@@ -424,7 +424,7 @@ test('WEBFIX-A1: while a phone or tablet drags, the card above the knob shows th
   const h = watchHooks();
   const {NativeScrubPreview} = await screenModule(new URL('../src-next/screens/watch/TrickplayStrip.tsx', import.meta.url), {
     react: h.react, 'react-native': {...nativeAtoms, Image: 'Image', StyleSheet: {absoluteFill: {}, create: (value: unknown) => value}}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
-    '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: (seconds: number) => `t${seconds}`}, '../../kit/theme': themed, '../../kit/useMotion': {useMotion: () => ({effects: {shadows: true}})},
+    '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: (seconds: number) => `t${seconds}`}, '../../kit/theme': themed, '../../kit/player/parts': {PlayerFilmstrip: 'Filmstrip'}, '@portico/design': {frameSpec: {player: {filmstrip: {small: {width: 256, height: 144}, large: {width: 480, height: 270}}}}},
     './trickplay-frame': await import('../src-next/screens/watch/trickplay-frame.ts'),
   });
   const set = {id: 's', sourceId: 'src', sourceRevision: 'r', width: 3200, height: 1800, tileWidth: 320, tileHeight: 180, columns: 10, rows: 10, intervalSeconds: 10, durationSeconds: 1000,

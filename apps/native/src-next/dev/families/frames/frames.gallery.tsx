@@ -4,14 +4,15 @@ import {formatMessage} from '../../../../../../packages/i18n/src';
 import {framesFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/frames-fixtures';
 import {AmbientArt, Artwork, ChannelMark, type ArtworkSource} from '../../../kit/artwork/index';
 import {EpisodeTile, PosterCard, SquareCard, WideCard} from '../../../kit/cards';
-import {Button, Switch, Tabs, TextField} from '../../../kit/controls';
+import {Button, KeyHints, Switch, Tabs, TextField} from '../../../kit/controls';
+import {SongRow} from '../../../kit/browse/Tracks';
 import {ArtBox, AudioPlayerFrame, BrowseFrame, HomeHero, PageStateFrame, PlayerChromeFrame, Section, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow, TitleFrame,
   type AudioControl, type AudioOption} from '../../../kit/frames';
 import {frameSpec} from '@portico/design';
 import {useFrameMetrics, usePlayerUpright} from '../../../kit/frames/metrics';
-import {PlayerChannelStep, PlayerControl, PlayerLiveActions, PlayerPanel, PlayerPanelGroup, PlayerPanelRow, PlayerPill, PlayerPrompt, PlayerScrubBar, PlayerScrubPreview, PlayerTimes, PlayerTitle, PlayerUpNext} from '../../../kit/player';
+import {PlayerChannelStep, PlayerControl, PlayerFilmstrip, PlayerLiveActions, PlayerPanel, PlayerPanelGroup, PlayerPanelRow, PlayerPill, PlayerPrompt, PlayerScrubBar, PlayerScrubPreview, PlayerTimes, PlayerTitle, PlayerUpNext} from '../../../kit/player';
 import {HeroMetadata, Row, SeasonBar, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
-import {SettingsRow} from '../../../kit/shell';
+import {SettingsNav, SettingsRow, ShortcutTiles} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {MediumRail} from '../../../shell/MediumRail';
@@ -61,10 +62,10 @@ function Page({children, destination}: {children: ReactNode; destination: ShellD
   </View>;
 }
 
-function PosterRow({title}: {title: string}) {
+function PosterRow({title, fresh = false}: {title: string; /** The first few are new. */ fresh?: boolean}) {
   const theme = useTheme(), width = theme.spec.card.width.poster[theme.platform];
   return <Row title={title} items={posters} getKey={item => item.id} itemWidth={width} itemHeight={width * 1.5} selection={selection}
-    renderItem={(item, context) => <PosterCard {...card(context)} title={item.title} artwork={item.art} width={width} onNavigate={none}/>}/>;
+    renderItem={(item, context) => <PosterCard {...card(context)} title={item.title} artwork={item.art} width={width} isNew={fresh && posters.indexOf(item) < 3} onNavigate={none}/>}/>;
 }
 function WideRow() {
   const theme = useTheme(), width = theme.spec.card.width.wide[theme.platform];
@@ -77,11 +78,12 @@ const heroes = [
   {id: 'tlou', title: f('tlou'), overview: f('tlouSynopsis'), facts: fact(f('tlouFacts')), art: asset('bd-tlou.jpg')},
 ];
 function BrowseHome() {
-  const [index, setIndex] = useState(0), art = (id: string) => heroes.find(entry => entry.id === id)?.art;
+  // The sample hero holds its first title: the real one moves on by itself, and a shot taken mid-change shows a faded hero.
+  const index = 0, setIndex = none, art = (id: string) => heroes.find(entry => entry.id === id)?.art;
   return <Page destination={{kind: 'home'}}><BrowseFrame testID="frames-browse-home" hero={<HomeHero candidates={heroes} activeIndex={index} onIndexChange={setIndex}
     renderArtwork={(entry, context) => <AmbientArt foreground={art(entry.id)} visible={context.visible} foregroundStyle={context.foregroundStyle} onReady={context.onReady} onError={context.onError}/>}
     renderActions={() => <><Button icon="i-play" onPress={none}>{f('play')}</Button><Button variant="glass" icon="i-plus" onPress={none}>{f('myList')}</Button></>}/>}>
-    <WideRow/><PosterRow title={f('newOnServer')}/>
+    <WideRow/><PosterRow fresh title={f('newOnServer')}/>
   </BrowseFrame></Page>;
 }
 const BrowseList = () => <Page destination={{kind: 'libraries'}}><BrowseFrame testID="frames-browse-list" header={{title: f('movies'), back: {label: f('libraries'), onPress: none}, trailing: <Button variant="glass" size="small" icon="i-filter" onPress={none}>{f('filters')}</Button>}}>
@@ -149,12 +151,17 @@ function StateSections() {
     <SectionCard label={f('recordings')}><StateRow kind="empty" icon="i-rec" title={f('noRecordings')} reason={f('noRecordingsReason')} action={{label: f('openGuide'), onPress: none}}/></SectionCard>
   </>;
 }
+/** The Settings index is the shell's own parts, passed as the frame's list: the quick tiles and `SettingsNav` (the
+ * account's pages, then the server's, the current page marked). The frame places it and the page beside it. */
+const settingsPages = {
+  account: ([['profile', 'i-person', 'settingsProfile'], ['playback', 'i-play', 'playback'], ['audio', 'i-subs', 'audioSubtitles'], ['quality', 'i-sliders', 'quality'], ['music', 'i-music', 'music'], ['appearance', 'i-image', 'appearance']] as const).map(([id, icon, name]) => ({id, icon, label: f(name)})),
+  server: ([['dashboard', 'i-activity', 'settingsDashboard'], ['libraries', 'i-library', 'libraries'], ['live', 'i-live', 'liveTv']] as const).map(([id, icon, name]) => ({id, icon, label: f(name)})),
+};
 function SettingsList() {
   const [page, setPage] = useState<string>(), {form} = useFrameMetrics(), wide = form !== 'phone';
-  const list = <SectionCard label={f('account')}>
-    {([['playback', 'i-play'], ['audioSubtitles', 'i-cc'], ['quality', 'i-quality'], ['music', 'i-music'], ['appearance', 'i-sliders'], ['liveTv', 'i-live']] as const).map(([name, icon], index) =>
-      <SettingsRow key={name} first={index === 0} icon={icon} label={f(name)} navigates onPress={() => setPage(name)}/>)}
-  </SectionCard>;
+  const tiles = ([['profiles', 'i-person', 'settingsSwitchProfile'], ['servers', 'i-server', 'switchServer'], ['notifications', 'i-bell', 'notifications'], ['together', 'i-people', 'settingsTogether']] as const).map(([id, icon, name]) => ({id, icon, label: f(name), onPress: none}));
+  const list = <View>{form === 'phone' && <ShortcutTiles testID="frames-settings-tiles" actions={tiles}/>}
+    <SettingsNav testID="frames-settings-nav" accountPages={settingsPages.account} serverPages={settingsPages.server} viewerRole="owner" serverName={f('serverName')} selectedId={page ?? (wide ? 'playback' : '')} onNavigate={setPage} mode={form === 'tv' ? 'account' : 'combined'}/></View>;
   return <Window><SettingsListFrame testID="frames-settings-list" open onOpenChange={none} bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
     page={page || wide ? <SettingsPageFrame title={f('playback')} back={{label: f('settings'), onPress: () => setPage(undefined)}} intro={f('playbackIntro')}><PlaybackSections/></SettingsPageFrame> : undefined}/></Window>;
 }
@@ -205,7 +212,10 @@ function Player({state = 'playing', panel, card, id = `frames-player-${state}`}:
     tools={upright ? <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{tool('i-cc', 'subtitles', missing)}{tool('i-settings', 'playerSettings')}</>
       : tablet ? <>{tool('i-cast', 'playOn')}{tool('i-more', 'more')}{tool('i-x', 'dismiss')}</> : <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{tool('i-settings', 'playerSettings')}</>}
     scrubber={<PlayerScrubBar value={at} buffered={[{start: at, end: live ? 1 : at + .14}]} marks={missing || live ? [] : [{start: .02, end: .08}, {start: .95, end: 1}]}
-      preview={scrubbing ? <PlayerScrubPreview at={at} time={f('previewTime')}>{still}</PlayerScrubPreview> : undefined}/>}
+      preview={scrubbing && !tv ? <PlayerScrubPreview at={at} time={f('previewTime')}>{still}</PlayerScrubPreview> : undefined}
+      filmstrip={scrubbing && tv ? <PlayerFilmstrip frames={(['film1', 'film2', 'previewTime', 'film4', 'film5'] as const).map(name => ({time: f(name), picture: still}))}/> : undefined}
+      labels={scrubbing && tv ? [{at: 0, text: f('markRecap')}, {at: .05, text: f('markIntro')}, {at: 1, text: f('markCredits'), end: true}] : undefined}/>}
+    hints={<KeyHints hints={[{key: f('keyMove'), label: f('hintMove')}, {key: f('keyHold'), label: f('hintFaster')}, {key: f('keyOk'), label: f('hintPlayFrom')}, {key: f('keyBack'), label: f('hintReturn')}]}/>}
     times={{position: f(scrubbing ? 'previewTime' : 'elapsed'), remaining: f('remaining'), duration: f('duration'), endsAt: live ? undefined : f('endsAt'), live: live ? f('live') : undefined, clock: f('clock')}}
     transport={<><PlayerControl testID={`${id}-previous`} icon="i-prev" label={f('previous')} disabled={live || missing} onPress={none}/><PlayerControl testID={`${id}-rewind`} icon="i-rew" skip={10} label={f('rewind')} onPress={none}/>
       <PlayerControl testID={`${id}-toggle`} primary icon={state === 'paused' ? 'i-play' : 'i-pause'} busy={state === 'buffering'} label={f(state === 'paused' ? 'play' : 'pause')} onPress={none}/>
@@ -262,7 +272,7 @@ function PlayerLiveControlsCase() {
   return <Window><PlayerChromeFrame testID={id} chromeVisible picture={still} close={<PlayerControl testID={`${id}-close`} onPicture icon="i-down" label={f('close')} onPress={none}/>}
     title={<PlayerTitle mark={<ChannelMark mark={{text: f('liveMark'), seed: 'synthetic:sse'} as never} size={markSize}/>} title={f('liveTitle')} lead={f('liveChannelName')} subtitle={f('liveNumber')} live={f('liveNow')} detail={f('liveThen')}/>}
     tools={<>{upright && <PlayerControl testID={`${id}-guide`} onPicture icon="i-list" label={f('guide')} onPress={none}/>}<PlayerLiveActions enabled compact={phone || upright} record={{label: f('liveRecord'), onPress: none}} more={{onPress: none}}/></>}
-    scrubber={<PlayerScrubBar value={.68} buffered={[{start: .55, end: .7}]} liveEdge={.7}/>}
+    scrubber={<PlayerScrubBar value={.68} from={.55} buffered={[{start: .55, end: .7}]} liveEdge={.7}/>}
     times={{position: f('liveClock'), behind: f('liveBehind'), endsAt: f('liveEnds')}}
     transport={<><PlayerChannelStep testID={`${id}-channel-down`} direction="down" number={f('liveDown')} label={f('liveChannelDown')} onPress={none}/><PlayerControl testID={`${id}-rewind`} icon="i-rew" skip={10} label={f('rewind')} onPress={none}/>
       <PlayerControl testID={`${id}-toggle`} primary icon="i-pause" label={f('pause')} onPress={none}/><PlayerControl testID={`${id}-forward`} icon="i-ffw" skip={30} label={f('forward')} onPress={none}/>
@@ -280,18 +290,22 @@ function Audio({variant}: {variant: 'music' | 'missing' | 'book' | 'loading'}) {
   const option = (name: FixtureName, icon?: AudioOption['icon'], value?: FixtureName, disabled = false): AudioOption => ({label: f(name), icon, value: value && f(value), onPress: none, disabled, testID: `${id}-option-${name}`});
   const book = variant === 'book', missing = variant === 'missing';
   // The device this is playing on is named for what it is; a TV has no such entry and offers Add to playlist there (music-plus).
-  const device = option(Platform.OS === 'ios' ? frame.form === 'phone' ? 'thisPhone' : 'thisTablet' : frame.form === 'phone' ? 'thisAndroid' : 'thisAndroidTablet', Platform.OS === 'ios' ? 'i-airplay' : 'i-cast');
+  const device = {inline: true, ...option(Platform.OS === 'ios' ? frame.form === 'phone' ? 'thisPhone' : 'thisTablet' : frame.form === 'phone' ? 'thisAndroid' : 'thisAndroidTablet', Platform.OS === 'ios' ? 'i-airplay' : 'i-cast')};
   const music = [control('i-shuffle', 'shuffle'), control('i-prev', 'previous'), control('i-pause', 'pause'), control('i-next', 'next', {disabled: missing}), control('i-repeat', 'repeat', {active: true})] as const;
   const reading = [control('i-prev', 'previous'), control('i-rew', 'rewind', {skip: 10}), control('i-pause', 'pause'), control('i-ffw', 'forward', {skip: 30}), control('i-next', 'next')] as const;
-  const queue = <View style={{gap: theme.space.xs}}><Text style={[theme.type.groupLabel, {color: theme.colors.textSecondary}]}>{f('upNext')}</Text>
-    {(['queue1', 'queue2', 'queue3', 'queue4', 'queue5', 'queue6'] as const).map(name => <Text key={name} numberOfLines={1} style={[theme.type.rowLabel, {color: theme.colors.text}]}>{f(name)}</Text>)}</View>;
+  // The queue is the screen's content: here the kit's song rows under their group labels (desktop-listen "now").
+  const song = (key: string, title: string, duration: FixtureName, playing = false) => <SongRow key={key} testID={`${id}-queue-${key}`} focusId={`${id}-queue-${key}`} onPlay={none} onEnter={none}
+    row={{id: key, playing, artwork: <Artwork source={asset('pool/albums/after-hours.jpg')}/>, duration: {id: 'duration', text: f(duration), role: 'context'}, text: {id: key, title, caption: [{id: 'artist', text: f('queueArtist'), role: 'context'}], detail: []}}}/>;
+  const label = (name: FixtureName) => <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary, fontFamily: theme.type.groupLabel.fontFamily, marginTop: theme.space.xs}]}>{f(name)}</Text>;
+  const queue = <View>{label('queueNow')}{song('now', f('songTitle'), 'queueDurationNow', true)}{label('queueNextFrom')}
+    {(['queue1', 'queue2', 'queue3', 'queue4', 'queue5', 'queue6'] as const).map((name, index) => song(name, f(name), `queueDuration${index + 1}` as FixtureName))}</View>;
   return <Window><AudioPlayerFrame testID={id} loading={variant === 'loading'}
-    close={control('i-down', 'close')} more={control('i-more', 'more')} favourite={control('i-heart', 'favourite')} context={book ? f('playingFromListening') : missing ? f('playingFromField') : f('playingFrom')}
+    close={control('i-down', 'close')} more={control('i-more', 'more')} favourite={control('i-heart', 'favourite')} context={book ? f('playingFromListening') : missing ? f('playingFromField') : f('playingFrom')} source={book ? f('playingSourceListening') : missing ? f('playingSourceField') : f('playingSource')}
     artwork={missing ? undefined : asset(book ? 'pool/books/the-hobbit.jpg' : 'pool/albums/after-hours.jpg')} icon={book ? 'i-book' : 'i-music'}
-    title={book ? f('hobbit') : missing ? f('longSong') : f('songTitle')} byline={book ? f('tolkien') : missing ? f('choir') : f('songArtist')} detail={book ? f('chapter') : undefined}
-    scrubber={<View style={{gap: frameSpec.player.timesGap[frame.form]}}><PlayerScrubBar value={.34} tone="white" knob={!tv}/><PlayerTimes position={f(book ? 'bookElapsed' : 'audioElapsed')} remaining={f(book ? 'bookRemaining' : 'audioRemaining')}/></View>}
-    transport={book ? reading : music} nextLine={book ? f('timeLeft') : missing ? undefined : f('songNext')}
-    options={book ? [option('speed', undefined, 'speedValue'), option('sleep', undefined, 'sleepValue'), option('chapters', undefined, 'chaptersValue'), ...(tv ? [] : [device])]
+    title={book ? f('hobbit') : missing ? f('longSong') : f('songTitle')} byline={book ? f('tolkien') : missing ? f('choir') : f('songArtist')} chapter={book ? {label: f('chapter'), of: f('chapterOf')} : undefined}
+    scrubber={<View style={{gap: frameSpec.player.timesGap[frame.form]}}><PlayerScrubBar value={.34} tone="white" knob={!tv}/><PlayerTimes position={f(book ? 'bookElapsed' : 'audioElapsed')} middle={book ? f('timeLeft') : undefined} remaining={f(book ? 'bookRemaining' : 'audioRemaining')}/></View>}
+    transport={book ? reading : music} next={book || missing ? undefined : {label: f('nextLabel'), title: f('nextTitle')}}
+    options={book ? [option('speed', undefined, 'speedValue'), {...option('sleep', undefined, 'sleepValue'), active: true}, option('chapters', undefined, 'chaptersValue'), ...(tv ? [] : [device])]
       : [option('lyrics', 'i-lyrics', undefined, missing), tv ? option('addToPlaylist', 'i-listplus') : device, option('upNext', 'i-queue')]}
     upNext={missing ? undefined : queue}/></Window>;
 }
@@ -358,7 +372,7 @@ const RegionsPlayer = () => <Window><PlayerChromeFrame chromeVisible picture={<R
 function RegionsAudio() {
   const slot = (icon: AudioControl['icon']): AudioControl => ({icon, label: f('ownAction') + icon, onPress: none});
   return <Window><AudioPlayerFrame close={slot('i-down')} more={slot('i-more')} context={f('ownContext')} icon="i-music" title={f('ownTitle')} byline={f('ownByline')} scrubber={<Region name="regionScrubber" height={frameSpec.audio.scrubber.phone}/>}
-    transport={[slot('i-shuffle'), slot('i-prev'), slot('i-pause'), slot('i-next'), slot('i-repeat')]} nextLine={f('ownNext')}
+    transport={[slot('i-shuffle'), slot('i-prev'), slot('i-pause'), slot('i-next'), slot('i-repeat')]} next={{label: f('ownNext'), title: f('ownNext')}}
     options={[{label: f('ownOption'), icon: 'i-lyrics', onPress: none}, {label: f('ownOption') + ' ', icon: 'i-cast', onPress: none}, {label: f('ownOption') + '  ', icon: 'i-queue', onPress: none}]} upNext={<Region name="regionUpNext" flexible height={frameSpec.audio.artwork.phone}/>}/></Window>;
 }
 const RegionsState = () => <Window><PageStateFrame icon="i-info" title={f('ownStateTitle')} body={f('ownStateBody')} primaryAction={{id: 'primary', label: f('ownPrimary'), onPress: none}} secondaryAction={{id: 'secondary', label: f('ownSecondary'), onPress: none}}/></Window>;

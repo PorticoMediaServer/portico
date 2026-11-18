@@ -21,7 +21,8 @@ export type ButtonProps = Omit<FocusableProps, 'children'> & {
   /** The leading slot is drawn only for an icon or a running spinner, so an idle label stays centred on every platform. */
   loading?: boolean;
   textStyle?: StyleProp<TextStyle>;
-  /** Lines the label may take before it is cut (default 1); the face grows to hold them. Larger text always wraps. */
+  /** Lines the label may take (default 1); the face grows to hold them. Larger text always wraps. Owner's rule (18 Nov): a label is never
+   * shrunk and never cut, so a button whose place can be too narrow for its label (a fixed slot, a shared row) passes 2. */
   labelLines?: number;
   /** Where the button sits across its parent. React Native would stretch it, so the kit's own default is 'start' (content width); a centring parent's button says 'center'. */
   align?: 'start' | 'center' | 'end' | 'stretch';
@@ -86,8 +87,6 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
         {icon || loading ? <View style={{width: glyphSize, height: glyphSize, alignItems: 'center', justifyContent: 'center'}}>
           {loading ? <ActivityIndicator size={glyphSize} color={glyphColor} /> : icon ? <Icon name={icon} size={glyphSize} color={glyphColor} /> : null}
         </View> : null}
-        {/* A one-line label is never shrunk to fit: `adjustsFontSizeToFit` drew labels at 4 to 6 px on Android and tvOS, and on iOS inside a
-            fixed-width button, whatever floor it was given. A label that must not be cut gets `labelLines={2}` or a wider button. */}
         {!iconOnly ? <Text {...labelObservation.textProps} numberOfLines={grow ? undefined : labelLines} ellipsizeMode="tail" style={labelStyle}>{children}</Text> : null}
         {inline && fraction !== undefined && !iconOnly ? <View style={[styles.inlineTrack, {backgroundColor: colorAlpha(white ? theme.colors.ink : theme.colors.text, .16)}]}><View style={[styles.fill, {width: `${fraction * 100}%`, backgroundColor: white ? theme.colors.accent : theme.colors.accentStrong}]} /></View> : null}
         {remaining !== undefined && !iconOnly ? <>

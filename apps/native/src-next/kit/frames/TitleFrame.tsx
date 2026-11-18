@@ -9,6 +9,7 @@ import {Lockup} from '../layout/Lockup';
 import {RoundBarButton, type TopBarBack} from '../layout/TopBar';
 import {alpha} from '../shell/visual';
 import {SkeletonBlock} from '../states/SkeletonBlock';
+import {buttonGeometry} from '../controls/control-model';
 import {useTheme} from '../theme';
 import {useFrameMetrics} from './metrics';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
@@ -67,24 +68,30 @@ export function TitleFrame({art, back, topAction, title, metadata, primary, acti
     {loading ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
     <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: stacked ? 'center' : 'flex-start', justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/> : metadata}</View>
   </>;
-  const words = !loading && (tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{gap: spec.creditsGap}}>
+  // Loading keeps the loaded page's boxes (rule 12): a bold line and the synopsis's lines, so the tabs and the row under them do not move when the words arrive.
+  const words = loading ? <View style={{gap: spec.creditsGap}}>
+    <SkeletonBlock width="52%" height={theme.type.rowLabel.lineHeight ?? theme.type.rowLabel.fontSize}/>
+    {Array.from({length: spec.synopsisLines[form]}, (_, index) => <SkeletonBlock key={index} width={index === 0 ? '96%' : '70%'} height={theme.type.intro.lineHeight ?? theme.type.intro.fontSize}/>)}
+  </View> : (tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{gap: spec.creditsGap}}>
     {tagline !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{tagline}</Text>}
     {synopsis !== undefined && <Text numberOfLines={spec.synopsisLines[form]} style={[theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax}]}>{synopsis}</Text>}
     {!stacked && credits && credits.length > 0 && <Text numberOfLines={1} style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>
       {credits.map((credit, index) => <Text key={credit.label}>{index > 0 ? '    ' : ''}{credit.label} <Text style={{color: theme.colors.textSecondary}}>{credit.names}</Text></Text>)}</Text>}
   </View> : null;
   const side = (action: TitleAction) => action.labelled && !stacked
-    ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
+    ? <Button key={action.label} variant="glass" size="hero" labelLines={2} icon={action.icon} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
     : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
       style={{width: actionHeight, height: actionHeight}}/>;
   const lead = {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, preferredFocus: true, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1} : undefined};
   const row = <View style={{height: actionHeight, flexDirection: 'row', alignItems: 'center', gap: theme.spec.hero.actions.gap[theme.platform]}}>
-    {primary.progress !== undefined && !stacked ? <ResumeButton {...lead} size="hero" progress={primary.progress} remaining={primary.remaining}>{primary.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero">{primary.label}</Button>}
-    {primary.startOver && !stacked && <Button variant="glass" size="hero" icon="i-restart" disabled={loading} onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
+    {primary.progress !== undefined && !stacked ? <ResumeButton {...lead} size="hero" progress={primary.progress} remaining={primary.remaining}>{primary.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero" labelLines={2}>{primary.label}</Button>}
+    {primary.startOver && !stacked && <Button variant="glass" size="hero" labelLines={2} icon="i-restart" disabled={loading} onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
     {actions.map(side)}
   </View>;
   const track = theme.spec.card.progress.height[theme.platform];
-  const resumeLine = primary.progress !== undefined && stacked && !loading ? <View style={{gap: theme.space.tight}}>
+  const resumeLine = primary.progress !== undefined && stacked && loading ? <View style={{gap: theme.space.tight}}>
+    <SkeletonBlock width="100%" height={track}/><View style={{minHeight: buttonGeometry('xs', theme.platform, 'text').height, justifyContent: 'center'}}><SkeletonBlock width="30%" height={theme.type.rowHelp.fontSize}/></View>
+  </View> : primary.progress !== undefined && stacked ? <View style={{gap: theme.space.tight}}>
     <View accessibilityRole="progressbar" accessibilityValue={{min: 0, max: 1, now: primary.progress}} style={{height: track, borderRadius: track, overflow: 'hidden', backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
       <View style={{width: `${primary.progress * 100}%`, height: track, backgroundColor: theme.colors.accentStrong}}/></View>
     <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}><Text style={[theme.type.rowHelp, {color: theme.colors.text}]}>{primary.remaining}</Text>

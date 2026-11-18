@@ -1,4 +1,4 @@
-import React, {createContext, useContext, type ReactNode} from 'react';
+import React, {createContext, useContext, useState, type ReactNode} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {frameSpec} from '@portico/design';
 import {Button} from '../controls/Button';
@@ -52,9 +52,10 @@ export type PlayerControlProps = Readonly<{
 export function PlayerControl({icon, label, onPress, disabled, active, primary = false, onPicture = false, plain = false, skip, busy = false, testID}: PlayerControlProps) {
   const theme = useTheme(), {form} = useFrameMetrics(), compact = useContext(PlayerCompact), small = frameSpec.player.portrait;
   const disc = form === 'tv' ? !plain : onPicture && form !== 'phone' && !compact;
-  const size = compact ? primary ? small.primary : small.control : undefined;
+  // The small controls are the phone's; an upright tablet's strip is large enough for the tablet's own (tablet-play 3).
+  const little = compact && form === 'phone', size = little ? primary ? small.primary : small.control : undefined;
   const button = <Button testID={testID} variant={primary ? 'primary' : disc ? 'glass' : 'text'} size="transport" iconOnly icon={icon} loading={busy}
-    iconSize={compact ? primary ? small.primaryIcon : small.controlIcon : undefined} iconColor={primary ? undefined : active ? theme.colors.accentStrong : theme.colors.text}
+    iconSize={little ? primary ? small.primaryIcon : small.controlIcon : undefined} iconColor={primary ? undefined : active ? theme.colors.accentStrong : theme.colors.text}
     style={size === undefined ? undefined : {height: size, borderRadius: size / 2}} align="center"
     accessibilityLabel={label} accessibilityState={{selected: active}} disabled={disabled} onPress={onPress} preferredFocus={primary}/>;
   if (skip === undefined) return button;
@@ -64,25 +65,45 @@ export function PlayerControl({icon, label, onPress, disabled, active, primary =
 
 /** The scrubber as it is drawn: the track, what has buffered, what has played, the knob, and the marked stretches
  * (intro, credits). A player screen's own timeline owns the gestures and keys and draws through this. */
-export function PlayerScrubBar({value, buffered = [], marks = [], preview, tone = 'accent', knob: withKnob = true, liveEdge}: {value: number; /** Live TV: where live is, 0 to 1. A red tick marks it and the bar after it, not yet aired, is dotted. */ liveEdge?: number; buffered?: readonly Readonly<{start: number; end: number}>[]; marks?: readonly Readonly<{start: number; end: number}>[]; /** `PlayerScrubPreview`, while scrubbing. */ preview?: ReactNode;
+export function PlayerScrubBar({value, buffered = [], marks = [], preview, filmstrip, labels, tone = 'accent', knob: withKnob = true, liveEdge, from = 0}: {value: number; /** TV, while scrubbing: `PlayerFilmstrip`, which the bar centres over itself, and the chapters' names, which it sets under itself where each starts (`end` for one that runs to the end). */ filmstrip?: ReactNode; labels?: readonly Readonly<{at: number; text: string; end?: boolean}>[]; /** Live TV: where live is, 0 to 1. A red tick marks it and the bar after it, not yet aired, is dotted. */ liveEdge?: number; /** Live TV: where the kept window starts; what has played is drawn from there. */ from?: number; buffered?: readonly Readonly<{start: number; end: number}>[]; marks?: readonly Readonly<{start: number; end: number}>[]; /** `PlayerScrubPreview`, while scrubbing. */ preview?: ReactNode;
   /** What has played: the accent on video, white on the audio player. */ tone?: 'accent' | 'white'; /** TV's audio player draws a bar with no knob. */ knob?: boolean}) {
   const theme = useTheme(), {form} = useFrameMetrics(), compact = useContext(PlayerCompact), knob = frameSpec.player.knob[form], track = compact ? frameSpec.player.portrait.scrubber : theme.spec.card.progress.height[theme.platform];
   const part = (start: number, end: number): {left: `${number}%`; width: `${number}%`} => ({left: `${Math.max(0, start) * 100}%`, width: `${Math.max(0, Math.min(1, end) - Math.max(0, start)) * 100}%`});
   // The bar's box is the knob's height in every state, so nothing moves when the knob is hidden; in the upright strip the box is the track itself and the knob rides over the picture's edge.
-  return <View style={{height: compact ? track : knob, justifyContent: 'center'}}>
+  const [width, setWidth] = useState(0), [strip, setStrip] = useState(0);
+  return <View onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{height: compact ? track : knob, justifyContent: 'center'}}>
     <View style={{height: track, borderRadius: track / 2, backgroundColor: alpha(theme.colors.text, tint.track)}}>
       {buffered.map((stretch, index) => <View key={index} style={[styles.part, part(stretch.start, stretch.end), {borderRadius: track / 2, backgroundColor: alpha(theme.colors.text, tint.buffered)}]}/>)}
-      <View style={[styles.part, part(0, value), {borderRadius: track / 2, backgroundColor: tone === 'white' ? theme.colors.text : theme.colors.accentStrong}]}/>
+      <View style={[styles.part, part(from, value), {borderRadius: track / 2, backgroundColor: tone === 'white' ? theme.colors.text : theme.colors.accentStrong}]}/>
       {marks.map((mark, index) => <View key={index} style={[styles.part, part(mark.start, mark.end), {backgroundColor: alpha(theme.colors.white, tint.mark)}]}/>)}
     </View>
     {liveEdge !== undefined && <>
-      <View pointerEvents="none" style={[styles.part, part(liveEdge, 1), {top: undefined, bottom: undefined, height: track, backgroundColor: theme.colors.shadow}]}/>
-      <View pointerEvents="none" style={[styles.part, part(liveEdge, 1), {top: undefined, bottom: undefined, height: 0, borderTopWidth: track, borderStyle: 'dotted', borderColor: alpha(theme.colors.text, tint.buffered)}]}/>
+      {/* Not yet aired: the track broken into dots (a dotted border is not drawn the same on every platform, so the gaps are drawn). */}
+      <View pointerEvents="none" style={[styles.part, part(liveEdge, 1), {top: undefined, bottom: undefined, height: track, flexDirection: 'row', overflow: 'hidden', backgroundColor: theme.colors.shadow}]}>
+        {Array.from({length: 80}, (_, index) => <View key={index} style={{width: track, height: track, marginRight: track, borderRadius: track / 2, backgroundColor: alpha(theme.colors.text, tint.buffered)}}/>)}</View>
       <View pointerEvents="none" style={{position: 'absolute', left: `${liveEdge * 100}%`, width: theme.space.hairline * 2, top: 0, bottom: 0, backgroundColor: theme.colors.record}}/>
     </>}
     {withKnob && <View pointerEvents="none" style={{position: 'absolute', top: (compact ? track : knob) / 2 - knob / 2, left: `${Math.max(0, Math.min(1, value)) * 100}%`, marginLeft: -knob / 2, width: knob, height: knob, borderRadius: knob / 2, backgroundColor: theme.colors.white}}/>}
     {preview}
+    {/* The landing picture sits over the knob; near either end the strip stops at the bar's edge. */}
+    {filmstrip !== undefined && <View pointerEvents="none" onLayout={event => setStrip(event.nativeEvent.layout.width)} style={{position: 'absolute', bottom: knob + film.lift, left: Math.max(0, Math.min(width - strip, value * width - strip / 2)), opacity: strip > 0 && width > 0 ? 1 : 0}}>{filmstrip}</View>}
+    {labels?.map(label => <Text key={label.text} numberOfLines={1} style={[theme.type.playerTime, {position: 'absolute', top: knob + film.labelGap, color: theme.colors.textSecondary}, label.end ? {right: 0} : {left: `${label.at * 100}%`}]}>{label.text}</Text>)}
   </View>;
+}
+
+/** TV scrubbing (tv-player 2): the pictures either side of where the viewer would land, the landing one large in the
+ * middle, each with its time. A picture that is not there leaves its tile dark. */
+export function PlayerFilmstrip({frames}: {frames: readonly Readonly<{time: string; picture?: ReactNode}>[]}) {
+  const theme = useTheme(), middle = (frames.length - 1) / 2;
+  return <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: film.gap}}>{frames.map((frame, index) => {
+    const large = index === middle, box = large ? film.large : film.small;
+    return <View key={index} style={{...box, borderRadius: film.radius, overflow: 'hidden', backgroundColor: theme.colors.raisedSoft, opacity: large ? 1 : film.dim, borderWidth: theme.space.hairline * 1.5, borderColor: alpha(theme.colors.text, large ? tint.buffered : tint.track)}}>
+      {frame.picture}
+      <View style={{position: 'absolute', bottom: large ? theme.space.sm : theme.space.controlGap, alignSelf: 'center', paddingHorizontal: theme.space.controlGap, paddingVertical: theme.space.hairline * 3, borderRadius: theme.baseRadii.control, backgroundColor: alpha(theme.colors.ink, tint.previewRing)}}>
+        <Text style={[large ? theme.type.playerPrompt : theme.type.playerTime, {color: theme.colors.text, fontFamily: theme.type.pageTitle.fontFamily, fontVariant: ['tabular-nums']}]}>{frame.time}</Text>
+      </View>
+    </View>;
+  })}</View>;
 }
 
 /** The frame at the finger or the focused time while scrubbing: the picture there and its time under it. */
@@ -94,10 +115,11 @@ export function PlayerScrubPreview({at, time, children}: {/** 0 to 1 along the s
   </View>;
 }
 
-/** The time read-outs under a scrubber: where it is, and how long is left. (The video frame places its own.) */
-export function PlayerTimes({position, remaining}: {position: string; remaining?: string}) {
+/** The time read-outs under a scrubber: where it is, how long is left, and between them an audiobook's time left in the book. (The video frame places its own.) */
+export function PlayerTimes({position, remaining, middle}: {position: string; remaining?: string; middle?: string}) {
   const theme = useTheme(), style = [theme.type.playerTime, {color: theme.colors.text, fontFamily: theme.type.button.fontFamily, fontVariant: ['tabular-nums' as const]}];
-  return <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}><Text style={style}>{position}</Text><Text style={style}>{remaining}</Text></View>;
+  return <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: theme.space.xs}}><Text style={style}>{position}</Text>
+    {middle !== undefined && <Text numberOfLines={1} style={[theme.type.playerTime, {flexShrink: 1, color: theme.colors.textSecondary}]}>{middle}</Text>}<Text style={style}>{remaining}</Text></View>;
 }
 
 /** An options entry point that says what it is and what it is set to: "Subtitles English", "Audio English", and
@@ -124,12 +146,12 @@ export function PlayerPrompt({label, icon = 'i-next', onPress, dismiss, testID}:
   const theme = useTheme(), {form} = useFrameMetrics(), compact = useContext(PlayerCompact), spec = frameSpec.player.prompt, small = frameSpec.player.portrait, height = compact ? small.promptHeight : spec.height[form], round = compact ? 0 : spec.dismiss[form];
   return <View style={{flexDirection: 'row', alignItems: 'center', gap: spec.gap}}>
     {dismiss && round > 0 && <Button variant="icon" icon="i-x" accessibilityLabel={dismiss.label} onPress={dismiss.onPress} style={{height: round}}/>}
-    <Button testID={testID} variant="primary" trailingIcon={icon} iconSize={compact ? frameSpec.player.pillIcon : undefined} onPress={onPress} textStyle={compact ? theme.type.playerPill : theme.type.playerPrompt}
+    <Button testID={testID} variant="primary" labelLines={2} trailingIcon={icon} iconSize={compact ? frameSpec.player.pillIcon : undefined} onPress={onPress} textStyle={compact ? theme.type.playerPill : theme.type.playerPrompt}
       style={{height, paddingHorizontal: compact ? small.promptPaddingX : spec.paddingX[form], borderRadius: compact ? height / 2 : spec.radius[form]}}>{label}</Button>
   </View>;
 }
 
-const tint = frameSpec.player.tint;
+const tint = frameSpec.player.tint, film = frameSpec.player.filmstrip;
 const styles = StyleSheet.create({
   part: {position: 'absolute', top: 0, bottom: 0},
   previewTime: {position: 'absolute', left: 0, right: 0, bottom: 0, textAlign: 'center'},

@@ -69,19 +69,21 @@ export const frame = {
   /** Frame 8 and rule 12: every region is placed from the frame's edges, so nothing moves when content is missing. */
   audio: {
     topBar: forms(46, 46, 46, 40),
-    artwork: {...forms(334, 400, 460, 600), web: 520},
-    inset: forms(28, 40, 56, 200),
+    /** A phone's and a TV's artwork size; a tablet's and the web's is the room there is, up to this. */
+    artwork: {...forms(334, 600, 600, 480), web: 600},
+    inset: forms(28, 40, 56, 96),
     /** Two title lines and a byline, bottom-aligned. */
-    titleSlot: forms(96, 104, 104, 330),
+    titleSlot: forms(96, 104, 104, 200),
     /** The scrubber line and the time read-outs under it. */
     scrubber: forms(48, 48, 48, 72),
     transport: forms(80, 80, 80, 120),
     nextLine: forms(22, 22, 22, 32),
     bottomRow: forms(64, 64, 64, 90),
     /** Wide forms: the title, scrubber and controls column beside the artwork. */
-    controlsWidth: {...forms(0, 0, 300, 500), web: 420},
+    /** TV: wide enough for its three labelled buttons at their full labels. */
+    controlsWidth: {...forms(0, 0, 300, 600), web: 420},
     upNextWidth: {...forms(0, 280, 340, 360), web: 360},
-    gap: {...forms(12, 12, 30, 80), web: 56},
+    gap: {...forms(12, 12, 30, 64), web: 56},
   },
   /** Frame 7, the video player's chrome (desktop-player, tablet-play, phone-player and tv-player mock-ups; the web
    * values are the built web player's). Scrims are stops of the dim colour: alpha, then how far from the edge. */
@@ -102,6 +104,8 @@ export const frame = {
       promptRight: 168},
     /** The scrubber's knob: a small dot. The numeral inside a skip arrow is `typeScale.playerSkip`. */
     knob: forms(12, 14, 14, 20),
+    /** TV scrubbing (tv-player 2): five pictures over the bar, the middle one large; chapter names under the bar; key hints in the controls row's place. */
+    filmstrip: {small: {width: 256, height: 144}, large: {width: 480, height: 270}, gap: 20, radius: 12, lift: 12, dim: .78, labelGap: 12},
     /** TV: an options entry is a two-line tile (its name over its value) with the card's corners (tv-player 1). */
     tile: {radius: 14, paddingX: 16},
     /** With a panel open the TV picture is dimmed by this much of the dim colour. */
