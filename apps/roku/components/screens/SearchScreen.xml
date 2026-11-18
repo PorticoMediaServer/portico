@@ -20,6 +20,7 @@
     <Poster id="box" uri="pkg:/images/round-14.9.png"/>
     <Poster id="glass" uri="pkg:/images/i-search-32.png" width="28" height="28"/>
     <Label id="query" vertAlign="center"/>
+    <Rectangle id="caret" width="3" height="40"/>
     <Keyboard id="keyboard"/>
     <Label id="none" wrap="true" maxLines="2"/>
     <Label id="note" wrap="true" maxLines="3"/>

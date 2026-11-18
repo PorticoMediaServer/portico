@@ -25,6 +25,7 @@ sub onButtons()
         if spec.progress <> invalid then b.progress = spec.progress
         if spec.detail <> invalid then b.detail = spec.detail
         b.danger = (spec.danger = true)
+        if spec.switchedOn = true then b.switchedOn = true     ' the chip standing for what shows now (Search's All)
         b.icon = spec.icon
         b.text = spec.text
         m.nodes.push(b)
