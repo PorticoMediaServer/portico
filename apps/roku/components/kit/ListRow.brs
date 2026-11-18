@@ -56,7 +56,7 @@ sub layout()
     help.width = label.width
     scope.width = label.width
     label.text = model.label
-    if model.danger then label.color = c.danger else label.color = c.text
+    if isTrue(model.danger) then label.color = c.danger else label.color = c.text
     help.text = model.help
     scope.text = model.scope
     words = label.boundingRect().height
@@ -83,6 +83,13 @@ sub layout()
     m.top.rowHeight = h
     paint()
 end sub
+
+' Whether a flag in a row's model is on. Most rows leave their flags out, and a Roku stops the app on
+' an IF over a missing value, so a flag is read only when it is true or false.
+function isTrue(value as dynamic) as boolean
+    if type(value) = "Boolean" or type(value) = "roBoolean" then return value
+    return false
+end function
 
 function onOff(on as boolean) as string
     if on then return "on"

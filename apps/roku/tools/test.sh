@@ -6,6 +6,10 @@ cd "$(dirname "$0")/.."
 out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/rules.brs source/Address.brs source/Present.brs source/Qr.brs source/Capabilities.brs source/Settings.brs source/Mdns.brs 2>&1) || true
 echo "$out" | tail -20
 echo "$out" | grep -q '^PASSED [0-9]* FAILED 0$'
+# kit/ListRow's own code with stand-in nodes: a row whose model leaves out a key it does not use lays out.
+out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/listrow.brs components/kit/ListRow.brs 2>&1) || true
+echo "$out" | tail -20
+echo "$out" | grep -q '^PASSED *[0-9]* FAILED *0$'
 # The sign-in screen's own code with stand-in nodes: late answers from another server are dropped.
 out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/signin.brs components/screens/SignInScreen.brs source/Address.brs 2>&1) || true
 echo "$out" | tail -20
