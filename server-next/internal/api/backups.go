@@ -81,7 +81,7 @@ func (s *Server) backupRoutes() {
 			return None{}, err
 		}
 		return None{}, s.db.RecordBackup(r.Context(), CallerFrom(r.Context()).UserID, "backup.protection", "", s.now())
-	})
+	}).Scope = ScopeSession // a person, never a key: an unprotected backup signs in as the owner
 	Handle(s, "GET /v1/admin/backups", Owner, func(r *http.Request, _ None) (Backups, error) {
 		// Asked before the folder is read: a backup that finishes in between is then either
 		// still shown as running or already in the list, never missing from both.

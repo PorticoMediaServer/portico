@@ -104,7 +104,7 @@ func (s *Server) settingsRoutes() {
 // personOnly are the settings a key may not change, by document: the ones that choose a
 // program the server runs or a folder it empties. A key that leaked could not be allowed
 // that, so they take a signed-in owner, as pointing a webhook elsewhere does.
-var personOnly = map[string][]string{"streaming": {"conversionFolder", "ffmpegProgram"}}
+var personOnly = map[string][]string{"streaming": {"conversionFolder", "ffmpegProgram"}, "backups": {"folder"}}
 
 // settingsOut is a document as its page reads it, with what does not apply on this server.
 func (s *Server) settingsOut(ctx context.Context, doc settings.Document) SettingsDocument {
