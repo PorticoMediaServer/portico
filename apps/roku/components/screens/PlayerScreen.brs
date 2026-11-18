@@ -80,6 +80,8 @@ sub init()
     m.top.findNode("undoRun").observeField("state", "onUndoRun")
     setType(m.top.findNode("undoText"), "bodyStrong", c.text)
     m.top.findNode("count").observeField("fire", "onCount")
+    m.top.findNode("sleep").observeField("fire", "onSleep")
+    m.sleepMinutes = 0
     m.prefs = invalid    ' the profile's playback settings, once read
     m.cardMode = ""      ' what the Up next card is showing, or "" when it is away
     m.live = false       ' a channel is playing (Live TV)
@@ -409,13 +411,6 @@ function trackName(track as object, number as integer) as string
     return text
 end function
 
-function formatName(codec as dynamic) as string
-    if codec = invalid then return ""
-    names = {aac: "AAC", ac3: "Dolby Digital", eac3: "Dolby Digital Plus", dts: "DTS", truehd: "Dolby TrueHD", flac: "FLAC", mp3: "MP3", opus: "Opus", vorbis: "Vorbis", pcm: "PCM", subrip: "SRT", srt: "SRT", ass: "ASS", ssa: "SSA", webvtt: "WebVTT", vtt: "WebVTT", mov_text: "Text", hdmv_pgs_subtitle: "PGS", pgs: "PGS", dvd_subtitle: "VobSub", vobsub: "VobSub", idx: "VobSub"}
-    if names[lcase(codec)] <> invalid then return names[lcase(codec)]
-    return ucase(codec)
-end function
-
 function audioDetail(track as object) as string
     text = formatName(track.codec)
     channels = ""
@@ -490,8 +485,87 @@ sub openOptions(which as integer)
         end if
         rows.push({id: "qua:" + i.toStr(), text: qualityLabel(q), detail: detail, under: "h:qua", current: same})
     end for
+    ' then the sleep timer, the title's chapters and Playback info (tv-player frame 4), as the other apps offer them
+    sleep = "Off"
+    if m.sleepMinutes > 0 then sleep = m.sleepMinutes.toStr() + " minutes"
+    rows.push({id: "h:slp", text: "Sleep timer", heading: true, value: sleep})
+    for each minutes in [0, 15, 30, 45, 60, 90]
+        text = "Off"
+        if minutes > 0 then text = minutes.toStr() + " minutes"
+        rows.push({id: "slp:" + minutes.toStr(), text: text, under: "h:slp", current: minutes = m.sleepMinutes})
+    end for
+    chapters = m.options.chapters
+    if chapters <> invalid and chapters.count() > 0
+        here = chapterAt(m.video.position * 1000)
+        rows.push({id: "h:chp", text: "Chapters", heading: true, value: "Chapter " + (here + 1).toStr()})
+        for i = 0 to chapters.count() - 1
+            text = (i + 1).toStr() + "   " + chapters[i].title
+            if chapters[i].title = invalid or chapters[i].title = "" then text = "Chapter " + (i + 1).toStr()
+            rows.push({id: "chp:" + i.toStr(), text: text, detail: clockText(chapters[i].startMs / 1000), under: "h:chp", current: i = here})
+        end for
+    end if
+    rows.push({id: "info", text: "Playback info", gapBefore: true})
     m.hide.control = "stop"
     m.top.menu = {title: "Playback options", status: "Changes here last until you stop watching. Your defaults stay as they are in Settings.", open: ["h:sub", "h:aud", "h:qua"][which], rows: rows}
+end sub
+
+' The chapter a place falls in: the last one starting at or before it.
+function chapterAt(ms as float) as integer
+    at = 0
+    for i = 0 to m.options.chapters.count() - 1
+        if m.options.chapters[i].startMs <= ms then at = i
+    end for
+    return at
+end function
+
+' The sleep timer: chosen here, for this playback only; when it runs out the title pauses.
+sub setSleep(minutes as integer)
+    m.sleepMinutes = minutes
+    timer = m.top.findNode("sleep")
+    timer.control = "stop"
+    if minutes = 0 then return
+    timer.duration = minutes * 60
+    timer.control = "start"
+end sub
+
+sub onSleep()
+    m.sleepMinutes = 0
+    m.video.control = "pause"
+    raise()
+end sub
+
+' Playback info (playback-info.html, the same words as the other apps): what plays and why in the
+' panel's words, then a row for each fact. OK or Back closes it.
+sub openInfo()
+    p = m.presentation
+    version = currentVersion()
+    if p = invalid or version = invalid then return
+    source = {container: version.container}
+    if version.video <> invalid and version.video.count() > 0
+        source.videoCodec = version.video[0].codec
+        source.width = version.video[0].width
+        source.height = version.video[0].height
+    end if
+    for each track in version.audio
+        if track.id = p.audioTrackId then source.audioCodec = track.codec
+    end for
+    facts = {decision: p.decision, source: source, hdr: p.hdr}
+    if p.quality <> invalid and p.quality.mode = "fixed" then facts.chosenQuality = qualityLabel(p.quality)
+    if p.bitrateKbps <> invalid and p.bitrateKbps > 0 then facts.bitrate = bitrateText(p.bitrateKbps)
+    status = ""
+    body = ""
+    rows = []
+    for each row in playbackInfoRows(facts)
+        if row.id = "delivery"
+            status = row.value
+        else if row.id = "why"
+            body = row.value
+        else
+            rows.push({id: "inf:" + row.id, text: row.label, detail: row.value})
+        end if
+    end for
+    m.hide.control = "stop"
+    m.top.menu = {title: "Playback info", status: status, body: body, rows: rows}
 end sub
 
 ' Episodes: the season playing, read from the queue (an episode's queue is its show), the one
@@ -528,6 +602,19 @@ sub onMenuChosen(event as object)
     id = event.getData()
     kind = left(id, 4)
     value = mid(id, 5)
+    if kind = "slp:"
+        setSleep(value.toInt())
+        return
+    else if kind = "chp:"
+        m.pending = m.options.chapters[value.toInt()].startMs / 1000
+        applySeek()
+        return
+    else if id = "info"
+        openInfo()
+        return
+    else if kind = "inf:"
+        return
+    end if
     if kind = "epi:"
         if m.queue <> invalid and m.queue.current <> invalid and value <> m.queue.current.entryId then moveQueue("entry", value)
         return

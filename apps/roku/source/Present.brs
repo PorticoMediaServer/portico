@@ -357,6 +357,100 @@ function yearOf(item as object) as string
     return item.year.toStr()
 end function
 
+' A codec or a subtitle format as people write it ("Dolby Digital Plus", "HEVC", "SRT"); one this
+' does not know is the server's name in capitals (client-core playback-info, and the track names).
+function formatName(codec as dynamic) as string
+    if codec = invalid then return ""
+    names = {h264: "H.264", avc: "H.264", hevc: "HEVC", h265: "HEVC", av1: "AV1", vp9: "VP9", mpeg2video: "MPEG-2", vc1: "VC-1", aac: "AAC", ac3: "Dolby Digital", eac3: "Dolby Digital Plus", dts: "DTS", truehd: "Dolby TrueHD", flac: "FLAC", mp3: "MP3", alac: "ALAC", opus: "Opus", vorbis: "Vorbis", pcm: "PCM", subrip: "SRT", srt: "SRT", ass: "ASS", ssa: "SSA", webvtt: "WebVTT", vtt: "WebVTT", mov_text: "Text", hdmv_pgs_subtitle: "PGS", pgs: "PGS", dvd_subtitle: "VobSub", vobsub: "VobSub", idx: "VobSub"}
+    if names[lcase(codec)] <> invalid then return names[lcase(codec)]
+    return ucase(codec)
+end function
+
+' Playback info under More (client-core playbackInfoRows, in the same words): whether the file plays
+' as it is or is converted and why, the picture and the sound from the file to this TV, the container
+' and the bitrate. A fact nobody knows has no row. facts: {decision: {video, audio, subtitles} (each
+' {action, reasons, to, channels}), delivery, chosenQuality, source: {container, videoCodec,
+' audioCodec, width, height}, bitrate ("4.5 Mbps"), hdr: {source, delivered, toneMapped}}. Rows are {id, label, value}.
+function playbackInfoRows(facts as object) as object
+    rows = []
+    d = facts.decision
+    streams = []
+    if d <> invalid then streams = [d.video, d.audio, d.subtitles]
+    converting = (facts.delivery = "converted")
+    repackaged = false
+    if d <> invalid
+        converting = false
+        for each x in streams
+            if isConverting(x) then converting = true
+        end for
+        for each x in streams
+            if not converting and x <> invalid and x.action = "copy" then repackaged = true
+        end for
+    end if
+    playing = "Original quality: the file plays as it is."
+    if repackaged then playing = "Original picture and sound, repackaged for this device."
+    if converting then playing = "Converting on the server."
+    rows.push({id: "delivery", label: "Playing", value: playing})
+    if converting or repackaged
+        reasons = {container_unsupported: "This device can’t open the file’s container.", video_codec_unsupported: "This device can’t play the video format.", audio_codec_unsupported: "This device can’t play the audio format.", height_above_request: "The picture is larger than the quality in use.", bitrate_above_request: "The file’s bitrate is above the quality in use.", admin_cap_remote_bitrate: "The server owner limits quality away from home.", hdr_tone_mapping_required: "HDR is converted for this screen.", subtitle_image_needs_burn: "The subtitles are images and are drawn into the picture.", subtitle_burn_in: "The subtitles are images and are drawn into the picture.", stream_normalized: "The stream’s timing is repaired as it plays.", alternate_audio_fixed_output_policy: "The audio track you chose needs converting."}
+        words = []
+        seen = {}
+        if facts.chosenQuality <> invalid and facts.chosenQuality <> "" then words.push("You chose " + facts.chosenQuality + ".")
+        for each x in streams
+            if x <> invalid and x.reasons <> invalid
+                for each code in x.reasons
+                    said = reasons[code]
+                    if said <> invalid and seen[said] <> true
+                        seen[said] = true
+                        words.push(said)
+                    end if
+                end for
+            end if
+        end for
+        why = words.join(" ")
+        if why = "" and converting then why = "The original can’t play on this device as it is."
+        if why <> "" then rows.push({id: "why", label: "Why", value: why})
+    end if
+    s = facts.source
+    if s = invalid then s = {}
+    parts = []
+    if formatName(s.videoCodec) <> "" then parts.push(formatName(s.videoCodec))
+    if s.width <> invalid and s.height <> invalid and s.width > 0 and s.height > 0 then parts.push(s.width.toStr() + "×" + s.height.toStr())
+    from = parts.join(" · ")
+    if d <> invalid and isConverting(d.video) and formatName(d.video.to) <> "" and formatName(d.video.to) <> from
+        if from = "" then from = "Unknown"
+        from = from + " → " + formatName(d.video.to)
+    end if
+    if from <> "" then rows.push({id: "video", label: "Video", value: from})
+    hdr = facts.hdr
+    if hdr <> invalid and hdr.source <> invalid and hdr.source <> ""
+        value = hdr.source
+        if hdr.delivered <> invalid and hdr.delivered <> "" then value = hdr.delivered
+        if hdr.toneMapped = true then value = hdr.source + ", converted to standard range"
+        rows.push({id: "hdr", label: "HDR", value: value})
+    end if
+    audio = formatName(s.audioCodec)
+    if d <> invalid and isConverting(d.audio)
+        parts = []
+        if formatName(d.audio.to) <> "" then parts.push(formatName(d.audio.to))
+        if d.audio.channels <> invalid and d.audio.channels > 0 then parts.push(countText(d.audio.channels, "channel", "channels"))
+        into = parts.join(" · ")
+        if into <> "" and into <> audio
+            if audio = "" then audio = "Unknown"
+            audio = audio + " → " + into
+        end if
+    end if
+    if audio <> "" then rows.push({id: "audio", label: "Audio", value: audio})
+    if s.container <> invalid and s.container <> "" then rows.push({id: "container", label: "Container", value: ucase(s.container)})
+    if facts.bitrate <> invalid and facts.bitrate <> "" then rows.push({id: "bitrate", label: "Bitrate", value: facts.bitrate})
+    return rows
+end function
+
+function isConverting(decision as dynamic) as boolean
+    return decision <> invalid and (decision.action = "transcode" or decision.action = "burn")
+end function
+
+
 ' How many a search group found: "20+" when the server stopped counting at 20.
 function foundText(group as object) as string
     if group.total = invalid then return ""
