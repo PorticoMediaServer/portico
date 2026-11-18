@@ -12,6 +12,8 @@ sub init()
     m.top.findNode("plate").blendColor = c.raisedBright
     m.top.findNode("chevron").blendColor = c.textTertiary
     setType(m.top.findNode("initial"), "faceLetter", c.white)
+    m.top.findNode("track").color = c.track
+    m.top.findNode("bar").color = c.accent
 end sub
 
 ' Words on the left, the control on the right; the row grows to fit its words, never cuts a line in half.
@@ -102,6 +104,20 @@ sub layout()
     value.vertAlign = "center"
     chevron.translation = [right - 24, (h - 24) / 2]
     switch.translation = [right - 64, (h - 36) / 2]
+    ' a progress line over the value's start, the value a little under the middle to make room
+    track = m.top.findNode("track")
+    bar = m.top.findNode("bar")
+    progress = -1
+    if model.progress <> invalid then progress = model.progress
+    track.visible = (progress >= 0)
+    bar.visible = track.visible
+    if track.visible
+        track.width = 280
+        track.translation = [valueRight - valueWidth, h / 2 - 22]
+        bar.width = 280 * progress
+        bar.translation = track.translation
+        value.translation = [valueRight - valueWidth, 12]
+    end if
     line = m.top.findNode("line")
     line.translation = [textX, 0]
     line.width = w - 24 - textX

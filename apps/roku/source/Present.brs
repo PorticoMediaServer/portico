@@ -641,6 +641,37 @@ function kindCount(n as integer, kind as string) as string
     return countText(n, one[kind], one[kind] + "s")
 end function
 
+' Saved's playlists and collections as the toolbar asks (collections frame 15): `shown` is "all",
+' "mine" (made by the viewer) or "shared" (someone else's); `sort` is "changed" (last changed
+' first) or "name". The server lists them in its own order, so this is done on what it sent.
+function savedListsShown(lists as object, sort as string, shown as string) as object
+    kept = []
+    for each list in lists
+        mine = (list.role = "owner")
+        if shown = "all" or (shown = "mine" and mine) or (shown = "shared" and not mine) then kept.push(list)
+    end for
+    ' an insertion sort: names A to Z ignoring case, or ISO times (which sort as words) newest first
+    for i = 1 to kept.count() - 1
+        list = kept[i]
+        j = i - 1
+        while j >= 0 and listBefore(list, kept[j], sort)
+            kept[j + 1] = kept[j]
+            j = j - 1
+        end while
+        kept[j + 1] = list
+    end for
+    return kept
+end function
+
+function listBefore(a as object, b as object, sort as string) as boolean
+    if sort = "name" then return lcase(a.name) < lcase(b.name)
+    aTime = ""
+    bTime = ""
+    if a.updatedAt <> invalid then aTime = a.updatedAt
+    if b.updatedAt <> invalid then bTime = b.updatedAt
+    return aTime > bTime
+end function
+
 ' An episode in its season's row: {.., under: true (words under the still), corner (its length), played}.
 function episodeCard(item as object, upNext as boolean) as object
     card = cardFor(item, "landscape")
