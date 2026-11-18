@@ -17,25 +17,23 @@ import (
 // ordinary scan route, as the caller, so the same people may ask, and an unchanged file costs
 // a scan only a look. A folder is scanned where the paths name one; otherwise the library.
 func (s *Server) compatRefresh(r *http.Request, c Caller, op string, values []string) error {
+	if op == compat.MediaUpdated {
+		var in struct{ Updates []struct{ Path string } }
+		if err := json.NewDecoder(http.MaxBytesReader(nil, r.Body, maxBody)).Decode(&in); err != nil {
+			return ErrInvalid("Send the changed files as Updates, each with its Path.")
+		}
+		paths := make([]string, len(in.Updates))
+		for n, update := range in.Updates {
+			paths[n] = update.Path
+		}
+		_, err := s.scanChanged(r, c, paths)
+		return err
+	}
 	libraries, err := s.db.AdminLibraries(r.Context(), "")
 	if err != nil {
 		return err
 	}
-	scan := func(library, folder string) error {
-		err := s.callAsWith(r, c, "POST", "/v1/admin/libraries/"+library+"/scan", nil, ScanRequest{Folder: folder}, nil)
-		var refused *Error
-		if errors.As(err, &refused) && refused.Code == "scan_in_progress" {
-			return nil // another folder of the library is being scanned; watching and the next scan find the file
-		}
-		return err
-	}
 	switch op {
-	case compat.LibraryRefresh:
-		for _, lib := range libraries {
-			if err := scan(lib.PublicID, ""); err != nil {
-				return err
-			}
-		}
 	case compat.ItemRefresh:
 		native := compat.PorticoID(values[0])
 		if !strings.HasPrefix(native, "itm_") {
@@ -47,31 +45,53 @@ func (s *Server) compatRefresh(r *http.Request, c Caller, op string, values []st
 		}
 		for _, lib := range libraries {
 			if lib.ID == it.LibraryID {
-				return scan(lib.PublicID, "")
+				return s.scanAs(r, c, lib.PublicID, "")
 			}
 		}
-	case compat.MediaUpdated:
-		var in struct{ Updates []struct{ Path string } }
-		if err := json.NewDecoder(http.MaxBytesReader(nil, r.Body, maxBody)).Decode(&in); err != nil {
-			return ErrInvalid("Send the changed files as Updates, each with its Path.")
-		}
-		asked := map[[2]string]bool{}
-		for _, update := range in.Updates {
-			changed := filepath.Clean(update.Path)
-			for _, lib := range libraries {
-				for _, folder := range lib.Paths {
-					root := filepath.Clean(folder.Path)
-					if folder.RemoteID == 0 && (changed == root || strings.HasPrefix(changed, root+string(filepath.Separator))) {
-						asked[[2]string{lib.PublicID, strconv.FormatInt(folder.ID, 10)}] = true
-					}
-				}
-			}
-		}
-		for at := range asked {
-			if err := scan(at[0], at[1]); err != nil {
+	case compat.LibraryRefresh:
+		for _, lib := range libraries {
+			if err := s.scanAs(r, c, lib.PublicID, ""); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// scanChanged scans each library folder that holds one of the changed paths, as the caller,
+// and says how many folders it asked to scan. A path in no library's folder is passed over.
+// The compatible change report and the assistant's report_changed_files both use it.
+func (s *Server) scanChanged(r *http.Request, c Caller, paths []string) (int, error) {
+	libraries, err := s.db.AdminLibraries(r.Context(), "")
+	if err != nil {
+		return 0, err
+	}
+	asked := map[[2]string]bool{}
+	for _, path := range paths {
+		changed := filepath.Clean(path)
+		for _, lib := range libraries {
+			for _, folder := range lib.Paths {
+				root := filepath.Clean(folder.Path)
+				if folder.RemoteID == 0 && (changed == root || strings.HasPrefix(changed, root+string(filepath.Separator))) {
+					asked[[2]string{lib.PublicID, strconv.FormatInt(folder.ID, 10)}] = true
+				}
+			}
+		}
+	}
+	for at := range asked {
+		if err := s.scanAs(r, c, at[0], at[1]); err != nil {
+			return 0, err
+		}
+	}
+	return len(asked), nil
+}
+
+// scanAs scans a library, or one of its folders, through the ordinary scan route as the caller.
+func (s *Server) scanAs(r *http.Request, c Caller, library, folder string) error {
+	err := s.callAsWith(r, c, "POST", "/v1/admin/libraries/"+library+"/scan", nil, ScanRequest{Folder: folder}, nil)
+	var refused *Error
+	if errors.As(err, &refused) && refused.Code == "scan_in_progress" {
+		return nil // another folder of the library is being scanned; watching and the next scan find the file
+	}
+	return err
 }
