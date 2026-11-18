@@ -38,6 +38,16 @@ sub main()
     ' a booking still to come is cancelled; one recording now is stopped (and keeps what it has)
     same("cancel or stop", [recordingCancelPath({id: "rec_1", state: "scheduled"}), recordingCancelPath({id: "rec_1", state: "recording"}), recordingConfirm("News", {state: "recording"}).verb], ["/v1/dvr/recordings/rec_1", "/v1/dvr/recordings/rec_1?action=stop", "Stop recording"])
     same("series sheet", [seriesSheet({byTitle: false, preview: {matches: 4}}, "Summit Sports", "Cycling").rows.count().toStr(), seriesSheet({byTitle: true, preview: {matches: 1}}, "Summit Sports", "Cycling").rows.count().toStr(), seriesSheet({byTitle: true, preview: {matches: 1}}, "Summit Sports", "Cycling").status], ["2", "1", "1 airing in the guide now"])
+    ' a reminder shows two minutes before its programme, once; an app opened late shows it while the
+    ' programme is still on, never once it has ended (definition 11, rule 62)
+    rems = [{programme: "a", starts: 1000, ends: 2000, title: "News", channel: "Northwind"}, {programme: "b", starts: 1500, ends: 1800}, {programme: "c", starts: 500, ends: 800}]
+    r = reminderDue(rems, 890, {})
+    same("reminder due", [r.due.programme, r.wait.toStr()], ["a", "490"])
+    r = reminderDue(rems, 890, {a: true})
+    same("reminder shown once", [(r.due = invalid).toStr(), r.wait.toStr()], ["true", "490"])
+    same("reminder late, still on", [reminderDue(rems, 1200, {}).due.programme], ["a"])
+    same("reminder words", [reminderWords(rems[0], 890), reminderWords(rems[0], 1200)], ["News starts in 2 minutes on Northwind", "News is on now on Northwind"])
+    same("reminder none", [reminderDue([], 0, {}).wait.toStr()], ["-1"])
     same("size", [recordingSizeText(500), recordingSizeText(640000000), recordingSizeText(1200000000), recordingSizeText(3000000000)], ["under 1 MB", "640 MB", "1.2 GB", "3 GB"])
 
     print "PASSED " + m.passed.toStr() + " FAILED " + m.failed.toStr()

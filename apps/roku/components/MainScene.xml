@@ -13,6 +13,8 @@
   <script type="text/brightscript" uri="pkg:/source/Settings.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Address.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Capabilities.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Live.brs"/>
   <children>
     <Backdrop id="backdrop"/>
     <Group id="screens"/>
@@ -26,6 +28,10 @@
     <TogetherRoom id="together"/>
     <!-- Signing out asks first, wherever it was chosen (the rail's profile menu, later Settings too). -->
     <Confirm id="confirm" visible="false"/>
+    <!-- A Live TV reminder coming due, over whatever is showing (two minutes before its programme). -->
+    <Toast id="reminder" seconds="10"/>
+    <Timer id="reminderTimer"/>
+    <Timer id="reminderPoll" duration="300" repeat="true"/>
     <!-- Development builds only: counts drawn frames, for judging smoothness without eyes on the screen. -->
     <Rectangle id="frameProbe" width="1" height="1" opacity="0"/>
     <Animation id="frameClock" duration="1" repeat="true" easeFunction="linear">

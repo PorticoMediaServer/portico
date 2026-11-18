@@ -40,6 +40,8 @@ sub init()
     m.sources = []      ' the channel sources, with their groups
     m.filter = {source: "", group: "", favorites: false}
     m.booked = {}       ' the profile's bookings by bookingKey (source/Live.brs)
+    m.reminded = {}     ' the programmes this profile asked to be reminded of, by id
+    m.sheetLevel = ""   ' which sheet is open: "programme", "series", "notice", or "" for none
     m.canRecord = false ' this profile may record (the server's DVR overview)
     m.hasRecordings = false
     m.confirm = m.top.findNode("confirm")
@@ -130,6 +132,23 @@ sub loadBookings()
     m.bookings = []
     api("GET", "/v1/dvr", invalid, "onDvr")
     api("GET", "/v1/dvr/recordings", invalid, "onBookings", {seq: m.bookingSeq})
+    api("GET", "/v1/live/reminders", invalid, "onReminders", {seq: m.bookingSeq, ids: {}})
+end sub
+
+' The programmes this profile asked to be reminded of, by programme id (every page).
+sub onReminders(event as object)
+    result = event.getData()
+    ctx = event.getRoSGNode().ctx
+    if ctx.seq <> m.bookingSeq or not result.ok then return
+    ids = ctx.ids
+    for each r in result.data.items
+        ids[r.programme] = true
+    end for
+    if result.data.nextCursor <> invalid and result.data.nextCursor <> ""
+        api("GET", "/v1/live/reminders?cursor=" + result.data.nextCursor.encodeUriComponent(), invalid, "onReminders", {seq: ctx.seq, ids: ids})
+        return
+    end if
+    m.reminded = ids
 end sub
 
 sub onDvr(event as object)
@@ -155,6 +174,10 @@ sub onBookings(event as object)
         return
     end if
     m.booked = liveBookings(m.bookings)
+    if m.reopen <> invalid and m.reopen <> "" and m.sheetLevel <> ""
+        showSheet(m.reopen)
+        m.reopen = ""
+    end if
     if m.cells = invalid then return
     draw()
     if m.region = "grid" then paint()
@@ -698,7 +721,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
     return pressKey(key)
 end function
 
-' The programme's side sheet: Watch live first. The channel cell opens what is on now.
+' The programme's side sheet. The channel cell opens what is on now.
 sub openSheet()
     if m.cells = invalid or m.cells.count() = 0 then return
     row = m.guide[m.r]
@@ -711,30 +734,73 @@ sub openSheet()
         end for
     end if
     m.sheetCell = cell
-    model = programmeSheet(row, cell.programme, nowSeconds())
-    watch = "Watch channel"
-    if model.live or cell.programme = invalid then watch = "Watch live"
-    model.rows.push({id: "watch", text: watch, icon: "play"})
+    showSheet("")
+end sub
+
+' The sheet as things stand, focus on the row `focusId` ("" for its first) (tv-focus 37 to 47):
+' Watch live first, except for a programme still to come, which starts on Record; then Record
+' series…, Remind me, View recordings, the title's page and Favorites, each where it applies.
+' Record, Remind me and Favorites keep the sheet open: it is shown again with their new state.
+sub showSheet(focusId as string)
+    row = m.sheetRow
+    cell = m.sheetCell
+    p = cell.programme
+    now = nowSeconds()
+    model = programmeSheet(row, p, now)
+    m.sheetLevel = "programme"
+    if p = invalid or cell.start <= now
+        watch = "Watch channel"
+        if model.live or p = invalid then watch = "Watch live"
+        model.rows.push({id: "watch", text: watch, icon: "play"})
+    end if
+    booking = invalid
     ' Record and Record series: a source's channel (a Library Channel plays the library), a
     ' programme the profile may see that has not ended, and a profile allowed to record
-    p = cell.programme
-    if m.canRecord and row.channel.kind = "source" and p <> invalid and p.notAvailable <> true and cell.ends > nowSeconds()
+    if m.canRecord and row.channel.kind = "source" and p <> invalid and p.notAvailable <> true and cell.ends > now
         booking = m.booked[bookingKey(row.channel.id, cell.start)]
         if booking = invalid
-            model.rows.push({id: "record", text: "Record", dot: true})
-        else if booking.state = "scheduled" and booking.mayCancel
-            model.rows.push({id: "cancelrec", text: "Cancel recording", detail: "Recording scheduled", dot: true})
-        else if booking.state = "recording" and booking.mayChange
-            model.rows.push({id: "stoprec", text: "Stop recording", detail: "Recording now", dot: true})
+            model.rows.push({id: "record", text: "Record", dot: true, stays: true})
+        else if booking.state = "scheduled"
+            ' booked: the row reads Recording (F-GUIDE-45); OK cancels it, after asking
+            if booking.mayCancel then model.rows.push({id: "record", text: "Recording", detail: "Scheduled. OK cancels it.", dot: true}) else model.rows.push({id: "recordings", text: "Recording", detail: "Scheduled. OK opens Recordings.", dot: true})
+        else
+            if booking.mayChange then model.rows.push({id: "record", text: "Recording", detail: "Recording now. OK stops it.", dot: true}) else model.rows.push({id: "recordings", text: "Recording", detail: "Recording now. OK opens Recordings.", dot: true})
         end if
         model.rows.push({id: "series", text: "Record series…", icon: "repeat"})
     end if
+    ' Remind me: a programme still to come; the note shows two minutes before, while the app is open
+    if p <> invalid and p.notAvailable <> true and cell.start > now
+        if m.reminded[p.id] = true
+            model.rows.push({id: "remind", text: "Stop reminding", detail: "A note shows 2 minutes before it starts.", icon: "bell", stays: true})
+        else
+            model.rows.push({id: "remind", text: "Remind me", icon: "bell", stays: true})
+        end if
+    end if
+    if booking <> invalid then model.rows.push({id: "recordings", text: "View recordings", icon: "dvr"})
     ' a Library Channel's programme is a title of the library: its page is a press away
     if p <> invalid and p.itemId <> invalid and p.itemId <> ""
         if p.episode <> invalid then model.rows.push({id: "title", text: "Go to show", icon: "info"}) else model.rows.push({id: "title", text: "Go to title", icon: "info"})
     end if
-    model.rows.push(favoriteRow(row.channel))
+    favorite = favoriteRow(row.channel)
+    favorite.stays = true
+    model.rows.push(favorite)
+    for each r in model.rows
+        if r.id = focusId then r.focus = true
+    end for
+    m.sheetFocus = focusId
     m.top.menu = model
+end sub
+
+' Back from Record series, or from the server's refusal, returns to the row that opened it
+' (F-GUIDE-46); Back from the programme's sheet returns to the guide.
+sub onMenuClosed()
+    if m.sheetLevel = "series" or m.sheetLevel = "notice" then showSheet(m.sheetFocus) else m.sheetLevel = ""
+end sub
+
+' A sheet that says why the server would not do something; OK or Back returns to the programme's.
+sub refused(message as string)
+    m.sheetLevel = "notice"
+    m.top.menu = notRecordedSheet(message)
 end sub
 
 sub onMenuChosen(event as object)
@@ -755,29 +821,46 @@ sub onMenuChosen(event as object)
         choose({source: m.filter.source, group: mid(chosen, 7), favorites: false})
         return
     end if
+    if chosen = "ok"
+        showSheet(m.sheetFocus)
+        return
+    end if
     if chosen = "favorite"
         ' the profile's own mark: the channel's hidden mark is sent back as it is
         channel = m.sheetRow.channel
         api("PUT", "/v1/live/channels/" + channel.id + "/state", {favorite: not channel.favorite, hidden: channel.hidden}, "onFavorite", {id: channel.id, seq: m.seq})
         return
     end if
-    if chosen = "record"
-        api("POST", "/v1/dvr/recordings", {programme: m.sheetCell.programme.id}, "onRecordAnswer", {seq: m.seq})
+    if chosen = "remind"
+        p = m.sheetCell.programme
+        method = "PUT"
+        if m.reminded[p.id] = true then method = "DELETE"
+        api(method, "/v1/live/reminders/" + p.id.encodeUriComponent(), invalid, "onRemind", {id: p.id, on: method = "PUT", seq: m.seq})
         return
     end if
-    if chosen = "cancelrec" or chosen = "stoprec"
-        m.asked = chosen
+    if chosen = "record"
         booking = m.booked[bookingKey(m.sheetRow.channel.id, m.sheetCell.start)]
-        if booking <> invalid then m.confirm.model = recordingConfirm(m.sheetCell.programme.title, booking)
+        p = m.sheetCell.programme
+        if booking = invalid
+            api("POST", "/v1/dvr/recordings", {programme: p.id}, "onRecordAnswer", {seq: m.seq, focus: "record"})
+        else
+            m.confirm.model = recordingConfirm(p.title, booking)
+        end if
         return
     end if
     if chosen = "series"
         ' what a rule for this programme would record, before it is made
+        m.sheetFocus = "series"
         api("POST", "/v1/dvr/rules?preview=true", {programme: m.sheetCell.programme.id}, "onSeriesPreview", {seq: m.seq})
         return
     end if
     if chosen = "rule:this" or chosen = "rule:any"
-        api("POST", "/v1/dvr/rules", {programme: m.sheetCell.programme.id, anyChannel: chosen = "rule:any"}, "onRecordAnswer", {seq: m.seq})
+        api("POST", "/v1/dvr/rules", {programme: m.sheetCell.programme.id, anyChannel: chosen = "rule:any"}, "onRecordAnswer", {seq: m.seq, focus: "series"})
+        return
+    end if
+    m.sheetLevel = ""
+    if chosen = "recordings"
+        m.top.open = {item: {kind: "recordings", title: "Recordings"}}
         return
     end if
     if chosen = "title"
@@ -790,7 +873,8 @@ sub onMenuChosen(event as object)
     m.top.open = {play: true, item: {kind: "channel", id: row.channel.id, title: row.channel.name, channel: row.channel, programmes: row.programmes, lineup: m.guide}}
 end sub
 
-' The mark is the server's now. In the Favorites view a channel taken out leaves it: the guide is read again.
+' The mark is the server's now, and the sheet shows it. In the Favorites view a channel taken out
+' leaves it: the guide is read again.
 sub onFavorite(event as object)
     result = event.getData()
     ctx = event.getRoSGNode().ctx
@@ -798,17 +882,36 @@ sub onFavorite(event as object)
     for each row in m.guide
         if row.channel.id = ctx.id then row.channel.favorite = result.data.favorite
     end for
+    m.sheetRow.channel.favorite = result.data.favorite
+    if m.sheetLevel = "programme" then showSheet("favorite")
     if m.filter.favorites and not result.data.favorite then load()
 end sub
 
-' A booking or a series rule made: the red dots are read again. One the server refused says why.
-sub onRecordAnswer(event as object)
+sub onRemind(event as object)
     result = event.getData()
-    if event.getRoSGNode().ctx.seq <> m.seq then return
+    ctx = event.getRoSGNode().ctx
+    if ctx.seq <> m.seq then return
     if not result.ok
-        m.top.menu = notRecordedSheet(result.error.message)
+        if m.sheetLevel = "programme" then refused(result.error.message)
         return
     end if
+    if ctx.on then m.reminded[ctx.id] = true else m.reminded.delete(ctx.id)
+    ' the scene's note for it is set (or taken away): it counts this and reads the reminders again
+    if m.global.hasField("remindersChanged") then m.global.remindersChanged = m.global.remindersChanged + 1
+    if m.sheetLevel = "programme" then showSheet("remind")
+end sub
+
+' A booking, a series rule or a cancel done: the red dots are read again, and the sheet comes back
+' on the row it was chosen from once they are. One the server refused says why.
+sub onRecordAnswer(event as object)
+    result = event.getData()
+    ctx = event.getRoSGNode().ctx
+    if ctx.seq <> m.seq then return
+    if not result.ok
+        refused(result.error.message)
+        return
+    end if
+    m.reopen = ctx.focus
     loadBookings()
 end sub
 
@@ -817,18 +920,22 @@ sub onSeriesPreview(event as object)
     result = event.getData()
     if event.getRoSGNode().ctx.seq <> m.seq then return
     if not result.ok
-        m.top.menu = notRecordedSheet(result.error.message)
+        refused(result.error.message)
         return
     end if
+    m.sheetLevel = "series"
     m.top.menu = seriesSheet(result.data, m.sheetRow.channel.name, m.sheetCell.programme.title)
 end sub
 
+' Cancel or stop, asked over the sheet: either way the sheet comes back on Recording.
 sub onConfirm()
     focusRegion(m.region)
-    if m.confirm.chosen <> "confirm" then return
     booking = m.booked[bookingKey(m.sheetRow.channel.id, m.sheetCell.start)]
-    if booking = invalid then return
-    api("DELETE", recordingCancelPath(booking), invalid, "onRecordAnswer", {seq: m.seq})
+    if m.confirm.chosen <> "confirm" or booking = invalid
+        showSheet("record")
+        return
+    end if
+    api("DELETE", recordingCancelPath(booking), invalid, "onRecordAnswer", {seq: m.seq, focus: "record"})
 end sub
 
 ' An episode opens its show's page; anything else, its own.

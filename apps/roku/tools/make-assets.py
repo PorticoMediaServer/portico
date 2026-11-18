@@ -298,6 +298,7 @@ def read_ts(expr, imports):
 # Entries are kept one per line in alphabetical order so that changes to different screens do not
 # collide; a new entry goes in its alphabetical place.
 ICONS = {
+    'bell': [28],
     'book': [32],
     'bookmark': [32],
     'browser': [28],

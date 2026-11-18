@@ -187,7 +187,12 @@ sub onSheetChosen(event as object)
         end if
         return
     end if
-    closeSheet()
+    ' a row marked stays keeps the sheet open: the page answers with the sheet as it is now
+    stays = false
+    for each row in m.sheet.model.rows
+        if row.id = event.getData() and row.stays = true then stays = true
+    end for
+    if not stays then closeSheet()
     ' a menu the audio player opened answers to it
     if m.sheetFor <> invalid
         owner = m.sheetFor
@@ -681,6 +686,65 @@ sub onLive(event as object)
     result = event.getData()
     m.hasLive = result.ok and result.data.items <> invalid and result.data.items.count() > 0
     if m.hasLive and m.libraries <> invalid then onLibrariesAgain()
+    if m.hasLive then readReminders()
+end sub
+
+' --- Live TV reminders (definition 11, rule 62): two minutes before the programme, while the app is open ---
+
+' Read again every five minutes and whenever Live TV sets or clears one; the timer waits for the next.
+sub readReminders()
+    if m.reminderSeq = invalid
+        m.reminderSeq = 0
+        m.remindersShown = {}
+        m.top.findNode("reminderTimer").observeField("fire", "remindNow")
+        poll = m.top.findNode("reminderPoll")
+        poll.observeField("fire", "readReminders")
+        poll.control = "start"
+        ' Live TV counts here each reminder it sets or clears
+        m.global.addFields({remindersChanged: 0})
+        m.global.observeField("remindersChanged", "readReminders")
+    end if
+    m.reminderSeq = m.reminderSeq + 1
+    m.reminders = []
+    api("GET", "/v1/live/reminders", invalid, "onReminders", {seq: m.reminderSeq})
+end sub
+
+sub onReminders(event as object)
+    result = event.getData()
+    ctx = event.getRoSGNode().ctx
+    if ctx.seq <> m.reminderSeq or not result.ok then return
+    for each r in result.data.items
+        m.reminders.push({programme: r.programme, title: r.title, channel: r.channel, starts: secondsOf(r.startsAt), ends: secondsOf(r.endsAt)})
+    end for
+    if result.data.nextCursor <> invalid and result.data.nextCursor <> ""
+        api("GET", "/v1/live/reminders?cursor=" + result.data.nextCursor.encodeUriComponent(), invalid, "onReminders", ctx)
+        return
+    end if
+    remindNow()
+end sub
+
+' The note for one coming due ("Cycling starts in 2 minutes on Summit Sports"), once, or for one
+' still on when the app opened late; then the timer is set for the next.
+sub remindNow()
+    if m.reminders = invalid then return
+    now = createObject("roDateTime").asSeconds()
+    coming = reminderDue(m.reminders, now, m.remindersShown)
+    if coming.due <> invalid
+        m.remindersShown[coming.due.programme] = true
+        note = m.top.findNode("reminder")
+        note.text = reminderWords(coming.due, now)
+        note.show = true
+        coming = reminderDue(m.reminders, now, m.remindersShown)
+    end if
+    timer = m.top.findNode("reminderTimer")
+    timer.control = "stop"
+    if coming.due <> invalid
+        timer.duration = 11       ' another due at the same moment follows this note
+        timer.control = "start"
+    else if coming.wait >= 0
+        timer.duration = coming.wait
+        timer.control = "start"
+    end if
 end sub
 
 sub onLibrariesAgain()
