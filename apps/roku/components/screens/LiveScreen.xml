@@ -16,6 +16,7 @@
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
     <Label id="pageTitle" text="Live TV"/>
+    <ButtonRow id="toolbar"/>
     <Label id="state" visible="false"/>
     <Group id="header"/>
     <Group id="window">
