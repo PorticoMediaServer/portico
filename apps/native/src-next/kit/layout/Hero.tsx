@@ -52,12 +52,22 @@ export type HeroProps<T extends HeroCandidate> = {
 
 /** `runtimeChip`: Home's hero outlines the runtime too (mock.html home); a title page draws it as plain text (phone-detail d1,
  * desktop-detail f1, f2). */
-export function HeroMetadata({facts, centered = false, runtimeChip = false}: {facts: readonly FactPart[]; centered?: boolean; runtimeChip?: boolean}) {
+export function HeroMetadata({facts, centered = false, runtimeChip = false, children}: {facts: readonly FactPart[]; centered?: boolean; runtimeChip?: boolean; children?: ReactNode}) {
   const theme = useTheme();
   return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centered ? 'center' : 'flex-start', columnGap: heroSpec.facts.gap[theme.column], rowGap: heroSpec.facts.rowGap[theme.column]}}>
     {/* A rating and a season count are outlined chips, and on Home a runtime (phone-detail 1, mock.html home); the rest is plain text. */}
     {facts.map(fact => <Text key={fact.id} style={[theme.type.meta, {includeFontPadding: false, color: fact.id === 'year' || fact.role === 'identity' ? theme.colors.text : theme.colors.textSecondary, fontFamily: fact.id === 'year' || fact.role === 'identity' ? theme.type.bodyStrong.fontFamily : theme.type.meta.fontFamily},
       (fact.id === 'content-rating' || (runtimeChip && fact.id === 'duration') || fact.id === 'season-count') && {paddingHorizontal: theme.space.tight, paddingVertical: theme.space.hairline, borderWidth: theme.space.hairline, borderColor: theme.colors.textTertiary, borderRadius: theme.baseRadii.control / 2, overflow: 'hidden'}]}>{fact.text}</Text>)}
+    {children}
+  </View>;
+}
+
+/** A continuing title's place in the facts row (final3-tv-01, web `HeroProgress`): a short track and the time left, bold. */
+export function HeroProgress({progress, remaining}: {progress: number; remaining: string}) {
+  const theme = useTheme(), value = Math.max(0, Math.min(1, progress));
+  return <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.isTV ? 14 : 10}}>
+    <View accessible={false} style={{width: theme.isTV ? 160 : 120, height: theme.isTV ? 6 : 4, borderRadius: 6, overflow: 'hidden', backgroundColor: `${theme.colors.text}38`}}><View style={{width: `${value * 100}%`, height: '100%', backgroundColor: theme.colors.accentStrong}}/></View>
+    <Text style={[theme.type.meta, {includeFontPadding: false, color: theme.colors.text, fontFamily: theme.type.bodyStrong.fontFamily}]}>{remaining}</Text>
   </View>;
 }
 

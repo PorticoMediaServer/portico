@@ -1,6 +1,6 @@
 /** The screen frames (design/ui-v1 `system-frames.html`). FRAMES.md beside this file is the brief for building a screen on them. */
 export {BrowseFrame, HomeHero} from './BrowseFrame';
-export type {BrowseFrameProps, BrowseHeaderProps, BrowseFiltersProps, HomeHeroProps} from './BrowseFrame';
+export type {BrowseFrameProps, BrowseHeaderProps, BrowseFiltersProps, HomeHeroEntry, HomeHeroProps} from './BrowseFrame';
 export {SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, PageStateFrame} from './frames';
 export {PlayerChromeFrame, AudioPlayerFrame} from './PlayerFrames';
 export type {PlayerReadouts, PlayerChromeFrameProps, AudioPlayerFrameProps, AudioControl, AudioOption, AudioTimes} from './PlayerFrames';

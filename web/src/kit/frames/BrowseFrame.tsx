@@ -3,7 +3,7 @@ import {frameSpec} from '@design';
 import type {FactPart} from '@core/presentation/kit-model';
 import {FiltersSurface, LibraryHeader, StickyBrowseHeader} from '../browse';
 import {Tabs, type ChoiceItem} from '../controls';
-import {Hero, type HeroCandidate, type HeroProps} from '../layout';
+import {Hero, HeroFacts, HeroProgress, type HeroCandidate, type HeroProps} from '../layout';
 import {useFrameForm, usePhone} from '../overlays/shared';
 import {Skeleton} from '../states';
 import {useCoarsePointer} from '../theme';
@@ -100,11 +100,16 @@ function GridSkeleton() {
     <Skeleton quiet sheen={index === 0} style={{aspectRatio: '2 / 3', width: '100%'}} /><Skeleton quiet line width="80%" /><Skeleton quiet line small width="40%" /></div>)}</div>;
 }
 
+/** A featured title that is part-watched: its progress and the time left, drawn in the facts row (final3-tv-01, as native). An
+ * episode's number and name go in `reason`, the kicker over the title. */
+export type HomeHeroEntry = HeroCandidate & Readonly<{progress?: number; remaining?: string}>;
 /** What a screen may say about Home's hero: what to feature and how to draw its art, thumbnails and buttons. Never a size. */
-export type HomeHeroProps<T extends HeroCandidate> = Pick<HeroProps<T>, 'candidates' | 'activeIndex' | 'onIndexChange' | 'active' | 'visible'
+export type HomeHeroProps<T extends HomeHeroEntry> = Pick<HeroProps<T>, 'candidates' | 'activeIndex' | 'onIndexChange' | 'active' | 'visible'
   | 'renderArtwork' | 'renderThumbnail' | 'renderActions' | 'renderMetadata' | 'renderReason' | 'titleLink' | 'onArtworkError' | 'onArtworkReady'>;
 /** Rule 14, the moderate hero, for `BrowseFrame`'s `hero`: the kit's Hero (its cross-fade and drift unchanged) at the rule's
  * fixed sizes. From tablet width its pager is the thumbnails with their names (mock.html home). */
-export function HomeHero<T extends HeroCandidate>(props: HomeHeroProps<T>) {
-  return <Hero {...props} moderate platform={usePhone() ? 'phone-web' : 'desktop'} />;
+export function HomeHero<T extends HomeHeroEntry>({renderMetadata, ...props}: HomeHeroProps<T>) {
+  const platform = usePhone() ? 'phone-web' : 'desktop';
+  return <Hero {...props} moderate platform={platform} renderMetadata={renderMetadata ?? (entry => entry.facts?.length || entry.progress !== undefined
+    ? <HeroFacts parts={entry.facts ?? []} platform={platform} runtimeChip>{entry.progress !== undefined && entry.remaining && <HeroProgress progress={entry.progress} remaining={entry.remaining}/>}</HeroFacts> : null)} />;
 }
