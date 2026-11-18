@@ -216,7 +216,7 @@ test('a state view draws its kicker above the heading and, when asked, stacks it
       for (const id of ['add', 'find']) {
         const pressable = nodesOf(host.root).find(node => node.props?.testID === focusTestID('state', JSON.stringify(['action', id])));
         const style = pressable?.props.style, button = flat(typeof style === 'function' ? style({pressed: false, focused: false}) : style);
-        assert.equal(button.width === '100%' && button.height === 50, stackActions, `${id}: ${JSON.stringify(button)}`);
+        assert.equal(button.width === '100%' && (button.minHeight ?? button.height) === 50, stackActions, `${id}: ${JSON.stringify(button)}`);
       }
     } finally {await host.unmount();}
   }

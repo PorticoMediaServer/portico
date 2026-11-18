@@ -76,7 +76,7 @@ export const platformMessages = {
   'next.platform.frame.searchResults': 'Search: results with a Top result',
   'next.platform.frame.searchNone': 'Search: no matches',
   'next.platform.frame.liveGuide': 'Live TV: the guide',
-  'next.platform.frame.liveDetails': 'Live TV: the guide with a programme open',
+  'next.platform.frame.liveDetails': 'Live TV: the guide with a program open',
   'next.platform.frame.liveList': 'Live TV: the channel list',
   'next.platform.frame.liveUpcoming': 'Live TV: Recordings, upcoming',
   'next.platform.frame.liveRecorded': 'Live TV: Recordings, recorded',
