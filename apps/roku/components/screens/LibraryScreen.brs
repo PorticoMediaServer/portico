@@ -211,6 +211,11 @@ end sub
 ' The toolbar: kit buttons, Sort set apart from the quick filters by a rule. A filter that is on
 ' carries a tick and, out of focus, the blue plate.
 sub drawTools()
+    ' Save view keeps this view's filters and sort under a name (Saved > Saved views); it is always the
+    ' toolbar's last control, at its right end, and only on a library's own page
+    if m.savedAs = invalid then m.savedAs = ""
+    last = m.toolSpecs.count() - 1
+    if m.top.library.id <> invalid and (last < 0 or m.toolSpecs[last].id <> "save") then m.toolSpecs.push({id: "save", text: "Save view", icon: "plus"})
     c = colours()
     m.tools.removeChildrenIndex(m.tools.getChildCount(), 0)
     m.toolNodes = []
@@ -224,7 +229,15 @@ sub drawTools()
         b.switchedOn = on
         if spec.id = "sort" and m.sort <> invalid then b.text = sortName(m.sort.id) else b.text = spec.text
         if spec.id = "filters" and chosenCount() > 0 then b.detail = chosenCount().toStr()
+        if spec.id = "save" and m.savedAs <> ""
+            ' saved: says so until the view changes
+            b.icon = "check"
+            b.text = "Saved"
+        else if spec.id = "save" and m.saveFailed = true
+            b.text = "Not saved: try again"
+        end if
         b.translation = [x, 0]
+        if spec.id = "save" then b.translation = [frames().rightEdge - frames().gutter - b.buttonWidth, 0]
         m.toolNodes.push(b)
         x = x + b.buttonWidth + 18
         if i = m.leading - 1 and m.toolSpecs.count() > m.leading
@@ -317,6 +330,10 @@ sub loadList()
         whole = "/v1/items?library=" + m.top.library.id
         if view.kind <> "" then whole = whole + "&kind=" + view.kind
         api("GET", whole + "&limit=1&total=true", invalid, "onTotal", {generation: m.generation, all: true})
+    end if
+    if m.savedAs <> "" and m.savedAs <> listPath()
+        m.savedAs = ""        ' the view changed since it was saved
+        drawTools()
     end if
 end sub
 
@@ -500,6 +517,58 @@ end sub
 sub onCardSelected(event as object)
     at = event.getData()
     if at >= 0 and at < m.items.count() then m.top.open = {item: m.items[at], play: false}
+end sub
+
+' --- Save view: Roku's keyboard for the name, then the view is kept as the profile's saved view
+
+sub askViewName()
+    parts = []
+    for each spec in m.toolSpecs
+        if m.quick[spec.id] = true then parts.push(spec.text)
+    end for
+    for each spec in m.filterSpecs
+        if m.chosen[spec.id] <> invalid
+            for each v in m.chosen[spec.id]
+                parts.push(v.label)
+            end for
+        end if
+    end for
+    sort = ""
+    if m.sort <> invalid then sort = sortName(m.sort.id)
+    dialog = createObject("roSGNode", "StandardKeyboardDialog")
+    dialog.title = "Save view"
+    dialog.message = ["Name this view. It is kept in Saved, under Saved views, with its filters and sort."]
+    dialog.buttons = ["Save", "Cancel"]
+    dialog.text = savedViewName(m.top.library.name, parts, sort)
+    dialog.observeField("buttonSelected", "onViewNamed")
+    m.dialog = dialog
+    m.top.getScene().dialog = dialog
+end sub
+
+sub onViewNamed()
+    dialog = m.dialog
+    if dialog = invalid then return
+    name = dialog.text.trim()
+    save = (dialog.buttonSelected = 0)
+    dialog.close = true
+    m.dialog = invalid
+    if not save or name = "" then return
+    path = listPath()
+    query = mid(path, instr(1, path, "?") + 1)
+    api("POST", "/v1/lists", {kind: "saved_view", name: name, library: m.top.library.id, query: query}, "onViewSaved", {path: path})
+end sub
+
+sub onViewSaved(event as object)
+    result = event.getData()
+    if not result.ok
+        ' the toolbar's own button says it was not kept; pressing it again asks again
+        m.saveFailed = true
+        drawTools()
+        return
+    end if
+    m.saveFailed = false
+    m.savedAs = event.getRoSGNode().ctx.path
+    drawTools()
 end sub
 
 sub focusRegion()
@@ -786,6 +855,10 @@ function onKeyEvent(key as string, press as boolean) as boolean
             end if
         else if key = "OK"
             spec = m.toolSpecs[m.tool]
+            if spec.id = "save"
+                if m.savedAs = "" then askViewName()
+                return true
+            end if
             if spec.id = "sort"
                 rows = []
                 for each sort in m.detail.sorts

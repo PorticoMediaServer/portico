@@ -61,6 +61,7 @@ sub main()
     same("filter panel", names, ["genre", "year", "studio"])
     same("filter params", [filterParams({genre: [{value: "tag_a", label: "Drama"}, {value: "tag_b", label: "Comedy"}], year: [{value: "1990..1999", label: "1990s"}]}, specs), filterParams({}, specs)], ["&genre=tag_a,tag_b&year=1990..1999", ""])
     same("filter summary", [filterSummary([]), filterSummary([{label: "1980s"}]), filterSummary([{label: "a"}, {label: "b"}])], ["Any", "1980s", "2 chosen"])
+    same("saved view name", [savedViewName("Films", ["Unplayed", "1990s"], "Title A–Z"), savedViewName("Films", [], "Year")], ["Films: Unplayed, 1990s", "Films, Year"])
     same("copies told apart", copyNames([{title: "Dune", year: 2021, libraryId: "a"}, {title: "Dune", year: 2021, libraryId: "b"}, {title: "Alien", year: 1979, libraryId: "a"}], {a: "Films", b: "Films from TMDB"}), ["Films", "Films from TMDB", ""])
     same("search found", [foundText({total: 20, totalIsMinimum: true}), foundText({total: 4}), foundText({})], ["20+", "4", ""])
 
