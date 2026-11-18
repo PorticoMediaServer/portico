@@ -3,15 +3,13 @@ export function validDirectPassword(value:string):boolean {
  return Array.from(value).length>=8&&new TextEncoder().encode(value).length<=72&&/\p{Lu}/u.test(value)&&/\p{Ll}/u.test(value)&&/[^\p{L}]/u.test(value);
 }
 
-import {routeBody} from '../../contracts/src/routes.ts';
-import {routePath, type RouteRequest, type RouteResponse} from '../../contracts/src/route-paths.ts';
+import type {RouteRequest, RouteResponse} from '../../contracts/src/route-paths.ts';
 import type {ProfileAPI} from './profile-management.ts';
 import {CodedError} from './server-messages.ts';
-import {requireTag} from './needs-newer-app.ts';
 import {identityCode} from './route-identity.ts';
 import {callServer} from './query/server-api.ts';
 import type {Invitation as NextInvitation} from '../../contracts/src/next/api.ts';
-import {formatShortInvitationCode,parseShortInvitationCode} from './short-invitation-code.ts';
+import {formatShortInvitationCode} from './short-invitation-code.ts';
 import {ratingAges,ratingOf} from './settings-people.ts';
 
 export type ServerInvitation=RouteResponse<'get_admin_access_invitation'>;
@@ -139,17 +137,6 @@ export class PeopleInvitationsClient{
   const link=await this.link(invitation,signal),shortCode=formatShortInvitationCode(link.code);
   if(!shortCode)invalidPeople();
   return Object.freeze({serverId:'',expiresAt:link.expiresAt,shortCode:shortCode!});
- }
- async preview(code:string,signal?:AbortSignal):Promise<PublicInvitation>{return parsePublicInvitation(await this.api.request(routePath('preview_invitation'),'POST',routeBody('preview_invitation',{code}),signal));}
- async previewShort(raw:string,signal?:AbortSignal):Promise<PublicInvitation>{
-  const shortCode=parseShortInvitationCode(raw);if(!shortCode)throw new CodedError('invitation_incomplete','This invitation code is not complete.');
-  return parsePublicInvitation(await this.api.request(routePath('preview_invitation'),'POST',routeBody('preview_invitation',{shortCode}),signal));
- }
- async acceptLocal(input:Extract<RouteRequest<'post_access_invitations_accept'>,{username:string}>,signal?:AbortSignal):Promise<Readonly<{accountId:string;username:string;profileId:string;role:string;allowedLibraries:string[]}>>{
-  const raw=await this.api.request<unknown>(routePath('post_access_invitations_accept'),'POST',routeBody('post_access_invitations_accept',input),signal);
-  if(object(raw)&&requireTag(raw,'variant',['accepted','signed-in','challenge'],invalidPeople)!=='accepted')invalidPeople();
-  if(!object(raw)||!bounded(raw.accountId,128)||!bounded(raw.username,64)||!bounded(raw.profileId,128)||!['admin','member'].includes(String(raw.role))||!Array.isArray(raw.allowedLibraries)||raw.allowedLibraries.some(v=>!bounded(v,128))||Object.hasOwn(raw,'notes'))invalidPeople();
-  return Object.freeze({accountId:raw.accountId,username:raw.username,profileId:raw.profileId,role:raw.role as string,allowedLibraries:[...raw.allowedLibraries]});
  }
 }
 /** A profile is secondary to the genuine account username. Private viewers stay private. */
