@@ -68,7 +68,7 @@ export type PlayOnSnapshot = Readonly<{
 export type PlayOnChoice = Readonly<{kind: 'device'; device: PlayOnDevice} | {kind: 'cast'}>;
 
 type Options = Readonly<{
-  api: Readonly<{baseUrl?: string; createCastStopKey?():Promise<string>; request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>;
+  api: Readonly<{baseUrl?: string; request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>;
     requestRaw?(path: string, method: string, options?: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>): Promise<{status: number; headers: Record<string, string>; body?: unknown}>}>;
   /** The app's change feed, when it has one: a move is answered sooner than by asking again. */
   events?: ConstructorParameters<typeof HandoffController>[0]['events'];
