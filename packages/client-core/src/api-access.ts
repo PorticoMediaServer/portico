@@ -14,7 +14,7 @@ import {routePath} from "../../contracts/src/route-paths.ts";
  * request and are never kept by this module. Webhook secret rotation is separate.
  */
 import {firstOfEach,keepReadable} from './tolerant.ts';
-export type ApiAccessTransport={request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>};
+export type ApiAccessTransport={request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal,options?:Readonly<{headers?:Readonly<Record<string,string>>}>):Promise<T>};
 
 const unreadable='The server sent something this app could not read.';
 export class ApiAccessError extends Error{
@@ -141,7 +141,9 @@ export async function listAccessTokens(t:ApiAccessTransport,cursor='',signal?:Ab
  return Object.freeze({items,nextCursor:optional(page.nextCursor,512,'credential page cursor')});
 }
 export async function createAccessToken(t:ApiAccessTransport,q:NewApiCredential,signal?:AbortSignal){
- const issued=await callServer(t,'POST /v1/me/tokens',{body:body(q),signal});
+ // The operation id the form holds across retries goes as the request's Idempotency-Key, as the rebuilt route reads it.
+ const {operationId,...token}=body(q);
+ const issued=await t.request<unknown>(serverPath('POST /v1/me/tokens'),'POST',token,signal,{headers:{'Idempotency-Key':operationId}});
  if(!object(issued))return invalid('issued personal token');
  const key=parsePersonalAccessToken(issued.key);
  const secret=optional(issued.secret,512,'credential secret');

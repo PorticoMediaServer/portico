@@ -9,7 +9,7 @@ import type {MusicTechnicalFacts} from './music-facts.ts';
 import {ReadingClient, type ReadingScope} from './reading.ts';
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath as hostedRoutePath} from "../../contracts/src/hosted/routes.ts";
-import {routePrefix, apiRoot} from "../../contracts/src/routes.ts";
+import {apiRoot} from "../../contracts/src/routes.ts";
 import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {parseMediaItem} from './media-item.ts';
 import {randomId} from './random-id.ts';
@@ -158,15 +158,15 @@ export class RequestTimeoutError extends Error {
 }
 /**
  * How long a request may go unanswered. A long poll waits as long as it asked the server to
- * hold it, plus a margin; a read gets half a minute; a change gets a minute, and an owner's
- * console change two (some do real work before they answer). Media, downloads and event streams
+ * hold it, plus a margin; a read gets half a minute; a change gets a minute, and an owner's change
+ * under /v1/admin/ two (a backup or a scan does real work before it answers). Media, downloads and event streams
  * do not come through here and have no such limit.
  */
 export function requestDeadlineMs(path: string, method: string): number {
   const held = /[?&]waitMs=(\d{1,7})(?:&|$)/.exec(path);
   if (held) return Math.min(Number(held[1]), 600_000) + 15_000;
   if (method === 'GET' || method === 'HEAD') return 30_000;
-  return path.startsWith(routePrefix("get_admin_logs_events", 2)) ? 120_000 : 60_000;
+  return path.startsWith(`${apiRoot}admin/`) ? 120_000 : 60_000;
 }
 /** Runs `work` under the request's deadline and the caller's own cancellation. A caller's cancel stays a cancel; the deadline is a timeout. */
 async function withinDeadline<T>(ms: number, signal: AbortSignal | undefined, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -742,7 +742,7 @@ export class HttpLocalApi {
     signal?: AbortSignal,
     /** `manageGate: false`: an optional read whose refusal its caller simply leaves out; a
      * profile_pin_manage answer to it doesn't ask for the PIN (#574's away-limit row). */
-    options: Readonly<{manageGate?: false}> = {},
+    options: Readonly<{manageGate?: false; /** Sent with this request only, e.g. a create's `Idempotency-Key`. */ headers?: Readonly<Record<string, string>>}> = {},
   ): Promise<T> {
     if (this.outbox && isOutboxRoute(path, method)) {
       const answer = await this.outboxWrite(path, method, body, undefined, signal);
@@ -750,21 +750,13 @@ export class HttpLocalApi {
     }
     // A change the writer refused before it began is sent again, not dropped (`writer-capacity.ts`).
     return retryWriterCapacity(
-      () => withinDeadline(requestDeadlineMs(path, method), signal, bounded => this.answered<T>(path, method, body, bounded, options.manageGate !== false)),
+      () => withinDeadline(requestDeadlineMs(path, method), signal, bounded => this.answered<T>(path, method, body, bounded, options.manageGate !== false, options.headers)),
       writerRefusal,
       signal,
     );
   }
-  private async answered<T>(path: string, method: string, body: unknown, signal: AbortSignal, announce = true): Promise<T> {
+  private async answered<T>(path: string, method: string, body: unknown, signal: AbortSignal, announce = true, headers?: Readonly<Record<string, string>>): Promise<T> {
     // A 401 means the server did not act on the request, so one retry with a renewed token is safe for any method.
-    let headers: Record<string,string> | undefined;
-    if (method === 'POST' && path === serverPath('POST /v1/me/tokens') && body && typeof body === 'object'
-      && 'operationId' in body && typeof body.operationId === 'string') {
-      // Keep the operation held by the token form across retries. The rebuilt route reads it from the header.
-      const {operationId, ...token} = body;
-      headers = {'Idempotency-Key': operationId};
-      body = token;
-    }
     const response = await this.exchange(path, method, body, signal, headers);
     return this.readAnswered<T>(response, signal, announce);
   }
