@@ -5,7 +5,8 @@
      line, so nothing moves when the words arrive. Focus starts on the first card. -->
 <component name="GroupScreen" extends="Group">
   <interface>
-    <!-- A collection item, or {kind: "person", id, title} for a person. -->
+    <!-- A collection item, {kind: "person", id, title} for a person, or {kind: "savedList", id, title,
+         eyebrow, heading, path, summary, counts, images} for a playlist, collection or saved view from Saved. -->
     <field id="item" type="assocarray" onChange="onItem"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="art" type="string"/>
@@ -32,6 +33,8 @@
         <Label id="facts"/>
         <Label id="about" wrap="true"/>
       </Group>
+      <!-- A collection's Play all and Shuffle, in the action row's fixed slot. -->
+      <ButtonRow id="actions" visible="false"/>
     </Group>
     <Label id="smallTitle" visible="false"/>
     <PageState id="state" visible="false"/>

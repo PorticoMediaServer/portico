@@ -78,6 +78,9 @@ function frames() as object
         ' A library or Search (frame "Browse"): the page title's line; Home's moderate hero with its
         ' words from `heroTop`, and the heading of the row in focus on `rowsY`.
         browse: {titleY: 64, heroTop: 110, rowsY: 520}
+        ' A collection's page (tv-detail frame 10): its action row, Play all and Shuffle, in the place
+        ' `group.actionRowsY` leaves above the first row.
+        collectionActionsY: 375
         ' Customize Home (collections frames 27 to 29): the wider side panel from `x`, its words from
         ' `pad` inside it to `padRight` from the screen's edge; the title on `top`, the intro from
         ' `introY`, the rows from `rowsY` down to `rowsBottom`, one every `rowPitch`, each `rowHeight`
@@ -122,6 +125,8 @@ function frames() as object
         recordings: {listY: 176, width: 1300, headingGap: 52, sectionGap: 44, bottom: 1024}
         ' Every page beside the rail: its content ends at `rightEdge`.
         rightEdge: 1824
+        ' Saved (tv-more frames 1 to 5), on Browse's lines: its groups `rowGap` apart, a heading `headingGap` over its rows, and what scrolls stops `bottom` above the foot.
+        saved: {rowGap: 44, headingGap: 22, bottom: 56}
         ' Search (tv.html frame 5): the box on the page title's line, the keys under it, the results
         ' column from `resultsX` with the kinds' chips on the title line; the row in focus is
         ' brought up level with the keys. Under the words of an empty box or of no matches, the

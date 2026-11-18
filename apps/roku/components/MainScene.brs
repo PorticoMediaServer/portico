@@ -398,6 +398,7 @@ sub onOpenAsk(ask as object)
         m.top.findNode("nowPlaying").visible = false
         player = push("PlayerScreen")
         player.observeField("closed", "onPlayerClosed")
+        if ask.queue <> invalid then player.queue = ask.queue     ' a collection's Play all or Shuffle
         player.item = ask.item
         player.startOver = (ask.startOver = true)
         player.together = (ask.together = true)     ' played with the group: it follows the group's clock
@@ -414,6 +415,7 @@ sub onOpenAsk(ask as object)
         return
     end if
     if kind = "movie" then page = push("TitleScreen")
+    if kind = "savedList" then page = push("GroupScreen")    ' a profile's playlist, collection or saved view (Saved)
     if kind = "show" then page = push("ShowScreen")
     if kind = "collection" or kind = "person" then page = push("GroupScreen")
     if kind = "recordings" then page = push("RecordingsScreen")    ' Live TV's Recordings
@@ -735,6 +737,16 @@ sub onRailChosen(event as object)
         m.screen.observeField("art", "onArt")
         m.screen.observeField("open", "onOpen")
         m.screen.observeField("menu", "onMenu")
+        m.rail.visible = true
+        m.rail.current = id
+        m.screen.active = true
+        return
+    end if
+    if id = "saved"
+        show("SavedScreen")
+        m.screen.observeField("open", "onOpen")
+        m.screen.observeField("menu", "onMenu")
+        m.screen.observeField("goHome", "showHome")
         m.rail.visible = true
         m.rail.current = id
         m.screen.active = true

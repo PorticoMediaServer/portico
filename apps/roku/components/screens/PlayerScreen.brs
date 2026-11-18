@@ -388,7 +388,9 @@ sub start()
     if not m.queueAsked
         ' every play is a queue on the server, so what comes next is known
         m.queueAsked = true
-        api("POST", "/v1/queues", queueBody(item), "onQueue")
+        body = m.top.queue
+        if body = invalid or body.source = invalid then body = queueBody(item)
+        api("POST", "/v1/queues", body, "onQueue")
         return
     end if
     ' a queued play names its entry; the server knows the title from it
