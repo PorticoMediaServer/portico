@@ -248,31 +248,60 @@ func (d *DB) RemovePicture(ctx context.Context, publicID, imageID string) error 
 	})
 }
 
-// PictureHashes calls fn with the name of every picture the server keeps in its picture store,
-// each once, in ascending order: what any images row uses (titles', people's, profiles'), what
-// a History entry names, and every channel's logo. A new place that names a stored picture is
-// added here, or the sweep takes its pictures. It reads in one pass over each, so it is for the
-// daily tidy-up, not for a request.
-func (d *DB) PictureHashes(ctx context.Context, fn func(hash string) error) error {
+// pictureNamers are the tables that name a stored picture, each read a page at a time from a
+// key: the key and a picture's name, NULL for a row that names none. A new place that names a
+// stored picture is added here, or the sweep takes its pictures.
+var pictureNamers = []string{
+	// Titles' (collections' too), people's and profiles' pictures, and made episode pictures.
+	`SELECT id, file_hash FROM images WHERE id > ? ORDER BY id LIMIT ?`,
+	// Every channel's logo, live and library channels alike.
+	`SELECT id, logo_hash FROM channels WHERE id > ? ORDER BY id LIMIT ?`,
+	`SELECT p.media_id, s.file_hash FROM (SELECT media_id FROM scrub_previews WHERE media_id > ? ORDER BY media_id LIMIT ?) p
+		LEFT JOIN scrub_preview_sheets s ON s.media_id = p.media_id`,
 	// A removed upload that a History entry still names is kept, so Undo can put it back.
-	rows, err := d.read.QueryContext(ctx, `SELECT file_hash FROM images WHERE file_hash IS NOT NULL
-		UNION SELECT u.value ->> '$.hash' FROM metadata_history h, json_each(h.before, '$.uploads') u
-		UNION SELECT logo_hash FROM channels WHERE logo_hash IS NOT NULL
- UNION SELECT file_hash FROM scrub_preview_sheets ORDER BY 1`)
+	`SELECT h.id, u.value ->> '$.hash' FROM (SELECT id, before FROM metadata_history WHERE id > ? ORDER BY id LIMIT ?) h
+		LEFT JOIN json_each(h.before, '$.uploads') u`,
+}
+
+// PictureHashes calls fn with the name of every picture the server keeps in its picture store,
+// in no order and perhaps more than once. It reads each table by its key a page at a time, so
+// no read sorts or holds a whole table, all in one read so a name moving from one table to
+// another (an Undo) is not missed. It is for the daily tidy-up, not for a request.
+func (d *DB) PictureHashes(ctx context.Context, fn func(hash string) error) error {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var hash string
-		if err := rows.Scan(&hash); err != nil {
-			return err
-		}
-		if err := fn(hash); err != nil {
-			return err
+	defer tx.Rollback()
+	for _, query := range pictureNamers {
+		for after, more := int64(0), true; more; {
+			more = false
+			rows, err := tx.QueryContext(ctx, query, after, 1000)
+			if err != nil {
+				return err
+			}
+			for rows.Next() {
+				var hash sql.NullString
+				if err := rows.Scan(&after, &hash); err != nil {
+					rows.Close()
+					return err
+				}
+				more = true
+				if hash.Valid {
+					if err := fn(hash.String); err != nil {
+						rows.Close()
+						return err
+					}
+				}
+			}
+			err = rows.Err()
+			rows.Close()
+			if err != nil {
+				return err
+			}
 		}
 	}
-	return rows.Err()
+	return nil
 }
 
 // PictureToFetch is a provider's picture a lookup recorded and nobody has fetched yet.

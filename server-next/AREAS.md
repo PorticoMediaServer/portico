@@ -45,7 +45,7 @@ table held in memory by that package's service.
   through `/v1/jobs`. Downloads is its first caller; nothing else makes its own copies.
 - **Long work** is a row in `jobs`: `guide_refresh`, `channel_schedule`, `backup`,
   `restore`. **The daily tidy-up** is one timer owned by the console; each area registers a
-  function for it (expired prepared copies, old notices and reports, recordings past their
+  function for it (expired prepared copies, unused pictures, old notices and reports, recordings past their
   keep rule, ended reminders, finished outbox rows, deleted annotations, each Library
   Channel's next day).
 - **Keys.** `internal/auth` turns a key, token or app password into a person and profile in

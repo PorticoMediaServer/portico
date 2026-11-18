@@ -160,7 +160,9 @@ func TestScrubSheetsSurviveASweepDuringDecode(t *testing.T) {
 		if err := consume(io.MultiReader(readers...)); err != nil {
 			return err
 		}
-		n, err := s.artwork.Sweep(time.Now().Add(2*time.Hour), func(yield func(string) error) error { return s.db.PictureHashes(ctx, yield) })
+		s.setClock(func() time.Time { return time.Now().Add(2 * time.Hour) })
+		n, err := s.SweepPictures(ctx)
+		s.setClock(time.Now)
 		if err != nil || n != 0 {
 			t.Fatalf("sweep found an unrecorded decode sheet: %d %v", n, err)
 		}

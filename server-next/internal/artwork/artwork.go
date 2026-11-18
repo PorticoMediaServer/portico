@@ -6,6 +6,7 @@ package artwork
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -246,10 +247,11 @@ func shrink(from *image.RGBA, edge int) *image.RGBA {
 	return to
 }
 
-// Sweep removes the pictures nothing uses any more: every one stored before a time whose id
-// used does not name. used calls yield with every id in use, in ascending order; a picture
-// stored since the time is kept, as one just stored may not be recorded yet. All stored sizes go. It returns how many pictures it removed.
-func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) error) (int, error) {
+// Sweep removes the pictures nothing uses any more: every one stored before a time for which
+// used answers false, with all its stored sizes. A picture stored since the time is kept, as one
+// just stored, or stored again (PutSized marks it), may be named by a row used did not see. It
+// reads one folder of the store at a time and returns how many pictures it removed.
+func (s *Store) Sweep(ctx context.Context, before time.Time, used func(id string) bool) (int, error) {
 	prefixes, err := os.ReadDir(s.dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return 0, nil
@@ -257,64 +259,32 @@ func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) e
 	if err != nil {
 		return 0, err
 	}
-	var stored []string // the pictures of the folders read so far, not yet compared
-	next := 0           // the next folder to read
-	var unused []string
-	// fill reads folders until a picture at or after id is waiting, or there are no more.
-	fill := func(id string) error {
-		for next < len(prefixes) && (len(stored) == 0 || stored[len(stored)-1] < id) {
-			entries, err := os.ReadDir(filepath.Join(s.dir, prefixes[next].Name()))
-			next++
-			if err != nil {
-				return err
-			}
-			for _, e := range entries {
-				info, err := e.Info()
-				// One entry a picture: its small size, the last file to be written.
-				id, small := strings.CutSuffix(e.Name(), ".small")
-				if !small {
-					id, small = strings.CutSuffix(e.Name(), ".sheet")
-				}
-				if err == nil && small && ValidID(id) && info.ModTime().Before(before) {
-					stored = append(stored, id)
-				}
-			}
-		}
-		return nil
-	}
-	err = used(func(id string) error {
-		if err := fill(id); err != nil {
-			return err
-		}
-		for len(stored) > 0 && stored[0] <= id {
-			if stored[0] != id {
-				unused = append(unused, stored[0])
-			}
-			stored = stored[1:]
-		}
-		return nil
-	})
-	if err != nil {
-		return 0, err
-	}
-	if err := fill("~"); err != nil { // after every id
-		return 0, err
-	}
-	unused = append(unused, stored...)
 	removed := 0
-	for _, id := range unused {
-		// Stored again while the sweep ran: it may be named by a row the sweep did not see.
-		info, err := os.Stat(s.place(id, "small"))
-		if os.IsNotExist(err) {
-			info, err = os.Stat(s.place(id, "sheet"))
+	for _, prefix := range prefixes {
+		if err := ctx.Err(); err != nil {
+			return removed, err
 		}
-		if err != nil || !info.ModTime().Before(before) {
-			continue
+		entries, err := os.ReadDir(filepath.Join(s.dir, prefix.Name()))
+		if err != nil {
+			return removed, err
 		}
-		removed++
-		for _, size := range []string{"small", "large", AmbientVariant, AmbientVariantV2, "sheet"} {
-			if err := os.Remove(s.place(id, size)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				return 0, err
+		for _, e := range entries {
+			// One entry a picture: its small size (the last file to be written) or its sheet.
+			id, small := strings.CutSuffix(e.Name(), ".small")
+			if !small {
+				id, small = strings.CutSuffix(e.Name(), ".sheet")
+			}
+			if !small || !ValidID(id) || used(id) {
+				continue
+			}
+			if info, err := e.Info(); err != nil || !info.ModTime().Before(before) {
+				continue
+			}
+			removed++
+			for _, size := range []string{"small", "large", AmbientVariant, AmbientVariantV2, "sheet"} {
+				if err := os.Remove(s.place(id, size)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+					return removed, err
+				}
 			}
 		}
 	}

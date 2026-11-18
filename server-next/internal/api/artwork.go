@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
@@ -246,10 +247,28 @@ const pictureGrace = time.Hour
 
 // SweepPictures removes from the picture store every picture nothing names any more (see
 // db.PictureHashes): a removed upload, a picture beside the media that was replaced, those of
-// titles that left, a channel logo replaced. It
-// is one step of the daily tidy-up and safe to run at any time. It returns how many it removed.
+// titles that left, a channel logo replaced. It is the daily tidy-up's "unused pictures" and
+// safe to run at any time. It returns how many it removed.
 func (s *Server) SweepPictures(ctx context.Context) (int, error) {
-	return s.artwork.Sweep(s.now().Add(-pictureGrace), func(yield func(string) error) error {
-		return s.db.PictureHashes(ctx, yield)
+	before := s.now().Add(-pictureGrace)
+	// Held by the first 16 hex digits of each name: a few bytes a picture for a store of
+	// millions. Two names sharing them only keeps an unused picture until they differ.
+	used := map[uint64]struct{}{}
+	if err := s.db.PictureHashes(ctx, func(hash string) error {
+		used[pictureKey(hash)] = struct{}{}
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	return s.artwork.Sweep(ctx, before, func(id string) bool {
+		_, ok := used[pictureKey(id)]
+		return ok
 	})
+}
+
+// pictureKey is a picture name's first 16 hex digits (every stored name has at least 16). A
+// name that is not hex counts as 0, which at worst keeps one unused picture.
+func pictureKey(name string) uint64 {
+	key, _ := strconv.ParseUint(name[:min(16, len(name))], 16, 64)
+	return key
 }

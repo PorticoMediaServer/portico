@@ -2,6 +2,7 @@ package artwork
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
 	"image"
@@ -131,8 +132,15 @@ func TestASweepKeepsAPictureStoredAgainWhileItRuns(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	removed, err := s.Sweep(time.Now().Add(-time.Hour), func(func(string) error) error {
-		return s.Put(kept, file.Bytes()) // no row named either when the rows were read
+	storedAgain := false
+	removed, err := s.Sweep(context.Background(), time.Now().Add(-time.Hour), func(string) bool {
+		if !storedAgain { // no row named either when the rows were read
+			storedAgain = true
+			if err := s.Put(kept, file.Bytes()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return false
 	})
 	if err != nil || removed != 1 {
 		t.Fatalf("removed %d, %v", removed, err)
@@ -207,7 +215,7 @@ func TestAmbientIsPreblurredAndOlderPicturesGetAStoredCopy(t *testing.T) {
 	if !bytes.Equal(sharp, after) {
 		t.Fatal("ambient altered the sharp picture")
 	}
-	removed, err := s.Sweep(time.Now().Add(time.Hour), func(func(string) error) error { return nil })
+	removed, err := s.Sweep(context.Background(), time.Now().Add(time.Hour), func(string) bool { return false })
 	if err != nil || removed != 1 {
 		t.Fatalf("sweep: %d, %v", removed, err)
 	}

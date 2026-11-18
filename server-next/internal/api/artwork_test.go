@@ -7,11 +7,15 @@ import (
 	"image/color"
 	"image/gif"
 	"image/png"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
@@ -272,5 +276,74 @@ func TestMakeFromTheVideoIsForAnEpisode(t *testing.T) {
 	sh.do("POST", "/v1/admin/items/"+shows.Items[0].ID+"/artwork/make", nil, nil, 409)
 	if w := call(t, sh.s, "POST", "/v1/admin/items/"+episodes.Items[0].ID+"/artwork/make", sh.owner, nil, nil); w.Code != 503 || refusalCode(w) != "no_decoder" {
 		t.Fatalf("Make from the video on a server with no decoder answered %d %s", w.Code, w.Body)
+	}
+}
+
+// The daily sweep of unused pictures takes only what nothing names: never a title's picture, a
+// collection's, a profile's or one an upload has just stored and not yet recorded. Elsewhere: a
+// channel's logo (TestPresetsFixedTimesAndALogo), a History entry's upload (TestArtwork) and
+// scrub sheets (TestScrubPreviewsAreMadeInBackgroundAndRestricted).
+func TestTheSweepKeepsEveryPictureInUse(t *testing.T) {
+	sh := newShelf(t, "Heat (1995).mkv")
+	ctx := context.Background()
+	picture := func(width int) []byte {
+		var b bytes.Buffer
+		png.Encode(&b, image.NewRGBA(image.Rect(0, 0, width, 40)))
+		return b.Bytes()
+	}
+	heat := get[ItemPage](t, sh.s, sh.owner, "/v1/items?kind=movie&library="+sh.library).Items[0].ID
+	var collection Item
+	sh.do("POST", "/v1/admin/libraries/"+sh.library+"/collections", CollectionCreate{Title: "Favourites", ItemIDs: []string{heat}}, &collection, 200)
+	var uploaded []string
+	for n, id := range []string{heat, collection.ID} {
+		var p ArtworkPicture
+		if w := sh.uploadPoster(sh.owner, id, picture(30+n)); w.Code != 201 || jsonInto(w, &p) != nil {
+			t.Fatalf("uploading a poster answered %d %s", w.Code, w.Body)
+		}
+		uploaded = append(uploaded, p.URL)
+	}
+	profile := "/v1/profiles/" + get[Page[Profile]](t, sh.s, sh.owner, "/v1/profiles").Items[0].ID
+	var withPicture Profile
+	if w := sendPicture(sh.s, sh.owner, profile+"/avatar", picture(50)); w.Code != 200 || jsonInto(w, &withPicture) != nil {
+		t.Fatalf("uploading a profile picture answered %d %s", w.Code, w.Body)
+	}
+	// One picture nothing names, so the sweep is seen to take something. Then everything stored
+	// so far is made two hours old, past the hour a just-stored picture is kept.
+	unused, err := sh.s.artwork.Hash(picture(60))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := sh.s.artwork.PutSized(unused, picture(60), artwork.Artwork); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-2 * time.Hour)
+	filepath.WalkDir(filepath.Join(sh.s.dataDir, "artwork"), func(path string, e fs.DirEntry, err error) error {
+		if err == nil && !e.IsDir() {
+			err = os.Chtimes(path, old, old)
+		}
+		return err
+	})
+	// An upload in flight: stored a moment before the row that will name it is written.
+	inFlight, err := sh.s.artwork.Hash(picture(70))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := sh.s.artwork.PutSized(inFlight, picture(70), artwork.Artwork); err != nil {
+		t.Fatal(err)
+	}
+
+	if removed, err := sh.s.SweepPictures(ctx); err != nil || removed != 1 {
+		t.Fatalf("the sweep removed %d (%v), want only the picture nothing names", removed, err)
+	}
+	for _, address := range append(uploaded, "/v1/images/"+inFlight) {
+		if w := call(t, sh.s, "GET", address, "", nil, nil); w.Code != 200 {
+			t.Errorf("%s answered %d after the sweep", address, w.Code)
+		}
+	}
+	if w := call(t, sh.s, "GET", withPicture.Avatar, sh.owner, nil, nil); w.Code != 200 {
+		t.Errorf("the profile picture answered %d after the sweep", w.Code)
+	}
+	if w := call(t, sh.s, "GET", "/v1/images/"+unused, "", nil, nil); w.Code != 404 {
+		t.Errorf("the unused picture answered %d after the sweep", w.Code)
 	}
 }
