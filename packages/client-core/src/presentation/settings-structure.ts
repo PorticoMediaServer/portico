@@ -651,9 +651,6 @@ const serverPages: readonly AuthoredPage[] = [
     tabs: [{id: 'keys', title: 'settings.server.apiKeys'}, {id: 'tokens', title: 'settings.server.memberTokens'}, {id: 'webhooks', title: 'api.webhooks.title'}, {id: 'assistants', title: 'settings.server.assistants'}],
     sections: [
       panel('apiKeys', 'server.apiKeys', 'settings.server.apiKeys', {tab: 'keys'}),
-      {id: 'apiLimits', tab: 'keys', title: 'settings.server.apiLimits', rows: [
-        setting('runtime', 'apiRequestsPerMinute', 'settings.server.apiRate', {type: 'number', min: 1, max: 100000, unit: 'settings.unit.perMinute', empty: {stores: 0, placeholder: 'settings.server.apiRateUsual'}}, {help: 'settings.server.apiRateHelp'}),
-      ]},
       panel('webhooks', 'server.webhooks', 'api.webhooks.title', {tab: 'webhooks'}),
       panel('assistants', 'server.assistants', 'settings.server.assistants', {tab: 'assistants'}),
     ]},

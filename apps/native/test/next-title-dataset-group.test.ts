@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {settingsRowIndex} from '../../../packages/client-core/src/presentation/settings-spec.ts';
+import {createStorageForms} from '../src-next/screens/settings-live/server/storage/forms.ts';
 
 // Settings › Metadata › Recommendations on phone and TV (B2 R6).
 type Node = {type: any; props: Record<string, any>};
@@ -14,21 +15,39 @@ async function fixture(on: boolean | undefined, tv = false, saving = false) {
   const react = {...outer.react, useState: (...args: unknown[]) => active.react.useState(...args)};
   let draft: Record<string, unknown> = on === undefined ? {} : {download: on};
   const saves: Record<string, unknown>[] = [];
-  const runtimeForm = {getSnapshot: () => ({saving: false}), set: (change: (value: Record<string, unknown>) => Record<string, unknown>) => {draft = change(draft);}};
-  const group = {mount: 1, forms: {titleData: runtimeForm}, set: {save: async () => {saves.push(draft);}}};
+  const titleData = {getSnapshot: () => ({saving: false}), set: (change: (value: Record<string, unknown>) => Record<string, unknown>) => {draft = change(draft);}};
+  const group = {mount: 1, forms: {titleData}, set: {save: async () => {saves.push(draft);}}};
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/TitleDatasetGroup.tsx', import.meta.url), {
     react, 'react-native': {Text: 'Text', View: 'View'},
     '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsRowIndex},
     '../../../kit/controls/Switch': {Switch: 'Switch'}, '../../../kit/shell/visual': {shellType: () => ({})},
     '../../../kit/theme': {useTheme: () => ({colors: {textTertiary: '#999', raised: '#222'}})},
     '../owner-libraries/controls': {SectionTitle: 'SectionTitle'}, '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
-    './storage/forms': {useStorageForms: () => group, useFormState: () => ({draft}), useStorageSet: () => ({saving})},
+    './storage/forms': {useStorageForms: (_ports: unknown, ids: readonly string[]) => {assert.deepEqual(ids, ['titleData']);return group;}, useFormState: () => ({draft}), useStorageSet: () => ({saving})},
     './TVSettingRows': {TVSwitchRow: 'TVSwitchRow'},
   });
   const props = {ports: {}, runtime: {text: {t}, reportError() {}}, tv};
   const element = outer.render(() => module.NativeTitleDatasetGroup(props)) as Node;
   return {saves, render: () => {active = inner; return inner.render(() => element.type(element.props));}};
 }
+
+test('the native title-data form reads the rebuilt document', async () => {
+  const authority = {serverId: 'server', accountId: 'owner', profileId: 'main', epoch: '1', viewerFence: 'fence'};
+  const calls: unknown[] = [];
+  const context = {current: () => true, authority: () => authority, subscribeAuthority: () => () => {},
+    account: {serverId: 'server', account: {id: 'owner', role: 'owner', disabled: false, primaryProfileId: 'main'}, capabilities: {manageServer: true}},
+    api: {request: async (path: string, method: string) => {
+      calls.push([method, path]);
+      return {name: 'title_data', etag: '"4"', values: {download: false}};
+    }},
+  };
+  const group = createStorageForms(context as never, ['titleData'], error => {throw error;});
+  try {
+    await group.forms.titleData.load();
+    assert.deepEqual(group.forms.titleData.getSnapshot().draft, {download: false});
+    assert.deepEqual(calls, [['GET', '/v1/admin/settings/title_data']]);
+  } finally {group.dispose();}
+});
 
 test('the switch shows the owner setting, on when never saved, and saves a change at once', async () => {
   const row = settingsRowIndex.get('metadata.titleDataset')!.row;

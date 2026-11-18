@@ -2,7 +2,6 @@ import {fixDataFolderPermissions} from '@core/admin/data-folder.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import type {SessionControls} from '@core/playback-controls.ts';
 import type {HttpLocalApi} from '@core/index.ts';
-import {ConsoleClient, type ConsoleScope} from '@core/console.ts';
 import {DashboardDataClient, dashboardStatusQuery, type DashboardStatus} from '@core/admin/dashboard.ts';
 import {readPlaySummary, readStatistics, type PlaySummary, type ServerStatistics, type StatisticsRange, type SUMMARY_KINDS} from '@core/admin/statistics.ts';
 import {parseReportContext, type ReportContext} from '@core/report-context.ts';
@@ -28,7 +27,7 @@ export type DashboardSummaryFilters = Readonly<{range: StatisticsRange; kind?: k
 /** The drawn server header line: the same measurements ServerHeader draws, from this server only. */
 export type DashboardServerHeader = Readonly<{health?: 'normal' | 'attention'; facts: readonly FactPart[]}>;
 export type DashboardBindings = Readonly<{
-  scope: ConsoleScope; role: 'owner' | 'admin' | 'member'; isCurrent: () => boolean; isMainProfile: () => boolean;
+  scope: Readonly<{serverId: string; viewerId: string}>; role: 'owner' | 'admin' | 'member'; isCurrent: () => boolean; isMainProfile: () => boolean;
   /** Captured by the shell once per view/refresh with the checked canonical helper. */
   context: ReportContext;
   events?: DashboardEvents;
@@ -108,7 +107,7 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
     catch (error) {if (error && typeof error === 'object') refused((error as {status?: unknown}).status, (error as {code?: unknown}).code); throw error;}
   });
   const waiting = (signal?: AbortSignal) => signal ? AbortSignal.any([signal, life.signal]) : life.signal;
-  const data = new DashboardDataClient(api), consoleClient = new ConsoleClient(api, options.scope);
+  const data = new DashboardDataClient(api);
   const ownerRead = async <T>(work: () => Promise<T>) => {assert(true); const value = await work(); assert(true); return value;};
   const adminRead = async <T>(work: () => Promise<T>) => {assert(); const value = await work(); assert(); return value;};
   const playFilters = ({period, accountId, libraryId, media, search}: DashboardFilters) => ({period: period === '12h' ? '24h' as const : period, accountId, libraryId, media, search});
@@ -138,6 +137,6 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
       stop: async (id, message) => {assert(); await stopServerStream(api, id, message); assert(); options.queries?.moved([dependsOn.event('admin.sessions')]);},
       fixPermissions: async () => {await ownerRead(() => fixDataFolderPermissions(api, life.signal));},
     },
-    dispose: () => {close(); offAuthority?.(); consoleClient.dispose(); listeners.clear();},
+    dispose: () => {close(); offAuthority?.(); listeners.clear();},
   };
 }
