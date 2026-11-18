@@ -53,6 +53,10 @@ sub init()
     m.clock = createObject("roTimespan")
     m.playedMs = 0       ' time this session has spent playing, before the stretch running now
     m.clockRunning = false
+    m.prompt = m.top.findNode("prompt")
+    m.prompt.observeField("pressed", "onPrompt")
+    m.dismissed = {}     ' segments skipped or put away, by marker id
+    m.promptKey = ""
     ' every fixed line of the overlay and of what sits over the picture comes from the player's frame
     f = frames().player
     m.f = f
@@ -701,9 +705,73 @@ sub onNotice(event as object)
     start()
 end sub
 
+' --- Skip intro, recap and credits -----------------------------------------------------------
+
+' The segment playing now that the viewer has not put away (the server's markers, from
+' playback-options), or invalid. It stops half a second before its end: nothing is left to skip.
+function activeMarker(at as float) as dynamic
+    if m.options = invalid or m.options.markers = invalid then return invalid
+    for each marker in m.options.markers
+        if at >= marker.startMs / 1000 and at < marker.endMs / 1000 - 0.5 and m.dismissed[marker.id] <> true then return marker
+    end for
+    return invalid
+end function
+
+' Shows, changes or puts away the prompt for where the picture is.
+sub updatePrompt()
+    if m.failed or m.ended then return
+    marker = activeMarker(m.video.position)
+    key = ""
+    if marker <> invalid then key = marker.id
+    if key = m.promptKey then return
+    m.promptKey = key
+    if marker = invalid
+        m.prompt.visible = false
+        if m.prompt.isInFocusChain() then m.top.setFocus(true)
+        return
+    end if
+    words = {intro: "Skip intro", recap: "Skip recap", credits: "Skip credits", outro: "Skip outro", commercial: "Skip ad"}
+    text = words[marker.type]
+    if text = invalid then text = "Skip"
+    m.prompt.buttons = [{id: "skip", text: text, icon: ""}]
+    placePrompt()
+    m.prompt.visible = true
+    focusPrompt()
+end sub
+
+' Right-aligned at the frame's prompt place.
+sub placePrompt()
+    f = frames().player
+    width = m.prompt.boundingRect().width
+    m.prompt.translation = [m.f.right - width, m.f.promptBottom - 72]
+end sub
+
+' The prompt takes focus by itself only while no control has it (the overlay is down).
+sub focusPrompt()
+    if m.prompt.visible and not m.controls.visible and not m.failed and m.top.isInFocusChain() then m.prompt.active = true
+end sub
+
+sub onPrompt(event as object)
+    if event.getData() <> "skip" then return
+    marker = activeMarker(m.video.position)
+    if marker = invalid then return
+    m.dismissed[marker.id] = true
+    ' an intro or recap lands a second before it ends; closing credits land exactly where they end
+    target = marker.endMs / 1000
+    if marker.type <> "credits" and marker.type <> "outro" then target = target - 1
+    if target < marker.startMs / 1000 then target = marker.startMs / 1000
+    m.prompt.visible = false
+    m.promptKey = ""
+    m.top.setFocus(true)
+    m.pending = target
+    applySeek()
+    lower()
+end sub
+
 ' --- the controls ---------------------------------------------------------------------------
 
 sub raise()
+    if m.prompt.isInFocusChain() then m.top.setFocus(true)
     m.controls.visible = true
     m.hide.control = "stop"
     if m.video.state <> "paused" then m.hide.control = "start"
@@ -714,6 +782,7 @@ sub lower()
     if m.video.state = "paused" or m.scrub or m.failed then return     ' paused, a scrub waiting, or failed: the controls stay
     m.controls.visible = false
     m.focus = m.playIndex
+    focusPrompt()
 end sub
 
 function clockText(seconds as float) as string
@@ -754,6 +823,7 @@ sub onPosition()
         if m.pending < 0 then m.last = at
     end if
     if m.controls.visible then paint()
+    updatePrompt()
 end sub
 
 sub paint()
@@ -968,6 +1038,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
         else if m.controls.visible and m.video.state <> "paused"
             m.controls.visible = false
             m.focus = m.playIndex
+            focusPrompt()
         else
             leave(true)
         end if
