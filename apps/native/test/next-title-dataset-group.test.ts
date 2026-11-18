@@ -41,7 +41,7 @@ test('the native title-data form reads the rebuilt document', async () => {
       return {name: 'title_data', etag: '"4"', values: {download: false}};
     }},
   };
-  const group = createStorageForms(context as never, ['titleData'], assert.fail);
+  const group = createStorageForms(context as never, ['titleData'], error => {throw error;});
   try {
     await group.forms.titleData.load();
     assert.deepEqual(group.forms.titleData.getSnapshot().draft, {download: false});

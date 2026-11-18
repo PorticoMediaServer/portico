@@ -46,7 +46,7 @@ test('People Advanced reads the default stream limit from the rebuilt server', a
   };
   let group: ReturnType<typeof createStorageForms> | undefined;
   const f = await fixture({
-    useStorageForms: (_ports: unknown, ids: Parameters<typeof createStorageForms>[1]) => group ??= createStorageForms(context as never, ids, assert.fail),
+    useStorageForms: (_ports: unknown, ids: Parameters<typeof createStorageForms>[1]) => group ??= createStorageForms(context as never, ids, error => {throw error;}),
     useFormState: (form: ReturnType<typeof createStorageForms>['forms']['streamLimits']) => form.getSnapshot(),
     useStorageSet: (value: ReturnType<typeof createStorageForms>) => value.set.getSnapshot(),
   });
