@@ -1,8 +1,11 @@
 // No console window behind the app on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{Url, WebviewUrl, WebviewWindowBuilder};
+use std::sync::Arc;
+use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
+
+mod mpv;
 
 /// The app's own pages: Tauri serves the built web app at tauri://localhost (macOS, Linux) and
 /// http://tauri.localhost (Windows); a debug build may load the web app's dev server instead.
@@ -20,10 +23,42 @@ fn outside(url: &Url) -> bool {
     matches!(url.scheme(), "http" | "https" | "mailto")
 }
 
+type Player<'a> = tauri::State<'a, Arc<mpv::Mpv>>;
+
+/// mpv's IPC answers block, so each command runs off the window's thread.
+async fn blocking<T: Send + 'static>(run: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(run).await.map_err(|_| "mpv_unavailable".to_string())?
+}
+
+#[tauri::command]
+async fn mpv_load(player: Player<'_>, url: String, start_ms: f64, autoplay: bool) -> Result<(), String> {
+    let mpv = player.inner().clone();
+    blocking(move || mpv.load(&url, start_ms, autoplay, &[])).await
+}
+
+#[tauri::command]
+async fn mpv_command(player: Player<'_>, action: String, value: f64) -> Result<(), String> {
+    let mpv = player.inner().clone();
+    blocking(move || mpv.command(&action, value)).await
+}
+
+#[tauri::command]
+async fn mpv_subtitle(player: Player<'_>, url: Option<String>) -> Result<(), String> {
+    let mpv = player.inner().clone();
+    blocking(move || mpv.subtitle(url.as_deref())).await
+}
+
+#[tauri::command]
+async fn mpv_observe(player: Player<'_>) -> Result<mpv::Reading, String> {
+    let mpv = player.inner().clone();
+    blocking(move || Ok(mpv.observe())).await
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![smoke::report])
+        .manage(Arc::new(mpv::Mpv::default()))
+        .invoke_handler(tauri::generate_handler![smoke::report, mpv_load, mpv_command, mpv_subtitle, mpv_observe])
         .setup(|app| {
             let handle = app.handle().clone();
             let browser = app.handle().clone();
@@ -51,8 +86,13 @@ fn main() {
                 .build()?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("Portico could not start");
+        .build(tauri::generate_context!())
+        .expect("Portico could not start")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                app.state::<Arc<mpv::Mpv>>().quit();
+            }
+        });
 }
 
 /// The start-up check CI runs on each system (debug builds only, with PORTICO_DESKTOP_SMOKE set

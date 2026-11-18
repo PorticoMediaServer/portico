@@ -44,6 +44,7 @@ import type {DiscTitleRef, Session} from '@core/playback-v1/types.ts';
 import type {QueueSessionTransport} from '@core/playback-v1/v1-queue-player.ts';
 import {QueueSelectionRegistrations, type QueueSelectionRegistration} from '@core/playback-v1/selection-registration.ts';
 import type {AirPlaySource} from './airplay.ts';
+import {EngineSwitch} from './engine-switch.ts';
 import {WebMediaPlayer, type HlsModule, type SubtitleTimeline, type VideoLike, type WebPlayerNotice, type WebPlayerTimers, type WebMediaPlayerOptions} from './web-media-player.ts';
 import type {WebPreparingStarts, WebStartRegistration} from './preparing-start';
 
@@ -98,6 +99,7 @@ export type WebPlaybackHost = Readonly<{
   recoverRoute?(): Promise<unknown> | void;
   loadHls?: () => Promise<HlsModule>;
   createPlayer?: (video: VideoLike, options: WebMediaPlayerOptions) => PlaybackMediaPort;
+  secondEngine?: (options: Readonly<{resolveUrl(path: string): string}>) => PlaybackMediaPort;
   createRender?: (service: PlaybackService, video: VideoLike) => RenderEngine;
   /** A request that outlives the page (`HttpLocalApi.farewell`). */
   farewell?(path: string, method: string, body?: unknown): void;
@@ -347,9 +349,10 @@ export class WebPlayback implements PlaybackAdapter {
 
   /** The player screen's element is in the page. Returns the undo for when it leaves. */
   mount(video: VideoLike, subtitles?: SubtitleTimeline, externalRoute?: () => PlayerObservation['externalRoute']): () => void {
-    const player = (this.host.createPlayer ?? ((element, options) => new WebMediaPlayer(element, options)))(video, {
+    const own = (this.host.createPlayer ?? ((element, options) => new WebMediaPlayer(element, options)))(video, {
       loadHls: this.host.loadHls, resolveUrl: path => this.host.mediaUrl(path), subtitles, deviceMemory: this.host.deviceMemory, nativeHls: this.host.nativeHls, externalRoute, timers: this.host.playerTimers,
     });
+    const player = this.host.secondEngine ? new EngineSwitch(own, this.host.secondEngine({resolveUrl: path => this.host.mediaUrl(path)})) : own;
     this.video = video;
     this.slot.mount(player);
     if (this.service) this.apply(this.service.getSnapshot());
