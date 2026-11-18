@@ -171,7 +171,9 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{discs}{coverBox}<View style={{alignSelf: 'stretch'}}>{identity}</View><View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View></View>
     : <View style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: spec.coverGap}}>
       {discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
-    : tvCollapsed ? <View style={{paddingTop: frame.titleTop, paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>{identity}</View>
+    // TV with focus in the panel (detail-tv-4, 5a): the title and tabs at the top, the art box still behind them at its full height.
+    : tvCollapsed ? <View style={{paddingTop: frame.titleTop, paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
+      <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 0, height, opacity: spec.tvCollapsedArt}}>{art}</View>{identity}</View>
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
     // second line of buttons pushes the panel down rather than rising under Back (the words never overlap the discs).
     : <><View style={stacked ? {height} : {minHeight: height, justifyContent: 'flex-end', paddingTop: tv ? frame.titleTop : discRow, paddingBottom: spec.copyBottom[form]}}>
