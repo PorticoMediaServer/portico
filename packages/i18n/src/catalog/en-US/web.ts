@@ -2300,7 +2300,7 @@ export const webMessages = {
   'web.setup.codeTitle': 'Enter the setup code',
   'web.setup.codeHint': 'The setup code is in setup-code.txt in the server’s data folder.',
   'web.setup.codeWhere': 'Where is it?',
-  'web.setup.codeFolderWindows': 'Windows: C:\\ProgramData\\Portico',
+  'web.setup.codeFolderWindows': 'Windows: %LOCALAPPDATA%\\Portico',
   'web.setup.codeFolderLinuxPackage': 'A Linux package: /var/lib/portico',
   'web.setup.codeFolderMac': 'A Mac: ~/Library/Application Support/Portico',
   'web.setup.codeFolderDocker': 'Docker: /config',
