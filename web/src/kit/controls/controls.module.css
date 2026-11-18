@@ -32,6 +32,9 @@
 .button[data-size="episode"] {--control-height: 48px; --control-radius: 11px; --control-inset: 22px; --control-icon: 20px; font-size: 16px;}
 .button[data-size="dock"] {--control-height: 38px; --control-radius: 10px; --control-inset: 14px; --control-gap: 8px; --control-icon: 18px; font-size: 14px;}
 .button[data-icon-only] {width: var(--control-height); padding: 0;}
+/* Player transport (componentSpec.transport): round and icon-only. The white primary is Play or Pause. */
+.button[data-size="transport"] {--control-height: var(--spec-transport-control-size-web); --control-icon: var(--spec-transport-control-icon-web); width: var(--control-height); padding: 0; border-radius: 50%;}
+.button[data-size="transport"][data-variant="primary"] {--control-height: var(--spec-transport-primary-size-web); --control-icon: var(--spec-transport-primary-icon-web);}
 .button[data-variant="icon"] {--control-height: 40px; --control-icon: 22px; width: 40px; padding: 0; border-radius: 50%; color: var(--color-text-secondary);}
 .button[data-variant="icon"]:hover:not(:disabled) {background: color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text);}
 .button[data-variant="text"] {--control-height: 32px; --control-radius: 8px; --control-inset: 10px; --control-gap: 6px; --control-icon: 16px; font-size: 13.5px; color: var(--color-text-secondary);}
