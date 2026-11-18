@@ -13,22 +13,22 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 )
 
-// probeDisc reads a film disc kept as a folder (BDMV or VIDEO_TS) with the disc reader, which
-// is confined and handed the folder itself, never its path. The disc is one title that plays
+// probeDisc reads a film disc with the disc reader, which is confined and handed the disc image
+// or (directory) the disc's folder itself, never its path. The disc is one title that plays
 // its main feature: the longest title of at least a minute. A copy-protected disc is refused
 // as one; a disc with no title long enough is not a film.
-func probeDisc(ctx context.Context, folder string) (Facts, error) {
+func probeDisc(ctx context.Context, input string, directory bool) (Facts, error) {
 	// A server whose media tools came without the disc reader says so, where it would
 	// otherwise leave the disc without a length or tracks and without a word why.
 	if _, err := exec.LookPath(mediatools.Resolve("portico-disc")); err != nil {
 		return Facts{}, ErrNoDiscReader
 	}
-	dir, err := os.Open(readerFolder(folder))
+	file, err := os.Open(input)
 	if err != nil {
 		return Facts{}, err
 	}
-	defer dir.Close()
-	found, err := disc.Tool{}.ProbeDescriptor(ctx, dir, true)
+	defer file.Close()
+	found, err := disc.Tool{}.ProbeDescriptor(ctx, file, directory)
 	var exit *exec.ExitError
 	switch {
 	case errors.Is(err, disc.ErrEncrypted):
