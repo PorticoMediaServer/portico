@@ -11,7 +11,6 @@ export {DATABASE_BUSY, WRITER_CAPACITY, WRITER_RETRY_BUDGET_MS, resendableRefusa
 export * from './reading-mark-all.ts';
 export {contentEntrySubject} from './presentation/content-entry-subject.ts';
 export * from './reading-indexed-search.ts';
-export * from './reading-offline-refresh.ts';
 export * from './reading.ts';
 export * from './route-identity.ts';
 export * from './clone-portable-dto.ts';

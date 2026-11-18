@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {observeServerTime, resetServerClocks, serverNow} from '../src/server-clock.ts';
 import {SetupCodeApprover, SetupCodeService, type SetupCodeJournal} from '../src/setup-code.ts';
 import {TVConsentApprover, type TVConsentAuthority} from '../src/tv-consent.ts';
-import {receiptUsable, type ReceiptClaims} from '../src/index.ts';
 import {rememberedFor} from '../src/remember-marker.ts';
 import {moveOfferDays} from '../src/sign-in.ts';
 import {captureReportContext} from '../src/report-context.ts';
@@ -66,11 +65,6 @@ for (const [label, skew] of SKEWS) {
 
   test(`stored and displayed server instants read against the server's clock when the device clock is ${label}`, async t => {
     const truth = skewed(t, skew);
-    // an offline receipt is judged on the server's clock, not by the date on the device
-    const claims = {receiptId: 'r', viewer: {authority: 'local', accountId: 'a', profileId: 'p', serverId: 's'}, issuedAt: iso(truth), expiresAt: iso(truth + 30 * 86_400_000)} as unknown as ReceiptClaims;
-    const viewer = claims.viewer;
-    assert.equal(receiptUsable(claims, viewer, new Date(serverNow() + 86_400_000)), true);
-    assert.equal(receiptUsable(claims, viewer, new Date(serverNow() + 31 * 86_400_000)), false);
     // the remembered profile is the server's expiry against the server's now
     const held = {serverId: 's', familyId: 'f', profileId: 'p'};
     assert.equal(rememberedFor({...held, expiresAt: iso(truth + 60_000)}, held), true);

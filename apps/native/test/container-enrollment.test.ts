@@ -8,29 +8,21 @@
  */
 import test, {afterEach} from 'node:test';
 import assert from 'node:assert/strict';
-import {device, emit, NativeModules} from './react-native-stub.mjs';
+import {device, NativeModules} from './react-native-stub.mjs';
 import type {DownloadsService} from '../../../packages/client-core/src/index';
 import {parseDownloadPreparation} from '../../../packages/client-core/src/downloads.ts';
 import {parseDownloadRequest} from '../../../packages/client-core/src/download-requests.ts';
 import {OfflineDownloads} from '../platform/offline-downloads.ts';
+import {downloaded} from '../../../packages/client-core/test/helpers/downloads-next.ts';
 import type * as OfflineModule from '../platform/offline-downloads.ts';
 
-/** The native module's newer contract (batched meta writes, the files beside a download). The
- * shared stub predates the rewrite, so the four methods are added here. */
+/** Files saved beside a download. */
 const nativeDownloads = NativeModules.PorticoDownloads as unknown as Record<string, any>;
 const extraStore = new Map<string, Map<string, string>>();
 const extra = (id: string): Map<string, string> => {
   let files = extraStore.get(id);
   if (!files) { files = new Map(); extraStore.set(id, files); }
   return files;
-};
-nativeDownloads.setMetas = async (metas: Record<string, string>) => {
-  for (const [id, meta] of Object.entries(metas)) {
-    const entry = device.entries.get(id);
-    if (!entry) continue;
-    device.entries.set(id, {...entry, meta});
-    emit('PorticoDownloadChanged', {...device.entries.get(id)});
-  }
 };
 nativeDownloads.writeExtra = async (id: string, name: string, text: string) => { extra(id).set(name, text); };
 nativeDownloads.readExtra = async (id: string, name: string) => extra(id).get(name) ?? '';
@@ -62,12 +54,8 @@ function containerServer(initialTotal: number) {
     baseUrl: 'http://server.test',
     mediaUrl: (p: string) => 'http://server.test' + p,
     async request<T>(path: string): Promise<T> {
-      if (path === '/v1/downloads/receipt-keys') return {keys: []} as T;
+      if (path === '/v1/downloads/sync') return {playableUntil: new Date(Date.now() + 86400000).toISOString(), playableForMs: 86400000, fetch: [], remove: []} as T;
       const url = new URL('http://server.test' + path);
-      if (url.pathname.startsWith('/v1/downloads/preparations/prep-item-')) {
-        const item = url.pathname.slice('/v1/downloads/preparations/prep-'.length), index = Number(item.slice('item-'.length));
-        return preparation(item, index < state.ready) as T;
-      }
       if (url.pathname !== '/v1/downloads/requests/' + REQUEST) throw new Error('no route: ' + path);
       const cursor = url.searchParams.get('cursor') ?? '';
       cursors.push(cursor);
@@ -77,20 +65,28 @@ function containerServer(initialTotal: number) {
     },
   };
   const listeners = new Set<() => void>();
-  let prepared: unknown[] = [];
+  const rebuilt = (raw: unknown) => ({...parseDownloadPreparation(raw), downloadId: REQUEST});
+  let readyCount = -1, prepared: ReturnType<typeof rebuilt>[] = [];
   const service = {
-    getSnapshot: () => ({items: prepared, requests: [{request: parseDownloadRequest(page(0))}], busy: [] as string[], error: undefined}),
-    subscribe: (fn: () => void) => { listeners.add(fn); return () => listeners.delete(fn); },
-    async grant(preparation: {id: string; itemId: string}) {
-      return {preparationId: preparation.id, itemId: preparation.itemId, url: '/grant/' + preparation.id, token: 't', issuedAt: '', expiresAt: '', replayWindowSeconds: 60, artifact: ARTIFACT};
+    getSnapshot: () => {
+      const first = page(0), request = parseDownloadRequest(first);
+      if (readyCount !== state.ready) {
+        readyCount = state.ready;
+        prepared = Array.from({length: readyCount}, (_, i) => rebuilt(preparation(member(i), true)));
+      }
+      return {items: prepared,
+        requests: [{request: {...request, items: first.items.map(item => ({...item, preparation: rebuilt(item.preparation)}))}}],
+        busy: [] as string[], error: undefined};
     },
+    subscribe: (fn: () => void) => { listeners.add(fn); return () => listeners.delete(fn); },
+    async downloaded(id: string) {return {...downloaded, item: {...downloaded.item, id: id.slice('prep-'.length)}};},
+    async grant() {return {url: downloaded.files[0]!.url, artifact: ARTIFACT};},
     publish() { for (const fn of listeners) fn(); },
     dispose() {},
   };
   /** The server finishes preparing the first `count` members. */
   const ready = (count: number) => {
     state.ready = count;
-    prepared = Array.from({length: count}, (_, i) => parseDownloadPreparation(preparation(member(i), true)));
     service.publish();
   };
   return {api, service, state, cursors, ready};
@@ -250,7 +246,7 @@ test('the backlog limit applies to first pages across many requests', async () =
 
 test('another profile holding the same title does not suppress enrollment', async () => {
   const {offlineDownloads} = await bridge();
-  device.seed({id: 'other-copy', itemId: member(0), meta: {owner: 'another-profile'}});
+  device.seed({id: 'other-copy', itemId: member(0), meta: {owner: 'another-profile', downloadId: 'dl_other'}});
   const s = containerServer(1);
   offlineDownloads.connect(s.api, s.service as unknown as DownloadsService, VIEWER);
   await quiet(s.cursors);

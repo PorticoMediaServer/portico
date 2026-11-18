@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {offlineFixture, viewer, owner, preparation, receipt, deferred, settle} from './helpers/offline-fixture.mjs';
+import {downloaded} from '../../../packages/client-core/test/helpers/downloads-next.ts';
+import {offlineFixture, viewer, owner, preparation, deferred, settle} from './helpers/offline-fixture.mjs';
 
 type Fixture = Awaited<ReturnType<typeof offlineFixture>>;
 const connected = async (f: Fixture) => {await f.offline.open(); f.offline.connect(f.api, f.service, viewer); await settle();};
@@ -152,11 +153,11 @@ test('OFF-07: a replacement with the same id is a different retry incarnation', 
 test('an accepted native resume keeps its own continuation alive for missing extras', async () => {
   const f = await offlineFixture();
   try {
-    f.seed('copy', 'item', {state: 'paused', intent: 'hold', meta: {owner, receipt: receipt('copy'), bundle: 0, viewingSynced: true}});
+    f.seed('copy', 'item', {state: 'paused', intent: 'hold', meta: {owner, downloadId: 'dl_copy', bundle: 0}});
     await connected(f);
     await f.offline.resume(f.offline.getSnapshot().entries[0]); await settle();
     assert.equal(f.started.length, 1);
-    assert.ok(f.calls.some(value => value.path === '/v1/downloads/preparations/copy/bundle'), 'the start-generated native generation must not cancel bundle collection');
+    assert.equal(JSON.parse(f.entries.get('copy').meta).bundle, 4, 'the start-generated native generation must not cancel bundle collection');
   } finally {f.offline.dispose();}
 });
 
@@ -212,8 +213,9 @@ test('OFF-08: cancelling accepted work invalidates a grant already in flight', a
 test('OFF-08: admission includes reserved transfers, the device limit and measured zero free bytes', async () => {
   const f = await offlineFixture();
   try {
-    await connected(f); await f.offline.setSettings({limitBytes: 150});
+    await connected(f);
     const p = preparation('copy'); f.snapshot.items = [p]; await f.offline.want([p]); await settle();
+    await f.offline.setSettings({limitBytes: 150});
     assert.equal(f.offline.admission(51), 'downloads.blocked.limit');
     await f.offline.setSettings({limitBytes: 0});
     f.disk.freeBytes = 0; await (f.offline as any).measure();
@@ -221,45 +223,29 @@ test('OFF-08: admission includes reserved transfers, the device limit and measur
   } finally {f.offline.dispose();}
 });
 
-test('OFF-09: a fresh AV download receives the server bookmark even after an empty renewal pass', async () => {
-  const f = await offlineFixture();
-  try {
-    await connected(f);
-    assert.equal(stored(f).renewed?.[owner], undefined, 'no receipts does not consume the daily renewal');
-    const p = preparation('copy'); f.snapshot.items = [p];
-    f.handlers.set('/v1/downloads/receipts/revalidate', () => ({results: [{receiptId: 'receipt-copy', outcome: 'renewed', code: '', receipt: receipt('copy'), viewing: {positionMs: 75000, watched: false}}]}));
-    await f.offline.want([p]); await settle();
-    assert.equal(stored(f).resume[owner].item, 75);
-    assert.equal(JSON.parse(f.entries.get('copy').meta).viewingSynced, true);
-  } finally {f.offline.dispose();}
+test('OFF-09: a rebuilt download imports its server bookmark', async t => {
+  const f = await offlineFixture(); t.after(() => f.offline.dispose());
+  f.handlers.set('downloaded', () => ({...downloaded, item: {...downloaded.item, id: 'item', state: {...downloaded.item.state, positionMs: 75000}}}));
+  await connected(f);
+  const copy = preparation('copy'); f.snapshot.items = [copy];
+  await f.offline.want([copy]);
+  await settle();
+  assert.equal(stored(f).resume[owner].item, 75);
 });
 
-test('OFF-09: a later local play wins over a delayed initial bookmark response', async () => {
-  const f = await offlineFixture();
-  try {
-    await connected(f); const response = deferred(), entered = deferred();
-    f.handlers.set('/v1/downloads/receipts/revalidate', async () => {entered.resolve(); return response.promise;});
-    const p = preparation('copy'); f.snapshot.items = [p]; await f.offline.want([p]); await entered.promise;
-    await observe(f, 'copy', 'new-play', 150);
-    response.resolve({results: [{receiptId: 'receipt-copy', outcome: 'renewed', code: '', receipt: receipt('copy'), viewing: {positionMs: 75000, watched: false}}]});
-    await settle();
-    assert.equal(stored(f).resume[owner].item, 150);
-    assert.equal(stored(f).plays[owner]['new-play'].positionSeconds, 150);
-  } finally {f.offline.dispose();}
-});
-
-test('OFF-09: a recently renewed owner still retries the bookmark of a new copy', async () => {
-  const f = await offlineFixture({state: JSON.stringify({version: 3, renewed: {[owner]: Date.now()}})});
-  try {
-    f.seed('copy');
-    f.handlers.set('/v1/downloads/receipts/revalidate', () => ({results: [{receiptId: 'receipt-copy', outcome: 'renewed', code: '', receipt: receipt('copy'), viewing: {positionMs: 45000, watched: false}}]}));
-    await connected(f);
-    assert.equal(stored(f).resume[owner].item, 45);
-  } finally {f.offline.dispose();}
+test('OFF-09: a queued local play wins over the server bookmark on retry', async t => {
+  const f = await offlineFixture(); t.after(() => f.offline.dispose());
+  f.seed('copy', 'item', {state: 'paused', intent: 'hold'});
+  await connected(f);
+  await observe(f, 'copy', 'new-play', 150);
+  f.handlers.set('downloaded', () => ({...downloaded, item: {...downloaded.item, id: 'item', state: {...downloaded.item.state, positionMs: 75000}}}));
+  await f.offline.resume(f.offline.getSnapshot().entries[0]);
+  assert.equal(stored(f).resume[owner].item, 150);
+  assert.equal(stored(f).plays[owner]['new-play'].positionSeconds, 150);
 });
 
 test('OFF-14: history compacts by title and retains its latest unsent position', async () => {
-  const plays = Object.fromEntries(Array.from({length: 400}, (_, i) => ['play-' + i, {playId: 'play-' + i, itemId: 'item', positionSeconds: i, observedAt: new Date(1_700_000_000_000 + i).toISOString()}]));
+  const plays = Object.fromEntries(Array.from({length: 400}, (_, i) => ['play-' + i, {playId: 'play-' + i, downloadId: 'dl_' + i, itemId: 'item', positionSeconds: i, observedAt: new Date(1_700_000_000_000 + i).toISOString()}]));
   const f = await offlineFixture({state: JSON.stringify({version: 3, plays: {[owner]: plays}})});
   try {
     f.seed('copy'); await f.offline.open(); f.offline.adopt(viewer);
@@ -271,7 +257,7 @@ test('OFF-14: history compacts by title and retains its latest unsent position',
 });
 
 test('OFF-14: more than 400 distinct titles keep every unsent bookmark through restart and upload', async () => {
-  const plays = Object.fromEntries(Array.from({length: 400}, (_, i) => ['play-' + i, {playId: 'play-' + i, itemId: 'item-' + i, positionSeconds: i, observedAt: new Date(1_700_000_000_000 + i).toISOString()}]));
+  const plays = Object.fromEntries(Array.from({length: 400}, (_, i) => ['play-' + i, {playId: 'play-' + i, downloadId: 'dl_' + i, itemId: 'item-' + i, positionSeconds: i, observedAt: new Date(1_700_000_000_000 + i).toISOString()}]));
   const f = await offlineFixture({state: JSON.stringify({version: 3, plays: {[owner]: plays}})});
   try {
     f.seed('copy', 'last-item'); await f.offline.open(); f.offline.adopt(viewer);
@@ -279,7 +265,7 @@ test('OFF-14: more than 400 distinct titles keep every unsent bookmark through r
     assert.equal(Object.keys(stored(f).plays[owner]).length, 401);
     f.offline.dispose(); f.offline = new f.implementation.OfflineDownloads();
     const sent: string[] = [];
-    f.handlers.set('/v1/downloads/progress', body => {sent.push(...body.entries.map((value: any) => value.itemId)); return {applied: body.entries.length, conflicts: 0, entries: body.entries.map((value: any) => ({...value, outcome: 'applied', watched: false}))};});
+    f.handlers.set('/v1/items/state:batch', body => {sent.push(body.plays[0].itemId); return {plays: [{...body.plays[0], finished: false}]};});
     await connected(f); await f.offline.syncProgress();
     assert.equal(new Set(sent).size, 401); assert.ok(sent.includes('item-0')); assert.ok(sent.includes('last-item'));
     assert.equal(f.offline.getSnapshot().pendingProgress, 0);
@@ -287,7 +273,7 @@ test('OFF-14: more than 400 distinct titles keep every unsent bookmark through r
 });
 
 test('OFF-15: unreadable or malformed present state fails closed without replacing its bytes', async () => {
-  for (const raw of ['{', 'null', '[]', '{}', '{"version":99}', '{"version":3,"plays":[]}', '{"version":3,"settings":{"wifiOnly":"yes"}}', '{"version":3,"reading":{"owner":{"bad":{}}}}']) {
+  for (const raw of ['{', 'null', '[]', '{}', '{"version":99}', '{"version":3,"plays":[]}', '{"version":3,"settings":{"wifiOnly":"yes"}}', '{"version":3,"permissions":{"owner":0}}']) {
     const f = await offlineFixture({state: raw});
     try {
       await assert.rejects(f.offline.open());

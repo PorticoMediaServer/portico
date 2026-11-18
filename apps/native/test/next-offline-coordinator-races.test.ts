@@ -58,16 +58,43 @@ test('native completion during the opening list read is replayed after its older
   let opening: Promise<void> | undefined;
   try {
     const copy = f.seed('completed-during-open', 'item', {state: 'downloading', bytesDone: 0});
-    const listed = {...copy};
-    f.native.list = async () => {entered.resolve(); await release.promise; return [listed];};
+    const listed = {...copy}, removed = f.seed('removed-during-open');
+    f.native.list = async () => {entered.resolve(); await release.promise; return [listed, removed];};
     opening = f.offline.open(); await entered.promise;
     Object.assign(copy, {state: 'ready', bytesDone: 100}); f.emit(copy);
+    f.emit({id: removed.id, state: 'removed'});
     release.resolve(); await opening; f.offline.adopt(viewer);
     assert.equal(f.offline.getSnapshot().ready, true);
+    assert.deepEqual(f.offline.getSnapshot().entries.map(entry => entry.id), [copy.id]);
     assert.equal(f.offline.getSnapshot().entries[0].state, 'ready');
     assert.equal(f.offline.getSnapshot().entries[0].bytesDone, 100);
   } finally {
     release.resolve();
     try {await opening;} finally {f.offline.dispose();}
   }
+});
+
+test('failed list attempts retire their listeners before a successful retry', async t => {
+  const f = await offlineFixture(); t.after(() => f.offline.dispose());
+  const list = f.native.list;
+  let attempts = 0;
+  f.native.list = async () => {if (++attempts <= 3) throw new Error('unreadable store'); return list();};
+  for (let i = 0; i < 3; i++) {
+    await assert.rejects(f.offline.open(), /unreadable store/);
+    assert.equal(f.listeners.size, 0);
+  }
+  await f.offline.open();
+  assert.equal(f.listeners.size, 1);
+});
+
+test('disposal while a list is pending retires the listener and keeps the store closed', async () => {
+  const f = await offlineFixture(), entered = deferred(), release = deferred();
+  f.native.list = async () => {entered.resolve(); await release.promise; return [f.seed('copy')];};
+  const opening = f.offline.open();
+  await entered.promise;
+  assert.equal(f.listeners.size, 1);
+  f.offline.dispose();
+  assert.equal(f.listeners.size, 0);
+  release.resolve(); await opening;
+  assert.equal(f.offline.getSnapshot().ready, false);
 });

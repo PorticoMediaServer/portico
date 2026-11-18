@@ -63,16 +63,11 @@ export function createRememberedDownloadsDevice(identity: RememberedDownloadsVie
   const readingFacts = async (entry: OfflineEntry) => {
     const live = entryCurrent(entry), facts = await offlineDownloads.readingFacts(live); entryCurrent(entry); return facts;
   };
-  const publicationLease = (entry: OfflineEntry) => {
-    const live = entryCurrent(entry);
-    const lease = offlineDownloads.publicationLease(live, {signal: lifetime.signal, current: () => publicationCurrent(entry)});
-    try {entryCurrent(entry); return lease;} catch (error) {lease.dispose(); throw error;}
-  };
   const readingSession = async (entry: OfflineEntry, paused: () => boolean) => {
     const live = entryCurrent(entry);
     const session = await offlineDownloads.readingSession(live, {signal: lifetime.signal, current: () => publicationCurrent(entry),
       paused: () => {try {return paused() !== false;} catch {return true;}}});
     try {entryCurrent(entry); return session;} catch (error) {await session.close(); throw error;}
   };
-  return Object.freeze({device, current, publicationSource, readingFacts, publicationLease, readingSession, open: async () => {check(); await offlineDownloads.open(); check();}, dispose});
+  return Object.freeze({device, current, publicationSource, readingFacts, readingSession, open: async () => {check(); await offlineDownloads.open(); check();}, dispose});
 }
