@@ -2614,6 +2614,7 @@ export interface NowPlaying {
   id: string;
   itemId?: string;
   title?: string;
+  image?: string;
   kind: string;
   state: string;
   positionMs: number;
@@ -2800,6 +2801,7 @@ export interface PlayEntry {
   libraryId?: string;
   libraryName?: string;
   itemId?: string;
+  image?: string;
   kind: string;
   title: string;
   subtitle?: string;

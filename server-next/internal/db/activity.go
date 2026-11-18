@@ -154,6 +154,37 @@ func (d *DB) AccountTitles(ctx context.Context, userID int64, itemIDs []int64) (
 	return out, rows.Err()
 }
 
+// DashboardPictures reads the chosen pictures of visible titles for Now playing and Play history.
+// An episode can fall back to its show's poster and a track to its album's cover.
+func (d *DB) DashboardPictures(ctx context.Context, ids []int64) (map[int64]string, error) {
+	out := make(map[int64]string)
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := d.read.QueryContext(ctx, `SELECT i.id, im.file_hash
+		FROM items i LEFT JOIN items parent ON parent.library_id = i.library_id AND parent.id = CASE i.kind WHEN ? THEN i.root_id WHEN ? THEN i.parent_id END
+		JOIN images im ON im.item_id IN (i.id, parent.id)
+		WHERE i.id IN `+intList(ids)+` AND im.selected = 1 AND im.file_hash <> ''
+		AND (im.role IN (?, ?) OR (i.kind = ? AND im.item_id = i.id AND im.role = ?))
+		ORDER BY i.id, im.item_id <> i.id, im.role <> ?, im.role`,
+		KindEpisode, KindTrack, ImagePoster, ImageCover, KindEpisode, ImageThumb, ImageThumb)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var hash string
+		if err := rows.Scan(&id, &hash); err != nil {
+			return nil, err
+		}
+		if _, exists := out[id]; !exists {
+			out[id] = hash
+		}
+	}
+	return out, rows.Err()
+}
+
 // HasAllLibraries says whether an account has every library. Messages name the files of every
 // library, so they are for the owner and the administrators who have all of them.
 func (d *DB) HasAllLibraries(ctx context.Context, userID int64) (bool, error) {

@@ -24,6 +24,7 @@ type Play struct {
 	LibraryName          string
 	// ItemID is the title's public id, "" once it is gone; Title and Subtitle stay.
 	ItemID     string
+	ItemRow    int64
 	Kind       ItemKind
 	Title      string
 	Subtitle   string
@@ -149,7 +150,7 @@ func (d *DB) Plays(ctx context.Context, q PlayQuery) (out []Play, next int64, er
 		args = append(args, edgeAt, edgeID)
 	}
 	rows, err := d.read.QueryContext(ctx, `SELECT h.id, h.played_at, h.account_name, h.profile_name, ifnull(u.public_id, ''),
-		ifnull(l.public_id, ''), ifnull(l.name, ''), ifnull(i.public_id, ''), h.item_kind, h.title, ifnull(h.subtitle, ''), h.device_name,
+		ifnull(l.public_id, ''), ifnull(l.name, ''), ifnull(i.public_id, ''), ifnull(i.id, 0), h.item_kind, h.title, ifnull(h.subtitle, ''), h.device_name,
 		ifnull(h.watched_ms, 0), h.away, h.delivery, ifnull(`+accountSees("h.library_id")+`, 0)
 		FROM play_history h LEFT JOIN users u ON u.id = h.user_id LEFT JOIN libraries l ON l.id = h.library_id LEFT JOIN items i ON i.id = h.item_id
 		WHERE `+indexed+` AND `+filtered+window+` ORDER BY h.played_at DESC, h.id DESC LIMIT ?`, append(args, q.Limit+1)...)
@@ -161,12 +162,13 @@ func (d *DB) Plays(ctx context.Context, q PlayQuery) (out []Play, next int64, er
 		var p Play
 		var at int64
 		var sees bool
-		if err := rows.Scan(&p.ID, &at, &p.AccountName, &p.ProfileName, &p.AccountID, &p.LibraryID, &p.LibraryName, &p.ItemID, &p.Kind,
+		if err := rows.Scan(&p.ID, &at, &p.AccountName, &p.ProfileName, &p.AccountID, &p.LibraryID, &p.LibraryName, &p.ItemID, &p.ItemRow, &p.Kind,
 			&p.Title, &p.Subtitle, &p.DeviceName, &p.WatchedMS, &p.Away, &p.Delivery, &sees); err != nil {
 			return nil, 0, err
 		}
 		if !sees {
 			p.Withheld, p.Title, p.Subtitle, p.ItemID, p.LibraryID, p.LibraryName = true, "", "", "", "", ""
+			p.ItemRow = 0
 		}
 		p.PlayedAt = time.UnixMilli(at)
 		out = append(out, p)

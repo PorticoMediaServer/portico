@@ -46,11 +46,12 @@ export function playFromServer(value: unknown): PlayHistoryEntry {
     startedAt: value.playedAt, positionSeconds: 0, durationSeconds: 0, completed: false, watchedMs: value.watchedMs,
     location: value.away ? 'remote' : 'local',
   };
-  const profile = optional(value.profile), parentTitle = optional(value.subtitle), itemId = optional(value.itemId);
+  const profile = optional(value.profile), parentTitle = optional(value.subtitle), itemId = optional(value.itemId), image = optional(value.image);
   const libraryName = optional(value.libraryId) ? optional(value.libraryName) : undefined, delivery = optional(value.delivery);
   if (profile) entry.profile = profile;
   if (parentTitle) entry.parentTitle = parentTitle;
   if (itemId) entry.itemId = itemId;
+  if (itemId && image) entry.image = image;
   if (device) entry.device = device;
   if (libraryName) entry.libraryName = libraryName;
   if (delivery) entry.delivery = delivery;

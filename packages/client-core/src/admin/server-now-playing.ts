@@ -29,7 +29,7 @@ export function adminSessionFromServer(value: unknown): AdminSession {
       !text(value.deviceName, false) || typeof value.away !== 'boolean' || !text(value.startedAt) || !object(value.delivery)) throw new ServerNowPlayingError();
   return parseAdminSession({
     id: value.id, user: value.username, profile: text(value.profile) ? value.profile : value.username, device: value.deviceName,
-    ...(text(value.itemId) ? {itemId: value.itemId} : {}), title: text(value.title) ? value.title : '',
+    ...(text(value.itemId) ? {itemId: value.itemId, image: value.image} : {}), title: text(value.title) ? value.title : '',
     kind: value.kind, state: value.state, positionMs: value.positionMs,
     ...(whole(value.durationMs) && (value.durationMs as number) > 0 ? {durationMs: value.durationMs} : {}),
     ...(whole(value.bitrateKbps) && (value.bitrateKbps as number) > 0 ? {bitrateKbps: value.bitrateKbps} : {}),

@@ -31,6 +31,7 @@ export type PlayHistoryEntry = Readonly<{
   episode?: number;
   /** Present while the title is still in the catalogue. */
   itemId?: string;
+  image?: string;
   libraryId: string;
   device?: string;
   platform?: string;

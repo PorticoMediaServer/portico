@@ -28,6 +28,7 @@ type PlayEntry struct {
 	LibraryName string `json:"libraryName,omitempty"`
 	// ItemID is absent once the title is removed; Title and Subtitle stay.
 	ItemID    string `json:"itemId,omitempty"`
+	Image     string `json:"image,omitempty"`
 	Kind      string `json:"kind"`
 	Title     string `json:"title"`
 	Subtitle  string `json:"subtitle,omitempty"`
@@ -82,6 +83,19 @@ func (s *Server) playHistoryRoutes() {
 		}
 		q.Limit = playsPage
 		plays, next, err := s.db.Plays(r.Context(), q)
+		if err != nil {
+			return Page[PlayEntry]{}, err
+		}
+		ids := make([]int64, 0, len(plays))
+		for _, p := range plays {
+			if p.ItemRow != 0 {
+				ids = append(ids, p.ItemRow)
+			}
+		}
+		pictures, err := s.db.DashboardPictures(r.Context(), ids)
+		if err != nil {
+			return Page[PlayEntry]{}, err
+		}
 		out := Page[PlayEntry]{Items: []PlayEntry{}}
 		if next > 0 {
 			// A page can come back short with a cursor: a filter matched few of the plays one
@@ -92,12 +106,13 @@ func (s *Server) playHistoryRoutes() {
 			entry := PlayEntry{PlayedAt: p.PlayedAt.UTC(), Username: p.AccountName, DeviceName: p.DeviceName, AccountID: p.AccountID,
 				LibraryID: p.LibraryID, LibraryName: p.LibraryName, ItemID: p.ItemID, Kind: p.Kind.String(), Title: p.Title,
 				Subtitle: p.Subtitle, WatchedMs: p.WatchedMS, Away: p.Away, Delivery: p.Delivery.String(), Withheld: p.Withheld}
+			entry.Image = imageAddress(pictures[p.ItemRow])
 			if !strings.EqualFold(p.ProfileName, p.AccountName) {
 				entry.Profile = p.ProfileName
 			}
 			out.Items = append(out.Items, entry)
 		}
-		return out, err
+		return out, nil
 	})
 	Handle(s, "GET /v1/admin/play-history/summary", Admin, func(r *http.Request, _ None) (PlaySummary, error) {
 		q, err := s.playQuery(r, true)

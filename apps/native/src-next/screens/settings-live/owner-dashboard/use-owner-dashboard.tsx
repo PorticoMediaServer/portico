@@ -108,10 +108,8 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   const refresh = () => {void reload();};
   // owner-dashboard 2: pulling down refreshes the page; the ring stays until the Dashboard's own read settles, under the page's top bar.
   const pull = usePullRefresh(reload, setActionError, inline ? 0 : insets.top + 48);
-  const entries = useMemo<readonly OwnerStreamEntry[]>(() => state.sessions.map(session => {
-    const art = session.item?.art.find(value => value.role === 'backdrop') ?? session.item?.art[0];
-    return Object.freeze({view: ownerStreamView(session, runtime.text), ...(art ? {artwork: runtime.artwork(`/v1/items/${encodeURIComponent(art.id)}/art/${encodeURIComponent(art.kind)}`)} : {})});
-  }), [state.sessions, runtime]);
+  const entries = useMemo<readonly OwnerStreamEntry[]>(() => state.sessions.map(session =>
+    Object.freeze({view: ownerStreamView(session, runtime.text), artwork: runtime.artwork(session.image)})), [state.sessions, runtime]);
   // Compact rows never draw artwork, so the full list maps only the facts each row says.
   const allEntries = useMemo<readonly OwnerStreamEntry[]>(() => expanded ? streamRows.map(session => Object.freeze({view: ownerStreamView(session, runtime.text)})) : [], [expanded, streamRows, runtime]);
   const alerts = useMemo<readonly OwnerAlertView[]>(() => state.alerts.map((alert, index) => ownerAlertView(alert, index, t, defaultI18n.has)), [state.alerts, t]);

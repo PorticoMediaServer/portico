@@ -1,4 +1,3 @@
-import {Artwork} from '../../kit/artwork/Artwork';
 import {accountAvatarStyle} from '../../kit/settings/account-avatar';
 import {useCallback, useMemo, useState, type CSSProperties} from 'react';
 import {defaultI18n} from '@i18n';
@@ -46,7 +45,6 @@ export function Analytics({bindings: b, accounts}: {bindings: DashboardBindings;
   const history = useStatistics(b, historyRange);
   const peopleOptions = [{value: 'all', label: t('next.dashboard.everyone')}, ...accounts.items.map(p => ({value: p.accountId, label: p.username}))];
   const ranked = people.value?.people ?? [], maxTime = Math.max(1, ...ranked.map(p => p.watchedMs));
-  const firstTop = top.value?.titles.find(item => item.id), topBackdrop = firstTop?.id ? b.artwork(firstTop.id, 'backdrop') : undefined;
   return <>
     <Section title={t('next.dashboard.people')} actions={<Range value={peopleRange} values={summaryRanges} onChange={value => setPeopleRange(value as StatisticsRange)} />}>
       <ReadFeedback openHome={b.effects.openHome} state={people} />{people.value && <div className={styles.peopleCard}>
@@ -61,10 +59,9 @@ export function Analytics({bindings: b, accounts}: {bindings: DashboardBindings;
       <ReadFeedback openHome={b.effects.openHome} state={busiest} />{busiest.value && <Busiest summary={busiest.value} />}
     </Section>
     <Section title={t('next.dashboard.top')} actions={<><Segmented aria-label={t('next.dashboard.media')} value={topKind} onValueChange={value => setTopKind(value as TopKind)} items={(['movies', 'tv', 'music'] as const).map(kind => ({value: kind, label: mediaLabel(kind)}))} /><Select aria-label={t('next.dashboard.person')} value={topPerson} options={peopleOptions} onValueChange={setTopPerson} /><Range value={topRange} values={summaryRanges} onChange={value => setTopRange(value as StatisticsRange)} /></>}>
-      <ReadFeedback openHome={b.effects.openHome} state={top} />{top.value && (top.value.titles.length ? <div className={styles.rankedShelf}>{topBackdrop && <div className={styles.shelfAmbient} aria-hidden="true"><Artwork source={topBackdrop} alt="" width="100%" height="100%" /></div>}<ol className={styles.shelf} data-square={topKind === 'music' || undefined}>{top.value.titles.map((item, index) => {
-        const art = item.id ? b.artwork(item.id, topKind === 'music' ? 'square' : 'poster') : undefined;
-        return <li key={item.id ?? item.name}><span className={styles.rank} aria-hidden="true">{index + 1}</span><div className={styles.rankedArt}>{art && <Artwork source={art} alt="" width="100%" height="100%" />}</div><h4>{item.name}</h4>{item.detail && <p>{item.detail}</p>}<p>{t('next.dashboard.plays', {count: item.plays})}</p></li>;
-      })}</ol></div> : <p className={styles.empty}>{t('next.dashboard.nothing')}</p>)}
+      <ReadFeedback openHome={b.effects.openHome} state={top} />{top.value && (top.value.titles.length ? <div className={styles.rankedShelf}><ol className={styles.shelf} data-square={topKind === 'music' || undefined}>{top.value.titles.map((item, index) =>
+        <li key={item.id ?? item.name}><span className={styles.rank} aria-hidden="true">{index + 1}</span><div className={styles.rankedArt}/><h4>{item.name}</h4>{item.detail && <p>{item.detail}</p>}<p>{t('next.dashboard.plays', {count: item.plays})}</p></li>
+      )}</ol></div> : <p className={styles.empty}>{t('next.dashboard.nothing')}</p>)}
       <CountedFrom summary={top.value} />
     </Section>
   </>;
