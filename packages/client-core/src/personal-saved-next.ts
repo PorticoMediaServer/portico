@@ -121,7 +121,8 @@ async function viewPage(api: SavedNextApi, bound: SavedScope, list: List, cursor
   const page = await items(api, {...Object.fromEntries(new URLSearchParams(list.query ?? '')), library: list.library, limit: PAGE, total: true, cursor: mark?.cursor}, signal);
   const entries = page.items.flatMap(item => {const media = wireEntryFromItem(item as Item, list.library); return media ? [media] : [];});
   const nextCursor = page.nextCursor ? markCursor({start: start + entries.length, cursor: page.nextCursor}) : '', counted = page.total !== undefined;
-  return {nextCursor, resource, browse: {pivot: definition.pivot, applied: {query: definition.query, sort: definition.sort, seek: null}, entries, positionIndex: [],
+  // The server keeps no entries for a saved view, so its list count is 0; the page's own total is the view's length.
+  return {nextCursor, resource: counted ? {...resource, entryCount: page.total} : resource, browse: {pivot: definition.pivot, applied: {query: definition.query, sort: definition.sort, seek: null}, entries, positionIndex: [],
     pageInfo: {start, total: counted ? page.total : start + entries.length, totalIsLowerBound: !counted, revision: 'list-' + list.revision, hasMore: !!nextCursor, nextCursor}}};
 }
 

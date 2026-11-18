@@ -252,7 +252,7 @@ test('a saved view\'s stored query reads back as the browse controls that made i
 function views(view: Record<string, unknown> = {}) {
   const calls: {path: string; method: string; headers?: Record<string, string>; body?: unknown}[] = [];
   let revision = 3, name = 'Nineties drama', gone = false;
-  const list = () => ({id: 'v1', kind: 'saved_view', name, owner: {id: 'me', name: 'Me'}, role: 'owner', count: 2, library: 'films', query: 'kind=movie&genre=Drama&sort=year&order=desc', covers: [], revision: String(revision), createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z', ...view});
+  const list = () => ({id: 'v1', kind: 'saved_view', name, owner: {id: 'me', name: 'Me'}, role: 'owner', count: 0, library: 'films', query: 'kind=movie&genre=Drama&sort=year&order=desc', covers: [], revision: String(revision), createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z', ...view});
   const pins: string[] = [];
   const api = {
     async request<T>(path: string, method = 'GET', sent?: unknown): Promise<T> {
@@ -285,6 +285,7 @@ test('a saved view opens with its titles, read with its own query on its library
   assert.equal(shot.error, null);
   assert.deepEqual([shot.resource?.kind, shot.resource?.status, shot.resource?.definition?.pivot, shot.resource?.definition?.sort], ['view', 'ready', 'movies', [{field: 'year', direction: 'desc'}]]);
   assert.deepEqual(shot.entries.map(entry => entry.media?.id), ['a', 'b']);
+  assert.equal(shot.resource?.entryCount, 2, 'the view\'s length is its titles\' total, not the list count the server keeps at 0');
   const asked = new URL(s.calls.find(call => call.path.startsWith('/v1/items') && call.path.includes('library='))!.path, 'https://x').searchParams;
   assert.deepEqual([asked.get('library'), asked.get('kind'), asked.get('genre'), asked.get('sort'), asked.get('order')], ['films', 'movie', 'Drama', 'year', 'desc']);
   saved.dispose();
