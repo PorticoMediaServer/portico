@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {routePath} from '../../contracts/src/routes.ts';
-import {ambientArtworkSource} from '../src/artwork/ambient.ts';
 import {ARTWORK_SMALL_EDGE, artworkDescriptor, artworkRenditionFor, artworkSlotFor} from '../src/artwork/renditions.ts';
 
 const source = 'a'.repeat(64);
@@ -63,10 +62,4 @@ test('the requested URL names one slot and its token, and drops the descriptor',
   // Programme images describe their slots but carry no source version: no token.
   const programme = '/v1/guide/programme-images/g/p?sd=533x300.1.' + smallToken + '&ld=1920x1080.2.' + largeToken;
   assert.equal(artworkRenditionFor(programme, {width: 110, height: 62, dpr: 2}).url, '/v1/guide/programme-images/g/p?size=small');
-});
-
-test('ambient derivation accepts a described URL and keeps only the source', () => {
-  const identity = {serverId: 'server', viewerId: 'profile', authorityKey: 'session:1'};
-  assert.equal(ambientArtworkSource(poster, identity)!.url, item + '?size=ambient-v1&v=' + source);
-  assert.equal(ambientArtworkSource(artworkRenditionFor(poster, {width: 1, height: 1, dpr: 1}).url, identity)!.url, item + '?size=ambient-v1&v=' + source);
 });

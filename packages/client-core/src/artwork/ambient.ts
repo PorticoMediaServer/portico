@@ -1,4 +1,4 @@
-import {routePattern} from '../../../contracts/src/routes.ts';
+import {serverPath} from '../query/server-api.ts';
 
 export type AmbientArtworkIdentity = Readonly<{
   serverId: string;
@@ -15,16 +15,11 @@ export type AmbientArtworkSource = Readonly<{
   maxEdge: 64;
 }>;
 
-const artworkPatterns = [
-  routePattern('get_items_id_art_kind'),
-  routePattern('get_metadata_kind_id_art_role'),
-].map(pattern => new RegExp('^' + pattern.split('/').map(part => part.startsWith('{')
-  ? '[^/]+'
-  : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('/') + '$'));
+const imagePrefix = serverPath('GET /v1/images/{id}', {id: '__image__'}).replace('__image__', '');
 
 /**
  * Derives only the implemented ambient representation of a server-provided
- * versioned or content-hash selected-art URL. The foreground URL stays untouched. Pass it to the
+ * content-hash image URL. The foreground URL stays untouched. Pass it to the
  * ordinary artwork scheduler/transport, including its real Retry-After policy.
  * No renderer, fetch, title selection, palette or colour is supplied here.
  */
@@ -41,30 +36,14 @@ function ambientSource(artworkUrl: string | null | undefined, identity: AmbientA
   if (!artworkUrl || artworkUrl.length > 4096 || !artworkUrl.startsWith('/') || artworkUrl.startsWith('//') || /[\s\\#\x00-\x1f\x7f]/.test(artworkUrl)) return null;
   if (![identity.serverId, identity.viewerId, identity.authorityKey].every(value => typeof value === 'string' && value.length > 0 && value.length <= 512 && !/[\x00-\x1f\x7f]/.test(value))) return null;
   const [path, query = ''] = artworkUrl.split('?');
-  const hash = path?.match(/^\/v1\/images\/([a-f0-9]{64})$/)?.[1];
-  if (!path || artworkUrl.indexOf('?') !== artworkUrl.lastIndexOf('?') || !hash && !artworkPatterns.some(pattern => pattern.test(path))) return null;
-  try {
-    if (path.split('/').some(part => {
-      const decoded = decodeURIComponent(part);
-      return decoded === '.' || decoded === '..' || /[/\\\x00-\x1f\x7f]/.test(decoded);
-    })) return null;
-  } catch { return null; }
+  if (!path?.startsWith(imagePrefix) || artworkUrl.indexOf('?') !== artworkUrl.lastIndexOf('?')) return null;
+  const version = path.slice(imagePrefix.length);
+  if (!/^[a-f0-9]{64}$/.test(version)) return null;
   const params = new URLSearchParams(query);
-  const allowed = new Set(hash ? ['w', 'h', 'size'] : ['v', 'subject', 'w', 'size', 'sd', 'ld', 'r']);
-  for (const key of params.keys()) if (!allowed.has(key) || params.getAll(key).length !== 1) return null;
-  const version = hash ?? params.get('v');
-  if (version === null || !/^[a-f0-9]{64}$/.test(version)) return null;
-  const subject = params.get('subject');
-  if (subject !== null) {
-    const bytes = Array.from(subject).reduce((total, char) => {
-      const point = char.codePointAt(0)!;
-      return total + (point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4);
-    }, 0);
-    if (bytes > 160 || /[\x00-\x1f\x7f]/.test(subject)) return null;
-  }
-  for (const key of ['w', 'h', 'sd', 'ld', 'r']) params.delete(key);
+  for (const key of params.keys()) if (!['w', 'h', 'size'].includes(key) || params.getAll(key).length !== 1) return null;
+  params.delete('w');
+  params.delete('h');
   params.set('size', variant);
-  params.sort();
   const url = path + '?' + params.toString();
   return Object.freeze({
     url,

@@ -21,7 +21,7 @@ import {OwnerChannelEditor} from './OwnerChannelEditor';
 import {OwnerPresets} from './OwnerHours';
 import styles from './channels.module.css';
 const t=defaultI18n.t;
-export type OwnerChannelPorts={api:LibraryContentApi;serverId:string;isCurrent:()=>boolean;reportError:(error:unknown)=>void;libraries:readonly Library[];subscribe?:(listener:()=>void)=>()=>void;logo:(channel:Channel)=>ArtworkSource|undefined;sampleArt?:(id:string)=>ArtworkSource|undefined;uploadLogo:(id:string,file:File,signal:AbortSignal)=>Promise<Channel>};
+export type OwnerChannelPorts={api:LibraryContentApi;serverId:string;isCurrent:()=>boolean;reportError:(error:unknown)=>void;libraries:readonly Library[];subscribe?:(listener:()=>void)=>()=>void;logo:(channel:Channel)=>ArtworkSource|undefined;sampleArt?:(path?:string)=>ArtworkSource|undefined;uploadLogo:(id:string,file:File,signal:AbortSignal)=>Promise<Channel>};
 export function LibraryChannelsPage(input:OwnerChannelPorts|{ports:OwnerChannelPorts}){
  const ports='ports' in input?input.ports:input,[source,setSource]=useState<OwnerChannelSource>(),[,redraw]=useState(0),location=useLocation();
  useEffect(()=>ports.subscribe?.(()=>redraw(v=>v+1)),[ports]);

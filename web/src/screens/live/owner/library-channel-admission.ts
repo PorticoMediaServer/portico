@@ -1,4 +1,3 @@
-import {ownerItemArtworkPath} from '@core/owner-upload-requests.ts';
 import {subscribeFacts} from '../../../shell/fact-source';
 import type {LibraryChannel} from '@core/server-admin/owner-library-channels.ts';
 import type {ShellAssemblyContext} from '../../../shell/bootstrap';
@@ -16,7 +15,7 @@ export function libraryChannelAdmission(context: ShellAssemblyContext, owner: Ow
     get libraries() {return context.facts.identity.libraries;},
     subscribe: (listener: () => void) => subscribeFacts(context, listener),
     logo: (channel: LibraryChannel) => owner.current() && context.isCurrent() && channel.logo ? context.artwork.foreground(channel.logo, 44, 1) : undefined,
-    sampleArt: (id: string) => owner.current() && context.isCurrent() ? context.artwork.foreground(ownerItemArtworkPath(encodeURIComponent(id), 'poster'), 80, 2 / 3) : undefined,
+    sampleArt: (path?: string) => owner.current() && context.isCurrent() ? context.artwork.foreground(path, 80, 2 / 3) : undefined,
     uploadLogo: libraryChannelUpload(context, owner.current, owner.reportError),
   };
 }

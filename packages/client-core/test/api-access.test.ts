@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
- accessTokenPrefix,apiKeyPrefix,apiScopePresets,createAccessToken,createApiKey,isApiCredentialSecret,listApiKeys,listAccessTokens,listWebhookDeliveries,
- parseApiAccessOptions,parseApiCredential,parseIssuedApiCredential,parseIssuedWebhook,parsePathReport,parseTitlePage,parseWebhook,parseWebhookDelivery,parseWebhookDeliveryPage,parseWebhookList,
- presetOf,queryTitles,reportChangedPaths,refreshIntegrationLibraries,revokeApiKey,sendWebhookTest,updateWebhook,webhookEdits,type ApiAccessTransport,
+ accessTokenPrefix,apiKeyPrefix,apiScopePresets,createAccessToken,createApiKey,getApiAccessOptions,isApiCredentialSecret,listApiKeys,listAccessTokens,revokeAccessToken,listWebhookDeliveries,
+ parseApiAccessOptions,parseApiCredential,parseIssuedApiCredential,parseIssuedWebhook,parseWebhook,parseWebhookDelivery,parseWebhookDeliveryPage,parseWebhookList,
+ presetOf,revokeApiKey,sendWebhookTest,updateWebhook,webhookEdits,type ApiAccessTransport,
 } from '../src/api-access.ts';
+import {HttpLocalApi} from '../src/http.ts';
 
 const member={accountId:'owner',username:'sam',profileId:'p1',profile:'Sam'};
 const credential={id:'c1',kind:'key',name:'Automation',scopes:['read','playback'],hint:'abc123',createdAt:'2026-10-13T12:00:00Z',state:'active',member};
@@ -52,17 +53,40 @@ test('credential services call the documented routes', async () => {
  const page=recorder({items:[credential],limit:100,total:1});
  assert.equal((await listApiKeys(page.transport,'next page')).items.length,1);
  assert.equal(page.calls[0].path,'/v1/admin/api-keys?limit=100&cursor=next%20page');
- await listAccessTokens(page.transport,'own next page');
- assert.equal(page.calls[1].path,'/v1/me/access-tokens?limit=100&cursor=own%20next%20page');
  const made=recorder({credential,secret:apiKeyPrefix+'s'});
  await createApiKey(made.transport,{operationId:'op-12345678',name:'Automation',scopes:['read']});
  assert.deepEqual(made.calls[0],{path:'/v1/admin/api-keys',method:'POST',body:{operationId:'op-12345678',name:'Automation',scopes:['read']}});
- const token=recorder({credential:{...credential,kind:'token'},secret:accessTokenPrefix+'s'});
- await createAccessToken(token.transport,{operationId:'op-12345678',name:'Mine',scopes:['read'],expiresAt:'2027-01-01T00:00:00Z'});
- assert.deepEqual(token.calls[0].body,{operationId:'op-12345678',name:'Mine',scopes:['read'],expiresAt:'2027-01-01T00:00:00Z'});
  const revoked=recorder({...credential,state:'revoked'});
  assert.equal((await revokeApiKey(revoked.transport,'c/1')).state,'revoked');
  assert.deepEqual(revoked.calls[0],{path:'/v1/admin/api-keys/c%2F1',method:'DELETE',body:undefined});
+});
+
+test('the personal token panel lists, creates and revokes through the rebuilt server', async () => {
+ const key={id:'own/token',name:'Mine',scopes:['read'],createdAt:'2026-10-13T12:00:00Z'};
+ const calls: unknown[][]=[];
+ const api=new HttpLocalApi('https://server.test','viewer',async (input,init)=>{
+  const path=new URL(String(input)).pathname, method=init?.method;
+  const body=init?.body&&JSON.parse(String(init.body));
+  calls.push([method,path,body,new Headers(init?.headers).get('Idempotency-Key')]);
+  if(path==='/v1/me/api-access')return Response.json({error:{code:'not_found',message:'Not found',retry:false}},{status:404});
+  if(method==='GET')return Response.json({items:[key]});
+  if(method==='POST')return Response.json({key,secret:'pk_example'});
+  return new Response(null,{status:204});
+ });
+ const list=await listAccessTokens(api);
+ assert.equal(list.items[0]?.id,key.id);
+ assert.equal(list.nextCursor,undefined);
+ assert.equal(await getApiAccessOptions(api),undefined);
+ const receipt=await createAccessToken(api,{operationId:'same-draft',name:'Mine',scopes:['read']});
+ assert.equal(receipt.key.id,key.id);
+ assert.equal(receipt.secret,'pk_example');
+ await revokeAccessToken(api,key.id);
+ assert.deepEqual(calls,[
+  ['GET','/v1/me/tokens',undefined,null],
+  ['GET','/v1/me/api-access',undefined,null],
+  ['POST','/v1/me/tokens',{name:'Mine',scopes:['read']},'same-draft'],
+  ['DELETE','/v1/me/tokens/own%2Ftoken',{},null],
+ ]);
 });
 
 const webhook={id:'w1',name:'Home',url:'http://192.168.1.2/hook',events:['playback.started','a.future.event'],enabled:true,createdAt:'2026-10-13T12:00:00Z',waiting:0,dropped:1};
@@ -89,24 +113,6 @@ test('current webhook pages and receipts keep events and distinct log rows', asy
  assert.equal(log.calls[0].path,'/v1/admin/webhooks/w1/deliveries?cursor=c');
 });
 
-test('the title query and the paths-changed report', async () => {
- const row={id:'t1',kind:'movie',title:'A Film',libraryId:'movies',year:2001,available:true,providerIds:{tmdb:'603'}};
- assert.equal(parseTitlePage({items:[row],limit:50,nextCursor:'n'}).items[0].providerIds.tmdb,'603');
- // One title that cannot be read is left out alone; the page size and the cursor stay exact.
- assert.deepEqual(parseTitlePage({items:[{...row,providerIds:undefined},{...row,available:'yes'},row,{...row,title:'Again'}],limit:50,futureField:1}).items.map(t=>t.title),['A Film']);
- assert.throws(()=>parseTitlePage({items:[row],limit:-1}));
- assert.throws(()=>parseTitlePage({items:Array(101).fill(row),limit:50}));
- const titles=recorder({items:[row],limit:2});
- await queryTitles(titles.transport,{library:'movies',kind:'movie',sort:'year',order:'desc',yearFrom:2000,limit:2});
- assert.equal(titles.calls[0].path,'/v1/titles?library=movies&kind=movie&sort=year&order=desc&yearFrom=2000&limit=2');
- const report=recorder({paths:[{path:'/media/a',status:'queued',libraryId:'movies',sourceId:'s',folder:'a'},{path:'/x',status:'outside_libraries'}],jobs:[{id:'j1',status:'queued',processed:0,analyzed:0,warnings:0}]});
- const out=await reportChangedPaths(report.transport,[{path:'/media/a',change:'added'},{path:'/x'}]);
- assert.deepEqual(report.calls[0].body,{paths:[{path:'/media/a',change:'added'},{path:'/x'}]});
- assert.deepEqual(out.jobIds,['j1']);
- assert.equal(out.paths[1].status,'outside_libraries');
- assert.throws(()=>parsePathReport({paths:[{path:'/x',status:'scanning'}],jobs:[]}));
-});
-
 test('webhook form sends only changed fields', () => {
  const was=parseWebhook(webhook);
  assert.deepEqual(webhookEdits(was,{name:'Home',url:webhook.url,events:['a.future.event','playback.started']}),{});
@@ -118,12 +124,4 @@ test('a credential page carries the exact total across pages and refuses a page 
  assert.equal((await listApiKeys(page.transport)).total,250);
  await assert.rejects(listApiKeys(recorder({items:[credential],limit:100}).transport));
  await assert.rejects(listApiKeys(recorder({items:[credential],limit:100,total:-1}).transport));
-});
-
-test('deferred integration work is explicit and never invents job IDs',async()=>{
- const raw={paths:[{path:'/media/A',status:'deferred',scanScope:'source',libraryId:'films',sourceId:'source'}],jobs:[],deferred:true};
- const parsed=parsePathReport(raw);assert.equal(parsed.deferred,true);assert.deepEqual(parsed.jobIds,[]);assert.equal(parsed.paths[0].scanScope,'source');
- assert.throws(()=>parsePathReport({...raw,deferred:'yes'}));assert.throws(()=>parsePathReport({...raw,paths:[{...raw.paths[0],scanScope:'everything'}]}));
- const queued=parsePathReport({paths:[],jobs:[{id:'real'}]});assert.equal(queued.deferred,false);assert.deepEqual(queued.jobIds,['real']);
- const request=recorder(raw);await refreshIntegrationLibraries(request.transport,'films');assert.equal(request.calls[0].path,'/v1/integrations/refresh');assert.deepEqual(request.calls[0].body,{libraryId:'films'});
 });

@@ -1,8 +1,6 @@
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 /** One server-owned show workspace; episode details and playback have separate scoped owners. */
-import {validateContentEntry,type ContentEntry,type ContentProjection,type ContentScope,type LibraryContentApi} from './library-content.ts';
+import {validateContentEntry,type ContentEntry,type ContentProjection,type ContentScope} from './library-content.ts';
 import {firstOfEach,keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
 import {QueryObserver} from '@tanstack/query-core';
 import type {ViewerQueries} from './query/viewer-queries.ts';
@@ -194,11 +192,4 @@ export class ShowWorkspaceService{
  }
  /** How long this page waits for the shared read; the read itself goes on for the cache. */
  private async deadline<T>(p:Promise<T>,c:AbortController):Promise<T>{let timer:ReturnType<typeof setTimeout>|undefined,abort:(()=>void)|undefined;try{return await Promise.race([p,new Promise<never>((_,reject)=>{abort=()=>reject(new Failure('cancelled','Show request cancelled.'));c.signal.addEventListener('abort',abort,{once:true});timer=setTimeout(()=>reject(new Failure('timeout','The server took too long to respond.',true)),this.timeout);})]);}finally{if(timer)clearTimeout(timer);if(abort)c.signal.removeEventListener('abort',abort);}}
-}
-
-/** Stores the owner's settings for one show; the answer is the settings with their new revision. */
-export async function saveShowSettings(api:Pick<LibraryContentApi,'request'>,libraryId:string,showId:string,settings:ShowSettings):Promise<ShowSettings>{
- const raw=await api.request<RouteResponse<"put_admin_libraries_id_shows_show_settings">>(encodedRoutePath("put_admin_libraries_id_shows_show_settings", {"id": encodeURIComponent(libraryId), "show": encodeURIComponent(showId)}),'PUT',settings);
- if(!record(raw)||!count(raw.revision))invalid();
- return Object.freeze({hideSeasons:raw.hideSeasons===true,absoluteNumbering:raw.absoluteNumbering===true,ranges:raw.ranges===true,newestFirst:raw.newestFirst===true,revision:raw.revision as number});
 }

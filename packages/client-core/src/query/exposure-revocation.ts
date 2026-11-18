@@ -1,4 +1,4 @@
-import {routePath} from '../../../contracts/src/routes.ts';
+import {serverPath} from './server-api.ts';
 import {routePath as hostedPath} from '../../../contracts/src/hosted/routes.ts';
 export type ExposedSessions = {origin: string; sessions: readonly {accessToken: string; refreshToken?: string; hosted: boolean}[]};
 type CheckResponse = (url: string, responseUrl: string, status: number, sensitive: boolean) => void;
@@ -10,7 +10,7 @@ type CheckResponse = (url: string, responseUrl: string, status: number, sensitiv
 export async function revokeExposedSessions(exposure: ExposedSessions, checkResponse: CheckResponse, createRequest: () => XMLHttpRequest): Promise<boolean> {
   const results = await Promise.all(exposure.sessions.map(session => new Promise<boolean>(resolve => {
     const xhr = createRequest();
-    const url = exposure.origin + (session.hosted && session.refreshToken ? hostedPath('session_revoke') : routePath('delete_sessions_current'));
+    const url = exposure.origin + (session.hosted && session.refreshToken ? hostedPath('session_revoke') : serverPath('DELETE /v1/auth/session'));
     let done = false;
     const finish = (ok: boolean) => { if (done) return; done = true; clearTimeout(timer); try { xhr.abort(); } catch { /* completed */ } resolve(ok); };
     const timer = setTimeout(() => finish(false), 5000);

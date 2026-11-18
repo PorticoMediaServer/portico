@@ -1,19 +1,15 @@
 import {routeBody} from "../../contracts/src/routes.ts";
-import {serverPath} from './query/server-api.ts';
+import {callServer, notOnThisServer, serverPath} from './query/server-api.ts';
 import type {RequestRaw} from './home-selection/list-destinations.ts';
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath} from "../../contracts/src/route-paths.ts";
-import {wireDurations} from './wire-units.ts';
 /**
- * API keys, personal access tokens, outbound webhooks, and the two routes that
- * exist for tools outside Portico (the bounded title query and the "these paths
- * changed" report).
+ * API keys, personal access tokens, and outbound webhooks.
  *
  * This module is transport and parsing only; nothing here decides policy.
  * What grants access is read whole: a list of keys, tokens or webhooks with a
  * row this app cannot read is refused, so a credential or a destination is
  * never missing from what the owner sees and no scope or state is guessed.
- * Receipts are exact too. The delivery log, the title query and the scopes on
+ * Receipts are exact too. The delivery log and the scopes on
  * offer leave out only the row or the value this app cannot read. Credential secrets pass through an explicit creation or owner recovery
  * request and are never kept by this module. Webhook secret rotation is separate.
  */
@@ -114,20 +110,47 @@ export function parseApiAccessOptions(raw:unknown):ApiAccessOptions{
  return Object.freeze({scopes,maximumKeys:whole(raw.maximumKeys,'maximumKeys'),maximumTokens:whole(raw.maximumTokens,'maximumTokens'),tokensAllowed:flag(raw.tokensAllowed,'tokensAllowed'),requestsPerMinute:whole(raw.requestsPerMinute,'requestsPerMinute'),queryParameter:filled(raw.queryParameter,32,'queryParameter')});
 }
 
-const API_KEYS=routePath("list_api_keys"),MY_TOKENS=routePath("list_access_tokens"),OPTIONS=routePath("get_api_access_options");
+const API_KEYS=routePath("list_api_keys"),OPTIONS=routePath("get_api_access_options");
 const id=(value:string):string=>encodeURIComponent(value);
 const body=(q:NewApiCredential)=>({operationId:q.operationId,name:q.name,scopes:[...q.scopes],...(q.expiresAt?{expiresAt:q.expiresAt}:{})});
 
-export const getApiAccessOptions=async(t:ApiAccessTransport,signal?:AbortSignal):Promise<ApiAccessOptions>=>parseApiAccessOptions(await t.request<unknown>(OPTIONS,'GET',undefined,signal));
+export async function getApiAccessOptions(t:ApiAccessTransport,signal?:AbortSignal):Promise<ApiAccessOptions|undefined>{
+ try{return parseApiAccessOptions(await t.request<unknown>(OPTIONS,'GET',undefined,signal));}
+ catch(error){if(notOnThisServer(error))return undefined;throw error;}
+}
 /** The owner's API keys. */
 export const listApiKeys=async(t:ApiAccessTransport,cursor='',signal?:AbortSignal):Promise<ApiCredentialPage>=>parseApiCredentialPage(await t.request<unknown>(API_KEYS+query({limit:100,cursor}),'GET',undefined,signal));
 /** `operationId` is one per thing the person asked for and is reused on a retry; a retry's answer has no secret. */
 export const createApiKey=async(t:ApiAccessTransport,q:NewApiCredential,signal?:AbortSignal):Promise<IssuedApiCredential>=>parseIssuedApiCredential(await t.request<unknown>(API_KEYS,'POST',body(q),signal));
 export const revokeApiKey=async(t:ApiAccessTransport,keyId:string,signal?:AbortSignal):Promise<ApiCredential>=>parseApiCredential(await t.request<unknown>(`${API_KEYS}/${id(keyId)}`,'DELETE',undefined,signal));
-/** A member's own personal access tokens. */
-export const listAccessTokens=async(t:ApiAccessTransport,cursor='',signal?:AbortSignal):Promise<ApiCredentialPage>=>parseApiCredentialPage(await t.request<unknown>(MY_TOKENS+query({limit:100,cursor}),'GET',undefined,signal));
-export const createAccessToken=async(t:ApiAccessTransport,q:NewApiCredential,signal?:AbortSignal):Promise<IssuedApiCredential>=>parseIssuedApiCredential(await t.request<unknown>(MY_TOKENS,'POST',body(q),signal));
-export const revokeAccessToken=async(t:ApiAccessTransport,tokenId:string,signal?:AbortSignal):Promise<ApiCredential>=>parseApiCredential(await t.request<unknown>(`${MY_TOKENS}/${id(tokenId)}`,'DELETE',undefined,signal));
+export type PersonalAccessToken=Readonly<Pick<ApiCredential,'id'|'name'|'scopes'|'createdAt'|'lastUsedAt'|'expiresAt'>>;
+function parsePersonalAccessToken(raw:unknown):PersonalAccessToken{
+ if(!object(raw)||'secret' in raw)return invalid('personal token');
+ const scopes=list(raw.scopes,apiScopes.length,v=>oneOf(v,apiScopes,'credential scope'),'credential scopes');
+ if(!scopes.length)invalid('credential scopes');
+ return Object.freeze({id:filled(raw.id,128,'credential id'),name:filled(raw.name,160,'credential name'),
+  scopes,createdAt:instant(raw.createdAt,'credential createdAt'),expiresAt:optionalInstant(raw.expiresAt,'credential expiresAt'),
+  lastUsedAt:optionalInstant(raw.lastUsedAt,'credential lastUsedAt')});
+}
+
+/** The rebuilt server lists the member's active tokens. */
+export async function listAccessTokens(t:ApiAccessTransport,cursor='',signal?:AbortSignal){
+ const page=await callServer(t,'GET /v1/me/tokens',{query:{cursor},signal});
+ if(!object(page))return invalid('personal tokens');
+ const items=list(page.items,100,parsePersonalAccessToken,'personal tokens');
+ return Object.freeze({items,nextCursor:optional(page.nextCursor,512,'credential page cursor')});
+}
+export async function createAccessToken(t:ApiAccessTransport,q:NewApiCredential,signal?:AbortSignal){
+ const issued=await callServer(t,'POST /v1/me/tokens',{body:body(q),signal});
+ if(!object(issued))return invalid('issued personal token');
+ const key=parsePersonalAccessToken(issued.key);
+ const secret=optional(issued.secret,512,'credential secret');
+ if(secret!==undefined&&!secret.startsWith('pk_'))invalid('credential secret');
+ return Object.freeze({key,secret});
+}
+export function revokeAccessToken(t:ApiAccessTransport,tokenId:string,signal?:AbortSignal){
+ return callServer(t,'DELETE /v1/me/tokens/{id}',{id:tokenId,signal});
+}
 // ── Webhooks ────────────────────────────────────────────────────────────────
 
 export const webhookEvents=['title.added','title.updated','title.removed','scan.started','scan.finished','playback.started','playback.paused','playback.resumed','playback.stopped',
@@ -195,48 +218,3 @@ export async function sendWebhookTest(t:ApiAccessTransport,webhookId:string,sign
  return Object.freeze({delivered:flag(raw.delivered,'test delivered'),status:raw.status===undefined?undefined:whole(raw.status,'test status'),error:optional(raw.error,1024,'test error')});
 }
 export const listWebhookDeliveries=async(t:ApiAccessTransport,webhookId:string,options:Readonly<{cursor?:string}>={},signal?:AbortSignal):Promise<WebhookDeliveryPage>=>parseWebhookDeliveryPage(await t.request<unknown>(serverPath('GET /v1/admin/webhooks/{id}/deliveries',{id:webhookId,query:{cursor:options.cursor}}),'GET',undefined,signal));
-
-// ── For tools outside Portico ───────────────────────────────────────────────
-
-export const titleKinds=['movie','show','season','episode','artist','album','song','book','author','collection'] as const;
-export type TitleKind=typeof titleKinds[number];
-export type TitleRow=Readonly<{id:string;kind:string;title:string;libraryId:string;year?:number;addedAt?:string;available:boolean;durationSeconds?:number;rating?:number;posterUrl?:string;providerIds:Readonly<Record<string,string>>}>;
-export type TitlePage=Readonly<{items:readonly TitleRow[];limit:number;nextCursor?:string}>;
-/** Either `library` and `kind` (a list), or `provider` and `providerId` (a lookup). A range is
- * accepted only on the key being sorted by: years with `sort:'year'`, added times with `sort:'added'`. */
-export type TitleQuery=Readonly<{library?:string;kind?:TitleKind;sort?:'title'|'added'|'year';order?:'asc'|'desc';yearFrom?:number;yearTo?:number;addedAfter?:string;addedBefore?:string;
- provider?:'tmdb'|'tvdb'|'imdb'|'anilist';providerId?:string;cursor?:string;limit?:number}>;
-
-export function parseTitleRow(raw:unknown):TitleRow{
- raw=wireDurations(raw,{durationSeconds:"durationMs"});
- if(!object(raw)||!object(raw.providerIds))return invalid('title');
- const providerIds:Record<string,string>={};
- for(const [provider,value] of Object.entries(raw.providerIds))providerIds[text(provider,32,'provider')]=filled(value,64,'provider id');
- const number=(v:unknown,what:string):number|undefined=>v===undefined?undefined:typeof v==='number'&&Number.isFinite(v)&&v>=0?v:invalid(what);
- return Object.freeze({id:filled(raw.id,128,'title id'),kind:filled(raw.kind,32,'title kind'),title:text(raw.title,1024,'title'),libraryId:filled(raw.libraryId,128,'title library'),
-  year:number(raw.year,'title year'),addedAt:optional(raw.addedAt,40,'title addedAt'),available:flag(raw.available,'title available'),durationSeconds:number(raw.durationSeconds,'title duration'),
-  rating:number(raw.rating,'title rating'),posterUrl:optional(raw.posterUrl,2048,'title poster'),providerIds:Object.freeze(providerIds)});
-}
-export function parseTitlePage(raw:unknown):TitlePage{
- if(!object(raw))return invalid('title page');
- return Object.freeze({items:Object.freeze(firstOfEach('api-access','titles',keepReadable('api-access','titles',list(raw.items,100,v=>v,'title page items'),parseTitleRow),row=>row.id)),limit:whole(raw.limit,'title page limit'),nextCursor:optional(raw.nextCursor,4096,'title page cursor')});
-}
-export const queryTitles=async(t:ApiAccessTransport,q:TitleQuery,signal?:AbortSignal):Promise<TitlePage>=>parseTitlePage(await t.request<RouteResponse<"query_titles">>(routePath("query_titles") + (query({...q})),'GET',undefined,signal));
-
-export type PathChangeKind='added'|'changed'|'removed';
-export type ReportedPath=Readonly<{path:string;status:'queued'|'deferred'|'outside_libraries'|'invalid';scanScope?:'source';libraryId?:string;sourceId?:string;folder?:string}>;
-export type PathReport=Readonly<{paths:readonly ReportedPath[];jobIds:readonly string[];deferred:boolean}>;
-export function parsePathReport(raw:unknown):PathReport{
- if(!object(raw))return invalid('path report');
- const paths=list(raw.paths,400,v=>object(v)?Object.freeze({path:text(v.path,8192,'reported path'),status:oneOf(v.status,['queued','deferred','outside_libraries','invalid'] as const,'reported path status'),
-  ...(v.scanScope===undefined?{}:{scanScope:oneOf(v.scanScope,['source'] as const,'reported scan scope')}),libraryId:optional(v.libraryId,128,'reported library'),sourceId:optional(v.sourceId,128,'reported source'),folder:optional(v.folder,8192,'reported folder')}):invalid('reported path'),'reported paths');
- const jobIds=list(raw.jobs,4096,v=>object(v)?filled(v.id,128,'job id'):invalid('job'),'jobs');
- return Object.freeze({paths,jobIds,deferred:raw.deferred===undefined?false:flag(raw.deferred,'deferred work')});
-}
-/** Tells the server which absolute paths were added, changed or removed, so it scans only those folders. */
-export const reportChangedPaths=async(t:ApiAccessTransport,paths:readonly Readonly<{path:string;change?:PathChangeKind}>[],signal?:AbortSignal):Promise<PathReport>=>
- parsePathReport(await t.request<RouteResponse<"report_changed_paths">>(routePath("report_changed_paths"),'POST',routeBody("report_changed_paths", {paths:paths.map(p=>p.change?{path:p.path,change:p.change}:{path:p.path})}),signal));
-
-/** Explicit ordinary background refresh; no absence/change result is inferred. */
-export const refreshIntegrationLibraries=async(t:ApiAccessTransport,libraryId?:string,signal?:AbortSignal):Promise<PathReport>=>
- parsePathReport(await t.request<RouteResponse<"refresh_integrations">>(routePath("refresh_integrations"),'POST',routeBody("refresh_integrations",libraryId?{libraryId}:{}),signal));

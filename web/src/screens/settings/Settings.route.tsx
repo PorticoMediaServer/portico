@@ -1,7 +1,7 @@
 import {GeneralPause} from './server/GeneralPause';
 import {OwnerGeneralSettings} from '@core/server-admin/general-settings.ts';
 import {readOwnerSignInConfiguration} from '@core/sign-in-policy.ts';
-import {ownerItemArtworkPath, uploadOwnerProfileAvatar, uploadOwnerMemberAvatar} from '@core/owner-upload-requests.ts';
+import {uploadOwnerProfileAvatar, uploadOwnerMemberAvatar} from '@core/owner-upload-requests.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
 import {forwardFacts, subscribeFacts} from '../../shell/fact-source';
 import {mountQuietInput, type QuietInput} from './quiet-refresh';
@@ -430,7 +430,7 @@ export function SettingsEntry() {
       reportCarry.current = {inputs: carryInputs, report};
       dashboard = createDashboardBindings({api: api, queries: context.freshness?.queries, events: context.events, scope: {serverId: viewer.serverId, viewerId: options.viewerId},
         context: report, role, isCurrent: current, isMainProfile: () => current() && context.facts.identity.primaryProfile === true,
-        artwork: (id, kind, revision) => revision ? context.artwork.foreground(ownerItemArtworkPath(encodeURIComponent(id), kind) + '?' + new URLSearchParams({v: revision}), kind === 'backdrop' ? 800 : 400, kind === 'poster' ? 2 / 3 : kind === 'backdrop' ? 16 / 9 : 1) : undefined,
+        artwork: () => undefined,
         effects: {openHome, openSettings, reportError, openHistory: report => {if (current()) {historyContexts.set(context, report);openSettings('history');}}}});
     }
     // Server › Streaming › Hardware draws measured adapters, formats and probes:

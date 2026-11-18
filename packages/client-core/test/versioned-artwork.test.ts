@@ -20,6 +20,7 @@ test('a versioned artwork route may carry both slot descriptions and nothing els
 test('a Reading cover with slot descriptions is valid for its own item (library pages no longer fail)', () => {
   const url = `/v1/items/book/art/cover?v=${source}${slots}`;
   assert.equal(validReadingCover('book', url), true);
+  assert.equal(validReadingCover('book', '/v1/images/' + source), true);
   assert.equal(validReadingCover('book', undefined), true);
   assert.equal(validReadingCover('other', url), false);
   assert.equal(validReadingCover('book', 42), false);
