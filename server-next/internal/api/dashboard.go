@@ -34,7 +34,8 @@ type Dashboard struct {
 }
 
 // DashboardAlert is one line with one action. Code is storage_nearly_full, backup_failed,
-// data_folder_readable, library_unreachable, remote_unreachable, graphics_device_stopped or update_available; Severity
+// data_folder_readable, library_unreachable, remote_unreachable, certificate_not_renewed (params which: own or
+// portico, expiresAt, and for portico the problem), graphics_device_stopped or update_available; Severity
 // is warning or major.
 type DashboardAlert struct {
 	Code     string            `json:"code"`
@@ -48,7 +49,7 @@ type DashboardAlert struct {
 
 // AlertAction is where the alert's one action goes: storage, backups, fix-permissions (POST
 // /v1/admin/data-folder/permissions/fix, once the owner confirms), library-source (Target is
-// the library), remote-source (Target is the source), streaming or update; none is an alert nothing in
+// the library), remote-source (Target is the source), remote-access, streaming or update; none is an alert nothing in
 // the app can cure, whose params say why.
 type AlertAction struct {
 	Kind   string `json:"kind"`
@@ -241,6 +242,9 @@ func (s *Server) scanLine(j db.Job, lib db.AdminLibrary) DashboardScan {
 	return out
 }
 
+// porticoRenewalLate is how long before the Portico certificate expires its renewal counts as failed.
+const porticoRenewalLate = 7 * 24 * time.Hour
+
 // alerts are the causes that last now, most urgent first: free space, a failed backup, a data
 // folder other accounts can open, a library folder or remote source that cannot be reached,
 // then a new version.
@@ -289,6 +293,17 @@ func (s *Server) alerts(libraries []db.AdminLibrary, sources []db.RemoteSource) 
 			add("remote_unreachable", "major", map[string]string{"source": src.Name, "reason": src.State, "problem": clip(src.LastError)},
 				"remote-source", src.PublicID, 0)
 		}
+	}
+	// The secure connection could not renew (console rule 10): the owner's own certificate in
+	// the warning time they chose, or the Portico one a week from expiring, long past the point
+	// it is always renewed by (58% to 76% of its life).
+	if st := s.certs.Status(); st.ExpiresSoon && st.ExpiresAt != nil {
+		add("certificate_not_renewed", "major", map[string]string{"which": "own", "expiresAt": st.ExpiresAt.UTC().Format(time.RFC3339)},
+			"remote-access", "", 0)
+	}
+	if st := s.portico.Status(); st.CertificateReady && st.ExpiresAt != nil && s.now().Add(porticoRenewalLate).After(*st.ExpiresAt) {
+		add("certificate_not_renewed", "major", map[string]string{"which": "portico", "expiresAt": st.ExpiresAt.UTC().Format(time.RFC3339),
+			"problem": clip(st.LastProblem)}, "remote-access", "", 0)
 	}
 	for _, p := range decoder.ProbeObservations() {
 		if p.Stopped {
