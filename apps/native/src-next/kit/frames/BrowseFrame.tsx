@@ -1,4 +1,4 @@
-import React, {type ReactNode} from 'react';
+import React, {useState, type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
@@ -122,9 +122,12 @@ function Pane({filters}: {filters: BrowseFiltersProps}) {
  * landscape tablet's pane is docked in the page instead. */
 function FiltersSurface({filters, testID}: {filters: BrowseFiltersProps; testID?: string}) {
   const theme = useTheme(), {form} = useFrameMetrics(), t = defaultI18n.t;
+  // The upright pane stays mounted after it closes until its exit has played (FiltersOver calls onExited).
+  const [over, setOver] = useState(filters.open);
+  if (filters.open && !over) setOver(true);
   const close = (open: boolean) => {if (!open) filters.onClose();};
   const show = <Button focusId="apply" variant="primary" onPress={filters.onDone} style={{flex: 1}}>{filters.count ? t('next.browse.native.showResults', {results: filters.count}) : t('next.controls.done')}</Button>;
-  if (form === 'medium') return filters.open ? <FiltersOver open onDismiss={filters.onClose} onExited={filters.onClose}><Pane filters={filters}/></FiltersOver> : null;
+  if (form === 'medium') return over ? <FiltersOver open={filters.open} onDismiss={filters.onClose} onExited={() => setOver(false)}><Pane filters={filters}/></FiltersOver> : null;
   if (form === 'expanded') return null;
   if (form === 'tv') return <SidePanel testID={testID} open={filters.open} onOpenChange={close} title={t('next.browse.native.filters')} description={filters.count && t('next.browse.native.resultsMatch', {results: filters.count})}
     width={frameSpec.browse.filtersWidth.tv} topInset={0} showClose={false}

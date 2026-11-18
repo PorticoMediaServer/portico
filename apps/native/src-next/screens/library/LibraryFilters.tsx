@@ -3,7 +3,7 @@ import {Text, View} from 'react-native';
 import type {BrowseNode} from '../../../../../packages/client-core/src/browse';
 import {browseToolbarModel} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {FilterBuilder, FiltersPane, libraryFiltersTabletPane, type BrowseLabels, type FilterFieldState, type FiltersPaneGeometry} from '../../kit/browse';
+import {FilterBuilder, FiltersPane, type BrowseLabels, type FilterFieldState, type FiltersPaneGeometry} from '../../kit/browse';
 import {frameSpec} from '@portico/design';
 import {Button} from '../../kit/controls';
 import {useFocusRegistry} from '../../kit/focus';
@@ -16,10 +16,8 @@ import {libraryFilterChange, libraryFilterField} from './filter-controls';
 import {NativeLibraryFilterDraft} from './filters';
 import {nativeLibraryCanSave, type NativeLibrarySnapshot, type NativeLibraryViewDraft} from './model';
 
-/** tablet.html #4 docks the panel at 380; #5 draws it 420 over the upright grid (`frameSpec.browse.filtersWidth`). */
+/** tablet.html #4 docks the panel beside the grid (`frameSpec.browse.filtersWidth`). */
 export const libraryFiltersDockWidth = frameSpec.browse.filtersWidth.expanded;
-export const libraryFiltersOverWidth = frameSpec.browse.filtersWidth.medium;
-export {libraryFiltersTabletPane};
 
 export function LibraryFilters({draft, source, runtime, labels, owner, onClose, onExited, onSave, docked = false, geometry}: {draft: NativeLibraryFilterDraft; source: NativeLibrarySnapshot; runtime: NativeShellRuntime; labels: BrowseLabels; owner: boolean; onClose: () => void;
   /** The phone sheet has finished closing: its host can drop the draft, so a closed sheet never stays mounted. */

@@ -87,8 +87,6 @@
 .libraryCards[data-compact='true'] { flex-direction: column; gap: 14px; }
 @media (max-width: 599px) { .libraries { padding: 22px var(--shell-gutter) 88px; } }
 @media (max-width: 599px) { .librariesBody { padding: 0; } }
-.shelfHeading { border: 0; padding: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; display: inline-flex; align-items: center; gap: 1px; cursor: pointer; text-align: left; }
-.shelfHeading svg { flex: none; color: var(--color-text-tertiary); }
 
 .unmatchedHelp {
   margin: 24px var(--shell-gutter);

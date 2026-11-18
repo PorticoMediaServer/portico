@@ -1,9 +1,10 @@
-import type {ReactNode} from 'react';
+import type {CSSProperties, ReactNode} from 'react';
+import {frameSpec} from '@design';
 import type {FactPart} from '@core/presentation/kit-model';
 import {FiltersSurface, LibraryHeader, StickyBrowseHeader} from '../browse';
 import {Tabs, type ChoiceItem} from '../controls';
 import {Hero, type HeroCandidate, type HeroProps} from '../layout';
-import {usePhone} from '../overlays/shared';
+import {useFrameForm, usePhone} from '../overlays/shared';
 import {Skeleton} from '../states';
 import {useCoarsePointer} from '../theme';
 import {PageHeader, PageStateFrame, type PageHeaderProps, type PageStateProps} from './frames';
@@ -60,17 +61,19 @@ export type BrowseFrameProps = Readonly<{
  * (packages/design). The frame owns the header, gutters, the space between regions and rows, and page-level states; the shell
  * owns the nav and tab bar around it, and the window owns the backdrop. */
 export function BrowseFrame({header, hero, toolbar, grid, alphabet, filters, state, children}: BrowseFrameProps) {
-  const phone = usePhone(), coarse = useCoarsePointer();
+  // The window's form, kept current on resize (it was read from the window during render).
+  const form = useFrameForm(), phone = form === 'phone', coarse = useCoarsePointer();
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure, gridded = !!grid || loading && !!toolbar;
   // A touch tablet docks Filters beside the grid (tablet 4); a pointer gets the side panel over the page (desktop-browse filters).
-  const docked = !phone && coarse && !!filters?.open && typeof window !== 'undefined' && window.innerWidth >= 1024;
-  return <div className={`${frames.frame} ${styles.browse}`} data-hero={hero ? true : undefined} data-header={header ? true : undefined} data-grid={gridded || undefined} data-docked={docked || undefined}>
+  const docked = coarse && !!filters?.open && form === 'expanded';
+  const dock = docked ? {'--browse-dock': `${frameSpec.browse.filtersWidth.expanded}px`} as CSSProperties : undefined;
+  return <div style={dock} className={`${frames.frame} ${styles.browse}`} data-hero={hero ? true : undefined} data-header={header ? true : undefined} data-grid={gridded || undefined} data-docked={docked || undefined}>
     {header ? <BrowseHeader {...header} phone={phone} /> : hero ?? <div className={styles.top} />}
     {toolbar}
     {failure ? <PageStateFrame {...failure} /> : gridded
       ? <div className={styles.content}>{loading ? <GridSkeleton /> : grid}{alphabet && !loading && <div className={styles.alphabet}>{alphabet}</div>}</div>
       : <div className={styles.rows}>{loading ? <RowsSkeleton /> : children}</div>}
-    {filters && <FiltersSurface form={phone ? 'sheet' : docked ? 'docked' : 'panel'} medium={!phone && typeof window !== 'undefined' && window.innerWidth < 1024} open={filters.open} onClose={filters.onClose}
+    {filters && <FiltersSurface form={phone ? 'sheet' : docked ? 'docked' : 'panel'} medium={form === 'medium'} open={filters.open} onClose={filters.onClose}
       onClear={filters.onClear} count={filters.count} save={phone ? filters.save : undefined}>{filters.children}</FiltersSurface>}
   </div>;
 }

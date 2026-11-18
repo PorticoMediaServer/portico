@@ -109,6 +109,10 @@ export const frame = {
     /** Filters: a sheet on a phone; over the grid on an upright tablet (tablet 5, 420); a column docked beside the grid on a
      * landscape tablet (tablet 4, 380); the web's side panel (desktop-browse filters, 520); TV's side sheet (680). */
     filtersWidth: {...forms(0, 420, 380, 680), web: 520},
+    /** A tablet toolbar narrower than this (upright, or beside the docked pane) keeps Filters, sort and grid / list in its bar
+     * and puts the quick chips or the applied filters, with the count, on a second line (tablet 4 and 5): on one line everything
+     * needs about this much before the quick chips have room. */
+    narrowToolbar: 860,
   },
   /** Frame 8 and rule 12: every region is placed from the frame's edges, so nothing moves when content is missing.
    * The phone (phone-app 14 and 15) is one column; the wide forms (desktop-listen "now" and "book-player", tablet-play

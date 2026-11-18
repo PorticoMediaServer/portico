@@ -111,7 +111,7 @@ test('a library page renders with no selection port and routes the supplied tabl
     const tree = host.render(() => module.LibraryScreen(props));
     assert.ok(elements(tree).some(node => node.props.testID === 'native-library-movies'));
     if (selection) {
-      const header = elements(tree).find(node => node.type === (width >= 1024 ? module.LibraryExpandedHeader : module.LibraryMediumHeader));
+      const header = elements(tree).find(node => node.type === (width >= 1024 ? 'LibraryExpandedHeader' : 'LibraryMediumHeader'));
       assert.ok(header, `${width} draws the ${width >= 1024 ? 'expanded' : 'medium'} library header`);
       const button = header.props.selection;
       assert.equal(button?.props.testID, 'library-select-header');

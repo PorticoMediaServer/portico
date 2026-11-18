@@ -38,16 +38,16 @@ export function StickyBrowseHeader({name, switcher, menu, children, onLibraries,
   return <TopBar testID={testID} surface safeArea={safeArea} back={back ?? (onLibraries ? {label: t('next.browse.native.libraries'), onPress: onLibraries} : undefined)} title={switcher ? undefined : name} center={switcher || undefined} trailing={menu}>{children}</TopBar>;
 }
 
-/** tablet4 (moved from screens/library; BrowseFrame draws it): the expanded library header is the desktop one at touch size: the
- * 44 pt title with its switcher beside it, then Select and the library menu at
- * the right, and the pivot strip on the drawn hairline. The sidebar already says
- * where you are, so there is no back control. */
 /** A library's counts under its title (final3-desktop-12, desktop-listen music and books). */
 function LibraryCounts({counts, style}: {counts?: readonly FactPart[]; style?: StyleProp<ViewStyle>}) {
   const theme = useTheme();
   return counts?.length ? <View style={[{flexDirection: 'row', flexWrap: 'wrap', gap: 12}, style]}>{counts.map(part => <Text key={part.id} style={[browseType(theme, theme.isTV ? 22 : 15), {color: theme.colors.textTertiary}]}>{part.text}</Text>)}</View> : null;
 }
 
+/** tablet4 (moved from screens/library; BrowseFrame draws it): the expanded library header is the desktop one at touch size: the
+ * 44 pt title with its switcher beside it, then Select and the library menu at
+ * the right, and the pivot strip on the drawn hairline. The sidebar already says
+ * where you are, so there is no back control. */
 export function LibraryExpandedHeader({name, counts, switcher, menu, ambient, selection, children, testID}: {
   name: string; counts?: readonly FactPart[]; switcher?: ReactNode; menu?: ReactNode; ambient?: ReactNode; selection?: ReactNode; children?: ReactNode; testID?: string;
 }) {
@@ -125,7 +125,8 @@ export function LibraryMenu(props: LibraryMenuProps) {
   const setOpen = (next: boolean) => {if (props.open === undefined) setLocalOpen(next); props.onOpenChange?.(next);};
   const action = (run: () => void) => () => {setOpen(false); run();};
   return <>
-    <Button ref={anchorRef} testID={props.testID} variant="icon" icon="i-more" size="compact" iconOnly onPress={() => setOpen(!open)} accessibilityLabel={t('next.browse.native.libraryOptions')} accessibilityState={{expanded: open}}/>
+    {/* By place: in a phone's top bar the ⋯ is a bare glyph (phone-app 4, 5); in a page header a rounded glass square (tablet 4, 5). */}
+    <Button ref={anchorRef} testID={props.testID} variant={theme.platform === 'phone' ? 'text' : 'glass'} icon="i-more" size="compact" iconOnly onPress={() => setOpen(!open)} accessibilityLabel={t('next.browse.native.libraryOptions')} accessibilityState={{expanded: open}}/>
     <Popover testID={props.testID ? `${props.testID}-surface` : undefined} open={open} onOpenChange={setOpen} anchorRef={anchorRef} returnFocusRef={anchorRef} title={t('next.browse.native.libraryOptions')} accessibilityLabel={t('next.browse.native.libraryOptions')} placement="bottom-end" width={theme.isTV ? 560 : 282} offset={2} modal backdropOpacity={.62}>
       <MenuRow focusId="save-view" preferredFocus testID={props.testID ? `${props.testID}-save-view` : undefined} label={t('next.browse.native.saveThisView')} icon="i-filter" trailing={props.viewSummary} variant="compact" disabled={props.canSaveView === false} onPress={action(props.onSaveView)}/>
       {props.onMarkAll && <MenuRow focusId="mark-all" testID={props.testID ? `${props.testID}-mark-all` : undefined} label={t(props.read ? 'next.browse.native.markAllRead' : 'next.browse.native.markAllWatched')} icon="i-check" trailing={props.count} variant="compact" onPress={action(props.onMarkAll)}/>}

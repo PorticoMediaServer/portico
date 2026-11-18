@@ -14,7 +14,8 @@
 .content { position: relative; flex: 1; min-height: 0; display: flex; margin-top: var(--frame-browse-grid-gap); padding: 0 var(--g); }
 .content > :first-child { flex: 1; min-width: 0; }
 .alphabet { position: absolute; top: 0; right: 0; width: var(--g); display: flex; justify-content: center; }
-.browse[data-docked] > * { margin-right: var(--frame-browse-filters); }
+/* The docked pane's width (frameSpec.browse.filtersWidth.expanded), set by BrowseFrame from the same number the pane is drawn at. */
+.browse[data-docked] > * { margin-right: var(--browse-dock); }
 .skeletonRow { padding-left: var(--g); display: flex; flex-direction: column; gap: var(--frame-row-heading-gap); }
 .skeletonCards { display: flex; gap: var(--row-gap); overflow: hidden; }
 .skeletonCards > * { flex: none; }
