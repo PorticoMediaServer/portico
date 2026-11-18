@@ -951,30 +951,16 @@ func loadImages(ctx context.Context, tx *sql.Tx, items []Item) error {
 	if len(items) == 0 {
 		return nil
 	}
-	byID := map[int64][]Image{}
+	ids := make([]int64, 0, len(items))
 	for _, item := range items {
-		byID[item.ID] = nil
+		ids = append(ids, item.ID)
 		if item.imageParentID != 0 {
-			byID[item.imageParentID] = nil
+			ids = append(ids, item.imageParentID)
 		}
 	}
-	ids := make([]int64, 0, len(byID))
-	for id := range byID {
-		ids = append(ids, id)
-	}
-	rows, err := tx.QueryContext(ctx, `SELECT item_id, id, role, ifnull(file_hash, ''), ifnull(width, 0), ifnull(height, 0),
-		ifnull(placeholder, '') FROM images WHERE item_id IN `+intList(ids)+` AND selected = 1 ORDER BY item_id, role`)
+	byID, err := selectedImages(ctx, tx, ids)
 	if err != nil {
 		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var itemID int64
-		var image Image
-		if err := rows.Scan(&itemID, &image.ID, &image.Role, &image.FileHash, &image.Width, &image.Height, &image.Placeholder); err != nil {
-			return err
-		}
-		byID[itemID] = append(byID[itemID], image)
 	}
 	for n := range items {
 		items[n].Images = byID[items[n].ID]
@@ -982,5 +968,33 @@ func loadImages(ctx context.Context, tx *sql.Tx, items []Item) error {
 			items[n].Images = byID[items[n].imageParentID]
 		}
 	}
-	return rows.Err()
+	return nil
+}
+
+// imageQueryer is a connection or transaction that can read many rows.
+type imageQueryer interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+// selectedImages reads the chosen pictures of the titles named, by title.
+func selectedImages(ctx context.Context, q imageQueryer, ids []int64) (map[int64][]Image, error) {
+	out := map[int64][]Image{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := q.QueryContext(ctx, `SELECT item_id, id, role, ifnull(file_hash, ''), ifnull(width, 0), ifnull(height, 0),
+		ifnull(placeholder, '') FROM images WHERE item_id IN `+intList(ids)+` AND selected = 1 ORDER BY item_id, role`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var itemID int64
+		var image Image
+		if err := rows.Scan(&itemID, &image.ID, &image.Role, &image.FileHash, &image.Width, &image.Height, &image.Placeholder); err != nil {
+			return nil, err
+		}
+		out[itemID] = append(out[itemID], image)
+	}
+	return out, rows.Err()
 }
