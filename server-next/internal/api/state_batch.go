@@ -103,6 +103,28 @@ func (s *Server) stateBatchRoutes() {
 		if err != nil {
 			return StateBatchReply{}, err
 		}
+		// Edits for titles merged into others since the device queued them go to the titles that remain.
+		var again []db.ItemEdit
+		var at []int
+		for n, refusal := range refusals {
+			if !errors.Is(refusal, db.ErrNotFound) {
+				continue
+			}
+			if kept, err := s.db.MergedInto(r.Context(), edits[n].ItemID); err == nil {
+				edit := edits[n]
+				edit.ItemID = kept
+				again, at = append(again, edit), append(at, n)
+			}
+		}
+		if len(again) > 0 {
+			retried, retriedRefusals, err := s.db.SetStates(r.Context(), db.User, viewer(r), again)
+			if err != nil {
+				return StateBatchReply{}, err
+			}
+			for i, n := range at {
+				states[n], refusals[n] = retried[i], retriedRefusals[i]
+			}
+		}
 		if out.Plays, err = s.offlinePlays(r, req.Plays); err != nil {
 			return StateBatchReply{}, err
 		}

@@ -360,6 +360,13 @@ func (s *Server) catalogueRoutes() {
 			InList: req.InList, Hidden: req.NotInterested, Rating: req.Rating.Value, ClearRating: req.Rating.Set && req.Rating.Value == nil,
 			DismissContinue: req.ContinueDismissed, Ago: time.Duration(req.MadeAgoMs) * time.Millisecond}
 		state, undo, err := s.db.SetState(r.Context(), viewer(r), r.PathValue("id"), edit)
+		if errors.Is(err, db.ErrNotFound) {
+			// A title merged into another since the app learnt its id (an offline device's
+			// queued edit): the edit is for the title that remains.
+			if kept, merged := s.db.MergedInto(r.Context(), r.PathValue("id")); merged == nil {
+				state, undo, err = s.db.SetState(r.Context(), viewer(r), kept, edit)
+			}
+		}
 		if err != nil {
 			return StateReply{}, refuse(err)
 		}
