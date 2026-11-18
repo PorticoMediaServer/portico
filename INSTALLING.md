@@ -366,46 +366,27 @@ forms and cross-site preflights cannot claim the server. Native API clients may 
 
 ## Backup and restore
 
-Settings → Server → Storage & backups provides backup and restore controls.
-A manual backup creates `Database/server.sqlite`, a checksum manifest,
-`portico.toml`, `Metadata/` and `Keys/`. It excludes media, recordings, Cache,
-Logs, Temp and transcodes. A database backup is not a backup of your collection.
+The Backups page in the server settings makes a backup: one `.tar.gz` in the data folder's `backups`
+folder (or the folder you chose), holding the database (`main.db`), the two key files that
+open what it keeps sealed (`secrets.key`, `remote-sources.key`), the pictures people uploaded
+and downloaded subtitles. Never media, recordings, the cache, logs or conversions. Keep a copy
+on another disk.
 
-The API can start a backup with
-`POST /v1/admin/backups {"operationId":"backup-20261013-1"}`. It answers
-`202 {"jobId":"…"}`. Poll `GET /v1/admin/backups`: `running` reports progress,
-and the finished entry appears in `backups`. Copy the whole finished backup
-directory to separate storage. Scheduled copies use the configured keep count;
-manual copies remain until deleted.
+To restore from the app, choose the backup and Restore: it takes the owner signed in, asks
+for the password or PIN again, restarts the server, and everyone signs in again.
 
-To restore a listed backup, send
-`POST /v1/admin/backups/restore {"operationId":"restore-20261013-1","source":{"backupId":"…"}}`.
-A full backup folder or supported standalone database file can instead be named
-with `source.path`, an absolute path on the server. Poll the same list for the
-restore job. Validation and copying happen in the background. The server stages
-the result and restarts; the connection dropping during that restart is expected.
-After it returns, sign in again and check `lastRestore`, your libraries and keys.
+To restore by hand, as you would swap a Plex database:
 
-Restore requires the server's single-instance lock. It refuses databases from
-an incompatible prerelease schema or a newer schema; do not assume an arbitrary
-old backup is accepted by a new build. Restore keeps the preceding database and
-state in a pre-restore folder beside the live database. If applying a staged
-restore cannot be completed safely, startup refuses a partial state; fix the
-reported disk or permission problem and start again. Keep those recovery files.
+1. Stop Portico.
+2. In the data folder, put your copy in place of `main.db` (from a backup, take `main.db` out of its `.tar.gz`), and delete `main.db-wal` and `main.db-shm` if they are there.
+3. Start Portico.
 
-People are signed out by restore. Passwords, two-factor seeds and approved
-devices return to their backup-time state. API keys and personal tokens survive,
-so a credential revoked after the backup may work again; review their lists.
-Owner-supplied certificates outside the selected state files, host service
-configuration, media and recordings need their own backups.
-
-For a complete offline recovery copy, stop Portico cleanly and copy the entire
-state folder, plus external media/recording/certificate folders you need. Never
-copy only the live `portico.db` while it is running: SQLite may also have data
-in its WAL. Restore an offline copy while stopped, preserve the old folder,
-retain ownership/ACLs, and start the same build first. A raw filesystem copy
-contains live session material; protect it as a secret and prefer the built-in
-restore path when restoring its database.
+A copy of `main.db` you took while Portico was stopped works the same way; never copy it while
+Portico is running. The search index and the TV guide rebuild by themselves. On another
+computer, also copy `secrets.key` and `remote-sources.key` from the same backup. Portico
+refuses a file that is not a readable database, or one from a newer Portico, and says why
+without changing it: put the previous `main.db` back, or install that version. Before the
+first release, a database from an older test build is refused the same way.
 
 ## Reverse proxy and overlays
 
