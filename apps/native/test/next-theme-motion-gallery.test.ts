@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import {createTheme, fontFamilies, nativeType} from '../src-next/kit/theme.ts';
 import {motionPolicy} from '../src-next/platform/motion-policy.ts';
 import {collectGalleries, galleriesForPlatform, kitSelectionFromURL, type Gallery, type GalleryContext} from '../src-next/dev/gallery-registry.ts';
-import {colors, layout, platformRadii, typeScale, springs} from '@portico/design';
+import {colors, emphasis, formScale, layout, platformRadii, typeScale, springs, type FrameForm, type TypeRole, type TypeStyle} from '@portico/design';
+
+// R2 + R3: a role's native style is its form's column of the form scale, carrying its level's colour when it has one.
+const formRole = (form: FrameForm, role: string, style: TypeStyle, textScale = 1) => {
+  const level = formScale.emphasis[form][role as TypeRole];
+  return level ? {...nativeType(style, textScale), color: colors[emphasis.level[level]]} : nativeType(style, textScale);
+};
 
 test('theme maps every accepted role, normal metrics and exact family registration', () => {
   assert.equal(fontFamilies[800], 'Manrope-ExtraBold');
@@ -17,7 +23,7 @@ test('theme maps every accepted role, normal metrics and exact family registrati
   assert.equal(phone.type.lockup.fontSize, 46); assert.equal(tv.type.lockup.fontSize, 120);
   assert.equal(phone.type.lockup.letterSpacing, -2.07); assert.equal(tv.type.lockup.letterSpacing, -.045 * 120);
   assert.equal('lineHeight' in phone.type.nav, false);
-  for (const [name, style] of Object.entries(typeScale.handheld)) assert.deepEqual(phone.type[name as keyof typeof phone.type], nativeType(style));
+  for (const [name, style] of Object.entries(typeScale.handheld)) assert.deepEqual(phone.type[name as keyof typeof phone.type], formRole('phone', name, style), `R2/R3: phone ${name} is the handheld column with its emphasis colour`);
 });
 test('native windows change layout and type at the canonical boundaries without changing TV', () => {
   for (const width of [390, layout.breakpoint.phone - 1, layout.breakpoint.phone, 768, layout.breakpoint.desktop - 1]) {
@@ -27,15 +33,18 @@ test('native windows change layout and type at the canonical boundaries without 
     assert.equal(theme.layoutMode, 'phone');
     assert.equal(theme.gutter, width < layout.breakpoint.phone ? layout.gutter.phone : layout.gutter.tablet);
     assert.deepEqual(theme.type.lockup, nativeType(typeScale.handheld.lockup));
+    assert.equal(theme.form, width < layout.breakpoint.phone ? 'phone' : 'medium');
   }
   for (const width of [layout.breakpoint.desktop, 1280, layout.designWidth.desktop - 1, layout.designWidth.desktop, 1920]) {
     const theme = createTheme({isTV: false, width, textScale: 1.25, reduceMotion: true});
+    // R2: a touch window from 1024 is `expanded`, a tablet: the wide STRUCTURE (`platform`/`layoutMode`) with the tablet's sizes and type.
     assert.equal(theme.platform, 'web');
     assert.equal(theme.layoutMode, 'desktop');
+    assert.equal(theme.form, 'expanded'); assert.equal(theme.column, 'tablet');
     assert.equal(theme.spec.card.width.poster[theme.platform], theme.spec.card.width.poster.web);
     assert.equal(theme.gutter, width < layout.designWidth.desktop ? layout.gutter.desktopNarrow : layout.gutter.desktop);
     assert.equal(theme.reduceMotion, true);
-    for (const [role, style] of Object.entries(typeScale.desktop)) assert.deepEqual(theme.type[role as keyof typeof theme.type], nativeType(style, 1.25));
+    for (const [role, style] of Object.entries(formScale.type.expanded)) assert.deepEqual(theme.type[role as keyof typeof theme.type], formRole('expanded', role, style, 1.25), `R2: from 1024 the native ${role} is the tablet column, not the web's`);
   }
   for (const width of [390, 1024, 1440, 1920]) {
     const theme = createTheme({isTV: true, width});

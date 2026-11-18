@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {registerHooks} from 'node:module';
 import React, {type ReactElement, type ReactNode} from 'react';
 import {transformSync} from 'rolldown/utils';
-import {createTheme, fontFamilies, nativeType} from '../src-next/kit/theme.ts';
+import {createTheme, fontFamilies, nativeType, titleLine} from '../src-next/kit/theme.ts';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {dispatchMenuKey} from '../src-next/platform/menu-key.ts';
 
@@ -14,7 +14,7 @@ import {dispatchMenuKey} from '../src-next/platform/menu-key.ts';
 // The actual family components, callback closures and lifecycle run unchanged;
 // device layout, decoding, gestures and D-pad focus require Android evidence.
 const state = {
-  theme: createTheme({isTV: false, width: 390}), fontFamilies, nativeType,
+  theme: createTheme({isTV: false, width: 390}), fontFamilies, nativeType, titleLine,
   os: 'android' as 'android' | 'ios',
   slot: {active: true, recovering: false, gaveUp: false, cached: false, attempt: 0, loaded() {}, failed() {}},
   timings: [] as {toValue: number; duration: number}[],
@@ -38,7 +38,7 @@ const animated = data(`import {useRef} from ${JSON.stringify(import.meta.resolve
   export const useSharedValue=value=>useRef({value}).current,useAnimatedStyle=fn=>fn(),cancelAnimation=()=>{},withTiming=value=>{globalThis.__porticoFamilyRenderTest.workletTargets.push(value);return value;},withSpring=value=>value,withDelay=(_,value)=>value,runOnJS=fn=>fn,runOnUI=fn=>fn,useAnimatedRef=()=>useRef(null),useAnimatedScrollHandler=()=>{},useAnimatedReaction=()=>{},scrollTo=()=>{};
   export const Easing={bezier:()=>v=>v,linear:v=>v},ReduceMotion={Never:'never'};
   export default {View:'AnimatedView',ScrollView:'AnimatedScrollView',createAnimatedComponent:c=>c};`);
-const theme = data(`const s=globalThis.__porticoFamilyRenderTest;export const useTheme=()=>s.theme,fontFamilies=s.fontFamilies,nativeType=s.nativeType,activeTextScale=()=>s.theme.textScale,ThemeProvider='ThemeProvider';`);
+const theme = data(`const s=globalThis.__porticoFamilyRenderTest;export const useTheme=()=>s.theme,fontFamilies=s.fontFamilies,nativeType=s.nativeType,titleLine=s.titleLine,activeTextScale=()=>s.theme.textScale,ThemeProvider='ThemeProvider';`);
 const pipeline = data(`export const useArtworkPlacement=()=>({row:0,column:0}),useArtworkSlot=()=>globalThis.__porticoFamilyRenderTest.slot,sizedUri=uri=>uri;`);
 const gesture = data(`const pan=()=>new Proxy({}, {get:()=>()=>pan()});export const Gesture={Pan:pan,Native:pan,Race:pan,Simultaneous:pan};export const GestureDetector='GestureDetector';`);
 const svg = data(`export default 'Svg';export const Defs='Defs',LinearGradient='LinearGradient',RadialGradient='RadialGradient',Rect='Rect',Stop='Stop',Path='Path',Circle='Circle',Ellipse='Ellipse',Line='Line',Polyline='Polyline',Polygon='Polygon',G='G',ClipPath='ClipPath',Mask='Mask',Use='Use',Text='SvgText';`);

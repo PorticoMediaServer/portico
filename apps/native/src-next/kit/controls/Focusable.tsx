@@ -9,6 +9,7 @@ import {useFocusedMenu} from './useFocusedMenu';
 import {useOverlayPaintMode} from '../overlays/OverlayPaintContext';
 import {useCovered, useFocusTarget} from '../focus';
 import {useNativeObservation} from '../dev-observation';
+import {focusFromTouch, noteTouch} from './touch-focus';
 
 export type ControlState = PressableStateCallbackType & {focused: boolean; hovered: boolean};
 export type FocusableProps = Omit<PressableProps, 'children' | 'hasTVPreferredFocus'> & {
@@ -56,12 +57,9 @@ const PressableStyleAdapter = forwardRef<View, PressableStyleAdapterProps>(funct
 });
 const AnimatedPressable = Animated.createAnimatedComponent(PressableStyleAdapter);
 
-/** The Android line (round 8): a focus ring is for keyboard and D-pad focus, never for touch. A touch hands focus to
- * what it opens (a sheet's first row, a dialog's Cancel) without the viewer having aimed at it, so focus that arrives
- * in the moment after a touch is not drawn. A key press has no touch before it, so its focus is. TV is always keys. */
-let lastTouch = 0;
-export function noteTouch(): void {lastTouch = Date.now();}
-export function focusFromTouch(isTV: boolean): boolean {return !isTV && Date.now() - lastTouch < 1000;}
+// The Android line (round 8): no ring for focus that a touch handed over. The rule is `./touch-focus`; it is
+// re-exported here so a part with its own Pressable calls it from the kit `Focusable`'s module.
+export {focusFromTouch, noteTouch};
 
 /** The platform moves focus; this primitive only draws it and owns its Menu registration. */
 export const Focusable = forwardRef<View, FocusableProps>(function Focusable({

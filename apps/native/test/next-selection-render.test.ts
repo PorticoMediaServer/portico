@@ -8,7 +8,7 @@ import {registerHooks} from 'node:module';
 import React, {type ReactElement, type ReactNode} from 'react';
 import {transformSync} from 'rolldown/utils';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
-import {createTheme, fontFamilies, nativeType} from '../src-next/kit/theme.ts';
+import {createTheme, fontFamilies, nativeType, titleLine} from '../src-next/kit/theme.ts';
 import type {BulkEditorProps, DeleteMediaDialogProps, SelectionBarProps} from '../src-next/kit/selection/types.ts';
 
 // Exercise the actual family, controls and overlay composition. Only native
@@ -16,7 +16,7 @@ import type {BulkEditorProps, DeleteMediaDialogProps, SelectionBarProps} from '.
 // element/hook harness cannot establish native layout or physical D-pad focus.
 const keyboardListeners = new Map<string, (event?: any) => void>();
 Object.assign(globalThis, {__porticoSelectionKeyboard: keyboardListeners, __porticoKeyboardControllerListeners: keyboardListeners});
-const state = {viewport: {width: 1920, height: 1080, scale: 1, fontScale: 1}, theme: createTheme({isTV: true, width: 1920}), fontFamilies, nativeType, menuKeyEnabled: false};
+const state = {viewport: {width: 1920, height: 1080, scale: 1, fontScale: 1}, theme: createTheme({isTV: true, width: 1920}), fontFamilies, nativeType, titleLine, menuKeyEnabled: false};
 const stateKey = '__porticoSelectionRenderTest';
 Object.assign(globalThis, {[stateKey]: state});
 const moduleURL = (source: string) => `data:text/javascript,${encodeURIComponent(source)}`;
@@ -35,7 +35,7 @@ const native = moduleURL(`export * from ${JSON.stringify(nativeStub)};
   export const useWindowDimensions=()=>globalThis.__porticoSelectionRenderTest.viewport;
   const flatten=s=>Array.isArray(s)?Object.assign({},...s.map(flatten)):s??{};
   export const StyleSheet={create:s=>s,flatten,absoluteFill:{position:'absolute',inset:0}};`);
-const theme = moduleURL(`const s=globalThis.${stateKey}; export const activeTextScale=()=>s.theme.textScale; export const useTheme=()=>s.theme; export const fontFamilies=s.fontFamilies; export const nativeType=s.nativeType;`);
+const theme = moduleURL(`const s=globalThis.${stateKey}; export const activeTextScale=()=>s.theme.textScale; export const useTheme=()=>s.theme; export const fontFamilies=s.fontFamilies; export const nativeType=s.nativeType; export const titleLine=s.titleLine;`);
 const reanimated = moduleURL(`import {useRef} from ${JSON.stringify(import.meta.resolve('react'))};
   export const useSharedValue=value=>useRef({value}).current,useAnimatedStyle=fn=>fn(),cancelAnimation=()=>{},withTiming=value=>value,withSpring=value=>value,withDelay=(_,value)=>value,runOnJS=fn=>fn,runOnUI=fn=>fn,useAnimatedRef=()=>useRef(null),useAnimatedScrollHandler=()=>{},useAnimatedReaction=()=>{},scrollTo=()=>{};
   export const Easing={bezier:()=>v=>v,linear:v=>v},ReduceMotion={Never:'never'};

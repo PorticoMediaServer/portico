@@ -5,13 +5,13 @@ import {fileURLToPath} from 'node:url';
 import {registerHooks} from 'node:module';
 import React, {type ReactElement, type ReactNode} from 'react';
 import {transformSync} from 'rolldown/utils';
-import {createTheme, fontFamilies, nativeType} from '../src-next/kit/theme.ts';
+import {createTheme, fontFamilies, nativeType, titleLine} from '../src-next/kit/theme.ts';
 import {sessionViewerParts} from '../src-next/kit/cards/session-identity.ts';
 import type {SessionCardProps} from '../src-next/kit/cards/ListeningCards';
 
 // Controlled hosts inspect the actual SessionCard and Parts; no device/layout claim.
 const state = {
-  theme: createTheme({isTV: false, width: 390}), fontFamilies, nativeType,
+  theme: createTheme({isTV: false, width: 390}), fontFamilies, nativeType, titleLine,
   slot: {active: true, recovering: false, gaveUp: false, cached: false, attempt: 0, loaded() {}, failed() {}},
   timings: [] as {toValue: number; duration: number}[],
   workletTargets: [] as number[],
@@ -33,7 +33,7 @@ const animated = data(`import {useRef} from ${JSON.stringify(import.meta.resolve
   export const useSharedValue=value=>useRef({value}).current,useAnimatedStyle=fn=>fn(),cancelAnimation=()=>{},withTiming=value=>{globalThis.__porticoFamilyRenderTest.workletTargets.push(value);return value;},withSpring=value=>value,withDelay=(_,value)=>value,runOnJS=fn=>fn,runOnUI=fn=>fn,useAnimatedRef=()=>useRef(null),useAnimatedScrollHandler=()=>{},useAnimatedReaction=()=>{},scrollTo=()=>{};
   export const Easing={bezier:()=>v=>v,linear:v=>v},ReduceMotion={Never:'never'};
   export default {View:'AnimatedView',ScrollView:'AnimatedScrollView',createAnimatedComponent:c=>c};`);
-const theme = data(`const s=globalThis.__porticoFamilyRenderTest;export const activeTextScale=()=>s.theme.textScale;export const useTheme=()=>s.theme,fontFamilies=s.fontFamilies,nativeType=s.nativeType,ThemeProvider='ThemeProvider';`);
+const theme = data(`const s=globalThis.__porticoFamilyRenderTest;export const activeTextScale=()=>s.theme.textScale;export const useTheme=()=>s.theme,fontFamilies=s.fontFamilies,nativeType=s.nativeType,titleLine=s.titleLine,ThemeProvider='ThemeProvider';`);
 const pipeline = data(`export const useArtworkPlacement=()=>({row:0,column:0}),useArtworkSlot=()=>globalThis.__porticoFamilyRenderTest.slot,sizedUri=uri=>uri;`);
 const gesture = data(`const pan=()=>new Proxy({}, {get:()=>()=>pan()});export const Gesture={Pan:pan,Native:pan,Race:pan,Simultaneous:pan};export const GestureDetector='GestureDetector';`);
 const svg = data(`export default 'Svg';export const Defs='Defs',LinearGradient='LinearGradient',RadialGradient='RadialGradient',Rect='Rect',Stop='Stop',Path='Path',Circle='Circle',Ellipse='Ellipse',Line='Line',Polyline='Polyline',Polygon='Polygon',G='G',ClipPath='ClipPath',Mask='Mask',Use='Use',Text='SvgText';`);

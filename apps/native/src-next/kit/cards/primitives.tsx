@@ -12,7 +12,7 @@ import {SelectionHoldFeedback} from '../selection/index';
 import {nativeType, useTheme, type Theme} from '../theme';
 import {useMotion} from '../useMotion';
 import {useCovered, useFocusTarget, useFocusWaiting} from '../focus';
-import {focusFromTouch, noteTouch} from '../controls/Focusable';
+import {focusFromTouch, noteTouch} from '../controls/touch-focus';
 import {activateCard, cardAccessibilityLabel, cardProgress, holdCard, type CardActions} from './model';
 
 export const alpha = (color: string, opacity: number) => `${color}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`;

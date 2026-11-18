@@ -21,6 +21,7 @@ import * as nativeStopScope from '../../src-next/platform/native-stop-scope.ts';
 import * as shellPlayback from '../../src-next/shell/playback.ts';
 import * as controlModel from '../../src-next/kit/controls/control-model.ts';
 import * as captionMetrics from '../../src-next/kit/cards/caption-metrics.ts';
+import * as touchFocus from '../../src-next/kit/controls/touch-focus.ts';
 import * as playbackWaitingRule from '../../../../packages/client-core/src/presentation/playback-waiting.ts';
 import * as listEdgesModule from '../../src-next/kit/layout/list-edges.ts';
 import * as personalHistoryActions from '../../../../packages/client-core/src/personal-history-actions.ts';
@@ -81,6 +82,20 @@ function railHoldLeaf(react) {
   if (!hooks) {hooks = railHoldHooks(react); railHolds.set(react, hooks);}
   return hooks;
 }
+// The frame contexts (kit/frames/metrics) are the real module's two contexts over the fixture's own React, default false:
+// a part off a frame (a kit Row a test renders alone) reads what it reads in the app outside a frame. One pair per React,
+// so a frame loaded through the harness and the Row inside it meet. A fake `hooks()` React without context gets named
+// providers that read false. Frame metrics themselves (useFrameMetrics) are a fixture's to supply.
+const frameContexts = new WeakMap();
+function frameMetricsLeaf(react) {
+  let contexts = frameContexts.get(react);
+  if (!contexts) {
+    contexts = react.createContext ? {FrameColumn: react.createContext(false), FrameRhythm: react.createContext(false)}
+      : {FrameColumn: {Provider: 'FrameColumnProvider', _currentValue: false}, FrameRhythm: {Provider: 'FrameRhythmProvider', _currentValue: false}};
+    frameContexts.set(react, contexts);
+  }
+  return contexts;
+}
 // Moved core operations execute against the fixture's captured API; no request is mocked here.
 const leaf = (source, react, native) => source === '@portico/design' ? design : /client-core\/src\/query\/playback(\.ts)?$/.test(source) ? playbackQueries
   : /client-core\/src\/query\/catalogue-actions(?:\.ts)?$/.test(source) ? catalogueActions
@@ -117,6 +132,9 @@ const leaf = (source, react, native) => source === '@portico/design' ? design : 
   : /^\.\/playback$/.test(source) ? shellPlayback
   // A card title's line is plain arithmetic on the theme: the real module.
   : /(^|\/)kit\/cards\/caption-metrics$/.test(source) ? captionMetrics
+  // The Android line's touch rule (kit/controls/touch-focus) is plain module state: the real module, shared by Focusable and the cards.
+  : /(^|\/)controls\/touch-focus$|^\.\/touch-focus$/.test(source) ? touchFocus
+  : /(^|\/)frames\/metrics$/.test(source) && react ? frameMetricsLeaf(react)
   // Every Settings page's one top (the standard backdrop) draws as a named element.
   : /(^|\/)SettingsBackdrop$/.test(source) ? {SettingsBackdrop: 'SettingsBackdrop'}
   // The player's waiting line draws as a named element; its own tests render it. Its rule is the shared real module.
