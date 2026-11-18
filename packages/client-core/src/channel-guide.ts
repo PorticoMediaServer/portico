@@ -1,11 +1,7 @@
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {routePath} from "../../contracts/src/route-paths.ts";
 import {markChannel} from './live-tv.ts';
 import {unreadableServerResponse} from './server-messages.ts';
-import {GUIDE_RATE_LIMIT_ATTEMPTS, isRateLimited, rateLimitDelay} from './guide/rate-limit.ts';
-import {HOUR_MS, MINUTE_MS, localDayStart, zoneOffset} from './guide/time.ts';
+import {HOUR_MS, MINUTE_MS, zoneOffset} from './guide/time.ts';
 import {keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
-import {serverNow} from './server-clock.ts';
 /** Server-authored linear guide. Clients choose a viewport, never a schedule. */
 export const GUIDE_PROTOCOL = '1.0' as const;
 export type ChannelKind = 'live-source' | 'library-channel';
@@ -35,7 +31,6 @@ export type GuideSource = Readonly<{id: string; name: string; generation: string
 export type ChannelGuide = Readonly<{state: 'ready' | 'no-sources' | 'no-channels' | 'no-guide-data' | 'filter-empty' | 'guide-stale' | 'continuation-required'; viewerFence: string; start: string; end: string; timezone: string; channels: readonly GuideChannel[]; sources: readonly GuideSource[]; nextCursor: string; observedAt: string; /** Guide.days: how many calendar days from now are covered (today counts as 1), at most 31. Absent on older servers. */ days?: number}>;
 export type GuideRoute = Readonly<{kind: ChannelKind; start: string; end: string; timezone: string; search: string; sourceId: string; favorites?: boolean; includeHidden?: boolean; includeServerHidden?: boolean; group?: string}>;
 export interface ChannelApi { request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> }
-export type GuideSnapshot = Readonly<{phase: 'idle' | 'loading' | 'retained-refreshing' | 'ready' | 'error'; guide: ChannelGuide | null; route: GuideRoute | null; error: string | null; hasPrevious: boolean}>;
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, max = 512): v is string => typeof v === 'string' && v.length <= max && !/[\x00-\x1f\x7f]/.test(v);
 const bodyText = (v: unknown, max = 4096): v is string => typeof v === 'string' && v.length <= max && !/[\x00-\x08\x0b-\x1f\x7f]/.test(v);
@@ -183,14 +178,6 @@ export function parseChannelGuide(raw: unknown, serverId: string, route: GuideRo
  const state = oneOfOr('guide', 'state', g.state, ['ready', 'no-sources', 'no-channels', 'no-guide-data', 'filter-empty', 'guide-stale', 'continuation-required'] as const, channels.length ? 'ready' : 'no-guide-data');
  return {state, viewerFence: g.viewerFence, start: g.start, end: g.end, timezone: g.timezone, sources, channels, nextCursor: g.nextCursor, observedAt: g.observedAt, ...(parseDays(g.days) !== undefined ? {days: parseDays(g.days)} : {})} as ChannelGuide;
 }
-function path(route: GuideRoute, cursor: string): string {
- const q = new URLSearchParams({kind: route.kind, start: route.start, end: route.end, timezone: route.timezone, search: route.search, sourceId: route.sourceId, limit: '30', cursor});
- if (route.favorites !== undefined) q.set('favorites', String(route.favorites));
- if (route.includeServerHidden) q.set('includeServerHidden', 'true');
- if (route.includeHidden !== undefined) q.set('includeHidden', String(route.includeHidden));
- if (route.group) q.set('group', route.group);
- return routePath("get_guide") + "?" + (q.toString());
-}
 /**
  * Why a channel can't be played or recorded, in plain words for viewers (US English). Server
  * codes that describe the server's setup (decoder, sandbox, delivery) say only that Live TV isn't
@@ -227,72 +214,6 @@ export function unavailableIsServerWide(reason: LinearUnavailableReason | string
  * same marks sent again land the same, so a retry needs no operation id or revision. */
 export async function saveChannelPreference(api: ChannelApi, channel: GuideChannel, values: {favorite: boolean; hidden: boolean}, signal?: AbortSignal): Promise<void> {
  await markChannel(api, channel.id, values, signal);
-}
-export class ChannelGuideService{
- private snapshot:GuideSnapshot={phase:'idle',guide:null,route:null,error:null,hasPrevious:false};private listeners=new Set<()=>void>();private epoch=0;private disposed=false;private request:AbortController|null=null;private pages=[''];/** One re-read of the window's first page after a refused cursor, until a continuation answers. */private reread=false;
- private api:ChannelApi;private serverId:string;private timeoutMs:number;
- constructor(api:ChannelApi,serverId:string,timeoutMs=12000){this.api=api;this.serverId=serverId;this.timeoutMs=timeoutMs>0&&timeoutMs<=60000?timeoutMs:12000;}
- getSnapshot=()=>this.snapshot;subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>this.listeners.delete(fn)};
- private publish(s:GuideSnapshot){if(this.disposed)return;this.snapshot=Object.freeze(s);for(const fn of this.listeners)fn();}
- dispose(){this.disposed=true;this.epoch++;this.request?.abort();this.listeners.clear();}
- resetAccess(){this.request?.abort();this.epoch++;this.pages=[''];this.reread=false;this.publish({phase:'idle',guide:null,route:null,error:null,hasPrevious:false});}
-  async load(route:GuideRoute,mode:'replace'|'refresh'|'next'|'previous'='replace',rereading=false):Promise<void>{
-   if(this.disposed)return;if(mode==='replace'&&!rereading)this.reread=false;const old=this.snapshot;const same=old.route&&JSON.stringify(route)===JSON.stringify(old.route);if(mode!=='replace'&&!same)return;if(mode==='next'&&!old.guide?.nextCursor)return;if(mode==='previous'&&this.pages.length<2)return;
-   const pages=mode==='replace'?['']:mode==='next'?[...this.pages,old.guide!.nextCursor]:mode==='previous'?this.pages.slice(0,-1):this.pages.slice();const cursor=pages.at(-1)!;const epoch=++this.epoch;this.request?.abort();const abort=new AbortController();this.request=abort;const retained=same?old.guide:null;this.publish({phase:retained?'retained-refreshing':'loading',guide:retained,route,error:null,hasPrevious:pages.length>1});
-   let overall:ReturnType<typeof setTimeout>|undefined;
-   try{const raw=await Promise.race([this.fetchWithRateLimitRetry(path(route,cursor),abort.signal),new Promise<never>((_,reject)=>{overall=setTimeout(()=>{abort.abort();reject(new Error())},this.timeoutMs)})]);if(this.disposed||epoch!==this.epoch)return;if(abort.signal.aborted)throw new Error();const guide=parseChannelGuide(raw,this.serverId,route);
-   // A guide read under a moved viewer fence is the newer answer (the viewer's access was decided again). A later page's
-   // cursor is bound to the fence it was read under, so the server refuses an old one (409 guide_refresh_required).
-   this.pages=pages;if(cursor)this.reread=false;this.publish({phase:'ready',guide,route,error:null,hasPrevious:pages.length>1});}
-   catch(error){if(!this.disposed&&epoch===this.epoch){const denied=object(error)&&(error.status===401||error.status===403);
-    // A cursor the server refuses (the window changed, or the viewer's access was decided again): the window's first page,
-    // once, in place of what is shown. Refused straight after that re-read, the error shows, and Try again reads the first page.
-    const refused=!!cursor&&object(error)&&error.code==='guide_refresh_required';
-    if(refused&&!this.reread){this.reread=true;await this.load(route,'replace',true);return;}
-    if(refused){this.pages=[''];this.publish({phase:'error',guide:null,route,error:'The guide could not be refreshed. Try again.',hasPrevious:false});return;}this.publish({phase:'error',guide:denied?null:retained,route,error:denied?'Your channel access changed. Reopen Channels to continue.':'The guide could not be refreshed. Try again.',hasPrevious:!denied&&this.pages.length>1});}}
-   finally{if(overall)clearTimeout(overall);if(epoch===this.epoch)this.request=null;}
-  }
-  /**
-   * M25-2: one `429` while loading a guide block retries that block
-   * automatically, honouring `Retry-After` (seconds or HTTP-date) with bounded
-   * backoff and jitter (at most a few attempts). Only then is the error shown.
-   */
-  private async fetchWithRateLimitRetry(requestPath:string,signal:AbortSignal):Promise<unknown>{
-   let attempt=0;
-   for(;;){
-    try{
-     return await this.api.request<unknown>(requestPath,'GET',undefined,signal);
-    }catch(error){
-     attempt++;
-     if(attempt>=GUIDE_RATE_LIMIT_ATTEMPTS||!isRateLimited(error)||signal.aborted||this.disposed)throw error;
-     const delay=rateLimitDelay(error,attempt);
-     await new Promise<void>((resolve,reject)=>{
-      const retryTimer=setTimeout(resolve,delay);
-      signal.addEventListener('abort',()=>{clearTimeout(retryTimer);reject(new Error());},{once:true});
-     });
-     if(signal.aborted||this.disposed)throw error;
-    }
-   }
-  }
-}
-/** The three hours around an instant, for "what is on now" reads. The instant is the server's
- * now (server-clock.ts): a window from the device clock can miss the programme on air when the
- * clock is wrong, and the caller picks the on-air programme with serverNow() (LT-9). */
-export function guideWindow(atMs:number=serverNow()):Pick<GuideRoute,'start'|'end'>{const start=new Date(Math.floor(atMs/3600000)*3600000);return{start:start.toISOString().replace('.000Z','Z'),end:new Date(start.getTime()+3*3600000).toISOString().replace('.000Z','Z')};}
-/**
- * FEAT-04: group chips — the top `limit` channel groups by channel count (ties keep server
- * order), plus All. The chips bind to the route's `group` parameter; a filtered guide stays windowed.
- */
-export function topChannelGroups(channels:readonly{group:string}[],limit=6):string[]{
- const counts=new Map<string,number>();
- for(const c of channels){if(!c.group)continue;counts.set(c.group,(counts.get(c.group)??0)+1);}
- return [...counts.entries()].sort((a,b)=>b[1]-a[1]).map(([g])=>g).slice(0,Math.max(0,limit));
-}
-/** FEAT-04: the day strip — Today, then the next `count-1` days as local day starts (DST-safe). */
-export function stripDays(nowMs:number,timeZone:string,count=7):number[]{
- const out=[localDayStart(nowMs,timeZone)];
- while(out.length<count){const prev=out[out.length-1] as number;out.push(localDayStart(prev+26*HOUR_MS,timeZone));}
- return out;
 }
 /**
  * FEAT-04: the strip's jump target — 18:00 local that day (prime time, §3.4). The offset is
