@@ -2,13 +2,10 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {captureReportContext,parseReportContext,parseReportInterval} from '../src/report-context.ts';
 import {ConsoleClient} from '../src/console.ts';
-import {fetchPlayHistory,fetchPlaySummary} from '../src/play-history.ts';
+import {fetchPlaySummary} from '../src/play-history.ts';
 
 const context=captureReportContext('Asia/Kathmandu',new Date('2026-10-22T18:29:59.999Z'));
 const interval={period:'today',timeZone:'Asia/Kathmandu',from:'2026-10-22T18:15:00Z',until:'2026-10-22T18:15:00.000Z',buckets:[{start:'2026-10-22T18:15:00Z',end:'2026-10-22T18:15:00Z',partial:true}]};
-const history={...interval,buckets:interval.buckets.map(b=>({...b,kinds:[]})),busiestTimes:Array.from({length:7},()=>Array(24).fill(0)),quietestStartHour:null,top:[],topKind:'movies'};
-const people={...interval,items:[],nextCursor:''};
-const table={...interval,entries:[],total:0,nextCursor:''};
 const summary={...interval,plays:0,people:0,watchedMs:0,converted:0,mostPlayed:[],mostActive:[]};
 const metricNames=['cpu','memory','diskRead','diskWrite','netIn','netOut','gpuUsage','gpuMemory','gpuEncoder','processCPU','processMemory','homeMbps','awayMbps','hardwareConversions','processorConversions'];
 const load={...interval,window:'today',observedAt:Date.parse(context.until),series:Object.fromEntries(metricNames.map(n=>[n,[]])),status:Object.fromEntries(metricNames.map(n=>[n,{status:'unavailable',value:0}]))};
@@ -22,11 +19,11 @@ test('canonical capture floors completed quarters once per transaction and requi
  assert.throws(()=>parseReportInterval({...interval,period:'24h'}));
  assert.throws(()=>parseReportInterval({...interval,buckets:[{...interval.buckets[0],partial:false}]}));
 });
-test('all aggregate wrappers/pages carry the exact same context and explicit Today',async()=>{
+test('the aggregate summary carries the exact context and explicit Today',async()=>{
  const seen:string[]=[];
- const api={request:async(path:string)=>{seen.push(path);if(path.startsWith('/v1/admin/dashboard/report'))return {context,history,people,table,summary,topPlayed:{...interval,items:[],topKind:'movies'},load};if(path.startsWith('/v1/admin/play-history/summary'))return summary;if(path.startsWith('/v1/admin/play-history/people'))return people;if(path.startsWith('/v1/admin/play-history/dashboard'))return history;return table;}} as any;
+ const api={request:async(path:string)=>{seen.push(path);return summary;}} as any;
  const filters={...context,period:'today' as const};
- await fetchPlayHistory(api,filters,'page2');await fetchPlaySummary(api,filters);
+ await fetchPlaySummary(api,filters);
  for(const path of seen){const q=new URL(path,'https://server.invalid').searchParams;assert.equal(q.get('timeZone'),context.timeZone);assert.equal(q.get('until'),context.until);assert.equal(q.get('period'),'today');}
 });
 

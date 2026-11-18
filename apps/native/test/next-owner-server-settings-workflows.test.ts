@@ -5,6 +5,9 @@ import {screenModule, hooks} from './helpers/screen-harness.mjs';
 import {bindingModule, formsFixture as untypedFormsFixture, lifecycleHooks, maintenance, nodes, content, specification, t, i18n, theme} from './helpers/owner-server-settings.mjs';
 import * as values from '../src-next/screens/settings-live/server/settings-values.ts';
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
+import {presentError, type ErrorContext} from '../../../packages/client-core/src/presentation/errors.ts';
+import {serverPath} from '../../../packages/client-core/src/query/server-api.ts';
+import type {PlayEntryPage} from '../../../packages/contracts/src/next/api.ts';
 
 import type {DraftForm} from '../../../packages/client-core/src/server-admin/draft-form.ts';
 // The JavaScript fixture builds this dictionary from the supplied form IDs.
@@ -207,37 +210,71 @@ test('Streaming edits its folder and server-wide tone-map method', async () => {
   assert.equal(hardwareTests, 0);const hardware = nodes(tree).find((node: any) => node.type === 'Hardware');hardware.props.onTest();hardware.props.onTest();assert.equal(hardwareTests, 1);finish!(hardwareReport);await settle();host.dispose();fixture.stop();
 });
 
-test('History mounts real list/filter wiring and offers no keep choice', async () => {
+test('History draws rebuilt play history and loads more with the server cursor', async t => {
   const fixture = await formsFixture({runtime: {playHistoryDays: 46}}), host = lifecycleHooks();
+  t.after(() => {host.dispose();fixture.stop();});
   const history = await import('../src-next/screens/settings-live/server/history-source.ts'), reports = await import('../../../packages/client-core/src/report-context.ts');
-  const calls: any[] = [], entry = {id: 'play', user: 'sam_k', profile: 'Kids', accountId: 'a1', title: 'Film', startedAt: '2026-10-28T11:00:00Z', watchedMs: 42000, completed: false, location: '192.0.2.5'};
+  const playHistory = await import('../../../packages/client-core/src/play-history.ts'), serverHistory = await import('../../../packages/client-core/src/admin/server-play-history.ts');
+  const entry = {playedAt: '2026-10-28T11:00:00Z', username: 'sam_k', profile: 'Kids', deviceName: 'Living room', accountId: 'a1', kind: 'movie', title: 'Film', watchedMs: 42000, away: false};
+  const first: PlayEntryPage = {items: [entry], nextCursor: '42'};
+  const second: PlayEntryPage = {items: [{...entry, playedAt: '2026-10-27T11:00:00Z', title: 'Older film', away: true}]};
   class Lifetime {signal = new AbortController().signal;authority = {serverId: 'server', accountId: 'a0', profileId: 'p0'};current = fixture.group.context.current;request = (run: any) => run(this.signal);dispose() {}}
-  // The first page is read through the viewer's cache (client data step 6); every page still reaches this fake.
-  const page = async (_api: unknown, filters: unknown) => {calls.push(filters);return {entries: [entry], nextCursor: '', total: 1};};
-  const accounts = await import('../../../packages/client-core/src/admin/server-play-history.ts');
   const adminDocuments = await import('../../../packages/client-core/src/query/admin-documents.ts'), shellFreshness = await import('../src-next/shell/freshness.ts');
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/HistoryPage.tsx', import.meta.url), {
-    ...chrome, react: host.react, 'react-native': {Text: 'Text', View: 'View', FlatList: 'FlatList'}, '../../../../../../packages/client-core/src/play-history': {fetchPlayHistory: page, playHistoryFirstPageQuery: (api: unknown, filters: unknown) => ({queryKey: ['admin', 'play-history', filters], queryFn: () => page(api, filters)}), playHistoryPlatform: () => '', playHistoryTitle: (value: any) => value.title},
+    ...chrome, react: host.react, 'react-native': {Text: 'Text', View: 'View', FlatList: 'FlatList'}, '../../../../../../packages/client-core/src/play-history': playHistory,
     '../../../../../../packages/client-core/src/query/admin-documents': adminDocuments, '../../../shell/freshness': shellFreshness,
-    '../../../../../../packages/client-core/src/admin/server-play-history': accounts, '../../../../../../packages/client-core/src/report-context': reports, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../../../packages/client-core/src/server-admin/console-words': {duration: (seconds: number) => `${seconds}s`}, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
+    '../../../../../../packages/client-core/src/admin/server-play-history': serverHistory, '../../../../../../packages/client-core/src/report-context': reports, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../../../packages/client-core/src/server-admin/console-words': {duration: (seconds: number) => `${seconds}s`}, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
     '../lifetime': {NativeScreenLifetime: Lifetime, screenScopeEnded: () => new Error('ended')}, './history-source': history, './storage/space-source': {nativeStorageOwner: (context: any) => context.current()}, './storage/forms': fixture.hooks,
   });
-  const peopleReads: string[] = [];
-  (fixture.group.context as any).api = {request: async (path: string, method: string, body: unknown) => {
-    assert.equal(method, 'GET');assert.equal(body, undefined);peopleReads.push(path);
-    if (path === '/v1/admin/members') return {items: [{id: 'a1', username: 'sam_k'}], nextCursor: 'next'};
-    assert.equal(path, '/v1/admin/members?cursor=next');return {items: [{id: 'a2', username: 'alex'}]};
+  const historyPath = serverPath('GET /v1/admin/play-history'), membersPath = serverPath('GET /v1/admin/members');
+  const historyReads: URL[] = [], peopleReads: string[] = [];
+  const api = {request: async <T,>(path: string, method?: string, body?: unknown): Promise<T> => {
+    assert.equal(method, 'GET');assert.equal(body, undefined);
+    const url = new URL(path, 'https://server.invalid');
+    if (url.pathname === historyPath) {
+      historyReads.push(url);
+      return (url.searchParams.has('cursor') ? second : first) as T;
+    }
+    peopleReads.push(path);
+    if (path === membersPath) return {items: [{id: 'a1', username: 'sam_k'}], nextCursor: 'next'} as T;
+    assert.equal(path, `${membersPath}?cursor=next`);return {items: [{id: 'a2', username: 'alex'}]} as T;
+  }, requestRaw: async () => {throw new Error('History should only use GET');}};
+  (fixture.group.context as any).api = api;
+  const errors: string[] = [];
+  const historyRuntime = {...runtime, error: (error: unknown, _retry: () => void, context: ErrorContext) => {
+    const notice = presentError(error, context);errors.push(notice.body);return notice;
   }};
-  const render = () => host.render(() => {const outer = module.NativeServerHistory({ports: {context: fixture.group.context}, runtime});return outer ? outer.type(outer.props) : null;});
+  const render = () => host.render(() => {const outer = module.NativeServerHistory({ports: {context: fixture.group.context}, runtime: historyRuntime});return outer ? outer.type(outer.props) : null;});
   render();host.flush();await settle();render();host.flush();
-  const tree = render();assert.equal(tree.type, 'FlatList');assert.equal(tree.props.data[0], entry);
-  const row = tree.props.renderItem({item: entry});assert.match(content(row), /sam_k.*Kids/);assert.doesNotMatch(content(row), /192\.0\.2\.5/);
-  assert.deepEqual(peopleReads, ['/v1/admin/members', '/v1/admin/members?cursor=next']);
+  const tree = render();assert.equal(tree.type, 'FlatList');
+  assert.deepEqual(errors, []);
+  assert.equal(tree.props.data.length, 1);
+  const row = tree.props.renderItem({item: tree.props.data[0]});
+  assert.match(content(row), /Film.*sam_k.*Kids.*Living room.*42s.*next\.kit\.session\.local/);
+  assert.deepEqual(historyReads.map(url => url.search), ['']);
+  const more = nodes(tree.props.ListFooterComponent).find((node: any) => node.type === 'Button' && content(node) === 'action.showMore');
+  more.props.onPress();await settle();
+  const next = render();
+  assert.deepEqual(next.props.data.map((play: {title: string}) => play.title), ['Film', 'Older film']);
+  assert.match(content(next.props.renderItem({item: next.props.data[1]})), /Older film.*next\.kit\.session\.remote/);
+  assert.deepEqual(historyReads.map(url => url.search), ['', '?cursor=42']);
+  assert.equal(nodes(next.props.ListFooterComponent).some((node: any) => node.type === 'Button'), false);
+  assert.deepEqual(peopleReads, [membersPath, `${membersPath}?cursor=next`]);
   const person = nodes(tree).find((node: any) => node.props.testID === 'server-history-person');
   assert.deepEqual(person.props.options.slice(1), [{value: 'a1', label: 'sam_k'}, {value: 'a2', label: 'alex'}]);
-  person.props.onValueChange('a2');await settle();assert.equal(calls.at(-1).accountId, 'a2');
-  nodes(render()).find((node: any) => node.props.testID === 'server-history-period').props.onValueChange('7d');await settle();assert.equal(calls.at(-1).period, '7d');
+  person.props.onValueChange('a2');await settle();assert.equal(historyReads.at(-1)?.searchParams.get('person'), 'a2');
+  nodes(render()).find((node: any) => node.props.testID === 'server-history-period').props.onValueChange('7d');await settle();
+  assert.match(historyReads.at(-1)?.searchParams.get('from') ?? '', /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
   // Play history is kept indefinitely (owner, 16 Nov): the page offers no keep choice.
   assert.equal(nodes(render()).some((node: any) => node.props.testID === 'history.keepHistory'), false);
-  host.dispose();fixture.stop();
+
+  const {readTVServerPage} = await import('../src-next/screens/settings-live/server/tv-server-page-data.ts');
+  const report = reports.captureReportContext('UTC'), signal = new AbortController().signal;
+  const readTVHistory = (cursor: string) => readTVServerPage('history', api, () => true, report, cursor, 'server', defaultI18n.t, 'en-US', signal);
+  const tv = await readTVHistory('');
+  assert.deepEqual(tv.facts.map(({label, value}) => [label, value]), [['Film', 'sam_k  Kids  Living room']]);
+  assert.equal(tv.nextCursor, '42');
+  const tvNext = await readTVHistory(tv.nextCursor);
+  assert.deepEqual(tvNext.facts.map(({label}) => label), ['Older film']);
+  assert.deepEqual(historyReads.slice(-2).map(url => url.search), ['', '?cursor=42']);
 });

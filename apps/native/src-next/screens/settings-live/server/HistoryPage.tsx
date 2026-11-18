@@ -1,7 +1,7 @@
 import React, {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {FlatList, Text, View} from 'react-native';
-import {fetchPlayHistory, playHistoryFirstPageQuery, playHistoryPlatform, playHistoryTitle, type PlayHistoryEntry} from '../../../../../../packages/client-core/src/play-history';
-import {readServerAccounts} from '../../../../../../packages/client-core/src/admin/server-play-history';
+import {playHistoryPlatform, playHistoryTitle, type PlayHistoryEntry} from '../../../../../../packages/client-core/src/play-history';
+import {readServerAccounts, readServerPlayHistory, serverPlayHistoryQuery, type ServerPlayFilters} from '../../../../../../packages/client-core/src/admin/server-play-history';
 import {readDocument} from '../../../../../../packages/client-core/src/query/admin-documents';
 import {viewerQueriesFor} from '../../../shell/freshness';
 import {captureReportContext} from '../../../../../../packages/client-core/src/report-context';
@@ -34,15 +34,18 @@ function createHistory(context: NativeShellBootstrapContext, reportError: Native
   // The first page is the viewer's cached document (the role is part of the cache's scope); later pages are direct reads.
   // It is read with the cache's own requester, never this screen's: closing this screen only stops it waiting.
   const queries = viewerQueriesFor(context.api, {serverId: lifetime.authority.serverId, viewerId: lifetime.authority.profileId});
-  const firstPage = (filters: Parameters<typeof playHistoryFirstPageQuery>[1], signal: AbortSignal, fresh: boolean) => {
+  const firstPage = (filters: ServerPlayFilters, signal: AbortSignal, fresh: boolean) => {
     if (!current()) return Promise.reject(screenScopeEnded());
     // This screen stops waiting when it, or the caller, is done; the shared read goes on for any other view.
     const wait = new AbortController(), stop = () => wait.abort(), sources = [signal, lifetime.signal];
     for (const source of sources) {if (source.aborted) stop(); else source.addEventListener('abort', stop, {once: true});}
-    return readDocument(queries, playHistoryFirstPageQuery(queries.api, filters), {fresh, signal: wait.signal})
+    return readDocument(queries, serverPlayHistoryQuery(queries.api, filters), {fresh, signal: wait.signal})
       .finally(() => {for (const source of sources) source.removeEventListener('abort', stop);});
   };
-  const source = new NativeHistorySource({page: (filters, cursor, signal, fresh = true) => cursor ? fetchPlayHistory(api, filters, cursor, signal) : firstPage(filters, signal, fresh), people: async (_filters, _cursor, signal) => ({items: await readServerAccounts(api, signal), nextCursor: ''})}, current, () => historyReportContext(reportError), reportError);
+  const source = new NativeHistorySource({
+    page: (filters, cursor, signal, fresh = true) => cursor ? readServerPlayHistory(api, filters, cursor, signal) : firstPage(filters, signal, fresh),
+    people: async (_cursor, signal) => ({items: await readServerAccounts(api, signal), nextCursor: ''}),
+  }, current, () => historyReportContext(reportError), reportError);
   const retire = () => source.dispose();lifetime.signal.addEventListener('abort', retire, {once: true});
   return {context, source, current, dispose: () => {source.dispose();lifetime.signal.removeEventListener('abort', retire);lifetime.dispose();}};
 }
@@ -96,7 +99,6 @@ function History({group, runtime, compactHeader}: {group: Group; runtime: Native
       <Select testID="server-history-period" rowLabel={t(filter('range')!.label)} value={state.query.period} options={filter('range')!.options.map(option => ({value: option.value, label: t(option.label)}))} onValueChange={value => {if (value === 'today' || value === '7d' || value === '30d' || value === 'all') change({period: value});}}/>
       <Select testID="server-history-sort" rowLabel={t('web.filters.sortBy')} value={state.query.sort} options={(table.control.columns ?? []).filter(column => column.sort && column.id).map(column => ({value: column.id!, label: t(column.label)}))} onValueChange={sort => change({sort})}/>
       <Select testID="server-history-direction" rowLabel={t('builder.preset.order')} value={state.query.direction} options={[{value: 'desc', label: t('web.filters.direction', {kind: 'other', dir: 'desc'})}, {value: 'asc', label: t('web.filters.direction', {kind: 'other', dir: 'asc'})}]} onValueChange={direction => {if (direction === 'asc' || direction === 'desc') change({direction});}}/>
-      {state.total !== undefined && <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{defaultI18n.number(state.total)} {table.control.noun ? t(table.control.noun[state.total === 1 ? 0 : 1]!) : ''}</Text>}
       {state.error !== undefined && <StateView variant="inline" {...runtime.error(state.error, () => source.retry(), 'server-console')}/>}
     </View>}
     ListEmptyComponent={state.phase === 'ready' ? <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary, marginTop: 20}]}>{t(table.control.empty!)}</Text> : state.phase === 'loading' || state.phase === 'idle' ? <StateView title={t('status.loading')}/> : null}
