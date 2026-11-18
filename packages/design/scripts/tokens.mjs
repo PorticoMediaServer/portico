@@ -117,7 +117,7 @@ function frameTokens(form, web) {
     `--frame-audio-up-next: ${px(pick(f.audio.upNextWidth))}`, `--frame-audio-gap: ${px(pick(f.audio.gap))}`,
     `--frame-state-row-tile: ${px(f.stateRow.tile[form])}`,
     `--frame-pane-width: ${px(pick(f.pane.width))}`, `--frame-guide-per-minute: ${px(pick(f.guide.perMinute))}`, `--frame-guide-channel: ${px(pick(f.guide.channel))}`, `--frame-guide-row: ${px(pick(f.guide.row))}`,
-    `--frame-row-art-recording: ${px(f.rowArt.recording[form])}`, `--frame-row-art-download: ${px(f.rowArt.download[form])}`,
+    `--frame-row-art-recording: ${px(f.rowArt.recording[form])}`, `--frame-row-art-download: ${px(f.rowArt.download[form])}`, `--frame-quick-tile: ${px(f.quickTile[form])}`,
     `--frame-browse-grid-gap: ${px(f.browse.gridGap[form])}`, `--frame-browse-grid-card: ${px(f.browse.grid.card[form])}`, `--frame-browse-grid-column-gap: ${px(f.browse.grid.columnGap[form])}`, `--frame-browse-grid-row-gap: ${px(f.browse.grid.rowGap[form])}`,
     `--frame-browse-filters: ${px(pick(f.browse.filtersWidth))}`,
     `--frame-player-edge: ${px(f.player.edge[form])}`, `--frame-player-top: ${px(f.player.top[form])}`, `--frame-player-bottom: ${px(f.player.bottom[form])}`,
