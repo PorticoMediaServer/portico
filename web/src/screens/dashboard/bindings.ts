@@ -1,5 +1,4 @@
 import {fixDataFolderPermissions} from '@core/admin/data-folder.ts';
-import {ownerCertificateRequest} from '@core/owner-requests.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import type {SessionControls} from '@core/playback-controls.ts';
 import type {HttpLocalApi} from '@core/index.ts';
@@ -16,7 +15,6 @@ import {readServerLoad, type TelemetryReading} from '@core/telemetry.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
 import {readDocument} from '@core/query/admin-documents.ts';
 import type {ViewerQueries} from '@core/query/viewer-queries.ts';
-import {retryCertificate, type CertificateAction, type CertificateApi} from '@core/certificates.ts';
 import type {FactPart} from '@core/presentation/kit-model/index.ts';
 import {storageServerHeader} from '../settings/server-header';
 import {readServerStorage} from '@core/server-admin/server-storage.ts';
@@ -63,7 +61,6 @@ export type DashboardBindings = Readonly<{
     seek?: (id: string, positionMs: number, signal: AbortSignal) => Promise<void>;
     openHistory: () => void; openHome: () => void; openSettings: (section: string) => void;
     /** Supplied by the action owner; mutation must retain its existing revision/idempotency guard. */
-    retryCertificate?: () => Promise<void>;
     fixPermissions?: () => Promise<void>;
     reportError: (error: unknown) => void;
   }>;
@@ -112,10 +109,6 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
   });
   const waiting = (signal?: AbortSignal) => signal ? AbortSignal.any([signal, life.signal]) : life.signal;
   const data = new DashboardDataClient(api), consoleClient = new ConsoleClient(api, options.scope);
-  const certificates: CertificateApi = {requestCertificate: <T>(action: CertificateAction, body: unknown, signal: AbortSignal): Promise<T> => {
-    assert();
-    return ownerCertificateRequest<T>(options.api, action, body, signal ? AbortSignal.any([signal, life.signal]) : life.signal).then(value => {assert(); return value;});
-  }};
   const ownerRead = async <T>(work: () => Promise<T>) => {assert(true); const value = await work(); assert(true); return value;};
   const adminRead = async <T>(work: () => Promise<T>) => {assert(); const value = await work(); assert(); return value;};
   const playFilters = ({period, accountId, libraryId, media, search}: DashboardFilters) => ({period: period === '12h' ? '24h' as const : period, accountId, libraryId, media, search});
@@ -144,7 +137,6 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
       // The owner and administrators may stop a stream (console definition, rule 1).
       stop: async (id, message) => {assert(); await stopServerStream(api, id, message); assert(); options.queries?.moved([dependsOn.event('admin.sessions')]);},
       fixPermissions: async () => {await ownerRead(() => fixDataFolderPermissions(api, life.signal));},
-      retryCertificate: async () => {assert(true); await retryCertificate(certificates, AbortSignal.timeout(15000)); assert(true);},
     },
     dispose: () => {close(); offAuthority?.(); consoleClient.dispose(); listeners.clear();},
   };

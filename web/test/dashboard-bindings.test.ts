@@ -131,19 +131,6 @@ test('a fresh read of the history shows a play that ended since', async () => {
   const b = createDashboardBindings(options({api: {...options().api, request: async () => {calls++; return {items: calls === 1 ? [] : [play]} as never;}}}));
   assert.equal((await b.read.plays({period: 'all'})).entries.length, 0); assert.equal((await b.read.plays({period: 'all'})).entries.length, 1); assert.equal(calls, 2); b.dispose();
 });
-const certificate = () => ({configured: false, authorityId: '', config: {enabled: false, publicPort: 443, publicAddress: '', revision: '0'}, state: 'unconfigured', environment: 'staging', tlsReady: false, publiclyTrusted: false, listenerBound: false, listenPort: 0, reachability: 'probe_required'});
-test('the certificate alert retries through the canonical owner route and refuses after authority loss', async () => {
-  const calls: {path: string; method?: string; body?: unknown}[] = [];
-  const b = createDashboardBindings(options({api: {...options().api, request: async (path, method, body) => {calls.push({path, method, body}); return certificate() as never;}}}));
-  await b.effects.retryCertificate!();
-  assert.deepEqual(calls.map(call => [call.path, call.method, call.body]), [['/v1/networking/certificate/retry', 'POST', {}]]);
-  b.dispose();
-  let current = true;
-  const late = createDashboardBindings(options({isCurrent: () => current, api: {...options().api, request: async () => certificate() as never}}));
-  current = false;
-  await assert.rejects(async () => late.effects.retryCertificate!());
-});
-
 test('the rebuilt server offers no Move to, Pause or Resume of someone\'s stream: none is bound', () => {
   const b = createDashboardBindings(options());
   assert.equal(b.effects.seek, undefined); assert.equal(b.effects.transport, undefined); assert.equal(b.read.controls, undefined); b.dispose();

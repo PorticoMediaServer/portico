@@ -197,9 +197,6 @@ export function SettingsEntry() {
     const requestConsole: typeof originalApi.requestConsole = async <T,>(path: string, method: string, body: unknown, input: AbortSignal): Promise<T> => {
       assert();const value = await originalApi.requestConsole<T>(path, method, body, signal(input));assert();return value;
     };
-    const requestCertificate: typeof originalApi.requestCertificate = async <T,>(action: Parameters<typeof originalApi.requestCertificate>[0], body: unknown, input: AbortSignal): Promise<T> => {
-      assert();const value = await originalApi.requestCertificate<T>(action, body, signal(input));assert();return value;
-    };
     const requestMetadataUpload: typeof originalApi.requestMetadataUpload = async <T,>(path: string, body: Blob, input?: AbortSignal): Promise<T> => {
       assert();const value = await originalApi.requestMetadataUpload<T>(path, body, signal(input));assert();return value;
     };
@@ -221,7 +218,6 @@ export function SettingsEntry() {
       if (property === 'request') return request;
       if (property === 'requestRaw') return requestRaw;
       if (property === 'requestConsole') return requestConsole;
-      if (property === 'requestCertificate') return requestCertificate;
       if (property === 'requestMetadataUpload') return requestMetadataUpload;
       if (property === 'requestBounded') return requestBounded;
       if (property === 'requestLyrics') return requestLyrics;

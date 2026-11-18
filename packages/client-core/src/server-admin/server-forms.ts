@@ -1,12 +1,8 @@
 import {routeBody} from "../../../contracts/src/routes.ts";
 import {routePath} from "../../../contracts/src/route-paths.ts";
 import type {ConsoleClient, RuntimeSettings, SettingsDocument} from '../console.ts';
-import {parseConnectivityStatus, parseLogSettings, type ConnectivityPolicy, type ConnectivityStatus, type LogSettings, type LogDetailMinutes} from '../server-administration.ts';
+import {parseLogSettings, type LogSettings, type LogDetailMinutes} from '../server-administration.ts';
 import {parseDVRDocument, parseEnvelope, parseLiveDefaultsDocument, folderTemplateProblems, type DVRDefaults, type DVRDocument, type LiveDefaults} from '../administration.ts';
-import {loadRemoteAccess, saveRemoteAccess, type RemoteAccess, type RemoteConfiguration} from '../remote-access.ts';
-import {loadCertificate, saveCertificate, type CertificateApi, type CertificateConfig, type CertificateStatus} from '../certificates.ts';
-import {certificateClaimed} from './secure-connection.ts';
-import type {HttpLocalApi} from '../index.ts';
 import {DraftForm, type Loaded} from './draft-form.ts';
 import {callServer} from '../query/server-api.ts';
 import {putSettingsDocument, type SettingsDocumentAPI} from '../settings-document.ts';
@@ -20,7 +16,7 @@ import {putSettingsDocument, type SettingsDocumentAPI} from '../settings-documen
  * (effective values, choices the server offers, the revision to save against).
  */
 
-export type ServerFormId = 'runtime' | 'connectivity' | 'remote' | 'certificate' | 'alerts' | 'liveDefaults' | 'recording' | 'maintenance' | 'logs' | 'segments' | 'titleData' | 'streamLimits';
+export type ServerFormId = 'runtime' | 'alerts' | 'liveDefaults' | 'recording' | 'maintenance' | 'logs' | 'segments' | 'titleData' | 'streamLimits';
 
 export type ServerFormDeps = Readonly<{
   api: SettingsDocumentAPI;
@@ -74,56 +70,6 @@ export function runtimeForm(deps: ServerFormDeps): DraftForm<RuntimeSettings, Ru
     load: async () => runtimeLoaded(await deps.console.settings()),
     save: async (draft, saved, status) => runtimeLoaded(await deps.console.applySettings(status?.revision ?? 0, draft, saved)),
     validate: draft => serverNameProblem(draft.name),
-  });
-}
-
-// ── Connectivity: who may sign in from outside, streaming limits, home networks ──────────────
-
-export type ConnectivityDraft = Omit<ConnectivityPolicy, 'revision'>;
-const connectivityLoaded = (status: ConnectivityStatus): Loaded<ConnectivityDraft, ConnectivityStatus> => {
-  const {revision: _revision, ...draft} = status.policy;
-  return {value: draft, status};
-};
-
-export function connectivityForm(deps: ServerFormDeps): DraftForm<ConnectivityDraft, ConnectivityStatus> {
-  const ids = createOperationIds(deps.operationId);
-  return new DraftForm<ConnectivityDraft, ConnectivityStatus>({
-    load: async signal => connectivityLoaded(parseConnectivityStatus(await deps.api.request(routePath("get_connectivity_status"), 'GET', undefined, signal))),
-    save: async (draft, saved, status) => {
-      // Only what changed is sent: the policy is a merge patch.
-      const change: Record<string, unknown> = {};
-      for (const key of Object.keys(draft) as (keyof ConnectivityDraft)[]) if (JSON.stringify(draft[key]) !== JSON.stringify(saved[key])) change[key] = draft[key];
-      const revision = status?.policy.revision ?? 0;
-      await deps.api.request(routePath("change_connectivity_policy"), 'PATCH', routeBody("change_connectivity_policy", {expectedRevision: revision, operationId: ids.forPayload(JSON.stringify({revision, change})), ...change}));
-      ids.release();
-    },
-  });
-}
-
-// ── Remote access (the router and the public address) and the HTTPS certificate ─────────────
-
-export function remoteAccessForm(deps: ServerFormDeps): DraftForm<RemoteConfiguration, RemoteAccess> {
-  const api = deps.api as HttpLocalApi;
-  return new DraftForm<RemoteConfiguration, RemoteAccess>({
-    load: async signal => { const status = await orAbsent(loadRemoteAccess(api, signal)); return status && {value: status.config, status}; },
-    save: async (draft, _saved, status) => { const next = await saveRemoteAccess(api, status!, draft); return {value: next.config, status: next}; },
-  });
-}
-
-/**
- * The certificate settings, plus `claimed`: whether the server has a Portico Account connection
- * for the certificate service to work with. It is read-only (never sent back) and lets the
- * Secure connection switch appear only once there is something to switch.
- */
-export type CertificateDraft = CertificateConfig & Readonly<{claimed: boolean}>;
-
-export function certificateForm(deps: ServerFormDeps): DraftForm<CertificateDraft, CertificateStatus> {
-  const api: CertificateApi = {requestCertificate: (action, body, signal) => (action === 'status' ? deps.api.request(routePath("get_networking_certificate"), 'GET', undefined, signal) : deps.api.request(routePath(action==='config'?'post_networking_certificate_config':'post_networking_certificate_retry'), 'POST', body, signal))};
-  const bounded = () => { const c = new AbortController(); setTimeout(() => c.abort(), 15_000); return c.signal; };
-  const draft = (status: CertificateStatus): CertificateDraft => ({...status.config, claimed: certificateClaimed(status)});
-  return new DraftForm<CertificateDraft, CertificateStatus>({
-    load: async signal => { const status = await orAbsent(loadCertificate(api, signal)); return status && {value: draft(status), status}; },
-    save: async (value, _saved, status) => { const next = await saveCertificate(api, status!, value, bounded()); return {value: draft(next), status: next}; },
   });
 }
 
@@ -266,7 +212,7 @@ export function streamLimitsForm(deps: ServerFormDeps): DraftForm<Readonly<{perP
 // ── The forms of a page ─────────────────────────────────────────────────────────────────────
 
 const FACTORIES: Readonly<Record<ServerFormId, (deps: ServerFormDeps) => DraftForm<any, any>>> = {
-  runtime: runtimeForm, connectivity: connectivityForm, remote: remoteAccessForm, certificate: certificateForm, alerts: alertsForm,
+  runtime: runtimeForm, alerts: alertsForm,
   liveDefaults: liveDefaultsForm, recording: recordingForm, maintenance: maintenanceForm, logs: logsForm,
   segments: deps => namedSettingsForm(deps, 'segments'),
   titleData: deps => namedSettingsForm(deps, 'title_data'),

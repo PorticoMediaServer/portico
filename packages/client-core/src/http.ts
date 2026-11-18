@@ -17,7 +17,6 @@ import {routeOrigin} from './route-identity.ts';
 import {parseMoveCollisionDetails, type MoveCollisionDetails} from './account-move.ts';
 import {sessionRoute, bindSessionRoute, type RouteConnection} from './route-connection.ts';
 import {playableAudio, type AudioRenderV2} from './playback-v1/audio-render.ts';
-import {readCertificateResponse, type CertificateAction} from './certificates.ts';
 import type {PlayerFailureCode} from './client-profile.ts';
 import {normalizeTransportClass, transportClassHeader, deviceClassHeader, deliveryContextHeaders, setDeliveryContext, type TransportClass} from './delivery.ts';
 import {readConsoleJson, consoleUTF8Size} from './console-transport.ts';
@@ -167,9 +166,6 @@ export function requestDeadlineMs(path: string, method: string): number {
   // This owner read advances capped server snapshots; selection size sets its
   // duration. The screen owns cancellation, rather than a whole-scan timer.
   if (method === 'POST' && path === routePath('post_metadata_bulk_preview')) return Infinity;
-  // The server's claim watch lasts ten minutes and streams whitespace until its
-  // final JSON answer. Give the body the whole approval window plus a margin.
-  if (method === 'POST' && path.split('?')[0] === routePath('post_networking_claim_await_approval')) return 615_000;
   const held = /[?&]waitMs=(\d{1,7})(?:&|$)/.exec(path);
   if (held) return Math.min(Number(held[1]), 600_000) + 15_000;
   if (method === 'GET' || method === 'HEAD') return 30_000;
@@ -533,24 +529,6 @@ export class HttpLocalApi {
       },
     }, scope);
   }
-  /** Fixed owner-certificate operations, selected-server credentials and bounded responses. */
-  async requestCertificate<T>(action:CertificateAction,body:unknown,signal:AbortSignal):Promise<T>{
-    const suffix={status:'',config:'/config',retry:'/retry'}[action];
-    if(suffix===undefined)throw new Error('Invalid certificate operation.');
-    const raw=action==='status'?undefined:JSON.stringify(body);
-    if(raw!==undefined&&raw.length>2048)throw new Error('Certificate configuration is too large.');
-    const token=this.token,epoch=this.certificateSessionEpoch;
-    const lifetime=linkAbortSignals([signal],10000);
-    const bounded=lifetime.signal;
-    try {
-    throwIfAborted(bounded);
-    const response=await this.fetcher(this.baseUrl + routePath(action==='status'?'get_networking_certificate':action==='config'?'post_networking_certificate_config':'post_networking_certificate_retry'),{method:action==='status'?'GET':'POST',signal:bounded,redirect:'error',credentials:'omit',headers:{Accept:'application/json',...(raw===undefined?{}:{'Content-Type':'application/json'}),...(token?{Authorization:'Bearer '+token}:{})},...(raw===undefined?{}:{body:raw})});
-    if(bounded.aborted||this.certificateSessionEpoch!==epoch){void response.body?.cancel().catch(()=>{});throw new Error('The server session changed.');}
-    const value=await readCertificateResponse<T>(response,bounded);
-    if(bounded.aborted||this.certificateSessionEpoch!==epoch)throw new Error('The server session changed.');
-    return value;
-    } finally {lifetime.dispose();}
-  }
   /** GET-only bounded diagnostics transport; existing request behavior is unchanged. */
   async requestBounded<T>(path:string,maxBytes:number,signal:AbortSignal):Promise<T>{
     if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>1048576)throw new Error('Invalid response byte limit.');
@@ -630,14 +608,13 @@ export class HttpLocalApi {
   /** Keep this transport's access token alive: refresh before expiry and once on a 401. */
   setAuthRecovery(auth: AuthRecovery | undefined) { this.auth = auth; }
   private async send(path: string, method: string, body: unknown, signal: AbortSignal | undefined, token: string, extra?: Readonly<Record<string, string>>, keepalive = false, privateResource = false) {
-    const ownerStart = method === 'POST' && (path === routePath('post_networking_claim_web_approval') || path === routePath('post_setup_approval'));
     const sentAt = Date.now();
     const response = await this.fetcher(this.baseUrl + path, {
       method,
       signal,
       ...(keepalive ? {keepalive: true} : {}),
       // Credential/profile proof exchanges must never follow an HTTP redirect.
-      ...(privateResource || ownerStart || /^\/v1\/(?:auth\/|setup\/|hosted\/(?:attach|profiles\/offline-select))/.test(path)?{redirect:'error' as const,credentials:'omit' as const}:{}),
+      ...(privateResource || /^\/v1\/(?:auth\/|setup\/|hosted\/(?:attach|profiles\/offline-select))/.test(path)?{redirect:'error' as const,credentials:'omit' as const}:{}),
       ...(privateResource ? {referrerPolicy: 'no-referrer' as const, cache: 'no-store' as const} : {}),
       headers: {
         Accept: "application/json",
@@ -645,7 +622,7 @@ export class HttpLocalApi {
         ...(body === undefined || Object.keys(extra ?? {}).some(k => k.toLowerCase() === 'content-type') ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...this.deliveryHeaders(),
-        ...(ownerStart || issuesCredentials(path, method) ? installationHeaders() : {}),
+        ...(issuesCredentials(path, method) ? installationHeaders() : {}),
         // Per-request protocol headers (If-Match, Idempotency-Key, merge-patch Content-Type); never Authorization.
         ...Object.fromEntries(Object.entries(extra ?? {}).filter(([k]) => k.toLowerCase() !== 'authorization')),
       },

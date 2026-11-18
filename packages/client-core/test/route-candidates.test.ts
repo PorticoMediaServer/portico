@@ -257,18 +257,6 @@ test('browsers skip restricted ports; native keeps them; Cast never gets one',()
  assert.equal(castOrigin('https://current.example:6000',[{baseUrl:named('66.94.102.39',10080),class:'public'},{baseUrl:named('66.94.102.39'),class:'public'}]),named('66.94.102.39'));
 });
 
-test('remote-access warnings are read, worded from code and port, and owner pages accept 80 routes',async()=>{
- const {parseRemoteAccess,remoteWarningLines}=await import('../src/remote-access.ts');
- const base={authorityId:'a',generation:'1',state:'reachable',config:{revision:'1',enabled:true,mapping:true,pcp:true,natpmp:true,upnp:true,publicPort:6000,gateway:''},topology:{lan:[],public:[],bind:''},mappings:[],
-  candidates:Array.from({length:80},(_,i)=>({baseUrl:named('10.1.0.'+(i+1)),class:'lan',state:'listed'}))};
- const parsed=parseRemoteAccess({...base,warnings:[{code:'browser_restricted_port',port:6000,message:"Web browsers can't use port 6000. The apps still can."},{code:'future_code',port:1,message:'Server words.'}]});
- assert.equal(parsed.candidates.length,80);
- const t=((key:string,values?:{port?:number})=>key==='remoteAccess.warning.browserRestrictedPort'?`Web browsers can’t use port ${values?.port}. The apps still can.`:key) as never;
- assert.deepEqual(remoteWarningLines(parsed,t),['Web browsers can’t use port 6000. The apps still can.','Server words.']);
- assert.deepEqual(parseRemoteAccess(base).warnings,[]);
- assert.throws(()=>parseRemoteAccess({...base,warnings:'nope'}));
-});
-
 test('Secure connections: read from the policy (Preferred by default), bound to its row, and Required asks first',async()=>{
  const {parseConnectivityPolicy}=await import('../src/server-administration.ts');
  const {settingsBinding}=await import('../src/presentation/settings-bindings.ts');

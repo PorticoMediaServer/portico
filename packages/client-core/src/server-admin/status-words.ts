@@ -1,40 +1,14 @@
 /**
- * The Server pages' status lines in words, once for every client: whether the server can be
- * reached from outside, what the certificate is doing, what playback can deliver right now.
+ * The Server pages' status lines in words, once for every client.
  * A code never reaches the screen (X-04); it stays in the logs.
  */
-import {remoteAccessSummary, type RemoteAccess} from '../remote-access.ts';
-import type {CertificateStatus} from '../certificates.ts';
-import type {ConnectionDocument, ConnectivityStatus, CustomCertificateStatus} from '../server-administration.ts';
+import type {ConnectionDocument, CustomCertificateStatus} from '../server-administration.ts';
 import type {PlaybackSettingsSnapshot} from '../playback-settings.ts';
 import type {MessageId, MessageValues} from '../../../i18n/src/index.ts';
 import {sentence} from './console-words.ts';
 
 type Translate = (id: MessageId, values?: MessageValues) => string;
 export type StatusTone = 'healthy' | 'warning' | 'danger' | 'accent' | 'neutral';
-
-/** "Can people reach this server from outside?", in one sentence. Empty until the server has answered. */
-export function remoteStatusLine(t: Translate, input: {unavailable: boolean; remote?: RemoteAccess; certificate?: CertificateStatus; connectivity?: ConnectivityStatus}): {tone: StatusTone; text: string} {
-  const st = input.remote;
-  if (input.unavailable) return {tone: 'neutral', text: t('settings.server.remote.notSetUp')};
-  if (!st) return {tone: 'neutral', text: ''};
-  const https = !!input.certificate?.tlsReady || input.connectivity?.tls.customCertificate?.state === 'ready';
-  const address = input.certificate?.routeUrl || st.candidates.find(c => c.class === 'public' && c.state === 'verified')?.baseUrl || st.candidates.find(c => c.class !== 'lan')?.baseUrl || st.topology.public[0];
-  switch (st.state) {
-    case 'reachable': return {tone: 'healthy', text: [address ? t('settings.server.remote.reachable', {address: address.replace(/^https?:\/\//, '')}) : t('settings.server.remote.reachableNoAddress'), t(https ? 'settings.server.remote.https' : 'settings.server.remote.noHttps')].join(' · ')};
-    case 'disabled': return {tone: 'neutral', text: t('settings.server.remote.off')};
-    case 'checking': return {tone: 'accent', text: t('settings.server.remote.checking')};
-    // The states the server reports while a route is not proven: the catalogue already says
-    // what each one means, so the line uses that instead of calling every one unreachable.
-    case 'claim_required':
-    case 'lan_only':
-    case 'manual_only': return {tone: 'neutral', text: remoteAccessSummary(st, t)};
-    case 'certificate_pending': return {tone: 'accent', text: remoteAccessSummary(st, t)};
-    case 'hosted_unavailable':
-    case 'remote_unavailable': return {tone: 'warning', text: remoteAccessSummary(st, t)};
-    default: return {tone: 'warning', text: t('settings.server.remote.unreachable')};
-  }
-}
 
 /** Router mapping failures in plain words. */
 export function mappingProblem(t: Translate, code: string): string {

@@ -179,7 +179,6 @@ function Status({bindings: b, status, phone = false}: {bindings: DashboardBindin
   const alerts = status.value?.alerts ?? [];
   const [confirm, setConfirm] = useState<DashboardAlert>(), [refusal, setRefusal] = useState('');
   const [busy, setBusy] = useState<string | undefined>();
-  const retry = async (alert: DashboardAlert) => {if (!b.effects.retryCertificate || busy) return; setBusy(alert.code); try {await b.effects.retryCertificate(); if (b.isCurrent()) status.refresh();} catch (error) {b.effects.reportError(error);} finally {setBusy(undefined);}};
   const fix = async () => {
     if (!b.effects.fixPermissions || busy || !b.isCurrent()) return;
     setBusy('data_folder_readable'); setRefusal('');
@@ -206,7 +205,6 @@ function Status({bindings: b, status, phone = false}: {bindings: DashboardBindin
     if (alert.code === 'data_folder_readable') return words.fixPermissions && b.effects.fixPermissions
       ? <Button size="xs" disabled={!!busy} onClick={() => {setRefusal(''); setConfirm(alert);}}>{t('next.dashboard.fixPermissions')}</Button> : null;
     return <>
-      {alert.code === 'secure_renewal_failed' && b.effects.retryCertificate && <Button size="xs" variant="glass" disabled={!!busy} onClick={() => void retry(alert)}>{t('next.dashboard.retry')}</Button>}
       {!update && <Button size="xs" onClick={() => b.effects.openSettings(destination.section)}>{t(destination.label)}{!phone && <Icon name="i-right" size={16} />}</Button>}
     </>;
   };
