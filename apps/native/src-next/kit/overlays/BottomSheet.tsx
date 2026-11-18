@@ -4,8 +4,10 @@ import {Modal, ScrollView, StyleSheet, TextInput, View, useWindowDimensions} fro
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {cancelAnimation, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {focusSpec, spacing} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Button} from '../controls/Button';
+import {ListEdgeFade, useListEdges} from '../layout/ListEdgeFade';
 import {useTheme} from '../theme';
 import {useMotion} from '../useMotion';
 import {useKeyboardHeight} from '../../platform/keyboard';
@@ -13,9 +15,11 @@ import {TVDesignCanvas} from './TVDesignCanvas';
 import {useOverlayLifecycle} from './OverlayHost';
 import {useNativeModalPresence} from './native-dismissal';
 import {releaseSheet, resistSheet, sheetHeights} from './geometry';
-import {alpha, FocusBoundary, PanelBackground, SurfaceHeader, usePresence} from './surface';
+import {alpha, FocusBoundary, OverlayFootRow, PanelBackground, SurfaceHeader, useOverlayRegion, usePresence} from './surface';
 import type {BottomSheetProps, OverlayReason} from './types';
 
+/** A TV side sheet's own inset (detail-tv 5c): its rows start 56 in and stop 96 short of the screen's edge. */
+const tvPadding = {left: 56, right: 96} as const;
 export function BottomSheet({open, onOpenChange, title, description, children, footer, headerAction, headerContext, headerContent, initialFocusRef, returnFocusRef, restoreFocus = true, accessibilityLabel, testID, style, contentStyle, titleType, titleTextStyle, descriptionTextStyle, detents, width, detent, defaultDetent = 0, onDetentChange, dismissOnOutsidePress = true, dismissOnBack = true, dismissOnGesture = true, scrollable = true, showClose = true, showGrabber = true, fitContent = false, contentFooterGap = 16, keyboardAvoiding = false, footerPadding, showFooterSeparator = true, backdropOpacity = 0.64, host = 'modal', presentation = 'sheet', onExited, surfaceBackground}: BottomSheetProps) {
   const theme = useTheme(), paint = useOverlayPaintMode();
   const page = host === 'inline' && presentation === 'page';
@@ -83,7 +87,8 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
     done.current = reason === 'close-button' || reason === 'action';
     onOpenChange(false, reason);
   }, [onOpenChange, dismissOnBack]);
-  useOverlayLifecycle(present && !page, true, dismiss, initialFocusRef ?? closeRef, returnFocusRef, motion.reduce ? 160 : theme.isTV ? 320 : 500, testID, restoreFocus && !page);
+  const region = useOverlayRegion(testID);
+  useOverlayLifecycle(present && !page, true, dismiss, initialFocusRef ?? closeRef, returnFocusRef, motion.reduce ? 160 : theme.isTV ? 320 : 500, region, restoreFocus && !page);
   useEffect(() => {
     // tv-more 4.7: a TV side sheet slides at full opacity; reduced motion keeps the fade.
     opacity.value = motion.reduce ? withTiming(open ? 1 : 0, motion.timing()) : side && theme.isTV ? 1 : open ? withTiming(1, motion.timing('standard')) : 1;
@@ -122,20 +127,27 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
   // A sheet's footer holds its own way out (a confirm sheet's Cancel under its verb, states.html 4): the header Done
   // is only for a sheet with no footer, so a sheet never offers both Done and Cancel.
   const close = <Button testID={testID ? `${testID}-close` : undefined} focusId="close" ref={closeRef} variant="text" size="small" style={theme.isTV ? undefined : {height: 24, paddingHorizontal: 0}} textStyle={{color: theme.colors.textSecondary}} hitSlop={theme.isTV ? undefined : 10} onPress={() => dismiss('close-button')}>{defaultI18n.t('action.done')}</Button>;
+  const edges = useListEdges(spacing.xl);
   if (!present || !paint.visible) return null;
-  const body = <View style={[styles.body, contentStyle]}>{scrollable ? <ScrollView ref={scrollRef} onLayout={revealFocusedInput} onScroll={event => {scrollOffset.current = event.nativeEvent.contentOffset.y;}} scrollEventThrottle={16} onContentSizeChange={(_width, height) => setBodyHeight(Math.max(0, height - contentPadding))} scrollEnabled={page || side || settled === heights.length - 1} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom: page ? 0 : contentPadding}}>{children}</ScrollView> : <View style={fitContent ? undefined : [styles.body, {paddingBottom: page || side ? 0 : contentPadding}]} onLayout={event => setBodyHeight(event.nativeEvent.layout.height)}>{children}</View>}</View>;
+  // R1: a TV side sheet's rows grow on focus and draw the ring outside them (detail-tv 5c); the scroll box leaves room
+  // for both so neither is cut.
+  const tvRing = theme.isTV && side ? Math.ceil((sideWidth - tvPadding.left - tvPadding.right) * (focusSpec.scale.button.tv - 1) / 2) + focusSpec.offsetOuter.tv + focusSpec.ringWidth.tv : 0;
+  // A TV side sheet's list that runs past the sheet fades into it at that edge, as the player panel's does (tv-focus 36).
+  const body = <View style={[styles.body, contentStyle]}>{scrollable ? <ScrollView ref={scrollRef} fadingEdgeLength={tvRing ? edges.scroll.fadingEdgeLength : undefined} onLayout={event => {revealFocusedInput(); if (tvRing) edges.scroll.onLayout?.(event);}} onScroll={event => {scrollOffset.current = event.nativeEvent.contentOffset.y; if (tvRing) edges.scroll.onScroll?.(event);}} scrollEventThrottle={16} onContentSizeChange={(width, height) => {setBodyHeight(Math.max(0, height - contentPadding)); if (tvRing) edges.scroll.onContentSizeChange?.(width, height);}} scrollEnabled={page || side || settled === heights.length - 1} keyboardShouldPersistTaps="handled" style={tvRing ? {marginHorizontal: -tvRing} : undefined} contentContainerStyle={{paddingBottom: page ? 0 : contentPadding, ...(tvRing ? {paddingHorizontal: tvRing, paddingTop: tvRing} : {})}}>{children}</ScrollView> : <View style={fitContent ? undefined : [styles.body, {paddingBottom: page || side ? 0 : contentPadding}]} onLayout={event => setBodyHeight(event.nativeEvent.layout.height)}>{children}</View>}
+    {tvRing > 0 && edges.edges.top && <ListEdgeFade edge="top" length={spacing.xl} opacity={1} color={theme.colors.raised}/>}
+    {tvRing > 0 && edges.edges.bottom && <ListEdgeFade edge="bottom" length={spacing.xl} opacity={1} color={theme.colors.raised}/>}</View>;
   const surface = <TVDesignCanvas><View pointerEvents={paint.interactive ? 'auto' : 'none'} accessibilityElementsHidden={!paint.interactive} importantForAccessibility={paint.interactive ? 'auto' : 'no-hide-descendants'} style={styles.root} onLayout={event => setWindowHeight(event.nativeEvent.layout.height)}><View testID={testID ? `${testID}-keyboard-boundary` : undefined} style={[styles.root, {marginBottom: keyboardInset}]} accessibilityViewIsModal={!page} onAccessibilityEscape={() => {if (!page) dismiss('escape');}}>
       <Animated.View style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.isTV ? theme.colors.ink : '#03080c', backdropOpacity)}, scrimStyle, page ? {display: 'none'} : undefined]} pointerEvents="none"/>
       <View style={[StyleSheet.absoluteFill, page ? {display: 'none'} : undefined]} pointerEvents={page ? 'none' : 'auto'} onStartShouldSetResponder={() => !page} onResponderRelease={() => {if (!page && dismissOnOutsidePress) dismiss('outside');}} accessible={false}/>
       {/* One native content ancestry across compact/medium. Changing geometry
           cannot recreate the ScrollView or a focused TextInput/IME session. */}
       <Animated.View testID={testID} accessibilityLabel={accessibilityLabel} style={[page ? styles.root : side ? styles.tv : styles.sheet,
-        page ? undefined : side ? {width: sideWidth, paddingTop: theme.isTV ? 64 : 24, paddingRight: theme.isTV ? 96 : 20, paddingBottom: theme.isTV ? 56 : 20, paddingLeft: theme.isTV ? 56 : 20}
+        page ? undefined : side ? {width: sideWidth, paddingTop: theme.isTV ? 64 : 24, paddingRight: theme.isTV ? tvPadding.right : 20, paddingBottom: theme.isTV ? 56 : 20, paddingLeft: theme.isTV ? tvPadding.left : 20}
           : {height: max, borderColor: alpha(theme.colors.text, 0.08)},
         {backgroundColor: theme.colors.raised}, page ? undefined : side ? tvStyle : sheetStyle, style]}>
         {theme.isTV && <PanelBackground/>}
         {surfaceBackground}
-        <FocusBoundary modal={!page} testID={testID} style={styles.root}>
+        <FocusBoundary modal={!page} testID={region} style={styles.root}>
           <GestureDetector gesture={pan}><Animated.View style={page ? {display: 'none'} : undefined} onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}>
             <View style={side ? {display: 'none'} : undefined} accessible={!side} accessibilityRole="adjustable" accessibilityLabel={accessibilityLabel ?? (typeof title === 'string' ? title : undefined)} accessibilityValue={{min: 1, max: heights.length, now: index + 1, text: defaultI18n.t('next.overlays.native.sheetPosition', {position: index + 1, count: heights.length})}}
               accessibilityActions={[{name: 'increment', label: defaultI18n.t('next.overlays.native.expandSheet')}, {name: 'decrement', label: defaultI18n.t('next.overlays.native.collapseSheet')}, ...(dismissOnGesture ? [{name: 'dismiss' as const, label: defaultI18n.t('action.close')}] : [])]}
@@ -148,7 +160,9 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
           {!page && (footer != null || side && showClose) && <Animated.View onLayout={event => setFooterHeight(event.nativeEvent.layout.height)}
             style={[side ? {paddingTop: 20} : styles.footer,
               side ? undefined : {backgroundColor: theme.colors.raised, paddingTop: footerPadding?.top ?? 14, paddingBottom: footerPadding ? keyboardTop !== undefined ? footerPadding.keyboardBottom : Math.max(insets.bottom, footerPadding.bottom) : (keyboardInset > 0 ? 0 : insets.bottom) + 16,
-                borderTopWidth: showFooterSeparator ? 1 : 0, borderTopColor: alpha(theme.colors.text, 0.08)}, footerStyle]}>{footer ?? close}</Animated.View>}
+                borderTopWidth: showFooterSeparator ? 1 : 0, borderTopColor: alpha(theme.colors.text, 0.08)}, footerStyle]}>
+              {/* R9: a touch sheet's foot buttons take equal halves or the full width, never hugging the left. */}
+              {side || theme.isTV ? footer ?? close : <OverlayFootRow layout="halves">{footer}</OverlayFootRow>}</Animated.View>}
         </FocusBoundary>
       </Animated.View>
     </View></View></TVDesignCanvas>;

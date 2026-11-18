@@ -3,7 +3,6 @@ import {createI18n, deviceRegion, resolveRegion} from '@i18n';
 import {Icon, type IconName} from '../Icon';
 import {Button} from '../controls';
 import {Menu} from '../overlays/Popover';
-import {ColourBackdrop} from '../artwork';
 import styles from './server-directory-page.module.css';
 
 const t = createI18n(resolveRegion(undefined, deviceRegion())).t;
@@ -58,7 +57,7 @@ export function ServicesServerDirectory({header, servers, offline, connecting = 
   </button>;
 
   return <div className={styles.page}>
-    {header}<ColourBackdrop />
+    {header}
     <main className={styles.main}>
       <header className={styles.head}>
         <p className={styles.why}>{offline ? t('web.chooser.offlineWhy') : t('web.chooser.signedInAs', {name: signedInAs})}</p>

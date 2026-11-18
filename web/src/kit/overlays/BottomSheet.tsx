@@ -1,5 +1,5 @@
 import {useOverlayPortalTarget} from './portal-target';
-import {useCallback, useId, useLayoutEffect, useRef, useState, type ReactElement, type Ref, type PointerEvent as ReactPointerEvent} from 'react';
+import {useCallback, useId, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode, type Ref, type PointerEvent as ReactPointerEvent} from 'react';
 import {Dialog as RadixDialog} from 'radix-ui';
 import {defaultI18n} from '@i18n';
 import {springs} from '@design';
@@ -26,10 +26,14 @@ export type BottomSheetProps = OverlaySurfaceProps & OverlayContentSlots & Overl
   dismissOnBack?: boolean;
   showCloseButton?: boolean;
   role?: 'dialog' | 'alertdialog';
+  /** R9 bar: the item the sheet is about, grey beside the title ("File info  Dune: Part Two  Done"). */
+  subtitle?: ReactNode;
+  /** R9 bar: a task's Cancel at the start; the title is then centred and `headerAction` holds the task's action. */
+  leading?: ReactNode;
 };
 type Drag = {pointer: number; startY: number; startHeight: number; y: number; time: number; velocity: number};
 
-export function BottomSheet({open, onOpenChange, title, headerAction, children, description, footer, initialFocusRef, returnFocusRef, accessibilityLabel, className, testID, headerClassName, bodyClassName, footerClassName, detents, detent, onDetentChange, scrollRef, fitContent = false, dialog = false, footerDismisses = false, trigger, dismissOnOutsidePress = true, dismissOnBack = true, showCloseButton = true, stackFooter = false, role = 'dialog'}: BottomSheetProps) {
+export function BottomSheet({open, onOpenChange, title, headerAction, children, description, footer, initialFocusRef, returnFocusRef, accessibilityLabel, className, testID, headerClassName, bodyClassName, footerClassName, detents, detent, onDetentChange, scrollRef, fitContent = false, dialog = false, footerDismisses = false, trigger, dismissOnOutsidePress = true, dismissOnBack = true, showCloseButton = true, stackFooter = false, role = 'dialog', subtitle, leading}: BottomSheetProps) {
   const portalTarget = useOverlayPortalTarget();
   const id = useId(), [viewport, setViewport] = useState(() => typeof window === 'undefined' ? {height: 844, bottom: 0} : sheetViewport(window.innerHeight, window.visualViewport));
   const [active, setActive] = useState(0), [naturalHeight, setNaturalHeight] = useState(0), [element, setElement] = useState<HTMLDivElement | null>(null);
@@ -151,7 +155,9 @@ export function BottomSheet({open, onOpenChange, title, headerAction, children, 
       <div ref={header} className={classes(styles.sheetHeader, headerClassName)} onPointerDown={start} onPointerMove={move} onPointerUp={event => end(event)} onPointerCancel={event => end(event, true)} onLostPointerCapture={event => { if (drag.current) end(event, true); }}>
         <div className={styles.grabber} role="slider" tabIndex={0} aria-label={defaultI18n.t('next.overlays.resizeSheet')} aria-valuemin={limits[0]?.height ?? 0} aria-valuemax={maximum} aria-valuenow={selected?.height ?? maximum} aria-orientation="vertical"
           onKeyDown={event => { const position = Math.max(0, limits.findIndex(value => value.index === selected?.index)); const next = event.key === 'ArrowUp' ? position + 1 : event.key === 'ArrowDown' ? position - 1 : event.key === 'Home' ? 0 : event.key === 'End' ? limits.length - 1 : undefined; if (next !== undefined) { event.preventDefault(); choose(limits[Math.max(0, Math.min(limits.length - 1, next))]!.index); } }}><span /></div>
-        <div className={styles.sheetHeading}><RadixDialog.Title className={styles.sheetTitle}>{title}</RadixDialog.Title>{headerAction}{showCloseButton && !(footerDismisses && hasFooter) && <Button variant="text" size="small" className={styles.sheetDone} onClick={() => onOpenChange(false, 'close-button')}>{defaultI18n.t('next.overlays.done')}</Button>}</div>
+        {leading !== undefined ? <div className={styles.sheetHeading} data-centred="">{leading}<RadixDialog.Title className={styles.sheetTitle}>{title}</RadixDialog.Title>{headerAction ?? <span />}</div>
+          : <div className={styles.sheetHeading}>{subtitle === undefined ? <RadixDialog.Title className={styles.sheetTitle}>{title}</RadixDialog.Title>
+            : <div className={styles.sheetTitles}><RadixDialog.Title className={styles.sheetTitle}>{title}</RadixDialog.Title><p className={styles.sheetSubtitle}>{subtitle}</p></div>}{headerAction}{showCloseButton && !(footerDismisses && hasFooter) && <Button variant="text" size="small" className={styles.sheetDone} onClick={() => onOpenChange(false, 'close-button')}>{defaultI18n.t('next.overlays.done')}</Button>}</div>}
         {description !== undefined && <RadixDialog.Description id={`${id}-description`} className={styles.sheetDescription}>{description}</RadixDialog.Description>}
       </div>
       <div ref={scrollRef} className={classes(styles.sheetBody, bodyClassName)}><div ref={body}>{children}</div></div>

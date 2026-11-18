@@ -68,7 +68,7 @@ export function HomeSeeAll(props: HomeSeeAllProps) {
 function HomeSeeAllSkeleton({runtime, surface}: {runtime: NativeShellRuntime; surface: number}) {
   const theme = useTheme(), window = useWindowDimensions(), tv = theme.isTV, phone = !tv && theme.platform === 'phone', top = useSafeAreaInsets().top;
   const gutter = tv ? 200 : theme.gutter, right = tv ? 96 : gutter, gap = tv ? 32 : phone ? 10 : 12;
-  const width = homeSeeAllCardWidth(surface, gutter, tv ? 200 : theme.spec.card.width.poster[theme.platform], (runtime.appearanceCardSizePercent ?? 100) / 100, phone);
+  const width = homeSeeAllCardWidth(surface, gutter, tv ? 200 : theme.spec.card.width.poster[theme.column], (runtime.appearanceCardSizePercent ?? 100) / 100, phone);
   const content = Math.max(1, surface - gutter - right), columns = Math.max(1, Math.floor((content + gap) / (width + gap)));
   return <View testID="home-see-all-skeleton" style={{paddingLeft: gutter, paddingRight: right, paddingTop: tv ? 64 : top + 20}}>
     <SkeletonBlock width={tv ? 100 : 64} height={tv ? 26 : 18} style={{marginBottom: tv ? 18 : 16}}/>
@@ -114,7 +114,7 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
   const reasonParts = !row.reason?.text && row.why ? homeRowReasonParts(row, labels) : undefined;
   const artwork = row.entries.find(entry => entry.backdropUrl || entry.posterUrl);
   const tv = theme.isTV, phone = !tv && theme.platform === 'phone', gutter = tv ? 200 : theme.gutter, cardScale = (runtime.appearanceCardSizePercent ?? 100) / 100,
-    width = homeSeeAllCardWidth(surface, gutter, tv ? 200 : theme.spec.card.width.poster[theme.platform], cardScale, phone);
+    width = homeSeeAllCardWidth(surface, gutter, tv ? 200 : theme.spec.card.width.poster[theme.column], cardScale, phone);
   const playable = hasHomeRowQueue(row.id);
   const header = <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)} style={{paddingLeft: gutter, paddingRight: tv ? 96 : theme.gutter, paddingTop: tv ? 64 : top, paddingBottom: tv ? 24 : 16}}>
         {tv ? <Focusable focusId="back" onPress={onBack} accessibilityRole="button" accessibilityLabel={t('next.home.shell.home')} style={{height: tv ? 32 : 28, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start'}}>

@@ -1,7 +1,6 @@
 import {forwardRef, useId, useRef, useState, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
 import {presentError} from '@core/presentation/errors.ts';
-import {ColourBackdrop} from '../artwork';
 import {TextField, type TextFieldProps} from '../controls/Fields';
 import {Icon} from '../Icon';
 import wordmark from '../../shell/wordmark.svg';
@@ -21,13 +20,14 @@ export function AuthStage({children, layout = 'column', service = false, topRigh
     <div className={[styles.content, contentClassName].filter(Boolean).join(' ')} data-auth-content>{children}</div>
   </section>;
   return <section className={[styles.stage, className].filter(Boolean).join(' ')} data-layout={layout}>
-    <ColourBackdrop className={styles.standardBackdrop} />
     <header className={styles.brand}><img src={wordmark} alt={t('accounts.brand')} />{service && <span>{t('next.account.brand')}</span>}</header>
     {topRight && <div className={styles.topRight}>{topRight}</div>}
     <div className={[styles.content, contentClassName].filter(Boolean).join(' ')} data-auth-content>{children}</div>
     {legal && <footer className={styles.legal}><a href="https://getportico.tv/terms">{t('auth.terms')}</a><a href="https://getportico.tv/privacy">{t('accounts.legal.privacy')}</a></footer>}
   </section>;
 }
+/** The accent line over a sign-in title ("Sign in to", auth-4, auth-6). */
+export function AuthKicker({children}: {children: ReactNode}) { return <p className={styles.eyebrow}>{children}</p>; }
 export function AuthLinks({children}: {children: ReactNode}) { return <div className={styles.links}>{children}</div>; }
 /** The one button stack of the sign-in and Portico Account pages (design/ui-v1 `.btnrow`: 12 apart, full width). */
 export function AuthActions({children, className}: {children: ReactNode; className?: string}) {

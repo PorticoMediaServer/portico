@@ -50,10 +50,14 @@ export type HeroProps<T extends HeroCandidate> = {
   testID?: string;
 };
 
-export function HeroMetadata({facts, centered = false}: {facts: readonly FactPart[]; centered?: boolean}) {
+/** `runtimeChip`: Home's hero outlines the runtime too (mock.html home); a title page draws it as plain text (phone-detail d1,
+ * desktop-detail f1, f2). */
+export function HeroMetadata({facts, centered = false, runtimeChip = false}: {facts: readonly FactPart[]; centered?: boolean; runtimeChip?: boolean}) {
   const theme = useTheme();
-  return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centered ? 'center' : 'flex-start', columnGap: heroSpec.facts.gap[theme.platform], rowGap: heroSpec.facts.rowGap[theme.platform]}}>
-    {facts.map(fact => <Text key={fact.id} style={[theme.type.meta, {includeFontPadding: false, color: fact.id === 'year' || fact.role === 'identity' ? theme.colors.text : theme.colors.textSecondary, fontFamily: fact.id === 'year' || fact.role === 'identity' ? theme.type.bodyStrong.fontFamily : theme.type.meta.fontFamily}]}>{fact.text}</Text>)}
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centered ? 'center' : 'flex-start', columnGap: heroSpec.facts.gap[theme.column], rowGap: heroSpec.facts.rowGap[theme.column]}}>
+    {/* A rating and a season count are outlined chips, and on Home a runtime (phone-detail 1, mock.html home); the rest is plain text. */}
+    {facts.map(fact => <Text key={fact.id} style={[theme.type.meta, {includeFontPadding: false, color: fact.id === 'year' || fact.role === 'identity' ? theme.colors.text : theme.colors.textSecondary, fontFamily: fact.id === 'year' || fact.role === 'identity' ? theme.type.bodyStrong.fontFamily : theme.type.meta.fontFamily},
+      (fact.id === 'content-rating' || (runtimeChip && fact.id === 'duration') || fact.id === 'season-count') && {paddingHorizontal: theme.space.tight, paddingVertical: theme.space.hairline, borderWidth: theme.space.hairline, borderColor: theme.colors.textTertiary, borderRadius: theme.baseRadii.control / 2, overflow: 'hidden'}]}>{fact.text}</Text>)}
   </View>;
 }
 
@@ -114,7 +118,7 @@ function HeroCopy<T extends HeroCandidate>({entry, fade, variant, renderActions,
       top: copyTop ?? (tv ? 220 : undefined), bottom: copyTop !== undefined || tv ? undefined : phone ? heroSpec.copy.homeBottom.phone : heroSpec.copy.homeBottom.web}, copyStyle]}>
     {(renderReason || entry.reason) ? <CopyPart {...partProps} step={step++}>{renderReason ? renderReason(entry) : <Text style={[theme.type.eyebrow, {includeFontPadding: false, textAlign: side ? 'left' : phone ? 'center' : 'left', color: theme.colors.accentStrong, marginBottom: phone ? 8 : tv ? 16 : 14}, reasonTextStyle]}>{entry.reason}</Text>}</CopyPart> : null}
     <CopyPart {...partProps} step={step++}><Lockup title={entry.title} long={entry.long} variant={variant} lines={tv ? 2 : undefined} style={[{textAlign: side ? 'left' : phone ? 'center' : 'left', marginBottom: phone ? 10 : tv ? 22 : 20}, lockupStyle, entry.long && longLockupStyle]} /></CopyPart>
-    {(renderMetadata || entry.facts?.length) ? <CopyPart {...partProps} step={step++}><View style={[{marginBottom: phone ? 18 : tv ? 18 : 16}, metadataStyle]}>{renderMetadata ? renderMetadata(entry) : <HeroMetadata facts={entry.facts ?? []} centered={side ? false : phone} />}</View></CopyPart> : null}
+    {(renderMetadata || entry.facts?.length) ? <CopyPart {...partProps} step={step++}><View style={[{marginBottom: phone ? 18 : tv ? 18 : 16}, metadataStyle]}>{renderMetadata ? renderMetadata(entry) : <HeroMetadata runtimeChip facts={entry.facts ?? []} centered={side ? false : phone} />}</View></CopyPart> : null}
     {showOverview && !phone && entry.overview ? <CopyPart {...partProps} step={step++}><Text numberOfLines={tv ? 2 : 3} style={[theme.type.synopsis, {includeFontPadding: false, color: theme.colors.textSecondary, maxWidth: tv ? 800 : 540, marginBottom: tv ? 30 : 28}, overviewTextStyle]}>{entry.overview}</Text></CopyPart> : null}
     {/* tv-focus F-HOME-11: on TV the controls hold native focus through a rotation, so they
         never re-fade; only their labels change in place. Every other layout keeps the stagger. */}
@@ -271,7 +275,7 @@ export function Hero<T extends HeroCandidate>({candidates, activeIndex, onIndexC
       onTouchEnd: (event: {nativeEvent: {touches: readonly unknown[]}}) => {if (event.nativeEvent.touches.length === 0) setTouching(false);},
       onTouchCancel: () => setTouching(false)})}
     onFocus={() => setControlFocused(true)} onBlur={() => setControlFocused(false)}
-    style={[{height: height ?? (variant === 'phone-web' ? heroSpec.mobileWeb.homeHeight : variant === 'desktop' ? heroSpec.homeHeight.web : heroSpec.homeHeight[theme.platform]), position: 'relative'}, style]}>
+    style={[{height: height ?? (variant === 'phone-web' ? heroSpec.mobileWeb.homeHeight : variant === 'desktop' ? heroSpec.homeHeight.web : heroSpec.homeHeight[theme.column]), position: 'relative'}, style]}>
     <HeroSurface {...props} entry={candidates[index]} variant={variant} active={active} visible={visible && appVisible} reducedMotion={reducedMotion} heroFocused={heroFocused}
       renderAfterCopy={entry => <>{props.renderAfterCopy?.(entry)}{!desktop && dots}</>} />
     {desktop && renderThumbnail && <View style={{position: 'absolute', right: props.thumbnailSize?.right ?? theme.gutter, bottom: props.thumbnailSize?.bottom ?? heroSpec.thumbnail.bottom, flexDirection: 'row', gap: props.thumbnailSize?.gap ?? heroSpec.thumbnail.gap}}>

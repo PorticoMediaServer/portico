@@ -8,8 +8,6 @@
 .image { position: absolute; inset: 0; display: block; width: 100%; height: 100%; opacity: 0; transition: opacity var(--art-arrival-duration, var(--motion-standard)) var(--ease-out); }
 .image[data-artwork-admitted] { opacity: 1; }
 
-/* The standard backdrop's window layer; its paint is bootstrap.css's .portico-backdrop. */
-.colour { position: fixed; inset: 0; pointer-events: none; }
 
 .ambient { --art-first: #2f86bb; --art-second: #1e5b52; position: absolute; inset: 0; pointer-events: none; }
 .washLayer { position: absolute; inset: 0; overflow: hidden; -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent 100%); mask-image: linear-gradient(180deg, #000 30%, transparent 100%); }

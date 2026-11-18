@@ -94,6 +94,8 @@ export type BottomSheetProps = SurfaceProps & {
 export type PopoverProps = SurfaceProps & {
   anchorRef: React.RefObject<View | null>;
   width?: number;
+  /** The surface takes its content's width between `width` and this (packages/design `popoverWidth`). */
+  maxWidth?: number;
   modal?: boolean;
   /** Native focus containment can hold an in-window TV menu independently of window modality. */
   holdFocus?: boolean;
@@ -173,6 +175,8 @@ export type ToastHostProps = {
    * existing caller, which then keeps the original bottomOffset + safe area + 12. */
   obstructionTop?: number;
   topOffset?: number;
+  /** R12: inside the player a wider form stands the card at the start (desktop-player), not centred. */
+  placement?: 'player';
   testID?: string;
 };
 export type BannerProps = {

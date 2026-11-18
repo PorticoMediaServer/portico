@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
+import * as design from '../../../packages/design/src/index.ts';
 
 const react = {...hooks().react, createContext: (value: unknown) => ({_currentValue: value})};
 const themeModule = await screenModule(new URL('../src-next/kit/theme.ts', import.meta.url), {
-  react: {...react, default: react}, 'react-native': {}, '@portico/design': {typography: {
+  react: {...react, default: react}, 'react-native': {Platform: {OS: 'ios'}}, '@portico/design': {...design, typography: {
     regular: 'Manrope-Regular', medium: 'Manrope-Medium', semibold: 'Manrope-SemiBold', bold: 'Manrope-Bold', extraBold: 'Manrope-ExtraBold',
   }},
 });

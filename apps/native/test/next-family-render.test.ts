@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {registerHooks} from 'node:module';
 import React, {type ReactElement, type ReactNode} from 'react';
 import {transformSync} from 'rolldown/utils';
-import {createTheme, fontFamilies, nativeType} from '../src-next/kit/theme.ts';
+import {createTheme, fontFamilies, nativeType, titleLine} from '../src-next/kit/theme.ts';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {dispatchMenuKey} from '../src-next/platform/menu-key.ts';
 
@@ -14,7 +14,7 @@ import {dispatchMenuKey} from '../src-next/platform/menu-key.ts';
 // The actual family components, callback closures and lifecycle run unchanged;
 // device layout, decoding, gestures and D-pad focus require Android evidence.
 const state = {
-  theme: createTheme({isTV: false, width: 390}), fontFamilies, nativeType,
+  theme: createTheme({isTV: false, width: 390}), fontFamilies, nativeType, titleLine,
   os: 'android' as 'android' | 'ios',
   slot: {active: true, recovering: false, gaveUp: false, cached: false, attempt: 0, loaded() {}, failed() {}},
   timings: [] as {toValue: number; duration: number}[],
@@ -38,7 +38,7 @@ const animated = data(`import {useRef} from ${JSON.stringify(import.meta.resolve
   export const useSharedValue=value=>useRef({value}).current,useAnimatedStyle=fn=>fn(),cancelAnimation=()=>{},withTiming=value=>{globalThis.__porticoFamilyRenderTest.workletTargets.push(value);return value;},withSpring=value=>value,withDelay=(_,value)=>value,runOnJS=fn=>fn,runOnUI=fn=>fn,useAnimatedRef=()=>useRef(null),useAnimatedScrollHandler=()=>{},useAnimatedReaction=()=>{},scrollTo=()=>{};
   export const Easing={bezier:()=>v=>v,linear:v=>v},ReduceMotion={Never:'never'};
   export default {View:'AnimatedView',ScrollView:'AnimatedScrollView',createAnimatedComponent:c=>c};`);
-const theme = data(`const s=globalThis.__porticoFamilyRenderTest;export const useTheme=()=>s.theme,fontFamilies=s.fontFamilies,nativeType=s.nativeType,activeTextScale=()=>s.theme.textScale,ThemeProvider='ThemeProvider';`);
+const theme = data(`const s=globalThis.__porticoFamilyRenderTest;export const useTheme=()=>s.theme,fontFamilies=s.fontFamilies,nativeType=s.nativeType,titleLine=s.titleLine,activeTextScale=()=>s.theme.textScale,ThemeProvider='ThemeProvider';`);
 const pipeline = data(`export const useArtworkPlacement=()=>({row:0,column:0}),useArtworkSlot=()=>globalThis.__porticoFamilyRenderTest.slot,sizedUri=uri=>uri;`);
 const gesture = data(`const pan=()=>new Proxy({}, {get:()=>()=>pan()});export const Gesture={Pan:pan,Native:pan,Race:pan,Simultaneous:pan};export const GestureDetector='GestureDetector';`);
 const svg = data(`export default 'Svg';export const Defs='Defs',LinearGradient='LinearGradient',RadialGradient='RadialGradient',Rect='Rect',Stop='Stop',Path='Path',Circle='Circle',Ellipse='Ellipse',Line='Line',Polyline='Polyline',Polygon='Polygon',G='G',ClipPath='ClipPath',Mask='Mask',Use='Use',Text='SvgText';`);
@@ -647,9 +647,16 @@ test('Library Save view follows caller eligibility without disabling the other m
   }} finally {state.theme = previous;}
 });
 
-test('F09 explicitly anchored TV Menu holds its in-window native focus guide', async () => {
+test('F09 the rail\'s anchored TV flyout holds its in-window native focus guide; any other anchored TV menu is the side sheet (R9)', async () => {
   state.theme = createTheme({isTV: true, width: 1920});
-  const menu = await mount(Menu, {testID: 'anchored-menu', open: true, onOpenChange() {}, presentation: 'anchored', anchorRef: {current: {measureInWindow: (run: any) => run(300, 200, 100, 60)}}, items: [{id: 'action', label: 'Actual action', onSelect() {}}]});
+  const anchorRef = {current: {measureInWindow: (run: any) => run(300, 200, 100, 60)}}, items = [{id: 'action', label: 'Actual action', onSelect() {}}];
+  const sheet = await mount(Menu, {testID: 'anchored-menu', open: true, onOpenChange() {}, presentation: 'anchored', anchorRef, items});
+  try {assert.notEqual((sheet.tree as any).type, Popover, 'R9: a TV menu is never a pointer drop-down');}
+  finally {await sheet.host.unmount();}
+  // The flyout re-measures its anchor each frame while the rail moves; this case looks at one frame.
+  const request = globalThis.requestAnimationFrame, cancel = globalThis.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = () => 0; globalThis.cancelAnimationFrame = () => {};
+  const menu = await mount(Menu, {testID: 'anchored-menu', open: true, onOpenChange() {}, presentation: 'anchored', placement: 'right-end', anchorRef, items});
   try {
     const popover = menu.tree as any; assert.equal(popover.type, Popover); assert.equal(popover.props.holdFocus, true); assert.equal(popover.props.modal, undefined);
     const surface = await mount(Popover, popover.props);
@@ -657,7 +664,7 @@ test('F09 explicitly anchored TV Menu holds its in-window native focus guide', a
       await surface.host.flush(); const boundary = nodes(surface.tree).find(node => (node.type as any)?.name === 'FocusBoundary')!;
       assert.ok(boundary); assert.equal(boundary.props.modal, true, 'containment is independent of the native window modality');
     } finally {await surface.host.unmount();}
-  } finally {await menu.host.unmount();}
+  } finally {await menu.host.unmount(); globalThis.requestAnimationFrame = request; globalThis.cancelAnimationFrame = cancel;}
 });
 
 test('F10 standalone Row owns one provider and reports actual raw viewport keys across retained holes', async () => {
@@ -794,10 +801,10 @@ test('E-mobile-31 an outside press releases the modal Popover window at once and
   } finally {await surface.host.unmount();}
 });
 
-test('a phone poster title wraps to a second line before it is cut; TV keeps one line; an explicit count wins (W3 F1, F6, F20)', async () => {
+test('a poster title wraps to a second line before it is cut; TV too (the owner no-cut rule, 18 Nov); an explicit count wins (W3 F1, F6, F20)', async () => {
   const {PosterCard} = await import('../src-next/kit/cards/MediaCards.tsx');
   const {Caption} = await import('../src-next/kit/cards/primitives.tsx');
-  for (const [isTV, titleLines, lines] of [[false, undefined, 2], [true, undefined, 1], [false, 1, 1]] as const) {
+  for (const [isTV, titleLines, lines] of [[false, undefined, 2], [true, undefined, 2], [false, 1, 1]] as const) {
     state.theme = createTheme({isTV, width: isTV ? 1920 : 390});
     const portrait = (props: any) => {const element: any = PosterCard(props); return element.type(element.props);};
     const card = await mount(portrait, {title: 'Little Nemo in Slumberland', onNavigate() {}, width: 120, ...(titleLines ? {titleLines} : {})});

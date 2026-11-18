@@ -54,7 +54,8 @@ function makePlayback(kind: FixtureKind, options: Options, run = 1): DockPlaybac
   const state = {positionSeconds: kind === 'live' ? 950 : (options.variant === 'film' || options.variant === 'notice-audio' && options.layout !== 'phone') ? 511 : options.variant === 'finished' ? 3186 : options.variant === 'next' ? 4 : options.variant === 'ask' || options.variant === 'auto' ? 605 : kind === 'music' ? options.layout === 'tv' ? options.expanded ? 96 : 88.8 : options.variant === 'notice-video' || options.layout === 'phone' ? 4 : 107 : kind === 'audiobook' && options.layout === 'tv' ? 1102 : options.layout === 'phone' || kind === 'audiobook' ? 724 : 845, playing: options.variant !== 'paused' && options.variant !== 'finished' && options.variant !== 'restored', expanded: !!options.morph};
   return kind === 'live' ? {...state, kind, fence: liveFence(run), queue: null} : {...state, kind, fence: fence(kind, run), queue: null};
 }
-function galleryCase(options: Options): ComponentType {
+/** One dock case; the player family's frames gallery draws its dock and casting cases through this too. */
+export function galleryCase(options: Options): ComponentType {
   return function DockCase() {
     const {kind = 'video', layout = 'desktop', variant = 'default'} = options, refs = useArt(), evidence = useEvidence(), stage = useRef<HTMLDivElement | null>(null), video = useRef<HTMLVideoElement | null>(null), slot = useRef<HTMLSpanElement | null>(null), full = useRef<HTMLDivElement | null>(null);
     const dock = useMemo(() => {

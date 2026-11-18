@@ -19,7 +19,7 @@ const named = (tree: any, name: string) => nodes(tree).find(node => node.type ==
 async function homeFixture(width: number, height: number) {
   const h = hooks(), layouts: (() => unknown)[] = [];
   const react = {...h.react, useLayoutEffect: (run: () => unknown) => {layouts.push(run);}};
-  const theme = {platform: 'tablet', layoutMode: 'phone', isTV: false, textScale: 1, gutter: 24,
+  const theme = {platform: 'tablet', column: 'tablet', layoutMode: 'phone', isTV: false, textScale: 1, gutter: 24,
     colors: {text: '#fff', textTertiary: '#777', ink: '#000'},
     type: {rowHeading: {fontSize: 21, lineHeight: 27}, lockup: {fontSize: 42, lineHeight: 42.84, letterSpacing: -1.68}},
     spec: {hero: {homeHeight: {tablet: 440}}, shelf: {phonePaddingTop: 6, phonePaddingBottom: 8, headingMargin: {tablet: 12}},
@@ -127,7 +127,7 @@ test('a restored shelf seeds the anchor offset once and preserves later native s
   const h = hooks(), layouts: (() => unknown)[] = [];
   const react = {...h.react, useLayoutEffect: (run: () => unknown) => {layouts.push(run);}};
   const anchor = {scrollRef: {}, offset: {value: 0}, anchor() {}, move() {}, stop() {}, repeating: false};
-  const theme = {isTV: false, platform: 'phone', gutter: 20, colors: {text: '#fff'}, type: {rowHeading: {}},
+  const theme = {isTV: false, platform: 'phone', column: 'phone', gutter: 20, colors: {text: '#fff'}, type: {rowHeading: {}},
     spec: {shelf: {gap: {phone: 10}, phonePaddingTop: 6, phonePaddingBottom: 8, headingGap: {phone: 10}, headingMargin: {phone: 12}}}};
   const {Row} = await screenModule(new URL('../src-next/kit/layout/Row.tsx', import.meta.url), {'./model': layoutModel, 
     react, 'react-native': {Pressable: 'Pressable', Text: 'Text', View: 'View'}, 'react-native-svg': {},

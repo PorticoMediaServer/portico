@@ -1,0 +1,5 @@
+/* Who is watching together, in the player's group pill panel. */
+.people { display: grid; gap: 14px; }
+.person { display: flex; align-items: center; gap: 12px; }
+.person > span { flex: 1; min-width: 0; }
+.person small { display: block; color: var(--color-text-secondary); }

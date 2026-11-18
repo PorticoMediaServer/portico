@@ -1,0 +1,17 @@
+/* A stand-in for the reading engine's page in the reader cases: the engine sets its own type from the book's display
+   settings (Literata at size 5, justified; this stand-in takes the kit's own type), two columns from 1024 and one below. Not a kit style. */
+.page { max-width: 1080px; margin: 0 auto; padding: var(--space-px-96) var(--space-px-64); columns: 2; column-gap: var(--space-px-96); font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); color: var(--color-text-secondary); text-align: justify; }
+.page p { margin: 0; }
+.indent { text-indent: 1.5em; }
+.chapter { text-align: center; margin-bottom: var(--space-px-48) !important; }
+.chapter small { display: block; font-family: var(--font); font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
+.chapter span { font-size: var(--type-display-size); line-height: var(--type-display-line); }
+@media (max-width: 599px) { .page { columns: 1; padding: var(--space-px-72) var(--space-md); } }
+/* A bounded card grid in the page's flow (My List): the library grid's column width and gaps come from frameSpec.browse.grid. */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--grid-card), 1fr)); padding: 0 var(--g); }
+/* Recently played: quick tiles two lines deep: as many across as tiles of at least three quarters of their width fit (rounding to the tile's own width), at most four; two at phone width. */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(calc(var(--frame-quick-tile-width) * .75), calc((100% - 3 * var(--space-sm)) / 4)), 1fr)); gap: var(--space-sm); padding: 0 var(--g); }
+.tiles > * { width: auto; min-width: 0; }
+@media (max-width: 599px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* A list of rows from the gutter. */
+.list, .inset { padding: 0 var(--g); }

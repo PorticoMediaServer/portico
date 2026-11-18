@@ -1,10 +1,10 @@
-import {buttonSpec, chipSpec, focusSpec, targets, typeScale} from '@portico/design';
+import {buttonSpec, chipSpec, focusSpec, formScale, targets, transportSpec, typeScale, type ByForm, type ScaleForm} from '@portico/design';
 
 export type ControlPlatform = 'phone' | 'tablet' | 'web' | 'tv';
 /** `link`: a sentence link (design/ui-v1 `.links a`), bare text on the content edge that wraps; `text`
  * stays the padded text action that footers and toolbars size themselves. */
 export type ButtonVariant = 'primary' | 'glass' | 'text' | 'link' | 'icon' | 'danger';
-export type ButtonSize = 'hero' | 'compact' | 'small' | 'xs' | 'episode' | 'dock';
+export type ButtonSize = 'hero' | 'compact' | 'small' | 'xs' | 'episode' | 'dock' | 'transport';
 export type FocusKind = 'button' | 'row' | 'chip' | 'card' | 'field';
 export type ChipVariant = 'default' | 'quick' | 'facet' | 'applied' | 'pill';
 
@@ -12,25 +12,34 @@ export function progressFraction(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 }
 
-/** Page-local measurements are kept in the kit, beside their source map. */
+/** The form scale's column for a component spec column: both tablet forms draw one button and one chip. */
+const formOf = (platform: ControlPlatform): ScaleForm => platform === 'tablet' ? 'expanded' : platform;
+type ButtonScale = Readonly<{height: ByForm<number>; radius: ByForm<number>; paddingX: ByForm<number>; gap: ByForm<number>; icon: ByForm<number>}>;
+const scaled = (size: ButtonScale, form: ScaleForm) => ({height: size.height[form], radius: size.radius[form], paddingX: size.paddingX[form], gap: size.gap[form], icon: size.icon[form]});
+
+/** R2: a button's size is the form's (`formScale.button`), with its label at the form's `button` or `compactButton` role.
+ * `platform` is the theme's `column`: a tablet of any width is `tablet`, never `web`. */
 export type ButtonGeometry = Readonly<{height: number; radius: number; paddingX: number; gap: number; icon: number; fontSize: number}>;
 export function buttonGeometry(size: ButtonSize, platform: ControlPlatform, variant: ButtonVariant = 'primary'): ButtonGeometry {
+  const form = formOf(platform), type = formScale.type[form], button = formScale.button;
   // A TV link keeps the text recipe's padding for its focus face.
   if (variant === 'link') return platform === 'tv' ? buttonGeometry(size, platform, 'text') : {...buttonGeometry(size, platform, 'text'), paddingX: 0};
+  // Player transport (componentSpec.transport): round and icon-only. The white primary is Play or Pause.
+  if (size === 'transport') {
+    const spec = variant === 'primary' ? transportSpec.primary : transportSpec.control, height = spec.size[platform];
+    return {height, radius: height / 2, paddingX: 0, gap: 0, icon: spec.icon[platform], fontSize: 0};
+  }
   if (platform === 'web' && variant === 'icon') return {height: 40, radius: 20, paddingX: 0, gap: 0, icon: 22, fontSize: 15};
   if (platform === 'web' && variant === 'text') return {height: 32, radius: 8, paddingX: 10, gap: 6, icon: 16, fontSize: 13.5};
-  if (size === 'hero') return {
-    height: buttonSpec.hero.height[platform], radius: buttonSpec.hero.radius[platform],
-    paddingX: buttonSpec.hero.paddingX[platform], gap: buttonSpec.hero.gap[platform],
-    icon: buttonSpec.hero.icon[platform], fontSize: typeScale[platform === 'tv' ? 'tenFoot' : platform === 'web' ? 'desktop' : 'handheld'].button.size,
-  };
-  if (platform === 'tv') return {height: 64, radius: 14, paddingX: 26, gap: 12, icon: 26, fontSize: 22};
-  // kit.css .btn and its page-local utility sizes, also used by web controls.
+  if (size === 'hero') return {...scaled(button.standard, form), fontSize: type.button.size};
+  // Nothing focusable on TV is under 64: every smaller size is the TV's small button.
+  if (platform === 'tv') return {...scaled(button.small, form), fontSize: 22};
+  if (size === 'small') return {...scaled(button.small, form), fontSize: type.compactButton.size};
+  if (size === 'xs') return {...scaled(button.extraSmall, form), fontSize: 14};
+  // kit.css .btn's page-local utility sizes.
   if (platform === 'web') {
     const desktop = {
       compact: {...buttonSpec.compact, icon: buttonSpec.hero.icon.web, fontSize: typeScale.desktop.compactButton.size},
-      small: {height: 42, radius: 10, paddingX: 18, gap: 8, icon: 18, fontSize: 15},
-      xs: {height: 34, radius: 9, paddingX: 13, gap: 6, icon: 16, fontSize: 14},
       episode: {height: 48, radius: 11, paddingX: 22, gap: buttonSpec.hero.gap.web, icon: 20, fontSize: 16},
       dock: {height: 38, radius: 10, paddingX: 14, gap: 8, icon: 18, fontSize: 14},
     };
@@ -38,8 +47,6 @@ export function buttonGeometry(size: ButtonSize, platform: ControlPlatform, vari
   }
   const sizes = {
     compact: {height: 46, radius: 12, paddingX: 26, gap: 10, icon: 20, fontSize: 15},
-    small: {height: 42, radius: 10, paddingX: 18, gap: 8, icon: 18, fontSize: 15},
-    xs: {height: 34, radius: 9, paddingX: 13, gap: 6, icon: 16, fontSize: 14},
     episode: {height: 48, radius: 11, paddingX: 22, gap: 8, icon: 20, fontSize: 16},
     dock: {height: 32, radius: 8, paddingX: 10, gap: 6, icon: 18, fontSize: 13.5},
   };
@@ -49,7 +56,7 @@ export function buttonGeometry(size: ButtonSize, platform: ControlPlatform, vari
 type ChipGeometry = {height: number; radius: number; paddingX: number; paddingRight?: number; gap: number; fontSize: number};
 export function chipGeometry(variant: ChipVariant, platform: ControlPlatform): ChipGeometry {
   const isTV = platform === 'tv';
-  const standard = {height: chipSpec.height[platform], radius: chipSpec.radius[platform], paddingX: chipSpec.paddingX[platform], gap: chipSpec.gap[platform], fontSize: isTV ? 22 : 13.5};
+  const standard = {height: chipSpec.height[platform], radius: chipSpec.radius[platform], paddingX: chipSpec.paddingX[platform], gap: chipSpec.gap[platform], fontSize: formScale.type[formOf(platform)].chip.size};
   if (platform === 'web') {
     if (variant === 'facet') return {...standard, height: chipSpec.facet.height.web, radius: chipSpec.facet.radius.web, paddingX: chipSpec.facet.paddingX.web, gap: 7, fontSize: 14};
     if (variant === 'applied') return {...standard, height: 34, radius: 17, paddingX: 14, paddingRight: 7, gap: 7, fontSize: 14};

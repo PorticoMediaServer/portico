@@ -1,9 +1,13 @@
-/* The standard backdrop: one implementation for every screen (DESIGN.md "Boot and loading" values;
-   Justin, 29 Oct). Ink under the blue and green glows, always the whole window: the full glows at
-   tablet, web and TV widths, the 560 px band over ink at phone width. Screens without their own
-   artwork stay transparent over it; artwork screens lay their art over it. Full-window surfaces
-   that must stay opaque use the same declarations through .portico-backdrop or these variables.
-   bootstrap.css imports it, so every entry has it; ColourBackdrop draws .portico-backdrop. */
+/* The ONE backdrop (owner, 17 and 18 Nov; round 8 rule R10). `body` draws it, here, and nothing else does: ink under
+   the blue and green glows, always the whole window (the full glows at tablet, web and TV widths, the 560 px band over
+   ink at phone width). A page, a frame and a screen draw no backdrop and no page colour: they are transparent over it.
+
+   A full-window COVER, something that must hide the page beneath it (the audio player, the wait before playback, a
+   page that takes the whole phone), is the one class `portico-cover`: opaque, with this same backdrop. Its two named
+   forms: `data-cover="audio"`, the audio player, whose backdrop is a glow from the playing item's artwork (the kit's
+   `ArtworkGlow` as its first child, over ink alone); and `data-cover="player"`, the video player, which is black.
+   The callers are listed in web/test/one-backdrop.test.ts, which fails when the backdrop, the cover or these
+   variables are used anywhere else. A sheet, menu or dialog is not a cover: it is a plain kit surface. */
 :root {
   --backdrop-glows: radial-gradient(44% 66% at 86% 4%, rgba(47,134,187,.46) 0%, rgba(47,134,187,.15) 46%, transparent 74%),
     radial-gradient(42% 58% at 64% 104%, rgba(30,91,82,.6) 0%, rgba(30,91,82,.18) 50%, transparent 76%),
@@ -28,4 +32,6 @@
 /* body::before paints under the body's own background, so the body never has one (only html does). */
 html body { background: transparent; }
 body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; }
-body::before, .portico-backdrop { background-color: var(--color-ink); background-image: var(--backdrop-glows); background-size: var(--backdrop-glows-size); background-repeat: no-repeat; }
+body::before, .portico-cover { background-color: var(--color-ink); background-image: var(--backdrop-glows); background-size: var(--backdrop-glows-size); background-repeat: no-repeat; }
+.portico-cover[data-cover="audio"] { background-image: none; }
+.portico-cover[data-cover="player"] { background-color: var(--color-shadow); background-image: none; }

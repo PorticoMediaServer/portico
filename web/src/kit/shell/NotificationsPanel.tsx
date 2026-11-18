@@ -13,14 +13,16 @@ const t = defaultI18n.t;
 export function NotificationsPanelState({children}: {children: ReactNode}) {
   return <div className={styles.inboxState}>{children}</div>;
 }
-export function NotificationsPanel({snapshot, onAudience, onView, onReadAll, onMore, children, footer, pages = true}: {
+export function NotificationsPanel({snapshot, onAudience, onView, onReadAll, onMore, children, footer, pages = true, header = true}: {
   snapshot: InboxSnapshot; onAudience: (value: NotificationAudience) => void; onView: (value: InboxView) => void;
   onReadAll: () => void; onMore: () => void; children: ReactNode; footer?: ReactNode; pages?: boolean;
+  /** False where a bar already says "Notifications · Mark all read" (a phone's page in the Settings sheet, phone-app 21). */
+  header?: boolean;
 }) {
   // A page lets the feed flow with the document; the bell's panel scrolls inside the window, its footer kept in view.
   return <section aria-label={t('notifications.title')} data-notifications={pages ? 'page' : 'panel'}>
-    <header className={styles.inboxHeader}><h3>{t('notifications.title')}</h3><Button variant="text" size="xs" icon="i-check"
-      disabled={snapshot.phase !== 'ready' || snapshot.counts.unread === 0} onClick={onReadAll}>{t('notifications.markAllRead')}</Button></header>
+    {header && <header className={styles.inboxHeader}><h3>{t('notifications.title')}</h3><Button variant="text" size="xs" icon="i-check"
+      disabled={snapshot.phase !== 'ready' || snapshot.counts.unread === 0} onClick={onReadAll}>{t('notifications.markAllRead')}</Button></header>}
     <div className={styles.inboxTabs}>
       <Segmented aria-label={t('web.notifications.audience')} value={snapshot.audience} items={snapshot.audiences.map(value => {
         // desktop-search: the audience not on screen carries its unread count ("Server 1").

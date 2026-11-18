@@ -19,7 +19,7 @@ export function SavedDownloadCard({group, device, copy, onOpen}: {group: Offline
   const facts = useDownloadArtwork(device, first);
   // phone-app9 draws Saved > Downloads at a fixed 214 wide, 16:9, with the
   // shared card radius and the drawn on-art caption inset.
-  const title = group.title || first.title, width = 214, height = width * 9 / 16, radius = theme.spec.card.radius[theme.platform];
+  const title = group.title || first.title, width = 214, height = width * 9 / 16, radius = theme.spec.card.radius[theme.column];
   const source = facts?.backdropUrl ? {uri: facts.backdropUrl, cacheKey: JSON.stringify([downloadEntryIdentity(first), facts.backdropUrl])} : undefined;
   const singleTransfer = group.entries.length === 1 && first.state === 'downloading' && !first.waiting;
   const progress = singleTransfer ? downloadTransferProgress(first) : undefined;

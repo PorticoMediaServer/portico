@@ -14,15 +14,15 @@ export function FormError({children, placement = 'field', testID}: {children: Re
   if (placement === 'block') {
     const box = feedback.notice, tone = box.tones.error, colour = theme.colors[tone.color as 'danger'], tv = theme.isTV;
     return <View testID={testID} accessibilityRole="alert" accessibilityLiveRegion="polite"
-      style={{flexDirection: 'row', alignItems: 'flex-start', gap: box.gap[theme.platform], padding: box.padding[theme.platform],
-        paddingHorizontal: box.padding[theme.platform] + (tv ? 4 : 2), borderRadius: box.radius[theme.platform], borderWidth: 1,
+      style={{flexDirection: 'row', alignItems: 'flex-start', gap: box.gap[theme.column], padding: box.padding[theme.column],
+        paddingHorizontal: box.padding[theme.column] + (tv ? 4 : 2), borderRadius: box.radius[theme.column], borderWidth: 1,
         backgroundColor: colorAlpha(colour, tone.tintAlpha), borderColor: colorAlpha(colour, tone.borderAlpha),
-        marginBottom: spec.blockGap[theme.platform], alignSelf: 'stretch'}}>
+        marginBottom: spec.blockGap[theme.column], alignSelf: 'stretch'}}>
       <Icon name="i-warn" size={tv ? 28 : 20} color={colour}/>
       <Text style={[theme.type[box.text], {color: theme.colors.text, flex: 1, minWidth: 0}]}>{children}</Text>
     </View>;
   }
   return <Text testID={testID} accessibilityRole="alert" accessibilityLiveRegion="polite"
     style={[theme.type[spec.role], {color: theme.colors[spec.color]},
-      placement === 'field' ? {marginTop: spec.gap[theme.platform]} : undefined]}>{children}</Text>;
+      placement === 'field' ? {marginTop: spec.gap[theme.column]} : undefined]}>{children}</Text>;
 }

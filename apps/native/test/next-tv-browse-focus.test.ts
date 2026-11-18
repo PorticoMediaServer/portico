@@ -33,7 +33,7 @@ test('season focus and accessibility activation agree, current seasons avoid rel
     react: h.react, 'react-native': native, '../../../../../packages/i18n/src': i18n,
     '../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({}), episodeLabel: () => undefined},
     '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText: String},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusRegion: 'FocusRegion'}, './tv-title-focus': {tvEpisodeRegionMap},
+    '../../kit/controls': {Focusable: 'Focusable', KeyHints: 'KeyHints'}, '../../kit/frames/title-parts': {SeasonListRow: 'SeasonListRow'}, '../../kit/focus': {FocusRegion: 'FocusRegion'}, './tv-title-focus': {tvEpisodeRegionMap},
     '../../tv/layout/TVShelf': {TVShelf: 'TVShelf', tvItemKey: (entry: any) => entry.id}, '../../kit/cards': {EpisodeTile: 'EpisodeTile'},
     '../../kit/overlays': {Menu: 'Menu'}, '../../kit/browse/presentation': type, '../../kit/theme': {useTheme: () => theme},
   });

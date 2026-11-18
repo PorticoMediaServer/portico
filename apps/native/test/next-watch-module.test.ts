@@ -27,7 +27,7 @@ const infoPanel = await screenModule(new URL('../src-next/screens/watch/Playback
   '../../../../../packages/client-core/src/video-track-labels': {videoTrackWords},
   '../../../../../packages/client-core/src/presentation/playback-info': {codecName},
   '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../kit/theme': {nativeType: (value: unknown) => value, useTheme: () => ({})},
-  './playback-info': {lossSentence},
+  '../../kit/player/PlaybackInfo': {PlaybackInfoComparison: 'PlaybackInfoComparison'}, './playback-info': {lossSentence},
 });
 const menuCalls: any[][] = [];
 let captured: any, optionsDisposed = 0, screensDisposed = 0;

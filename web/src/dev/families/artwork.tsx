@@ -3,7 +3,7 @@ import {useEffect, useMemo, useState, type ComponentType, type ReactNode} from '
 import {defaultI18n, formatMessage} from '@i18n';
 import {artworkFixtures} from '../../../../packages/i18n/src/catalog/en-US/next/dev/artwork-fixtures';
 import {defineGalleryFamily} from '../gallery-registry';
-import {AmbientArt, Artwork, ArtistCircle, ChannelMark, ColourBackdrop, CoverMosaic, GeneratedArt, GeneratedCover, PersonCircle, ProfileFace, ProfilePicker, createArtworkRuntime, type AmbientArtSource, type AmbientArtTreatment, type ArtworkPalette, type ArtworkSource, type ProfilePickerProfile} from '../../kit/artwork';
+import {AmbientArt, Artwork, ArtistCircle, ChannelMark, CoverMosaic, GeneratedArt, GeneratedCover, PersonCircle, ProfileFace, ProfilePicker, createArtworkRuntime, type AmbientArtSource, type AmbientArtTreatment, type ArtworkPalette, type ArtworkSource, type ProfilePickerProfile} from '../../kit/artwork';
 import styles from '../../kit/artwork/gallery.module.css';
 import twentyOne from '../../../../../../design-ui-v1/design/ui-v1/assets/pool/albums/21.jpg?url';
 import ram from '../../../../../../design-ui-v1/design/ui-v1/assets/pool/albums/random-access-memories.jpg?url';
@@ -60,7 +60,8 @@ function ambient(treatment: AmbientArtTreatment, foreground = false, tvFrame = f
 function boundedAmbient(treatment: AmbientArtTreatment, stage: string): ComponentType {
   return function BoundedAmbientCase() { const evidence = useArtworkEvidence(); return <Stage className={stage}><AmbientArt treatment={treatment} source={evidence?.ambient} visible={evidence?.lifecycleVisible ?? true} onReady={source => recordCallback('ambient:onReady', source)} onError={source => recordCallback('ambient:onError', source)} onStatusChange={status => recordCallback(`ambient:${status}`)} /></Stage>; };
 }
-function colour(shape: 'side' | 'round' | 'top', fill = false): ComponentType { return () => <Stage><ColourBackdrop shape={shape} fill={fill} className={fill ? styles.stateFull : undefined} /></Stage>; }
+/** The gallery's sample of the one cover: the same backdrop the window draws. */
+function colour(_shape: 'side' | 'round' | 'top', fill = false): ComponentType { return () => <Stage><div aria-hidden="true" className={`portico-cover${fill ? ` ${styles.stateFull}` : ''}`} style={{position: 'absolute', inset: 0}}/></Stage>; }
 type CoverCase = 'large' | 'grid' | 'phone' | 'phone-book' | 'small' | 'long' | 'no-author' | 'longest';
 const coverCases = {
   large: {title: 'timeMachine', author: 'wells', glyph: 'T', font: 17.1, tint: gold, width: 300, height: 450},
@@ -90,7 +91,6 @@ function picker(layout: 'desktop' | 'phone' | 'tv'): ComponentType {
   return function PickerCase() {
     const [outcome, setOutcome] = useState('');
     return <Stage className={`${styles.profileStage} ${layout === 'phone' ? styles.profilePhone : layout === 'tv' ? styles.profileTV : ''}`}>
-      <ColourBackdrop shape={layout === 'phone' ? 'top' : 'round'} />
       <h1>{t('next.artwork.who')}</h1>{layout === 'phone' && <p>{fixture('next.artwork.fixture.server')}</p>}
       <ProfilePicker profiles={profiles} getProfileTint={profile => referenceArtworkColors.authProfileTints[profile.id]} layout={layout} autoFocusId={layout === 'phone' ? undefined : 'alex'} onFocusChange={id => recordCallback(`profile:focus:${id}`)} onSelect={profile => { recordCallback(`profile:select:${profile.id}`); setOutcome(profile.name); }} onAdd={() => { recordCallback('profile:add'); setOutcome(t('next.artwork.addProfile')); }} onManage={() => { recordCallback('profile:manage'); setOutcome(t('next.artwork.manageProfiles')); }} />
       <output className={styles.outcome}>{outcome}</output>

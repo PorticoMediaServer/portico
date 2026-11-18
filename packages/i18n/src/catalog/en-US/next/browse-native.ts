@@ -21,6 +21,7 @@ export const browseNativeMessages = {
   'next.browse.native.toolbar': 'Filter and sort',
   'next.browse.native.filters': 'Filters',
   'next.browse.native.filtersCount': 'Filters, {count, number} on',
+  'next.browse.native.filtersMatching': 'Filters · {count, number}',
   'next.browse.native.sort': 'Sort by',
   'next.browse.native.order': 'Order',
   'next.browse.native.expensiveSort': 'May take a moment',

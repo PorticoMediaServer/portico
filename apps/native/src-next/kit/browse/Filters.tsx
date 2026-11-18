@@ -106,7 +106,7 @@ export function FilterBuilder({model, labels, platform, focusPrefix, openFields,
     // H10: on large screens a field opens in a popover anchored to its tile, so the two-column grid never reflows.
     if (desktop) return <DesktopField key={field.id} label={name} open={open} onOpenChange={next => onFieldOpenChange(field.id, next)}
       tile={<FieldTile focusPrefix={fieldPrefix} label={name} summary={summary} active={state.active} open={false} onOpenChange={() => onFieldOpenChange(field.id, !open)} platform={target}/>}>{control}</DesktopField>;
-    return <View key={field.id} style={{width: desktop && !open ? '48.8%' : '100%', borderTopWidth: !desktop && !tv ? 1 : 0, borderTopColor: alpha(theme.colors.lineStrong, .5)}}><FieldTile focusPrefix={fieldPrefix} label={name} summary={summary} active={state.active} open={open} onOpenChange={next => onFieldOpenChange(field.id, next)} platform={target}>{control}</FieldTile></View>;
+    return <View key={field.id} style={{width: '100%', borderTopWidth: !desktop && !tv ? 1 : 0, borderTopColor: alpha(theme.colors.lineStrong, .5)}}><FieldTile focusPrefix={fieldPrefix} label={name} summary={summary} active={state.active} open={open} onOpenChange={next => onFieldOpenChange(field.id, next)} platform={target}>{control}</FieldTile></View>;
   };
   const content = <ScrollView testID={testID} style={{flex: 1}} contentContainerStyle={{paddingBottom: tv ? 120 : 20}} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
     {model.groups.map((group, index) => {
@@ -126,7 +126,8 @@ export function FilterBuilder({model, labels, platform, focusPrefix, openFields,
 
 function DesktopField({label, open, onOpenChange, tile, children}: {label: string; open: boolean; onOpenChange: (open: boolean) => void; tile: ReactNode; children: ReactNode}) {
   const anchor = useRef<View>(null);
-  return <View ref={anchor} collapsable={false} style={{width: '48.8%'}}>
+  // Two to a line, each taking half of what the gap leaves (a percentage width and a gap can overflow by a rounding and wrap one to a line).
+  return <View ref={anchor} collapsable={false} style={{flexBasis: '40%', flexGrow: 1, maxWidth: '50%'}}>
     {tile}
     <Popover open={open} onOpenChange={next => onOpenChange(next)} anchorRef={anchor} title={label} showTitle placement="bottom-start" width={340}>{children}</Popover>
   </View>;

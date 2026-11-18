@@ -8,5 +8,5 @@ export type {OverlayDismissReason, OverlayChange, OverlaySurfaceProps, OverlayCo
 
 export {Tooltip, type TooltipProps} from './Tooltip';
 export {FileInfo, type FileInfoProps, type FileInfoAction, type FileInfoContinuation, type FileInfoMore} from './FileInfo';
-export {useRetained} from './shared';
+export {useRetained, useFrameForm} from './shared';
 export {PanelPresence, useLeavingPresence} from './PanelPresence';

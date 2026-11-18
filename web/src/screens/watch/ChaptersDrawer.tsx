@@ -1,9 +1,9 @@
 import {useLayoutEffect, useRef} from 'react';
 import {defaultI18n} from '@i18n';
 import type {VideoChapter} from '@core/presentation/video-chapters.ts';
-import {Icon} from '../../kit/Icon';
+import {PlayerControl} from '../../kit/player';
 import {watchClock} from './model';
-import styles from './episodes.module.css';
+import styles from '../../kit/player/episodes.module.css';
 
 const t = defaultI18n.t;
 
@@ -20,7 +20,7 @@ export function WatchChaptersDrawer({chapters, onSeek, onClose}: {chapters: read
     <div className={styles.head}>
       <h3>{t('player.opt.chapters')}</h3>
       <span className={styles.count}>{t('next.watch.chapterCount', {count: chapters.length})}</span>
-      <button type="button" className={styles.close} aria-label={t('next.overlays.close')} onClick={onClose}><Icon name="i-close" size={22} /></button>
+      <span className={styles.close}><PlayerControl onPicture icon="i-x" label={t('next.overlays.close')} onPress={onClose} /></span>
     </div>
     <div className={styles.track}>
       {chapters.map(chapter => <button key={chapter.id} type="button" className={styles.ep} data-playing={chapter.current || undefined} aria-current={chapter.current ? 'true' : undefined}

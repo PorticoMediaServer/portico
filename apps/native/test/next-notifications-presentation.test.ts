@@ -71,7 +71,7 @@ test('a notification row omits its top rule unless the caller supplies a precedi
   const {NotificationItem} = await screenModule(new URL('../src-next/kit/shell/AccountShell.tsx', import.meta.url), {
     react, 'react-native': native, '../../../../../packages/i18n/src/index': {defaultI18n: i18n},
     '../artwork/Profiles': {ProfileFace: 'ProfileFace'}, '../controls/Focusable': {Focusable: 'Focusable'},
-    '../overlays/Menu': {Popover: 'Popover'}, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})},
+    '../overlays/Menu': {Popover: 'Popover'}, '../frames/SheetFrame': {SheetFrame: 'SheetFrame'}, '../frames/metrics': {useFrameMetrics: () => ({form: 'expanded'})}, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})},
     '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => theme}, '../focus/registry': {focusTestID: (...parts: string[]) => parts.join(':')},
     './visual': {shellType, alpha: (color: string, opacity: number) => `${color}:${opacity}`},
   });

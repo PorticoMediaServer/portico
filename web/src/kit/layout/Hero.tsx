@@ -22,6 +22,8 @@ export type HeroProps<T extends HeroCandidate> = Omit<HTMLAttributes<HTMLElement
   titleLink?: (candidate: T) => {href: string; open: () => void} | undefined;
   activeIndex?: number; defaultIndex?: number; onIndexChange?: (index: number) => void;
   active?: boolean; visible?: boolean; heroFocused?: boolean; reducedMotion?: boolean; platform?: LayoutPlatform;
+  /** Rule 14 (design/ui-v1 system-rules.html): the moderate hero, at the frame tokens' fixed height, lockup and copy position. */
+  moderate?: boolean;
   /** tablet.html's centred medium-width Home composition. */
   sizeClass?: 'medium';
   showNavigation?: boolean;
@@ -30,9 +32,10 @@ export type HeroProps<T extends HeroCandidate> = Omit<HTMLAttributes<HTMLElement
   onArtworkError?: (candidate: T) => void;
 };
 
-export function HeroFacts({parts, platform = 'desktop', sizeClass, children}: {parts: readonly FactPart[]; platform?: LayoutPlatform; sizeClass?: 'medium'; children?: ReactNode}) {
+/** `runtimeChip`: Home's hero outlines the runtime too (mock.html home); a title page draws it as plain text (desktop-detail f1, f2). */
+export function HeroFacts({parts, platform = 'desktop', sizeClass, runtimeChip = false, children}: {parts: readonly FactPart[]; platform?: LayoutPlatform; sizeClass?: 'medium'; runtimeChip?: boolean; children?: ReactNode}) {
   return <div className={styles.facts} style={{...layoutType(platformType(platform).meta), ...(sizeClass === 'medium' ? {fontSize: 15} : {})}}>{parts.map(part =>
-    <span key={part.id} className={part.id === 'content-rating' || part.id === 'season-count' || part.id === 'duration' ? styles.tag : undefined} data-fact-role={part.role}>{part.text}</span>)}{children}</div>;
+    <span key={part.id} className={part.id === 'content-rating' || part.id === 'season-count' || (runtimeChip && part.id === 'duration') ? styles.tag : undefined} data-fact-role={part.role}>{part.text}</span>)}{children}</div>;
 }
 
 export function HeroProgress({progress, remaining, label = defaultI18n.t('next.layout.progress')}: {progress: number; remaining: ReactNode; label?: string}) {
@@ -42,7 +45,7 @@ export function HeroProgress({progress, remaining, label = defaultI18n.t('next.l
 }
 
 export function Hero<T extends HeroCandidate>({candidates, renderArtwork, renderThumbnail, renderActions, renderMetadata, renderReason, renderSupplement, titleLink, activeIndex, defaultIndex = 0, onIndexChange,
-  active = true, visible = true, heroFocused = false, reducedMotion = false, showNavigation = true, contentVisible = true, onArtworkReady, onArtworkError, platform = 'desktop', sizeClass, className, onMouseEnter, onMouseLeave, onFocusCapture, onBlurCapture, ...props}: HeroProps<T>) {
+  active = true, visible = true, heroFocused = false, reducedMotion = false, showNavigation = true, contentVisible = true, onArtworkReady, onArtworkError, platform = 'desktop', sizeClass, moderate = false, className, onMouseEnter, onMouseLeave, onFocusCapture, onBlurCapture, ...props}: HeroProps<T>) {
   const [ownIndex, setOwnIndex] = useState(defaultIndex), [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false);
   const motion = useLayoutMotion(reducedMotion), index = boundedIndex(activeIndex ?? ownIndex, candidates.length), id = useId();
   const paused = !active || !visible || !contentVisible || !motion.visible || motion.reduced || hovered || (platform === 'tv' ? !heroFocused : focused);
@@ -86,7 +89,7 @@ export function Hero<T extends HeroCandidate>({candidates, renderArtwork, render
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault(); link.open();
   }}>{entry.title}</a> : entry?.title;
-  return <section {...props} className={[styles.hero, className].filter(Boolean).join(' ')} data-platform={platform} data-size-class={sizeClass} data-paused={paused} data-reduced-motion={motion.reduced} data-navigation={showNavigation && candidates.length > 1}
+  return <section {...props} className={[styles.hero, className].filter(Boolean).join(' ')} data-platform={platform} data-size-class={sizeClass} data-size={moderate ? 'moderate' : undefined} data-paused={paused} data-reduced-motion={motion.reduced} data-navigation={showNavigation && candidates.length > 1}
     aria-label={props['aria-label'] ?? defaultI18n.t('next.layout.featured')} aria-roledescription={defaultI18n.t('next.layout.carousel')}
     onMouseEnter={event => { setHovered(true); onMouseEnter?.(event); }} onMouseLeave={event => { setHovered(false); onMouseLeave?.(event); }}
     onFocusCapture={event => { setFocused(true); onFocusCapture?.(event); }} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); onBlurCapture?.(event); }}>
@@ -99,8 +102,8 @@ export function Hero<T extends HeroCandidate>({candidates, renderArtwork, render
     {entry && context && <div id={`${id}-panel`} className={styles.copy} data-active={contentVisible && copyId === currentId} inert={!contentVisible} aria-hidden={!contentVisible || undefined}
       role={platform !== 'tv' && showNavigation && candidates.length > 1 ? 'tabpanel' : undefined} aria-labelledby={platform !== 'tv' && showNavigation && candidates.length > 1 ? `${id}-tab-${index}` : undefined}>
       {reason && <p className={styles.reason} style={{...layoutType(type.eyebrow), ...(sizeClass === 'medium' ? {fontSize: 15} : {})}}>{reason}</p>}
-      <Lockup title={title} long={entry.long} platform={platform} style={sizeClass === 'medium' ? {fontSize: 62, lineHeight: .94} : undefined} />
-      {renderMetadata ? renderMetadata(entry, context) : entry.facts?.length ? <HeroFacts parts={entry.facts} platform={platform} /> : null}
+      <Lockup title={title} long={entry.long} platform={platform} style={moderate ? {fontSize: 'var(--hero-lockup)', lineHeight: 'var(--frame-hero-lockup-line)'} : sizeClass === 'medium' ? {fontSize: 62, lineHeight: .94} : undefined} />
+      {renderMetadata ? renderMetadata(entry, context) : entry.facts?.length ? <HeroFacts parts={entry.facts} platform={platform} runtimeChip /> : null}
       {entry.overview && <p className={styles.overview} style={layoutType(type.synopsis)}>{entry.overview}</p>}
       {renderActions && <div className={styles.actions}>{renderActions(entry, context)}</div>}
       {renderSupplement?.(entry, context)}

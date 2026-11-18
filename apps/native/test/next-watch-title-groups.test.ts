@@ -42,13 +42,16 @@ const theme = {isTV: false, platform: 'phone', colors: {ink: '#000', text: '#fff
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];
 
 test('phone/tablet: the season sheet offers every episode group, marks the open one and selects another', async () => {
-  const {NativeSeasonsSheet} = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {
+  // The sheet is the kit's (kit/layout/SeasonSheet.tsx); the screen's wrapper maps the show's seasons to its rows.
+  const kit = await screenModule(new URL('../src-next/kit/layout/SeasonSheet.tsx', import.meta.url), {
     react: {...React, default: React},
     'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 400, height: 800})},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/theme': {useTheme: () => theme},
+    '../controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'},
+    '../Icon': {Icon: 'Icon'}, '../overlays': {BottomSheet: 'BottomSheet'}, '../theme': {useTheme: () => theme},
   });
+  const wrapper = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {react: {...React, default: React}, '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/layout/SeasonSheet': kit});
+  const NativeSeasonsSheet = (props: any) => kit.SeasonSheet(wrapper.NativeSeasonsSheet(props).props);
   const calls: string[] = [];
   let tree: any;
   const host = createFabricHookHost(() => {tree = NativeSeasonsSheet({open: true, onOpenChange: (value: boolean) => calls.push(`open:${value}`), seasons: [], total: 0, selectedId: null,
@@ -56,8 +59,8 @@ test('phone/tablet: the season sheet offers every episode group, marks the open 
     hideWatched: false, onHideWatched: () => {}});});
   await host.mount();
   try {
-    const rows = descendants(tree).filter(node => node.props.testID?.startsWith('watch-group-'));
-    assert.deepEqual(rows.map(row => row.props.testID), ['watch-group-range:1', 'watch-group-range:101']);
+    const rows = descendants(tree).filter(node => node.props.testID?.startsWith('watch-season-group:'));
+    assert.deepEqual(rows.map(row => row.props.testID), ['watch-season-group:range:1', 'watch-season-group:range:101']);
     assert.deepEqual(rows.map(row => row.props.accessibilityState.selected), [true, false]);
     assert.ok(rows[0].ref, 'the sheet opens on the open group');
     assert.ok(descendants(rows[1]).some(node => node.type === 'Text' && node.props.children === 'Episodes 101–150'));
@@ -78,7 +81,7 @@ test('TV: the side list offers every episode group; focusing one asks for it onc
     '../../../../../packages/i18n/src': {defaultI18n},
     './tv-title-focus': {tvEpisodeGroupKey, tvEpisodeRegionMap}, '../../kit/focus': {FocusRegion: 'FocusRegion'},
     '../../tv/layout/TVShelf': {TVShelf: 'TVShelf', tvItemKey: (entry: {id: string}) => entry.id},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/cards': {EpisodeTile: 'EpisodeTile'},
+    '../../kit/controls': {Focusable: 'Focusable', KeyHints: 'KeyHints'}, '../../kit/frames/title-parts': {SeasonListRow: 'SeasonListRow'}, '../../kit/cards': {EpisodeTile: 'EpisodeTile'},
     '../../kit/overlays': {Menu: 'Menu'}, '../../kit/browse/presentation': {browseType: (_theme: unknown, size: number) => ({fontSize: size})},
     '../../kit/theme': {useTheme: () => tvTheme},
   });
@@ -100,13 +103,13 @@ test('TV: the side list offers every episode group; focusing one asks for it onc
     assert.equal(nodes.find(node => node.type === 'TVShelf').props.focus.id, 'tv.episodes.season."group:range:1"', 'each group has its own episode row, so its focus memory is its own');
     const rows = nodes.filter(node => node.props.testID?.startsWith('tv-group-'));
     assert.deepEqual(rows.map(node => node.props.testID), ['tv-group-range:1', 'tv-group-range:101']);
-    assert.deepEqual(rows.map(node => node.props.accessibilityState.selected), [true, false]);
+    assert.deepEqual(rows.map(node => node.props.current), [true, false]);
     rows[1].props.onFocus();
     await host.rerender();
     assert.deepEqual(calls, ['season-focus', 'group:range:101']);
     nodes = descendants(tree);
     assert.deepEqual(nodes.find(node => node.type === 'TVShelf').props.items, [], 'the row waits: it never shows the previous group\'s episodes as this one\'s');
-    assert.ok(nodes.some(node => node.type === 'Text' && node.props.children === 'Episodes 101–150'), 'the focus band names the focused group');
+    assert.ok(nodes.some(node => node.props.focus?.kind === 'group' && node.props.focus.group.title === 'Episodes 101–150'), 'the focus band names the focused group');
     rows[1].props.onPress();
     assert.deepEqual(calls, ['season-focus', 'group:range:101', 'season-focus'], 'OK on the same group asks nothing more');
     props = {...props, requestedGroup: 'range:101'};

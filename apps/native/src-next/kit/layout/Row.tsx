@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import React, {useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {Pressable, Text, View, type StyleProp, type TextStyle, type ViewStyle} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import Animated, {runOnJS, useAnimatedScrollHandler, useSharedValue} from 'react-native-reanimated';
@@ -10,6 +10,8 @@ import {reconcileRowSlots, indexRowSlots, visibleRowSlots, rowNeedsPage, type Ro
 import {useRowPageBoundary} from '../focus/page-boundary';
 import {useReplacementRefocus} from '../focus/replacement-refocus';
 import {useFocusAnchor} from './FocusAnchor';
+import {frameSpec} from '@portico/design';
+import {FrameRhythm} from '../frames/metrics';
 import {captionItemHeight} from './model';
 import {MotionItem} from './MotionItem';
 import {itemSelection, type LayoutItemContext, type LayoutSelection} from './types';
@@ -120,12 +122,17 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
     if (scrollMemory) anchor.offset.value = initialOffset.current;
   }, [anchor.offset, scrollMemory]);
   const anchorItem = anchor.anchor;
-  const stride = itemWidth + (gap ?? theme.spec.shelf.gap[theme.platform]);
+  const stride = itemWidth + (gap ?? theme.spec.shelf.gap[theme.column]);
   const leading = gutter ?? theme.gutter, trailing = rightGutter ?? (theme.isTV ? theme.layout.gutter.tvRight : theme.gutter);
   // The TV track starts directly below the heading margin. Reserve room above
   // its viewport for the scaled outer ring without moving the drawn card edge.
-  const top = theme.isTV ? Math.ceil(itemHeight * (theme.spec.focus.scale.card.tv - 1) / 2 + (theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv) * theme.spec.focus.scale.card.tv) : theme.spec.shelf.phonePaddingTop;
-  const bottom = theme.isTV ? Math.max(14, top) : theme.spec.shelf.phonePaddingBottom;
+  // R5: on a frame, the frame owns the space between rows. The room the track keeps round its cards (a TV card's focus
+  // growth and ring, a pressed card's shadow) is taken back by the scroller's negative margins, so the Row adds nothing
+  // of its own: its box is its heading, `rowHeadingGap`, and its cards with their captions. A screen not yet on a frame
+  // keeps the padding its own spacing was written against, until Stage 2 moves it.
+  const framed = useContext(FrameRhythm), bleed = framed ? frameSpec.rhythm.rowBleed[theme.form] : undefined;
+  const top = theme.isTV ? Math.ceil(itemHeight * (theme.spec.focus.scale.card.tv - 1) / 2 + (theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv) * theme.spec.focus.scale.card.tv) : bleed ?? theme.spec.shelf.phonePaddingTop;
+  const bottom = theme.isTV ? Math.max(bleed ?? 14, top) : bleed ?? theme.spec.shelf.phonePaddingBottom;
   const naturalExtent = leading + Math.max(0, rowIndex.length * stride - (stride - itemWidth)) + trailing;
   // Every real TV slot, including a short row's last card, must be able to
   // reach the left safe edge. This is blank track space, never a focus target.
@@ -209,19 +216,20 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
     const shown = new Set(visible.map(slot => slot.focusId));
     for (const focusId of [...cards.current.keys()]) if (!shown.has(focusId)) cards.current.delete(focusId);
   });
-  const controlStyle = (selected: boolean) => ({borderWidth: selected ? theme.spec.focus.ringWidth[theme.platform] : 0, borderColor: theme.colors.focus, borderRadius: theme.baseRadii.control});
+  const controlStyle = (selected: boolean) => ({borderWidth: selected ? theme.spec.focus.ringWidth[theme.column] : 0, borderColor: theme.colors.focus, borderRadius: theme.baseRadii.control});
   return <View testID={testID} onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)} style={style}>
-    {showHeading && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: theme.spec.shelf.headingGap[theme.platform], paddingLeft: leading, paddingRight: trailing, marginBottom: theme.spec.shelf.headingMargin[theme.platform]}}>
+    {/* A heading is never cut or squeezed: it wraps, and its subtitle moves under it when the two do not fit on one line. */}
+    {showHeading && <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: theme.spec.shelf.headingGap[theme.column], rowGap: 2, paddingLeft: leading, paddingRight: trailing, marginBottom: framed ? frameSpec.rhythm.rowHeadingGap[theme.form] : theme.spec.shelf.headingMargin[theme.column]}}>
       {onSeeAll && !theme.isTV ? <Pressable testID={testID ? `${testID}-see-all` : undefined} accessibilityRole="button" accessibilityLabel={title} accessibilityHint={defaultI18n.t('shelf.seeAll')} onPress={onSeeAll}
         onFocus={() => setArrowFocus('all')} onBlur={() => setArrowFocus(undefined)} style={[{minHeight: 24, flexDirection: 'row', alignItems: 'center', flexShrink: 1}, controlStyle(arrowFocus === 'all')]}>
-        <Text accessibilityRole="header" numberOfLines={1} style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text><Icon name="i-right" size={18} color={theme.colors.textTertiary} />
-      </Pressable> : <Text accessibilityRole="header" numberOfLines={1} style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text>}
-      {subtitle && <View style={{flexShrink: 1}}>{typeof subtitle === 'string' ? <Text numberOfLines={1} style={[theme.type.rowSubtitle, {color: theme.colors.textTertiary, includeFontPadding: false}]}>{subtitle}</Text> : subtitle}</View>}
+        <Text accessibilityRole="header" style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text><Icon name="i-right" size={18} color={theme.colors.textTertiary} />
+      </Pressable> : <Text accessibilityRole="header" style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text>}
+      {subtitle && <View style={{flexShrink: 1}}>{typeof subtitle === 'string' ? <Text style={[theme.type.rowSubtitle, {color: theme.colors.textTertiary, includeFontPadding: false}]}>{subtitle}</Text> : subtitle}</View>}
 
     </View>}
     <RowRegion focus={theme.isTV ? focus : undefined} order={activeOrder} entry={activeEntry}
       enabled={isFocusable && activeOrder.length === 0 ? false : undefined}>
-    <TVRow><Animated.ScrollView horizontal ref={anchor.scrollRef} style={[theme.isTV ? {marginTop: -top} : undefined, anchor.scrollStyle]} onLayout={event => setWidth(event.nativeEvent.layout.width)}
+    <TVRow><Animated.ScrollView horizontal ref={anchor.scrollRef} style={[framed ? {marginTop: -top, marginBottom: -bottom} : theme.isTV ? {marginTop: -top} : undefined, anchor.scrollStyle]} onLayout={event => setWidth(event.nativeEvent.layout.width)}
       onScroll={onScroll} scrollEventThrottle={16} showsHorizontalScrollIndicator={false} onScrollBeginDrag={anchor.stop}
       contentOffset={scrollMemory ? {x: initialOffset.current, y: 0} : undefined}
       onScrollEndDrag={scrollMemory ? event => publishOffset(event.nativeEvent.contentOffset.x) : undefined}
