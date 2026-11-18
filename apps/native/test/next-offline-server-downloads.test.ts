@@ -131,5 +131,5 @@ test('open removes pre-rebuild entries without a download ID and keeps rebuilt c
   await f.offline.open();
   assert.deepEqual(f.removed, ['old-copy']);
   assert.deepEqual([...f.entries.keys()], ['current-copy']);
-  assert.deepEqual(f.offline.getSnapshot().entries.map(entry => entry.id), ['current-copy']);
+  assert.deepEqual(f.offline.getSnapshot().entries.map((entry: {id: string}) => entry.id), ['current-copy']);
 });

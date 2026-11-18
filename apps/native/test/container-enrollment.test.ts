@@ -237,7 +237,7 @@ test('the backlog limit applies to first pages across many requests', async () =
   const snapshot = s.service.getSnapshot;
   s.service.getSnapshot = () => ({...snapshot(), requests: Array.from({length: 70}, (_, r) => ({request: {
     ...snapshot().requests[0]!.request, requestId: 'request-' + r,
-    items: Array.from({length: 100}, (_, i) => ({itemId: `item-${r}-${i}`, preparation: parseDownloadPreparation(preparation(`item-${r}-${i}`))})),
+    items: Array.from({length: 100}, (_, i) => ({itemId: `item-${r}-${i}`, preparation: {...parseDownloadPreparation(preparation(`item-${r}-${i}`)), downloadId: 'request-' + r}})),
   }}))});
   offlineDownloads.connect(s.api, s.service as unknown as DownloadsService, VIEWER);
   await quiet(s.cursors);

@@ -65,7 +65,7 @@ test('native completion during the opening list read is replayed after its older
     f.emit({id: removed.id, state: 'removed'});
     release.resolve(); await opening; f.offline.adopt(viewer);
     assert.equal(f.offline.getSnapshot().ready, true);
-    assert.deepEqual(f.offline.getSnapshot().entries.map(entry => entry.id), [copy.id]);
+    assert.deepEqual(f.offline.getSnapshot().entries.map((entry: {id: string}) => entry.id), [copy.id]);
     assert.equal(f.offline.getSnapshot().entries[0].state, 'ready');
     assert.equal(f.offline.getSnapshot().entries[0].bytesDone, 100);
   } finally {
