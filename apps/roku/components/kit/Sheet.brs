@@ -203,6 +203,9 @@ end sub
 sub paint()
     c = colours()
     count = m.ys.count()
+    ' a sheet with no rows (an empty picker) has nothing to focus: no plate, no ring
+    m.plate.visible = (count > 0)
+    m.ring.visible = (count > 0)
     if count = 0 then return
     ' keep the row in focus on the screen
     room = m.bottom - m.listTop - 40

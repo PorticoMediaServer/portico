@@ -547,10 +547,10 @@ function onKeyEvent(key as string, press as boolean) as boolean
         return false        ' Left opens the rail
     end if
     if m.region = "search"
-        ' the keyboard gave the key up: Right from its last column reaches the matches
+        ' the keyboard gave the key up: Right from its last column reaches the matches, back on the one
+        ' left (typing starts them again at the first)
         if key = "right" and m.matchStops.count() > 0
             m.region = "matches"
-            m.match = 0
             m.matches.setFocus(true)
             paintMatches()
             return true

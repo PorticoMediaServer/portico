@@ -11,6 +11,8 @@
     <!-- Which section is shown: "lead", "related" or "details". -->
     <field id="section" type="string" value="related" onChange="place"/>
     <field id="hasRelated" type="boolean"/>
+    <!-- The More like this card in focus (its item), for the title page's * menu. -->
+    <field id="focusedRelated" type="assocarray"/>
     <!-- True once the page has folded up below its hero: More like this then has its heading. -->
     <field id="folded" type="boolean" onChange="place"/>
     <!-- A show's page: while its own first section shows, More like this peeks in below it. -->
