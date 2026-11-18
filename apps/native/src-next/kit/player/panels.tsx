@@ -32,7 +32,8 @@ export function PlayerPanel({title, note, back, close, footer, children, testID}
         : <Button variant="icon" size="small" icon="i-x" accessibilityLabel={close.label} onPress={close.onPress} testID={testID ? `${testID}-close` : undefined}/>)}
     </View>
     {note !== undefined && <View style={{flexDirection: 'row', gap: theme.space.xs, paddingHorizontal: pad, paddingTop: theme.space.tight}}>
-      <Icon name="i-clock" size={frameSpec.player.pillIcon} color={theme.colors.accentStrong}/><Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textSecondary}]}>{note}</Text>
+      {/* TV says it in words alone under the title (player-tv 4); touch and pointer forms lead with the clock. */}
+      {!tv && <Icon name="i-clock" size={frameSpec.player.pillIcon} color={theme.colors.accentStrong}/>}<Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textSecondary}]}>{note}</Text>
     </View>}
     {/* A list that runs past the panel fades into it at that edge instead of being cut at the foot (player-tv 4). */}
     <View style={{flex: 1}}>
