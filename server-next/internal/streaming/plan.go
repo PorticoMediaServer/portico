@@ -41,8 +41,6 @@ type PlanRequest struct {
 	TranscodingEnabled bool
 	// OriginalLanguage is the title's published original language, if known.
 	OriginalLanguage string
-	// MemberCeiling is what access admission allows this member away from home.
-	MemberCeiling ReplanCeilings
 	// RouteFailures are the routes this device reported broken for this file,
 	// per player engine.
 	RouteFailures map[string]map[DeliveryStrategy]RouteRejection
@@ -153,11 +151,6 @@ func (r PlanRequest) deliveryInput() DeliveryInput {
 			original.MaxVideoHeight = 0
 			input.Target = original.target(policy, cfg)
 		}
-	}
-	if input.Source.Video != nil {
-		// Applied after the same-as-source step. A STRM over the ceiling is
-		// converted like any other file.
-		input.Target = narrowMemberTarget(input.Target, r.MemberCeiling)
 	}
 	if choice.AirPlay {
 		input.Device = nil

@@ -357,10 +357,6 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 	if err != nil {
 		return out, err
 	}
-	limits, err := s.db.PlayLimits(ctx, c.Viewer.UserID)
-	if err != nil {
-		return out, err
-	}
 	out.item, out.device, out.network, out.prefs = item, device, network(ask.Network, c.AtHome), prefs
 	roomKbps, limited, upload := s.room(item.Kind, out.network, self, device.ID, admitting)
 
@@ -442,7 +438,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 		a.choice.Quality = ceiling(a.choice.Quality, ask.MaxKbps)
 		request := PlanRequest{PrepareAudio: ask.prepareAudio, Item: item, Version: version, Capabilities: capabilities,
 			Choice: a.choice, Network: out.network,
-			Failures: failures, Preferences: prefs, Limits: limits}
+			Failures: failures, Preferences: prefs}
 		request.AppLanguage = c.Language
 		a.plan, a.err = s.planner.Plan(request)
 		if out.network != NetworkLocal {

@@ -71,8 +71,6 @@ type AccountLimits struct {
 	AllowUnrated bool
 	// BlockedLabels are the public ids of labels whose titles no profile is shown.
 	BlockedLabels []string
-	// RemoteMaxBitrateKbps is the most video bitrate away from home, or nil for no cap.
-	RemoteMaxBitrateKbps *int
 	// MaxProfiles is how many profiles the account may have, or nil for the server's MaxProfiles.
 	MaxProfiles *int
 	// What the account may do at all; a profile's own switch can only narrow these. The
@@ -85,7 +83,7 @@ const memberColumns = `u.id, u.public_id, u.username, ifnull(u.email, ''), u.rol
 	ifnull((SELECT group_concat(l.public_id, ' ') FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.user_id = u.id), ''),
 	ifnull((SELECT max(s.last_used_at) FROM sessions s WHERE s.user_id = u.id), 0),
 	(SELECT json_group_array(name) FROM (SELECT p.name FROM profiles p WHERE p.user_id = u.id ORDER BY p.is_primary DESC, p.position, p.id)),
-	u.home_only, u.viewing_hours, u.max_rating_age, u.allow_unrated, u.remote_max_bitrate_kbps, u.max_profiles,
+	u.home_only, u.viewing_hours, u.max_rating_age, u.allow_unrated, u.max_profiles,
 	u.allow_watch_together, u.allow_tokens,
 	ifnull((SELECT group_concat(t.public_id, ' ') FROM account_restrictions r JOIN tags t ON t.id = r.tag_id WHERE r.user_id = u.id), ''),
 	u.portico_account_id IS NOT NULL`
@@ -98,7 +96,7 @@ func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	l := &m.Limits
 	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &m.State, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &m.AllowDownloads, &libraries,
 		&active, &profiles,
-		&l.HomeOnly, &hours, &l.MaxRatingAge, &l.AllowUnrated, &l.RemoteMaxBitrateKbps, &l.MaxProfiles,
+		&l.HomeOnly, &hours, &l.MaxRatingAge, &l.AllowUnrated, &l.MaxProfiles,
 		&l.AllowWatchTogether, &l.AllowTokens, &labels, &m.PorticoAccount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNotFound
@@ -365,8 +363,8 @@ func setAccountLimits(tx *sql.Tx, userID int64, l AccountLimits) error {
 		return err
 	}
 	if _, err := tx.Exec(`UPDATE users SET home_only = ?, viewing_hours = ?, max_rating_age = ?, allow_unrated = ?,
-		remote_max_bitrate_kbps = ?, max_profiles = ?, allow_watch_together = ?, allow_tokens = ? WHERE id = ?`,
-		l.HomeOnly, hours, l.MaxRatingAge, l.AllowUnrated, l.RemoteMaxBitrateKbps, l.MaxProfiles,
+		max_profiles = ?, allow_watch_together = ?, allow_tokens = ? WHERE id = ?`,
+		l.HomeOnly, hours, l.MaxRatingAge, l.AllowUnrated, l.MaxProfiles,
 		l.AllowWatchTogether, l.AllowTokens, userID); err != nil {
 		return err
 	}

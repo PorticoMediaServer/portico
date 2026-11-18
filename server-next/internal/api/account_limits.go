@@ -29,9 +29,6 @@ type MemberLimits struct {
 	AllowUnrated bool `json:"allowUnrated"`
 	// BlockedLabels are the ids of labels whose titles no profile of the account is shown.
 	BlockedLabels []string `json:"blockedLabels"`
-	// RemoteMaxBitrateKbps is the most video bitrate the account gets away from home, or
-	// null for no cap of its own.
-	RemoteMaxBitrateKbps *int `json:"remoteMaxBitrateKbps"`
 	// MaxProfiles is how many profiles the account may have: 1, 2 or 4, or null for the full
 	// eight (8 is taken as null). Only the owner changes it, not an administrator. Lowering
 	// it removes no profile.
@@ -49,23 +46,22 @@ func memberLimitsOut(l db.AccountLimits) MemberLimits {
 		labels = []string{}
 	}
 	return MemberLimits{HomeOnly: l.HomeOnly, ViewingHours: l.Hours, MaxRatingAge: l.MaxRatingAge, AllowUnrated: l.AllowUnrated,
-		BlockedLabels: labels, RemoteMaxBitrateKbps: l.RemoteMaxBitrateKbps, MaxProfiles: l.MaxProfiles,
+		BlockedLabels: labels, MaxProfiles: l.MaxProfiles,
 		AllowWatchTogether: l.AllowWatchTogether, AllowTokens: l.AllowTokens}
 }
 
 // MemberLimitsEdit changes what an account is held to. Only the fields sent change: one left
 // out stays as it is, and null clears a limit that can be cleared (viewingHours,
-// maxRatingAge, remoteMaxBitrateKbps, maxProfiles). blockedLabels, when sent, is the whole list.
+// maxRatingAge, maxProfiles). blockedLabels, when sent, is the whole list.
 type MemberLimitsEdit struct {
-	HomeOnly             *bool              `json:"homeOnly,omitempty"`
-	ViewingHours         *auth.ViewingHours `json:"viewingHours,omitempty"`
-	MaxRatingAge         *int               `json:"maxRatingAge,omitempty"`
-	AllowUnrated         *bool              `json:"allowUnrated,omitempty"`
-	BlockedLabels        *[]string          `json:"blockedLabels,omitempty"`
-	RemoteMaxBitrateKbps *int               `json:"remoteMaxBitrateKbps,omitempty"`
-	MaxProfiles          *int               `json:"maxProfiles,omitempty"`
-	AllowWatchTogether   *bool              `json:"allowWatchTogether,omitempty"`
-	AllowTokens          *bool              `json:"allowTokens,omitempty"`
+	HomeOnly           *bool              `json:"homeOnly,omitempty"`
+	ViewingHours       *auth.ViewingHours `json:"viewingHours,omitempty"`
+	MaxRatingAge       *int               `json:"maxRatingAge,omitempty"`
+	AllowUnrated       *bool              `json:"allowUnrated,omitempty"`
+	BlockedLabels      *[]string          `json:"blockedLabels,omitempty"`
+	MaxProfiles        *int               `json:"maxProfiles,omitempty"`
+	AllowWatchTogether *bool              `json:"allowWatchTogether,omitempty"`
+	AllowTokens        *bool              `json:"allowTokens,omitempty"`
 
 	// sent is the edit as it arrived, which alone tells a field left out from one sent as null.
 	sent json.RawMessage
@@ -122,13 +118,11 @@ func memberLimitsIn(l MemberLimits) (db.AccountLimits, error) {
 		return none, ErrField("limits.maxRatingAge", "Use an age from 0 to 21, or null for no limit.")
 	case len(l.BlockedLabels) > maxRestrictionEntries:
 		return none, ErrField("limits.blockedLabels", "That is too many labels.")
-	case l.RemoteMaxBitrateKbps != nil && (*l.RemoteMaxBitrateKbps < 100 || *l.RemoteMaxBitrateKbps > 1_000_000):
-		return none, ErrField("limits.remoteMaxBitrateKbps", "Use 100 to 1,000,000 kbps, or null for no cap.")
 	case l.MaxProfiles != nil && *l.MaxProfiles != 1 && *l.MaxProfiles != 2 && *l.MaxProfiles != 4:
 		return none, ErrField("limits.maxProfiles", "Choose 1, 2 or 4, or null for the full eight.")
 	}
 	return db.AccountLimits{HomeOnly: l.HomeOnly, Hours: l.ViewingHours, MaxRatingAge: l.MaxRatingAge, AllowUnrated: l.AllowUnrated,
-		BlockedLabels: l.BlockedLabels, RemoteMaxBitrateKbps: l.RemoteMaxBitrateKbps, MaxProfiles: l.MaxProfiles,
+		BlockedLabels: l.BlockedLabels, MaxProfiles: l.MaxProfiles,
 		AllowWatchTogether: l.AllowWatchTogether, AllowTokens: l.AllowTokens}, nil
 }
 

@@ -8,8 +8,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
 // Viewing is one device watching a source's channel. It is running state: a restart ends it
@@ -60,10 +58,8 @@ type Conversion struct {
 	Capabilities json.RawMessage
 	// Preferences are the profile's and the device's settings, key to JSON value.
 	Preferences map[string]string
-	// Network is local, remote or cellular; Limits is what the account is held to away from
-	// home.
+	// Network is local, remote or cellular.
 	Network string
-	Limits  db.PlayLimits
 }
 
 // Viewings holds every live viewing.

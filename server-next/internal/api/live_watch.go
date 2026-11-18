@@ -193,7 +193,6 @@ func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel, asked st
 		prefs, err := s.db.Preferences(ctx, c.Viewer.ProfileID, device.ID)
 		if err == nil {
 			conversion.Preferences = prefs
-			conversion.Limits, err = s.db.PlayLimits(ctx, c.Viewer.UserID)
 		}
 		var play *live.Play
 		if err == nil {
