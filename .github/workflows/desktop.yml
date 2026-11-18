@@ -101,12 +101,13 @@ jobs:
           esac
   installers:
     # The Windows installer and the macOS app with mpv inside, and the app started once beside
-    # that mpv: it must find the mpv it ships (no system mpv on the PATH). Proof builds: unsigned,
+    # that mpv: it must find the mpv it ships (no system mpv on the PATH). The Linux package
+    # depends on the system's mpv instead, and is installed with apt. Proof builds: unsigned,
     # kept a week as run artifacts for hands-on checks, never published.
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025, macos-15]
+        os: [windows-2025, macos-15, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     defaults:
@@ -136,7 +137,20 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false
         working-directory: apps/desktop
+      - name: Build libraries (Linux)
+        if: runner.os == 'Linux'
+        # Bounded attempts that keep what they fetched, as in the build job (a slow mirror).
+        timeout-minutes: 40
+        run: |
+          apt=(sudo DEBIAN_FRONTEND=noninteractive apt-get -q -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=60)
+          for attempt in 1 2 3 4; do
+            if timeout 120 "${apt[@]}" update && timeout 480 "${apt[@]}" install -y --no-install-recommends libwebkit2gtk-4.1-dev xvfb xauth \
+                libgl1-mesa-dri gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-gl; then break; fi
+            [ "$attempt" = 4 ] && exit 1
+            echo "::warning::package install attempt $attempt failed or stalled; trying again"
+          done
       - name: mpv for the bundle
+        if: runner.os != 'Linux'
         working-directory: apps/desktop/src-tauri
         run: |
           mkdir -p mpv
@@ -165,17 +179,32 @@ jobs:
         working-directory: apps/desktop
         run: |
           npm run build:web
-          bundle=$([ "$RUNNER_OS" = Windows ] && echo nsis || echo app)
+          # Windows and macOS carry mpv inside; the Linux package depends on the system's mpv.
+          case "$RUNNER_OS" in
+            Windows) bundle=nsis; config='{"bundle":{"active":true,"resources":{"mpv/":"mpv/"}}}' ;;
+            macOS) bundle=app; config='{"bundle":{"active":true,"resources":{"mpv/":"mpv/"}}}' ;;
+            Linux) bundle=deb; config='{"bundle":{"active":true,"linux":{"deb":{"depends":["mpv"]}}}}' ;;
+          esac
           # The npm API (frozen at 2.11 by the dependency ratchet) and the crate (2.12) differ only in
           # releases the app does not use: it calls nothing but `invoke`.
-          npx --no-install tauri build --debug --ignore-version-mismatches --bundles "$bundle" --config '{"bundle":{"active":true,"resources":{"mpv/":"mpv/"}}}'
+          npx --no-install tauri build --debug --ignore-version-mismatches --bundles "$bundle" --config "$config"
           find src-tauri/target/debug/bundle -maxdepth 2 | head
-      - name: Install and start once, with the bundled mpv
+      - name: Install and start once, with its mpv
         working-directory: apps/desktop
         env:
           PORTICO_EXPECT_MPV: '1'
         run: |
-          if [ "$RUNNER_OS" = Windows ]; then
+          if [ "$RUNNER_OS" = Linux ]; then
+            # Installed as a person would: apt brings mpv as the package's dependency.
+            deb=$(ls src-tauri/target/debug/bundle/deb/*.deb | head -1)
+            dpkg-deb -f "$deb" Package Version Depends
+            for attempt in 1 2 3 4; do
+              if timeout 480 sudo DEBIAN_FRONTEND=noninteractive apt-get -q -o DPkg::Lock::Timeout=60 install -y --no-install-recommends "./$deb"; then break; fi
+              [ "$attempt" = 4 ] && exit 1
+            done
+            command -v mpv
+            node scripts/smoke.mjs /usr/bin/portico-desktop xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session --
+          elif [ "$RUNNER_OS" = Windows ]; then
             # The silent installer waits for something on a runner (seen: over 5 minutes with no
             # window), so the check starts the built app beside the mpv the bundle copied there.
             ls src-tauri/target/debug/mpv
@@ -196,5 +225,6 @@ jobs:
           path: |
             apps/desktop/src-tauri/target/debug/bundle/nsis/*-setup.exe
             apps/desktop/src-tauri/target/debug/bundle/macos/Portico.app
+            apps/desktop/src-tauri/target/debug/bundle/deb/*.deb
           retention-days: 7
           if-no-files-found: error
