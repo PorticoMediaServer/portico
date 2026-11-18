@@ -43,6 +43,10 @@ type PlaybackInput struct {
 	// converter is given it (File first, then Extra): it reads them as inputs of their own,
 	// from the part holding its start, joined by FFmpeg's concat filter.
 	Joined []JoinedInput
+	// Keyframes, for a disc title, are the keyframe at or before each segment line after its start
+	// (HLSSegmentSeconds apart), in seconds, as the disc reader listed them: what a copied
+	// picture is cut on, since a disc title has no index of them FFmpeg can ask.
+	Keyframes []float64
 	// ReleaseSource, when present, owns File and its source/reader pins together.
 	// Close must call it instead of closing only the descriptor. Extra remains
 	// owned by this input. It must not release another presentation's reference.

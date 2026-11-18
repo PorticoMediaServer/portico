@@ -28,12 +28,15 @@ import (
 // never its path, the way the scan's disc reader is.
 
 // measuredDisc is a disc's main feature: the disc as the disc reader found it, the title it
-// plays, and what ffprobe finds in that title.
+// plays, and what ffprobe finds in that title. keyframes, for a Blu-ray, are its entry points
+// as the disc reader listed them (streaming.PlaybackInput.Keyframes); a DVD has none, and its
+// picture is converted.
 type measuredDisc struct {
-	folder string
-	probe  disc.Probe
-	title  disc.Title
-	facts  mediafacts.Facts
+	folder    string
+	probe     disc.Probe
+	title     disc.Title
+	facts     mediafacts.Facts
+	keyframes []float64
 }
 
 // discPlayable says this server can play discs: its media tools came with the disc reader, and
@@ -113,7 +116,17 @@ func (e *Engine) readDisc(ctx context.Context, folder string) (*measuredDisc, er
 	// The disc's own subtitles are not offered: the server reads them out of a file, and the
 	// title is no file. Subtitles downloaded for the film are.
 	facts.Streams = slices.DeleteFunc(facts.Streams, func(s mediafacts.Stream) bool { return s.Type == "subtitle" })
-	return &measuredDisc{folder: folder, probe: found, title: title, facts: facts}, nil
+	d := &measuredDisc{folder: folder, probe: found, title: title, facts: facts}
+	if found.Kind == "bluray" {
+		// Where a copied picture can be cut. A disc reader without the list (an older bundle)
+		// leaves the picture converted, as before.
+		if points, err := (disc.Tool{}).EntryPointsDescriptor(ctx, dir, true, title, streaming.HLSSegmentSeconds*1000); err == nil {
+			for _, ms := range points.EntryPointsMs {
+				d.keyframes = append(d.keyframes, float64(ms)/1000)
+			}
+		}
+	}
+	return d, nil
 }
 
 // open hands one converter run the main feature: the folder, which the sandbox mounts for the
@@ -128,7 +141,7 @@ func (d *measuredDisc) open() (*streaming.PlaybackInput, error) {
 		dir.Close()
 		return nil, err
 	}
-	return &streaming.PlaybackInput{File: dir, Inherit: true, MountFD: 3, MountPath: disc.DescriptorPath(true), Extra: []*os.File{chapters},
+	return &streaming.PlaybackInput{File: dir, Inherit: true, MountFD: 3, MountPath: disc.DescriptorPath(true), Extra: []*os.File{chapters}, Keyframes: d.keyframes,
 		InputAt: func(ctx context.Context, ms int64) ([]string, string, int64, error) {
 			var seek *disc.Seek
 			if ms > 0 && d.probe.Kind == "bluray" {

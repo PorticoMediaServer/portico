@@ -524,11 +524,12 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		request.Measured = &measured
 	}
 	if disc != nil {
-		// Never the original, and the picture is converted (DeliveryInput.Disc). The index
-		// file's size says nothing of the title's bitrate.
+		// Never the original, and the picture is converted unless the disc reader listed the
+		// title's keyframes (DeliveryInput.Disc). The index file's size says nothing of the
+		// title's bitrate.
 		request.File.Size = 0
 		measured := streaming.SourceFromFacts(request.File)
-		request.Measured, request.Disc = &measured, true
+		request.Measured, request.Disc, request.DiscKeyframes = &measured, true, disc.keyframes != nil
 	}
 	connection(&request.Connection, r)
 	// After connection: the member's limits apply only away from home.

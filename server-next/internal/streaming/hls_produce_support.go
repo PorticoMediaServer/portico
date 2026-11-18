@@ -328,6 +328,14 @@ func (h *HLS) copyTimelineFor(
 		h.mu.Unlock()
 		return t, nil
 	}
+	if input.Keyframes != nil {
+		h.mu.Unlock()
+		ok := make([]bool, len(input.Keyframes))
+		for i := range ok {
+			ok[i] = true
+		}
+		return buildCopyTimeline(duration, input.Keyframes, ok)
+	}
 	if s := h.streams[id]; s != nil && len(s.parts) > 1 {
 		local, ok := s.source.(libraryFile)
 		h.mu.Unlock()
