@@ -29,7 +29,6 @@ import {installationHeaders, issuesCredentials, provesIdentity} from './installa
 import {serverPath} from './query/server-api.ts';
 import {Outbox, sameOutboxScope, type OutboxAnswer, type OutboxEntry, type OutboxScope, type OutboxStore} from './outbox.ts';
 import {isOutboxRoute, outboxBody, outboxKind, type OutboxKind} from './outbox-routes.ts';
-import {castStopKey} from './cast/sender.ts';
 import {readWriteAnswer, writeRoute, type ConfirmedWrite, type WriteAnswer} from './query/write-dependencies.ts';
 /** Portable wire types and services. No renderer, native module or process globals. */
 export type Viewer = {
@@ -364,12 +363,6 @@ export class HttpLocalApi {
       const retryAfterMs = retryAfterFrom(response.headers);
       return {status: response.status, headers: answered, ...(body === undefined ? {} : {body}), ...(retryAfterMs ? {retryAfterMs} : {})};
     });
-  }
-  /** A key for a Cast stop, stamped with the server's time: the form the present receiver requires. */
-  async createCastStopKey(): Promise<string> {
-    const policy = await this.request<{serverTimeMs?: unknown}>(routePath('get_user_mutation_policy'));
-    if (!Number.isSafeInteger(policy?.serverTimeMs)) throw new Error('The server did not report its time.');
-    return castStopKey(policy.serverTimeMs as number);
   }
   /** A write the outbox carries. Resolves with the server's answer; when nothing answered it throws
    * `OutboxWaiting`, and the edit is kept and sent later. */

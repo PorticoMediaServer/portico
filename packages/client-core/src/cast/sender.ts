@@ -33,7 +33,7 @@ export function castStopKey(now = Date.now()): string {
   globalThis.crypto.getRandomValues(random);
   return 'p251_' + String(now).padStart(13, '0') + '_' + Array.from(random, value => value.toString(16).padStart(2, '0')).join('');
 }
-export type CastApi = {createCastStopKey?():Promise<string>;request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
+export type CastApi = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
 
 export type CastPhase = 'off' | 'connecting' | 'pairing' | 'waiting' | 'casting' | 'error' | 'replaced';
 
