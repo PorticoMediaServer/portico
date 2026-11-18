@@ -126,8 +126,8 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
   // A sheet's footer holds its own way out (a confirm sheet's Cancel under its verb, states.html 4): the header Done
   // is only for a sheet with no footer, so a sheet never offers both Done and Cancel.
   const close = <Button testID={testID ? `${testID}-close` : undefined} focusId="close" ref={closeRef} variant="text" size="small" style={theme.isTV ? undefined : {height: 24, paddingHorizontal: 0}} textStyle={{color: theme.colors.textSecondary}} hitSlop={theme.isTV ? undefined : 10} onPress={() => dismiss('close-button')}>{defaultI18n.t('action.done')}</Button>;
-  if (!present || !paint.visible) return null;
   const edges = useListEdges(spacing.xl);
+  if (!present || !paint.visible) return null;
   // R1: a TV side sheet's rows grow on focus and draw the ring outside them (detail-tv 5c); the scroll box leaves room
   // for both so neither is cut.
   const tvRing = theme.isTV && side ? Math.ceil((sideWidth - tvPadding.left - tvPadding.right) * (focusSpec.scale.button.tv - 1) / 2) + focusSpec.offsetOuter.tv + focusSpec.ringWidth.tv : 0;

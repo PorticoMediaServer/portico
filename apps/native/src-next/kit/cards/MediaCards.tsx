@@ -66,7 +66,7 @@ function fallbackFor(props: Media & {title: string}, shape: MissingArtShape, wid
 function Portrait({kind = 'poster', next, titleLines: suppliedLines, ...props}: PosterCardProps & {kind?: 'poster' | 'book' | 'periodical' | 'newspaper'; next?: boolean}) {
   const t = useTheme(), width = props.width ?? t.spec.card.width.poster[t.column], height = width / (kind === 'periodical' || kind === 'newspaper' ? 3 / 4 : 2 / 3);
   // A phone poster's title wraps to a second line before it is cut; a TV poster keeps its one line unless asked.
-  const titleLines = suppliedLines ?? (t.isTV ? 1 : 2);
+  const titleLines = suppliedLines ?? 2; // Rule 10 and the owner's no-cut rule: a poster title takes two lines on every form, TV too.
   const [clearance, setBadgeBottom] = useBadgeClearance(props.isNew);
   const Frame = props.frame ?? CardFrame;
   return <Frame {...props} width={width} overlay={state => <Overlays props={props} hovered={state.hovered} holding={state.holding} height={height} />}>

@@ -65,7 +65,7 @@ export const platformMessages = {
   'next.platform.frame.playerUpNextCountdown': 'Player: Up next counting down',
   'next.platform.frame.playerStillWatching': 'Player: Still watching?',
   'next.platform.frame.playerEndCard': 'Player: the end of a film',
-  'next.platform.frame.playerInfo': 'Player: Playback info',
+  'next.platform.frame.playerInfo': 'Player: Media information',
   'next.platform.frame.playerDock': 'Player: minimised into the dock, and playing on another device',
   'next.platform.frame.playerFamily': 'Player and audio player frames',
   'next.platform.frame.audio': 'Audio player',

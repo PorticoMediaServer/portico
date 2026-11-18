@@ -801,10 +801,10 @@ test('E-mobile-31 an outside press releases the modal Popover window at once and
   } finally {await surface.host.unmount();}
 });
 
-test('a phone poster title wraps to a second line before it is cut; TV keeps one line; an explicit count wins (W3 F1, F6, F20)', async () => {
+test('a poster title wraps to a second line before it is cut; TV too (the owner no-cut rule, 18 Nov); an explicit count wins (W3 F1, F6, F20)', async () => {
   const {PosterCard} = await import('../src-next/kit/cards/MediaCards.tsx');
   const {Caption} = await import('../src-next/kit/cards/primitives.tsx');
-  for (const [isTV, titleLines, lines] of [[false, undefined, 2], [true, undefined, 1], [false, 1, 1]] as const) {
+  for (const [isTV, titleLines, lines] of [[false, undefined, 2], [true, undefined, 2], [false, 1, 1]] as const) {
     state.theme = createTheme({isTV, width: isTV ? 1920 : 390});
     const portrait = (props: any) => {const element: any = PosterCard(props); return element.type(element.props);};
     const card = await mount(portrait, {title: 'Little Nemo in Slumberland', onNavigate() {}, width: 120, ...(titleLines ? {titleLines} : {})});
