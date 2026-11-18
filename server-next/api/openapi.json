@@ -8741,6 +8741,9 @@
           "episodeNumber": {
             "type": "integer"
           },
+          "hardware": {
+            "type": "boolean"
+          },
           "id": {
             "type": "string"
           },
