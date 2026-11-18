@@ -38,13 +38,18 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - name: System libraries and mpv
-        # A stalled package mirror hung this step for over 30 minutes twice (#4071, #4111);
-        # bounded, it fails within minutes and the job can be run again.
-        timeout-minutes: 10
+        # The package mirror stalls a run now and then (#4071, #4111, #4119, #4125: no output for ten
+        # minutes). Each attempt is bounded and tried again, so a stall costs minutes, not a re-run.
+        timeout-minutes: 25
         run: |
-          apt=(sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30)
           case "$RUNNER_OS" in
-            Linux) "${apt[@]}" update -qq && "${apt[@]}" install -y -qq libwebkit2gtk-4.1-dev xvfb mpv ;;
+            Linux)
+              apt=(sudo DEBIAN_FRONTEND=noninteractive apt-get -q -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=60)
+              for attempt in 1 2 3; do
+                if timeout 150 "${apt[@]}" update && timeout 420 "${apt[@]}" install -y libwebkit2gtk-4.1-dev xvfb mpv; then break; fi
+                [ "$attempt" = 3 ] && exit 1
+                echo "::warning::package install attempt $attempt failed or stalled; trying again"
+              done ;;
             macOS) brew install mpv ;;
             Windows) choco install mpv -y --no-progress ;;
           esac
