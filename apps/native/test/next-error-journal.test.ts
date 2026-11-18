@@ -47,8 +47,8 @@ test('the report says what it is, includes the last crash, and keeps the newest 
   const journal = new ErrorJournal(() => Date.parse('2026-10-13T10:00:00Z'));
   journal.note('warn', 'first');
   journal.note('error', 'second');
-  const body = reportBody({appVersion: '1.4.0', platform: 'tvos', deviceClass: 'television', deviceName: 'Living Room', now: Date.parse('2026-10-13T10:05:00Z'), fatal: fatalRecord(new Error('boom'), '1.4.0', Date.parse('2026-10-13T09:00:00Z')), entries: journal.list()});
-  assert.match(body, /^Portico app report\nSent: 2026-10-13T10:05:00.000Z\nApp: 1.4.0 on tvos \(television\)\nDevice: Living Room\n/);
+  const body = reportBody({appVersion: '1.4.0', platform: 'tvos', deviceClass: 'television', now: Date.parse('2026-10-13T10:05:00Z'), fatal: fatalRecord(new Error('boom'), '1.4.0', Date.parse('2026-10-13T09:00:00Z')), entries: journal.list()});
+  assert.match(body, /^Portico app report\nSent: 2026-10-13T10:05:00.000Z\nApp: 1.4.0 on tvos \(television\)\n\nClosed/);
   assert.match(body, /Closed unexpectedly: 2026-10-13T09:00:00.000Z \(app 1.4.0\)\nError: boom/);
   assert.match(body, /Recent warnings and errors:\n2026-10-13T10:00:00.000Z warn: first\n2026-10-13T10:00:00.000Z error: second$/);
   const big = new ErrorJournal(() => 0);

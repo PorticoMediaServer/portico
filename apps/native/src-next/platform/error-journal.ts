@@ -84,12 +84,11 @@ const stamp = (ms: number) => { const d = new Date(ms); return Number.isNaN(d.ge
  * The report as the owner reads it: plain lines, newest log lines kept when it has to be cut.
  * These are a diagnostic record, not interface text, so they are not translated.
  */
-export function reportBody(o: {appVersion: string; platform: string; deviceClass: string; deviceName?: string; now: number; fatal?: FatalRecord; entries: readonly JournalEntry[]}): string {
+export function reportBody(o: {appVersion: string; platform: string; deviceClass: string; now: number; fatal?: FatalRecord; entries: readonly JournalEntry[]}): string {
   const head = [
     'Portico app report',
     `Sent: ${stamp(o.now)}`,
     `App: ${o.appVersion} on ${o.platform} (${o.deviceClass})`,
-    ...(o.deviceName ? [`Device: ${redact(o.deviceName).slice(0, 80)}`] : []),
   ];
   const fatal = o.fatal ? ['', `Closed unexpectedly: ${stamp(o.fatal.at)} (app ${o.fatal.appVersion})`, o.fatal.message, ...(o.fatal.stack ? o.fatal.stack.split('\n').slice(0, 60) : [])] : [];
   const lines = o.entries.map(entry => `${stamp(entry.at)} ${entry.level}: ${entry.text}`);
