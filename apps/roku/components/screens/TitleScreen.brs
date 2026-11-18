@@ -12,6 +12,7 @@ sub init()
     m.sections.observeField("chosen", "onRelatedChosen")
     m.sections.observeField("hasRelated", "place")
     m.stop = 0            ' 0 the hero, 1 More like this, 2 Details
+    m.onStrip = false     ' the section strip has focus (Up from a section)
     m.full = invalid
 end sub
 
@@ -93,8 +94,35 @@ sub place()
 end sub
 
 sub focusStop()
-    if m.stop = 0 then m.hero.active = true else m.sections.active = true
+    m.sections.stripOn = m.onStrip
+    if m.onStrip
+        m.top.findNode("stripStop").setFocus(true)     ' the strip's own stop: the row lets go of focus
+    else if m.stop = 0
+        m.hero.active = true
+    else
+        m.sections.active = true
+    end if
 end sub
+
+' The strip (tv-detail frame 3): Up from a section reaches it, Left and Right jump between More
+' like this and Details, Down goes into the section shown, Up goes on to Play.
+function stripKey(key as string) as boolean
+    if key = "left" and m.stop = 2 and m.sections.hasRelated
+        m.stop = 1
+    else if key = "right" and m.stop = 1
+        m.stop = 2
+    else if key = "down"
+        m.onStrip = false
+    else if key = "up"
+        m.onStrip = false
+        m.stop = 0
+    else
+        return key = "left" or key = "right"       ' the strip's ends stop
+    end if
+    place()
+    focusStop()
+    return true
+end function
 
 sub onActive()
     if not m.top.active then return
@@ -181,6 +209,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
         openMenu()
         return true
     end if
+    if m.onStrip then return stripKey(key)
     hasRelated = m.sections.hasRelated
     if key = "down"
         if m.stop = 0 and hasRelated
@@ -191,11 +220,9 @@ function onKeyEvent(key as string, press as boolean) as boolean
         return true
     else if key = "up"
         if m.stop = 0 then return false      ' Up from the top goes on to the scene (the now-playing card)
-        if m.stop = 2 and hasRelated
-            moveTo(1)
-        else
-            moveTo(0)
-        end if
+        ' up from a section: the strip, a shortcut between the sections
+        m.onStrip = true
+        focusStop()
         return true
     end if
     return false

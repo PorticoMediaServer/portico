@@ -129,6 +129,14 @@ sub place()
                 label.color = c.text
                 m.mark.translation = [x, 50]
                 m.mark.width = w
+                ' the strip in focus: the ring round this tab
+                ring = m.top.findNode("tabRing")
+                ring.visible = m.top.stripOn
+                out = metrics().focusSpread + 6
+                pad = metrics().cardPad
+                ring.translation = [x - pad - out, -pad / 2 - out]
+                ring.width = w + (pad + out) * 2
+                ring.height = label.boundingRect().height + pad + out * 2
             else
                 label.color = c.textTertiary
             end if

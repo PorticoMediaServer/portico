@@ -16,6 +16,9 @@
     <!-- A show's page: while its own first section shows, More like this peeks in below it. -->
     <field id="peek" type="boolean" onChange="place"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- True while the strip itself has focus (tv-detail frame 3: Up from a section reaches it, Left
+         and Right jump between sections): the tab of the section shown takes the focus ring. -->
+    <field id="stripOn" type="boolean" onChange="place"/>
     <!-- A related title was chosen: the item. -->
     <field id="chosen" type="assocarray" alwaysNotify="true"/>
   </interface>
@@ -29,6 +32,7 @@
     <Label id="tabDetails" text="Details"/>
     <Rectangle id="rule" height="1"/>
     <Rectangle id="mark" height="3"/>
+    <Poster id="tabRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
     <Shelf id="related" shape="poster" visible="false"/>
     <Group id="details" translation="[0,90]" visible="false">
       <Label id="aboutHead" text="About"/>
