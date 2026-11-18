@@ -3,11 +3,13 @@
 ' is whatever was passed as ctx.
 ' Pass isPublic for the requests made before anyone is signed in (no sign-in is sent or renewed).
 ' Pass key to send a POST again as the same request (the server answers a repeat with what the first made).
-function api(method as string, path as string, body as dynamic, callback as string, ctx = invalid as dynamic, isPublic = false as boolean, key = "" as string) as object
+' Pass origin while signing in: the request then goes to that server and no other, whatever server
+' the app has turned to by the time it is sent.
+function api(method as string, path as string, body as dynamic, callback as string, ctx = invalid as dynamic, isPublic = false as boolean, key = "" as string, origin = "" as string) as object
     reply = createObject("roSGNode", "ApiReply")
     if ctx <> invalid then reply.ctx = ctx
     reply.observeField("result", callback)
-    m.global.api.request = {method: method, path: path, body: body, reply: reply, public: isPublic, key: key}
+    m.global.api.request = {method: method, path: path, body: body, reply: reply, public: isPublic, key: key, origin: origin}
     return reply
 end function
 

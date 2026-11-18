@@ -35,6 +35,7 @@ sub init()
     m.poll.observeField("fire", "onPoll")
     m.stage = "door"
     m.typed = ""
+    m.step = 0
 end sub
 
 sub onActive()
@@ -50,6 +51,7 @@ end sub
 
 sub go(stage as string)
     m.stage = stage
+    m.step = m.step + 1
     m.door.visible = (stage = "door")
     m.code.visible = (stage = "code")
     m.factor.visible = (stage = "factor")
@@ -57,9 +59,24 @@ sub go(stage as string)
     onActive()
 end sub
 
+' --- one sign-in, one server ----------------------------------------------------------------
+' m.step counts every move of this screen: to another address, or to another page. A request is
+' sent to the server being signed in to at that moment and carries the step, and its reply is
+' taken only while the step is still the same. So an answer that arrives after the viewer has
+' gone back or chosen another server is dropped: a sign-in one server gave is never kept under
+' another server's address.
+
+sub ask(method as string, path as string, body as dynamic, callback as string, code = "" as string)
+    api(method, path, body, callback, {step: m.step, origin: m.origin, code: code}, true, "", m.origin)
+end sub
+
+function late(event as object) as boolean
+    return event.getRoSGNode().ctx.step <> m.step
+end function
+
 ' --- Roku's keyboard, for an address, a name or a password ---------------------------------
 
-sub ask(title as string, message as string, text as string, secret as boolean, after as string)
+sub typeIn(title as string, message as string, text as string, secret as boolean, after as string)
     dialog = createObject("roSGNode", "StandardKeyboardDialog")
     dialog.title = title
     dialog.message = [message]
@@ -86,7 +103,7 @@ sub onAnswered()
         tryAddress(text)
     else if after = "username"
         m.username = text.trim()
-        if m.username <> "" then ask("Password", "The password for " + m.username + " on " + m.system.name + ".", "", true, "password")
+        if m.username <> "" then typeIn("Password", "The password for " + m.username + " on " + m.system.name + ".", "", true, "password")
     else if after = "password"
         signInWithPassword(text)
     end if
@@ -103,7 +120,7 @@ end sub
 
 sub onDoor()
     m.doorNote.text = ""
-    ask("Server address", "The address of your Portico server, such as 192.168.1.20 or media.example.com.", m.typed, false, "address")
+    typeIn("Server address", "The address of your Portico server, such as 192.168.1.20 or media.example.com.", m.typed, false, "address")
 end sub
 
 sub tryAddress(typed as string)
@@ -125,13 +142,13 @@ sub tryNext()
         return
     end if
     m.origin = m.candidates.shift()
-    m.global.api.session = {origin: m.origin, installationId: installationId()}
-    api("GET", "/v1/system", invalid, "onSystem", {origin: m.origin}, true)
+    m.step = m.step + 1
+    ask("GET", "/v1/system", invalid, "onSystem")
 end sub
 
 sub onSystem(event as object)
     result = event.getData()
-    if event.getRoSGNode().ctx.origin <> m.origin then return
+    if late(event) then return
     if not result.ok or result.data = invalid or result.data.id = invalid
         tryNext()
         return
@@ -173,12 +190,12 @@ end sub
 
 sub newCode()
     m.poll.control = "stop"
-    api("POST", "/v1/auth/codes", {device: thisDevice()}, "onCode", invalid, true)
+    ask("POST", "/v1/auth/codes", {device: thisDevice()}, "onCode")
 end sub
 
 sub onCode(event as object)
     result = event.getData()
-    if m.stage <> "code" then return
+    if late(event) then return
     if not result.ok
         m.codeNote.text = result.error.message
         m.pending = invalid
@@ -202,15 +219,15 @@ sub onPoll()
     if m.pending = invalid
         newCode()
     else
-        api("POST", "/v1/auth/codes/" + m.pending.code + "/redeem", {deviceSecret: m.pending.deviceSecret}, "onRedeem", {code: m.pending.code}, true)
+        ask("POST", "/v1/auth/codes/" + m.pending.code + "/redeem", {deviceSecret: m.pending.deviceSecret}, "onRedeem", m.pending.code)
     end if
 end sub
 
 sub onRedeem(event as object)
     result = event.getData()
-    if m.stage <> "code" or m.pending = invalid or event.getRoSGNode().ctx.code <> m.pending.code then return
+    if late(event) or m.pending = invalid or event.getRoSGNode().ctx.code <> m.pending.code then return
     if result.ok and result.data.status = "approved" and result.data.signIn <> invalid
-        finish(result.data.signIn)
+        finish(event, result.data.signIn)
     else if result.ok or result.status = 0
         m.poll.control = "start"   ' still waiting (or the server was out of reach for a moment)
     else
@@ -223,7 +240,7 @@ end sub
 sub onCodeButton(event as object)
     if event.getData() = "password"
         m.codeNote.text = ""
-        ask("Username", "Your username on " + m.system.name + ".", "", false, "username")
+        typeIn("Username", "Your username on " + m.system.name + ".", "", false, "username")
     else
         go("door")
         onDoor()
@@ -233,11 +250,12 @@ end sub
 ' --- a password, and the two-step code after it ---------------------------------------------
 
 sub signInWithPassword(password as string)
-    api("POST", "/v1/auth/sign-in", {username: m.username, password: password, device: thisDevice()}, "onPasswordAnswer", invalid, true)
+    ask("POST", "/v1/auth/sign-in", {username: m.username, password: password, device: thisDevice()}, "onPasswordAnswer")
 end sub
 
 sub onPasswordAnswer(event as object)
     result = event.getData()
+    if late(event) then return
     if not result.ok
         m.codeNote.text = result.error.message
         return
@@ -247,17 +265,18 @@ sub onPasswordAnswer(event as object)
         go("factor")
         return
     end if
-    finish(result.data)
+    finish(event, result.data)
 end sub
 
 sub onFactor(event as object)
-    api("POST", "/v1/auth/two-factor", {challenge: m.challenge, code: event.getData()}, "onFactorAnswer", invalid, true)
+    ask("POST", "/v1/auth/two-factor", {challenge: m.challenge, code: event.getData()}, "onFactorAnswer")
 end sub
 
 sub onFactorAnswer(event as object)
     result = event.getData()
+    if late(event) then return
     if result.ok and result.data.session <> invalid
-        finish(result.data)
+        finish(event, result.data)
     else if result.status = 400 or result.status = 401 or result.status = 403 or result.status = 422
         m.factorPad.wrong = true
     else
@@ -268,12 +287,13 @@ sub onFactorAnswer(event as object)
     end if
 end sub
 
-sub finish(signIn as object)
+' The sign-in is kept under the address its own request was sent to.
+sub finish(event as object, signIn as object)
     m.poll.control = "stop"
     if signIn.session = invalid then return
     profiles = []
     if signIn.profiles <> invalid then profiles = signIn.profiles
-    m.top.signedIn = {origin: m.origin, serverName: m.system.name, session: signIn.session, profiles: profiles}
+    m.top.signedIn = {origin: event.getRoSGNode().ctx.origin, serverName: m.system.name, session: signIn.session, profiles: profiles}
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
