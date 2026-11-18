@@ -69,7 +69,7 @@ Each is one shared kit part. The capture lane shoots these ids too.
 | Player: transport, scrubber and preview, read-outs, title, pills, Skip intro | `kit/player` | `frames-player`, `-paused`, `-buffering`, `-scrubbing`, `-live`, `-missing` (turn a phone on its side for the landscape form) |
 
 | Player panels: Playback options, Subtitles, Audio, Quality, Speed | `kit/player` `PlayerPanel`, `PlayerPanelGroup`, `PlayerPanelRow` | `frames-player-options`, `frames-player-subtitles`, `frames-player-audio`, `frames-player-quality`, `frames-player-speed` |
-| Player: Episodes panel | `kit/player` `PlayerPanel`, `PlayerEpisodeRow` | `frames-player-episodes` |
+| Player: Episodes panel | `kit/player` `PlayerPanel`, `kit/layout` `SeasonBar`, `kit/cards` `EpisodeTile` | `frames-player-episodes` |
 | Player: Up next card | `kit/player` `PlayerUpNext` | `frames-player-up-next` |
 | Player: Live TV controls (Record, More, Guide, channel down and up, Go to live) | `kit/player` `PlayerLiveActions`, `PlayerChannelStep`, `PlayerPill` | `frames-player-live-controls` |
 
@@ -78,3 +78,7 @@ Shoot the panel and live sections like the player: phone upright and on its side
 Not in the kit yet, so not drawn: tooltips (none on native) and the Live TV short guide (`screens/watch`
 `TVMiniGuide.tsx`, `HandheldMiniGuide.tsx`). What the watch screen still draws for itself is listed in `FRAMES.md`
 for Stage 2.
+
+A section a kind of device does not have (a phone-only sheet on a TV) opens as a one-line notice saying so, not as the catalogue. A case opened as a window silences the development warning box.
+
+Not gallery sections: `browse-sort-menu`, `browse-library-switcher` and `cards-reference` on the web are measurement cases that need the gallery inputs manifest (`web/scripts/config.mjs`); without it they say "gallery inputs unavailable" or stay empty. The web `overlays` `toast` case is 1440 wide; shoot `phone-toast` at 390.

@@ -46,11 +46,12 @@ export function PlayerUpNext({item, artwork, countdown, countdownTotal, sceneAft
   // tv-player 5 draws the card as glass over the picture: a 24px backdrop blur with its own tint.
   const glass = glassRecipe();
   const radius = compact ? 16 : 22;
-  return <View testID="watch-up-next" style={{width: compact ? sceneAfter ? 424 : 360 : sceneAfter ? 780 : 680, padding: compact ? 14 : 26, borderRadius: radius,
+  return <View testID="watch-up-next" style={{width: compact ? sceneAfter ? 424 : 360 : sceneAfter ? 780 : 680, maxWidth: '100%', padding: compact ? 14 : 26, borderRadius: radius,
     boxShadow: compact ? 'inset 0 0 0 1px rgba(237,245,250,.12), 0 20px 40px -16px rgba(0,0,0,.9)' : '0 30px 80px -20px rgba(0,0,0,.85), inset 0 0 0 1px rgba(237,245,250,.1)'}}>
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, {borderRadius: radius, overflow: 'hidden'}]}>
       {theme.isTV && glass.nativeBlur && <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={theme.colors.ink}/>}
-      <View style={[StyleSheet.absoluteFill, {backgroundColor: compact ? 'rgba(7,16,24,.85)' : 'rgba(9,19,27,.84)'}]}/>
+      {/* A phone and tablet have no blur under the card, so its surface is solid: what is under it must not read through. */}
+      <View style={[StyleSheet.absoluteFill, {backgroundColor: compact ? theme.colors.playerNotice : 'rgba(9,19,27,.84)'}]}/>
     </View>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: compact ? 13 : 24}}>
       <View style={{...still, borderRadius: compact ? 8 : 12, overflow: 'hidden', backgroundColor: '#0b1822'}}>

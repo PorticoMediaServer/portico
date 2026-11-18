@@ -1,4 +1,4 @@
-import React, {type ReactNode} from 'react';
+import React, {createContext, useContext, type ReactNode} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {frameSpec} from '@portico/design';
 import {Button} from '../controls/Button';
@@ -12,46 +12,75 @@ import {useFrameMetrics} from '../frames/metrics';
  * and tv-player mock-ups). The frames (`kit/frames` `PlayerChromeFrame`, `AudioPlayerFrame`) place them; a player
  * screen supplies their values and handlers. The web has the same parts with the same names in `web/src/kit/player`. */
 
-/** The title block at the top of the video player: the title, then the episode or the year under it. */
-export function PlayerTitle({title, lead, subtitle}: {title: string; /** Said first and brighter on the line under the title ("S1 E2"). */ lead?: string; subtitle?: string}) {
-  const theme = useTheme();
-  return <View style={{flex: 1, minWidth: 0}}>
-    <Text accessibilityRole="header" numberOfLines={1} style={[theme.type.playerTitle, {color: theme.colors.text}]}>{title}</Text>
-    {(lead !== undefined || subtitle !== undefined) && <Text numberOfLines={1} style={[theme.type.playerSubtitle, {color: theme.colors.textSecondary}]}>
-      {lead !== undefined && <Text style={{color: theme.colors.text, fontFamily: theme.type.button.fontFamily}}>{lead}  </Text>}{subtitle}</Text>}
+/** The title block at the top of the video player: the title, then the episode or the year under it. Live TV adds
+ * the channel's mark before it, the red Live mark after the channel, and a third line (the airing's times and what
+ * follows it). */
+export function PlayerTitle({title, lead, subtitle, mark, live, detail}: {title: string; /** Said first and brighter on the line under the title ("S1 E2"). */ lead?: string; subtitle?: string; /** `ChannelMark`. */ mark?: ReactNode; live?: string; detail?: string}) {
+  const theme = useTheme(), second = [theme.type.playerSubtitle, {color: theme.colors.textSecondary}];
+  return <View style={{flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>
+    {mark}
+    <View style={{flex: 1, minWidth: 0}}>
+      <Text accessibilityRole="header" numberOfLines={1} style={[theme.type.playerTitle, {color: theme.colors.text}]}>{title}</Text>
+      {(lead !== undefined || subtitle !== undefined || live !== undefined) && <Text numberOfLines={1} style={second}>
+        {lead !== undefined && <Text style={{color: theme.colors.text, fontFamily: theme.type.button.fontFamily}}>{lead}  </Text>}{subtitle}
+        {live !== undefined && <Text style={{color: theme.colors.record, fontFamily: theme.type.button.fontFamily}}>{subtitle !== undefined ? '  ' : ''}{'\u25CF'} {live}</Text>}</Text>}
+      {detail !== undefined && <Text numberOfLines={1} style={second}>{detail}</Text>}
+    </View>
   </View>;
 }
+
+/** Set by `PlayerChromeFrame` around the upright form's strip, where the controls are the small ones (phone-player 4, tablet-play 3). */
+export const PlayerCompact = createContext(false);
 
 export type PlayerControlProps = Readonly<{
   icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean;
   /** Play or Pause: the large white one. */
   primary?: boolean;
-  /** A top-bar button over the picture: on a glass disc on a tablet and TV, a plain white glyph on a phone (phone-player). */
+  /** A top-bar button over the picture: on a glass disc on a tablet, a plain white glyph on a phone and in the upright strip. */
   onPicture?: boolean;
+  /** TV draws its controls on discs; `plain` is for the ones it draws as bare glyphs (shuffle and repeat). */
+  plain?: boolean;
+  /** Back or forward: the seconds it skips, drawn inside the arrow. */
+  skip?: number;
   /** Buffering: the spinner takes the icon's place and the button keeps its size. */
   busy?: boolean;
   testID?: string;
 }>;
-/** One round transport or tool button: the kit Button at its `transport` size. A control the title doesn't support
- * stays in its place with `disabled`. */
-export function PlayerControl({icon, label, onPress, disabled, active, primary = false, onPicture = false, busy = false, testID}: PlayerControlProps) {
-  const theme = useTheme(), {form} = useFrameMetrics();
-  return <Button testID={testID} variant={primary ? 'primary' : onPicture ? form === 'phone' ? 'text' : 'glass' : 'icon'} size="transport" iconOnly icon={icon} loading={busy} iconColor={!primary && active ? theme.colors.accentStrong : undefined}
+/** One transport or tool button: the kit Button at its round `transport` size. Play or Pause is the white disc. The
+ * others are plain white glyphs on a phone and a tablet, and sit on a disc only where the mock-ups draw one: a TV's
+ * controls and a tablet's top bar. A control the title doesn't support stays in its place with `disabled`. */
+export function PlayerControl({icon, label, onPress, disabled, active, primary = false, onPicture = false, plain = false, skip, busy = false, testID}: PlayerControlProps) {
+  const theme = useTheme(), {form} = useFrameMetrics(), compact = useContext(PlayerCompact), small = frameSpec.player.portrait;
+  const disc = form === 'tv' ? !plain : onPicture && form !== 'phone' && !compact;
+  const size = compact ? primary ? small.primary : small.control : undefined;
+  const button = <Button testID={testID} variant={primary ? 'primary' : disc ? 'glass' : 'text'} size="transport" iconOnly icon={icon} loading={busy}
+    iconSize={compact ? primary ? small.primaryIcon : small.controlIcon : undefined} iconColor={primary ? undefined : active ? theme.colors.accentStrong : theme.colors.text}
+    style={size === undefined ? undefined : {height: size, borderRadius: size / 2}} align="center"
     accessibilityLabel={label} accessibilityState={{selected: active}} disabled={disabled} onPress={onPress} preferredFocus={primary}/>;
+  if (skip === undefined) return button;
+  return <View>{button}<View pointerEvents="none" style={[StyleSheet.absoluteFill, {alignItems: 'center', justifyContent: 'center', opacity: disabled ? theme.spec.button.disabledOpacity : 1}]}>
+    <Text style={[theme.type.playerSkip, {color: theme.colors.text, includeFontPadding: false}]}>{skip}</Text></View></View>;
 }
 
 /** The scrubber as it is drawn: the track, what has buffered, what has played, the knob, and the marked stretches
  * (intro, credits). A player screen's own timeline owns the gestures and keys and draws through this. */
-export function PlayerScrubBar({value, buffered = [], marks = [], preview}: {value: number; buffered?: readonly Readonly<{start: number; end: number}>[]; marks?: readonly Readonly<{start: number; end: number}>[]; /** `PlayerScrubPreview`, while scrubbing. */ preview?: ReactNode}) {
-  const theme = useTheme(), spec = theme.spec.transport, knob = spec.control.icon[theme.platform] / 2, track = theme.spec.card.progress.height[theme.platform];
+export function PlayerScrubBar({value, buffered = [], marks = [], preview, tone = 'accent', knob: withKnob = true, liveEdge}: {value: number; /** Live TV: where live is, 0 to 1. A red tick marks it and the bar after it, not yet aired, is dotted. */ liveEdge?: number; buffered?: readonly Readonly<{start: number; end: number}>[]; marks?: readonly Readonly<{start: number; end: number}>[]; /** `PlayerScrubPreview`, while scrubbing. */ preview?: ReactNode;
+  /** What has played: the accent on video, white on the audio player. */ tone?: 'accent' | 'white'; /** TV's audio player draws a bar with no knob. */ knob?: boolean}) {
+  const theme = useTheme(), {form} = useFrameMetrics(), compact = useContext(PlayerCompact), knob = frameSpec.player.knob[form], track = compact ? frameSpec.player.portrait.scrubber : theme.spec.card.progress.height[theme.platform];
   const part = (start: number, end: number): {left: `${number}%`; width: `${number}%`} => ({left: `${Math.max(0, start) * 100}%`, width: `${Math.max(0, Math.min(1, end) - Math.max(0, start)) * 100}%`});
-  return <View style={{height: knob * 2, justifyContent: 'center'}}>
+  // The bar's box is the knob's height in every state, so nothing moves when the knob is hidden; in the upright strip the box is the track itself and the knob rides over the picture's edge.
+  return <View style={{height: compact ? track : knob, justifyContent: 'center'}}>
     <View style={{height: track, borderRadius: track / 2, backgroundColor: alpha(theme.colors.text, tint.track)}}>
       {buffered.map((stretch, index) => <View key={index} style={[styles.part, part(stretch.start, stretch.end), {borderRadius: track / 2, backgroundColor: alpha(theme.colors.text, tint.buffered)}]}/>)}
-      <View style={[styles.part, part(0, value), {borderRadius: track / 2, backgroundColor: theme.colors.accentStrong}]}/>
+      <View style={[styles.part, part(0, value), {borderRadius: track / 2, backgroundColor: tone === 'white' ? theme.colors.text : theme.colors.accentStrong}]}/>
       {marks.map((mark, index) => <View key={index} style={[styles.part, part(mark.start, mark.end), {backgroundColor: alpha(theme.colors.white, tint.mark)}]}/>)}
     </View>
-    <View pointerEvents="none" style={{position: 'absolute', left: `${Math.max(0, Math.min(1, value)) * 100}%`, marginLeft: -knob, width: knob * 2, height: knob * 2, borderRadius: knob, backgroundColor: theme.colors.white}}/>
+    {liveEdge !== undefined && <>
+      <View pointerEvents="none" style={[styles.part, part(liveEdge, 1), {top: undefined, bottom: undefined, height: track, backgroundColor: theme.colors.shadow}]}/>
+      <View pointerEvents="none" style={[styles.part, part(liveEdge, 1), {top: undefined, bottom: undefined, height: 0, borderTopWidth: track, borderStyle: 'dotted', borderColor: alpha(theme.colors.text, tint.buffered)}]}/>
+      <View pointerEvents="none" style={{position: 'absolute', left: `${liveEdge * 100}%`, width: theme.space.hairline * 2, top: 0, bottom: 0, backgroundColor: theme.colors.record}}/>
+    </>}
+    {withKnob && <View pointerEvents="none" style={{position: 'absolute', top: (compact ? track : knob) / 2 - knob / 2, left: `${Math.max(0, Math.min(1, value)) * 100}%`, marginLeft: -knob / 2, width: knob, height: knob, borderRadius: knob / 2, backgroundColor: theme.colors.white}}/>}
     {preview}
   </View>;
 }
@@ -74,22 +103,29 @@ export function PlayerTimes({position, remaining}: {position: string; remaining?
 /** An options entry point that says what it is and what it is set to: "Subtitles English", "Audio English", and
  * quality as "Auto 1080p". With `name` the name is the strong word and the value follows dimmer; without it the value
  * is the strong word and `qualifier` goes before it. One an item doesn't have keeps its place with `disabled`. */
-export function PlayerPill({name, value, qualifier, icon, label, onPress, disabled, testID}: {name?: string; value: string; /** Before the value, dimmer ("Auto"). */ qualifier?: string; icon?: IconName; /** For assistive technology. */ label: string; onPress: () => void; disabled?: boolean; testID?: string}) {
+export function PlayerPill({name, value, qualifier, icon, tone, label, onPress, disabled, testID}: {name?: string; value: string; /** Before the value, dimmer ("Auto"). */ qualifier?: string; icon?: IconName; /** `record` colours the icon red (Go to live). */ tone?: 'record'; /** For assistive technology. */ label: string; onPress: () => void; disabled?: boolean; testID?: string}) {
   const theme = useTheme(), {form} = useFrameMetrics(), spec = frameSpec.player.pill, height = spec.height[form];
   const strong = [theme.type.playerPill, {color: theme.colors.text}], dim = [theme.type.playerPill, {color: theme.colors.textTertiary}];
+  // TV (tv-player 1): a named entry is a two-line tile, its name over its value.
+  if (form === 'tv' && name !== undefined) return <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} focusRadius={frameSpec.player.tile.radius}
+    style={{height: theme.spec.transport.control.size[theme.platform], paddingHorizontal: frameSpec.player.tile.paddingX, borderRadius: frameSpec.player.tile.radius, justifyContent: 'center', backgroundColor: alpha(theme.colors.text, tint.pill), opacity: disabled ? theme.spec.button.disabledOpacity : 1}}>
+    <Text numberOfLines={1} style={[theme.type.playerTime, {color: theme.colors.text, fontFamily: theme.type.button.fontFamily}]}>{name}</Text>
+    <Text numberOfLines={1} style={[theme.type.playerTime, {color: theme.colors.textSecondary}]}>{qualifier !== undefined ? `${qualifier} ` : ''}{value}</Text>
+  </Focusable>;
   return <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} focusRadius={height / 2}
     style={{height, paddingHorizontal: spec.paddingX[form], borderRadius: height / 2, flexDirection: 'row', alignItems: 'center', gap: theme.space.tight, backgroundColor: alpha(theme.colors.text, tint.pill), opacity: disabled ? theme.spec.button.disabledOpacity : 1}}>
-    {icon && <Icon name={icon} size={frameSpec.player.pillIcon} color={theme.colors.textSecondary}/>}
-    {name !== undefined ? <><Text style={strong}>{name}</Text><Text style={dim}>{value}</Text></> : <>{qualifier !== undefined && <Text style={dim}>{qualifier}</Text>}<Text style={strong}>{value}</Text></>}
+    {icon && <Icon name={icon} size={frameSpec.player.pillIcon} color={tone === 'record' ? theme.colors.record : theme.colors.textSecondary}/>}
+    {name !== undefined ? <><Text numberOfLines={1} style={strong}>{name}</Text><Text numberOfLines={1} style={dim}>{value}</Text></> : <>{qualifier !== undefined && <Text numberOfLines={1} style={dim}>{qualifier}</Text>}<Text numberOfLines={1} style={strong}>{value}</Text></>}
   </Focusable>;
 }
 
 /** Skip intro, Up next: the white prompt in the player's prompt corner, with its dismiss beside it on a tablet. */
 export function PlayerPrompt({label, icon = 'i-next', onPress, dismiss, testID}: {label: string; icon?: IconName; onPress: () => void; dismiss?: Readonly<{label: string; onPress: () => void}>; testID?: string}) {
-  const theme = useTheme(), {form} = useFrameMetrics(), spec = frameSpec.player.prompt, height = spec.height[form], round = spec.dismiss[form];
+  const theme = useTheme(), {form} = useFrameMetrics(), compact = useContext(PlayerCompact), spec = frameSpec.player.prompt, small = frameSpec.player.portrait, height = compact ? small.promptHeight : spec.height[form], round = compact ? 0 : spec.dismiss[form];
   return <View style={{flexDirection: 'row', alignItems: 'center', gap: spec.gap}}>
-    {dismiss && round > 0 && <Button variant="glass" iconOnly icon="i-x" accessibilityLabel={dismiss.label} onPress={dismiss.onPress} style={{width: round, height: round}}/>}
-    <Button testID={testID} variant="primary" trailingIcon={icon} onPress={onPress} textStyle={theme.type.playerPrompt} style={{height, paddingHorizontal: spec.paddingX[form], borderRadius: spec.radius[form]}}>{label}</Button>
+    {dismiss && round > 0 && <Button variant="icon" icon="i-x" accessibilityLabel={dismiss.label} onPress={dismiss.onPress} style={{height: round}}/>}
+    <Button testID={testID} variant="primary" trailingIcon={icon} iconSize={compact ? frameSpec.player.pillIcon : undefined} onPress={onPress} textStyle={compact ? theme.type.playerPill : theme.type.playerPrompt}
+      style={{height, paddingHorizontal: compact ? small.promptPaddingX : spec.paddingX[form], borderRadius: compact ? height / 2 : spec.radius[form]}}>{label}</Button>
   </View>;
 }
 

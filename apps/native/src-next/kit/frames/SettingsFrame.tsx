@@ -29,7 +29,8 @@ export function SettingsListFrame({bar, open, onOpenChange, list, page, testID}:
     {page ?? <ScrollView contentContainerStyle={{paddingBottom: frameSpec.sheet.footerClear}}>{list}</ScrollView>}
   </SheetFrame>;
   return <View testID={testID} style={{flex: 1, flexDirection: 'row', paddingLeft: frame.gutter, gap: frameSpec.settings.gap[form]}}>
-    <ScrollView style={{flexGrow: 0, width}} contentContainerStyle={{paddingTop: frame.titleTop || frame.headerGap, paddingBottom: frame.bottomClear}}>{list}</ScrollView>
+    {/* The list's column is already placed from the gutter, so the cards in it start at the column's own edges. */}
+    <ScrollView style={{flexGrow: 0, width}} contentContainerStyle={{paddingTop: frame.titleTop || frame.headerGap, paddingBottom: frame.bottomClear}}><FrameColumn.Provider value>{list}</FrameColumn.Provider></ScrollView>
     <View style={{flex: 1}}>{page}</View>
   </View>;
 }
