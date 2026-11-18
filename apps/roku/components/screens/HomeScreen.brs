@@ -52,6 +52,7 @@ sub onHome(event as object)
         row.items = withoutReading(row.items)
         ' A row is kept if it has titles, or will read them as it comes near (`deferred`).
         if row.hidden <> true and row.id <> "continue_reading" and (row.items.count() > 0 or row.deferred = true)
+            fitShape(row)
             m.rows.push({row: row, shelf: invalid, y: 0, asked: false})
         end if
     end for
@@ -78,6 +79,18 @@ sub onHome(event as object)
     end if
     m.keep = invalid
     moveTo(rowFrom(0, 1), own)
+end sub
+
+' A row whose titles all have square covers (audiobooks, music) is a row of squares, not posters
+' with bands above and below (rule 7: one shape to a row, squares for music and audiobooks).
+sub fitShape(row as object)
+    target = row
+    if row.out <> invalid then target = row.out
+    if row.shape = "landscape" or row.items.count() = 0 then return
+    for each item in row.items
+        if not isCover(item.kind) then return
+    end for
+    target.shape = "square"
 end sub
 
 ' A whole-page message in place of Home, with focus on its button.
@@ -178,6 +191,7 @@ sub onRowItems(event as object)
         return
     end if
     more = withoutReading(result.data.items)
+    if entry.row.items.count() = 0 then fitShape({items: more, shape: entry.row.shape, out: entry.row})
     entry.row.items.append(more)
     entry.row.nextCursor = result.data.nextCursor
     entry.row.deferred = false
@@ -305,13 +319,27 @@ end function
 sub describe()
     item = focusedItem()
     if item = invalid then return
-    full = m.details[item.id]
+    full = m.details[readFor(item)]
     if full = invalid
         m.rest.control = "stop"
         m.rest.control = "start"
-        full = item
     end if
-    model = heroFor(full)
+    if item.kind = "episode"
+        ' an episode keeps its own eyebrow, title and progress; its show gives the meta line, the
+        ' synopsis and the backdrop (tv.html frame 1)
+        model = heroFor(item)
+        if full <> invalid
+            show = heroFor(full)
+            model.year = show.year
+            model.facts = show.facts
+            model.tag = show.tag
+            model.synopsis = show.synopsis
+            model.art = show.art
+        end if
+    else
+        if full = invalid then full = item
+        model = heroFor(full)
+    end if
     m.top.art = model.art
     ok = "Details"
     if m.rows[m.focus].row.id = "continue" then ok = "Resume"
@@ -319,10 +347,16 @@ sub describe()
     m.hero.model = model
 end sub
 
+' What the hero reads in full for a card: the title itself, or for an episode its show.
+function readFor(item as object) as string
+    if item.kind = "episode" and item.rootId <> invalid then return item.rootId
+    return item.id
+end function
+
 sub readDetail()
     item = focusedItem()
-    if item = invalid or m.details[item.id] <> invalid then return
-    api("GET", "/v1/items/" + item.id, invalid, "onDetail", {id: item.id})
+    if item = invalid or m.details[readFor(item)] <> invalid then return
+    api("GET", "/v1/items/" + readFor(item), invalid, "onDetail", {id: readFor(item)})
 end sub
 
 sub onDetail(event as object)
@@ -330,7 +364,7 @@ sub onDetail(event as object)
     if not result.ok then return
     m.details[event.getRoSGNode().ctx.id] = result.data
     item = focusedItem()
-    if item <> invalid and item.id = event.getRoSGNode().ctx.id then describe()
+    if item <> invalid and readFor(item) = event.getRoSGNode().ctx.id then describe()
 end sub
 
 sub onCovered()

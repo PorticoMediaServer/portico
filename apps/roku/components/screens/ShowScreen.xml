@@ -29,7 +29,9 @@
       <Group id="episodesPart">
         <SeasonList id="seasons"/>
         <Shelf id="episodes" shape="episode"/>
-        <!-- The band about what has focus (tv-detail frame 6), every line in its own slot. -->
+        <!-- The band about what has focus (tv-detail frame 6), every line in its own slot. It is part
+             of the folded Episodes view only: on the opening view it would start at the screen's foot. -->
+        <Group id="band">
         <Label id="bandHead" wrap="true" maxLines="2"/>
         <Label id="bandCode" height="36" vertAlign="center"/>
         <Label id="bandFacts" height="36" vertAlign="center"/>
@@ -42,6 +44,7 @@
         </Group>
         <Group id="credits"/>
         <KeyHints id="bandHint"/>
+        </Group>
       </Group>
     </Group>
     <Timer id="rest" duration="0.15"/>

@@ -41,6 +41,14 @@ sub onChange()
         m.detail.translation = [w - 24, 0]
         w = w + m.detail.boundingRect().width + 14
     end if
+    if m.top.minWidth > w
+        ' wider than its words: they move to the middle, the plate takes the whole width
+        shift = (m.top.minWidth - w) / 2
+        for each part in [m.icon, m.label, m.track, m.bar, m.detail]
+            part.translation = [part.translation[0] + shift, part.translation[1]]
+        end for
+        w = m.top.minWidth
+    end if
     m.plate.width = w
     m.top.buttonWidth = w
     if m.top.on
