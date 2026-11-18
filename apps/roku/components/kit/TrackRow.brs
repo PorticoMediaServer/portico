@@ -6,6 +6,7 @@ sub init()
     setType(m.top.findNode("number"), "metaStrong", c.textSecondary)
     m.top.findNode("artBack").blendColor = c.raisedBright
     m.top.findNode("plate").blendColor = c.raisedBright
+    m.top.findNode("favorite").blendColor = c.accentStrong
     m.top.findNode("tick").blendColor = c.textTertiary
     m.top.findNode("track").color = c.track
     m.top.findNode("bar").color = c.accentStrong
@@ -62,6 +63,10 @@ sub layout()
         m.top.findNode("more").translation = [w - 50, h / 2 - 14]
         title.width = w - x - 170
     end if
+    ' a favorite's heart sits just before the duration
+    heart = m.top.findNode("favorite")
+    heart.visible = (model.favorite = true)
+    heart.translation = [duration.translation[0] - 40, h / 2 - 12]
     ' the chapter under way: how far in it is, a thin line under its title
     track = m.top.findNode("track")
     bar = m.top.findNode("bar")
