@@ -124,7 +124,10 @@ impl Mpv {
         let (address, folder) = ipc_address()?;
         let mut child = command(&binary())
             .args(["--idle=yes", "--force-window=no", "--keep-open=yes", "--no-config", "--no-terminal", "--ytdl=no", "--title=Portico",
-                "--fullscreen", "--vo=gpu-next,gpu", "--hwdec=auto-safe", "--target-colorspace-hint=yes"])
+                "--fullscreen", "--vo=gpu-next,gpu", "--hwdec=auto-safe", "--target-colorspace-hint=yes",
+                // What the system's media controls show (Windows' media panel, macOS Now Playing): the
+                // app's name, never the address's last part (a grant's file number).
+                "--force-media-title=Portico"])
             .args(extra)
             .arg(format!("--input-ipc-server={address}"))
             .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
@@ -401,6 +404,8 @@ mod tests {
         };
         let playing = wait("playing");
         assert!(playing.position_ms >= 1900.0 && playing.duration_ms > 5000.0, "{playing:?}");
+        let title = mpv.with(false, &[], |running| Mpv::request(running, json!(["get_property", "media-title"]))).unwrap();
+        assert_eq!(title, json!("Portico"), "the media controls show the app, not the address");
         mpv.command("pause", 0.0).unwrap();
         wait("paused");
         mpv.command("seek", playing.duration_ms - 500.0).unwrap();
