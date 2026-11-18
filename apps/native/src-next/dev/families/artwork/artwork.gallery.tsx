@@ -3,8 +3,9 @@ import {Text, View} from 'react-native';
 import type {Gallery} from '../../gallery-registry';
 import {defaultI18n} from '../../../../../../packages/i18n/src/index';
 import {artworkNativeFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/artwork-native-fixtures';
-import {Artwork, AmbientArt, ArtistCircle, ChannelMark, ColourBackdrop, CoverFan, CoverMosaic, GeneratedArt, GeneratedCover, MediaArt, PersonCircle, ProfileFace, ProfilePicker, type AmbientArtSource, type ArtworkSource, type ArtworkPalette, type ProfileOption} from '../../../kit/artwork/index';
+import {Artwork, AmbientArt, ArtistCircle, ChannelMark, CoverFan, CoverMosaic, GeneratedArt, GeneratedCover, MediaArt, PersonCircle, ProfileFace, ProfilePicker, type AmbientArtSource, type ArtworkSource, type ArtworkPalette, type ProfileOption} from '../../../kit/artwork/index';
 import {Button, Focusable} from '../../../kit/controls/index';
+import {Layer} from '../../../kit/shell/Layer';
 import {useTheme} from '../../../kit/theme';
 
 const t = defaultI18n.t;
@@ -24,7 +25,7 @@ const suppliedEvidence = () => (globalThis as {__porticoArtworkEvidence?: Eviden
 
 function ColourCase({shape}: {shape: 'side' | 'round' | 'top'}) {
   const theme = useTheme();
-  return <View testID={`artwork-colour-${shape}`} style={{marginLeft: -theme.gutter, width: theme.isTV ? 1920 : 390, height: theme.isTV ? 1080 : shape === 'top' ? 560 : 844, overflow: 'hidden'}}><ColourBackdrop shape={shape} fill/></View>;
+  return <View testID={`artwork-colour-${shape}`} style={{marginLeft: -theme.gutter, width: theme.isTV ? 1920 : 390, height: theme.isTV ? 1080 : shape === 'top' ? 560 : 844, overflow: 'hidden'}}><Layer/></View>;
 }
 function ColourSideCase() {return <ColourCase shape="side"/>;}
 function ColourRoundCase() {return <ColourCase shape="round"/>;}

@@ -25,7 +25,7 @@ function Scene({children}: {children: React.ReactNode}) {
   // The surface owns its native window; a second Modal here obscures an initially open surface on Android.
   // On TV the overlays are placed on the whole 1920 canvas, as in the app, so the scene is the whole window: the Kit page's gutter is undone.
   // (Inside the gutter the host was inset from the window and a side panel ran off its right edge.)
-  return <View style={{flex: 1, backgroundColor: theme.colors.ink, marginHorizontal: theme.isTV ? -theme.gutter : 0}}><OverlaysProvider>{children}</OverlaysProvider></View>;
+  return <View style={{flex: 1, marginHorizontal: theme.isTV ? -theme.gutter : 0}}><OverlaysProvider>{children}</OverlaysProvider></View>;
 }
 function FileContent() {
   const theme = useTheme();

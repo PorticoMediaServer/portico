@@ -42,7 +42,7 @@ function Specimen({scenario}: {scenario: Scenario}) {
     onMore: () => setEvent(fixture('next.cards.fixture.actionMore')),
     selection: {active, selected, onToggle: () => {setSelected(value => !value); setEvent(fixture('next.cards.fixture.actionSelect'));}, onEnter: () => {setActive(true); setSelected(true); setEvent(fixture('next.cards.fixture.actionSelect'));}},
   };
-  return <View style={{padding: t.isTV ? 96 : 20, gap: 24, backgroundColor: t.colors.ink}}>
+  return <View style={{padding: t.isTV ? 96 : 20, gap: 24}}>
     {scenario.render(props, {
       onPause: () => setEvent(fixture('next.cards.fixture.actionPause')),
       onStop: () => setEvent(fixture('next.cards.fixture.actionStop')),

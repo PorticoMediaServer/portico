@@ -12,7 +12,7 @@ import {MusicMixesRow} from '../destinations/music/MusicMixesRow';
 import {TVMusicDiscover} from '../destinations/music/TVMusicDiscover';
 import {serverTextLabel} from '../../../../../packages/client-core/src/presentation/server-text';
 import {CircleCard, GenreTile, PlaylistMosaic, PosterCard, SquareCard, WideCard, type CardSelection} from '../../kit/cards';
-import {AmbientArt, Artwork, StandardBackdrop} from '../../kit/artwork';
+import {AmbientArt, Artwork} from '../../kit/artwork';
 import {Button, Focusable} from '../../kit/controls';
 import {FocusItem, FocusRegion, useFocusRegistry, type FocusRegionProps} from '../../kit/focus';
 import {Banner} from '../../kit/overlays';
@@ -336,7 +336,7 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
     onClose={() => filterDraft?.dispose()} onExited={() => dropFilters(filterDraft)} onSave={view => actions.saveView(destination, view)}/>;
   return <View testID={`native-library-${encodeURIComponent(state.library.id)}`} pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
     importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} onLayout={event => setAreaWidth(event.nativeEvent.layout.width)}
-    style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
+    style={{flex: 1}}>
     {wash}
     <View style={{flex: 1, flexDirection: docked ? 'row' : 'column'}}>
       <View style={{flex: 1}}>
@@ -355,7 +355,7 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
           : state.collection ? <View style={{flex: 1}}>
             <LibraryGrid {...props} selection={selection} source={state} paneWidth={gridWidth} tablet={tabletLayout} expanded={expanded} filtersOpen={filterState?.open ?? false} onFilters={openFilters} dockedFilters={docked}
               entryRequest={entryRequest} onEntered={onEntered} entryCovered={emptyShown}/>
-            {emptyShown && <View testID="library-empty-page" style={{position: 'absolute', inset: 0}}>{theme.isTV && <StandardBackdrop/>}
+            {emptyShown && <View testID="library-empty-page" style={{position: 'absolute', inset: 0}}>
               <LibraryEmpty runtime={runtime} regionId={emptyRegion} upRegionId={ids.libraryTabs(state.library.id)} firstCardRegion={firstCardRegion}
                 surface={state.tab.shows} libraryName={state.library.name} firstScanning={firstScanning} onActivity={props.firstScan?.openActivity}
                 onLeave={() => {if (!empty) setEmptyHeld(false);}}/>

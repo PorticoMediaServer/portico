@@ -5,7 +5,6 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {passwordStrength} from '../../../../../packages/client-core/src/password-strength';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
-import {ColourBackdrop} from '../../kit/artwork';
 import {Button, TextField, FormError} from '../../kit/controls';
 import {nativeType, useTheme} from '../../kit/theme';
 import {qrScannerAvailable, scanQRCode} from '../../platform/qr-scanner';
@@ -98,8 +97,7 @@ export function PhoneMoveCode<Result>({controller, onBack, isCurrent}: {
     </View>
     {!confirm && password.length > 0 && <Text style={[theme.type.caption, {marginTop: 6, color: strength.acceptable ? theme.colors.textSecondary : theme.colors.danger}]}>{t(strengthKey)}</Text>}
   </View>;
-  return <View testID={local ? 'accounts-move-local-sign-in' : 'accounts-move-code'} style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <ColourBackdrop shape="top"/>
+  return <View testID={local ? 'accounts-move-local-sign-in' : 'accounts-move-code'} style={{flex: 1}}>
     <FormScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{flexGrow: 1, paddingHorizontal: 22,
       paddingTop: Math.max(104, insets.top + 54), paddingBottom: Math.max(30, insets.bottom + 16)}}>
       <Text accessibilityRole="header" style={[nativeType({size: 34, lineHeight: 35.36, weight: 800, tracking: -.04}, theme.textScale),

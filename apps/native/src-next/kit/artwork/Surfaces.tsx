@@ -8,7 +8,7 @@ import {useNativeObservation} from '../dev-observation';
 import {ArtworkAlphaMask} from '../../platform/ArtworkAlphaMask';
 import {Artwork} from './Artwork';
 import {artworkArrivalDuration} from './model';
-import type {AmbientArtProps, ArtworkPalette, ColourBackdropProps} from './types';
+import type {AmbientArtProps, ArtworkPalette} from './types';
 
 type Glow = Readonly<{x: number; y: number; rx: number; ry: number; colour: string; stops: readonly (readonly [number, number])[]}>;
 
@@ -25,11 +25,13 @@ function GlowLayer({glows, background}: {glows: readonly Glow[]; background?: st
  * ambient glows. Phone width draws the glows as a 560 pt band at the top; tablet, desktop and
  * TV draw them over the whole window. Every screen without artwork stands on exactly this, and
  * artwork screens layer their art over it. Every effects tier, lite included, draws all three
- * glows (Justin, 29 Oct): one static radial costs nothing worth saving. */
-export const StandardBackdrop = React.memo(function StandardBackdrop({style, testID = 'standard-backdrop'}: Pick<ColourBackdropProps, 'style' | 'testID'>) {
+ * glows (Justin, 29 Oct): one static radial costs nothing worth saving.
+ *
+ * Only kit/shell/Layer.tsx draws it (owner, 17 Nov): it is not exported from the kit's artwork index. */
+export const StandardBackdrop = React.memo(function StandardBackdrop() {
   const {colors, width, layout} = useTheme();
   const band = width < layout.breakpoint.phone;
-  const backdropStyle = [StyleSheet.absoluteFillObject, {backgroundColor: colors.ink}, style];
+  const backdropStyle = [StyleSheet.absoluteFillObject, {backgroundColor: colors.ink}];
   const observation = useNativeObservation<View>({kind: 'view', semanticId: 'colour-backdrop',
     flattenedStyle: typeof __DEV__ !== 'undefined' && __DEV__ ? StyleSheet.flatten(backdropStyle) : undefined, declaredStyleComplete: true});
   const blue = colors.accentDeep, green = colors.generatedGreen;
@@ -42,16 +44,10 @@ export const StandardBackdrop = React.memo(function StandardBackdrop({style, tes
     {x: 0.64, y: 1.04, rx: 0.42, ry: 0.58, colour: green, stops: [[0, 0.6], [0.5, 0.18], [0.76, 0]]},
     {x: 0.04, y: 0, rx: 0.38, ry: 0.5, colour: colors.ambient, stops: [[0, 0.75], [0.72, 0]]},
   ];
-  return <View ref={observation.ref} pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" testID={testID} style={backdropStyle}>
+  return <View ref={observation.ref} pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" testID="standard-backdrop" style={backdropStyle}>
     <View style={band ? {position: 'absolute', top: 0, left: 0, right: 0, height: 560} : StyleSheet.absoluteFillObject}><GlowLayer glows={glows}/></View>
   </View>;
 });
-
-/** The standard backdrop under its older name. Shape, fill and size no longer vary per screen
- * (Justin, 29 Oct): every caller gets the one standard picture for its window. */
-export function ColourBackdrop({style, testID}: ColourBackdropProps) {
-  return <StandardBackdrop style={style} testID={testID}/>;
-}
 
 export function PaletteWash({palette, generated = false}: {palette: ArtworkPalette; generated?: boolean}) {
   const {colors} = useTheme();

@@ -65,7 +65,9 @@ export function MediumRail({libraries, hasLiveTV, destination, profile, unread, 
   return <View testID="medium-rail" accessibilityLabel={defaultI18n.t('next.home.native.mainNavigation')}
     style={{position: 'absolute', left: 0, top: 0, bottom: 0, width: expanded ? 248 : mediumRailMetrics.width, zIndex: theme.layers.navigation, overflow: 'hidden',
       borderRightWidth: 1, borderRightColor: theme.colors.line}}>
-    <BlurView pointerEvents="none" style={{position: 'absolute', inset: 0}} blurType="dark" blurAmount={18} reducedTransparencyFallbackColor={theme.colors.raised}/>
+    {/* tablet-kit .trail/.tside: one tint, ink at 72 %, over an 18 blur of the backdrop running under the rail. Android's
+        dark blur adds a tint of its own (rgba(16,12,12,.64)), which made the rail near-opaque; the rail's tint is its own. */}
+    <BlurView pointerEvents="none" style={{position: 'absolute', inset: 0}} blurType="dark" blurAmount={18} overlayColor="transparent" reducedTransparencyFallbackColor={theme.colors.raised}/>
     <View pointerEvents="none" style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink, opacity: .72}}/>
     <View style={{flex: 1, alignItems: 'center', paddingTop: padding.top, paddingBottom: padding.bottom}}>
       {(onToggle || brand) && !expanded && <View style={{height: 44, alignItems: 'center', justifyContent: 'center'}}><SvgXml xml={brandSymbol} width={19} height={28}/></View>}

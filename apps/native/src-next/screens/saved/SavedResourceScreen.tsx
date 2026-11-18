@@ -8,7 +8,7 @@ import type {ContentEntry} from '../../../../../packages/client-core/src/library
 import type {PersonalResource, PersonalSavedSnapshot, PersonalSavedIntent} from '../../../../../packages/client-core/src/personal-saved';
 import {resourceContentManual, resourceContentQuery, type PlaylistOccurrence, type ResourceContentQuery, type ResourceOrderWitness, type SavedRoute, type SavedSnapshot} from '../../../../../packages/client-core/src/saved';
 import {Button, Chip, Focusable, Switch} from '../../kit/controls';
-import {AmbientArt, Artwork, MediaArt, StandardBackdrop} from '../../kit/artwork';
+import {AmbientArt, Artwork, MediaArt} from '../../kit/artwork';
 import {CardFrame, Parts} from '../../kit/cards/primitives';
 import {PosterCard, SquareCard, type CardSelection} from '../../kit/cards';
 import {SelectionCircle} from '../../kit/selection';
@@ -469,7 +469,7 @@ export function SavedResourceScreen({route, destination, activation, runtime, ac
   };
   const applyError = (error: unknown) => <StateView variant={theme.isTV ? 'centered' : 'inline'} {...runtime.error(error, () => {void destination.retry().catch(report);})}/>;
   return <View testID={`native-saved-resource-${isPlaylist ? 'playlist' : 'resource'}`} pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
-    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
+    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}>
     {theme.isTV ? null : <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: 760, overflow: 'hidden'}}>
       {!!artwork[0] && <AmbientArt source={runtime.ambient(artwork[0])} treatment="library"/>}
     </View>}

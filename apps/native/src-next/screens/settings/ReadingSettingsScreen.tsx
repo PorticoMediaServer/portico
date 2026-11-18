@@ -13,7 +13,6 @@ import {useTheme} from '../../kit/theme';
 import {shellType} from '../../kit/shell/visual';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {nativeReadingSettingsSection, type NativeReadingSettingsPreferences} from './reading-preferences';
-import {StandardBackdrop} from '../../kit/artwork';
 import {TopBar} from '../../kit/layout/TopBar';
 
 export function NativeReadingSettingsScreen({source, runtime, current, onBack}: {
@@ -29,7 +28,7 @@ export function NativeReadingSettingsScreen({source, runtime, current, onBack}: 
     void source.setRow(row.id, value).catch(error => {if (source.current() && source.getState().error === undefined) runtime.reportError(error);});
   };
   const groups = [...(nativeReadingSettingsSection.groups ?? []), ...(advanced ? nativeReadingSettingsSection.advanced?.groups ?? [] : [])];
-  return <View testID="native-reading-settings" style={{flex: 1, paddingTop: insets.top + 8}}>{theme.isTV && <StandardBackdrop/>}
+  return <View testID="native-reading-settings" style={{flex: 1, paddingTop: insets.top + 8}}>
     <View style={{paddingHorizontal: 20, paddingBottom: 20, gap: 12}}>
       <View style={{marginHorizontal: -20}}><TopBar safeArea={false} back={{label: t('action.back'), onPress: onBack, testID: 'reading-settings-back'}}/></View>
       <Text accessibilityRole="header" style={[shellType(32, 800, 'normal', -.035), {color: theme.colors.text}]}>{t(nativeReadingSettingsSection.title)}</Text>

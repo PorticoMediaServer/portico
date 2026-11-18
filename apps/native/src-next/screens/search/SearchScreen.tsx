@@ -6,7 +6,7 @@ import type {ContentEntry} from '../../../../../packages/client-core/src/library
 import {repeat} from '../../../../../packages/client-core/src/timer';
 import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core/src/search';
 import {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
-import {Artwork, StandardBackdrop} from '../../kit/artwork';
+import {Artwork} from '../../kit/artwork';
 import {GenreTile, LiveCard, type CardSelection} from '../../kit/cards';
 import {CardFrame, Parts} from '../../kit/cards/primitives';
 import {Chip, Focusable, TextField} from '../../kit/controls';
@@ -158,7 +158,7 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
   const active = groups.find(group => group.id === state.group), wideSearch = theme.layoutMode === 'desktop' && !theme.isTV;
   if (theme.isTV) return <TVSearchScreen focusScope={focusScope} destination={destination} runtime={runtime} activation={activation} explore={explore} actions={actions} selection={selection} copy={tvCopy}/>;
   return <View testID="native-search-screen" pointerEvents={activeRoute.visible ? 'auto' : 'none'} accessibilityElementsHidden={!activeRoute.visible}
-    importantForAccessibility={activeRoute.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}} onLayout={event => setSurface(event.nativeEvent.layout.width)}>{theme.isTV && <StandardBackdrop/>}
+    importantForAccessibility={activeRoute.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}} onLayout={event => setSurface(event.nativeEvent.layout.width)}>
     {fields}
     {state.group === 'all' || empty || !typed ? <ScrollView ref={scroll} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom: 28}}>
       {problem && <StateView variant="search" title={problem} style={{margin: 20}}/>}

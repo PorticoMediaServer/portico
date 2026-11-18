@@ -2,7 +2,7 @@ import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Artwork, StandardBackdrop} from '../../kit/artwork';
+import {Artwork} from '../../kit/artwork';
 import {Chip, Focusable, Switch} from '../../kit/controls';
 import {CardFrame} from '../../kit/cards/primitives';
 import {BottomSheet, Menu, type MenuAction} from '../../kit/overlays';
@@ -188,7 +188,7 @@ export function DownloadsScreen({device, runtime, copy, back, openTitle, service
   const openMenu = useCallback((entry: OfflineEntry, anchor: RefObject<View | null>) => setEntryMenu({entry, anchor}), []);
   const playEntry = useCallback((entry: OfflineEntry) => {if (device.openOffline) run(() => device.openOffline!(entry));}, [device, run]);
   const retryEntry = useCallback((entry: OfflineEntry) => run(() => device.resume(entry)), [device, run]);
-  return <View testID="native-downloads-screen" onLayout={event => setPaneWidth(event.nativeEvent.layout.width)} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
+  return <View testID="native-downloads-screen" onLayout={event => setPaneWidth(event.nativeEvent.layout.width)} style={{flex: 1}}>
     {!inline && <TopBar surface back={{label: t('saved.title'), onPress: back, testID: 'downloads-back'}} title={t('downloads.title')}/>}
     <ScrollView ref={scroll} style={{flex: 1}} scrollEventThrottle={64}
       onLayout={event => viewport.update({...viewport.getSnapshot(), height: event.nativeEvent.layout.height})}

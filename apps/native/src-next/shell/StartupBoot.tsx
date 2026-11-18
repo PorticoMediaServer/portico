@@ -3,7 +3,7 @@ import {AccessibilityInfo, Animated, Easing, Image, Platform, StyleSheet, Text, 
 import Svg, {Circle} from 'react-native-svg';
 import Reanimated, {cancelAnimation, Easing as ReanimatedEasing, runOnJS, useAnimatedStyle, useSharedValue, withDelay, withTiming} from 'react-native-reanimated';
 import {defaultI18n} from '../../../../packages/i18n/src';
-import {ColourBackdrop} from '../kit/artwork';
+import {Layer} from '../kit/shell/Layer';
 import {nativeType, useTheme} from '../kit/theme';
 import {useMotion} from '../kit/useMotion';
 import {OVERLAY_PAINT_INERT, OVERLAY_PAINT_LIVE, OverlayPaintProvider} from '../kit/overlays/OverlayPaintContext';
@@ -61,13 +61,13 @@ export function StartupBoot({active, waiting, serverName, children, onHidden}: {
     if (active && message && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(message);
   }, [active, message]);
   const label = waiting.spinner ? `${defaultI18n.t('accounts.brand')}, ${defaultI18n.t('status.loading')}` : defaultI18n.t('accounts.brand');
-  return <View style={{flex: 1, backgroundColor: theme.colors.ink}}>
+  return <View style={{flex: 1}}>
     <Reanimated.View pointerEvents={shown ? 'none' : 'box-none'} accessibilityElementsHidden={shown} importantForAccessibility={shown ? 'no-hide-descendants' : 'auto'}
       style={[{flex: 1}, contentStyle]}><OverlayPaintProvider mode={shown ? OVERLAY_PAINT_INERT : OVERLAY_PAINT_LIVE}>{children}</OverlayPaintProvider></Reanimated.View>
     {shown && <Reanimated.View testID="native-startup-boot" accessible focusable={false} accessibilityLabel={message ? `${label}, ${message}` : label}
       accessibilityLiveRegion="polite" accessibilityState={{busy: true}}
-      style={[StyleSheet.absoluteFillObject, {backgroundColor: theme.colors.ink, alignItems: 'center', justifyContent: 'center'}, bootStyle]}>
-      <ColourBackdrop shape={phone ? 'top' : 'side'} fill={!phone}/>
+      style={[StyleSheet.absoluteFillObject, {alignItems: 'center', justifyContent: 'center'}, bootStyle]}>
+      <Layer style={StyleSheet.absoluteFillObject}/>
       <Reanimated.View style={wordmarkStyle}><Image accessible={false} source={require('../../assets/wordmark.png')}
         resizeMode="contain" style={{width: wordmarkWidth, height: wordmarkHeight}}/></Reanimated.View>
       <Reanimated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, activityStyle]}>

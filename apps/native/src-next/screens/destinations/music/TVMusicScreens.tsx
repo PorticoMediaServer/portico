@@ -4,7 +4,7 @@ import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import {cardText} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {artistReleaseGroups} from '../../../../../../packages/client-core/src/presentation/library-tabs';
-import {AmbientArt, Artwork, ArtistCircle, StandardBackdrop, missingArt} from '../../../kit/artwork';
+import {AmbientArt, Artwork, ArtistCircle, missingArt} from '../../../kit/artwork';
 import {Button, Chip, Focusable} from '../../../kit/controls';
 import {SkeletonBlock} from '../../../kit/states';
 import {SquareCard} from '../../../kit/cards';
@@ -48,10 +48,10 @@ function usePlayback(runtime: NativeShellRuntime) {
 
 function Backdrop({runtime, path}: {runtime: NativeShellRuntime; path: string | undefined}) {
   const source = runtime.ambient(path);
-  return <View pointerEvents="none" style={{position: 'absolute', inset: 0, backgroundColor: '#071018', overflow: 'hidden'}}>
-    {/* No art: the one standard backdrop, never flat ink (Justin, 29 Oct). */}
-    {source ? <AmbientArt source={source} treatment="music" style={{position: 'absolute', inset: 0}}/> : <StandardBackdrop/>}
-  </View>;
+  // No art: the route layer's own backdrop shows, never flat ink (Justin, 29 Oct).
+  return source ? <View pointerEvents="none" style={{position: 'absolute', inset: 0, overflow: 'hidden'}}>
+    <AmbientArt source={source} treatment="music" style={{position: 'absolute', inset: 0}}/>
+  </View> : null;
 }
 
 function SectionHeading({title, detail, left, top, width}: {title: string; detail?: string; left?: number; top?: number; width?: number}) {
@@ -146,7 +146,7 @@ export function TVAlbumScreen({controller, entry, runtime, actions, openEntry, o
   const [titleLines, setTitleLines] = useState(1);
   const drop = (titleLines - 1) * albumTitleLine;
   const moreTop=Math.max(896,520+drop+songs.length*84+(discs.length>1?76:0)+100);
-  return <View testID="native-tv-album" style={{flex: 1, backgroundColor: theme.colors.ink}}>
+  return <View testID="native-tv-album" style={{flex: 1}}>
     <Backdrop runtime={runtime} path={entry.posterUrl ?? entry.backdropUrl}/>
     <MusicScrollView onNearEnd={()=>{void controller.nextSongs(snapshot.songPage);}} contentContainerStyle={{paddingBottom: 64}} showsVerticalScrollIndicator={false}>
       <View style={{width: 1920, height: Math.max(1320,moreTop+424)}}>
@@ -209,7 +209,7 @@ export function TVArtistScreen({controller, entry, runtime, actions, openEntry, 
     ...(years ? [{id: 'activeYears', label: t('title.activeYears'), value: years}] : []),
     {id: 'type', label: t('title.albumType'), value: artist.artistType ?? t('title.kind', {kind: 'artist'})},
   ];
-  return <View testID="native-tv-artist" style={{flex: 1, backgroundColor: theme.colors.ink}}>
+  return <View testID="native-tv-artist" style={{flex: 1}}>
     <Backdrop runtime={runtime} path={snapshot.albums[0]?.posterUrl ?? entry.posterUrl ?? entry.backdropUrl}/>
     <MusicScrollView onNearEnd={()=>{void controller.nextAllSongs(allSongs);}} contentContainerStyle={{paddingBottom: 64}} showsVerticalScrollIndicator={false}>
       <View style={{width: 1920, height: Math.max(1040,672+Math.ceil(albums.length/2)*330)}}>

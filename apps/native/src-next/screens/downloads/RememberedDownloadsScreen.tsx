@@ -12,7 +12,6 @@ import {useTheme} from '../../kit/theme';
 import {downloadEntryIdentity} from './presentation';
 import {createDownloadInventory} from './inventory';
 import type {createRememberedReadingOwner} from '../../shell/remembered-reading-owner';
-import {StandardBackdrop} from '../../kit/artwork';
 
 const empty: Pick<OfflineSnapshot, 'entries'> = Object.freeze({entries: Object.freeze([])});
 type Opening = {source: RememberedDownloadsOpening; active: boolean; abort: AbortController; flight?: object};
@@ -57,7 +56,7 @@ export function RememberedDownloadsScreen({source, onBack}: {source: RememberedD
     const fence = source.player?.fence(); if (fence) source.player?.close(fence); onBack();};
   if (reading && source.noticeCopy) {const ReadingScreen = (require('./RememberedReadingScreen') as typeof import('./RememberedReadingScreen')).RememberedReadingScreen;
     return <ReadingScreen reading={reading} noticeCopy={source.noticeCopy} current={current} onBack={() => {if (current()) setReading(undefined);}}/>;}
-  return <View testID="remembered-downloads" style={{flex: 1, paddingTop: insets.top}}><StandardBackdrop/>
+  return <View testID="remembered-downloads" style={{flex: 1, paddingTop: insets.top}}>
     <FlatList data={entries} keyExtractor={id => id} initialNumToRender={12} maxToRenderPerBatch={8} windowSize={5}
       contentContainerStyle={{padding: 24, paddingBottom: Math.max(24, insets.bottom)}}
       ItemSeparatorComponent={() => <View style={{height: 16}}/>}
