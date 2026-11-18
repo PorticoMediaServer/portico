@@ -3,19 +3,9 @@ sub init()
     f = frames()
     l = f.list
     m.l = l
-    cover = m.top.findNode("cover")
-    cover.translation = [f.gutter, l.coverY]
-    plate = m.top.findNode("coverPlate")
-    plate.blendColor = c.raised
-    plate.width = l.cover
-    plate.height = l.cover
-    m.tiles = m.top.findNode("tiles")
-    for i = 0 to 3
-        tile = m.tiles.getChild(i)
-        tile.width = l.cover / 2
-        tile.height = l.cover / 2
-        tile.translation = [(i mod 2) * l.cover / 2, int(i / 2) * l.cover / 2]
-    end for
+    m.cover = m.top.findNode("cover")
+    m.cover.translation = [f.gutter, l.coverY]
+    m.cover.size = l.cover
     m.eyebrow = m.top.findNode("eyebrow")
     setType(m.eyebrow, "eyebrow", c.accentStrong)
     m.eyebrow.translation = [l.wordsX, l.eyebrowY]
@@ -134,22 +124,7 @@ sub drawWords()
         picture = pick(item.images, ["poster", "cover", "thumb"])
         if picture <> "" and covers.count() < 4 then covers.push(imageUrl(picture, l.cover / 2, l.cover / 2))
     end for
-    for i = 0 to 3
-        tile = m.tiles.getChild(i)
-        tile.visible = (covers.count() = 4)
-        if tile.visible then tile.uri = covers[i]
-    end for
-    if covers.count() > 0 and covers.count() < 4
-        ' fewer than four: the first cover fills the square
-        first = m.tiles.getChild(0)
-        first.visible = true
-        first.uri = covers[0]
-        first.width = l.cover
-        first.height = l.cover
-    else
-        m.tiles.getChild(0).width = l.cover / 2
-        m.tiles.getChild(0).height = l.cover / 2
-    end if
+    m.cover.covers = covers
     total = 0
     for each item in m.items
         if item.durationMs <> invalid then total = total + item.durationMs

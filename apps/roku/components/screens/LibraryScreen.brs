@@ -50,6 +50,8 @@ sub init()
     m.asking = false
     m.generation = 0
     m.detail = invalid
+    m.pins = invalid      ' a saved view's: the profile's pins, once read (kit/Pins.brs)
+    m.viewRest = ""       ' a saved view's query that no control holds, which the list keeps asking with
     m.top.observeField("focusedChild", "paint")
 end sub
 
@@ -104,6 +106,7 @@ sub onDetail(event as object)
     if m.detail.sorts <> invalid and m.detail.sorts.count() > 0 then m.sort = m.detail.sorts[0]
     m.filterSpecs = filterSpecs(m.detail.filters)
     m.view = 0
+    startFromView()      ' a saved view's kind, sort and quick filters, before the toolbar is built
     buildTools()
     drawViews()
     drawChips()
@@ -240,7 +243,7 @@ sub drawViews()
         m.viewX.push([x, label.boundingRect().width])
         x = x + label.boundingRect().width + 40
     end for
-    m.views.visible = (m.detail.views.count() > 1)
+    m.views.visible = (m.detail.views.count() > 1 and m.top.view = invalid)
 end sub
 
 ' The toolbar: kit buttons, Sort set apart from the quick filters by a rule. A filter that is on
@@ -250,7 +253,7 @@ sub drawTools()
     ' toolbar's last control, at its right end, and only on a library's own page
     if m.savedAs = invalid then m.savedAs = ""
     last = m.toolSpecs.count() - 1
-    if m.top.library.id <> invalid and (last < 0 or m.toolSpecs[last].id <> "save") then m.toolSpecs.push({id: "save", text: "Save view", icon: "plus"})
+    if m.top.library.id <> invalid and m.top.view = invalid and (last < 0 or m.toolSpecs[last].id <> "save") then m.toolSpecs.push({id: "save", text: "Save view", icon: "plus"})
     c = colours()
     m.tools.removeChildrenIndex(m.tools.getChildCount(), 0)
     m.toolNodes = []
@@ -308,6 +311,7 @@ sub drawChips()
             end for
         end if
     end for
+    if m.top.view <> invalid then m.chipSpecs = []     ' a saved view says its filters in its header (frame 21)
     if m.chipSpecs.count() > 0 then m.chipSpecs.push({id: "", text: "Clear all"})
     x = 0
     for each spec in m.chipSpecs
@@ -323,6 +327,7 @@ sub drawChips()
     if x > 0 then gap = 6
     count = m.top.findNode("count")
     count.translation = [frames().gutter + x + gap, frames().grid.countY]
+    count.visible = (m.top.view = invalid)     ' a saved view's header says how many it finds
     if m.region = "chips" and m.chipSpecs.count() = 0 then m.region = "tools"
 end sub
 
@@ -330,6 +335,72 @@ end sub
 function narrowed() as boolean
     return m.quick.count() > 0 or chosenCount() > 0
 end function
+
+' A saved view's query as the library's own controls: its kind the view shown, its sort and order
+' the Sort button's, its quick filters on. Called once the library's detail is read, before the
+' toolbar is drawn.
+sub startFromView()
+    if m.top.view = invalid or m.top.view.query = invalid then return
+    showViewHead()
+    query = "&" + m.top.view.query + "&"
+    for i = 0 to m.detail.views.count() - 1
+        if m.detail.views[i].kind <> "" and instr(1, query, "&kind=" + m.detail.views[i].kind + "&") > 0 then m.view = i
+    end for
+    if m.detail.sorts <> invalid
+        for each sort in m.detail.sorts
+            if instr(1, query, "&sort=" + sort.id + "&") > 0 then m.sort = sort
+        end for
+    end if
+    if m.sort <> invalid
+        for each order in ["asc", "desc"]
+            if instr(1, query, "&order=" + order + "&") > 0
+                sorted = {}
+                sorted.append(m.sort)
+                sorted.order = order
+                m.sort = sorted
+            end if
+        end for
+    end if
+    for each spec in quickFilters(m.detail.filters)
+        if instr(1, query, "&" + spec.param + "&") > 0 then m.quick[spec.id] = true
+    end for
+    ' its other filters are the Filters panel's, named once the server lists their values
+    viewed = viewFilters(m.top.view.query, m.filterSpecs)
+    m.viewRest = viewed.rest
+    for each id in viewed.chosen
+        m.chosen[id] = []
+        for each value in viewed.chosen[id]
+            m.chosen[id].push({value: value, label: value})
+        end for
+        if id = "collection"
+            api("GET", "/v1/items?library=" + m.top.library.id + "&kind=collection&sort=title&limit=200", invalid, "onViewLabels", {id: id})
+        else
+            api("GET", "/v1/facets?library=" + m.top.library.id + "&facet=" + id, invalid, "onViewLabels", {id: id})
+        end if
+    end for
+end sub
+
+' A saved view's chosen values get the names the Filters panel shows (a genre's id becomes Action).
+sub onViewLabels(event as object)
+    result = event.getData()
+    id = event.getRoSGNode().ctx.id
+    if not result.ok or m.chosen[id] = invalid then return
+    names = {}
+    if result.data.values <> invalid
+        for each v in result.data.values
+            names[v.value] = v.label
+        end for
+    end if
+    if result.data.items <> invalid
+        for each item in result.data.items
+            names[item.id] = item.title
+        end for
+    end if
+    for each v in m.chosen[id]
+        if names[v.value] <> invalid then v.label = names[v.value]
+    end for
+    drawViewHead()
+end sub
 
 function listPath() as string
     if m.list <> invalid then return m.list.path
@@ -340,7 +411,7 @@ function listPath() as string
     for each spec in m.toolSpecs
         if m.quick[spec.id] = true then q = q + "&" + spec.param
     end for
-    return q + filterParams(m.chosen, m.filterSpecs)
+    return q + filterParams(m.chosen, m.filterSpecs) + m.viewRest
 end function
 
 ' Read the list from its start (a new view, sort or filter). The page never waits for the count.
@@ -384,6 +455,7 @@ sub onTotal(event as object)
     if narrowed() and m.allTotal <> invalid then text = m.total.toStr() + " of " + kindCount(m.allTotal, kind)
     m.top.findNode("count").text = text
     if not ctx.all then refreshPanel()
+    if m.top.view <> invalid then drawViewHead()
 end sub
 
 sub onPage(event as object)
@@ -445,6 +517,7 @@ sub onPage(event as object)
         if m.items.count() > 0 then m.grid.jumpToItem = 0
         if m.items.count() = 0 then askEmpty()
         focusRegion()
+        if m.top.view <> invalid then drawViewHead()     ' its mosaic and Play, which the page opens on
     end if
 end sub
 
@@ -614,6 +687,8 @@ sub focusRegion()
     if m.region = "tools" and m.empty = true then m.region = "page"     ' an empty library has no toolbar: Browse Home
     if m.region = "page"
         m.page.active = true
+    else if m.region = "head"
+        m.top.findNode("viewActions").active = true
     else if m.region = "grid" and onDiscover()
         m.home.active = true
     else if m.region = "grid" and m.grid.visible
@@ -688,6 +763,10 @@ sub onMenuChosen(event as object)
         return
     end if
     id = event.getData()
+    if id = "view:pin"
+        togglePin()
+        return
+    end if
     if onDiscover()
         m.home.menuChosen = id        ' a title's menu opened from a Discover row
         return
@@ -974,6 +1053,12 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
     if not press or m.detail = invalid or m.region = "page" then return false
     if m.list <> invalid then return key = "up"     ' one list: the grid is the whole page
+    if m.region = "head"
+        if key <> "down" then return false          ' Up goes on to the scene; Left at the first button to the rail
+        m.region = "tools"
+        focusRegion()
+        return true
+    end if
     if m.region = "grid"
         if onDiscover()
             if key <> "up" then return false
@@ -1033,7 +1118,9 @@ function onKeyEvent(key as string, press as boolean) as boolean
                 m.region = "grid"
             end if
         else if key = "up"
-            if m.detail.views.count() > 1
+            if m.top.view <> invalid and m.top.findNode("viewActions").buttons.count() > 0
+                m.region = "head"           ' a saved view's Play, Shuffle, Pin and More
+            else if m.detail.views.count() > 1
                 m.region = "views"
             else if hasSwitcher()
                 m.region = "switch"
@@ -1121,4 +1208,138 @@ end function
 
 ' The grid draws no watched or saved marks, so a change from the menu leaves it as it is.
 sub cardMenuChanged(item as object)
+end sub
+
+' --- A saved view's header (collections frame 21): what the list page has above its rows, over the
+' library's own toolbar and grid, which move down by the header's height.
+
+sub showViewHead()
+    f = frames()
+    l = f.list
+    c = colours()
+    head = m.top.findNode("viewHead")
+    head.visible = true
+    m.top.findNode("name").visible = false
+    m.chevron.visible = false
+    cover = m.top.findNode("viewCover")
+    cover.size = l.cover
+    cover.translation = [f.gutter, l.coverY]
+    eyebrow = m.top.findNode("viewEyebrow")
+    setType(eyebrow, "eyebrow", c.accentStrong)
+    eyebrow.translation = [l.wordsX, l.eyebrowY]
+    name = m.top.findNode("viewName")
+    setType(name, "pageTitle", c.text)
+    name.width = f.rightEdge - l.wordsX
+    name.translation = [l.wordsX, l.nameY]
+    name.text = m.top.view.title
+    setType(m.top.findNode("viewStrong"), "metaStrong", c.text)
+    setType(m.top.findNode("viewFacts"), "meta", c.textSecondary)
+    actions = m.top.findNode("viewActions")
+    actions.translation = [l.wordsX - 8, l.actionsY]
+    actions.observeField("pressed", "onViewAction")
+    ' everything of the library's page moves down by the header: its toolbar sits under the buttons
+    down = f.savedView.toolsY - f.grid.toolsY
+    k = metrics()
+    m.tools.translation = [f.gutter, f.grid.toolsY + down]
+    m.chips.translation = [f.gutter, f.grid.chipsY + down]
+    ' and, with no chips' line, the cards straight under it
+    m.grid.translation = [f.gutter, f.savedView.cardsY - k.cardPad]
+    m.grid.clippingRect = [-60, -40, 1840, 1080 - f.savedView.cardsY + 56]
+    m.gridState.translation = [f.gutter, f.savedView.cardsY]
+    m.viewOpening = true      ' the page opens on Play once the first titles are in (drawViewHead)
+    readPins()
+end sub
+
+' The mosaic from the first four covers, "23 titles   Movies   Genre Action   Unwatched", and the buttons.
+sub drawViewHead()
+    l = frames().list
+    covers = []
+    for each item in m.items
+        picture = pick(item.images, ["poster", "cover", "thumb"])
+        if picture <> "" and covers.count() < 4 then covers.push(imageUrl(picture, l.cover / 2, l.cover / 2))
+    end for
+    m.top.findNode("viewCover").covers = covers
+    strong = m.top.findNode("viewStrong")
+    strong.text = ""
+    if m.total <> invalid then strong.text = countText(m.total, "title", "titles")
+    facts = []
+    if m.global.hasField("libraryNames") and m.global.libraryNames[m.top.library.id] <> invalid then facts.push(m.global.libraryNames[m.top.library.id])
+    words = savedViewWords(m.top.view.query)
+    if words = "" then words = chosenWords()
+    if words <> "" then facts.push(words)
+    m.top.findNode("viewFacts").text = facts.join("   ")
+    strong.translation = [l.wordsX, l.factsY]
+    gap = 0
+    if strong.text <> "" then gap = strong.boundingRect().width + 26
+    m.top.findNode("viewFacts").translation = [l.wordsX + gap, l.factsY]
+    buttons = []
+    if m.items.count() > 0 then buttons = [{id: "play", text: "Play", icon: "play"}, {id: "shuffle", text: "Shuffle", icon: "shuffle"}]
+    if m.pins <> invalid
+        if isPinned() then buttons.push({id: "pin", text: "Pinned", icon: "bookmark"}) else buttons.push({id: "pin", text: "Pin", icon: "bookmark"})
+        buttons.push({id: "more", text: "", icon: "more"})
+    end if
+    actions = m.top.findNode("viewActions")
+    if m.items.count() > 0 and m.viewOpening = true
+        ' the page opens on Play once there is something to play (a row drawn afresh starts on its first)
+        actions.buttons = []
+        actions.buttons = buttons
+        m.viewOpening = false
+        m.region = "head"
+        if m.top.isInFocusChain() then focusRegion()
+    else
+        actions.buttons = buttons
+        if buttons.count() = 0 and m.region = "head"
+            m.region = "tools"
+            if m.top.isInFocusChain() then focusRegion()
+        end if
+    end if
+end sub
+
+' What the view asks for, from its controls, when its query alone cannot say it: "Genre Action   Unplayed".
+function chosenWords() as string
+    parts = []
+    for each spec in m.filterSpecs
+        values = m.chosen[spec.id]
+        if values <> invalid and values.count() > 0
+            labels = []
+            for each v in values
+                labels.push(v.label)
+            end for
+            parts.push(spec.label + " " + labels.join(", "))
+        end if
+    end for
+    for each spec in m.toolSpecs
+        if m.quick[spec.id] = true then parts.push(spec.text)
+    end for
+    return parts.join("   ")
+end function
+
+function pinKey() as string
+    return "view:" + m.top.view.id
+end function
+
+sub pinsChanged()
+    drawViewHead()
+end sub
+
+' Play and Shuffle play all the view finds, as the server reads the view, not only the cards loaded.
+sub onViewAction(event as object)
+    which = event.getData()
+    if which = "pin" then togglePin()
+    if which = "more"
+        row = {id: "view:pin", text: "Pin", icon: "bookmark"}
+        if isPinned() then row.text = "Unpin"
+        m.top.menu = {eyebrow: "Saved view", title: m.top.view.title, rows: [row], hints: [{keys: ["OK"], text: "Choose"}, {keys: ["Back"], text: "Close"}]}
+    end if
+    if (which = "play" or which = "shuffle") and m.items.count() > 0
+        first = m.items[0]
+        queue = {source: {homeRow: {id: "view:" + m.top.view.id}}}
+        if which = "shuffle"
+            ' the server plays startAt first and shuffles the rest, so the first is picked here
+            first = m.items[rnd(m.items.count()) - 1]
+            queue.shuffle = true
+            queue.startAt = first.id
+        end if
+        m.top.open = {item: first, play: true, queue: queue}
+    end if
 end sub

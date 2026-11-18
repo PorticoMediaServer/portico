@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A list's or saved view's cover (collections frames 18 to 21): its first four covers as a 2 by 2
+     square, `size` across, on the raised plate; with fewer than four, the first fills the square. -->
+<component name="Mosaic" extends="Group">
+  <interface>
+    <field id="size" type="float" value="280"/>
+    <!-- picture addresses, at most four used -->
+    <field id="covers" type="array" onChange="draw"/>
+  </interface>
+  <script type="text/brightscript" uri="Mosaic.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Poster id="plate" uri="pkg:/images/round-14.9.png"/>
+    <Group id="tiles">
+      <Poster loadDisplayMode="scaleToZoom"/>
+      <Poster loadDisplayMode="scaleToZoom"/>
+      <Poster loadDisplayMode="scaleToZoom"/>
+      <Poster loadDisplayMode="scaleToZoom"/>
+    </Group>
+  </children>
+</component>

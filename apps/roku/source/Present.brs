@@ -412,6 +412,49 @@ function withPin(pins as object, pin as string, pinned as boolean) as object
     return out
 end function
 
+' Whether a library's toolbar can hold a saved view's query (collections frame 21): its kind, its
+' sort and order, the quick filters, and the Filters panel's filters (a genre, a decade). A view that
+' asks for anything else stays a page of what it finds.
+function savedViewOnToolbar(query as string) as boolean
+    quick = {}
+    for each q in quickFilters([{id: "watched"}, {id: "inProgress"}, {id: "favorite"}, {id: "inList"}])
+        quick[q.param] = true
+    end for
+    panel = {}
+    for each spec in filterSpecs([{id: "genre"}, {id: "year"}, {id: "contentRating"}, {id: "studio"}, {id: "network"}, {id: "collection"}, {id: "label"}, {id: "resolution"}])
+        panel[spec.id] = true
+    end for
+    for each pair in query.split("&")
+        key = left(pair, instr(1, pair, "=") - 1)
+        if pair <> "" and key <> "kind" and key <> "sort" and key <> "order" and quick[pair] <> true and panel[key] <> true then return false
+    end for
+    return true
+end function
+
+' A saved view's Filters panel values ({filter id: [values]}) for the filters this library offers
+' (`specs`), and what is left of the query for the list to keep asking with as it is.
+function viewFilters(query as string, specs as object) as object
+    offered = {}
+    for each spec in specs
+        if spec.id <> "playState" then offered[spec.id] = true
+    end for
+    chosen = {}
+    rest = ""
+    for each pair in query.split("&")
+        at = instr(1, pair, "=")
+        key = left(pair, at - 1)
+        if at > 0 and offered[key] = true
+            chosen[key] = []
+            for each value in mid(pair, at + 1).split(",")
+                chosen[key].push(value.decodeUriComponent())
+            end for
+        else if at > 0 and key <> "kind" and key <> "sort" and key <> "order" and key <> "library" and key <> "watched" and key <> "inProgress" and key <> "favorite" and key <> "inList"
+            rest = rest + "&" + pair
+        end if
+    end for
+    return {chosen: chosen, rest: rest}
+end function
+
 ' A library's views, sorts and counts, in words.
 function viewName(kind as string) as string
     names = {discover: "Discover", movie: "Movies", show: "Shows", collection: "Collections", artist: "Artists", album: "Albums", track: "Songs", audiobook: "Audiobooks", season: "Seasons", episode: "Episodes", playlist: "Playlists"}

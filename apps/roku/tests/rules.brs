@@ -92,6 +92,9 @@ sub main()
         quick.push(q.text)
     end for
     same("quick filters", quick, ["Unplayed", "My List"])
+    same("saved view on the toolbar", [savedViewOnToolbar("kind=movie&watched=false&sort=title&order=asc"), savedViewOnToolbar("kind=movie&year=1990..1999&sort=year"), savedViewOnToolbar("kind=movie&person=prs_1"), savedViewOnToolbar("")], [true, true, false, true])
+    viewed = viewFilters("kind=movie&genre=tag_a%2Cb,tag_c&year=1990..1999&watched=false&network=n1", filterSpecs([{id: "genre"}, {id: "year"}, {id: "watched"}]))
+    same("saved view's filters", [viewed.chosen.genre.join("|"), viewed.chosen.year.join("|"), viewed.rest, type(viewed.chosen.playState)], ["tag_a,b|tag_c", "1990..1999", "&network=n1", "Invalid"])
     specs = filterSpecs([{id: "studio"}, {id: "watched"}, {id: "genre"}, {id: "year"}])
     names = []
     for each s in specs

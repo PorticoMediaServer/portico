@@ -379,7 +379,12 @@ sub onCardSelected(event as object)
         m.top.open = {item: entry, play: false}
         return
     end if
-    ' a list opens as a page of its titles (GroupScreen); a saved view is read with its own query
+    ' a saved view the library's toolbar can hold opens as the library's own grid (collections frame 21)
+    if spec.kind = "saved_view" and savedViewOnToolbar(entry.query)
+        m.top.open = {item: {kind: "savedView", id: entry.id, title: entry.name, library: entry.library, query: entry.query}, play: false}
+        return
+    end if
+    ' a list opens as a page of its titles (GroupScreen); any other saved view is read with its own query
     path = "/v1/items?list=" + entry.id
     if spec.kind = "saved_view" then path = "/v1/items?library=" + entry.library + "&" + entry.query
     about = ""
