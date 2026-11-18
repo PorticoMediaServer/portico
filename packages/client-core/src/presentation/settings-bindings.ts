@@ -145,6 +145,7 @@ const preferenceKeys:Readonly<Record<string,string>>={
 const libraryScalarBindings:Readonly<Record<string,SettingsBinding>>={
  'libraries.collections':{form:'library',key:'groupCollections'},
  'libraries.allowDelete':{form:'library',key:'allowMediaDeletion'},
+ 'libraries.strm':{form:'library',key:'strmFiles'},
  'libraries.localTags':{form:'library',key:'localTags'},
  'libraries.lyrics':{form:'library',key:'lyricsSource'},
  'libraries.watch':{form:'library',key:'monitorChanges'},

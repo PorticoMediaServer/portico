@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {LibraryAdminDocument,LibrarySettings} from '../src/administration.ts';
 import {libraryScanDepth,setLibraryScanDepth,setLibrarySeekPreviews,setLibraryPreviewHours} from '../src/server-admin/library-policy.ts';
-import {reorderLibraries,saveLibraryFolder,saveOwnerLibraryFolder} from '../src/server-admin/libraries.ts';
+import {reorderLibraries,saveLibraryFolder,saveOwnerLibraryFolder,saveOwnerLibrarySettings} from '../src/server-admin/libraries.ts';
+import {libraryDocument as ownerLibraryDocument} from '../src/server-admin/library-document.ts';
 
 const settings:LibrarySettings={scanDepth:'basic',groupCollections:true,localTags:'prefer',lyricsSource:'files',titleSource:'tags',episodeNumbering:'season',findExtras:true,sortIgnoreArticles:true,refreshMode:'replace_unlocked',acoustidEnabled:false,continueWatching:{weeks:16,maximumItems:40,includeSeasonPremieres:true,videoPlayedThreshold:95,videoCompletion:'earliest'},allowMediaDeletion:false,monitorChanges:true,providers:[],analysis:['probe','local_metadata','subtitle_discovery'],navigation:{trickplayIntervalMs:10000,trickplayTileWidth:320,trickplayMaxTiles:1080,chapterThumbnailMode:'embedded',videoPreviewEnabled:false,videoPreviewMs:30000},segmentDetection:'server'};
 
@@ -92,4 +93,17 @@ test('folder membership preserves the other local and remote folders and carries
  }};
  const source=await saveOwnerLibraryFolder(api,'library',undefined,{path:'/new',expectedRevision:7},signal);
  assert.equal(source.id,'new');assert.equal(writes,1);
+});
+
+test('the library\'s .strm switch reads from the server and saves as its own option (owner ruling A7: the server reads what a .strm names)',async()=>{
+ const library={id:'library',name:'Films',kind:'movies',revision:'7',metadataProvider:'local',metadataProviders:[{id:'local',available:true}],
+  options:{depth:'basic',allowDelete:false,strm:false,trash:{mode:'manual'},rescanMinutes:0},folders:[{id:'disk',path:'/media',available:true}]};
+ const doc=ownerLibraryDocument(library as never);
+ assert.equal(doc.eligibleControls.includes('libraries.strm'),true);assert.equal(doc.settings.strmFiles,false);
+ assert.equal(readLibrarySettingsBinding('libraries.strm',doc)?.current,false);
+ const sent:any[]=[];
+ const api={request:async<T>()=>library as T,requestRaw:async(_path:string,_method:string,options:any)=>{sent.push(options.body);
+  return {status:200,headers:{},body:{...library,revision:'8',options:{...library.options,strm:true}}};}};
+ const saved=await saveOwnerLibrarySettings(api as never,doc,{...doc.settings,strmFiles:true},'op');
+ assert.equal(sent[0].options.strm,true);assert.equal(saved.settings.strmFiles,true);
 });
