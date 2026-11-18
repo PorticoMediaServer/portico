@@ -207,11 +207,11 @@ test('Streaming edits its folder and server-wide tone-map method', async () => {
   assert.equal(hardwareTests, 0);const hardware = nodes(tree).find((node: any) => node.type === 'Hardware');hardware.props.onTest();hardware.props.onTest();assert.equal(hardwareTests, 1);finish!(hardwareReport);await settle();host.dispose();fixture.stop();
 });
 
-test('History mounts real list/filter wiring and offers no keep choice', async () => {
-  const fixture = await formsFixture({runtime: {playHistoryDays: 46}}), host = lifecycleHooks();
+test('History opens with the rebuilt account picker and offers no keep choice', async () => {
+  const host = lifecycleHooks();
   const history = await import('../src-next/screens/settings-live/server/history-source.ts'), reports = await import('../../../packages/client-core/src/report-context.ts');
   const calls: any[] = [], entry = {id: 'play', user: 'sam_k', profile: 'Kids', accountId: 'a1', title: 'Film', startedAt: '2026-10-28T11:00:00Z', watchedMs: 42000, completed: false, location: '192.0.2.5'};
-  class Lifetime {signal = new AbortController().signal;authority = {serverId: 'server', accountId: 'a0', profileId: 'p0'};current = fixture.group.context.current;request = (run: any) => run(this.signal);dispose() {}}
+  class Lifetime {signal = new AbortController().signal;authority = {serverId: 'server', accountId: 'a0', profileId: 'p0'};current = () => true;request = (run: any) => run(this.signal);dispose() {}}
   // The first page is read through the viewer's cache (client data step 6); every page still reaches this fake.
   const page = async (_api: unknown, filters: unknown) => {calls.push(filters);return {entries: [entry], nextCursor: '', total: 1};};
   const accounts = await import('../../../packages/client-core/src/admin/server-play-history.ts');
@@ -220,15 +220,16 @@ test('History mounts real list/filter wiring and offers no keep choice', async (
     ...chrome, react: host.react, 'react-native': {Text: 'Text', View: 'View', FlatList: 'FlatList'}, '../../../../../../packages/client-core/src/play-history': {fetchPlayHistory: page, playHistoryFirstPageQuery: (api: unknown, filters: unknown) => ({queryKey: ['admin', 'play-history', filters], queryFn: () => page(api, filters)}), playHistoryPlatform: () => '', playHistoryTitle: (value: any) => value.title},
     '../../../../../../packages/client-core/src/query/admin-documents': adminDocuments, '../../../shell/freshness': shellFreshness,
     '../../../../../../packages/client-core/src/admin/server-play-history': accounts, '../../../../../../packages/client-core/src/report-context': reports, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../../../packages/client-core/src/server-admin/console-words': {duration: (seconds: number) => `${seconds}s`}, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
-    '../lifetime': {NativeScreenLifetime: Lifetime, screenScopeEnded: () => new Error('ended')}, './history-source': history, './storage/space-source': {nativeStorageOwner: (context: any) => context.current()}, './storage/forms': fixture.hooks,
+    '../lifetime': {NativeScreenLifetime: Lifetime, screenScopeEnded: () => new Error('ended')}, './history-source': history, './storage/space-source': {nativeStorageOwner: () => true},
   });
   const peopleReads: string[] = [];
-  (fixture.group.context as any).api = {request: async (path: string, method: string, body: unknown) => {
+  const api = {request: async (path: string, method: string, body: unknown) => {
     assert.equal(method, 'GET');assert.equal(body, undefined);peopleReads.push(path);
     if (path === '/v1/admin/members') return {items: [{id: 'a1', username: 'sam_k'}], nextCursor: 'next'};
     assert.equal(path, '/v1/admin/members?cursor=next');return {items: [{id: 'a2', username: 'alex'}]};
   }};
-  const render = () => host.render(() => {const outer = module.NativeServerHistory({ports: {context: fixture.group.context}, runtime});return outer ? outer.type(outer.props) : null;});
+  const context = {api, serverName: 'Test server'};
+  const render = () => host.render(() => {const outer = module.NativeServerHistory({ports: {context}, runtime});return outer ? outer.type(outer.props) : null;});
   render();host.flush();await settle();render();host.flush();
   const tree = render();assert.equal(tree.type, 'FlatList');assert.equal(tree.props.data[0], entry);
   const row = tree.props.renderItem({item: entry});assert.match(content(row), /sam_k.*Kids/);assert.doesNotMatch(content(row), /192\.0\.2\.5/);
@@ -239,5 +240,5 @@ test('History mounts real list/filter wiring and offers no keep choice', async (
   nodes(render()).find((node: any) => node.props.testID === 'server-history-period').props.onValueChange('7d');await settle();assert.equal(calls.at(-1).period, '7d');
   // Play history is kept indefinitely (owner, 16 Nov): the page offers no keep choice.
   assert.equal(nodes(render()).some((node: any) => node.props.testID === 'history.keepHistory'), false);
-  host.dispose();fixture.stop();
+  host.dispose();
 });

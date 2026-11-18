@@ -7,7 +7,6 @@ import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {troubleshootingParts, troubleshootingRowShown} from './server/troubleshooting/parts';
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
 import type {QuietInput} from './quiet-refresh';
-import {ConsoleClient} from '@core/console.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
 import {validatePreferencePatch, type PreferencePatch, type PreferenceScope, type PreferenceSnapshot} from '@core/preferences.ts';
 import {searchConfiguration, type SettingsConfiguration} from '@core/settings-configuration.ts';
@@ -108,7 +107,6 @@ function settingsRowErrorText(error: unknown): string {
 }
 export class SettingsController {
   private readonly options: SettingsControllerOptions;
-  private readonly console: ConsoleClient;
   private readonly preferencesReader: PreferencesReader;
   private readonly forms: Partial<Record<SettingsBindingForm, DocumentForm>> = {};
   /** The owner's main profile on a server they manage: the server pages read the owner's documents. */
@@ -129,15 +127,15 @@ export class SettingsController {
   private closed = false;
   private headerLoading?: Promise<void>;
   private headerLoaded = false;
-  private readonly quietClients = new Map<string,{client:ConsoleClient;abort:AbortController}>();
-  private cancelQuietRead = (id: string) => {const read=this.quietClients.get(id);this.quietClients.delete(id);read?.abort.abort();read?.client.dispose();};
-  private async quietRead<T>(id:string,read:(client:ConsoleClient,signal:AbortSignal)=>Promise<T>,install:(value:T)=>void,serial?:number):Promise<QuietRefreshOutcome> {
+  private readonly quietReads = new Map<string, AbortController>();
+  private cancelQuietRead = (id: string) => {const read=this.quietReads.get(id);this.quietReads.delete(id);read?.abort();};
+  private async quietRead<T>(id:string,read:(signal:AbortSignal)=>Promise<T>,install:(value:T)=>void,serial?:number):Promise<QuietRefreshOutcome> {
     this.cancelQuietRead(id);
-    const owner={client:new ConsoleClient(this.options.api,{serverId:this.options.serverId,viewerId:this.options.viewerId}),abort:new AbortController()};this.quietClients.set(id,owner);
-    const owns=()=>this.current() && !owner.abort.signal.aborted && this.quietClients.get(id)===owner && (serial===undefined || serial===this.writeSerial && !this.writing && !this.inputActive);
-    try {const value=await read(owner.client,AbortSignal.any([this.lifetime.signal,owner.abort.signal]));if(!owns())return {kind:'deferred'};install(value);this.publish({});return {kind:'adopted'};}
+    const owner=new AbortController();this.quietReads.set(id,owner);
+    const owns=()=>this.current() && !owner.signal.aborted && this.quietReads.get(id)===owner && (serial===undefined || serial===this.writeSerial && !this.writing && !this.inputActive);
+    try {const value=await read(AbortSignal.any([this.lifetime.signal,owner.signal]));if(!owns())return {kind:'deferred'};install(value);this.publish({});return {kind:'adopted'};}
     catch(error){return owns()?{kind:'unreadable',error}:{kind:'deferred'};}
-    finally{if(this.quietClients.get(id)===owner)this.quietClients.delete(id);owner.abort.abort();owner.client.dispose();}
+    finally{if(this.quietReads.get(id)===owner)this.quietReads.delete(id);owner.abort();}
   }
   private writing = false;
   private writeSerial = 0;
@@ -168,14 +166,13 @@ export class SettingsController {
       if (config && document?.libraryId === config.libraryId && document.revision < config.revision) void this.library.refreshSettings();
       this.publish({});
     }, () => {});
-    this.console = new ConsoleClient(options.api, scope);
     this.owner = options.role === 'owner' && options.mainProfile && options.capabilities.manageServer;
     this.backups = new ServerBackupSource(options.api, () => this.current() && this.owner, () => this.publish({}));
     this.preferencesReader = options.reader;
     this.offPreferences = options.reader.subscribe(() => {const snapshot = options.reader.getSnapshot('web');if (snapshot && this.current()) {this.preferences = snapshot;this.publish({});}});
     this.offDevice = options.device?.subscribe(() => this.publish({}));
     if (this.owner) {
-      const deps: ServerFormDeps = {api: options.api, console: this.console, serverId: options.serverId, operationId: randomId};
+      const deps: ServerFormDeps = {api: options.api, serverId: options.serverId, operationId: randomId};
       // ST-7: the owner Quality page's away-limit row reads the Streaming document through its own form, quietly:
       // a refusal (a remembered owner past the management hour) leaves that row out, never asks for the
       // PIN and never fails the page (FB-10 regression).
@@ -349,13 +346,13 @@ export class SettingsController {
         blocked:()=>this.inputActive || this.writing,settlement:()=>this.writeSerial,
         refresh:async()=>{
           if(!this.current() || this.inputActive || this.writing || !this.sectionReads.hasRead('configuration'))return {kind:'deferred'};
-          return this.quietRead('configuration',(_client,signal)=>this.configurationRead(signal),configuration=>{this.configuration=configuration;},this.writeSerial);
+          return this.quietRead('configuration',signal=>this.configurationRead(signal),configuration=>{this.configuration=configuration;},this.writeSerial);
         }});
       inputs.push({id:'header/storage',cancel:()=>this.cancelQuietRead('header/storage'),subscribe:this.subscribe,
         blocked:()=>!this.headerLoaded,
         refresh:async()=>{
           if(!this.current() || !this.headerLoaded)return {kind:'deferred'};
-          return this.quietRead('header/storage',(_client,signal)=>Promise.all([readServerStorage(this.options.api,signal),new DashboardDataClient(this.options.api).status(signal).catch(()=>undefined)]),([storage,status])=>{this.header=storageServerHeader(storage,status?.alerts);});
+          return this.quietRead('header/storage',signal=>Promise.all([readServerStorage(this.options.api,signal),new DashboardDataClient(this.options.api).status(signal).catch(()=>undefined)]),([storage,status])=>{this.header=storageServerHeader(storage,status?.alerts);});
         }});
     }
     if(section.scope==='server' && section.id==='libraries') {
@@ -475,7 +472,7 @@ export class SettingsController {
   change = (row: SettingsRow, value: SettingsValue, context?: SettingsContext) => {void this.write(row, value, false, context);};
   reset = (row: SettingsRow, context?: SettingsContext) => {const value = this.read(row, context)?.default; if (value !== undefined) void this.write(row, value as SettingsValue, true, context);};
   dispose = () => {
-    this.closed = true;for(const id of this.quietClients.keys())this.cancelQuietRead(id); this.backups.dispose(); this.library.dispose(); this.folders.dispose(); this.sectionReads.dispose(); this.lifetime.abort(); this.offDevice?.(); this.console.dispose(); this.offPreferences();
+    this.closed = true;for(const id of this.quietReads.keys())this.cancelQuietRead(id); this.backups.dispose(); this.library.dispose(); this.folders.dispose(); this.sectionReads.dispose(); this.lifetime.abort(); this.offDevice?.(); this.offPreferences();
     for (const off of this.offForms) off();
     for (const form of Object.values(this.forms)) form.dispose();
     this.awayLimit?.dispose();

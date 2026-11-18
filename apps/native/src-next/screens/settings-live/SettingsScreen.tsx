@@ -225,7 +225,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   // N5-5: phone and tablet search every page this viewer has, Server pages included; TV's corpus stays the account pages (serverPages is empty there).
   const searchable = useMemo(() => ({headings: structure.headings.flatMap(heading => heading.id === 'account' ? [heading]
     : heading.id === 'server' && serverPages.length ? [{...heading, pages: serverPages}] : [])}), [structure, serverPages]);
-  const matches = searchSettings(searchable, query, t);
+  const matches = searchSettings(searchable, query, t).filter(match => match.rowId !== 'runtime.apiRequestsPerMinute');
   /** A result's address names its heading and page: open that page (a Server page by its own id), aimed at the result's row.
    * Touch (settings.html): the row scrolls to the middle and flashes once. TV (tv-more 34): search closes and the page opens
    * with the row highlighted and focused. */
