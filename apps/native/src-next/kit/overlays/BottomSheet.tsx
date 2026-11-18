@@ -15,7 +15,7 @@ import {TVDesignCanvas} from './TVDesignCanvas';
 import {useOverlayLifecycle} from './OverlayHost';
 import {useNativeModalPresence} from './native-dismissal';
 import {releaseSheet, resistSheet, sheetHeights} from './geometry';
-import {alpha, FocusBoundary, OverlayFootRow, PanelBackground, SurfaceHeader, usePresence} from './surface';
+import {alpha, FocusBoundary, OverlayFootRow, PanelBackground, SurfaceHeader, useOverlayRegion, usePresence} from './surface';
 import type {BottomSheetProps, OverlayReason} from './types';
 
 /** A TV side sheet's own inset (detail-tv 5c): its rows start 56 in and stop 96 short of the screen's edge. */
@@ -87,7 +87,8 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
     done.current = reason === 'close-button' || reason === 'action';
     onOpenChange(false, reason);
   }, [onOpenChange, dismissOnBack]);
-  useOverlayLifecycle(present && !page, true, dismiss, initialFocusRef ?? closeRef, returnFocusRef, motion.reduce ? 160 : theme.isTV ? 320 : 500, testID, restoreFocus && !page);
+  const region = useOverlayRegion(testID);
+  useOverlayLifecycle(present && !page, true, dismiss, initialFocusRef ?? closeRef, returnFocusRef, motion.reduce ? 160 : theme.isTV ? 320 : 500, region, restoreFocus && !page);
   useEffect(() => {
     // tv-more 4.7: a TV side sheet slides at full opacity; reduced motion keeps the fade.
     opacity.value = motion.reduce ? withTiming(open ? 1 : 0, motion.timing()) : side && theme.isTV ? 1 : open ? withTiming(1, motion.timing('standard')) : 1;
@@ -146,7 +147,7 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
         {backgroundColor: theme.colors.raised}, page ? undefined : side ? tvStyle : sheetStyle, style]}>
         {theme.isTV && <PanelBackground/>}
         {surfaceBackground}
-        <FocusBoundary modal={!page} testID={testID} style={styles.root}>
+        <FocusBoundary modal={!page} testID={region} style={styles.root}>
           <GestureDetector gesture={pan}><Animated.View style={page ? {display: 'none'} : undefined} onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}>
             <View style={side ? {display: 'none'} : undefined} accessible={!side} accessibilityRole="adjustable" accessibilityLabel={accessibilityLabel ?? (typeof title === 'string' ? title : undefined)} accessibilityValue={{min: 1, max: heights.length, now: index + 1, text: defaultI18n.t('next.overlays.native.sheetPosition', {position: index + 1, count: heights.length})}}
               accessibilityActions={[{name: 'increment', label: defaultI18n.t('next.overlays.native.expandSheet')}, {name: 'decrement', label: defaultI18n.t('next.overlays.native.collapseSheet')}, ...(dismissOnGesture ? [{name: 'dismiss' as const, label: defaultI18n.t('action.close')}] : [])]}

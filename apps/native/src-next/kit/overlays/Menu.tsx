@@ -15,7 +15,7 @@ import {OverlayPortal, useOverlayFrame, useOverlayLifecycle} from './OverlayHost
 import {popoverRect} from './geometry';
 import {rightEndMenuRect} from './anchored-menu-geometry';
 import {touchMenuRect} from '../browse/touch-menu-geometry';
-import {alpha, FocusBoundary, useSurfaceMotion} from './surface';
+import {alpha, FocusBoundary, useOverlayRegion, useSurfaceMotion} from './surface';
 import {useNativeModalPresence} from './native-dismissal';
 import type {MenuProps, MenuRowProps, OverlayReason, PopoverProps} from './types';
 
@@ -82,7 +82,8 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
   // (useNativeModalPresence); an in-window one goes with its presence.
   const native = useNativeModalPresence(modal && animation.present, open && !tvSide);
   const present = modal ? native.mounted : animation.present;
-  useOverlayLifecycle(present && !tvSide, modal, dismiss, initialFocusRef, returnFocusRef ?? anchorRef, animation.enterMs, testID, restoreFocus);
+  const region = useOverlayRegion(testID);
+  useOverlayLifecycle(present && !tvSide, modal, dismiss, initialFocusRef, returnFocusRef ?? anchorRef, animation.enterMs, region, restoreFocus);
   useEffect(() => {
     if (!open || tvSide) return;
     let live = true, frame: number | undefined;
@@ -112,7 +113,7 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
   const surface = <Animated.View pointerEvents={paint.interactive ? 'auto' : 'none'} accessibilityElementsHidden={!paint.interactive} importantForAccessibility={paint.interactive ? 'auto' : 'no-hide-descendants'} testID={testID} accessibilityLabel={accessibilityLabel ?? (typeof title === 'string' ? title : undefined)} accessibilityViewIsModal={modal} onAccessibilityEscape={() => dismiss('escape')} style={[{transformOrigin: growFrom, position: 'absolute', left: rightEnd ? 0 : rect.x - (modal ? 0 : hostFrame.x), top: rightEnd ? 0 : rect.y - (modal ? 0 : hostFrame.y), width: rect.width / canvasScale, maxHeight: (viewport.height - insets.top - insets.bottom) / canvasScale - 16, borderRadius: tvFlyout ? 24 : touchContext ? 16 : 14, backgroundColor: touchContext ? alpha('#162c3a', material.nativeBlur ? .97 : 1) : alpha(theme.colors.raisedBright, material.nativeBlur ? 0.96 : 1), borderWidth: tvFlyout ? 0 : 1, borderColor: alpha(theme.colors.text, 0.1), overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.8, shadowOffset: {width: 0, height: 16}, shadowRadius: 30, ...(tvFlyout ? {boxShadow: [{offsetX: 0, offsetY: 50, blurRadius: 100, spreadDistance: -24, color: '#000'}]} : {})}, animation.style, style]}>
     {material.nativeBlur && !tvFlyout && <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={touchContext ? 26 : 30} reducedTransparencyFallbackColor={touchContext ? '#162c3a' : theme.colors.raisedBright} pointerEvents="none"/>}
     {tvFlyout && <View pointerEvents="none" style={StyleSheet.absoluteFill}><Svg width="100%" height="100%"><Defs><LinearGradient id="tv-flyout" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor="#162c3a"/><Stop offset="1" stopColor="#0f2230"/></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#tv-flyout)"/></Svg><View style={[StyleSheet.absoluteFill, {borderRadius: 24, borderWidth: 1.5, borderColor: alpha(theme.colors.text, .1)}]}/></View>}
-    <FocusBoundary modal={holdFocus} testID={testID}><View onLayout={event => setHeight(event.nativeEvent.layout.height)} style={[tvFlyout ? {padding: 14} : touchContext ? {padding: 8} : {paddingVertical: 6}, contentStyle]}>
+    <FocusBoundary modal={holdFocus} testID={region}><View onLayout={event => setHeight(event.nativeEvent.layout.height)} style={[tvFlyout ? {padding: 14} : touchContext ? {padding: 8} : {paddingVertical: 6}, contentStyle]}>
       {headerContext}
       {showTitle && title != null && <Text accessibilityRole="header" style={[titleType ? nativeType(titleType, theme.textScale) : touchContext ? nativeType({size: 15, weight: 800, tracking: 0, lineHeight: titleLine(15)}, theme.textScale) : theme.type.bodyStrong, {color: theme.colors.text, paddingHorizontal: touchContext ? 20 : 14, paddingTop: touchContext ? 6 : 8, paddingBottom: touchContext ? 10 : 8, marginHorizontal: touchContext ? -8 : 0, marginBottom: touchContext ? 6 : 0, borderBottomWidth: touchContext ? 1 : 0, borderBottomColor: alpha(theme.colors.text, .08)}, titleTextStyle]}>{title}</Text>}
       {description != null && <Text style={[theme.type.caption, {color: theme.colors.textSecondary, paddingHorizontal: 14}, descriptionTextStyle]}>{description}</Text>}
