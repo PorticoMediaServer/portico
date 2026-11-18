@@ -33,6 +33,22 @@ func TestASplitRemoteFilmPlaysBothParts(t *testing.T) {
 	testRemoteFilm(t, 2)
 }
 
+// The same with every folder of the test (conversions included) reached through a link, as
+// every folder under /var is on macOS: the converter is handed where its folder really is.
+func TestAFilmOnRemoteStoragePlaysThroughALinkedFolder(t *testing.T) {
+	real, err := os.MkdirTemp("", "real-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := real + "-link"
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Remove(link); os.RemoveAll(real) })
+	t.Setenv("TMPDIR", link)
+	testRemoteFilm(t, 1)
+}
+
 func testRemoteFilm(t *testing.T, partCount int) {
 	t.Helper()
 	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
