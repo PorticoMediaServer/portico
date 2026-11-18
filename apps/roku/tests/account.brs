@@ -218,6 +218,7 @@ end sub
 function standIn(id as string) as object
     return {id: id, text: "", control: "", translation: [0, 0], visible: true, children: [], rowHeight: 84,
         observeField: function(field as string, callback as string) as boolean : return true : end function,
+        setFocus: function(on as boolean) as boolean : return true : end function,
         removeChildrenIndex: function(count as integer, at as integer) as boolean : m.children = [] : return true : end function,
         createChild: function(kind as string) as object
             child = {translation: [0, 0], rowHeight: 84, model: invalid, on: false, separator: false}
