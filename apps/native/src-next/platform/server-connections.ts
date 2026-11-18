@@ -7,7 +7,7 @@ import {clockOrigin, observeResponseClock} from '../../../../packages/client-cor
 import {nativeAvatarWireBody} from '../../../../packages/client-core/src/native-avatar-wire';
 import {accountExpectation, nativeAccountRead} from './account-work';
 import type {CredentialAccessExpectation} from '../../../../packages/client-core/src/credentials';
-import {nativeReadingPolicy, nativeReadingResponse, nativeReadingStreamResponse} from './reading-response';
+import {nativeReadingPolicy, nativeReadingResponse} from './reading-response';
 import {revisionRequiredFetch} from './revision-required-fetch';
 import { AppState, NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import {
@@ -63,9 +63,7 @@ const nativeRequest: typeof fetch = async (input, options = {}) => {
     let raw: {status: number; headers: Record<string, string>; body?: string; bodyBase64?: string};
     const diagnostic = homeActionDiagnostics.request(options.method ?? 'GET', input);
     try {
-      raw = reading?.sequential
-        ? await NativeModules.PorticoRuntime.networkStreamOpen(id, input, headers)
-        : reading?.binaryLimit !== undefined
+      raw = reading
         ? await NativeModules.PorticoRuntime.networkBytesRequest(id, input, options.method ?? 'GET', headers, reading.binaryLimit)
         : await NativeModules.PorticoRuntime.networkRequest(
         id,
@@ -83,11 +81,6 @@ const nativeRequest: typeof fetch = async (input, options = {}) => {
     homeActionDiagnostics.response(diagnostic, raw.status);
     if (options.signal?.aborted)
       throw new RouteError('cancelled', 'Connection request cancelled.');
-    if (reading?.sequential) {
-      // The pull body now owns cancellation until EOF, not merely headers.
-      options.signal?.removeEventListener('abort', cancel);
-      return nativeReadingStreamResponse(raw, {read: () => NativeModules.PorticoRuntime.networkStreamRead(id), cancel}, options.signal ?? undefined);
-    }
     if (reading) return nativeReadingResponse(raw, reading.binaryLimit, options.signal ?? undefined);
     return new Response(
       [204, 205, 304].includes(raw.status) ? null : raw.body,
