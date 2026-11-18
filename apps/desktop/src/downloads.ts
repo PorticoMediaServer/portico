@@ -8,13 +8,22 @@ import type {SavedDownloadsBinder} from '../../../web/src/screens/saved/native-b
 import type {SavedDownloadsPort, SavedDownloadsSnapshot, SavedLocalDownload} from '../../../web/src/screens/saved/downloads-port.ts';
 import type {Invoke} from './mpv-player.ts';
 import type {OfflineDownloadsPort} from '../../../web/src/shell/offline-downloads.ts';
+import {downloadShape} from '../../../web/src/screens/saved/downloads-model.ts';
 
 type Entry = Readonly<{serverId: string; profileId: string; downloadId: string; itemId: string; quality: string; title: DownloadTitle;
-  files: readonly Readonly<{name: string; bytes: number; done: number}>[]; state: 'downloading' | 'paused' | 'failed' | 'ready'; received: boolean; addedMs: number}>;
+  files: readonly Readonly<{name: string; bytes: number; done: number}>[]; state: 'queued' | 'downloading' | 'paused' | 'failed' | 'ready'; received: boolean; addedMs: number; artwork?: boolean}>;
 type Listing = Readonly<{entries: readonly Entry[]; playableUntilMs: number}>;
 type Play = Readonly<{itemId: string; playId: string; positionMs: number; playedMs: number; madeAtMs: number}>;
 
 const unsupported = () => Promise.reject(new Error('unsupported'));
+
+/** The picture the Downloads tile shows for the title's shape (wide for an episode, square for
+ * music and books, else a poster), at the server's small size. */
+export function downloadArtwork(title: DownloadTitle, images: Readonly<Record<string, string>>): string | undefined {
+  const roles = {wide: ['thumb', 'backdrop', 'poster'], square: ['cover', 'poster', 'thumb'], poster: ['poster', 'cover', 'thumb']}[downloadShape(title)];
+  const url = roles.map(role => images[role]).find(Boolean);
+  return url && `${url}${url.includes('?') ? '&' : '?'}w=480&h=480`;
+}
 /** The bound viewers' syncs, woken when the title page has a download ready. */
 const wakers = new Set<() => void>();
 export const downloadReady = () => { for (const wake of wakers) wake(); };
@@ -27,7 +36,7 @@ export const downloadReady = () => { for (const wake of wakers) wake(); };
  */
 export function desktopDownloads(invoke: Invoke): SavedDownloadsBinder {
   return async ({runtime, api, isCurrent, signal}) => {
-    const {serverId, profileId} = runtime.scope, key = (e: Pick<Entry, 'downloadId' | 'itemId'>) => ({serverId, profileId, downloadId: e.downloadId, itemId: e.itemId});
+    const {serverId, accountId, profileId} = runtime.scope, key = (e: Pick<Entry, 'downloadId' | 'itemId'>) => ({serverId, profileId, downloadId: e.downloadId, itemId: e.itemId});
     const listeners = new Set<() => void>(), life = new AbortController(), all = AbortSignal.any([signal, life.signal]);
     let snapshot: SavedDownloadsSnapshot = {available: true, phase: 'loading', items: []}, listing: Listing = {entries: [], playableUntilMs: 0};
     const publish = () => { for (const listener of [...listeners]) listener(); };
@@ -37,8 +46,10 @@ export function desktopDownloads(invoke: Invoke): SavedDownloadsBinder {
       const downloaded = await readDownloadedItem(media, downloadId, itemId, all);
       const title = downloadedBundle(downloadCopyId(downloadId, itemId), downloaded).title;
       // Play starts where the person was when it was downloaded (then where the last play here left it).
-      await invoke('downloads_fetch', {ask: {serverId, profileId, downloadId, itemId, quality: downloaded.quality, title,
-        positionMs: Math.max(0, Math.floor(downloaded.item.state?.positionMs ?? 0)),
+      await invoke('downloads_fetch', {ask: {serverId, accountId, profileId, downloadId, itemId, quality: downloaded.quality, title,
+        positionMs: Math.max(0, Math.floor(downloaded.item.state?.positionMs ?? 0)), artwork: downloadArtwork(title, downloaded.item.images ?? {}),
+        // Subtitles that are files of their own; the ones inside the file come with it.
+        subtitles: downloaded.subtitles.flatMap(sub => sub.url ? [{url: sub.url, format: sub.format, language: sub.language ?? ''}] : []),
         files: downloaded.files.map(file => ({url: file.url, bytes: file.sizeBytes, container: file.container ?? ''}))}});
     };
     const holdings: DownloadHoldings = {
@@ -49,7 +60,8 @@ export function desktopDownloads(invoke: Invoke): SavedDownloadsBinder {
     };
     const row = (e: Entry): SavedLocalDownload => {
       const bytes = e.files.reduce((sum, f) => sum + f.bytes, 0), bytesDone = e.files.reduce((sum, f) => sum + f.done, 0), id = downloadCopyId(e.downloadId, e.itemId);
-      return Object.freeze({id, revision: 0, preparationId: id, itemId: e.itemId, quality: e.quality, title: e.title,
+      // The tile reads its picture again when the revision moves: once, when the picture is kept.
+      return Object.freeze({id, revision: e.artwork ? 1 : 0, preparationId: id, itemId: e.itemId, quality: e.quality, title: e.title,
         state: e.state, held: e.state === 'paused', bytes, bytesDone, percent: bytes ? 100 * bytesDone / bytes : null,
         offlineAccess: listing.playableUntilMs > Date.now() ? 'valid' : 'needsCheckIn', onServer: e.title.onServer});
     };
@@ -60,12 +72,16 @@ export function desktopDownloads(invoke: Invoke): SavedDownloadsBinder {
         await callServer(api, 'POST /v1/downloads/{id}/items/{itemId}/received', {id: e.downloadId, ids: {itemId: e.itemId}, signal: all})
           .then(() => invoke('downloads_change', {key: key(e), action: 'received'})).catch(() => {});
       }
-      snapshot = Object.freeze({available: true, phase: 'ready', items: Object.freeze(listing.entries.map(row))});
+      // The disk and what downloads take of it, other profiles' included (downloads rule 27).
+      const storage = await invoke<NonNullable<SavedDownloadsSnapshot['storage']>>('downloads_storage', {serverId, accountId, profileId}).catch(() => undefined);
+      snapshot = Object.freeze({available: true, phase: 'ready', items: Object.freeze(listing.entries.map(row)), ...(storage?.totalBytes ? {storage} : {})});
       publish();
     };
     const step = async () => {
       await read();
       await keepDownloadsInStep(api, holdings, Date.now, all);
+      // Titles waiting for room are asked for again, with fresh addresses, each time.
+      for (const e of listing.entries.filter(e => e.state === 'queued')) await fetchTitle(e.downloadId, e.itemId).catch(() => {});
       // Plays of downloads, made with or without the server, each sent once by its play id.
       const plays = await invoke<readonly Play[]>('downloads_plays', {serverId, profileId}), sent: string[] = [];
       for (const play of plays) {
@@ -106,13 +122,24 @@ export function desktopDownloads(invoke: Invoke): SavedDownloadsBinder {
       loadMore: () => Promise.resolve(),
       action: (id, _revision, action) => change(id, action),
       play: id => play(id),
-      getArtwork: () => Promise.resolve(null),
+      getArtwork: async id => {
+        const {downloadId, itemId} = downloadCopyReference(id);
+        const bytes = await invoke<ArrayBuffer>('downloads_artwork', {key: {serverId, profileId, downloadId, itemId}}).catch(() => null);
+        return bytes ? new Blob([bytes]) : null;
+      },
       actionGroup: unsupported,
       setRules: unsupported,
       chooseFolder: unsupported,
       openFolder: unsupported,
-      previewOtherProfiles: unsupported,
-      removeOtherProfiles: unsupported,
+      previewOtherProfiles: async () => {
+        const others = await invoke<{snapshotToken: string; bytes: number}>('downloads_others', {serverId, accountId, profileId});
+        return Object.freeze({scope: runtime.scope, snapshotToken: others.snapshotToken, bytes: others.bytes});
+      },
+      removeOtherProfiles: async confirmation => {
+        // Only what the person was shown; if any of it changed, nothing goes (the store says conflict).
+        await invoke('downloads_remove_others', {serverId, accountId, profileId, snapshotToken: confirmation.snapshotToken});
+        await read();
+      },
       dispose: () => { wakers.delete(wake); following.stop(); stepping.stop(); life.abort(); listeners.clear(); },
     };
     return Object.freeze({localDownloads: port, saveReadyPreparation: () => step(), dispose: port.dispose});

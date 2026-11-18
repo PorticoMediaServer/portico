@@ -5,6 +5,7 @@ use std::sync::Arc;
 use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
+mod disk;
 mod downloads;
 mod mpv;
 mod services;
@@ -120,12 +121,12 @@ fn downloads_permission(store: Store<'_>, server_id: String, profile_id: String,
 /// with or without the server: mpv is followed until its window closes or it is given anything else.
 #[tauri::command]
 async fn downloads_play(store: Store<'_>, player: Player<'_>, key: DownloadKey, play_id: String) -> Result<(), String> {
-    let files = store.files(key.parts())?;
+    let (files, subtitles) = (store.files(key.parts())?, store.subtitles(key.parts())?);
     // Where this computer last left it, else where the person was when it was downloaded.
     let start_ms = store.position(key.parts())? as f64;
     let (mpv, downloads) = (player.inner().clone(), store.inner().clone());
     let follower = mpv.clone();
-    let opening = blocking(move || mpv.load_files(&files, start_ms, &[])).await?;
+    let opening = blocking(move || mpv.load_files(&files, &subtitles, start_ms, &[])).await?;
     let started = std::time::Instant::now();
     std::thread::spawn(move || {
         // Until the window closes, or mpv is given anything else (whose position is not this title's).
@@ -136,6 +137,29 @@ async fn downloads_play(store: Store<'_>, player: Player<'_>, key: DownloadKey, 
         }
     });
     Ok(())
+}
+
+/// The disk the downloads are on, and what they take of it.
+#[tauri::command]
+fn downloads_storage(store: Store<'_>, server_id: String, account_id: String, profile_id: String) -> Result<downloads::Storage, String> {
+    store.storage(&server_id, &account_id, &profile_id)
+}
+
+/// The other profiles' downloads, to confirm before removing them (downloads rule 27).
+#[tauri::command]
+fn downloads_others(store: Store<'_>, server_id: String, account_id: String, profile_id: String) -> Result<downloads::Others, String> {
+    store.others(&server_id, &account_id, &profile_id)
+}
+
+#[tauri::command]
+fn downloads_remove_others(store: Store<'_>, server_id: String, account_id: String, profile_id: String, snapshot_token: String) -> Result<(), String> {
+    store.remove_others(&server_id, &account_id, &profile_id, &snapshot_token)
+}
+
+/// A downloaded title's kept picture, as bytes (the page makes a blob of it).
+#[tauri::command]
+fn downloads_artwork(store: Store<'_>, key: DownloadKey) -> Result<tauri::ipc::Response, String> {
+    store.artwork(key.parts()).map(tauri::ipc::Response::new)
 }
 
 #[tauri::command]
@@ -189,6 +213,10 @@ fn main() {
             downloads_change,
             downloads_permission,
             downloads_play,
+            downloads_artwork,
+            downloads_storage,
+            downloads_others,
+            downloads_remove_others,
             downloads_plays,
             downloads_sent,
             downloads_open_folder,

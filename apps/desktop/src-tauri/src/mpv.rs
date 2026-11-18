@@ -207,7 +207,9 @@ impl Mpv {
     /// Opens a downloaded title's own files (the download store gives the paths; never the page),
     /// its parts in order, at `start_ms`.
     /// Answers which opening this is ([`Mpv::opening`] moves on when anything else is opened).
-    pub fn load_files(&self, files: &[std::path::PathBuf], start_ms: f64, extra: &[&str]) -> Result<u64, String> {
+    /// `subtitles` are the download's own subtitle files with their languages, offered (not
+    /// chosen) beside the file's own once it is open; they belong to that file alone.
+    pub fn load_files(&self, files: &[std::path::PathBuf], subtitles: &[(std::path::PathBuf, String)], start_ms: f64, extra: &[&str]) -> Result<u64, String> {
         let (first, rest) = files.split_first().ok_or("download_not_ready")?;
         let opening = self.opened();
         self.with(true, extra, |running| {
@@ -216,6 +218,17 @@ impl Mpv {
             Self::request(running, json!(["loadfile", first, "replace"]))?;
             for part in rest {
                 Self::request(running, json!(["loadfile", part, "append"]))?;
+            }
+            if !subtitles.is_empty() {
+                // A subtitle is added to the file that is open, so wait for it (a local file: moments).
+                let started = Instant::now();
+                while Self::request(running, json!(["get_property", "path"])).ok() != Some(json!(first)) {
+                    if started.elapsed() > Duration::from_secs(10) { return Ok(opening); }
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                for (path, language) in subtitles {
+                    let _ = Self::request(running, json!(["sub-add", path, "auto", "", language]));
+                }
             }
             Ok(opening)
         })
@@ -372,6 +385,47 @@ mod tests {
         for refused in ["file:///etc/passwd", "https://", "--script=x", "edl://a", "lavfi://sine", "ytdl://x"] {
             assert!(media_url(refused).is_err(), "{refused}");
         }
+    }
+
+    /// A download's own subtitle files reach mpv with their language, and never follow into a
+    /// streamed title after it. Runs where mpv is given (CI), as `PORTICO_TEST_MEDIA_URL`.
+    #[test]
+    fn a_downloads_subtitle_files_are_offered_and_left_behind_after() {
+        let Some(url) = std::env::var("PORTICO_TEST_MEDIA_URL").ok() else { return };
+        let dir = std::env::temp_dir().join(format!("portico-mpv-subs-{}", random_name()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // Ten seconds of silence as a WAV, and one subtitle file named as the store names it.
+        let (rate, seconds) = (8000u32, 10u32);
+        let mut wav = Vec::new();
+        for part in [&b"RIFF"[..], &(36 + rate * seconds * 2).to_le_bytes(), b"WAVEfmt ", &16u32.to_le_bytes(), &1u16.to_le_bytes(), &1u16.to_le_bytes(),
+            &rate.to_le_bytes(), &(rate * 2).to_le_bytes(), &2u16.to_le_bytes(), &16u16.to_le_bytes(), b"data", &(rate * seconds * 2).to_le_bytes()] { wav.extend_from_slice(part); }
+        wav.resize(wav.len() + (rate * seconds * 2) as usize, 0);
+        std::fs::write(dir.join("1.wav"), wav).unwrap();
+        std::fs::write(dir.join("sub-1.en.srt"), "1\n00:00:01,000 --> 00:00:05,000\nHello\n").unwrap();
+        let mpv = Mpv::default();
+        let quiet = ["--vo=null", "--ao=null", "--no-fullscreen"];
+        let external = |mpv: &Mpv| {
+            let started = Instant::now();
+            loop {
+                let list = mpv.with(false, &[], |running| Mpv::request(running, json!(["get_property", "track-list"]))).unwrap_or(Value::Null);
+                if list.as_array().is_some_and(|l| !l.is_empty()) {
+                    return list.as_array().unwrap().iter().filter(|t| t["type"] == "sub" && t["external"] == true).map(|t| t["lang"].as_str().unwrap_or("").to_owned()).collect::<Vec<_>>();
+                }
+                assert!(started.elapsed() < Duration::from_secs(20), "no tracks");
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        };
+        mpv.load_files(&[dir.join("1.wav")], &[(dir.join("sub-1.en.srt"), "en".into())], 0.0, &quiet).unwrap();
+        assert_eq!(external(&mpv), ["en"], "the subtitle file is offered, its language from its name");
+        mpv.load(&url, 0.0, true, &quiet).unwrap();
+        let started = Instant::now();
+        while mpv.with(false, &[], |running| Mpv::request(running, json!(["get_property", "path"]))).ok() != Some(json!(url)) {
+            assert!(started.elapsed() < Duration::from_secs(20), "the stream never opened");
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        assert!(external(&mpv).is_empty(), "a streamed title gets none of the download's subtitles");
+        mpv.quit();
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     /// Plays a real file through a real mpv over the IPC, with no window or sound. Runs where a
