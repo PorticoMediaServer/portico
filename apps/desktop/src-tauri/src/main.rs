@@ -5,6 +5,7 @@ use std::sync::Arc;
 use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
+mod downloads;
 mod mpv;
 mod services;
 
@@ -75,6 +76,84 @@ async fn services_request(request: services::Request) -> Result<services::Answer
     tauri::async_runtime::spawn_blocking(move || services::send(request)).await.map_err(|_| "services_unreachable".to_string())?
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DownloadKey {
+    server_id: String,
+    profile_id: String,
+    download_id: String,
+    item_id: String,
+}
+impl DownloadKey {
+    fn parts(&self) -> (&str, &str, &str, &str) {
+        (&self.server_id, &self.profile_id, &self.download_id, &self.item_id)
+    }
+}
+type Store<'a> = tauri::State<'a, Arc<downloads::Downloads>>;
+
+#[tauri::command]
+fn downloads_list(store: Store<'_>, server_id: String, profile_id: String) -> Result<downloads::Listing, String> {
+    store.list(&server_id, &profile_id)
+}
+
+#[tauri::command]
+fn downloads_fetch(store: Store<'_>, ask: downloads::Ask) -> Result<(), String> {
+    store.fetch(ask)
+}
+
+#[tauri::command]
+fn downloads_change(store: Store<'_>, key: DownloadKey, action: String) -> Result<(), String> {
+    match action.as_str() {
+        "pause" => store.pause(key.parts()),
+        "remove" => store.remove(key.parts()),
+        "received" => store.received(key.parts()),
+        _ => Err("invalid_command".into()),
+    }
+}
+
+#[tauri::command]
+fn downloads_permission(store: Store<'_>, server_id: String, profile_id: String, until_ms: u64) -> Result<(), String> {
+    store.permission(&server_id, &profile_id, until_ms)
+}
+
+/// Plays a downloaded title in mpv, and keeps where it got to for the server (the state batch),
+/// with or without the server: mpv is followed until its window closes or it is given anything else.
+#[tauri::command]
+async fn downloads_play(store: Store<'_>, player: Player<'_>, key: DownloadKey, play_id: String) -> Result<(), String> {
+    let files = store.files(key.parts())?;
+    // Where this computer last left it, else where the person was when it was downloaded.
+    let start_ms = store.position(key.parts())? as f64;
+    let (mpv, downloads) = (player.inner().clone(), store.inner().clone());
+    let follower = mpv.clone();
+    let opening = blocking(move || mpv.load_files(&files, start_ms, &[])).await?;
+    let started = std::time::Instant::now();
+    std::thread::spawn(move || {
+        // Until the window closes, or mpv is given anything else (whose position is not this title's).
+        if let Some((position, ended)) = follower.follow(opening, std::time::Duration::from_secs(1)) {
+            let _ = downloads.record_play(downloads::Play { server_id: key.server_id, profile_id: key.profile_id, item_id: key.item_id, play_id,
+                position_ms: position as u64, played_ms: started.elapsed().as_millis() as u64,
+                made_at_ms: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0) }, ended);
+        }
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn downloads_plays(store: Store<'_>, server_id: String, profile_id: String) -> Result<Vec<downloads::Play>, String> {
+    store.plays(&server_id, &profile_id)
+}
+
+#[tauri::command]
+fn downloads_sent(store: Store<'_>, play_ids: Vec<String>) -> Result<(), String> {
+    store.sent(&play_ids)
+}
+
+/// Opens the downloads folder in the system's file manager.
+#[tauri::command]
+fn downloads_open_folder(app: tauri::AppHandle, store: Store<'_>) -> Result<(), String> {
+    app.opener().open_path(store.folder_root().to_string_lossy(), None::<&str>).map_err(|_| "folder_unavailable".to_string())
+}
+
 #[tauri::command]
 async fn mpv_available() -> Result<bool, String> {
     blocking(|| Ok(mpv::available())).await
@@ -105,8 +184,18 @@ fn main() {
             mpv_subtitle,
             mpv_tracks,
             mpv_observe,
+            downloads_list,
+            downloads_fetch,
+            downloads_change,
+            downloads_permission,
+            downloads_play,
+            downloads_plays,
+            downloads_sent,
+            downloads_open_folder,
         ])
         .setup(|app| {
+            // The app's own data folder (LocalAppData on Windows), never a folder the page names.
+            app.manage(downloads::Downloads::open(app.path().app_local_data_dir()?.join("downloads")));
             let handle = app.handle().clone();
             let browser = app.handle().clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))

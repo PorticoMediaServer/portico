@@ -29,9 +29,10 @@ impl Drop for Running {
     }
 }
 
-/// The one mpv this app drives, started on first use.
+/// The one mpv this app drives, started on first use, and how many files it has been told to
+/// open: whoever follows one play stops once anything else is opened.
 #[derive(Default)]
-pub struct Mpv(Mutex<Option<Running>>);
+pub struct Mpv(Mutex<Option<Running>>, std::sync::atomic::AtomicU64);
 
 /// What the player screen needs to follow mpv.
 #[derive(Serialize, Default, Debug, PartialEq)]
@@ -177,6 +178,7 @@ impl Mpv {
     /// Opens the presentation at `start_ms`, playing or paused.
     pub fn load(&self, url: &str, start_ms: f64, autoplay: bool, extra: &[&str]) -> Result<(), String> {
         let url = media_url(url)?;
+        self.opened();
         self.with(true, extra, |running| {
             // `start` and `pause` are set first: loadfile's own options moved between mpv versions.
             Self::request(running, json!(["set_property", "start", format!("{:.3}", start_ms.max(0.0) / 1000.0)]))?;
@@ -184,6 +186,40 @@ impl Mpv {
             Self::request(running, json!(["loadfile", url, "replace"]))?;
             Ok(())
         })
+    }
+
+    /// Opens a downloaded title's own files (the download store gives the paths; never the page),
+    /// its parts in order, at `start_ms`.
+    /// Answers which opening this is ([`Mpv::opening`] moves on when anything else is opened).
+    pub fn load_files(&self, files: &[std::path::PathBuf], start_ms: f64, extra: &[&str]) -> Result<u64, String> {
+        let (first, rest) = files.split_first().ok_or("download_not_ready")?;
+        let opening = self.opened();
+        self.with(true, extra, |running| {
+            Self::request(running, json!(["set_property", "start", format!("{:.3}", start_ms.max(0.0) / 1000.0)]))?;
+            Self::request(running, json!(["set_property", "pause", false]))?;
+            Self::request(running, json!(["loadfile", first, "replace"]))?;
+            for part in rest {
+                Self::request(running, json!(["loadfile", part, "append"]))?;
+            }
+            Ok(opening)
+        })
+    }
+
+    fn opened(&self) -> u64 {
+        self.1.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1
+    }
+
+    /// Follows one opening until its window closes or mpv is given anything else, reading every
+    /// `every`: where it was left, and whether it played to the end (None if it never played).
+    /// The count moves before a new file is asked for, so no reading of that file is taken as this one's.
+    pub fn follow(&self, opening: u64, every: Duration) -> Option<(f64, bool)> {
+        let mut last = None;
+        loop {
+            std::thread::sleep(every);
+            let reading = self.observe();
+            if reading.state == "idle" || self.1.load(std::sync::atomic::Ordering::SeqCst) != opening { return last; }
+            if reading.state != "loading" { last = Some((reading.position_ms, reading.state == "ended")); }
+        }
     }
 
     /// play, pause, seek (milliseconds), rate, volume (0 to 100), mute, stop.
@@ -318,6 +354,17 @@ mod tests {
         let mpv = Mpv::default();
         let quiet = ["--vo=null", "--ao=null", "--no-fullscreen"];
         mpv.load(&url, 2000.0, true, &quiet).expect("load");
+        let follower = std::thread::scope(|scope| {
+            let follower = scope.spawn(|| mpv.follow(1, Duration::from_millis(100)));
+            std::thread::sleep(Duration::from_millis(1500));
+            // Something else is opened (here the same file again, at the start): the follower stops
+            // with the first opening's place, never taking a reading of the second.
+            mpv.load(&url, 0.0, true, &quiet).expect("second load");
+            follower.join().unwrap()
+        });
+        let (left_at, ended) = follower.expect("the first opening played");
+        assert!(left_at >= 2000.0 && !ended, "{left_at}");
+        mpv.load(&url, 2000.0, true, &quiet).expect("third load");
         let wait = |want: &str| {
             let started = Instant::now();
             loop {
