@@ -594,9 +594,11 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage, Enrol: claims.Enrol,
 			PINStale: claims.Manage && claims.ManageUntil != 0 && s.now().UnixMilli() >= claims.ManageUntil,
 			Stamp:    db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}}
-	}
-	if err := s.refuseNonOwnerAway(r, c.UserID); err != nil {
-		return r, err
+		// A key is held to this in keyCheck, and a request the server makes to itself was
+		// judged where it came in: it carries no address of its own to judge again.
+		if err := s.refuseNonOwnerAway(r, c.UserID); err != nil {
+			return r, err
+		}
 	}
 	if c.Role == roleCast {
 		if may, err := s.castMay(r, route.Pattern, c); err != nil {

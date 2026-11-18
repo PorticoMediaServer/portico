@@ -91,3 +91,47 @@ func TestTheCompatibleSignInIsHeldToHomeAndToViewingHours(t *testing.T) {
 		t.Errorf("a tool's token inside viewing hours answered %d %s", w.Code, w.Body)
 	}
 }
+
+// With "Only the owner" from outside, a member's tool is shut out away from home on every
+// compatible address, the ones this server answers without its ordinary routes included
+// (what is playing), and keeps working at home.
+func TestAToolIsHeldToOnlyTheOwnerFromOutside(t *testing.T) {
+	s, owner, _, _ := twoMembers(t)
+	on := true
+	if got := status(t, s, "PUT", "/v1/admin/settings/integrations", owner, IntegrationSettingsEdit{CompatibleRoutes: &on}); got != 200 {
+		t.Fatalf("turning the compatible routes on answered %d", got)
+	}
+	var made KeyCreated
+	if w := call(t, s, "POST", "/v1/me/app-passwords", signInAs(t, s, "max", testPassword, 6).AccessToken, KeyCreate{Name: "Seerr"}, &made); w.Code != 200 {
+		t.Fatalf("making an app password answered %d: %s", w.Code, w.Body)
+	}
+	ask := func(peer, method, path, body, token string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(method, path, strings.NewReader(body))
+		r.RemoteAddr = peer + ":4000"
+		if body != "" {
+			r.Header.Set("Content-Type", "application/json")
+		}
+		header := `MediaBrowser Client="Seerr", Device="Seerr", DeviceId="setup", Version="2.0.0"`
+		if token != "" {
+			header += `, Token="` + token + `"`
+		}
+		r.Header.Set("X-Emby-Authorization", header)
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, r)
+		return w
+	}
+	var login struct{ AccessToken string }
+	if w := ask(atHome, "POST", "/Users/AuthenticateByName", `{"Username":"max","Pw":"`+made.Secret+`"}`, ""); jsonInto(w, &login) != nil || login.AccessToken == "" {
+		t.Fatalf("a tool's sign-in answered %d: %s", w.Code, w.Body)
+	}
+	saveRemote(t, s, owner, func(v *RemoteAccessSettings) { v.SignInFromOutside = "owner" })
+
+	for _, path := range []string{"/Sessions", "/Items"} {
+		if w := ask(away, "GET", path, "", login.AccessToken); w.Code != 403 || !strings.Contains(w.Body.String(), "owner_only_away") {
+			t.Errorf("a member's tool away from home on %s answered %d %s, want 403 owner_only_away", path, w.Code, w.Body)
+		}
+		if w := ask(atHome, "GET", path, "", login.AccessToken); w.Code != 200 {
+			t.Errorf("a member's tool at home on %s answered %d %s, want 200", path, w.Code, w.Body)
+		}
+	}
+}
