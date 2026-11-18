@@ -1,4 +1,4 @@
-import React, {useState, type ReactNode} from 'react';
+import React, {useRef, useState, type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {formatMessage} from '../../../../../../packages/i18n/src';
 import {titleFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/title-fixtures';
@@ -6,7 +6,9 @@ import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../ki
 import {CollectionBanner, EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
-import {AboutTable, CastRow, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, SeasonListRow, TitleFrame, TrackPicker, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, SeasonListRow, SheetFrame, TitleFrame, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
+import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
 import {KeyHints} from '../../../kit/controls';
 import {TVRow} from '../../../kit/layout/TVRow';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
@@ -284,6 +286,58 @@ function Loading() {
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-loading" {...filmFrame(tab, setTab, isTV)} kicker={undefined} state={{kind: 'loading'}}/></Page>;
 }
 
+/** The overlays a title page opens, each on the R9 table's form for its task (SheetFrame `task`), over the page it opens from. */
+const dune2Files: readonly FileFacts[] = [
+  {id: 'v1', edition: "Director's Cut", available: true, width: 3840, height: 1608, videoCodec: 'hevc', dynamicRange: 'dolby_vision', bitDepth: 10, bitRate: 44_000_000, container: 'mkv', sizeBytes: 61.4 * 1024 ** 3, durationSeconds: 9960,
+    audio: [{id: 'a1', language: 'en', codec: 'truehd', channels: 8, objectAudio: 'atmos'}, {id: 'a2', language: 'en', codec: 'ac3', channels: 6}, {id: 'a3', language: 'fr', codec: 'eac3', channels: 8}, {id: 'a4', language: 'es', codec: 'eac3', channels: 8}],
+    subtitles: [{id: 's1', language: 'en'}, {id: 's2', language: 'en', hearingImpaired: true}, {id: 's3', language: 'fr'}, {id: 's4', language: 'es'}]},
+  {id: 'v2', available: true, width: 3840, height: 1608, videoCodec: 'hevc', dynamicRange: 'dolby_vision', bitDepth: 10, bitRate: 41_000_000, container: 'mkv', sizeBytes: 58.2 * 1024 ** 3, durationSeconds: 9960,
+    audio: [{id: 'a1', language: 'en', codec: 'truehd', channels: 8, objectAudio: 'atmos'}, {id: 'a2', language: 'en', codec: 'ac3', channels: 6}], subtitles: [{id: 's1', language: 'en'}, {id: 's2', language: 'en', hearingImpaired: true}, {id: 's3', language: 'fr'}]},
+  {id: 'v3', available: true, width: 1920, height: 804, videoCodec: 'h264', bitRate: 7_000_000, container: 'mkv', sizeBytes: 9.8 * 1024 ** 3, durationSeconds: 9960,
+    audio: [{id: 'a1', language: 'en', codec: 'ac3', channels: 6}], subtitles: [{id: 's1', language: 'en'}, {id: 's2', language: 'es'}]},
+];
+/** Play a different version (detail-phone 9b, desktop-detail 9b, detail-tv-8b). */
+function Versions() {
+  const [tab, setTab] = useState('more'), [open, setOpen] = useState(true), {isTV} = useTheme();
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-versions" {...filmFrame(tab, setTab, isTV)}><Posters title={f('moreLikeDune')} items={moreLikeDune}/></TitleFrame>
+    <SheetFrame kind="task" task="actions" open={open} onOpenChange={setOpen} title={f('versionTitle')} subtitle={f('dune2')} startFocus="version-v2">
+      <VersionRows onChoose={() => setOpen(false)} rows={(['1', '2', '3'] as const).map(n => ({id: `v${n}`, heading: f(`version${n}`), detail: f(`version${n}Detail`)}))}/>
+    </SheetFrame></Page>;
+}
+/** File info for a film with three versions (desktop-detail f10, detail-phone 5 frame 11, detail-tv-5d): the screen's File info content on the R9 `details` form. */
+function FileInfo() {
+  const [tab, setTab] = useState('more'), [open, setOpen] = useState(true), {isTV} = useTheme();
+  const model = fileInfoModel(dune2Files, {audience: 'viewer'}, {t: defaultI18n.t});
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-file-info" {...filmFrame(tab, setTab, isTV)}><Posters title={f('moreLikeDune')} items={moreLikeDune}/></TitleFrame>
+    <SheetFrame kind="task" task="details" open={open} onOpenChange={setOpen} title={f('fileInfo')} subtitle={f('dune2')}>
+      <NativeFileInfoContent model={model} versionCount={dune2Files.length} onManage={none}/>
+    </SheetFrame></Page>;
+}
+/** The owner's Episode display (desktop-detail f4): a show's Details with the Show settings card; Change opens the choices beside it (R9 `choice`). */
+function EpisodeDisplayCase() {
+  const [tab, setTab] = useState('details'), [open, setOpen] = useState(true), [group, setGroup] = useState('season'), [number, setNumber] = useState('season'), [order, setOrder] = useState('oldest');
+  const change = useRef<View>(null), theme = useTheme(), frame = useFrameMetrics();
+  return <Page destination={{kind: 'library', libraryId: 'show'}}><TitleFrame testID="frames-title-episode-display" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('pool/tv/the-last-of-us--bd.jpg')}/>} title={f('tlou')}
+    metadata={<Meta text={f('tlouFacts')} tags={[f('tlouSeasons')]}/>} primary={{icon: 'i-play', label: f('resumeEpisode'), progress: .67, remaining: f('ep1Left'), onPress: none}}
+    actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    synopsis={f('tlouSynopsis')} tabs={tabs(tab, setTab, true)} collapsed>
+    <PanelBlock><View style={{gap: theme.space.sm, padding: frame.cardPadding, borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised, borderWidth: 1, borderColor: theme.colors.line}}>
+      <PanelHeading title={f('showSettings')} note={f('ownerOnly')}/>
+      <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{f('showSettingsBody')}</Text>
+      <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm}}>
+        <View style={{flex: 1}}><Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{f('episodeDisplay')}</Text><Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{`${f('bySeason')}  ${f('oldestFirst')}`}</Text></View>
+        <View ref={change} collapsable={false}><Button variant="glass" size="small" trailingIcon="i-chdown" onPress={() => setOpen(true)}>{f('change')}</Button></View>
+      </View>
+    </View></PanelBlock>
+    <SheetFrame kind="task" task="choice" open={open} onOpenChange={setOpen} title={f('episodeDisplay')} anchorRef={change}>
+      <EpisodeDisplay title={f('episodeDisplay')} mark={f('forEveryone')} intro={f('episodeDisplayIntro')} preview={{label: f('readsAs'), code: f('ep3Code'), title: f('ep3')}} rows={[
+        {label: f('groupEpisodes'), items: [{value: 'season', label: f('bySeason')}, {value: 'one', label: f('inOneList')}, {value: 'ranges', label: f('ranges')}], value: group, onValueChange: setGroup},
+        {label: f('numberThem'), items: [{value: 'season', label: f('bySeason')}, {value: 'across', label: f('acrossSeasons')}], value: number, onValueChange: setNumber},
+        {label: f('order'), items: [{value: 'oldest', label: f('oldestFirst')}, {value: 'newest', label: f('newestFirst')}], value: order, onValueChange: setOrder}]}/>
+    </SheetFrame>
+  </TitleFrame></Page>;
+}
+
 const whole = {screen: true} as const;
 const galleries: readonly Gallery[] = [
   {id: 'frames-title-film', title: 'next.platform.frame.titleFilm', render: () => <Film/>, ...whole},
@@ -302,5 +356,8 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-title-book', title: 'next.platform.frame.titleBook', render: Book, ...whole},
   {id: 'frames-title-missing', title: 'next.platform.frame.titleMissing', render: Missing, ...whole},
   {id: 'frames-title-loading', title: 'next.platform.frame.titleLoading', render: Loading, ...whole},
+  {id: 'frames-title-versions', title: 'next.platform.frame.titleVersions', render: Versions, ...whole},
+  {id: 'frames-title-file-info', title: 'next.platform.frame.titleFileInfo', render: FileInfo, ...whole},
+  {id: 'frames-title-episode-display', title: 'next.platform.frame.titleEpisodeDisplay', render: EpisodeDisplayCase, ...whole},
 ];
 export default galleries;
