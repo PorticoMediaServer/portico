@@ -119,5 +119,7 @@
     <Timer id="retry" duration="3"/>
     <!-- Counts down the wait before the next episode, once a second. -->
     <Timer id="count" duration="1" repeat="true"/>
+    <!-- The sleep timer chosen in the options panel: it pauses the title when it runs out. -->
+    <Timer id="sleep"/>
   </children>
 </component>
