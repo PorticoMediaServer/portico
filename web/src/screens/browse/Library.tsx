@@ -68,6 +68,7 @@ export type LibraryBindings = Readonly<{
 export type LibraryBrowseBindings = Omit<LibraryBindings, 'libraries' | 'tabs' | 'onLibrary' | 'onLibraries' | 'onPivot' | 'libraryMenu'>;
 const t = defaultI18n.t;
 const noSelectionSubscribe = () => () => {};
+const kindShape = (kind: string): 'square' | 'poster' => ['music', 'audiobook'].includes(kind) ? 'square' : 'poster';
 const noSelectionSnapshot = () => undefined;
 export const browseLabels: BrowseLabels = {
   field: value => {const id = browseNameId(value.id, value.labelKey, defaultI18n.has);return id && defaultI18n.has(id) ? t(id) : value.labelKey;},
@@ -130,7 +131,7 @@ export function LibraryBrowse(bindings: LibraryBrowseFrameBindings) {
   const snapshot = useSyncExternalStore(controller.collection.subscribe, controller.collection.getSnapshot, controller.collection.getSnapshot);
   const selected = useSyncExternalStore(selection.playSelection?.subscribe ?? noSelectionSubscribe, selection.playSelection?.getSnapshot ?? noSelectionSnapshot, selection.playSelection?.getSnapshot ?? noSelectionSnapshot);
   const selectionActive = selection.playSelection ? selected?.phase === 'ready' && selected.selection?.active === true : undefined;
-  const [filtersOpen, setFiltersOpen] = useState(false), width = useShellWidth(), compact = width < 600, coarse = useCoarsePointer();
+  const [filtersOpen, setFiltersOpen] = useState(false), [oneKind, setOneKind] = useState<string>(), width = useShellWidth(), compact = width < 600, coarse = useCoarsePointer();
   const {wrap: wrapCard, menu: cardMenu} = useLibraryCardMenu({admission: controller, queryRevision: state.queryRevision, context: bindings.menuContext});
   const cardActions = useCallback((member: BrowseMember, index: number) => wrapCard(bindings.selection.actions(member, index), member.entry), [wrapCard, bindings.selection]);
   const model = useMemo(() => state.capabilities && state.sort ? browseToolbarModel(state.capabilities, library.kind, state.predicates, state.sort, {...env, owner: bindings.owner, scope: controller.source.base?.length ? 'group' : 'library'}) : undefined,
@@ -160,7 +161,10 @@ export function LibraryBrowse(bindings: LibraryBrowseFrameBindings) {
   // the collection. A pending replacement cannot use it as its new match count.
   const resultCount = snapshot.total === undefined ? undefined : t(snapshot.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: snapshot.total, pivot: controller.source.pivot});
   const filterCount = snapshot.refreshing || snapshot.status !== 'ready' ? undefined : resultCount;
-  const shape = bindings.shape ?? (bindings.pivot === 'collections' ? 'collection' : ['music', 'audiobook'].includes(library.kind) ? 'square' : 'poster');
+  // A grid of one kind takes that kind's card shape: the scope chip chosen, the only kind a mixed row holds, or the one library
+  // a row or tab belongs to. A mixed row keeps the server's shape (posters for All).
+  const one = oneKind ?? (library.kind || undefined);
+  const shape = bindings.pivot === 'collections' || bindings.shape === 'collection' ? 'collection' : one ? kindShape(one) : bindings.shape ?? 'poster';
   const toolbar = <BrowseToolbar model={model} labels={browseLabels} platform={compact ? 'phone' : 'desktop'} resultCount={resultCount} accepted={snapshot} acceptedSource={controller.collection} topInset={compact ? 94 : width < 1024 || coarse ? 0 : 76} sticky
       onQuickChange={(id, checked) => {const quick = [...model.quick, ...model.filterQuick].find(quick => quick.id === id);if (quick) setPredicates(checked ? [...state.predicates, quick.query] : state.predicates.filter(node => JSON.stringify(node) !== JSON.stringify(quick.query)));}}
       onFilters={() => setFiltersOpen(true)} filtersOpen={filtersOpen} onSortChange={sort}
@@ -168,7 +172,7 @@ export function LibraryBrowse(bindings: LibraryBrowseFrameBindings) {
       sortLabel={bindings.sortLabel} quickIds={bindings.quickIds}
       view={views.includes('grid') && views.includes('list') ? {value: view, onValueChange: view => bindings.onAppearanceChange({view})} : undefined}
       cardSize={!compact && view === 'grid' ? {value: appearance.cardSize, options: (['small', 'medium', 'large'] as const).map(value => ({value, label: t(`next.browse.${value}`)})), onValueChange: value => {if (value === 'small' || value === 'medium' || value === 'large') bindings.onAppearanceChange({cardSize: value});}} : undefined}
-      actions={<BrowseScopeChips controller={controller} libraries={bindings.scopeLibraries} reportError={reportError} labelFor={bindings.scopeLabel}/>} save={bindings.showSaveView === false || !bindings.onSaveView ? undefined : {canSave: bindings.canSaveView, onSave: bindings.onSaveView}} applied={chips}
+      actions={<BrowseScopeChips controller={controller} libraries={bindings.scopeLibraries} reportError={reportError} labelFor={bindings.scopeLabel} onKind={setOneKind}/>} save={bindings.showSaveView === false || !bindings.onSaveView ? undefined : {canSave: bindings.canSaveView, onSave: bindings.onSaveView}} applied={chips}
       onRemoveFilter={id => setPredicates(state.predicates.filter(node => node !== model.applied[Number(id)]))} onClearFilters={() => setPredicates([])} selection={selection.toolbar} selectionActive={selectionActive}/>;
   const grid = <BrowseResults controller={controller} label={library.name} view={view} cardWidth={appearance.cardWidth} shape={shape} artwork={bindings.artwork} env={env} backdrops={appearance.backdrops}
       reducedMotion={bindings.preferences?.reducedMotion ?? bindings.reducedMotion} actions={cardActions} familyForEntry={bindings.familyForEntry} onVisibleRange={selection.registerWindow} onSort={sort}
