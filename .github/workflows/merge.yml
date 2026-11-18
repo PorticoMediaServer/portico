@@ -134,6 +134,13 @@ jobs:
     if: needs.planner.outputs.server_next == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # The engine's real-media package alone takes nine minutes or more; beside the other
+    # packages on one 4-processor runner it met go test's ten-minute limit and the job's 15. It
+    # runs on a runner of its own, beside the rest.
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [engine, rest]
     defaults:
       run:
         working-directory: server-next
@@ -176,13 +183,19 @@ jobs:
           bwrap --unshare-all --die-with-parent --ro-bind / / --proc /proc --dev /dev --cap-drop ALL /bin/true
           ffmpeg -version | head -n 1
       - run: go build ./...
+        if: matrix.part == 'rest'
       - run: go vet ./...
+        if: matrix.part == 'rest'
       # CONTRACTS_CHECK: a change to a route or a shape fails here unless its generated contracts
       # (go run ./cmd/portico-contracts) are committed with it (TestContractsAreCurrent).
-      - run: go test ./...
+      - run: go test $(go list ./... | grep -v '/internal/mediaengine$')
+        if: matrix.part == 'rest'
         env:
           CONTRACTS_CHECK: '1'
+      - run: go test -timeout 25m ./internal/mediaengine
+        if: matrix.part == 'engine'
       - name: Read CBR and CB7 with the official capability tags
+        if: matrix.part == 'rest'
         run: go test -tags "$(python3 ../scripts/release-build-tags.py --capability)" ./internal/reading -run TestClassicComicsReadThroughTheBoundedWorker
   go_build:
     needs: planner
