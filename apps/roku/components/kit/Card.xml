@@ -26,6 +26,13 @@
     </Group>
     <MaskGroup id="clip">
       <Poster id="art" loadDisplayMode="scaleToZoom"/>
+      <!-- A collection's mosaic: four of its titles' posters, two by two (collections.html frame 16). -->
+      <Group id="tiles" visible="false">
+        <Poster loadDisplayMode="scaleToZoom"/>
+        <Poster loadDisplayMode="scaleToZoom"/>
+        <Poster loadDisplayMode="scaleToZoom"/>
+        <Poster loadDisplayMode="scaleToZoom"/>
+      </Group>
       <Poster id="shade" uri="pkg:/images/card-shade.png" visible="false"/>
     </MaskGroup>
     <!-- A person: a round face (a portrait, or initials on a disc) with the name and part under it. -->

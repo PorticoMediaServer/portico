@@ -395,13 +395,16 @@ end sub
 ' Music and audiobooks are square covers (an artist too); films and shows are posters.
 function gridShape() as string
     kind = m.detail.views[m.view].kind
-    if kind = "artist" or isCover(kind) then return "gridSquare"
+    if kind = "artist" or kind = "collection" or isCover(kind) then return "gridSquare"
     return "gridPoster"
 end function
 
-' A card for the grid: a poster, a square cover (music, audiobooks), or an artist's circle; `art`
-' is a picture borrowed from what the title holds, "" for its own.
-function cardOf(item as object, art as string) as object
+' A card for the grid: a poster, a square cover (music, audiobooks, collections), or an artist's
+' circle; `found` is what was read from what the title holds ({art, tiles, total}), or "" for nothing.
+function cardOf(item as object, found as dynamic) as object
+    art = ""
+    if type(found) <> "roAssociativeArray" then found = invalid
+    if found <> invalid then art = found.art
     if item.kind = "artist"
         if art = "" then art = pick(item.images, ["photo", "portrait", "cover", "poster"])
         if art <> "" then art = imageUrl(art, 150, 150)
@@ -409,6 +412,13 @@ function cardOf(item as object, art as string) as object
     end if
     card = gridCard(item)
     if art <> "" then card.art = art
+    if found <> invalid and found.total > 0 and card.sub = "" then card.sub = countText(found.total, "title", "titles")
+    if found <> invalid and found.tiles.count() = 4
+        card.tiles = []
+        for each tile in found.tiles
+            card.tiles.push(imageUrl(tile, 100, 100))
+        end for
+    end if
     if gridShape() = "gridSquare"
         card.artHeight = 200
         card.art = imageUrl(card.art, 200, 200)
@@ -418,10 +428,10 @@ function cardOf(item as object, art as string) as object
     return card
 end function
 
-' A collection shows its first title's poster, an artist a circle cut from their first album's cover
-' (tv-more frame 9), when they have none of their own.
+' A collection shows a mosaic of its first four titles' posters (one poster when it holds fewer)
+' and how many it holds; an artist a circle cut from their first album's cover (tv-more frame 9).
 sub askArt(at as integer, item as object)
-    path = "/v1/items?collection=" + item.id + "&sort=order&limit=1"
+    path = "/v1/items?collection=" + item.id + "&sort=order&limit=4&total=true"
     if item.kind = "artist" then path = "/v1/items?parent=" + item.id + "&kind=album&limit=1"
     api("GET", path, invalid, "onArtFound", {generation: m.generation, at: at})
 end sub
@@ -431,10 +441,18 @@ sub onArtFound(event as object)
     ctx = event.getRoSGNode().ctx
     if ctx.generation <> m.generation or not result.ok or result.data.items = invalid or result.data.items.count() = 0 then return
     if ctx.at >= m.items.count() then return
-    art = pick(result.data.items[0].images, ["poster", "cover"])
-    if art = "" then return
+    items = result.data.items
+    found = {art: pick(items[0].images, ["poster", "cover"]), tiles: [], total: 0}
+    if result.data.total <> invalid then found.total = result.data.total
+    if items.count() = 4
+        for each one in items
+            poster = pick(one.images, ["poster", "cover"])
+            if poster <> "" then found.tiles.push(poster)
+        end for
+    end if
+    if found.art = "" and found.tiles.count() < 4 and found.total = 0 then return
     node = createObject("roSGNode", "ContentNode")
-    node.addFields(cardOf(m.items[ctx.at], art))
+    node.addFields(cardOf(m.items[ctx.at], found))
     m.grid.content.replaceChild(node, ctx.at)
 end sub
 
