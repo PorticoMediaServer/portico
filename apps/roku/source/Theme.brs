@@ -35,11 +35,8 @@ end function
 ' here with the first screen that uses it.
 function frames() as object
     return {
-        gutter: 200,
         ' The side panel every menu and picker opens in, its words from `top` and its rows from `rowsX`. Back closes it.
         sheet: {x: 1200, width: 720, top: 64, rowsX: 1260, rowsWidth: 600},
-        ' Live TV and the other browse pages: the page title's line.
-        browse: {titleY: 64},
         ' Live TV's guide: the time header, the first row and the row pitch, the channel column, and the
         ' grid from `gridX` at `perMinute` px a minute; `shown` rows fit on the screen.
         guide: {headerY: 244, rowsY: 296, pitch: 100, cell: 90, channelWidth: 300, gridX: 520, perMinute: 8, shown: 7},
