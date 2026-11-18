@@ -55,7 +55,7 @@ import {LibraryDiscoveryScreen} from './Discovery';
 import {discoverySections} from './discovery-selection';
 import {useCommittedLibraryScreenContext, type ProtectedLibraryScreen} from './screen-context';
 import {useScreenAppearance} from './screen-preferences';
-import {browseConjunction, libraryTabAddress, parseLibraryScreenSearch, selectedLibraryTab, type LibraryScreenSearch} from './route-search';
+import {browseConjunction, libraryContentRoute, libraryTabAddress, parseLibraryScreenSearch, selectedLibraryTab, type LibraryScreenSearch} from './route-search';
 import {addressCacheKey, addressedSearch, appliedSorts, libraryAddressKey} from './address-query';
 import type {BrowseSource, BrowseState, BrowseController, BrowseMember} from './controller';
 import {useBrowseController} from './browse-cache';
@@ -576,7 +576,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     selection: {toolbar: selectionActive ? selection?.toolbar : undefined, actions: (member: BrowseMember, index: number) => ({...actions(member.entry), selection: selection?.entry(member, index)}),
       registerWindow: registerVisible, playSelection},
     onAppearanceChange: (change: Parameters<LibraryBindings['onAppearanceChange']>[0]) => {if (!resources.life.current()) return;if (change.view) setChoice({defaultView: appearance.libraryView, view: change.view});if (change.cardSize) setSize(change.cardSize);}};
-  const contentRoute: ContentRoute = {libraryId: library.id, view, ...(search.entityId ? {entityId: search.entityId} : {}), ...(search.category ? {category: search.category} : {}), ...(search.q ? {q: search.q} : {})};
+  const contentRoute: ContentRoute = libraryContentRoute(library.id, view, search);
   const unmatched = requested?.shows === 'unmatched';
   // A title on Unmatched items opens in the editor: a film, episode or track as an item, the rest as what they are.
   const editAttention = (entry: UnmatchedEntry, anchor: HTMLElement) => {

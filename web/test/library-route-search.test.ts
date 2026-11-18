@@ -29,3 +29,10 @@ test('Recently aired is its own addressable tab, drawn selected, and opens with 
   assert.equal(selectedLibraryTab(libraryTabs('movie'), {}, 'discover')?.id, 'discover');
   assert.throws(() => parseLibraryScreenSearch({tab: 'x\n'}));
 });
+test('a library address for a view the rebuilt server has no read for opens Discover, with nothing else carried', async () => {
+  const {libraryContentRoute} = await import('../src/screens/browse/route-search.ts');
+  for (const view of ['categories', 'disc', 'collections', 'releases', 'songs', 'authors', 'browse'] as const)
+    assert.deepEqual(libraryContentRoute('lib', view, {entityId: 'x', category: 'c', q: 'aqua'}), {libraryId: 'lib', view: 'discover'}, view);
+  assert.deepEqual(libraryContentRoute('lib', 'discover', {}), {libraryId: 'lib', view: 'discover'});
+  assert.deepEqual(libraryContentRoute('lib', 'album', {entityId: 'a1'}), {libraryId: 'lib', view: 'album', entityId: 'a1'});
+});
