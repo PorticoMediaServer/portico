@@ -311,6 +311,8 @@ ICONS = {
     'folder': [32],
     'forward': [28],
     'globe': [28],
+    'heart': [28],
+    'heartFilled': [28],
     'home': [32],
     'info': [28],
     'live': [32],

@@ -2,7 +2,7 @@
 ' channel; Up and Down change channel keeping the time position; Left and Right walk the
 ' programmes; Left from the earliest programme reaches the channel cell, and Left again opens the
 ' rail. The time grid runs from the half hour before now; its lines are frames().guide. Up from the
-' first channel reaches the filter chips (All and the channel groups), and Up again the toolbar:
+' first channel reaches the filter chips (All, Favorites and the channel groups), and Up again the toolbar:
 ' the channel source when there is more than one, the day shown (today or tomorrow, as the server
 ' reads a day of the guide at a time) and Now, back to what is on now. A chip or a choice reads the
 ' guide again with the server's own filter; focus stays where it was.
@@ -34,7 +34,7 @@ sub init()
     m.day = 0           ' 0 today, 1 tomorrow
     m.region = "grid"   ' "bar" (the toolbar), "chips" or "grid"
     m.sources = []      ' the channel sources, with their groups
-    m.filter = {source: "", group: ""}
+    m.filter = {source: "", group: "", favorites: false}
     m.toolbar = m.top.findNode("toolbar")
     m.toolbar.translation = [m.g.toolbarX, m.g.toolbarY]
     m.toolbar.observeField("pressed", "onToolbar")
@@ -67,11 +67,15 @@ function sourceName() as string
     return "All channels"
 end function
 
-' All, then the groups of the channels shown; a group past the first few is behind More groups.
+' All, Favorites, then the groups of the channels shown; a group past the first few is behind More groups.
 sub drawChips()
     groups = liveGroups(m.sources, m.filter.source, 8)
     m.moreGroups = groups.more
-    chips = [{id: "all", text: "All", icon: "", switchedOn: m.filter.group = ""}]
+    chips = []
+    if m.sources.count() > 0
+        chips.push({id: "all", text: "All", icon: "", switchedOn: m.filter.group = "" and not m.filter.favorites})
+        chips.push({id: "fav", text: "Favorites", icon: "", switchedOn: m.filter.favorites})
+    end if
     for each name in groups.shown
         chips.push({id: "g:" + name, text: name, icon: "", switchedOn: m.filter.group = name})
     end for
@@ -82,7 +86,6 @@ sub drawChips()
         end for
         chips.push({id: "more", text: "More groups", icon: "", menu: true, switchedOn: chosen})
     end if
-    if chips.count() = 1 then chips = []      ' All alone filters nothing
     m.chips.buttons = chips
     m.chips.visible = (chips.count() > 0)
     if not m.chips.visible and m.region = "chips" then focusRegion("bar")
@@ -117,6 +120,7 @@ function guidePath(cursor as string) as string
     escape = createObject("roUrlTransfer")
     if m.filter.source <> "" then path = path + "&source=" + escape.escape(m.filter.source)
     if m.filter.group <> "" then path = path + "&group=" + escape.escape(m.filter.group)
+    if m.filter.favorites then path = path + "&favorites=true"
     if cursor <> "" then path = path + "&cursor=" + escape.escape(cursor)
     return path
 end function
@@ -493,7 +497,7 @@ sub onChip(event as object)
     end if
     group = ""
     if left(which, 2) = "g:" then group = mid(which, 3)
-    choose({source: m.filter.source, group: group})
+    choose({source: m.filter.source, group: group, favorites: which = "fav"})
 end sub
 
 ' A new filter: the chips show it at once, and the guide is read again from its first channel.
@@ -579,6 +583,7 @@ end function
 sub openSheet()
     if m.cells = invalid or m.cells.count() = 0 then return
     row = m.guide[m.r]
+    m.sheetRow = row       ' what the sheet's choices act on
     cell = m.cells[m.r][m.c]
     if cell.programme = invalid
         now = nowSeconds()
@@ -587,6 +592,11 @@ sub openSheet()
         end for
     end if
     model = {eyebrow: row.channel.name + "   " + row.channel.number, title: row.channel.name, status: "", rows: [{id: "watch", text: "Watch live", icon: "play"}]}
+    if row.channel.favorite
+        model.rows.push({id: "favorite", text: "Remove channel from Favorites", icon: "heartFilled"})
+    else
+        model.rows.push({id: "favorite", text: "Add channel to Favorites", icon: "heart"})
+    end if
     if cell.programme <> invalid
         p = cell.programme
         model.title = p.title
@@ -610,15 +620,32 @@ sub onMenuChosen(event as object)
         return
     end if
     if left(chosen, 7) = "source:"
-        choose({source: mid(chosen, 8), group: ""})
+        choose({source: mid(chosen, 8), group: "", favorites: m.filter.favorites})
         return
     end if
     if left(chosen, 6) = "group:"
-        choose({source: m.filter.source, group: mid(chosen, 7)})
+        choose({source: m.filter.source, group: mid(chosen, 7), favorites: false})
+        return
+    end if
+    if chosen = "favorite"
+        ' the profile's own mark: the channel's hidden mark is sent back as it is
+        channel = m.sheetRow.channel
+        api("PUT", "/v1/live/channels/" + channel.id + "/state", {favorite: not channel.favorite, hidden: channel.hidden}, "onFavorite", {id: channel.id, seq: m.seq})
         return
     end if
     if chosen <> "watch" then return
-    row = m.guide[m.r]
+    row = m.sheetRow
     ' the player gets the channel and the whole lineup, for channel up and down
     m.top.open = {play: true, item: {kind: "channel", id: row.channel.id, title: row.channel.name, channel: row.channel, programmes: row.programmes, lineup: m.guide}}
+end sub
+
+' The mark is the server's now. In the Favorites view a channel taken out leaves it: the guide is read again.
+sub onFavorite(event as object)
+    result = event.getData()
+    ctx = event.getRoSGNode().ctx
+    if not result.ok or ctx.seq <> m.seq then return
+    for each row in m.guide
+        if row.channel.id = ctx.id then row.channel.favorite = result.data.favorite
+    end for
+    if m.filter.favorites and not result.data.favorite then load()
 end sub
