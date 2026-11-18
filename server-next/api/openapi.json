@@ -10376,6 +10376,9 @@
           "mode": {
             "type": "string"
           },
+          "notice": {
+            "type": "string"
+          },
           "quality": {
             "$ref": "#/components/schemas/Quality"
           },
