@@ -57,9 +57,10 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
   const recipe = glassRecipe();
   const white = variant === 'primary';
   const tvDisabledPrimary = theme.isTV && white && disabled;
-  const glass = variant === 'glass' || variant === 'icon' || variant === 'danger';
+  // `danger` is a solid red fill with a dark label, the web's destructive look (select 22: the confirming half of Delete?).
+  const danger = variant === 'danger', glass = variant === 'glass' || variant === 'icon';
   const androidGlass = glass && recipe.nativeBlur && Platform.OS === 'android';
-  const foreground = tvDisabledPrimary ? theme.colors[buttonSpec.tvDisabledPrimary.foreground] : white ? theme.colors.ink : variant === 'danger' ? theme.colors.record : variant === 'link' ? theme.colors.accentStrong : variant === 'text' ? theme.platform === 'web' ? theme.colors.textSecondary : theme.colors.accentStrong : theme.colors.text;
+  const foreground = tvDisabledPrimary ? theme.colors[buttonSpec.tvDisabledPrimary.foreground] : white || danger ? theme.colors.ink : variant === 'link' ? theme.colors.accentStrong : variant === 'text' ? theme.platform === 'web' ? theme.colors.textSecondary : theme.colors.accentStrong : theme.colors.text;
   const glyphColor = iconColor ?? (iconClass && !white ? theme.emphasis[active ? emphasis.active : iconClasses[iconClass].level] : foreground);
   const labelStyle = [theme.type.button, styles.label, {fontSize: geometry.fontSize * theme.textScale, color: foreground}, textStyle];
   const labelId = props.testID ?? props.focusId;
@@ -87,7 +88,7 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
     }}>
     {state => {
       const suppliedStyle = StyleSheet.flatten(typeof style === 'function' ? style(state) : style);
-      const fillStyle = [StyleSheet.absoluteFill, {backgroundColor: tvDisabledPrimary ? colorAlpha(theme.colors[buttonSpec.tvDisabledPrimary.background], buttonSpec.tvDisabledPrimary.backgroundAlpha ?? 1) : white ? state.hovered && !blocked ? theme.colors.white : theme.colors.text : glass ? colorAlpha(theme.colors.text, state.focused && theme.isTV ? buttonSpec.glass.focusedTvAlpha : state.hovered && !blocked ? buttonSpec.glass.hoverAlpha : buttonSpec.glass.alpha) : 'transparent'}];
+      const fillStyle = [StyleSheet.absoluteFill, {backgroundColor: tvDisabledPrimary ? colorAlpha(theme.colors[buttonSpec.tvDisabledPrimary.background], buttonSpec.tvDisabledPrimary.backgroundAlpha ?? 1) : white ? state.hovered && !blocked ? theme.colors.white : theme.colors.text : danger ? theme.colors.record : glass ? colorAlpha(theme.colors.text, state.focused && theme.isTV ? buttonSpec.glass.focusedTvAlpha : state.hovered && !blocked ? buttonSpec.glass.hoverAlpha : buttonSpec.glass.alpha) : 'transparent'}];
       if (typeof __DEV__ !== 'undefined' && __DEV__) fillObservation.recordDeclaredStyle(StyleSheet.flatten(fillStyle));
       const fill = <View ref={fillObservation.ref} style={fillStyle} />;
       const content = <View pointerEvents="none" style={[styles.content, {gap: suppliedStyle?.columnGap ?? suppliedStyle?.gap ?? geometry.gap}]}>
