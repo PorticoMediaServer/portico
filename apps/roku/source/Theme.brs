@@ -39,9 +39,10 @@ function colours() as object
         raised: "0x10212DFF"                ' surface
         raisedBright: "0x1D3848FF"          ' surface
         raisedHigh: "0x162C3AFF"            ' surface
+        ratedPlate: "0x5CB3E238"            ' the plate behind a star that is lit, your rating (tv-player frame 7)
         ' the 1 px line between a list's rows
         separator: "0x3B566873"
-        stillDim: "0x707070FF"              ' the dimming on a prompt's picture
+        stillDim: "0x575757FF"              ' the dimming on a prompt's picture
         text: "0xEDF5FAFF"                  ' text
         textSecondary: "0xBDCCD6FF"         ' text
         textTertiary: "0x96A9B5FF"          ' text
@@ -90,7 +91,7 @@ function frames() as object
         ' The video player: the picture is the page. The top row hangs from `top`; the seek bar,
         ' the time row and the button row sit on their own lines; everything runs from `left` to `right`.
         ' Over it: the waiting spinner's line, how far below a page notice Playback failed sits, the foot of the prompts at the lower right, and the Finished page's lines.
-        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470, noticeDrop: 40, promptBottom: 720, finished: {top: 84, titleY: 120, metaY: 326, buttonsY: 372, rowY: 560}}
+        player: {left: 96, right: 1824, top: 80, barY: 828, timeY: 862, buttonsY: 912, waitY: 470, noticeDrop: 40, promptBottom: 796, finished: {top: 84, titleY: 120, metaY: 326, buttonsY: 372, rateY: 474, rowY: 578}}
         ' Recordings (from Live TV): the list's sections from `listY`, `width` wide, a section's heading
         ' `headingGap` above its card and `sectionGap` after it; the row in focus is kept above `bottom`.
         recordings: {listY: 176, width: 1300, headingGap: 52, sectionGap: 44, bottom: 1024}
@@ -200,6 +201,7 @@ function typeRoles() as object
         personFace: [800, 96, 0]            ' the initials on a person's face on their page
         personInitials: [700, 44, 0]        ' the initials on a person's card
         pinTitle: [800, 52, 0]              ' before a profile is chosen: the PIN page's title
+        rateLabel: [700, 22, 0]             ' "Rate this" before the stars on Finished (tv-player frame 7)
         rowHeading: [700, 32, 0]
         rowSubtitle: [400, 20, 0]
         seasonName: [700, 26, 0]
@@ -209,6 +211,7 @@ function typeRoles() as object
         tab: [700, 26, 0]
         tag: [600, 20, 0]                   ' a small label on a card, the hero or the rail
         title: [800, 44, 0]
+        upNextTitle: [800, 34, 0]           ' the next title on the Up next card (tv-player frame 5)
         welcome: [800, 88, 0]               ' the welcome on the sign-in front door
         wideTitle: [700, 26, 0]             ' the title on a wide card
     }
