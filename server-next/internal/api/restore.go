@@ -121,10 +121,10 @@ func (s *Server) restoreRoutes() {
 			return RestoreStaged{}, backupRefusal(err)
 		}
 		return RestoreStaged{Playing: len(s.playback.All()), CanRestart: canRestart}, nil
-	})
+	}).Scope = ScopeSession // replacing the whole server takes the owner signed in, never a key (ruling, 11 Nov)
 	Handle(s, "DELETE /v1/admin/backups/restore", Owner, func(r *http.Request, _ None) (None, error) {
 		return None{}, backup.CancelRestore(s.backups.DataDir)
-	})
+	}).Scope = ScopeSession
 	// Restart says how many are playing unless confirm=true; then the server restarts.
 	Handle(s, "POST /v1/admin/restart", Owner, func(r *http.Request, _ None) (Restart, error) {
 		out := Restart{Playing: len(s.playback.All()), CanRestart: canRestart}

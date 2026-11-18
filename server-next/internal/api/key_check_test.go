@@ -127,3 +127,23 @@ func TestAKeyCannotChooseTheConversionFolderOrProgram(t *testing.T) {
 		t.Fatalf("the owner signed in saving the folder answered %d: %s", w.Code, w.Body)
 	}
 }
+
+// Restoring a backup replaces the whole server, and changing the owner hands it to someone
+// else: the owner must be signed in for either (ruling, 11 Nov). An administrator key is
+// refused before the request is read.
+func TestAKeyCannotRestoreABackupOrChangeTheOwner(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	var key KeyCreated
+	if w := call(t, s, "POST", "/v1/admin/api-keys", owner.AccessToken, KeyCreate{Name: "Script", Scopes: []string{"admin"}}, &key); w.Code != 200 {
+		t.Fatalf("making a key answered %d: %s", w.Code, w.Body)
+	}
+	for _, c := range []struct{ method, path string }{
+		{"POST", "/v1/admin/backups/restore"}, {"DELETE", "/v1/admin/backups/restore"}, {"POST", "/v1/admin/owner"}, {"POST", "/v1/admin/owner/approval"},
+	} {
+		var refused errorBody
+		if w := call(t, s, c.method, c.path, key.Secret, map[string]any{}, &refused); w.Code != 403 || refused.Error.Code != "session_required" {
+			t.Errorf("%s %s with a key answered %d %s, want 403 session_required", c.method, c.path, w.Code, refused.Error.Code)
+		}
+	}
+}

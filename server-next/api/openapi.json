@@ -15947,11 +15947,11 @@
           }
         },
         "tags": [
-          "Integrations"
+          "Clients"
         ],
         "x-access": "owner",
-        "x-audience": "Integrations",
-        "x-scope": "admin"
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "post": {
         "operationId": "post_v1_admin_backups_restore",
@@ -15988,11 +15988,11 @@
           }
         },
         "tags": [
-          "Integrations"
+          "Clients"
         ],
         "x-access": "owner",
-        "x-audience": "Integrations",
-        "x-scope": "admin"
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/backups/{id}": {
