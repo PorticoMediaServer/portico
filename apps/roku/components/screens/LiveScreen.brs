@@ -630,11 +630,7 @@ sub openSheet()
     if p <> invalid and p.itemId <> invalid and p.itemId <> ""
         if p.episode <> invalid then model.rows.push({id: "title", text: "Go to show", icon: "info"}) else model.rows.push({id: "title", text: "Go to title", icon: "info"})
     end if
-    if row.channel.favorite
-        model.rows.push({id: "favorite", text: "Remove channel from Favorites", icon: "heartFilled"})
-    else
-        model.rows.push({id: "favorite", text: "Add channel to Favorites", icon: "heart"})
-    end if
+    model.rows.push(favoriteRow(row.channel))
     m.top.menu = model
 end sub
 
@@ -668,12 +664,8 @@ sub onMenuChosen(event as object)
     end if
     if chosen = "cancelrec" or chosen = "stoprec"
         m.asked = chosen
-        p = m.sheetCell.programme
-        if chosen = "cancelrec"
-            m.confirm.model = {title: "Cancel recording " + p.title + "?", body: "It won’t be recorded. A series rule, if there is one, stays in place.", verb: "Cancel recording"}
-        else
-            m.confirm.model = {title: "Stop recording " + p.title + "?", body: "What has been recorded so far is kept.", verb: "Stop recording"}
-        end if
+        booking = m.booked[bookingKey(m.sheetRow.channel.id, m.sheetCell.start)]
+        if booking <> invalid then m.confirm.model = recordingConfirm(m.sheetCell.programme.title, booking)
         return
     end if
     if chosen = "series"
@@ -733,9 +725,7 @@ sub onConfirm()
     if m.confirm.chosen <> "confirm" then return
     booking = m.booked[bookingKey(m.sheetRow.channel.id, m.sheetCell.start)]
     if booking = invalid then return
-    path = "/v1/dvr/recordings/" + booking.id
-    if m.asked = "stoprec" then path = path + "?action=stop"
-    api("DELETE", path, invalid, "onRecordAnswer", {seq: m.seq})
+    api("DELETE", recordingCancelPath(booking), invalid, "onRecordAnswer", {seq: m.seq})
 end sub
 
 ' An episode opens its show's page; anything else, its own.

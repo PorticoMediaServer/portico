@@ -104,7 +104,7 @@ function recordingState(r as object) as string
     return ""
 end function
 
-' A recording's size on disk as people read it: "640 MB", "1.2 GB" (named for recordings: Present.brs gets a file's own recordingSizeText).
+' A recording's size on disk as people read it: "640 MB", "1.2 GB" (named for recordings: Present.brs gets a file's own sizeText).
 function recordingSizeText(bytes as dynamic) as string
     if bytes = invalid or bytes < 1000000 then return "under 1 MB"
     if bytes < 1000000000 then return int(bytes / 1000000).toStr() + " MB"
@@ -185,6 +185,26 @@ function seriesSheet(rule as object, channelName as string, title as string) as 
     rows = [{id: "rule:this", text: "On " + channelName, icon: "repeat"}]
     if rule.byTitle <> true then rows.push({id: "rule:any", text: "On any channel", icon: "repeat"})
     return {eyebrow: "Record series", title: title, status: status, rows: rows}
+end function
+
+' The question before a booking goes (the guide's sheet and the live player's Recording ask the same):
+' one still to come is cancelled, one recording now is stopped.
+function recordingConfirm(title as string, booking as object) as object
+    if booking.state = "recording" then return {title: "Stop recording " + title + "?", body: "What has been recorded so far is kept.", verb: "Stop recording"}
+    return {title: "Cancel recording " + title + "?", body: "It won’t be recorded. A series rule, if there is one, stays in place.", verb: "Cancel recording"}
+end function
+
+' The route that cancels a booking, or stops one recording now.
+function recordingCancelPath(booking as object) as string
+    path = "/v1/dvr/recordings/" + booking.id
+    if booking.state = "recording" then path = path + "?action=stop"
+    return path
+end function
+
+' A channel's Favorites row in a programme's sheet.
+function favoriteRow(channel as object) as object
+    if channel.favorite = true then return {id: "favorite", text: "Remove channel from Favorites", icon: "heartFilled"}
+    return {id: "favorite", text: "Add channel to Favorites", icon: "heart"}
 end function
 
 ' What the server said when it would not record.
