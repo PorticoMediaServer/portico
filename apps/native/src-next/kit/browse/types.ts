@@ -24,6 +24,7 @@ export type BrowseToolbarProps = Readonly<{
   labels: BrowseLabels; applied?: readonly AppliedFilterChip[];
   onRemoveFilter?: (id: string) => void; onClearFilters?: () => void;
   view?: Readonly<{value: 'grid' | 'list'; onValueChange: (value: 'grid' | 'list') => void}>;
+  /** Card size and Save view: wide forms only; a phone draws neither (phone-app 5: Save view is in its Filters sheet). */
   cardSize?: Readonly<{value: string; options: readonly Readonly<{value: string; label: string}>[]; onValueChange: (value: string) => void}>;
   save?: Readonly<{canSave: boolean; onSave: () => void}>;
   onSelect?: () => void;

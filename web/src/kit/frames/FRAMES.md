@@ -230,6 +230,7 @@ the mock-up frames it comes from. How the web frame draws each:
 | `header.title`, `header.switcher` | the compact bar: the switcher (the library's name and ⌄) centred (`StickyBrowseHeader`) | the large title with the round chevron beside it (`LibraryHeader`) |
 | `header.back` | ‹ Libraries at the left of the bar; on a plain page Back over the title | on a plain page Back over the title (See all); a library has none |
 | `header.trailing` | not drawn | at the right before ⋯ (Shuffle on Music; on a touch tablet Select) |
+| `header.counts` | not drawn | the counts line under the title ("10 artists  10 albums  40 songs", final3-desktop-12) |
 | `header.menu` | ⋯ at the right of the bar | the glass ⋯ square at the right of the title row |
 | `header.tabs` | inside the bar, the strip scrolling | under the title from the gutter, the rule across the page |
 | `header.intro`, `header.actions` | a plain page: the line under the title and Play / Shuffle under it (desktop-browse seeall) | same |

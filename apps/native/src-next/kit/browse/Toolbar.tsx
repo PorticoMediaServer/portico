@@ -126,7 +126,8 @@ export function BrowseToolbar({model, platform, sticky = false, resultCount, onQ
     {phone ? <>
       <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 20, gap: 8, alignItems: 'center'}}>{filters}{sort}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}{quick}{children}</ScrollView></TVRow>
       <View style={{paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 10}}>
-        {count}<View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{view && <ViewToggle {...view}/>}{cardSize && <CardSizeButton {...cardSize}/>}{save && <SaveViewButton {...save}/>}</View>
+        {/* phone-app 5: the count and grid / list only; a phone's Save view is in the Filters sheet, and three columns fill the width at any card size. */}
+        {count}<View style={{marginLeft: 'auto'}}>{view && <ViewToggle {...view}/>}</View>
       </View>
     </> : <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 14 : 8, paddingHorizontal: theme.gutter}}>
       {tv ? <>{sort}{filters}{onJump && <Chip onPress={onJump}>{t('next.browse.native.jumpTo')}</Chip>}</> : <>{filters}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}</>}
