@@ -17,7 +17,8 @@ import {Button} from '../controls/Button';
 const BesideList = createContext(false);
 
 export type SettingsListFrameProps = Readonly<{
-  /** The sheet's bar while the list shows (Settings, Done). Phone only; wider forms have the shell's navigation. */
+  /** The sheet's bar while the list shows (Settings, Done) on a phone; wider forms draw its title over the search, as the
+   * page's title beside it (final3-tv-15, desktop-settings f1, tablet f12). */
   bar: SheetBarProps;
   /** Phone: the sheet's open state. Wider forms draw Settings in the page and ignore it. */
   open: boolean; onOpenChange: (open: boolean, reason: OverlayReason) => void;
@@ -53,7 +54,8 @@ function SettingsListBody({bar, open, onOpenChange, search, list, profile, short
   return <View testID={testID} style={{flex: 1, flexDirection: 'row', paddingLeft: frame.gutter, gap: frameSpec.settings.gap[form]}}>
     {/* The list's column is already placed from the gutter, so the cards in it start at the column's own edges. */}
     <View style={{width}}>
-      <ScrollView style={{flex: 1, width: width + 2 * ring, marginLeft: -ring}} contentContainerStyle={{paddingTop: frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}><FrameColumn.Provider value>{search}{list}</FrameColumn.Provider></ScrollView>
+      <ScrollView style={{flex: 1, width: width + 2 * ring, marginLeft: -ring}} contentContainerStyle={{paddingTop: frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}><FrameColumn.Provider value>
+        <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, marginBottom: frame.headerGap}]}>{bar.title}</Text>{search}{list}</FrameColumn.Provider></ScrollView>
       {form === 'tv' && hints ? <View style={{paddingBottom: frame.bottomClear}}>{hints}</View> : null}
     </View>
     <View style={{flex: 1}}><BesideList.Provider value>{page}</BesideList.Provider></View>
