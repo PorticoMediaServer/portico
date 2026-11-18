@@ -10,7 +10,8 @@ import {callServer, type ServerRequester} from './query/server-api.ts';
 export const homeRowPivot = 'row-titles';
 export const homeRowDefaultSort = [{field: groupOrderSort, direction: 'asc'}] as const;
 export const isRecentHomeRow = (rowId: string) => rowId === 'recently_added' || rowId === 'recently_released';
-export const hasHomeRowQueue = (rowId: string) => rowId !== 'trending' && !rowId.startsWith('because:') && rowId !== 'on_now';
+/** Every row but On now plays as a queue; Trending and Because you watched hold the titles their See all shows. */
+export const hasHomeRowQueue = (rowId: string) => rowId !== 'on_now';
 
 /** Cross-library recent rows use the options shared by the different library kinds. */
 const commonLibrary: Library = {id: '', name: '', kind: '',
