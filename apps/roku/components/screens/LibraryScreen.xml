@@ -11,6 +11,7 @@
     <field id="open" type="assocarray" alwaysNotify="true"/>
     <field id="menu" type="assocarray" alwaysNotify="true"/>
     <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+    <field id="menuClosed" type="boolean" alwaysNotify="true" onChange="onMenuClosed"/>
     <field id="toTop" type="boolean" alwaysNotify="true" onChange="onToTop"/>
   </interface>
   <script type="text/brightscript" uri="LibraryScreen.brs"/>
@@ -23,6 +24,7 @@
     <Rectangle id="viewMark" height="3" visible="false"/>
     <Poster id="viewRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
     <Group id="tools"/>
+    <Group id="chips"/>
     <Label id="count"/>
     <MarkupGrid id="grid" itemComponentName="Card" numColumns="7" numRows="3"
                 drawFocusFeedback="false" vertFocusAnimationStyle="fixedFocus"/>

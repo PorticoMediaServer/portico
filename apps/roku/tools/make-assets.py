@@ -333,6 +333,7 @@ ICONS = {
     'shield': [28],
     'signOut': [28],
     'sliders': [28],
+    'sort': [28],
     'subtitles': [28],
     'success': [28],
     'tablet': [28],

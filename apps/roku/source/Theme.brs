@@ -65,8 +65,8 @@ function frames() as object
         browse: {titleY: 64, heroTop: 110, rowsY: 520}
         ' The red-verb dialog: a panel `width` wide from `x`, its words and buttons `pad` inside it.
         dialog: {x: 510, width: 900, pad: 52}
-        ' A library (tv.html frame 4): the toolbar under the page title, the count, then the grid's first cards.
-        grid: {toolsY: 144, countY: 236, cardsY: 318}
+        ' A library (tv.html frame 4): the toolbar under the page title, the chosen filters' chips and the count on one line under it, then the grid's first cards.
+        grid: {toolsY: 144, chipsY: 220, countY: 236, cardsY: 318}
         ' A person or a collection (tv-detail frames 9 and 10, tv-detail.html .pcopy and .tvc): the
         ' words in fixed slots from `eyebrowY` (a person's beside a face `face` across, its top on the
         ' same line); a person's first row's heading on `rowsY`, a collection's on `actionRowsY`, which
