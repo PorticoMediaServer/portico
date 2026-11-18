@@ -177,15 +177,16 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
     // second line of buttons pushes the panel down rather than rising under Back (the words never overlap the discs).
     : <><View style={stacked ? {height} : {minHeight: height, justifyContent: 'flex-end', paddingTop: tv ? frame.titleTop : discRow, paddingBottom: spec.copyBottom[form]}}>
-      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>{art}</View>
-      {/* A tablet's words are over the picture, so the picture is shaded behind them (a phone's words are under its picture and a TV's art has its own). */}
-      {!stacked && !tv && <Svg pointerEvents="none" accessible={false} width="100%" height="100%" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <LinearGradient id="title-shade-side" x1="0" y1="0" x2="1" y2="0">{spec.shade.side.map(([opacity, at]) => <Stop key={at} offset={at} stopColor={theme.colors.ink} stopOpacity={opacity}/>)}</LinearGradient>
-          <LinearGradient id="title-shade-foot" x1="0" y1="1" x2="0" y2="0">{spec.shade.foot.map(([opacity, at]) => <Stop key={at} offset={at} stopColor={theme.colors.ink} stopOpacity={opacity}/>)}</LinearGradient>
-        </Defs>
-        <Rect width="100%" height="100%" fill="url(#title-shade-side)"/><Rect width="100%" height="100%" fill="url(#title-shade-foot)"/>
-      </Svg>}
+      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>{art}
+        {/* A tablet's words are over the picture, so the picture is shaded behind them (a phone's words are under its picture and a TV's art has its own). */}
+        {!stacked && !tv && <Svg pointerEvents="none" accessible={false} width="100%" height="100%" style={StyleSheet.absoluteFill}>
+          <Defs>
+            <LinearGradient id="title-shade-side" x1="0" y1="0" x2="1" y2="0">{spec.shade.side.map(([opacity, at]) => <Stop key={at} offset={at} stopColor={theme.colors.ink} stopOpacity={opacity}/>)}</LinearGradient>
+            <LinearGradient id="title-shade-foot" x1="0" y1="1" x2="0" y2="0">{spec.shade.foot.map(([opacity, at]) => <Stop key={at} offset={at} stopColor={theme.colors.ink} stopOpacity={opacity}/>)}</LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#title-shade-side)"/><Rect width="100%" height="100%" fill="url(#title-shade-foot)"/>
+        </Svg>}
+      </View>
       {discs}
       {/* Everything in the art box hangs from its bottom edge, so a longer title grows upward and the row below never moves. */}
       <View pointerEvents="box-none" style={stacked ? {position: 'absolute', left: frame.gutter, right: frame.gutter, bottom: split ? 0 : spec.copyBottom[form]} : {paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
