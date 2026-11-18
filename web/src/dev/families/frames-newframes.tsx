@@ -7,6 +7,7 @@ import type {FactPart} from '@portico/client-core/kit-model';
 import {newFramesFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/next/dev/newframes-fixtures.ts';
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
 import {AmbientArt, ChannelMark} from '../../kit/artwork';
+import {Icon} from '../../kit/Icon';
 import {CircleCard, GenreTile, LiveCard, PosterCard, QuickTile, ResumeCard, SquareCard, WideCard} from '../../kit/cards';
 import {BrowseToolbar, LibraryMenu, LibrarySwitcher, SongRow} from '../../kit/browse';
 import {Button, Chip, Segmented, Switch, Tabs, TextField} from '../../kit/controls';
@@ -137,16 +138,17 @@ function Groups() {
   return <>{groups.map(([name, count], index) => <Chip key={name} variant="search" selected={index === 0} count={count} icon={name === 'groupFavorites' ? 'i-star' : undefined} onClick={none}>{f(name)}</Chip>)}</>;
 }
 function Switcher() {
-  // phone-guide g1 draws the source picker as a chip at the head of the groups.
-  return usePhone() ? <Chip trailingIcon="i-chdown" onClick={none}>{f('allChannels')}</Chip> : <Button size="small" icon="i-chdown" onClick={none}>{f('allChannels')}</Button>;
+  // A picker is the kit's chip with its chevron after the words, as the library's sort (phone-guide g1, desktop-live guide).
+  return <Chip trailingIcon="i-chdown" onClick={none}>{f('allChannels')}</Chip>;
 }
 function GuideTools() {
   const phone = usePhone();
   return <>
-    <Button size="small" icon="i-cal" onClick={none}>{f(phone ? 'todayShort' : 'today')}</Button>
-    {!phone && <><Button size="small" icon="i-left" onClick={none}>{f('back2h')}</Button><Button size="small" onClick={none}>{f('now')}</Button><Button size="small" icon="i-right" onClick={none}>{f('ahead2h')}</Button></>}
+    <Chip icon="i-cal" trailingIcon="i-chdown" onClick={none}>{f(phone ? 'todayShort' : 'today')}</Chip>
+    {!phone && <><Button size="small" icon="i-left" onClick={none}>{f('back2h')}</Button><Button size="small" onClick={none}>{f('now')}</Button><Button size="small" onClick={none}>{f('ahead2h')}<Icon name="i-right" size={16}/></Button></>}
     <span style={{flex: 1}}/>
-    <Button variant="text" size="small" icon="i-chdown" onClick={none}>{f('sortByNumber')}</Button>
+    {phone ? <Button variant="text" size="small" onClick={none}>{f('sortByNumber')}<Icon name="i-chdown" size={16}/></Button>
+      : <Chip prefix={defaultI18n.t('next.browse.sort')} trailingIcon="i-chdown" onClick={none}>{f('sortByNumber')}</Chip>}
     {!phone && <Segmented value="grid" onValueChange={none} items={[{value: 'grid', label: f('grid'), icon: 'i-grid'}, {value: 'list', label: f('list'), icon: 'i-list'}]}/>}
   </>;
 }
@@ -172,9 +174,16 @@ function ProgrammeBody() {
   </>;
 }
 const programmePane = (): FramePane => ({title: f('pStoryTime'), subtitle: f('codeS3E1'), eyebrow: <PaneChannel/>, close: {label: f('close'), onPress: none}, children: <ProgrammeBody/>});
+/** The source's facts beside the title (desktop-live guide): its name in the text colour, then its count and reach in the
+ * secondary grey, at a row's help size, spaced as a facts line. */
+function LiveFacts() {
+  const [source, ...rest] = f('liveFacts').split(' · ');
+  return <span style={{display: 'flex', gap: 'var(--space-sm)', fontSize: 'var(--type-row-help-size)', lineHeight: 'var(--type-row-help-line)', color: 'var(--color-text-secondary)'}}>
+    <b style={{color: 'var(--color-text)'}}>{source}</b>{rest.map(part => <span key={part}>{part}</span>)}</span>;
+}
 function LiveGuide({details = false}: {details?: boolean}) {
   const phone = usePhone();
-  return <Page current="liveTvShort"><LiveFrame title={f('liveTv')} switcher={<Switcher/>} facts={<small style={{color: 'var(--color-text-tertiary)'}}>{f('liveFacts')}</small>} actions={phone && <PhoneActions/>}
+  return <Page current="liveTvShort"><LiveFrame title={f('liveTv')} switcher={<Switcher/>} facts={<LiveFacts/>} actions={phone && <PhoneActions/>}
     tabs={!phone && <LiveTabs value="guide"/>} chips={<Groups/>} lead={!phone && !details && <OnNowShelf/>} toolbar={<GuideTools/>} details={details ? programmePane() : undefined} hints={!phone && f('keyboardHint')}>
     <Grid/>
   </LiveFrame></Page>;
@@ -191,7 +200,7 @@ function LiveList() {
 function recordings(value: 'upcoming' | 'recorded' | 'rules', phone: boolean) {
   const chips = [['upcoming', 'upcoming', 8], ['recorded', 'recorded', 20], ['rules', 'seriesRules', 4], ['history', 'history', undefined], ['storage', 'storage', undefined]] as const;
   if (phone) return {title: f('recordings'), back: {label: f('liveTv'), onPress: none}, tabs: <Tabs value={value} onValueChange={none} items={[{value: 'upcoming', label: f('upcoming')}, {value: 'recorded', label: f('recorded')}, {value: 'rules', label: f('seriesRules')}, {value: 'history', label: f('history')}]}/>};
-  return {title: f('liveTv'), switcher: <Switcher/>, facts: <small style={{color: 'var(--color-text-tertiary)'}}>{f('liveFacts')}</small>, tabs: <LiveTabs value="recordings"/>,
+  return {title: f('liveTv'), switcher: <Switcher/>, facts: <LiveFacts/>, tabs: <LiveTabs value="recordings"/>,
     chips: <>{chips.map(([id, name, count]) => <Chip key={id} variant="search" selected={id === value} count={count} onClick={none}>{f(name)}</Chip>)}<span style={{flex: 1}}/>
       <RecordingStorage used={f('storageUsed')} free={f('storageFree')} remaining={f('storageNote')} label={f('storageUsed')} fraction={.14}/></>};
 }
