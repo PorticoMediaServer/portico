@@ -150,7 +150,8 @@ function Groups() {
   const groups = [['groupAll', 14], ['groupFavorites', 3], ['groupNews', 2], ['groupSports', 2], ['groupMovies', 2], ['groupKids', 1], ['groupDocumentary', 1]] as const;
   return <>{groups.map(([name, count], index) => <Chip key={name} selected={index === 0} count={count} icon={name === 'groupFavorites' ? 'i-star' : undefined} onPress={none}>{f(name)}</Chip>)}</>;
 }
-function Switcher() { return <Button variant="glass" size="small" trailingIcon="i-chdown" onPress={none}>{f('allChannels')}</Button>; }
+// On a phone the source picker is a chip at the head of the groups, their height (phone-guide g1); a button elsewhere.
+function Switcher() { const {phone} = useScale(); return phone ? <Chip trailingIcon="i-chdown" onPress={none}>{f('allChannels')}</Chip> : <Button variant="glass" size="small" trailingIcon="i-chdown" onPress={none}>{f('allChannels')}</Button>; }
 function GuideTools({list = false}: {list?: boolean}) {
   const {phone} = useScale();
   return <>
