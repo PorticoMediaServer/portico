@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A saved view as one wide tile (collections frame 17): its icon and name, its library, what it
+     asks for in plain words, its first four covers and how many titles it finds right now. A grid
+     item: the grid sets itemContent {title, library, words, covers, found} and its focus fields. -->
+<component name="ViewTile" extends="Group">
+  <interface>
+    <field id="itemContent" type="node" onChange="onContent"/>
+    <field id="width" type="float"/>
+    <field id="height" type="float"/>
+    <field id="focusPercent" type="float" onChange="onFocus"/>
+    <field id="gridHasFocus" type="boolean" onChange="onFocus"/>
+  </interface>
+  <script type="text/brightscript" uri="ViewTile.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Poster id="ring" uri="pkg:/images/focus-14.9.png" visible="false"/>
+    <Poster id="plate" uri="pkg:/images/round-14.9.png"/>
+    <Poster id="tile" uri="pkg:/images/round-10.9.png" width="52" height="52"/>
+    <Poster id="icon" uri="pkg:/images/i-sliders-28.png" width="28" height="28"/>
+    <Label id="name"/>
+    <Label id="library"/>
+    <Label id="words" wrap="true" maxLines="2"/>
+    <Group id="covers"/>
+    <Label id="found" horizAlign="right"/>
+  </children>
+</component>

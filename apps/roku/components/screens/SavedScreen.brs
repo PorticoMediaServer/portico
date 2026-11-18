@@ -102,7 +102,11 @@ sub load()
         ' albums, artists and audiobooks are square, in a grid of their own under its own heading
         m.sources.push({path: base + "&kind=album,artist,audiobook", square: true, name: "Music and audiobooks"})
     else if spec.kind <> invalid
-        m.sources.push({path: "/v1/lists?kind=" + spec.kind, square: true, name: ""})     ' square mosaic tiles (collections frames 15 to 17)
+        if spec.kind = "saved_view"
+            m.sources.push({path: "/v1/lists?kind=saved_view", square: false, wide: true, columns: 3, name: ""})     ' wide tiles (collections frame 17)
+        else
+            m.sources.push({path: "/v1/lists?kind=" + spec.kind, square: true, name: ""})     ' square mosaic tiles (collections frames 15 and 16)
+        end if
     else
         m.sources.push({path: "/v1/history?period=" + m.period, square: false, name: ""})
     end if
@@ -112,6 +116,8 @@ sub load()
         source.done = false
         source.total = 0
         source.grid = invalid
+        if source.columns = invalid then source.columns = 7
+        if source.wide = invalid then source.wide = false
         source.read = []     ' a list tab's lists as the server sent them, before Sort and Show
     end for
     drawTools()
@@ -233,7 +239,7 @@ sub showGrids()
                 source.heading.text = source.name + "   " + source.total.toStr()
                 source.heading.translation = [f.gutter, y - gap]
             end if
-            rows = int((source.items.count() + 6) / 7)
+            rows = int((source.items.count() + source.columns - 1) / source.columns)
             source.grid.numRows = rows
             source.grid.translation = [f.gutter, y - k.cardPad]
             source.pitch = source.grid.itemSize[1] + source.grid.itemSpacing[1]
@@ -263,7 +269,7 @@ sub makeGrid(source as object, headed as boolean)
     end if
     grid = m.content.createChild("MarkupGrid")
     grid.itemComponentName = "Card"
-    grid.numColumns = 7
+    grid.numColumns = source.columns
     grid.drawFocusFeedback = false
     grid.vertFocusAnimationStyle = "floatingFocus"
     ' a square's cell: art as wide as the poster's (a 2:3 poster is 1.5 times as tall) over the same words
@@ -271,6 +277,13 @@ sub makeGrid(source as object, headed as boolean)
     if source.square then card = [card[0], card[1] - card[0] * 1.5 + card[0]]
     grid.itemSize = [card[0], card[1] + k.cardPad * 2]
     grid.itemSpacing = [k.cardGap, 10]
+    if source.wide
+        ' saved views: three wide tiles across (collections frame 17)
+        v = frames().savedView
+        grid.itemComponentName = "ViewTile"
+        grid.itemSize = [v.width, v.height + k.cardPad * 2]
+        grid.itemSpacing = [v.gap, 10]
+    end if
     grid.content = createObject("roSGNode", "ContentNode")
     grid.observeField("itemFocused", "onCardFocused")
     grid.observeField("itemSelected", "onCardSelected")
@@ -286,6 +299,24 @@ end function
 
 function cardOf(entry as object, square as boolean) as object
     spec = tabSpec()
+    if spec.kind = "saved_view"
+        ' a saved view's wide tile: its library, what it asks for in words, its first four covers and
+        ' how many titles it finds now (ViewTile)
+        v = frames().savedView
+        covers = []
+        if entry.covers <> invalid
+            for each cover in entry.covers
+                picture = pick(cover, ["poster", "cover", "thumb"])
+                if picture <> "" and covers.count() < 4 then covers.push(imageUrl(picture, v.cover, int(v.cover * 1.5)))
+            end for
+        end if
+        library = ""
+        if entry.library <> invalid and m.global.libraryNames[entry.library] <> invalid then library = m.global.libraryNames[entry.library]
+        words = ""
+        if entry.query <> invalid then words = savedViewWords(entry.query)
+        found = countText(entry.count, "title", "titles") + " right now"
+        return {id: entry.id, kind: "savedList", title: entry.name, library: library, words: words, covers: covers, found: found}
+    end if
     if spec.kind <> invalid
         ' a list's tile: a mosaic of its first four covers (one cover when it holds fewer), its name,
         ' how many it holds and when it last changed, or who can see a collection
@@ -325,7 +356,7 @@ sub onCardFocused(event as object)
     source = m.sources[m.at]
     if not grid.isSameNode(source.grid) then return
     at = event.getData()
-    placeFocusedRow(source, int(at / 7))
+    placeFocusedRow(source, int(at / source.columns))
     askMore(at >= source.items.count() - 21)
 end sub
 
@@ -363,15 +394,16 @@ function moveBetweenGrids(key as string) as boolean
     if key = "down" then target = target + 1 else target = target - 1
     if target < 0 or target >= m.sources.count() then return false
     if m.sources[target].grid = invalid then return false
-    column = m.sources[m.at].grid.itemFocused mod 7
+    column = m.sources[m.at].grid.itemFocused mod m.sources[m.at].columns
     m.at = target
     items = m.sources[m.at].items.count()
     at = column
-    if key = "up" then at = int((items - 1) / 7) * 7 + column
+    columns = m.sources[m.at].columns
+    if key = "up" then at = int((items - 1) / columns) * columns + column
     if at >= items then at = items - 1
     m.sources[m.at].grid.jumpToItem = at
     focusRegion()
-    placeFocusedRow(m.sources[m.at], int(at / 7))
+    placeFocusedRow(m.sources[m.at], int(at / columns))
     return true
 end function
 
