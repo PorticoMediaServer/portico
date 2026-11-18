@@ -16,7 +16,7 @@ import {touchScrub} from '../src-next/platform/siri-remote.ts';
 const fence = playerCore.playbackFence({kind: 'queue', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'version', entryId: 'entry', generation: 1});
 const t = (key: string) => key;
 const i18n = {defaultI18n: {t, number: String, locale: 'en-US'}};
-const theme = {isTV: true, textScale: 1.2, platform: 'tv', colors: {text: 'white', white: 'white', textSecondary: 'grey', textTertiary: 'muted'}, type: {body: {}, bodyStrong: {}, caption: {}}};
+const theme = {isTV: true, textScale: 1.2, platform: 'tv', colors: {text: 'white', white: 'white', textSecondary: 'grey', textTertiary: 'muted'}, type: {body: {}, bodyStrong: {}, caption: {}, captionStrong: {}, heading: {}, display: {fontSize: 62}, cardTitle: {}, cardSubtitle: {}}, space: {xs: 8, sm: 16, md: 24, lg: 32, tight: 6}};
 const themed = {useTheme: () => theme, nativeType: (value: any, scale: number) => ({fontSize: value.size * scale, ...(typeof value.lineHeight === 'number' ? {lineHeight: value.lineHeight * scale} : {}), fontFamily: `weight-${value.weight}`})};
 const controlsAtoms = {Focusable: 'Focusable', Button: 'Button', TextField: 'TextField', Switch: 'Switch'};
 const nativeAtoms = {View: 'View', Text: 'Text', ScrollView: 'ScrollView', ActivityIndicator: 'Spinner', StyleSheet: {absoluteFill: {}}, useWindowDimensions: () => ({width: 1920, height: 1080})};
@@ -224,7 +224,8 @@ test('post-play rows stay horizontal, preserve card widths, connect both directi
       const art = descendants(cards[0]).find((node: any) => node.type === 'View' && node.props.style.overflow === 'hidden'); assert.equal(flattenStyle(art.props.style).borderRadius, compact ? 8 : 14);
       if (!compact) {
         const all = descendants(actions); assert.ok(all.findIndex((node: any) => node.props.testID === 'watch-post-replay') < all.findIndex((node: any) => node.props.testID === 'watch-post-star-1'));
-        assert.equal(all.find((node: any) => node.type === 'Text' && node.props.children === 'Movie').props.style.fontSize, 84);
+        // R2: the film's name is the form's `display` role.
+        assert.equal(flattenStyle(all.find((node: any) => node.type === 'Text' && node.props.children === 'Movie').props.style).fontSize, theme.type.display.fontSize);
       }
     } finally {h.unmount();}
   }

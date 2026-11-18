@@ -41,6 +41,8 @@ export type PlayerChromeFrameProps = Readonly<{
    * tablet (the picture and its controls take the room that is left), and over the picture's right side on a phone on
    * its side and a TV, where the controls hide while it is open. */
   panel?: ReactNode;
+  /** The panel is wide (`frameSpec.player.panel.wideWidth`: Playback info's table on TV). */
+  panelWide?: boolean;
   /** TV: Episodes as a band across the bottom of the picture (`PlayerEpisodeBand`, tv-player 1 frame 3). The controls
    * hide while it shows; the bottom shade stays under it. */
   band?: ReactNode;
@@ -74,7 +76,7 @@ function Shade() {
 export function PlayerChromeFrame({startFocus, ...props}: PlayerChromeFrameProps) {
   return <StartFocusScope id={startFocus}><PlayerChromeFrameBody {...props}/></StartFocusScope>;
 }
-function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, band, scrubbing = false, hints, body, testID}: Omit<PlayerChromeFrameProps, 'startFocus'>) {
+function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, panelWide = false, band, scrubbing = false, hints, body, testID}: Omit<PlayerChromeFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), spec = frameSpec.player, {form} = frame;
   const phone = form === 'phone', tv = form === 'tv', upright = usePlayerUpright(), sideways = phone && !upright, beside = !!panel && !upright && !phone && !tv;
   const edge = upright ? spec.portrait.edge : Math.max(spec.edge[form], insets.left, insets.right);
@@ -137,12 +139,13 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
     {/* Over the hidden bar, so the band's tiles are what the remote reaches. */}
     {banded && <View style={{position: 'absolute', left: 0, right: 0, bottom: Math.max(spec.bottom[form], insets.bottom)}}>{band}</View>}
   </View>;
-  const over = !!panel && !upright && !beside && <View style={{position: 'absolute', top: 0, right: 0, bottom: 0, width: spec.panel.width[form]}}>{panel}</View>;
+  const panelWidth = spec.panel[panelWide ? 'wideWidth' : 'width'][form];
+  const over = !!panel && !upright && !beside && <View style={{position: 'absolute', top: 0, right: 0, bottom: 0, width: panelWidth}}>{panel}</View>;
   // The frame draws no backdrop: the player's layer is black (R10). Beside a panel the bar's spare parts make way (SC-10).
   return <View testID={testID} style={{flex: 1, flexDirection: beside ? 'row' : 'column', paddingTop: upright ? insets.top : 0}}>
     {upright ? <PlayerCompact.Provider value>{stage}</PlayerCompact.Provider> : <PlayerBeside.Provider value={beside}>{stage}</PlayerBeside.Provider>}
     {upright && <View style={{flex: 1}}>{body}{!!panel && <View style={StyleSheet.absoluteFill}>{panel}</View>}</View>}
-    {beside && <View style={{width: spec.panel.width[form]}}>{panel}</View>}
+    {beside && <View style={{width: panelWidth}}>{panel}</View>}
     {over}
   </View>;
 }

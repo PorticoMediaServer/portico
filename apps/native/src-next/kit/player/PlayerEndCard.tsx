@@ -30,12 +30,14 @@ export type PlayerEndCardProps = Readonly<{
  * Replay focused, Rate this and the server's related titles. The drawn part of `screens/watch/PostPlayScreen`, which
  * reads the title and passes it in; the web's is `PlayerEndCard` too. */
 export function PlayerEndCard({title, year, runtime, backdrop, rating, related, onReplay, onClose, compact = false}: PlayerEndCardProps) {
-  const theme = useTheme(), t = defaultI18n.t, window = useWindowDimensions();
+  const theme = useTheme(), t = defaultI18n.t, window = useWindowDimensions(), type = theme.type;
+  // R2: the form's roles, as Up next and Still watching: the film's name `display` (a page's title, not a card's), the
+  // section and Rate this `heading` / `bodyStrong`, facts `body`, the eyebrow `captionStrong`, buttons the kit Button's sizes.
   // phone-player 6d draws a phone on its side: the words left, the cards right. Held upright the two stack in the
   // window's middle, so neither covers the other.
   const upright = compact && window.height > window.width;
   const ratingRow = rating && <View style={{flexDirection: 'row', alignItems: 'center', gap: compact ? 0 : 12, marginBottom: compact ? 16 : 0, marginTop: compact ? 0 : 30}}>
-        <Text style={{fontFamily: 'Manrope-Bold', fontSize: compact ? 13.5 : 22, fontWeight: '700', marginRight: compact ? 2 : 10, color: compact ? theme.colors.textSecondary : theme.colors.textTertiary}}>{t('player.rateThis')}</Text>
+        <Text style={[type.bodyStrong, {marginRight: compact ? 2 : 10, color: compact ? theme.colors.textSecondary : theme.colors.textTertiary}]}>{t('player.rateThis')}</Text>
         {[1, 2, 3, 4, 5].map(star => <Focusable key={star} focusId={`watch-post-star-${star}`} testID={`watch-post-star-${star}`} accessibilityRole="button" accessibilityLabel={t('player.rated', {stars: star})}
           accessibilityState={{selected: star <= rating.stars}} onPress={() => rating.onRate(star)}
           style={{width: compact ? 32 : 56, height: compact ? 32 : 56, borderRadius: compact ? 8 : 28, alignItems: 'center', justifyContent: 'center', backgroundColor: star <= rating.stars ? 'rgba(92,179,226,.22)' : compact ? 'transparent' : 'rgba(237,245,250,.1)'}}>
@@ -52,24 +54,21 @@ export function PlayerEndCard({title, year, runtime, backdrop, rating, related, 
     <FocusRegion id="watch-post" orientation="vertical" entry="watch-post-replay" edges={related.length ? {down: 'watch-post-related'} : undefined} style={upright ? undefined : compact
       ? {position: 'absolute', left: 60, width: 330, top: 0, bottom: 0, justifyContent: 'center'}
       : {position: 'absolute', left: 96, top: 84, width: 1000}}>
-      <Text style={{fontFamily: 'Manrope-SemiBold', fontSize: compact ? 13.5 : 24, fontWeight: '700', marginBottom: compact ? 0 : 16, color: compact ? theme.colors.textTertiary : theme.colors.textSecondary}}>{t('player.post.finished')}</Text>
-      <Text numberOfLines={2} style={{fontFamily: 'Manrope-ExtraBold', fontSize: compact ? 44 : 84, lineHeight: compact ? 43 : 84, fontWeight: '800',
-        letterSpacing: compact ? -.045 : -3.6, marginTop: compact ? 6 : 0, marginBottom: compact ? 10 : 18, color: theme.colors.text}}>{title}</Text>
+      <Text style={[type.captionStrong, {marginBottom: theme.space.tight, color: compact ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{t('player.post.finished')}</Text>
+      <Text style={[type.display, {marginBottom: compact ? 10 : 18, color: theme.colors.text}]}>{title}</Text>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: compact ? 12 : 26, marginBottom: compact ? 14 : 30}}>
-        {year !== undefined && <Text style={{fontFamily: 'Manrope-ExtraBold', fontSize: compact ? 13 : 24, fontWeight: '800', color: theme.colors.text}}>{defaultI18n.number(year, {useGrouping: false})}</Text>}
-        {runtime && <Text style={{fontFamily: 'Manrope-SemiBold', fontSize: compact ? 13 : 24, fontWeight: '600', color: theme.colors.textSecondary}}>{runtime}</Text>}
+        {year !== undefined && <Text style={[type.bodyStrong, {color: theme.colors.text}]}>{defaultI18n.number(year, {useGrouping: false})}</Text>}
+        {runtime && <Text style={[type.body, {color: theme.colors.textSecondary}]}>{runtime}</Text>}
       </View>
       {compact && ratingRow}
       <View style={{flexDirection: 'row', alignItems: 'center', gap: compact ? 10 : 18}}>
-        <Button focusId="watch-post-replay" testID="watch-post-replay" variant="primary" size={compact ? 'compact' : 'hero'} preferredFocus={!compact} icon="i-replay"
-          style={compact ? {height: 40, paddingHorizontal: 15, borderRadius: 10} : undefined} textStyle={compact ? {fontSize: 14.5, fontWeight: '700'} : undefined} onPress={onReplay}>{t('player.post.replay')}</Button>
-        <Button focusId="watch-post-close" testID="watch-post-close" variant="glass" size={compact ? 'compact' : 'hero'}
-          style={compact ? {height: 40, paddingHorizontal: 15, borderRadius: 10} : undefined} textStyle={compact ? {fontSize: 14.5, fontWeight: '700'} : undefined} onPress={onClose}>{t('player.post.close')}</Button>
+        <Button focusId="watch-post-replay" testID="watch-post-replay" variant="primary" size={compact ? 'compact' : 'hero'} preferredFocus={!compact} icon="i-replay" onPress={onReplay}>{t('player.post.replay')}</Button>
+        <Button focusId="watch-post-close" testID="watch-post-close" variant="glass" size={compact ? 'compact' : 'hero'} onPress={onClose}>{t('player.post.close')}</Button>
       </View>
       {!compact && ratingRow}
     </FocusRegion>
     {related.length > 0 && <View style={upright ? undefined : compact ? {position: 'absolute', right: 60, width: 370, top: 0, bottom: 0, justifyContent: 'center'} : {position: 'absolute', left: 96, right: 96, top: 578}}>
-      <Text style={{fontFamily: 'Manrope-ExtraBold', fontSize: compact ? 15 : 30, fontWeight: compact ? '700' : '800', marginBottom: compact ? 10 : 18, color: theme.colors.text}}>{t('player.moreLike', {title})}</Text>
+      <Text style={[type.heading, {marginBottom: compact ? 10 : 18, color: theme.colors.text}]}>{t('player.moreLike', {title})}</Text>
       {/* A horizontal list does not grow to its column's height, so the row stays centred beside the words (phone-player 6d). */}
       <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow: 0}}>
         <FocusRegion id="watch-post-related" orientation="horizontal" entry={`watch-post-related-${related[0]!.id}`} edges={{up: 'watch-post'}} style={{flexDirection: 'row', gap: compact ? 10 : 28}}>
@@ -79,8 +78,8 @@ export function PlayerEndCard({title, year, runtime, backdrop, rating, related, 
               <View style={{width: compact ? 85 : 184, height: compact ? 128 : 276, borderRadius: compact ? 8 : 14, overflow: 'hidden', backgroundColor: '#0b1822', ...(focused ? {borderWidth: 2, borderColor: theme.colors.focus} : {})}}>
                 <Artwork source={row.poster} width={compact ? 85 : 184} height={compact ? 128 : 276}/>
               </View>
-              <Text numberOfLines={1} style={{fontFamily: 'Manrope-SemiBold', fontSize: compact ? 12 : 22, fontWeight: '600', marginTop: compact ? 7 : 10, color: focused ? theme.colors.accentStrong : theme.colors.text}}>{row.title}</Text>
-              {row.year !== undefined && <Text style={{fontFamily: 'Manrope-Medium', fontSize: compact ? 11.5 : 20, fontWeight: '500', color: theme.colors.textTertiary}}>{defaultI18n.number(row.year, {useGrouping: false})}</Text>}
+              <Text numberOfLines={2} style={[type.cardTitle, {marginTop: compact ? 7 : 10, color: focused ? theme.colors.accentStrong : theme.colors.text}]}>{row.title}</Text>
+              {row.year !== undefined && <Text style={[type.cardSubtitle, {color: theme.colors.textTertiary}]}>{defaultI18n.number(row.year, {useGrouping: false})}</Text>}
             </>}
           </Focusable>)}
         </FocusRegion>
