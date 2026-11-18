@@ -2,7 +2,7 @@ import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 /** One server-owned show workspace; episode details and playback have separate scoped owners. */
-import {validateContentEntry,validateContentProjection,type ContentEntry,type ContentProjection,type ContentScope,type LibraryContentApi} from './library-content.ts';
+import {validateContentEntry,type ContentEntry,type ContentProjection,type ContentScope,type LibraryContentApi} from './library-content.ts';
 import {firstOfEach,keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
 import {QueryObserver} from '@tanstack/query-core';
 import type {ViewerQueries} from './query/viewer-queries.ts';
