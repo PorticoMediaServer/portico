@@ -109,7 +109,7 @@ export function ChipRail({children}: {children: ReactNode}) {
  * Phone and tablet (owner, 18 Nov): ONE row under the tabs: Filters, sort, then the applied filters and quick chips in a sideways
  * rail that fades where more lie past it, and grid / list pinned at the right end. No count line: while a filter applies the
  * Filters control says how many match ("Filters · 12"). TV keeps its two rows (final3-tv-08): the controls, then the applied
- * filters with the count. */
+ * filters with the count. On every form Sort sits directly after Filters, and Select at the trailing end (owner, 18 Nov). */
 export function BrowseToolbar({model, platform, sticky = false, resultCount, resultTotal, onQuickChange, onFilters, filtersOpen = false, onSortChange, onReshuffle, labels, applied = [], onRemoveFilter, onClearFilters, view, save, onJump, onSelect, selection, children, testID}: BrowseToolbarProps) {
   const theme = useTheme(), {width} = useWindowDimensions(), target = browsePlatform(theme, platform), phone = target === 'phone', tv = target === 'tv';
   if (applied.length > 0 && !onRemoveFilter) throw new Error('Applied browse filters need a real remove callback.');
@@ -120,14 +120,14 @@ export function BrowseToolbar({model, platform, sticky = false, resultCount, res
   const style = {zIndex: sticky ? theme.layers.sticky : undefined, backgroundColor: sticky ? alpha(theme.colors.ink, .86) : undefined, paddingTop: phone ? 10 : sticky ? 12 : 20, paddingBottom: sticky || phone ? 10 : 0};
   if (!tv) return <View testID={testID} accessibilityLabel={t('next.browse.native.toolbar')} style={style}>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: phone ? 20 : theme.gutter}}>
-      {filters}{sort}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}
+      {filters}{sort}
       <ChipRail>{applied.length > 0 && <AppliedFilterChips platform={target} filters={applied} onRemove={id => onRemoveFilter!(id)}/>}{quick}{children}</ChipRail>
-      {view && <ViewToggle {...view}/>}
+      {view && <ViewToggle {...view}/>}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}
     </View>
   </View>;
   return <View testID={testID} accessibilityLabel={t('next.browse.native.toolbar')} style={style}>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: theme.gutter}}>
-      {sort}{filters}{onJump && <Chip onPress={onJump}>{t('next.browse.native.jumpTo')}</Chip>}
+      {filters}{sort}{onJump && <Chip onPress={onJump}>{t('next.browse.native.jumpTo')}</Chip>}
       <View style={{height: 40, width: 1.5, marginHorizontal: 6, backgroundColor: theme.colors.line}}/>
       {quick}{children}
       {save && <View style={{marginLeft: 'auto'}}><SaveViewButton {...save}/></View>}
