@@ -1,0 +1,63 @@
+name: Desktop app
+# Builds the desktop app on Linux, Windows and macOS and starts it once on each: proof builds
+# only. Nothing is signed, packaged or published here; releases stay in release.yml.
+# The app shows the web app, so a change to web/ or packages/ can break it too.
+on:
+  pull_request:
+    paths:
+      - 'apps/desktop/**'
+      - 'web/**'
+      - 'packages/**'
+      - '.github/workflows/desktop.yml'
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - name: System libraries (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libwebkit2gtk-4.1-dev xvfb
+      - name: Rust
+        run: rustup toolchain install 1.99.0 --profile minimal && rustup default 1.99.0
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            apps/desktop/src-tauri/target
+          key: desktop-${{ runner.os }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
+          restore-keys: desktop-${{ runner.os }}-
+      - run: npm ci --no-audit --no-fund
+      - name: Build
+        working-directory: apps/desktop
+        run: npm run build:unsigned
+      - name: Unit tests
+        working-directory: apps/desktop
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --features custom-protocol
+      - name: Start once
+        working-directory: apps/desktop
+        run: |
+          case "$RUNNER_OS" in
+            Linux) node scripts/smoke.mjs src-tauri/target/debug/portico-desktop xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- ;;
+            Windows) node scripts/smoke.mjs src-tauri/target/debug/portico-desktop.exe ;;
+            macOS) node scripts/smoke.mjs src-tauri/target/debug/portico-desktop ;;
+          esac

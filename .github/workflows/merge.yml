@@ -45,11 +45,10 @@ jobs:
             package-lock.json
             apps/native/package-lock.json
             apps/vega/package-lock.json
-            apps/desktop/package-lock.json
       - run: npm ci --no-audit --no-fund
       - name: Install typed ratchet owning lockfiles
         run: |
-          for component in apps/native apps/vega apps/desktop; do
+          for component in apps/native apps/vega; do
             (cd "$component" && npm ci --ignore-scripts --legacy-peer-deps --workspaces=false --no-audit --no-fund)
           done
       - run: python3 -m unittest discover -s ci -p 'test_*.py'
@@ -307,7 +306,7 @@ jobs:
           cache-dependency-path: '**/go.sum'
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version-file: ${{ matrix.component == 'apps/desktop' && 'apps/desktop/.node-version' || '.node-version' }}
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -344,7 +343,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: ${{ !cancelled() }}
         with:
-          name: js-${{ matrix.component == 'apps/native' && 'native' || matrix.component == 'apps/desktop' && 'desktop' || matrix.component == 'apps/vega' && 'vega' || matrix.component }}-${{ matrix.index }}
+          name: js-${{ matrix.component == 'apps/native' && 'native' || matrix.component == 'apps/vega' && 'vega' || matrix.component }}-${{ matrix.index }}
           path: ci-results/js/
           if-no-files-found: error
   js_static:
@@ -365,7 +364,7 @@ jobs:
           cache-dependency-path: '**/go.sum'
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version-file: ${{ matrix.component == 'apps/desktop' && 'apps/desktop/.node-version' || '.node-version' }}
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: |
             package-lock.json

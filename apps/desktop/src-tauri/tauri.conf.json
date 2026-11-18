@@ -3,22 +3,25 @@
   "productName": "Portico",
   "version": "0.0.0",
   "identifier": "tv.getportico.desktop",
-  "build": {"frontendDist": "../dist", "devUrl": "http://127.0.0.1:14229"},
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://127.0.0.1:5174"
+  },
   "app": {
     "windows": [],
     "withGlobalTauri": false,
-    "macOSPrivateApi": true,
     "security": {
-      "capabilities": ["desktop"],
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; font-src 'self'; media-src 'self' blob: http: https:; connect-src ipc: http://ipc.localhost 'self' http: https: wss: ws:; object-src 'none'; frame-src 'none'; base-uri 'self'"
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self' blob:; img-src 'self' blob: data: http: https:; media-src 'self' blob: http: https:; connect-src 'self' ipc: http://ipc.localhost http: https:; worker-src 'self' blob:; frame-src 'self' blob:; base-uri 'none'; object-src 'none'; form-action 'self'"
     }
   },
   "bundle": {
-    "active": false, "targets": ["deb", "appimage"], "category": "Entertainment",
-    "shortDescription": "Portico media player", "copyright": "Portico contributors", "license": "GPL-3.0-only",
-    "linux": {
-      "deb": {"depends": ["gstreamer1.0-plugins-base", "gstreamer1.0-plugins-good", "gstreamer1.0-gl", "at-spi2-core"]},
-      "appimage": {"bundleMediaFramework": true}
-    }
+    "active": false,
+    "category": "Entertainment",
+    "shortDescription": "Portico",
+    "copyright": "Portico contributors",
+    "license": "GPL-3.0-only",
+    "icon": [
+      "icons/icon.png"
+    ]
   }
 }
