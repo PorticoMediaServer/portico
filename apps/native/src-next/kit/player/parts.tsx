@@ -170,12 +170,14 @@ export function PlayerPill({name, value, qualifier, icon, tone, label, onPress, 
   if (spare && beside) return null;
   const fill = alpha(theme.colors.text, open ? tint.open : tint.pill);
   const strong = [theme.type.playerPill, {color: theme.colors.text}], dim = [theme.type.playerPill, {color: theme.colors.textTertiary}];
-  // TV (tv-player 1): a named entry with a value is a two-line tile, its name over its value; one with only a name
-  // (Episodes) is the pill with its icon, as tv-player 1 draws it.
-  if (form === 'tv' && name !== undefined && value !== undefined) return <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} focusRadius={frameSpec.player.tile.radius}
-    style={{height: theme.spec.transport.control.size[theme.column], paddingHorizontal: frameSpec.player.tile.paddingX, borderRadius: frameSpec.player.tile.radius, justifyContent: 'center', backgroundColor: fill, opacity: disabled ? theme.spec.button.disabledOpacity : 1}}>
+  // TV (tv-player 1): a named entry is a tile, its name over its value; one with only a name (Episodes) is the same tile
+  // with its icon beside the name, the icon at the TV control glyph's size.
+  if (form === 'tv' && name !== undefined) return <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} focusRadius={frameSpec.player.tile.radius}
+    style={{height: theme.spec.transport.control.size[theme.column], paddingHorizontal: frameSpec.player.tile.paddingX, borderRadius: frameSpec.player.tile.radius, justifyContent: 'center', backgroundColor: fill, opacity: disabled ? theme.spec.button.disabledOpacity : 1,
+      ...(value === undefined ? {flexDirection: 'row', alignItems: 'center', gap: theme.space.sm} : {})}}>
+    {value === undefined && icon && <Icon name={icon} size={theme.spec.transport.control.icon[theme.column]} color={theme.colors.text}/>}
     <Text numberOfLines={1} style={[theme.type.playerTime, {color: theme.colors.text, fontFamily: theme.type.button.fontFamily}]}>{name}</Text>
-    <Text numberOfLines={1} style={[theme.type.playerTime, {color: theme.colors.textSecondary}]}>{qualifier !== undefined ? `${qualifier} ` : ''}{value}</Text>
+    {value !== undefined && <Text numberOfLines={1} style={[theme.type.playerTime, {color: theme.colors.textSecondary}]}>{qualifier !== undefined ? `${qualifier} ` : ''}{value}</Text>}
   </Focusable>;
   return <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} focusRadius={height / 2}
     style={{height, paddingHorizontal: spec.paddingX[form], borderRadius: height / 2, flexDirection: 'row', alignItems: 'center', gap: theme.space.tight, backgroundColor: fill, opacity: disabled ? theme.spec.button.disabledOpacity : 1}}>
