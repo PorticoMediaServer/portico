@@ -501,11 +501,15 @@ func (s *Server) bookRecording(r *http.Request, req DvrRecordingBook) (DvrRecord
 		ProgrammeKey: p.ProgrammeKey, SeriesKey: p.SeriesKey, Title: p.Title, EpisodeTitle: p.EpisodeTitle, Season: p.Season, Episode: p.Episode,
 		Details: p.Summary, Rating: p.Rating, RatingAge: p.RatingAge, StartsAt: p.StartsAt, EndsAt: p.EndsAt, PadBefore: opts.PadBefore,
 		PadAfter: opts.PadAfter, Now: s.now()}
-	if req.PadBeforeMs != nil {
-		b.PadBefore = time.Duration(max(*req.PadBeforeMs, 0)) * time.Millisecond
+	before, after, err := padding(req.PadBeforeMs, req.PadAfterMs)
+	if err != nil {
+		return DvrRecording{}, err
 	}
-	if req.PadAfterMs != nil {
-		b.PadAfter = time.Duration(max(*req.PadAfterMs, 0)) * time.Millisecond
+	if before != nil {
+		b.PadBefore = *before
+	}
+	if after != nil {
+		b.PadAfter = *after
 	}
 	if req.Priority != nil {
 		b.Priority = max(min(*req.Priority, 1), -1)
@@ -616,13 +620,8 @@ func (s *Server) changeRecording(r *http.Request, req DvrRecordingChange) (DvrRe
 		return DvrRecording{}, ErrField("choice", "Choose record or skip.")
 	}
 	c := db.RecordingChange{Priority: req.Priority, Keep: req.Keep, Choice: req.Choice}
-	if req.PadBeforeMs != nil {
-		d := time.Duration(max(*req.PadBeforeMs, 0)) * time.Millisecond
-		c.PadBefore = &d
-	}
-	if req.PadAfterMs != nil {
-		d := time.Duration(max(*req.PadAfterMs, 0)) * time.Millisecond
-		c.PadAfter = &d
+	if c.PadBefore, c.PadAfter, err = padding(req.PadBeforeMs, req.PadAfterMs); err != nil {
+		return DvrRecording{}, err
 	}
 	if err := s.db.ChangeRecording(ctx, rec.PublicID, c, s.now()); err != nil {
 		return DvrRecording{}, err
@@ -744,4 +743,31 @@ func (s *Server) stopPlaying(ctx context.Context, itemID int64) {
 			s.playback.Terminate(ctx, session.ID, "This recording was deleted.")
 		}
 	}
+}
+
+// Start early is at most half an hour and finish late at most an hour (Justin, 18 Nov). More
+// would record the programmes that follow, which nobody checked the profile may see, and hold
+// a tuner through other people's recordings.
+const (
+	mostPadBefore = 30 * time.Minute
+	mostPadAfter  = time.Hour
+)
+
+// padding reads start early and finish late as a person sent them; nil is not sent.
+func padding(beforeMs, afterMs *int64) (before, after *time.Duration, err error) {
+	read := func(ms *int64, most time.Duration, field, message string) (*time.Duration, error) {
+		if ms == nil {
+			return nil, nil
+		}
+		d := time.Duration(max(*ms, 0)) * time.Millisecond
+		if *ms > most.Milliseconds() {
+			return nil, ErrField(field, message)
+		}
+		return &d, nil
+	}
+	if before, err = read(beforeMs, mostPadBefore, "padBeforeMs", "Start early by at most 30 minutes."); err != nil {
+		return nil, nil, err
+	}
+	after, err = read(afterMs, mostPadAfter, "padAfterMs", "Finish late by at most an hour.")
+	return before, after, err
 }
