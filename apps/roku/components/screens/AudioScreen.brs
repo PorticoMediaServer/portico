@@ -207,6 +207,7 @@ sub drawItem(entry as object)
     title.translation = [f.titleX, foot - 34 - 52 - titleHeight - 8]
     cover = pick(entry.images, ["cover", "poster", "thumb"])
     m.top.findNode("art").uri = imageUrl(cover, f.art, f.art)
+    m.top.findNode("glow").uri = ambientUrl(cover)
     m.top.findNode("art").visible = (cover <> "")
     m.top.findNode("artMark").visible = (cover = "")
     readLyrics(entry)
