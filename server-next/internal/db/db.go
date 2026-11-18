@@ -179,7 +179,21 @@ func open(path, mode string, conns, cacheKiB int) (*sql.DB, error) {
 	if cacheKiB > 0 {
 		q.Add("_pragma", fmt.Sprintf("cache_size(-%d)", cacheKiB))
 	}
-	conn, err := sql.Open("sqlite", "file:"+url.PathEscape(path)+"?"+q.Encode())
+	dsn := "file:" + url.PathEscape(path) + "?" + q.Encode()
+	if mode == "ro" {
+		// Read connections keep their statements prepared: see read_statements.go.
+		connector, err := sqlite.NewConnector(dsn)
+		if err != nil {
+			return nil, err
+		}
+		conn := sql.OpenDB(keepStatements{connector})
+		// All of them stay open between requests, and so keep their statements and their
+		// page caches; database/sql would otherwise close all but two after a busy moment.
+		conn.SetMaxOpenConns(conns)
+		conn.SetMaxIdleConns(conns)
+		return conn, nil
+	}
+	conn, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
