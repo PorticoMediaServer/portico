@@ -56,7 +56,9 @@ export function libraryFilterChange(capabilities: BrowseCapabilities, field: Bro
     const cast = (raw: readonly string[]): BrowseScalar[] => raw.map(item => offered.type === 'number' ? Number(item) : item);
     const operator = target.operator as BrowseOperator;
     if (value.included.length) {
-      const node = condition(target.field, value.mode === 'all' && offered.operators.includes('contains-all') ? 'contains-all' : operator, cast(value.included));
+      // A one-value field keeps the latest pick only.
+      const node = target.single ? condition(target.field, 'equals', cast(value.included.slice(-1))[0] ?? null)
+        : condition(target.field, value.mode === 'all' && offered.operators.includes('contains-all') ? 'contains-all' : operator, cast(value.included));
       add.push(value.mode === 'none' ? browseNot(node) : node);
     }
     if (value.excluded.length) add.push(browseNot(condition(target.field, operator, cast(value.excluded))));

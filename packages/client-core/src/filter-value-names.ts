@@ -20,4 +20,4 @@ export function filterValueName(value: unknown): string | undefined {
 }
 
 /** The filters whose values are ids with a name to show. */
-export const namedFilterFields: ReadonlySet<string> = new Set(['author', 'series']);
+export const namedFilterFields: ReadonlySet<string> = new Set(['author', 'series', 'collection']);

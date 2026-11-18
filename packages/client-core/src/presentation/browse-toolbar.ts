@@ -221,9 +221,11 @@ export function filterControlOf(field: BrowseFieldCapability, yearAsRange = fals
   return 'text';
 }
 
-/** The field a values list reads and writes: Year is offered and stored by decade. */
-export function filterValuesField(field: BrowseFieldCapability): Readonly<{facet: string; field: string; operator: string}> {
+/** The field a values list reads and writes: Year is offered and stored by decade. A field offered with `equals`
+ * alone holds one value (`single`): a second pick replaces the first. */
+export function filterValuesField(field: BrowseFieldCapability): Readonly<{facet: string; field: string; operator: string; single?: true}> {
   if (field.id === 'year') return {facet: 'decade', field: 'decade', operator: 'in'};
+  if (field.operators.length === 1 && field.operators[0] === 'equals') return {facet: field.facetSource?.field ?? field.id, field: field.id, operator: 'equals', single: true};
   return {facet: field.facetSource?.field ?? field.id, field: field.id, operator: field.operators.includes('contains-any') ? 'contains-any' : 'in'};
 }
 

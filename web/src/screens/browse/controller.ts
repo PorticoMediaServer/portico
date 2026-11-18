@@ -270,8 +270,8 @@ export class BrowseController {
     if (!this.current() || epoch !== this.epoch || signal.aborted) throw browseSessionClosed();
     return page;
   }
-  /** Reads the names of author or series ids in use whose names this app has not listed. */
-  nameValues(field: 'author' | 'series', ids: readonly string[], signal: AbortSignal) {
+  /** Reads the names of author, series or collection ids in use whose names this app has not listed. */
+  nameValues(field: 'author' | 'series' | 'collection', ids: readonly string[], signal: AbortSignal) {
     return nameFilterValues(this.api, field, ids, signal);
   }
   async count(predicates: readonly BrowseNode[], signal: AbortSignal) {

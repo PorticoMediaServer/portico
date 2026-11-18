@@ -107,3 +107,15 @@ for (const [name, operators, expected] of [
     }
   });
 }
+
+test('a one-value filter (a collection) keeps only the latest pick', () => {
+  const field: BrowseFieldCapability = {id: 'collection', labelKey: 'browse.field.collection', type: 'identity-set',
+    operators: ['equals'], controlHint: 'facet-multi-select', complexity: 'standard', cost: 'indexed', applicableKinds: []};
+  const capabilities: BrowseCapabilities = {
+    library: {id: 'movies', name: 'Movies', kind: 'movie', defaultView: 'grid', pinned: false},
+    pivots: [], resolvedPivot: null, fields: [field], sorts: [], quickFilters: [],
+    queryLimits: {maximumDepth: 8, maximumClauses: 100, maximumBytes: 65536, maximumSorts: 4, defaultLimit: 40, maximumLimit: 100, cursorTtlMs: 60000},
+  };
+  const result = libraryFilterChange(capabilities, field, [], {kind: 'values', included: ['itm_marvel', 'itm_pixar'], excluded: [], mode: 'any'} as never, [], new Date('2026-11-18T12:00:00Z'));
+  assert.deepEqual(result.map(node => [(node as {field: string}).field, (node as {operator: string}).operator, (node as {value: unknown}).value]), [['collection', 'equals', 'itm_pixar']]);
+});
