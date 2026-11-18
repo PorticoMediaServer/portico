@@ -3,7 +3,7 @@ import {withRequestRaw} from '../../../../../../../packages/client-core/src/home
 import {ConsoleClient, type ConsoleAPI} from '../../../../../../../packages/client-core/src/console';
 import {isAuthenticationFailure} from '../../../../../../../packages/client-core/src/backups';
 import {FormSet, type DraftForm, type FormState} from '../../../../../../../packages/client-core/src/server-admin/draft-form';
-import {createServerForm, type ServerFormDeps, type ServerFormId} from '../../../../../../../packages/client-core/src/server-admin/server-forms';
+import {createServerForm, type DraftFormId, type ServerFormDeps} from '../../../../../../../packages/client-core/src/server-admin/server-forms';
 import {nativeRouteCrypto} from '../../../../platform/server-connections';
 import type {NativeShellBootstrapContext} from '../../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../../shell/runtime';
@@ -16,12 +16,12 @@ let nextMount = 0;
 export type StorageForms = Readonly<{
   mount: number;
   context: NativeShellBootstrapContext;
-  forms: Readonly<Record<ServerFormId, DraftForm<any, any>>>;
+  forms: Readonly<Record<DraftFormId, DraftForm<any, any>>>;
   set: FormSet;
   dispose: () => void;
 }>;
-export function createStorageForms(context: NativeShellBootstrapContext, ids: readonly ServerFormId[], reportError: NativeShellRuntime['reportError']): StorageForms {
-  const lifetime = new NativeScreenLifetime(context), set = new FormSet(), forms: Partial<Record<ServerFormId, DraftForm<any, any>>> = {}, offs: (() => void)[] = [];
+export function createStorageForms(context: NativeShellBootstrapContext, ids: readonly DraftFormId[], reportError: NativeShellRuntime['reportError']): StorageForms {
+  const lifetime = new NativeScreenLifetime(context), set = new FormSet(), forms: Partial<Record<DraftFormId, DraftForm<any, any>>> = {}, offs: (() => void)[] = [];
   let consoleClient: ConsoleClient | undefined;
   const current = () => lifetime.current() && nativeStorageOwner(context);
   const dispose = () => {lifetime.dispose();for (const form of Object.values(forms)) form.dispose();for (const off of offs) off();consoleClient?.dispose();};
@@ -44,11 +44,11 @@ export function createStorageForms(context: NativeShellBootstrapContext, ids: re
   consoleClient = new ConsoleClient(api, {serverId: authority.serverId, viewerId: authority.profileId});
   const deps: ServerFormDeps = {api: withRequestRaw(api, originalApi.requestRaw?.bind(originalApi), requireCurrent), console: consoleClient, serverId: authority.serverId, operationId: operationHex};
   for (const id of ids) {const form = createServerForm(id, deps);forms[id] = form;offs.push(set.add(id, form));}
-  return {mount: ++nextMount, context, forms: forms as Record<ServerFormId, DraftForm<any, any>>, set, dispose};
+  return {mount: ++nextMount, context, forms: forms as Record<DraftFormId, DraftForm<any, any>>, set, dispose};
 }
 /** Every committed owner viewport receives fresh forms and a captured transport.
  * Cleanup never revives disposed forms during a later setup. */
-export function useStorageForms(ports: NativeSettingsLivePorts, ids: readonly ServerFormId[], reportError: NativeShellRuntime['reportError']): StorageForms | undefined {
+export function useStorageForms(ports: NativeSettingsLivePorts, ids: readonly DraftFormId[], reportError: NativeShellRuntime['reportError']): StorageForms | undefined {
   const context = ports.context, [group, setGroup] = useState<StorageForms>();
   useLayoutEffect(() => {
     const next = createStorageForms(context, ids, reportError);setGroup(next);

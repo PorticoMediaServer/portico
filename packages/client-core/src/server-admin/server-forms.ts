@@ -3,6 +3,7 @@ import {routePath} from "../../../contracts/src/route-paths.ts";
 import type {ConsoleClient, RuntimeSettings, SettingsDocument} from '../console.ts';
 import {parseLogSettings, type LogSettings, type LogDetailMinutes} from '../server-administration.ts';
 import {parseDVRDocument, parseEnvelope, parseLiveDefaultsDocument, folderTemplateProblems, type DVRDefaults, type DVRDocument, type LiveDefaults} from '../administration.ts';
+import type {HttpLocalApi} from '../index.ts';
 import {DraftForm, type Loaded} from './draft-form.ts';
 import {callServer} from '../query/server-api.ts';
 import {putSettingsDocument, type SettingsDocumentAPI} from '../settings-document.ts';
@@ -16,7 +17,8 @@ import {putSettingsDocument, type SettingsDocumentAPI} from '../settings-documen
  * (effective values, choices the server offers, the revision to save against).
  */
 
-export type ServerFormId = 'runtime' | 'alerts' | 'liveDefaults' | 'recording' | 'maintenance' | 'logs' | 'segments' | 'titleData' | 'streamLimits';
+/** Settings rows can refer to documents outside this module's draft factories. */
+export type ServerFormId = 'runtime' | 'connectivity' | 'remote' | 'certificate' | 'alerts' | 'liveDefaults' | 'recording' | 'maintenance' | 'logs' | 'segments' | 'titleData' | 'streamLimits';
 
 export type ServerFormDeps = Readonly<{
   api: SettingsDocumentAPI;
@@ -211,15 +213,17 @@ export function streamLimitsForm(deps: ServerFormDeps): DraftForm<Readonly<{perP
 
 // ── The forms of a page ─────────────────────────────────────────────────────────────────────
 
-const FACTORIES: Readonly<Record<ServerFormId, (deps: ServerFormDeps) => DraftForm<any, any>>> = {
+const FACTORIES = {
   runtime: runtimeForm, alerts: alertsForm,
   liveDefaults: liveDefaultsForm, recording: recordingForm, maintenance: maintenanceForm, logs: logsForm,
   segments: deps => namedSettingsForm(deps, 'segments'),
   titleData: deps => namedSettingsForm(deps, 'title_data'),
   streamLimits: streamLimitsForm,
-};
+} satisfies Partial<Record<ServerFormId, (deps: ServerFormDeps) => DraftForm<any, any>>>;
 
-export function createServerForm(id: ServerFormId, deps: ServerFormDeps): DraftForm<any, any> {
+export type DraftFormId = keyof typeof FACTORIES;
+
+export function createServerForm(id: DraftFormId, deps: ServerFormDeps): DraftForm<any, any> {
   return FACTORIES[id](deps);
 }
 
