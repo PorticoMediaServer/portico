@@ -107,6 +107,10 @@ sub onSeasons(event as object)
         if start < 0 and season.counts <> invalid and season.counts.unwatchedLeaves > 0 and season.index <> 0 then start = i
     end for
     if start < 0 then start = 0
+    ' opened on a season (an episode asked for to look at): that season, whatever is left to play
+    for i = 0 to m.list.count() - 1
+        if m.list[i].id = m.top.item.seasonId then start = i
+    end for
     m.startSeason = start
     m.seasons.seasons = rows
     m.seasons.index = start
@@ -145,11 +149,20 @@ sub showSeason()
     if at = invalid
         at = 0
         if nextUp > 0 then at = nextUp
+        ' opened at an episode: that one
+        for i = 0 to episodes.count() - 1
+            if episodes[i].id = m.top.item.episodeId and season.id = m.top.item.seasonId then at = i
+        end for
     end if
     at = followedTo(season.id, episodes, at)
     if at > 0 then m.episodes.jumpTo = at
     if not m.started
         m.started = true
+        ' opened on a season, the page starts folded on its Episodes, focus on the episode
+        if m.top.item.seasonId <> invalid
+            m.stop = 0
+            m.inRow = true
+        end if
         if m.top.isInFocusChain() then focusStop()   ' never from the rail, opened while this was loading
     end if
     drawTop()
