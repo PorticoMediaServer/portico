@@ -4,9 +4,10 @@ import {Modal, ScrollView, StyleSheet, TextInput, View, useWindowDimensions} fro
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {cancelAnimation, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {focusSpec} from '@portico/design';
+import {focusSpec, spacing} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Button} from '../controls/Button';
+import {ListEdgeFade, useListEdges} from '../layout/ListEdgeFade';
 import {useTheme} from '../theme';
 import {useMotion} from '../useMotion';
 import {useKeyboardHeight} from '../../platform/keyboard';
@@ -126,10 +127,14 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
   // is only for a sheet with no footer, so a sheet never offers both Done and Cancel.
   const close = <Button testID={testID ? `${testID}-close` : undefined} focusId="close" ref={closeRef} variant="text" size="small" style={theme.isTV ? undefined : {height: 24, paddingHorizontal: 0}} textStyle={{color: theme.colors.textSecondary}} hitSlop={theme.isTV ? undefined : 10} onPress={() => dismiss('close-button')}>{defaultI18n.t('action.done')}</Button>;
   if (!present || !paint.visible) return null;
+  const edges = useListEdges(spacing.xl);
   // R1: a TV side sheet's rows grow on focus and draw the ring outside them (detail-tv 5c); the scroll box leaves room
   // for both so neither is cut.
   const tvRing = theme.isTV && side ? Math.ceil((sideWidth - tvPadding.left - tvPadding.right) * (focusSpec.scale.button.tv - 1) / 2) + focusSpec.offsetOuter.tv + focusSpec.ringWidth.tv : 0;
-  const body = <View style={[styles.body, contentStyle]}>{scrollable ? <ScrollView ref={scrollRef} onLayout={revealFocusedInput} onScroll={event => {scrollOffset.current = event.nativeEvent.contentOffset.y;}} scrollEventThrottle={16} onContentSizeChange={(_width, height) => setBodyHeight(Math.max(0, height - contentPadding))} scrollEnabled={page || side || settled === heights.length - 1} keyboardShouldPersistTaps="handled" style={tvRing ? {marginHorizontal: -tvRing} : undefined} contentContainerStyle={{paddingBottom: page ? 0 : contentPadding, ...(tvRing ? {paddingHorizontal: tvRing, paddingTop: tvRing} : {})}}>{children}</ScrollView> : <View style={fitContent ? undefined : [styles.body, {paddingBottom: page || side ? 0 : contentPadding}]} onLayout={event => setBodyHeight(event.nativeEvent.layout.height)}>{children}</View>}</View>;
+  // A TV side sheet's list that runs past the sheet fades into it at that edge, as the player panel's does (tv-focus 36).
+  const body = <View style={[styles.body, contentStyle]}>{scrollable ? <ScrollView ref={scrollRef} fadingEdgeLength={tvRing ? edges.scroll.fadingEdgeLength : undefined} onLayout={event => {revealFocusedInput(); if (tvRing) edges.scroll.onLayout?.(event);}} onScroll={event => {scrollOffset.current = event.nativeEvent.contentOffset.y; if (tvRing) edges.scroll.onScroll?.(event);}} scrollEventThrottle={16} onContentSizeChange={(width, height) => {setBodyHeight(Math.max(0, height - contentPadding)); if (tvRing) edges.scroll.onContentSizeChange?.(width, height);}} scrollEnabled={page || side || settled === heights.length - 1} keyboardShouldPersistTaps="handled" style={tvRing ? {marginHorizontal: -tvRing} : undefined} contentContainerStyle={{paddingBottom: page ? 0 : contentPadding, ...(tvRing ? {paddingHorizontal: tvRing, paddingTop: tvRing} : {})}}>{children}</ScrollView> : <View style={fitContent ? undefined : [styles.body, {paddingBottom: page || side ? 0 : contentPadding}]} onLayout={event => setBodyHeight(event.nativeEvent.layout.height)}>{children}</View>}
+    {tvRing > 0 && edges.edges.top && <ListEdgeFade edge="top" length={spacing.xl} opacity={1} color={theme.colors.raised}/>}
+    {tvRing > 0 && edges.edges.bottom && <ListEdgeFade edge="bottom" length={spacing.xl} opacity={1} color={theme.colors.raised}/>}</View>;
   const surface = <TVDesignCanvas><View pointerEvents={paint.interactive ? 'auto' : 'none'} accessibilityElementsHidden={!paint.interactive} importantForAccessibility={paint.interactive ? 'auto' : 'no-hide-descendants'} style={styles.root} onLayout={event => setWindowHeight(event.nativeEvent.layout.height)}><View testID={testID ? `${testID}-keyboard-boundary` : undefined} style={[styles.root, {marginBottom: keyboardInset}]} accessibilityViewIsModal={!page} onAccessibilityEscape={() => {if (!page) dismiss('escape');}}>
       <Animated.View style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.isTV ? theme.colors.ink : '#03080c', backdropOpacity)}, scrimStyle, page ? {display: 'none'} : undefined]} pointerEvents="none"/>
       <View style={[StyleSheet.absoluteFill, page ? {display: 'none'} : undefined]} pointerEvents={page ? 'none' : 'auto'} onStartShouldSetResponder={() => !page} onResponderRelease={() => {if (!page && dismissOnOutsidePress) dismiss('outside');}} accessible={false}/>

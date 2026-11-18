@@ -153,7 +153,7 @@ test('Dialog provides bounded scrolling by default and honors a body-owned list 
     const f = fixture(1, width);
     const surface = await screenModule(new URL('../src-next/kit/overlays/surface.tsx', import.meta.url), {
       ...f.common, './OverlayPaintContext': liveOverlayPaint, 'react-native-svg': {default: 'Svg'},
-      '../../platform/layout/tv-canvas': {}, './TVDesignCanvas': {TVDesignCanvas: 'TVDesignCanvas'},
+      '../../platform/layout/tv-canvas': {}, './TVDesignCanvas': {TVDesignCanvas: 'TVDesignCanvas'}, '../layout/ListEdgeFade': {ListEdgeFade: () => null, useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}})},
       '../../../../../packages/i18n/src/index': {defaultI18n}, '../controls/Button': {Button: 'Button'}, '../controls/Focusable': {Focusable: 'Focusable'},
       '../Icon': {Icon: 'Icon'}, './BottomSheet': {BottomSheet: 'BottomSheet'},
       './OverlayHost': {useOverlayLifecycle() {}, OverlayPortal: 'OverlayPortal'}, './native-dismissal': {useNativeModalPresence: (present: boolean, shown = present) => ({mounted: present, visible: shown && present, onDismiss() {}})},
