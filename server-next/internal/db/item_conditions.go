@@ -55,6 +55,10 @@ var (
 	// true or false.
 	conditionFlags = map[string]string{
 		"available": "i.available = 1",
+		// Matched to a title, for the owner and administrators only. An episode or season goes by
+		// its show's match and a song by its album's; "Keep as is" is still unmatched.
+		"matched": fmt.Sprintf(`(SELECT mt.match_state FROM items mt WHERE mt.id = CASE WHEN i.kind IN (%d, %d) THEN i.root_id
+			WHEN i.kind = %d THEN i.parent_id ELSE i.id END) IN (%d, %d)`, KindSeason, KindEpisode, KindTrack, MatchFound, MatchChosen),
 		"inProgress": fmt.Sprintf(`i.id IN (SELECT p.item_id FROM user_item_state p
             CROSS JOIN items r ON r.id = p.item_id
             WHERE p.profile_id = @viewer_profile AND p.played = 0 AND
@@ -73,7 +77,7 @@ func stateValue(column string) string {
 var ConditionFields = []string{"genre", "studio", "network", "label", "tag", "actor", "director", "writer", "producer", "composer", "author",
 	"narrator", "artist", "person", "year", "contentRating", "resolution", "dynamicRange", "audioLanguage", "subtitleLanguage",
 	"communityRating", "criticRating", "durationMs", "wordCount", "userRating", "playCount", "versions", "added", "lastPlayed", "released",
-	"available", "inProgress", "country", "mood", "decade", "collection"}
+	"available", "inProgress", "country", "mood", "decade", "collection", "matched"}
 
 // PersonalFields are the fields that read the viewer's own state. A Library Channel is shared,
 // so its conditions never name one.
@@ -257,6 +261,9 @@ func (q ItemQuery) conditions(ctx context.Context, tx *sql.Tx, w *query, scoped 
 		}
 		if len(c.Values) == 0 {
 			continue
+		}
+		if c.Field == "matched" && !acc.manager {
+			return false, invalid("This list cannot be filtered that way.")
 		}
 		if c.Mode == "" {
 			c.Mode = ModeAny
@@ -498,3 +505,10 @@ var resolutionClasses = map[string]int{"sd": 1, "720p": 2, "1080p": 3, "4k": 4}
 
 const resolutionSQL = `CASE WHEN m.width >= 3800 OR m.height >= 2000 THEN 4 WHEN m.width >= 1900 OR m.height >= 1000 THEN 3
 	WHEN m.width >= 1200 OR m.height >= 700 THEN 2 ELSE 1 END`
+
+// fileSizeSQL is what a title's versions take on disk, or a season's or album's titles, or
+// those of everything under a show or an artist, each read through its own index.
+var fileSizeSQL = fmt.Sprintf(`CASE WHEN i.kind IN %[1]s THEN (SELECT sum(m.size) FROM media m WHERE m.item_id = i.id)
+	WHEN i.kind IN (%[2]d, %[3]d) THEN (SELECT sum(m.size) FROM items c INDEXED BY items_children CROSS JOIN media m ON m.item_id = c.id WHERE c.parent_id = i.id)
+	ELSE (SELECT sum(m.size) FROM items c INDEXED BY items_descendants CROSS JOIN media m ON m.item_id = c.id WHERE c.root_id = i.id) END`,
+	playableKindsSQL, KindSeason, KindAlbum)
