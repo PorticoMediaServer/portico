@@ -60,6 +60,7 @@ export function SortMenu({scope, focusId, sorts, value, label, onValueChange, on
     }
     setOpen(false);
   };
+  const rows = sorts.map(choice => <MenuRow key={choice.id} focusId={`sort:${choice.id}`} label={label(choice)} description={choice.expensive ? t('next.browse.native.expensiveSort') : undefined} selected={choice.id === value.field} preferredFocus={choice.id === value.field} accessibilityRole="radio" accessibilityState={{checked: choice.id === value.field}} variant={theme.isTV ? 'tv' : 'compact'} style={{minHeight: theme.isTV ? 64 : 44}} onPress={() => select(choice)}/>);
   return <>
     <Focusable ref={anchorRef} focusId={focusId} focusKind="chip" focusRadius={theme.isTV ? 14 : 10} accessibilityRole="button" accessibilityLabel={t('next.browse.native.sort')} accessibilityState={{expanded: open}} onPress={() => setOpen(!open)} style={{height: theme.isTV ? 64 : theme.platform === 'phone' ? 34 : 40, borderRadius: theme.isTV ? 14 : 10, paddingHorizontal: theme.isTV ? 26 : 14, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: theme.isTV ? alpha(theme.colors.text, .08) : theme.colors.raisedHigh}}>
       <Icon name="i-sort" size={theme.isTV ? 26 : 18} color={theme.colors.textTertiary}/>
@@ -70,7 +71,8 @@ export function SortMenu({scope, focusId, sorts, value, label, onValueChange, on
       </View>
     </Focusable>
     <Popover testID={scope ? `${scope}.sort-menu` : undefined} open={open} onOpenChange={setOpen} anchorRef={anchorRef} returnFocusRef={anchorRef} title={t('next.browse.native.sort')} width={theme.isTV ? 560 : 300} placement="bottom-end">
-      <ScrollView style={{maxHeight: theme.isTV ? 680 : 560}} keyboardShouldPersistTaps="handled">{sorts.map(choice => <MenuRow key={choice.id} focusId={`sort:${choice.id}`} label={label(choice)} description={choice.expensive ? t('next.browse.native.expensiveSort') : undefined} selected={choice.id === value.field} preferredFocus={choice.id === value.field} accessibilityRole="radio" accessibilityState={{checked: choice.id === value.field}} variant={theme.isTV ? 'tv' : 'compact'} style={{minHeight: theme.isTV ? 64 : 44}} onPress={() => select(choice)}/>)}</ScrollView>
+      {/* R9: on TV this is the side sheet, which scrolls its rows itself and spaces them; a scroll box of its own would cut the focused row's ring. */}
+      {theme.isTV ? rows : <ScrollView style={{maxHeight: 560}} keyboardShouldPersistTaps="handled">{rows}</ScrollView>}
       {active && value.flippable && !active.seeded && <View style={{borderTopWidth: 1, borderTopColor: theme.colors.line, padding: 8, gap: 6}}>
         <Text style={[browseType(theme, theme.isTV ? 20 : 13, 700), {color: theme.colors.textTertiary}]}>{t('next.browse.native.order')}</Text>
         <Segmented itemProps={item => ({focusId: `order:${item.value}`})} variant="browse" value={value.direction} onValueChange={dir => onValueChange({field: value.field, direction: dir as 'asc' | 'desc'})} items={active.directions.map(dir => ({value: dir, label: direction(dir)}))}/>
