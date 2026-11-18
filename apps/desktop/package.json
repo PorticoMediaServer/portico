@@ -2,6 +2,7 @@
   "name": "portico-desktop-spike",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build:web": "node scripts/build-web.mjs",
     "build:unsigned": "npm run build:web && cargo build --locked --manifest-path src-tauri/Cargo.toml --features custom-protocol"
