@@ -117,7 +117,7 @@ export const wideTitleLines = 3;
 
 export function WideCard(props: WideCardProps) {
   const t = useTheme(), width = props.width ?? t.spec.card.width.wide[t.column], height = width * 9 / 16;
-  const handheld = t.layoutMode === 'phone';
+  const handheld = t.layoutMode === 'phone', under = !handheld && !t.isTV && !!props.detail?.length;
   // kit.css draws the on-art fact separator (.gap) at 12 px, 16 px on TV.
   const factsGap = t.isTV ? 16 : 12;
   const compactFacts = handheld ? [...(props.caption ?? []), ...(props.detail ?? [])].filter(part => part.id === 'episode-label' || part.id === 'remaining' || part.id === 'picture-in-picture') : undefined;
@@ -126,18 +126,24 @@ export function WideCard(props: WideCardProps) {
   const [copyTop, setCopyTop] = useState<number>();
   const scrimStart = t.isTV || copyTop === undefined ? undefined : Math.max(0, Math.min(.45, (copyTop - 20) / height));
   return <CardFrame {...props} width={width} overlay={s => <Overlays props={props} hovered={s.hovered} holding={s.holding} height={height} playSize={52} centered />}>
-    {s => <ArtFrame height={height} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected}>
+    {s => <><ArtFrame height={height} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected}>
       <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="wide" source={props.artwork} fallback={fallbackFor(props, 'wide', width, height)} width={width} height={height} />
       <Scrim start={scrimStart} />
       <View onLayout={t.isTV ? undefined : event => {const top = event.nativeEvent.layout.y; if (top !== copyTop) setCopyTop(top);}} style={{position: 'absolute', left: t.spec.card.wide.insetX[t.column], right: t.spec.card.wide.insetX[t.column], bottom: t.spec.card.wide.insetBottom[t.column]}}>
         <Text numberOfLines={t.isTV ? 1 : wideTitleLines} style={[t.type.wideTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
         <View style={{marginTop: t.isTV ? 4 : 2}}><Parts parts={handheld ? compactFacts : props.caption} gap={factsGap} style={{color: t.colors.textSecondary}} /></View>
-        {!handheld && !t.isTV && <Parts parts={props.detail} gap={factsGap} style={{color: t.colors.textSecondary}} />}
         <Progress value={props.progress} style={{marginTop: t.spec.card.progress.marginTop[t.column]}} />
       </View>
-    </ArtFrame>}
+    </ArtFrame>{under && <View style={{marginTop: wideDetailGap}}><Parts parts={props.detail} gap={factsGap} /></View>}</>}
   </CardFrame>;
 }
+/** A wide card's detail (Continue Watching's time left) sits under the picture on a tablet, in the caption grey, as on the web
+ * (tablet 1, desktop-browse f1); a phone keeps it inside with the number (phone-app 4b), TV leaves it to the hero. A row of
+ * wide cards adds this to its item height when its cards carry a detail. */
+export function wideDetailHeight(t: ReturnType<typeof useTheme>) {
+  return t.layoutMode === 'phone' || t.isTV ? 0 : wideDetailGap + Math.ceil(t.type.cardSubtitle.lineHeight ?? (t.type.cardSubtitle.fontSize ?? 13) * 1.4);
+}
+const wideDetailGap = 8;
 
 export function CircleCard(props: CircleCardProps) {
   const t = useTheme(), width = props.width ?? (t.isTV ? t.spec.card.width.artist.tv : 104);
