@@ -60,7 +60,10 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
 #if DEBUG
     if let path = ProcessInfo.processInfo.environment["PORTICO_TEST_BUNDLE_PATH"], !path.isEmpty { return URL(fileURLWithPath: path) }
     if let packaged = Bundle.main.url(forResource: "main", withExtension: "jsbundle") { return packaged }
-    RCTBundleURLProvider.sharedSettings().jsLocation = "127.0.0.1:19424"
+    // A Debug build loads from Metro on this Mac's 19424, or the port given at launch (`-PorticoMetroPort 19445`), so
+    // several simulators can each follow a different Metro at once.
+    let port = UserDefaults.standard.string(forKey: "PorticoMetroPort") ?? "19424"
+    RCTBundleURLProvider.sharedSettings().jsLocation = "127.0.0.1:\(port)"
     return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
 #else
     return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
