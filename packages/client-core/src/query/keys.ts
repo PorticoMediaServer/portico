@@ -25,7 +25,6 @@ export const queryKeys = Object.freeze({
   /** The Dashboard's status (alerts and tasks). */
   adminDashboardStatus: () => ['admin', 'dashboard', 'status'] as const,
   /** The Dashboard's report for one range: its query and the interval it was captured for. */
-  adminDashboardReport: (range: unknown) => ['admin', 'dashboard', 'report', range] as const,
   /** The first page of the play history for one set of filters and one sort (later pages are its continuation, never cached). */
   adminPlayHistory: (filter: unknown, sort: unknown) => ['admin', 'play-history', filter, sort] as const,
   /** An owner's view of one library: `GET /v1/admin/libraries/{id}` (its source, last scan and offered actions). */

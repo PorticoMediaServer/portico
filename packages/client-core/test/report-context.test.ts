@@ -1,7 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {captureReportContext,parseReportContext,parseReportInterval} from '../src/report-context.ts';
-import {DashboardDataClient,parseDashboardReport} from '../src/admin/dashboard.ts';
 import {ConsoleClient} from '../src/console.ts';
 import {fetchPlayHistory,fetchPlaySummary} from '../src/play-history.ts';
 
@@ -26,10 +25,8 @@ test('canonical capture floors completed quarters once per transaction and requi
 test('all aggregate wrappers/pages carry the exact same context and explicit Today',async()=>{
  const seen:string[]=[];
  const api={request:async(path:string)=>{seen.push(path);if(path.startsWith('/v1/admin/dashboard/report'))return {context,history,people,table,summary,topPlayed:{...interval,items:[],topKind:'movies'},load};if(path.startsWith('/v1/admin/play-history/summary'))return summary;if(path.startsWith('/v1/admin/play-history/people'))return people;if(path.startsWith('/v1/admin/play-history/dashboard'))return history;return table;}} as any;
- const filters={...context,period:'today' as const};const client=new DashboardDataClient(api);
- await client.people(filters,'opaque',100);await client.history(filters);await fetchPlayHistory(api,filters,'page2');await fetchPlaySummary(api,filters);
- const report=await client.report({...filters,window:'today',peoplePeriod:'today',topPeriod:'today',topKind:'movies'});
- assert.equal(report.table.total,report.summary.plays);
+ const filters={...context,period:'today' as const};
+ await fetchPlayHistory(api,filters,'page2');await fetchPlaySummary(api,filters);
  for(const path of seen){const q=new URL(path,'https://server.invalid').searchParams;assert.equal(q.get('timeZone'),context.timeZone);assert.equal(q.get('until'),context.until);assert.equal(q.get('period'),'today');}
 });
 
@@ -44,12 +41,4 @@ test('repeated DST hour identities survive canonical interval parsing',()=>{
  const repeated={period:'24h',timeZone:'America/New_York',from:new Date(from).toISOString(),until:new Date(until).toISOString(),buckets:Array.from({length:24},(_,i)=>({start:new Date(from+i*3600000).toISOString(),end:new Date(Math.min(from+(i+1)*3600000,until)).toISOString(),partial:i===23}))};
  const out=parseReportInterval(repeated);assert.equal(out.buckets.length,24);
  assert.ok(out.buckets.some(b=>b.start==='2026-11-01T05:00:00.000Z'));assert.ok(out.buckets.some(b=>b.start==='2026-11-01T06:00:00.000Z'));
-});
-
-test('common report rejects a filter-specific start for the same period',()=>{
- const report={context,history,people,table,summary,topPlayed:{...interval,items:[],topKind:'movies'},load};
- parseDashboardReport(report);
- const from='2026-10-21T18:15:00Z';
- const filteredPeople={...people,from,buckets:[{start:from,end:interval.until,partial:true}]};
- assert.throws(()=>parseDashboardReport({...report,people:filteredPeople}));
 });

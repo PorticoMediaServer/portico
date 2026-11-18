@@ -1,4 +1,3 @@
-import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 import {serverPath} from './query/server-api.ts';
 /** `durationMs`: the length of what is playing, when the server knows it (never for a channel). */
@@ -39,13 +38,10 @@ export function parseRemotePlaybackControls(v:unknown):RemoteControlsDocument{
  return Object.freeze({items:Object.freeze(items),nextCursor:'',...(v.limit===undefined?{}:{streamLimit:Object.freeze({scope:'account' as const,limit:v.limit as number,playing:items.length})})});
 }
 export function playbackControlsService(request:<T>(path:string,method?:string,body?:unknown)=>Promise<T>){
- const path=(id:string)=>encodedRoutePath("get_admin_session_controls", {"id": encodeURIComponent(id)});
  return Object.freeze({
  /** The whole list in one answer; the paging arguments are kept for callers that page. */
  async remote(_cursor='',_limit=50){return parseRemotePlaybackControls(await request<unknown>(serverPath('GET /v1/playback/sessions')));},
  /** Ends one of the account's streams on whichever device plays it. */
  async stopAccount(selected:Pick<RemotePlaybackControls,'sessionId'>){await request<unknown>(serverPath('DELETE /v1/playback/sessions/{id}',{id:selected.sessionId}),'DELETE',{});},
- async readAdmin(id:string){return parseSessionControls(await request<unknown>(path(id)));},
- async controlAdmin(current:SessionControls,action:'pause'|'resume'|'seek',positionMs?:number){return parseSessionControls(await request<unknown>(path(current.sessionId),'POST',{action,expectedRevision:current.revision,...(positionMs===undefined?{}:{positionMs})}));},
  });
 }

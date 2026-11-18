@@ -1,9 +1,7 @@
 import type {ResyncReadContext, ResyncRegistration} from '../resync-coordinator.ts';
 /**
- * Server › Overview Now Playing on Playback Protocol v1 (spec §14, be/playback c85d526):
- * `GET /v1/admin/sessions` and `POST /v1/admin/sessions/{id}:terminate`. A server that
- * announces v1 is read through client-core's `NowPlayingStore`; one without it (or one whose
- * v1 list answers 404) keeps the /v2 owner streams list.
+ * Server › Overview Now Playing (spec §14): `GET /v1/admin/sessions`, and Stop is
+ * `DELETE /v1/admin/sessions/{id}`.
  *
  * Refreshing never storms: while the device's v1 event feed is connected the list re-reads on
  * `admin.sessions` / `session.updated` (and a resync), coalesced by the store; otherwise it
@@ -12,8 +10,6 @@ import type {ResyncReadContext, ResyncRegistration} from '../resync-coordinator.
 import type {AdminSession} from '../playback-v1/types.ts';
 import type {MessageId, MessageValues} from '../../../i18n/src/index.ts';
 import {when} from './console-words.ts';
-import {ALREADY_DONE, sendWithFreshRecord} from '../freshness-actions.ts';
-import type {SessionControls} from '../playback-controls.ts';
 
 export const NOW_PLAYING_POLL_MS = 10_000;
 /** The server's limit for the message shown to the viewer (`AdminTerminateMessageMax`). */
@@ -148,7 +144,6 @@ export function transportOffers(x: Readonly<{kind: string; state: string}>, allo
 }
 
 /** The server action a command is sent as. */
-export const transportAction = (command: TransportCommand): 'pause' | 'resume' | 'seek' => (command === 'pause' || command === 'resume' ? command : 'seek');
 
 /**
  * Where a seeking command lands from a position, in whole milliseconds; nothing for Pause and
@@ -179,57 +174,6 @@ export function playedFraction(x: Readonly<{positionMs: number; durationMs?: num
 /** Whether a position bar is offered: something with a timeline, a known length and leave to seek. */
 export function offersScrubber(x: Readonly<{kind: string; durationMs?: number}>, allowed?: readonly string[]): boolean {
   return (x.kind === 'vod' || x.kind === 'audio') && !!x.durationMs && x.durationMs > 0 && (!allowed || allowed.includes('seek'));
-}
-
-/** Whether the session already is what a command asks for (someone else pressed it first). */
-export const transportDone = (command: TransportCommand, state: string): boolean => (command === 'pause' && state === 'paused') || (command === 'resume' && state === 'playing');
-
-const ended = () => Object.assign(new Error('session_ended'), {code: 'session_ended', status: 410});
-
-/**
- * The owner's Pause, Resume, Back, Forward or Start over on any session. The session's controls
- * are read first (they carry the revision and the position a seek is measured from); when the
- * session moved in between, they are read again and the command is sent again, silently. A
- * session that has ended, or no longer allows the command, ends with `session_ended`.
- */
-export async function sendTransport(service: Readonly<{readAdmin(id: string): Promise<SessionControls>; controlAdmin(current: SessionControls, action: 'pause' | 'resume' | 'seek', positionMs?: number): Promise<SessionControls>}>, sessionId: string, command: TransportCommand): Promise<SessionControls> {
-  const action = transportAction(command);
-  const first = await service.readAdmin(sessionId);
-  if (!first.actions.includes(action)) throw ended();
-  if (transportDone(command, first.state)) return first;
-  let latest = first;
-  try {
-    const out = await sendWithFreshRecord(first, current => service.controlAdmin(current, action, seekTarget(command, current.positionMs, current.durationMs)), {
-      reread: async () => (latest = await service.readAdmin(sessionId)),
-      applies: now => (!now.actions.includes(action) ? false : transportDone(command, now.state) ? 'done' : true),
-    });
-    return out === ALREADY_DONE ? latest : out;
-  } catch (error) {
-    // It ended while the command was on its way: say that, not that something changed.
-    if (!latest.actions.includes(action)) throw ended();
-    throw error;
-  }
-}
-
-/**
- * The owner moved the position bar of a session on another device to `positionMs`. As with the
- * other commands the controls are read first and a moved session is sent again silently; the
- * position is absolute, so a session that moved underneath still lands where the owner pointed.
- */
-export async function sendSeekTo(service: Parameters<typeof sendTransport>[0], sessionId: string, positionMs: number): Promise<SessionControls> {
-  const first = await service.readAdmin(sessionId);
-  if (!first.actions.includes('seek')) throw ended();
-  let latest = first;
-  try {
-    const out = await sendWithFreshRecord(first, current => service.controlAdmin(current, 'seek', clampToLength(positionMs, current.durationMs)), {
-      reread: async () => (latest = await service.readAdmin(sessionId)),
-      applies: now => now.actions.includes('seek'),
-    });
-    return out === ALREADY_DONE ? latest : out;
-  } catch (error) {
-    if (!latest.actions.includes('seek')) throw ended();
-    throw error;
-  }
 }
 
 /** A position as the console shows it: `1:02:03`, or `2:03` under an hour. */
