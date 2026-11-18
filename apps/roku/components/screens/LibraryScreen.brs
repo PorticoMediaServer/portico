@@ -62,6 +62,31 @@ sub onLibrary()
     api("GET", "/v1/libraries", invalid, "onSiblings", {id: library.id})
 end sub
 
+' One list as a grid: the page's title and count over it, nothing to sort or filter.
+sub onItem()
+    list = m.top.item
+    m.list = list
+    m.libraryNames = {}
+    api("GET", "/v1/libraries", invalid, "onLibraries")
+    m.top.findNode("name").text = list.title
+    m.top.art = ""
+    m.detail = {views: [{kind: list.view}], sorts: [], filters: []}
+    m.toolSpecs = []
+    drawViews()
+    drawTools()
+    loadList()
+end sub
+
+' A list across libraries (a search kind, a genre) tells the same title in two libraries apart by
+' the library's name.
+sub onLibraries(event as object)
+    result = event.getData()
+    if not result.ok or result.data.items = invalid then return
+    for each library in result.data.items
+        m.libraryNames[library.id] = library.name
+    end for
+end sub
+
 sub onDetail(event as object)
     result = event.getData()
     if event.getRoSGNode().ctx.id <> m.top.library.id then return
@@ -259,6 +284,7 @@ function narrowed() as boolean
 end function
 
 function listPath() as string
+    if m.list <> invalid then return m.list.path
     view = m.detail.views[m.view]
     q = "/v1/items?library=" + m.top.library.id
     if view.kind <> "" then q = q + "&kind=" + view.kind
@@ -323,17 +349,28 @@ sub onPage(event as object)
         if ctx.first = true then gridSays("error", "Couldn't load these titles", whyFailed(result), "Try again")
         return
     end if
-    fresh = withoutReading(result.data.items)
-    m.cursor = result.data.nextCursor
+    page = result.data
+    if page.groups <> invalid
+        ' one kind of a search: the page is that kind's group, whose first page carries the count
+        ' (the count's own request reads no total from a search, and so leaves this one)
+        page = {items: [], nextCursor: invalid}
+        if result.data.groups.count() > 0 then page = result.data.groups[0]
+        if ctx.first = true and page.total <> invalid then m.top.findNode("count").text = kindCount(page.total, m.detail.views[m.view].kind)
+    end if
+    fresh = withoutReading(page.items)
+    m.cursor = page.nextCursor
     if ctx.first = true
         ' the grid keeps its content node and only its cards change: a new node, set while the
         ' toolbar has focus, drew a focus ring on the first card as well
         if m.grid.content = invalid then m.grid.content = createObject("roSGNode", "ContentNode")
         m.grid.content.removeChildrenIndex(m.grid.content.getChildCount(), 0)
     end if
+    copies = []
+    if m.list <> invalid then copies = copyNames(fresh, m.libraryNames)
     for i = 0 to fresh.count() - 1
         item = fresh[i]
         card = cardOf(item, "")
+        if m.list <> invalid and copies[i] <> "" then card.sub = copies[i]
         m.grid.content.createChild("ContentNode").addFields(card)
         ' a collection or an artist with no picture of its own borrows one from what it holds
         if card.art = "" and (item.kind = "collection" or item.kind = "artist") then askArt(m.items.count() + i, item)
@@ -668,6 +705,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
         return true
     end if
     if not press or m.detail = invalid or m.region = "page" then return false
+    if m.list <> invalid then return key = "up"     ' one list: the grid is the whole page
     if m.region = "grid"
         if key = "up"
             m.region = "tools"

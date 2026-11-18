@@ -85,8 +85,10 @@ function frames() as object
         ' Every page beside the rail: its content ends at `rightEdge`.
         rightEdge: 1824
         ' Search (tv.html frame 5): the box on the page title's line, the keys under it, the results
-        ' column from `resultsX`; the row in focus is brought up level with the keys.
-        search: {boxWidth: 500, boxHeight: 80, keysY: 176, resultsX: 780}
+        ' column from `resultsX` with the kinds' chips on the title line; the row in focus is
+        ' brought up level with the keys. Under the words of an empty box or of no matches, the
+        ' recent searches or the genres to browse start at `underNoteY` (states frame 18).
+        search: {boxWidth: 500, boxHeight: 80, keysY: 176, resultsX: 780, underNoteY: 236}
         ' Settings: the list column from `listX` (the Search settings box on `findY`, `findHeight` tall, its
         ' key hints centred on `hintsY` and 50 under it), then the chosen page at `pageX`: title at `top`,
         ' content `headerGap` under it, an intro `introWidth` wide, sections `sectionGap` apart; a row in
