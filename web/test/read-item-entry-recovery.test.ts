@@ -65,7 +65,6 @@ async function mountRead(options: {canGoBack?: boolean; phone?: boolean; open?: 
     '@i18n': {defaultI18n: i18n},
     '@design': {generatedCoverTint: () => ({first: '#111', second: '#222'})},
     '@core/index.ts': {ApiError: class ApiError extends Error {}},
-    '@core/metadata-repair.ts': {validateRepair: () => true},
     '../../../../packages/contracts/src/routes.ts': {encodedRoutePath: (path: string) => path},
     '@portico/reader-core': {createReadingPublication: async () => ({contentsTarget: (index: number) => ({index}), dispose() {}})},
     './contents-handoff': {stageContentsTarget: () => {}, retireContentsTarget: () => {}},

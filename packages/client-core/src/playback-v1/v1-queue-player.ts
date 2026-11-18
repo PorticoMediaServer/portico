@@ -37,7 +37,7 @@ import type {PlaybackService, PlaybackSession} from '../index.ts';
 import type {AudiobookPreferences} from '../audiobook-preferences.ts';
 import {serviceText} from '../presentation/service-text.ts';
 import {playbackUserMessage} from '../playback-messages.ts';
-import {ListeningService, loadListeningSelection, type ListeningTarget} from '../listening.ts';
+import {ListeningService} from '../listening.ts';
 import {bookChapterIndex, bookChapterSteps, bookChapterTarget, readBookChapters, type BookChapter, type BookChaptersView} from '../book-chapters.ts';
 import type {QueueAdvanceMode, QueuePostPlay} from '../post-play.ts';
 import type {PreparedChoice} from '../prepared-media.ts';
@@ -701,13 +701,7 @@ export class V1QueuePlayer implements QueueController {
     return this.session?.id !== sessionId && !!this.session;
   }
 
-  async journey(target: ListeningTarget, action: 'play' | 'shuffle' | 'mix' | 'enqueue', resume = false, options: {signal?: AbortSignal; startItem?: string; startSeconds?: number} = {}) {
-    this.listening.interact();
-    const result = await loadListeningSelection((path, body, method, signal) => this.request(path, body, method, signal), this.scope, target, {mix: action === 'mix', resume, startItem: options.startItem, signal: options.signal});
-    if (action === 'enqueue') await this.enqueueMany(result.entries);
-    else await this.playEntries(result.entries, {shuffle: action === 'shuffle', startSeconds: options.startSeconds ?? (resume ? result.startSeconds : 0)});
-    return result;
-  }
+
 
   /** Play or Shuffle a container (a show, a season, a collection, an album…) as one queue
    * segment: the server snapshots it, however large, and the first entry plays at once. */
