@@ -152,6 +152,17 @@ const detailCredits = 20
 // Item returns one item with its versions, tracks, first credits, tags, pictures and the
 // viewer's state. An item the viewer may not see is not found.
 func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, error) {
+	return d.item(ctx, v, publicID, true)
+}
+
+// ItemSummary is Item without what only a title's own page shows: versions, credits,
+// external ids, collections and a show's next episode. Home's spotlight reads five of these on
+// every Home, where the whole detail cost about a quarter of Home's time.
+func (d *DB) ItemSummary(ctx context.Context, v Viewer, publicID string) (ItemDetail, error) {
+	return d.item(ctx, v, publicID, false)
+}
+
+func (d *DB) item(ctx context.Context, v Viewer, publicID string, whole bool) (ItemDetail, error) {
 	var out ItemDetail
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
@@ -172,7 +183,7 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 		var kept string
 		if tx.QueryRowContext(ctx, mergedIntoSQL, KeyMerged, publicID).Scan(&kept) == nil {
 			tx.Rollback()
-			return d.Item(ctx, v, kept)
+			return d.item(ctx, v, kept, whole)
 		}
 		return out, ErrNotFound
 	}
@@ -221,6 +232,9 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 	if out.Tags, err = queryAll(ctx, tx, `SELECT t.public_id, t.kind, t.name FROM item_tags it JOIN tags t ON t.id = it.tag_id
 		WHERE it.item_id = ? AND t.kind <> 'mood' ORDER BY t.kind, t.name`, []any{out.ID}, func(t *Tag) []any { return []any{&t.PublicID, &t.Kind, &t.Name} }); err != nil {
 		return out, err
+	}
+	if !whole {
+		return out, nil
 	}
 	if out.ExternalIDs, err = queryAll(ctx, tx, `SELECT provider, external_id FROM item_external_ids WHERE item_id = ?`, []any{out.ID},
 		func(e *ExternalID) []any { return []any{&e.Provider, &e.ID} }); err != nil {
