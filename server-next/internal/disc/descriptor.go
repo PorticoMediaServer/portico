@@ -64,3 +64,15 @@ func (t Tool) SeekDescriptor(ctx context.Context, file *os.File, directory bool,
 	}
 	return DecodeSeek(raw, playlist, ms)
 }
+
+// EntryPointsDescriptor lists a Blu-ray title's entry points, one for each stepMs of it.
+func (t Tool) EntryPointsDescriptor(ctx context.Context, file *os.File, directory bool, title Title, stepMs int64) (EntryPoints, error) {
+	if title.Playlist == nil {
+		return EntryPoints{}, ErrProtocol
+	}
+	raw, err := t.runDescriptor(ctx, file, directory, "entry-points", DescriptorPath(directory), strconv.Itoa(*title.Playlist), strconv.FormatInt(stepMs, 10))
+	if err != nil {
+		return EntryPoints{}, err
+	}
+	return DecodeEntryPoints(raw, title, stepMs)
+}

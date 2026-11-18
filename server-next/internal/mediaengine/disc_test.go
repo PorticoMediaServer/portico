@@ -2,6 +2,7 @@ package mediaengine_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
@@ -80,9 +81,11 @@ func TestPlayingADiscIsRefusedInPlainWords(t *testing.T) {
 }
 
 // A film disc kept as a folder plays its main feature as the server's stream, never as the
-// folder itself, its picture converted: its playlist names segments that are the title's
-// picture, a segment past the Blu-ray's first clip (a seek) plays from its place, and the disc
-// played again resumes where it was left.
+// folder itself. A Blu-ray's picture is copied where the device plays it, cut on the title's
+// entry points as the disc reader lists them: to a device that plays its sound too it is
+// repackaged, and to a browser only the sound is converted. A DVD's picture is converted. Its
+// playlist names segments that are the title's picture, a segment past the Blu-ray's first clip
+// (a seek) plays from its place, and the disc played again resumes where it was left.
 func TestADiscPlaysItsMainFeature(t *testing.T) {
 	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
 	reader := discReader(ffmpeg)
@@ -92,11 +95,31 @@ func TestADiscPlaysItsMainFeature(t *testing.T) {
 	// The server finds that reader once it has asked the FFmpeg what it can do, which happens
 	// beside the house's start; the scan may come first.
 	t.Setenv("PORTICO_PORTICO-DISC", reader)
-	for _, fixture := range []string{"bluray-two-clip-bdmv", "dvd-two-title-video-ts"} {
-		t.Run(fixture, func(t *testing.T) {
+	// The Blu-ray's keyframes are on whole seconds, and its entry points are each keyframe at or
+	// before a six-second line, as the EP map keeps them (up to 6 ms early).
+	entryPoints := []float64{0, 5.998, 12, 17.996, 23.998, 29.999, 35.996, 41.997, 47.999, 53.995, 59.997, 65.999, 70.999}
+	for _, c := range []struct {
+		fixture, profile, route, picture string
+	}{
+		{"bluray-two-clip-bdmv", "tvos", playback.RouteRepackaged, "copy"},
+		{"bluray-two-clip-bdmv", "chromium", playback.RouteConverted, "copy"},
+		{"dvd-two-title-video-ts", "chromium", playback.RouteConverted, "transcode"},
+	} {
+		t.Run(c.fixture+"/"+c.profile, func(t *testing.T) {
 			h, d := newHouse(t, ffmpeg, ffprobe)
+			raw, err := os.ReadFile(filepath.Join("..", "streaming", "profiles", c.profile+".json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var profile struct {
+				Document json.RawMessage `json:"document"`
+			}
+			if err := json.Unmarshal(raw, &profile); err != nil {
+				t.Fatal(err)
+			}
+			h.call("PUT", "/v1/devices/"+h.device+"/capabilities", profile.Document, nil, 204)
 			library := filepath.Join(t.TempDir(), "Films")
-			if err := os.CopyFS(filepath.Join(library, "Disc Film (2019)"), os.DirFS(filepath.Join("..", "..", "..", "fixtures", "discs", fixture))); err != nil {
+			if err := os.CopyFS(filepath.Join(library, "Disc Film (2019)"), os.DirFS(filepath.Join("..", "..", "..", "fixtures", "discs", c.fixture))); err != nil {
 				t.Fatal(err)
 			}
 			lib, err := d.CreateLibrary(context.Background(), "Films", db.LibraryMovies, "en", []string{library})
@@ -116,19 +139,24 @@ func TestADiscPlaysItsMainFeature(t *testing.T) {
 			var session api.PlaybackSession
 			h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: item}, &session, 201)
 			p := session.Presentation
-			if p.Mode != "stream" || p.Route != playback.RouteConverted || p.Decision.Video == nil || p.Decision.Video.Action != "transcode" ||
+			if p.Mode != "stream" || p.Route != c.route || p.Decision.Video == nil || p.Decision.Video.Action != c.picture ||
 				!strings.HasSuffix(p.URL, "/master.m3u8") {
-				t.Fatalf("a disc should play as the server's stream, its picture converted: %+v", p)
+				t.Fatalf("a disc should play as the server's stream, %s with its picture %s: %+v", c.route, c.picture, p)
 			}
-			// The fixtures' main features are 72 seconds. The first segment, and the one holding 42
+			// The fixtures' main features are 72 seconds. A converted picture is cut every six
+			// seconds; a copied one on the entry points. The first segment, and the one holding 42
 			// seconds, past the Blu-ray's first clip (it ends at 37), each start where they should.
-			header, segments := discSegments(t, h, p.URL)
-			if len(segments) != 12 {
-				t.Fatalf("the playlist lists %d segments", len(segments))
+			starts := []float64{0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66}
+			if c.picture == "copy" {
+				starts = entryPoints
 			}
-			for n, want := range map[int]float64{0: 0, 7: 42} {
-				if at := discPicture(t, h, ffprobe, header, segments[n]); at < want || at > want+0.5 {
-					t.Fatalf("segment %d starts at %.3f seconds, want %.0f", n, at, want)
+			header, segments := discSegments(t, h, p.URL)
+			if len(segments) != len(starts) {
+				t.Fatalf("the playlist lists %d segments, want %d", len(segments), len(starts))
+			}
+			for _, n := range []int{0, 7} {
+				if at := discPicture(t, h, ffprobe, header, segments[n]); at < starts[n]-0.01 || at > starts[n]+0.5 {
+					t.Fatalf("segment %d starts at %.3f seconds, want %.3f", n, at, starts[n])
 				}
 			}
 			h.call("PUT", "/v1/playback/sessions/"+session.ID+"/progress", api.PlaybackProgress{State: "playing", PositionMs: 42_000}, nil, 200)
@@ -140,8 +168,8 @@ func TestADiscPlaysItsMainFeature(t *testing.T) {
 				t.Fatalf("the disc resumed at %d ms", session.Presentation.StartPositionMs)
 			}
 			header, segments = discSegments(t, h, session.Presentation.URL)
-			if at := discPicture(t, h, ffprobe, header, segments[7]); at < 42 || at > 42.5 {
-				t.Fatalf("resumed, segment 7 starts at %.3f seconds", at)
+			if at := discPicture(t, h, ffprobe, header, segments[7]); at < starts[7]-0.01 || at > starts[7]+0.5 {
+				t.Fatalf("resumed, segment 7 starts at %.3f seconds, want %.3f", at, starts[7])
 			}
 			h.call("DELETE", "/v1/playback/sessions/"+session.ID, nil, nil, 204)
 		})
@@ -204,7 +232,9 @@ func discPicture(t *testing.T, h *house, ffprobe, header, segment string) float6
 		t.Fatal(err)
 	}
 	out, err := exec.Command(ffprobe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,height,start_time", "-of", "csv=p=0", file).CombinedOutput()
-	fields := strings.Split(strings.TrimSpace(string(out)), ",")
+	// A copied transport stream keeps its program, and ffprobe lists the picture under it too.
+	line, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+	fields := strings.Split(line, ",")
 	if len(fields) != 3 {
 		t.Fatalf("%s is not a picture: %q (%v)", segment, out, err)
 	}
