@@ -9,6 +9,8 @@ sub init()
     m.hero.translation = [f.gutter, f.title.copyTop]
     m.sections = m.top.findNode("sections")
     m.hero.observeField("pressed", "onPressed")
+    m.fileInfo = m.top.findNode("fileInfo")
+    m.fileInfo.observeField("closed", "focusStop")
     m.sections.observeField("chosen", "onRelatedChosen")
     m.sections.observeField("hasRelated", "place")
     m.stop = 0            ' 0 the hero, 1 More like this, 2 Details
@@ -166,11 +168,13 @@ sub openMenu()
         return
     end if
     if m.full = invalid or m.full.state = invalid then return
-    m.top.menu = cardMenu(m.full, [], ["details"])
+    m.top.menu = cardMenu(m.full, fileMenuRows(m.full), ["details"])
 end sub
 
 sub onMenuChosen(event as object)
-    cardMenuChosen(event.getData())
+    which = event.getData()
+    if cardMenuChosen(which) then return
+    fileMenuChosen(m.full, which)     ' Play a different version and File info (kit/CardMenu.brs)
 end sub
 
 sub cardMenuChanged(item as object)
@@ -178,6 +182,7 @@ sub cardMenuChanged(item as object)
     m.full = item
     draw()
 end sub
+
 
 ' The change shows at once; the server is told, and the page takes the state it answers with.
 sub save(item as object, change as object)

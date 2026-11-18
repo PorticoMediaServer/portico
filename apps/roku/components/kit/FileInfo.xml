@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- File info (tv-detail frame 8): a second side panel from a title's or an episode's menu. For
+     each version, its resolution, video and audio formats, size and length, for information only:
+     the server chooses what plays. It enters on Done; Done and Back close it. -->
+<component name="FileInfo" extends="Group">
+  <interface>
+    <!-- The title in full (GET /v1/items/{id}); setting it opens the panel. -->
+    <field id="item" type="assocarray" onChange="onItem"/>
+    <field id="closed" type="boolean" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="FileInfo.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <children>
+    <SidePanel id="surface"/>
+    <Label id="eyebrow" text="File info"/>
+    <Label id="name" wrap="true" maxLines="2"/>
+    <Label id="meta"/>
+    <Group id="table"/>
+    <Label id="note" wrap="true" maxLines="2" text="Portico chooses the version to play from the device and your settings. This list is for information."/>
+    <ButtonRow id="done"/>
+  </children>
+</component>

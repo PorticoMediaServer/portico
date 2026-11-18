@@ -70,6 +70,8 @@ function kitPages() as object
             {c: "Face", at: [200, 200], f: {size: 280, name: "Steven Spielberg", photo: ""}}, {c: "Face", at: [560, 200], f: {size: 280, name: "Zendaya", photo: ""}},
             {c: "Face", at: [920, 200], f: {size: 280, name: "Timothée Chalamet", photo: ""}}]},
         {title: "The whole-page state", parts: [{c: "PageState", at: [0, 0], f: {icon: "warning", title: "Can't reach the server", body: "You're still signed in. Try again in a moment.", buttons: [{id: "a", text: "Try again now", icon: "refresh"}], footnote: "A footnote line"}}]},
+        {title: "File info: a title's versions in a table (a sample with two)", parts: [
+            {c: "FileInfo", at: [0, 0], f: {item: {kind: "movie", title: "A film", year: 2024, versions: [{edition: "Director's Cut", width: 3840, height: 2160, videoCodec: "hevc", size: 61400000000, durationMs: 9960000}, {width: 1920, height: 1080, videoCodec: "h264", audioCodec: "ac3", audioChannels: 6, size: 9800000000, durationMs: 9960000}]}}}]},
         {title: "Keys", parts: [
             {c: "Key", at: [200, 200], f: {text: "a", role: "keyLetter"}}, {c: "Key", at: [320, 200], f: {text: "b", role: "keyLetter", on: true}},
             {c: "Key", at: [440, 200], f: {glyph: "backspace", role: "button"}}, {c: "Key", at: [200, 340], f: {text: "7", role: "padKey", width: 148, height: 118}},
