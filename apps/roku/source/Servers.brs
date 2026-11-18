@@ -111,3 +111,11 @@ end function
 function bytesBase64url(bytes as object) as string
     return bytes.toBase64String().replace("+", "-").replace("/", "_").replace("=", "")
 end function
+
+' A server found on the home network: when this TV's signed account list knows its id, the
+' fingerprint it announces (TXT fp, base64url SHA-256 of its key) must be the one pinned from that
+' list (owner ruling 18). A server the list does not know is checked by its id alone.
+function printHolds(prints as dynamic, record as object) as boolean
+    if type(prints) <> "roAssociativeArray" or prints[record.id] = invalid then return true
+    return record.fp = prints[record.id]
+end function

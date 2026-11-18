@@ -253,8 +253,12 @@ end function
 sub onFound(event as object)
     if m.stage <> "local" or not event.getRoSGNode().isSameNode(m.discovery) then return
     ' each answer as it arrives; a server already listed (or being asked) is not asked again
+    ' a server this TV knows from its Portico Account's signed list must announce that key's fingerprint
+    prints = parseJson(storeRead("porticoPrints:" + storeRead("porticoAccountId")))
     for each record in event.getData()
-        if nearbyIndex(record.id) < 0
+        if not printHolds(prints, record)
+            ' another machine announcing a known server's id with a different key: not listed
+        else if nearbyIndex(record.id) < 0
             m.nearby.push({id: record.id, ip: record.ip, candidates: addressCandidates(record.ip + ":" + record.port.toStr()), origin: ""})
             checkNearby(m.nearby.count() - 1)
         end if

@@ -79,6 +79,7 @@ sub main()
         listRules({kind: "portico.server-list", accountId: "acc_a", version: 7.5, servers: []}, "acc_a", invalid, idOf),
         listRules({kind: "portico.server-list", accountId: "acc_a", version: 7, servers: [{serverId: "srv_k1", publicKey: "k1", addresses: []}]}, "acc_a", invalid, idOf),
         listRules({kind: "portico.server-list", accountId: "acc_a", version: 7, servers: [{serverId: "srv_k1", publicKey: "k1", name: "H", addresses: [3]}]}, "acc_a", invalid, idOf)], ["unreadable", "unreadable", "unreadable", "unreadable"])
+    same("found server's fingerprint", [printHolds({srv_a: "fp1"}, {id: "srv_a", fp: "fp1"}), printHolds({srv_a: "fp1"}, {id: "srv_a", fp: "other"}), printHolds({srv_a: "fp1"}, {id: "srv_b", fp: "x"}), printHolds(invalid, {id: "srv_a", fp: "x"})], [true, false, true, true])
     same("base64url", [bytesBase64url(base64urlBytes("_-8")), base64urlBytes("AAEC").toHexString()], ["_-8", "000102"])
     same("file sizes", [sizeText(1600000000), sizeText(42000000), sizeText(42582), sizeText(0)], ["1.6 GB", "42 MB", "43 KB", ""])
     ' an artist's circle: two albums split it with the newest on the right; three or more cut the right half

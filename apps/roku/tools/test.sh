@@ -20,7 +20,7 @@ out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/listrow.brs compon
 echo "$out" | tail -20
 echo "$out" | grep -q '^PASSED *[0-9]* FAILED *0$'
 # The sign-in screen's own code with stand-in nodes: late answers from another server are dropped.
-out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/signin.brs components/screens/SignInScreen.brs source/Address.brs 2>&1) || true
+out=$(npx --yes --package @rokucommunity/brs@0.47.6 brs tests/signin.brs components/screens/SignInScreen.brs source/Address.brs source/Servers.brs 2>&1) || true
 echo "$out" | tail -20
 echo "$out" | grep -q '^PASSED *[0-9]* FAILED *0$'
 # Live TV's rules (source/Live.brs): the guide's time grid, its filters, the red dot and the rest.
