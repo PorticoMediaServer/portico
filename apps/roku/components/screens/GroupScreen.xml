@@ -23,6 +23,8 @@
   <script type="text/brightscript" uri="pkg:/components/kit/CardMenu.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
+    <!-- Holds focus for the biography: the page cannot take focus back from its own Filters row or reader. -->
+    <Group id="aboutStop" focusable="true"/>
     <Group id="rows"/>
     <Group id="head">
       <Face id="face" visible="false"/>

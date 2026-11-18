@@ -1250,13 +1250,13 @@ end sub
 sub onUndoRun(event as object)
     if event.getData() <> "stopped" then return
     m.undo.visible = false
-    if m.undoRow.isInFocusChain() then m.top.setFocus(true)
+    if m.undoRow.isInFocusChain() then m.top.findNode("undoStop").setFocus(true)
 end sub
 
 sub onUndo()
     m.top.findNode("undoRun").control = "stop"
     m.undo.visible = false
-    m.top.setFocus(true)
+    m.top.findNode("undoStop").setFocus(true)
     if m.undoMarker = invalid then return
     m.pending = m.undoMarker.startMs / 1000
     m.undoMarker = invalid
