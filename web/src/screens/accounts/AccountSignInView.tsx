@@ -1,3 +1,4 @@
+import {porticoCodeSignIn} from '../../platform/portico-code-sign-in';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import {ApiError} from '@core/index.ts';
@@ -55,6 +56,7 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
   const [recoveryChoice, setRecoveryChoice] = useState(false);
   // Asking the server for its challenge before leaving for web.getportico.tv (option 2).
   const [leaving, setLeaving] = useState(false);
+  const codeRun = useRef<AbortController>(undefined);
   const [recovery, setRecovery] = useState<RecoveryTarget>();
   const [porticoRecovery, setPorticoRecovery] = useState<RecoveryTarget>();
   const [acknowledgedMove, setAcknowledgedMove] = useState<ReturnType<BrowserAccountEntry['getSnapshot']>>();
@@ -70,7 +72,7 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
         selectedOrigin: async () => (await browserAppSessions().selected())?.connection.logicalOrigin, username: value => form.setUsername(value),
       }).catch(failure => {if (alive.current) setError(failure);}).finally(() => {if (alive.current) setInitializing(false);});
     }
-    return () => {alive.current = false;};
+    return () => {alive.current = false; codeRun.current?.abort();};
   }, [entry, form, takeReturn, takeMove, pageOrigin, initialize]);
   useEffect(() => {
     if (joining || initializing || entry.getSnapshot() !== state || input.factor || input.busy || state.memberMoveCompleted && !state.snapshot?.twoStepSetupRequired && (state.phase === 'profiles' || state.phase === 'ready') && acknowledgedMove !== state) return;
@@ -150,6 +152,18 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
   const continuePortico = () => {
     const epoch = input.inputEpoch, serverId = state.server?.id, origin = state.origin, pin = state.pin, phase = state.phase;
     if (!serverId || busy || !alive.current || entry.getSnapshot() !== state || form.getSnapshot() !== input || phase !== 'portico' && phase !== 'move-portico') return;
+    // The desktop app signs in with a code approved in the browser and stays where it is.
+    const codeSignIn = porticoCodeSignIn();
+    if (codeSignIn && phase === 'portico' && state.server && pin) {
+      const server = {id: serverId, name: state.server.name, publicKey: pin.publicKey, baseUrl: origin!};
+      codeRun.current?.abort();
+      const life = codeRun.current = new AbortController();
+      setLeaving(true); setError(undefined);
+      void codeSignIn(life.signal).then(access => entry.openHostedServer(server, access))
+        .catch(failure => {if (alive.current && entry.getSnapshot().pin === pin) setError(failure);})
+        .finally(() => {if (alive.current) setLeaving(false);});
+      return;
+    }
     // Signing in, and a move with the owner's code, go on at web.getportico.tv, which holds the Portico Account.
     const hostedOrigin = browserAccountOrigin(import.meta.env, location);
     const unchanged = () => alive.current && entry.getSnapshot().origin === origin && entry.getSnapshot().pin === pin && form.getSnapshot().inputEpoch === epoch;

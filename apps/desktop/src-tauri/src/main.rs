@@ -6,6 +6,7 @@ use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
 mod mpv;
+mod services;
 
 /// The app's own pages: Tauri serves the built web app at tauri://localhost (macOS, Linux) and
 /// http://tauri.localhost (Windows); a debug build may load the web app's dev server instead.
@@ -70,6 +71,11 @@ async fn mpv_subtitle(player: Player<'_>, url: Option<String>) -> Result<(), Str
 }
 
 #[tauri::command]
+async fn services_request(request: services::Request) -> Result<services::Answer, String> {
+    tauri::async_runtime::spawn_blocking(move || services::send(request)).await.map_err(|_| "services_unreachable".to_string())?
+}
+
+#[tauri::command]
 async fn mpv_available() -> Result<bool, String> {
     blocking(|| Ok(mpv::available())).await
 }
@@ -92,6 +98,7 @@ fn main() {
         .manage(Arc::new(mpv::Mpv::default()))
         .invoke_handler(tauri::generate_handler![
             smoke::report,
+            services_request,
             mpv_available,
             mpv_load,
             mpv_command,
