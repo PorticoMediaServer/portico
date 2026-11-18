@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"net/url"
+	"runtime/pprof"
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -111,13 +113,25 @@ func homePage(row HomeRow, page db.ItemPage, total bool) HomeRow {
 func (s *Server) pageHomeRows(r *http.Request, rows []HomeRow, library string) ([]db.Item, error) {
 	var continuing []db.Item
 	for n := range rows {
+		var err error
+		pprof.Do(r.Context(), pprof.Labels("homerow", rows[n].ID), func(context.Context) { continuing, err = s.pageHomeRow(r, rows, n, library, continuing) })
+		if err != nil {
+			return nil, err
+		}
+	}
+	return continuing, nil
+}
+
+// SCRATCH: one row of pageHomeRows, labelled for the profile.
+func (s *Server) pageHomeRow(r *http.Request, rows []HomeRow, n int, library string, continuing []db.Item) ([]db.Item, error) {
+	{
 		if rows[n].ID == "recently_added" {
 			items, err := s.db.RecentlyAddedIn(r.Context(), viewer(r), library)
 			if err != nil {
 				return nil, err
 			}
 			rows[n].Items, rows[n].NextCursor = itemShapes(items), db.RecentlyAddedCursor(items)
-			continue
+			return continuing, nil
 		}
 		page, err := s.db.HomeRowItems(r.Context(), viewer(r), rows[n].ID, db.ItemQuery{Library: library, Limit: 40, HomeAt: s.now()})
 		if err != nil {
