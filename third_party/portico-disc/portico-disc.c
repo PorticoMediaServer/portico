@@ -172,19 +172,21 @@ static int probe_bd(BLURAY *bd, const char *packaging) {
     }
     emit("]}\n"); return publish();
 }
-static int position_bd(BLURAY *bd, unsigned playlist, uint64_t ms, int64_t *offset, uint64_t *time) {
+/* select_bd selects a probed title (the probe's minimum length, first angle) and gives its
+ * length in 90 kHz ticks. */
+static int select_bd(BLURAY *bd, unsigned playlist, uint64_t *duration) {
     const BLURAY_DISC_INFO *info = bd_get_disc_info(bd);
     uint32_t count;
     int found = 0;
     if (!info || !info->bluray_detected || info->aacs_detected || info->bdplus_detected) return 6;
-    if (ms > UINT64_MAX/90) return 2;
     count = bd_get_titles(bd, TITLES_RELEVANT, 60);
     if (count > TITLE_MAX) return 4;
     for (uint32_t i = 0; i < count; i++) {
         BLURAY_TITLE_INFO *title = bd_get_title_info(bd, i, 0);
         if (!title) return 3;
         if (title->playlist == playlist) {
-            found = title->duration >= 60 * UINT64_C(90000) && ms*90 < title->duration;
+            found = title->duration >= 60 * UINT64_C(90000);
+            *duration = title->duration;
             bd_free_title_info(title);
             break;
         }
@@ -192,11 +194,23 @@ static int position_bd(BLURAY *bd, unsigned playlist, uint64_t ms, int64_t *offs
     }
     if (!found) return 2;
     if (!bd_select_playlist(bd, playlist) || !bd_select_angle(bd, 0)) return 3;
+    return 0;
+}
+/* land_bd seeks the selected title to the entry point at or before ms, found in the clip's EP
+ * map. Its time is given in whole milliseconds rounded up, so a seek to it lands on it again. */
+static int land_bd(BLURAY *bd, uint64_t ms, int64_t *offset, uint64_t *time) {
     *offset = bd_seek_time(bd, ms*90);
     if (*offset < 0) return 3;
-    *time = bd_tell_time(bd)/90;
+    *time = (bd_tell_time(bd) + 89)/90;
     if (*time > ms) return 3;
     return 0;
+}
+static int position_bd(BLURAY *bd, unsigned playlist, uint64_t ms, int64_t *offset, uint64_t *time) {
+    uint64_t duration = 0;
+    int status = select_bd(bd, playlist, &duration);
+    if (status) return status;
+    if (ms > UINT64_MAX/90 || ms*90 >= duration) return 2;
+    return land_bd(bd, ms, offset, time);
 }
 static int seek_bd(BLURAY *bd, unsigned playlist, uint64_t ms) {
     int64_t offset;
@@ -204,6 +218,22 @@ static int seek_bd(BLURAY *bd, unsigned playlist, uint64_t ms) {
     int status = position_bd(bd, playlist, ms, &offset, &time);
     if (status) return status;
     emit("{\"schema\":1,\"playlist\":%u,\"requestedMs\":%" PRIu64 ",\"byteOffset\":%" PRId64 ",\"titleTimeMs\":%" PRIu64 "}\n", playlist, ms, offset, time);
+    return publish();
+}
+/* entries_bd lists, for every step through the selected title after its start, the entry
+ * point at or before it: where a copied picture can be cut, and where a seek to it lands. */
+static int entries_bd(BLURAY *bd, unsigned playlist, uint64_t step) {
+    uint64_t duration = 0, time;
+    int64_t offset;
+    int status = select_bd(bd, playlist, &duration);
+    if (status) return status;
+    emit("{\"schema\":1,\"playlist\":%u,\"stepMs\":%" PRIu64 ",\"entryPointsMs\":[", playlist, step);
+    for (uint64_t ms = step; ms*90 < duration; ms += step) {
+        if ((status = land_bd(bd, ms, &offset, &time))) return status;
+        emit("%s%" PRIu64, ms == step ? "" : ",", time);
+        if (output_error) return 4;
+    }
+    emit("]}\n");
     return publish();
 }
 /* No libdvdcss is linked. Detect scrambled PES headers in the bounded title
@@ -443,6 +473,12 @@ static int run(int argc, char **argv) {
         if (!number(argv[3], &playlist) || playlist > 99999 || !number(argv[4], &ms)) return 2;
         bd = bd_open(argv[2], NULL); if (!bd) return 3;
         result = seek_bd(bd, (unsigned)playlist, ms); bd_close(bd); return result;
+    }
+    if (!strcmp(argv[1], "entry-points") && argc == 5) {
+        uint64_t playlist, step;
+        if (!number(argv[3], &playlist) || playlist > 99999 || !number(argv[4], &step) || step < 1000 || step > 600000) return 2;
+        bd = bd_open(argv[2], NULL); if (!bd) return 3;
+        result = entries_bd(bd, (unsigned)playlist, step); bd_close(bd); return result;
     }
     return 2;
 }
