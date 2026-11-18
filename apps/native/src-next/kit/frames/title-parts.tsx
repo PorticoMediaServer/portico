@@ -44,7 +44,8 @@ export function AboutTable({rows}: Readonly<{rows: readonly Readonly<{label: str
     {rows.map((row, index) => <View key={row.label} style={{flexDirection: 'row', gap: theme.space.sm, paddingVertical: phone ? rowPad : 0, borderTopWidth: phone && index > 0 ? 1 : 0, borderTopColor: theme.colors.line}}>
       <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, width: sizes.aboutLabel[frame.form]}]}>{row.label}</Text>
       <Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.text, fontFamily: phone ? theme.type.rowLabel.fontFamily : undefined}]}>{row.values.map((value, position) => <Text key={position}>{position > 0 ? ', ' : ''}
-        {value.onPress ? <Text accessibilityRole="link" onPress={value.onPress} style={{textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .4), color: phone ? theme.colors.accentStrong : theme.colors.text}}>{value.text}</Text> : value.text}</Text>)}</Text>
+        {/* TV: plain words, as detail-tv-4 draws them; a link inside a line of text cannot take the remote's focus. */}
+        {value.onPress && !theme.isTV ? <Text accessibilityRole="link" onPress={value.onPress} style={{textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .4), color: phone ? theme.colors.accentStrong : theme.colors.text}}>{value.text}</Text> : value.text}</Text>)}</Text>
     </View>)}
   </View>;
 }

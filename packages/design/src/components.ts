@@ -388,7 +388,9 @@ export const generatedArt = {
   forbiddenBackgroundGlyph: {auth: true, state: true, serverBand: true},
 } as const;
 export const tag = {radius: same(6, 8), paddingX: same(9, 12), paddingY: 3, borderColor: 'text' as ColorToken, borderAlpha: 0.28, borderWidth: same(1, 1.5), role: 'tag' as TypeRole} as const;
-export const tabs = {gap: all(34, 24, 24, 44), paddingTop: all(16, 12, 12, 0), paddingBottom: all(14, 11, 11, 16), underline: same(3, 4), role: 'tab' as TypeRole} as const;
+/** `insetX`: a TV tab's own side inset, so its focus ring stands clear of the label (live 8, detail-tv-4); the strip's gap and
+ * its first tab's lead take it back, so the labels sit where they always did. */
+export const tabs = {gap: all(34, 24, 24, 44), insetX: all(0, 0, 0, 16), paddingTop: all(16, 12, 12, 0), paddingBottom: all(14, 11, 11, 16), underline: same(3, 4), role: 'tab' as TypeRole} as const;
 export const navigation = {
   // Justin's web logo override, 28 Oct: shared by auth, Services and the player shell.
   webWordmarkScale: 1.25,
