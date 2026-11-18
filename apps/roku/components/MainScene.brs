@@ -327,6 +327,10 @@ sub onOpenAsk(ask as object)
     end if
     page = invalid
     if kind = "list" then page = push("LibraryScreen")     ' Search's See all, a genre's titles
+    if kind = "live"
+        showLive()      ' Search's Live TV chip: the guide
+        return
+    end if
     if kind = "movie" then page = push("TitleScreen")
     if kind = "show" then page = push("ShowScreen")
     if kind = "collection" or kind = "person" then page = push("GroupScreen")
@@ -604,6 +608,16 @@ sub onRailOpen()
     if m.rail.isOpen then m.screens.translation = [metrics().pageShift, 0] else m.screens.translation = [0, 0]
 end sub
 
+' The Live TV guide, from the rail or from Search's Live TV chip.
+sub showLive()
+    show("LiveScreen")
+    m.screen.observeField("open", "onOpen")
+    m.screen.observeField("menu", "onMenu")
+    m.rail.visible = true
+    m.rail.current = "live"
+    m.screen.active = true
+end sub
+
 sub onRailChosen(event as object)
     if m.screen = invalid then return
     ' OK on the page you are on goes to its top, the same place as Back.
@@ -618,12 +632,7 @@ sub onRailChosen(event as object)
         return
     end if
     if id = "live"
-        show("LiveScreen")
-        m.screen.observeField("open", "onOpen")
-        m.screen.observeField("menu", "onMenu")
-        m.rail.visible = true
-        m.rail.current = id
-        m.screen.active = true
+        showLive()
         return
     end if
     if id = "profile"

@@ -22,6 +22,10 @@ sub init()
     m.query.width = s.boxWidth - 100
     m.query.height = s.boxHeight
     m.query.translation = [f.gutter + 72, f.browse.titleY]
+    ' the cursor after what is typed (tv.html frame 5)
+    m.caret = m.top.findNode("caret")
+    m.caret.color = c.accent
+    placeCaret()
     m.keyboard.translation = [f.gutter, s.keysY]
     ' with nothing found: a page title on the results column's title line, then one sentence
     setType(m.none, "title", c.text)
@@ -126,8 +130,14 @@ end sub
 
 sub onTyped()
     m.query.text = m.keyboard.text
+    placeCaret()
     m.rest.control = "stop"
     m.rest.control = "start"       ' results follow once typing rests
+end sub
+
+sub placeCaret()
+    s = frames().search
+    m.caret.translation = [m.query.translation[0] + m.query.boundingRect().width + 4, frames().browse.titleY + (s.boxHeight - 40) / 2]
 end sub
 
 sub askSearch()
@@ -266,12 +276,17 @@ sub showGroups(groups as object, top as dynamic)
             y = y + shelfMetrics(shape).block
         end if
     end for
-    ' On TV each kind's chip is the See all for its row: its whole list as a grid (people have no grid)
+    ' On TV each kind's chip is the See all for its row: its whole list as a grid (people have no
+    ' grid; channels open the Live TV guide). All, first and on, is what shows now: OK goes to the results.
     chips = []
-    for each row in m.rows
-        ' people and channels have no grid of their own, and a Top result is not a kind
-        if row.kind <> "person" and row.kind <> "channel" and row.kind <> "top" then chips.push({id: row.kind, text: groupName(row.kind), detail: row.total, icon: ""})
+    all = 0
+    for each group in groups
+        if group.total <> invalid and groupName(group.kind) <> "" then all = all + group.total
     end for
+    for each row in m.rows
+        if row.kind <> "person" and row.kind <> "top" then chips.push({id: row.kind, text: groupName(row.kind), detail: row.total, icon: ""})
+    end for
+    if chips.count() > 0 then chips.unshift({id: "all", text: "All", detail: all.toStr(), icon: "", switchedOn: true})
     if chips.count() > 0
         bar = m.page.createChild("ButtonRow")
         bar.translation = [s.resultsX, frames().browse.titleY - s.keysY]
@@ -398,7 +413,15 @@ end sub
 
 sub onChip(event as object)
     kind = event.getData()
+    if kind = "all"
+        moveTo(1)       ' the first row of results, under the chips
+        return
+    end if
     recordSearch()
+    if kind = "channel"
+        m.top.open = {item: {kind: "live"}, play: false}
+        return
+    end if
     m.top.open = {item: {kind: "list", title: groupName(kind), path: "/v1/search?q=" + m.asked.encodeUriComponent() + "&kind=" + kind, view: kind}, play: false}
 end sub
 
