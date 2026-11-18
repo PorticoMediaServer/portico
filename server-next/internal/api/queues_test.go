@@ -260,6 +260,19 @@ func TestQueueEditsPagingRepeatAndRestart(t *testing.T) {
 	}
 }
 
+// Shuffle with no title pressed does not always start with the source's first title.
+func TestShuffleStartsAnywhere(t *testing.T) {
+	th := newTheatre(t)
+	album, tracks := th.album("Record", 12)
+	firsts := map[string]bool{}
+	for range 12 {
+		firsts[th.order(th.create(QueueCreate{Source: playqueue.QueueSource{Container: album}, Shuffle: true}).Queue.ID)[0]] = true
+	}
+	if len(firsts) < 2 || len(tracks) != 12 {
+		t.Fatalf("twelve shuffles all started with %v", firsts)
+	}
+}
+
 // Turning shuffle on keeps the current entry playing and shuffles the rest; turning it off
 // carries on in the original order from the current entry. (Definition rule 48.)
 func TestShuffleOnKeepsCurrentAndOffRestoresTheOrder(t *testing.T) {

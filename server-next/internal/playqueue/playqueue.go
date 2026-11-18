@@ -374,6 +374,9 @@ func (s *Service) Create(ctx context.Context, c Caller, in CreateInput) (db.Queu
 			if n.Start, err = s.db.FirstUnwatched(ctx, c.Viewer, n.Items); err != nil {
 				return db.Queue{}, err
 			}
+		} else if n.ShuffleSeed != nil && startAt == 0 {
+			// Shuffle with nothing pressed starts anywhere: the first title is as random as the rest.
+			n.Start = int(uint64(*n.ShuffleSeed) % uint64(len(n.Items)))
 		}
 	}
 	n.Selection = sel.text()
