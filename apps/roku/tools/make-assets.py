@@ -336,7 +336,7 @@ ICONS = {
     'server': [28],
     'settings': [32],
     'shield': [28],
-    'shuffle': [32],
+    'shuffle': [28, 32],
     'signOut': [28],
     'sliders': [28],
     'sort': [28],
@@ -365,6 +365,8 @@ def main():
         save_png(focus_ring(r + 4), 'focus-%d.9.png' % r)
     for w, h in ((214, 320), (400, 225), (214, 214), (384, 216), (200, 300), (200, 200)):
         save_png(card_mask(w, h, 14), 'mask-%dx%d.png' % (w, h))
+    # the artist page's circle, cut from album art (tv-more frame 8)
+    save_png(card_mask(412, 412, 206), 'mask-circle-412.png')
     save_png(shade(8, 256, [(0, '#000000', 0), (0.45, '#03080c', 0.35), (1, '#03080c', 0.92)]), 'card-shade.png')
     save_png(shade(8, 256, [(0, INK, 0), (1, INK, 1)]), 'fade-down.png')
     save_png(shade(8, 256, [(0, INK, 1), (1, INK, 0)]), 'fade-up.png')

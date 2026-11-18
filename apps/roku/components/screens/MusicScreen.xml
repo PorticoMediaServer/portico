@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- An album or an artist (tv-more frames 6 and 8; frame "Title page"): the cover (or the circle cut
+     from the artist's album art), the words, Play and Shuffle, and the songs; an artist also has its
+     albums. A song's "..." opens its menu in the side sheet (tv-more frame 7). -->
+<component name="MusicScreen" extends="Group">
+  <interface>
+    <field id="item" type="assocarray" onChange="onItem"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="art" type="string"/>
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+    <!-- The song playing now (MainScene sets it), so the list can mark it. -->
+    <field id="playingId" type="string" onChange="paintRows"/>
+  </interface>
+  <script type="text/brightscript" uri="MusicScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Poster id="coverBack" uri="pkg:/images/round-20.9.png"/>
+    <Poster id="cover" loadDisplayMode="scaleToFill"/>
+    <MaskGroup id="circle" maskUri="pkg:/images/mask-circle-412.png" maskSize="[412,412]">
+      <Poster id="circleArt" width="412" height="412" loadDisplayMode="scaleToFill"/>
+    </MaskGroup>
+    <Label id="eyebrow"/>
+    <Label id="title" wrap="true" maxLines="2"/>
+    <Label id="meta"/>
+    <ButtonRow id="buttons"/>
+    <Label id="songsHeading"/>
+    <Group id="window">
+      <Group id="rows"/>
+    </Group>
+    <Shelf id="albums" shape="square" visible="false"/>
+    <PageState id="state" visible="false"/>
+  </children>
+</component>

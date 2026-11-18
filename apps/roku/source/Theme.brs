@@ -81,6 +81,10 @@ function frames() as object
         guide: {headerY: 244, rowsY: 296, pitch: 100, cell: 90, channelWidth: 300, chipsY: 144, gridX: 520, perMinute: 8, shown: 7, toolbarX: 380, toolbarY: 56}
         ' Every page beside the rail: its content starts at `gutter`.
         gutter: 200
+        ' An album or artist page (tv-more frames 6 and 8): the album's cover on the left with its words and
+        ' track list beside it; the artist's words and top songs on the left, the circle and albums on the right.
+        music: {coverX: 200, coverY: 150, cover: 480, wordsX: 760, eyebrowY: 150, titleY: 186, metaY: 340, buttonsY: 410, listY: 520, listWidth: 1064, row: 84,
+            artistX: 200, artistEyebrowY: 170, artistTitleY: 206, artistMetaY: 352, artistButtonsY: 420, songsY: 620, songsWidth: 880, circleX: 1268, circleY: 140, circle: 412, albumsX: 1240, albumsY: 616}
         ' The now-playing card at the empty end of every page's header row: its corner, its size at rest and open.
         nowPlaying: {right: 1824, top: 44, width: 440, height: 84, openWidth: 700, openHeight: 470}
         ' The video player: the picture is the page. The top row hangs from `top`; the seek bar,

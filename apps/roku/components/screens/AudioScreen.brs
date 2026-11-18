@@ -610,6 +610,14 @@ sub leave()
     m.top.closed = true
 end sub
 
+sub onEnqueue()
+    ask = m.top.enqueue
+    if m.queue = invalid then return
+    ' the server asks every change to a queue's entries to name its revision; a song added goes in
+    ' whatever else changed meanwhile, so it names any ("*")
+    api("POST", "/v1/queues/" + m.queue.id + "/entries", {source: {items: [ask.item.id]}, placement: ask.placement}, "onQueueChanged", invalid, false, "", "", "*")
+end sub
+
 sub onCommand()
     kind = m.top.command
     if kind = "stop"

@@ -5,11 +5,12 @@
 ' Pass key to send a POST again as the same request (the server answers a repeat with what the first made).
 ' Pass origin while signing in: the request then goes to that server and no other, whatever server
 ' the app has turned to by the time it is sent.
-function api(method as string, path as string, body as dynamic, callback as string, ctx = invalid as dynamic, isPublic = false as boolean, key = "" as string, origin = "" as string) as object
+' Pass ifMatch for a change the server asks to name what it changes (a queue's entries take "*").
+function api(method as string, path as string, body as dynamic, callback as string, ctx = invalid as dynamic, isPublic = false as boolean, key = "" as string, origin = "" as string, ifMatch = "" as string) as object
     reply = createObject("roSGNode", "ApiReply")
     if ctx <> invalid then reply.ctx = ctx
     reply.observeField("result", callback)
-    m.global.api.request = {method: method, path: path, body: body, reply: reply, public: isPublic, key: key, origin: origin}
+    m.global.api.request = {method: method, path: path, body: body, reply: reply, public: isPublic, key: key, origin: origin, ifMatch: ifMatch}
     return reply
 end function
 
