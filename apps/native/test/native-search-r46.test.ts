@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createI18n, defaultI18n, resolveRegion} from '../../../packages/i18n/src';
 import {channelTint} from '../../../packages/client-core/src/presentation/kit-model';
-import {SEARCH_CHIPS, orderedSearchGroups, searchGroupLabel, topResultKindLabel, topSearchResult} from '../../../packages/client-core/src/presentation/search-model';
+import {SEARCH_CHIPS, orderedSearchGroups, searchGroupLabel, topResultKindLabel} from '../../../packages/client-core/src/presentation/search-model';
 import {browseType} from '../src-next/kit/browse/presentation';
 import {createTheme} from '../src-next/kit/theme';
 import {homeCardText} from '../src-next/screens/home/model';
@@ -51,7 +51,7 @@ async function mount(snapshot: any, landing: any, text = defaultI18n) {
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34, left: 0, right: 0})},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel},
+    '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topResultKindLabel},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/cards': {GenreTile: 'GenreTile'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame', Parts: 'Parts'},
     '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', TextField: 'TextField'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
     '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
@@ -178,7 +178,7 @@ test('phone Search draws the frame 8 results: counted type chips, the 178px top 
     group('people', []), group('artists', []), group('albums', []), group('reading', []), group('live-tv', [])];
   const snapshot = {text: 'game', group: 'all', search: {generation: 2, scope: {}, query: {q: 'game'}, phase: 'ready', groups,
     data: {scope: {}, revision: {catalog: 1, viewer: 1}, heading: {key: '', fallback: ''}, query: {q: 'game', sort: 'relevance', direction: 'desc', group: '', groups: [], libraryIds: [], limit: 12, searchMode: 'normalized_prefix', recorded: false},
-      groups, capabilities, empty: undefined}, pagination: {cursor: null, canPrevious: false}, error: null},
+      groups, topResult: {group: 'shows', entry: show}, capabilities, empty: undefined}, pagination: {cursor: null, canPrevious: false}, error: null},
     groups, recent: [], clearing: false};
   const {tree, theme, paint, find} = await mount(snapshot, {phase: 'ready', genres: [], initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'});
 

@@ -4,7 +4,7 @@ import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core/src/search';
 import {cardText} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
+import {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Artwork, StandardBackdrop, missingArt} from '../../kit/artwork';
 import {Chip, Focusable} from '../../kit/controls';
@@ -104,9 +104,7 @@ export function TVSearchScreen({focusScope, destination, runtime, activation, ex
   // SR-7 (DECISIONS.md:160): nothing in one selected type keeps the chips, whose All is the way
   // back; only a query that matched nothing anywhere draws the no-match landing.
   const emptyAll = empty && state.group === 'all', emptyIn = empty && state.group !== 'all' ? state.group : undefined;
-  // Top result is chosen from the actual preview read, never from a later continuation.
-  const preview = state.search.data?.groups ?? groups;
-  const top = state.group === 'all' ? topSearchResult(state.text, orderedSearchGroups(preview)) : undefined;
+  const top = state.group === 'all' ? state.search.data?.topResult : undefined;
   const shown = groups.filter(group => (state.group === 'all' || state.group === group.id) && (group.items.length > 0 || group.status === 'error'));
   const problem = state.problem === 'long' ? t('web.search.tooLong') : state.problem === 'words' ? t('web.search.tooManyWords') : state.problem ? t('web.search.tooShort') : undefined;
   // The drawn row keeps every available type while one is selected; in All it

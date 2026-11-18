@@ -36,7 +36,7 @@ const groups = [{id: 'movies' as const, status: 'success' as const, items: [movi
 const genre = (id: string, count: number) => ({id, name: id, count, backdropPath: `/genre/${id}`, coverPaths: [] as string[]});
 const genres = [genre('Crime', 9), genre('Drama', 31), genre('Adventure', 18), genre('Animation', 14)];
 
-let state: any, landing: any, top: any, modelProgress: number | undefined;
+let state: any, landing: any, modelProgress: number | undefined;
 const entryRequests: any[] = [];
 
 const reactNative = {ScrollView: 'ScrollView', View: 'View', Text: 'Text', useWindowDimensions: () => ({width: 1920, height: 1080})};
@@ -54,7 +54,7 @@ async function screen(react: unknown) {
     '../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({id: 'text', title: 'text',
       caption: [{id: 'season-count', text: '1 season'}, {id: 'year', text: '2023'}], detail: [], progress: modelProgress})},
     '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups: (value: unknown) => value,
-      SEARCH_CHIPS: [{id: 'all', label: 'search.chip.all'}, {id: 'movies', label: 'search.chip.movies'}], topSearchResult: () => top,
+      SEARCH_CHIPS: [{id: 'all', label: 'search.chip.all'}, {id: 'movies', label: 'search.chip.movies'}],
       searchGroupLabel: () => 'search.chip.movies', topResultKindLabel: () => 'search.kind.show'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', missingArt: () => undefined}, '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable'},
     '../../kit/cards/primitives': {ArtFrame: 'ArtFrame', CardFrame: 'CardFrame', Parts: 'Parts', Progress: 'Progress'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => createFocusRegistry()},
@@ -69,7 +69,7 @@ async function screen(react: unknown) {
 test('the drawn field, keyboard column and results column are tv.html#f5 geometry and paint', async () => {
   const host = hooks(), {TVSearchScreen} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'the l', group: 'all', groups, search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: []};
-  landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; top = undefined; modelProgress = undefined;
+  landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; modelProgress = undefined;
   const tree = host.render(() => TVSearchScreen(screenProps()));
   assert.equal(theme.gutter, 200);
   const field = style(elements(tree).find(node => node.props.accessibilityLabel === defaultI18n.t('web.shell.search'))!.props.style);
@@ -106,7 +106,7 @@ test('the drawn field, keyboard column and results column are tv.html#f5 geometr
 
 test('the drawn top result keeps f5 meta at 24px with 26px gaps, season count as .tag and 160px progress', async () => {
   const host = hooks(), {TVSearchTopResult, TVSearchTag} = await screen({...host.react, useId: () => 'gradient'});
-  modelProgress = .22; top = undefined;
+  modelProgress = .22;
   const card = host.render(() => TVSearchTopResult({entry: show, group: 'shows', runtime, actions: {}, disabled: false}));
   assert.deepEqual(style(card.props.style), {marginTop: 44, transformOrigin: 'left center'});
   assert.deepEqual(style(card.props.pressableStyle), {flexDirection: 'row', gap: 36, alignItems: 'center'});
@@ -147,7 +147,7 @@ test('the drawn empty page is states.html#f18 and its genre tiles keep the drawn
   const host = hooks(), {TVSearchScreen, TVSearchGenre} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'casablanca', group: 'all', groups: [{id: 'movies' as const, status: 'success' as const, items: [], totalCount: 0, totalCountExact: true}],
     search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: [{q: 'severance'}]};
-  landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; top = undefined; modelProgress = undefined;
+  landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; modelProgress = undefined;
   const tree = host.render(() => TVSearchScreen(screenProps()));
   const noMatches = style(textNode(tree, defaultI18n.t('next.states.noMatches', {query: 'casablanca'}))!.props.style);
   assert.deepEqual(noMatches, {...browseType(theme, 52, 800, -.04, 54.6), color: colors.text, marginBottom: 14});
@@ -228,7 +228,7 @@ test('the drawn keyboard is f5 six-column grid with Space, Delete and Clear and 
 test('Left from a result returns to the last keyboard row, and that key returns Right to the same card', async () => {
   const host = hooks(), {TVSearchScreen} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'the l', group: 'all', groups, search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: []};
-  landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; top = undefined; modelProgress = undefined;
+  landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; modelProgress = undefined;
   let tree = host.render(() => TVSearchScreen(screenProps()));
   const results = () => elements(tree).find(node => node.type === 'FocusRegion' && node.props.id === ids.searchResults)!;
   assert.equal(results().props.edges.left, ids.searchKeyboardRow(0));
@@ -244,7 +244,7 @@ test('Left from a result returns to the last keyboard row, and that key returns 
 test('result chips keep their natural width so no label is ellipsised or blanked', async () => {
   const host = hooks(), {TVSearchScreen} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'the l', group: 'all', groups, search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: []};
-  landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; top = undefined; modelProgress = undefined;
+  landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; modelProgress = undefined;
   const tree = host.render(() => TVSearchScreen(screenProps()));
   const chips = elements(tree).filter(node => node.type === 'Chip');
   assert.ok(chips.length >= 2);

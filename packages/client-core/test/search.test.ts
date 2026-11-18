@@ -133,6 +133,29 @@ test('preserves server group order and publishes what each answered group can be
  s.dispose();
 });
 
+test('uses the server Top result in the matching group and leaves it out when omitted',async()=>{
+ const movies=group('movies',['one','two']),people=group('people',['one']);
+ people.people[0].name='Another name';
+ const choices=[{kind:'person',person:people.people[0]},{kind:'movie',item:movies.items[1]}];
+ const s=service(async path=>{
+  const topResult=choices.shift();
+  return result(path,{groups:[movies,people],...(topResult?{topResult}:{})});
+ });
+ try{
+  await s.select('server one',{groups:['movies','people']});
+  let state=s.getSnapshot();
+  assert.equal(state.data?.topResult?.group,'people');
+  assert.equal(state.data?.topResult?.entry,state.groups[1].items[0]);
+  await s.refresh();
+  state=s.getSnapshot();
+  assert.equal(state.data?.topResult?.group,'movies');
+  assert.equal(state.data?.topResult?.entry,state.groups[0].items[1]);
+  await s.refresh();
+  state=s.getSnapshot();
+  assert.equal(state.phase,'ready');
+  assert.equal(state.data?.topResult,undefined);
+ }finally{s.dispose();}
+});
 
 test('a result or a group this app cannot show is left out and the rest of the answer is kept',async()=>{
  const s=service(async path=>result(path,{groups:[{...group('movies',['one','two']),items:[{id:'one',kind:'movie',title:'Server one',libraryId:'library'},{id:'odd',kind:'hologram',title:'?'},{id:'',kind:'movie',title:'no id'},{id:'two',kind:'movie',title:'Server two',libraryId:'library'}]},{kind:'hologram',total:3,items:[]},group('shows')]}));

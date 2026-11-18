@@ -22,10 +22,11 @@ export type SearchGroupStatus='success'|'error';
 export type SearchGroupErrorCode=''|'search_group_timeout'|'search_group_unavailable';
 export type SearchQuery=Readonly<{q:string;group?:SearchGroup;groups?:readonly SearchGroup[];sort?:SearchSort;direction?:SearchDirection;libraryIds?:readonly string[];record?:boolean}>;
 export type SearchEntry=HomeEntry|Readonly<{id:string;kind:'person'|'channel';title:string;subtitle?:string;posterUrl?:string;count?:number;navigation:Readonly<{view:'person'|'channel';entityId:string;sourceId?:string;channelId?:string;provenance?:'live-source'}>}>;
+export type TopSearchResult=Readonly<{group:SearchGroup;entry:SearchEntry}>;
 export type SearchGroupResult=Readonly<{id:SearchGroup;labelKey?:string;title:string;entityKind:string;status:SearchGroupStatus;errorCode:SearchGroupErrorCode;items:readonly SearchEntry[];totalCount:number;totalCountExact:boolean;hasMore:boolean;nextCursor:string}>;
 export type SearchGroupCapability=Readonly<{id:SearchGroup;labelKey?:string;title:string;entityKind:string;available:boolean;reason:string;sorts:readonly SearchSort[]}>;
 export type SearchCapabilities=Readonly<{groups:readonly SearchGroupCapability[];sorts:readonly SearchSort[];directions:readonly SearchDirection[];maxLimit:number;groupBudgetMs:number}>;
-export type SearchData=Readonly<{scope:Readonly<{serverId:string;libraryId:'';libraryKind:'mixed';view:'search';entityId:'';viewerFence:string}>;revision:Readonly<{catalog:number;viewer:number}>;heading:ContentHeading;query:Readonly<{q:string;sort:SearchSort;direction:SearchDirection;group:SearchGroup|'';groups:readonly SearchGroup[];libraryIds:readonly string[];limit:number;searchMode:'normalized_prefix';recorded:boolean}>;groups:readonly SearchGroupResult[];capabilities:SearchCapabilities;empty?:ContentHeading}>;
+export type SearchData=Readonly<{scope:Readonly<{serverId:string;libraryId:'';libraryKind:'mixed';view:'search';entityId:'';viewerFence:string}>;revision:Readonly<{catalog:number;viewer:number}>;heading:ContentHeading;query:Readonly<{q:string;sort:SearchSort;direction:SearchDirection;group:SearchGroup|'';groups:readonly SearchGroup[];libraryIds:readonly string[];limit:number;searchMode:'normalized_prefix';recorded:boolean}>;groups:readonly SearchGroupResult[];topResult?:TopSearchResult;capabilities:SearchCapabilities;empty?:ContentHeading}>;
 export type SearchSnapshot=Readonly<{generation:number;scope:ContentScope;query:SearchQuery|null;phase:'idle'|'loading'|'ready'|'error'|'refresh-required';data:SearchData|null;groups:readonly SearchGroupResult[];pagination:Readonly<{cursor:string|null;canPrevious:boolean}>;error:Readonly<{code:string;message:string;retryable:boolean}>|null}>;
 export type SearchHistoryEntry=Readonly<{q:string;updatedAt:string;uses:number}>;
 export type SearchHistoryPage=Readonly<{serverId:string;/** The viewer's own fence, present only when the server's page names one. */viewerFence?:string;/** The server's own remembering switch; absent on older pages. False exposes no entries. */remembered?:boolean;entries:readonly SearchHistoryEntry[];maxEntries:number}>;
@@ -159,8 +160,13 @@ function parse(raw:unknown,op:Operation,s:ContentScope,limit:number):SearchData{
  }),g=>g.id);
  // An answer none of whose groups could be read is refused rather than shown as no results.
  if(!results.length&&(raw.groups as unknown[]).length)invalid();
+ // Use the same validated entry as the group row.
+ const selected=raw.topResult as ServerSearchResults['topResult'];
+ const topGroup=typeof selected?.kind==='string'?results.find(group=>group.id===groupOfKind[selected.kind]):undefined;
+ const selectedId=selected?.item?.id??selected?.person?.id;
+ const topEntry=topGroup?.items.find(entry=>entry.id===selectedId);
  let empty:ContentHeading|undefined;if(raw.empty!==undefined&&raw.empty!==null){try{empty=heading(raw.empty);}catch{noteSkipped('search','empty');}}
- return Object.freeze({scope:Object.freeze({serverId:s.serverId,libraryId:'' as const,libraryKind:'mixed' as const,view:'search' as const,entityId:'' as const,viewerFence:scope.viewerFence}),revision:Object.freeze({catalog:r.catalog,viewer:r.viewer}),heading:headingOr(raw.heading,'search'),query:Object.freeze({q:q.q,sort,direction,group:q.group as SearchGroup|'',groups:echoedGroups,libraryIds,limit,searchMode:'normalized_prefix' as const,recorded:q.recorded===true}),groups:Object.freeze(results),capabilities:published,...(empty?{empty}:{})});
+ return Object.freeze({scope:Object.freeze({serverId:s.serverId,libraryId:'' as const,libraryKind:'mixed' as const,view:'search' as const,entityId:'' as const,viewerFence:scope.viewerFence}),revision:Object.freeze({catalog:r.catalog,viewer:r.viewer}),heading:headingOr(raw.heading,'search'),query:Object.freeze({q:q.q,sort,direction,group:q.group as SearchGroup|'',groups:echoedGroups,libraryIds,limit,searchMode:'normalized_prefix' as const,recorded:q.recorded===true}),groups:Object.freeze(results),...(topGroup&&topEntry?{topResult:Object.freeze({group:topGroup.id,entry:topEntry})}:{}),capabilities:published,...(empty?{empty}:{})});
 }
 /** Recent searches are the viewer's own, bounded and separately erasable. The page is
  * the server's own: it names each retained query and when it was last used; a page that
@@ -222,6 +228,7 @@ export async function readSearch(api:LibraryContentApi,q:SearchQuery,limit:numbe
  return {
   scope:{serverId:SERVER_SCOPE,libraryId:'',libraryKind:'mixed',view:'search',entityId:'',viewerFence:'viewer'},revision:{catalog:0,viewer:0},
   query:{q:q.q,group:q.group??'',groups:names,limit,...(q.sort?{sort:q.sort}:{}),...(q.direction?{direction:q.direction}:{}),recorded:q.record===true},
+  topResult:raw.topResult,
   // Every group the server searches, whatever this answer holds, so the type chips stay the same while one type is open.
   // Live TV is one only for a profile allowed it: the server then answers its group on every first page (rule 33).
   capabilities:{maxLimit:40,groupBudgetMs:15000,sorts,directions,groups:(Object.keys(serverKinds) as SearchGroup[]).filter(id=>id!=='live-tv'||live).map(id=>({id,title:'',available:true,reason:'',sorts:nameGroups.includes(id)?['relevance','title']:sorts}))},
