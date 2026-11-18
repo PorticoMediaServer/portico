@@ -17,7 +17,7 @@ which never move, and one flexible region, the only place that may change when c
 | A film, show, season, person, album, artist, book, collection | `TitleFrame` | the synopsis and the tab panel |
 | Settings (the list) | `SettingsListFrame` | the groups |
 | One settings or owner page, a form | `SettingsPageFrame` | the sections |
-| A menu, picker or short task | `SheetFrame kind="bottom"` | the rows |
+| A menu, picker, confirmation or short task | `SheetFrame kind="task"` with its R9 `task` | the rows |
 | An editor that takes the whole phone | `SheetFrame kind="full"` | its page |
 | Welcome, sign in, local server, codes, profiles | `SignInFrame` (TV: the existing `tv/auth/TVAuthLayout`) | the form |
 | The video player | `PlayerChromeFrame` | none |
@@ -38,8 +38,8 @@ which never move, and one flexible region, the only place that may change when c
   `children` (the tab panel), `state?`.
 - `SettingsListFrame`: `bar`, `open`, `onOpenChange`, `list`, `page?`.
 - `SettingsPageFrame`: `title`, `back?`, `action?`, `intro?`, `children` (`SectionCard`s), `state?`.
-- `SheetFrame`: `open`, `onOpenChange`, `children`, and `kind: 'bottom'` with `title`, `footer?`, or
-  `kind: 'full'` with `bar?`.
+- `SheetFrame`: `open`, `onOpenChange`, `children`, and `kind: 'task'` with `task` (R9, below), `title`, `subtitle?`,
+  `action?`, `foot?`, `anchorRef?`, or `kind: 'full'` with `bar?`.
 - `SignInFrame`: `back?`, `title`, `lede?`, `error?`, `children`, `terms?`.
 - `PlayerChromeFrame`: `picture`, `chromeVisible`, `close`, `title?`, `tools?`, `scrubber`, `times`, `transport`, `leading?`,
   `trailing?`, `prompts?`, `body?` (the watch page under an upright phone's picture).
@@ -236,3 +236,52 @@ status bar (light content; hidden only on the full-window video player). `test/n
 - Not built, because nothing calls for it yet: a Saved or Changed mark beside a settings page's title on native.
 - Tablet and TV measurements the pages do not give (the audio player's columns on a tablet, a card's inset on wide
   forms) are filled in `frames.ts` from the nearest drawn form; correct them there, nowhere else.
+
+## Round 8, family E: overlays by form (R9), Settings, sign-in, account, page states
+
+### R9: which overlay a task takes on each form
+
+One table, `overlayForms` in `packages/design/src/overlay-forms.ts`. A screen names the TASK; the kit picks the kind,
+the bar and the foot. Bar: start · title · end. Foot: **halves** (equal shares), **full** (one button the width),
+**end** (own width at the end, primary last), never hugging the left. An anchored overlay opens below or beside its
+trigger and leaves it in view; a modal one dims the page. The TV column is the TV builder's (family G); until it is
+filled a TV cell is `null` and the kit keeps its TV form.
+
+| Task | Phone | Tablet (medium) | Wide (expanded, web) | TV |
+| --- | --- | --- | --- | --- |
+| `actions` (More / long press) | sheet, modal; bar: title + item · Done | popover beside the card, modal | popover, not dimmed | TV builder |
+| `choice` (select list, switcher, sort) | popover under the trigger, modal | popover, modal | popover, not dimmed | TV builder |
+| `confirm` (Delete…?) | sheet; foot halves (Cancel, the action; destructive is a red fill) | dialog; foot at the end | dialog; foot at the end | TV builder |
+| `task` (Add source, Save as playlist) | sheet; bar: Cancel · centred title; foot full (the action) | side panel, modal; title · round ×; foot halves | dialog; title · round ×; foot at the end | TV builder |
+| `details` (File info) | sheet; bar: title + item · Done | side panel; title + item · round × | side panel | TV builder |
+| `filters` | sheet; title · Done; foot halves | side panel; title · round ×; foot halves | side panel | TV builder |
+| `settings` | full sheet; index "Settings · Done", a page "‹ Settings · centred title · its action" | a page beside the list | a page beside the list (web: full page at phone width, ruled) | TV builder |
+| `account` | sheet; title · Done | popover under the avatar | popover under the avatar | TV builder |
+| `notifications` | a page in the Settings sheet: "‹ Settings · Notifications · Mark all read" | popover under the bell | popover under the bell | TV builder |
+
+Kit: `SheetFrame` takes `task` (native `kind: 'task'`), `title`, `subtitle?` (the item), `action?`, `foot?`,
+`anchorRef?`. Sheet and side-panel feet share the width; a modal popover draws a scrim; focus placed on open draws
+no ring until a key is pressed (web: the document's last input; Android's touch rule is the rules hand's); a menu row
+that does not fit takes a second line.
+
+### Regions added (`frameRegions` in `packages/design/src/frame-regions.ts`)
+
+- `SettingsListFrame`: `profile?`, `shortcuts?` (phone), and on native `search?` (the frame draws search, profile,
+  tiles, then the list; pass `SettingsNav` no search of its own). The web's `SettingsNav` keeps its own search and
+  draws the frame's profile and tiles under it.
+- `SettingsPageFrame`: `status?` ('saving' | 'saved', "✓ Saved"), `actions?` (header buttons), `server?` (the kit
+  `ServerHeader`: the strip over the title wide, the card under the bar on a phone), `tabs?` (kit `Tabs`). A page
+  shown alone (not beside the list) keeps Back, the gutter and the page's column limit (tablets SC-8).
+- `SectionCard`: `help?`, the section's help paragraph under its label.
+- `SignInFrame`: `kicker?` ("Sign in to" over the server's name).
+- `PageStateFrame`: `downloads?` (kit `DownloadsStillPlay`, moved from the restored shell on native) and `help?`.
+  On a tablet the block sits at the gutter with buttons at their own width (SC-11); on a wide web window it starts
+  high under the bar and grows downwards.
+
+Gallery: `frames-settings` (web `dev/families/frames-settings.tsx`; native `dev/families/frames/settings.gallery.tsx`):
+settings index (Saved, help, a switch with dependent rows, inline selects, the matrix with Changed/Reset, Advanced,
+the subtitle preview), search with highlighted results, an owner page (server strip, buttons, tabs, a device to
+approve, accounts), a page alone, each overlay task over a real page, the sign-in steps (web: the kit's own
+pages: local server with chips, Show and links; locked out with its countdown; the code boxes with the recovery
+link; the Portico Account hand-off), Who's watching, the profile PIN, the account menu, Notifications, and the page
+states (can't reach with downloads, Details and help; not found; something went wrong; playback failed).
