@@ -259,7 +259,7 @@ end function
 
 ' A library's views, sorts and counts, in words.
 function viewName(kind as string) as string
-    names = {movie: "Movies", show: "Shows", collection: "Collections", artist: "Artists", album: "Albums", track: "Songs", audiobook: "Audiobooks", season: "Seasons", episode: "Episodes", playlist: "Playlists"}
+    names = {discover: "Discover", movie: "Movies", show: "Shows", collection: "Collections", artist: "Artists", album: "Albums", track: "Songs", audiobook: "Audiobooks", season: "Seasons", episode: "Episodes", playlist: "Playlists"}
     if names[kind] <> invalid then return names[kind]
     return ucase(left(kind, 1)) + mid(kind, 2)
 end function
