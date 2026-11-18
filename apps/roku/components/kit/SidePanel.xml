@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The surface of a side panel wider than the menu sheet (Customize Home, File info): the page
+     dimmed behind it and the plain panel from `x` to the right edge (rule 2: a plain surface). -->
+<component name="SidePanel" extends="Group">
+  <interface>
+    <field id="x" type="float" onChange="place"/>
+  </interface>
+  <script type="text/brightscript" uri="SidePanel.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Rectangle id="scrim" width="1920" height="1080" opacity="0.5"/>
+    <Rectangle id="panel" height="1080"/>
+  </children>
+</component>

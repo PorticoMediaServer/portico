@@ -187,6 +187,25 @@ function initialsOf(name as string) as string
     return out
 end function
 
+' Customize Home's drop: the row shown at `picked` moved to where `target` is among the rows shown
+' (`shown`, their indices into `rows`); rows not shown (a kind this TV never lists) keep their places.
+' Moving up it goes before the row now at `target`, moving down after it.
+function movedLayout(rows as object, shown as object, picked as integer, target as integer) as object
+    from = shown[picked]
+    landAt = shown[target]
+    others = []
+    for i = 0 to rows.count() - 1
+        if i <> from then others.push(rows[i])
+    end for
+    out = []
+    for i = 0 to others.count() - 1
+        if i = landAt then out.push(rows[from])
+        out.push(others[i])
+    end for
+    if landAt >= others.count() then out.push(rows[from])
+    return out
+end function
+
 ' A cast or crew member as a card: {id, kind: "person", art, title, sub, badge (initials), ...}.
 function personCard(credit as object) as object
     part = ""

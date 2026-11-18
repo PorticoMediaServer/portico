@@ -29,7 +29,13 @@
     <Hero id="hero" mode="preview" visible="false"/>
     <!-- Rows above the one in focus slide up out of this window, under the hero's words. -->
     <Group id="window">
-      <Group id="page"/>
+      <Group id="page">
+        <!-- The last stop under the last row (collections frame 27). -->
+        <Group id="customizeLine" visible="false">
+          <ButtonRow id="customize"/>
+          <Label id="customizeText" text="Choose which rows appear on Home, and in what order."/>
+        </Group>
+      </Group>
     </Group>
     <PageState id="notice" visible="false"/>
     <!-- The hero's description is read once focus rests on a card (a row's titles carry no synopsis). -->
@@ -37,6 +43,7 @@
     <!-- Nothing shows for the first 300 ms of loading; then outlines of the real sizes (rule 9). -->
     <Timer id="loadingDelay" duration="0.3"/>
     <Group id="loadingRow" visible="false"/>
+    <HomeCustomize id="customizer"/>
     <Animation id="slide" duration="0.28" easeFunction="outCubic">
       <Vector2DFieldInterpolator id="slideTo" key="[0.0, 1.0]" fieldToInterp="page.translation"/>
     </Animation>

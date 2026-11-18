@@ -100,7 +100,7 @@ sub onModel()
     showInMeta(m.left, model.left <> "")
     m.synopsis.text = model.synopsis
 
-    m.hints.visible = not isTitle
+    m.hints.visible = not isTitle and m.top.okText <> ""     ' no hints while Home's focus is off the cards
     m.hints.hints = [{keys: ["OK"], text: m.top.okText}, {keys: ["*"], text: "More options"}]
     m.credits.visible = isTitle
     m.buttonRow.visible = isTitle
