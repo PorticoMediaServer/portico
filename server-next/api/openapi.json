@@ -12745,6 +12745,9 @@
               "$ref": "#/components/schemas/SearchGroup"
             },
             "type": "array"
+          },
+          "topResult": {
+            "$ref": "#/components/schemas/SearchTopResult"
           }
         },
         "required": [
@@ -12782,6 +12785,23 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "SearchTopResult": {
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/Item"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "person": {
+            "$ref": "#/components/schemas/Person"
+          }
+        },
+        "required": [
+          "kind"
         ],
         "type": "object"
       },
