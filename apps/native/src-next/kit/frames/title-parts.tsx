@@ -133,3 +133,29 @@ export function EpisodeNeighbour({direction, label, title, detail, artwork, onPr
     </View>
   </Focusable>;
 }
+
+/** One row of the TV show page's season column (detail-tv-5a, 5b): the season's name, then how much of it is watched
+ * (a short bar and "2 of 13 watched") or its episode count. The season shown in the band beside it is current: the
+ * raised fill and the accent bar at its edge (R1 "current"), kept while focus is elsewhere. The real screen's
+ * `TVEpisodeBrowser` draws its seasons and its groups of 100 with it. */
+export function SeasonListRow({label, detail, progress, current, focusId, testID, onFocus, onPress, onLongPress}: Readonly<{
+  label: string; detail?: string;
+  /** The watched part (0 to 1), drawn as the short bar before `detail`. */
+  progress?: number;
+  current: boolean; focusId: string; testID?: string; onFocus?: () => void; onPress: () => void; onLongPress?: () => void}>) {
+  const theme = useTheme(), track = theme.spec.card.progress.height[theme.column];
+  return <Focusable focusId={focusId} testID={testID} focusKind="row" focusRadius={theme.baseRadii.overlay} accessibilityRole="button" accessibilityState={{selected: current}}
+    onFocus={onFocus} onPress={onPress} onLongPress={onLongPress} onLongPressAction={onLongPress}
+    style={{minHeight: rowHeight, paddingHorizontal: theme.space.md, paddingVertical: theme.space.controlGap, borderRadius: theme.baseRadii.overlay, justifyContent: 'center', overflow: 'hidden', backgroundColor: current ? alpha(theme.colors.accent, .16) : 'transparent'}}>
+    {current && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: theme.space.controlGap, bottom: theme.space.controlGap, width: 3, borderTopRightRadius: 3, borderBottomRightRadius: 3, backgroundColor: theme.colors.accent}}/>}
+    <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{label}</Text>
+    {detail !== undefined && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap, marginTop: theme.space.tight / 2}}>
+      {progress !== undefined && <View style={{width: 72, height: track, borderRadius: track, backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
+        <View style={{height: track, width: `${Math.min(1, progress) * 100}%`, borderRadius: track, backgroundColor: theme.colors.accentStrong}}/></View>}
+      <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{detail}</Text>
+    </View>}
+  </Focusable>;
+}
+/** R5 interim: detail-tv-5a's season rows, 84 high and 6 apart; the column is 330 wide, 70 from the episodes. */
+const rowHeight = 84;
+export const seasonColumn = {width: 330, gap: 70, rowGap: 6} as const;

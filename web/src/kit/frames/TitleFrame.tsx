@@ -13,12 +13,15 @@ export type TitleAction = Readonly<{icon: IconName; label: string; onPress: () =
   /** On (in My List, watched, a favourite): tinted in the accent (phone-detail d1 frame 3). */
   active?: boolean;
   /** Also on the collapsed bar, after the primary (desktop-detail f3: Play and +). */
-  pinned?: boolean}>;
+  pinned?: boolean;
+  /** Drawn only from 1024. Up to 1024 it is in More, so the primary keeps the room for its label (phone-detail d1:
+   * Play, My List, Download, More; Watched is in More). */
+  wide?: boolean}>;
 /** The one flexible button. With `progress` it is Resume. From tablet width the time left is beside its label, the
  * played part runs along its lower edge and Start over is the button after it (desktop-detail f2). On a phone, and on
  * a cover page from tablet width (desktop-listen book), the played part, the time left and Start over are one line
  * under the action row (phone-detail d1 frame 3). */
-export type TitlePrimary = Omit<TitleAction, 'labelled' | 'pinned'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>}>;
+export type TitlePrimary = Omit<TitleAction, 'labelled' | 'pinned' | 'wide'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>}>;
 /** One part of the credits line: "Directed by" and the names; a name with `onPress` opens its page. */
 export type TitleCredit = Readonly<{label: string; names: string | readonly AboutValue[]}>;
 /** The line above the title (desktop-detail f1 "Dune collection · 2 films", f7 "Acting", desktop-listen "Album"). */
@@ -92,7 +95,7 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
   const disc = (action: TitleAction) => <Button variant="glass" size="small" iconOnly icon={action.icon} aria-label={action.label} disabled={action.disabled} onClick={action.onPress} className={styles.disc} />;
   const backButton = disc({icon: 'i-left', label: back.label, onPress: back.onPress});
   if (failure) return <div className={styles.title}><div className={styles.top}>{backButton}</div><PageStateFrame {...failure} /></div>;
-  const round = (action: TitleAction) => <Button key={`${action.label}:round`} variant="glass" phone={phone} iconOnly icon={action.icon} aria-label={action.label} title={action.label} aria-pressed={action.active} data-active={action.active || undefined} data-labelled={action.labelled || undefined} disabled={action.disabled || loading} onClick={action.onPress} className={styles.round} />;
+  const round = (action: TitleAction) => <Button key={`${action.label}:round`} variant="glass" phone={phone} iconOnly icon={action.icon} aria-label={action.label} title={action.label} aria-pressed={action.active} data-active={action.active || undefined} data-labelled={action.labelled || undefined} data-wide={action.wide || undefined} disabled={action.disabled || loading} onClick={action.onPress} className={styles.round} />;
   // A labelled action is round up to 1024 and labelled from there (CSS shows one of the two).
   const button = (action: TitleAction) => action.labelled ? [round(action), <Button key={action.label} variant="glass" icon={action.icon} aria-pressed={action.active} data-active={action.active || undefined} disabled={action.disabled || loading} onClick={action.onPress} className={styles.labelled}>{action.label}</Button>] : round(action);
   // While loading the action row keeps its buttons but says nothing it does not know yet (the time left).

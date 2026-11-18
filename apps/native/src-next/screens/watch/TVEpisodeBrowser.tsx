@@ -8,7 +8,8 @@ import type {ShowWorkspaceData, WorkspaceSeason} from '../../../../../packages/c
 import {cardText, episodeLabel, type TextEnvironment} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {durationText} from '../../../../../packages/client-core/src/presentation/kit-model/text';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Focusable} from '../../kit/controls';
+import {KeyHints} from '../../kit/controls';
+import {SeasonListRow} from '../../kit/frames/title-parts';
 import {FocusRegion, type FocusRegionConfig} from '../../kit/focus';
 import {tvEpisodeGroupKey, tvEpisodeRegionMap} from './tv-title-focus';
 import {EpisodeTile} from '../../kit/cards';
@@ -118,45 +119,21 @@ export function TVEpisodeBrowser(props: TVEpisodeBrowserProps) {
         onLayout={event => {viewport.current = event.nativeEvent.layout.height; showEdges(seasonListEdges(offset.current, content.current, viewport.current));}}
         onContentSizeChange={(_width, height) => {content.current = height; showEdges(seasonListEdges(offset.current, content.current, viewport.current));}}>
         {props.seasons.map(season => {
-          const active = selected(season) || (focus.kind === 'season' && focus.season.id === season.id);
-          const total = season.episodeCount, watched = season.watchedCount;
-          const counted = watched !== undefined && total !== undefined && total > 0;
-          return <Focusable key={season.id} testID={`tv-season-${season.id}`} focusId={season.id} focusKind="row" focusRadius={14} accessibilityRole="button"
-            accessibilityState={{selected: selected(season)}}
-            onFocus={() => seasonFocus(season)} onPress={() => seasonFocus(season)}
-            onLongPressAction={() => setMenu(season)} onLongPress={() => setMenu(season)}
-            style={{minHeight: 84, marginBottom: 6, paddingHorizontal: 22, paddingVertical: 10, borderRadius: 14, justifyContent: 'center',
-              backgroundColor: active ? '#409fd429' : 'transparent', overflow: 'hidden'}}>
-            {active && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderTopRightRadius: 3, borderBottomRightRadius: 3, backgroundColor: theme.colors.accent}}/>}
-            <Text numberOfLines={1} style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{season.title || t('title.season', {number: season.number})}</Text>
-            {counted ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 3}}>
-              <View style={{width: 72, height: 6, borderRadius: 6, backgroundColor: '#edf5fa29'}}><View style={{height: 6, width: `${Math.min(1, watched! / total!) * 100}%`, borderRadius: 6, backgroundColor: theme.colors.accentStrong}}/></View>
-              <Text style={[browseType(theme, 19, 400), {color: theme.colors.textTertiary}]}>{t('title.seasonProgress', {watched, total})}</Text>
-            </View>
-              : total !== undefined ? <Text style={[browseType(theme, 19, 400), {color: theme.colors.textTertiary, marginTop: 3}]}>{t('count.episodes', {count: total})}</Text> : null}
-          </Focusable>;
+          const total = season.episodeCount, watched = season.watchedCount, counted = watched !== undefined && total !== undefined && total > 0;
+          return <SeasonListRow key={season.id} testID={`tv-season-${season.id}`} focusId={season.id} label={season.title || t('title.season', {number: season.number})}
+            current={selected(season) || (focus.kind === 'season' && focus.season.id === season.id)}
+            progress={counted ? watched! / total! : undefined} detail={counted ? t('title.seasonProgress', {watched, total}) : total !== undefined ? t('count.episodes', {count: total}) : undefined}
+            onFocus={() => seasonFocus(season)} onPress={() => seasonFocus(season)} onLongPress={() => setMenu(season)}/>;
         })}
-        {groups.map(group => {
-          const active = group.id === props.selectedGroup || (focus.kind === 'group' && focus.group.id === group.id);
-          return <Focusable key={group.id} testID={`tv-group-${group.id}`} focusId={tvEpisodeGroupKey(group.id)} focusKind="row" focusRadius={14} accessibilityRole="button"
-            accessibilityState={{selected: group.id === props.selectedGroup}} onFocus={() => groupFocus(group)} onPress={() => groupFocus(group)}
-            style={{minHeight: 84, marginBottom: 6, paddingHorizontal: 22, paddingVertical: 10, borderRadius: 14, justifyContent: 'center',
-              backgroundColor: active ? '#409fd429' : 'transparent', overflow: 'hidden'}}>
-            {active && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderTopRightRadius: 3, borderBottomRightRadius: 3, backgroundColor: theme.colors.accent}}/>}
-            <Text numberOfLines={1} style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{group.title}</Text>
-            {group.count > 0 ? <Text style={[browseType(theme, 19, 400), {color: theme.colors.textTertiary, marginTop: 3}]}>{t('count.episodes', {count: group.count})}</Text> : null}
-          </Focusable>;
-        })}
+        {groups.map(group => <SeasonListRow key={group.id} testID={`tv-group-${group.id}`} focusId={tvEpisodeGroupKey(group.id)} label={group.title}
+          current={group.id === props.selectedGroup || (focus.kind === 'group' && focus.group.id === group.id)}
+          detail={group.count > 0 ? t('count.episodes', {count: group.count}) : undefined} onFocus={() => groupFocus(group)} onPress={() => groupFocus(group)}/>)}
       </ScrollView>
       {edges.top && <ListEdgeFade testID="tv-seasons-fade-top" edge="top" length={70} opacity={0.9}/>}
       {edges.bottom && <ListEdgeFade testID="tv-seasons-fade-bottom" edge="bottom" length={70} opacity={0.9}/>}
       </View>
       {/* tv-detail frame 5 draws the season hint under the list, where the focus is. */}
-      {focus.kind === 'season' && <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 22, marginLeft: 22}}>
-        <View style={{paddingHorizontal: 10, minWidth: 44, height: 36, borderRadius: 9, borderWidth: 1.5, borderColor: '#edf5fa4d', justifyContent: 'center'}}>
-          <Text style={[browseType(theme, 17, 800), {color: theme.colors.textSecondary}]}>{t('next.layout.holdOk')}</Text></View>
-        <Text style={[browseType(theme, 19, 600, 0, 26.6), {color: theme.colors.textTertiary}]}>{t('next.watch.seasonOptions')}</Text>
-      </View>}
+      {focus.kind === 'season' && <View style={{marginTop: 22, marginLeft: 22}}><KeyHints hints={[{key: t('next.layout.holdOk'), label: t('next.watch.seasonOptions')}]}/></View>}
     </FocusRegion>
     <View style={{flex: 1, minWidth: 0}}>
       {/* A show with nothing loadable draws a plain state, never an empty void. */}

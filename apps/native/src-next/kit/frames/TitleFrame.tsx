@@ -1,4 +1,4 @@
-import React, {useState, type ReactNode} from 'react';
+import React, {useEffect, useRef, useState, type ReactNode} from 'react';
 import {ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
@@ -15,7 +15,7 @@ import {useTheme} from '../theme';
 import {StartFocusScope} from '../focus';
 import {useFrameMetrics} from './metrics';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
-import type {AboutValue} from './title-parts';
+import {seasonColumn, type AboutValue} from './title-parts';
 
 export type TitleAction = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; testID?: string;
   /** Shown with its label where there is room (a tablet on its side and TV): Start over, My List, Shuffle. Round elsewhere. */
@@ -23,18 +23,22 @@ export type TitleAction = Readonly<{icon: IconName; label: string; onPress: () =
   /** On (in My List, watched, a favourite): tinted in the accent (phone-detail d1 frame 3). */
   active?: boolean;
   /** Also on the collapsed bar, after the primary (desktop-detail f3: Play and +). */
-  pinned?: boolean}>;
+  pinned?: boolean;
+  /** Drawn only on a tablet on its side and TV. On a phone and an upright tablet it is in More, so the primary keeps the
+   * room for its label (phone-detail d1: Play, My List, Download, More; Watched is in More). */
+  wide?: boolean}>;
 /** The one flexible button. With `progress` it is Resume. On a tablet on its side and TV the time left is beside its
  * label, the played part runs along its lower edge and Start over is the button after it (detail-desktop 2, detail-tv 2).
  * On a phone, an upright tablet and a cover page the played part, the time left and Start over are one line under the
  * action row (detail-phone 3, desktop-listen book). */
-export type TitlePrimary = Omit<TitleAction, 'labelled' | 'pinned'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>}>;
+export type TitlePrimary = Omit<TitleAction, 'labelled' | 'pinned' | 'wide'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>}>;
 /** One part of the credits line: "Directed by" and the names; a name with `onPress` opens its page. */
 export type TitleCredit = Readonly<{label: string; names: string | readonly AboutValue[]}>;
 /** The line above the title (desktop-detail f1 "Dune collection · 2 films", f7 "Acting", desktop-listen "Album"). */
 export type TitleKicker = Readonly<{label: string; icon?: IconName; detail?: string; onPress?: () => void}>;
-/** A person's, an artist's, an album's or a book's own picture, beside the words in place of the art box. */
-export type TitleCover = Readonly<{node: ReactNode; shape: 'poster' | 'square' | 'circle'}>;
+/** A person's, an artist's, an album's or a book's own picture, beside the words in place of the art box. The frame
+ * sizes it per form; a picture that draws to a size (a person's initials) takes it as a function of the width. */
+export type TitleCover = Readonly<{node: ReactNode | ((size: number) => ReactNode); shape: 'poster' | 'square' | 'circle'}>;
 export type TitleFrameProps = Readonly<{
   /** The picture behind the words, as the kit's `AmbientArt` with `treatment="title"`. The frame gives it the box. */
   art?: ReactNode;
@@ -64,6 +68,11 @@ export type TitleFrameProps = Readonly<{
   /** The cast circles on the left page when an open foldable lies on its side (foldable f2). Elsewhere the cast is in Details. */
   cast?: ReactNode;
   tabs?: Readonly<{items: readonly TabItem[]; value: string; onValueChange: (value: string) => void}>;
+  /** TV, a show's or a season's Episodes tab (detail-tv-5a, 5b): the season column (`SeasonListRow`s and the Hold OK
+   * hint) at the left, and beside it the episodes and the band that describes what holds focus. The frame places it
+   * at the top of the panel; the rest of the panel (More like this) runs under both at full width. Touch forms draw the
+   * season in the panel's `SeasonBar` instead. */
+  seasons?: Readonly<{column: ReactNode; episodes: ReactNode}>;
   /** The tab panel: the one flexible region. */
   children?: ReactNode;
   /** Beside the panel on a tablet on its side and TV (a collection's About, an album's Details); under it otherwise. */
@@ -88,10 +97,18 @@ export function TitleFrame({startFocus, ...props}: TitleFrameProps) {
 }
 /** The primary's own focus id when the screen gives it no test id. */
 const titlePrimaryId = 'title-primary';
-function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, children, aside, collapsed, state, testID}: Omit<TitleFrameProps, 'startFocus'>) {
+function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
-  const [scrollY, setScrollY] = useState(0), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY);
+  const [scrollY, setScrollY] = useState(0), [tabsBox, setTabsBox] = useState({y: Number.POSITIVE_INFINITY, height: 0}), tabsY = tabsBox.y;
+  const scroller = useRef<ScrollView>(null);
+  const barHeight = insets.top + 56; // R5 interim: rule 3's 56 bar under the status bar
+  // Held collapsed (the screen opened a tab's content), the page is where scrolling would have put it: the tab panel
+  // starts under the bar (phone-detail d1 frame 2, desktop-detail f3). On a phone the bar carries the tabs, so the page's
+  // own tabs sit under it; on a tablet the bar is one row and the page's tabs scroll past it.
+  useEffect(() => {
+    if (collapsed && !tv && !split && Number.isFinite(tabsBox.y)) scroller.current?.scrollTo({y: Math.max(0, stacked ? tabsBox.y - barHeight : tabsBox.y + tabsBox.height - barHeight), animated: false});
+  }, [collapsed, tv, split, stacked, tabsBox, barHeight]);
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   if (failure) return <View testID={testID} style={{flex: 1}}>
     {!tv && <View style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, top: insets.top + theme.space.tight}}><RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/></View>}
@@ -139,7 +156,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   const row = (primary || actions.length > 0) && <View style={{minHeight: actionHeight, alignSelf: stacked ? 'stretch' : undefined, flexDirection: 'row', flexWrap: stacked ? 'nowrap' : 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.spec.hero.actions.gap[theme.column]}}>
     {lead && (resume && !lineUnder ? <ResumeButton {...lead} size="hero" progress={primary!.progress!} remaining={primary!.remaining}>{primary!.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero">{primary!.label}</Button>)}
     {primary?.startOver && !stacked && !loading && <Button variant="glass" size="hero" icon="i-restart" onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
-    {actions.map(side)}
+    {actions.filter(action => !action.wide || !stacked).map(side)}
   </View>;
   const track = theme.spec.card.progress.height[theme.column];
   const resumeLine = lineUnder ? <View style={{gap: theme.space.tight, width: '100%', maxWidth: cover && !stacked ? 320 : undefined}}>
@@ -158,7 +175,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   const body = <View style={{gap: theme.space.sm, alignItems: stacked ? 'center' : 'flex-start', alignSelf: 'stretch'}}>{stacked ? <>{row}{resumeLine}{words}{pickerRow}</> : <>{words}<View style={{marginTop: spec.actionGap[form] - theme.space.sm, gap: theme.space.sm}}>{row}{resumeLine}</View></>}</View>;
   // R5 interim: the cover sizes drawn per form (phone-app 13 and phone-detail d3: 220 square, 180 poster, 104 circle; tablet f8 larger; desktop-listen 340).
   const coverSize = {square: forms(220, 280, 300, 400), poster: forms(180, 220, 260, 340), circle: forms(104, 160, 300, 280)}[cover?.shape ?? 'square'][split ? 'phone' : form];
-  const coverBox = cover && <View style={{width: coverSize, height: cover.shape === 'poster' ? coverSize * 1.5 : coverSize, borderRadius: cover.shape === 'circle' ? coverSize / 2 : frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{cover.node}</View>;
+  const coverBox = cover && <View style={{width: coverSize, height: cover.shape === 'poster' ? coverSize * 1.5 : coverSize, borderRadius: cover.shape === 'circle' ? coverSize / 2 : frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{typeof cover.node === 'function' ? cover.node(coverSize) : cover.node}</View>;
   const head = cover ? stacked
     ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{discs}{coverBox}<View style={{alignSelf: 'stretch'}}>{identity}</View><View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View></View>
     : <View style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: theme.space.xl}}>
@@ -188,14 +205,16 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {Array.from({length: 6}, (_, index) => <SkeletonBlock key={index} width={posterWidth} height={posterWidth * 1.5} shine={index === 0}/>)}</View> : children;
   const besideAside = !!aside && !stacked && !loading;
   const content = <View style={{marginTop: tabs ? frame.headerGap + frame.headingGap : frame.sectionGap, flexDirection: besideAside ? 'row' : 'column', alignItems: 'flex-start', gap: besideAside ? theme.space.xl : frame.sectionGap}}>
-    <View style={{flex: besideAside ? 1 : undefined, alignSelf: besideAside ? undefined : 'stretch', minWidth: 0, gap: frame.sectionGap}}>{panel}</View>
+    <View style={{flex: besideAside ? 1 : undefined, alignSelf: besideAside ? undefined : 'stretch', minWidth: 0, gap: frame.sectionGap}}>
+      {tv && seasons && !loading && <View style={{flexDirection: 'row', gap: seasonColumn.gap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
+        <View style={{width: seasonColumn.width}}>{seasons.column}</View><View style={{flex: 1, minWidth: 0}}>{seasons.episodes}</View></View>}
+      {panel}</View>
     {aside && !loading && <View style={{width: besideAside ? 360 : undefined, alignSelf: besideAside ? undefined : 'stretch', marginRight: besideAside ? frame.rightGutter : 0, paddingHorizontal: besideAside ? 0 : frame.gutter, gap: frame.sectionGap}}>{aside}</View>}{/* R5 interim: desktop-listen's 360 side column */}
   </View>;
   const tabBar = (style?: object) => tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} disabled={loading} style={style} contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
 
   // The collapsed bar (touch): it shows once the tabs pass under it. A phone and an upright tablet: Back, the title
   // centred and Play on, with the tabs under it; a tablet on its side: the title, the tabs, the primary and the pinned actions.
-  const barHeight = insets.top + 56; // R5 interim: rule 3's 56 bar under the status bar
   const shown = !tv && !split && (collapsed ?? scrollY > tabsY - barHeight);
   const pinned = actions.filter(action => action.pinned);
   const bar = shown && <View style={{position: 'absolute', left: 0, right: 0, top: 0, zIndex: theme.layers.sticky, backgroundColor: alpha(theme.colors.ink, .92), borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>
@@ -225,9 +244,9 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     <ScrollView style={{flex: 1}} contentContainerStyle={{paddingTop: insets.top, paddingBottom: frame.bottomClear}}>{tabBar()}{content}</ScrollView>
   </View>;
   return <View testID={testID} style={{flex: 1}}>
-    <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)}>
+    <ScrollView ref={scroller} style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)}>
       {head}
-      {tabs && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>}
+      {tabs && <View onLayout={event => setTabsBox({y: event.nativeEvent.layout.y, height: event.nativeEvent.layout.height})}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>}
       {content}
     </ScrollView>
     {bar}

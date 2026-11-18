@@ -46,6 +46,8 @@ const title = [
   {id: 'credits', forms: ['expanded', 'tv'], from: ['desktop-detail f1', 'tablet f6', 'detail-tv-1']},
   {id: 'cast', forms: ['medium-split'], from: ['foldable f2 (left page, under the synopsis)']},
   {id: 'tabs', forms: titleAll, from: ['desktop-detail f1', 'phone-detail d1', 'detail-tv-4', 'detail-tv-5a']},
+  {id: 'seasons.column', forms: ['tv'], from: ['detail-tv-5a (the season list, current and focused, Hold OK Season options)', 'detail-tv-5b']},
+  {id: 'seasons.episodes', forms: ['tv'], from: ['detail-tv-5a (the episodes row and the season band)', 'detail-tv-5b (the episode band)']},
   {id: 'collapsedBar', forms: titleAll, from: ['desktop-detail f3', 'desktop-detail f4', 'phone-detail d1 (2)', 'phone-detail d2 (4)', 'detail-tv-4', 'detail-tv-5a']},
   {id: 'panel', forms: titleAll, from: ['desktop-detail f1 to f8', 'phone-detail d1 to d3', 'detail-tv-3 to 7'], flexible: true},
   {id: 'aside', forms: titleAll, from: ['desktop-detail f8 (About)', 'desktop-listen album (Details, Files)', 'desktop-listen artist (Albums, Details)', 'desktop-listen book (About this book)']},
@@ -60,8 +62,8 @@ export type TitleKind = 'film' | 'show' | 'season' | 'episode' | 'person' | 'col
  * (collection), the songs (album, artist), the chapters (book). */
 export const titleKinds = {
   film: ['art', 'back', 'topAction', 'kicker', 'title', 'metadata', 'picker', 'primary', 'actions', 'tagline', 'synopsis', 'credits', 'tabs', 'collapsedBar', 'panel', 'state'],
-  show: ['art', 'back', 'topAction', 'title', 'metadata', 'primary', 'actions', 'tagline', 'synopsis', 'credits', 'cast', 'tabs', 'collapsedBar', 'panel', 'state'],
-  season: ['art', 'back', 'topAction', 'kicker', 'title', 'metadata', 'primary', 'actions', 'synopsis', 'tabs', 'collapsedBar', 'panel', 'state'],
+  show: ['art', 'back', 'topAction', 'title', 'metadata', 'primary', 'actions', 'tagline', 'synopsis', 'credits', 'cast', 'tabs', 'seasons.column', 'seasons.episodes', 'collapsedBar', 'panel', 'state'],
+  season: ['art', 'back', 'topAction', 'kicker', 'title', 'metadata', 'primary', 'actions', 'synopsis', 'tabs', 'seasons.column', 'seasons.episodes', 'collapsedBar', 'panel', 'state'],
   episode: ['art', 'back', 'topAction', 'kicker', 'title', 'metadata', 'picker', 'primary', 'actions', 'synopsis', 'credits', 'panel', 'state'],
   person: ['cover', 'back', 'kicker', 'title', 'metadata', 'synopsis', 'panel', 'state'],
   collection: ['art', 'back', 'topAction', 'kicker', 'title', 'metadata', 'primary', 'actions', 'synopsis', 'panel', 'aside', 'state'],

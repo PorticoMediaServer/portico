@@ -1,12 +1,15 @@
 import React, {useState, type ReactNode} from 'react';
-import {Text, View} from 'react-native';
+import {ScrollView, Text, View} from 'react-native';
 import {formatMessage} from '../../../../../../packages/i18n/src';
 import {titleFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/title-fixtures';
 import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../kit/artwork/index';
 import {CollectionBanner, EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
-import {AboutTable, CastRow, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, TitleFrame, TrackPicker, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, SeasonListRow, TitleFrame, TrackPicker, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {KeyHints} from '../../../kit/controls';
+import {TVRow} from '../../../kit/layout/TVRow';
+import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {HeroMetadata, Row, SeasonBar, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
 import {SeasonSheet} from '../../../kit/layout/SeasonSheet';
@@ -28,7 +31,7 @@ const card = ({onFocus, onBlur, focusId, testID}: LayoutItemContext) => ({onFocu
 function Meta({text, tags = []}: {text: string; tags?: string[]}) {
   const {form} = useFrameMetrics(), stacked = form === 'phone' || form === 'medium';
   return <HeroMetadata centered={stacked} facts={[...text.split(' · ').map((part, index) => ({id: index === 0 ? 'year' : `fact-${index}`, text: part, role: index === 0 ? 'identity' as const : 'context' as const})),
-    ...tags.map(tag => ({id: / seasons?$/.test(tag) ? 'seasons' : 'rating', text: tag, role: 'context' as const}))]}/>;
+    ...tags.map(tag => ({id: / seasons?$/.test(tag) ? 'season-count' : 'content-rating', text: tag, role: 'context' as const}))]}/>;
 }
 const back = {label: f('back'), onPress: none}, playOn = {icon: 'i-cast' as const, label: f('playOn'), onPress: none};
 const link = (text: string) => ({text, onPress: none});
@@ -50,14 +53,14 @@ function filmFrame(tab: string, setTab: (value: string) => void, tv = false): Om
   return {back, topAction: playOn, art: <AmbientArt treatment="title" foreground={asset('pool/movies/dune-part-two--bd.jpg')}/>,
     kicker: {icon: 'i-layers', label: f('duneCollection'), detail: f('duneCollectionCount'), onPress: none}, title: f('dune2'), metadata: <Meta text={f('dune2Facts')} tags={[f('dune2Rating')]}/>,
     primary: {icon: 'i-play', label: f('play'), onPress: none},
-    actions: [{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), labelled: true, onPress: none}, ...(tv ? [] : [{icon: 'i-dl' as const, label: f('download'), labelled: true, onPress: none}]), {icon: 'i-more', label: f('more'), onPress: none}],
+    actions: [{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), labelled: true, wide: true, onPress: none}, ...(tv ? [] : [{icon: 'i-dl' as const, label: f('download'), labelled: true, onPress: none}]), {icon: 'i-more', label: f('more'), onPress: none}],
     tagline: f('dune2Tagline'), synopsis: f('dune2Synopsis'),
     credits: [{label: f('directedBy'), names: [link(f('dune2Director'))]}, {label: f('starring'), names: (['dune2Cast1', 'dune2Cast2', 'dune2Cast3', 'dune2Cast4'] as const).map(name => link(f(name)))}],
     picker: <TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none}/>, tabs: tabs(tab, setTab)};
 }
 function Film({more = false}: {more?: boolean}) {
   const [tab, setTab] = useState('more'), [open, setOpen] = useState(more), {isTV} = useTheme();
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-film" {...filmFrame(tab, setTab, isTV)}>
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-film" {...filmFrame(tab, setTab, isTV)}>
     <Posters title={f('moreLikeDune')} items={moreLikeDune}/>
   </TitleFrame>
   {more && <Menu open={open} onOpenChange={setOpen} title={f('dune2')} items={[
@@ -67,9 +70,9 @@ function Film({more = false}: {more?: boolean}) {
 }
 function FilmResume() {
   const [tab, setTab] = useState('more');
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-film-resume" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('bd-insideout.jpg')}/>} title={f('insideOut')} metadata={<Meta text={f('insideOutFacts')} tags={[f('insideOutRating')]}/>}
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-film-resume" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('bd-insideout.jpg')}/>} title={f('insideOut')} metadata={<Meta text={f('insideOutFacts')} tags={[f('insideOutRating')]}/>}
     primary={{icon: 'i-play', label: f('resume'), progress: .09, remaining: f('insideOutLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none}}
-    actions={[{icon: 'i-check', label: f('myList'), labelled: true, active: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-check', label: f('myList'), labelled: true, active: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     tagline={f('insideOutTagline')} synopsis={f('insideOutSynopsis')} credits={[{label: f('directedBy'), names: 'Pete Docter'}, {label: f('starring'), names: 'Amy Poehler, Phyllis Smith, Richard Kind, Bill Hader'}]}
     picker={<TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none}/>} tabs={tabs(tab, setTab)}>
     <Posters title={f('moreLikeInsideOut')} items={moreLikeInsideOut}/>
@@ -95,7 +98,7 @@ function DuneDetails() {
 /** Details with the hero gone: the collapsed bar (title, tabs, Play and +) as the page shows it once scrolled (desktop-detail f3; phone-detail d1 frame 2; detail-tv-4). */
 function FilmDetails() {
   const [tab, setTab] = useState('details'), {isTV} = useTheme();
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-film-details" {...filmFrame(tab, setTab, isTV)} collapsed><DuneDetails/></TitleFrame></Page>;
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-film-details" {...filmFrame(tab, setTab, isTV)} collapsed><DuneDetails/></TitleFrame></Page>;
 }
 
 type Episode = Readonly<{id: string; title: string; label: string; length: string; synopsis: string; progress?: number; watched?: boolean; status?: string; art: string}>;
@@ -131,38 +134,65 @@ function OpenedEpisode() {
     </View>
   </View>;
 }
+/** TV, the Episodes tab's season column and episodes (detail-tv-5a): the seasons with the current one marked, Hold OK
+ * under them; beside them the season's episodes as a row of stills and the band describing the season. */
+type SeasonRowData = Readonly<{id: string; label: Name; detail: Name; progress?: number}>;
+function tvSeasons(rows: readonly SeasonRowData[], current: string, band: {title: Name; count: Name; synopsis: Name}) {
+  const t = defaultI18n.t;
+  return {column: <View style={{gap: 6}}>{rows.map(row => <SeasonListRow key={row.id} focusId={`title-season-${row.id}`} label={f(row.label)} detail={f(row.detail)} progress={row.progress} current={row.id === current} onPress={none}/>)}
+      <View style={{marginTop: 16, marginLeft: 24}}><KeyHints hints={[{key: t('next.layout.holdOk'), label: t('next.watch.seasonOptions')}]}/></View></View>,
+    episodes: <TVEpisodes band={band}/>};
+}
+function TVEpisodes({band}: {band: {title: Name; count: Name; synopsis: Name}}) {
+  const theme = useTheme(), width = 384; // R5 interim: detail-tv-5a's 384 stills
+  return <View style={{gap: theme.space.lg}}>
+    <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 28}}>
+      {tlouEpisodes.map((episode, index) => <EpisodeTile key={episode.id} width={width} focusId={`title-episode-${episode.id}`} title={episode.title} label={[{id: 'episode', text: f(`ep${index + 1}Label` as Name), role: 'context'}]}
+        length={episode.length} status={episode.status} watched={episode.watched} progress={episode.progress} artwork={asset(episode.art)} onNavigate={none}/>)}
+    </ScrollView></TVRow>
+    <View><PanelHeading title={f(band.title)} count={f(band.count)}/><Text numberOfLines={2} style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{f(band.synopsis)}</Text></View>
+  </View>;
+}
+const moreLikeShows = [['pool/tv/severance.jpg', 'Severance', '2022'], ['pool/tv/silo.jpg', 'Silo', '2023'], ['pool/tv/stranger-things.jpg', 'Stranger Things', '2016'], ['pool/tv/the-walking-dead.jpg', 'The Walking Dead', '2010'],
+  ['pool/tv/slow-horses.jpg', 'Slow Horses', '2022'], ['pool/tv/the-mandalorian.jpg', 'The Mandalorian', '2019'], ['pool/tv/breaking-bad.jpg', 'Breaking Bad', '2008']] as const;
+const simpsonsSeasons: readonly SeasonRowData[] = [{id: 's1', label: 'season1', detail: 'count13', progress: 1}, {id: 's2', label: 'season2', detail: 'count22', progress: 1}, {id: 's3', label: 'season3', detail: 'season3Progress', progress: 4 / 24},
+  {id: 's4', label: 'season4', detail: 'count22'}, {id: 's5', label: 'season5', detail: 'count22'}, {id: 's0', label: 'specials', detail: 'count12'}];
 const showCast: readonly CastPerson[] = [['Pedro Pascal', 'Joel Miller'], ['Bella Ramsey', 'Ellie Williams'], ['Gabriel Luna', 'Tommy Miller'], ['Nick Offerman', 'Bill']].map(([name, role]) => ({id: name!, name: name!, role, onPress: none}));
 function Show({opened, seasons = false}: {opened?: string; seasons?: boolean}) {
   const [tab, setTab] = useState('episodes'), [hide, setHide] = useState(false), [open, setOpen] = useState(seasons), [selected, setSelected] = useState<string | null>('s3');
-  const simpsons = seasons;
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID={`frames-title-show${opened ? '-episode' : seasons ? '-seasons' : ''}`} back={back} topAction={playOn}
+  const simpsons = seasons, {isTV} = useTheme();
+  // TV draws the Episodes tab as it opens (detail-tv-5a): the hero gone, the season column, the episodes; focus starts on the current season.
+  const tv = isTV ? {collapsed: true, startFocus: `title-season-${simpsons ? 's3' : 's1'}`, seasons: tvSeasons(simpsons ? simpsonsSeasons : [{id: 's1', label: 'season1', detail: 'seasonProgress', progress: .25}], simpsons ? 's3' : 's1',
+    {title: simpsons ? 'season3' : 'season1', count: simpsons ? 'season3Count' : 'episodeCount', synopsis: 'seasonSynopsis'})} : {};
+  return <Page destination={{kind: 'library', libraryId: 'show'}}><TitleFrame testID={`frames-title-show${opened ? '-episode' : seasons ? '-seasons' : ''}`} back={back} topAction={playOn} {...tv}
     art={<AmbientArt treatment="title" foreground={asset(simpsons ? 'pool/tv/the-simpsons--bd.jpg' : 'pool/tv/the-last-of-us--bd.jpg')}/>} title={f(simpsons ? 'simpsons' : 'tlou')}
     metadata={<Meta text={f(simpsons ? 'simpsonsFacts' : 'tlouFacts')} tags={[f(simpsons ? 'simpsonsSeasons' : 'tlouSeasons')]}/>}
     primary={simpsons ? {icon: 'i-play', label: f('playS3E5'), onPress: none} : {icon: 'i-play', label: f('resumeEpisode'), progress: .67, remaining: f('ep1Left'), onPress: none}}
-    actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     synopsis={f(simpsons ? 'simpsonsSynopsis' : 'tlouSynopsis')} credits={[{label: f('createdBy'), names: [link('Craig Mazin'), link('Neil Druckmann')]}]}
     cast={<><PanelHeading title={f('cast')}/><CastRow groups={[showCast]}/></>} tabs={tabs(tab, setTab, true)}>
-    <PanelBlock><SeasonBar label={f(simpsons ? 'season3' : 'season1')} count={f(simpsons ? 'season3Count' : 'episodeCount')} onSeasons={() => setOpen(true)} hideWatched={hide} onHideWatched={setHide}/>
-      <View style={{height: 12}}/><EpisodeRows episodes={tlouEpisodes} opened={opened}/></PanelBlock>
-    {simpsons && <SeasonSheet open={open} onOpenChange={setOpen} total={36} selectedId={selected} onSelect={setSelected} hideWatched={hide} onHideWatched={setHide} rows={[
+    {isTV ? <Posters title={f('moreLikeThis')} items={moreLikeShows}/> : <PanelBlock><SeasonBar label={f(simpsons ? 'season3' : 'season1')} count={f(simpsons ? 'season3Count' : 'episodeCount')} onSeasons={() => setOpen(true)} hideWatched={hide} onHideWatched={setHide}/>
+      <View style={{height: 12}}/><EpisodeRows episodes={tlouEpisodes} opened={opened}/></PanelBlock>}
+    {simpsons && !isTV && <SeasonSheet open={open} onOpenChange={setOpen} total={36} selectedId={selected} onSelect={setSelected} hideWatched={hide} onHideWatched={setHide} rows={[
       {id: 's1', number: 1, label: f('season1'), count: f('count13'), progress: f('watched'), complete: true}, {id: 's2', number: 2, label: f('season2'), count: f('count22'), progress: f('watched'), complete: true},
       {id: 's3', number: 3, label: f('season3'), count: f('season3Count'), progress: f('season3Progress'), fraction: 4 / 24}, {id: 's4', number: 4, label: f('season4'), count: f('count22')},
       {id: 's5', number: 5, label: f('season5'), count: f('count22')}, {id: 's0', number: 0, label: f('specials'), count: f('count12')}]}/>}
   </TitleFrame></Page>;
 }
 function Season() {
-  const [tab, setTab] = useState('episodes'), [hide, setHide] = useState(false);
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-season" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('bd-tlou.jpg')}/>} kicker={{icon: 'i-tv', label: f('seasonKicker'), onPress: none}} title={f('season1')}
+  const [tab, setTab] = useState('episodes'), [hide, setHide] = useState(false), {isTV} = useTheme();
+  const tv = isTV ? {collapsed: true, startFocus: 'title-season-s1', seasons: tvSeasons([{id: 's1', label: 'season1', detail: 'seasonProgress', progress: .25}], 's1', {title: 'season1', count: 'episodeCount', synopsis: 'seasonSynopsis'})} : {};
+  return <Page destination={{kind: 'library', libraryId: 'show'}}><TitleFrame testID="frames-title-season" back={back} topAction={playOn} {...tv} art={<AmbientArt treatment="title" foreground={asset('bd-tlou.jpg')}/>} kicker={{icon: 'i-tv', label: f('seasonKicker'), onPress: none}} title={f('season1')}
     metadata={<Meta text={f('seasonFacts')}/>} primary={{icon: 'i-play', label: f('resumeEpisode'), progress: .67, remaining: f('ep1Left'), onPress: none}}
-    actions={[{icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]} synopsis={f('seasonSynopsis')} tabs={tabs(tab, setTab, true)}>
-    <PanelBlock><SeasonBar label={f('season1')} count={f('episodeCount')} onSeasons={none} hideWatched={hide} onHideWatched={setHide}/><View style={{height: 12}}/><EpisodeRows episodes={tlouEpisodes}/></PanelBlock>
+    actions={[{icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]} synopsis={f('seasonSynopsis')} tabs={tabs(tab, setTab, true)}>
+    {isTV ? <Posters title={f('moreLikeThis')} items={moreLikeShows}/> : <PanelBlock><SeasonBar label={f('season1')} count={f('episodeCount')} onSeasons={none} hideWatched={hide} onHideWatched={setHide}/><View style={{height: 12}}/><EpisodeRows episodes={tlouEpisodes}/></PanelBlock>}
   </TitleFrame></Page>;
 }
 function EpisodePage() {
   const theme = useTheme();
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-episode" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('pool/tv/the-last-of-us--bd.jpg')}/>} kicker={{icon: 'i-tv', label: f('tlou'), detail: f('season1'), onPress: none}} title={f('ep3')}
+  return <Page destination={{kind: 'library', libraryId: 'show'}}><TitleFrame testID="frames-title-episode" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('pool/tv/the-last-of-us--bd.jpg')}/>} kicker={{icon: 'i-tv', label: f('tlou'), detail: f('season1'), onPress: none}} title={f('ep3')}
     metadata={<Meta text={f('episodeFacts')} tags={[f('ep3Rating')]}/>} primary={{icon: 'i-play', label: f('play'), onPress: none}}
-    actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     synopsis={f('ep3Synopsis')} credits={[{label: f('directedBy'), names: [link(f('ep3Director'))]}, {label: f('writtenBy'), names: [link(f('ep3Writer'))]}]}
     picker={<TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none}/>}>
     <PanelBlock><PanelHeading title={f('guestStars')}/><CastRow groups={[[{id: 'g1', name: f('guest1'), role: f('guestRole1'), onPress: none}, {id: 'g2', name: f('guest2'), role: f('guestRole2'), onPress: none}]]}/></PanelBlock>
@@ -175,8 +205,8 @@ function EpisodePage() {
 function Person() {
   const theme = useTheme(), [filter, setFilter] = useState('all'), width = theme.spec.card.width.poster[theme.column];
   const poster = (key: string, title: string, role: string) => <PosterCard key={key} title={title} caption={[{id: 'role', text: role, role: 'context'}]} artwork={asset(key)} width={width} onNavigate={none}/>;
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-person" back={{label: f('dune2'), onPress: none}}
-    cover={{shape: 'circle', node: <PersonCircle size={300} initials="RF" covers={[asset('pool/movies/dune-part-two.jpg'), asset('pool/movies/dune.jpg'), asset('pool/tv/silo.jpg')]} alt="" style={{width: '100%', height: '100%'}}/>}}
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-person" back={{label: f('dune2'), onPress: none}}
+    cover={{shape: 'circle', node: size => <PersonCircle size={size} initials="RF" covers={[asset('pool/movies/dune-part-two.jpg'), asset('pool/movies/dune.jpg'), asset('pool/tv/silo.jpg')]} alt=""/>}}
     kicker={{label: f('personKicker')}} title={f('person')} metadata={<Meta text={f('personFacts')}/>} synopsis={f('personBio')} readMore={{label: f('readMore'), note: f('bioSource'), onPress: none}}>
     <PanelBlock>
       <PanelHeading title={f('onThisServer')} count={f('onThisServerCount')} trailing={<>{(['all', 'cast', 'crew'] as const).map(id => <Chip key={id} variant="facet" selected={filter === id} onPress={() => setFilter(id)}>{f(id)}</Chip>)}
@@ -192,7 +222,7 @@ function Person() {
 function Collection() {
   const film = (number: number, key: string, title: string, made: string, synopsis: string, status: {label: string; icon?: 'i-check'; accent?: boolean}, action: ReactNode, progress?: number) =>
     <NumberedRow key={key} number={number} artwork={asset(key)} title={title} facts={<Meta text={made} tags={['PG-13']}/>} synopsis={synopsis} status={status} action={action} progress={progress} onPress={none}/>;
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-collection" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('bd-lotr.jpg')}/>}
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-collection" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('bd-lotr.jpg')}/>}
     kicker={{icon: 'i-layers', label: f('collectionKicker'), detail: f('collectionMade')}} title={f('lotr')} metadata={<Meta text={f('lotrFacts')} tags={['PG-13']}/>}
     primary={{icon: 'i-play', label: f('playAll'), onPress: none}} actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]} synopsis={f('lotrSynopsis')}
     aside={<><View><PanelHeading title={f('about')}/><AboutTable rows={[{label: f('films'), values: [{text: f('filmsValue')}]}, {label: f('years'), values: [{text: f('yearsValue')}]}, {label: f('directedBy'), values: [link(f('lotrDirector'))]}, {label: f('genres'), values: [link(f('lotrGenre1')), link(f('lotrGenre2'))]}]}/></View>
@@ -211,7 +241,7 @@ function Songs({rows, ranked = false}: {rows: readonly TrackRowData[]; ranked?: 
   return <View>{rows.map((row, index) => <SongRow key={row.id} row={row} index={index} ranked={ranked} onPlay={none} onMore={none} onEnter={none}/>)}</View>;
 }
 function Album() {
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-album" back={back} cover={{shape: 'square', node: <Artwork source={asset('pool/albums/after-hours.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('albumKicker')}} title={f('album')}
+  return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-album" back={back} cover={{shape: 'square', node: <Artwork source={asset('pool/albums/after-hours.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('albumKicker')}} title={f('album')}
     metadata={<Meta text={`${f('albumArtist')} · ${f('albumFacts')}`}/>} primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, onPress: none}, {icon: 'i-heart', label: f('favourite'), onPress: none}, {icon: 'i-listadd', label: f('addToPlaylist'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     aside={<><View><PanelHeading title={f('details')}/><AboutTable rows={[{label: f('year'), values: [{text: '2020'}]}, {label: f('label'), values: [{text: f('labelValue')}]}, {label: f('type'), values: [{text: f('albumKicker')}]}, {label: f('genre'), values: [link('R&B/Soul')]}, {label: f('added'), values: [{text: 'Oct 17, 2026'}]}]}/></View>
@@ -221,7 +251,7 @@ function Album() {
 }
 function Artist() {
   const theme = useTheme();
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-artist" back={back} cover={{shape: 'circle', node: <Artwork source={asset('pool/albums/abbey-road-2019-mix.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('artistKicker')}} title={f('artist')}
+  return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-artist" back={back} cover={{shape: 'circle', node: <Artwork source={asset('pool/albums/abbey-road-2019-mix.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('artistKicker')}} title={f('artist')}
     metadata={<Meta text={f('artistFacts')}/>} primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, onPress: none}, {icon: 'i-heart', label: f('favourite'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     aside={<><View><PanelHeading title={f('albums')}/><SquareCard title={f('abbeyRoad')} caption={[{id: 'year', text: '1969', role: 'context'}]} artwork={asset('pool/albums/abbey-road-2019-mix.jpg')} width={theme.spec.card.width.poster[theme.column] * 1.2} onNavigate={none}/></View>
@@ -232,10 +262,10 @@ function Artist() {
 function Book() {
   const rows: TrackRowData[] = (['chapter1', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6', 'chapter7'] as const).map((name, index) => ({id: name, number: index + 1, text: {id: name, title: f(name), caption: [], detail: []},
     duration: {id: 'duration', text: ['27:43', '22:15', '25:10', '26:38', '39:47', '35:19', '27:29'][index]!, role: 'context'}, done: index < 5, current: index === 5, progress: index === 5 ? .52 : undefined}));
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-book" back={back} cover={{shape: 'square', node: <Artwork source={asset('pool/books/harry-potter-and-the-philosopher-s-stone.jpg')} style={{width: '100%', height: '100%'}}/>}}
+  return <Page destination={{kind: 'library', libraryId: 'audiobook'}}><TitleFrame testID="frames-title-book" back={back} cover={{shape: 'square', node: <Artwork source={asset('pool/books/harry-potter-and-the-philosopher-s-stone.jpg')} style={{width: '100%', height: '100%'}}/>}}
     kicker={{label: f('bookSeries'), detail: f('bookSeriesDetail'), onPress: none}} title={f('book')} metadata={<Meta text={f('bookFacts')}/>}
     primary={{icon: 'i-play', label: f('resumeChapter'), progress: .32, remaining: f('bookLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none}}
-    actions={[{icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-plus', label: f('myList'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-plus', label: f('myList'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     aside={<><View><PanelHeading title={f('aboutBook')}/><AboutTable rows={[{label: f('author'), values: [link(f('authorValue'))]}, {label: f('narrator'), values: [link(f('narratorValue'))]}, {label: f('published'), values: [{text: f('publishedValue')}]}]}/></View>
       <OwnerCard title={f('files')} mark={f('ownerOnly')} body={f('filesBody')} actions={[{icon: 'i-folder', label: f('manage'), onPress: none}]}/></>}>
     <PanelBlock><PanelHeading title={f('chapters')}/><Songs rows={rows}/></PanelBlock>
@@ -244,14 +274,14 @@ function Book() {
 
 function Missing() {
   const [tab, setTab] = useState('more');
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-missing" back={back} art={<AmbientArt treatment="title"/>} title={f('longTitle')} metadata={<Meta text={f('longFacts')}/>} primary={{icon: 'i-play', label: f('play'), onPress: none}} tabs={tabs(tab, setTab)}>
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-missing" back={back} art={<AmbientArt treatment="title"/>} title={f('longTitle')} metadata={<Meta text={f('longFacts')}/>} primary={{icon: 'i-play', label: f('play'), onPress: none}} tabs={tabs(tab, setTab)}>
     <Posters title={f('moreLikeThis')} items={moreLikeDune}/>
   </TitleFrame></Page>;
 }
 /** Loading: the card's title and art are known; the facts and words are skeletons, the buttons are in place but say nothing they do not know, the tab panel keeps skeleton cards. */
 function Loading() {
   const [tab, setTab] = useState('more'), {isTV} = useTheme();
-  return <Page destination={{kind: 'libraries'}}><TitleFrame testID="frames-title-loading" {...filmFrame(tab, setTab, isTV)} kicker={undefined} state={{kind: 'loading'}}/></Page>;
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-loading" {...filmFrame(tab, setTab, isTV)} kicker={undefined} state={{kind: 'loading'}}/></Page>;
 }
 
 const whole = {screen: true} as const;

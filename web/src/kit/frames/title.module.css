@@ -35,6 +35,8 @@
 .round[data-active], .labelled[data-active] { color: var(--color-accent-strong); background: color-mix(in srgb, var(--color-accent-strong) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 55%, transparent); }
 .startOver { display: none; }
 .labelled { display: none; }
+/* A `wide` action is in More up to 1024 (phone-detail d1). */
+.round[data-wide] { display: none; }
 .resume { display: none; }
 .progress { display: grid; grid-template-columns: 1fr auto; align-items: center; row-gap: var(--space-tight); }
 .progress > span { grid-column: 1 / -1; height: var(--spec-card-progress-height-phone); border-radius: var(--spec-card-progress-height-phone); overflow: hidden; background: color-mix(in srgb, var(--color-text) 22%, transparent); }
@@ -141,6 +143,7 @@
   .tagline, .credits { display: block; }
   .actions > .primary, .actions > .resume { flex: none; }
   .labelled, .startOver, .resume { display: inline-flex; }
+  .round[data-wide] { display: inline-flex; }
   .round[data-labelled], .primary[data-paired] { display: none; }
   .title:not([data-cover]) .progress { display: none; }
   .progress > button { display: none; }

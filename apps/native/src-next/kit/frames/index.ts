@@ -2,7 +2,7 @@
 export {BrowseFrame, type BrowseFrameProps, type BrowseHeaderProps, type BrowseFiltersProps} from './BrowseFrame';
 export {HomeHero, type HomeHeroProps} from './HomeHero';
 export {TitleFrame, type TitleFrameProps, type TitleAction, type TitlePrimary, type TitleCredit, type TitleKicker, type TitleCover} from './TitleFrame';
-export {PanelBlock, PanelHeading, AboutTable, CastRow, TrackPicker, NumberedRow, OwnerCard, EpisodeNeighbour, type AboutValue, type CastPerson} from './title-parts';
+export {PanelBlock, PanelHeading, AboutTable, CastRow, TrackPicker, NumberedRow, OwnerCard, EpisodeNeighbour, SeasonListRow, type AboutValue, type CastPerson} from './title-parts';
 export {SettingsListFrame, SettingsPageFrame, type SettingsListFrameProps, type SettingsPageFrameProps} from './SettingsFrame';
 export {SheetFrame, type SheetFrameProps, type SheetBarProps} from './SheetFrame';
 export {SignInFrame, type SignInFrameProps} from './SignInFrame';

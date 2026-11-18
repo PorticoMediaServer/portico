@@ -81,7 +81,7 @@ test('TV: the side list offers every episode group; focusing one asks for it onc
     '../../../../../packages/i18n/src': {defaultI18n},
     './tv-title-focus': {tvEpisodeGroupKey, tvEpisodeRegionMap}, '../../kit/focus': {FocusRegion: 'FocusRegion'},
     '../../tv/layout/TVShelf': {TVShelf: 'TVShelf', tvItemKey: (entry: {id: string}) => entry.id},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/cards': {EpisodeTile: 'EpisodeTile'},
+    '../../kit/controls': {Focusable: 'Focusable', KeyHints: 'KeyHints'}, '../../kit/frames/title-parts': {SeasonListRow: 'SeasonListRow'}, '../../kit/cards': {EpisodeTile: 'EpisodeTile'},
     '../../kit/overlays': {Menu: 'Menu'}, '../../kit/browse/presentation': {browseType: (_theme: unknown, size: number) => ({fontSize: size})},
     '../../kit/theme': {useTheme: () => tvTheme},
   });
@@ -103,13 +103,13 @@ test('TV: the side list offers every episode group; focusing one asks for it onc
     assert.equal(nodes.find(node => node.type === 'TVShelf').props.focus.id, 'tv.episodes.season."group:range:1"', 'each group has its own episode row, so its focus memory is its own');
     const rows = nodes.filter(node => node.props.testID?.startsWith('tv-group-'));
     assert.deepEqual(rows.map(node => node.props.testID), ['tv-group-range:1', 'tv-group-range:101']);
-    assert.deepEqual(rows.map(node => node.props.accessibilityState.selected), [true, false]);
+    assert.deepEqual(rows.map(node => node.props.current), [true, false]);
     rows[1].props.onFocus();
     await host.rerender();
     assert.deepEqual(calls, ['season-focus', 'group:range:101']);
     nodes = descendants(tree);
     assert.deepEqual(nodes.find(node => node.type === 'TVShelf').props.items, [], 'the row waits: it never shows the previous group\'s episodes as this one\'s');
-    assert.ok(nodes.some(node => node.type === 'Text' && node.props.children === 'Episodes 101–150'), 'the focus band names the focused group');
+    assert.ok(nodes.some(node => node.props.focus?.kind === 'group' && node.props.focus.group.title === 'Episodes 101–150'), 'the focus band names the focused group');
     rows[1].props.onPress();
     assert.deepEqual(calls, ['season-focus', 'group:range:101', 'season-focus'], 'OK on the same group asks nothing more');
     props = {...props, requestedGroup: 'range:101'};
