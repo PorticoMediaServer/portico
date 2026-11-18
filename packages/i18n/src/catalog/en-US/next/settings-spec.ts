@@ -2708,7 +2708,7 @@ export const settingsSpecMessages = {
   "next.settingsSpec.server.remote.advanced.groups.4.rows.0.control.addLabel": "Add an address",
   "next.settingsSpec.server.remote.advanced.groups.4.rows.0.control.itemAction.label": "Remove",
   "next.settingsSpec.server.remote.advanced.groups.4.rows.1.label": "Trusted reverse proxies",
-  "next.settingsSpec.server.remote.advanced.groups.4.rows.1.help": "Without this, everyone behind a proxy looks the same.",
+  "next.settingsSpec.server.remote.advanced.groups.4.rows.1.help": "Without this, everyone behind a proxy looks the same. If a reverse proxy runs on this computer, list it here.",
   "next.settingsSpec.server.remote.advanced.groups.4.rows.1.control.addLabel": "Add a proxy",
   "next.settingsSpec.server.remote.advanced.groups.4.rows.1.control.itemAction.label": "Remove",
   "next.settingsSpec.server.remote.configOnly.0.label": "How long the router keeps a port open before Portico renews it",
