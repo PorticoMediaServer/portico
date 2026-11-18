@@ -243,3 +243,42 @@ func TestAHeldSignInOnAnotherDeviceDoesNotGetInWhenTwoStepIsSetUp(t *testing.T) 
 		t.Errorf("the phone that set two-step up renewed with %d, still held: %v", code, mine.TwoStepSetupRequired)
 	}
 }
+
+// A phone signed in before the owner required two-step keeps an ordinary sign-in that has shown
+// only the password. When the person then sets two-step up on another device, that phone has
+// still never shown a second step: it is signed out, so it cannot approve a TV (which does no
+// two-step of its own) or do anything else until it signs in again with the code.
+func TestAnEarlierSignInEndsWhenTwoStepIsSetUpOnAnotherDevice(t *testing.T) {
+	s, owner, _, _ := twoMembers(t)
+	now := time.Now()
+	s.setClock(func() time.Time { return now })
+	phone := signInAs(t, s, "max", testPassword, 2)
+	saveSignIn(t, s, owner, `{"requireTwoStep":"everyone"}`, 200)
+
+	var laptop SignInResponse
+	if w := call(t, s, "POST", "/v1/auth/sign-in", "", SignInRequest{Username: "max", Password: testPassword, Device: device(4)}, &laptop); w.Code != 200 || !laptop.Session.TwoStepSetupRequired {
+		t.Fatalf("the laptop signed in with %d %s", w.Code, w.Body)
+	}
+	var setupInfo TwoFactorSetup
+	if w := call(t, s, "POST", "/v1/me/two-factor", laptop.Session.AccessToken, TwoFactorEnrol{CurrentPassword: testPassword}, &setupInfo); w.Code != 200 {
+		t.Fatalf("starting two-step on the laptop answered %d: %s", w.Code, w.Body)
+	}
+	secret, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(setupInfo.Secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code := status(t, s, "POST", "/v1/me/two-factor/confirm", laptop.Session.AccessToken, TwoFactorVerify{Code: auth.TOTPCode(secret, auth.TOTPStep(now))}); code != 200 {
+		t.Fatalf("confirming two-step on the laptop answered %d", code)
+	}
+
+	var tv CodeStarted
+	if w := call(t, s, "POST", "/v1/auth/codes", "", CodeStart{Device: DeviceInfo{InstallationID: device(7).InstallationID, Name: "TV"}}, &tv); w.Code != 200 {
+		t.Fatalf("start answered %d: %s", w.Code, w.Body)
+	}
+	if code := status(t, s, "POST", "/v1/auth/codes/"+tv.Code+"/approve", phone.AccessToken, CodeDecision{}); code != 401 {
+		t.Errorf("the phone that never showed a second step approved a TV with %d, want 401", code)
+	}
+	if code, _ := renew(t, s, phone.RefreshToken, 2, "phone"); code != 401 {
+		t.Errorf("the phone that never showed a second step renewed with %d, want 401", code)
+	}
+}

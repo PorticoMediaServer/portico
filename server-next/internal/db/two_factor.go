@@ -223,10 +223,10 @@ func (d *DB) ConfirmTwoFactor(ctx context.Context, userID, sessionID int64, chec
 			return err
 		}
 		// The sign-in that confirmed, if it was only allowed to set this up, becomes an ordinary
-		// one, and its app takes a new token. Any other held sign-in of the account has shown
-		// only the password, never a second step, so it ends here: it signs in again, with
-		// the code.
-		if err := revoke(tx, c, now, "two_step_set_up", `user_id = ? AND scope = 'enrol' AND id <> ?`, userID, sessionID); err != nil {
+		// one, and its app takes a new token. Every other sign-in of the account, held for
+		// setup or an ordinary one from before, has shown only the password and never a
+		// second step, so it ends here: it signs in again, with the code.
+		if err := revoke(tx, c, now, "two_step_set_up", `user_id = ? AND id <> ?`, userID, sessionID); err != nil {
 			return err
 		}
 		if err := markStale(tx, c, `id = ? AND user_id = ? AND scope = 'enrol'`, sessionID, userID); err != nil {
