@@ -16,5 +16,7 @@ child.on('exit', code => {
   if (!existsSync(report)) { console.error(`no report (exit ${code})`); process.exit(1); }
   const result = JSON.parse(readFileSync(report, 'utf8'));
   console.log(JSON.stringify(result, null, 2));
-  process.exit(result.ready && result.path === '/servers' && result.errors.length === 0 ? 0 : 1);
+  // An installed build must find the mpv it ships (PORTICO_EXPECT_MPV).
+  const mpv = !process.env.PORTICO_EXPECT_MPV || result.mpv === true;
+  process.exit(result.ready && result.path === '/servers' && result.errors.length === 0 && mpv ? 0 : 1);
 });
