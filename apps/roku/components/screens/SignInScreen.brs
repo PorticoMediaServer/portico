@@ -1,5 +1,20 @@
 sub init()
     c = colours()
+    f = frames().signIn
+    ' the front door at the gutter (connect.html frame 40); the other pages from the hand-off column
+    m.top.findNode("doorMark").translation = [frames().gutter, f.markY]
+    m.top.findNode("welcome").translation = [frames().gutter - 4, f.doorTitleY]     ' 4 left: the W's own margin
+    m.top.findNode("doorButtons").translation = [frames().gutter, f.doorButtonsY]
+    m.top.findNode("doorNote").translation = [frames().gutter, f.doorNoteY]
+    for each id in ["codeMark", "factorMark"]
+        m.top.findNode(id).translation = [f.markX, f.markY]
+    end for
+    lines = {eyebrow: f.eyebrowY, how: f.bodyY, codeButtons: f.buttonsY, codeNote: f.noteY, press: f.pressY, factorTitle: f.factorTitleY, factorBody: f.factorBodyY}
+    for each id in lines
+        m.top.findNode(id).translation = [f.pageX, lines[id]]
+    end for
+    m.top.findNode("server").translation = [f.pageX - 3, f.titleY]     ' 3 left: the capital's own margin
+    m.top.findNode("press").hints = [{before: "Press", keys: ["Back"], text: "to change the server address."}]
     m.door = m.top.findNode("door")
     m.code = m.top.findNode("code")
     m.factor = m.top.findNode("factor")
@@ -10,21 +25,23 @@ sub init()
     m.factorPad = m.top.findNode("factorPad")
     m.poll = m.top.findNode("poll")
     m.card = m.top.findNode("card")
-    m.card.translation = [frames().signIn.cardX, frames().signIn.cardY]
+    m.card.translation = [f.cardX, f.cardY]
+    m.factorPad.translation = [f.keysX, f.keysY]
+    m.factorPad.boxesAt = [f.pageX - f.keysX, f.factorBoxesY - f.keysY]
     setType(m.top.findNode("welcome"), "welcome", c.text)
     setType(m.doorNote, "body", c.danger)
     setType(m.top.findNode("eyebrow"), "eyebrow", c.accentStrong)
-    setType(m.top.findNode("server"), "pageTitle", c.text)
+    setType(m.top.findNode("server"), "authTitle", c.text)
     setType(m.codeNote, "body", c.danger)
-    setType(m.top.findNode("press"), "caption", c.textTertiary)
-    setType(m.top.findNode("pressRest"), "caption", c.textTertiary)
-    setType(m.top.findNode("backKey"), "keycap", c.text)
     setType(m.top.findNode("factorTitle"), "pageTitle", c.text)
     setType(m.top.findNode("factorBody"), "lede", c.textSecondary)
+    ' the steps (auth.html .tvl .lede): 26 px, the names to look for in bold and brighter
     how = m.top.findNode("how")
+    body = typeRoles().authBody
+    how.lineSpacing = body[2] - body[1] * 1.25
     how.drawingStyles = {
-        "default": {fontUri: "pkg:/fonts/manrope-400.ttf", fontSize: 28, color: "#BDCCD6FF"},
-        "b": {fontUri: "pkg:/fonts/manrope-700.ttf", fontSize: 28, color: "#EDF5FAFF"}
+        "default": {fontUri: "pkg:/fonts/manrope-400.ttf", fontSize: body[1], color: "#" + mid(c.textSecondary, 3)},
+        "b": {fontUri: "pkg:/fonts/manrope-700.ttf", fontSize: body[1], color: "#" + mid(c.text, 3)}
     }
     ' "Sign in with Portico Account" joins this row when that flow is built (the next change).
     m.doorButtons.buttons = [{id: "local", text: "Use a local server", icon: ""}]
