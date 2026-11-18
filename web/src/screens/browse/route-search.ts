@@ -1,5 +1,6 @@
 import {parseBrowseNode, type BrowseNode, type BrowseSortSelection} from '@core/browse.ts';
-import type {ContentView} from '@core/library-content.ts';
+import type {ContentRoute, ContentView} from '@core/library-content.ts';
+import {rebuiltContentViews} from '@core/library-content-rebuilt.ts';
 
 const views: readonly ContentView[] = ['discover', 'browse', 'collections', 'categories', 'show', 'season', 'artist', 'album', 'book', 'collection', 'releases', 'songs', 'authors', 'series', 'author', 'book_series', 'disc'];
 function invalid(): never {throw new Error('invalid-library-route');}
@@ -59,4 +60,10 @@ export function selectedLibraryTab<T extends TabShape>(tabs: readonly T[], searc
 export function libraryTabAddress<T extends TabShape>(tabs: readonly T[], tab: T): LibraryScreenSearch {
   return {view: tab.id === 'discover' ? 'discover' : 'browse', ...(tab.pivot ? {pivot: tab.pivot} : {}),
     ...(tab.pivot && tabs.find(other => other.pivot === tab.pivot) !== tab ? {tab: tab.id} : {})};
+}
+/** What a library page that is not a tab or a title's own page reads. A view the rebuilt server has no read for
+ * (an old or typed address such as `?view=categories`) opens the library's Discover instead of failing. */
+export function libraryContentRoute(libraryId: string, view: ContentView, search: Pick<LibraryScreenSearch, 'entityId' | 'category' | 'q'>): ContentRoute {
+  if (!rebuiltContentViews.has(view)) return {libraryId, view: 'discover'};
+  return {libraryId, view, ...(search.entityId ? {entityId: search.entityId} : {}), ...(search.category ? {category: search.category} : {}), ...(search.q ? {q: search.q} : {})};
 }
