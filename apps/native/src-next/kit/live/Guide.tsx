@@ -51,6 +51,9 @@ export function GuideGrid({channels, span, now, ruler, nowLabel, channelLabel, o
   const theme = useTheme(), frame = useFrameMetrics(), {form} = frame, px = guideSpec.perMinute[form], row = guideSpec.row[form];
   const width = span * px, height = channels.length * (row + guideSpec.gap);
   const phone = form === 'phone';
+  // A ruler time the now pill would sit on is left out (phone-guide g1: 3:30, 4:05 now, 4:30), so no half-covered label
+  // shows beside the pill. Reach in the ruler's text size: a label's width before now, the pill's half after it. Web: the same rule.
+  const size = theme.type.rowHelp.fontSize ?? 13, underNow = (at: number) => (at - now) * px > -size * 6.5 && (at - now) * px < size * 2.4;
   return <View style={{flexDirection: 'row', paddingLeft: frame.gutter}}>
     <View style={{width: guideSpec.channel[form]}}>
       <View style={{height: guideSpec.ruler, justifyContent: 'center'}}>{!phone && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{channelLabel}</Text>}</View>
@@ -65,7 +68,7 @@ export function GuideGrid({channels, span, now, ruler, nowLabel, channelLabel, o
     </View>
     <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingRight: frame.rightGutter}}>
       <View style={{width, height: guideSpec.ruler + height}}>
-        {ruler.map(mark => <View key={mark.at} style={{position: 'absolute', left: mark.at * px, top: 0, height: guideSpec.ruler, justifyContent: 'center', paddingLeft: theme.space.xs, borderLeftWidth: 1, borderColor: theme.colors.line}}>
+        {ruler.filter(mark => !underNow(mark.at)).map(mark => <View key={mark.at} style={{position: 'absolute', left: mark.at * px, top: 0, height: guideSpec.ruler, justifyContent: 'center', paddingLeft: theme.space.xs, borderLeftWidth: 1, borderColor: theme.colors.line}}>
           <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{mark.label}</Text>
         </View>)}
         {channels.map((channel, index) => channel.cells.map(cell => {
