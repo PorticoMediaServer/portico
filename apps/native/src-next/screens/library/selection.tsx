@@ -1,8 +1,5 @@
 import {nativeSelectionActionUnavailable, nativeSelectionUnavailableActions} from './selection-unavailable-actions';
-import {nativeWholeQueryUnavailableActions} from './whole-query-unavailable';
-import {createNativeLibrarySelectionAction, nativeSelectionActionInput, type NativeLibrarySelectionAction} from './selection-actions';
-import {askNativeDownload, closeNativeDownload, getNativeDownloadSnapshot} from '../downloads/request';
-import {offlineDownloads} from '../../platform/offline-downloads';
+import {queryDeleteLimit, queryDeleteSelector, resolveQueryDelete} from '../../../../../packages/client-core/src/query/catalogue-query-delete';
 import React, {useRef, useState, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -51,8 +48,7 @@ type RegisteredWindow = Readonly<{id: string; first: number; entries: readonly C
  * Toggling works on the genuine entries the grid registers, and every action the
  * bar offers is one the canonical Detail projection enables for *every* pick:
  * Play, Add to queue, My List, Favorites and Watched, the bounded playlist and
- * collection picker, and the owner's bulk edit and delete. Download has no
- * executor on this surface, so that capability stays false.
+ * collection picker, and the owner's bulk edit and delete.
  *
  * Whole-view Select all needs a server descriptor. An explicit refusal stays
  * visible with its reason; the loaded page remains a separate selection. */
@@ -66,7 +62,6 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
   let destinations: NativeLoadedDestinations | undefined, destinationKind: 'playlist' | 'collection' | undefined;
   let destinationController: AbortController | undefined, stopDestinations: (() => void) | undefined;
   let bulk: NativeBulkMedia | undefined, bulkController: AbortController | undefined, stopBulk: (() => void) | undefined;
-  let queryAction: NativeLibrarySelectionAction | undefined, stopQueryAction: (() => void) | undefined;
   let personal: ReturnType<typeof createCataloguePersonalSelection> | undefined, personalCurrent: (() => boolean) | undefined, personalToken = 0;
   let personalDetach: (() => boolean) | undefined;
   // While a selection is open, the grid's pages are held as they are (the hub's quiet re-read waits).
@@ -94,18 +89,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     if (expected && bulk !== expected) return;
     bulkController?.abort(); bulkController = undefined; stopBulk?.(); stopBulk = undefined;
     bulk?.dispose(); bulk = undefined;};
-  const closeQueryAction = (expected?: NativeLibrarySelectionAction) => {
-    if (expected && queryAction !== expected) return;
-    const closing = queryAction; queryAction = undefined;
-    stopQueryAction?.(); stopQueryAction = undefined;
-    if (closing) {
-      const request = getNativeDownloadSnapshot();
-      if (request?.queryAction === closing) closeNativeDownload(request);
-      closing.dispose(); emit();
-    }
-  };
-  const reset = (preserveQueryAction = false) => {
-    if (!preserveQueryAction) closeQueryAction();
+  const reset = () => {
     closeDestinations();
     closeBulk();
     pending?.abort(); pending = undefined; queued = undefined;
@@ -129,7 +113,6 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
   // The producer disposes itself when the applied view changes; rebuild it there
   // so every registration belongs to exactly one real query.
   const ensure = (): Producer | undefined => {
-    if (queryAction?.current()) return producer;
     const next = sourceToken();
     if (!next || !visible()) {if (token) reset(); return undefined;}
     if (producer && next === token) return producer;
@@ -187,7 +170,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
   };
   const selectedKeys = () => snapshot()?.selectedKeys ?? [];
   const toggle = (key: string) => {
-    if (queryAction) return;
+    if (bulkController && snapshot()?.target?.mode === 'query') return;
     const entry = entryForKey(key);
     if (!entry) return;
     const window = windowForEntry(entry);
@@ -201,7 +184,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     }
     try {window.toggle(entry); entering = true; emit();} catch (error) {if (visible()) services.reportError(error, 'library');}
   };
-  const clear = () => {closeQueryAction(); entering = false; model()?.clear(); emit();};
+  const clear = () => {closeBulk(); entering = false; model()?.clear(); emit();};
   const loaded = (): ContentEntry[] => [...windows.values()].flatMap(window => [...window.entries]);
   const queueControl = () => {
     const role = context.playback.getSnapshot().session?.role;
@@ -211,7 +194,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     // A retained menu acts on the selection it was drawn for, never on a successor.
     if (view !== snapshot()) return;
     const current = producer, op = current?.model.captureOperation();
-    if (!current || !op || !visible() || pending || destinations || bulk || queryAction || personal?.service.getSnapshot().busy
+    if (!current || !op || !visible() || pending || destinations || bulkController || personal?.service.getSnapshot().busy
       || !!personal?.service.getSnapshot().results.length) return;
     const query = op.target.mode === 'query' ? op.target : undefined;
     if (nativeSelectionActionUnavailable(view.summary, action) || query && !queryExecutable(query, action === 'play' ? 'play' : 'queue')) return;
@@ -297,45 +280,36 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     void destinations.load(kind).catch(error => {if (live()) services.reportError(error, 'library');});
     emit();
   };
-  // select 21/22: the owner's real bulk editor and delete dialog, over exactly
-  // the selected leaves and the captured view. No grant, no row.
-  const openAdmin = (kind: 'edit' | 'delete', view: SelectionSnapshot<BrowseSelectionContext>) => {
+  const queryDeleteOffered = (view: SelectionSnapshot<BrowseSelectionContext> | undefined) =>
+    !!view && view === snapshot() && view.target?.mode === 'query' && visible()
+    && context.session()?.viewer.role === 'owner' && !!queryDeleteSelector(view.target);
+  // The same admin dialog takes either the explicit picks or the resolved whole view.
+  const openAdmin = async (kind: 'edit' | 'delete', view: SelectionSnapshot<BrowseSelectionContext>) => {
     if (view !== snapshot() || kind === 'delete' && nativeSelectionActionUnavailable(view.summary, 'delete')) return;
     const current = producer, model = current?.model;
-    if (!current || !model || !view.active || !view.selectedKeys.length || destinations || bulk || queryAction || pending || personalController
+    if (!current || !model || !view.active || destinations || bulkController || pending || personalController
       || !!personal?.service.getSnapshot().results.length || personal?.service.getSnapshot().busy || !visible()) return;
     const op = model.captureOperation();
-    if (!op || op.target.mode !== 'explicit') return;
-    const pickedEntries = entriesFor(view.selectedKeys);
-    if (pickedEntries.length !== view.selectedKeys.length) return;
+    if (!op) return;
+    if (op.target.mode === 'query' && (kind !== 'delete' || !queryDeleteOffered(view) || op.target.total > queryDeleteLimit)) return;
     const routeRevision = context.navigation.getSnapshot().revision;
     const controller = new AbortController(), live = () => !controller.signal.aborted && visible() && producer === current
       && context.navigation.getSnapshot().revision === routeRevision && model.isOperationCurrent(op);
     bulkController = controller;
-    bulk = new NativeBulkMedia({queries: viewerQueriesFor(context.api, lifetime.scope), api: context.api, scope: lifetime.scope, requestId: services.requestId, signal: controller.signal, isCurrent: live}, pickedEntries);
-    stopBulk = bulk.subscribe(emit);
-    void (kind === 'edit' ? bulk.openEditor() : bulk.openDelete()).catch(error => {if (live()) services.reportError(error, 'detail');});
-    emit();
-  };
-  const queryOffer = (kind: 'delete' | 'download', view: SelectionSnapshot<BrowseSelectionContext> | undefined) => {
-    if (!view || view !== snapshot() || view.target?.mode !== 'query' || !visible()) return false;
-    try {nativeSelectionActionInput(view.target, kind, context); return true;} catch {return false;}
-  };
-  const openQueryAction = (kind: 'delete' | 'download', view: SelectionSnapshot<BrowseSelectionContext>) => {
-    if (!queryOffer(kind, view) || !producer || queryAction || bulk || destinations || pending || personalController
-      || personal?.service.getSnapshot().busy || personal?.service.getSnapshot().results.length) return;
     try {
-      const action = createNativeLibrarySelectionAction(context, source, activation, producer.model, undefined, {
-        follow: (operationId, deviceId) => offlineDownloads.followSelectionAction(operationId, deviceId),
-      });
-      if (snapshot() !== view || action.target !== view.target) {action.dispose(); return;}
-      queryAction = action;
-      stopQueryAction = action.subscribe(() => {if (!action.current()) closeQueryAction(action); else emit();});
-      if (kind === 'delete') void action.openDelete().catch(error => {if (queryAction === action && action.current()) services.reportError(error, 'detail');});
-      else askNativeDownload({title: selectedItemsLabel(view.summary), queryAction: action,
-        lifetime: {signal: action.source.signal!, isCurrent: action.current}});
+      const options = {queries: viewerQueriesFor(context.api, lifetime.scope), api: context.api, scope: lifetime.scope,
+        requestId: services.requestId, signal: controller.signal, isCurrent: live};
+      if (op.target.mode === 'query') emit();
+      const pickedEntries = op.target.mode === 'query'
+        ? await resolveQueryDelete(options.api, op.target, options.signal) : entriesFor(view.selectedKeys);
+      if (!live() || op.target.mode === 'explicit' && (!pickedEntries.length || pickedEntries.length !== view.selectedKeys.length)) return;
+      bulk = new NativeBulkMedia(options, pickedEntries);
+      stopBulk = bulk.subscribe(emit);
+      const opening = kind === 'edit' ? bulk.openEditor() : bulk.openDelete();
       emit();
-    } catch (error) {services.reportError(error, 'detail');}
+      await opening;
+    } catch (error) {if (live()) services.reportError(error, 'detail');}
+    finally {if (bulkController === controller && (!live() || !bulk)) {closeBulk(); emit();}}
   };
   const retryPersonal = async () => {
     if (!personal || !personalCurrent?.() || personal.service.getSnapshot().busy) return;
@@ -345,14 +319,15 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     getSnapshot: () => revision, snapshot, loadedCount: () => loaded().length, personal: () => personal?.service.getSnapshot(),
     personalBusy: () => !!personal?.service.getSnapshot().busy, resultsToken: () => personalToken,
     // An open bulk dialog owns the current operation: the bar must not offer another.
-    busy: () => !!pending || !!personal?.service.getSnapshot().busy || !!destinations?.snapshot().busy || !!bulk || !!queryAction, active: () => entering || !!snapshot()?.active || !!queryAction, queueControl, clear, execute, applyPersonal, retryPersonal,
+    busy: () => !!pending || !!personal?.service.getSnapshot().busy || !!destinations?.snapshot().busy || !!bulkController, active: () => entering || !!snapshot()?.active, queueControl, clear, execute, applyPersonal, retryPersonal,
     destination: () => destinations, destinationKind: () => destinationKind, openDestination, closeDestinations,
     // Only an active captured view with a validated descriptor can offer Select all.
     /** Bar Done/Cancel/Back: only the view it was drawn for may force-clear, and a
      * current operation can still be cancelled. */
     cancel: (view: SelectionSnapshot<BrowseSelectionContext>) => {
       if (view !== snapshot() || !visible()) return;
-      clear();
+      if (view.target?.mode === 'query' && bulkController) {closeBulk(); emit();}
+      else clear();
     },
     whole: () => snapshot()?.active && visible() ? producer?.whole() : undefined,
     wholeUnavailable: () => snapshot()?.active && visible() && source.getSnapshot().phase === 'ready' ? source.getSnapshot().wholeSelectionUnavailable : undefined,
@@ -360,11 +335,12 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     selectWhole: (view: SelectionSnapshot<BrowseSelectionContext>, id: string) => {
       if (!producer || view !== snapshot() || producer.whole()?.id !== id || !visible() || pending || destinations
         || personalController || !!personal?.service.getSnapshot().results.length || personal?.service.getSnapshot().busy
-        || !!bulk || !!queryAction) return;
+        || !!bulkController) return;
       if (producer.selectWhole(id)) emit();
     },
-    queryAction: () => queryAction, queryOffer, openQueryAction, closeQueryAction,
-    bulk: () => bulk, openAdmin, closeBulk, entries: () => entriesFor(selectedKeys()).filter(leaf)};
+    queryDeleteOffered,
+    bulk: () => bulk, openAdmin, closeBulk: (expected: NativeBulkMedia) => {closeBulk(expected); emit();},
+    entries: () => entriesFor(selectedKeys()).filter(leaf)};
   // useSyncExternalStore compares snapshots by identity: one layout object per
   // revision, never a fresh object on every read.
   let layoutVersion = -1, layoutSnapshot: LayoutSelection | undefined;
@@ -407,7 +383,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     },
     render: (artwork?: (path?: string) => React.ReactNode) => <LibrarySelectionBars store={store} artwork={artwork ?? (() => null)}/>,
   };
-  const off = [source.subscribe(() => {if (producer && sourceToken() !== token) {const state = queryAction?.getSnapshot(); reset(!!queryAction?.current() && (!!state?.job || state?.phase === 'submitting' || state?.phase === 'uncertain'));} emit();}), activation.subscribe(() => {if (!visible()) reset(); emit();}), context.subscribeAuthority(() => {reset(); emit();})];
+  const off = [source.subscribe(() => {if (producer && sourceToken() !== token) reset(); emit();}), activation.subscribe(() => {if (!visible()) reset(); emit();}), context.subscribeAuthority(() => {reset(); emit();})];
   return Object.freeze({...port, dispose: () => {if (disposed) return; disposed = true; off.forEach(stop => stop()); reset(); syncHold(); listeners.clear();}});
 }
 
@@ -423,9 +399,8 @@ type Store = {subscribe(listener: () => void): () => void; getSnapshot(): number
   selectWhole(view: SelectionSnapshot<BrowseSelectionContext>, id: string): void;
   destination(): NativeLoadedDestinations | undefined; destinationKind(): 'playlist' | 'collection' | undefined;
   openDestination(kind: 'playlist' | 'collection', view: SelectionSnapshot<BrowseSelectionContext>): void; closeDestinations(expected?: NativeLoadedDestinations): void;
-  bulk(): NativeBulkMedia | undefined; openAdmin(kind: 'edit' | 'delete', view: SelectionSnapshot<BrowseSelectionContext>): void; closeBulk(expected?: NativeBulkMedia): void;
-  queryAction(): NativeLibrarySelectionAction | undefined; queryOffer(kind: 'delete' | 'download', view: SelectionSnapshot<BrowseSelectionContext> | undefined): boolean;
-  openQueryAction(kind: 'delete' | 'download', view: SelectionSnapshot<BrowseSelectionContext>): void; closeQueryAction(expected?: NativeLibrarySelectionAction): void;
+  bulk(): NativeBulkMedia | undefined; openAdmin(kind: 'edit' | 'delete', view: SelectionSnapshot<BrowseSelectionContext>): Promise<void>; closeBulk(expected: NativeBulkMedia): void;
+  queryDeleteOffered(view: SelectionSnapshot<BrowseSelectionContext> | undefined): boolean;
   entries(): readonly ContentEntry[]};
 
 function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: string) => React.ReactNode}) {
@@ -435,10 +410,8 @@ function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: 
   const doneRef = useRef<View>(null), retryRef = useRef<View>(null);
   const state = store.snapshot();
   if (!store.active()) return null;
-  const queryAction = store.queryAction(), summary = state?.summary ?? queryAction?.target.summary;
+  const summary = state?.summary;
   let actions: SelectionActionOffer[] = [];
-  // Whole views have Play/Queue executors. Large-query Delete/Download retain
-  // their unavailable controls and reasons without inventing a producer.
   const explicit = !!state && state.target?.mode !== 'query';
   const queryTarget = state?.target?.mode === 'query' ? state.target : undefined;
   // Unchecking one title refines the whole-view target, and the query executor refuses
@@ -454,14 +427,13 @@ function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: 
   if (explicit && summary?.every.edit) actions.push({id: 'edit', disabled: store.busy()});
   if (explicit && summary?.every.delete) actions.push({id: 'delete', disabled: store.busy()});
   if (explicit && summary?.every.watched) actions.push({id: 'watched', disabled: store.busy()}, {id: 'unwatched', disabled: store.busy()});
-  const unavailable = nativeWholeQueryUnavailableActions(state); actions.push(...unavailable);
-  actions = nativeSelectionUnavailableActions(actions, summary);
-  // Only the exact A1 producer replaces its own 47b unavailable offer.
-  for (const kind of ['delete', 'download'] as const) if (store.queryOffer(kind, state)) {
-    actions = actions.filter(offer => offer.id !== kind);
-    actions.push({id: kind, disabled: store.busy()});
+  if (queryTarget && store.queryDeleteOffered(state)) {
+    actions.push(queryTarget.total > queryDeleteLimit
+      ? {id: 'delete', disabled: true, wholeQueryUnavailable: true, reason: defaultI18n.t('next.selection.tooMany')}
+      : {id: 'delete', disabled: store.busy()});
   }
-  if ((explicit || queryTarget || unavailable.length > 0) && actions.some(action => ['removeMyList', 'favorite', 'watched', 'unwatched', 'edit', 'delete', 'download'].includes(action.id))) actions.push({id: 'more', disabled: store.busy()});
+  actions = nativeSelectionUnavailableActions(actions, summary);
+  if (actions.some(action => ['removeMyList', 'favorite', 'watched', 'unwatched', 'edit', 'delete', 'download'].includes(action.id))) actions.push({id: 'more', disabled: store.busy()});
   const personal = store.personal(), destination = store.destination(), destinationKind = store.destinationKind(), whole = store.whole(), wholeUnavailable = store.wholeUnavailable();
   const bulk = store.bulk(), bulkState = bulk?.getSnapshot(), preview: BulkMetadataPreview | undefined = bulkState?.preview;
   const bulkSummary: readonly {id: string; text: string}[] = bulkState ? Object.entries(bulkState.changes).flatMap(([field, change]) => {
@@ -474,15 +446,14 @@ function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: 
     return parts.length ? [{id: field, text: `${spec.label}: ${parts.join(' · ')}`}] : [];
   }) : [];
   const props: SelectionBarProps = {count: summary?.count ?? 0, selectionLabel: summary ? selectedItemsLabel(summary) : undefined,
-    onCancel: () => {setMenu(null); if (queryAction) store.closeQueryAction(queryAction); else store.cancel(state!);}, actions, menu, onMenuChange: setMenu,
+    onCancel: () => {setMenu(null); store.cancel(state!);}, actions, menu, onMenuChange: setMenu,
     ...(wholeUnavailable ? {selectAllUnavailable: {label: defaultI18n.t('next.selection.selectAllUnavailableLabel'), reason: defaultI18n.t(wholeUnavailable.reason === 'source_changed' ? 'next.selection.selectAllSourceChanged' : 'next.selection.selectAllSearchNotBounded')}} : whole ? {selectAllLabel: defaultI18n.t('next.selection.selectAll', {count: whole.total}), onSelectAll: () => store.selectWhole(state!, whole.id)} : {}),
     fourthSlot: summary && selectionFourthAction(summary) === 'mark-watched' ? 'watched' : 'myList',
     onAction: action => {
-      if ((action === 'delete' || action === 'download') && state?.target?.mode === 'query') {setMenu(null); store.openQueryAction(action, state);}
-      else if (action === 'play' || action === 'playNext' || action === 'playLater') {setMenu(null); void store.execute(action, state!);}
+      if (action === 'play' || action === 'playNext' || action === 'playLater') {setMenu(null); void store.execute(action, state!);}
       else if (action === 'myList' || action === 'removeMyList' || action === 'favorite' || action === 'watched' || action === 'unwatched') {setMenu(null); void store.applyPersonal(action, state!);}
       else if (action === 'playlist' || action === 'collection') {setMenu(null); store.openDestination(action, state!);}
-      else if (action === 'edit' || action === 'delete') {setMenu(null); store.openAdmin(action, state!);}
+      else if (action === 'edit' || action === 'delete') {setMenu(null); void store.openAdmin(action, state!);}
     }};
   // These handlers run later, so they re-read the live operation instead of the
   // render's own: a retired result set must never clear a successor's selection.
@@ -511,8 +482,6 @@ function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: 
     {destination && destinationKind && <NativeDestinationPicker controller={destination} kind={destinationKind} open
       selectionLabel={summary ? selectedItemsLabel(summary) : ''} count={summary?.count ?? 0} artwork={artwork}
       onOpenChange={open => {if (!open && !destination.snapshot().busy) store.closeDestinations(destination);}}/>}
-    {queryAction && queryAction.controller.getSnapshot().input?.action === 'delete' && <DeleteMediaDialog queryAction={queryAction}
-      ownerHeader={summary ? selectedItemsLabel(summary) : undefined} onClose={() => store.closeQueryAction(queryAction)}/>}
     {bulk && bulkState && (bulkState.deletion
       ? <DeleteMediaDialog open owner ownerHeader={<Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{summary ? selectedItemsLabel(summary) : ''}</Text>}
           selectionCount={summary?.count ?? 0} preview={bulkState.deletion.preview ?? null} loading={bulkState.deletion.phase === 'loading'} error={bulkState.deletion.error}

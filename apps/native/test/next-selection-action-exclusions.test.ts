@@ -58,7 +58,4 @@ test('Delete exclusion maps the offered bounded control without replacing author
   assert.deepEqual(nativeSelectionUnavailableActions(limit, {...summary, count: 201} as never), limit);
   assert.equal(nativeSelectionActionUnavailable({...summary, count: 201} as never, 'delete'), false);
   assert.deepEqual(nativeSelectionUnavailableActions([{id: 'delete'}], {count: 200, every: summary.every} as never), [{id: 'delete'}]);
-  const {nativeWholeQueryUnavailableActions} = await import('../src-next/screens/library/whole-query-unavailable');
-  const large = nativeWholeQueryUnavailableActions({target: {mode: 'query'}, summary: {...summary, count: 201}} as never);
-  assert.equal(large[0]?.id, 'delete');assert.equal(large[0]?.disabled, true);assert.notEqual(large[0]?.reason, 'Unavailable with this sort order.');
 });

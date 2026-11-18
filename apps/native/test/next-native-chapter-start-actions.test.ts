@@ -83,7 +83,6 @@ test('Home distinguishes a direct chapter play from a container Resume with a ch
   const selection = (value: any) => ({kind: value.kind, id: value.id, libraryId: value.libraryId});
   const inactiveOverlay = () => ({dispose() {}});
   const {createNativeShellBindings} = await screenModule(new URL('../src-next/shell/assembly.tsx', import.meta.url), {
-    '../screens/library/selection-actions': {}, '../screens/downloads/request': {}, '../platform/offline-downloads': {}, './selection-display': {},
     react, 'react-native': {Platform: {isTV: false}, BackHandler: {addEventListener: () => ({remove() {}})}},
     '../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../../../packages/client-core/src/home-selection/index': {homeSelectionContext: selectionContext,

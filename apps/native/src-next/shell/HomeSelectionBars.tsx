@@ -3,16 +3,14 @@ import {View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import type {HomeSelectionController} from '../../../../packages/client-core/src/home-selection/index';
-import {selectionFourthAction, type SelectionActionReason} from '../../../../packages/client-core/src/selection-model/index';
+import {selectionFourthAction, type SelectionActionReason, type SelectionActionRule} from '../../../../packages/client-core/src/selection-model/index';
 import {SelectionBar, SelectionPhoneActionBar, type SelectionBarProps} from '../kit/selection';
 import {useTheme} from '../kit/theme';
 import type {NativeShellRuntime} from './runtime';
 import {tvFocusIds} from './tv-focus';
 import {nativeSelectionCommand, nativeSelectionOffers} from './selection-actions';
 import {selectedItemsLabel} from './selection-display';
-import type {NativeHomeQueryActions} from '../screens/library/selection-actions';
-const noQuerySubscribe = (_listener: () => void) => () => {};
-const noQuerySnapshot = () => undefined;
+import {queryDeleteLimit, queryDeleteSelector} from '../../../../packages/client-core/src/query/catalogue-query-delete';
 
 const t = defaultI18n.t;
 const reason = (value: SelectionActionReason): string => t(value === 'unsupported-sort' ? 'next.selection.unsupportedSort'
@@ -23,24 +21,38 @@ const reason = (value: SelectionActionReason): string => t(value === 'unsupporte
       : value === 'delete-limit' ? 'next.selection.native.deleteLimit' : 'error.permission');
 
 /** Controlled native presentation for the one shared HomeSelectionController/SelectionModel. */
-export function HomeSelectionBars({controller, runtime, ownerTag, reportError, queryActions}: {
-  queryActions?: NativeHomeQueryActions; controller: HomeSelectionController; runtime?: NativeShellRuntime; ownerTag?: React.ReactNode; reportError: (error: unknown) => void;
+export function HomeSelectionBars({controller, runtime, ownerTag, reportError}: {
+  controller: HomeSelectionController; runtime?: NativeShellRuntime; ownerTag?: React.ReactNode; reportError: (error: unknown) => void;
 }) {
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const queryAction = useSyncExternalStore(queryActions?.subscribe ?? noQuerySubscribe, queryActions?.getSnapshot ?? noQuerySnapshot);
   const theme = useTheme(), insets = useSafeAreaInsets();
   const [menu, setMenu] = useState<SelectionBarProps['menu']>(null);
-  if (!snapshot.selection.active && !queryAction) return null;
-  let actions = [...nativeSelectionOffers(snapshot.actions, reason)];
-  for (const kind of ['delete', 'download'] as const) if (queryActions?.offer(kind, snapshot.selection)) {
-    actions = actions.filter(offer => offer.id !== kind); actions.push({id: kind});
-  }
-  if (queryAction) actions = actions.map(offer => ({...offer, disabled: true}));
-  const summary = queryAction?.target.summary ?? snapshot.selection.summary;
+  if (!snapshot.selection.active) return null;
+  const {target, summary} = snapshot.selection;
+  const query = target?.mode === 'query' ? target : undefined;
+  const queryDelete = !!query && runtime?.getSnapshot().account.viewerRole === 'owner' && !!queryDeleteSelector(query);
+  const queryDeleteOpen = !!query && !!snapshot.deletion;
+  const deleteRule: SelectionActionRule = !queryDelete ? {state: 'hidden'}
+    : query.total > queryDeleteLimit ? {state: 'explain', reason: 'delete-limit'}
+    : summary.unavailableActions?.delete ? {state: 'disabled', reason: summary.unavailableActions.delete} : {state: 'ready'};
+  const offers = nativeSelectionOffers(query ? {...snapshot.actions, download: {state: 'hidden'}, delete: deleteRule} : snapshot.actions, reason);
+  const actions = queryDeleteOpen ? offers.map(offer => ({...offer, disabled: true})) : offers;
   const fourthSlot = selectionFourthAction(snapshot.selection.summary) === 'mark-watched' ? 'watched' : 'myList';
   const props: SelectionBarProps = {testID: theme.isTV && runtime ? tvFocusIds(runtime.getSnapshot().authority).surface('selection-bar') : undefined, count: summary.count, selectionLabel: selectedItemsLabel(summary), selectAllLabel: t('next.home.native.selectRow'),
-    onSelectAll: () => {if (!queryAction) controller.selectRow();}, onCancel: () => {setMenu(null); if (queryAction) queryActions?.close(queryAction); else if (controller.getSnapshot() === snapshot) controller.clear();},
-    onAction: action => {if (queryAction) return; if ((action === 'delete' || action === 'download') && snapshot.selection.target?.mode === 'query') {setMenu(null); queryActions?.open(action, snapshot.selection); return;} const command = nativeSelectionCommand(action); if (command) {setMenu(null); void controller.execute(command).catch(reportError);}},
+    onSelectAll: () => {if (!queryDeleteOpen) controller.selectRow();},
+    onCancel: () => {setMenu(null); if (controller.getSnapshot() === snapshot) {if (queryDeleteOpen) controller.closeDelete(); else controller.clear();}},
+    onAction: action => {
+      if (query) {
+        if (action === 'download' || queryDeleteOpen) return;
+        if (action === 'delete') {
+          if (!queryDelete || deleteRule.state === 'disabled' || controller.getSnapshot() !== snapshot || snapshot.editor || snapshot.picker || snapshot.rating
+            || snapshot.mixedEdit || snapshot.action.phase !== 'idle') return;
+          setMenu(null); void controller.openDelete().catch(reportError); return;
+        }
+      }
+      const command = nativeSelectionCommand(action);
+      if (command) {setMenu(null); void controller.execute(command).catch(reportError);}
+    },
     actions, menu, onMenuChange: setMenu, ownerTag,
     topInset: insets.top, fourthSlot};
   return <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.navigation + 1}}>

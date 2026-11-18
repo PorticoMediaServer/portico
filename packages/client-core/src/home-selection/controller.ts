@@ -9,7 +9,8 @@ import {DetailService} from '../detail.ts';
 import {saveChannelPreference} from '../channel-guide.ts';
 import {getContainerState, setContainerFlag, setContainerState, containerKinds, type ContainerKind} from '../container-state.ts';
 import {deletionAllowed} from '../administration.ts';
-import {deleteCatalogueTitles, readCatalogueDeletion} from '../query/catalogue-actions.ts';
+import {deleteCatalogueTitles, readCatalogueDeletion, type DeletionTarget} from '../query/catalogue-actions.ts';
+import {queryDeleteLimit, queryDeleteSelector, resolveQueryDelete} from '../query/catalogue-query-delete.ts';
 import {routePath} from '../../../contracts/src/route-paths.ts';
 import {validBulkEdit, validateBulkReceipt, type BulkEdit} from '../metadata-bulk.ts';
 import {fetchBulkMetadataPreview, metadataPreviewTargets, type BulkMetadataPreviewRequest} from './metadata-preview.ts';
@@ -297,19 +298,19 @@ export class HomeSelectionController {
   selectLoaded(sectionId?: string) {this.active(); return this.selection.selectLoaded(sectionId);}
   keepOnly(kind: SelectionKind) {this.closeDialogs(); return this.selection.keepOnly(kind);}
   clear() {this.closeDialogs(); this.selection.clear();}
-  private begin(target?: SelectionTarget): Ticket {
+  private begin(target?: SelectionTarget, action?: 'delete'): Ticket {
     this.active(); const bindings = this.allMembers(); this.cancelAction();
     this.jobHistory.clear();
     if (target && !sameContext(target.context, this.state.context)) throw selectionExecutionError('stale-home-context');
     const model = target ? undefined : this.selection.captureOperation();
     const selected = target ?? model?.target; if (!selected) throw selectionExecutionError('selection-required');
-    explicitIdentities(selected);
+    if (action !== 'delete') explicitIdentities(selected);
     const ticket = {document: this.options.home.getSnapshot().document!, epoch: ++this.epoch, context: this.state.context, target: selected, ...(model ? {model} : {}), controller: new AbortController()}; this.ticket = ticket;
     if (selected.mode === 'explicit') for (const pick of selected.items) {const member = bindings.get(pick.key); if (member) this.operationMembers.set(pick.key, member);}
     return ticket;
   }
   private liveCurrent(ticket: Ticket) {
-    return ticket.target.mode === 'explicit' && ticket.target.items.every(pick => {
+    return ticket.target.mode === 'query' || ticket.target.items.every(pick => {
       if (pick.item.kind !== 'channel') return true;
       const member = this.operationMembers.get(pick.key);
       return !!member?.channel && this.rows().some(row => row.live && Number.isFinite(Date.parse(row.live.expiresAt)) && Date.parse(row.live.expiresAt) > serverNow() && row.live.channels.includes(member.channel!))
@@ -705,21 +706,40 @@ export class HomeSelectionController {
     return this.startDelete(target);
   }
   private async startDelete(target?: SelectionTarget, menuOffered = false) {
-    const ticket = this.begin(target), identities = explicitIdentities(ticket.target);
-    const libraries = new Set(identities.map(identity => 'libraryId' in identity ? identity.libraryId : ''));
-    const summary = summarizeSelection(this.members(ticket.target).map(member => member.item)), rule = selectionActions(summary, this.environment).delete;
-    if (!menuOffered && rule.state === 'hidden' || libraries.size !== 1 || libraries.has('')) throw selectionExecutionError('one-library-required');
-    this.publish({deletion: {phase: identities.length > 200 ? 'limit' : 'loading', preview: null, confirmation: '', removeFiles: true, result: null, error: null}});
-    if (identities.length > 200) return;
-    if (!menuOffered && !summary.every.delete) throw selectionExecutionError('delete-not-offered');
-    try {
-      const titles = new Map(this.members(ticket.target).map(member => ['id' in member.item ? member.item.id : '', member.entry?.title ?? '']));
-      const preview = await readCatalogueDeletion(this.options.api, identities.map(identity => {
+    const selected = target ?? this.selection.getSnapshot().target;
+    const query = selected?.mode === 'query' ? selected : undefined;
+    if (query && (!this.environment.isOwner || !queryDeleteSelector(query) || query.summary.unavailableActions?.delete && query.total <= queryDeleteLimit)) {
+      throw selectionExecutionError('delete-not-offered');
+    }
+    const ticket = this.begin(target, 'delete');
+    let targets: readonly DeletionTarget[] = [];
+    let deletesEveryMember = true;
+    if (!query) {
+      const identities = explicitIdentities(ticket.target), members = this.members(ticket.target);
+      const libraries = new Set(identities.map(identity => 'libraryId' in identity ? identity.libraryId : ''));
+      const summary = summarizeSelection(members.map(member => member.item));
+      const rule = selectionActions(summary, this.environment).delete;
+      deletesEveryMember = summary.every.delete;
+      if (!menuOffered && rule.state === 'hidden' || libraries.size !== 1 || libraries.has('')) throw selectionExecutionError('one-library-required');
+      const titles = new Map(members.map(member => ['id' in member.item ? member.item.id : '', member.entry?.title ?? '']));
+      targets = identities.map(identity => {
         const id = 'id' in identity ? identity.id : '';
         return {itemId: id, libraryId: 'libraryId' in identity ? identity.libraryId : '', kind: identity.kind, title: titles.get(id)};
-      }), ticket.controller.signal); this.check(ticket);
-      const expected = new Set(identities.map(identity => 'id' in identity ? identity.id : ''));
-      if (preview.targets.length !== expected.size || preview.targets.some(item => !expected.delete(item.itemId) || !libraries.has(item.libraryId)) || expected.size) throw selectionExecutionError('invalid-delete-targets');
+      });
+    }
+    const overLimit = (query?.total ?? targets.length) > queryDeleteLimit;
+    this.publish({deletion: {phase: overLimit ? 'limit' : 'loading', preview: null, confirmation: '', removeFiles: true, result: null, error: null}});
+    if (overLimit) return;
+    if (!menuOffered && !deletesEveryMember) throw selectionExecutionError('delete-not-offered');
+    try {
+      if (query) {
+        const entries = await resolveQueryDelete(this.options.api, query, ticket.controller.signal);
+        this.check(ticket);
+        targets = entries.map(entry => ({itemId: entry.id, libraryId: entry.libraryId!, kind: entry.kind, title: entry.title}));
+      }
+      const preview = await readCatalogueDeletion(this.options.api, targets, ticket.controller.signal); this.check(ticket);
+      const expected = new Map(targets.map(item => [item.itemId, item.libraryId]));
+      if (preview.targets.length !== expected.size || preview.targets.some(item => expected.get(item.itemId) !== item.libraryId || !expected.delete(item.itemId)) || expected.size) throw selectionExecutionError('invalid-delete-targets');
       this.publish({deletion: {...this.state.deletion!, phase: deletionAllowed(preview) ? 'ready' : 'blocked', preview}});
     } catch (error) {if (this.current(ticket)) this.publish({deletion: {...this.state.deletion!, phase: 'error', error: errorInfo(error)}});}
   }
@@ -736,7 +756,7 @@ export class HomeSelectionController {
       this.publish({deletion: {...this.state.deletion!, phase: 'result', result}});
     } catch (error) {if (this.current(ticket)) this.publish({deletion: {...this.state.deletion!, phase: 'uncertain', error: errorInfo(error)}});}
   }
-  reloadDelete() {return this.openDelete(this.ticket?.target);}
+  reloadDelete() {return this.openDelete(this.ticket?.target.mode === 'explicit' ? this.ticket.target : undefined);}
   closeDelete() {this.cancelAction(); this.publish({deletion: null});}
   private closeDialogs() {this.cancelAction(); this.closeMenu(); this.publish({menu: null, picker: null, editor: null, deletion: null, rating: null, mixedEdit: false, editExplanation: null});}
   dispose() {if (this.disposed) return; this.followLife.abort(); this.cancelAction(); for (const cleanup of this.cleanups) cleanup(); this.selection.dispose(); this.windows.clear(); this.menuWindow = undefined; this.menuSource = undefined; this.held.clear(); this.operationMembers.clear(); this.disposed = true; this.state = Object.freeze({...this.state, displayMembers: [], menu: null, picker: null, editor: null, deletion: null, rating: null}); this.listeners.clear();}
