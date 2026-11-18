@@ -8,7 +8,7 @@ import * as languages from '../../../packages/client-core/src/presentation/langu
 import * as regionChoices from '../../../packages/client-core/src/presentation/region-choices';
 import * as sentenceParts from '../src-next/kit/states/sentence-parts';
 import * as settingsActions from '../src-next/screens/settings-live/settings-actions';
-import * as settingsConfiguration from '../../../packages/client-core/src/settings-configuration';
+import {serverPath} from '../../../packages/client-core/src/query/server-api';
 import * as settingsBindings from '../../../packages/client-core/src/presentation/settings-bindings';
 import * as settingsSpec from '../../../packages/client-core/src/presentation/settings-spec';
 import {AppState,NativeModules} from 'react-native';
@@ -54,7 +54,6 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     react,
     'react-native': {AppState,NativeModules,Dimensions: {get: () => ({width: 800, height: 1024})}, Platform: {OS: 'ios', isTV: false, isPad: true}, ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     '../../../../../packages/contracts/src/routes': routes,
-    '../../../../../packages/client-core/src/settings-configuration': settingsConfiguration,
     '../../../../../packages/client-core/src/presentation/settings-bindings': settingsBindings,
     '../../../../../packages/client-core/src/presentation/settings-spec': settingsSpec,
     '../../../../../packages/client-core/src/presentation/settings-structure': structure,
@@ -190,6 +189,27 @@ test('N5-5: a member\'s search finds no Server page they can\'t open', async () 
   assert.equal(results?.props.matches.some((value: {address: string}) => value.address === 'server-general') ?? false, false);
 });
 
+const streamingSettingsPath = serverPath('GET /v1/admin/settings/{name}', {id: 'streaming'});
+
+test('the owner Quality page shows the away limit from the rebuilt Streaming document', async () => {
+  const {HttpLocalApi} = await import('../../../packages/client-core/src/index.ts');
+  const calls: [string | undefined, string][] = [];
+  const api = new HttpLocalApi('https://portico.test', 'token', async (input, init) => {
+    calls.push([init?.method, new URL(String(input)).pathname]);
+    return Response.json({name: 'streaming', etag: '"1"', values: {awayVideoKbps: 8000}});
+  });
+  const io = {effects: [] as (() => unknown)[], api};
+  const f = await fixture(false, true, io);
+  const tree = f.render();
+  nodes(tree).find(node => node.props.testID === 'settings-page-quality').props.onPress();
+  for (const effect of io.effects.splice(0)) effect();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, [['GET', streamingSettingsPath]]);
+  const body = nodes(f.render()).find(node => node.props.page?.id === 'quality');
+  const status = nodes(f.body(body)).find(node => node.props.testID === 'settings-away-limit');
+  assert.equal(status?.props.value, 'CA/next.settingsSpec.account.quality.groups.0.rows.1.control.options.4.label');
+});
+
 test('#595 rule on native, through the real path: the owner\'s away-limit read goes through the screen lifetime to HttpLocalApi as optional, so a management refusal never asks for the PIN and leaves only that row out', async () => {
   const {HttpLocalApi} = await import('../../../packages/client-core/src/index.ts');
   const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime.ts');
@@ -202,15 +222,17 @@ test('#595 rule on native, through the real path: the owner\'s away-limit read g
   const io = {effects: [] as (() => unknown)[], api, lifetime};
   const f = await fixture(false, true, io);
   let tree = f.render();
+  nodes(tree).find(node => node.props.testID === 'settings-page-quality').props.onPress();
   for (const effect of io.effects.splice(0)) {try {effect();} catch {/* other effects need native modules this fixture leaves out */}}
   for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve));
-  assert.ok(paths.includes('/v1/admin/settings/configuration'), 'the away-limit read reached the server');
+  assert.ok(paths.includes(streamingSettingsPath), 'the away-limit read reached the server');
   assert.deepEqual(gate, [], 'its refusal never asked for the management PIN');
   tree = f.render();
   assert.ok(nodes(tree).some(node => node.type === 'TextField'), 'the page is still drawn');
-  assert.equal(nodes(tree).some(node => node.props?.testID === 'settings-away-limit'), false, 'only the away-limit row is left out');
+  const body = nodes(tree).find(node => node.props.page?.id === 'quality');
+  assert.equal(nodes(f.body(body)).some(node => node.props.testID === 'settings-away-limit'), false, 'the refused away-limit row is left out');
   // Control: the same refusal to an ordinary read through this api does ask, so a dropped option would fail above.
-  await api.request('/v1/admin/settings/configuration').catch(() => {});
+  await api.request(streamingSettingsPath).catch(() => {});
   assert.equal(gate.length, 1);
   lifetime.dispose();
 });
