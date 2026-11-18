@@ -146,22 +146,6 @@ export function regenerationBody(channel: {revision: number; replacementBoundary
 
 // ── People ──────────────────────────────────────────────────────────────────────────────────
 
-/** CD-07: the server allows at most 100 rows a page; every list stays on that limit and follows nextCursor. */
-export const accessLists = {members: routePath("get_admin_access_members"), invitations: routePath("get_admin_access_invitations"), devices: routePath("get_admin_access_devices"), apiKeys: routePath("list_api_keys")} as const;
-export const accessListPath = (list: keyof typeof accessLists, cursor = '') => `${accessLists[list]}?limit=100${cursor ? '&cursor=' + encodeURIComponent(cursor) : ''}`;
-/** One member, invitation or device read by its id, as its list shows it. */
-export const accessRecordPath = (kind: 'members' | 'invitations' | 'devices', id: string) => kind === 'members' ? routePath('get_admin_access_member', {id}) : kind === 'invitations' ? routePath('get_admin_access_invitation', {id}) : routePath('get_admin_access_device', {id});
-/**
- * Reads one access record again, for a change the server said was made against an older copy of
- * it. A record that is gone (404) is `undefined`, so the change ends with the server's first answer.
- */
-export async function readAccessRecord<T>(api: {request<R>(path: string): Promise<R>}, kind: 'members' | 'invitations' | 'devices', id: string, parse: (raw: unknown) => T): Promise<T | undefined> {
-  try { return parse(await api.request<unknown>(accessRecordPath(kind, id))); } catch (error) {
-    const e = error as {status?: unknown; code?: unknown} | null;
-    if (e?.status === 404 || e?.code === 'not_found') return undefined;
-    throw error;
-  }
-}
 /** An account made on this server. `hostedAccountId`: a Portico Account member, whose password lives at the Portico Account. */
 /** `disabledAt` and `disabledReason` are present while the account is off: when, and whether an owner or administrator turned it off (`owner`) or the person left at their Portico Account (`left`). */
 export type DirectMember = {id: string; username: string; primaryProfileId: string; role: AccessTier; revision: number; disabled: boolean; allowedLibraries: string[]; hostedAccountId?: string; disabledAt?: string; disabledReason?: string};
