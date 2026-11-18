@@ -180,7 +180,7 @@ mod smoke {
     #[tauri::command]
     pub fn report(window: WebviewWindow, ready: bool, path: String, errors: Vec<String>, text: String) {
         let Some(file) = std::env::var_os("PORTICO_DESKTOP_SMOKE").filter(|_| cfg!(debug_assertions)) else { return };
-        let body = serde_json::json!({"ready": ready, "path": path, "errors": errors, "text": text});
+        let body = serde_json::json!({"ready": ready, "path": path, "errors": errors, "text": text, "mpv": super::mpv::available()});
         let _ = std::fs::write(file, body.to_string());
         window.app_handle().exit(0);
     }

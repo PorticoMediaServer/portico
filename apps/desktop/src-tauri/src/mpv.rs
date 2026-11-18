@@ -57,11 +57,13 @@ pub fn media_url(url: &str) -> Result<&str, String> {
     Ok(url)
 }
 
-/// mpv as shipped beside the app (`mpv/` next to the executable), else the one on the PATH.
+/// mpv as the installer ships it: `mpv/` beside the executable (Windows, Linux), or in the app's
+/// Resources (macOS); else the one on the PATH.
 fn binary() -> std::path::PathBuf {
     let name = if cfg!(windows) { "mpv.exe" } else { "mpv" };
-    std::env::current_exe().ok().and_then(|exe| exe.parent().map(|dir| dir.join("mpv").join(name))).filter(|path| path.exists())
-        .unwrap_or_else(|| name.into())
+    let dir = std::env::current_exe().ok().and_then(|exe| exe.parent().map(std::path::Path::to_path_buf));
+    let shipped = dir.map(|dir| if cfg!(target_os = "macos") { dir.join("../Resources/mpv") } else { dir.join("mpv") }.join(name));
+    shipped.filter(|path| path.exists()).unwrap_or_else(|| name.into())
 }
 
 /// Whether mpv runs here. The capability document names mpv only when it does, so a computer

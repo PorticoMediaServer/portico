@@ -87,3 +87,87 @@ jobs:
             Windows) node scripts/smoke.mjs src-tauri/target/debug/portico-desktop.exe ;;
             macOS) node scripts/smoke.mjs src-tauri/target/debug/portico-desktop ;;
           esac
+  installers:
+    # The Windows installer and the macOS app with mpv inside, and the app started once beside
+    # that mpv: it must find the mpv it ships (no system mpv on the PATH). Proof builds: unsigned,
+    # kept a week as run artifacts for hands-on checks, never published.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Allow the monorepo's long fixture paths (Windows)
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - name: Rust
+        run: rustup toolchain install 1.99.0 --profile minimal && rustup default 1.99.0
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            apps/desktop/src-tauri/target
+          key: desktop-installers-${{ runner.os }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
+          restore-keys: desktop-installers-${{ runner.os }}-
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false
+        working-directory: apps/desktop
+      - name: mpv for the bundle
+        working-directory: apps/desktop/src-tauri
+        run: |
+          mkdir -p mpv
+          if [ "$RUNNER_OS" = Windows ]; then
+            choco install mpv -y --no-progress
+            cp "$(find /c/ProgramData/chocolatey/lib -iname mpv.exe -size +1M | head -1)" mpv/mpv.exe
+          else
+            # Homebrew's mpv, with the libraries it needs copied beside it and pointed at there,
+            # so the app's copy needs nothing installed.
+            brew install mpv dylibbundler
+            cp "$(brew --prefix)/bin/mpv" mpv/mpv && chmod u+w mpv/mpv
+            dylibbundler -od -b -x mpv/mpv -d mpv/lib -p @executable_path/lib/ > /dev/null
+            if otool -L mpv/mpv mpv/lib/*.dylib | grep -q "$(brew --prefix)"; then echo "mpv still points into Homebrew"; exit 1; fi
+            brew unlink mpv
+          fi
+          ls -la mpv | head
+      - name: Installer
+        working-directory: apps/desktop
+        run: |
+          npm run build:web
+          bundle=$([ "$RUNNER_OS" = Windows ] && echo nsis || echo app)
+          # The npm API (frozen at 2.11 by the dependency ratchet) and the crate (2.12) differ only in
+          # releases the app does not use: it calls nothing but `invoke`.
+          npx --no-install tauri build --debug --ignore-version-mismatches --bundles "$bundle" --config '{"bundle":{"active":true,"resources":{"mpv/":"mpv/"}}}'
+          find src-tauri/target/debug/bundle -maxdepth 2 | head
+      - name: Install and start once, with the bundled mpv
+        working-directory: apps/desktop
+        env:
+          PORTICO_EXPECT_MPV: '1'
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            # The silent installer waits for something on a runner (seen: over 5 minutes with no
+            # window), so the check starts the built app beside the mpv the bundle copied there.
+            ls src-tauri/target/debug/mpv
+            node scripts/smoke.mjs src-tauri/target/debug/portico-desktop.exe
+          else
+            node scripts/smoke.mjs "src-tauri/target/debug/bundle/macos/Portico.app/Contents/MacOS/portico-desktop"
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: portico-desktop-${{ runner.os }}-unsigned-proof
+          path: |
+            apps/desktop/src-tauri/target/debug/bundle/nsis/*-setup.exe
+            apps/desktop/src-tauri/target/debug/bundle/macos/Portico.app
+          retention-days: 7
+          if-no-files-found: error
