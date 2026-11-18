@@ -241,30 +241,6 @@ function nowSeconds() as integer
     return createObject("roDateTime").asSeconds()
 end function
 
-function secondsOf(iso as string) as integer
-    t = createObject("roDateTime")
-    t.fromISO8601String(iso)
-    return t.asSeconds()
-end function
-
-' "3:30", with " PM" when asked for.
-function clockOf(seconds as integer, suffix as boolean) as string
-    t = createObject("roDateTime")
-    t.fromSeconds(seconds)
-    t.toLocalTime()
-    h = t.getHours()
-    half = "AM"
-    if h >= 12 then half = "PM"
-    h = h mod 12
-    if h = 0 then h = 12
-    mins = t.getMinutes()
-    text = h.toStr() + ":"
-    if mins < 10 then text = text + "0"
-    text = text + mins.toStr()
-    if suffix then text = text + " " + half
-    return text
-end function
-
 function badgeText(name as string) as string
     out = ""
     for each word in name.trim().split(" ")
@@ -283,7 +259,7 @@ sub draw()
     for i = 0 to 5
         at = m.from + i * 1800
         label = header.createChild("Label")
-        label.text = clockOf(at, i = 0)
+        label.text = guideTime(at, i = 0)
         label.translation = [g.gridX + i * 30 * g.perMinute + 12, g.headerY]
         setType(label, "metaStrong", c.textSecondary)
         tick = header.createChild("Rectangle")
@@ -297,7 +273,6 @@ sub draw()
     palette = c.channelTints
     for r = 0 to m.guide.count() - 1
         row = m.guide[r]
-        m.drawing = r
         y = r * g.pitch
         cells = []
         ' the channel cell
@@ -331,7 +306,7 @@ sub draw()
             s = secondsOf(p.startsAt)
             e = secondsOf(p.endsAt)
             span = guideSpan(s, e, m.from, g)
-            if span <> invalid then cells.push(programmeCell(p, s, e, span.x, y, span.width, span.earlier))
+            if span <> invalid then cells.push(programmeCell(p, row.channel.id, s, e, span.x, y, span.width, span.earlier))
         end for
         m.cells.push(cells)
     end for
@@ -349,7 +324,7 @@ function cellPlate(x as float, y as float, width as float) as object
 end function
 
 ' One programme: its title on one line, then its times; what is on now says Live and shows how far in it is.
-function programmeCell(p as object, s as integer, e as integer, x as float, y as float, width as float, earlier as boolean) as object
+function programmeCell(p as object, channelId as string, s as integer, e as integer, x as float, y as float, width as float, earlier as boolean) as object
     c = colours()
     now = nowSeconds()
     plate = cellPlate(x, y, width)
@@ -367,7 +342,7 @@ function programmeCell(p as object, s as integer, e as integer, x as float, y as
     title.width = width - inset - 12
     title.translation = [x + inset, y + 12]
     setType(title, "listLabel", c.text)
-    times = clockOf(s, false) + " to " + clockOf(e, false)
+    times = guideTime(s, false) + " to " + guideTime(e, false)
     tx = x + inset
     if s <= now and now < e
         dot = m.rows.createChild("Poster")
@@ -388,7 +363,7 @@ function programmeCell(p as object, s as integer, e as integer, x as float, y as
         if x + track.width > 1920 then track.width = 1920 - x
         track.translation = [x, y + m.g.cell - 4]
     end if
-    if m.booked[bookingKey(m.guide[m.drawing].channel.id, s)] <> invalid
+    if m.booked[bookingKey(channelId, s)] <> invalid
         ' booked to record: the red dot before its times
         booked = m.rows.createChild("Poster")
         booked.uri = "pkg:/images/disc.png"
@@ -421,7 +396,7 @@ sub drawNow()
     if not showing then return
     line.translation = [x - 1, g.headerY + 34]
     line.height = 1080 - g.headerY - 34
-    text.text = clockOf(now, false)
+    text.text = guideTime(now, false)
     w = text.boundingRect().width + 20
     pill.width = w
     pill.translation = [x - w / 2, g.headerY - 2]
@@ -677,7 +652,7 @@ sub openSheet()
     if cell.programme <> invalid
         p = cell.programme
         model.title = p.title
-        status = clockOf(cell.start, false) + " to " + clockOf(cell.ends, true)
+        status = guideTime(cell.start, false) + " to " + guideTime(cell.ends, true)
         minsLeft = int((cell.ends - nowSeconds()) / 60)
         if cell.start <= nowSeconds() and minsLeft > 0 then status = status + "   " + durationText(minsLeft * 60000) + " left"
         model.status = status

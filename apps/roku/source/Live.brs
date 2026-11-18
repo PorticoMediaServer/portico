@@ -120,3 +120,40 @@ function dayWord(days as integer, date as string) as string
     if days = -1 then return "Yesterday"
     return date
 end function
+
+' "Today", "Tomorrow", "Yesterday", or "November 17", by the TV's own day.
+function dayText(seconds as integer) as string
+    t = createObject("roDateTime")
+    t.fromSeconds(seconds)
+    t.toLocalTime()
+    now = createObject("roDateTime")
+    now.toLocalTime()
+    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    return dayWord(int(t.asSeconds() / 86400) - int(now.asSeconds() / 86400), months[t.getMonth() - 1] + " " + t.getDayOfMonth().toStr())
+end function
+
+' A guide time in seconds.
+function secondsOf(iso as string) as integer
+    t = createObject("roDateTime")
+    t.fromISO8601String(iso)
+    return t.asSeconds()
+end function
+
+' "3:30" by the TV's own clock, with " PM" when asked for. (Named for the guide: Watch Together's
+' clockOf is a length.)
+function guideTime(seconds as integer, suffix as boolean) as string
+    t = createObject("roDateTime")
+    t.fromSeconds(seconds)
+    t.toLocalTime()
+    h = t.getHours()
+    half = "AM"
+    if h >= 12 then half = "PM"
+    h = h mod 12
+    if h = 0 then h = 12
+    mins = t.getMinutes()
+    text = h.toStr() + ":"
+    if mins < 10 then text = text + "0"
+    text = text + mins.toStr()
+    if suffix then text = text + " " + half
+    return text
+end function
