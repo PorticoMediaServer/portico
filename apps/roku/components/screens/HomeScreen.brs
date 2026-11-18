@@ -521,7 +521,7 @@ sub onMenuChosen(event as object)
     if cardMenuChosen(which) then return
     if which = "dismiss" then api("PUT", "/v1/items/" + m.cardItem.id + "/state", {continueDismissed: true, madeAgoMs: 0}, "onMenuSaved")
     ' See all: every one of the row's titles, read where the row itself goes on, as the list page
-    if which = "seeall" then m.top.open = {item: {kind: "list", title: m.menuRow.title, path: rowItemsPath(m.menuRow, invalid) + "?", view: ""}, play: false}
+    if which = "seeall" then m.top.open = {item: {kind: "list", title: m.menuRow.title, path: rowItemsPath(m.menuRow, invalid), view: ""}, play: false}
 end sub
 
 sub cardMenuChanged(item as object)
