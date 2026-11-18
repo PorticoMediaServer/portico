@@ -6,7 +6,7 @@ import styles from './controls.module.css';
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   /** `destructive`: the confirm button of a delete that cannot be undone (select-14, desktop-detail 11); never a default action. */
   variant?: 'primary' | 'glass' | 'text' | 'icon' | 'ghost' | 'destructive';
-  size?: 'hero' | 'compact' | 'small' | 'xs' | 'episode' | 'dock';
+  size?: 'hero' | 'compact' | 'small' | 'xs' | 'episode' | 'dock' | 'transport';
   icon?: IconName;
   iconSize?: number;
   iconOnly?: boolean;
