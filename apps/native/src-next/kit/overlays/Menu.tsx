@@ -1,6 +1,6 @@
 import {OverlayPaintDescendants, useOverlayPaintMode} from './OverlayPaintContext';
 import React, {forwardRef, useCallback, useEffect, useRef, useState} from 'react';
-import {Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import Animated, {useAnimatedStyle} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {menuSpec, overlayForm} from '@portico/design';
@@ -82,8 +82,8 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
     let live = true, frame: number | undefined;
     const measure = () => {
       // A modal surface draws from the top of the screen (statusBarTranslucent), but Android measures the anchor below
-      // the status bar: without this a modal popover lands one status bar too high, over its own trigger.
-      const drop = modal && Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0;
+      // the status bar (the safe area's top): without this a modal popover lands one status bar too high, over its own trigger.
+      const drop = modal && Platform.OS === 'android' ? insets.top : 0;
       anchorRef.current?.measureInWindow((x, measuredY, width, height) => {const y = measuredY + drop; if (live) setAnchor(previous => previous && previous.x === x && previous.y === y && previous.width === width && previous.height === height ? previous : {x, y, width, height});});
       if (touchContext || placement === 'right-end') frame = requestAnimationFrame(measure);
     };

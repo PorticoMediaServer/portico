@@ -11,11 +11,10 @@ import {useTheme} from '../theme';
 import {useMotion} from '../useMotion';
 import {useKeyboardHeight} from '../../platform/keyboard';
 import {TVDesignCanvas} from './TVDesignCanvas';
-import {OverlayFootRow} from './FootRow';
 import {useOverlayLifecycle} from './OverlayHost';
 import {useNativeModalPresence} from './native-dismissal';
 import {releaseSheet, resistSheet, sheetHeights} from './geometry';
-import {alpha, FocusBoundary, PanelBackground, SurfaceHeader, usePresence} from './surface';
+import {alpha, FocusBoundary, OverlayFootRow, PanelBackground, SurfaceHeader, usePresence} from './surface';
 import type {BottomSheetProps, OverlayReason} from './types';
 
 export function BottomSheet({open, onOpenChange, title, description, children, footer, headerAction, headerContext, headerContent, initialFocusRef, returnFocusRef, restoreFocus = true, accessibilityLabel, testID, style, contentStyle, titleType, titleTextStyle, descriptionTextStyle, detents, width, detent, defaultDetent = 0, onDetentChange, dismissOnOutsidePress = true, dismissOnBack = true, dismissOnGesture = true, scrollable = true, showClose = true, showGrabber = true, fitContent = false, contentFooterGap = 16, keyboardAvoiding = false, footerPadding, showFooterSeparator = true, backdropOpacity = 0.64, host = 'modal', presentation = 'sheet', onExited, surfaceBackground}: BottomSheetProps) {

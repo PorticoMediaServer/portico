@@ -1,5 +1,5 @@
 import {OverlayPaintDescendants, useOverlayPaintMode} from './OverlayPaintContext';
-import React, {useEffect, useId, useRef, useState} from 'react';
+import React, {Children, Fragment, cloneElement, isValidElement, useEffect, useId, useRef, useState, type ReactNode} from 'react';
 import {Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import Svg, {Defs, LinearGradient, RadialGradient, Rect, Stop} from 'react-native-svg';
@@ -13,10 +13,10 @@ import {Icon} from '../Icon';
 import {nativeType, useTheme, titleLine} from '../theme';
 import {useMotion} from '../useMotion';
 import {BottomSheet} from './BottomSheet';
-import {OverlayFootRow} from './FootRow';
 import {OverlayPortal, useOverlayFrame, useOverlayLifecycle} from './OverlayHost';
 import {useNativeModalPresence} from './native-dismissal';
 import type {DialogProps, OverlayReason, SidePanelProps, SurfaceProps} from './types';
+import type {OverlayFoot} from '@portico/design';
 
 export function alpha(color: string, opacity: number): string {
   return `${color}${Math.round(Math.max(0, Math.min(1, opacity)) * 255).toString(16).padStart(2, '0')}`;
@@ -168,3 +168,16 @@ export function SidePanel({open, onOpenChange, title, headerContext, description
   </OverlayPortal></OverlayPaintDescendants>;
 }
 const styles = StyleSheet.create({root: {flex: 1}, modalRoot: {flex: 1, justifyContent: 'center', alignItems: 'center'}, side: {position: 'absolute', right: 0, bottom: 0, shadowColor: '#000', shadowOffset: {width: -20, height: 0}, shadowOpacity: 0.6, shadowRadius: 40}});
+
+/** The buttons themselves, through any fragment a caller wraps them in (`foot={<>Cancel Delete</>}`). */
+const flatten = (children: ReactNode): ReactNode[] => Children.toArray(children).flatMap(child => isValidElement<{children?: ReactNode}>(child) && child.type === Fragment ? flatten(child.props.children) : child ? [child] : []);
+/** R9: a foot's buttons as the table lays them out. `halves` and `full` give each button an equal share of the width
+ * (one button is the full width); `end` keeps them at their own width at the end, primary last. Never hugging the left. */
+export function OverlayFootRow({layout, children}: {layout: OverlayFoot; children: ReactNode}) {
+  const theme = useTheme(), items = flatten(children);
+  if (layout === 'end') return <View style={{flexDirection: 'row', justifyContent: 'flex-end', gap: theme.space.controlGap}}>{items}</View>;
+  // Each button fills its share (the kit Button keeps its own width unless told to stretch); a label too long for a
+  // half takes a second line rather than being cut.
+  return <View style={{flexDirection: 'row', gap: theme.space.controlGap}}>{items.map((item, index) => <View key={index} style={{flex: 1, minWidth: 0}}>{isValidElement<{align?: string; labelLines?: number}>(item) && item.type === Button ? cloneElement(item, {align: 'stretch', labelLines: 2}) : item}</View>)}</View>;
+}
+

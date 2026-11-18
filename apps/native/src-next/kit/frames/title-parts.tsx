@@ -4,6 +4,7 @@ import {Artwork, PersonCircle, type ArtworkSource} from '../artwork';
 import {Button, Focusable} from '../controls';
 import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
+import {TVRow} from '../layout/TVRow';
 import {useTheme} from '../theme';
 import {useFrameMetrics} from './metrics';
 
@@ -61,7 +62,7 @@ export function CastRow({groups}: Readonly<{groups: readonly (readonly CastPerso
     {entry.role !== undefined && <Text style={[theme.type.cardSubtitle, {marginTop: 2, textAlign: 'center', color: theme.colors.textTertiary}]}>{entry.role}</Text>}
   </Focusable>;
   const lists = groups.filter(group => group.length > 0);
-  if (scroll) return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: rowPad, alignItems: 'flex-start'}}>{lists.flat().map(person)}</ScrollView>;
+  if (scroll) return <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: rowPad, alignItems: 'flex-start'}}>{lists.flat().map(person)}</ScrollView></TVRow>;
   return <View style={{gap: theme.space.md}}>{lists.map((group, index) => <View key={index} style={{flexDirection: 'row', flexWrap: 'wrap', rowGap: theme.space.md, columnGap: theme.space.sm,
     paddingTop: index > 0 ? theme.space.md : 0, borderTopWidth: index > 0 ? 1 : 0, borderTopColor: theme.colors.line}}>{group.map(person)}</View>)}</View>;
 }

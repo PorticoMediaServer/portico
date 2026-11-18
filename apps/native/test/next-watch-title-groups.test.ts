@@ -42,13 +42,16 @@ const theme = {isTV: false, platform: 'phone', colors: {ink: '#000', text: '#fff
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];
 
 test('phone/tablet: the season sheet offers every episode group, marks the open one and selects another', async () => {
-  const {NativeSeasonsSheet} = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {
+  // The sheet is the kit's (kit/layout/SeasonSheet.tsx); the screen's wrapper maps the show's seasons to its rows.
+  const kit = await screenModule(new URL('../src-next/kit/layout/SeasonSheet.tsx', import.meta.url), {
     react: {...React, default: React},
     'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 400, height: 800})},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/theme': {useTheme: () => theme},
+    '../controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'},
+    '../Icon': {Icon: 'Icon'}, '../overlays': {BottomSheet: 'BottomSheet'}, '../theme': {useTheme: () => theme},
   });
+  const wrapper = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {react: {...React, default: React}, '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/layout/SeasonSheet': kit});
+  const NativeSeasonsSheet = (props: any) => kit.SeasonSheet(wrapper.NativeSeasonsSheet(props).props);
   const calls: string[] = [];
   let tree: any;
   const host = createFabricHookHost(() => {tree = NativeSeasonsSheet({open: true, onOpenChange: (value: boolean) => calls.push(`open:${value}`), seasons: [], total: 0, selectedId: null,
@@ -56,8 +59,8 @@ test('phone/tablet: the season sheet offers every episode group, marks the open 
     hideWatched: false, onHideWatched: () => {}});});
   await host.mount();
   try {
-    const rows = descendants(tree).filter(node => node.props.testID?.startsWith('watch-group-'));
-    assert.deepEqual(rows.map(row => row.props.testID), ['watch-group-range:1', 'watch-group-range:101']);
+    const rows = descendants(tree).filter(node => node.props.testID?.startsWith('watch-season-group:'));
+    assert.deepEqual(rows.map(row => row.props.testID), ['watch-season-group:range:1', 'watch-season-group:range:101']);
     assert.deepEqual(rows.map(row => row.props.accessibilityState.selected), [true, false]);
     assert.ok(rows[0].ref, 'the sheet opens on the open group');
     assert.ok(descendants(rows[1]).some(node => node.type === 'Text' && node.props.children === 'Episodes 101–150'));
