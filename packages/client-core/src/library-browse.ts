@@ -39,7 +39,7 @@ const wireSort = (field: string): string | undefined => Object.entries(sortIds).
 /** The server's filters as the controls know them. */
 const fields: Readonly<Record<string, Readonly<{id: string; facet?: string} & Record<string, unknown>>>> = {
   genre: {id: 'genre', labelKey: 'browse.field.genre', type: 'identity-set', operators: ['in', 'contains-any', 'equals'], controlHint: 'facet-multi-select', complexity: 'quick', facet: 'genre'},
-  year: {id: 'year', labelKey: 'browse.field.year', type: 'number', operators: ['equals', 'between', 'at-least', 'at-most'], controlHint: 'number-range', complexity: 'quick'},
+  year: {id: 'year', labelKey: 'browse.field.year', type: 'number', operators: ['equals', 'between', 'at-least', 'at-most'], controlHint: 'number-range', complexity: 'quick', facet: 'decade'},
   watched: {id: 'playState', labelKey: 'browse.field.playState', type: 'enum', operators: ['equals'], controlHint: 'select', complexity: 'quick', allowedValues: ['unplayed', 'played']},
   favorite: {id: 'favorite', labelKey: 'browse.field.favorite', type: 'boolean', operators: ['equals'], controlHint: 'toggle', complexity: 'quick'},
   inList: {id: 'watchlisted', labelKey: 'browse.field.watchlisted', type: 'boolean', operators: ['equals'], controlHint: 'toggle', complexity: 'quick'},
@@ -157,6 +157,12 @@ export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibr
   // A Books library's Series are its book series: its magazines and newspapers are series on the
   // server too, but they have their own tabs, so they are not listed here twice.
   if (pivot.id === 'series' && (library.kind === 'book' || library.views?.some(view => view.kind === 'book'))) query.publication = 'book';
+  return {...query, ...itemListFilters(nodes, sorts)};
+}
+
+/** The item filters and order shared by a library tab and a Home row. */
+export function itemListFilters(nodes: readonly BrowseNode[], sorts: readonly BrowseSortSelection[]): ItemListQuery {
+  const query: Record<string, unknown> = {};
   const add = (node: BrowseNode): void => {
     if ('all' in node) { node.all.forEach(add); return; }
     if (!('field' in node)) { unsupported(); return; }

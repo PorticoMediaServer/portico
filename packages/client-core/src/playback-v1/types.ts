@@ -310,6 +310,7 @@ export type QueueBrowseSelector = Readonly<{selectionRevision?: string; selectio
 export type Selector =
   | Readonly<{container: Readonly<{kind: string; id: string}>}>
   | Readonly<{query: QueueBrowseSelector}>
+  | Readonly<{homeRow: Readonly<import('../../../contracts/src/next/api.ts').HomeRowSource>}>
   | Readonly<{saved: Readonly<{id: string}>}>
   | Readonly<{items: Readonly<{ids: readonly string[]}>}>
   | Readonly<{journey: Readonly<{from: string; to: string; length: number}>}>

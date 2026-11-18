@@ -9,6 +9,7 @@ import {genreEntry, libraryItemQuery} from './library-browse.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
 import {rememberFilterNames} from './filter-value-names.ts';
 import {isStaleAnswer} from './freshness-actions.ts';
+import {countHomeRow, homeRowSource, readHomeRowFacet, readHomeRowPage} from './home-row-browse.ts';
 
 /** One applied Browse query: what every page, count, facet read and saved view is built from.
  * `nodes` holds the fixed source filter followed by the viewer's own predicates. */
@@ -26,7 +27,6 @@ export function browseSessionBuilder(query: BrowseSessionQuery): BrowseQueryBuil
   const builder = new BrowseQueryBuilder(query.capabilities, query.pivot);
   for (const node of query.nodes) builder.add(node);
   for (const sort of query.sorts) builder.sort(sort.field, sort.direction, sort.seed);
-  if (query.homeRowId) builder.displayHomeRow(query.homeRowId);
   return builder;
 }
 
@@ -111,7 +111,7 @@ export class BrowseSession<T> {
   retire(): void {this.retired = true; this.life.abort(); this.entries = new WeakSet();}
   forgetWholeSelection(): void {this.whole = undefined;}
   private publishWhole(): void {
-    if (!this.live() || !this.pinned || this.total === undefined || this.total < 1 || this.query.libraryId === '*' || ['authors', 'genres'].includes(this.query.pivot) || this.whole?.total === this.total) return;
+    if (!this.live() || !this.pinned || this.total === undefined || this.total < 1 || this.query.homeRowId || this.query.libraryId === '*' || ['authors', 'genres'].includes(this.query.pivot) || this.whole?.total === this.total) return;
     const list = libraryItemQuery({id: this.query.libraryId, kind: this.query.capabilities?.library?.kind}, this.query.pivot, this.query.nodes, []);
     const kind = ({track: 'song', audiobook: 'book', series: 'book_series', book: 'ebook'} as Record<string, string>)[String(list.kind)] ?? String(list.kind);
     if (!selectionKinds.includes(kind as SelectionKind)) return;
@@ -144,14 +144,17 @@ export class BrowseSession<T> {
       catch (error) {if (!this.retired && this.options.current() && !signal.aborted && ended(error)) this.end(error); throw error;}
       finally {lifetime.dispose();}
     }
-    const list = libraryItemQuery({id: this.query.libraryId, kind: this.query.capabilities?.library?.kind}, this.query.pivot, this.query.nodes, this.query.sorts);
     try {
+      const {libraryId, homeRowId, nodes, sorts} = this.query;
+      const home = homeRowId ? homeRowSource(homeRowId, libraryId === '*' ? undefined : libraryId, nodes, sorts) : undefined;
+      const list = home ? undefined : libraryItemQuery({id: libraryId, kind: this.query.capabilities?.library?.kind}, this.query.pivot, nodes, sorts);
       // The count is its own request and no page waits for it; until it answers the list is "at least this long".
-      this.counting ??= countItems(api, list, this.life.signal)
+      this.counting ??= (home ? countHomeRow(api, home, this.life.signal) : countItems(api, list!, this.life.signal))
         .then(total => {if (total !== undefined) {this.total = total; if (this.live()) {this.options.onFacts?.({total});this.publishWhole();}}}, () => undefined);
       // The letter rail, for a list in title order: each first letter and how many titles begin with it.
       const title = this.query.sorts[0]?.field === 'title' ? this.query.sorts[0] : undefined;
-      if (title) this.lettering ??= readFacet(api, 'letter', list, this.life.signal)
+      if (title && (!home || nodes.every(node => 'field' in node && node.field === 'library'))) this.lettering ??=
+        (home ? readHomeRowFacet(api, home, 'letter', this.life.signal) : readFacet(api, 'letter', list!, this.life.signal))
         .then(facet => {
           const counts = title.direction === 'desc' ? [...facet.values].reverse() : facet.values, letters: Record<string, number> = {};
           let position = 0;
@@ -161,7 +164,13 @@ export class BrowseSession<T> {
         }).catch(() => undefined);
       // The next page follows its cursor; anywhere else (a scroll bar, a letter) opens the list at that position.
       const cursor = this.cursors.get(start);
-      const page = await readItems(api, list, cursor ? {cursor, limit: count} : {at: start, limit: count}, active);
+      const range = cursor ? {cursor, limit: count} : {at: start, limit: count};
+      if (home) {
+        const page = await readHomeRowPage(api, home, range, active);
+        if (!this.live() || signal.aborted) throw browseSessionClosed();
+        return this.answer(page.entries, start, start + page.entries.length, page.nextCursor, signal);
+      }
+      const page = await readItems(api, list!, range, active);
       if (this.retired || !this.options.current() || signal.aborted) throw browseSessionClosed();
       return this.answer(entriesFromItems(page.items, this.query.libraryId), start, start + page.items.length, page.nextCursor, signal);
     } catch (error) {

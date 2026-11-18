@@ -1,8 +1,8 @@
-import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
+import {serverPath} from './query/server-api.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 /** Server-composed home rows. Clients render membership, order and policy as published; they never rank, hide or page a row themselves. */
 import {validateContentEntry, type ContentEntry} from './library-content.ts';
-import type {Home} from '../../contracts/src/next/api.ts';
+import type {Home, HomeRowSource} from '../../contracts/src/next/api.ts';
 import {entryFromItem, readHomeRows} from './items.ts';
 import {parseBrowseNode, type BrowseNode, type BrowseSortSelection} from './browse.ts';
 import {firstOfEach, keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
@@ -32,7 +32,7 @@ export type HomeChannelActions = Readonly<{play:boolean;favorite:boolean}>;
 export type ServerText = Readonly<{code: string; params?: Readonly<Record<string, string>>; fallback: string}>;
 export type HomeSeeAll = Readonly<
  {type:'library';libraryId:string;pivot:string;query?:BrowseNode;sort:readonly BrowseSortSelection[]} |
- {type:'row';rowId:string} | {type:'saved_view';resourceId:string} |
+ {type:'row';rowId:string;libraryId?:string} | {type:'saved_view';resourceId:string} |
  {type:'collection';resourceId:string;libraryId:string} | {type:'guide';group?:string;sourceId?:string}
 >;
 export type HomeReason = Readonly<{kind:string;text:ServerText;source?:Readonly<{id:string;name:string}>;libraryId?:string}>;
@@ -76,7 +76,7 @@ export type HomeHeroRef = Readonly<{rowId: string; entryId: string; selectionKey
 export type HomeDocument = Readonly<{
   rows: readonly HomeRow[]; spotlight:readonly HomeSpotlight[]; hero?: HomeHeroRef; layout: HomeLayout;
 }>;
-export type HomeRowPage = Readonly<{limit?: number; cursor?: string; start?: number; revision?: string; anchorId?: string;group?:string;sourceId?:string}>;
+export type HomeRowPage = Readonly<Omit<HomeRowSource, 'id'> & {limit?: number; cursor?: string; at?: number; total?: boolean; start?: number; revision?: string; anchorId?: string;group?:string;sourceId?:string}>;
 export type HomeLayoutIntent = Readonly<{/** The layout this edit started from. */ revision: number; rowOrder: readonly string[]; hiddenRowIds: readonly string[]; idempotencyKey?: string}>;
 export interface HomeApi {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}
 
@@ -212,7 +212,7 @@ export const hasHomeRowContent=(row:HomeRow):boolean=>row.entries.length>0||!!ro
 
 export function validateHomeSeeAll(value:unknown):HomeSeeAll {
  if(!object(value))invalid();
- if(value.type==='row' && id(value.rowId))return Object.freeze({type:'row',rowId:value.rowId});
+ if(value.type==='row' && id(value.rowId) && (value.libraryId === undefined || id(value.libraryId)))return Object.freeze({type:'row',rowId:value.rowId,...(value.libraryId ? {libraryId:value.libraryId} : {})});
  if(value.type==='saved_view' && id(value.resourceId))return Object.freeze({type:'saved_view',resourceId:value.resourceId});
  if(value.type==='collection' && id(value.resourceId) && id(value.libraryId))return Object.freeze({type:'collection',resourceId:value.resourceId,libraryId:value.libraryId});
  if(value.type==='guide') {
@@ -381,18 +381,19 @@ function rebuiltHomeRow(row: Home['rows'][number], allowEmpty = false): HomeRow 
   const live = row.live === undefined ? undefined : parseHomeLive(row.live);
   const viewRead = typeof row.library === 'string' && row.library && typeof row.query === 'string' ? Object.freeze({library: row.library, query: row.query}) : undefined;
   const [source, resourceId] = row.id.split(':', 2);
-  const seeAll: HomeSeeAll | undefined = id(resourceId) && viewRead
-    ? source === 'collection' ? {type: 'collection', resourceId, libraryId: viewRead.library}
-      : source === 'view' ? {type: 'saved_view', resourceId} : undefined
-    : undefined;
+  const libraryId = row.library || undefined;
+  const seeAll: HomeSeeAll = source === 'collection' && id(resourceId) && libraryId ? {type: 'collection', resourceId, libraryId}
+    : source === 'view' && id(resourceId) ? {type: 'saved_view', resourceId}
+      : row.id === 'on_now' ? {type: 'guide'} : {type: 'row', rowId: row.id, ...(libraryId ? {libraryId} : {})};
   const deferred = !entries.length && row.deferred === true && !!viewRead;
   if (!allowEmpty && !entries.length && !live?.channels.length && !deferred) return undefined;
   const always = row.id.startsWith('continue'), nextCursor = words(row.nextCursor, 4096);
+  const why = words(row.reason, 2048);
   return Object.freeze({id: row.id, title: words(row.title, 1024), kind: row.id, artworkShape: oneOfOr('home', 'row.artworkShape', row.shape, shapes, 'poster'),
     endpoint: '', privacySensitivity: '', policyState: '', priority: 0, required: always, hideable: !always, reorderable: true, critical: false, cursorCapable: !!nextCursor,
     entries, start: 0, limit: live?.channels.length ?? entries.length, hasMore: !!nextCursor, nextCursor,
     ...(row.total === undefined ? {} : {total: row.total}), ...(live ? {live} : {}), ...(viewRead ? {viewRead} : {}), ...(deferred ? {deferred: true} : {}),
-    ...(seeAll ? {seeAll: Object.freeze(seeAll)} : {})});
+    ...(libraryId ? {libraryId} : {}), ...(why ? {why: Object.freeze({code: '', fallback: why})} : {}), seeAll: Object.freeze(seeAll)});
 }
 
 /** Home as the server composes it for this profile: the rows it sends, in its order. A row with nothing in it is not
@@ -410,19 +411,6 @@ export function homeDocument(home: Home): HomeDocument {
     return Object.freeze({entry: Object.freeze({...card, homeActions}), reason: Object.freeze({kind: slide.reason.kind, text: reason}), ...(target ? {resumeTarget: target} : {})});
   }), slide => slide.entry.id).map(slide => oneSelectionIdentity(slide, rows));
   return Object.freeze({rows: Object.freeze(rows), spotlight: Object.freeze(spotlight), layout: Object.freeze({revision: 0, rowOrder: Object.freeze(rows.map(row => row.id)), hiddenRowIds: Object.freeze([])})});
-}
-
-function pageQuery(page: HomeRowPage): string {
-  const query = new URLSearchParams();
-  if (page.limit !== undefined) query.set('limit', String(page.limit));
-  if (page.cursor) query.set('cursor', page.cursor);
-  if (page.start !== undefined) query.set('start', String(page.start));
-  if (page.revision) query.set('revision', page.revision);
-  if (page.anchorId) query.set('anchorId', page.anchorId);
-  if (page.group) query.set('group',page.group);
-  if (page.sourceId) query.set('sourceId',page.sourceId);
-  const text = query.toString();
-  return text ? '?' + text : '';
 }
 
 export async function fetchHome(api: HomeApi, signal?: AbortSignal): Promise<HomeDocument> {
@@ -468,8 +456,8 @@ export function appendHomeRowPage(row: HomeRow, page: HomeRow): HomeRow {
 }
 
 export async function fetchHomeRow(api: HomeApi, rowId: string, page: HomeRowPage = {}, signal?: AbortSignal): Promise<HomeRow> {
-  if (page.cursor && (page.start !== undefined || page.anchorId)) throw new Error('A home row pages by cursor or by anchored range, not both.');
-  const raw = await api.request<unknown>(encodedRoutePath("get_home_row", {"id": encodeURIComponent(rowId)}) + pageQuery(page), 'GET', undefined, signal);
+  if (page.cursor && (page.at !== undefined || page.start !== undefined || page.anchorId)) throw new Error('A home row pages by cursor or by anchored range, not both.');
+  const raw = await api.request<unknown>(serverPath('GET /v1/home/rows/{id}', {id: rowId, query: page}), 'GET', undefined, signal);
   const row = object(raw) && Array.isArray(raw.items) ? rebuiltHomeRow(raw as unknown as Home['rows'][number], true) ?? invalid() : validateHomeRow(raw);
   if (row.id !== rowId) invalid();
   return row;
