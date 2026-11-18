@@ -39,7 +39,7 @@ export function GuideGrid({channels, span, now, ruler, nowLabel, channelLabel, o
         {channels.map(channel => <div key={channel.id} className={styles.guideRow}>{channel.cells.map(cell => <button key={cell.id} type="button" className={styles.guideCell}
           style={{'--from': Math.max(0, cell.from), '--to': Math.min(span, cell.to)} as CSSProperties} data-past={cell.past || undefined} data-empty={cell.empty || undefined} data-selected={cell.selected || undefined}
           onClick={onCell && (() => onCell(channel, cell))}>
-          <span className={styles.guideTitle}>{cell.from < 0 && <i className={styles.clip} aria-hidden="true">‹</i>}{cell.recording && <i className={styles.dot} aria-hidden="true"/>}<b>{cell.title}</b></span>
+          <span className={styles.guideTitle}>{cell.from < 0 && <i className={styles.clip} aria-hidden="true">‹</i>}{cell.recording && <i className={styles.dot} aria-hidden="true"/>}<b ref={markOverflow}>{cell.title}</b></span>
           {(cell.detail || cell.flags?.length || cell.recording) && <span className={styles.guideDetail}>{cell.recording && <em>{cell.recording}</em>}{cell.flags?.map(flag => <Flag key={flag.id} flag={flag}/>)}{cell.detail && <span>{cell.detail}</span>}</span>}
           {cell.progress !== undefined && <span className={styles.progress} aria-hidden="true"><i style={{width: `${Math.round(cell.progress * 100)}%`}}/></span>}
         </button>)}</div>)}
@@ -54,6 +54,10 @@ export function Flag({flag}: {flag: GuideFlag}) {
   return <span className={styles.flag} data-flag={flag.id}>{flag.text}</span>;
 }
 
+/** A title wraps only between words; one whose word is wider than its cell is one line ending in "…" (data-one-line). */
+function markOverflow(title: HTMLElement | null) {
+  if (title && !title.hasAttribute('data-one-line') && title.scrollWidth > title.clientWidth + 1) title.setAttribute('data-one-line', '');
+}
 export type ChannelRowProps = Readonly<{channel: Omit<GuideChannel, 'cells'>; title: string; left?: string; progress?: number; live?: string; next?: string; onPress?: () => void}>;
 /** The channel list (phone-app 10, desktop-live live-list): mark and number, the channel, what is on with the time left and a bar, then what is next. */
 export function ChannelRow({channel, title, left, progress, live, next, onPress}: ChannelRowProps) {

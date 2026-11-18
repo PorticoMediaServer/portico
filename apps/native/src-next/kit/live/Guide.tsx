@@ -1,4 +1,4 @@
-import React, {type ReactNode} from 'react';
+import React, {useState, type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {ChannelMark} from '../artwork';
 import {Focusable} from '../controls/Focusable';
@@ -87,15 +87,29 @@ export function GuideGrid({channels, span, now, ruler, nowLabel, channelLabel, o
   </View>;
 }
 
+/** Whether the laid-out lines break inside a word: a break is between words when a space (or a hyphen) sits at it. */
+function splitsWord(lines: readonly string[], text: string) {
+  let at = 0;
+  for (const line of lines.slice(0, -1)) {
+    at += line.length;
+    if (at >= text.length) return false;
+    if (!/\s/.test(text[at - 1]!) && !/\s/.test(text[at]!) && text[at - 1] !== '-') return true;
+  }
+  return false;
+}
 function Cell({cell, left, width, top, height, onPress}: {cell: GuideCell; left: number; width: number; top: number; height: number; onPress?: () => void}) {
   const theme = useTheme(), frame = useFrameMetrics(), pad = frame.form === 'tv' ? theme.space.sm : theme.space.controlGap;
-  const quiet = cell.past ? theme.colors.textTertiary : theme.colors.text;
+  const quiet = cell.past ? theme.colors.textTertiary : theme.colors.text, [oneLine, setOneLine] = useState(false);
+  // A title wraps only between words. When a word is wider than the cell, the title is one line ending in "…"; under room
+  // for two and a half characters' width it is left out, so a clipped start shows its chevron alone.
+  const titleSize = theme.type.cardTitle.fontSize ?? 15, room = width - 2 * pad - (cell.from < 0 ? 12 + theme.space.tight : 0) - (cell.recording !== undefined ? 8 + theme.space.tight : 0);
   return <Focusable accessibilityLabel={cell.title} onPress={onPress} focusRadius={guideSpec.radius} style={{position: 'absolute', left, top, width, height, borderRadius: guideSpec.radius, overflow: 'hidden', paddingHorizontal: pad, justifyContent: 'center',
     backgroundColor: cell.empty ? alpha(theme.colors.raised, .5) : cell.selected ? theme.colors.raisedBright : theme.colors.raisedHigh, borderWidth: cell.selected ? 2 : 0, borderColor: theme.colors.accentStrong}}>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.tight}}>
       {cell.from < 0 && <Icon name="i-left" size={12} color={theme.colors.textTertiary}/>}
       {cell.recording !== undefined && <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.record}}/>}
-      <Text numberOfLines={2} style={[theme.type.cardTitle, {flexShrink: 1, color: quiet}]}>{cell.title}</Text>
+      {room >= titleSize * 2.5 && <Text numberOfLines={oneLine ? 1 : 2} onTextLayout={oneLine ? undefined : event => {if (splitsWord(event.nativeEvent.lines.map(line => line.text), cell.title)) setOneLine(true);}}
+        style={[theme.type.cardTitle, {flexShrink: 1, color: quiet}]}>{cell.title}</Text>}
     </View>
     {(cell.detail !== undefined || cell.flags?.length || cell.recording) && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.tight, marginTop: 2}}>
       {cell.recording !== undefined && <Text numberOfLines={1} style={[theme.type.cardSubtitle, {color: theme.colors.record}]}>{cell.recording}</Text>}
