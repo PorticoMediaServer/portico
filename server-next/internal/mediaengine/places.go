@@ -51,12 +51,6 @@ func (e *Engine) open(base, ffmpeg string) (*place, error) {
 	if err := os.MkdirAll(folder, 0700); err != nil {
 		return nil, err
 	}
-	// The converter is handed the folder where it really is: its sandbox mounts only that,
-	// and a conversion folder can be reached through a link (on macOS /var is one).
-	folder, err := filepath.EvalSymlinks(folder)
-	if err != nil {
-		return nil, err
-	}
 	// Readiness comes from opening and writing output, not from a readable usage walk.
 	check, err := os.CreateTemp(folder, ".write-check-")
 	if err != nil {
