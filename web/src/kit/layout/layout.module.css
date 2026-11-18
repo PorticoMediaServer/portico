@@ -162,3 +162,11 @@
   .hero:not([data-platform^='phone']):not([data-platform='tv']) .thumbnailImage img { width: 104px; }
   .hero:not([data-platform^='phone']):not([data-platform='tv']) .thumbnailImage, .hero:not([data-platform^='phone']):not([data-platform='tv']) .thumbnailImage img { height: 58px; }
 }
+/* Rule 14, the moderate hero (Hero `moderate`): the frame tokens' fixed sizes for this width. Last, so it wins over the platform columns above. */
+.hero[data-size='moderate'] { height: var(--frame-hero-home-height); --hero-lockup: var(--frame-hero-home-lockup); }
+.hero[data-size='moderate']:has(.lockup[data-long]) { --hero-lockup: var(--frame-hero-home-lockup-long); }
+.hero[data-size='moderate'] .copy { bottom: var(--frame-hero-home-copy-bottom); }
+/* On a phone the slide dots sit under the buttons: the dots take the copy's place and the copy clears them (6 high, 14 above). */
+.hero[data-size='moderate'] .dots { bottom: var(--frame-hero-home-copy-bottom); }
+.hero[data-size='moderate'][data-platform^='phone'][data-navigation='true'] .copy { bottom: calc(var(--frame-hero-home-copy-bottom) + 20px); }
+.hero[data-size='moderate'] .overview { -webkit-line-clamp: var(--frame-hero-home-synopsis-lines); }
