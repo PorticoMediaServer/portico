@@ -3,9 +3,8 @@ import assert from 'node:assert/strict';
 import {decodeBrowseLibraryResponse} from '../../contracts/src/decoders.ts';
 import {schemas} from '../../contracts/src/schemas.ts';
 import type {BrowseLibraryResponse} from '../../contracts/src/types.ts';
-import {parseBrowsePreparing} from '../src/browse-preparation.ts';
 import {defaultI18n} from '../../i18n/src/index.ts';
-import {BrowseQueryBuilder, BrowseQueryError, browseContextFacetsPath, browseCountsRequest, parseBrowseCapabilities, parseBrowseNode, parseBrowseResult, validateBrowseQuery, type BrowseCapabilities, type BrowseFieldCapability, type BrowseNode} from '../src/browse.ts';
+import {BrowseQueryBuilder, BrowseQueryError, browseCountsRequest, parseBrowseCapabilities, parseBrowseNode, parseBrowseResult, validateBrowseQuery, type BrowseCapabilities, type BrowseFieldCapability, type BrowseNode} from '../src/browse.ts';
 import {validateHomeSeeAll} from '../src/home.ts';
 import {parseContentSeeAll} from '../src/library-content.ts';
 import {PersonalSavedService} from '../src/personal-saved.ts';
@@ -30,13 +29,12 @@ import {legacyPersonalTransport} from './fixtures/legacy-personal-transport.ts';
  * is refused by (1) and (4) and admitted by (2) and (3). Nesting it bypasses (1), not (4).
  *
  * (2) does not only read server responses. `PersonalSavedService.definition` uses it for
- * the definition a create or update intent sends, and `browseContextFacetsPath` uses it to
- * serialize an outgoing facet link. A capability-free parser therefore does not establish
- * that every send is validated: (4) is the validation, and it is not on those two paths.
+ * the definition a create or update intent sends. The capability check in (4) is separate
+ * from that transport.
  *
  * The same window crosses the other readers verbatim — the published vocabulary and its
- * quick filters, a See all destination, a Home row's See all, a counts request, a facet
- * link and a saved view's stored definition — and none of them turns it into a date
+ * quick filters, a See all destination, a Home row's See all, a counts request and a saved
+ * view's stored definition — and none of them turns it into a date
  * computed from the clock. BrowseQueryBuilder and the saved-view summary perform
  * capability checks; the transport paths above do not establish that a query is valid.
  */
@@ -106,7 +104,6 @@ test('ready pages carry applied queries and preparing replies stay in their type
   assert.ok('state' in preparing, 'a preparing response exposes its poll state');
   assert.deepEqual({...preparing}, pending);
   assert.equal('applied' in preparing, false);
-  assert.deepEqual(parseBrowsePreparing(preparing, 'reading-browse'), {queryId: 'query-1', retryAfterMs: 25});
   assert.throws(() => parseBrowseResult(preparing), {code: 'invalid_browse'});
   for (const malformed of [{...pending, kind: 'reading-facet-preparing'}, {...pending, queryId: ''}, {...pending, retryAfterMs: 0}]) {
     assert.throws(() => decodeBrowseLibraryResponse(malformed), /Invalid contract value/);
@@ -237,11 +234,9 @@ test('a See all destination keeps the relative window, and one that cannot be re
   assert.throws(() => validateHomeSeeAll({type: 'library', libraryId: 'library', pivot: 'movies', sort, query: {variant:'predicate',field: 'dateAdded', operator: 'within-last-weeks', value: 4}}));
 });
 
-test('a counts or facets request carries the relative window unchanged, never a date computed from the clock', t => {
+test('browse and count requests carry the relative window unchanged', t => {
   const node: BrowseNode = {variant:'relative',field: 'dateAdded', operator: OPERATOR, value: 30};
   assert.deepEqual(browseCountsRequest('movies', [{id: 'recent', query: node}]).queries[0]?.query, node);
-  const facets = browseContextFacetsPath('library', 'genre', 'movies', node);
-  assert.deepEqual(JSON.parse(new URLSearchParams(facets.slice(facets.indexOf('?') + 1)).get('query') as string), node);
 
   // The executed body is the same at any instant: a relative window is never frozen
   // into the calendar date it happens to mean today.

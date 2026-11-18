@@ -27,7 +27,7 @@ import {viewerScope} from '../src/presentation/content.ts';
 import {fetchHome, fetchHomeRow} from '../src/home.ts';
 import {fetchItemRecommendations, fetchSuggestions} from '../src/recommendations.ts';
 import {LibraryContentService, type ContentProjection, type ContentRoute, type ContentView} from '../src/library-content.ts';
-import {BrowseQueryBuilder, parseBrowseCapabilities, parseBrowseFacets, parseBrowseResult, type BrowseCapabilities} from '../src/browse.ts';
+import {parseBrowseCapabilities, parseBrowseFacets} from '../src/browse.ts';
 import {fetchInventoryStatus} from '../src/library-inventory.ts';
 import {DetailService} from '../src/detail.ts';
 import {FreshnessHub} from '../src/freshness-hub.ts';
@@ -306,24 +306,13 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
         if (taken >= limit) break;
       }
     }
-    // Browse: the capability document, then one page through the same builder the apps use.
+    // Browse: the capability document and the first counted facet.
     const capabilitiesPath = `/v1/libraries/${encodeURIComponent(lib.id)}/browse-capabilities`;
     const capabilitiesRaw = await rec.check('libraries', `browse capabilities (${lib.id})`, 'GET', capabilitiesPath, () =>
       api.request<unknown>(capabilitiesPath).then(parseBrowseCapabilities));
+    rec.skip(`browse page (${lib.id})`, 'the rebuilt server retired the old library browse POST');
     if (capabilitiesRaw && typeof capabilitiesRaw === 'object') {
-      const caps = capabilitiesRaw as {pivots?: {id: string; browsable?: boolean}[]; fields?: {id: string}[]; queryLimits?: {maximumLimit?: number}};
-      const pivot = caps.pivots?.find(p => p.browsable);
-      if (pivot) {
-        const browsePath = `/v1/libraries/${encodeURIComponent(lib.id)}/browse`;
-        await rec.check('libraries', `browse page (${lib.id})`, 'POST', browsePath, async () => {
-          const builder = new BrowseQueryBuilder(capabilitiesRaw as BrowseCapabilities);
-          const maxLimit = caps.queryLimits?.maximumLimit ?? 60;
-          const body = builder.limit(Math.max(1, Math.min(limit, maxLimit))).build();
-          return api.request<unknown>(browsePath, 'POST', body).then(parseBrowseResult);
-        });
-      } else {
-        rec.skip(`browse page (${lib.id})`, 'capabilities publish no browsable pivot (browse.ts)');
-      }
+      const caps = capabilitiesRaw as {fields?: {id: string}[]};
       // The filter panels never ask facets for title or entityKind (not counted facets); probe the first field they do.
       const field = caps.fields?.find(f => f.id !== 'title' && f.id !== 'entityKind')?.id;
       if (field) {

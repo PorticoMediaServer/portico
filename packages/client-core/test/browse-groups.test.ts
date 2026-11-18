@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {acrossCondition, acrossOwnOrder, acrossPivot, episodeGroupCondition, episodeGroupQuery, groupMemoryId, groupMemoryScope, groupSort} from '../src/presentation/browse-groups.ts';
-import {acrossLibraries, browseCapabilitiesPath, browseFacetsPath, browsePath, libraryTabSorts, parseBrowseCapabilities, parseBrowseResult} from '../src/browse.ts';
+import {acrossLibraries, libraryTabSorts, parseBrowseCapabilities, parseBrowseResult} from '../src/browse.ts';
 import {bucketIndexFor, titleBucketValue} from '../src/browse-buckets.ts';
 
 test('a group keeps its own order under a filter when the server offers it', () => {
@@ -21,14 +21,6 @@ test('groups across libraries name their condition, pivot and own order', () => 
   assert.equal(acrossOwnOrder('savedCollection'), true, 'a personal collection has its own order');
   assert.equal(acrossOwnOrder('watchlist'), false);
   assert.deepEqual(episodeGroupCondition('s1', 'range:100'), {variant:'predicate',field: 'episodeGroup', operator: 'equals', value: 's1/range:100'});
-});
-
-test('lists across libraries read from their own routes', () => {
-  assert.equal(browsePath(acrossLibraries), '/v1/browse');
-  assert.equal(browsePath('lib 1'), '/v1/libraries/lib%201/browse');
-  assert.equal(browseCapabilitiesPath(acrossLibraries, 'titles'), '/v1/browse-capabilities?pivot=titles');
-  assert.equal(browseFacetsPath(acrossLibraries), '/v1/browse/facets');
-  assert.equal(browseFacetsPath('m'), '/v1/libraries/m/facets');
 });
 
 test('a vocabulary across libraries is read, with offset paging and the group order marked', () => {

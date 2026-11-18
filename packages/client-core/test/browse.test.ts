@@ -1,7 +1,7 @@
 import test from 'node:test';
 import {nextToolbarSort} from '../src/presentation/browse-toolbar.ts';
 import assert from 'node:assert/strict';
-import {parseBrowseCapabilities,parseBrowseResult,parseBrowseFacets,validateBrowseQuery,formatBrowseAnchor,BrowseQueryBuilder,BrowseQueryError,browseWithin,facetGroupOf,type BrowseCapabilities} from '../src/browse.ts';
+import {parseBrowseCapabilities,parseBrowseResult,parseBrowseFacets,validateBrowseQuery,formatBrowseAnchor,BrowseQueryBuilder,BrowseQueryError,browseWithin,type BrowseCapabilities} from '../src/browse.ts';
 import {parsePinOrder,parseLibraryNavigationPins,parsePinnedLibraries,pinOrderRequest,libraryNavigationRequest} from '../src/library-pins.ts';
 
 function capabilitiesPayload(changes: Record<string, unknown> = {}): any {
@@ -296,24 +296,12 @@ test('a total counted only to the threshold is open-ended until the last page', 
   assert.equal(exact.pageInfo.total, 3);
 });
 
-test('a list across libraries names its group for its filter counts', () => {
-  assert.deepEqual(facetGroupOf([{variant:'predicate',field: 'list', operator: 'equals', value: 'pl1'}, {variant:'predicate',field: 'genre', operator: 'equals', value: 'Drama'}]), {group: 'list', value: 'pl1'});
-  assert.deepEqual(facetGroupOf([{variant:'predicate',field: 'favorite', operator: 'equals', value: true}]), {group: 'favorite', value: ''});
-  assert.equal(facetGroupOf([{variant:'predicate',field: 'genre', operator: 'equals', value: 'Drama'}]), undefined);
-});
-
-test('CB-1/2/3/5/6: contextual facets, batch counts, owner sort and remembered totals stay honest', async () => {
- const {browseContextFacetsPath,browseCountsRequest,parseBrowseCounts,browseCountsPath,BrowseTotalsMemory}=await import('../src/browse.ts');
+test('CB-1/2/3/5/6: facet totals, batch counts, owner sort and remembered totals stay honest', async () => {
+ const {browseCountsRequest,parseBrowseCounts,BrowseTotalsMemory}=await import('../src/browse.ts');
  const query={variant:'group',all:[{variant:'predicate',field:'year',operator:'at-least' as const,value:2000},{variant:'predicate',field:'genre',operator:'contains' as const,value:'Drama'}]};
- const url=new URL(browseContextFacetsPath('lib','genre','movies',query,'com',10),'https://private.invalid');
- assert.equal(url.pathname,'/v1/libraries/lib/facets');
- assert.deepEqual(JSON.parse(url.searchParams.get('query')!),query);
- assert.equal(url.searchParams.get('pivot'),'movies');
- assert.equal(url.searchParams.get('q'),'com');
  const facets=parseBrowseFacets({field:'actor',total:500,totalIsLowerBound:true,revision:'revision',values:[{value:'a',label:'An actor',count:10000,countIsLowerBound:true}]},'actor');
  assert.equal(facets.totalIsLowerBound,true);assert.equal(facets.values[0].countIsLowerBound,true);
  assert.deepEqual(browseCountsRequest('movies',[{id:'relax',query}]),{pivot:'movies',queries:[{id:'relax',query}]});
- assert.equal(browseCountsPath('lib'),'/v1/libraries/lib/browse/counts');assert.equal(browseCountsPath('*'),'/v1/browse/counts');
  assert.throws(()=>browseCountsRequest('movies',Array.from({length:9},(_,i)=>({id:String(i),query:null}))));
  assert.throws(()=>parseBrowseCounts({counts:[{id:'wrong',total:10,totalIsLowerBound:true,revision:'r'}]},['wanted']));
  const counts=parseBrowseCounts({counts:[{id:'relax',total:10000,totalIsLowerBound:true,revision:'r'}]},['relax']);assert.equal(counts[0].totalIsLowerBound,true);
@@ -355,27 +343,17 @@ test('GP-CB-1 and CB-6: member/TV toolbar consumes match and ownerOnly capabilit
 
 test('public music Unmatched navigation follows actual capabilities for member, owner and TV',async()=>{
  const {libraryTabs,canBrowseMusicUnmatched}=await import('../src/presentation/library-tabs.ts');
- const {browsePath}=await import('../src/browse.ts');
  const caps=parseBrowseCapabilities(capabilitiesPayload({library:{id:'music',name:'Music',kind:'music',defaultView:'discover'},pivots:[{id:'albums',labelKey:'library.albums',entityKinds:['album'],defaultSort:[{field:'title',direction:'asc'}],supportedViews:['grid'],browsable:true,filters:['match']}],resolvedPivot:{id:'albums',labelKey:'library.albums',entityKinds:['album'],defaultSort:[{field:'title',direction:'asc'}],supportedViews:['grid'],browsable:true,filters:['match']},fields:[{id:'match',labelKey:'browse.field.match',type:'enum',operators:['equals'],controlHint:'select',complexity:'standard',cost:'indexed-join',applicableKinds:['album'],allowedValues:['matched','unmatched']}]}));
  assert.equal(canBrowseMusicUnmatched(caps),true);
  for(const caller of ['member','owner','tv']){
   const tabs=libraryTabs('music',{owner:caller==='owner',unmatched:canBrowseMusicUnmatched(caps)});const tab=tabs.find(t=>t.id==='unmatched')!;
-  assert.equal(tab.pivot,'albums');assert.deepEqual(tab.fixedFilter,[{variant:'predicate',field:'match',operator:'equals',value:'unmatched'}]);assert.equal(browsePath(caps.library.id),'/v1/libraries/music/browse');
+  assert.equal(tab.pivot,'albums');assert.deepEqual(tab.fixedFilter,[{variant:'predicate',field:'match',operator:'equals',value:'unmatched'}]);
  }
  const local={...caps,fields:caps.fields.filter(f=>f.id!=='match'),pivots:caps.pivots.map(p=>({...p,filters:[]}))};
  for(const unavailable of [undefined,local])for(const owner of [false,true])assert.equal(libraryTabs('music',{owner,unmatched:canBrowseMusicUnmatched(unavailable)}).some(t=>t.id==='unmatched'),false);
  assert.equal(canBrowseMusicUnmatched({...caps,library:{...caps.library,kind:'audiobook'}}),false);
  assert.equal(canBrowseMusicUnmatched({...caps,pivots:caps.pivots.map(p=>({...p,filters:undefined}))}),false);
  assert.equal(canBrowseMusicUnmatched({...caps,pivots:caps.pivots.map(p=>({...p,filters:[]}))}),false);
-});
-
-test('Reading facet windows use the admitted single-library offset',async()=>{
- const {browseContextFacetsPath,acrossLibraries}=await import('../src/browse.ts');
- const url=new URL(browseContextFacetsPath('reading','author','authors',undefined,'',1,1),'https://private.invalid');
- assert.equal(url.searchParams.get('offset'),'1');
- assert.equal(url.searchParams.get('limit'),'1');
- assert.throws(()=>browseContextFacetsPath('reading','author','authors',undefined,'',1,-1));
- assert.throws(()=>browseContextFacetsPath(acrossLibraries,'author','authors',undefined,'',1,1));
 });
 
 test('Reading facets preserve full accepted values and only server-issued series navigation IDs',()=>{
