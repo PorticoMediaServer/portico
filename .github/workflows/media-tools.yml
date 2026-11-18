@@ -182,7 +182,6 @@ jobs:
     env:
       # The Xcode the release's macOS job builds with.
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
-      LIBRARIES_KEY: media-tools-libraries-macos-arm64-xcode-26.6-${{ hashFiles('third_party/ffmpeg/upstream.lock', 'third_party/ffmpeg/recipes/**', 'third_party/ffmpeg/patches/lib*-no-decryption.patch') }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -203,8 +202,8 @@ jobs:
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: /opt/ffbuild/prefix
-          key: ${{ env.LIBRARIES_KEY }}
-          restore-keys: ${{ env.LIBRARIES_KEY }}-partial-
+          key: media-tools-libraries-macos-arm64-xcode-26.6-${{ hashFiles('third_party/ffmpeg/upstream.lock', 'third_party/ffmpeg/recipes/**', 'third_party/ffmpeg/patches/lib*-no-decryption.patch') }}
+          restore-keys: media-tools-libraries-macos-arm64-xcode-26.6-${{ hashFiles('third_party/ffmpeg/upstream.lock', 'third_party/ffmpeg/recipes/**', 'third_party/ffmpeg/patches/lib*-no-decryption.patch') }}-partial-
       - run: third_party/ffmpeg/build.sh prepare "$PLATFORM"
       - name: Libraries (only those not built yet)
         id: libraries
@@ -216,7 +215,7 @@ jobs:
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: /opt/ffbuild/prefix
-          key: ${{ steps.libraries.outcome == 'success' && env.LIBRARIES_KEY || format('{0}-partial-{1}-{2}', env.LIBRARIES_KEY, github.run_id, github.run_attempt) }}
+          key: ${{ steps.libraries.outcome == 'success' && steps.restore.outputs.cache-primary-key || format('{0}-partial-{1}-{2}', steps.restore.outputs.cache-primary-key, github.run_id, github.run_attempt) }}
 
       - name: Library sources and licence texts
         if: inputs.stage == 'bundle'
