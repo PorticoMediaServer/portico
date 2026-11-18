@@ -141,13 +141,13 @@ function TwoStepBox({refused = false}: {refused?: boolean}) {
   const ready = recovery ? Boolean(code.trim()) : /^\d{6}$/.test(code), swap = () => {setCode(''); setRecovery(!recovery);};
   return <OverlaysProvider><Window><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings')}} list={<Index selected="integrations" onOpen={none}/>} page={<IntegrationsPage/>}/></Window>
     <SheetFrame kind="task" task="task" open onOpenChange={none} title={t(recovery ? 'services.signin.recovery' : 'web.direct.codeTitle')} action={{label: t('action.continue'), disabled: !ready, onPress: none}}>
-      <View style={{gap: theme.space.sm, paddingHorizontal: 16}}>
+      <SheetBody>
         <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{t(recovery ? 'services.signin.recoveryBody' : 'services.signin.twoStep')}</Text>
         {recovery ? <TextField label={t('accounts.signIn.recoveryCode')} placeholder={t('services.recovery.codePlaceholder')} value={code} onChangeText={setCode} invalid={refused}/>
           : <PhonePINEntry length={6} label={t('web.twoStep.code')} value={code} onChange={setCode} error={refused} autoFocus={false}/>}
         {refused && <Text accessibilityRole="alert" style={[theme.type.rowHelp, {color: theme.colors.danger}]}>{f('codeWrong')}</Text>}
         <RecoveryLine recovery={recovery} onPress={swap}/>
-      </View>
+      </SheetBody>
     </SheetFrame></OverlaysProvider>;
 }
 /** A settings page shown alone (tablets SC-8): Back, the gutter and the page's column limit. */
@@ -169,12 +169,13 @@ function Over({children}: {children: (anchor: React.RefObject<View | null>) => R
       <PosterCard title={fx('spirited')} artwork={asset('pool/movies/spirited-away.jpg')} width={width} onNavigate={none}/>
     </View><PosterRow title={f('recent')} fresh/></View></Page>{children(anchor)}</OverlaysProvider>;
 }
+function SheetBody({children}: {children: ReactNode}) { const theme = useTheme(), frame = useFrameMetrics(); return <View style={{gap: theme.space.sm, paddingHorizontal: frame.gutter}}>{children}</View>; }
 const OverlayTask = () => <Over>{() => <SheetFrame kind="task" task="task" open onOpenChange={none} title={fx('addSource')} action={{label: fx('addSource'), onPress: none}}>
-  <View style={{gap: 12, paddingHorizontal: 16}}><TextField testID="overlay-task-url" label={f('sourceUrl')} value={f('sourceUrlValue')} onChangeText={none}/><TextField testID="overlay-task-name" label={f('sourceName')} value={f('sourceNameValue')} onChangeText={none}/></View>
+  <SheetBody><TextField testID="overlay-task-url" label={f('sourceUrl')} value={f('sourceUrlValue')} onChangeText={none}/><TextField testID="overlay-task-name" label={f('sourceName')} value={f('sourceNameValue')} onChangeText={none}/></SheetBody>
 </SheetFrame>}</Over>;
 const OverlayConfirm = () => <Over>{() => <SheetFrame kind="task" task="confirm" open onOpenChange={none} title={f('recordingTitle')}
   foot={<><Button testID="overlay-confirm-cancel" variant="glass" onPress={none}>{t('next.overlays.cancel')}</Button><Button testID="overlay-confirm-delete" variant="danger" onPress={none}>{f('delete')}</Button></>}><Body text={f('recordingBody')}/></SheetFrame>}</Over>;
-function Body({text}: {text: string}) { const theme = useTheme(); return <Text style={[theme.type.intro, {color: theme.colors.textSecondary, paddingHorizontal: 16}]}>{text}</Text>; }
+function Body({text}: {text: string}) { const theme = useTheme(); return <SheetBody><Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{text}</Text></SheetBody>; }
 const OverlayDetails = () => <Over>{() => <SheetFrame kind="task" task="details" open onOpenChange={none} title={f('fileInfo')} subtitle={f('fileTitle')}>
   <SectionCard label={f('version1')}><SettingsRow testID="details-1-video" first label={f('videoFact')} value={f('videoValue')} readable/><SettingsRow testID="details-1-audio" label={f('audioFact')} value={f('audioValue')} readable/><SettingsRow testID="details-1-size" label={f('sizeFact')} value={f('sizeValue')} readable/></SectionCard>
   <SectionCard label={f('version2')}><SettingsRow testID="details-2-video" first label={f('videoFact')} value={f('video1080')} readable/><SettingsRow testID="details-2-audio" label={f('audioFact')} value={f('audio1080')} readable/><SettingsRow testID="details-2-size" label={f('sizeFact')} value={f('size1080')} readable/></SectionCard>
