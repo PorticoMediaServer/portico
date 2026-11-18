@@ -161,7 +161,7 @@ end sub
 sub onOpen(event as object)
     ask = event.getData()
     kind = ask.item.kind
-    if ask.play = true and (kind = "movie" or kind = "episode")
+    if ask.play = true and (kind = "movie" or kind = "episode" or kind = "channel")
         player = push("PlayerScreen")
         player.observeField("closed", "onPlayerClosed")
         player.item = ask.item
@@ -410,6 +410,15 @@ sub onRailChosen(event as object)
         showHome()
         return
     end if
+    if id = "live"
+        show("LiveScreen")
+        m.screen.observeField("open", "onOpen")
+        m.screen.observeField("menu", "onMenu")
+        m.rail.visible = true
+        m.rail.current = id
+        m.screen.active = true
+        return
+    end if
     if id = "profile"
         ' the profile and server menu (tv-more frame 10): its rows are this scene's own
         m.sheetIsOwn = true
@@ -460,6 +469,12 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
     if key = "back" and m.screens.getChildCount() > 1
         pop()
+        return true
+    end if
+    ' Back at the top of any other rail page goes to Home's opening state; only Home's own Back
+    ' leaves the app (DESIGN.md, "Back, step by step").
+    if key = "back" and m.screen <> invalid and m.entered = true and m.rail.visible and m.rail.current <> "home"
+        showHome()
         return true
     end if
     return false

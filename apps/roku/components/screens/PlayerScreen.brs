@@ -82,6 +82,8 @@ sub init()
     m.top.findNode("count").observeField("fire", "onCount")
     m.prefs = invalid    ' the profile's playback settings, once read
     m.cardMode = ""      ' what the Up next card is showing, or "" when it is away
+    m.live = false       ' a channel is playing (Live TV)
+    m.liveWindow = false ' its stream is a playlist with a window to go back in
     m.counting = false   ' the card is counting down to the next title
     m.backSeconds = 10
     m.forwardSeconds = 30
@@ -92,6 +94,8 @@ sub init()
     m.top.findNode("title").width = 1300
     m.top.findNode("code").translation = [f.left, f.top + 54]
     m.top.findNode("sub").translation = [f.left, f.top + 54]
+    m.top.findNode("times").translation = [f.left, f.top + 90]
+    m.top.findNode("times").width = 1300
     m.top.findNode("clock").translation = [f.right - 500, f.top]
     m.top.findNode("ends").translation = [f.right - 500, f.top + 44]
     m.top.findNode("track").width = f.right - f.left
@@ -99,6 +103,8 @@ sub init()
     m.ahead.color = c.barAhead
     m.played.color = c.accentStrong
     m.was.color = c.barTick
+    m.top.findNode("edge").color = c.danger
+    m.top.findNode("liveDot").blendColor = c.danger
     m.top.findNode("at").translation = [f.left, f.timeY]
     m.top.findNode("left").translation = [f.right - 500, f.timeY]
     m.buttons.translation = [0, f.buttonsY]
@@ -134,9 +140,18 @@ sub makeButtons(hasPrevious as boolean, hasNext as boolean)
     m.row = []
     ' the skip arrows carry the profile's own amounts
     specs = [{kind: "back", icon: "skip-back-44", size: 64, seconds: m.backSeconds.toStr()}, {kind: "play", icon: "pause-40", size: 88}, {kind: "forward", icon: "skip-forward-44", size: 64, seconds: m.forwardSeconds.toStr()}]
+    ' a channel sent as its own stream has no window to move in: no skip arrows
+    if m.live = true and m.liveWindow <> true then specs = [{kind: "play", icon: "pause-40", size: 88}]
     ' Previous and Next flank the transport when the queue has something that way
     if hasPrevious then specs.unshift({kind: "previous", icon: "previous-32", size: 64})
     if hasNext then specs.push({kind: "next", icon: "next-32", size: 64})
+    ' live: channel down and up flank the transport, each with the number it goes to
+    if m.live = true
+        down = neighbour(-1)
+        up = neighbour(1)
+        if down <> invalid then specs.unshift({kind: "chdown", icon: "chevronDown-20", size: 64, channel: down.channel.number})
+        if up <> invalid then specs.push({kind: "chup", icon: "chevronUp-20", size: 64, channel: up.channel.number})
+    end if
     ' Play/Pause stays in the middle of the screen whatever flanks it
     gap = 22
     x = 960 - 44
@@ -153,13 +168,24 @@ sub makeButtons(hasPrevious as boolean, hasNext as boolean)
         iconSize = 36
         if spec.kind = "play" then iconSize = 40
         if spec.kind = "previous" or spec.kind = "next" then iconSize = 32
+        if spec.channel <> invalid then iconSize = 20
         icon = m.buttons.createChild("Poster")
         icon.uri = "pkg:/images/i-" + spec.icon + ".png"
         icon.width = iconSize
         icon.height = iconSize
         icon.translation = [x + (spec.size - iconSize) / 2, (88 - iconSize) / 2]
+        if spec.kind = "chdown" then icon.translation = [x + 22, 50]
+        if spec.kind = "chup" then icon.translation = [x + 22, 18]
         number = invalid
-        if spec.seconds <> invalid
+        if spec.channel <> invalid
+            number = m.buttons.createChild("Label")
+            number.text = spec.channel
+            number.width = spec.size
+            number.horizAlign = "center"
+            number.translation = [x, 26]
+            if spec.kind = "chup" then number.translation = [x, 36]
+            setType(number, "keycap")
+        else if spec.seconds <> invalid
             ' how far the arrow skips, drawn inside it, a little below the middle
             number = m.buttons.createChild("Label")
             number.text = spec.seconds
@@ -175,7 +201,10 @@ sub makeButtons(hasPrevious as boolean, hasNext as boolean)
         x = x + spec.size + gap
     end for
     m.firstPill = m.row.count()
-    for each name in ["Subtitles", "Audio", "Quality"]
+    ' live has no subtitle, audio or quality choices the server can change: none are drawn
+    names = ["Subtitles", "Audio", "Quality"]
+    if m.live = true then names = []
+    for each name in names
         plate = m.buttons.createChild("Poster")
         plate.uri = "pkg:/images/round-14.9.png"
         plate.height = 64
@@ -193,6 +222,7 @@ end sub
 ' Lays the three labelled buttons out from the right edge, each as wide as its words (a long
 ' value ends in an ellipsis; Quality's never does).
 sub placePills(values as object)
+    if m.live = true then return
     key = values.join("|")
     if key = m.pillValues then return
     m.pillValues = key
@@ -269,6 +299,10 @@ end sub
 ' --- the session with the server -----------------------------------------------------------
 
 sub start()
+    if m.top.item.kind = "channel"
+        startLive()
+        return
+    end if
     item = m.top.item
     title = item.title
     sub_ = ""
@@ -518,6 +552,9 @@ sub onSession(event as object)
 end sub
 
 function streamFormat(p as object) as string
+    ' a playlist is HLS; a channel the TV can take as it is comes as its own transport stream
+    if instr(1, p.url, ".m3u8") > 0 then return "hls"
+    if p.mode = "live" then return "ts"
     if p.mode <> "direct" then return "hls"
     container = ""
     if p.container <> invalid then container = lcase(p.container)
@@ -620,6 +657,10 @@ sub load(p as object)
     end if
     content.subtitleTracks = tracks
     m.presentation = p
+    if m.live = true and m.liveWindow <> (streamFormat(p) = "hls")
+        m.liveWindow = (streamFormat(p) = "hls")
+        makeButtons(false, false)
+    end if
     m.loading = true        ' until the picture runs, a wait is "Getting ready", not "Catching up"
     m.video.content = content
     m.video.control = "play"
@@ -717,7 +758,7 @@ sub onVideoState()
     state = m.video.state
     if state = "finished"
         ' the end of the title, or a stream that stopped short of it
-        if m.duration <= 0 or m.last >= m.duration - 5 then ended() else again()
+        if m.live <> true and (m.duration <= 0 or m.last >= m.duration - 5) then ended() else again()
     else if state = "error"
         again()
     else if state = "playing"
@@ -784,6 +825,7 @@ end function
 
 ' Shows, changes or puts away the prompt for where the picture is.
 sub updatePrompt()
+    if m.live = true then return
     if m.failed or m.ended or m.session = invalid then return
     at = m.video.position
     if m.cardMode = "end" or m.cardMode = "count" or m.cardMode = "still" then return
@@ -990,6 +1032,134 @@ sub countDown(seconds as integer)
     count.control = "stop"
     count.control = "start"
     m.counting = true
+end sub
+
+' --- Live TV: the normal player with a channel in it ----------------------------------------
+
+' A channel from the guide: the programme on now, the channel's name and number with Live, and
+' the times with what follows. There is no queue, no versions and no tracks to choose on live.
+sub startLive()
+    c = colours()
+    item = m.top.item
+    m.live = true
+    m.queueAsked = true
+    now = createObject("roDateTime").asSeconds()
+    m.liveProgramme = invalid
+    following = invalid
+    if item.programmes <> invalid
+        for each p in item.programmes
+            if m.liveProgramme <> invalid and following = invalid then following = p
+            if isoSeconds(p.startsAt) <= now and now < isoSeconds(p.endsAt) then m.liveProgramme = p
+        end for
+    end if
+    title = item.channel.name
+    times = ""
+    if m.liveProgramme <> invalid
+        title = m.liveProgramme.title
+        times = timeOfDay(isoSeconds(m.liveProgramme.startsAt) - now) + " to " + timeOfDay(isoSeconds(m.liveProgramme.endsAt) - now)
+        if following <> invalid then times = times + "   Then " + following.title
+    end if
+    m.top.findNode("title").text = title
+    code = m.top.findNode("code")
+    code.text = item.channel.name + "   " + item.channel.number
+    setType(code, "metaStrong", c.text)
+    live = m.top.findNode("sub")
+    live.text = "Live"
+    live.color = c.danger
+    live.translation = [m.f.left + code.boundingRect().width + 16, m.f.top + 54]
+    setType(m.top.findNode("times"), "meta", c.textSecondary)
+    m.top.findNode("times").text = times
+    m.top.findNode("waitTitle").text = item.channel.name
+    setType(m.top.findNode("goLiveText"), "nav", c.text)
+    m.top.findNode("goLivePlate").width = m.top.findNode("goLiveText").boundingRect().width + 60
+    m.top.findNode("goLive").translation = [m.f.right - m.top.findNode("goLivePlate").width, m.f.timeY - 10]
+    makeButtons(false, false)
+    busy("Getting ready…")
+    if m.startKey = invalid then m.startKey = createObject("roDeviceInfo").getRandomUUID()
+    api("POST", "/v1/playback/sessions", {channel: item.channel.id}, "onSession", invalid, false, m.startKey)
+end sub
+
+function isoSeconds(iso as string) as integer
+    t = createObject("roDateTime")
+    t.fromISO8601String(iso)
+    return t.asSeconds()
+end function
+
+' The channel beside this one in the guide's lineup: +1 up (the higher number), -1 down.
+function neighbour(stepBy as integer) as dynamic
+    lineup = m.top.item.lineup
+    if lineup = invalid or lineup.count() < 2 then return invalid
+    for i = 0 to lineup.count() - 1
+        if lineup[i].channel.id = m.top.item.channel.id then return lineup[(i + stepBy + lineup.count()) mod lineup.count()]
+    end for
+    return invalid
+end function
+
+sub changeChannel(stepBy as integer)
+    row = neighbour(stepBy)
+    if row = invalid then return
+    stopSession()
+    lineup = m.top.item.lineup
+    m.top.item = {kind: "channel", id: row.channel.id, title: row.channel.name, channel: row.channel, programmes: row.programmes, lineup: lineup}
+    fresh()
+    m.focus = m.playIndex
+    startLive()
+end sub
+
+' How far behind live the picture is: Roku counts a live stream's duration up to its live edge.
+function liveBehind() as float
+    behind = 0
+    if m.video.duration > 0 then behind = m.video.duration - m.video.position
+    if behind < 0 then behind = 0
+    return behind
+end function
+
+' Go to live: the stream is started again at its live edge.
+sub goLive()
+    if m.presentation = invalid then return
+    p = m.presentation
+    p.startPositionMs = 0
+    load(p)
+    m.focus = m.playIndex
+    raise()
+end sub
+
+' The live bar spans the programme: played up to where the picture is, a red mark at live, and the
+' time row says the picture's time and how far behind live it is.
+sub paintLive()
+    if m.liveProgramme = invalid then return
+    c = colours()
+    now = createObject("roDateTime").asSeconds()
+    s = isoSeconds(m.liveProgramme.startsAt)
+    e = isoSeconds(m.liveProgramme.endsAt)
+    behind = liveBehind()
+    at = now - behind
+    x = barX(at - s, e - s)
+    m.played.width = x - m.f.left
+    m.knob.translation = [x - m.knob.width / 2, m.f.barY + 4 - m.knob.height / 2]
+    m.knobRing.visible = false
+    edge = m.top.findNode("edge")
+    edge.translation = [barX(now - s, e - s) - 2, m.f.barY - 7]
+    edge.visible = true
+    text = timeOfDay(-int(behind))
+    if behind >= 60 then text = text + "   " + int(behind / 60).toStr() + " min behind live"
+    m.top.findNode("at").text = text
+    m.top.findNode("left").text = ""
+    m.top.findNode("ends").text = "Ends " + timeOfDay(e - now)
+    goLiveNode = m.top.findNode("goLive")
+    goLiveNode.visible = behind > 30
+    if not goLiveNode.visible and m.focus < 0 then m.focus = m.playIndex
+    on = (m.focus < 0)
+    if on then m.top.findNode("goLivePlate").blendColor = c.glassOn else m.top.findNode("goLivePlate").blendColor = c.glass
+    pillRing = m.top.findNode("pillRing")
+    if on
+        out = metrics().focusSpread + 6
+        node = m.top.findNode("goLivePlate")
+        pillRing.translation = [goLiveNode.translation[0] - out, m.f.timeY - 10 - out]
+        pillRing.width = node.width + out * 2
+        pillRing.height = 48 + out * 2
+        pillRing.visible = true
+    end if
 end sub
 
 ' --- the queue: Previous, Next, Up next and the end of a title ------------------------------
@@ -1301,6 +1471,8 @@ sub paint()
             m.ring.translation = [spot.x + spot.size / 2 - across / 2, m.f.buttonsY + 44 - across / 2]
             m.ring.visible = true
             names = {back: "Back " + m.backSeconds.toStr() + " seconds", forward: "Forward " + m.forwardSeconds.toStr() + " seconds", play: "Pause", previous: "Previous", next: "Next"}
+            if spot.kind = "chup" then names.chup = "Channel up   " + neighbour(1).channel.number + " " + neighbour(1).channel.name
+            if spot.kind = "chdown" then names.chdown = "Channel down   " + neighbour(-1).channel.number + " " + neighbour(-1).channel.name
             text = names[spot.kind]
             if spot.kind = "play" and paused then text = "Play"
             showLabel(flab, text, spot.x + spot.size / 2, m.f.buttonsY + (88 - spot.size) / 2 - 12)
@@ -1333,6 +1505,7 @@ sub paint()
         pillRing.visible = false
         flab.visible = false
     end if
+    if m.live = true then paintLive()
 end sub
 
 ' Where a time falls on the seek bar.
@@ -1362,6 +1535,10 @@ sub showLabel(flab as object, text as string, centre as float, bottom as float)
 end sub
 
 sub togglePause()
+    if m.live = true and m.liveWindow <> true and m.video.state = "paused"
+        goLive()        ' nothing was kept while paused: Play rejoins the channel live
+        return
+    end if
     if m.video.state = "paused"
         m.video.control = "resume"
     else if m.video.state = "playing" or m.video.state = "buffering"
@@ -1394,6 +1571,7 @@ end sub
 
 ' A held Left or Right on the seek bar (from Hold.brs): each repeat is a scrub step.
 function pressKey(key as string) as boolean
+    if m.live = true then return false
     if m.focus >= 0 or not m.controls.visible then return false
     m.scrub = true
     if key = "left" then nudge(-10) else if key = "right" then nudge(10) else return false
@@ -1406,7 +1584,7 @@ sub applySeek()
     m.pending = -1
     m.scrub = false
     m.last = target
-    if m.presentation.mode = "direct"
+    if m.presentation.mode = "direct" or m.presentation.mode = "live"
         m.video.seek = target
     else
         ' A converted stream is the server's: it is told, and answers with where to play from.
@@ -1474,7 +1652,10 @@ function onKeyEvent(key as string, press as boolean) as boolean
         return true
     end if
     if key = "OK"
-        if m.focus < 0
+        if m.focus < 0 and m.live = true
+            goLive()
+            return true
+        else if m.focus < 0
             applySeek()
             return true
         end if
@@ -1485,6 +1666,9 @@ function onKeyEvent(key as string, press as boolean) as boolean
             nudge(m.forwardSeconds)
         else if kind = "play"
             togglePause()
+        else if kind = "chup" or kind = "chdown"
+            if kind = "chup" then changeChannel(1) else changeChannel(-1)
+            return true
         else if kind = "previous" or kind = "next"
             advance(kind)
             return true
@@ -1493,11 +1677,24 @@ function onKeyEvent(key as string, press as boolean) as boolean
             return true
         end if
     else if key = "left"
-        if m.focus < 0 then nudge(-m.backSeconds) else if m.focus > 0 then m.focus = m.focus - 1
+        if m.focus < 0 and m.live = true
+            ' Go to live stands alone in its row
+        else if m.focus < 0
+            nudge(-m.backSeconds)
+        else if m.focus > 0
+            m.focus = m.focus - 1
+        end if
     else if key = "right"
-        if m.focus < 0 then nudge(m.forwardSeconds) else if m.focus < m.row.count() - 1 then m.focus = m.focus + 1
+        if m.focus < 0 and m.live = true
+            ' Go to live stands alone in its row
+        else if m.focus < 0
+            nudge(m.forwardSeconds)
+        else if m.focus < m.row.count() - 1
+            m.focus = m.focus + 1
+        end if
     else if key = "up"
-        m.focus = -1
+        ' on live, Up reaches Go to live when the picture is behind; there is no scrubbing
+        if m.live <> true or m.top.findNode("goLive").visible then m.focus = -1
     else if key = "down"
         if m.focus < 0
             if m.scrub then cancelScrub()

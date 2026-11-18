@@ -32,6 +32,8 @@
       <Label id="sub"/>
       <Label id="clock" width="500" horizAlign="right"/>
       <Label id="ends" width="500" horizAlign="right"/>
+      <!-- Live: the programme's times and what follows it, under the channel line. -->
+      <Label id="times"/>
       <Rectangle id="track" height="8"/>
       <Rectangle id="ahead" height="8" visible="false"/>
       <Rectangle id="played" height="8"/>
@@ -40,6 +42,13 @@
       <Poster id="knob" uri="pkg:/images/disc.png" width="22" height="22"/>
       <Label id="at"/>
       <Label id="left" width="500" horizAlign="right"/>
+      <!-- Live: where live is on the programme's bar, and the way back to it when behind. -->
+      <Rectangle id="edge" width="4" height="22" visible="false"/>
+      <Group id="goLive" visible="false">
+        <Poster id="goLivePlate" uri="pkg:/images/round-14.9.png" height="48"/>
+        <Poster id="liveDot" uri="pkg:/images/disc.png" width="12" height="12" translation="[18,18]"/>
+        <Label id="goLiveText" text="Go to live" translation="[40,0]" height="48" vertAlign="center"/>
+      </Group>
       <Group id="buttons"/>
       <Poster id="ring" uri="pkg:/images/focus-disc.png"/>
       <Poster id="pillRing" uri="pkg:/images/focus-14.9.png" visible="false"/>

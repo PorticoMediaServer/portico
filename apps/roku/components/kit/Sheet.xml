@@ -5,7 +5,7 @@
      under the heading, one heading open at a time. -->
 <component name="Sheet" extends="Group">
   <interface>
-    <!-- {eyebrow, title, status, open, rows: [{id, text, icon, current, gapBefore, detail,
+    <!-- {eyebrow, title, status, body, open, rows: [{id, text, icon, current, gapBefore, detail,
          heading, value, under}]}: `heading` rows carry their current `value` on the right; a row
          with `under` set to a heading's id shows only while that heading is open; `open` names the
          heading open at the start. -->
@@ -25,6 +25,8 @@
     <Label id="eyebrow"/>
     <Label id="title" wrap="true" maxLines="2"/>
     <Label id="status" wrap="true" maxLines="3"/>
+    <!-- Optional words under the status, such as a programme's summary. -->
+    <Label id="body" wrap="true" maxLines="6"/>
     <Group id="window">
       <Group id="groups"/>
       <Poster id="plate" uri="pkg:/images/round-14.9.png"/>

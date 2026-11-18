@@ -25,6 +25,9 @@ sub init()
     status = m.top.findNode("status")
     status.width = m.width
     setType(status, "bodyStrong", c.textSecondary)
+    body = m.top.findNode("body")
+    body.width = m.width
+    setType(body, "body", c.textSecondary)
     m.plate.width = m.width
     m.plate.height = 64
     m.ring.width = m.width + 72
@@ -50,6 +53,11 @@ sub onModel()
     if model.status <> invalid then status.text = model.status
     status.translation = [m.x, y]
     if status.text <> "" then y = y + status.boundingRect().height + 8
+    body = m.top.findNode("body")
+    body.text = ""
+    if model.body <> invalid then body.text = model.body
+    body.translation = [m.x, y + 8]
+    if body.text <> "" then y = y + 8 + body.boundingRect().height + 8
     m.listTop = y + 20
     m.window.translation = [m.x, m.listTop]
     m.window.clippingRect = [-60, -40, m.width + 120, 1080 - m.listTop + 40]

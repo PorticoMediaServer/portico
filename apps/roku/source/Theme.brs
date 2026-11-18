@@ -23,7 +23,9 @@ function colours() as object
         ' laid over a card's picture: the plate under its length and tick, its progress track, a generated cover's rule
         onArt: "0x071018D9", trackOnArt: "0xEDF5FA40", coverRule: "0xEDF5FA8C",
         ' the dark card under a prompt over the picture (Up next, the Undo note), and the dimming on its picture
-        promptPlate: "0x09131BD6", stillDim: "0x707070FF"
+        promptPlate: "0x09131BD6", stillDim: "0x707070FF",
+        ' the guide's channel badges, one picked from the channel's name
+        channelTints: ["0x8A3B3BFF", "0x8A5A2BFF", "0x7A6A2AFF", "0x3E6B3AFF", "0x2D6B6BFF", "0x34558AFF", "0x5B3F8AFF", "0x7A3A6BFF"]
     }
 end function
 
@@ -36,6 +38,11 @@ function frames() as object
         gutter: 200,
         ' The side panel every menu and picker opens in, its words from `top` and its rows from `rowsX`. Back closes it.
         sheet: {x: 1200, width: 720, top: 64, rowsX: 1260, rowsWidth: 600},
+        ' Live TV and the other browse pages: the page title's line.
+        browse: {titleY: 64},
+        ' Live TV's guide: the time header, the first row and the row pitch, the channel column, and the
+        ' grid from `gridX` at `perMinute` px a minute; `shown` rows fit on the screen.
+        guide: {headerY: 244, rowsY: 296, pitch: 100, cell: 90, channelWidth: 300, gridX: 520, perMinute: 8, shown: 7},
         ' The video player: the picture is the page. The top row hangs from `top`; the seek bar,
         ' the time row and the button row sit on their own lines; everything runs from `left` to `right`.
         ' Over it: the waiting spinner's line, how far below a page notice Playback failed sits, the foot of the prompts at the lower right, and the Finished page's lines.

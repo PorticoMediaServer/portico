@@ -284,6 +284,8 @@ ICONS = {
     'next': [32],
     'previous': [32],
     'restart': [28],
+    'chevronDown': [20],
+    'chevronUp': [20],
 }
 
 
