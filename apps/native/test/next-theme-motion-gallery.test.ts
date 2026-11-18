@@ -25,7 +25,7 @@ test('native windows change layout and type at the canonical boundaries without 
     assert.equal(theme.width, width);
     assert.equal(theme.platform, width < layout.breakpoint.phone ? 'phone' : 'tablet');
     assert.equal(theme.layoutMode, 'phone');
-    assert.equal(theme.gutter, layout.gutter.phone);
+    assert.equal(theme.gutter, width < layout.breakpoint.phone ? layout.gutter.phone : layout.gutter.tablet);
     assert.deepEqual(theme.type.lockup, nativeType(typeScale.handheld.lockup));
   }
   for (const width of [layout.breakpoint.desktop, 1280, layout.designWidth.desktop - 1, layout.designWidth.desktop, 1920]) {
