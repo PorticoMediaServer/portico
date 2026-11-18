@@ -373,7 +373,12 @@ sub start()
         ' the group's queue is the queue: the play starts where the group is
         entry = roomEntry(m.group.room)
         if m.followed = invalid
-            if entry = invalid or entry.itemId <> item.id then return     ' Watch with group: not on it yet
+            if entry = invalid then return
+            ' the group moved on between Open player and now: play what it is on
+            if entry.itemId <> item.id
+                switchTo(entry)
+                return
+            end if
             m.followed = entry.entryId
         end if
         m.queueAsked = true
@@ -2132,7 +2137,6 @@ end function
 sub startTogether()
     m.group = m.global.together
     m.group.observeFieldScoped("room", "follow")
-    m.group.observeFieldScoped("answer", "onGroupAnswer")
     m.pillKey = ""
     m.followed = invalid    ' the group's entry this play is, once the group is on it
     m.offSince = -1         ' since when (UpTime) the picture has been out of step; -1 while in step
@@ -2148,18 +2152,10 @@ end sub
 sub stopFollowing()
     if m.group = invalid then return
     m.group.unobserveFieldScoped("room")
-    m.group.unobserveFieldScoped("answer")
     m.group = invalid
     m.top.findNode("follow").control = "stop"
     m.top.findNode("pill").visible = false
     if m.focus = -2 then m.focus = -1
-end sub
-
-' Watch with group asked the group to put this title on; if that was refused, the player says why.
-sub onGroupAnswer()
-    answer = m.group.answer
-    if answer.ok or m.followed <> invalid then return
-    if answer.do = "watch" or answer.do = "watchEntry" or answer.do = "add" then fail(answer.message)
 end sub
 
 sub follow()
@@ -2173,10 +2169,7 @@ sub follow()
     if m.controls.visible then paintPill()
     entry = roomEntry(room)
     if entry = invalid then return
-    if m.followed = invalid
-        if entry.itemId = m.top.item.id then start()     ' the group is on this title now
-        return
-    end if
+    if m.followed = invalid then return     ' still reading the title the group moved on to
     if entry.entryId <> m.followed
         if entry.available = true then switchTo(entry) else m.video.control = "pause"
         return

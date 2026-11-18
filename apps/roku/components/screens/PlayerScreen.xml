@@ -5,7 +5,7 @@
     <field id="item" type="assocarray"/>
     <!-- True to start from the beginning instead of where the title was left. -->
     <field id="startOver" type="boolean"/>
-    <!-- Played with the Watch Together group (Open player, Watch with group): the group's clock
+    <!-- Played with the Watch Together group (Open player in its room): the group's clock
          says what plays, where and whether it moves, and Play, Pause and seeking go to the group. -->
     <field id="together" type="boolean"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>

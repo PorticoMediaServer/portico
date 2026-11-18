@@ -183,18 +183,7 @@ function minutesText(seconds as integer) as string
     return int(seconds / 60).toStr() + ":" + text
 end function
 
-' The whole queue to send (PUT /v1/groups/{id}/queue) with a title added at its end: the entries
-' already there by their entryId, the new one by its itemId.
-function queueWith(room as object, itemId as string) as object
-    entries = []
-    for each entry in room.queue
-        entries.push({entryId: entry.entryId})
-    end for
-    entries.push({itemId: itemId})
-    return {entries: entries}
-end function
-
-' The whole queue to send with one entry taken out.
+' The whole queue to send (PUT /v1/groups/{id}/queue) with one entry taken out: the rest by their entryId.
 function queueWithout(room as object, entryId as string) as object
     entries = []
     for each entry in room.queue
