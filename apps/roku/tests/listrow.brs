@@ -29,16 +29,17 @@ sub check(name as string, ok as boolean)
     end if
 end sub
 
-' A row with stand-in nodes: each node is an object whose words measure 12 px a letter, 30 px a line.
+' A row with stand-in nodes, one made for whatever id the row asks for (so a node the row gains
+' later needs nothing here): each is an object whose words measure 12 px a letter, 30 px a line.
 sub fresh(model as object)
     m.nodes = {}
-    for each id in ["label", "help", "scope", "value", "tile", "icon", "chevron", "switch", "line", "plate", "ring"]
-        m.nodes[id] = {text: "", width: 0, boundingRect: function() as object
-            if m.text = "" then return {width: 0, height: 0}
-            return {width: len(m.text) * 12, height: 30}
-        end function}
-    end for
     m.top = {model: model, rowWidth: 1064, rowHeight: 0, on: false, separator: false, nodes: m.nodes, findNode: function(id as string) as object
+        if m.nodes[id] = invalid
+            m.nodes[id] = {text: "", width: 0, boundingRect: function() as object
+                if m.text = "" then return {width: 0, height: 0}
+                return {width: len(m.text) * 12, height: 30}
+            end function}
+        end if
         return m.nodes[id]
     end function}
 end sub

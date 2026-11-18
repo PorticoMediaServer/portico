@@ -28,6 +28,12 @@ sub layout()
         icon.blendColor = c.textSecondary
         textX = 88
     end if
+    art = m.top.findNode("art")
+    art.visible = (model.art <> invalid and model.art <> "")
+    if art.visible
+        art.uri = model.art
+        textX = 24 + 156 + 24
+    end if
     ' the right side first: the words take what is left
     right = w - 24
     chevron = m.top.findNode("chevron")
@@ -65,6 +71,7 @@ sub layout()
     if scope.text <> "" then words = words + 3 + scope.boundingRect().height
     h = words + 36
     if h < frames().settings.row then h = frames().settings.row
+    if art.visible and h < 88 + 24 then h = 88 + 24
     y = (h - words) / 2
     label.translation = [textX, y]
     y = y + label.boundingRect().height + 3
@@ -73,6 +80,7 @@ sub layout()
     scope.translation = [textX, y]
     tile.translation = [24, (h - 44) / 2]
     icon.translation = [32, (h - 28) / 2]
+    art.translation = [24, (h - 88) / 2]
     value.translation = [valueRight - valueWidth, 0]
     value.height = h
     value.vertAlign = "center"

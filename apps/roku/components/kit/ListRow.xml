@@ -7,6 +7,7 @@
   <interface>
     <!-- {label, help, scope, value, control, switchOn, icon}:
          scope: "This device" or "All TVs" under the help, for a value that is not the profile's everywhere;
+         art: a 16:9 picture on the left in place of an icon (History);
          control: "" (plain, or an action), "choice" (opens its values), "switch", "expand" or "collapse";
          icon: a 28 px icon drawn on a tile before the label;
          danger: a destructive action (Sign out), its label red. -->
@@ -26,6 +27,7 @@
     <Rectangle id="line" height="1"/>
     <Poster id="tile" uri="pkg:/images/round-10.9.png" width="44" height="44"/>
     <Poster id="icon" width="28" height="28"/>
+    <Poster id="art" width="156" height="88" loadWidth="156" loadHeight="88" loadDisplayMode="scaleToZoom"/>
     <Label id="label" wrap="true" maxLines="2"/>
     <Label id="help" wrap="true" maxLines="2"/>
     <Label id="scope"/>
