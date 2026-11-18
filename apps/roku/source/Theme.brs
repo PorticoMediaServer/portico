@@ -86,10 +86,11 @@ function frames() as object
         ' Search (tv.html frame 5): the box on the page title's line, the keys under it, the results
         ' column from `resultsX`; the row in focus is brought up level with the keys.
         search: {boxWidth: 500, boxHeight: 80, keysY: 176, resultsX: 780}
-        ' Settings: the list column from `listX` (its key hints centred on `hintsY` and 50 under it), then the
-        ' chosen page at `pageX`: title at `top`, content `headerGap` under it, an intro `introWidth` wide,
-        ' sections `sectionGap` apart; a row in focus is kept between `scrollTop` and `foot`.
-        settings: {top: 64, listX: 200, listWidth: 480, listRow: 56, hintsY: 956, pageX: 760, pageWidth: 1064, introWidth: 900, headerGap: 28, row: 84, sectionGap: 44, scrollTop: 120, foot: 1024}
+        ' Settings: the list column from `listX` (the Search settings box on `findY`, `findHeight` tall, its
+        ' key hints centred on `hintsY` and 50 under it), then the chosen page at `pageX`: title at `top`,
+        ' content `headerGap` under it, an intro `introWidth` wide, sections `sectionGap` apart; a row in
+        ' focus is kept between `scrollTop` and `foot`. Search settings itself is Search's frame.
+        settings: {top: 64, listX: 200, listWidth: 480, listRow: 56, hintsY: 956, pageX: 760, pageWidth: 1064, introWidth: 900, headerGap: 28, row: 84, sectionGap: 44, scrollTop: 120, foot: 1024, findY: 138, findHeight: 64}
         ' The side panel every menu and picker opens in, its words from `top`, its rows from `rowsX` and
         ' the remote's keys at its foot on `hintsY`. Back closes it.
         sheet: {x: 1200, width: 720, top: 64, rowsX: 1260, rowsWidth: 600, hintsY: 1006}
@@ -164,6 +165,7 @@ function typeRoles() as object
         listLabel: [600, 25, 0]             ' a row's label in a list or side sheet
         lockup: [800, 100, 0]               ' a big title lockup
         lockupLong: [800, 56, 0]            ' a big title lockup for a long title
+        matchCount: [600, 22, 0]            ' how many settings a page holds that match, beside its name in Search settings
         meta: [400, 24, 0]                  ' a line of facts (year, length, rating)
         metaStrong: [700, 24, 0]
         micro: [500, 17, 0]                 ' the smallest words (under a rail item, more above or below in a season list)

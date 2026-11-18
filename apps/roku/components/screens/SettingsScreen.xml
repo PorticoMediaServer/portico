@@ -19,6 +19,11 @@
   <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
   <children>
     <Label id="heading" text="Settings"/>
+    <!-- the Search settings box: a stop above the page list; OK opens Search settings (frame 34) -->
+    <Poster id="find" uri="pkg:/images/round-14.9.png"/>
+    <Poster id="findGlass" uri="pkg:/images/i-search-32.png" width="24" height="24"/>
+    <Label id="findWords" text="Search settings" vertAlign="center"/>
+    <Poster id="findRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
     <Label id="group" text="Account"/>
     <Poster id="listPlate" uri="pkg:/images/round-14.9.png"/>
     <Rectangle id="listBar" width="3" height="28"/>
@@ -30,6 +35,17 @@
     <Poster id="fadeBottom" uri="pkg:/images/fade-down.png" visible="false"/>
     <KeyHints id="hintsList"/>
     <KeyHints id="hintsRows"/>
+    <!-- Search settings: Portico's keyboard under the box on the left, the matching rows on the right -->
+    <Group id="searching" visible="false">
+      <Group id="matchWindow">
+        <Group id="matches"/>
+      </Group>
+      <Poster id="box" uri="pkg:/images/round-14.9.png"/>
+      <Poster id="glass" uri="pkg:/images/i-search-32.png" width="28" height="28"/>
+      <Label id="query" vertAlign="center"/>
+      <Keyboard id="keyboard"/>
+      <Label id="none" wrap="true" maxLines="3"/>
+    </Group>
     <PageState id="state" visible="false"/>
     <Confirm id="confirm" visible="false"/>
   </children>

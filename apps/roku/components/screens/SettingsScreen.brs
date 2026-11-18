@@ -8,10 +8,22 @@ sub init()
     setType(heading, "title", c.text)
     heading.translation = [f.listX + 20, f.top]
     m.contentY = f.top + heading.boundingRect().height + f.headerGap
+    ' the Search settings box, then the list's group label one header gap under it
+    find = m.top.findNode("find")
+    find.width = f.listWidth
+    find.height = f.findHeight
+    find.translation = [f.listX, f.findY]
+    glass = m.top.findNode("findGlass")
+    glass.blendColor = c.textTertiary
+    glass.translation = [f.listX + 20, f.findY + (f.findHeight - 24) / 2]
+    words = m.top.findNode("findWords")
+    setType(words, "listLabel", c.textTertiary)
+    words.translation = [f.listX + 62, f.findY]
+    words.height = f.findHeight
     group = m.top.findNode("group")
     setType(group, "groupLabel", c.textSecondary)
-    group.translation = [f.listX + 20, m.contentY]
-    m.listTop = m.contentY + group.boundingRect().height + 8
+    group.translation = [f.listX + 20, f.findY + f.findHeight + f.headerGap]
+    m.listTop = group.translation[1] + group.boundingRect().height + 8
     ' the remote's keys for the list, on two lines placed up from the screen's foot
     m.top.findNode("hintsList").hints = [{keys: ["Up", "Down"], text: "Choose a page"}]
     m.top.findNode("hintsList").translation = [f.listX, f.hintsY]
@@ -47,6 +59,7 @@ sub init()
     m.values = invalid
     m.failed = ""         ' the setting whose last change the server refused
     m.resetDone = false
+    initSearch()
     drawList()
     m.top.observeField("focusedChild", "paint")
     load()
@@ -79,7 +92,7 @@ end sub
 ' The whole-page state replaces the page and its list (rule 9): nothing on it can be shown.
 sub showPageState(on as boolean)
     m.state.visible = on
-    for each id in ["group", "listPlate", "listBar", "listRing", "list", "pages", "hintsList", "hintsRows"]
+    for each id in ["find", "findGlass", "findWords", "group", "listPlate", "listBar", "listRing", "list", "pages", "hintsList", "hintsRows"]
         m.top.findNode(id).visible = not on
     end for
 end sub
@@ -366,12 +379,21 @@ end function
 
 sub onActive()
     if not m.top.active then return
-    if m.state.visible then m.state.active = true else m.top.setFocus(true)
+    if m.state.visible
+        m.state.active = true
+    else if m.region = "search"
+        m.keyboard.active = true
+    else if m.region = "matches"
+        m.matches.setFocus(true)
+    else
+        m.top.setFocus(true)
+    end if
     paint()
 end sub
 
 ' OK on Settings in the rail: back to the page list, on the page that is open.
 sub onToTop()
+    if m.region = "search" or m.region = "matches" then leaveSearch()
     m.region = "list"
     m.top.active = true
 end sub
@@ -380,6 +402,10 @@ sub paint()
     c = colours()
     has = m.top.hasFocus() or m.list.hasFocus()     ' the list group holds focus after the dialog
     inList = (m.region = "list")
+    if m.region = "matches" or m.region = "search"
+        paintMatches()
+        return
+    end if
     for i = 0 to m.list.getChildCount() - 1
         row = m.list.getChild(i)
         open = (i = m.page)
@@ -400,17 +426,26 @@ sub paint()
     m.ring.height = m.f.listRow + out * 2
     m.ring.visible = (has and inList)
     if has and inList then m.plate.blendColor = c.raisedBright else m.plate.blendColor = c.raisedHigh
+    ' the Search settings box: raised, the bright plate and the ring while it has focus
+    inFind = (has and m.region = "find")
+    findRing = m.top.findNode("findRing")
+    findRing.visible = inFind
+    findRing.translation = [x - out, m.f.findY - out]
+    findRing.width = m.f.listWidth + out * 2
+    findRing.height = m.f.findHeight + out * 2
+    if inFind then m.top.findNode("find").blendColor = c.raisedBright else m.top.findNode("find").blendColor = c.raised
+    if m.region = "find" then m.ring.visible = false
     for i = 0 to m.stops.count() - 1
         here = m.stops[i]
-        here.node.on = (has and not inList and i = m.row)
-        here.node.separator = not here.first and not (has and not inList and i - 1 = m.row)
+        here.node.on = (has and m.region = "rows" and i = m.row)
+        here.node.separator = not here.first and not (has and m.region = "rows" and i - 1 = m.row)
     end for
     scrollTo()
 end sub
 
 ' The page moves only to keep the row in focus clear of the screen's foot (56) and top.
 sub scrollTo()
-    if m.region = "list" or m.stops.count() = 0
+    if m.region <> "rows" or m.stops.count() = 0
         m.scroll = 0
     else
         node = m.stops[m.row].node
@@ -431,9 +466,28 @@ end sub
 function pressKey(key as string) as boolean
     by = 1
     if key = "up" then by = -1
+    if m.region = "matches"
+        want = m.match + by
+        if want < 0 or want >= m.matchStops.count() then return false
+        m.match = want
+        paintMatches()
+        return true
+    end if
+    if m.region = "search" then return false
+    if m.region = "find"
+        if key <> "down" then return false     ' Up at the top goes on to the scene
+        m.region = "list"
+        paint()
+        return true
+    end if
     if m.region = "list"
         want = m.page + by
-        if want < 0 or want >= m.spec.count() then return false
+        if want < 0
+            m.region = "find"
+            paint()
+            return true
+        end if
+        if want >= m.spec.count() then return false
         m.page = want
         m.row = 0
         showPage()
@@ -451,6 +505,38 @@ function onKeyEvent(key as string, press as boolean) as boolean
     if not press then return false
     if key = "up" or key = "down"
         pressKey(key)
+        return true
+    end if
+    if m.region = "find"
+        if key = "right" or key = "OK"
+            enterSearch()
+            return true
+        end if
+        return false        ' Left opens the rail
+    end if
+    if m.region = "search"
+        ' the keyboard gave the key up: Right from its last column reaches the matches
+        if key = "right" and m.matchStops.count() > 0
+            m.region = "matches"
+            m.match = 0
+            m.matches.setFocus(true)
+            paintMatches()
+            return true
+        end if
+        if key = "back"
+            leaveSearch()
+            return true
+        end if
+        return key = "right"
+    end if
+    if m.region = "matches"
+        if key = "left" or key = "back"
+            m.region = "search"
+            m.keyboard.active = true
+            paintMatches()
+        else if key = "OK"
+            openMatch(m.matchStops[m.match])
+        end if
         return true
     end if
     if m.region = "list"
@@ -642,4 +728,168 @@ end sub
 sub onReset(event as object)
     m.resetDone = event.getData().ok
     redraw()
+end sub
+
+' --- Search settings (tv-more frame 34) -------------------------------------------------------------
+
+' Search's frame: the box on the page title's line, the keys under it, the matches from `resultsX`.
+sub initSearch()
+    c = colours()
+    f = frames()
+    s = f.search
+    m.keyboard = m.top.findNode("keyboard")
+    m.keyboard.translation = [f.gutter, s.keysY]
+    m.keyboard.observeField("text", "onSearchTyped")
+    field = m.top.findNode("box")
+    field.blendColor = c.raised
+    field.width = s.boxWidth
+    field.height = s.boxHeight
+    field.translation = [f.gutter, f.browse.titleY]
+    glass = m.top.findNode("glass")
+    glass.blendColor = c.textTertiary
+    glass.translation = [f.gutter + 26, f.browse.titleY + (s.boxHeight - 28) / 2]
+    m.query = m.top.findNode("query")
+    setType(m.query, "heading", c.text)
+    m.query.width = s.boxWidth - 100
+    m.query.height = s.boxHeight
+    m.query.translation = [f.gutter + 72, f.browse.titleY]
+    none = m.top.findNode("none")
+    setType(none, "lede", c.textSecondary)
+    none.width = f.rightEdge - s.resultsX
+    none.translation = [s.resultsX, f.browse.titleY]
+    m.matches = m.top.findNode("matches")
+    m.top.findNode("matchWindow").clippingRect = [s.resultsX - 40, 0, 1920 - s.resultsX + 40, 1080]
+    m.matchStops = []     ' {node, page, label, advanced}: every matching row, top to bottom
+    m.match = 0
+end sub
+
+sub enterSearch()
+    m.region = "search"
+    showSearch(true)
+    m.keyboard.active = true
+    drawMatches()
+end sub
+
+' Back from the keys: the Settings list again, on the box.
+sub leaveSearch()
+    m.region = "find"
+    showSearch(false)
+    m.list.setFocus(true)     ' the keyboard is inside the screen: the list group takes focus back from it
+    paint()
+end sub
+
+sub showSearch(on as boolean)
+    m.top.findNode("searching").visible = on
+    for each id in ["heading", "find", "findGlass", "findWords", "findRing", "group", "listPlate", "listBar", "listRing", "list", "pages", "hintsList", "hintsRows"]
+        m.top.findNode(id).visible = not on
+    end for
+    if on
+        m.top.findNode("fadeTop").visible = false
+        m.top.findNode("fadeBottom").visible = false
+    else
+        showPage()
+    end if
+end sub
+
+sub onSearchTyped()
+    m.query.text = m.keyboard.text
+    drawMatches()
+end sub
+
+' Each page with matches: its name and how many, then its matching rows on one raised card, each
+' with its value now, so a setting can be read without opening its page.
+sub drawMatches()
+    c = colours()
+    f = frames()
+    s = f.search
+    m.matches.removeChildrenIndex(m.matches.getChildCount(), 0)
+    m.matchStops = []
+    m.match = 0
+    width = f.rightEdge - s.resultsX
+    none = m.top.findNode("none")
+    found = settingsMatches(m.spec, m.keyboard.text)
+    none.visible = (found.count() = 0 and m.keyboard.text.trim() <> "")
+    none.text = "No settings match “" + m.keyboard.text.trim() + "”."
+    y = f.browse.titleY
+    for each group in found
+        page = m.spec[group.page]
+        title = m.matches.createChild("Label")
+        title.text = page.title
+        title.translation = [s.resultsX, y]
+        setType(title, "rowHeading", c.text)
+        rows = []
+        for each match in group.rows
+            for each row in rowsFor(match.row, match.section, page)
+                ' a row without help of its own says which part of the page it is in
+                if wordsOrNone(row.help) = "" then row.help = match.section.title
+                rows.push({row: row, advanced: (match.section.advanced = true)})
+            end for
+        end for
+        if rows.count() = 0 then rows.push({row: {label: "Open " + page.title}, advanced: false})
+        count = m.matches.createChild("Label")
+        if group.rows.count() = 1 then count.text = "1 match" else count.text = group.rows.count().toStr() + " matches"
+        if group.rows.count() = 0 then count.text = ""
+        setType(count, "matchCount", c.textTertiary)
+        count.translation = [s.resultsX + title.boundingRect().width + 14, y + 8]
+        y = y + title.boundingRect().height + 20
+        card = m.matches.createChild("Poster")
+        card.uri = "pkg:/images/round-14.9.png"
+        card.blendColor = c.raised
+        card.translation = [s.resultsX, y]
+        card.width = width
+        top = y
+        first = true
+        for each entry in rows
+            row = entry.row
+            item = m.matches.createChild("ListRow")
+            item.rowWidth = width
+            item.model = {label: row.label, help: wordsOrNone(row.help), scope: wordsOrNone(row.scope), value: wordsOrNone(row.value),
+                control: wordsOrNone(row.control), switchOn: (row.switchOn = true), icon: wordsOrNone(row.icon)}
+            item.translation = [s.resultsX, y]
+            m.matchStops.push({node: item, page: group.page, label: row.label, advanced: entry.advanced, first: first})
+            first = false
+            y = y + item.rowHeight
+        end for
+        card.height = y - top
+        y = y + f.settings.sectionGap
+    end for
+    if m.region = "matches" and m.matchStops.count() = 0
+        m.region = "search"
+        m.keyboard.active = true
+    end if
+    paintMatches()
+end sub
+
+' The match in focus has the row's focus look; the matches move only to keep it on the screen.
+sub paintMatches()
+    f = frames()
+    on = (m.region = "matches" and m.top.isInFocusChain())
+    for i = 0 to m.matchStops.count() - 1
+        here = m.matchStops[i]
+        here.node.on = (on and i = m.match)
+        here.node.separator = not here.first and not (on and i - 1 = m.match)
+    end for
+    scroll = 0
+    if on and m.matchStops.count() > 0
+        node = m.matchStops[m.match].node
+        bottom = node.translation[1] + node.rowHeight
+        if bottom > f.settings.foot then scroll = bottom - f.settings.foot
+    end if
+    m.matches.translation = [0, -scroll]
+end sub
+
+' OK on a match: its page opens with that row in focus (an Advanced group opened for it).
+sub openMatch(match as object)
+    page = m.spec[match.page]
+    if match.advanced then m.advanced[page.id] = true
+    m.page = match.page
+    m.region = "rows"
+    showSearch(false)
+    redraw()
+    for i = 0 to m.stops.count() - 1
+        if m.stops[i].node.model.label = match.label then m.row = i
+    end for
+    if left(match.label, 5) = "Open " and match.label = "Open " + page.title then m.row = 0
+    m.list.setFocus(true)
+    paint()
 end sub

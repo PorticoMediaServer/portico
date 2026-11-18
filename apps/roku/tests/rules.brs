@@ -54,6 +54,12 @@ sub main()
     same("playback method", [formatJson(sorted(compositePatch("playbackMethod", "original"))), formatJson(sorted(compositePatch("playbackMethod", "convert"))), compositeValue("playbackMethod", compositePatch("playbackMethod", "original")), compositeValue("playbackMethod", compositePatch("playbackMethod", "convert")), compositeValue("playbackMethod", compositePatch("playbackMethod", "automatic"))], [formatJson(sorted({"delivery.directPlay": "require", "delivery.directStream": "never", "delivery.transcode": "never"})), formatJson(sorted({"delivery.directPlay": "never", "delivery.directStream": "never", "delivery.transcode": "require"})), "original", "convert", "automatic"])
     same("still watching", [compositeValue("stillWatching", compositePatch("stillWatching", "0")), compositeValue("stillWatching", compositePatch("stillWatching", "4")), formatJson(compositePatch("stillWatching", "0"))], ["0", "4", formatJson({"playback.passoutProtection": false})])
     same("language moves", [movedLanguage(["en", "fr", "de"], 1, -1).join(","), movedLanguage(["en", "fr"], 1, 1).join(","), withoutLanguage(["en", "fr", "de"], 1).join(","), languagesWords([]), languagesWords(["@appLanguage", "fr"])], ["fr,en,de", "en,fr", "en,de", "None chosen", "Portico’s language, French"])
+    found = settingsMatches(settingsPages(), "Subtitle")
+    labels = []
+    for each match in found[0].rows
+        labels.push(match.row.label)
+    end for
+    same("settings search", [found.count(), settingsPages()[found[0].page].id, labels.join("|"), settingsMatches(settingsPages(), "  ").count(), settingsMatches(settingsPages(), "privacy")[0].rows.count(), settingsPages()[found[1].page].id], [2, "languages", "Show subtitles|Preferred subtitle languages|Size|Background", 0, 0, "region"])
 
     print "PASSED " + m.passed.toStr() + " FAILED " + m.failed.toStr()
 end sub
