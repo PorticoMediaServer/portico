@@ -9,7 +9,7 @@ const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.tes
 const scopes = ['read', 'playback', 'library', 'admin'];
 
 /** The member's own personal access tokens: only their real list, create and revoke calls. */
-async function fixture(options: {hosted?: boolean} = {}) {
+async function fixture(options: {hosted?: boolean; tokensAllowed?: boolean} = {}) {
   const host = hooks(), pendingEffects: (() => void)[] = []; let deps: any[] | undefined, cleanup: (() => void) | undefined;
   const useLayoutEffect = (effect: () => () => void, next: any[]) => {
     if (!deps || next.some((value, index) => value !== deps![index])) {deps = next; pendingEffects.push(() => {cleanup?.(); cleanup = effect();});}
@@ -24,7 +24,7 @@ async function fixture(options: {hosted?: boolean} = {}) {
   };
   const lifetime = new NativeScreenLifetime(context), calls: any[] = [], copied: string[] = [];
   const token = {id: 'token-1', name: 'Laptop script', scopes: ['read'], createdAt: '2026-10-01T09:00:00Z', lastUsedAt: '2026-10-20T10:00:00Z'};
-  let page = {items: [token]};
+  let page: {items: typeof token[]; tokensAllowed?: boolean} = {items: [token], ...(options.tokensAllowed === false ? {tokensAllowed: false} : {})};
   const apiAccess = {
     apiScopes: scopes,
     getApiAccessOptions: async () => undefined,
@@ -113,5 +113,14 @@ test('A Hosted account keeps its credentials on the account site, so no token pa
   try {
     assert.equal(f.tree(), null);
     assert.deepEqual(f.calls, []);
+  } finally {f.dispose();}
+});
+
+test('An account the owner keeps from making tokens is told so up front, and is offered no Create', async () => {
+  const f = await fixture({tokensAllowed: false});
+  try {
+    await f.open();
+    assert.ok(JSON.stringify(f.tree()).includes('api.tokens.off'));
+    assert.equal(f.find('access-token-add'), undefined);
   } finally {f.dispose();}
 });

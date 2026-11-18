@@ -296,7 +296,7 @@ export function NativeAccessTokensPanel({context, lifetime, t, runtime}: NativeS
   const scopeRow = (scope: ApiScope) => <Switch key={scope} testID={`access-token-scope-${scope}`} checked={ticked.has(scope)} disabled={busy} description={t(`api.scope.${scope}.help` as MessageId)} onCheckedChange={() => toggleScope(scope)}>{t(`api.scope.${scope}` as MessageId)}</Switch>;
   const content = view === 'list'
     ? <View style={{gap: 12}}>{failure}
-        {options && !options.tokensAllowed ? bodyText(t('api.tokens.off')) : null}
+        {page?.tokensAllowed === false || options?.tokensAllowed === false ? bodyText(t('api.tokens.off')) : null}
         {busy && !page ? bodyText(t('status.loading')) : null}
         {page && !page.items.length ? bodyText(t('api.tokens.none')) : null}
         {page?.items.length ? <View>{page.items.map((token, index) => <SettingsRow key={token.id} first={index === 0} testID={`access-token-${token.id}`} label={token.name}
@@ -322,7 +322,7 @@ export function NativeAccessTokensPanel({context, lifetime, t, runtime}: NativeS
     ? <><Button variant="glass" disabled={busy} onPress={() => {if (editing()) {setView('list'); setError(undefined);}}}>{t('action.back')}</Button><Button testID="access-token-create" loading={busy} disabled={busy || !name.trim() || !chosenScopes(ticked).length} onPress={submit}>{t('api.tokens.create')}</Button></>
     : view === 'revoke'
     ? <><Button variant="glass" disabled={busy} onPress={() => {if (editing()) {setRevoking(undefined); setView('list');}}}>{t('action.cancel')}</Button><Button testID="access-token-revoke" variant="danger" loading={busy} disabled={busy} onPress={revoke}>{t('web.access.revoke')}</Button></>
-    : <><Button variant="glass" onPress={() => {if (current(held)) close();}}>{t('action.close')}</Button>{options?.tokensAllowed !== false && <Button testID="access-token-add" icon="i-plus" disabled={busy || !page} onPress={begin}>{t('api.tokens.create')}</Button>}</>;
+    : <><Button variant="glass" onPress={() => {if (current(held)) close();}}>{t('action.close')}</Button>{page?.tokensAllowed !== false && options?.tokensAllowed !== false && <Button testID="access-token-add" icon="i-plus" disabled={busy || !page} onPress={begin}>{t('api.tokens.create')}</Button>}</>;
   const surface = {
     testID: 'access-tokens', open: !!opening && current(opening), title,
     onOpenChange: (value: boolean) => {if (!value && !receipt && current(held)) close();},
