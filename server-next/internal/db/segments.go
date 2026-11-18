@@ -82,6 +82,24 @@ func (d *DB) segmentQuery(ctx context.Context, joins, where string, args ...any)
 	})
 }
 
+// SegmentParts is a version's files in order, each as the version's entry with that file in
+// place of its first (folder, place, size, age, source) and its own length, for measuring a
+// version made of several files as one title.
+func (d *DB) SegmentParts(ctx context.Context, e SegmentEntry) ([]SegmentEntry, error) {
+	tx, err := d.read.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	return queryAll(ctx, tx, `SELECT f.id,f.size,f.modified_ns,ifnull(f.duration_ms,0),ifnull(lp.remote_source_id,0),lp.path,
+ dir.rel_path || CASE WHEN dir.rel_path='' THEN '' ELSE '/' END || f.name FROM media_parts mp JOIN files f ON f.id=mp.file_id
+ JOIN directories dir ON dir.id=f.directory_id JOIN library_paths lp ON lp.id=dir.library_path_id
+ WHERE mp.media_id=? AND f.missing_since_at IS NULL ORDER BY mp.position`, []any{e.MediaID}, func(part *SegmentEntry) []any {
+		*part = e
+		return []any{&part.FileID, &part.Size, &part.ModifiedNS, &part.DurationMS, &part.RemoteID, &part.Root, &part.Relative}
+	})
+}
+
 // SegmentMarker includes the owner's decision, including a dismissal hidden from viewers.
 type SegmentMarker struct {
 	ID             int64

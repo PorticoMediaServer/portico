@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaanalysis"
@@ -133,7 +134,7 @@ func (s *Service) run(ctx context.Context, work jobs.Work) error {
 			state, problem := "complete", ""
 			var evidence segmentdetect.Evidence
 			var found []segmentdetect.Detection
-			if e.Parts != 1 || e.StartMS != 0 || e.EndMS != 0 || e.DurationMS <= 0 {
+			if e.StartMS != 0 || e.EndMS != 0 || e.DurationMS <= 0 {
 				state, problem = "unsupported", "Intros and credits cannot be measured for this file layout."
 			} else {
 				evidence, found, err = read(ctx, e, mode)
@@ -268,11 +269,26 @@ func (s *Service) read(ctx context.Context, e db.SegmentEntry, mode string) (seg
 	if supervisor == nil || ffmpeg == "" {
 		return empty, nil, errNoDecoder
 	}
-	file, err := OpenFile(ctx, s.Remote, e)
-	if err != nil {
-		return empty, nil, err
+	// A version in several files is measured as one title: each part read as the first is, all
+	// of them through one bridge, so every marker is a place on the whole title's clock.
+	parts := []db.SegmentEntry{e}
+	if e.Parts > 1 {
+		if parts, err = s.DB.SegmentParts(ctx, e); err != nil {
+			return empty, nil, err
+		}
+		if len(parts) != e.Parts {
+			return empty, nil, db.ErrConflict
+		}
 	}
-	defer file.Close()
+	var served []inputbridge.Part
+	for _, part := range parts {
+		file, err := OpenFile(ctx, s.Remote, part)
+		if err != nil {
+			return empty, nil, err
+		}
+		defer file.Close()
+		served = append(served, inputbridge.Part{Source: file, Size: part.Size, Duration: float64(part.DurationMS) / 1000})
+	}
 	chapters, err := s.DB.SegmentChapters(ctx, e.MediaID)
 	if err != nil {
 		return empty, nil, err
@@ -285,7 +301,10 @@ func (s *Service) read(ctx context.Context, e db.SegmentEntry, mode string) (seg
 	if !c.UseChapterNames {
 		names = nil
 	}
-	decode := mediaanalysis.FileDecode(supervisor, ffmpeg, nil, file, e.Size)
+	decode := mediaanalysis.FileDecode(supervisor, ffmpeg, nil, served[0].Source, e.Size)
+	if len(served) > 1 {
+		decode = mediaanalysis.PartsDecode(supervisor, ffmpeg, nil, served)
+	}
 	picture := decoder.PreviewVideoFacts{DynamicRange: e.HDR}
 	policy := mediaanalysis.SegmentPlanningOptions{EpisodeMinutes: int64(c.ShortestEpisodeMinutes), FilmMinutes: int64(c.ShortestFilmMinutes),
 		IntroWindow: c.IntroWindow, CreditsWindow: c.CreditsWindow, FilmCreditsWindow: c.FilmCreditsWindow}

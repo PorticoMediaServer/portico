@@ -233,11 +233,22 @@ func parseUS(s string) (int64, error) {
 // the server holds open. The decoder reads it through a private loopback
 // bridge and never sees a path.
 func FileDecode(supervisor *processpool.Supervisor, ffmpeg string, libraries []string, source io.ReaderAt, size int64) Decode {
+	return bridgeDecode(supervisor, ffmpeg, libraries, false, func(ctx context.Context) (*inputbridge.Bridge, error) { return inputbridge.Open(ctx, source, size) })
+}
+
+// PartsDecode is FileDecode for a title in several files: the decoder reads the parts as one
+// title, on the title's own clock, through one bridge that serves each of them.
+func PartsDecode(supervisor *processpool.Supervisor, ffmpeg string, libraries []string, parts []inputbridge.Part) Decode {
+	return bridgeDecode(supervisor, ffmpeg, libraries, true, func(ctx context.Context) (*inputbridge.Bridge, error) { return inputbridge.OpenParts(ctx, parts) })
+}
+
+func bridgeDecode(supervisor *processpool.Supervisor, ffmpeg string, libraries []string, joined bool, open func(context.Context) (*inputbridge.Bridge, error)) Decode {
 	return func(ctx context.Context, key string, spec decoder.AnalysisSpec, consume func(io.Reader) error) error {
-		bridge, err := inputbridge.Open(ctx, source, size)
+		bridge, err := open(ctx)
 		if err != nil {
 			return err
 		}
+		spec.Joined = joined
 		defer bridge.Close()
 		reservation, err := bridge.Reserve()
 		if err != nil {
