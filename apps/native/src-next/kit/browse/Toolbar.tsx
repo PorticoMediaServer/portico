@@ -7,6 +7,7 @@ import type {BrowseToolbarModel} from '../../../../../packages/client-core/src/p
 import {Button, Chip, Segmented, Focusable} from '../controls';
 import {MenuRow, Popover} from '../overlays';
 import {Icon} from '../Icon';
+import {frameSpec} from '@portico/design';
 import {useTheme} from '../theme';
 import {alpha, browsePlatform, browseType} from './presentation';
 import type {AppliedFilterChip, BrowsePlatform, BrowseToolbarProps} from './types';
@@ -15,9 +16,6 @@ import MaskedView from '@react-native-masked-view/masked-view';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 
 const t = defaultI18n.t;
-/** A tablet toolbar narrower than this (an upright tablet, or beside a docked Filters pane) keeps only Filters, sort and grid /
- * list in its bar: everything on one line needs about this much before the quick chips have room. */
-const narrowToolbar = 860;
 
 export function FiltersButton({count = 0, onPress, open = false}: {count?: number; onPress: () => void; open?: boolean}) {
   const theme = useTheme(), tv = theme.isTV, phone = theme.platform === 'phone';
@@ -38,8 +36,9 @@ export function ViewToggle({value, onValueChange, itemProps}: {itemProps?: (valu
 }
 export function CardSizeButton({value, options, onValueChange}: NonNullable<BrowseToolbarProps['cardSize']>) {
   const anchorRef = useRef<View>(null), [open, setOpen] = useState(false);
+  // desktop-browse grid: the card-size glyph sits bare beside grid / list, as on the web.
   return <>
-    <Button ref={anchorRef} variant="icon" size="compact" iconOnly icon="i-size" accessibilityLabel={t('next.browse.native.cardSize')} accessibilityState={{expanded: open}} onPress={() => setOpen(!open)}/>
+    <Button ref={anchorRef} variant="text" size="compact" iconOnly icon="i-size" accessibilityLabel={t('next.browse.native.cardSize')} accessibilityState={{expanded: open}} onPress={() => setOpen(!open)}/>
     <Popover open={open} onOpenChange={setOpen} anchorRef={anchorRef} returnFocusRef={anchorRef} title={t('next.browse.native.cardSize')} placement="bottom-end">
       {options.map(option => <MenuRow key={option.value} label={option.label} selected={option.value === value} preferredFocus={option.value === value} accessibilityRole="radio" accessibilityState={{checked: option.value === value}} onPress={() => {onValueChange(option.value); setOpen(false);}}/>)}
     </Popover>
@@ -120,7 +119,7 @@ export function BrowseToolbar({model, platform, sticky = false, resultCount, onQ
   // Narrow (tablet 5 upright, tablet 4 beside the docked pane): the bar is Filters, sort and grid / list; the second line is the
   // quick chips (tablet 5) or, once filters apply, the applied chips (tablet 4), with the count at its end. Card size and Save
   // view (also in ⋯ and the pane) step out, so nothing is cut.
-  const [room, setRoom] = useState(0), narrow = !phone && !tv && room > 0 && room < narrowToolbar;
+  const [room, setRoom] = useState(0), narrow = !phone && !tv && room > 0 && room < frameSpec.browse.narrowToolbar;
   if (applied.length > 0 && !onRemoveFilter) throw new Error('Applied browse filters need a real remove callback.');
   if (selection) return <View testID={testID}>{selection}</View>;
   const sort = <SortMenu sorts={model.sorts} value={model.sort} label={labels.sort} onValueChange={onSortChange} onReshuffle={onReshuffle}/>;
