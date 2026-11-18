@@ -22,6 +22,9 @@
   <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
   <script type="text/brightscript" uri="pkg:/components/kit/CardMenu.brs"/>
   <children>
+    <!-- Holds focus while the section strip has it; its keys come up to the page (onKeyEvent). The
+         page itself cannot take focus back from the row inside it. -->
+    <Group id="stripStop" focusable="true"/>
     <Hero id="hero" mode="title"/>
     <TitleSections id="sections"/>
   </children>
