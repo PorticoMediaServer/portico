@@ -312,7 +312,7 @@ sub paintNearby()
     for i = 0 to m.nearbyRows.getChildCount() - 1
         m.nearbyRows.getChild(i).on = (i = m.nearbyAt)
     end for
-    if m.nearbyAt >= 0 then m.top.setFocus(true) else m.top.findNode("localButtons").active = true
+    if m.nearbyAt >= 0 then m.top.findNode("nearbyStop").setFocus(true) else m.top.findNode("localButtons").active = true
 end sub
 
 ' A found server goes on exactly as a typed address does, held to the id it announced.

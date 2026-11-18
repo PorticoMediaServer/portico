@@ -23,6 +23,8 @@
   <script type="text/brightscript" uri="pkg:/source/Address.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Dialog.brs"/>
   <children>
+    <!-- Holds focus for a found server's row: the page cannot take focus back from its own Type an address button. -->
+    <Group id="nearbyStop" focusable="true"/>
     <Group id="door">
       <Poster id="doorMark" uri="pkg:/images/wordmark.png" width="176" height="40"/>
       <Label id="welcome" text="Welcome home."/>
