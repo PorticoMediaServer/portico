@@ -386,7 +386,9 @@ Portico is running. The search index and the TV guide rebuild by themselves. On 
 computer, also copy `secrets.key` and `remote-sources.key` from the same backup. Portico
 refuses a file that is not a readable database, or one from a newer Portico, and says why
 without changing it: put the previous `main.db` back, or install that version. Before the
-first release, a database from an older test build is refused the same way.
+first release, a database from an older test build is refused the same way. A swapped-in
+copy brings back the sign-ins and keys it held, even ones you removed since: check Devices
+and keys afterwards.
 
 ## Reverse proxy and overlays
 
