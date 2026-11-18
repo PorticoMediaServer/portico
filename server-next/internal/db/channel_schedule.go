@@ -494,6 +494,29 @@ type ProgrammeTitle struct {
 	ShowID        int64
 }
 
+// TitleImages reads the chosen pictures of the titles named, for a Library Channel preview's sample (at most five).
+func (d *DB) TitleImages(ctx context.Context, ids []int64) (map[int64][]Image, error) {
+	out := map[int64][]Image{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := d.read.QueryContext(ctx, `SELECT item_id, id, role, ifnull(file_hash, ''), ifnull(width, 0), ifnull(height, 0),
+		ifnull(placeholder, '') FROM images WHERE item_id IN `+intList(ids)+` AND selected = 1 ORDER BY item_id, role`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var itemID int64
+		var image Image
+		if err := rows.Scan(&itemID, &image.ID, &image.Role, &image.FileHash, &image.Width, &image.Height, &image.Placeholder); err != nil {
+			return nil, err
+		}
+		out[itemID] = append(out[itemID], image)
+	}
+	return out, rows.Err()
+}
+
 // ProgrammeTitles reads the titles named, for a schedule's copy into the guide or a preview.
 // It reads as many rows as it is given ids.
 func (d *DB) ProgrammeTitles(ctx context.Context, ids []int64) (map[int64]ProgrammeTitle, error) {

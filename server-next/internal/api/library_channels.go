@@ -118,6 +118,9 @@ type LibraryChannelPreviewTitle struct {
 	Season       *int   `json:"season,omitempty"`
 	Episode      *int   `json:"episode,omitempty"`
 	Year         int    `json:"year,omitempty"`
+	// Images are the title's chosen pictures by role (a show's for its episode), on the sample only:
+	// "some of what plays" draws each with its poster (definition 11 rule 106).
+	Images map[string]string `json:"images,omitempty"`
 }
 
 // LibraryChannelPreviewProgramme is one programme of today's schedule; Title is absent for the slate.
@@ -571,8 +574,27 @@ func (s *Server) previewLibraryChannel(r *http.Request, req LibraryChannelPrevie
 		return LibraryChannelPreview{}, err
 	}
 	out := LibraryChannelPreview{Titles: p.Titles, Unplaceable: p.Unplaceable, Hours: p.Hours, Sample: []LibraryChannelPreviewTitle{}, Today: []LibraryChannelPreviewProgramme{}}
+	// An episode's sample shows its show, as the sample counts it.
+	shown := func(t db.ProgrammeTitle) int64 {
+		if t.ShowID != 0 {
+			return t.ShowID
+		}
+		return t.ID
+	}
+	ids := make([]int64, 0, len(p.Sample))
+	for _, t := range p.Sample {
+		ids = append(ids, shown(t))
+	}
+	pictures, err := s.db.TitleImages(ctx, ids)
+	if err != nil {
+		return LibraryChannelPreview{}, err
+	}
 	for n := range p.Sample {
-		out.Sample = append(out.Sample, *previewTitle(&p.Sample[n]))
+		title := *previewTitle(&p.Sample[n])
+		if images := imageMap(pictures[shown(p.Sample[n])]); len(images) > 0 {
+			title.Images = images
+		}
+		out.Sample = append(out.Sample, title)
 	}
 	for _, row := range p.Today {
 		out.Today = append(out.Today, LibraryChannelPreviewProgramme{StartsAt: row.StartsAt.UTC(), EndsAt: row.EndsAt.UTC(), Title: previewTitle(row.Title)})
