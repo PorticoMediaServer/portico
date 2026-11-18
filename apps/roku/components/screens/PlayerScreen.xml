@@ -59,7 +59,7 @@
         <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[0.0, -6.2832]" fieldToInterp="spinner.rotation"/>
       </Animation>
     </Group>
-    <Notice id="notice" visible="false"/>
+    <PageState id="notice" visible="false"/>
     <Timer id="hide" duration="5"/>
     <Timer id="report" duration="10" repeat="true"/>
     <Timer id="tick" duration="1" repeat="true"/>

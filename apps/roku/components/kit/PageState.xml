@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The whole-page state (system-rules rule 9, frame "Page states"): the page could not load, or has
+     nothing yet. Once per screen, in place of the page: an icon in a circle, a title, one sentence,
+     then buttons with focus on the first. A part of a page that fails uses StateRow instead. -->
+<component name="PageState" extends="Group">
+  <interface>
+    <field id="icon" type="string" onChange="onChange"/>
+    <field id="title" type="string" onChange="onChange"/>
+    <field id="body" type="string" onChange="onChange"/>
+    <field id="footnote" type="string" onChange="onChange"/>
+    <field id="buttons" type="array" alias="row.buttons"/>
+    <field id="pressed" type="string" alwaysNotify="true" alias="row.pressed"/>
+    <field id="active" type="boolean" alwaysNotify="true" alias="row.active"/>
+  </interface>
+  <script type="text/brightscript" uri="PageState.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Poster id="disc" uri="pkg:/images/round-36.9.png" width="88" height="88"/>
+    <Poster id="icon" width="32" height="32"/>
+    <Label id="title" width="1500"/>
+    <Label id="body" wrap="true" maxLines="3"/>
+    <ButtonRow id="row"/>
+    <Label id="footnote" wrap="true" maxLines="3"/>
+  </children>
+</component>

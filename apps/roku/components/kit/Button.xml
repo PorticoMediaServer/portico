@@ -6,6 +6,8 @@
     <!-- Name of a 28 px icon (images/i-<name>-28.png), or "". -->
     <field id="icon" type="string" onChange="onChange"/>
     <field id="on" type="boolean" onChange="onChange"/>
+    <!-- A filter chip that is switched on: the blue plate while it is out of focus. -->
+    <field id="switchedOn" type="boolean" onChange="onChange"/>
     <!-- For Resume: how far through (0 to 1, below 0 for none) and the time left, drawn after the label. -->
     <field id="progress" type="float" value="-1" onChange="onChange"/>
     <field id="detail" type="string" onChange="onChange"/>

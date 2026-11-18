@@ -248,8 +248,9 @@ end function
 function gridCard(item as object) as object
     card = cardFor(item, "poster")
     card.under = true
+    card.oneLine = true
     card.artHeight = 300
-    if item.kind = "collection" and item.counts <> invalid then card.sub = countText(item.counts.children, "title", "titles")
+    if item.kind = "collection" and item.counts <> invalid and item.counts.children > 0 then card.sub = countText(item.counts.children, "title", "titles")
     return card
 end function
 
@@ -261,9 +262,38 @@ function viewName(kind as string) as string
 end function
 
 function sortName(id as string) as string
-    names = {title: "Title A–Z", added: "Recently added", year: "Year", release: "Release date", duration: "Duration", communityRating: "Rating", criticRating: "Critics' rating", plays: "Most played", artist: "Artist", random: "Random"}
+    names = {title: "Title A–Z", added: "Recently added", year: "Year", release: "Release date", duration: "Duration", communityRating: "Rating", criticRating: "Critics' rating", plays: "Most played", playCount: "Most played", userRating: "Your rating", lastPlayed: "Last played", resolution: "Resolution", latest: "Latest", artist: "Artist", random: "Random"}
     if names[id] <> invalid then return names[id]
     return ucase(left(id, 1)) + mid(id, 2)
+end function
+
+' The quick filters a library's toolbar offers: only those its own `filters` list names, in this order.
+' Each is {id, text, param}: `param` is what the item list is asked with when the chip is on.
+function quickFilters(filters as dynamic) as object
+    named = {}
+    if filters <> invalid
+        for each f in filters
+            named[f.id] = true
+        end for
+    end if
+    out = []
+    for each q in [{id: "watched", text: "Unplayed", param: "watched=false"}, {id: "inProgress", text: "In progress", param: "inProgress=true"}, {id: "favorite", text: "Favorites", param: "favorite=true"}, {id: "inList", text: "My List", param: "inList=true"}]
+        if named[q.id] = true then out.push(q)
+    end for
+    return out
+end function
+
+' Why a read failed, in one sentence for a page or a section that could not load.
+function whyFailed(result as object) as string
+    if result.status = 0 then return "The server didn't answer. You're still signed in."
+    return "The server couldn't send it. Try again in a moment."
+end function
+
+' How many a search group found: "20+" when the server stopped counting at 20.
+function foundText(group as object) as string
+    if group.total = invalid then return ""
+    if group.totalIsMinimum = true then return group.total.toStr() + "+"
+    return group.total.toStr()
 end function
 
 function kindCount(n as integer, kind as string) as string

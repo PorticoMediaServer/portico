@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One key of the number pad (PinPad) or of Search's keyboard (Keyboard): a plate with a letter, a
+     word or the delete glyph centred on it. The pad or keyboard draws the one focus ring itself. -->
+<component name="Key" extends="Group">
+  <interface>
+    <field id="text" type="string" onChange="onChange"/>
+    <!-- "backspace" draws the delete glyph (the typeface has no such character); "" for none. -->
+    <field id="glyph" type="string" onChange="onChange"/>
+    <!-- The type role of its text: "padKey" for digits, "keyLetter" for letters, "button" for words. -->
+    <field id="role" type="string" value="button" onChange="onChange"/>
+    <field id="width" type="float" value="75" onChange="onChange"/>
+    <field id="height" type="float" value="72" onChange="onChange"/>
+    <field id="on" type="boolean" onChange="onPaint"/>
+  </interface>
+  <script type="text/brightscript" uri="Key.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Poster id="plate" uri="pkg:/images/round-14.9.png"/>
+    <Label id="label" horizAlign="center" vertAlign="center"/>
+    <Poster id="icon" visible="false"/>
+  </children>
+</component>

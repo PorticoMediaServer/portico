@@ -14,53 +14,26 @@ end sub
 
 ' Setting `digits` (even to the same number) starts the pad afresh: nothing typed, nothing marked wrong.
 sub reset()
-    c = colours()
     m.value = ""
     m.bad = false
     m.clear.control = "stop"
     m.keys.removeChildrenIndex(m.keys.getChildCount(), 0)
-    labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0"]
+    labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0"]
     for i = 0 to labels.count() - 1
-        plate = m.keys.createChild("Poster")
-        plate.uri = "pkg:/images/round-14.9.png"
-        plate.blendColor = "0x10212DE6"
-        plate.width = 148
-        plate.height = 118
-        plate.translation = [(i mod 3) * 168, int(i / 3) * 138]
-        text = m.keys.createChild("Label")
-        text.width = 148
-        text.height = 118
-        text.horizAlign = "center"
-        text.vertAlign = "center"
-        text.translation = plate.translation
-        text.text = labels[i]
-        setType(text, "padKey", c.textSecondary)
-        if labels[i] = "⌫"
-            ' the delete key is a drawn glyph: the typeface has no such character
-            text.text = ""
-            glyph = m.keys.createChild("Poster")
-            glyph.uri = "pkg:/images/i-backspace-32.png"
-            glyph.width = 40
-            glyph.height = 40
-            glyph.blendColor = c.textSecondary
-            glyph.translation = [plate.translation[0] + 54, plate.translation[1] + 39]
-        end if
+        key = m.keys.createChild("Key")
+        key.role = "padKey"
+        key.width = 148
+        key.height = 118
+        key.translation = [(i mod 3) * 168, int(i / 3) * 138]
+        key.text = labels[i]
+        if i = 9 then key.glyph = "backspace"
     end for
     if m.top.extra <> ""
-        plate = m.keys.createChild("Poster")
-        plate.uri = "pkg:/images/round-14.9.png"
-        plate.blendColor = "0x10212DE6"
-        plate.width = 484
-        plate.height = 72
-        plate.translation = [0, 572]
-        text = m.keys.createChild("Label")
-        text.width = 484
-        text.height = 72
-        text.horizAlign = "center"
-        text.vertAlign = "center"
-        text.translation = [0, 572]
-        text.text = m.top.extra
-        setType(text, "button", c.textSecondary)
+        key = m.keys.createChild("Key")
+        key.width = 484
+        key.height = 72
+        key.translation = [0, 572]
+        key.text = m.top.extra
     end if
     m.boxes.removeChildrenIndex(m.boxes.getChildCount(), 0)
     m.boxes.translation = m.top.boxesAt
@@ -98,7 +71,13 @@ sub paint()
             if m.bad = true then dot.blendColor = c.danger else dot.blendColor = c.textSecondary
         end if
     end for
-    m.ring.visible = m.top.hasFocus()
+    has = m.top.hasFocus()
+    at = m.row * 3 + m.col     ' the keys in drawn order: digits and delete, then the extra button
+    if m.row = 4 then at = 11
+    for i = 0 to m.keys.getChildCount() - 1
+        m.keys.getChild(i).on = (has and i = at)
+    end for
+    m.ring.visible = has
     out = metrics().focusSpread + 6
     if m.row = 4
         m.ring.translation = [-out, 572 - out]

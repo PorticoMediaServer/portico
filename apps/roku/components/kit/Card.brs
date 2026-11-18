@@ -16,6 +16,14 @@ sub init()
     m.badgePlate = m.top.findNode("badgePlate")
     m.badge = m.top.findNode("badge")
     c = colours()
+    m.plate.blendColor = c.raised
+    m.top.findNode("faceDisc").blendColor = c.raisedBright
+    m.madeRule.color = c.coverRule
+    m.track.color = c.trackOnArt
+    m.bar.color = c.accent
+    m.top.findNode("cornerPlate").blendColor = c.onArt
+    m.top.findNode("tickPlate").blendColor = c.onArt
+    m.badgePlate.blendColor = c.accent
     m.person = m.top.findNode("person")
     setType(m.top.findNode("faceInitials"), "personInitials", c.textSecondary)
     setType(m.top.findNode("faceName"), "cardTitle", c.text)
@@ -156,11 +164,21 @@ sub onContent()
         m.title.text = item.title
         m.sub.text = item.sub
         m.title.width = m.w
-        m.title.wrap = true
-        m.title.maxLines = 2
-        setType(m.title, "episodeTitle", c.text)
-        m.title.translation = [0, m.h + 26]
-        if m.title.boundingRect().height > 44 then m.sub.translation = [0, m.h + 88] else m.sub.translation = [0, m.h + 58]
+        if item.oneLine = true
+            ' a poster in a grid or row: its title and year one line each, the title ending in an ellipsis
+            m.title.wrap = false
+            setType(m.title, "cardTitle", c.text)
+            setType(m.sub, "cardSubtitle", c.textTertiary)
+            m.title.translation = [0, m.h + 14]
+            m.sub.translation = [0, m.h + 48]
+        else
+            m.title.wrap = true
+            m.title.maxLines = 2
+            setType(m.title, "episodeTitle", c.text)
+            setType(m.sub, "cardSubtitle", c.textSecondary)
+            m.title.translation = [0, m.h + 26]
+            if m.title.boundingRect().height > 44 then m.sub.translation = [0, m.h + 88] else m.sub.translation = [0, m.h + 58]
+        end if
     end if
     m.track.translation = [20, m.h - 24]
     m.bar.translation = [20, m.h - 24]
@@ -200,6 +218,9 @@ sub onContent()
     end if
     m.badge.visible = (item.badge <> "")
     m.badgePlate.visible = (item.badge <> "")
+    ' a card handed new content keeps whatever focus look it last had; draw the one it has now
+    ' (a grid reloaded while its toolbar had focus kept a ring on its first card)
+    onFocus()
 end sub
 
 sub onFocus()
