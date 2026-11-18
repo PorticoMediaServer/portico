@@ -78,7 +78,9 @@ end sub
 
 sub onActive()
     if not m.top.active then return
-    if m.stage = "pin" then m.pad.active = true else m.top.setFocus(true)
+    ' The faces take focus, not the screen: the screen holds the pad, so Roku would leave focus on
+    ' the hidden pad and the next OK would type a digit into it.
+    if m.stage = "pin" then m.pad.active = true else m.faces.setFocus(true)
     paint()
 end sub
 
