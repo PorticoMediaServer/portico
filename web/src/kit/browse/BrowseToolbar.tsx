@@ -121,19 +121,17 @@ export function BrowseToolbar({model, labels, resultCount, platform = 'desktop',
   const quick = quickIds === undefined ? model.quick : model.quick.filter(item => quickIds.includes(item.id));
   const sort = model.sorts.length > 0 && <SortMenu sorts={model.sorts} value={model.sort} onValueChange={onSortChange} label={sortLabels.sort} onReshuffle={onReshuffle} showOrder={sortLabel === undefined}/>;
   const filters = (model.groups.length > 0 || model.filterQuick.length > 0) && <FiltersButton count={applied.length} open={filtersOpen} onClick={onFilters}/>;
-  // Frame 6 draws a library's sort beside Filters in the chip row; See all names its own
-  // order on the count row instead, so a surface that supplies sortLabel keeps that one.
-  const sortInFirstRow = platform === 'phone' && sortLabel === undefined;
+  // The order on every form (owner, 18 Nov): Filters, then Sort beside it, then the quick chips; at the trailing end the count
+  // and grid / list (tablet 11). See all's own order name ("Best match") is the same control in the same place.
   return <div className={[styles.toolbar, className].filter(Boolean).join(' ')} data-platform={platform} data-sticky={sticky || undefined} style={{top: topInset}}>
     {selection}{!(selectionActive ?? selection != null) && <><div className={styles.toolbarMain}>
-      {platform === 'tv' ? <>{sort}{filters}{onJump && <Chip onClick={onJump}>{t('next.browse.jump')}<Icon name="i-down" size={16}/></Chip>}</> : filters}
-      {/* The divider separates Filters from what follows it; with nothing after it (Comics' Volumes and issues) it is not drawn. */}
-      {(sortInFirstRow || actions != null && actions !== false || quick.length > 0) && <span className={styles.separator} aria-hidden="true"/>}
-      {sortInFirstRow && sort}
+      {filters}{sort}{platform === 'tv' && onJump && <Chip onClick={onJump}>{t('next.browse.jump')}<Icon name="i-down" size={16}/></Chip>}
+      {/* The divider separates Filters and Sort from what follows them; with nothing after them (Comics' Volumes and issues) it is not drawn. */}
+      {(actions != null && actions !== false || quick.length > 0) && <span className={styles.separator} aria-hidden="true"/>}
       {actions}{quick.map(item => <QuickToggle key={item.id} selected={item.active} onCheckedChange={checked => onQuickChange(item.id, checked)}>{item.label?.text ?? labels.quick(item)}</QuickToggle>)}
-      {platform !== 'phone' && <div className={styles.toolbarEnd}>{platform === 'desktop' && <ResultCount className={styles.resultCount} accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>}{platform === 'desktop' && sort}
+      {platform !== 'phone' && <div className={styles.toolbarEnd}>{platform === 'desktop' && <ResultCount className={styles.resultCount} accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>}
         {view && <ViewToggle {...view}/>} {cardSize && <CardSizeButton {...cardSize}/>} {save && <SaveViewButton {...save}/>}</div>}
-    </div>{platform === 'phone' && <div className={styles.phoneCount}><ResultCount accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>{/* phone-app 5: Save this view lives in the ⋯ menu. */}<span className={styles.phoneView}>{!sortInFirstRow && sort}{view && <ViewToggle {...view}/>}</span></div>}
+    </div>{platform === 'phone' && <div className={styles.phoneCount}><ResultCount accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>{/* phone-app 5: Save this view lives in the ⋯ menu. */}<span className={styles.phoneView}>{view && <ViewToggle {...view}/>}</span></div>}
     {applied.length > 0 && onRemoveFilter && onClearFilters && <div className={platform === 'tv' ? styles.tvAppliedRow : undefined}><AppliedFilterChips items={applied} onRemove={onRemoveFilter} onClear={onClearFilters}/>{platform === 'tv' && <ResultCount className={styles.resultCount} accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>}</div>}</>}
   </div>;
 }

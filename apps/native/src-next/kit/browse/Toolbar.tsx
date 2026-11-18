@@ -127,23 +127,26 @@ export function BrowseToolbar({model, platform, sticky = false, resultCount, onQ
   const sort = <SortMenu sorts={model.sorts} value={model.sort} label={labels.sort} onValueChange={onSortChange} onReshuffle={onReshuffle}/>;
   const filters = <FiltersButton count={model.applied.length} open={filtersOpen} onPress={onFilters}/>;
   const quick = model.quick.map(item => <QuickToggle key={item.id} checked={item.active} onCheckedChange={checked => onQuickChange(item.id, checked)}>{item.label?.text ?? labels.quick(item)}</QuickToggle>);
+  // The order on every form (owner, 18 Nov): Filters, then Sort beside it, then the quick chips; at the trailing end the count,
+  // grid / list and Select (tablet 11).
+  const select = onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>;
   const count = <Text accessibilityLiveRegion="polite" style={[browseType(theme, tv ? 22 : phone ? 13 : 14.5, 600), {color: phone || tv ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{resultCount}</Text>;
   return <View testID={testID} onLayout={event => setRoom(event.nativeEvent.layout.width)} accessibilityLabel={t('next.browse.native.toolbar')} style={{zIndex: sticky ? theme.layers.sticky : undefined, backgroundColor: sticky ? alpha(theme.colors.ink, .86) : undefined, paddingTop: phone ? 10 : sticky ? 12 : 20, paddingBottom: sticky ? 12 : 0}}>
     {phone ? <>
-      <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 20, gap: 8, alignItems: 'center'}}>{filters}{sort}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}{quick}{children}</ScrollView></TVRow>
+      <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 20, gap: 8, alignItems: 'center'}}>{filters}{sort}{quick}{children}</ScrollView></TVRow>
       <View style={{paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 10}}>
         {/* phone-app 5: the count and grid / list only; a phone's Save view is in the Filters sheet, and three columns fill the width at any card size. */}
-        {count}<View style={{marginLeft: 'auto'}}>{view && <ViewToggle {...view}/>}</View>
+        {count}<View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{view && <ViewToggle {...view}/>}{select}</View>
       </View>
     </> : narrow ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: theme.gutter}}>
-      {filters}{sort}<View style={{marginLeft: 'auto'}}>{view && <ViewToggle {...view}/>}</View>
+      {filters}{sort}<View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{view && <ViewToggle {...view}/>}{select}</View>
     </View> : <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 14 : 8, paddingHorizontal: theme.gutter}}>
-      {tv ? <>{sort}{filters}{onJump && <Chip onPress={onJump}>{t('next.browse.native.jumpTo')}</Chip>}</> : <>{filters}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}</>}
+      {filters}{sort}{tv && onJump && <Chip onPress={onJump}>{t('next.browse.native.jumpTo')}</Chip>}
       <View style={{height: tv ? 40 : 24, width: tv ? 1.5 : 1, marginHorizontal: 6, backgroundColor: theme.colors.line}}/>
       {tv ? <>{quick}{children}</> : <ChipRail>{quick}{children}</ChipRail>}
       <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>
-        {!tv && <>{count}{sort}{view && <ViewToggle {...view}/>}{cardSize && <CardSizeButton {...cardSize}/>}</>}
-        {save && <SaveViewButton {...save}/>}
+        {!tv && <>{count}{view && <ViewToggle {...view}/>}{cardSize && <CardSizeButton {...cardSize}/>}</>}
+        {save && <SaveViewButton {...save}/>}{!tv && select}
       </View>
     </View>}
     {narrow && applied.length === 0 ? <View style={{flexDirection: 'row', gap: 8, minHeight: 40, marginTop: 10, paddingHorizontal: theme.gutter}}><ChipRail>{quick}{children}</ChipRail><View style={{justifyContent: 'center'}}>{count}</View></View>
