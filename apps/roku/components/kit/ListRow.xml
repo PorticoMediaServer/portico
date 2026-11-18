@@ -33,7 +33,7 @@
     <Poster id="face" uri="pkg:/images/disc.png" width="64" height="64" visible="false"/>
     <Label id="initial" width="64" height="64" horizAlign="center" vertAlign="center" visible="false"/>
     <Poster id="art" width="156" height="88" loadWidth="156" loadHeight="88" loadDisplayMode="scaleToZoom"/>
-    <Label id="label" wrap="true" maxLines="2"/>
+    <Label id="label" wrap="true" maxLines="3"/>
     <Label id="help" wrap="true" maxLines="2"/>
     <Label id="scope"/>
     <Label id="value" horizAlign="right"/>

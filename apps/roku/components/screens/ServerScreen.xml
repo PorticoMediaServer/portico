@@ -26,10 +26,15 @@
     <Label id="serverWord" text="Server"/>
     <Label id="serverName"/>
     <Label id="who"/>
-    <Poster id="listPlate" uri="pkg:/images/round-14.9.png"/>
-    <Rectangle id="listBar" width="3" height="28"/>
-    <Poster id="listRing" uri="pkg:/images/focus-14.9.png"/>
-    <Group id="list"/>
+    <!-- the page list moves inside its window to keep the page in focus above the foot (fifteen pages for the owner) -->
+    <Group id="listWindow">
+      <Group id="listMove">
+        <Poster id="listPlate" uri="pkg:/images/round-14.9.png"/>
+        <Rectangle id="listBar" width="3" height="28"/>
+        <Poster id="listRing" uri="pkg:/images/focus-14.9.png"/>
+        <Group id="list"/>
+      </Group>
+    </Group>
     <Group id="page"/>
   </children>
 </component>

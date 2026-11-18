@@ -161,10 +161,10 @@ end sub
 sub openProfileMenu(focusOn as string)
     m.sheetIsOwn = true
     rows = [{id: "switch", text: "Switch profile", icon: "", focus: focusOn = "switch"},
-        {id: "together", text: togetherRowText(), icon: "", focus: focusOn = "together"},
-        {id: "signout", text: "Sign out", icon: "", gapBefore: true, focus: focusOn = "signout"}]
-    ' the owner and administrators have Server settings first (tv-more frame 10)
-    if m.role = "owner" or m.role = "admin" then rows.unshift({id: "server", text: "Server settings", icon: ""})
+        {id: "together", text: togetherRowText(), icon: "", focus: focusOn = "together"}]
+    ' the owner and administrators have Server settings under a rule, View only (tv-more frame 10)
+    if m.role = "owner" or m.role = "admin" then rows.push({id: "server", text: "Server settings", icon: "", value: "View only", gapBefore: true, focus: focusOn = "server"})
+    rows.push({id: "signout", text: "Sign out", icon: "", gapBefore: true, focus: focusOn = "signout"})
     m.sheet.model = {eyebrow: storeRead("serverName"), title: m.rail.profileName, status: "", rows: rows}
     m.sheet.visible = true
     m.sheet.active = true
