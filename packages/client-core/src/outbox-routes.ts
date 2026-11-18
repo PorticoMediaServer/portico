@@ -10,11 +10,9 @@ import {apiRoot, routes} from '../../contracts/src/routes.ts';
 const kinds = {
   personal: ['put_items_itemId_reading_favorite', 'put_items_itemId_reading_mark', 'put_items_itemId_reading_my_list', 'put_reading_group_my_list',
     'post_libraries_libraryId_reading_mark_all', 'delete_reading_saved_group_reference', 'post_channels_preferences', 'post_library_channels_preferences'],
-  list: ['post_playlists', 'patch_playlists_id', 'delete_playlists_id', 'post_playlists_id_entries', 'delete_playlists_id_entries_entryId', 'reorder_playlist_window',
-    'post_saved_resources', 'patch_saved_resources_id', 'delete_saved_resources_id', 'put_saved_resources_id_entries', 'reorder_saved_collection'],
   stop: ['stop_playback_session'],
 } as const;
-export type OutboxKind = keyof typeof kinds | 'settings' | 'download';
+export type OutboxKind = keyof typeof kinds | 'settings' | 'download' | 'list';
 const kindOf = new Map<string, OutboxKind>(Object.entries(kinds).flatMap(([kind, ids]) => ids.map(id => [id, kind as OutboxKind] as const)));
 /** A person's own state on a title: watched, favourite, My List, rating, hidden and position, on the one route that sets them. */
 const itemStateRoute: keyof Routes = 'PUT /v1/items/{id}/state';
@@ -22,11 +20,15 @@ const itemState = {kind: 'personal' as OutboxKind, method: 'PUT', parts: itemSta
 /** A profile's own settings: the server keeps the last save. */
 const settingsRoute: keyof Routes = 'PATCH /v1/preferences';
 const settings = {kind: 'settings' as OutboxKind, method: 'PATCH', parts: settingsRoute.slice(settingsRoute.indexOf(' ') + 1).split('/')};
-const downloadRoutes = (['POST /v1/downloads', 'DELETE /v1/downloads/{id}', 'DELETE /v1/downloads/{id}/items/{itemId}'] as const).map(route => ({kind: 'download' as OutboxKind, method: route.slice(0, route.indexOf(' ')), parts: route.slice(route.indexOf(' ') + 1).split('/')}));
+const nextRoutes = (kind: OutboxKind, names: readonly (keyof Routes)[]) => names.map(route => ({kind, method: route.slice(0, route.indexOf(' ')), parts: route.slice(route.indexOf(' ') + 1).split('/')}));
+const downloadRoutes = nextRoutes('download', ['POST /v1/downloads', 'DELETE /v1/downloads/{id}', 'DELETE /v1/downloads/{id}/items/{itemId}']);
+/** Playlists, collections and saved views: made, renamed, removed, and titles added, moved and removed (area 6 rule 43). */
+const listRoutes = nextRoutes('list', ['POST /v1/lists', 'PATCH /v1/lists/{id}', 'DELETE /v1/lists/{id}', 'POST /v1/lists/{id}/entries',
+  'PATCH /v1/lists/{id}/entries/{entryId}', 'DELETE /v1/lists/{id}/entries/{entryId}']);
 const playRouteName: keyof Routes = 'POST /v1/items/state:batch';
 const playRoute = {kind: 'personal' as OutboxKind, method: 'POST', parts: playRouteName.slice(playRouteName.indexOf(' ') + 1).split('/')};
-const outboxRoutes = [itemState, settings, playRoute, ...downloadRoutes, ...routes.filter(route => kindOf.has(route.id)).map(route => ({kind: kindOf.get(route.id)!, method: route.method, parts: route.path.split('/')}))];
-if (outboxRoutes.length !== kindOf.size + 3 + downloadRoutes.length) throw new Error('An outbox route is missing from the generated routes.');
+const outboxRoutes = [itemState, settings, playRoute, ...downloadRoutes, ...listRoutes, ...routes.filter(route => kindOf.has(route.id)).map(route => ({kind: kindOf.get(route.id)!, method: route.method, parts: route.path.split('/')}))];
+if (outboxRoutes.length !== kindOf.size + 3 + downloadRoutes.length + listRoutes.length) throw new Error('An outbox route is missing from the generated routes.');
 
 /** Which kind of write this is, when the outbox carries it: the words for it differ, and a stop is never reported. */
 export function outboxKind(path: string, method: string): OutboxKind | undefined {
