@@ -272,6 +272,25 @@ func TestAnAccountHeldToFewerProfilesAndSwitchedOff(t *testing.T) {
 	}
 }
 
+func TestPersonalTokenListReportsAccountPolicy(t *testing.T) {
+	s, owner, max, _ := twoMembers(t)
+	member := signInAs(t, s, "max", testPassword, 2).AccessToken
+	var made KeyCreated
+	if w := call(t, s, "POST", "/v1/me/tokens", member, KeyCreate{Name: "Script", Scopes: []string{"read"}}, &made); w.Code != 200 {
+		t.Fatalf("creating a personal token answered %d", w.Code)
+	}
+	for _, allowed := range []bool{true, false, true} {
+		limits := noLimits()
+		limits.AllowTokens = allowed
+		hold(t, s, owner, max.ID, limits)
+		member := signInAs(t, s, "max", testPassword, 3).AccessToken
+		list := get[PersonalTokenList](t, s, member, "/v1/me/tokens")
+		if list.TokensAllowed != allowed || len(list.Items) != 1 || list.Items[0].ID != made.Key.ID {
+			t.Fatalf("token list with policy %v: %+v", allowed, list)
+		}
+	}
+}
+
 // An edit of limits changes only the fields it names: holding an account to home leaves its
 // Watch Together and tokens as they were, and null lifts one limit.
 func TestALimitsEditChangesOnlyWhatItNames(t *testing.T) {

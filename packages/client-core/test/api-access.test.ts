@@ -125,3 +125,10 @@ test('a credential page carries the exact total across pages and refuses a page 
  await assert.rejects(listApiKeys(recorder({items:[credential],limit:100}).transport));
  await assert.rejects(listApiKeys(recorder({items:[credential],limit:100,total:-1}).transport));
 });
+
+test('the personal token list says whether this account may make tokens', async () => {
+ const key={id:'t1',name:'Mine',scopes:['read'],createdAt:'2026-10-13T12:00:00Z'};
+ const answer=(tokensAllowed?:boolean)=>({request:async<T>()=>({items:[key],...(tokensAllowed===undefined?{}:{tokensAllowed})}) as T});
+ assert.equal((await listAccessTokens(answer(false))).tokensAllowed,false);
+ assert.equal((await listAccessTokens(answer(true))).tokensAllowed,true);
+});

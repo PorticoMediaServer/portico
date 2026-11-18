@@ -123,6 +123,13 @@ func (d *DB) CreateAPIKey(ctx context.Context, n NewAPIKey) (out APIKey, secretI
 	return out, secretIsNew, err
 }
 
+// TokensAllowed reports the account's policy for personal tokens and app passwords.
+func (d *DB) TokensAllowed(ctx context.Context, userID int64) (bool, error) {
+	var allowed bool
+	err := d.read.QueryRowContext(ctx, `SELECT allow_tokens FROM users WHERE id = ?`, userID).Scan(&allowed)
+	return allowed, err
+}
+
 // APIKeys lists an account's live keys of one kind, newest first.
 func (d *DB) APIKeys(ctx context.Context, userID int64, kind string, now time.Time) ([]APIKey, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT `+keyColumns+` FROM api_keys WHERE user_id = ? AND kind = ? AND `+liveKey+`

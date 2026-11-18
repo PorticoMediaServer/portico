@@ -138,7 +138,8 @@ export async function listAccessTokens(t:ApiAccessTransport,cursor='',signal?:Ab
  const page=await callServer(t,'GET /v1/me/tokens',{query:{cursor},signal});
  if(!object(page))return invalid('personal tokens');
  const items=list(page.items,100,parsePersonalAccessToken,'personal tokens');
- return Object.freeze({items,nextCursor:optional(page.nextCursor,512,'credential page cursor')});
+ // Whether this account may make personal tokens (the owner can turn them off for a person).
+ return Object.freeze({items,nextCursor:optional(page.nextCursor,512,'credential page cursor'),tokensAllowed:page.tokensAllowed!==false});
 }
 export async function createAccessToken(t:ApiAccessTransport,q:NewApiCredential,signal?:AbortSignal){
  // The operation id the form holds across retries goes as the request's Idempotency-Key, as the rebuilt route reads it.
