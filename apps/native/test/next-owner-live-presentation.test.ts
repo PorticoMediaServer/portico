@@ -100,7 +100,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
     'react-native-gesture-handler': {GestureDetector: 'GestureDetector'}, 'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: () => ({})},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Pattern: 'Pattern', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../packages/client-core/src/dvr': {defaultRecordingOptions: {}},
-    '../../../../../packages/client-core/src/channel-guide': {dayPrimeTime: (value: number) => value, stripDays: () => [0, 86_400_000]},
+    '../../../../../packages/client-core/src/channel-guide': {dayPrimeTime: (value: number) => value},
     '../../../../../packages/client-core/src/presentation/kit-model': {episodeLabel: () => undefined, programmeFactParts: () => [], programmeTimeRange: () => undefined},
     '../../../../../packages/client-core/src/guide': {...guideRangeModel, legacyChannel: (value: any) => value, floorTo: (value: number) => value, localDayStart: () => 0, SLOT_MS: 1_800_000, pxPerMsFor: () => 1 / 15_000, rulerTicks: () => [], nowNext: () => ({now: programme}), layoutRow: () => [{kind: 'programme', program: programme, start: programme.start, end: programme.end, x: 0, width: 200}]},
     '../../../../../packages/client-core/src/guide/directory': {GuideFeatureClient: class {}},

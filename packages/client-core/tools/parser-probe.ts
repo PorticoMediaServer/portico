@@ -38,7 +38,6 @@ import {readPerson} from '../src/people.ts';
 import {SavedService, type SavedProjection} from '../src/saved.ts';
 import {PersonalSavedService} from '../src/personal-saved.ts';
 import {readLibraryChannels, readLibraryTemplates} from '../src/library-channels.ts';
-import {ChannelGuideService} from '../src/channel-guide.ts';
 import {InboxService} from '../src/inbox.ts';
 import {parseFeedbackCapabilities} from '../src/notifications.ts';
 import {DownloadsService} from '../src/downloads-service.ts';
@@ -482,30 +481,6 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
   // 6. Live.
   await rec.check('live', 'live sources', 'GET', '/v1/admin/live-sources', () => api.request<unknown>('/v1/admin/live-sources'));
   rec.skip('live source documents', 'no client-core parser: SourceDocument is read inline in web LiveSourceExtras.tsx');
-  const windowStart = new Date(Math.floor(Date.now() / 3600000) * 3600000);
-  const windowEnd = new Date(windowStart.getTime() + 3 * 3600000);
-  for (const kind of ['live-source', 'library-channel'] as const) {
-    // One service per guide kind, as the apps bind one per Channels view: each kind has its own viewer fence.
-    const guideSvc = new ChannelGuideService(api, serverId);
-    // The apps send whole-second instants (guideWindow); the server echoes them and the parser compares.
-    const iso = (d: Date) => d.toISOString().replace('.000Z', 'Z');
-    const route = {kind, start: iso(windowStart), end: iso(windowEnd), timezone: 'UTC', search: '', sourceId: ''};
-    const path = `/v1/guide?${new URLSearchParams({kind, start: route.start, end: route.end, timezone: 'UTC', search: '', sourceId: '', limit: '30', cursor: ''})}`;
-    try {
-      await guideSvc.load(route);
-    } catch (error) {
-      rec.fail('live', `guide (${kind})`, 'GET', path, error);
-      guideSvc.dispose();
-      continue;
-    }
-    const snapshot = guideSvc.getSnapshot();
-    if (snapshot.phase === 'error') {
-      rec.fail('live', `guide (${kind})`, 'GET', path, Object.assign(new Error(snapshot.error ?? 'guide failed'), {code: 'guide_error'}));
-    } else {
-      rec.pass('live', `guide (${kind})`, 'GET', path);
-    }
-    guideSvc.dispose();
-  }
   await rec.check('live', 'library channels', 'GET', '/v1/admin/library-channels', () => readLibraryChannels(api, serverId));
   await rec.check('live', 'library channel templates', 'GET', '/v1/admin/library-channels/templates', () => readLibraryTemplates(api, serverId));
   rec.skip('library channel preview', 'POST /v1/admin/library-channels/preview: a write-shaped call; skipped when unsure (library-channels.ts)');

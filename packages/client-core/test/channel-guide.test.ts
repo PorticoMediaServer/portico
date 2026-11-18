@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ChannelGuideService,parseChannelGuide,topChannelGroups,stripDays,dayPrimeTime,type ChannelApi,type GuideRoute} from '../src/channel-guide.ts';
+import {parseChannelGuide,dayPrimeTime,type ChannelApi,type GuideRoute} from '../src/channel-guide.ts';
 const route:GuideRoute={kind:'live-source',start:'2026-09-05T12:00:00Z',end:'2026-09-05T15:00:00Z',timezone:'UTC',search:'',sourceId:''};
 const fixture=()=>({protocolVersion:'1.0',serverId:'server',guide:{state:'ready',viewerFence:'viewer',start:route.start,end:route.end,timezone:route.timezone,nextCursor:'',observedAt:'2026-09-05T12:00:00Z',sources:[{id:'source',name:'Live source',generation:'generation',publishedAt:'2026-09-05T11:00:00Z',refreshState:'manual',availableStart:'2026-09-05T12:00:00Z',availableEnd:'2026-09-05T13:00:00Z',provenance:'live-source'}],channels:[{id:'channel',sourceId:'source',provenance:'live-source',name:'Channel one',number:'1',group:'Local',generation:'generation',tuneAvailable:false,recordAvailable:false,tuneUnavailableReason:'delivery-unavailable',recordUnavailableReason:'recording-unavailable',favorite:false,hidden:false,preferenceRevision:0,programmes:[{id:'occurrence',channelId:'channel',title:'Programme',start:'2026-09-05T12:00:00Z',end:'2026-09-05T13:00:00Z',lineage:'provider-id'}]}]}});
 test('guide preserves genuine full-source marks and never derives missing or malformed marks',()=>{
@@ -60,35 +60,6 @@ test('guide programme facts: full programme parses, minimal programme has no fac
  assert.equal(dropped.days,undefined);
  assert.ok(!JSON.stringify(dropped).includes('provider.invalid'));
 });
-test('old request cannot overwrite newer guide intent; dispose fences outstanding response',async()=>{const pending:Array<(v:unknown)=>void>=[];const api:ChannelApi={request:<T>()=>new Promise<T>(resolve=>pending.push(v=>resolve(v as T)))};const service=new ChannelGuideService(api,'server');const old=service.load(route);const changed={...route,search:'new'};const latest=service.load(changed);pending[1](fixture());await latest;assert.equal(service.getSnapshot().route?.search,'new');pending[0](fixture());await old;assert.equal(service.getSnapshot().route?.search,'new');const last=service.load(route);service.dispose();pending[2](fixture());await last;assert.equal(service.getSnapshot().route?.search,'');assert.equal(service.getSnapshot().guide,null);});
-test('temporary refresh failure retains guide; authorization failure removes it',async()=>{let failure:unknown;const api:ChannelApi={request:async<T>()=>{if(failure)throw failure;return fixture() as T}};const service=new ChannelGuideService(api,'server');await service.load(route);failure=new Error('raw private diagnostics');await service.load(route,'refresh');assert.equal(service.getSnapshot().guide?.channels.length,1);assert.ok(!service.getSnapshot().error?.includes('private'));failure={status:403};await service.load(route,'refresh');assert.equal(service.getSnapshot().guide,null);service.dispose();});
-test('M25-2: a single 429 retries automatically with Retry-After, then succeeds', async () => {
-  let calls = 0;
-  const api: ChannelApi = {request: async <T>() => { calls++; if (calls === 1) throw {status: 429, retryAfterSeconds: 0}; return fixture() as T; }};
-  const service = new ChannelGuideService(api, 'server');
-  await service.load(route);
-  assert.equal(service.getSnapshot().phase, 'ready');
-  assert.equal(calls, 2, 'one automatic retry, no manual Try again');
-  service.dispose();
-});
-test('M25-2: an HTTP-date Retry-After is honoured, persistent 429s surface after a few attempts', async () => {
-  const future = new Date(Date.now() + 100).toUTCString();
-  let calls = 0;
-  const dated: ChannelApi = {request: async <T>() => { calls++; if (calls === 1) throw {status: 429, retryAfter: future}; return fixture() as T; }};
-  const datedService = new ChannelGuideService(dated, 'server');
-  await datedService.load(route);
-  assert.equal(datedService.getSnapshot().phase, 'ready');
-  datedService.dispose();
-  let failed = 0;
-  const always: ChannelApi = {request: async <T>(): Promise<T> => { failed++; throw {status: 429, retryAfterSeconds: 0}; }};
-  const failing = new ChannelGuideService(always, 'server');
-  await failing.load(route);
-  assert.equal(failing.getSnapshot().phase, 'error');
-  assert.equal(failed, 3, 'bounded: at most a few attempts');
-  failing.dispose();
-});
-test('deadline ends non-settling adapter; a refresh under a moved fence is the newer answer; access recovery reads afresh',{timeout:1000},async()=>{const stuck:ChannelApi={request:<T>()=>new Promise<T>(()=>{})};const service=new ChannelGuideService(stuck,'server',5);await service.load(route);assert.equal(service.getSnapshot().phase,'error');service.dispose();let next=fixture();const api:ChannelApi={request:async<T>()=>next as T};const recovered=new ChannelGuideService(api,'server');await recovered.load(route);next=fixture();next.guide.viewerFence='new-fence';await recovered.load(route,'refresh');assert.equal(recovered.getSnapshot().phase,'ready');assert.equal(recovered.getSnapshot().guide?.viewerFence,'new-fence','step 7: a read under a moved fence is the newer answer');recovered.resetAccess();await recovered.load(route);assert.equal(recovered.getSnapshot().guide?.viewerFence,'new-fence');recovered.dispose();});
-
 test('Library Channel millisecond intervals decode without advertising DVR',()=>{
  const v=fixture();const libraryRoute:GuideRoute={...route,kind:'library-channel'};
  v.guide.sources[0].provenance='library-channel';v.guide.channels[0].provenance='library-channel';
@@ -137,35 +108,11 @@ test('a favourite is the profile\'s channel marks on the rebuilt server',async()
  assert.deepEqual(sent,[['PUT','/v1/live/channels/channel/state',{favorite:true,hidden:false}]]);
 });
 
-test('FEAT-04: group chips rank the top groups by count (ties keep server order)',()=>{
- const channels=[{group:'News'},{group:'Sports'},{group:'News'},{group:'Movies'},{group:'Sports'},{group:'Sports'},{group:'Kids'},{group:''},{group:'Movies'}];
- assert.deepEqual(topChannelGroups(channels),['Sports','News','Movies','Kids']);
- assert.deepEqual(topChannelGroups(channels,2),['Sports','News']);
- assert.deepEqual(topChannelGroups([],5),[]);
- assert.deepEqual(topChannelGroups([{group:''}]),[]);
-});
-
-test('FEAT-04: day strip lists Today plus the next days across a DST change (America/New_York)',()=>{
+test('dayPrimeTime lands at 18:00 local on ordinary days and across DST changes',()=>{
  const zone='America/New_York';
- // A week crossing the fall-back (2026-11-01, a 25-hour day): 7 consecutive local midnights.
- const fall=stripDays(Date.parse('2026-10-30T15:00:00Z'),zone);
- assert.equal(fall.length,7);
- const fmt=new Intl.DateTimeFormat('en-US',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
- const at=(ms:number)=>fmt.format(new Date(ms));
- assert.equal(at(fall[0]),'10/30/2026, 00:00');
- assert.equal(at(fall[2]),'11/01/2026, 00:00');
- assert.equal(at(fall[3]),'11/02/2026, 00:00');
- assert.equal(fall[3]-fall[2],25*3600_000);
- // A week crossing the spring-forward (2026-03-08, a 23-hour day).
- const spring=stripDays(Date.parse('2026-03-07T15:00:00Z'),zone);
- assert.equal(spring.length,7);
- assert.equal(at(spring[1]),'03/08/2026, 00:00');
- assert.equal(at(spring[2]),'03/09/2026, 00:00');
- assert.equal(spring[2]-spring[1],23*3600_000);
- // Prime time is the local 18:00 hour on ordinary and DST days alike.
- assert.equal(at(dayPrimeTime(fall[2],zone)),'11/01/2026, 18:00');
- assert.equal(at(dayPrimeTime(spring[1],zone)),'03/08/2026, 18:00');
- assert.equal(at(dayPrimeTime(fall[0],zone)),'10/30/2026, 18:00');
+ assert.equal(new Date(dayPrimeTime(Date.parse('2026-10-30T04:00:00Z'),zone)).toISOString(),'2026-10-30T22:00:00.000Z');
+ assert.equal(new Date(dayPrimeTime(Date.parse('2026-11-01T04:00:00Z'),zone)).toISOString(),'2026-11-01T23:00:00.000Z');
+ assert.equal(new Date(dayPrimeTime(Date.parse('2026-03-08T05:00:00Z'),zone)).toISOString(),'2026-03-08T22:00:00.000Z');
 });
 
 test('the bounded named-channel guide accepts fifty rows and rejects a larger response',()=>{
@@ -184,35 +131,4 @@ test('guide accepts programme-bound images and refuses unscoped or external imag
   const parsed=parseChannelGuide(value,'server',route).channels[0].programmes[0];
   assert.equal(parsed.image,image===safe?safe:undefined);
  }
-});
-
-// Step 7 (lead, 5 Nov): a guide cursor the server refuses (409 guide_refresh_required: the window changed, or the viewer's
-// access was decided again) reads the window's first page once in place of what is shown; a continuation that answers
-// clears that guard; a refusal straight after the re-read shows the error, and Try again reads the first page, never the
-// refused cursor again.
-test('step 7: a refused guide cursor reads the window\'s first page once, and Try again after a second refusal reads the first page',async()=>{
- const asked:string[]=[];const script=['refuse','answer','refuse','refuse'];let firsts=0;
- const api:ChannelApi={request:async<T>(path:string)=>{
-  const cursor=new URL(path,'https://x.invalid').searchParams.get('cursor')??'';asked.push(cursor);
-  const value=fixture();
-  if(!cursor){firsts++;value.guide.nextCursor=`c${firsts}`;value.guide.viewerFence=`fence-${firsts}`;return value as T;}
-  if(script.shift()==='answer'){value.guide.nextCursor=`${cursor}+`;return value as T;}
-  throw Object.assign(new Error('The guide changed. Reload this time window.'),{status:409,code:'guide_refresh_required'});
- }};
- const service=new ChannelGuideService(api,'server');
- await service.load(route);assert.equal(firsts,1);
- // First refusal: the first page is read again, quietly, in place of what is shown.
- const phases:string[]=[];const off=service.subscribe(()=>phases.push(service.getSnapshot().phase));
- await service.load(route,'next');off();
- assert.equal(firsts,2);assert.equal(service.getSnapshot().phase,'ready');assert.equal(service.getSnapshot().guide?.viewerFence,'fence-2');
- assert.equal(service.getSnapshot().hasPrevious,false);assert.ok(!phases.includes('error'),'the refusal is not shown');
- // A continuation answers, then a second change refuses again: read again too.
- await service.load(route,'next');assert.equal(service.getSnapshot().guide?.nextCursor,'c2+');
- await service.load(route,'next');assert.equal(firsts,3);assert.equal(service.getSnapshot().phase,'ready');
- // A refusal straight after that re-read shows the error.
- await service.load(route,'next');assert.equal(firsts,3);assert.equal(service.getSnapshot().phase,'error');
- // Try again reads the window's first page, not the refused cursor.
- const before=asked.length;await service.load(route,'refresh');
- assert.equal(asked[before],'');assert.equal(firsts,4);assert.equal(service.getSnapshot().phase,'ready');
- service.dispose();
 });
