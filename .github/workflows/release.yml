@@ -385,6 +385,8 @@ jobs:
             out="$(docker exec portico-proof /opt/portico/third_party/ffmpeg/bin/portico-disc probe "/discs/$disc")"
             echo "$disc: ${out:0:160}"
           done
+          # Music analysis: the Sonic helper finds every library it needs inside the image.
+          if docker exec portico-proof ldd /opt/portico/third_party/ffmpeg/bin/portico-sonic | grep 'not found'; then exit 1; fi
           docker top portico-proof -o pid,uid,args
           docker logs portico-proof 2>&1 | tail -20
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -800,7 +802,7 @@ jobs:
           **Internal build, NOT FOR USE.** Portico $VERSION, build $BUILD, from $SHA.
 
           - **Server:** unsealed. Linux x64 and ARM64, Windows x64, and macOS Apple Silicon only. The update feed lists no build, so no server offers this as an update.
-          - **Media tools:** every server build and the container image carry Portico's own build of FFmpeg (jellyfin-ffmpeg 8.1.3-1 with Portico's patches, GPL-3.0-or-later) and the portico-disc reader, so they play Blu-ray and DVD folders and images. The complete source is attached: jellyfin-ffmpeg's source, each platform's library sources, and Portico's patches and build script in this commit's \`third_party/ffmpeg\`. No music analysis (Sonic) in this build.
+          - **Media tools:** every server build and the container image carry Portico's own build of FFmpeg (jellyfin-ffmpeg 8.1.3-1 with Portico's patches, GPL-3.0-or-later) and the portico-disc reader, so they play Blu-ray and DVD folders and images. The complete source is attached: jellyfin-ffmpeg's source, each platform's library sources, and Portico's patches and build script in this commit's \`third_party/ffmpeg\`. The Linux builds and the container image also carry music analysis (Sonic: the pinned portico-sonic helper, ONNX Runtime and the musicnn model, with their licences and the helper's source).
           - **macOS server:** $([ "$MAC_SIGNED" = true ] && { [ "$MAC_INSTALLER_SIGNED" = true ] && echo 'the app, the installer package and the disk image are signed with Developer ID and notarised' || echo 'the app and the disk image are signed with Developer ID and notarised; the installer package is unsigned'; } || echo 'unsigned').
           - **Android and Fire TV:** $([ "$ANDROID_SIGNED" = true ] && echo 'signed with the Portico app signing key' || echo 'debug-signed') (tv.getportico.app). Sideloaded APKs on certified Android devices need tv.getportico.app and this key registered in Android developer verification.
           - **iPhone, iPad and Apple TV:** $([ "$APPLE_SIGNED" = true ] && echo 'App Store-signed .ipa files' || echo 'unsigned archives').
