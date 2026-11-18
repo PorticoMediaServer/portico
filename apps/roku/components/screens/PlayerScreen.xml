@@ -3,6 +3,9 @@
 <component name="PlayerScreen" extends="Group">
   <interface>
     <field id="item" type="assocarray"/>
+    <!-- What POST /v1/queues is asked to build when a page plays a run of titles (a collection's
+         Play all or Shuffle); unset, the queue is built from `item` (source/Queue.brs queueBody). -->
+    <field id="queue" type="assocarray"/>
     <!-- True to start from the beginning instead of where the title was left. -->
     <field id="startOver" type="boolean"/>
     <!-- Played with the Watch Together group (Open player in its room, Watch with group): the group's clock

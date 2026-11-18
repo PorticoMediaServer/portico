@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Saved (frame "Browse"; tv-more frames 1 to 5, collections frames 15 to 17, tv-focus 42, 43, 45):
+     the page title with six tabs beside it, the tab's toolbar, then its titles, tiles or rows. The
+     tabs change the page as focus lands on them. Focus starts on the first title. -->
+<component name="SavedScreen" extends="Group">
+  <interface>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="art" type="string"/>
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+    <field id="toTop" type="boolean" alwaysNotify="true" onChange="onToTop"/>
+    <!-- Set when an empty tab's Browse Home is pressed. -->
+    <field id="goHome" type="boolean" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="SavedScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Label id="heading" text="Saved"/>
+    <Group id="tabs"/>
+    <Rectangle id="tabMark" height="3"/>
+    <Poster id="tabRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
+    <Group id="tools"/>
+    <Label id="count"/>
+    <!-- the tab's titles, tiles or rows, in a window under the toolbar that scrolls with focus -->
+    <Group id="box">
+      <Group id="content"/>
+    </Group>
+    <StateRow id="gridState" visible="false"/>
+    <PageState id="page" visible="false"/>
+    <Confirm id="confirm" visible="false"/>
+  </children>
+</component>

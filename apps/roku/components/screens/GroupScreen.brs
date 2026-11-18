@@ -5,6 +5,10 @@ sub init()
     m.rows = m.top.findNode("rows")
     m.head = m.top.findNode("head")
     m.state = m.top.findNode("state")
+    m.actions = m.top.findNode("actions")     ' a collection's Play all and Shuffle
+    m.actions.translation = [f.gutter, f.collectionActionsY]
+    m.actions.observeField("pressed", "onPlay")
+    m.onActions = false  ' true while they hold focus
     m.smallTitle = m.top.findNode("smallTitle")
     m.name = m.top.findNode("name")
     m.about = m.top.findNode("about")
@@ -37,6 +41,8 @@ sub onItem()
     m.focus = 0          ' which of them has focus
     m.detail = invalid   ' a collection's own facts, once read
     m.detailFailed = false
+    m.onActions = false  ' true while a collection's Play all and Shuffle hold focus
+    m.actions.visible = false
     m.state.visible = false
     m.rows.visible = true
     m.head.visible = true
@@ -53,6 +59,10 @@ sub onItem()
         m.top.art = ""
         placeWords("", item.title, "", "", "")
         api("GET", "/v1/people/" + item.id, invalid, "onPerson", {generation: m.generation})
+    else if item.kind = "savedList"
+        ' a profile's own list from Saved: its titles in its own order (a saved view's: what it finds now)
+        placeWords(item.eyebrow, item.title, "", "", "")
+        askRow(item.heading, item.path)
     else
         placeWords("Collection", item.title, "", "", "")
         api("GET", "/v1/items/" + item.id, invalid, "onCollection", {generation: m.generation})
@@ -148,7 +158,14 @@ sub collectionWords()
     if strong = "" and count > 0 then strong = countText(count, "title", "titles")
     about = ""
     if full.summary <> invalid then about = oneParagraph(full.summary)
-    placeWords("Collection", full.title, strong, span, about)
+    eyebrow = "Collection"
+    if full.eyebrow <> invalid then eyebrow = full.eyebrow
+    placeWords(eyebrow, full.title, strong, span, about)
+    ' Play all and Shuffle appear once there are titles to play
+    if slot.state = "ok" and slot.items.count() > 0 and not m.actions.visible
+        m.actions.buttons = [{id: "all", text: "Play all", icon: "play"}, {id: "shuffle", text: "Shuffle", icon: "shuffle"}]
+        m.actions.visible = true
+    end if
     if pick(full.images, ["backdrop"]) <> ""
         m.top.art = pageArt(full)
     else if slot.state = "ok"
@@ -315,14 +332,21 @@ sub placeRows()
     m.head.visible = (m.focus = 0 and not m.state.visible)
     m.smallTitle.visible = (m.focus > 0)
     m.top.quiet = (m.focus > 0)     ' the art dims once rows lie over it
-    ' focus lands on the first row once there is one, if the page itself still holds it
-    if m.shown.count() > 0 and m.top.hasFocus() then m.shown[0].focus.active = true
+    ' focus lands on Play all, or else the first row, once there is one, if the page itself still holds it
+    if m.top.hasFocus() and m.actions.visible
+        m.onActions = true
+        m.actions.active = true
+    else if m.shown.count() > 0 and m.top.hasFocus()
+        m.shown[0].focus.active = true
+    end if
 end sub
 
 sub onActive()
     if not m.top.active then return
     if m.state.visible
         m.state.active = true
+    else if m.onActions
+        m.actions.active = true
     else if m.focus < m.shown.count()
         m.shown[m.focus].focus.active = true
     else
@@ -350,9 +374,44 @@ function pressKey(key as string) as boolean
     return true
 end function
 
+' Play all and Shuffle, above the rows: Up from the first row reaches them, Down returns to it;
+' other keys on them go on to the scene (Left to the rail, Back).
+function actionsKey(key as string) as boolean
+    if not m.onActions
+        m.onActions = true
+        m.actions.active = true
+        return true
+    end if
+    if key <> "down" or m.shown.count() = 0 then return false
+    m.onActions = false
+    m.focus = 0
+    placeRows()
+    m.shown[0].focus.active = true
+    return true
+end function
+
+' The collection's whole run, in its order or shuffled, as one queue the player moves through.
+sub onPlay(event as object)
+    items = m.slots[0].items
+    ids = []
+    for each item in items
+        ids.push(item.id)
+    end for
+    first = items[0]
+    queue = {source: {items: ids}}
+    if event.getData() = "shuffle"
+        ' the server plays startAt first and shuffles the rest, so the first is picked here
+        first = items[rnd(items.count()) - 1]
+        queue.shuffle = true
+        queue.startAt = first.id
+    end if
+    m.top.open = {item: first, play: true, queue: queue}
+end sub
+
 function onKeyEvent(key as string, press as boolean) as boolean
     if press and key = "options" then return cardKey()
     holdKey(key, press and (key = "up" or key = "down"))
+    if press and not m.state.visible and (m.onActions or (key = "up" and m.focus = 0 and m.actions.visible)) then return actionsKey(key)
     if not press or m.state.visible then return false
     if key = "up" or key = "down" then return pressKey(key)     ' Up at the top goes on to the scene
     return false

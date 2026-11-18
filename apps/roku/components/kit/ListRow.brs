@@ -38,6 +38,12 @@ sub layout()
         initial.text = model.initial
         textX = 24 + 64 + 20
     end if
+    art = m.top.findNode("art")
+    art.visible = (model.art <> invalid and model.art <> "")
+    if art.visible
+        art.uri = model.art
+        textX = 24 + 156 + 24
+    end if
     ' the right side first: the words take what is left
     right = w - 24
     chevron = m.top.findNode("chevron")
@@ -79,6 +85,7 @@ sub layout()
     h = words + 36
     if h < frames().settings.row then h = frames().settings.row
     if face.visible and h < 64 + 24 then h = 64 + 24
+    if art.visible and h < 88 + 24 then h = 88 + 24
     y = (h - words) / 2
     label.translation = [textX, y]
     y = y + label.boundingRect().height + 3
@@ -89,6 +96,7 @@ sub layout()
     icon.translation = [32, (h - 28) / 2]
     face.translation = [22, (h - 64) / 2]
     initial.translation = [22, (h - 64) / 2]
+    art.translation = [24, (h - 88) / 2]
     value.translation = [valueRight - valueWidth, 0]
     value.height = h
     value.vertAlign = "center"
