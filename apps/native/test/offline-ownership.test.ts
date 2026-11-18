@@ -15,13 +15,13 @@ test('restarted downloads keep their native facts and are scoped to the exact sa
   f.offline.adopt(viewer);
   await f.offline.open();
   const [entry] = f.offline.getSnapshot().entries;
-  assert.deepEqual(f.offline.getSnapshot().entries.map(e => e.id), ['mine']);
+  assert.deepEqual(f.offline.getSnapshot().entries.map((e: {id: string}) => e.id), ['mine']);
   assert.equal(entry.artworkUrl, 'file:///downloads/mine/extras/poster');
   assert.equal(entry.waiting, 'wifi'); assert.equal(entry.held, true);
   assert.equal(entry.info?.durationSeconds, 100);
   assert.equal((await f.offline.localMedia(entry)).entryId, 'mine');
   f.offline.adopt(other);
-  assert.deepEqual(f.offline.getSnapshot().entries.map(e => e.id), ['other']);
+  assert.deepEqual(f.offline.getSnapshot().entries.map((e: {id: string}) => e.id), ['other']);
   assert.equal(f.offline.playabilityReason(entry), 'other_profile');
   f.offline.adopt(undefined);
   assert.deepEqual(f.offline.getSnapshot().entries, []);
