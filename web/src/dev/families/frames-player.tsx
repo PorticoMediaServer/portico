@@ -88,7 +88,7 @@ function WatchPage({paused = false}: {paused?: boolean}) {
 type PlayerState = 'playing' | 'paused' | 'buffering' | 'scrubbing' | 'missing' | 'recap' | 'undo';
 /** The video player filled with the kit's player parts, with what each mock-up puts in each place for its form
  * (desktop-player 1, phone-player 1 on its side, phone-player 4 upright). `opened` is the button whose panel shows. */
-function Player({state = 'playing', panel, panelCovers, card, opened, page}: {state?: PlayerState; panel?: ReactNode; panelCovers?: 'bar' | 'all'; card?: ReactNode; opened?: 'episodes' | 'subtitles';
+function Player({state = 'playing', panel, panelCovers, resume, card, opened, page}: {state?: PlayerState; panel?: ReactNode; panelCovers?: 'bar' | 'all'; resume?: ReactNode; card?: ReactNode; opened?: 'episodes' | 'subtitles';
   /** An upright phone: what stands in the watch page's place under the strip (the end card). */ page?: ReactNode}) {
   const [volume, setVolume] = useState(.7), upright = usePhone(), sideways = useSideways(), desktop = useWide() && !sideways, missing = state === 'missing';
   const tool = (icon: AudioControl['icon'], name: FrameName, disabled = false) => <PlayerControl onPicture icon={icon} label={f(name)} disabled={disabled} onPress={none} />;
@@ -98,7 +98,7 @@ function Player({state = 'playing', panel, panelCovers, card, opened, page}: {st
   const prompt = state === 'playing' ? <PlayerPrompt label={f('skipIntro')} onPress={none} dismiss={{label: f('dismiss'), onPress: none}} />
     : state === 'recap' ? <PlayerPrompt label={p('skipRecap')} onPress={none} dismiss={{label: f('dismiss'), onPress: none}} />
     : state === 'undo' ? <PlayerPrompt note={p('skippedIntro')} label={p('undo')} icon="i-undo" onPress={none} /> : undefined;
-  return <Layer video><PlayerChromeFrame chromeVisible={state !== 'undo'} scrubbing={state === 'scrubbing'} panel={panel} panelCovers={panelCovers} card={card} picture={<Still />} close={tool('i-down', 'close')}
+  return <Layer video><PlayerChromeFrame chromeVisible={state !== 'undo'} scrubbing={state === 'scrubbing'} panel={panel} panelCovers={panelCovers} resume={resume} card={card} picture={<Still />} close={tool('i-down', 'close')}
     title={<PlayerTitle title={f('tlou')} lead={f('videoLead')} subtitle={opened === 'episodes' ? p('pausedAt') : f('videoSubtitle')} />}
     tools={desktop ? <>{tool('i-cast', 'playOn')}{tool('i-more', 'more')}{tool('i-x', 'dismiss')}</> : <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{upright && tool('i-subs', 'subtitles', missing)}{tool('i-sliders', 'playerSettings')}</>}
     scrubber={<Scrubber scrubbing={state === 'scrubbing'} marks={!missing} />}
@@ -148,7 +148,7 @@ function PlayerEpisodesCase() {
   const art = useReferenceArtwork(), upright = usePhone(), sideways = useSideways(), anchor = useRef<HTMLButtonElement>(null);
   if (upright) return <Player state="paused" opened="episodes" />;
   const context: PlayerPanelContext = {panel: 'episodes', snapshot: {} as PlayerPanelContext['snapshot'], layout: sideways ? 'phone' : 'desktop', landscape: sideways, phoneTop: 220, close: none, show: none, returnFocusRef: anchor};
-  return <Player state="paused" opened="episodes" panelCovers={sideways ? 'all' : 'bar'} panel={<PlayerEpisodes episodes={episodeList} context={context} artwork={art} onPlay={none} onSeason={none} reportError={none} />} />;
+  return <Player state="paused" opened="episodes" panelCovers={sideways ? 'all' : 'bar'} resume={<PlayerControl resume icon="i-play" label={f('play')} onPress={none} />} panel={<PlayerEpisodes episodes={episodeList} context={context} artwork={art} onPlay={none} onSeason={none} reportError={none} />} />;
 }
 /** Up next over the credits: desktop-player 4 (Play now, Skip credits, Watch credits and the scene after the credits)
  * and 4s (the countdown), phone-player 6. */

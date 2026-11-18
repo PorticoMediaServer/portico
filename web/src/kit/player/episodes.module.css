@@ -1,5 +1,5 @@
 /* desktop-player f6: the Episodes drawer over the paused picture. Every value is the frame's. */
-.drawer { position: absolute; z-index: var(--layer-hero-navigation); left: 0; right: 0; bottom: 0; height: 480px; padding: 74px 0 0; pointer-events: auto;
+.drawer { position: absolute; z-index: var(--layer-hero-navigation); left: 0; right: 0; bottom: 0; height: var(--frame-player-drawer); padding: 74px 0 0; pointer-events: auto;
   background: linear-gradient(180deg, transparent 0, color-mix(in srgb, var(--color-ink) 84%, transparent) 90px, color-mix(in srgb, var(--color-ink) 97%, transparent) 230px); }
 /* The drawer takes focus when it opens so its keys work; the ring belongs to the card that is focused next, not to the drawer's whole width. */
 .drawer:focus { outline: none; }
