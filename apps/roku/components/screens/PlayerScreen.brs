@@ -57,6 +57,23 @@ sub init()
     m.prompt.observeField("pressed", "onPrompt")
     m.dismissed = {}     ' segments skipped or put away, by marker id
     m.promptKey = ""
+    m.upNext = m.top.findNode("upNext")
+    m.unRow = m.top.findNode("unRow")
+    m.unRow.observeField("pressed", "onPrompt")
+    m.finished = m.top.findNode("finished")
+    m.finRow = m.top.findNode("finRow")
+    m.finRow.observeField("pressed", "onFinished")
+    setType(m.top.findNode("unLabel"), "groupLabel", c.accentStrong)
+    setType(m.top.findNode("unTitle"), "heading", c.text)
+    setType(m.top.findNode("unSub"), "meta", c.textSecondary)
+    setType(m.top.findNode("unWhen"), "help", c.textTertiary)
+    setType(m.top.findNode("finLabel"), "eyebrow", c.accentStrong)
+    setType(m.top.findNode("finTitle"), "lockupLong", c.text)
+    m.top.findNode("finTitle").lineSpacing = -24     ' two lines of the lockup set close, as the frame draws them
+    setType(m.top.findNode("finMeta"), "metaStrong", c.textSecondary)
+    m.queue = invalid    ' this play's queue (source/Queue.brs), once the server has made it
+    m.queueAsked = false
+    m.next = invalid     ' the entry after this one, when there is one
     ' every fixed line of the overlay and of what sits over the picture comes from the player's frame
     f = frames().player
     m.f = f
@@ -82,23 +99,35 @@ sub init()
     m.top.findNode("waitText").translation = [260, f.waitY + 142]
     ' Playback failed sits under the title row, at the player's left line
     m.notice.translation = [f.left - frames().gutter, f.noticeDrop]
-    makeButtons()
+    m.top.findNode("unPlate").blendColor = c.promptPlate
+    m.top.findNode("unBack").color = c.raised
+    m.top.findNode("unStill").blendColor = c.stillDim
+    m.top.findNode("finBack").color = c.ink
+    m.top.findNode("finLabel").translation = [f.left, f.finished.top]
+    m.top.findNode("finTitle").translation = [f.left, f.finished.titleY]
+    m.top.findNode("finMeta").translation = [f.left, f.finished.metaY]
+    m.finRow.translation = [f.left, f.finished.buttonsY]
+    makeButtons(false, false)
     makeHints()
 end sub
 
 ' The button row, 88 px tall: the transport centred on the screen (Play/Pause in the middle), and
 ' Subtitles, Audio and Quality at the right end, each the label over what is chosen now.
 ' m.row holds them left to right; m.focus is an index into it, or -1 for the seek bar.
-sub makeButtons()
+sub makeButtons(hasPrevious as boolean, hasNext as boolean)
     m.buttons.removeChildrenIndex(m.buttons.getChildCount(), 0)
     m.row = []
     specs = [{kind: "back", icon: "skip-back-44", size: 64, seconds: "10"}, {kind: "play", icon: "pause-40", size: 88}, {kind: "forward", icon: "skip-forward-44", size: 64, seconds: "30"}]
+    ' Previous and Next flank the transport when the queue has something that way
+    if hasPrevious then specs.unshift({kind: "previous", icon: "previous-32", size: 64})
+    if hasNext then specs.push({kind: "next", icon: "next-32", size: 64})
+    ' Play/Pause stays in the middle of the screen whatever flanks it
     gap = 22
-    total = (specs.count() - 1) * gap
+    x = 960 - 44
     for each spec in specs
-        total = total + spec.size
+        if spec.kind = "play" then exit for
+        x = x - spec.size - gap
     end for
-    x = 960 - total / 2
     for each spec in specs
         plate = m.buttons.createChild("Poster")
         plate.uri = "pkg:/images/disc.png"
@@ -107,6 +136,7 @@ sub makeButtons()
         plate.translation = [x, (88 - spec.size) / 2]
         iconSize = 36
         if spec.kind = "play" then iconSize = 40
+        if spec.kind = "previous" or spec.kind = "next" then iconSize = 32
         icon = m.buttons.createChild("Poster")
         icon.uri = "pkg:/images/i-" + spec.icon + ".png"
         icon.width = iconSize
@@ -245,7 +275,15 @@ sub start()
     end if
     m.top.findNode("waitTitle").text = title
     busy("Getting ready…")
+    if not m.queueAsked
+        ' every play is a queue on the server, so what comes next is known
+        m.queueAsked = true
+        api("POST", "/v1/queues", queueBody(item), "onQueue")
+        return
+    end if
+    ' a queued play names its entry; the server knows the title from it
     body = {itemId: item.id}
+    if m.queue <> invalid and m.queue.current <> invalid then body = {queue: {queueId: m.queue.id, entryId: m.queue.current.entryId}}
     if m.top.startOver then body.startPositionMs = 0
     if m.resumeAt <> invalid then body.startPositionMs = m.resumeAt
     ' one start is one request however often it is asked again while the stream gets ready (202)
@@ -636,12 +674,22 @@ sub leave(tell as boolean)
         timer.control = "stop"
     end for
     busy(invalid)
+    if tell then stopSession()
+    m.video.control = "stop"
+    m.session = invalid
+    m.top.closed = true
+end sub
+
+'' Ends the session with where the picture got to and the viewing time.
+sub stopSession()
+    m.report.control = "stop"
+    m.tick.control = "stop"
+    if m.session = invalid then return
     at = int(m.video.position * 1000)
     if at = 0 and m.last > 0 then at = int(m.last * 1000)
     m.video.control = "stop"
-    if tell and m.session <> invalid then api("DELETE", "/v1/playback/sessions/" + m.session.id, finalReport(at), "onStopped")
+    api("DELETE", "/v1/playback/sessions/" + m.session.id, finalReport(at), "onStopped")
     m.session = invalid
-    m.top.closed = true
 end sub
 
 sub onStopped()
@@ -652,7 +700,7 @@ sub onVideoState()
     state = m.video.state
     if state = "finished"
         ' the end of the title, or a stream that stopped short of it
-        if m.duration <= 0 or m.last >= m.duration - 5 then leave(true) else again()
+        if m.duration <= 0 or m.last >= m.duration - 5 then ended() else again()
     else if state = "error"
         again()
     else if state = "playing"
@@ -719,15 +767,28 @@ end function
 
 ' Shows, changes or puts away the prompt for where the picture is.
 sub updatePrompt()
-    if m.failed or m.ended then return
-    marker = activeMarker(m.video.position)
+    if m.failed or m.ended or m.session = invalid then return
+    at = m.video.position
+    marker = activeMarker(at)
     key = ""
     if marker <> invalid then key = marker.id
+    ' Up next: during closing credits, or an episode's last 30 seconds when it has none marked
+    closing = marker <> invalid and (marker.type = "credits" or marker.type = "outro") and marker.startMs / 1000 >= m.duration / 2
+    tail = m.top.item.kind = "episode" and m.duration >= 600 and at >= m.duration - 30 and at < m.duration - 1
+    if m.next <> invalid and (closing or (tail and marker = invalid)) and m.dismissed["next"] <> true then key = "next"
+    if key = "next" then m.top.findNode("unWhen").text = "Starts in " + clockText(m.duration - at)
     if key = m.promptKey then return
     m.promptKey = key
+    if key = "next"
+        if not closing then marker = invalid
+        showUpNext(marker)
+        focusPrompt()
+        return
+    end if
+    m.upNext.visible = false
     if marker = invalid
         m.prompt.visible = false
-        if m.prompt.isInFocusChain() then m.top.setFocus(true)
+        if not m.top.hasFocus() and not m.controls.visible then m.top.setFocus(true)
         return
     end if
     words = {intro: "Skip intro", recap: "Skip recap", credits: "Skip credits", outro: "Skip outro", commercial: "Skip ad"}
@@ -748,11 +809,23 @@ end sub
 
 ' The prompt takes focus by itself only while no control has it (the overlay is down).
 sub focusPrompt()
-    if m.prompt.visible and not m.controls.visible and not m.failed and m.top.isInFocusChain() then m.prompt.active = true
+    if m.controls.visible or m.failed or not m.top.isInFocusChain() then return
+    if m.upNext.visible then m.unRow.active = true else if m.prompt.visible then m.prompt.active = true
 end sub
 
 sub onPrompt(event as object)
-    if event.getData() <> "skip" then return
+    which = event.getData()
+    if which = "next"
+        advance("next")
+        return
+    else if which = "credits"
+        ' Watch credits: the card goes away for this title
+        m.dismissed["next"] = true
+        m.upNext.visible = false
+        m.promptKey = ""
+        m.top.setFocus(true)
+        return
+    end if
     marker = activeMarker(m.video.position)
     if marker = invalid then return
     m.dismissed[marker.id] = true
@@ -768,10 +841,164 @@ sub onPrompt(event as object)
     lower()
 end sub
 
+' --- the queue: Previous, Next, Up next and the end of a title ------------------------------
+
+sub onQueue(event as object)
+    result = event.getData()
+    if m.ended then return
+    if result.ok
+        m.queue = result.data.queue
+        m.window = result.data.window
+        followQueue()
+    end if
+    start()     ' a play the server could not queue still plays; nothing comes after it
+end sub
+
+' What comes after (and before) the title now playing, and the transport that goes there.
+sub followQueue()
+    m.next = invalid
+    hasPrevious = false
+    if m.queue <> invalid and m.queue.current <> invalid
+        m.next = queueEntry(m.window, m.queue.nextEntryId)
+        hasPrevious = m.queue.current.position > 0
+    end if
+    makeButtons(hasPrevious, m.next <> invalid)
+    m.pillValues = ""
+end sub
+
+' Next, Previous, or "this title ended": the queue moves (naming the entry it moves from, so a
+' request sent twice moves once), and the title it lands on starts.
+sub advance(reason as string)
+    if m.queue = invalid or m.queue.current = invalid then return
+    body = {reason: reason, fromEntryId: m.queue.current.entryId}
+    if reason = "completion" and m.session <> invalid then body.sessionId = m.session.id
+    stopSession()
+    hideAll()
+    busy("Getting ready…")
+    api("POST", "/v1/queues/" + m.queue.id + "/advance", body, "onAdvanced")
+end sub
+
+sub onAdvanced(event as object)
+    result = event.getData()
+    if m.ended then return
+    if not result.ok or result.data.current = invalid
+        leave(false)
+        return
+    end if
+    m.queue = result.data
+    api("GET", "/v1/queues/" + m.queue.id + "/entries?around=current&before=1&after=1", invalid, "onWindow")
+end sub
+
+sub onWindow(event as object)
+    result = event.getData()
+    if m.ended then return
+    entry = invalid
+    if result.ok then entry = queueEntry(result.data.items, m.queue.current.entryId)
+    if entry = invalid
+        leave(false)
+        return
+    end if
+    m.window = result.data.items
+    m.top.item = queueItem(entry)
+    m.top.startOver = false
+    fresh()
+    followQueue()
+    start()
+end sub
+
+' Everything that belonged to the title before.
+sub fresh()
+    m.options = invalid
+    m.presentation = invalid
+    m.resumeAt = invalid
+    m.duration = 0
+    m.last = 0
+    m.loadedAt = 0
+    m.tries = 0
+    m.dismissed = {}
+    m.promptKey = ""
+    m.startKey = invalid
+end sub
+
+sub hideAll()
+    m.controls.visible = false
+    m.prompt.visible = false
+    m.upNext.visible = false
+    m.promptKey = ""
+    m.top.setFocus(true)
+end sub
+
+' The Up next card for the entry after this one, with Play now first.
+sub showUpNext(marker as dynamic)
+    entry = m.next
+    still = pick(entry.images, ["thumb", "still", "backdrop"])
+    m.top.findNode("unStill").uri = imageUrl(still, 256, 144)
+    title = m.top.findNode("unTitle")
+    title.text = entry.title
+    sub_ = episodeCode(entry)
+    if entry.durationMs <> invalid then sub_ = (sub_ + "   " + durationText(entry.durationMs)).trim()
+    m.top.findNode("unSub").text = sub_
+    buttons = [{id: "next", text: "Play now", icon: "play"}]
+    if marker <> invalid and marker.endMs / 1000 < m.duration - 3 then buttons.push({id: "skip", text: "Skip credits", icon: ""})
+    buttons.push({id: "credits", text: "Watch credits", icon: ""})
+    m.unRow.buttons = buttons
+    ' a title wraps rather than being cut: the lines under it, and the card, grow to fit
+    y = 60 + title.boundingRect().height + 4
+    m.top.findNode("unSub").translation = [306, y]
+    m.top.findNode("unWhen").translation = [306, y + 36]
+    rowY = y + 36 + 34
+    if rowY < 200 then rowY = 200
+    m.unRow.translation = [26, rowY]
+    height = rowY + 72 + 24
+    m.top.findNode("unPlate").height = height
+    m.upNext.translation = [m.f.right - 680, m.f.promptBottom - height]
+    m.upNext.visible = true
+    m.prompt.visible = false
+end sub
+
+' The end of the title: the next entry plays; a film with nothing after it gets Finished.
+sub ended()
+    if m.next <> invalid
+        advance("completion")
+    else if m.top.item.kind = "movie"
+        showFinished()
+    else
+        leave(true)
+    end if
+end sub
+
+sub showFinished()
+    stopSession()
+    hideAll()
+    item = m.top.item
+    art = pick(item.images, ["backdrop", "still"])
+    m.top.findNode("finArt").uri = imageUrl(art, 1920, 1080)
+    m.top.findNode("finTitle").text = item.title
+    meta = []
+    if item.year <> invalid then meta.push(item.year.toStr())
+    if item.durationMs <> invalid then meta.push(durationText(item.durationMs))
+    m.top.findNode("finMeta").text = meta.join("   ")
+    m.finRow.buttons = [{id: "replay", text: "Replay", icon: "restart"}, {id: "close", text: "Close", icon: ""}]
+    m.finished.visible = true
+    m.finRow.active = true
+end sub
+
+sub onFinished(event as object)
+    if event.getData() = "replay"
+        m.finished.visible = false
+        m.top.setFocus(true)
+        fresh()
+        m.top.startOver = true
+        start()
+    else
+        leave(false)
+    end if
+end sub
+
 ' --- the controls ---------------------------------------------------------------------------
 
 sub raise()
-    if m.prompt.isInFocusChain() then m.top.setFocus(true)
+    if not m.top.hasFocus() then m.top.setFocus(true)
     m.controls.visible = true
     m.hide.control = "stop"
     if m.video.state <> "paused" then m.hide.control = "start"
@@ -895,7 +1122,7 @@ sub paint()
             m.ring.height = across
             m.ring.translation = [spot.x + spot.size / 2 - across / 2, m.f.buttonsY + 44 - across / 2]
             m.ring.visible = true
-            names = {back: "Back 10 seconds", forward: "Forward 30 seconds", play: "Pause"}
+            names = {back: "Back 10 seconds", forward: "Forward 30 seconds", play: "Pause", previous: "Previous", next: "Next"}
             text = names[spot.kind]
             if spot.kind = "play" and paused then text = "Play"
             showLabel(flab, text, spot.x + spot.size / 2, m.f.buttonsY + (88 - spot.size) / 2 - 12)
@@ -1026,6 +1253,10 @@ end sub
 function onKeyEvent(key as string, press as boolean) as boolean
     holdKey(key, press and m.focus < 0 and m.controls.visible and (key = "left" or key = "right"))
     if not press then return false
+    if m.finished.visible
+        if key = "back" then leave(false)
+        return true
+    end if
     if m.notice.visible
         ' Back from Playback failed leaves the player, as everywhere else in it
         if key = "back" then leave(m.session <> invalid)
@@ -1076,6 +1307,9 @@ function onKeyEvent(key as string, press as boolean) as boolean
             nudge(30)
         else if kind = "play"
             togglePause()
+        else if kind = "previous" or kind = "next"
+            advance(kind)
+            return true
         else
             openOptions(m.focus - m.firstPill)
             return true
