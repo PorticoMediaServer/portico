@@ -19,10 +19,8 @@ import type {NativeSettingsLivePorts} from '../ports';
 import {NativeScreenLifetime, screenScopeEnded} from '../lifetime';
 import {NativeHistorySource, historyLocation, type HistoryQuery} from './history-source';
 import {nativeStorageOwner} from './storage/space-source';
-import {useStorageForms, useStorageSet, type StorageForms} from './storage/forms';
 import {settingsPageHeading, settingsPageInset} from './page-layout';
 
-const IDS = ['runtime'] as const;
 export function historyReportContext(reportError: (error: unknown) => void) {
   let zone = 'UTC';
   try {zone = Intl.DateTimeFormat().resolvedOptions().timeZone || zone;}
@@ -53,13 +51,12 @@ type Group = ReturnType<typeof createHistory>;
 /** The owner's server history is separate from a viewer's personal saved titles. */
 export function NativeServerHistory({ports, runtime, compactHeader = false}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean}) {
   const context = ports.context, reportError = runtime.reportError, [group, setGroup] = useState<Group>();
-  const forms = useStorageForms(ports, IDS, reportError);
   useLayoutEffect(() => {const next = createHistory(context, reportError);setGroup(next);next.source.start();return next.dispose;}, [context, reportError]);
-  return forms && group?.context === context ? <History key={forms.mount} group={group} forms={forms} runtime={runtime} compactHeader={compactHeader}/> : null;
+  return group?.context === context ? <History group={group} runtime={runtime} compactHeader={compactHeader}/> : null;
 }
-function History({group, forms, runtime, compactHeader}: {group: Group; forms: StorageForms; runtime: NativeShellRuntime; compactHeader: boolean}) {
+function History({group, runtime, compactHeader}: {group: Group; runtime: NativeShellRuntime; compactHeader: boolean}) {
   const {source} = group, theme = useTheme(), t = runtime.text.t as typeof defaultI18n.t;
-  const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot), formState = useStorageSet(forms);
+  const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   const [search, setSearch] = useState('');
   useEffect(() => {const timer = setInterval(() => {const current = source.getSnapshot();if (current.phase === 'ready' && current.pages === 1) source.refresh();}, 15000);return () => clearInterval(timer);}, [source]);
   const table = settingsRowIndex.get('history.plays')!.row;
@@ -105,7 +102,5 @@ function History({group, forms, runtime, compactHeader}: {group: Group; forms: S
     ListEmptyComponent={state.phase === 'ready' ? <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary, marginTop: 20}]}>{t(table.control.empty!)}</Text> : state.phase === 'loading' || state.phase === 'idle' ? <StateView title={t('status.loading')}/> : null}
     ListFooterComponent={<View style={{gap: 14, marginTop: 16}}>
       {!!state.nextCursor && <Button variant="glass" loading={state.phase === 'loading'} disabled={state.phase !== 'ready'} onPress={() => source.more()}>{t('action.showMore')}</Button>}
-      {formState.dirty && <View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={formState.saving} onPress={() => forms.set.discard()}>{t('action.discard')}</Button><Button loading={formState.saving} disabled={Boolean(formState.problem)} onPress={() => {void forms.set.save();}}>{t('action.save')}</Button></View>}
-      {formState.saveError !== undefined && <StateView variant="inline" {...runtime.error(formState.saveError, () => {void forms.set.save();}, 'server-console')}/>}
     </View>}/>;
 }
