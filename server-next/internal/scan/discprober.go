@@ -60,6 +60,11 @@ var discCodecs = map[int]string{0x01: "mpeg1video", 0x02: "mpeg2video", 0x1b: "h
 	0x03: "mp1", 0x04: "mp2", 0x80: "pcm_bluray", 0x81: "ac3", 0x82: "dts", 0x83: "truehd", 0x84: "eac3", 0x85: "dts", 0x86: "dts",
 	0xa1: "eac3", 0xa2: "dts", 0x90: "hdmv_pgs_subtitle", 0x92: "hdmv_text_subtitle"}
 
+// dvdAudio names a DVD's sound by its IFO audio_format, which the reader passes as its coding:
+// a different numbering from a Blu-ray's. (A DVD's picture codes, 1 and 2, already read as
+// MPEG-1 and MPEG-2 above.)
+var dvdAudio = map[int]string{0: "ac3", 2: "mp2", 3: "mp2", 4: "pcm_dvd", 6: "dts"}
+
 // discFacts is the main feature of a disc as the scanner stores a file's facts: its length,
 // its picture, sound and subtitle tracks with their languages, and its chapters.
 func discFacts(found disc.Probe) (Facts, error) {
@@ -84,6 +89,9 @@ func discFacts(found disc.Probe) (Facts, error) {
 		if found.Kind == "dvd" && s.Kind == "subtitle" {
 			// A DVD's subtitles are all pictures, with no coding number of their own.
 			stream.Codec = "dvd_subtitle"
+		}
+		if found.Kind == "dvd" && s.Kind == "audio" {
+			stream.Codec = dvdAudio[s.Coding]
 		}
 		switch s.Kind {
 		case "video":
