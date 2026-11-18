@@ -100,7 +100,7 @@ function DuneDetails() {
 /** Details with the hero gone: the collapsed bar (title, tabs, Play and +) as the page shows it once scrolled (desktop-detail f3; phone-detail d1 frame 2; detail-tv-4). */
 function FilmDetails() {
   const [tab, setTab] = useState('details'), {isTV} = useTheme();
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-film-details" {...filmFrame(tab, setTab, isTV)} collapsed><DuneDetails/></TitleFrame></Page>;
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-film-details" {...filmFrame(tab, setTab, isTV)} collapsed startFocus="cast-1"><DuneDetails/></TitleFrame></Page>;
 }
 
 type Episode = Readonly<{id: string; title: string; label: string; length: string; synopsis: string; progress?: number; watched?: boolean; status?: string; art: string}>;

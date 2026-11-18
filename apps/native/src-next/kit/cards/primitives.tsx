@@ -25,6 +25,8 @@ export type CardNativeProps = Omit<PressableProps, 'children' | 'style' | 'onPre
   title: string;
   /** The caller's authored title allowance, shared by square, circle and mosaic cards. */
   titleLines?: 1 | 2;
+  /** The line under the title may take two lines: a cast member's role is a name, never cut (detail-tv-4, phone-detail d1). */
+  captionLines?: 1 | 2;
   caption?: readonly FactPart[];
   detail?: readonly FactPart[];
   /** Other already-localized facts drawn by a specialized card (episode or session). */
@@ -166,7 +168,7 @@ export function ArtFrame({children, width, height, radius, focused, selected, ho
  *   not fit wrap out of it and are left out whole from the end (owner's rule: a secondary fact gives way first). Only the
  *   first fact may shrink, when it stands alone, and then it ends in "…". The hidden facts stay in the card's spoken name.
  */
-export function Parts({parts = [], style, gap = 8, strong = false, fit = 'cut'}: {parts?: readonly FactPart[]; style?: StyleProp<TextStyle>; gap?: number; strong?: boolean; fit?: 'cut' | 'wrap' | 'drop'}) {
+export function Parts({parts = [], style, gap = 8, strong = false, fit = 'cut', lines = 1}: {parts?: readonly FactPart[]; style?: StyleProp<TextStyle>; gap?: number; strong?: boolean; fit?: 'cut' | 'wrap' | 'drop'; lines?: number}) {
   const t = useTheme();
   if (!parts.length) return null;
   // On one line the longest fact gives way: a year or an episode number ("S1 E1") is never cut for an episode's name.
@@ -182,12 +184,12 @@ export function Parts({parts = [], style, gap = 8, strong = false, fit = 'cut'}:
       <Text key={part.id} numberOfLines={1} ellipsizeMode="tail" style={[textStyle(part), {lineHeight: line, flexShrink: index === 0 ? 1 : 0}]}>{part.text}</Text>)}</View>;
   }
   return <View style={{flexDirection: 'row', alignItems: 'baseline', minWidth: 0, overflow: 'hidden', ...(fit === 'wrap' ? {flexWrap: 'wrap', columnGap: gap, rowGap: 2} : {gap})}}>{parts.map(part =>
-    <Text key={part.id} numberOfLines={1} ellipsizeMode="tail" style={textStyle(part)}>{part.text}</Text>)}</View>;
+    <Text key={part.id} numberOfLines={lines} ellipsizeMode="tail" style={[textStyle(part), lines > 1 && {textAlign: 'center'}]}>{part.text}</Text>)}</View>;
 }
 /** A fact line's height as a share of its size in `drop` mode: room for a bold, status or fallback-font (CJK, emoji) fact. */
 const factLineRatio = 1.4;
 
-export function Caption({title, titleLines, caption, detail, density, titleTextStyle, titleMargin, captionTextStyle, selected, centered, focused, tvRestingSecondary, lines = titleLines ?? 1}: Pick<CardProps, 'title' | 'titleLines' | 'caption' | 'detail' | 'density' | 'titleTextStyle' | 'titleMargin' | 'captionTextStyle'> & {selected?: boolean; centered?: boolean; focused?: boolean; tvRestingSecondary?: boolean; lines?: number}) {
+export function Caption({title, titleLines, captionLines, caption, detail, density, titleTextStyle, titleMargin, captionTextStyle, selected, centered, focused, tvRestingSecondary, lines = titleLines ?? 1}: Pick<CardProps, 'title' | 'titleLines' | 'captionLines' | 'caption' | 'detail' | 'density' | 'titleTextStyle' | 'titleMargin' | 'captionTextStyle'> & {selected?: boolean; centered?: boolean; focused?: boolean; tvRestingSecondary?: boolean; lines?: number}) {
   const t = useTheme(), waiting = useFocusWaiting();
   const compact = density === 'grid' && !t.isTV, slot = t.scale.card.caption, top = titleMargin ?? (compact ? 7 : slot.gap);
   // R5: a reserved slot. The title and the line under it keep their boxes when the card has no second line (and when a
@@ -195,7 +197,7 @@ export function Caption({title, titleLines, caption, detail, density, titleTextS
   const reserved = compact ? undefined : Math.ceil((slot.titleLine * lines + slot.subtitleLine) * t.fontScale) + slot.subtitleGap;
   return <View accessibilityElementsHidden={waiting} importantForAccessibility={waiting ? 'no-hide-descendants' : 'auto'} style={{opacity: waiting ? 0 : 1, marginTop: top, minHeight: reserved, gap: slot.subtitleGap, alignItems: centered ? 'center' : undefined}}>
     <Text numberOfLines={lines} ellipsizeMode="tail" style={[t.type.cardTitle, compact ? titleStyle(t, 12.5, 600) : {lineHeight: slot.titleLine}, {color: selected ? t.colors.accentStrong : t.isTV && tvRestingSecondary && !focused ? t.colors.textSecondary : t.colors.text, textAlign: centered ? 'center' : 'left'}, titleTextStyle]}>{title}</Text>
-    <Parts parts={caption} fit={t.isTV ? 'cut' : 'drop'} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} /><Parts parts={detail} fit={t.isTV ? 'cut' : 'drop'} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} />
+    <Parts parts={caption} fit={captionLines === 2 ? 'wrap' : t.isTV ? 'cut' : 'drop'} lines={captionLines} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} /><Parts parts={detail} fit={t.isTV ? 'cut' : 'drop'} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} />
   </View>;
 }
 

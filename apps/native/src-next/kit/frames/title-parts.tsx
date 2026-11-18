@@ -1,6 +1,7 @@
 import React, {type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
-import {Artwork, PersonCircle, type ArtworkSource} from '../artwork';
+import {Artwork, type ArtworkSource} from '../artwork';
+import {CircleCard} from '../cards';
 import {Button, Focusable, Segmented} from '../controls';
 import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
@@ -58,12 +59,11 @@ const initials = (name: string) => name.split(/\s+/u).filter(Boolean).slice(0, 2
 export function CastRow({groups}: Readonly<{groups: readonly (readonly CastPerson[])[]}>) {
   const theme = useTheme(), frame = useFrameMetrics(), scroll = frame.form === 'phone' || frame.form === 'tv';
   const size = sizes.castCircle[frame.form], width = size + (frame.form === 'tv' ? 50 : frame.form === 'phone' ? 14 : 24);
-  const person = (entry: CastPerson) => <Focusable key={entry.id} focusKind="card" focusRadius={size / 2} disabled={!entry.onPress} focusableWhenDisabled={false} accessibilityRole="button"
-    accessibilityLabel={[entry.name, entry.role].filter(Boolean).join(', ')} onPress={entry.onPress} style={{width, alignItems: 'center'}}>
-    <PersonCircle size={size} initials={initials(entry.name)} source={entry.portrait} covers={[]} alt=""/>
-    <Text style={[theme.type.cardTitle, {marginTop: theme.space.controlGap, textAlign: 'center', color: theme.colors.text}]}>{entry.name}</Text>
-    {entry.role !== undefined && <Text style={[theme.type.cardSubtitle, {marginTop: 2, textAlign: 'center', color: theme.colors.textTertiary}]}>{entry.role}</Text>}
-  </Focusable>;
+  // The kit's person card: the ring wraps only the circle and the whole person grows on focus (detail-tv-4); the name and
+  // role take the column's width under the circle.
+  const person = (entry: CastPerson) => <CircleCard key={entry.id} focusId={`cast-${entry.id}`} person width={width} circle={size} title={entry.name} titleLines={2} captionLines={2}
+    caption={entry.role !== undefined ? [{id: 'role', text: entry.role, role: 'context'}] : []} art={{initials: initials(entry.name), source: entry.portrait, covers: []}}
+    onNavigate={entry.onPress} disabled={!entry.onPress}/>;
   const lists = groups.filter(group => group.length > 0);
   // R1, TV: the scroller gives a focused person its growth, ring and glow (`tvFocusRoom`) and takes it back, so the row
   // does not move. Height: the circle; the glow's room covers the name's share of the growth.
