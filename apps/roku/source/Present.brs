@@ -328,6 +328,18 @@ function filterSummary(values as dynamic) as string
     return values.count().toStr() + " chosen"
 end function
 
+' The name a saved view is offered: the library's name and what narrows it ("Films: Unplayed,
+' 1990s"), or the library and its sort when nothing does ("Films, Year").
+function savedViewName(library as string, parts as object, sort as string) as string
+    if parts.count() = 0 then return library + ", " + sort
+    words = ""
+    for each part in parts
+        if words <> "" then words = words + ", "
+        words = words + part
+    end for
+    return library + ": " + words
+end function
+
 ' Why a read failed, in one sentence for a page or a section that could not load.
 function whyFailed(result as object) as string
     if result.status = 0 then return "The server didn't answer. You're still signed in."
