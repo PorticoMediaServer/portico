@@ -3,13 +3,10 @@ import {Modal, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import Animated, {cancelAnimation, runOnJS, useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {GuideChannelRow, GuideProgram} from '../../../../../packages/client-core/src/guide/types';
-import {channelTint} from '../../../../../packages/client-core/src/presentation/kit-model/index';
 import {shellLayout} from '../../shell/model';
-import {Focusable} from '../../kit/controls';
 import {FocusBoundary} from '../../kit/overlays/surface';
 import {useOverlayLifecycle} from '../../kit/overlays/OverlayHost';
-import {Icon} from '../../kit/Icon';
-import {Artwork} from '../../kit/artwork/Artwork';
+import {MiniGuideAll, MiniGuideHead, MiniGuideRow} from '../../kit/live/MiniGuide';
 import type {ArtworkSource} from '../../kit/artwork/types';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {nativeType, useTheme} from '../../kit/theme';
@@ -54,7 +51,7 @@ const clock = (at: number, locale: string, timezone: string): string | undefined
 };
 
 /** tv-player 11's mini guide: the picture stays, and this panel lists the supplied
- * channels beside it. TV only; the touch screen never mounts it. Focus enters on the
+ * channels beside it, drawn by the kit's `MiniGuideHead`, `MiniGuideRow` and `MiniGuideAll`. TV only; the touch screen never mounts it. Focus enters on the
  * channel actually playing when it can be tuned, else the first tuneable row; OK
  * tunes, Back closes. The caller owns the opening and the real host's restoration. */
 export function NativeMiniGuide(props: NativeMiniGuideProps) {
@@ -98,17 +95,6 @@ function MiniGuideSurface(props: NativeMiniGuideProps & {open: boolean; onExited
     if (!Number.isFinite(props.now) || typeof start !== 'number' || typeof end !== 'number' || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) return undefined;
     return Math.max(0, Math.min(1, (props.now - start) / (end - start)));
   };
-  const mark = (row: NativeMiniGuideRow) => {
-    const logo = row.channel.logoUrl ? props.artwork?.(row.channel.logoUrl) : undefined;
-    // Served mark first, exactly as the shell draws a channel's tile; else its served
-    // logo; else its own number. No logo or text is ever made up.
-    if (row.channel.mark) return <View style={{width: 60, height: 60, borderRadius: 60 * 8 / 34, marginRight: 20, overflow: 'hidden', backgroundColor: channelTint(row.channel.mark.seed), alignItems: 'center', justifyContent: 'center'}}>
-      <Text numberOfLines={1} adjustsFontSizeToFit allowFontScaling={false} style={[nativeType({size: row.channel.mark.text.length > 2 ? 60 * 0.32 : 60 * 0.38, weight: 800, tracking: -.01, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{row.channel.mark.text}</Text>
-      {logo ? <Artwork source={logo} sized={false} visible style={StyleSheet.absoluteFillObject}/> : null}</View>;
-    if (logo) return <Artwork source={logo} width={60} height={60} style={{borderRadius: 14, overflow: 'hidden', marginRight: 20}}/>;
-    return <View style={{width: 60, height: 60, borderRadius: 14, marginRight: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#edf5fa14'}}>
-      <Text numberOfLines={1} adjustsFontSizeToFit style={[nativeType({size: 20, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{row.channel.number}</Text></View>;
-  };
   return <Modal key={native.key} transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" onRequestClose={props.onClose} statusBarTranslucent navigationBarTranslucent>
     <Animated.View pointerEvents={props.open ? 'auto' : 'none'} accessibilityElementsHidden={!props.open} importantForAccessibility={props.open ? 'auto' : 'no-hide-descendants'} style={[StyleSheet.absoluteFill, fade]} accessibilityViewIsModal>
       <View pointerEvents="box-none" testID="tv-mini-guide-canvas" style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height, transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
@@ -120,46 +106,13 @@ function MiniGuideSurface(props: NativeMiniGuideProps & {open: boolean; onExited
             <View style={[StyleSheet.absoluteFill, {backgroundColor: 'rgba(11,23,32,.86)'}]}/>
           </View>
           <FocusBoundary modal testID="tv-mini-guide" style={{padding: 18}}>
-            <View style={{flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 4, paddingBottom: 12}}>
-              <Text style={[nativeType({size: 30, weight: 800, tracking: -.02, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{t('next.controls.guide')}</Text>
-              <Text style={[nativeType({size: 19, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary}]}>{t('next.live.miniGuideHint')}</Text>
-            </View>
+            <MiniGuideHead/>
             {!!props.error && <View style={{paddingHorizontal: 12, paddingBottom: 12}}>{props.error}</View>}
             {props.loading && <Text style={[nativeType({size: 19, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary, paddingHorizontal: 12, paddingBottom: 12}]}>{t('next.browse.native.markAllPreparing')}</Text>}
-            {rows.map((row, index) => {
-              const bar = progress(row), next = row.next, at = next ? clock(next.start, locale, props.timezone) : undefined, disabled = !props.open || props.busy || !tuneable(row);
-              return <Focusable key={rowKey(row)} ref={index === entry ? first : undefined} focusId={`tv-mini-guide-${rowKey(row)}`} testID={`tv-mini-guide-${rowKey(row)}`}
-                focusKind="row" focusRadius={16} preferredFocus={props.open && index === entry} disabled={disabled} accessibilityRole="button"
-                accessibilityLabel={[row.channel.name, row.channel.number, row.watching ? t('next.live.watching') : undefined,
-                  row.now?.title ?? t('guide.noInformation'), next && at ? t('next.live.nextAt', {time: at}) : undefined, next?.title].filter(Boolean).join(', ')}
-                accessibilityState={{selected: row.watching}}
-                onPress={() => {if (!disabled) props.onSelect(row.channel);}}
-                style={({focused}) => ({flexDirection: 'row', alignItems: 'center', height: 112, paddingHorizontal: 16, borderRadius: 16,
-                  marginTop: index ? 4 : 0, opacity: row.channel.tuneAvailable ? 1 : .55,
-                  backgroundColor: focused ? 'rgba(237,245,250,.16)' : row.watching ? 'rgba(237,245,250,.07)' : 'transparent'})}>
-                {mark(row)}
-                <View style={{flex: 1, minWidth: 0}}>
-                  <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                    <Text numberOfLines={1} style={[nativeType({size: 19, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary}]}>{row.channel.name}</Text>
-                    <Text style={[nativeType({size: 19, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary, marginLeft: 10}]}>{row.channel.number}</Text>
-                    {row.watching && <Text style={[nativeType({size: 19, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.accentStrong, marginLeft: 'auto'}]}>{t('next.live.watching')}</Text>}
-                  </View>
-                  <Text numberOfLines={1} style={[nativeType({size: 25, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: row.now ? theme.colors.text : theme.colors.textTertiary, marginTop: 2}]}>{row.now?.title ?? t('guide.noInformation')}</Text>
-                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 8}}>
-                    {bar !== undefined && <View style={{width: 150, height: 5, borderRadius: 3, backgroundColor: '#edf5fa26', overflow: 'hidden'}}>
-                      <View style={{width: `${Math.round(bar * 100)}%`, height: '100%', backgroundColor: theme.colors.accentStrong}}/></View>}
-                    {!!next && <Text numberOfLines={1} style={[nativeType({size: 18, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary, flexShrink: 1}]}>
-                      {at ? <>{t('next.live.nextAt', {time: at})}<Text style={{color: theme.colors.textSecondary}}>{`  ${next.title}`}</Text></> : next.title}</Text>}
-                  </View>
-                </View>
-              </Focusable>;
-            })}
-            <Focusable ref={entry < 0 ? first : undefined} focusId="tv-mini-guide-all" testID="tv-mini-guide-all" focusKind="row" focusRadius={12} disabled={!props.open || props.busy}
-              onPress={() => {if (props.open && !props.busy) props.onFullGuide();}} style={({focused}) => ({flexDirection: 'row', alignItems: 'center', gap: 6,
-                paddingTop: 14, paddingHorizontal: 16, paddingBottom: 4, borderRadius: 12, backgroundColor: focused ? 'rgba(237,245,250,.12)' : 'transparent'})}>
-              <Text style={[nativeType({size: 22, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{t('next.live.openFullGuide')}</Text>
-              <Icon name="i-right" size={22} color={theme.colors.textSecondary}/>
-            </Focusable>
+            {rows.map((row, index) => <MiniGuideRow key={rowKey(row)} ref={index === entry ? first : undefined} id={rowKey(row)} channel={row.channel} title={row.now?.title} progress={progress(row)}
+              logo={row.channel.logoUrl ? props.artwork?.(row.channel.logoUrl) : undefined} next={row.next && {title: row.next.title, at: clock(row.next.start, locale, props.timezone)}}
+              watching={row.watching} preferredFocus={props.open && index === entry} disabled={!props.open || !!props.busy || !tuneable(row)} onPress={() => props.onSelect(row.channel)}/>)}
+            <MiniGuideAll ref={entry < 0 ? first : undefined} disabled={!props.open || !!props.busy} onPress={props.onFullGuide}/>
           </FocusBoundary>
         </View>
       </View>

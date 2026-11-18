@@ -6,6 +6,7 @@ export type {CastPlayerProps, CastPlayerTranslate, CastPlayerVisuals, PlayOnPane
 export {PlayerTitle, PlayerControl, PlayerTimes, PlayerVolume, PlayerPill, PlayerScrubPreview, PlayerPrompt, type PlayerControlProps} from './parts';
 export {AudioPanel, QueueGroup, QueueRow, AudioChoiceRow} from './Queue';
 export {PlayerEndCard, type PlayerEndCardModel} from './EndCard';
+export {PlayerStillWatching} from './StillWatching';
 export {PlayerOptions} from './PlayerOptions';
 export {PlayerEpisodes} from './PlayerEpisodes';
 export {PlayerUpNext, type PlayerUpNextAction, type PlayerUpNextProps} from './PlayerUpNext';
