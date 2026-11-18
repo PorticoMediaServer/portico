@@ -77,8 +77,9 @@ func TestSTRMPlaylistPlaysThroughExistingSessionPath(t *testing.T) {
 	if len(page.Items) != 1 || page.Items[0].Title != "Small Film" {
 		t.Fatalf("title: %+v", page.Items)
 	}
-	var session api.PlaybackSession
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID}, &session, 201)
+	// The stream is made from the playlist's pieces, so on a busy machine the start can answer
+	// 202 first: send it again, as an app does.
+	session := h.startPlayback(api.PlaybackStart{ItemID: page.Items[0].ID})
 	if session.Presentation.Route == playback.RouteOriginal || strings.Contains(session.Presentation.URL, outside.URL) {
 		t.Fatalf("presentation: %+v", session.Presentation)
 	}
