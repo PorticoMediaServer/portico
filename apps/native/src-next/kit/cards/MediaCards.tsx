@@ -141,7 +141,7 @@ export function WideCard(props: WideCardProps) {
  * (tablet 1, desktop-browse f1); a phone keeps it inside with the number (phone-app 4b), TV leaves it to the hero. A row of
  * wide cards adds this to its item height when its cards carry a detail. */
 export function wideDetailHeight(t: ReturnType<typeof useTheme>) {
-  return t.layoutMode === 'phone' || t.isTV ? 0 : wideDetailGap + Math.ceil(t.type.cardSubtitle.lineHeight ?? t.type.cardSubtitle.fontSize * 1.4);
+  return t.layoutMode === 'phone' || t.isTV ? 0 : wideDetailGap + Math.ceil(t.type.cardSubtitle.lineHeight ?? (t.type.cardSubtitle.fontSize ?? 13) * 1.4);
 }
 const wideDetailGap = 8;
 
