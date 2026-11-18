@@ -136,11 +136,12 @@ export function BrowseToolbar({model, labels, resultCount, resultTotal, platform
   </div>;
   return <div className={[styles.toolbar, className].filter(Boolean).join(' ')} data-platform={platform} data-sticky={sticky || undefined} style={{top: topInset}}>
     {selection}{!(selectionActive ?? selection != null) && <><div className={styles.toolbarMain}>
-      {platform === 'tv' ? <>{sort}{filters}{onJump && <Chip onClick={onJump}>{t('next.browse.jump')}<Icon name="i-down" size={16}/></Chip>}</> : filters}
-      {/* The divider separates Filters from what follows it; with nothing after it (Comics' Volumes and issues) it is not drawn. */}
+      {/* Sort sits directly after Filters on every form (owner, 18 Nov); the count and grid / list end the row. */}
+      {filters}{sort}{platform === 'tv' && onJump && <Chip onClick={onJump}>{t('next.browse.jump')}<Icon name="i-down" size={16}/></Chip>}
+      {/* The divider separates Filters and Sort from what follows them; with nothing after them (Comics' Volumes and issues) it is not drawn. */}
       {(actions != null && actions !== false || quick.length > 0) && <span className={styles.separator} aria-hidden="true"/>}
       {actions}{quickChips}
-      {<div className={styles.toolbarEnd}>{platform === 'desktop' && <ResultCount className={styles.resultCount} accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>}{platform === 'desktop' && sort}
+      {<div className={styles.toolbarEnd}>{platform === 'desktop' && <ResultCount className={styles.resultCount} accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>}
         {view && <ViewToggle {...view}/>} {cardSize && <CardSizeButton {...cardSize}/>} {save && <SaveViewButton {...save}/>}</div>}
     </div>
     {applied.length > 0 && onRemoveFilter && onClearFilters && <div className={platform === 'tv' ? styles.tvAppliedRow : undefined}><AppliedFilterChips items={applied} onRemove={onRemoveFilter} onClear={onClearFilters}/>{platform === 'tv' && <ResultCount className={styles.resultCount} accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>}</div>}</>}

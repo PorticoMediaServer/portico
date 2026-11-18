@@ -33,5 +33,6 @@ test('A23/A24 (owner, 18 Nov): at phone width the toolbar is one row with no cou
   const toolbar = read('../src/kit/browse/BrowseToolbar.tsx');
   assert.match(toolbar, /<div className=\{styles\.toolbarMain\}>\{filters\}\{sort\}\n\s*<div className=\{styles\.chipRail\}>/);
   assert.doesNotMatch(toolbar, /phoneCount/);
+  assert.match(toolbar, /\{filters\}\{sort\}\{platform === 'tv' && onJump/, 'wide and TV: Sort sits directly after Filters (owner, 18 Nov)');
   assert.match(toolbar, /\{\(actions != null && actions !== false \|\| quick\.length > 0\) && <span className=\{styles\.separator\} aria-hidden="true"\/>\}/);
 });
