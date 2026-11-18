@@ -1610,6 +1610,7 @@ sub openMiniGuide()
     m.miniGuide.current = m.liveChannel.id
     m.miniGuide.visible = true
     m.miniGuide.active = true
+    paint()
 end sub
 
 sub closeMiniGuide()
@@ -2127,7 +2128,8 @@ sub paint()
             pillRing.translation = [episodes.x - out, m.f.buttonsY + 12 - out]
             pillRing.width = episodes.width + out * 2
             pillRing.height = 64 + out * 2
-            pillRing.visible = true
+            ' while the guide it opened is beside the picture, focus is in the guide: Guide stays lit, without its ring
+            pillRing.visible = not m.miniGuide.visible
         else
             episodes.plate.blendColor = c.glass
         end if
