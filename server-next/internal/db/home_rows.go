@@ -1,6 +1,7 @@
 package db
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"strings"
@@ -172,7 +173,11 @@ func (d *DB) homeRowQuery(ctx context.Context, v Viewer, row string, q ItemQuery
 			kinds = bookKinds
 		}
 		var err error
-		continuing, err = d.continueItems(ctx, v, kinds, q.Library, -1)
+		first := -1 // See all, Play on and a filter's counts read the whole source
+		if q.HomeFirst {
+			first = min(cmp.Or(q.Limit, defaultPageSize), maxPageSize) + 1 // one more, for the cursor
+		}
+		continuing, err = d.continueItems(ctx, v, kinds, q.Library, first)
 		if err != nil {
 			return q, nil, nil, err
 		}

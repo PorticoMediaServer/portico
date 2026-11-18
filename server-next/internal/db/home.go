@@ -76,13 +76,15 @@ func (d *DB) continueItems(ctx context.Context, v Viewer, kinds []ItemKind, libr
 		}
 		within = " AND i.library_id IN " + intList(libraries)
 	}
-	// Read from the viewer's own recent state, newest first, and stop at a row's worth.
-	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+` FROM user_item_state s CROSS JOIN items i ON i.id = s.item_id
-		WHERE s.profile_id = @viewer_profile AND (s.last_played_at > @since OR i.kind = `+fmt.Sprintf("%d", KindEpisode)+`) AND s.played = 0 AND s.last_played_at > ifnull(s.continue_dismissed_at, 0)
-		AND (s.position_ms > 0 OR s.position_text IS NOT NULL) AND `+kindIn(kinds)+
-		acc.visible("i")+within+`
-		ORDER BY s.last_played_at DESC LIMIT `+fmt.Sprint(limit),
-		append(v.args(), sql.Named("since", time.Now().Add(-continueWindow).UnixMilli()))...)
+	// Read from the viewer's own recent state, newest first, and stop at a row's worth. Titles
+	// played at the same moment go by id, newest first: the order of the recent-state index, so
+	// the read stops early, and the order the next episodes are merged in below, so the first
+	// titles read are the first titles of the whole source.
+	started := ` FROM user_item_state s CROSS JOIN items i ON i.id = s.item_id
+		WHERE s.profile_id = @viewer_profile AND (s.last_played_at > @since OR i.kind = ` + fmt.Sprintf("%d", KindEpisode) + `) AND s.played = 0 AND s.last_played_at > ifnull(s.continue_dismissed_at, 0)
+		AND (s.position_ms > 0 OR s.position_text IS NOT NULL) AND ` + kindIn(kinds) + acc.visible("i") + within
+	args := append(v.args(), sql.Named("since", time.Now().Add(-continueWindow).UnixMilli()))
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+started+` ORDER BY s.last_played_at DESC, s.item_id DESC LIMIT `+fmt.Sprint(limit), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +106,15 @@ func (d *DB) continueItems(ctx context.Context, v Viewer, kinds []ItemKind, libr
 		}
 	}
 	if kinds == nil || slices.Contains(kinds, KindEpisode) {
-		if items, err = continueNext(ctx, tx, v, acc, library, items, limit, 0); err != nil {
+		// A show with an episode started offers no next episode, even when that episode is
+		// beyond the titles read.
+		var shows []int64
+		if limit >= 0 {
+			if shows, err = ids(ctx, tx, `SELECT DISTINCT i.root_id`+started+` AND i.kind = `+fmt.Sprint(int(KindEpisode))+` AND i.root_id IS NOT NULL`, args...); err != nil {
+				return nil, err
+			}
+		}
+		if items, err = continueNext(ctx, tx, v, acc, library, items, shows, limit, 0); err != nil {
 			return nil, err
 		}
 	}
@@ -116,7 +126,7 @@ func (d *DB) continueItems(ctx context.Context, v Viewer, kinds []ItemKind, libr
 // Each next episode is one seek in that show's episode order.
 // limit is -1 for all of Home's source; show is 0 for Home or one show's detail page.
 // A show's play target ignores Home dismissal.
-func continueNext(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library string, items []Item, limit int, show int64) ([]Item, error) {
+func continueNext(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library string, items []Item, started []int64, limit int, show int64) ([]Item, error) {
 	scope := ` AND p.last_played_at > ifnull(p.continue_dismissed_at, 0)`
 	whole := ` AND NOT EXISTS (SELECT 1 FROM user_item_state done WHERE done.profile_id = @viewer_profile AND done.item_id = e.root_id AND done.played = 1)`
 	dismissed := `@at > ifnull(s.continue_dismissed_at, 0)`
@@ -159,6 +169,9 @@ func continueNext(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library
 			seen[item.RootID] = true
 		}
 	}
+	for _, root := range started {
+		seen[root] = true
+	}
 	if len(recent) == 0 {
 		return items, nil
 	}
@@ -173,6 +186,19 @@ func continueNext(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library
 	}
 	defer nextEpisode.Close()
 	for _, previous := range recent {
+		if limit >= 0 {
+			// The shows still to look at were played no later than this one: once a row's worth
+			// of titles is newer, none of their next episodes can be among them.
+			newer := 0
+			for _, item := range items {
+				if activity[item.ID] > previous.at {
+					newer++
+				}
+			}
+			if newer >= limit {
+				break
+			}
+		}
 		if seen[previous.root] {
 			continue
 		}
@@ -193,7 +219,7 @@ func continueNext(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library
 		}
 	}
 	slices.SortFunc(items, func(a, b Item) int {
-		return cmp.Or(cmp.Compare(activity[b.ID], activity[a.ID]), cmp.Compare(a.ID, b.ID))
+		return cmp.Or(cmp.Compare(activity[b.ID], activity[a.ID]), cmp.Compare(b.ID, a.ID))
 	})
 	if limit >= 0 {
 		items = items[:min(len(items), limit)]
