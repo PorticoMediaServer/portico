@@ -9,6 +9,8 @@
 .tabsInset { padding-left: var(--g); padding-right: var(--g); }
 .intro { margin: calc(-1 * var(--frame-header-gap) + var(--space-xs)) var(--g) 0; max-width: var(--frame-paragraph-max); color: var(--color-text-secondary); }
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-control-gap); margin: var(--frame-header-gap) var(--g) var(--space-xs); }
+/* At phone width a pushed list's actions share their row in equal halves (See all, collections 46a: Play and Shuffle). */
+@media (max-width: 599px) { .actions > * { flex: 1 1 0; } }
 /* A grid fills the window under the header and toolbar and scrolls itself; the A–Z rail stands in the right gutter. */
 .browse[data-grid] { height: 100%; min-height: 0; padding-bottom: 0; }
 /* E-web-20: the A–Z rail's widened hit areas never widen the page. */
