@@ -53,7 +53,7 @@ export function createTheme({isTV, width, height, reduceMotion = false, textScal
   return {
     platform, layoutMode, width, isTV, colors, space: spacing, type, spec: componentSpec, layout, layers, targets,
     radii: isTV ? platformRadii.tv : platformRadii.phone, baseRadii: radii,
-    gutter: isTV ? layout.gutter.tv : layoutMode === 'desktop' ? width >= layout.designWidth.desktop ? layout.gutter.desktop : layout.gutter.desktopNarrow : layout.gutter.phone,
+    gutter: isTV ? layout.gutter.tv : layoutMode === 'desktop' ? width >= layout.designWidth.desktop ? layout.gutter.desktop : layout.gutter.desktopNarrow : platform === 'tablet' ? layout.gutter.tablet : layout.gutter.phone,
     // Layout consumes the OS scale; Text/TextInput continue to apply it themselves.
     motion, reduceMotion, textScale, fontScale: Number.isFinite(fontScale) ? Math.max(1, fontScale) : 1,
   };
