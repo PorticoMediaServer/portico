@@ -89,6 +89,7 @@ test('Tabs draws the count as a distinct pill while retaining tab semantics and 
     '../focus': {useCovered: () => false, focusTestID: (...parts: string[]) => parts.join(':')}, '../theme': {useTheme: () => ({...theme, fontScale})},
     './Focusable': {Focusable: 'Focusable'}, './control-model': {colorAlpha: () => 'transparent', enabledChoice: (items: any[]) => items[0]?.value, minimumHitSlop: () => 0},
     './useControlValue': {useControlValue: (value: unknown, initial: unknown, change: unknown) => [value ?? initial, change]},
+    '../Icon': {Icon: 'Icon'},
   });
   const items = [{value: 'unread', label: 'Unread', count: '12'}, {value: 'all', label: 'All'}];
   let tree: any;

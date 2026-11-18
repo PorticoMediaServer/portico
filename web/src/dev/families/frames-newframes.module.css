@@ -16,3 +16,5 @@
 .list, .inset { padding: 0 var(--g); }
 /* Recorded shows: live cards filling columns of at least the card's own width. */
 .cardGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--space-sm); padding: 0 var(--g); }
+.liveFacts { display: flex; gap: var(--space-sm); font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-secondary); }
+.liveFacts b { color: var(--color-text); }

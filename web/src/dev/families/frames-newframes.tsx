@@ -184,8 +184,8 @@ const programmePane = (): FramePane => ({title: f('pStoryTime'), subtitle: f('co
  * secondary grey, at a row's help size, spaced as a facts line. */
 function LiveFacts() {
   const [source, ...rest] = f('liveFacts').split(' · ');
-  return <span style={{display: 'flex', gap: 'var(--space-sm)', fontSize: 'var(--type-row-help-size)', lineHeight: 'var(--type-row-help-line)', color: 'var(--color-text-secondary)'}}>
-    <b style={{color: 'var(--color-text)'}}>{source}</b>{rest.map(part => <span key={part}>{part}</span>)}</span>;
+  return <span className={page.liveFacts}>
+    <b>{source}</b>{rest.map(part => <span key={part}>{part}</span>)}</span>;
 }
 function LiveGuide({details = false}: {details?: boolean}) {
   const phone = usePhone();
