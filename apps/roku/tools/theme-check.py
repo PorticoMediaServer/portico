@@ -17,6 +17,16 @@ for key in re.findall(r'(\w+): -?\d+', re.sub(r'\{.*?\}', '', frames, flags=re.S
 colours = set(re.findall(r'(\w+): (?:"0x|\[")', body('colours')))
 roles = set(re.findall(r'(\w+): \[\d+, \d+, \d+\]', body('typeRoles')))
 bad = []
+# A name given twice in one table: BrightScript keeps the later one without a word.
+for table in ('frames', 'colours', 'typeRoles'):
+    text = re.sub(r"'[^\n]*", '', body(table))          # comments out
+    text = re.sub(r'"[^"]*"', '""', text)                # and what is inside strings
+    seen = [set()]
+    for part in re.finditer(r'[{}]|(\w+):', text[text.index('return {') + 7:]):
+        if part.group(0) == '{': seen.append(set())
+        elif part.group(0) == '}': seen.pop()
+        elif part.group(1) in seen[-1]: bad.append('%s() names %s twice' % (table, part.group(1)))
+        else: seen[-1].add(part.group(1))
 for path in sorted(glob.glob('components/**/*.brs', recursive=True) + glob.glob('source/*.brs')):
     src = open(path).read()
     uses = [('', a, b) for a, b in re.findall(r'frames\(\)\.(\w+)(?:\.(\w+))?', src)]
@@ -43,6 +53,6 @@ for path in sorted(glob.glob('components/**/*.brs', recursive=True) + glob.glob(
         if r not in roles:
             bad.append('%s: type role %s' % (path, r))
 for line in sorted(set(bad)):
-    print('MISSING', line)
-print('theme check: %d missing' % len(set(bad)))
+    print(line if 'twice' in line else 'MISSING ' + line)
+print('theme check: %d missing or given twice' % len(set(bad)))
 sys.exit(1 if bad else 0)
