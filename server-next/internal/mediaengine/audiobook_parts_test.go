@@ -67,7 +67,7 @@ func TestAMultiFileAudiobookPlaysAsOneBook(t *testing.T) {
 		if p.Route == "converted" {
 			t.Errorf("start at %d ms: the book was converted to be joined: %+v", start, *p.Decision.Audio)
 		}
-		h.segmentTone(t, p.URL, ffmpeg, int(start/6000), 300*(1+int(start/20_000)))
+		h.segmentTone(t, p.URL, ffmpeg, int(start/6000), 0.5, 300*(1+int(start/20_000)))
 		played := h.listen(t, p.URL, ffmpeg, ffprobe)
 		if played.seconds < 59 || played.seconds > 61 {
 			t.Fatalf("start at %d ms: what plays lasts %.1f s, want the whole book's 60 s", start, played.seconds)
@@ -102,7 +102,7 @@ func TestAMultiFileAudiobookPlaysAsOneBook(t *testing.T) {
 	want := 300 * (1 + int(at/20_000))
 	// The player asks first for the segment holding its place, made by the converter started
 	// there and by no other: that segment alone is the right part of the book.
-	h.segmentTone(t, resumed.Presentation.URL, ffmpeg, int(at/6000), want)
+	h.segmentTone(t, resumed.Presentation.URL, ffmpeg, int(at/6000), 0.5, want)
 	played := h.listen(t, resumed.Presentation.URL, ffmpeg, ffprobe)
 	if got := toneAt(t, ffmpeg, played.file, float64(at)/1000+0.2); got != want {
 		t.Errorf("resumed at %d ms the book plays %d Hz, want part %d's %d Hz", at, got, want/300, want)
@@ -111,9 +111,9 @@ func TestAMultiFileAudiobookPlaysAsOneBook(t *testing.T) {
 	h.call("DELETE", "/v1/playback/sessions/"+resumed.ID, nil, nil, 204)
 }
 
-// segmentTone fetches one segment of an HLS playlist before any other and checks the tone
-// it begins with.
-func (h *house) segmentTone(t *testing.T, url, ffmpeg string, index, want int) {
+// segmentTone fetches one segment of an HLS playlist before any other and checks its tone
+// at seconds in.
+func (h *house) segmentTone(t *testing.T, url, ffmpeg string, index int, at float64, want int) {
 	t.Helper()
 	code, _, body := h.media(url)
 	if code != 200 {
@@ -126,11 +126,11 @@ func (h *house) segmentTone(t *testing.T, url, ffmpeg string, index, want int) {
 		for i, line := range lines {
 			if strings.HasPrefix(line, "#EXT-X-MEDIA:TYPE=AUDIO") && strings.Contains(line, `URI="`) {
 				uri := line[strings.Index(line, `URI="`)+5:]
-				h.segmentTone(t, base+uri[:strings.Index(uri, `"`)], ffmpeg, index, want)
+				h.segmentTone(t, base+uri[:strings.Index(uri, `"`)], ffmpeg, index, at, want)
 				return
 			}
 			if strings.HasPrefix(line, "#EXT-X-STREAM-INF") && i+1 < len(lines) {
-				h.segmentTone(t, base+strings.TrimSpace(lines[i+1]), ffmpeg, index, want)
+				h.segmentTone(t, base+strings.TrimSpace(lines[i+1]), ffmpeg, index, at, want)
 				return
 			}
 		}
@@ -162,8 +162,8 @@ func (h *house) segmentTone(t *testing.T, url, ffmpeg string, index, want int) {
 	if err := os.WriteFile(file, segment, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := toneAt(t, ffmpeg, file, 0.5); got != want {
-		t.Errorf("segment %d, the first fetched, plays %d Hz, want %d Hz", index, got, want)
+	if got := toneAt(t, ffmpeg, file, at); got != want {
+		t.Errorf("segment %d, the first fetched, plays %d Hz %.2f s in, want %d Hz", index, got, at, want)
 	}
 }
 
@@ -323,7 +323,7 @@ func TestABookInPartsEncodedDifferentlyPlaysThroughBoth(t *testing.T) {
 		if !strings.HasSuffix(p.URL, ".m3u8") || p.StartPositionMs != start || p.Route != "converted" {
 			t.Fatalf("start at %d ms: a book whose parts differ should be converted into one stream: %+v", start, p)
 		}
-		h.segmentTone(t, p.URL, ffmpeg, int(start/6000), 300*(1+int(start/20_000)))
+		h.segmentTone(t, p.URL, ffmpeg, int(start/6000), 0.5, 300*(1+int(start/20_000)))
 		played := h.listen(t, p.URL, ffmpeg, ffprobe)
 		if played.seconds < 39 || played.seconds > 41 {
 			t.Fatalf("start at %d ms: what plays lasts %.1f s, want both parts' 40 s", start, played.seconds)
