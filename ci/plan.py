@@ -371,10 +371,8 @@ def make_plan(paths, full=False, tier="short"):
     full_packages=set()
     tags=command(['python3','scripts/release-build-tags.py','--capability']).strip()
     if go:
-        # Include the real HTTP/client boundary in build-aware test discovery.
-        listing_tags = tags + ',reading_client_integration'
         for module in ['apikit']:
-            raw=command(['go','list','-json','-tags',listing_tags,'./...'], ROOT/module)
+            raw=command(['go','list','-json','-tags',tags,'./...'], ROOT/module)
             listed=decode_stream(raw)
             for p in listed: p['module']=module
             packages.extend(listed); modules.append(module)
@@ -388,10 +386,7 @@ def make_plan(paths, full=False, tier="short"):
             go_owned=False  # ordinary Go-tree docs needed metadata, not tests
         if tier == 'short': full_packages = full_go_packages(packages, paths)
         chosen=closure(packages,seeds)
-        if tier != 'short' and go_owned:
-            chosen.update(p['ImportPath'] for p in packages if any(s in p['ImportPath'] for s in ['/httpapi','/identity','/auth','/session','/privacy']))
         go=bool(chosen)
-        if go: tags=listing_tags
         packages=[p for p in packages if p['ImportPath'] in chosen]
         for p in packages:
             # go list's build-aware files; include examples and fuzz seed parents.
@@ -473,9 +468,7 @@ def event_tier(event, tier, full):
     return tier or 'short', full
 
 def go_matrix(plan):
-    return {'include':[dict(index=i, **({'reading_client': True} if any(
-        t['name']=='TestReadingHTTPClientPublication' for t in shard) else {}))
-                       for i,shard in enumerate(plan['shards'])]}
+    return {'include':[{'index':i} for i in range(len(plan['shards']))]}
 
 
 def main():
