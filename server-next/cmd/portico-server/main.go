@@ -219,10 +219,12 @@ func run(log *slog.Logger) (err error) {
 	// Mood rows on Home are chosen in the background, so a Home request only reads them.
 	goBackground(func() { d.KeepMoodRows(ctx, log) })
 	goBackground(func() { handler.KeepTrending(ctx) })
-	// No write timeout: media and the events feed are long replies. Slow request headers are bounded.
+	// No write timeout: media and the events feed are long replies. Slow request headers are
+	// bounded, and a connection left open with no request on it is closed after two minutes, so
+	// anyone who can reach the port cannot hold connections open for nothing.
 	// Messages read the log kept in the data folder.
 	handler.UseLog(serverLog)
-	srv := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	failed := make(chan error, 1)
 	// The port, its certificates, the announcement to apps at home and the router's port mapping.
 	mapped := serveNetwork(ctx, srv, handler, failed)
