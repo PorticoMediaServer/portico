@@ -351,8 +351,9 @@ jobs:
           # libraries, and nothing here may reach an outside service.
           cat > "$WORK/evening.sh" <<'SCRIPT'
           set -eu
-          "$WORK/bin/portico-server" -data "$WORK/data" -listen 127.0.0.1:32500 > "$WORK/server.log" 2>&1 &
+          PORTICO_SCRATCH_PPROF=127.0.0.1:38999 "$WORK/bin/portico-server" -data "$WORK/data" -listen 127.0.0.1:32500 > "$WORK/server.log" 2>&1 &
           server=$!
+          (sleep 420; curl -s -o "$WORK/cpu.pprof" "http://127.0.0.1:38999/debug/pprof/profile?seconds=90") &
           for _ in $(seq 120); do [ -f "$WORK/data/setup-code.txt" ] && curl -s -o /dev/null http://127.0.0.1:32500/ && break; sleep 1; done
           "$WORK/bin/portico-load" -mode http -url http://127.0.0.1:32500 -setup-code "$WORK/data/setup-code.txt" -media "$WORK/media/film.mkv" \
             -convert-media "$WORK/media/hevc.mkv" -converting "$WIRE_CONVERTING" \
@@ -382,6 +383,8 @@ jobs:
           path: |
             ${{ env.WORK }}/wire.json
             ${{ env.WORK }}/wire.txt
+            ${{ env.WORK }}/cpu.pprof
+            ${{ env.WORK }}/bin/portico-server
           retention-days: 30
 
   unsynced:
