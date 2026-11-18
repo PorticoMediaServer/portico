@@ -197,10 +197,15 @@ export function EpisodeTile(props: EpisodeTileProps) {
   </ArtFrame>;
   const text = <View style={{flex: row ? 1 : undefined, minWidth: 0, marginTop: row ? 0 : t.spec.episode.titleMargin[t.column], gap: 3, paddingRight: row && (props.onDownload || props.onMore) ? 40 : 0}}>
     <Text numberOfLines={row && !t.isTV ? 2 : 1} style={[t.type.episodeTitle, {color: props.selection?.selected || props.playing ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
-    <Parts parts={props.label} fit={row && !t.isTV ? 'wrap' : 'cut'} style={row ? meta(600) : undefined} />
-    {row && (props.length || props.status) && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12}}>
-      {props.status && !(wide && (props.playing || props.watched)) && <Text style={[meta(700), {color: t.colors.accentStrong}]}>{props.status}</Text>}
-      {props.length && !wide && <Text style={[meta(600), {color: t.colors.textTertiary}]}>{props.length}</Text>}
+    {/* A tablet row's length is on its picture, so its status leads the number's line ("Up next  Episode 3", tablet-play 2a);
+        a phone's row keeps the status beside the length under the number (phone-player 4). */}
+    {wide && props.status && !(props.playing || props.watched)
+      ? <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12, minWidth: 0}}><Text style={[meta(700), {color: t.colors.accentStrong}]}>{props.status}</Text>
+        <View style={{flex: 1, minWidth: 0}}><Parts parts={props.label} fit="cut" style={meta(600)} /></View></View>
+      : <Parts parts={props.label} fit={row && !t.isTV ? 'wrap' : 'cut'} style={row ? meta(600) : undefined} />}
+    {row && !wide && (props.length || props.status) && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12}}>
+      {props.status && <Text style={[meta(700), {color: t.colors.accentStrong}]}>{props.status}</Text>}
+      {props.length && <Text style={[meta(600), {color: t.colors.textTertiary}]}>{props.length}</Text>}
     </View>}
     <Parts parts={props.caption} /><Parts parts={props.detail} />
     {wide && props.synopsis && <Text numberOfLines={3} style={[t.type.episodeBody, {color: t.colors.textSecondary, marginTop: 4}]}>{props.synopsis}</Text>}
