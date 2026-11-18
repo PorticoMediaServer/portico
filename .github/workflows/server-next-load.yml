@@ -57,6 +57,9 @@ on:
       wire_converting:
         description: Of those streams, how many play a film the server must convert in software (HEVC 10-bit to a device that plays only H.264)
         default: '10'
+      wire_runner:
+        description: The machine the wire job runs on (a larger runner label only with the owner's yes; standard runners are free here)
+        default: 'ubuntu-24.04'
   # A change to the workflow or the load tools runs them.
   pull_request:
     paths:
@@ -319,7 +322,7 @@ jobs:
 
   wire:
     name: A real server over HTTP, people streaming and browsing
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.wire_runner || 'ubuntu-24.04' }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -366,7 +369,7 @@ jobs:
           {
             echo "### A real server over HTTP: 200 people, $WIRE_STREAMS streaming ($WIRE_CONVERTING of them converted in software), $WIRE_ITEMS items"
             echo
-            echo "Runner: ubuntu-24.04, $(nproc) vCPU, $(awk '/MemTotal/ {printf "%.0f", $2 / 1048576}' /proc/meminfo) GB, nothing limited; driver and server share it"
+            echo "Runner: $RUNNER_NAME ($ImageOS), $(nproc) vCPU, $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs), $(awk '/MemTotal/ {printf "%.0f", $2 / 1048576}' /proc/meminfo) GB, nothing limited; driver and server share it"
             echo
             echo '```'
             cat "$WORK/wire.txt"
