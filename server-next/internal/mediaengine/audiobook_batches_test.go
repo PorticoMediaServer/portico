@@ -93,22 +93,34 @@ func playFrom(t *testing.T, h *house, ffmpeg, id string, atMs int64) api.Playbac
 	if !strings.HasSuffix(p.URL, ".m3u8") || p.StartPositionMs != atMs {
 		t.Fatalf("start at %d ms: %+v", atMs, p)
 	}
-	// The tone half a second into the segment, which holds the part playing there.
 	segment := int(atMs / 6000)
-	part := int((float64(segment*6) + 0.5) / partPacketSeconds)
-	h.segmentTone(t, p.URL, ffmpeg, segment, partTone(part))
+	part, at := segmentProbe(segment)
+	h.segmentTone(t, p.URL, ffmpeg, segment, at, partTone(part))
 	return session
 }
 
-// A book of 300 parts plays: from its start (all of it, every part where it belongs), from
+// segmentProbe is the part whose tone a segment is checked by, and where in the segment: the
+// middle of the part a part's length in, clear of the segment's cut and of any two parts'
+// seam, where a tenth of a second holds two tones and measures as neither (a fixed half
+// second in sat on a seam at 66 and 70 parts and heard 630 and 960 Hz from a right stream).
+func segmentProbe(segment int) (part int, at float64) {
+	start := float64(segment * 6)
+	part = int((start + partPacketSeconds) / partPacketSeconds)
+	return part, (float64(part)+0.5)*partPacketSeconds - start
+}
+
+// A book of many parts plays: from its start (all of it, every part where it belongs), from
 // its middle and from inside its last part, alone and four books at once. Every run of its
-// converter is handed at most a batch of parts, so the sandbox's limit of 32 files a tool is
-// never met, however long the book.
-func TestABookOfThreeHundredPartsPlays(t *testing.T) {
+// converter is handed at most a batch of parts (24, a run ending on the last segment boundary
+// inside them), so the sandbox's limit of 32 files a tool is never met, however long the book.
+// 70 parts (192 s) is three full batches and a short last one; more parts only take longer to
+// listen to (300 took 159 s of CI).
+func TestABookOfManyPartsPlays(t *testing.T) {
 	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
 	h, d := newHouse(t, ffmpeg, ffprobe)
-	ids := manyPartBooks(t, h, d, ffmpeg, 300, 300, 300, 300)
-	whole := 300 * partPacketSeconds
+	const parts = 70
+	ids := manyPartBooks(t, h, d, ffmpeg, parts, parts, parts, parts)
+	whole := parts * partPacketSeconds
 	var options api.PlaybackOptions
 	h.call("GET", "/v1/items/"+ids[0]+"/playback-options", nil, &options, 200)
 	if got := options.Versions[0].DurationMs; got < int64(whole*1000)-1 || got > int64(whole*1000)+1 {
@@ -120,7 +132,7 @@ func TestABookOfThreeHundredPartsPlays(t *testing.T) {
 	if played.seconds < whole-1 || played.seconds > whole+1 {
 		t.Fatalf("the book plays for %.1f s, want its %.1f s", played.seconds, whole)
 	}
-	for _, part := range []int{0, 22, 23, 24, 150, 299} {
+	for _, part := range []int{0, 22, 23, 24, parts / 2, parts - 1} {
 		at := float64(part)*partPacketSeconds + 1
 		if got := toneAt(t, ffmpeg, played.file, at); got != partTone(part) {
 			t.Errorf("%.1f s into the book plays %d Hz, want part %d's %d Hz", at, got, part+1, partTone(part))
@@ -170,8 +182,8 @@ func TestABookOfThreeHundredPartsPlays(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			segment := int(positions[b] / 6000)
-			part := int((float64(segment*6) + 0.5) / partPacketSeconds)
-			client.segmentTone(t, sessions[b].Presentation.URL, ffmpeg, segment, partTone(part))
+			part, at := segmentProbe(segment)
+			client.segmentTone(t, sessions[b].Presentation.URL, ffmpeg, segment, at, partTone(part))
 		}()
 	}
 	wg.Wait()

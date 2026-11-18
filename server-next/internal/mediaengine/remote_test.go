@@ -245,7 +245,7 @@ func TestBooksInPartsOnRemoteStoragePlayAsOneBook(t *testing.T) {
 				t.Fatalf("%s from %d ms: %+v", item.Title, start, p)
 			}
 			// The segment holding the start, fetched first, is the part holding it.
-			h.segmentTone(t, p.URL, ffmpeg, int(start/6000), 300*(1+int(start/20_000)))
+			h.segmentTone(t, p.URL, ffmpeg, int(start/6000), 0.5, 300*(1+int(start/20_000)))
 			played := h.listen(t, p.URL, ffmpeg, ffprobe)
 			if played.seconds < length-1 || played.seconds > length+1 {
 				t.Fatalf("%s from %d ms: what plays lasts %.1f s, want the whole book's %.0f s", item.Title, start, played.seconds, length)
