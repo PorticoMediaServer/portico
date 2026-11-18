@@ -1,8 +1,8 @@
 import {headerWordmark} from '../kit/shell/brand';
+import {BrandSymbol} from '../kit/shell/BrandSymbol';
 import React, {useCallback, useMemo, useRef, useSyncExternalStore} from 'react';
 import {motionRules} from '@portico/design';
 import {findNodeHandle, Image, Platform, ScrollView, Text, View} from 'react-native';
-import Svg, {Path} from 'react-native-svg';
 import Animated, {useAnimatedStyle, useSharedValue, withDelay, withTiming} from 'react-native-reanimated';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import type {Library} from '../../../../packages/client-core/src';
@@ -109,7 +109,7 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
           of the icon) shows on every page with the rail closed, not only open (r7 S6). */}
       <Animated.View style={[{flex: 1}, counter, open ? null : {width: tvRailClosedColumn + spec.markRoom, marginLeft: -spec.markRoom, paddingLeft: spec.markRoom, overflow: 'hidden'}, dimmed && !open ? {opacity: .5} : null]}>
         <View accessible={false} style={{height: 40, marginLeft: 16, marginBottom: 64}}>
-          {open ? <Image source={require('../../assets/wordmark.png')} resizeMode="contain" style={{...headerWordmark.tvRail, flexShrink: 0, position: 'absolute', top: (40 - headerWordmark.tvRail.height) / 2}}/> : <RailBrandSymbol/>}
+          {open ? <Image source={require('../../assets/wordmark.png')} resizeMode="contain" style={{...headerWordmark.tvRail, flexShrink: 0, position: 'absolute', top: (40 - headerWordmark.tvRail.height) / 2}}/> : <BrandSymbol width={28} height={40}/>}
         </View>
         <View style={{gap: spec.itemGap}}>{pinnedTop.map(item)}</View>
         {/* The libraries scroll, so they clip. The list owns the item gaps above and below it (room for the focus ring) and
@@ -143,10 +143,3 @@ const tvRailClosedColumn = 200 - 72; // the page gutter less the rail's insetLef
 /** Room around the rail list for a focused item's glow. */
 const tvRailGlow = 40;
 
-/** The canonical brandSymbol asset paths, using the elements supplied by the Metro SVG adapter. */
-function RailBrandSymbol() {
-  return <Svg width={28} height={40} viewBox="206 184 304 405" accessible={false}>
-    <Path d="M228.0 567.0V206.0H354.3530578613281Q395.70135498046875 206.0 425.38002014160156 221.2514419555664Q455.0586853027344 236.5028839111328 471.0293426513672 265.1856155395508Q487.0 293.86834716796875 487.0 333.6389465332031Q487.0 372.9089660644531 471.0293426513672 401.5841369628906Q455.0586853027344 430.2593078613281 425.38002014160156 445.51832580566406Q395.70135498046875 460.77734375 354.3530578613281 460.77734375H324.0V408.46429443359375H352.413818359375Q392.6810607910156 408.46429443359375 413.2369079589844 388.8592529296875Q433.7927551269531 369.25421142578125 433.7927551269531 333.6389465332031Q433.7927551269531 297.52313232421875 413.2369079589844 277.91807556152344Q392.6810607910156 258.3130187988281 352.413818359375 258.3130187988281H280.7454833984375V408.46429443359375H281.0V460.77734375H280.7454833984375V567.0Z" fill="#FFFFFF"/>
-    <Path d="M324 298 L324 369 Q324 374 329 371 L392 338 Q398 333 392 328 L329 296 Q324 293 324 298 Z" fill="#FFFFFF"/>
-  </Svg>;
-}
