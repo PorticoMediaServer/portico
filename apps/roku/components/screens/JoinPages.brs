@@ -145,7 +145,7 @@ sub onActive()
     if m.top.page = "join" and m.at = "keys"
         m.keyboard.active = true
     else
-        m.top.setFocus(true)
+        m.top.findNode("boxStop").setFocus(true)
     end if
     paint()
 end sub
@@ -189,7 +189,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
     ' the keyboard's top row goes up to the address box
     if key = "up"
         m.at = "address"
-        m.top.setFocus(true)
+        m.top.findNode("boxStop").setFocus(true)
         paint()
         return true
     end if
