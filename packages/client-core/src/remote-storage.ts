@@ -1,7 +1,7 @@
 /**
- * Remote storage on the new server, for the owner (definition 03, rules 7 to 14): WebDAV, an rclone
- * remote pasted from rclone's configuration, or Google Drive with the owner's own service account
- * key or OAuth client. Nothing is saved until the connection works: adding and changing an address
+ * Remote storage on the new server, for the owner (definition 03, rules 7 to 14): WebDAV, rclone
+ * remotes built from fields or pasted from rclone's configuration, and Google Drive with the owner's
+ * own service account key or OAuth client. Nothing is saved until the connection works: changing an address
  * or a password are tested by the server first (rule 10). A source has one of four presets and its
  * own limits (rules 11, 12). A saved source no library folder is on yet is "Setup not finished"
  * (`state: 'setup'`), and Continue setup puts one of its folders in a library.
@@ -107,16 +107,19 @@ function holding(library: AdminLibrary, folder: RemoteFolderRef): AdminLibrary {
 export const createLibraryOnRemoteFolder = async (api: ServerRequester, library: Readonly<{name: string; kind: string}>, folder: RemoteFolderRef, signal?: AbortSignal): Promise<AdminLibrary> =>
   holding(await callServer(api, 'POST /v1/admin/libraries', {body: {name: library.name.trim(), kind: library.kind, folders: [], remoteFolders: [folder]} as never, signal}), folder);
 
-/** The refusal for a step the server does not offer yet. Nothing is sent and nothing is pretended. */
+/** The refusal for a step the server does not offer yet. */
 export const notOnServerYet = (): Error => Object.assign(new Error('This is not available on this server yet.'), {code: 'not_on_server'});
 export const isNotOnServerYet = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === 'not_on_server';
-/** OneDrive or Dropbox with a token pasted from `rclone authorize` (rule 8). The server's field for it is being
- * built; until it is in the routes this answers that it is not available. */
-export async function addCloudTokenSource(_api: ServerRequester, _source: Readonly<{name: string; provider: 'onedrive' | 'dropbox'; token: string; path: string; preset: RemotePreset}>,
-  _signal?: AbortSignal): Promise<RemoteSource> { throw notOnServerYet(); }
-/** A new rclone remote made from its kind and settings rather than pasted (rule 8). Being built on the server, as above. */
-export async function addRcloneRemoteFromFields(_api: ServerRequester, _source: Readonly<{name: string; type: string; options: Readonly<Record<string, string>>; path: string; preset: RemotePreset}>,
-  _signal?: AbortSignal): Promise<RemoteSource> { throw notOnServerYet(); }
+/** OneDrive or Dropbox with a token pasted from rclone (rule 8). */
+export function addCloudTokenSource(api: ServerRequester, {name, provider, token, path, preset}: Readonly<{name: string; provider: 'onedrive' | 'dropbox'; token: string; path: string; preset: RemotePreset}>,
+  signal?: AbortSignal): Promise<RemoteSource> {
+  return addRcloneRemoteFromFields(api, {name, type: provider, options: {token}, path, preset}, signal);
+}
+/** The server builds the rclone remote from its backend type and options. */
+export function addRcloneRemoteFromFields(api: ServerRequester, {name, type, options, path, preset}: Readonly<{name: string; type: string; options: Readonly<Record<string, string>>; path: string; preset: RemotePreset}>,
+  signal?: AbortSignal): Promise<RemoteSource> {
+  return addRemoteSource(api, {kind: 'rclone', name, preset, rclone: {type, options, path}}, signal);
+}
 
 /** The fields a refusal can name, in the words each app keeps for them. */
 export type RemoteRefusedField = 'name' | 'address' | 'password' | 'config' | 'drive' | 'limits';
