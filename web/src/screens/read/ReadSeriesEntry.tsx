@@ -1,6 +1,5 @@
 import {useRouteLibrary} from '../browse/route-library';
 import {forwardIdentity, runScreenCommand} from '../detail/context';
-import {ReadGroupSavedAction} from './ReadGroupSavedAction';
 import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties} from 'react';
 import {defaultI18n} from '@i18n';
 import {generatedCoverTint} from '@design';
@@ -145,7 +144,7 @@ function LiveSeriesRows({resources, context, retry}: {resources: Resources; cont
       cover={resources.artwork.foreground(coverItem?.coverUrl, 784, 2 / 3)}
       stack={seriesCovers}
       ambient={resources.artwork.ambient(coverItem?.coverUrl)} palette={tint}
-      actions={<><Button variant="primary" icon="i-book" onClick={start} disabled={!target}>{actionLabel}</Button>{state.status === 'ready' && <ReadGroupSavedAction client={resources.bindings.client} libraryId={resources.libraryId} groupKind="series" seriesId={resources.seriesId} isCurrent={() => resources.bindings.authority.isCurrent() && resources.rows.collection.getSnapshot().status === 'ready'} reportError={report}/>}</>}/>
+      actions={<><Button variant="primary" icon="i-book" onClick={start} disabled={!target}>{actionLabel}</Button></>}/>
 </> : null}
     {/* desktop-read 4, phone-read 4: the volumes' heading is the kit row's, as every row's is. */}
     <Row heading={title ? t(resources.comic ? 'next.reader.volumes' : 'next.kit.booksInSeries') : t('library.tab.series')} platform={width < 600 ? 'phone-web' : 'desktop'}

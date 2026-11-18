@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {PersonalSavedService} from '../../../packages/client-core/src/personal-saved.ts';
 import type {SavedApi, SavedScope} from '../../../packages/client-core/src/saved.ts';
 import {createNativeSavedViewRenameController} from '../src-next/screens/saved/rename-view.ts';
-// The rename controller is tested against the old server's resource documents; the rebuilt server's are client-core's (personal-saved-next.test.ts).
+// The rename controller is tested against the service's resource projections; the rebuilt server's are client-core's (personal-saved-next.test.ts).
 import {legacyPersonalTransport} from '../../../packages/client-core/test/fixtures/legacy-personal-transport.ts';
 
 const scope: SavedScope = {serverId: 'server-a', viewerId: 'actual-viewer'};
@@ -54,7 +54,7 @@ class SavedFixture {
   private async route(path: string, method: string, body?: unknown): Promise<unknown> {
     this.calls.push({path, method, ...(method === 'PATCH' ? {body} : {})});
     if (method === 'GET') {
-      const match = /\/v1\/saved-resources\/([^/]+)\/content$/.exec(path.split('?')[0]!);
+      const match = /\/fixtures\/resources\/([^/]+)\/content$/.exec(path.split('?')[0]!);
       if (!match) throw new Error(`unexpected read ${path}`);
       const view = this.views.get(decodeURIComponent(match[1]!));
       if (!view) throw new Error(`unknown view ${match[1]}`);
@@ -109,7 +109,7 @@ test('Save sends only the trimmed name and the original CAS through the canonica
     assert.equal(await controller.save(), true);
     const [patch] = fixture.patchCalls;
     assert.equal(patch!.method, 'PATCH');
-    assert.equal(patch!.path, `/v1/saved-resources/${viewId}`);
+    assert.equal(patch!.path, `/fixtures/resources/${viewId}`);
     assert.deepEqual(patch!.body, {expectedRevision: 4, name: 'Comfort movies HD', operationId: fixture.requestIds[0]});
     assert.deepEqual(Object.keys(patch!.body as object).sort(), ['expectedRevision', 'name', 'operationId']);
     const snapshot = controller.getSnapshot();

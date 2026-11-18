@@ -3,8 +3,6 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 import {compileFunction} from 'node:vm';
-import * as group from '../src/reading-saved-group.ts';
-import {removeSavedReadingGroup} from '../src/saved-reading-reference.ts';
 import {clearPersonalHistory} from '../src/personal-history-actions.ts';
 import {readCollectionSuccessor} from '../src/query/collection-successor.ts';
 import {encodedRoutePath} from '../../contracts/src/routes.ts';
@@ -15,16 +13,12 @@ const original = JSON.parse(readFileSync(new URL('./fixtures/cc2-personal-main-o
 const saved = readFileSync(new URL('../../../apps/native/src-next/screens/destinations/saved/model.ts', import.meta.url), 'utf8');
 const currentHistory = saved.slice(saved.indexOf('  clearHistory = async'), saved.indexOf('  dispose =', saved.indexOf('  clearHistory = async')));
 const collection = readFileSync(new URL('../../../web/src/screens/watch/collection-next.ts', import.meta.url), 'utf8');
-const runtime = readFileSync(new URL('../../../web/src/screens/saved/runtime.ts', import.meta.url), 'utf8');
-const start = runtime.indexOf('    removeReadingGroup(');
-const currentRemoval = runtime.slice(start, runtime.indexOf('\n    },', start) + 7);
 function compile(code: string, ports: Record<string, unknown>, result: string) {
   const source = stripTypeScriptTypes('function fixtureBody() {\n' + code + '\nreturn ' + result + ';\n}', {mode: 'transform'});
   return compileFunction(source + '\nreturn fixtureBody();', Object.keys(ports))(...Object.values(ports));
 }
-const deferred = () => {let resolve!: (value: unknown) => void, reject!: (error: unknown) => void;const promise = new Promise<unknown>((yes, no) => {resolve = yes;reject = no;});return {promise, resolve, reject};};
+const deferred = () => {let resolve!: (value: unknown) => void;const promise = new Promise<unknown>(yes => {resolve = yes;});return {promise, resolve};};
 const flush = async () => {for (let n = 0; n < 12; n++) await Promise.resolve();};
-const after = (depth: number, action: () => void) => {if (!depth) queueMicrotask(action); else queueMicrotask(() => after(depth - 1, action));};
 test('main parity: history refresh runs before a retirement queued behind the request answer', async () => {
   const exercise = async (code: string) => {
     const response = deferred(), trace: string[] = []; let live = true;
@@ -53,24 +47,3 @@ test('main parity: collection projection happens in the original request continu
   const expected = await exercise(original.collection); assert.ok(expected.indexOf('project') < expected.indexOf('retire'));
   assert.deepEqual(await exercise(collection), expected);
 });
-for (const depth of [0, 1, 2, 3]) {
-  for (const outcome of ['transport rejection', 'stale malformed reply', 'current malformed reply'] as const) {
-    test(`main parity: saved reference ${outcome}, competing checkpoint at microtask ${depth}`, async () => {
-      const exercise = async (code: string) => {
-        const response = deferred(), trace: string[] = []; let current = true;
-        const operations = {get current() {trace.push('guard'); return current;}};
-        const fn = compile('const owner = {\n' + code + '\n};', {...group, removeSavedReadingGroup, api: {request: () => response.promise}, scope: {serverId: 'server'}, operations,
-          abort: () => new DOMException('Saved authority is no longer current.', 'AbortError')}, 'owner.removeReadingGroup');
-        const task = fn('reference', {operationId: 'held', expectedRevision: 2}, new AbortController().signal).then(() => trace.push('settled'), (e: Error) => trace.push('error:' + e.message));
-        if (outcome === 'transport rejection') response.reject(new Error('transport'));
-        else {
-          current = outcome !== 'stale malformed reply';
-          response.resolve(Object.defineProperty({}, 'serverId', {enumerable: true, get() {trace.push('parse'); throw new Error('dto');}}));
-        }
-        after(depth, () => trace.push('checkpoint')); await task; await flush(); return trace;
-      };
-      const expected = await exercise(original.removal); assert.deepEqual(await exercise(currentRemoval), expected);
-      if (outcome === 'stale malformed reply') assert.ok(!expected.includes('parse'));
-    });
-  }
-}

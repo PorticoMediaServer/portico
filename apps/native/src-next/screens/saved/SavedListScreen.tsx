@@ -62,8 +62,7 @@ export function SavedListScreen({route, destination, activation, runtime, action
   const personal = snapshot.personal, saved = snapshot.saved;
   const projection = saved?.projection, entries: readonly ContentEntry[] = route.view === 'history'
     ? (personal?.entries ?? []).flatMap(entry => !entry.hidden && entry.media ? [entry.media] : [])
-    : (projection?.sections ?? []).flatMap(section => section.entries.flatMap(entry => entry.kind === 'playlist' || entry.kind === 'playlist_entry'
-      || entry.kind === 'reading_group' ? [] : [entry]));
+    : (projection?.sections ?? []).flatMap(section => section.entries.flatMap(entry => entry.kind === 'playlist' || entry.kind === 'playlist_entry' ? [] : [entry]));
   const error = snapshot.error ?? saved?.error ?? personal?.error;
   const loading = (snapshot.phase === 'idle' || snapshot.phase === 'loading') && !projection && !personal?.entries.length;
   const sorts = useMemo(() => projection?.sorts ?? [], [projection?.sorts]), filters = projection?.filters ?? [];

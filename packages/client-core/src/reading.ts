@@ -3,35 +3,25 @@ import {validReadingCover} from './reading-cover.ts';
 import {serverPath} from './query/server-api.ts';
 import {rebuiltAuthorTitles, rebuiltBookFacts, rebuiltReadingContinue, rebuiltReadingPage, rebuiltReadingSeries} from './reading-lists-rebuilt.ts';
 import {retryAfterFrom} from './timer.ts';
-import {readingSavedGroupPath, parseReadingSavedGroupMembership, validReadingSavedGroupCommand, type ReadingSavedGroupTarget, type ReadingSavedGroupCommand} from './reading-saved-group.ts';
-import {readingFavoritePath, parseReadingFavorite, validReadingFavoriteCommand, type ReadingFavoriteCommand} from './reading-favorite.ts';
+import {validReadingFavoriteCommand, type ReadingFavoriteCommand} from './reading-favorite.ts';
 export type {ReadingFavoriteFlag, ReadingFavoriteCommand} from './reading-favorite.ts';
-import {readingSavedPath, parseReadingSavedMembership, validReadingSavedCommand, type ReadingListCommand} from './reading-saved.ts';
+import {validReadingSavedCommand, type ReadingListCommand} from './reading-saved.ts';
 export type {ReadingListMembership, ReadingListCommand} from './reading-saved.ts';
-import {withReadingConversion, withReadingContinueConversions, type ReadingConversion} from './reading-conversion.ts';
-import {withReadingDiscoverMarks, type ReadingPreviewMarks} from './reading-preview-mark.ts';
-import {readingMarkPath, parseReadingMark, validReadingMarkCommand, type ReadingReadMarkCommand} from './reading-mark.ts';
+import {withReadingConversion, type ReadingConversion} from './reading-conversion.ts';
+import type {ReadingPreviewMarks} from './reading-preview-mark.ts';
+import {validReadingMarkCommand, type ReadingReadMarkCommand} from './reading-mark.ts';
 export type {ReadingReadMark, ReadingReadMarkCommand} from './reading-mark.ts';
-import {decodeOpen} from '../../contracts/src/runtime.ts';
-/** O-159 open tier (R-09) for the Reading browse reads: a book, series or issue carrying a format,
- * publication type or source this client does not know is left out; the rest of the page shows. */
-const openRead = <T>(name: Parameters<typeof decodeOpen>[0]) => (value: unknown): T => decodeOpen(name, value) as T;
 import {withReadingManifestFacts, type ReadingManifestFacts} from './reading-manifest-facts.ts';
 import {captureReadingAnnotationMutation, parseReadingAnnotations, parseReadingAnnotationSaved, readingAnnotationId, type ReadingAnnotationMutation, type ReadingAnnotationsPage} from './reading-annotations.ts';
 import {
-  decodeGetReadingPeriodicalGroupsResponse, decodeGetReadingPeriodicalIssuesResponse,
   type GetReadingPeriodicalGroupsResponse, type GetReadingPeriodicalIssuesResponse,
-  routePath, errors, decodeGetReadingSeriesItemsResponse, decodeGetReadingDiscoverResponse, decodeGetReadingContinueResponse, decodeGetReadingItemsResponse, decodeGetItemsItemIdReadingVersionsResponse,
-  decodePostReadingSessionsResponse, decodeGetReadingSessionsSessionIdProgressResponse,
-  decodePutReadingSessionsSessionIdProgressResponse, decodeGetReadingSessionsSessionIdSearchResponse,
+  errors, decodeGetReadingItemsResponse, decodePostReadingSessionsResponse, decodeGetReadingSessionsSessionIdSearchResponse,
   type GetReadingSeriesItemsResponse, type GetReadingDiscoverResponse, type GetReadingContinueResponse, type GetReadingItemsResponse, type GetItemsItemIdReadingVersionsResponse,
-  type PostReadingSessionsRequest, type PostReadingSessionsResponse,
-  type GetReadingSessionsSessionIdProgressResponse, type GetReadingSessionsSessionIdSearchResponse,
+  type PostReadingSessionsRequest, type PostReadingSessionsResponse, type GetReadingSessionsSessionIdProgressResponse, type GetReadingSessionsSessionIdSearchResponse,
   type PutReadingSessionsSessionIdProgressRequest, type PutReadingSessionsSessionIdProgressResponse,
 } from '../../contracts/src/index.ts';
 import {schemas} from '../../contracts/src/schemas.ts';
 import type {Viewer} from './index.ts';
-
 export type ReadingScope = Readonly<{viewer: Readonly<Viewer>; isCurrent: () => boolean; signal?: AbortSignal}>;
 type Immutable<T> = T extends readonly (infer V)[] ? readonly Immutable<V>[] : T extends object ? {readonly [K in keyof T]: Immutable<T[K]>} : T;
 /** `wholeFile`: the reader reads the book's own file by byte range and finds its parts and pages
@@ -290,24 +280,6 @@ function validateDiscoverRow(row: ReadingDiscover['rows'][number], libraryId: st
   return cards;
 }
 
-function isReadingObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-function readingSeriesOverview(value: unknown, series: string, pageLength: number): ReadingSeriesOverview {
-  if (!isReadingObject(value) || value.id !== series || typeof value.name !== 'string' || !value.name.trim() || [...value.name].length > 4096
-    || typeof value.count !== 'number' || !integer(value.count, 1, Number.MAX_SAFE_INTEGER) || value.count < pageLength
-    || typeof value.readCount !== 'number' || !integer(value.readCount, 0, value.count)) fail('invalid_document');
-  let author: ReadingAuthor | undefined;
-  if (value.author !== undefined) {
-    const raw = value.author;
-    if (!isReadingObject(raw) || typeof raw.value !== 'string' || !raw.value.trim() || [...raw.value].length > 4096 || typeof raw.source !== 'string') fail('invalid_document');
-    const source = schemas.GetReadingItemsResponse.properties.items.items.properties.author.properties.source.enum.find(source => source === raw.source);
-    if (source === undefined) fail('invalid_document');
-    author = {value: raw.value, source};
-  }
-  return Object.freeze({id: series, title: value.name, total: value.count, completed: value.readCount, ...(author ? {author: Object.freeze(author)} : {})});
-}
-
 const comicFormat = (s: string) => s === 'cbz' || s === 'cbr' || s === 'cb7';
 const engineFormat = (s: string) => s === 'epub' || s === 'pdf' || comicFormat(s);
 const convertedSource = (s:string) => s==='mobi'||s==='azw3';
@@ -477,7 +449,6 @@ function scopedByteStream(source: ByteSource): ReadingByteStream {
   });
 }
 
-
 function validateManifest(m: ReadingManifest, request: PostReadingSessionsRequest) {
   if (!id(m.sessionId) || m.itemId !== request.itemId || m.sourceId !== request.sourceId || !revision(m.revision) || !engineFormat(m.format) || !integer(m.size, 1, 2 ** 31)) fail('invalid_manifest');
   if (!validReadingCover(m.itemId, m.metadata.coverUrl)) fail('invalid_manifest');
@@ -607,10 +578,6 @@ export class ReadingClient {
     const state = await this.setState(itemId, {favorite: command.favorite}, signal);
     return Object.freeze({itemId, favorite: state.favorite === true, revision: command.expectedRevision + 1, viewerFence: noFence, operationId: command.operationId});
   }
-  /** A series has no My List of its own on this server: the control is not offered. */
-  canUseGroupMyList(_target: ReadingSavedGroupTarget): boolean { return false; }
-  async getGroupMyList(_target: ReadingSavedGroupTarget, _signal?: AbortSignal): Promise<ReturnType<typeof parseReadingSavedGroupMembership>> { return fail('unsupported'); }
-  async setGroupMyList(_target: ReadingSavedGroupTarget, _command: ReadingSavedGroupCommand, _signal?: AbortSignal): Promise<ReturnType<typeof parseReadingSavedGroupMembership>> { return fail('unsupported'); }
   canUseMyList(itemId: string): boolean { return this.#signedIn() && id(itemId); }
   async getMyList(itemId: string, signal?: AbortSignal) {
     const state = await this.state(itemId, signal);

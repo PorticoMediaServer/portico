@@ -35,7 +35,7 @@ export function createNativeSavedSelection(context: NativeShellBootstrapContext,
           viewId: JSON.stringify(['native-saved', snapshot.myList.route, first.scope.entityId]), privacyFence: first.scope.viewerFence},
         revision: {catalogRevision: '0', viewerRevision: '0'},
       } : null, sections: lists.flatMap(({id, projection}) => projection.sections.map(section => ({id: `${id}:${section.id}`,
-        entries: section.entries.filter((entry): entry is ContentEntry => entry.kind !== 'playlist' && entry.kind !== 'playlist_entry' && entry.kind !== 'reading_group')})))};
+        entries: section.entries.filter((entry): entry is ContentEntry => entry.kind !== 'playlist' && entry.kind !== 'playlist_entry')})))};
     },
   };
   return createNativeSelection(context, catalogueSelectionSource(source, activation), {area: 'saved', aggregates: true});
@@ -58,7 +58,7 @@ export function createNativeSavedViewSelection(context: NativeShellBootstrapCont
         : {catalogRevision: JSON.stringify(['saved-resource', personal?.resource?.revision ?? personal?.revision]), viewerRevision: JSON.stringify(['saved', personal?.revision])};
       const entries = (projection?.sections ?? []).map(section => ({id: section.id, entries: section.entries.flatMap(entry =>
         entry.kind === 'playlist_entry' ? entry.hidden ? [] : [entry.media]
-          : entry.kind === 'playlist' || entry.kind === 'reading_group' ? [] : [entry])}));
+          : entry.kind === 'playlist' ? [] : [entry])}));
       if (personal) entries.push({id: 'personal', entries: personal.entries.flatMap(entry => !entry.hidden && entry.media ? [entry.media] : [])});
       return {key: JSON.stringify(['native-saved-view', snapshot.route, projection?.query]), witness: snapshot.saved ?? personal,
         context: admitted && viewer && (viewer.authority === 'local' || viewer.authority === 'hosted') ? {

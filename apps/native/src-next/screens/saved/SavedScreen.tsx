@@ -33,7 +33,7 @@ import {registerBack} from '../../kit/navigation/back';
 import {TVRow} from '../../kit/layout/TVRow';
 
 const t = defaultI18n.t;
-const content = (entry: SavedEntry): entry is ContentEntry => entry.kind !== 'playlist' && entry.kind !== 'playlist_entry' && entry.kind !== 'reading_group';
+const content = (entry: SavedEntry): entry is ContentEntry => entry.kind !== 'playlist' && entry.kind !== 'playlist_entry';
 export type NativeSavedActions = Readonly<{
   menuState?: NativeEntryMenuState;
   openView: (view: SavedRoute) => void; openEntry: (entry: ContentEntry) => void; menuEntry: (entry: ContentEntry, anchorRef?: RefObject<View | null>, select?: () => void) => void;

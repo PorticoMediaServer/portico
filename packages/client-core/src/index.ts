@@ -62,7 +62,7 @@ export {readSearchGenres, releaseSearchGenres, searchGenresReadMetadata, type Se
   type SearchGenrePage, type SearchGenreRequest, type SearchGenreReadOptions} from './search-genres.ts';
 export * from './facet-windows.ts';
 export * from './people.ts';
-export {savedListPath,personalHistoryPath,savedListFilters,savedListSorts,historyPeriods,type SavedListFilter,type SavedListSort,type HistoryPeriod,type SavedApi,type SavedScope,type SavedRoute,type SavedActor} from './saved.ts';
+export {savedListFilters,savedListSorts,historyPeriods,type SavedListFilter,type SavedListSort,type HistoryPeriod,type SavedApi,type SavedScope,type SavedRoute,type SavedActor} from './saved.ts';
 export * from './browse.ts';
 export * from './browse-buckets.ts';
 export * from './browse-whole-selection.ts';
@@ -166,5 +166,3 @@ export type {PlaybackInfo, PlaybackRoute, PlaybackPictureFacts, PlaybackSoundFac
 export {playbackInfoProjection, reconciledPlaybackLosses} from './playback-info-projection.ts';
 export type {PlaybackInfoWords, PlaybackComparisonProjection, PlaybackInfoRow, PlaybackInfoField} from './playback-info-projection.ts';
 export {videoAudioChannelName} from './video-track-labels.ts';
-
-export type {ReadingSavedGroupTarget, ReadingSavedGroupKind, ReadingSavedGroupMembership, ReadingSavedGroupCommand, SavedReadingGroupCard} from './reading-saved-group.ts';

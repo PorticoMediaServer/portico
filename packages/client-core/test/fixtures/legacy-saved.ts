@@ -109,7 +109,7 @@ export function legacySavedRequest(request: Request, options: LegacySavedOptions
         return {items: [], total: shape && doc?.shapeCounts ? doc.shapeCounts[shape] : option?.count ?? totalOf(doc)};
       }
       if (!Array.isArray(doc?.sections)) return doc; // an unreadable page stays unreadable
-      return {items: entriesOf(doc).filter((entry: any) => entry.kind !== 'reading_group').map(entry => item(entry)), total: totalOf(doc), ...(cursorOf(doc) ? {nextCursor: cursorOf(doc)} : {})};
+      return {items: entriesOf(doc).map(entry => item(entry)), total: totalOf(doc), ...(cursorOf(doc) ? {nextCursor: cursorOf(doc)} : {})};
     }
     if (at === '/v1/items' && method === 'GET' && q.has('list')) {
       const id = q.get('list')!, params = new URLSearchParams({limit: '40'});
