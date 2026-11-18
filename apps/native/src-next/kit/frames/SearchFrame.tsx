@@ -4,6 +4,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme} from '../theme';
 import {TVRow} from '../layout/TVRow';
 import {useFrameMetrics} from './metrics';
+import {NativePageInsetProvider, usePageInset} from '../layout/page-inset';
 import {frameSpec} from '@portico/design';
 
 export type SearchNone = Readonly<{title: string; body?: string; action?: ReactNode}>;
@@ -32,7 +33,7 @@ export type SearchFrameProps = Readonly<{
  * field with Cancel, the scope chips; on TV the field and its keyboard in a column on the left. Flexible: what is
  * under them. The field and chips stay where they are while the results scroll. */
 export function SearchFrame({title, field, cancel, keyboard, scopes, notice, none, children, testID}: SearchFrameProps) {
-  const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), tv = frame.form === 'tv';
+  const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), inset = usePageInset(), tv = frame.form === 'tv';
   const top = Math.max(frame.titleTop, insets.top + frame.headerGap), edge = {paddingLeft: frame.gutter, paddingRight: frame.rightGutter};
   const results = <ScrollView style={{flex: 1}} contentContainerStyle={{paddingTop: tv ? frame.headingGap : frame.sectionGap / 2, paddingBottom: frame.bottomClear, gap: frame.sectionGap}}>
     {notice && <View style={edge}>{notice}</View>}
@@ -48,7 +49,10 @@ export function SearchFrame({title, field, cancel, keyboard, scopes, notice, non
   // keep their own gutters, line up with the column's edge.
   if (tv) return <View testID={testID} style={{flex: 1, flexDirection: 'row', paddingTop: frame.titleTop, paddingLeft: frame.gutter}}>
     <View style={{width: frameSpec.search.keyboardWidth, gap: frame.headingGap}}>{field}{keyboard}</View>
-    <View style={{flex: 1, minWidth: 0, marginLeft: frame.sectionGap - frame.gutter, gap: frame.headingGap}}>{chips}{results}</View>
+    {/* The column is the page inset by the keyboard's column: parts that size from the page width (a row of tiles, the Top result) size from it. */}
+    <NativePageInsetProvider value={inset + frameSpec.search.keyboardWidth + frame.sectionGap}>
+      <View style={{flex: 1, minWidth: 0, marginLeft: frame.sectionGap - frame.gutter, gap: frame.headingGap}}>{chips}{results}</View>
+    </NativePageInsetProvider>
   </View>;
   return <View testID={testID} style={{flex: 1}}>
     <View style={{paddingTop: top, gap: frame.headingGap}}>
