@@ -34,15 +34,14 @@ export type PlayerUpNextProps = Readonly<{
 }>;
 
 export function PlayerUpNext({item, artwork, countdown, countdownTotal, sceneAfter, compact = false, onPlayNow, onWatchCredits, onSkipCredits, postPlay}: PlayerUpNextProps) {
-  const theme = useTheme(), t = defaultI18n.t;
+  // R2: the player's cards (Up next, Still watching, the end card) read the form's roles: title `heading`, lines `body`,
+  // the quieter line `caption`, buttons the kit Button's own sizes.
+  const theme = useTheme(), t = defaultI18n.t, {heading, body, captionStrong} = theme.type;
   const code = item.episode ? t('next.kit.episodeCode', {season: item.episode.seasonNumber, episode: item.episode.number}) : undefined;
   const minutes = item.durationMs && item.durationMs > 0 ? t('next.kit.duration.minutes', {minutes: Math.round(item.durationMs / 60_000)}) : undefined;
   const still = compact ? {width: 112, height: 63} : {width: 256, height: 144};
-  // tv-player 5 draws the card's own buttons smaller than the player's: 64 high, 22px.
   const button = (id: string, variant: 'primary' | 'glass', icon: 'i-play' | 'i-next' | 'i-replay' | undefined, label: string, onPress: () => void) => <Button key={id} focusId={`watch-up-next-${id}`} testID={`watch-up-next-${id}`}
-    variant={variant} size={compact ? 'compact' : 'hero'} preferredFocus={false} {...(icon ? {icon} : {})}
-    style={compact ? {height: 40, paddingHorizontal: 15, borderRadius: 10} : {height: 64, paddingHorizontal: 28}}
-    textStyle={compact ? {fontSize: 14.5, fontWeight: '700'} : {fontSize: 22, fontWeight: '700'}} onPress={onPress}>{label}</Button>;
+    variant={variant} size={compact ? 'compact' : undefined} preferredFocus={false} {...(icon ? {icon} : {})} onPress={onPress}>{label}</Button>;
   // tv-player 5 draws the card as glass over the picture: a 24px backdrop blur with its own tint.
   const glass = glassRecipe();
   const radius = compact ? 16 : 22;
@@ -58,15 +57,14 @@ export function PlayerUpNext({item, artwork, countdown, countdownTotal, sceneAft
         <Artwork source={artwork} width={still.width} height={still.height} style={{opacity: .34}}/>
       </View>
       <View style={{flex: 1, minWidth: 0}}>
-        <Text style={{fontFamily: 'Manrope-Bold', fontSize: compact ? 12.5 : 20, fontWeight: '700', color: compact ? theme.colors.textTertiary : theme.colors.accentStrong}}>{t('player.post.upNext')}</Text>
-        <Text numberOfLines={compact ? 1 : 2} style={{fontFamily: 'Manrope-ExtraBold', fontSize: compact ? 16.5 : 34, lineHeight: compact ? 19 : 37.4, fontWeight: '800',
-          letterSpacing: compact ? -.25 : -.85, marginTop: compact ? 2 : 6, marginBottom: compact ? 0 : 4, color: theme.colors.text}}>{item.title}</Text>
-        {(code || minutes) && <Text style={{fontFamily: compact ? 'Manrope-SemiBold' : 'Manrope-Regular', fontSize: compact ? 12.5 : 22, fontWeight: compact ? '600' : '400', marginTop: compact ? 2 : 0, color: compact ? theme.colors.textTertiary : theme.colors.textSecondary}}>{[code, minutes].filter(Boolean).join(' · ')}</Text>}
+        <Text style={[captionStrong, {color: compact ? theme.colors.textTertiary : theme.colors.accentStrong}]}>{t('player.post.upNext')}</Text>
+        <Text style={[heading, {marginTop: theme.space.tight / 2, color: theme.colors.text}]}>{item.title}</Text>
+        {(code || minutes) && <Text style={[body, {color: compact ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{[code, minutes].filter(Boolean).join(' · ')}</Text>}
         {countdown && <View style={{flexDirection: 'row', alignItems: 'baseline', marginTop: compact ? 5 : 10}}>
           {countdown.automatic
-            ? <Text style={{fontFamily: 'Manrope-SemiBold', fontSize: compact ? 13 : 20, fontWeight: '600', fontVariant: ['tabular-nums'], color: compact ? theme.colors.textSecondary : theme.colors.textTertiary}}>{t('player.post.playingIn', {seconds: Math.ceil(countdown.seconds)})}</Text>
-            : <><Text style={{fontFamily: 'Manrope-SemiBold', fontSize: compact ? 13 : 20, fontWeight: '600', fontVariant: ['tabular-nums'], color: compact ? theme.colors.textSecondary : theme.colors.textTertiary}}>{t('player.post.startsIn', {time: ''})}</Text>
-              <Text style={{fontFamily: 'Manrope-SemiBold', fontSize: compact ? 13 : 20, fontWeight: '600', fontVariant: ['tabular-nums'], color: theme.colors.text}}>{clockText(countdown.seconds)}</Text></>}
+            ? <Text style={[body, {fontVariant: ['tabular-nums'], color: compact ? theme.colors.textSecondary : theme.colors.textTertiary}]}>{t('player.post.playingIn', {seconds: Math.ceil(countdown.seconds)})}</Text>
+            : <><Text style={[body, {fontVariant: ['tabular-nums'], color: compact ? theme.colors.textSecondary : theme.colors.textTertiary}]}>{t('player.post.startsIn', {time: ''})}</Text>
+              <Text style={[body, {fontVariant: ['tabular-nums'], color: theme.colors.text}]}>{clockText(countdown.seconds)}</Text></>}
         </View>}
       </View>
     </View>
@@ -86,7 +84,7 @@ export function PlayerUpNext({item, artwork, countdown, countdownTotal, sceneAft
     </View>
     {sceneAfter && !compact && <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 20}}>
       <View style={{width: 9, height: 9, borderRadius: 4.5, backgroundColor: theme.colors.accentStrong}}/>
-      <Text style={{fontFamily: 'Manrope-SemiBold', fontSize: 20, fontWeight: '600', color: theme.colors.textSecondary}}>{t('player.post.sceneAfterSkip')}</Text>
+      <Text style={[body, {flexShrink: 1, color: theme.colors.textSecondary}]}>{t('player.post.sceneAfterSkip')}</Text>
     </View>}
   </View>;
 }

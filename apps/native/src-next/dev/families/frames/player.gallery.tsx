@@ -88,7 +88,7 @@ type PlayerState = 'playing' | 'paused' | 'buffering' | 'scrubbing' | 'missing' 
 type Opened = 'episodes' | 'subtitles' | undefined;
 /** The video player filled with the kit's player parts, with what each mock-up puts in each place for its form
  * (tablet-play 1 and tv-player 1; phone-player 1 on its side; phone-player 4 and tablet-play 3 upright). Nothing moves between the states. */
-function Player({state = 'playing', panel, band, card, opened, id = `frames-player-${state}`, start}: {state?: PlayerState; panel?: ReactNode; band?: ReactNode; card?: ReactNode; /** Which button opened the panel showing. */ opened?: Opened; id?: string;
+function Player({state = 'playing', panel, panelWide, band, card, opened, id = `frames-player-${state}`, start}: {state?: PlayerState; panel?: ReactNode; panelWide?: boolean; band?: ReactNode; card?: ReactNode; /** Which button opened the panel showing. */ opened?: Opened; id?: string;
   /** TV: where the case starts (R1); Play or Pause unless a panel or card is open. */ start?: string}) {
   const {form} = useFrameMetrics(), phone = form === 'phone', tv = form === 'tv', upright = usePlayerUpright(), tablet = !phone && !tv && !upright, missing = state === 'missing', scrubbing = state === 'scrubbing';
   const still = <Artwork source={asset('bd-tlou.jpg')}/>;
@@ -101,7 +101,7 @@ function Player({state = 'playing', panel, band, card, opened, id = `frames-play
   const prompt = state === 'playing' ? <PlayerPrompt testID={`${id}-skip`} label={f('skipIntro')} onPress={none} dismiss={{label: f('dismiss'), onPress: none}}/>
     : state === 'recap' ? <PlayerPrompt testID={`${id}-skip`} label={p('skipRecap')} onPress={none} dismiss={{label: f('dismiss'), onPress: none}}/>
     : state === 'undo' ? <PlayerPrompt testID={`${id}-undo`} note={p('skippedIntro')} label={p('undo')} icon="i-undo" onPress={none}/> : undefined;
-  return <Window video><PlayerChromeFrame testID={id} startFocus={start ?? `${id}-toggle`} chromeVisible={state !== 'undo'} scrubbing={scrubbing} panel={panel} band={band} card={card} picture={still} close={tool('i-down', 'close')}
+  return <Window video><PlayerChromeFrame testID={id} startFocus={start ?? `${id}-toggle`} chromeVisible={state !== 'undo'} scrubbing={scrubbing} panel={panel} panelWide={panelWide} band={band} card={card} picture={still} close={tool('i-down', 'close')}
     title={<PlayerTitle title={f('tlou')} lead={f('videoLead')} subtitle={state === 'paused' && opened === 'episodes' ? p('pausedAt') : f('videoSubtitle')}/>}
     tools={upright ? <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{tool('i-subs', 'subtitles', missing)}{tool('i-sliders', 'playerSettings')}</>
       : tablet ? <>{tool('i-cast', 'playOn')}{tool('i-more', 'more')}{tool('i-x', 'dismiss')}</> : <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{tool('i-sliders', 'playerSettings')}</>}
@@ -264,7 +264,7 @@ function PlayerInfoCase() {
     {kind: 'sound', route: 'converted', losses: [p('infoAtmosLost')], rows: [row('format', 'infoDdp', 'infoAac', true), row('channels', 'info51', 'info51'), row('sampleRate', 'info48', 'info48'), row('output', undefined, 'infoDecoded')]},
     {kind: 'subtitles', route: 'original', losses: [], rows: [row('track', 'infoSrt', 'infoSrt'), row('shown', undefined, 'infoDrawn')]},
   ]};
-  return <Player state="paused" id="frames-player-info" start="watch-info-picture" panel={<PlayerPanel testID="frames-player-info-panel" title={p('playbackInfo')} close={{label: f('optDone'), onPress: none}}>
+  return <Player state="paused" id="frames-player-info" start="watch-info-picture" panelWide panel={<PlayerPanel testID="frames-player-info-panel" title={p('playbackInfo')} close={{label: f('optDone'), onPress: none}}>
     <PlaybackInfoComparison comparison={comparison} title={p('infoTitle')}/></PlayerPanel>}/>;
 }
 

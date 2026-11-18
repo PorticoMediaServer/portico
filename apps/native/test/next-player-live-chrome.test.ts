@@ -12,7 +12,8 @@ const scope = {serverId: 'server', accountId: 'account', profileId: 'profile', c
 const channelFence = playbackFence({kind: 'channel', playback: {scope, run: 1}, sessionId: 'session', channelKind: 'live-source', sourceId: 'source', channelId: 'channel', channelGeneration: 'generation', generation: 1});
 const queueFence = playbackFence({kind: 'queue', playback: {scope, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'version', entryId: 'entry', generation: 1});
 const t = (key: string, values?: Record<string, unknown>) => `${key}${values ? ` ${Object.values(values).join(' ')}` : ''}`;
-const theme = {isTV: false, textScale: 1, colors: {text: '#edf5fa', textSecondary: '#bdccd6', textTertiary: '#96a9b5', record: '#f17979'}, type: {body: {}, bodyStrong: {}, caption: {}, captionStrong: {}}};
+const theme = {isTV: false, textScale: 1, colors: {text: '#edf5fa', textSecondary: '#bdccd6', textTertiary: '#96a9b5', record: '#f17979'}, type: {body: {fontFamily: 'Manrope-Regular'}, bodyStrong: {fontFamily: 'Manrope-SemiBold'}, caption: {fontFamily: 'Manrope-Regular'}, captionStrong: {fontFamily: 'Manrope-SemiBold'}, heading: {fontFamily: 'Manrope-SemiBold'}},
+  space: {xs: 8, sm: 16, md: 24, lg: 32, tight: 6}};
 
 async function fixture(input: {compact?: boolean; bar?: boolean; tabletop?: 'column' | 'stacked'; queue?: boolean} = {}) {
   const h = hooks(), calls: unknown[][] = [], controlState: any = {fence: input.queue ? queueFence : channelFence, visible: true};
@@ -181,7 +182,7 @@ test('the existing next card renders end actions without a credits action or an 
   nodes(waiting).find(node => node.props.testID === 'watch-up-next-cancel').props.onPress();assert.deepEqual(calls, ['cancel']);
   assert.equal(nodes(waiting).some(node => node.props.testID === 'watch-up-next-watch'), false);
   const scene = h.render(() => NativeUpNextCard({...props, compact: false, postPlay: undefined, sceneAfter: true, countdown: {seconds: 90, automatic: false}}));
-  assert.ok([...nodes(waiting), ...nodes(scene)].filter(node => node.type === 'Text').every(node => typeof node.props.style.fontFamily === 'string'), 'every inline card label carries its native Manrope family');
+  assert.ok([...nodes(waiting), ...nodes(scene)].filter(node => node.type === 'Text').every(node => typeof [node.props.style].flat().reduce((style: any, part: any) => ({...style, ...part}), {}).fontFamily === 'string'), 'every card label carries a type role (R2)');
 });
 
 test('the still-watching check names the next episode and offers only its three actions', async () => {
