@@ -271,7 +271,11 @@ CREATE INDEX items_by_year ON items (library_id, kind, year, id, rating_age);
 -- by_release also ends with year. A list of one decade in release order starts at the oldest
 -- release and passes every earlier title; with the year here it passes them in the index.
 CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rating_age, year);
-CREATE INDEX items_home_release ON items (release_date, id, rating_age, library_id, kind); -- Home spans libraries and kinds.
+-- Home's Recently Released spans libraries and kinds. The index holds everything its walk asks of
+-- a title, parent_id for an episode, song or issue and labels for a profile kept from a label,
+-- so the walk never leaves it: at 400,000 titles it passes about 2,000 episodes for forty cards,
+-- and looking each up in the table filled the page caches of a busy evening.
+CREATE INDEX items_home_release ON items (release_date, id, rating_age, library_id, kind, parent_id, labels);
 -- The sorts by length and by community rating. Without an index every page of such a list
 -- reads and sorts the whole library.
 CREATE INDEX items_by_duration ON items (library_id, kind, duration_ms, id, rating_age);
