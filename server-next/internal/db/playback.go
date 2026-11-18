@@ -70,6 +70,9 @@ type PlaybackItem struct {
 	Title      string
 	DurationMS int64
 	LibraryID  int64
+	// OriginalLanguage is the language the title (an episode's show) was made in, from its
+	// provider; "" when unknown.
+	OriginalLanguage string
 	// Parent and Root are what the title sits in: an episode's season and show, a song's
 	// album and artist.
 	Parent *ItemRef
@@ -124,11 +127,12 @@ func (d *DB) PlaybackItem(ctx context.Context, v Viewer, publicID string) (Playb
 	var parentID, rootID int64
 	err = tx.QueryRowContext(ctx, `SELECT i.id, i.public_id, i.kind, i.title, ifnull(i.duration_ms, 0), i.library_id,
 		ifnull(i.parent_id, 0), ifnull(i.root_id, 0), ifnull(s.position_ms, 0), ifnull(s.audio_language, ''), ifnull(s.subtitle_language, ''),
-		ifnull(s.subtitle_offset_ms, 0)
+		ifnull(s.subtitle_offset_ms, 0), coalesce(i.extra ->> '$.originalLanguage',
+			(SELECT r.extra ->> '$.originalLanguage' FROM items r WHERE r.id = i.root_id), '')
 		FROM items i LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id
 		WHERE i.public_id = @id AND `+acc.visible("i"), append(v.args(), sql.Named("id", publicID))...).
 		Scan(&out.ID, &out.PublicID, &out.Kind, &out.Title, &out.DurationMS, &out.LibraryID, &parentID, &rootID,
-			&out.PositionMS, &out.AudioPick, &out.SubtitlePick, &out.SubtitleOffsetMS)
+			&out.PositionMS, &out.AudioPick, &out.SubtitlePick, &out.SubtitleOffsetMS, &out.OriginalLanguage)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
 	}

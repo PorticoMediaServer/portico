@@ -102,17 +102,19 @@ func (c *Client) picture(path string) string {
 // title is the part of an answer every film and show has. A film has title and release_date;
 // a show has name and first_air_date.
 type title struct {
-	ID            int64   `json:"id"`
-	Title         string  `json:"title"`
-	Name          string  `json:"name"`
-	OriginalTitle string  `json:"original_title"`
-	OriginalName  string  `json:"original_name"`
-	ReleaseDate   string  `json:"release_date"`
-	FirstAirDate  string  `json:"first_air_date"`
-	Overview      string  `json:"overview"`
-	PosterPath    string  `json:"poster_path"`
-	BackdropPath  string  `json:"backdrop_path"`
-	Popularity    float64 `json:"popularity"`
+	ID            int64  `json:"id"`
+	Title         string `json:"title"`
+	Name          string `json:"name"`
+	OriginalTitle string `json:"original_title"`
+	OriginalName  string `json:"original_name"`
+	// OriginalLanguage is the language the title was made in, as ISO 639-1 ("ja").
+	OriginalLanguage string  `json:"original_language"`
+	ReleaseDate      string  `json:"release_date"`
+	FirstAirDate     string  `json:"first_air_date"`
+	Overview         string  `json:"overview"`
+	PosterPath       string  `json:"poster_path"`
+	BackdropPath     string  `json:"backdrop_path"`
+	Popularity       float64 `json:"popularity"`
 }
 
 func (t title) candidate(c *Client, kind string, exact bool) metadata.Candidate {
@@ -353,7 +355,7 @@ func (c *Client) Details(ctx context.Context, ref metadata.Ref, locale metadata.
 	r := metadata.Record{Ref: base.Ref, Title: base.Title, OriginalTitle: base.OriginalTitle, Overview: d.Overview, Tagline: d.Tagline,
 		Year: base.Year, ReleaseDate: d.ReleaseDate + d.FirstAirDate, ContentRating: d.rating(locale.Region), Rating: d.VoteAverage,
 		Genres: names(d.Genres), Studios: names(d.Companies), Networks: names(d.Networks), Countries: names(d.Countries),
-		Credits: d.Credits.credits(crewRoles), Continuing: d.InProduction}
+		Credits: d.Credits.credits(crewRoles), Continuing: d.InProduction, OriginalLanguage: d.OriginalLanguage}
 	if ref.Kind == "show" {
 		// A show's creators are not on its crew list.
 		whole := d.WholeRun
