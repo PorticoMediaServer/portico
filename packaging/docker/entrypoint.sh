@@ -27,8 +27,10 @@ export HOME=/config TMPDIR=/config/Temp TMP=/config/Temp TEMP=/config/Temp
 if ! awk '$5 == "/config" { found=1 } END { exit !found }' /proc/self/mountinfo; then
  echo 'Map /config to persistent storage before starting Portico' >&2; exit 1
 fi
+# The temporary folder named above, for the server and the tools it starts: a fresh volume has none.
+mkdir -p "$TMPDIR"
 if [ "$(id -u)" = 0 ]; then
- chown "$uid:$gid" /config
+ chown "$uid:$gid" /config "$TMPDIR"
  if awk '$5 == "/transcode" { found=1 } END { exit !found }' /proc/self/mountinfo; then chown "$uid:$gid" /transcode; fi
  # Preserve explicit Docker --group-add device groups while dropping group 0.
  groups="$gid"
