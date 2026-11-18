@@ -488,8 +488,9 @@ func (s *Server) libraryRoutes() {
 	Handle(s, "DELETE /v1/admin/libraries/{id}/missing", Owner, s.emptyTrash)
 	Handle(s, "GET /v1/admin/items/{id}/deletion", Owner, s.previewItemDeletion)
 	Handle(s, "GET /v1/admin/versions/{id}/deletion", Owner, s.previewVersionDeletion)
-	Handle(s, "DELETE /v1/admin/items/{id}", Owner, s.deleteItem).with(ScopeLibrary).Confirm = "Type the title from the deletion preview."
-	Handle(s, "DELETE /v1/admin/versions/{id}", Owner, s.deleteVersion).with(ScopeLibrary)
+	// Deleting files takes a key allowed Administer; Libraries only scans.
+	Handle(s, "DELETE /v1/admin/items/{id}", Owner, s.deleteItem).Confirm = "Type the title from the deletion preview."
+	Handle(s, "DELETE /v1/admin/versions/{id}", Owner, s.deleteVersion)
 }
 
 // with gives a route a scope other than its default.

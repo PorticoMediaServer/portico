@@ -148,3 +148,27 @@ func TestAKeyCannotRestoreABackupOrChangeTheOwner(t *testing.T) {
 		}
 	}
 }
+
+// Deleting files is for a key allowed Administer. One allowed only Libraries scans and
+// reports changed files: it is refused before the title is even looked up.
+func TestALibrariesKeyCannotDeleteFiles(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	var key KeyCreated
+	if w := call(t, s, "POST", "/v1/admin/api-keys", owner.AccessToken, KeyCreate{Name: "Scanner", Scopes: []string{"library"}}, &key); w.Code != 200 {
+		t.Fatalf("making a key answered %d: %s", w.Code, w.Body)
+	}
+	for _, c := range []struct {
+		method, path string
+		body         any
+	}{
+		{"DELETE", "/v1/admin/items/itm_none?confirm=x", nil},
+		{"DELETE", "/v1/admin/versions/ver_none", nil},
+		{"POST", "/v1/admin/items/delete?confirm=1", SelectionDelete{}},
+	} {
+		var refused errorBody
+		if w := call(t, s, c.method, c.path, key.Secret, c.body, &refused); w.Code != 403 || refused.Error.Code != "insufficient_scope" {
+			t.Errorf("%s %s with a Libraries key answered %d %s, want 403 insufficient_scope", c.method, c.path, w.Code, refused.Error.Code)
+		}
+	}
+}
