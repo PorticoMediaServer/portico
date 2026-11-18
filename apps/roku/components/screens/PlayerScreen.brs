@@ -11,17 +11,21 @@ sub init()
     m.knob = m.top.findNode("knob")
     m.knobRing = m.top.findNode("knobRing")
     m.played = m.top.findNode("played")
+    m.ahead = m.top.findNode("ahead")
+    m.was = m.top.findNode("was")
     m.hide = m.top.findNode("hide")
     m.report = m.top.findNode("report")
     m.tick = m.top.findNode("tick")
     m.settle = m.top.findNode("settle")
     m.again = m.top.findNode("again")
     setType(m.top.findNode("title"), "title", c.text)
-    setType(m.top.findNode("sub"), "meta", c.textSecondary)
+    setType(m.top.findNode("code"), "meta", c.textSecondary)
+    setType(m.top.findNode("sub"), "metaStrong", c.text)
     setType(m.top.findNode("clock"), "heading", c.text)
-    setType(m.top.findNode("ends"), "caption", c.textSecondary)
-    setType(m.top.findNode("at"), "metaStrong", c.textSecondary)
+    setType(m.top.findNode("ends"), "meta", c.textSecondary)
+    setType(m.top.findNode("at"), "metaStrong", c.text)
     setType(m.top.findNode("left"), "metaStrong", c.textSecondary)
+    setType(m.top.findNode("flabText"), "nav", c.text)
     m.video.observeField("state", "onVideoState")
     m.video.observeField("position", "onPosition")
     m.hide.observeField("fire", "lower")
@@ -39,64 +43,140 @@ sub init()
     m.last = 0           ' the last place the picture was seen at, in seconds
     m.notice.observeField("pressed", "onNotice")
     m.session = invalid
-    m.focus = 1          ' 0 back ten, 1 play/pause, 2 forward thirty, 3 Subtitles, 4 Audio, 5 Quality; 6 is the seek bar
     m.options = invalid  ' the title's versions, tracks and qualities (playback-options)
     m.pending = -1       ' where a scrub will land, in seconds; -1 when none
+    m.scrub = false      ' true while a scrub waits for OK (held, or moved while paused)
     m.duration = 0
     m.ended = false
     makeButtons()
+    makeHints()
 end sub
 
+' The button row, 88 px tall: the transport centred on the screen (Play/Pause in the middle), and
+' Subtitles, Audio and Quality at the right end, each the label over what is chosen now.
+' m.row holds them left to right; m.focus is an index into it, or -1 for the seek bar.
 sub makeButtons()
-    specs = [{icon: "skip-back-44", size: 72, x: 830, seconds: "10"}, {icon: "pause-40", size: 100, x: 910}, {icon: "skip-forward-44", size: 72, x: 1018, seconds: "30"}]
-    m.spots = []
+    m.buttons.removeChildrenIndex(m.buttons.getChildCount(), 0)
+    m.row = []
+    specs = [{kind: "back", icon: "skip-back-44", size: 64, seconds: "10"}, {kind: "play", icon: "pause-40", size: 88}, {kind: "forward", icon: "skip-forward-44", size: 64, seconds: "30"}]
+    gap = 22
+    total = (specs.count() - 1) * gap
+    for each spec in specs
+        total = total + spec.size
+    end for
+    x = 960 - total / 2
     for each spec in specs
         plate = m.buttons.createChild("Poster")
         plate.uri = "pkg:/images/disc.png"
         plate.width = spec.size
         plate.height = spec.size
-        plate.translation = [spec.x, (100 - spec.size) / 2]
+        plate.translation = [x, (88 - spec.size) / 2]
+        iconSize = 36
+        if spec.kind = "play" then iconSize = 40
         icon = m.buttons.createChild("Poster")
         icon.uri = "pkg:/images/i-" + spec.icon + ".png"
-        parts = spec.icon.split("-")
-        iconSize = parts[parts.count() - 1].toInt()
         icon.width = iconSize
         icon.height = iconSize
-        icon.translation = [spec.x + (spec.size - iconSize) / 2, (100 - iconSize) / 2]
+        icon.translation = [x + (spec.size - iconSize) / 2, (88 - iconSize) / 2]
         number = invalid
         if spec.seconds <> invalid
-            ' how far the arrow skips, drawn inside it
+            ' how far the arrow skips, drawn inside it, a little below the middle
             number = m.buttons.createChild("Label")
             number.text = spec.seconds
             number.width = spec.size
             number.height = spec.size
             number.horizAlign = "center"
             number.vertAlign = "center"
-            number.translation = [spec.x, (100 - spec.size) / 2 + 2]
+            number.translation = [x, (88 - spec.size) / 2 + 3]
             setType(number, "skipSeconds")
         end if
-        m.spots.push({plate: plate, icon: icon, number: number, x: spec.x, size: spec.size})
+        if spec.kind = "play" then m.playIndex = m.row.count()
+        m.row.push({kind: spec.kind, plate: plate, icon: icon, number: number, x: x, size: spec.size})
+        x = x + spec.size + gap
     end for
-    ' Subtitles, Audio and Quality: each says its current choice and opens the side sheet
-    c = colours()
-    m.pills = []
-    x = 1262
+    m.firstPill = m.row.count()
     for each name in ["Subtitles", "Audio", "Quality"]
         plate = m.buttons.createChild("Poster")
         plate.uri = "pkg:/images/round-14.9.png"
-        plate.height = 72
-        plate.width = 180
-        plate.translation = [x, 14]
+        plate.height = 64
         head = m.buttons.createChild("Label")
         head.text = name
-        head.translation = [x + 18, 22]
-        setType(head, "tag", c.textSecondary)
+        setType(head, "groupLabel")
         value = m.buttons.createChild("Label")
-        value.translation = [x + 18, 49]
-        value.width = 144
-        setType(value, "caption", c.textTertiary)
-        m.pills.push({plate: plate, head: head, value: value, x: x, name: name})
-        x = x + 192
+        setType(value, "tag")
+        m.row.push({kind: "pill", name: name, plate: plate, head: head, value: value, x: 0, width: 0})
+    end for
+    m.pillValues = ""
+    m.focus = m.playIndex
+end sub
+
+' Lays the three labelled buttons out from the right edge, each as wide as its words (a long
+' value ends in an ellipsis; Quality's never does).
+sub placePills(values as object)
+    key = values.join("|")
+    if key = m.pillValues then return
+    m.pillValues = key
+    right = frames().rightEdge
+    for i = 2 to 0 step -1
+        pill = m.row[m.firstPill + i]
+        pill.value.text = values[i]
+        pill.value.width = 0
+        inner = pill.head.boundingRect().width
+        valueWidth = pill.value.boundingRect().width
+        most = 164
+        if i = 2 then most = 400
+        if valueWidth > most then valueWidth = most
+        if valueWidth > inner then inner = valueWidth
+        pill.value.width = valueWidth
+        width = inner + 36
+        if width < 92 then width = 92
+        x = right - width
+        pill.plate.width = width
+        pill.plate.translation = [x, 12]
+        pill.head.translation = [x + 18, 18]
+        pill.value.translation = [x + 18, 43]
+        pill.x = x
+        pill.width = width
+        right = x - 14
+    end for
+end sub
+
+' The key hints that stand in the button row while a scrub waits for OK (tv-player frame 2).
+sub makeHints()
+    c = colours()
+    hints = m.top.findNode("hints")
+    m.hints = []
+    for each key in ["< >", "Hold", "OK", "Back"]
+        cap = hints.createChild("Poster")
+        cap.uri = "pkg:/images/line-10.9.png"
+        cap.blendColor = c.lineStrong
+        cap.height = 36
+        capText = hints.createChild("Label")
+        capText.text = key
+        capText.height = 36
+        capText.vertAlign = "center"
+        setType(capText, "keycap", c.text)
+        words = hints.createChild("Label")
+        words.height = 36
+        words.vertAlign = "center"
+        setType(words, "meta", c.textSecondary)
+        m.hints.push({cap: cap, capText: capText, words: words})
+    end for
+    m.hints[0].words.text = "Move"
+    m.hints[1].words.text = "Faster"
+end sub
+
+sub placeHints(target as float, from as float)
+    m.hints[2].words.text = "Play from " + clockText(target)
+    m.hints[3].words.text = "Return to " + clockText(from)
+    x = 0
+    for each hint in m.hints
+        w = hint.capText.boundingRect().width + 20
+        hint.cap.width = w
+        hint.cap.translation = [x, 0]
+        hint.capText.translation = [x + 10, 0]
+        hint.words.translation = [x + w + 12, 0]
+        x = x + w + 12 + hint.words.boundingRect().width + 40
     end for
 end sub
 
@@ -114,10 +194,21 @@ sub start()
     sub_ = ""
     if item.kind = "episode"
         if item.rootTitle <> invalid then title = item.rootTitle
-        sub_ = (episodeCode(item) + "   " + item.title).trim()
+        sub_ = item.title
     end if
     m.top.findNode("title").text = title
-    m.top.findNode("sub").text = sub_
+    ' the episode line: the code never shortens, the episode's name ends in an ellipsis
+    code = m.top.findNode("code")
+    code.text = episodeCode(item)
+    name = m.top.findNode("sub")
+    name.text = sub_
+    if code.text <> ""
+        x = 96 + code.boundingRect().width + 16
+        name.translation = [x, 134]
+        name.width = 1396 - x
+    else
+        name.width = 1300
+    end if
     m.top.findNode("waitTitle").text = title
     busy("Getting ready…")
     body = {itemId: item.id}
@@ -491,10 +582,9 @@ sub raise()
 end sub
 
 sub lower()
-    if m.video.state = "paused" then return     ' paused: the controls stay
+    if m.video.state = "paused" or m.scrub then return     ' paused, or a scrub waiting: the controls stay
     m.controls.visible = false
-    m.focus = 1
-    m.pending = -1
+    m.focus = m.playIndex
 end sub
 
 function clockText(seconds as float) as string
@@ -542,61 +632,122 @@ sub paint()
     c = colours()
     duration = m.duration
     if duration <= 0 and m.top.item.durationMs <> invalid then duration = m.top.item.durationMs / 1000
-    position = m.video.position
+    now = m.video.position
+    position = now
     if m.pending >= 0 then position = m.pending
-    fraction = 0
-    if duration > 0 then fraction = position / duration
-    if fraction > 1 then fraction = 1
-    m.played.width = 1728 * fraction
-    m.knob.translation = [96 + 1728 * fraction - 11, 820]
-    m.knobRing.translation = [96 + 1728 * fraction - 30, 801]
-    m.knobRing.visible = (m.focus = 6)
+    seeking = (m.focus < 0)
+    ' the seek bar: played, and while a scrub waits the stretch it would skip, lighter, with a tick where the picture is
+    trackY = 828
+    height = 8
+    if seeking
+        trackY = 826
+        height = 12
+    end if
+    for each bar in [m.top.findNode("track"), m.played, m.ahead]
+        bar.translation = [96, trackY]
+        bar.height = height
+    end for
+    m.played.width = barX(min(position, now), duration) - 96
+    m.ahead.visible = (m.pending >= 0)
+    if m.ahead.visible
+        m.ahead.translation = [barX(min(position, now), duration), trackY]
+        m.ahead.width = abs(barX(position, duration) - barX(now, duration))
+        m.was.translation = [barX(now, duration) - 2, 819]
+    end if
+    m.was.visible = m.ahead.visible
+    knob = 22
+    if seeking then knob = 30
+    x = barX(position, duration)
+    m.knob.width = knob
+    m.knob.height = knob
+    m.knob.translation = [x - knob / 2, 832 - knob / 2]
+    m.knobRing.translation = [x - 40, 792]
+    m.knobRing.width = 80
+    m.knobRing.height = 80
+    m.knobRing.visible = seeking
     m.top.findNode("at").text = clockText(position)
     m.top.findNode("left").text = "-" + clockText(duration - position)
     m.top.findNode("clock").text = timeOfDay(0)
     m.top.findNode("ends").text = "Ends " + timeOfDay(int(duration - position))
+    ' while a scrub waits for OK its key hints stand where the buttons are
+    m.top.findNode("hints").visible = m.scrub
+    m.buttons.visible = not m.scrub
+    if m.scrub then placeHints(position, now)
     paused = (m.video.state = "paused")
-    if paused then m.spots[1].icon.uri = "pkg:/images/i-play-40.png" else m.spots[1].icon.uri = "pkg:/images/i-pause-40.png"
-    for i = 0 to 2
-        spot = m.spots[i]
-        if spot.number <> invalid
-            if i = m.focus then spot.number.color = c.actionInk else spot.number.color = c.text
-        end if
-        if i = m.focus
-            spot.plate.blendColor = "0xD8E6EEFF"
+    flab = m.top.findNode("flab")
+    flab.visible = false
+    m.ring.visible = false
+    for i = 0 to m.firstPill - 1
+        spot = m.row[i]
+        on = (i = m.focus and not m.scrub)
+        if spot.kind = "play"
+            if paused then spot.icon.uri = "pkg:/images/i-play-40.png" else spot.icon.uri = "pkg:/images/i-pause-40.png"
+            spot.plate.blendColor = c.text
             spot.icon.blendColor = c.actionInk
+        else
+            ' glass, lighter under focus
+            if on then spot.plate.blendColor = "0xEDF5FA47" else spot.plate.blendColor = "0xEDF5FA24"
+            spot.icon.blendColor = c.text
+            if spot.number <> invalid then spot.number.color = c.text
+        end if
+        if on
             across = spot.size * 296 / 216
             m.ring.width = across
             m.ring.height = across
-            m.ring.translation = [spot.x + spot.size / 2 - across / 2, 906 + 50 - across / 2]
-        else
-            spot.plate.blendColor = "0x1D3848E6"
-            spot.icon.blendColor = c.text
+            m.ring.translation = [spot.x + spot.size / 2 - across / 2, 912 + 44 - across / 2]
+            m.ring.visible = true
+            names = {back: "Back 10 seconds", forward: "Forward 30 seconds", play: "Pause"}
+            text = names[spot.kind]
+            if spot.kind = "play" and paused then text = "Play"
+            showLabel(flab, text, spot.x + spot.size / 2, 912 + (88 - spot.size) / 2 - 12)
         end if
     end for
-    m.ring.visible = (m.focus < 3)
     ' the three choices
-    values = currentChoices()
+    placePills(currentChoices())
     pillRing = m.top.findNode("pillRing")
-    pillRing.visible = (m.focus >= 3 and m.focus <= 5)
-    for i = 0 to 2
-        pill = m.pills[i]
-        pill.value.text = values[i]
-        on = (m.focus = i + 3)
-        if on
-            pill.plate.blendColor = "0xD8E6EEFF"
-            pill.head.color = c.actionInk
-            pill.value.color = c.actionInk
+    pillRing.visible = false
+    for i = m.firstPill to m.row.count() - 1
+        pill = m.row[i]
+        if i = m.focus and not m.scrub
+            pill.plate.blendColor = "0xEDF5FA47"
+            pill.value.color = c.text
             out = metrics().focusSpread + 6
-            pillRing.translation = [pill.x - out, 906 + 14 - out]
-            pillRing.width = 180 + out * 2
-            pillRing.height = 72 + out * 2
+            pillRing.translation = [pill.x - out, 912 + 12 - out]
+            pillRing.width = pill.width + out * 2
+            pillRing.height = 64 + out * 2
+            pillRing.visible = true
         else
-            pill.plate.blendColor = "0x1D3848E6"
-            pill.head.color = c.textSecondary
-            pill.value.color = c.textTertiary
+            pill.plate.blendColor = "0xEDF5FA24"
+            pill.value.color = c.textSecondary
         end if
+        pill.head.color = c.text
     end for
+end sub
+
+' Where a time falls on the seek bar.
+function barX(seconds as float, duration as float) as float
+    if duration <= 0 then return 96
+    fraction = seconds / duration
+    if fraction < 0 then fraction = 0
+    if fraction > 1 then fraction = 1
+    return 96 + 1728 * fraction
+end function
+
+function min(a as float, b as float) as float
+    if a < b then return a
+    return b
+end function
+
+' The focus label: a dark plate with the button's name, centred over it, its foot at `bottom`.
+sub showLabel(flab as object, text as string, centre as float, bottom as float)
+    label = m.top.findNode("flabText")
+    label.text = text
+    label.width = 0
+    w = label.boundingRect().width + 32
+    m.top.findNode("flabPlate").width = w
+    label.translation = [16, 0]
+    flab.translation = [centre - w / 2, bottom - 40]
+    flab.visible = true
 end sub
 
 sub togglePause()
@@ -609,7 +760,8 @@ sub togglePause()
     raise()
 end sub
 
-' Move the place a scrub will land; the picture follows once the thumb rests.
+' Move the place the picture will go to. A tap while playing jumps once the presses rest; a held
+' key, or any move while paused, is a scrub that waits for OK (Back puts it away).
 sub nudge(seconds as float)
     duration = m.duration
     if duration <= 0 then return
@@ -617,15 +769,31 @@ sub nudge(seconds as float)
     m.pending = m.pending + seconds
     if m.pending < 0 then m.pending = 0
     if m.pending > duration - 2 then m.pending = duration - 2
+    if m.video.state = "paused" then m.scrub = true
     m.settle.control = "stop"
-    m.settle.control = "start"
+    if not m.scrub then m.settle.control = "start"
     raise()
 end sub
+
+sub cancelScrub()
+    m.settle.control = "stop"
+    m.pending = -1
+    m.scrub = false
+end sub
+
+' A held Left or Right on the seek bar (from Hold.brs): each repeat is a scrub step.
+function pressKey(key as string) as boolean
+    if m.focus >= 0 or not m.controls.visible then return false
+    m.scrub = true
+    if key = "left" then nudge(-10) else if key = "right" then nudge(10) else return false
+    return true
+end function
 
 sub applySeek()
     if m.pending < 0 or m.session = invalid then return
     target = m.pending
     m.pending = -1
+    m.scrub = false
     m.last = target
     if m.presentation.mode = "direct"
         m.video.seek = target
@@ -634,6 +802,7 @@ sub applySeek()
         api("PATCH", "/v1/playback/sessions/" + m.session.id, {seek: {positionMs: int(target * 1000), id: createObject("roDeviceInfo").getRandomUUID()}}, "onSeekAnswer", {target: target})
     end if
     sendProgress()
+    raise()
 end sub
 
 sub onSeekAnswer(event as object)
@@ -649,12 +818,16 @@ sub onSeekAnswer(event as object)
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
+    holdKey(key, press and m.focus < 0 and m.controls.visible and (key = "left" or key = "right"))
     if not press then return false
     if m.notice.visible then return key <> "back"
     if key = "back"
-        if m.controls.visible and m.video.state <> "paused"
+        if m.scrub
+            cancelScrub()
+            raise()
+        else if m.controls.visible and m.video.state <> "paused"
             m.controls.visible = false
-            m.focus = 1
+            m.focus = m.playIndex
         else
             leave(true)
         end if
@@ -664,14 +837,11 @@ function onKeyEvent(key as string, press as boolean) as boolean
     if key = "play"
         togglePause()
         return true
-    else if key = "rewind"
+    else if key = "rewind" or key = "replay"
         nudge(-10)
         return true
     else if key = "fastforward"
         nudge(30)
-        return true
-    else if key = "replay"
-        nudge(-10)
         return true
     end if
     if not m.controls.visible
@@ -679,31 +849,31 @@ function onKeyEvent(key as string, press as boolean) as boolean
         return true
     end if
     if key = "OK"
-        if m.focus = 0
-            nudge(-10)
-        else if m.focus = 1
-            togglePause()
-        else if m.focus = 2
-            nudge(30)
-        else if m.focus <= 5
-            openOptions(m.focus - 3)
-            return true
-        else
+        if m.focus < 0
             applySeek()
+            return true
+        end if
+        kind = m.row[m.focus].kind
+        if kind = "back"
+            nudge(-10)
+        else if kind = "forward"
+            nudge(30)
+        else if kind = "play"
+            togglePause()
+        else
+            openOptions(m.focus - m.firstPill)
+            return true
         end if
     else if key = "left"
-        if m.focus = 6 then nudge(-10) else if m.focus > 0 then m.focus = m.focus - 1
+        if m.focus < 0 then nudge(-10) else if m.focus > 0 then m.focus = m.focus - 1
     else if key = "right"
-        if m.focus = 6 then nudge(10) else if m.focus < 5 then m.focus = m.focus + 1
+        if m.focus < 0 then nudge(30) else if m.focus < m.row.count() - 1 then m.focus = m.focus + 1
     else if key = "up"
-        if m.focus < 6
-            m.row = m.focus
-            m.focus = 6
-        end if
+        m.focus = -1
     else if key = "down"
-        if m.focus = 6
-            m.focus = 1
-            if m.row <> invalid then m.focus = m.row
+        if m.focus < 0
+            if m.scrub then cancelScrub()
+            m.focus = m.playIndex
         end if
     end if
     raise()
