@@ -8,6 +8,7 @@
     <!-- {label, help, scope, value, control, switchOn, icon, initial, face, tone}:
          scope: "This device" or "All TVs" under the help, for a value that is not the profile's everywhere;
          art: a 16:9 picture on the left in place of an icon (History);
+         progress: how far through (0 to 1) as a line over the value, below 0 or absent for none;
          control: "" (plain, or an action), "choice" (opens its values), "switch", "expand" or "collapse";
          icon: a 28 px icon drawn on a tile before the label;
          danger: a destructive action (Sign out), its label red;
@@ -38,5 +39,8 @@
     <Label id="value" horizAlign="right"/>
     <Poster id="chevron" width="24" height="24"/>
     <Poster id="switch" width="64" height="36"/>
+    <!-- How far through, over the value (History's rows): the track and the part played. -->
+    <Rectangle id="track" height="6" visible="false"/>
+    <Rectangle id="bar" height="6" visible="false"/>
   </children>
 </component>

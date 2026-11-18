@@ -44,6 +44,9 @@ sub init()
     m.region = "content"  ' "tabs", "tools", "content" (a grid or History's rows), "page" or "state"
     m.sort = "added"
     m.filter = ""
+    m.period = "all"     ' History's period chip (GET /v1/history?period=)
+    m.listSort = "changed"     ' Playlists' and Collections' Sort and Show (source/Present.brs savedListsShown)
+    m.listShow = "all"
     m.generation = 0
     m.keepAt = 0
     drawTabs()
@@ -99,9 +102,9 @@ sub load()
         ' albums, artists and audiobooks are square, in a grid of their own under its own heading
         m.sources.push({path: base + "&kind=album,artist,audiobook", square: true, name: "Music and audiobooks"})
     else if spec.kind <> invalid
-        m.sources.push({path: "/v1/lists?kind=" + spec.kind, square: false, name: ""})
+        m.sources.push({path: "/v1/lists?kind=" + spec.kind, square: true, name: ""})     ' square mosaic tiles (collections frames 15 to 17)
     else
-        m.sources.push({path: "/v1/history?", square: false, name: ""})
+        m.sources.push({path: "/v1/history?period=" + m.period, square: false, name: ""})
     end if
     for each source in m.sources
         source.items = []
@@ -109,6 +112,7 @@ sub load()
         source.done = false
         source.total = 0
         source.grid = invalid
+        source.read = []     ' a list tab's lists as the server sent them, before Sort and Show
     end for
     drawTools()
     ' the two shapes are read together at first, so a tab knows at once whether it has both
@@ -151,7 +155,15 @@ sub onPage(event as object)
     source.cursor = result.data.nextCursor
     source.done = (source.cursor = invalid or source.cursor = "")
     if result.data.total <> invalid then source.total = result.data.total else source.total = source.items.count() + fresh.count()
-    source.items.append(fresh)
+    if tabSpec().kind = "playlist" or tabSpec().kind = "collection"
+        ' Sort and Show over everything read so far: the tiles are drawn again in that order
+        source.read.append(fresh)
+        source.items = savedListsShown(source.read, m.listSort, m.listShow)
+        if m.listShow <> "all" then source.total = source.items.count()
+        if source.grid <> invalid then source.grid.content = createObject("roSGNode", "ContentNode")
+    else
+        source.items.append(fresh)
+    end if
     if m.asking > 0 and not m.shown then return      ' the tab is drawn once its first answers are in
     if tabSpec().id = "history" then showHistory() else showGrids()
 end sub
@@ -195,7 +207,13 @@ sub showGrids()
     count = m.top.findNode("count")
     if spec.kind <> invalid then count.text = countText(total, spec.one, spec.many) else count.text = countText(total, "title", "titles")
     if total = 0
-        if m.filter <> "" then tabSays("empty", "Nothing here", "No titles match. Switch the filter off to see more.", "") else emptyTab()
+        if m.filter <> ""
+            tabSays("empty", "Nothing here", "No titles match. Switch the filter off to see more.", "")
+        else if spec.kind <> invalid and m.listShow <> "all" and spec.kind <> "saved_view"
+            tabSays("empty", "Nothing here", "None of the " + spec.many + " match. Set Show to All " + spec.many + " to see them.", "")
+        else
+            emptyTab()
+        end if
         return
     end if
     ' each shape is one grid as tall as its rows; the window scrolls, not the grid. With two shapes
@@ -269,12 +287,31 @@ end function
 function cardOf(entry as object, square as boolean) as object
     spec = tabSpec()
     if spec.kind <> invalid
-        ' a list's tile: its first cover, its name and how many it holds
+        ' a list's tile: a mosaic of its first four covers (one cover when it holds fewer), its name,
+        ' how many it holds and when it last changed, or who can see a collection
+        side = shelfMetrics("gridPoster").card[0]
         art = ""
-        if entry.covers <> invalid and entry.covers.count() > 0 then art = pick(entry.covers[0], ["poster", "cover", "thumb"])
+        tiles = []
+        if entry.covers <> invalid
+            for each cover in entry.covers
+                picture = pick(cover, ["poster", "cover", "thumb"])
+                if picture <> "" and tiles.count() < 4 then tiles.push(imageUrl(picture, 100, 100))
+                if art = "" then art = picture
+            end for
+        end if
         line = countText(entry.count, "item", "items")
-        if entry.owner <> invalid and entry.role <> "owner" then line = line + "   Shared by " + entry.owner.name
-        return {id: entry.id, kind: "savedList", art: imageUrl(art, 200, 300), whole: false, title: entry.name, sub: line, progress: -1, badge: "", overlay: false, under: true, oneLine: true, artHeight: 300}
+        if entry.owner <> invalid and entry.role <> "owner"
+            line = line + "   Shared by " + entry.owner.name
+        else if spec.kind = "collection" and entry.everyone = true
+            line = line + "   Visible to everyone"
+        else if spec.kind = "collection"
+            line = line + "   Only you"
+        else if entry.updatedAt <> invalid
+            line = line + "   " + dayName(entry.updatedAt)
+        end if
+        card = {id: entry.id, kind: "savedList", art: imageUrl(art, side, side), whole: false, title: entry.name, sub: line, progress: -1, badge: "", overlay: false, under: true, oneLine: true, artHeight: side}
+        if tiles.count() = 4 then card.tiles = tiles
+        return card
     end if
     card = gridCard(entry)
     if square then card.artHeight = shelfMetrics("gridPoster").card[0]
@@ -387,7 +424,9 @@ function historyRow(entry as object) as object
     if entry.subtitle <> invalid then line = entry.subtitle
     art = ""
     remaining = "Played"
+    progress = -1
     if item <> invalid
+        progress = progressOf(item)
         if item.kind = "episode"
             if item.rootTitle <> invalid then title = item.rootTitle
             line = (episodeCode(item) + "   " + item.title).trim()
@@ -397,7 +436,7 @@ function historyRow(entry as object) as object
         art = imageUrl(pick(item.images, ["still", "thumb", "backdrop", "poster", "cover"]), 156, 88)
         if timeLeftText(item) <> "" then remaining = timeLeftText(item)
     end if
-    return {label: title, help: line, scope: "", value: remaining + "      " + clockText(entry.playedAt), control: "", switchOn: false, icon: "", art: art, danger: false}
+    return {label: title, help: line, scope: "", value: remaining + "      " + clockText(entry.playedAt), control: "", switchOn: false, icon: "", art: art, progress: progress, danger: false}
 end function
 
 ' "Today", "Yesterday", a weekday within the week, then the date.
@@ -493,14 +532,31 @@ sub drawTools()
         m.toolSpecs.push({id: "inProgress", text: "In progress"})
         m.toolSpecs.push({id: "watched", text: "Watched"})
         if spec.id = "list" then m.toolSpecs.push({id: "favorites", text: "Favorites"})
+    else if spec.kind = "playlist" or spec.kind = "collection"
+        sorts = {changed: "Last changed", name: "Name"}
+        shows = {all: "All " + spec.many, mine: "Mine", shared: "Shared with me"}
+        m.toolSpecs.push({id: "listSort", text: sorts[m.listSort]})
+        m.toolSpecs.push({id: "listShow", text: shows[m.listShow]})
     else if spec.id = "history"
-        m.toolSpecs.push({id: "clear", text: "Clear history…"})
+        ' the period chips (tv-more frame 4), then Clear history…
+        for each chip in [["24h", "Today"], ["7d", "This week"], ["30d", "30 days"], ["90d", "90 days"], ["all", "All time"]]
+            m.toolSpecs.push({id: "period", period: chip[0], text: chip[1]})
+        end for
+        m.toolSpecs.push({id: "clear", text: "Clear history…", gapBefore: true})
     end if
     m.toolNodes = []
     x = 0
     for i = 0 to m.toolSpecs.count() - 1
         b = m.tools.createChild("Button")
-        on = (m.filter = m.toolSpecs[i].id)
+        if m.toolSpecs[i].gapBefore = true
+            rule = m.tools.createChild("Rectangle")
+            rule.color = c.line
+            rule.width = 2
+            rule.height = 40
+            rule.translation = [x, 16]
+            x = x + 20
+        end if
+        on = (m.filter = m.toolSpecs[i].id) or (m.toolSpecs[i].period <> invalid and m.toolSpecs[i].period = m.period)
         if on then b.icon = "check"
         b.switchedOn = on
         b.text = m.toolSpecs[i].text
@@ -529,6 +585,16 @@ sub pressTool()
             rows.push({id: id, text: sortName(id), current: (id = m.sort)})
         end for
         m.top.menu = {eyebrow: tabSpec().text, title: "Sort by", status: "", rows: rows}
+    else if spec.id = "period"
+        m.period = spec.period
+        load()
+    else if spec.id = "listSort"
+        rows = [{id: "lists:sort:changed", text: "Last changed", current: (m.listSort = "changed")}, {id: "lists:sort:name", text: "Name", current: (m.listSort = "name")}]
+        m.top.menu = {eyebrow: tabSpec().text, title: "Sort by", status: "", rows: rows}
+    else if spec.id = "listShow"
+        many = tabSpec().many
+        rows = [{id: "lists:show:all", text: "All " + many, current: (m.listShow = "all")}, {id: "lists:show:mine", text: "Mine", current: (m.listShow = "mine")}, {id: "lists:show:shared", text: "Shared with me", current: (m.listShow = "shared")}]
+        m.top.menu = {eyebrow: tabSpec().text, title: "Show", status: "", rows: rows}
     else if spec.id = "clear"
         m.confirm.model = {title: "Clear your viewing history?", body: "Everything this profile has watched or listened to is removed from History. Watched marks and resume points stay.", verb: "Clear history"}
     else
@@ -742,6 +808,13 @@ end sub
 
 ' The Sort menu's choice.
 sub onMenuChosen(event as object)
-    m.sort = event.getData()
+    which = event.getData()
+    if left(which, 11) = "lists:sort:"
+        m.listSort = mid(which, 12)
+    else if left(which, 11) = "lists:show:"
+        m.listShow = mid(which, 12)
+    else
+        m.sort = which
+    end if
     load()
 end sub
