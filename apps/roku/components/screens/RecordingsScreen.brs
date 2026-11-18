@@ -149,44 +149,9 @@ end function
 ' "Tomorrow   8:00 to 9:00 PM   Summit Sports", and what a recording takes on disk once made.
 function whenText(rec as object) as string
     s = secondsOf(rec.startsAt)
-    text = dayText(s) + "   " + clockOf(s, false) + " to " + clockOf(secondsOf(rec.endsAt), true)
+    text = dayText(s) + "   " + guideTime(s, false) + " to " + guideTime(secondsOf(rec.endsAt), true)
     if rec.channel <> invalid and rec.channel <> "" then text = text + "   " + rec.channel
     if rec.state <> "scheduled" and rec.bytes > 0 then text = text + "   " + recordingSizeText(rec.bytes)
-    return text
-end function
-
-function secondsOf(iso as string) as integer
-    t = createObject("roDateTime")
-    t.fromISO8601String(iso)
-    return t.asSeconds()
-end function
-
-' "Today", "Tomorrow", "Yesterday", or "November 17", by the TV's own day.
-function dayText(seconds as integer) as string
-    t = createObject("roDateTime")
-    t.fromSeconds(seconds)
-    t.toLocalTime()
-    now = createObject("roDateTime")
-    now.toLocalTime()
-    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-    return dayWord(int(t.asSeconds() / 86400) - int(now.asSeconds() / 86400), months[t.getMonth() - 1] + " " + t.getDayOfMonth().toStr())
-end function
-
-' "3:30", with " PM" when asked for.
-function clockOf(seconds as integer, suffix as boolean) as string
-    t = createObject("roDateTime")
-    t.fromSeconds(seconds)
-    t.toLocalTime()
-    h = t.getHours()
-    half = "AM"
-    if h >= 12 then half = "PM"
-    h = h mod 12
-    if h = 0 then h = 12
-    mins = t.getMinutes()
-    text = h.toStr() + ":"
-    if mins < 10 then text = text + "0"
-    text = text + mins.toStr()
-    if suffix then text = text + " " + half
     return text
 end function
 
@@ -258,7 +223,10 @@ sub onMenuChosen(event as object)
     else if chosen = "stop"
         m.confirm.model = {title: "Stop recording " + rec.title + "?", body: "What has been recorded so far is kept.", verb: "Stop recording"}
     else if chosen = "delete"
-        m.confirm.model = {title: "Delete " + rec.title + "?", body: "The recording (" + recordingSizeText(rec.bytes) + ") is deleted from the server. This can’t be undone.", verb: "Delete"}
+        ' a recording that failed or was skipped takes nothing on disk, and its question names no size
+        size = ""
+        if rec.bytes > 0 then size = " (" + recordingSizeText(rec.bytes) + ")"
+        m.confirm.model = {title: "Delete " + rec.title + "?", body: "The recording" + size + " is deleted from the server. This can’t be undone.", verb: "Delete"}
     end if
 end sub
 
