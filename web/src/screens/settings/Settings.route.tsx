@@ -430,7 +430,7 @@ export function SettingsEntry() {
       reportCarry.current = {inputs: carryInputs, report};
       dashboard = createDashboardBindings({api: api, queries: context.freshness?.queries, events: context.events, scope: {serverId: viewer.serverId, viewerId: options.viewerId},
         context: report, role, isCurrent: current, isMainProfile: () => current() && context.facts.identity.primaryProfile === true,
-        artwork: () => undefined,
+        artwork: context.artwork.foreground,
         effects: {openHome, openSettings, reportError, openHistory: report => {if (current()) {historyContexts.set(context, report);openSettings('history');}}}});
     }
     // Server › Streaming › Hardware draws measured adapters, formats and probes:

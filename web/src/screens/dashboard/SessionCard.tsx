@@ -19,8 +19,7 @@ function phoneRoute(tracks: readonly Track[]): Track | undefined {
 export function SessionCard({session: s, bindings: b, refresh, layout = 'desktop', retained = false, onOverlayChange}: {session: AdminSession; bindings: DashboardBindings; refresh: (removedId?: string) => void; layout?: 'desktop' | 'phone' | 'compact'; retained?: boolean; onOverlayChange?: (id: string, open: boolean) => void}) {
   const [menu, setMenu] = useState(false), [stop, setStop] = useState(false), [message, setMessage] = useState(''), [busy, setBusy] = useState(false);
   const messageId = useId(), cancel = useRef<HTMLButtonElement>(null), opener = useRef<HTMLButtonElement>(null), item = s.item, square = s.kind === 'audio' || item?.kind === 'audiobook_file';
-  const art = s.itemId ? b.artwork(s.itemId, square ? 'square' : 'poster', item?.art.find(a => a.role === (square ? 'square' : 'poster'))?.revision) : undefined;
-  const backdrop = s.itemId ? b.artwork(s.itemId, 'backdrop', item?.art.find(a => a.role === 'backdrop')?.revision) : undefined;
+  const art = layout === 'compact' || s.live ? undefined : b.artwork(s.image, 400, square ? 1 : 16 / 9);
   const act = async (action: () => Promise<void>, depart = false) => {if (!b.isCurrent() || busy) return; setBusy(true); try {await action(); if (b.isCurrent()) {setStop(false); refresh(depart ? s.id : undefined);}} catch (error) {if (b.isCurrent()) b.effects.reportError(error);} finally {if (b.isCurrent()) setBusy(false);}};
   const state = s.state === 'playing' ? t('next.dashboard.playing') : s.state === 'paused' ? t('next.dashboard.paused') : s.state === 'buffering' ? t('next.dashboard.buffering') : s.state === 'preparing' ? t('next.dashboard.preparing') : undefined;
   const title = sessionTitle(s);
@@ -76,8 +75,8 @@ export function SessionCard({session: s, bindings: b, refresh, layout = 'desktop
       <div className={styles.phoneSessionRow}>
         <div className={styles.phoneArt} data-kind={s.live ? 'live' : square ? 'square' : 'video'}>
           {s.live ? <><Icon name="i-live" size={22} /><span>{s.channel?.name}</span></>
-            : square ? <>{backdrop && <Artwork source={backdrop} alt="" width="100%" height="100%" />}<span className={styles.phoneSquare}>{art ? <Artwork source={art} alt="" width="100%" height="100%" /> : <Icon name="i-music" size={22} />}</span></>
-            : (backdrop || art) ? <Artwork source={backdrop ?? art!} alt="" width="100%" height="100%" /> : <Icon name="i-play" size={26} />}
+            : square ? <span className={styles.phoneSquare}>{art ? <Artwork source={art} alt="" width="100%" height="100%" /> : <Icon name="i-music" size={22} />}</span>
+            : art ? <Artwork source={art} alt="" width="100%" height="100%" /> : <Icon name="i-play" size={26} />}
         </div>
         <div className={styles.phoneSessionText}>
           {title && <h3>{title}</h3>}
@@ -101,8 +100,8 @@ export function SessionCard({session: s, bindings: b, refresh, layout = 'desktop
   return <article className={styles.session} data-state={s.state} aria-label={title}>
     <div className={styles.sessionArt} data-kind={s.live ? 'live' : square ? 'square' : 'video'}>
       {s.live ? <><Icon name="i-live" size={22} /><span>{s.channel?.name}</span></>
-        : square ? <>{backdrop && <Artwork source={backdrop} alt="" width="100%" height="100%" />}<span className={styles.sessionSquare}>{art ? <Artwork source={art} alt="" width="100%" height="100%" /> : <Icon name="i-music" size={26} />}</span></>
-        : (backdrop || art) ? <Artwork source={backdrop ?? art!} alt="" width="100%" height="100%" /> : <Icon name="i-play" size={28} />}
+        : square ? <span className={styles.sessionSquare}>{art ? <Artwork source={art} alt="" width="100%" height="100%" /> : <Icon name="i-music" size={26} />}</span>
+        : art ? <Artwork source={art} alt="" width="100%" height="100%" /> : <Icon name="i-play" size={28} />}
     </div>
     <div className={styles.sessionText}>
       {title && <h4>{title}</h4>}

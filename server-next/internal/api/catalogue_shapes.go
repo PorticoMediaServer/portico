@@ -540,11 +540,18 @@ func timeString(ms int64) string {
 func imageMap(images []db.Image) map[string]string {
 	out := map[string]string{}
 	for _, image := range images {
-		if image.FileHash != "" {
-			out[image.Role.String()] = "/v1/images/" + image.FileHash
+		if address := imageAddress(image.FileHash); address != "" {
+			out[image.Role.String()] = address
 		}
 	}
 	return out
+}
+
+func imageAddress(hash string) string {
+	if hash == "" {
+		return ""
+	}
+	return "/v1/images/" + hash
 }
 
 func stateShape(s db.State) ItemState {

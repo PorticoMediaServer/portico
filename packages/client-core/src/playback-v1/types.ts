@@ -442,6 +442,7 @@ export type AdminSession = Readonly<{
  media?:ListAdminSessionsResponse['items'][number]['media'];delivery?:ListAdminSessionsResponse['items'][number]['delivery'];item?:ListAdminSessionsResponse['items'][number]['item'];
 
   id: string; user: string; profile: string; device: string; itemId?: string; title: string; kind: SessionKind; state: string; positionMs: number;
+  image?: string;
   /** The length of what is playing, when the server knows it (never for a channel). */
   durationMs?: number;
   decision: Readonly<{video?: Decision; audio?: Decision; subtitles?: Decision}>; bitrateKbps?: number; bandwidthKbps?: number;
@@ -458,6 +459,7 @@ export function parseAdminSession(v: unknown): AdminSession {
     ...parseDashboardSessionFacts(v),
  id: id(v.id, 'session id'), user: named(v.user), profile: named(v.profile), device: named(v.device),
     itemId: obj(v.item) && typeof v.item.id === 'string' ? v.item.id : typeof v.itemId === 'string' ? v.itemId : undefined,
+    ...(artworkPath(v.image) ? {image: v.image as string} : {}),
     title: obj(v.item) ? str(v.item.title) : str(v.title),
     kind: oneOf(v.kind, ['vod', 'audio', 'live', 'channel'] as const, 'other' as never), state: str(v.state), positionMs: num(v.positionMs),
     ...(typeof v.durationMs === 'number' && Number.isSafeInteger(v.durationMs) && v.durationMs > 0 ? {durationMs: v.durationMs} : {}),

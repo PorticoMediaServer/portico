@@ -31,7 +31,7 @@ export function DashboardPhoneEntry() {
     const openSettings = (section: string) => {if (current()) void router.navigate({to: '/settings', search: () => ({scope: 'server', section})});};
     const dashboard = createDashboardBindings({api: context.api, queries: context.freshness?.queries, events: context.events, scope: {serverId: context.session().viewer.serverId, viewerId: JSON.stringify([context.session().viewer.authority, context.session().viewer.accountId, context.session().viewer.profileId])},
       context: captureReportContext(timeZone), role: permittedRole, isCurrent: current, isMainProfile: () => current() && context.facts.identity.primaryProfile === true,
-      artwork: () => undefined,
+      artwork: context.artwork.foreground,
       effects: {openHome, openSettings, reportError: error => {if (current()) setFailure({error});}, openHistory: () => openSettings('history')}});
     setFailure(false);
     setOwned({context, dashboard, chrome: {get serverName() {return context.facts.identity.serverName;}, audience: permittedRole === 'owner' ? 'owner' : 'administrators'}});

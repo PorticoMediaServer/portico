@@ -8790,6 +8790,9 @@
           "id": {
             "type": "string"
           },
+          "image": {
+            "type": "string"
+          },
           "itemId": {
             "type": "string"
           },
@@ -9361,6 +9364,9 @@
             "type": "string"
           },
           "deviceName": {
+            "type": "string"
+          },
+          "image": {
             "type": "string"
           },
           "itemId": {

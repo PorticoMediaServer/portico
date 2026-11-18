@@ -30,6 +30,7 @@ const {DashboardScreen} = await import('../src/screens/dashboard/Dashboard.tsx')
 const {SessionCard} = await import('../src/screens/dashboard/SessionCard.tsx');
 const {PhonePage} = await import('../src/screens/dashboard/phone.tsx');
 const {captureReportContext} = await import('../../packages/client-core/src/report-context.ts');
+const {adminSessionFromServer} = await import('../../packages/client-core/src/admin/server-now-playing.ts');
 const context = captureReportContext('UTC');
 const scope = {serverId: 'server', viewerId: 'viewer'};
 const page = {scope: {serverId: 'server', viewerFence: 'a'.repeat(64)}, observedAt: '2026-10-23T00:00:00Z', items: [], page: {limit: 10, start: 0, total: 0, revision: '1'}, totals: {streams: 0, atHome: 0, away: 0, paused: 0, converting: 0, people: 0, bandwidthKbps: 16_000}};
@@ -50,6 +51,18 @@ function session(overrides: Record<string, unknown> = {}) {
 function card(overrides: Record<string, unknown> = {}, role: 'owner' | 'admin' = 'owner') {
   return renderToStaticMarkup(createElement(SessionCard, {session: session(overrides) as never, bindings: bindings(role) as never, refresh: () => {}, layout: 'phone'}));
 }
+
+test('desktop and phone stream cards use the picture named in the server answer', () => {
+  const image = '/v1/images/' + 'a'.repeat(64);
+  const stream = adminSessionFromServer({id: 'stream', itemId: 'film', image, title: 'Heat', kind: 'vod',
+    username: 'Sam', deviceName: 'TV', state: 'playing', positionMs: 0, delivery: {}, away: false, startedAt: '2026-11-18T13:00:00Z'});
+  const paths: (string | undefined)[] = [];
+  const supplied = {...bindings(), artwork: (path: string | undefined) => {paths.push(path); return undefined;}};
+  for (const layout of ['desktop', 'phone'] as const) {
+    renderToStaticMarkup(createElement(SessionCard, {session: stream, bindings: supplied as never, refresh: () => {}, layout}));
+  }
+  assert.deepEqual(paths, [image, image]);
+});
 const headings = (html: string) => [...html.matchAll(/<h[23][^>]*>([^<]*)<\/h[23]>/g)].map(match => '>' + match[1] + '<');
 
 test('the phone Dashboard is a page: its own bar and server header over the standard backdrop', () => {

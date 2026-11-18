@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {periodStart, readServerAccounts, readServerPlayHistory} from '../src/admin/server-play-history.ts';
 
 const play = {playedAt: '2026-11-11T20:00:00Z', username: 'ada', profile: 'Kids', deviceName: 'Living room', accountId: 'acc_1', libraryId: 'lib_1', libraryName: 'TV',
-  itemId: 'itm_1', kind: 'episode', title: 'Pilot', subtitle: 'The Show', watchedMs: 1_200_000, away: true, delivery: 'converted'};
+  itemId: 'itm_1', image: '/v1/images/' + 'b'.repeat(64), kind: 'episode', title: 'Pilot', subtitle: 'The Show',
+  watchedMs: 1_200_000, away: true, delivery: 'converted'};
 
 test('Play history asks the rebuilt server with its own filters and shows each play as a row', async () => {
   const paths: string[] = [];
@@ -20,9 +21,11 @@ test('Play history asks the rebuilt server with its own filters and shows each p
   const [episode, song] = page.entries;
   assert.equal(episode.user, 'ada'); assert.equal(episode.profile, 'Kids'); assert.equal(episode.device, 'Living room');
   assert.equal(episode.parentTitle, 'The Show'); assert.equal(episode.libraryName, 'TV'); assert.equal(episode.delivery, 'converted'); assert.equal(episode.location, 'remote'); assert.equal(episode.watchedMs, 1_200_000);
+  assert.equal(episode.image, play.image);
   assert.notEqual(episode.id, song.id);
   // A removed account or title still lists the play; a song is drawn square.
   assert.equal(song.accountId, ''); assert.equal(song.itemId, undefined); assert.equal(song.kind, 'song');
+  assert.equal(song.image, undefined);
   assert.equal(song.libraryName, undefined, 'a removed library has no name to show'); assert.equal(song.delivery, undefined);
   await assert.rejects(readServerPlayHistory({request: async <T,>() => ({items: [{title: 'no time'}]}) as T}, {period: 'all'}));
   assert.equal(periodStart('all'), undefined);
