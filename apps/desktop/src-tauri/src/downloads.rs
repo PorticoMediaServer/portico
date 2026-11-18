@@ -22,6 +22,9 @@ pub struct File {
 #[serde(rename_all = "camelCase")]
 pub struct Entry {
     pub server_id: String,
+    /// The account the profile belongs to (empty for a download kept before it was recorded).
+    #[serde(default)]
+    pub account_id: String,
     pub profile_id: String,
     pub download_id: String,
     pub item_id: String,
@@ -29,7 +32,7 @@ pub struct Entry {
     /// The title's facts as the page shows them; this side never reads them.
     pub title: Value,
     pub files: Vec<File>,
-    /// downloading, paused, failed or ready.
+    /// queued (waiting for room), downloading, paused, failed or ready.
     pub state: String,
     /// The server has been told the whole file is here.
     pub received: bool,
@@ -37,6 +40,12 @@ pub struct Entry {
     /// Where Play starts: the person's place when it was downloaded, then where each play here left it.
     #[serde(default)]
     pub position_ms: u64,
+    /// Its picture is kept beside the files.
+    #[serde(default)]
+    pub artwork: bool,
+    /// The subtitle files kept beside it (names in its folder), for mpv to offer.
+    #[serde(default)]
+    pub subtitles: Vec<String>,
 }
 
 /// A playing of a downloaded title, kept until the server has it (through the state batch).
@@ -75,6 +84,8 @@ pub struct Fetch {
 #[serde(rename_all = "camelCase")]
 pub struct Ask {
     pub server_id: String,
+    #[serde(default)]
+    pub account_id: String,
     pub profile_id: String,
     pub download_id: String,
     pub item_id: String,
@@ -84,6 +95,42 @@ pub struct Ask {
     /// The person's place in the title when it was downloaded.
     #[serde(default)]
     pub position_ms: u64,
+    /// The title's picture for the Downloads list (its server address), kept beside the files.
+    #[serde(default)]
+    pub artwork: Option<String>,
+    /// The subtitles that are files of their own (beside the title's file, or downloaded for it),
+    /// kept beside it so they play with no server (downloads rule 26).
+    #[serde(default)]
+    pub subtitles: Vec<Subtitle>,
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Subtitle {
+    pub url: String,
+    pub format: String,
+    #[serde(default)]
+    pub language: String,
+}
+
+/// The disk the downloads are on, and what Portico's downloads take of it.
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Storage {
+    pub total_bytes: u64,
+    pub free_bytes: u64,
+    /// Everything Portico has fetched here, for every server, account and profile.
+    pub used_bytes: u64,
+    /// What other profiles of this account on this server have here (downloads rule 27).
+    pub other_downloads_bytes: u64,
+}
+
+/// The other profiles' downloads as they were when the person was asked, to remove only those.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Others {
+    pub snapshot_token: String,
+    pub bytes: u64,
 }
 
 #[derive(Serialize)]
@@ -97,6 +144,8 @@ pub struct Downloads {
     root: PathBuf,
     index: Mutex<Index>,
     running: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    /// The disk's free room (`disk::free`; a test gives its own).
+    free: fn(&std::path::Path) -> Option<u64>,
 }
 
 fn id(value: &str) -> Result<&str, String> {
@@ -108,14 +157,26 @@ fn id(value: &str) -> Result<&str, String> {
 fn scope(server: &str, profile: &str) -> String {
     format!("{server}/{profile}")
 }
+/// Another profile of the same account on the same server: never this one, never another account's.
+fn other(e: &Entry, server: &str, account: &str, profile: &str) -> bool {
+    e.server_id == server && !account.is_empty() && e.account_id == account && e.profile_id != profile
+}
+
+/// Room left free on the disk beyond any download.
+const MARGIN: u64 = 1 << 30;
+
 fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
 impl Downloads {
     pub fn open(root: PathBuf) -> Arc<Downloads> {
+        Self::open_with(root, crate::disk::free)
+    }
+
+    fn open_with(root: PathBuf, free: fn(&std::path::Path) -> Option<u64>) -> Arc<Downloads> {
         let index = std::fs::read(root.join("index.json")).ok().and_then(|bytes| serde_json::from_slice::<Index>(&bytes).ok()).unwrap_or_default();
-        let downloads = Arc::new(Downloads { root, index: Mutex::new(index), running: Mutex::new(HashMap::new()) });
+        let downloads = Arc::new(Downloads { root, index: Mutex::new(index), running: Mutex::new(HashMap::new()), free });
         // A fetch the app was closed in the middle of waits for the page to give fresh addresses.
         if let Ok(mut index) = downloads.index.lock() {
             for entry in index.entries.iter_mut().filter(|e| e.state == "downloading") {
@@ -159,7 +220,8 @@ impl Downloads {
     /// Starts, or carries on, fetching a title's files into its folder.
     pub fn fetch(self: &Arc<Self>, ask: Ask) -> Result<(), String> {
         let key = (id(&ask.server_id)?.to_owned(), id(&ask.profile_id)?.to_owned(), id(&ask.download_id)?.to_owned(), id(&ask.item_id)?.to_owned());
-        if ask.files.is_empty() || ask.files.iter().any(|f| !matches!(tauri::Url::parse(&f.url).map(|u| u.scheme().to_owned()).as_deref(), Ok("http" | "https"))) {
+        let web = |url: &str| matches!(tauri::Url::parse(url).map(|u| u.scheme().to_owned()).as_deref(), Ok("http" | "https"));
+        if ask.files.is_empty() || ask.files.iter().any(|f| !web(&f.url)) || ask.artwork.as_deref().is_some_and(|url| !web(url)) || ask.subtitles.iter().any(|sub| !web(&sub.url)) || ask.subtitles.len() > 64 {
             return Err("invalid_command".into());
         }
         let files: Vec<File> = ask.files.iter().enumerate().map(|(n, f)| {
@@ -182,10 +244,17 @@ impl Downloads {
                     index.entries[n].state = "downloading".into();
                     index.entries[n].received = false;
                 }
-                None => index.entries.push(Entry { server_id: key.0.clone(), profile_id: key.1.clone(), download_id: key.2.clone(), item_id: key.3.clone(),
-                    quality: ask.quality.clone(), title: ask.title.clone(), files, state: "downloading".into(), received: false, added_ms: now_ms(), position_ms: ask.position_ms }),
+                None => index.entries.push(Entry { server_id: key.0.clone(), account_id: id(&ask.account_id).map(str::to_owned).unwrap_or_default(), profile_id: key.1.clone(), download_id: key.2.clone(), item_id: key.3.clone(),
+                    quality: ask.quality.clone(), title: ask.title.clone(), files, state: "downloading".into(), received: false, added_ms: now_ms(), position_ms: ask.position_ms, artwork: false, subtitles: vec![] }),
             }
+            // A title that wouldn't fit, less a margin, waits (downloads rule 23); each sync asks again.
+            let n = index.entries.iter().position(|e| (&e.server_id, &e.profile_id, &e.download_id, &e.item_id) == (&key.0, &key.1, &key.2, &key.3)).ok_or("download_not_found")?;
+            let need: u64 = index.entries[n].files.iter().map(|f| f.bytes.saturating_sub(f.done)).sum();
+            let _ = std::fs::create_dir_all(&self.root);
+            let fits = (self.free)(&self.root).is_none_or(|free| free >= need.saturating_add(MARGIN));
+            if !fits { index.entries[n].state = "queued".into(); }
             self.save(&index);
+            if !fits { return Ok(()); }
         }
         let label = format!("{}/{}/{}/{}", key.0, key.1, key.2, key.3);
         let stop = Arc::new(AtomicBool::new(false));
@@ -196,7 +265,10 @@ impl Downloads {
         }
         let downloads = self.clone();
         let urls: Vec<String> = ask.files.into_iter().map(|f| f.url).collect();
+        let (artwork, subtitles) = (ask.artwork, ask.subtitles);
         std::thread::spawn(move || {
+            if let Some(url) = artwork { downloads.keep_artwork((&key.0, &key.1, &key.2, &key.3), &url); }
+            downloads.keep_subtitles((&key.0, &key.1, &key.2, &key.3), &subtitles);
             let result = downloads.transfer((&key.0, &key.1, &key.2, &key.3), &urls, &stop);
             let state = match result { Ok(true) => "ready", Ok(false) => "paused", Err(_) => "failed" };
             let _ = downloads.change((&key.0, &key.1, &key.2, &key.3), |e| { if e.state == "downloading" { e.state = state.into(); } });
@@ -240,6 +312,68 @@ impl Downloads {
             if have != file.bytes { return Err("short".into()); }
         }
         Ok(true)
+    }
+
+    /// The title's picture, once: an image of at most 4 MB, or none (the list then shows its
+    /// plain tile). A picture that can't be fetched never holds up the download.
+    fn keep_artwork(&self, key: (&str, &str, &str, &str), url: &str) {
+        let Ok(entry) = self.entry(key) else { return };
+        let (folder, limit) = (self.folder(&entry), 4u64 << 20);
+        if folder.join("artwork").exists() || std::fs::create_dir_all(&folder).is_err() { return; }
+        let agent: ureq::Agent = ureq::Agent::config_builder().http_status_as_error(false).timeout_global(Some(std::time::Duration::from_secs(30))).build().into();
+        let Ok(mut response) = agent.get(url).call() else { return };
+        let image = response.headers().get("content-type").and_then(|v| v.to_str().ok()).is_some_and(|v| v.starts_with("image/"));
+        if response.status().as_u16() != 200 || !image { return; }
+        let mut bytes = Vec::new();
+        if response.body_mut().as_reader().take(limit + 1).read_to_end(&mut bytes).is_err() || bytes.is_empty() || bytes.len() as u64 > limit { return; }
+        let temporary = folder.join("artwork.tmp");
+        if std::fs::write(&temporary, &bytes).is_ok() && std::fs::rename(&temporary, folder.join("artwork")).is_ok() {
+            let _ = self.change(key, |e| e.artwork = true);
+        }
+    }
+
+    /// The title's subtitle files, each at most 10 MB, named `sub-N.<language>.<format>` so mpv
+    /// shows each one's language. One that can't be fetched is left out, never holding up the title.
+    fn keep_subtitles(&self, key: (&str, &str, &str, &str), subtitles: &[Subtitle]) {
+        let Ok(entry) = self.entry(key) else { return };
+        let (folder, limit) = (self.folder(&entry), 10u64 << 20);
+        if subtitles.is_empty() || entry.subtitles.len() == subtitles.len() || std::fs::create_dir_all(&folder).is_err() { return; }
+        let agent: ureq::Agent = ureq::Agent::config_builder().http_status_as_error(false).timeout_global(Some(std::time::Duration::from_secs(60))).build().into();
+        let word = |text: &str, most: usize| text.chars().filter(|c| c.is_ascii_alphanumeric()).take(most).collect::<String>().to_ascii_lowercase();
+        let mut kept = Vec::new();
+        for (n, subtitle) in subtitles.iter().enumerate() {
+            let (language, format) = (word(&subtitle.language, 8), word(&subtitle.format, 8));
+            let name = match (language.is_empty(), format.is_empty()) {
+                (_, true) => continue,
+                (true, false) => format!("sub-{}.{format}", n + 1),
+                (false, false) => format!("sub-{}.{language}.{format}", n + 1),
+            };
+            let Ok(mut response) = agent.get(subtitle.url.as_str()).call() else { continue };
+            let mut bytes = Vec::new();
+            if response.status().as_u16() != 200 || response.body_mut().as_reader().take(limit + 1).read_to_end(&mut bytes).is_err() || bytes.is_empty() || bytes.len() as u64 > limit { continue; }
+            if std::fs::write(folder.join(&name), &bytes).is_ok() { kept.push(name); }
+        }
+        let _ = self.change(key, |e| e.subtitles = kept);
+    }
+
+    /// The title's kept subtitle files with their languages (from their names), for mpv.
+    pub fn subtitles(&self, key: (&str, &str, &str, &str)) -> Result<Vec<(PathBuf, String)>, String> {
+        let entry = self.entry(key)?;
+        Ok(entry.subtitles.iter().map(|name| {
+            let parts: Vec<&str> = name.split('.').collect();
+            (self.folder(&entry).join(name), if parts.len() == 3 { parts[1].to_owned() } else { String::new() })
+        }).collect())
+    }
+
+    /// The title's kept picture.
+    pub fn artwork(&self, key: (&str, &str, &str, &str)) -> Result<Vec<u8>, String> {
+        let entry = self.entry(key)?;
+        std::fs::read(self.folder(&entry).join("artwork")).map_err(|_| "artwork_unavailable".into())
+    }
+
+    fn entry(&self, key: (&str, &str, &str, &str)) -> Result<Entry, String> {
+        let index = self.index.lock().map_err(|_| "downloads_unavailable")?;
+        index.entries.iter().find(|e| (e.server_id.as_str(), e.profile_id.as_str(), e.download_id.as_str(), e.item_id.as_str()) == key).cloned().ok_or_else(|| "download_not_found".into())
     }
 
     fn record(&self, key: (&str, &str, &str, &str), file: usize, done: u64) {
@@ -313,6 +447,54 @@ impl Downloads {
             .map(|e| e.position_ms).ok_or_else(|| "download_not_found".into())
     }
 
+    pub fn storage(&self, server: &str, account: &str, profile: &str) -> Result<Storage, String> {
+        let index = self.index.lock().map_err(|_| "downloads_unavailable")?;
+        let fetched = |e: &Entry| e.files.iter().map(|f| f.done).sum::<u64>();
+        let _ = std::fs::create_dir_all(&self.root);
+        Ok(Storage { total_bytes: crate::disk::total(&self.root).unwrap_or(0), free_bytes: (self.free)(&self.root).unwrap_or(0),
+            used_bytes: index.entries.iter().map(fetched).sum(),
+            other_downloads_bytes: index.entries.iter().filter(|e| other(e, server, account, profile)).map(fetched).sum() })
+    }
+
+    /// The other profiles' downloads now, named by a token that changes when any of them does.
+    pub fn others(&self, server: &str, account: &str, profile: &str) -> Result<Others, String> {
+        let index = self.index.lock().map_err(|_| "downloads_unavailable")?;
+        Ok(Self::others_in(&index, server, account, profile))
+    }
+
+    fn others_in(index: &Index, server: &str, account: &str, profile: &str) -> Others {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::hash::DefaultHasher::new();
+        let mut bytes = 0;
+        for e in index.entries.iter().filter(|e| other(e, server, account, profile)) {
+            (&e.profile_id, &e.download_id, &e.item_id, &e.state).hash(&mut hasher);
+            for f in &e.files { (f.bytes, f.done).hash(&mut hasher); }
+            bytes += e.files.iter().map(|f| f.done).sum::<u64>();
+        }
+        Others { snapshot_token: format!("{:016x}", hasher.finish()), bytes }
+    }
+
+    /// Removes exactly the other profiles' downloads the person was shown (`others`); if any
+    /// changed since, nothing is removed. On this computer only: the server is never told on
+    /// another profile's behalf.
+    pub fn remove_others(&self, server: &str, account: &str, profile: &str, token: &str) -> Result<(), String> {
+        let gone: Vec<Entry> = {
+            let mut index = self.index.lock().map_err(|_| "downloads_unavailable")?;
+            if Self::others_in(&index, server, account, profile).snapshot_token != token { return Err("conflict".into()); }
+            let (gone, kept) = std::mem::take(&mut index.entries).into_iter().partition(|e| other(e, server, account, profile));
+            index.entries = kept;
+            self.save(&index);
+            gone
+        };
+        for e in gone {
+            if let Some(stop) = self.running.lock().ok().and_then(|running| running.get(&format!("{}/{}/{}/{}", e.server_id, e.profile_id, e.download_id, e.item_id)).cloned()) {
+                stop.store(true, Ordering::Release);
+            }
+            let _ = std::fs::remove_dir_all(self.folder(&e));
+        }
+        Ok(())
+    }
+
     /// The finished files of a title, in order, for playing it here.
     pub fn files(&self, key: (&str, &str, &str, &str)) -> Result<Vec<PathBuf>, String> {
         let index = self.index.lock().map_err(|_| "downloads_unavailable")?;
@@ -330,8 +512,8 @@ mod tests {
     use super::*;
 
     fn ask(url: &str, bytes: u64) -> Ask {
-        Ask { server_id: "srv_1".into(), profile_id: "prf_1".into(), download_id: "dl_1".into(), item_id: "itm_1".into(), quality: "original".into(),
-            title: serde_json::json!({"title": "A film"}), files: vec![Fetch { url: url.into(), bytes, container: "mkv".into() }], position_ms: 0 }
+        Ask { server_id: "srv_1".into(), account_id: String::new(), profile_id: "prf_1".into(), download_id: "dl_1".into(), item_id: "itm_1".into(), quality: "original".into(),
+            title: serde_json::json!({"title": "A film"}), files: vec![Fetch { url: url.into(), bytes, container: "mkv".into() }], position_ms: 0, artwork: None, subtitles: vec![] }
     }
     const KEY: (&str, &str, &str, &str) = ("srv_1", "prf_1", "dl_1", "itm_1");
 
@@ -408,6 +590,111 @@ mod tests {
         assert_eq!(downloads.position(KEY).unwrap(), 900_000, "still there once the server has the play");
         downloads.record_play(play(5_400_000), true).unwrap();
         assert_eq!(downloads.position(KEY).unwrap(), 0, "played to the end starts again");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    /// Answers every request with this content type and body.
+    fn picture_server(content_type: &'static str, body: Vec<u8>) -> String {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/v1/images/abc", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let mut stream = stream.unwrap();
+                let _ = stream.read(&mut [0u8; 2048]);
+                let _ = stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes());
+                let _ = stream.write_all(&body);
+            }
+        });
+        url
+    }
+
+    #[test]
+    fn the_titles_picture_is_kept_beside_it_and_only_if_it_is_an_image() {
+        let root = std::env::temp_dir().join(format!("portico-downloads-artwork-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let downloads = Downloads::open(root.clone());
+        let png = b"\x89PNG\r\n\x1a\nnot really".to_vec();
+        downloads.fetch(Ask { artwork: Some(picture_server("image/png", png.clone())), ..ask("http://127.0.0.1:9/v1/media/g/file/1", 10) }).unwrap();
+        wait_for(&downloads, "failed");
+        assert_eq!(downloads.artwork(KEY).unwrap(), png, "kept although the file itself failed");
+        assert!(downloads.list("srv_1", "prf_1").unwrap().entries[0].artwork, "the list says so, so the tile reads it");
+        let other = ("srv_1", "prf_1", "dl_2", "itm_1");
+        downloads.fetch(Ask { download_id: "dl_2".into(), artwork: Some(picture_server("text/html", b"<html>".to_vec())), ..ask("http://127.0.0.1:9/v1/media/g/file/1", 10) }).unwrap();
+        let started = std::time::Instant::now();
+        while downloads.list("srv_1", "prf_1").unwrap().entries.iter().any(|e| e.download_id == "dl_2" && e.state == "downloading") {
+            assert!(started.elapsed() < std::time::Duration::from_secs(20));
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        assert!(downloads.artwork(other).is_err(), "a page is not a picture");
+        let mut bad = ask("https://server/v1/media/g/file/1", 1);
+        bad.artwork = Some("file:///etc/passwd".into());
+        assert!(downloads.fetch(bad).is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn the_titles_own_subtitle_files_are_kept_beside_it_with_their_language_in_the_name() {
+        let root = std::env::temp_dir().join(format!("portico-downloads-subtitles-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let downloads = Downloads::open(root.clone());
+        let srt = b"1\n00:00:01,000 --> 00:00:02,000\nHello\n".to_vec();
+        let url = picture_server("application/x-subrip", srt.clone());
+        let subtitles = vec![Subtitle { url: url.clone(), format: "srt".into(), language: "en".into() },
+            Subtitle { url: url.clone(), format: "ass".into(), language: "../fr".into() }, Subtitle { url, format: "".into(), language: "de".into() }];
+        downloads.fetch(Ask { subtitles, ..ask("http://127.0.0.1:9/v1/media/g/file/1", 10) }).unwrap();
+        wait_for(&downloads, "failed");
+        let kept = downloads.subtitles(KEY).unwrap();
+        let names: Vec<_> = kept.iter().map(|(p, language)| (p.file_name().unwrap().to_string_lossy().into_owned(), language.as_str())).collect();
+        assert_eq!(names, [("sub-1.en.srt".to_owned(), "en"), ("sub-2.fr.ass".to_owned(), "fr")], "a name is only letters and digits; one with no format is left out");
+        assert_eq!(std::fs::read(&kept[0].0).unwrap(), srt);
+        let mut bad = ask("https://server/v1/media/g/file/1", 1);
+        bad.subtitles = vec![Subtitle { url: "file:///etc/passwd".into(), format: "srt".into(), language: String::new() }];
+        assert!(downloads.fetch(bad).is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_title_that_would_not_fit_waits_and_fetches_once_there_is_room() {
+        let root = std::env::temp_dir().join(format!("portico-downloads-room-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        // A gigabyte and a half free: the margin (1 GB) leaves room for 500 MB.
+        let full = Downloads::open_with(root.clone(), |_| Some(3 << 29));
+        full.fetch(ask("http://127.0.0.1:9/v1/media/g/file/1", 600 << 20)).unwrap();
+        assert_eq!(full.list("srv_1", "prf_1").unwrap().entries[0].state, "queued", "waits, nothing fetched");
+        assert!(full.running.lock().unwrap().is_empty());
+        drop(full);
+        // Room made: the next sync's fetch starts it (and here fails at once: nothing listens).
+        let roomy = Downloads::open_with(root.clone(), |_| Some(u64::MAX));
+        roomy.fetch(ask("http://127.0.0.1:9/v1/media/g/file/1", 600 << 20)).unwrap();
+        wait_for(&roomy, "failed");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn other_profiles_downloads_are_counted_and_removed_only_as_they_were_shown() {
+        let root = std::env::temp_dir().join(format!("portico-downloads-others-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let downloads = Downloads::open_with(root.clone(), |_| Some(u64::MAX));
+        let add = |profile: &str, account: &str, download: &str| {
+            downloads.fetch(Ask { profile_id: profile.into(), account_id: account.into(), download_id: download.into(), ..ask("http://127.0.0.1:9/v1/media/g/file/1", 10) }).unwrap();
+            let mut index = downloads.index.lock().unwrap();
+            let e = index.entries.iter_mut().find(|e| e.profile_id == profile && e.download_id == download).unwrap();
+            e.files[0].done = 10;
+        };
+        add("prf_1", "acc_1", "dl_1"); add("prf_2", "acc_1", "dl_2"); add("prf_3", "acc_2", "dl_3");
+        let started = std::time::Instant::now();
+        while !downloads.running.lock().unwrap().is_empty() { assert!(started.elapsed() < std::time::Duration::from_secs(20)); std::thread::sleep(std::time::Duration::from_millis(50)); }
+        let storage = downloads.storage("srv_1", "acc_1", "prf_1").unwrap();
+        assert_eq!((storage.used_bytes, storage.other_downloads_bytes), (30, 10), "another account's profile is not this account's to see or remove");
+        let shown = downloads.others("srv_1", "acc_1", "prf_1").unwrap();
+        assert_eq!(shown.bytes, 10);
+        downloads.change(("srv_1", "prf_2", "dl_2", "itm_1"), |e| e.files[0].done = 5).unwrap();
+        assert_eq!(downloads.remove_others("srv_1", "acc_1", "prf_1", &shown.snapshot_token), Err("conflict".into()), "changed since it was shown");
+        let shown = downloads.others("srv_1", "acc_1", "prf_1").unwrap();
+        downloads.remove_others("srv_1", "acc_1", "prf_1", &shown.snapshot_token).unwrap();
+        let left: Vec<String> = downloads.index.lock().unwrap().entries.iter().map(|e| e.profile_id.clone()).collect();
+        assert_eq!(left, ["prf_1", "prf_3"]);
+        assert_eq!(downloads.storage("srv_1", "", "prf_1").unwrap().other_downloads_bytes, 0, "no account, no others");
         std::fs::remove_dir_all(root).unwrap();
     }
 
