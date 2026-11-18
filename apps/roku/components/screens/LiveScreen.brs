@@ -149,7 +149,7 @@ sub onBookings(event as object)
         m.bookings.push({channelId: channelId, starts: secondsOf(r.startsAt), id: r.id, state: r.state, mayCancel: r.mayCancel = true, mayChange: r.mayChange = true})
     end for
     if result.data.nextCursor <> invalid and result.data.nextCursor <> ""
-        api("GET", "/v1/dvr/recordings?cursor=" + createObject("roUrlTransfer").escape(result.data.nextCursor), invalid, "onBookings", ctx)
+        api("GET", "/v1/dvr/recordings?cursor=" + result.data.nextCursor.encodeUriComponent(), invalid, "onBookings", ctx)
         return
     end if
     m.booked = liveBookings(m.bookings)
@@ -165,11 +165,10 @@ function guidePath(cursor as string) as string
     upTo = createObject("roDateTime")
     upTo.fromSeconds(guideStart(nowSeconds(), m.day) + 3 * 3600)
     path = "/v1/live/guide?limit=50&from=" + from.toISOString() + "&to=" + upTo.toISOString()
-    escape = createObject("roUrlTransfer")
-    if m.filter.source <> "" then path = path + "&source=" + escape.escape(m.filter.source)
-    if m.filter.group <> "" then path = path + "&group=" + escape.escape(m.filter.group)
+    if m.filter.source <> "" then path = path + "&source=" + m.filter.source.encodeUriComponent()
+    if m.filter.group <> "" then path = path + "&group=" + m.filter.group.encodeUriComponent()
     if m.filter.favorites then path = path + "&favorites=true"
-    if cursor <> "" then path = path + "&cursor=" + escape.escape(cursor)
+    if cursor <> "" then path = path + "&cursor=" + cursor.encodeUriComponent()
     return path
 end function
 

@@ -617,7 +617,9 @@ sub onLooks(event as object)
     if result.ok then m.global.looks = appearanceLooks(result.data.effective)
 end sub
 
-sub setArt(art as string)
+' `art` is invalid for a page without art of its own (Watch Together's room): the plain backdrop.
+sub setArt(art as dynamic)
+    if art = invalid then art = ""
     ' Show backdrops off (Settings, Appearance): the plain backdrop only
     if m.global.looks.showBackdrops = false then art = ""
     if left(art, 7) = "poster|"

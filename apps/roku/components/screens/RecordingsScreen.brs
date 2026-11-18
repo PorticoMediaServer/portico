@@ -48,7 +48,7 @@ sub onScheduled(event as object)
     end if
     m.scheduled.append(result.data.items)
     if result.data.nextCursor <> invalid and result.data.nextCursor <> ""
-        api("GET", "/v1/dvr/recordings?cursor=" + createObject("roUrlTransfer").escape(result.data.nextCursor), invalid, "onScheduled", ctx)
+        api("GET", "/v1/dvr/recordings?cursor=" + result.data.nextCursor.encodeUriComponent(), invalid, "onScheduled", ctx)
         return
     end if
     api("GET", "/v1/dvr/recordings?state=recorded", invalid, "onRecorded", {seq: m.seq, more: false})
@@ -188,7 +188,7 @@ function pressKey(key as string) as boolean
         ' the next page of recordings is read before focus reaches the last one here
         if m.focus >= m.rows.count() - 5 and m.recordedNext <> "" and m.asking <> true
             m.asking = true
-            api("GET", "/v1/dvr/recordings?state=recorded&cursor=" + createObject("roUrlTransfer").escape(m.recordedNext), invalid, "onRecorded", {seq: m.seq, more: true})
+            api("GET", "/v1/dvr/recordings?state=recorded&cursor=" + m.recordedNext.encodeUriComponent(), invalid, "onRecorded", {seq: m.seq, more: true})
         end if
     else
         return false
