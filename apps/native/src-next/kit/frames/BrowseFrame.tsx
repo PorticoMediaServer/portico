@@ -106,12 +106,20 @@ function BrowseHeader({title, back, trailing, switcher, menu, counts, tabs: tabI
   const theme = useTheme();
   if (!switcher) return <><PageHeader title={title} back={back} trailing={trailing}/>
     {intro && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: frame.gutter, maxWidth: frameSpec.settings.paragraphMax}]}>{intro}</Text>}
-    {actions && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.controlGap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, marginTop: frame.headerGap}}>{actions}</View>}
+    {/* On a phone a pushed list's actions share their row in equal halves (collections 46a: Play and Shuffle). */}
+    {actions && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.controlGap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, marginTop: frame.headerGap}}>
+      {form === 'phone' ? halves(actions) : actions}</View>}
     {tabs}</>;
   if (form === 'phone') return <StickyBrowseHeader name={title} switcher={switcher} menu={menu} back={back}>{tabs}</StickyBrowseHeader>;
   if (form === 'medium') return <LibraryMediumHeader name={title} counts={counts} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryMediumHeader>;
   if (form === 'expanded') return <LibraryExpandedHeader name={title} counts={counts} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryExpandedHeader>;
   return <LibraryHeader name={title} counts={counts} switcher={switcher}>{tabs}</LibraryHeader>;
+}
+
+/** A phone's pushed-list actions as equal halves: each kit Button (a fragment's too) in its own flexible cell, stretched to it. */
+function halves(actions: ReactNode) {
+  const items = React.Children.toArray(actions).flatMap(child => React.isValidElement<{children?: ReactNode}>(child) && child.type === React.Fragment ? React.Children.toArray(child.props.children) : [child]);
+  return items.map((child, index) => <View key={index} style={{flex: 1}}>{React.isValidElement(child) ? React.cloneElement(child as React.ReactElement<{align?: string}>, {align: 'stretch'}) : child}</View>);
 }
 
 function Pane({filters}: {filters: BrowseFiltersProps}) {
