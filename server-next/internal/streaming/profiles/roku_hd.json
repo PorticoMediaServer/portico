@@ -184,7 +184,8 @@
     ],
     "subtitleRendering": [
      "text"
-    ]
+    ],
+    "liveNeedsHls": true
    }
   }
  }

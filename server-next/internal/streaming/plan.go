@@ -58,6 +58,8 @@ type PlanRequest struct {
 	// JoinedPartsDiffer says those files are not encoded alike (PartsDiffer), so they cannot
 	// be copied into one stream and are converted to one.
 	Joined, JoinedPartsDiffer bool
+	// Live is a live channel's endless stream rather than a file.
+	Live bool
 }
 
 // UnmeasuredRemotePlan is the plan for a STRM whose target was never measured:
@@ -96,7 +98,7 @@ func (r PlanRequest) deliveryInput() DeliveryInput {
 	input := DeliveryInput{
 		SourceID: r.File.ID, Container: r.File.Container, VideoCodec: r.File.VideoCodec, AudioCodec: r.File.AudioCodec,
 		Duration: r.File.Duration, Height: r.File.Height,
-		Remote: r.Measured != nil && !r.Disc, Joined: r.Joined, JoinedPartsDiffer: r.JoinedPartsDiffer, Policy: policy, Target: choice.target(policy, cfg), Config: cfg,
+		Remote: r.Measured != nil && !r.Disc, Joined: r.Joined, JoinedPartsDiffer: r.JoinedPartsDiffer, Live: r.Live, Policy: policy, Target: choice.target(policy, cfg), Config: cfg,
 		TranscodingEnabled: r.TranscodingEnabled, Hardware: r.Hardware,
 	}
 	if r.Measured != nil {

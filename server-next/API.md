@@ -324,6 +324,7 @@ One player (`engines.native` or `engines.mpv`):
 | `toneMapsHdr` | The player shows HDR it decodes acceptably on a screen that is not HDR | `false`: the server converts HDR for a screen that cannot show it |
 | `embeddedAudioSwitching` | The player can choose between the audio tracks inside a file | `false`: a file whose wanted track is not its default is not played as it is |
 | `liveChannels` | For `engines.mpv` only: it plays live channels | `false`: channels go to the platform's player |
+| `liveNeedsHls` | The player takes MPEG-TS files but cannot pause or go back in a live channel's endless MPEG-TS (Roku): a channel comes to it as HLS, with the rewind stretch | `false`: a channel whose codecs it takes comes as the source's own MPEG-TS |
 
 One entry of `video`. A limit that is absent or `0` means "not limited", and an absent list
 means "not stated", which never rejects a file, except where the table says otherwise.
