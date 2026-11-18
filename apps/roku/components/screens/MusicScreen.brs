@@ -4,7 +4,7 @@
 sub init()
     c = colours()
     m.f = frames().music
-    m.top.findNode("circleBack").color = c.ink
+    m.top.findNode("circleBack").blendColor = c.ink
     m.buttons = m.top.findNode("buttons")
     m.buttons.observeField("pressed", "onPressed")
     m.rows = m.top.findNode("rows")
