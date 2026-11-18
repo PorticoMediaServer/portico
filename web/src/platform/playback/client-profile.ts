@@ -58,6 +58,13 @@ function environment(): WebProbeEnvironment {
 }
 
 let asked: Promise<CapabilityDocument> | undefined;
+/** The music decoder check can wait on WebCodecs answers an engine never gives (WebKitGTK, the
+ * desktop app's window on Linux); a start must not wait on it. Past the deadline the device is
+ * declared without those decoders, as a browser without WebCodecs is. */
+const decoderCheckMs = 5000;
+function withinDeadline<T>(work: Promise<T>, fallback: T): Promise<T> {
+  return Promise.race([work.catch(() => fallback), new Promise<T>(resolve => { setTimeout(() => resolve(fallback), decoderCheckMs); })]);
+}
 /** The capability document for this browser. Asked once, and again when the screen or the audio device changes.
  * It carries what the music engine decodes on the device (`audioDecode`, §18.1): pairs that passed
  * the §18.8 fixtures on this engine and that `AudioDecoder` confirms here. */
@@ -66,7 +73,7 @@ export function browserClientProfile(fresh = false): Promise<CapabilityDocument>
   return probedProfile(fresh).then(profile => withViewerSettings(profile, {overrides: currentPlaybackFixes()}));
 }
 function probedProfile(fresh: boolean): Promise<CapabilityDocument> {
-  if (fresh || !asked) { const env = environment(); asked = Promise.all([probeWebProfile(env), probeAudioDecode(browserConfigCheck(), undefined, env.audioOutputChannels).catch(() => [])])
+  if (fresh || !asked) { const env = environment(); asked = Promise.all([probeWebProfile(env), withinDeadline(probeAudioDecode(browserConfigCheck(), undefined, env.audioOutputChannels), [])])
     // Declare only the subtitle surface actually mounted by this platform runtime.
     .then(([profile, audioDecode]): CapabilityDocument => declareSubtitleRendering({...profile, audioDecode: audioDecode.map(({sampleRates, containers, ...a}) => ({...a, containers: [...containers], ...(sampleRates ? {sampleRates: [...sampleRates]} : {})}))})); }
   return asked;
