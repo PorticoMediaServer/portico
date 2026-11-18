@@ -1,5 +1,5 @@
 import {appLog} from './app-log.ts';
-import {routePrefix} from "../../contracts/src/routes.ts";
+import {serverPath} from './query/server-api.ts';
 /**
  * The installation claim a first-party client sends when it asks a server for credentials
  * (lane C, 939a746). The server binds the new session family to the device record for this
@@ -73,13 +73,12 @@ let lock: CredentialLock = inProcess;
 export function setCredentialLock(next: CredentialLock | undefined): void { lock = next ?? inProcess; }
 export function credentialLock(): CredentialLock { return lock; }
 
+/** Where the rebuilt server's sign-in routes live (`/v1/auth/`): sign-in, refresh, two-step, invitations, resets. */
+const authRoutes = serverPath('POST /v1/auth/sign-in').replace(/[^/]+$/, '');
 /**
- * Requests that prove identity themselves (sign-in, refresh, attach): a 401 there is an answer,
+ * Requests that prove identity themselves (sign-in, refresh, setup): a 401 there is an answer,
  * never a reason to refresh and resend (resending a password would count twice toward lockout).
  */
 export function provesIdentity(path: string, method: string): boolean {
-  return path.startsWith(routePrefix("get_auth_capabilities", 2)) || (method.toUpperCase() === 'POST' && (/^\/v1\/(?:sessions(?:\?|$)|setup(?:\/|\?|$)|hosted\/(?:attach|profiles\/offline-select)(?:\?|$))/.test(path)
-    // Binding this sign-in to this device record: a 401 means the family belongs to another device
-    // (a Quick Connect grant), which is an answer, never a reason to renew the sign-in.
-    || /^\/v1\/devices\/[A-Za-z0-9_-]{1,128}\/sessions\/bind$/.test(path)));
+  return path.startsWith(authRoutes) || method.toUpperCase() === 'POST' && /^\/v1\/setup(?:\/|\?|$)/.test(path);
 }
