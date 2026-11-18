@@ -7,7 +7,8 @@
 .groupActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 100%; }
 .groupHeading h3 small { margin-left: 12px; color: var(--color-text-tertiary); font-size: 13px; font-weight: 600; letter-spacing: normal; }
 .groupRows { background: var(--color-raised); border-radius: 14px; overflow: hidden; }
-.groupDescription { margin: -6px 0 14px; max-width: 74ch; font-size: var(--type-synopsis-size); line-height: 1.5; color: var(--color-text-secondary); }
+/* A section's help paragraph is a row's help line in size and grey (desktop-settings f1 "When the server has found an intro…"). */
+.groupDescription { margin: -6px 0 14px; max-width: var(--frame-paragraph-max); font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-row-help-weight); color: var(--color-text-tertiary); }
 .groupRows[data-plain] { background: none; border-radius: 0; overflow: visible; }
 .group[data-advanced] .groupHeading h3 { font-size: 15px; color: var(--color-text-secondary); }
 .advanced { position: relative; margin-top: 32px; }
