@@ -505,6 +505,9 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		if input.File != nil {
 			_, _ = input.File.Seek(0, io.SeekStart)
 		}
+		// The one media executor (mediaexec): sandboxed where the platform can,
+		// the input only as descriptor 3, writes only into this session's folder,
+		// and its own process group, so cancelling reaches the whole sandbox.
 		var progress *vod.ConversionProgressWriter
 		if plan != nil && (plan.VideoAction == "convert" || plan.AudioAction == "convert" || plan.BurnIn != nil) {
 			observe, finish := h.observeConversion(id)
@@ -512,7 +515,10 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			args = append([]string{"-progress", "pipe:1", "-stats_period", "1", "-nostats"}, args...)
 			progress = vod.NewConversionProgressWriter(observe)
 		}
-		// A hardware reservation lasts until the converter has been reaped.
+		// One reservation per hardware converter, taken before the child starts and
+		// released only after it has been waited or cancelled and reaped. A slot
+		// this adapter cannot give right now returns to the existing fallback: the
+		// same path a refused hardware encoder already takes.
 		releasePermit := func() {}
 		// Only a hardware ENCODE takes a session slot: a hardware decoder, tone
 		// mapper or filter does not open an encoder session, and counting it would
