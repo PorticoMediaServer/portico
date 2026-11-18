@@ -34,7 +34,8 @@ export function useReferenceArtwork() {
     const clear = () => {signal.removeEventListener('abort', abort); picture.onload = null; picture.onerror = null;};
     const abort = () => {clear(); picture.src = ''; reject(new DOMException('Aborted', 'AbortError'));};
     signal.addEventListener('abort', abort, {once: true});
-    picture.onload = () => {void picture.decode().then(() => {clear(); if (signal.aborted) reject(new DOMException('Aborted', 'AbortError')); else resolve({src: picture.src, width: picture.naturalWidth, height: picture.naturalHeight});}, error => {clear(); reject(error);});};
+    // A loaded picture is shown even when headless Chrome rejects its early `decode()` (large art at 1440 under load).
+    picture.onload = () => {void picture.decode().catch(() => undefined).then(() => {clear(); if (signal.aborted) reject(new DOMException('Aborted', 'AbortError')); else resolve({src: picture.src, width: picture.naturalWidth, height: picture.naturalHeight});});};
     picture.onerror = () => {clear(); reject(new Error('Reference artwork failed to decode.'));};
     if (signal.aborted) abort(); else picture.src = new URL(`assets/${key}`, 'http://100.120.50.24:8787/').href;
   }), classify: () => ({retryable: false}), concurrency: 4, priorityExtra: 0, backoffMs: []}), []);
