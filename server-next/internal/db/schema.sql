@@ -264,16 +264,16 @@ CREATE TABLE items (
   revision         INTEGER NOT NULL DEFAULT 1,
   extra            TEXT
 );
--- The list indexes include rating_age so a profile with a rating limit skips and counts from the index alone.
-CREATE INDEX items_by_title ON items (library_id, kind, sort_title, id, rating_age);
+CREATE INDEX items_by_title ON items (library_id, kind, sort_title, id, rating_age); -- The list indexes include ratings for skips and counts.
 CREATE INDEX items_by_added ON items (library_id, kind, added_at, id, rating_age);
 CREATE INDEX items_by_year ON items (library_id, kind, year, id, rating_age);
 CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rating_age, year); -- year covers release-ordered decade pages
 -- Home walks eligible cards across libraries. The WHERE clauses match ItemQuery.filters.
-CREATE INDEX items_home_added ON items (home_added_at, id, rating_age, library_id, kind, parent_id, labels, may_empty, leaf_count) WHERE (kind IN (1,2,6,8,9,10,12) OR (kind IN (4,7,11) AND parent_id IS NULL));
-CREATE INDEX items_home_release ON items (release_date, id, rating_age, library_id, kind, parent_id, labels, may_empty, leaf_count) WHERE release_date > '' AND (kind IN (1,2,6,8,9,10,12) OR (kind IN (4,7,11) AND parent_id IS NULL));
--- The sorts by length and by community rating. Without an index every page of such a list
--- reads and sorts the whole library.
+CREATE INDEX items_home_added ON items (home_added_at, id, rating_age, library_id, kind, parent_id, labels, may_empty, leaf_count)
+  WHERE (kind IN (1,2,6,8,9,10,12) OR (kind IN (4,7,11) AND parent_id IS NULL));
+CREATE INDEX items_home_release ON items (release_date, id, rating_age, library_id, kind, parent_id, labels, may_empty, leaf_count)
+  WHERE release_date > '' AND (kind IN (1,2,6,8,9,10,12) OR (kind IN (4,7,11) AND parent_id IS NULL));
+-- These indexes keep library pages ordered by duration, community rating and resolution.
 CREATE INDEX items_by_duration ON items (library_id, kind, duration_ms, id, rating_age);
 CREATE INDEX items_by_community_rating ON items (library_id, kind, community_rating, id, rating_age);
 CREATE INDEX items_by_resolution ON items (library_id, kind, best_width, id, rating_age);
