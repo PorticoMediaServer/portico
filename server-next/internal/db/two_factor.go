@@ -115,6 +115,7 @@ func (d *DB) FinishSignIn(ctx context.Context, s SecondStep) (SessionState, erro
 		if err := json.Unmarshal([]byte(payload), &s.Session.Device); err != nil {
 			return err
 		}
+		s.Session.SecondStep = true
 		out, err = startSession(tx, userID, s.Session, s.Now)
 		return err
 	})
@@ -235,7 +236,51 @@ func (d *DB) ConfirmTwoFactor(ctx context.Context, userID, sessionID int64, chec
 		if _, err := tx.Exec(`UPDATE sessions SET scope = 'app' WHERE id = ? AND user_id = ? AND scope = 'enrol'`, sessionID, userID); err != nil {
 			return err
 		}
+		// The sign-in that set it up has shown a code.
+		if _, err := tx.Exec(`UPDATE sessions SET second_step_at = ? WHERE id = ? AND user_id = ?`, now.UnixMilli(), sessionID, userID); err != nil {
+			return err
+		}
 		return replaceRecoveryCodes(tx, userID, recoveryHashes, now)
+	})
+	if err == nil {
+		err = refused
+	}
+	return err
+}
+
+// SecondStepShown reports whether a sign-in has shown a two-step code.
+func (d *DB) SecondStepShown(ctx context.Context, sessionID int64) (bool, error) {
+	var shown bool
+	err := d.read.QueryRowContext(ctx, `SELECT second_step_at IS NOT NULL FROM sessions WHERE id = ?`, sessionID).Scan(&shown)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return shown, err
+}
+
+// ShowSecondStep records that a sign-in showed a two-step code, when a sensitive action
+// asked for it. A wrong code is ErrBadSecondStep and counts as a wrong guess; a wait in force
+// is a LimitedError.
+func (d *DB) ShowSecondStep(ctx context.Context, userID, sessionID int64, proof SecondProof, limits []Limit, now time.Time) error {
+	var refused error
+	err := d.write(ctx, User, func(tx *sql.Tx) error {
+		refused = nil
+		if wait, err := limitWait(ctx, tx, now, limits); err != nil {
+			return err
+		} else if wait > 0 {
+			refused = &LimitedError{Wait: wait}
+			return nil
+		}
+		ok, err := secondProof(tx, userID, proof, now)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			refused = ErrBadSecondStep
+			return limitFail(tx, now, limits)
+		}
+		_, err = tx.Exec(`UPDATE sessions SET second_step_at = ? WHERE id = ? AND user_id = ?`, now.UnixMilli(), sessionID, userID)
+		return err
 	})
 	if err == nil {
 		err = refused

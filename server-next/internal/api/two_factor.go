@@ -70,6 +70,7 @@ func (s *Server) twoFactorRoutes() {
 	Handle(s, "GET /v1/me/two-factor", SignedIn, s.twoFactorState).Enrolling = true
 	Handle(s, "POST /v1/me/two-factor", SignedIn, s.enrolTwoFactor).Enrolling = true
 	Handle(s, "POST /v1/me/two-factor/confirm", SignedIn, s.verifyTwoFactor).Enrolling = true
+	Handle(s, "POST /v1/me/two-factor/verify", SignedIn, s.showSecondStep)
 	Handle(s, "POST /v1/me/two-factor/recovery-codes", SignedIn, s.newRecoveryCodes)
 	Handle(s, "DELETE /v1/me/two-factor", SignedIn, s.disableTwoFactor)
 }
@@ -232,4 +233,53 @@ func (s *Server) disableTwoFactor(r *http.Request, req TwoFactorProof) (None, er
 	return None{}, s.provenTwice(r, req, func(proof db.PasswordProof) error {
 		return s.db.DisableTwoFactor(r.Context(), proof, s.now())
 	})
+}
+
+// A sign-in is never ended because two-step was turned on or because the owner began to
+// require it (Justin, 18 Nov): it lasts as every sign-in does, and does everything ordinary.
+// What it may not do, until it has shown a code once, is what would hand its rights on or
+// loosen sign-in: approve a TV, make a key, token or app password, change the Sign-in
+// settings. secondStepOwed is the one check; POST /v1/me/two-factor/verify is how a device
+// shows the code at that moment and then carries on.
+
+// secondStepOwed refuses an action that hands a sign-in's rights on (approving a TV, making a
+// key) to a sign-in that has not shown a second step: on an account that has two-step
+// sign-in, until it shows the code; on one the owner requires it of, until it is set up.
+func (s *Server) secondStepOwed(r *http.Request) error {
+	ctx, caller := r.Context(), CallerFrom(r.Context())
+	if two, err := s.db.TwoFactor(ctx, caller.UserID); err != nil || two.Enabled {
+		return s.codeOwed(r, two.Enabled, err)
+	}
+	account, err := s.db.Account(ctx, caller.UserID)
+	if err != nil || !s.signInSettings().TwoStepRequired(account.Role) {
+		return err
+	}
+	return refusal(http.StatusForbidden, "two_step_setup_required", "Set up two-step sign-in to do this.", false)
+}
+
+// codeOwed asks a sign-in on an account with two-step sign-in for its code, once.
+func (s *Server) codeOwed(r *http.Request, enabled bool, err error) error {
+	if err != nil || !enabled {
+		return err
+	}
+	if shown, err := s.db.SecondStepShown(r.Context(), CallerFrom(r.Context()).SessionID); err != nil || shown {
+		return err
+	}
+	return refusal(http.StatusForbidden, "two_step_code_required", "Enter your two-step code to do this.", false)
+}
+
+// showSecondStep takes the code a sensitive action asked for. The sign-in then counts as
+// having shown its second step for as long as it lasts.
+func (s *Server) showSecondStep(r *http.Request, req TwoFactorVerify) (None, error) {
+	caller, now := CallerFrom(r.Context()), s.now()
+	limits := s.passwordLimits(r, "user:"+strconv.FormatInt(caller.UserID, 10))
+	err := s.db.ShowSecondStep(r.Context(), caller.UserID, caller.SessionID, secondProof(caller.UserID, req.Code, now), limits, now)
+	var limited *db.LimitedError
+	switch {
+	case errors.As(err, &limited):
+		return None{}, errTooManyAttempts(limited.Wait)
+	case errors.Is(err, db.ErrBadSecondStep):
+		return None{}, errBadSecondStep()
+	}
+	return None{}, err
 }

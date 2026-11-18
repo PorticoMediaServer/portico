@@ -267,6 +267,8 @@ type NewSession struct {
 	// account with this role. A sign-in to such an account that has not set it up starts a
 	// session that can do nothing else until it has.
 	TwoStepRequired func(role string) bool
+	// SecondStep says this sign-in showed a two-step code.
+	SecondStep bool
 }
 
 // startSession registers the device and inserts the session, for a user already proven.
@@ -316,9 +318,13 @@ func startSession(tx *sql.Tx, userID int64, n NewSession, now time.Time) (Sessio
 			scope = "enrol"
 		}
 	}
-	if _, err := tx.Exec(`INSERT INTO sessions (id, public_id, user_id, device_id, scope, refresh_hash, created_at, expires_at, last_used_at, remote_addr)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''))`,
-		n.ID, NewID("ses"), userID, deviceID, scope, n.RefreshHash, at, n.ExpiresAt.UnixMilli(), at, n.RemoteAddr); err != nil {
+	var secondStep any
+	if n.SecondStep {
+		secondStep = at
+	}
+	if _, err := tx.Exec(`INSERT INTO sessions (id, public_id, user_id, device_id, scope, refresh_hash, created_at, expires_at, last_used_at, remote_addr, second_step_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), ?)`,
+		n.ID, NewID("ses"), userID, deviceID, scope, n.RefreshHash, at, n.ExpiresAt.UnixMilli(), at, n.RemoteAddr, secondStep); err != nil {
 		return SessionState{}, err
 	}
 	return sessionState(context.Background(), tx, n.ID)

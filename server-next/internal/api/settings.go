@@ -81,6 +81,15 @@ func (s *Server) settingsRoutes() {
 		if err := s.refuseNotApplicable(r.Context(), r.PathValue("name"), change); err != nil {
 			return SettingsDocument{}, err
 		}
+		// Changing who must use two-step, or how long sign-ins last, takes a sign-in that has
+		// shown its own second step, where the owner has one. An owner without two-step is not
+		// held back: they could not otherwise undo requiring it.
+		if r.PathValue("name") == "sign-in" && CallerFrom(r.Context()).SessionID != 0 {
+			two, err := s.db.TwoFactor(r.Context(), CallerFrom(r.Context()).UserID)
+			if err := s.codeOwed(r, two.Enabled, err); err != nil {
+				return SettingsDocument{}, err
+			}
+		}
 		doc, err := s.settings.Write(r.Context(), CallerFrom(r.Context()).UserID, r.PathValue("name"), change, match, s.now())
 		var invalid *settings.Invalid
 		switch {
