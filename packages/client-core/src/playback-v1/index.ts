@@ -17,7 +17,7 @@ export {CapabilityPublisher, PlaybackOptionsClient, defaultSelection, markerAt, 
 export {PlaybackSessionController, SessionsClient, parseStartPreparation, seekNeedsServer, type ControllerOptions, type ControllerPhase, type ControllerSnapshot, type PreparingSessionView, type StartPreparation, type SessionChange, type SessionChangeContext, type StartContext, type StartOptions, type StartTarget, type Timers} from './sessions.ts';
 export {QUEUE_WINDOW_MAX, QueueClient, QueueView, parseQueuePlaylistSave, queueSaveMessage, saveQueueAsPlaylist, type QueuePlaylistSave, type CreateResult, type QueueCreateOptions, type Placement, type QueueAnchor, type QueueOrder, type SegmentInput} from './queue.ts';
 export {EventsClient, type EventsClientOptions, type EventsStatus, type RawStreamEvent, type StreamOpener} from './events.ts';
-export {AdminSessionsClient, NowPlayingStore, type NowPlayingSnapshot} from './admin-sessions.ts';
+export {AdminSessionsClient} from './admin-sessions.ts';
 export {localV1Http} from './local-http.ts';
 export {AppleMediaPlayer, type AppleFact, type AppleLease, type ApplePlayerOptions, type AppleVideoEngine} from './apple-media-player.ts';
 export {V1PlaybackApi, toPlaybackSession} from './legacy-bridge.ts';
