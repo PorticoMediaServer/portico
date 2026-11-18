@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One row of a grouped list (Settings now; Live TV, Saved and music lists later): an optional icon
+     tile, the label (two lines at most), a help line and whose the value is, then on the right a
+     value with the chevron pair, a switch, or a chevron for a group that opens. The row is 84 high
+     and grows with its words; it draws the separator above itself and the TV focus look (rule 11). -->
+<component name="ListRow" extends="Group">
+  <interface>
+    <!-- {label, help, scope, value, control, switchOn, icon}:
+         scope: "This device" or "All TVs" under the help, for a value that is not the profile's everywhere;
+         control: "" (plain, or an action), "choice" (opens its values), "switch", "expand" or "collapse";
+         icon: a 28 px icon drawn on a tile before the label. -->
+    <field id="model" type="assocarray" onChange="layout"/>
+    <field id="rowWidth" type="float" value="1064"/>
+    <field id="on" type="boolean" onChange="paint"/>
+    <!-- The 1 px line above the row; the list hides it beside the row in focus. -->
+    <field id="separator" type="boolean" onChange="paint"/>
+    <!-- Set by the row: how tall it came out. -->
+    <field id="rowHeight" type="float" value="84"/>
+  </interface>
+  <script type="text/brightscript" uri="ListRow.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Poster id="ring" uri="pkg:/images/focus-14.9.png" visible="false"/>
+    <Poster id="plate" uri="pkg:/images/round-14.9.png" visible="false"/>
+    <Rectangle id="line" height="1"/>
+    <Poster id="tile" uri="pkg:/images/round-10.9.png" width="44" height="44"/>
+    <Poster id="icon" width="28" height="28"/>
+    <Label id="label" wrap="true" maxLines="2"/>
+    <Label id="help" wrap="true" maxLines="2"/>
+    <Label id="scope"/>
+    <Label id="value" horizAlign="right"/>
+    <Poster id="chevron" width="24" height="24"/>
+    <Poster id="switch" width="64" height="36"/>
+  </children>
+</component>

@@ -59,6 +59,10 @@ sub onChange()
         m.label.color = c.text
         m.icon.blendColor = c.text
     end if
+    if m.top.danger
+        m.plate.blendColor = c.dangerTint
+        m.label.color = c.danger
+    end if
     out = metrics().focusSpread + 6
     m.ring.translation = [-out, -out]
     m.ring.width = w + out * 2

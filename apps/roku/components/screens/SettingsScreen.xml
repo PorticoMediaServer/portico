@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings: the page list on the left, the rows of the page in focus on the right (tv-more
+     frames 22 to 33, tv-focus 34 to 38). Up and Down in the list change the page with no OK; Right
+     enters its rows; every row is a stop; Left or Back returns to the list. A change is saved at once. -->
+<component name="SettingsScreen" extends="Group">
+  <interface>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="toTop" type="boolean" alwaysNotify="true" onChange="onToTop"/>
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+    <!-- Set by the scene when Back closes the side sheet without a choice. -->
+    <field id="menuClosed" type="boolean" alwaysNotify="true" onChange="onMenuClosed"/>
+  </interface>
+  <script type="text/brightscript" uri="SettingsScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Settings.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Label id="heading" text="Settings"/>
+    <Label id="group" text="Account"/>
+    <Poster id="listPlate" uri="pkg:/images/round-14.9.png"/>
+    <Rectangle id="listBar" width="3" height="28"/>
+    <Poster id="listRing" uri="pkg:/images/focus-14.9.png"/>
+    <Group id="list"/>
+    <Group id="pages"/>
+    <!-- the page's ends half fade while it goes on past them, as the season list's do -->
+    <Poster id="fadeTop" uri="pkg:/images/fade-up.png" visible="false"/>
+    <Poster id="fadeBottom" uri="pkg:/images/fade-down.png" visible="false"/>
+    <KeyHints id="hintsList"/>
+    <KeyHints id="hintsRows"/>
+    <PageState id="state" visible="false"/>
+    <Confirm id="confirm" visible="false"/>
+  </children>
+</component>

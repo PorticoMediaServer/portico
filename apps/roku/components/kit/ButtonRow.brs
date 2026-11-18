@@ -22,6 +22,7 @@ sub onButtons()
         b = m.top.createChild("Button")
         if spec.progress <> invalid then b.progress = spec.progress
         if spec.detail <> invalid then b.detail = spec.detail
+        b.danger = (spec.danger = true)
         b.icon = spec.icon
         b.text = spec.text
         b.translation = [x, 0]

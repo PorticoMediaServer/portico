@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The red-verb dialog for every consequential choice (Sign out, Reset recommendations, ending a
+     group): a question, one sentence, then Cancel and the red verb. Focus starts on Cancel, so a
+     stray OK does nothing; it holds focus until it closes, and Back is Cancel. -->
+<component name="Confirm" extends="Group">
+  <interface>
+    <!-- {title, body, verb}; setting it opens the dialog. -->
+    <field id="model" type="assocarray" onChange="onModel"/>
+    <!-- "confirm" or "cancel" when it closes. -->
+    <field id="chosen" type="string" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="Confirm.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Rectangle id="scrim" width="1920" height="1080" opacity="0.6"/>
+    <Poster id="panel" uri="pkg:/images/round-20.9.png"/>
+    <Label id="title" wrap="true"/>
+    <Label id="body" wrap="true" maxLines="3"/>
+    <ButtonRow id="buttons"/>
+  </children>
+</component>
