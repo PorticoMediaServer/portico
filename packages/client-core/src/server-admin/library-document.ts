@@ -33,6 +33,7 @@ export function libraryDocument(library: AdminLibrary, audience?: LibraryAdminDo
     eligible.push('libraries.scanDepth');
   }
   if (typeof options.allowDelete === 'boolean') {settings.allowMediaDeletion = options.allowDelete; eligible.push('libraries.allowDelete');}
+  if (typeof options.strm === 'boolean') {settings.strmFiles = options.strm; eligible.push('libraries.strm');}
   if (typeof options.watch === 'boolean') {settings.monitorChanges = options.watch; eligible.push('libraries.watch');}
   if (library.kind === 'movies' && typeof options.groupSeries === 'boolean') {settings.groupCollections = options.groupSeries; eligible.push('libraries.collections');}
   if (library.kind === 'music') {
