@@ -83,13 +83,39 @@ screen fills the places as below; the frame does the arranging.
 `AudioPlayerFrame` draws its five transport slots with `PlayerControl` and takes the scrubber and read-outs as
 `scrubber`. Their sizes, scrims and type are `frameSpec.player`, `componentSpec.transport` and the `player*` type roles.
 
-The built video player (`screens/watch/WatchChrome.tsx`, `WatchTimeline.tsx`, `TrickplayStrip.tsx`, `UpNextCard.tsx`)
+The built video player (`screens/watch/WatchChrome.tsx`, `WatchTimeline.tsx`, `TrickplayStrip.tsx`)
 still draws its own versions; they are bound to the playback runtime. Stage 2 moves that screen onto the frame and
 these parts and deletes its private drawing. Apply the same test to any other screen that needs more than stock
 parts (the reader, the guide grid, the equaliser): name the parts, put them in the kit, draw them in the Kit page.
 
-Still drawn only by the player screens, and to become `kit/player` parts in Stage 2: the Subtitles and Audio, Quality and
-Speed panels, the options panel, the Episodes panel and Up next.
+The player's own panels are kit parts too, small ones: a header and a list.
+
+| Part | What it is | Form |
+| --- | --- | --- |
+| `PlayerPanel` | A panel's header (title, back, close, a note) and its scrolling list | A column on the picture's right edge on a tablet and TV; a sheet from the bottom on a phone |
+| `PlayerPanelGroup` | One list in a panel: its label, the current choice beside it, its rows on one card | |
+| `PlayerPanelRow` | A choice (ticked when selected, dimmed in place when unavailable) or an options entry (icon, current value, chevron) | |
+| `PlayerEpisodeRow` | One episode in the Episodes panel: picture or placeholder, title, facts, two lines of synopsis | |
+| `PlayerUpNext` | The Up next card over the credits. Moved from `screens/watch/UpNextCard.tsx`; the watch screen draws this same part | TV card; `compact` on a phone and tablet |
+| `PlayerLiveActions` | Live TV: Record and More at the top of the player. Moved from `screens/watch/TVLiveActions.tsx`; the watch screen draws this same part | |
+| `PlayerChannelStep` | Live TV: channel down or up with the channel it goes to | |
+
+Guide is the kit Button and Go to live is a `PlayerPill`, in the frame's `leading` and `trailing` places.
+
+Left for Stage 2, listed so it is not forgotten:
+
+- `screens/watch/WatchPanels.tsx` (options, Subtitles, Audio, Quality, Speed, sleep timer, subtitle style) and
+  `EpisodePanel.tsx` still draw their own header, groups and rows. They read the playback adapter and the title
+  controller directly, so they could not be moved as they are. Stage 2 puts them on `PlayerPanel`, `PlayerPanelGroup`,
+  `PlayerPanelRow` and `PlayerEpisodeRow` and deletes their private rows.
+- `WatchChrome.tsx` still draws its own channel down and up buttons and Go to live; Stage 2 replaces them with
+  `PlayerChannelStep` and the pill.
+- The short guide (`TVMiniGuide.tsx`, `HandheldMiniGuide.tsx`) is still the screen's: it opens in its own modal layer
+  and reads the guide directly.
+- `PlayerUpNext` and `PlayerLiveActions` keep the sizes and tints they had in the screen. Reading them from
+  `frameSpec.player` is Stage 2 work.
+- The TV panel in tv-player 4 opens each list in place under its heading; `PlayerPanel` shows one list at a time with
+  Back, as the phone and tablet do. See the question in the PR.
 
 ## What a screen may do
 

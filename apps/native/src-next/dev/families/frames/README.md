@@ -68,6 +68,13 @@ Each is one shared kit part. The capture lane shoots these ids too.
 | Cards, with badges and progress | `kit/cards` | the `cards` sections |
 | Player: transport, scrubber and preview, read-outs, title, pills, Skip intro | `kit/player` | `frames-player`, `-paused`, `-buffering`, `-scrubbing`, `-live`, `-missing` (turn a phone on its side for the landscape form) |
 
-Not in the kit yet, so not drawn: tooltips (none on native), and the player's own panels (Subtitles and Audio,
-Quality, Speed, the options panel, Episodes, Up next). They are drawn by `screens/watch` (`WatchPanels.tsx`,
-`EpisodePanel.tsx`, `UpNextCard.tsx`). Moving them into `kit/player` is listed in `FRAMES.md` for Stage 2.
+| Player panels: Playback options, Subtitles, Audio, Quality, Speed | `kit/player` `PlayerPanel`, `PlayerPanelGroup`, `PlayerPanelRow` | `frames-player-options`, `frames-player-subtitles`, `frames-player-audio`, `frames-player-quality`, `frames-player-speed` |
+| Player: Episodes panel | `kit/player` `PlayerPanel`, `PlayerEpisodeRow` | `frames-player-episodes` |
+| Player: Up next card | `kit/player` `PlayerUpNext` | `frames-player-up-next` |
+| Player: Live TV controls (Record, More, Guide, channel down and up, Go to live) | `kit/player` `PlayerLiveActions`, `PlayerChannelStep`, `PlayerPill` | `frames-player-live-controls` |
+
+Shoot the panel and live sections like the player: phone upright and on its side, tablet, TV.
+
+Not in the kit yet, so not drawn: tooltips (none on native) and the Live TV short guide (`screens/watch`
+`TVMiniGuide.tsx`, `HandheldMiniGuide.tsx`). What the watch screen still draws for itself is listed in `FRAMES.md`
+for Stage 2.

@@ -128,7 +128,7 @@ test('Chrome renders only supplied policy prompts and dispatches canonical skip,
 });
 
 test('mobile Record/More renderer keeps actual availability, busy and recording state', async () => {
-  const h = hooks(), {TVLiveActions} = await screenModule(new URL('../src-next/screens/watch/TVLiveActions.tsx', import.meta.url), {react: h.react, 'react-native': {View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../kit/controls': {Button: 'Button'}, '../../kit/theme': {useTheme: () => theme}});
+  const h = hooks(), {PlayerLiveActions: TVLiveActions} = await screenModule(new URL('../src-next/kit/player/PlayerLiveActions.tsx', import.meta.url), {react: h.react, 'react-native': {View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../controls': {Button: 'Button'}, '../theme': {useTheme: () => theme}});
   const record = {label: 'Recording', onPress() {}, busy: true, disabled: true, recording: true}, more = {onPress() {}};
   const compact = nodes(h.render(() => TVLiveActions({enabled: true, record, more, size: 46}))), rec = compact.find(node => node.props.testID === 'watch-live-record');
   assert.equal(rec.props.iconOnly, true);assert.equal(rec.props.accessibilityLabel, record.label);assert.equal(rec.props.loading, true);assert.equal(rec.props.disabled, true);assert.equal(rec.props.style.height, 46);
@@ -166,10 +166,10 @@ test('ended and still-watching cards dispatch only their current canonical actio
 
 test('the existing next card renders end actions without a credits action or an invented countdown', async () => {
   const h = hooks(), calls: string[] = [];
-  const {NativeUpNextCard} = await screenModule(new URL('../src-next/screens/watch/UpNextCard.tsx', import.meta.url), {
+  const {PlayerUpNext: NativeUpNextCard} = await screenModule(new URL('../src-next/kit/player/PlayerUpNext.tsx', import.meta.url), {
     react: h.react, 'react-native': {View: 'View', Text: 'Text', StyleSheet: {absoluteFill: {position: 'absolute', inset: 0}}},
     '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`}, '../../../../../packages/i18n/src': {defaultI18n: {t}},
-    '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/controls': {Button: 'Button'}, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})}, '../../kit/theme': {useTheme: () => theme},
+    '../artwork': {Artwork: 'Artwork'}, '../controls': {Button: 'Button'}, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})}, '../theme': {useTheme: () => theme},
   });
   const props = {item: {entryId: 'next', title: 'Next episode'}, compact: true, countdown: null, countdownTotal: 10, sceneAfter: false,
     onPlayNow: () => calls.push('play'), onWatchCredits: () => calls.push('watch'), onSkipCredits: () => calls.push('skip'),
