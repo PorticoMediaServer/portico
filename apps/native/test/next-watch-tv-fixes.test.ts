@@ -123,9 +123,12 @@ test('held seek stops at the retained-window boundary without committing playbac
 
 test('Seasons has a stable sheet, selected-season entry, Done/Go identities and opener restoration', async () => {
   const h = watchHooks(), opener = {current: {}}, selected: string[] = [];
-  const {NativeSeasonsSheet} = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {
-    react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../kit/controls': controlsAtoms, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/theme': themed,
+  // The sheet is the kit's (kit/layout/SeasonSheet.tsx); the screen's wrapper maps the show's seasons to its rows.
+  const kit = await screenModule(new URL('../src-next/kit/layout/SeasonSheet.tsx', import.meta.url), {
+    react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../controls': controlsAtoms, '../Icon': {Icon: 'Icon'}, '../overlays': {BottomSheet: 'BottomSheet'}, '../theme': themed,
   });
+  const wrapper = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {react: h.react, '../../../../../packages/i18n/src': i18n, '../../kit/layout/SeasonSheet': kit});
+  const NativeSeasonsSheet = (props: any) => {const sheet = wrapper.NativeSeasonsSheet(props); return kit.SeasonSheet(sheet.props);};
   const props: any = {open: true, onOpenChange() {}, returnFocusRef: opener, total: 40, seasons: [{id: 'one', number: 1}, {id: 'two', number: 2}], selectedId: 'two', onSelect: (id: string) => selected.push(id), hideWatched: false, onHideWatched() {}};
   try {
     const tree = h.render(() => NativeSeasonsSheet(props));
@@ -316,7 +319,7 @@ async function chromeFixture(live = false) {
     '../../kit/Icon': {Icon: 'Icon'}, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'}, '../../kit/theme': themed,
     '../../kit/useMotion': {useMotion: () => ({duration: () => 0, timing: () => ({duration: 0})}), useReducedMotion: () => true}, './controls': {NativeWatchControls},
     './WatchTimeline': {NativeWatchTimeline: 'Timeline'}, './useSkipPromptMotion': {useSkipPromptMotion: () => ({value: undefined, interactive: false, bodyStyle: {}, positionStyle: {}})},
-    '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined, usePublishedPlayerMorph: () => undefined}, './UpNextCard': {NativeUpNextCard: 'UpNextCard'}, './StillWatchingCard': {NativeStillWatchingCard: 'StillWatchingCard'}, '../../kit/artwork': {Artwork: 'Artwork'},
+    '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined, usePublishedPlayerMorph: () => undefined}, './UpNextCard': {NativeUpNextCard: 'UpNextCard'}, '../../kit/player/StillWatchingCard': {NativeStillWatchingCard: 'StillWatchingCard'}, '../../kit/artwork': {Artwork: 'Artwork'},
     './live-guide': {emptyLiveGuide: () => ({}), noLiveGuideSubscription: () => () => {}}, './live-actions': {emptyLiveActions: () => ({}), noLiveActionsSubscription: () => () => {}},
     '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})}, '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: () => ''},
     './TVMiniGuide': {NativeMiniGuide: 'MiniGuide'}, './TVLiveActions': {TVLiveActions: 'LiveActions'}, './TVControlLabel': {TVControlLabel: 'Label'}, '../../platform/tv-keys': {useTVKeyEvent() {}},
@@ -424,7 +427,7 @@ test('WEBFIX-A1: while a phone or tablet drags, the card above the knob shows th
   const h = watchHooks();
   const {NativeScrubPreview} = await screenModule(new URL('../src-next/screens/watch/TrickplayStrip.tsx', import.meta.url), {
     react: h.react, 'react-native': {...nativeAtoms, Image: 'Image', StyleSheet: {absoluteFill: {}, create: (value: unknown) => value}}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
-    '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: (seconds: number) => `t${seconds}`}, '../../kit/theme': themed, '../../kit/useMotion': {useMotion: () => ({effects: {shadows: true}})},
+    '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: (seconds: number) => `t${seconds}`}, '../../kit/theme': themed, '../../kit/player/parts': {PlayerFilmstrip: 'Filmstrip'}, '@portico/design': {frameSpec: {player: {filmstrip: {small: {width: 256, height: 144}, large: {width: 480, height: 270}}}}},
     './trickplay-frame': await import('../src-next/screens/watch/trickplay-frame.ts'),
   });
   const set = {id: 's', sourceId: 'src', sourceRevision: 'r', width: 3200, height: 1800, tileWidth: 320, tileHeight: 180, columns: 10, rows: 10, intervalSeconds: 10, durationSeconds: 1000,

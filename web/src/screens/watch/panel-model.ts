@@ -9,23 +9,9 @@ import type {SubtitlePreferences} from '@core/preference-effects.ts';
 import type {TrackChoice} from '../../kit/media';
 import {lossSentences} from './loss-copy';
 
-export type WatchRadioChoice=Readonly<{id:string;label:string;detail?:string;selected:boolean;enabled:boolean}>;
-export type WatchPanelModel=Readonly<{
- fence:QueuePlaybackFence;audio:readonly TrackChoice[];subtitles:readonly TrackChoice[];subtitleAdditions:readonly TrackChoice[];
- quality:readonly WatchRadioChoice[];speed:readonly WatchRadioChoice[];
- qualityLabel?:string;qualityAccessibleLabel?:string;qualityNotes:readonly string[];audioNotes:readonly string[];/** The one route line the retained panel binding still reads. */qualityNote?:string;automatic:boolean;audioLabel?:string;subtitleLabel?:string;
- subtitleTiming?:Readonly<{offsetSeconds:number;shift(deltaMs:number):Promise<void>}>;
- /** desktop-player f3: Search for subtitles (07 rules 65 to 68). `reason` when it cannot run here; otherwise results with
-  * Download, each under the provider's credit. Choosing one downloads it and turns it on. */
- subtitleSearch?:Readonly<{reason?:string;busy:boolean;searched:boolean;error?:string;canRetry:boolean;results:readonly Readonly<{id:string;primary:string;secondary:string}>[];credit:string;search():Promise<void>;choose(id:string):Promise<void>}>;
- /** The style this playback draws with; a change lasts until it stops. */
- subtitleStyle?:Readonly<{size:SubtitlePreferences['size'];background:SubtitlePreferences['background'];set(patch:Readonly<{size?:SubtitlePreferences['size'];background?:SubtitlePreferences['background']}>):void}>;
- sleepTimer?:Readonly<{minutes:number;set(minutes:number):void}>;
- /** The image track's own mixed forced lines; absent when it has none. */
- subtitleForced?:Readonly<{only:boolean;set(on:boolean):void}>;
- isCurrent():boolean;selectAudio(id:string):Promise<void>;selectSubtitle(id:string):Promise<void>;
- selectQuality(id:string):Promise<void>;selectSpeed(id:string):void;
-}>;
+export type {PlayerRadioChoice as WatchRadioChoice, PlayerOptionsModel as WatchPanelModel, PhoneOptionRow} from '../../kit/player/panel-types';
+export {phoneOptionRows} from '../../kit/player/panel-types';
+import type {PlayerRadioChoice as WatchRadioChoice, PlayerOptionsModel as WatchPanelModel} from '../../kit/player/panel-types';
 
 function heightLabel(height:number,t:I18n['t']):string {
  return height===2160?t('quality.4k'):t('quality.height',{height});
@@ -142,15 +128,4 @@ export function watchPanelModel(runtime:WebShellPlaybackRuntime,snapshot:WebPlay
   selectQuality:async id=>{check();const choice=qualityIds.get(id);if(!choice||!qualityRows.some(r=>r.id===id&&r.enabled))throw new Error('playback_quality_unavailable');await runtime.setQuality(fence,choice);},
   selectSpeed:id=>{check();const row=speed.find(r=>r.id===id);if(!row)throw new Error('playback_speed_unavailable');runtime.setSpeed(fence,Number(row.id));},
  });
-}
-
-export type PhoneOptionRow=Readonly<{id:'subtitles'|'audio'|'quality'|'speed';label:string;value?:string;detail?:string}>;
-/** The drawn phone row list: one row per real control, carrying its current choice only. */
-export function phoneOptionRows(model:WatchPanelModel,t:I18n['t']):readonly PhoneOptionRow[]{
- return [
-  ...(model.subtitles.length?[{id:'subtitles' as const,label:t('player.opt.subtitles'),value:model.subtitleLabel??t('player.opt.off')}]:[]),
-  ...(model.audio.length?[{id:'audio' as const,label:t('player.opt.audio'),...(model.audioLabel?{value:model.audioLabel}:{})}]:[]),
-  ...(model.quality.length?[{id:'quality' as const,label:t('player.opt.quality'),value:model.automatic?t('next.kit.quality.automatic'):model.qualityLabel,...(model.automatic&&model.qualityLabel?{detail:model.qualityLabel}:{})}]:[]),
-  ...(model.speed.length?[{id:'speed' as const,label:t('player.opt.speed'),value:model.speed.find(row=>row.selected)?.label}]:[]),
- ];
 }

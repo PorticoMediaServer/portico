@@ -1,7 +1,7 @@
 export {Artwork} from './Artwork';
 export {WholeArtwork, useCoverAspect} from './WholeArtwork';
 export {wholeCoverBox} from './whole-cover';
-export {AmbientArt, ColourBackdrop, type AmbientArtProps, type AmbientArtTreatment, type ColourBackdropProps} from './AmbientArt';
+export {AmbientArt, ArtworkGlow, type AmbientArtProps, type AmbientArtTreatment} from './AmbientArt';
 export {GeneratedArt, GeneratedCover, coverTitle, type GeneratedArtProps, type GeneratedCoverProps} from './GeneratedArt';
 export {CircleArt, ArtistCircle, PersonCircle, CoverMosaic, nameInitials, type CircleArtProps, type PersonCircleProps, type CoverMosaicProps} from './CircleArt';
 export {ChannelMark, type ChannelMarkProps} from './ChannelMark';

@@ -40,13 +40,13 @@
   .section[data-group=songs] .pagedRow > div { column-gap: 12px; }
 }
 
-.section header,.recent header,.emptySection header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; min-height: 30px; }
+.section header,.emptySection header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; min-height: 30px; }
 
-.section header h2,.recent h2,.single h2,.emptySection h2 { font-size: var(--type-row-heading-size); font-weight: var(--type-button-weight); letter-spacing: var(--type-row-heading-tracking); line-height: normal; margin: 0; }
+.section header h2,.single h2,.emptySection h2 { font-size: var(--type-row-heading-size); font-weight: var(--type-button-weight); letter-spacing: var(--type-row-heading-tracking); line-height: normal; margin: 0; }
 
 .section header > span,.emptySection header > span { font-size: var(--type-person-title-size); color: var(--color-text-tertiary); }
 
-.section header > button,.recent header > button,.emptySection header > button { margin-left: auto; }
+.section header > button,.emptySection header > button { margin-left: auto; }
 
 /* The drawn See all: the words, then a 2px-stated 18px right chevron. */
 .seeAll { display: inline-flex; align-items: center; gap: 2px; }
@@ -93,17 +93,8 @@
 
 .song small { font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
 
-.recent,.single,.partial { width: 100%; }
+.single,.partial { width: 100%; }
 
-.recent > div { display: flex; flex-wrap: wrap; gap: 8px; }
-.recent > div > button { color: var(--color-text-secondary); font-weight: var(--type-body-strong-weight); }
-.recent[data-compact] header { margin-bottom: 8px; }
-.recent[data-compact] header h2 { font-size: var(--type-row-heading-size); font-weight: var(--type-row-heading-weight); }
-.recent > .recentList { display: block; overflow: hidden; border-radius: 14px; background: var(--color-raised); }
-.recentRow { position: relative; width: 100%; min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 8px 14px; border: 0; background: transparent; color: var(--color-text-secondary); text-align: left; font-size: calc(var(--type-body-size) + .5px); font-weight: var(--type-body-strong-weight); cursor: pointer; }
-.recentRow > svg { flex: none; color: var(--color-text-tertiary); }
-.recentRow + .recentRow::before { content: ''; position: absolute; top: 0; left: 56px; right: 0; height: 1px; background: var(--color-line); }
-.recentRow:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; }
 
 .partial { display: flex; align-items: center; gap: 14px; color: var(--color-text-secondary); padding: 12px 12px 12px 18px; border-radius: 12px; background: var(--color-raised); box-shadow: inset 0 0 0 1px var(--color-line); }
 .partial > button { margin-left: auto; }
@@ -177,19 +168,6 @@
   .sbar { display: flex; align-items: center; gap: 10px; }
   .sbar .field { flex: 1; min-width: 0; }
   .sbar .cancel[data-variant='text'] { flex: none; color: var(--color-text-secondary); font-size: var(--type-fixed-size-15point-5px); font-weight: var(--type-fixed-weight-600); }
-  /* The drawn top result: the title's own art behind it, the artist's circle when it has
-     one, its real facts, and Play only where this title really plays. */
-  .phoneTop { position: relative; display: flex; align-items: center; gap: 16px; width: 100%; min-height: 148px; margin: 14px 0 2px; padding: 14px 16px; border-radius: 14px; overflow: hidden; background: var(--color-raised); isolation: isolate; }
-  .phoneTopBg { position: absolute; inset: -30%; width: 160%; height: 160%; object-fit: cover; filter: blur(40px) saturate(1.4); opacity: .5; z-index: -1; }
-  .phoneTopOpen { position: absolute; inset: 0; z-index: 0; border: 0; background: transparent; cursor: pointer; }
-  .phoneTopOpen:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; border-radius: 14px; }
-  .phoneTopRing { position: relative; z-index: 1; flex: none; display: grid; pointer-events: none; place-items: center; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; background: var(--color-raised-high); box-shadow: 0 16px 30px -12px var(--color-shadow), 0 0 0 3px color-mix(in srgb, var(--color-text) 14%, transparent); font-size: var(--type-fixed-size-30px); font-weight: var(--type-fixed-weight-800); }
-  .phoneTopRing > * { width: 100%; height: 100%; }
-  .phoneTopCopy { position: relative; z-index: 1; flex: 1; min-width: 0; pointer-events: none; }
-  .phoneTopCopy > small { display: block; font-size: var(--type-fixed-size-12point-5px); font-weight: var(--type-fixed-weight-700); color: var(--color-accent-strong); }
-  .phoneTopCopy > b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; margin: 3px 0 4px; font-size: var(--type-fixed-size-25px); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-035em); line-height: var(--type-fixed-line-1point-05); }
-  .phoneTopCopy > :last-child { font-size: var(--type-fixed-size-13px); color: var(--color-text-secondary); }
-  .phoneTopPlay { position: relative; z-index: var(--layer-content); flex: none; width: 46px; height: 46px; border-radius: 50%; }
 }
 
 /* Desktop-search frame 3: a full-width Songs answer carries the Music library's columns. */
@@ -248,9 +226,5 @@
 }
 
 /* Phone-app 7: each recent search keeps its own remove control beside the row. */
-.recentItem { position: relative; }
-.recentItem + .recentItem .recentRow::before { content: ''; position: absolute; top: 0; left: 56px; right: 0; height: 1px; background: var(--color-line); }
-.recent[data-compact] .recentRow { padding-right: 48px; }
-.recentRemove { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--color-text-tertiary); }
 
 .resultStatus { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }

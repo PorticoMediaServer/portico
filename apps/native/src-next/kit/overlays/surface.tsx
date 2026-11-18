@@ -1,5 +1,5 @@
 import {OverlayPaintDescendants, useOverlayPaintMode} from './OverlayPaintContext';
-import React, {useEffect, useId, useRef, useState} from 'react';
+import React, {Children, Fragment, cloneElement, isValidElement, useEffect, useId, useRef, useState, type ReactNode} from 'react';
 import {Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import Svg, {Defs, LinearGradient, RadialGradient, Rect, Stop} from 'react-native-svg';
@@ -10,12 +10,13 @@ import {Button} from '../controls/Button';
 import {Focusable} from '../controls/Focusable';
 import {FocusRegion} from '../focus';
 import {Icon} from '../Icon';
-import {nativeType, useTheme} from '../theme';
+import {nativeType, useTheme, titleLine} from '../theme';
 import {useMotion} from '../useMotion';
 import {BottomSheet} from './BottomSheet';
 import {OverlayPortal, useOverlayFrame, useOverlayLifecycle} from './OverlayHost';
 import {useNativeModalPresence} from './native-dismissal';
 import type {DialogProps, OverlayReason, SidePanelProps, SurfaceProps} from './types';
+import type {OverlayFoot} from '@portico/design';
 
 export function alpha(color: string, opacity: number): string {
   return `${color}${Math.round(Math.max(0, Math.min(1, opacity)) * 255).toString(16).padStart(2, '0')}`;
@@ -76,7 +77,8 @@ function AnonymousFocusBoundary({modal, children, style}: {modal: boolean; child
 }
 export function SurfaceHeader({title, description, action, side = false, inset = true, dialog = false, titleType: suppliedType, titleTextStyle, descriptionTextStyle, style}: Pick<SurfaceProps, 'title' | 'description' | 'titleType' | 'titleTextStyle' | 'descriptionTextStyle'> & {action?: React.ReactNode; side?: boolean; inset?: boolean; dialog?: boolean; style?: StyleProp<ViewStyle>}) {
   const theme = useTheme();
-  const titleType = nativeType(suppliedType ?? {size: theme.isTV && side ? 46 : theme.isTV ? 42 : theme.platform === 'tablet' && !side ? 23 : 21, weight: 800, tracking: theme.isTV ? side ? -0.035 : -0.03 : dialog ? -0.025 : -0.02, lineHeight: theme.isTV ? side ? 47.84 : 47.04 : dialog ? 27.6 : 'normal'}, theme.textScale);
+  const titleSize = theme.isTV && side ? 46 : theme.isTV ? 42 : theme.platform === 'tablet' && !side ? 23 : 21;
+  const titleType = nativeType(suppliedType ?? {size: titleSize, weight: 800, tracking: theme.isTV ? side ? -0.035 : -0.03 : dialog ? -0.025 : -0.02, lineHeight: theme.isTV ? side ? 47.84 : 47.04 : dialog ? 27.6 : titleLine(titleSize)}, theme.textScale);
   return <View style={StyleSheet.flatten([{paddingHorizontal: theme.isTV || !inset ? 0 : 20, paddingTop: dialog ? 0 : side && theme.isTV ? 18 : 2, paddingBottom: dialog ? 0 : 12}, style])}>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}><Text accessibilityRole="header" style={[titleType, {color: theme.colors.text, flex: 1, paddingRight: dialog && !theme.isTV ? 40 : 0}, titleTextStyle]}>{title}</Text>{action}</View>
     {description != null && <Text style={[theme.isTV ? nativeType({size: side ? 22 : 26, lineHeight: side ? 33 : 39, weight: 400, tracking: 0}, theme.textScale) : nativeType({size: theme.platform === 'tablet' && !side ? 15 : 14, lineHeight: theme.platform === 'tablet' && !side ? 23.25 : 21, weight: 400, tracking: 0}, theme.textScale), {color: theme.colors.textSecondary, marginTop: dialog ? theme.isTV ? 14 : 8 : 6}, descriptionTextStyle]}>{description}</Text>}
@@ -93,19 +95,19 @@ function CenteredDialog({open, onOpenChange, title, headerContext, description, 
   const native = useNativeModalPresence(animation.present, animation.present, undefined, animation.present && !open);
   useOverlayLifecycle(native.mounted, true, dismiss, initialFocusRef ?? closeRef, returnFocusRef, animation.enterMs, testID, restoreFocus);
   if (!native.mounted || !paint.visible) return null;
-  const width = suppliedWidth ?? (size === 'md' ? theme.isTV ? 900 : 480 : theme.spec.overlay.width[size][theme.platform]);
+  const width = suppliedWidth ?? (size === 'md' ? theme.isTV ? 900 : 480 : theme.spec.overlay.width[size][theme.column]);
   return <OverlayPaintDescendants><Modal key={native.key} transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => dismiss('back')} supportedOrientations={['portrait', 'landscape']}>
     <TVDesignCanvas><View pointerEvents={paint.interactive ? 'auto' : 'none'} accessibilityElementsHidden={!paint.interactive} style={styles.modalRoot} accessibilityViewIsModal importantForAccessibility={paint.interactive ? 'yes' : 'no-hide-descendants'} onAccessibilityEscape={() => dismiss('escape')}>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: scrimColor ?? alpha(theme.isTV ? '#04090d' : '#03080c', theme.isTV ? 0.62 : 0.64)}, scrimStyle]}/>
       <Pressable accessible={false} focusable={false} style={StyleSheet.absoluteFill} onPress={() => {if (dismissOnOutsidePress) dismiss('outside');}}/>
-      <Animated.View testID={testID} accessibilityLabel={accessibilityLabel} style={[{width: width || '100%', maxWidth: '92%', maxHeight: `${theme.spec.overlay.maxHeight[theme.platform] * 100}%`, borderRadius: theme.isTV ? 26 : 20, paddingTop: theme.isTV ? 48 : 26, paddingHorizontal: theme.isTV ? 52 : 26, paddingBottom: theme.isTV ? 44 : 22, backgroundColor: faceColor ?? theme.colors.raised, borderWidth: 1, borderColor: alpha(theme.colors.text, 0.09)}, animation.style, style]}>
+      <Animated.View testID={testID} accessibilityLabel={accessibilityLabel} style={[{width: width || '100%', maxWidth: '92%', maxHeight: `${theme.spec.overlay.maxHeight[theme.column] * 100}%`, borderRadius: theme.isTV ? 26 : 20, paddingTop: theme.isTV ? 48 : 26, paddingHorizontal: theme.isTV ? 52 : 26, paddingBottom: theme.isTV ? 44 : 22, backgroundColor: faceColor ?? theme.colors.raised, borderWidth: 1, borderColor: alpha(theme.colors.text, 0.09)}, animation.style, style]}>
         {faceColor ? null : <DialogBackground radius={theme.isTV ? 26 : 20}/>}
         <FocusBoundary modal testID={testID} style={{flexShrink: 1, minHeight: 0}}>
           {headerContext}
           <SurfaceHeader dialog inset={false} title={title} description={description} titleType={titleType} titleTextStyle={titleTextStyle} descriptionTextStyle={descriptionTextStyle}/>
           {scrollable ? <ScrollView style={{flexGrow: 0, flexShrink: 1, minHeight: 0}} contentContainerStyle={contentStyle} keyboardShouldPersistTaps="handled">{children}</ScrollView>
             : <View style={[{flexShrink: 1, minHeight: 0}, contentStyle]}>{children}</View>}
-          {footer != null && <View style={{marginTop: footerMarginTop ?? (theme.isTV ? 40 : 22), gap: theme.isTV ? 18 : 10}}>{footer}</View>}
+          {footer != null && <View style={{marginTop: footerMarginTop ?? (theme.isTV ? 40 : 22), gap: theme.isTV ? 18 : 10}}>{theme.isTV ? footer : <OverlayFootRow layout="end">{footer}</OverlayFootRow>}</View>}
         </FocusBoundary>
         {showClose && !theme.isTV && <Focusable testID={testID ? `${testID}-close` : undefined} focusId="close" ref={closeRef} focusRadius={18} accessibilityRole="button" accessibilityLabel={defaultI18n.t('action.close')} hitSlop={4} onPress={() => dismiss('close-button')} style={{position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-close" size={20} color={theme.colors.textTertiary}/></Focusable>}
       </Animated.View>
@@ -121,7 +123,9 @@ export function Dialog(props: DialogProps) {
   if (props.placement === 'side') return <BottomSheet {...props} fitContent scrollable={props.scrollable ?? true} />;
   if (theme.platform !== 'phone') return <CenteredDialog {...props}/>;
   const headerContext = props.headerContext == null ? props.headerContext : <View style={{paddingHorizontal: dialogSheetGutter}}>{props.headerContext}</View>;
-  return <BottomSheet {...props} headerContext={headerContext} contentStyle={[{paddingHorizontal: dialogSheetGutter}, props.contentStyle]} fitContent scrollable={props.scrollable ?? true} />;
+  // R9 `confirm` on a phone: the foot's buttons are equal halves (one button the full width), never hugging the left.
+  const footer = props.footer == null ? props.footer : <OverlayFootRow layout="halves">{props.footer}</OverlayFootRow>;
+  return <BottomSheet {...props} footer={footer} headerContext={headerContext} contentStyle={[{paddingHorizontal: dialogSheetGutter}, props.contentStyle]} fitContent scrollable={props.scrollable ?? true} />;
 }
 function useScrimStyle(progress: {value: number}) {
   return useAnimatedStyle(() => ({opacity: progress.value}));
@@ -164,3 +168,16 @@ export function SidePanel({open, onOpenChange, title, headerContext, description
   </OverlayPortal></OverlayPaintDescendants>;
 }
 const styles = StyleSheet.create({root: {flex: 1}, modalRoot: {flex: 1, justifyContent: 'center', alignItems: 'center'}, side: {position: 'absolute', right: 0, bottom: 0, shadowColor: '#000', shadowOffset: {width: -20, height: 0}, shadowOpacity: 0.6, shadowRadius: 40}});
+
+/** The buttons themselves, through any fragment a caller wraps them in (`foot={<>Cancel Delete</>}`). */
+const flatten = (children: ReactNode): ReactNode[] => Children.toArray(children).flatMap(child => isValidElement<{children?: ReactNode}>(child) && child.type === Fragment ? flatten(child.props.children) : child ? [child] : []);
+/** R9: a foot's buttons as the table lays them out. `halves` and `full` give each button an equal share of the width
+ * (one button is the full width); `end` keeps them at their own width at the end, primary last. Never hugging the left. */
+export function OverlayFootRow({layout, children}: {layout: OverlayFoot; children: ReactNode}) {
+  const theme = useTheme(), items = flatten(children);
+  if (layout === 'end') return <View style={{flexDirection: 'row', justifyContent: 'flex-end', gap: theme.space.controlGap}}>{items}</View>;
+  // Each button fills its share (the kit Button keeps its own width unless told to stretch); a label too long for a
+  // half takes a second line rather than being cut.
+  return <View style={{flexDirection: 'row', gap: theme.space.controlGap}}>{items.map((item, index) => <View key={index} style={{flex: 1, minWidth: 0}}>{isValidElement<{align?: string; labelLines?: number}>(item) && item.type === Button ? cloneElement(item, {align: 'stretch', labelLines: 2}) : item}</View>)}</View>;
+}
+

@@ -610,7 +610,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
         </View>)}
       </View>
   );
-  return <View testID="watch-title-screen" style={{flex: 1, backgroundColor: theme.isTV ? theme.colors.ink : undefined}}>
+  return <View testID="watch-title-screen" style={{flex: 1}}>
     {theme.isTV && <TVTitleBackdrop source={source} foreground={foreground} browsing={tvBrowsing}/>}
     {twoPane ? <View style={{flex: 1, flexDirection: 'row'}}>
       <ScrollView style={{width: leftWidth, alignSelf: 'stretch'}} scrollEventThrottle={32} showsVerticalScrollIndicator={false}>
@@ -623,7 +623,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
         </View>
       </ScrollView>
       <View style={{width: rightWidth}}>
-        <View style={{backgroundColor: theme.colors.ink}}>{tabs}</View>
+        <View>{tabs}</View>
         <ScrollView ref={scroll} onScroll={event => {
           artScrollRevision.current++;
           for (const listener of [...artListeners.current]) listener();

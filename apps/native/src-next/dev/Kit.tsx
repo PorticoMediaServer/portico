@@ -46,16 +46,23 @@ export function KitHost({shell: Shell}: {shell?: ComponentType}) {
 /** `captured`: a launched capture; its page keeps clear of the phone's status bar (measurement windows stay edge to edge). */
 export function Kit({initialGallery, presentation = 'catalogue', captured = false}: {initialGallery?: string; presentation?: 'catalogue' | 'window'; captured?: boolean}) {
   const theme = useTheme();
+  // A case opened as a window is being looked at or shot: the development warning box must not cover it (Android draws it over the bottom of the screen).
+  useEffect(() => {if (presentation === 'window') LogBox.ignoreAllLogs();}, [presentation]);
   const [selected, setSelected] = useState<string | undefined>(initialGallery);
   const [focused, setFocused] = useState<string>();
-  const available = galleriesForPlatform(galleries, theme.platform);
+  // A wide tablet's theme platform is `web` (the desktop layout); it is still a tablet for which sections it has, as in portrait.
+  const available = galleriesForPlatform(galleries, theme.platform === 'web' ? 'tablet' : theme.platform);
   const current = available.find(gallery => gallery.id === selected);
   const Screen = current?.render;
   const t = defaultI18n.t;
   // The private compiled evidence entry injects this Kit through App's normal
   // KitHost shell slot. Families keep the catalogue gutter they were authored in;
   // Canvas's negative gutter therefore cancels exactly once, at the window edge.
-  if (presentation === 'window' && Screen) return <SafeAreaView testID="native-kit-window" edges={captured && !theme.isTV && !current?.screen ? ['top'] : []} style={{flex: 1}}><View style={{flex: 1, paddingHorizontal: theme.gutter}}><Screen /></View></SafeAreaView>;
+  if (presentation === 'window' && Screen) return <SafeAreaView testID="native-kit-window" edges={(captured || Platform.OS === 'android') && !theme.isTV && !current?.screen ? ['top'] : []} style={{flex: 1}}><View style={{flex: 1, paddingHorizontal: theme.gutter}}><Screen /></View></SafeAreaView>;
+  // A section asked for as a window that this kind of device does not have (a phone-only sheet on a TV) says so. Falling through
+  // to the catalogue drew every family at once, and a shot of that was read as the section's own fault.
+  if (presentation === 'window' && initialGallery && !Screen) return <SafeAreaView testID="native-kit-absent" style={{flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.gutter}}>
+    <Text style={[theme.type.heading, {color: theme.colors.textSecondary, textAlign: 'center'}]}>{t('next.platform.kitAbsent', {id: initialGallery})}</Text></SafeAreaView>;
   return <SafeAreaView testID="native-kit" style={{flex: 1}}>
     <ScrollView contentContainerStyle={{padding: theme.gutter, gap: theme.space.md}}>
       <Text accessibilityRole="header" style={[theme.type.heading, {color: theme.colors.text}]}>{t('next.platform.kitTitle')}</Text>

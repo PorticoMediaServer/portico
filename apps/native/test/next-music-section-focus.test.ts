@@ -7,7 +7,7 @@ import {registerHooks} from 'node:module';
 import React, {type ReactElement, type ReactNode} from 'react';
 import {transformSync} from 'rolldown/utils';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
-import {createTheme, fontFamilies, nativeType} from '../src-next/kit/theme.ts';
+import {createTheme, fontFamilies, nativeType, titleLine} from '../src-next/kit/theme.ts';
 import type {DockOccupant} from '../src-next/kit/dock/types.ts';
 import type {QueuePlaybackFence, QueueScope} from '../../../packages/player-core/src/index.ts';
 import {playbackIdentity} from '../../../packages/client-core/src/presentation/kit-model/index.ts';
@@ -16,7 +16,7 @@ import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 // Exercise the actual family, controls and overlay composition. Only native
 // hosts, animation/gesture drivers and the theme context are replaced. This
 // element/hook harness cannot establish native layout or physical D-pad focus.
-const state = {theme: createTheme({isTV: true, width: 1920}), fontFamilies, nativeType};
+const state = {theme: createTheme({isTV: true, width: 1920}), fontFamilies, nativeType, titleLine};
 const stateKey = '__porticoMusicSectionFocusTest';
 Object.assign(globalThis, {[stateKey]: state});
 const moduleURL = (source: string) => `data:text/javascript,${encodeURIComponent(source)}`;
@@ -29,7 +29,7 @@ const native = moduleURL(`export * from ${JSON.stringify(nativeStub)};
   export const useWindowDimensions=()=>({width:1920,height:1080,scale:1,fontScale:1});
   const flatten=s=>Array.isArray(s)?Object.assign({},...s.map(flatten)):s??{};
   export const StyleSheet={create:s=>s,flatten,absoluteFill:{position:'absolute',inset:0}};`);
-const theme = moduleURL(`const s=globalThis.${stateKey}; export const activeTextScale=()=>s.theme.textScale; export const useTheme=()=>s.theme; export const fontFamilies=s.fontFamilies; export const nativeType=s.nativeType;`);
+const theme = moduleURL(`const s=globalThis.${stateKey}; export const activeTextScale=()=>s.theme.textScale; export const useTheme=()=>s.theme; export const fontFamilies=s.fontFamilies; export const nativeType=s.nativeType; export const titleLine=s.titleLine;`);
 const reanimated = moduleURL(`import {useRef} from ${JSON.stringify(import.meta.resolve('react'))};
   export const useSharedValue=value=>useRef({value}).current;
   export const useAnimatedStyle=fn=>fn(); export const cancelAnimation=()=>{};

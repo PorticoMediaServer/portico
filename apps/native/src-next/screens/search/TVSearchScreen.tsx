@@ -206,8 +206,8 @@ export function TVSearchGenre({genre, runtime, width, disabled, onPress}: {genre
 /** tv.html#f5 draws the season count as .tv .tag; tagSpec is the canonical tag. */
 export function TVSearchTag({children}: {children: React.ReactNode}) {
   const theme = useTheme(), tag = theme.spec.tag;
-  return <View style={{paddingHorizontal: tag.paddingX[theme.platform], paddingVertical: tag.paddingY, borderRadius: tag.radius[theme.platform],
-    borderWidth: tag.borderWidth[theme.platform], borderColor: alpha(theme.colors.text, tag.borderAlpha)}}>
+  return <View style={{paddingHorizontal: tag.paddingX[theme.column], paddingVertical: tag.paddingY, borderRadius: tag.radius[theme.column],
+    borderWidth: tag.borderWidth[theme.column], borderColor: alpha(theme.colors.text, tag.borderAlpha)}}>
     <Text style={[theme.type.tag, {color: theme.colors.text}]}>{children}</Text>
   </View>;
 }

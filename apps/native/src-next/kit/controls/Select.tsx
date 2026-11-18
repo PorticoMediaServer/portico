@@ -1,6 +1,7 @@
 import React, {forwardRef, useCallback, useEffect, useRef, useContext} from 'react';
 import {FlatList, StyleSheet, Text, View, type StyleProp, type TextStyle} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
+import {emphasis} from '@portico/design';
 import {RowControlContext} from './row-control';
 import {Icon} from '../Icon';
 import {Dialog} from '../overlays/surface';
@@ -45,6 +46,8 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
   accessibilityState, testID, rowLabel, ...props
 }, ref) {
   const theme = useTheme();
+  // R3: a value at its default is tertiary and medium; one the viewer chose is the accent and bold.
+  const valueEmphasis = (chosen: boolean): TextStyle => {const level = chosen ? emphasis.valueChosen : emphasis.value; return {color: theme.emphasis[level.level], fontFamily: fontFamilies[level.weight as 500 | 700]};};
   const grow = theme.fontScale > 1 || theme.textScale > 1;
   const trigger = useRef<View>(null);
   const selectedRow = useRef<View>(null);
@@ -89,10 +92,10 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
       }}>
       {rowLabel !== undefined
         ? <><Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, {fontFamily: fontFamilies[700], color: theme.colors.text, flex: 1, minWidth: 0}, textStyle]}>{rowLabel}</Text>
-          <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, {fontFamily: fontFamilies[700], color: theme.colors.textTertiary, flexShrink: 1}, textStyle]}>{selected?.label ?? placeholder}</Text></>
-        : inline ? <Text style={[nativeType({size: 14.5, weight: 500, lineHeight: 'normal', tracking: 0}, theme.textScale), {color: selected ? theme.colors.accent : theme.colors.textTertiary, textAlign: 'right', flexShrink: 1}, textStyle]}>{selected?.label ?? placeholder}</Text>
+          <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, valueEmphasis(!!selected), {flexShrink: 1}, textStyle]}>{selected?.label ?? placeholder}</Text></>
+        : inline ? <Text style={[nativeType({size: 14.5, weight: 500, lineHeight: 'normal', tracking: 0}, theme.textScale), valueEmphasis(!!selected), {textAlign: 'right', flexShrink: 1}, textStyle]}>{selected?.label ?? placeholder}</Text>
         : <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, styles.value, {fontFamily: fontFamilies[700], color: selected ? theme.colors.text : theme.colors.textTertiary}, textStyle]}>{selected?.label ?? placeholder}</Text>}
-      <Icon name="i-updown" size={theme.isTV ? 26 : inline ? 15 : 18} color={inline ? theme.colors.accent : theme.colors.textTertiary} />
+      <Icon name="i-updown" size={theme.isTV ? 26 : inline ? 15 : 18} color={inline ? theme.emphasis[emphasis.active] : theme.colors.textTertiary} />
     </Focusable>
     {error !== undefined ? <FormError placement="inline">{error}</FormError>
       : description !== undefined ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{description}</Text> : null}

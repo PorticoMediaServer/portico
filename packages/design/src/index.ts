@@ -1,4 +1,5 @@
 export {generatedCoverTint, type GeneratedCoverTint} from './generated-cover.ts';
+import {byForm, formSizes, iconClass, type ByForm, type EmphasisLevel} from './scale.ts';
 
 /**
  * Portico's shared design projection. Web (packages/design/scripts/tokens.mjs → web/src/kit/tokens.css)
@@ -233,6 +234,17 @@ const handheldType = {
   stopBody: type(15, 23.25, 500), stopField: type(16, 'normal', 600), stopHelp: type(13.5, 'normal', 400),
   fieldValue: type(15, 'normal', 400), fieldPlaceholder: type(15, 'normal', 400), fieldLabel: type(13, 18, 600),
   accountTitle: type(30, 32.4, 800, -.035), accountLede: type(15, 22.5, 400), accountHint: type(13, 18, 600), accountEyebrow: type(13, 'normal', 700),
+  // System rule 6 (design/ui-v1 system-rules.html): the roles a screen on a frame picks from. Row and section headings are `rowHeading`,
+  // card text `cardTitle` and `cardSubtitle`, tabs `tab`; these are the roles the scale lacked.
+  pageTitle: type(34, 38, 800, -.03), barTitle: type(17, 'normal', 700), groupLabel: type(15, 'normal', 700), listLabel: type(15, 'normal', 700),
+  rowLabel: type(15.5, 20, 600), rowHelp: type(12.5, 17.5, 500), intro: type(14.5, 21.75, 500),
+  // The players' own roles (desktop-player, phone-player, tv-player): title block, time read-outs, pills, the skip
+  // numeral inside a transport button, the time under a scrub preview, and the Skip intro prompt.
+  playerTitle: type(16.5, 'normal', 800, -.015), playerSubtitle: type(13, 'normal', 600), playerTime: type(12, 'normal', 700), playerPill: type(13.5, 'normal', 700),
+  playerSkip: type(8.5, 'normal', 800), playerPreviewTime: type(14, 'normal', 800), playerPrompt: type(15, 'normal', 700),
+  // Round 8. The episode's name beside "S1 E2" (`playerSubtitle` is the number: regular and secondary; this is bold and
+  // primary), and the audio player's title block (phone-app 13, tablet-play 9, desktop-listen, tv 7).
+  playerSubtitleStrong: type(13, 'normal', 700), audioTitle: type(23, 28, 800, -.02), audioByline: type(16, 'normal', 600), audioDetail: type(13, 'normal', 500),
 };
 /** The end-card (PostPlay) type roles from desktop-player.html's post-play block:
  * kicker 15, title 76, compact title 56, feature 32, name 14 and year 13, with
@@ -246,7 +258,7 @@ export type TypeRole = keyof typeof handheldType;
 /** The legacy web's desktop display cap (42px); TitleHero and Text clamp up to it. */
 export const displayDesktopSize = 42;
 
-/** The desktop, phone and TV drawings are separate columns; tablet uses the phone layout. */
+/** The desktop, phone and TV drawings are separate columns. A tablet's column is `formType.medium` and `.expanded` below: read type by form (`formScale.type`), not from here. */
 export const typeScale: Readonly<Record<'desktop' | 'handheld' | 'tenFoot', Readonly<Record<TypeRole, TypeStyle>>>> = {
   handheld: handheldType,
   desktop: {...handheldType,
@@ -255,6 +267,11 @@ export const typeScale: Readonly<Record<'desktop' | 'handheld' | 'tenFoot', Read
     synopsis: type(17, 26.35, 400), button: type(17, 'normal', 700), tab: type(17, 'normal', 700), chip: type(15, 'normal', 700),
     liveTitle: type(18, 'normal', 700, -.01), bannerTitle: type(52, 52, 800, -.04), bannerBody: type(16, 24, 400), rank: type(168, 131.04, 800, -.08),
     episodeTitle: type(16, 'normal', 700, -.01), episodeBody: type(14, 21, 400), fallbackLockup: type(52, 48.88, 800, -.045),
+    pageTitle: type(56, 60, 800, -.03), groupLabel: type(22, 'normal', 700, -.015), listLabel: type(14, 'normal', 700),
+    rowLabel: type(17, 22, 600), rowHelp: type(15, 21, 500), intro: type(17, 25.5, 500),
+    playerTitle: type(34, 36.72, 800, -.035), playerSubtitle: type(15, 'normal', 400), playerTime: type(13.5, 'normal', 600),
+    playerPreviewTime: type(15, 'normal', 800), playerPrompt: type(16.5, 'normal', 800),
+    playerSubtitleStrong: type(15, 'normal', 700), audioTitle: type(36, 40, 800, -.03), audioByline: type(17, 'normal', 400), audioDetail: type(15, 'normal', 400),
   },
   tenFoot: {...handheldType,
     fieldValue: type(32, 'normal', 600), fieldPlaceholder: type(32, 'normal', 500), fieldLabel: type(22, 22, 700),
@@ -267,8 +284,46 @@ export const typeScale: Readonly<Record<'desktop' | 'handheld' | 'tenFoot', Read
     meta: type(24, 'normal', 400), eyebrow: type(24, 'normal', 600), synopsis: type(24, 34.8, 400), button: type(26, 'normal', 700), tab: type(26, 'normal', 700), chip: type(22, 'normal', 700),
     badge: type(18, 'normal', 800), tag: type(20, 'normal', 600), episodeTitle: type(24, 'normal', 700, -.01), episodeBody: type(22, 33, 400),
     liveTitle: type(26, 'normal', 700, -.01), liveChannel: type(22, 'normal', 600), liveLabel: type(20, 'normal', 700),
+    pageTitle: type(44, 50, 800, -.03), groupLabel: type(20, 'normal', 700), listLabel: type(20, 'normal', 700),
+    rowLabel: type(25, 32, 600), rowHelp: type(19, 27, 500), intro: type(23, 33, 500),
+    // Round 8 (R2): the TV player and audio roles at the mock-ups' sizes (tv-player 1: times 24/700, "S1 E2" 24/600 with
+    // the name 24/700; tv 7: the song 96/800, the artist 34/700, the album 24/400).
+    playerTitle: type(44, 48, 800, -.035), playerSubtitle: type(24, 'normal', 600), playerSubtitleStrong: type(24, 'normal', 700), playerTime: type(24, 'normal', 700), playerPill: type(22, 'normal', 700),
+    playerSkip: type(13, 'normal', 800), playerPreviewTime: type(22, 'normal', 800), playerPrompt: type(26, 'normal', 700),
+    audioTitle: type(96, 100, 800, -.04), audioByline: type(34, 'normal', 700), audioDetail: type(24, 'normal', 400),
   },
 };
+/** R2: a tablet's own column (tablet.html, tablet-play.html), the same for `medium` and `expanded`. A tablet is not a
+ * small desktop: its page title is 44, its row heading 21, its buttons 16. Where the pages give nothing it keeps the
+ * phone's value; its video player is the desktop player's drawing, so those roles are the desktop's. */
+const tabletType: Readonly<Record<TypeRole, TypeStyle>> = {...handheldType,
+  pageTitle: type(44, 48, 800, -.03), rowHeading: type(21, 'normal', 700, -.015), rowSubtitle: type(14, 'normal', 400), seeAll: type(14, 'normal', 600),
+  cardTitle: type(14, 'normal', 600), cardSubtitle: type(13, 'normal', 400), wideTitle: type(15, 'normal', 700),
+  button: type(16, 'normal', 700), compactButton: type(15, 'normal', 700), tab: type(16, 'normal', 700), chip: type(14.5, 'normal', 700),
+  meta: type(14, 'normal', 400), eyebrow: type(14, 'normal', 600), synopsis: type(15, 22.5, 400), tag: type(13, 'normal', 600),
+  groupLabel: type(19, 'normal', 700, -.015), listLabel: type(14, 'normal', 700), rowLabel: type(15.5, 20, 600), rowHelp: type(13.5, 19.5, 400), intro: type(15, 23, 400),
+  episodeTitle: type(16.5, 'normal', 700, -.01), episodeBody: type(14, 21, 400),
+  playerTitle: typeScale.desktop.playerTitle, playerSubtitle: typeScale.desktop.playerSubtitle, playerSubtitleStrong: typeScale.desktop.playerSubtitleStrong,
+  playerTime: typeScale.desktop.playerTime, playerPreviewTime: typeScale.desktop.playerPreviewTime, playerPrompt: typeScale.desktop.playerPrompt,
+  audioTitle: type(32, 36, 800, -.03), audioByline: type(16, 'normal', 400), audioDetail: type(14, 'normal', 400),
+};
+/** R2, the type half of the form scale: one column of every role per form. */
+export const formType: ByForm<Readonly<Record<TypeRole, TypeStyle>>> = byForm(handheldType, tabletType, tabletType, typeScale.desktop, typeScale.tenFoot);
+
+/** R3: the level of emphasis each text role is drawn at (rule 6's Colour column and the mock-ups). A role not named is
+ * `primary`. A tab, a value and a control's glyph change level with their state: `emphasis` says how. */
+const baseEmphasis: Partial<Record<TypeRole, EmphasisLevel>> = {
+  groupLabel: 'secondary', listLabel: 'secondary', intro: 'secondary', synopsis: 'secondary', meta: 'secondary', episodeBody: 'secondary', bannerBody: 'secondary',
+  playerSubtitle: 'secondary', audioByline: 'secondary', accountLede: 'secondary',
+  rowHelp: 'tertiary', cardSubtitle: 'tertiary', rowSubtitle: 'tertiary', seeAll: 'tertiary', tab: 'tertiary', audioDetail: 'tertiary',
+  eyebrow: 'accent',
+};
+/** From tablet width a settings page's section heading is a heading (primary), not a phone's small group label; on TV it is the quiet one. */
+export const roleEmphasis: ByForm<Partial<Record<TypeRole, EmphasisLevel>>> = byForm(baseEmphasis, {...baseEmphasis, groupLabel: 'primary'}, {...baseEmphasis, groupLabel: 'primary'},
+  {...baseEmphasis, groupLabel: 'primary'}, {...baseEmphasis, groupLabel: 'tertiary', intro: 'tertiary'});
+/** The whole form scale (R2 to R4): `formScale.type.tv.rowLabel`, `formScale.card.poster.expanded`, `formScale.icon.secondary.size.phone`. */
+export const formScale = {type: formType, emphasis: roleEmphasis, ...formSizes, icon: iconClass} as const;
+export type FormScale = typeof formScale;
 
 export { mediaIcons, mediaFamilyIcon } from './media-icons.ts';
 export type { MediaFamily, MediaIconName, IconPrimitive, MediaIconDefinition } from './media-icons.ts';
@@ -277,6 +332,13 @@ export type { IconId, IconDefinition } from './icons.ts';
 export { componentSpec, focus as focusSpec, button as buttonSpec, transport as transportSpec, field as fieldSpec, toggle as toggleSpec, chip as chipSpec, segmented as segmentedSpec, row as rowSpec, overlay as overlaySpec, menu as menuSpec, feedback as feedbackSpec, confirmation as confirmationSpec, hero as heroSpec, card as cardSpec, shelf as shelfSpec, banner as bannerSpec, episode as episodeSpec, generatedArt as generatedArtSpec, navigation as navigationSpec, activity as activitySpec, tag as tagSpec, tabs as tabsSpec } from './components.ts';
 export type { ComponentSpec, Fill, ButtonVariant, ButtonSize, ButtonState, RowVariant, OverlayKind, ScrimStop } from './components.ts';
 export {tvAccount as tvAccountSpec} from './components.ts';
+export {frame as frameSpec, frameForm} from './frames.ts';
+export {emphasis, iconClass, formSizes, byForm} from './scale.ts';
+export type {ScaleForm, ByForm, EmphasisLevel, IconClass} from './scale.ts';
+export type {FrameSpec, FrameForm} from './frames.ts';
+export {overlayForms, overlayForm} from './overlay-forms.ts';
+export {frameRegions, titleKinds, type FrameRegion, type RegionForm, type TitleRegion, type TitleKind} from './frame-regions.ts';
+export type {OverlayTask, OverlayForm, OverlayFormKind, OverlayBar, OverlayFoot} from './overlay-forms.ts';
 
 /** Named surface roles, including the exact 6/10/12/14/16 px kit radii. */
 export const radii = {small: 6, control: 8, artwork: 10, surface: 10, panel: 12, overlay: 14, tag: 6, thumbnail: 8, heroButton: 12, liveCard: 12, fallback: 14, banner: 16, popover: 18, sheet: 24, pill: 999} as const;
@@ -318,7 +380,8 @@ export const reducedMotion = {durationMs: 160, easing: 'linear', transforms: fal
 export const motionRules = {animatedProperties: ['transform', 'opacity'], interruptFromCurrent: true, queue: false, ambientLiveDots: false, ambientSkeletons: false, ambientLevelMeters: false, staggerMs: [60, 80], maxStaggerSteps: 3} as const;
 export const layout = {
   breakpoint: {phone: 600, desktop: 1024}, designWidth: {desktop: 1440, phone: 390, tv: 1920}, designHeight: {phone: 844, tv: 1080},
-  gutter: {desktop: 64, desktopNarrow: 32, phone: 20, tablet: 20, tv: 200, tvRight: 96, tvAuth: 120, tvPlayer: 96},
+  /** System rule 4: phone 20, a tablet under 1024 wide 28, 32 from 1024 growing to 64 at 1440, TV 200. */
+  gutter: {desktop: 64, desktopNarrow: 32, phone: 20, tablet: 28, tv: 200, tvRight: 96, tvAuth: 120, tvPlayer: 96},
 } as const;
 export const layers = {liveChrome: 3, liveGuide: 4, liveNotice: 5, base: 0, content: 2, artLabel: 3, rowArrow: 4, heroNavigation: 5, phoneTabBar: 6, tvFocus: 8, sticky: 10, navigation: 20, player: 30, menu: 40, dialog: 50, notice: 60} as const;
 /** Visual sizes may be smaller; renderers extend touch/focus hit areas to these minima. */

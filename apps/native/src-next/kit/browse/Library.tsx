@@ -1,8 +1,9 @@
 import React, {useRef, useState, type ReactNode} from 'react';
-import {Text, View} from 'react-native';
+import {StyleSheet, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, Focusable} from '../controls';
-import {TopBar} from '../layout/TopBar';
+import {BarSurface, TopBar, type TopBarBack} from '../layout/TopBar';
 import {MenuRow, Popover} from '../overlays';
 import type {FocusRef} from '../overlays';
 import {Icon, type IconName} from '../Icon';
@@ -19,7 +20,7 @@ export function LibraryHeader({name, counts, switcher, menu, ambient, children, 
     <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.isTV ? 40 : 14, paddingTop: theme.isTV ? 56 : 36, paddingLeft: theme.gutter, paddingRight: theme.isTV ? theme.layout.gutter.tvRight : theme.gutter}}>
       <View style={{flex: theme.isTV ? undefined : 1, minWidth: 0}}>
         <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
-          <Text accessibilityRole="header" numberOfLines={1} style={[browseType(theme, theme.isTV ? 44 : 56, 800, -.045, theme.isTV ? 'normal' : 56), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text>
+          <Text accessibilityRole="header" textBreakStrategy="balanced" style={[browseType(theme, theme.isTV ? 44 : 56, 800, -.045, theme.isTV ? 'normal' : 56), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text>
           {switcher}
         </View>
         {!!counts?.length && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12}}>{counts.map(part => <Text key={part.id} style={[browseType(theme, theme.isTV ? 22 : 15), {color: theme.colors.textTertiary}]}>{part.text}</Text>)}</View>}
@@ -32,8 +33,47 @@ export function LibraryHeader({name, counts, switcher, menu, ambient, children, 
 }
 
 /** The phone library header: the shared top bar (kit/layout/TopBar) with "‹ Libraries", the switcher or name, ⋯ and the pivots. */
-export function StickyBrowseHeader({name, switcher, menu, children, onLibraries, safeArea = true, testID}: Omit<LibraryHeaderProps, 'counts'> & {onLibraries: () => void; safeArea?: boolean}) {
-  return <TopBar testID={testID} surface safeArea={safeArea} back={{label: t('next.browse.native.libraries'), onPress: onLibraries}} title={switcher ? undefined : name} center={switcher || undefined} trailing={menu}>{children}</TopBar>;
+export function StickyBrowseHeader({name, switcher, menu, children, onLibraries, back, safeArea = true, testID}: Omit<LibraryHeaderProps, 'counts'> & {onLibraries?: () => void; /** A pushed page's own Back in place of "‹ Libraries". */ back?: TopBarBack; safeArea?: boolean}) {
+  return <TopBar testID={testID} surface safeArea={safeArea} back={back ?? (onLibraries ? {label: t('next.browse.native.libraries'), onPress: onLibraries} : undefined)} title={switcher ? undefined : name} center={switcher || undefined} trailing={menu}>{children}</TopBar>;
+}
+
+/** tablet4 (moved from screens/library; BrowseFrame draws it): the expanded library header is the desktop one at touch size: the
+ * 44 pt title with its switcher beside it, then Select and the library menu at
+ * the right, and the pivot strip on the drawn hairline. The sidebar already says
+ * where you are, so there is no back control. */
+export function LibraryExpandedHeader({name, switcher, menu, ambient, selection, children, testID}: {
+  name: string; switcher?: ReactNode; menu?: ReactNode; ambient?: ReactNode; selection?: ReactNode; children?: ReactNode; testID?: string;
+}) {
+  const theme = useTheme(), insets = useSafeAreaInsets();
+  return <View testID={testID} style={{paddingTop: insets.top, zIndex: theme.layers.sticky}}>
+    {ambient && <View pointerEvents="none" style={StyleSheet.absoluteFill}>{ambient}</View>}
+    <BarSurface/>
+    <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: theme.gutter, paddingTop: 22}}>
+      <Text accessibilityRole="header" textBreakStrategy="balanced" style={[browseType(theme, 44, 800, -.045, 44), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text>
+      <View style={{width: 44, height: 44, borderRadius: 22, marginTop: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.text, .12)}}>{switcher}</View>
+      <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{selection}{menu}</View>
+    </View>
+    {children}
+  </View>;
+}
+
+/** tablet5 (moved from screens/library; BrowseFrame draws it): upright, the rail already says where you are, so the compact header
+ * keeps the phone's 24 pt name and switcher but drops its back control; Select
+ * and the library menu sit at the right, and the pivots scroll as on a phone. */
+export function LibraryMediumHeader({name, switcher, menu, selection, ambient, wash, children, testID}: {
+  name: string; switcher?: ReactNode; menu?: ReactNode; selection?: ReactNode; ambient?: ReactNode; wash?: boolean; children?: ReactNode; testID?: string;
+}) {
+  const theme = useTheme(), insets = useSafeAreaInsets();
+  return <View testID={testID} style={{paddingTop: insets.top, zIndex: theme.layers.sticky}}>
+    {ambient && <View pointerEvents="none" style={StyleSheet.absoluteFill}>{ambient}</View>}
+    <BarSurface/>
+    <View style={{height: 46, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 28}}>
+      <Text accessibilityRole="header" textBreakStrategy="balanced" style={[browseType(theme, 24, 800, -.03), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text>
+      <View style={{width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.text, .12)}}>{switcher}</View>
+      <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{selection}{menu}</View>
+    </View>
+    {children}
+  </View>;
 }
 
 /** Its trigger can be the centred phone name, or only the chevron beside a large header. */
@@ -53,7 +93,7 @@ export function LibrarySwitcher({libraries, value, onValueChange, open: supplied
       </View>
     </Focusable>
     <Popover testID={testID ? `${testID}-surface` : undefined} open={open} onOpenChange={setOpen} anchorRef={anchorRef} returnFocusRef={returnFocusRef ?? anchorRef} title={t('next.browse.native.switchLibrary')} accessibilityLabel={t('next.browse.native.switchLibrary')} placement="bottom-center" width={theme.isTV ? 520 : 252} offset={4} modal backdropOpacity={.62}>
-      {libraries.filter(library => !theme.isTV || library.tv !== false).map(library => <MenuRow focusId={library.id} testID={testID ? `${testID}-library-${encodeURIComponent(library.id)}` : undefined} key={library.id} label={library.name} trailing={theme.isTV ? library.count : undefined} description={theme.isTV ? undefined : library.count} selected={library.id === value} accessibilityRole="radio" accessibilityState={{checked: library.id === value}} variant={theme.isTV ? 'tv' : 'compact'} onPress={() => {onValueChange(library.id); setOpen(false);}}/>)}
+      {libraries.filter(library => !theme.isTV || library.tv !== false).map(library => <MenuRow focusId={library.id} testID={testID ? `${testID}-library-${encodeURIComponent(library.id)}` : undefined} key={library.id} label={library.name} trailing={theme.isTV ? library.count : undefined} description={theme.isTV ? undefined : library.count} selected={library.id === value} preferredFocus={library.id === value} accessibilityRole="radio" accessibilityState={{checked: library.id === value}} variant={theme.isTV ? 'tv' : 'compact'} onPress={() => {onValueChange(library.id); setOpen(false);}}/>)}
     </Popover>
   </>;
 }
@@ -78,7 +118,7 @@ export function LibraryMenu(props: LibraryMenuProps) {
   return <>
     <Button ref={anchorRef} testID={props.testID} variant="icon" icon="i-more" size="compact" iconOnly onPress={() => setOpen(!open)} accessibilityLabel={t('next.browse.native.libraryOptions')} accessibilityState={{expanded: open}}/>
     <Popover testID={props.testID ? `${props.testID}-surface` : undefined} open={open} onOpenChange={setOpen} anchorRef={anchorRef} returnFocusRef={anchorRef} title={t('next.browse.native.libraryOptions')} accessibilityLabel={t('next.browse.native.libraryOptions')} placement="bottom-end" width={theme.isTV ? 560 : 282} offset={2} modal backdropOpacity={.62}>
-      <MenuRow focusId="save-view" testID={props.testID ? `${props.testID}-save-view` : undefined} label={t('next.browse.native.saveThisView')} icon="i-filter" trailing={props.viewSummary} variant="compact" disabled={props.canSaveView === false} onPress={action(props.onSaveView)}/>
+      <MenuRow focusId="save-view" preferredFocus testID={props.testID ? `${props.testID}-save-view` : undefined} label={t('next.browse.native.saveThisView')} icon="i-filter" trailing={props.viewSummary} variant="compact" disabled={props.canSaveView === false} onPress={action(props.onSaveView)}/>
       {props.onMarkAll && <MenuRow focusId="mark-all" testID={props.testID ? `${props.testID}-mark-all` : undefined} label={t(props.read ? 'next.browse.native.markAllRead' : 'next.browse.native.markAllWatched')} icon="i-check" trailing={props.count} variant="compact" onPress={action(props.onMarkAll)}/>}
       <MenuRow focusId="edit-pins" testID={props.testID ? `${props.testID}-edit-pins` : undefined} label={t('next.browse.native.editPins')} icon="i-updown" variant="compact" onPress={action(props.onEditPins)}/>
       {props.shareActions?.map(share => <MenuRow key={share.id} focusId={share.id} testID={props.testID ? `${props.testID}-${share.id}` : undefined} label={share.label} icon={share.icon} variant="compact" onPress={action(share.onSelect)}/>)}

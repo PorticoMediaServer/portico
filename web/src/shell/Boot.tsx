@@ -1,7 +1,6 @@
 import {useEffect, useLayoutEffect, useState, type ReactNode} from 'react';
 import {Link} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
-import {ColourBackdrop} from '../kit/artwork';
 import {Icon} from '../kit/Icon';
 import {useCoarsePointer, useSizeClass} from '../kit/theme';
 import {bootWaitingPhase, documentStartedAt} from './boot-state';
@@ -29,7 +28,6 @@ export function BootShell({children}: {children: ReactNode}) {
   const avatar = <span className={styles.avatar} aria-hidden="true" />;
   const home = <Link to="/" activeOptions={{exact: true}} activeProps={{'aria-current': 'page'}}><Icon name="i-home" size={22}/><span>{t('next.home.shell.home')}</span></Link>;
   return <div className={`${shell.shell} ${styles.shell}`} data-desktop={navigation === 'topbar'} data-size-class={size} data-pointer={coarse ? 'coarse' : 'fine'} data-navigation={navigation}>
-    <ColourBackdrop />
     <div className={shell.navigation} data-shell-navigation>
       {navigation === 'topbar' ? <nav className={shell.topnav} aria-label={t('next.home.shell.main')}>
         {brand}<ul className={shell.destinations}><li><Link to="/" aria-current="page">{t('next.home.shell.home')}</Link></li></ul><div className={shell.tools}>{avatar}</div>
@@ -64,8 +62,7 @@ export function BootProgress({snapshot}: {snapshot?: ShellBootstrapSnapshot}) {
   }, [active, held]);
   const waiting = active ? {startedAt, serverName} : held;
   if (!waiting) return null;
-  return <div className={styles.progressLayer} data-navigation={navigation} data-size-class={size} data-leaving={!active || undefined} aria-hidden={!active || undefined}>
-    <ColourBackdrop />
+  return <div className={`portico-cover ${styles.progressLayer}`} data-navigation={navigation} data-size-class={size} data-leaving={!active || undefined} aria-hidden={!active || undefined}>
     <BootWaiting startedAt={waiting.startedAt} serverName={waiting.serverName} />
   </div>;
 }

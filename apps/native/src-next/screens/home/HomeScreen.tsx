@@ -166,7 +166,7 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
   const crease = medium && posture.status === 'available' && posture.window?.width === windowWidth && posture.window.height === windowHeight
     ? posture.folds.find(value => value.orientation === 'vertical' && value.bounds.left > 0 && value.bounds.right > value.bounds.left && value.bounds.right <= windowWidth) : undefined;
   const tabletMedium = medium && !crease && mediumUprightTablet(windowWidth, windowHeight), mediumGutter = tabletMedium ? 28 : 24;
-  const heroHeight = theme.isTV ? 820 : expandedTouch ? 440 : tabletMedium ? 560 : medium ? mediumHeroHeight(windowWidth, windowHeight) : theme.spec.hero.homeHeight[theme.platform];
+  const heroHeight = theme.isTV ? 820 : expandedTouch ? 440 : tabletMedium ? 560 : medium ? mediumHeroHeight(windowWidth, windowHeight) : theme.spec.hero.homeHeight[theme.column];
   const heroDelta = theme.isTV ? homeHeroBlock(theme, heroHeight, false) - homeHeroBlock(theme, heroHeight, true) : 0;
   const heroActive = active && !heroObscured && !runtime.getSnapshot().selectionActive;
   // states 4b: a page already read may stay on screen only for a positively known
@@ -256,15 +256,15 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
     // sizes the Reading library uses for its own Continue row.
     const books = row.id === 'continue_books';
     const drawnWidth = books ? theme.platform === 'tablet' ? 392 : 296 : ranked ? theme.isTV ? 318 : desktop ? theme.spec.shelf.rank.width : 186
-      : wide ? medium ? mediumCardWidth(true, tabletMedium) : desktop ? 262 : theme.spec.card.width.wide[theme.platform]
-      : square ? desktop ? 150 : theme.spec.card.width.square[theme.platform] : medium ? mediumCardWidth(false, tabletMedium) : desktop ? 150 : theme.spec.card.width.poster[theme.platform];
+      : wide ? medium ? mediumCardWidth(true, tabletMedium) : desktop ? 262 : theme.spec.card.width.wide[theme.column]
+      : square ? desktop ? 150 : theme.spec.card.width.square[theme.column] : medium ? mediumCardWidth(false, tabletMedium) : desktop ? 150 : theme.spec.card.width.poster[theme.column];
     const width = cardScale === 1 ? drawnWidth : Math.round(drawnWidth * cardScale);
     const posterWidth = ranked ? Math.round((theme.isTV ? 214 : desktop ? theme.spec.shelf.rank.posterWidth : 116) * cardScale) : width;
     const height = books ? Math.round((theme.platform === 'tablet' ? 176 : 150) * cardScale) : wide ? width * 9 / 16 : square ? width + (theme.isTV ? 80 : 54) : posterWidth * 1.5 + (theme.isTV ? 80 : 48 + cardTitleLine(theme));
     const cardHeight = row.live ? theme.isTV ? 225 : desktop ? theme.spec.card.live.height.web : theme.spec.card.live.height.phone : height;
     const top = theme.isTV ? Math.ceil(cardHeight * (theme.spec.focus.scale.card.tv - 1) / 2 + (theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv) * theme.spec.focus.scale.card.tv) : theme.spec.shelf.phonePaddingTop;
     const estimatedHeight = row.collection ? theme.isTV ? 360 : 236 : (theme.type.rowHeading.lineHeight ?? (theme.type.rowHeading.fontSize ?? 24) * 1.4)
-      + theme.spec.shelf.headingMargin[theme.platform] + cardHeight + (theme.isTV ? Math.max(14, top) : top + theme.spec.shelf.phonePaddingBottom);
+      + theme.spec.shelf.headingMargin[theme.column] + cardHeight + (theme.isTV ? Math.max(14, top) : top + theme.spec.shelf.phonePaddingBottom);
     return {row, presentation, width, height, slotHeight: measuredRows.layout === rowLayoutKey ? measuredRows.boxes.get(row.id)?.height ?? estimatedHeight : estimatedHeight};
   });
   const noHero = !theme.isTV && !document?.spotlight.length;
@@ -539,7 +539,7 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
 function HomePendingRow({row, labels, viewportWidth}: {row: HomeRow; labels: Parameters<typeof serverTextLabel>[0]; viewportWidth: number}) {
   const theme = useTheme(), presentation = homeRowPresentation(row), title = serverTextLabel(labels, presentation.title);
   const wide = row.artworkShape === 'landscape', square = row.artworkShape === 'square';
-  const width = wide ? theme.spec.card.width.wide[theme.platform] : square ? theme.spec.card.width.square[theme.platform] : theme.spec.card.width.poster[theme.platform];
+  const width = wide ? theme.spec.card.width.wide[theme.column] : square ? theme.spec.card.width.square[theme.column] : theme.spec.card.width.poster[theme.column];
   const height = wide ? width * 9 / 16 : square ? width + (theme.isTV ? 80 : 54) : width * 1.5 + (theme.isTV ? 80 : 48 + cardTitleLine(theme));
   const gap = theme.isTV ? 28 : 10, count = Math.max(1, Math.ceil(Math.max(0, viewportWidth - theme.gutter) / (width + gap)) + 1);
   return <View testID={`home-pending-${row.id}`} style={{marginBottom: theme.isTV ? 30 : 18}}>

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {activeTextScale, createTheme, fontFamilies, nativeType, textScaleFor, tvTextScale} from '../src-next/kit/theme.ts';
 import {shellType} from '../src-next/kit/shell/visual.ts';
-import {typeScale} from '@portico/design';
+import {colors, emphasis, formScale, typeScale, type TypeRole} from '@portico/design';
 
 // Ruling R46-TV-TEXT-SIZE: appearance.textSize Standard is 1.0 and Large is
 // 1.2 on Android TV and tvOS; the OS accessibility scale stays independent.
@@ -34,8 +34,10 @@ test('Large scales every semantic ten-foot role once, font size and line height 
       assert.equal(scaled.lineHeight, base.lineHeight * 1.2, `${role} line height`);
       assert.equal(scaled.lineHeight, unscaled.lineHeight! * 1.2, `${role} line height scales once`);
     } else assert.equal('lineHeight' in scaled, false, `${role} keeps normal metrics`);
-    assert.deepEqual(scaled, role === 'title' ? drawnTitle(1.2) : nativeType(base, 1.2), `${role} is scaled exactly once`);
-    assert.deepEqual(unscaled, role === 'title' ? drawnTitle(1) : nativeType(base), `${role} standard geometry`);
+    // R3: a role with a level of emphasis carries that level's colour; the colour is not geometry and never scales.
+    const level = formScale.emphasis.tv[role as TypeRole], tint = level ? {color: colors[emphasis.level[level]]} : {};
+    assert.deepEqual(scaled, {...(role === 'title' ? drawnTitle(1.2) : nativeType(base, 1.2)), ...tint}, `${role} is scaled exactly once`);
+    assert.deepEqual(unscaled, {...(role === 'title' ? drawnTitle(1) : nativeType(base)), ...tint}, `${role} standard geometry`);
   }
 });
 

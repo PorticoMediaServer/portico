@@ -78,12 +78,13 @@ test('Android phone glass owns every face foreground while one original Focusabl
     assert.equal(nodes.filter(node => node.type === 'Icon').length, loading ? 1 : 2, 'trailing glyph and current leading slot remain inside');
     assert.ok(nodes.some(node => flatten(node.props.style).width === '40%'), 'edge progress is inside the skipped subtree');
     const outer = flatten(focus.props.style(state)), clip = flatten(face.props.style), inner = flatten(layout.props.style);
-    assert.equal(outer.height, 50); assert.equal(outer.maxWidth, 250); assert.equal(outer.borderRadius, 11); assert.equal(outer.paddingHorizontal, 0); assert.equal(outer.paddingRight, 0); assert.equal(outer.backgroundColor, 'transparent');
+    assert.equal(outer.height, undefined); assert.equal(outer.minHeight, 50); assert.equal(outer.maxWidth, 250); assert.equal(outer.borderRadius, 11); assert.equal(outer.paddingHorizontal, 0); assert.equal(outer.paddingRight, 0); assert.equal(outer.backgroundColor, 'transparent');
     assert.equal(clip.borderRadius, 11); assert.equal(clip.overflow, 'hidden');
     assert.equal(inner.paddingHorizontal, 23); assert.equal(inner.paddingRight, 9); assert.equal(inner.backgroundColor, '#ff000029');
     for (const element of [face, blur, layout]) {
       const geometry = flatten(element.props.style);
-      assert.equal(geometry.alignSelf, 'stretch'); assert.equal(geometry.flexGrow, 1); assert.equal(geometry.flexShrink, 1);
+      // The face is sized to its content and never shorter than the button, so a label that wraps grows it and the blur cannot fill the screen.
+      assert.equal(geometry.alignSelf, 'stretch'); assert.equal(geometry.flexGrow, 0); assert.equal(geometry.flexShrink, 1); assert.equal(geometry.minHeight, 50);
     }
     assert.equal(inner.alignItems, 'center'); assert.equal(inner.justifyContent, 'center');
     assert.ok(nodes.some(node => flatten(node.props.style).gap === 7));
@@ -129,8 +130,8 @@ test('explicit glyph color reaches leading, trailing and loading glyphs without 
   }
 });
 
-test('Android phone glass that grows with large text sizes its faces to their content, so the native blur cannot fill the screen', async () => {
-  for (const [fontScale, grows] of [[1, 1], [1.24, 0], [2, 0]] as const) {
+test('Android phone glass sizes its faces to their content at every text size, so the native blur cannot fill the screen', async () => {
+  for (const [fontScale, grows] of [[1, 0], [1.24, 0], [2, 0]] as const) {
     const actual = await button('android', false, fontScale);
     const face: Element = actual.host('glass').props.children({focused: false, hovered: false, pressed: false});
     const blur = face.props.children as Element, layout = blur.props.children as Element;
@@ -150,19 +151,20 @@ test('a two-line glass chip at normal text keeps its glass the full height of th
 });
 
 
-test('one-line action labels shrink before cutting; multiline actions keep their authored wrapping', async () => {
+test('an action label is never shrunk and never cut: it may take a second line, and the face grows to hold it', async () => {
   for (const os of ['android', 'ios'] as const) {
     const actual = await button(os, false);
     const focus = actual.host('primary', {children: 'Continue reading'});
     const label = elements(focus.props.children({focused: false, hovered: false, pressed: false})).find(node => node.type === 'Text');
     assert.ok(label);
-    assert.equal(label.props.numberOfLines, 1);
-    assert.equal(label.props.adjustsFontSizeToFit, true);
-    assert.equal(label.props.minimumFontScale, .8);
-    const wrapped = actual.host('primary', {children: 'Continue reading', labelLines: 2});
-    const wrappedLabel = elements(wrapped.props.children({focused: false, hovered: false, pressed: false})).find(node => node.type === 'Text');
-    assert.equal(wrappedLabel!.props.numberOfLines, 2);
-    assert.equal(wrappedLabel!.props.adjustsFontSizeToFit, undefined);
+    assert.equal(label.props.numberOfLines, 2);
+    assert.equal(label.props.adjustsFontSizeToFit, undefined);
+    assert.equal(label.props.minimumFontScale, undefined);
+    assert.equal(label.props.ellipsizeMode, undefined);
+    const style = flatten(focus.props.style({focused: false, hovered: false, pressed: false}));
+    assert.equal(style.height, undefined); assert.ok(style.minHeight > 0);
+    const three = actual.host('primary', {children: 'Continue reading', labelLines: 3});
+    assert.equal(elements(three.props.children({focused: false, hovered: false, pressed: false})).find(node => node.type === 'Text')!.props.numberOfLines, 3);
   }
 });
 

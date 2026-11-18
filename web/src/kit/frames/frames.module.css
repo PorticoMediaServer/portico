@@ -1,0 +1,96 @@
+/* The screen frames (design/ui-v1 system-frames.html). Measurements are --frame-* tokens projected from
+   packages/design/src/frames.ts, type is the --type-* roles, and spacing is --space-*; nothing here is a number of
+   this file's own. Inside the shell the gutter is the shell's (it knows the rail and sidebar); a standalone page
+   takes the page gutter. A grouped card sits 16 from the edge at phone width and at the gutter from 600. */
+.frame { --g: var(--shell-gutter, var(--page-gutter)); --card: var(--frame-card-inset); color: var(--color-text); font-family: var(--font); }
+@media (min-width: 600px) { .frame { --card: var(--g); } }
+
+/* Rule 6: one style per role, from the type scale. R3: each role's colour is its level of emphasis (`--type-<role>-color`). */
+.pageTitle, .rowHeading, .groupLabel, .rowLabel, .rowHelp, .intro, .barTitle { margin: 0; }
+.pageTitle { font-size: var(--type-page-title-size); line-height: var(--type-page-title-line); font-weight: var(--type-page-title-weight); letter-spacing: var(--type-page-title-tracking); color: var(--type-page-title-color); text-wrap: balance; }
+.rowHeading { font-size: var(--type-row-heading-size); line-height: var(--type-row-heading-line); font-weight: var(--type-row-heading-weight); letter-spacing: var(--type-row-heading-tracking); color: var(--type-row-heading-color); }
+.groupLabel { font-size: var(--type-group-label-size); line-height: var(--type-group-label-line); font-weight: var(--type-group-label-weight); letter-spacing: var(--type-group-label-tracking); color: var(--type-group-label-color); }
+.rowLabel { font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-row-label-weight); color: var(--type-row-label-color); }
+.rowHelp { font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-row-help-weight); color: var(--type-row-help-color); }
+.intro { font-size: var(--type-intro-size); line-height: var(--type-intro-line); font-weight: var(--type-intro-weight); color: var(--type-intro-color); max-width: var(--frame-paragraph-max); }
+.barTitle { font-size: var(--type-bar-title-size); line-height: var(--type-bar-title-line); font-weight: var(--type-bar-title-weight); }
+.oneLine { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clamp2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+
+/* Rule 3: the one header. At phone width it starts under the shell's top bar; from 1024 at the rule's title line. */
+.header { padding: calc(var(--spec-navigation-mobile-web-top-height) + var(--frame-header-gap)) var(--g) var(--frame-header-gap); }
+.header[data-back] { padding-top: var(--space-xs); }
+.headerRow { display: flex; align-items: flex-end; gap: var(--space-sm); }
+.headerRow > :first-child { flex: 1; min-width: 0; }
+/* The Back link's words start at the gutter: its own inset is taken back. */
+.back { margin-left: calc(-1 * var(--space-control-gap)); justify-self: start; align-self: flex-start; }
+@media (min-width: 1024px) { .header, .header[data-back] { padding-top: var(--frame-title-top); } }
+
+/* Parts. */
+.sectionHead { display: flex; align-items: center; gap: var(--space-sm); margin: 0 var(--g) var(--frame-heading-gap); }
+.sectionHead > :first-child { flex: 1; min-width: 0; }
+.sectionTitle { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: var(--space-px-12); }
+/* A group is the kit's SettingsGroup; the frame gives it the card's inset and takes over the space between groups. */
+.frame .groupSlot { margin: 0 var(--card); }
+.frame .groupSlot > :first-child { margin-top: 0; }
+.stale { color: var(--color-amber); }
+.stateRow { display: flex; align-items: center; gap: var(--space-control-gap); min-height: var(--frame-row-two-line); padding: var(--space-xs) var(--frame-card-padding); }
+.stateText, .stateLines { flex: 1; min-width: 0; }
+.stateText b { display: block; font-weight: var(--type-group-label-weight); }
+/* Skeleton lines are the raised tone; on a raised card they take the next one up, and keep the two text lines' room. */
+.stateLines { display: grid; gap: var(--space-xs); }
+.stateLines > * { background: var(--color-raised-high); }
+.tile { flex: none; width: var(--frame-state-row-tile); height: var(--frame-state-row-tile); border-radius: var(--radius-control); display: grid; place-items: center; background: var(--color-raised-bright); color: var(--color-text-secondary); }
+.tile[data-error] { background: color-mix(in srgb, var(--color-record) var(--frame-state-row-error-tint), transparent); color: var(--color-record); }
+.tile svg { width: calc(var(--frame-state-row-tile) * var(--frame-state-row-icon-share)); height: auto; aspect-ratio: 1; }
+.art { position: relative; display: block; overflow: hidden; border-radius: var(--card-radius); background: var(--color-raised); }
+.art[data-kind='poster'] { aspect-ratio: 2 / 3; } .art[data-kind='square'] { aspect-ratio: 1; } .art[data-kind='wide'] { aspect-ratio: 16 / 9; }
+.art > * { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* Rule 12: the placeholder fills the box; its icon is a third of the short side (container units). */
+.placeholder { container-type: size; display: grid; place-items: center; background: linear-gradient(135deg, var(--color-raised-high), var(--color-raised)); box-shadow: inset 0 0 0 var(--space-hairline) var(--frame-placeholder-line); border-radius: inherit; color: var(--color-text-tertiary); }
+.placeholder svg { width: calc(min(100cqw, 100cqh) * var(--frame-placeholder-icon-share)); height: auto; aspect-ratio: 1; }
+
+/* The tabs' strip runs the page's full width; the tabs start at the gutter (the title page and the watch page). */
+.tabsInset { padding-left: var(--g); padding-right: var(--g); }
+
+/* Frames 3 and 4. At phone width the list or the selected page fills the width under one compact bar; from 600 the
+   list is a sticky column beside the page, and both start at the column's own edges. */
+.settingsMaster { padding-bottom: var(--frame-bottom-clear); display: flex; flex-direction: column; gap: var(--frame-section-gap); }
+.settingsMaster[data-covered] { display: none; }
+/* The list column's group labels are the rule's smaller list label. */
+.settingsMaster h3 { font-size: var(--type-list-label-size); letter-spacing: var(--type-list-label-tracking); color: var(--type-list-label-color); }
+.settingsBar, .pageBar { margin-bottom: calc(var(--frame-header-gap) - var(--frame-section-gap)); }
+.page { display: flex; flex-direction: column; gap: var(--frame-section-gap); padding-bottom: var(--frame-bottom-clear); }
+.page > .intro { margin: 0 var(--g); }
+.pageHead { display: none; }
+.sheetBar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-xs); height: var(--frame-header-bar); padding: 0 var(--space-control-gap); }
+.sheetBar > :first-child { justify-self: start; } .sheetBar > :last-child { justify-self: end; }
+/* Rule 3: Back and the title share the bar's centre line. */
+.sheetBar > .back { align-self: center; }
+/* R9: Done and a bar's own action are the accent; a task's Cancel is the plain text colour. */
+.barAction.barAction { color: var(--color-accent-strong); }
+.barCancel.barCancel { color: var(--color-text); padding-inline: 0; }
+.popoverHead { display: flex; flex-direction: column; gap: 2px; padding-bottom: var(--space-xs); color: var(--color-text-tertiary); font-weight: 600; }
+.popoverHead > b { color: var(--color-text); font-size: var(--type-row-label-size); font-weight: 700; }
+.pageBack { display: none; }
+.pageStatus { display: inline-flex; align-items: center; gap: 6px; font-size: var(--type-row-help-size); font-weight: 600; color: var(--color-text-secondary); white-space: nowrap; }
+.pageActions { margin-left: auto; display: flex; gap: var(--space-control-gap); align-self: center; }
+.page > .pageServer, .page > .pageTabs { margin: 0 var(--g); }
+/* The frame owns the space round the strip (rule 5): the part's own margin is taken back. */
+.pageServer > * { margin-bottom: 0; }
+@media (min-width: 600px) {
+  .settingsFrame { display: flex; gap: var(--frame-settings-gap); padding: 0 var(--g); }
+  .settingsMaster, .settingsMaster[data-covered] { display: flex; flex: none; width: var(--frame-settings-list); padding-top: var(--frame-title-top); position: sticky; top: 0; align-self: flex-start; max-height: 100dvh; overflow-y: auto; box-sizing: border-box; }
+  .settingsMaster, .settingsDetail .page { --g: 0px; --card: 0px; }
+  .settingsDetail { flex: 1; min-width: 0; max-width: var(--frame-settings-page-max); }
+  .settingsBar, .pageBar { display: none; }
+  .pageHead { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm); padding: var(--frame-title-top) var(--g) 0; margin-bottom: calc(var(--frame-header-gap) - var(--frame-section-gap)); }
+  /* A page shown alone (an owner page opened on its own, a form): Back above its title and the page's column limit. */
+  .page:not(.settingsDetail .page) { max-width: calc(var(--frame-settings-page-max) + 2 * var(--g)); }
+  /* The first of Back (alone), the server strip and the head starts at the title line; the others follow it. */
+  .page:not(.settingsDetail .page) > .pageBack { display: block; padding: var(--frame-title-top) var(--g) 0; margin-bottom: calc(-1 * var(--frame-section-gap)); }
+  .page > .pageServer { padding-top: var(--frame-title-top); }
+  .page:not(.settingsDetail .page) > .pageBack ~ .pageServer, .page:not(.settingsDetail .page) > .pageBack ~ .pageHead, .page > .pageServer + .pageHead { padding-top: 0; }
+}
+.signInForm { display: grid; gap: var(--space-px-12); }
+

@@ -46,31 +46,34 @@ export function Tabs({items, value, defaultValue, onValueChange, disabled, passi
   // W-17: on TV the strip is a plain row. A horizontal ScrollView is focusable on Android, so with
   // passive (unfocusable) tabs it took D-pad focus itself: no visible focus, and Right went nowhere.
   // A TV strip has a few tabs and never needs to scroll.
-  const stripStyle = [styles.tabs, {gap: tabsSpec.gap[theme.platform], paddingHorizontal: theme.gutter, borderBottomColor: theme.colors.line}, contentContainerStyle];
+  // The rule under the tabs is the strip's box's, not the tabs' own row's: it runs the page's full width however few tabs there are.
+  const stripStyle = [styles.tabs, {gap: tabsSpec.gap[theme.column], paddingHorizontal: theme.gutter}, contentContainerStyle];
   const strip = (children: React.ReactNode) => theme.isTV
     ? <View focusable={false} style={[stripStyle, {alignSelf: 'flex-start'}]} accessibilityRole={passive ? undefined : 'tablist'} accessibilityLabel={accessibilityLabel}>{children}</View>
     : <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{overflow: 'visible'}} contentContainerStyle={stripStyle}
       accessibilityRole={passive ? undefined : 'tablist'} accessibilityLabel={accessibilityLabel}>{children}</ScrollView></TVRow>;
   return <View style={style} testID={testID}>
-    {strip(items.map(item => {
+    <View style={{borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>{strip(items.map(item => {
         const childProps = itemProps?.(item);
         const blocked = disabled || item.disabled;
         const selected = item.value === current;
         if (passive) return <View key={item.value} testID={testID ? `${testID}-item-${item.value}` : undefined} focusable={false}
-          accessibilityState={{selected}} style={{paddingTop: tabsSpec.paddingTop[theme.platform], paddingBottom: tabsSpec.paddingBottom[theme.platform]}}>
+          accessibilityState={{selected}} style={{paddingTop: tabsSpec.paddingTop[theme.column], paddingBottom: tabsSpec.paddingBottom[theme.column]}}>
           <ChoiceLabel wrap={theme.fontScale > 1} count={item.count} countStyle={countStyle} style={[theme.type.tab, {color: selected ? theme.colors.text : theme.colors.textTertiary}]}>{item.label}</ChoiceLabel>
-          {selected ? <View pointerEvents="none" style={[styles.underline, {height: tabsSpec.underline[theme.platform], backgroundColor: theme.colors.accent}]} /> : null}
+          {selected ? <View pointerEvents="none" style={[styles.underline, {height: tabsSpec.underline[theme.column], backgroundColor: theme.colors.accent}]} /> : null}
         </View>;
         return <Focusable {...childProps} testID={childProps?.testID ?? (testID ? `${testID}-item-${item.value}` : undefined)} focusId={childProps?.focusId ?? (testID ? focusTestID(testID, item.value) : childProps?.testID)} key={item.value} nativeID={`${id}-${item.value}`} accessibilityRole="tab"
           accessibilityLabel={childProps?.accessibilityLabel ?? (item.count !== undefined && (typeof item.label === 'string' || typeof item.label === 'number') ? `${item.label}, ${item.count}` : undefined)}
           disabled={blocked} accessibilityState={{...childProps?.accessibilityState, selected}}
-          focusRadius={4} focusInset focusKind="row" onPress={event => {if (!blocked) {setCurrent(item.value); childProps?.onPress?.(event);}}}
-          style={state => [{paddingTop: tabsSpec.paddingTop[theme.platform], paddingBottom: tabsSpec.paddingBottom[theme.platform], opacity: blocked ? .45 : 1},
+          // R1: on TV a tab takes the one focus look, the ring with its gap and glow outside it (a TV strip is a plain row that
+          // never clips); the tight inset ring touched the label and the underline (r7 controls-tabs-1).
+          focusRadius={theme.isTV ? 12 : 4} focusInset={!theme.isTV} focusKind={theme.isTV ? 'button' : 'row'} onPress={event => {if (!blocked) {setCurrent(item.value); childProps?.onPress?.(event);}}}
+          style={state => [{paddingTop: tabsSpec.paddingTop[theme.column], paddingBottom: tabsSpec.paddingBottom[theme.column], opacity: blocked ? .45 : 1},
             typeof childProps?.style === 'function' ? childProps.style(state) : childProps?.style]}>
           <ChoiceLabel wrap={theme.fontScale > 1} count={item.count} countStyle={countStyle} style={[theme.type.tab, {color: selected ? theme.colors.text : theme.colors.textTertiary}]}>{item.label}</ChoiceLabel>
-          {selected ? <View pointerEvents="none" style={[styles.underline, {height: tabsSpec.underline[theme.platform], backgroundColor: theme.colors.accent}]} /> : null}
+          {selected ? <View pointerEvents="none" style={[styles.underline, {height: tabsSpec.underline[theme.column], backgroundColor: theme.colors.accent}]} /> : null}
         </Focusable>;
-    }))}
+    }))}</View>
     {active?.panel !== undefined ? <View role="tabpanel" accessibilityLabelledBy={`${id}-${active.value}`}>{active.panel}</View> : null}
   </View>;
 }
@@ -106,4 +109,4 @@ export function Segmented({items, value, defaultValue, onValueChange, variant = 
   </View>;
 }
 
-const styles = StyleSheet.create({tabs: {flexDirection: 'row', alignItems: 'stretch', borderBottomWidth: 1}, underline: {position: 'absolute', left: 0, right: 0, bottom: -1, borderRadius: 3}, segmented: {flexDirection: 'row', alignSelf: 'flex-start'}, segment: {alignItems: 'center', justifyContent: 'center', flexShrink: 1, minWidth: 38}});
+const styles = StyleSheet.create({tabs: {flexDirection: 'row', alignItems: 'stretch'}, underline: {position: 'absolute', left: 0, right: 0, bottom: -1, borderRadius: 3}, segmented: {flexDirection: 'row', alignSelf: 'flex-start'}, segment: {alignItems: 'center', justifyContent: 'center', flexShrink: 1, minWidth: 38}});

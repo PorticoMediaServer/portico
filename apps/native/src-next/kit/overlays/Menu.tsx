@@ -1,14 +1,15 @@
 import {OverlayPaintDescendants, useOverlayPaintMode} from './OverlayPaintContext';
 import React, {forwardRef, useCallback, useEffect, useRef, useState} from 'react';
-import {Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import Animated, {useAnimatedStyle} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {menuSpec, overlayForm} from '@portico/design';
 import Svg, {Defs, LinearGradient, RadialGradient, Rect, Stop} from 'react-native-svg';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
-import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Icon} from '../Icon';
-import {nativeType, useTheme} from '../theme';
+import {nativeType, useTheme, titleLine} from '../theme';
 import {Focusable} from '../controls/Focusable';
+import {BackCloseHints} from '../controls/KeyHints';
 import {BottomSheet} from './BottomSheet';
 import {OverlayPortal, useOverlayFrame, useOverlayLifecycle} from './OverlayHost';
 import {popoverRect} from './geometry';
@@ -23,7 +24,7 @@ export function TouchMenuHeader({title, artwork, kind, year}: {title?: string; a
   const theme = useTheme();
   return <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 2, paddingHorizontal: 20, paddingBottom: 12}}>
     {artwork && <View style={{width: 40, height: 60, borderRadius: 6, overflow: 'hidden'}}>{artwork}</View>}
-    <View style={{flex: 1, minWidth: 0}}><Text accessibilityRole="header" style={[nativeType({size: 17, weight: 800, tracking: -.015, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{title}</Text>
+    <View style={{flex: 1, minWidth: 0}}><Text accessibilityRole="header" style={[nativeType({size: 17, weight: 800, tracking: -.015, lineHeight: titleLine(17)}, theme.textScale), {color: theme.colors.text}]}>{title}</Text>
       {(kind || year) && <View style={{flexDirection: 'row', gap: 8, marginTop: 2}}>{[kind, year].filter(Boolean).map((fact, index) => <Text key={index} style={[nativeType({size: 13, weight: 500, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary}]}>{fact}</Text>)}</View>}
     </View>
   </View>;
@@ -44,21 +45,28 @@ export const MenuRow = forwardRef<View, MenuRowProps & {tvFlyout?: boolean; touc
       {flyout && tone === 'owner' && <View pointerEvents="none" style={[StyleSheet.absoluteFill, {borderRadius: 14, overflow: 'hidden', borderWidth: 1.5, borderColor: alpha(theme.colors.accentStrong, .2)}]}><Svg width="100%" height="100%"><Defs><LinearGradient id="flyout-owner" x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor="#2f86bb" stopOpacity={.22}/><Stop offset="1" stopColor="#1e5b52" stopOpacity={.2}/></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#flyout-owner)"/></Svg></View>}
       {!icon && selected !== undefined && <View style={{width: tv ? 28 : 18}}>{selected && <Icon name="i-check" size={tv ? 28 : 18} color={theme.colors.accentStrong}/>}</View>}
       {icon && <View style={grouped && !tv ? {width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(tone === 'owner' ? theme.colors.accent : theme.colors.text, tone === 'owner' ? 0.16 : 0.08)} : undefined}><Icon name={icon} size={flyout ? 30 : tv ? 28 : touchMenu === 'sheet' ? 24 : 18} color={iconColor}/></View>}
-      <View style={{flex: 1, minWidth: 0}}><Text numberOfLines={1} style={[nativeType({size: tv ? 26 : touchMenu === 'sheet' ? 16 : grouped ? 15.5 : 15, weight: tv && !flyout ? 700 : 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: ink}]}>{label}</Text>
+      <View style={{flex: 1, minWidth: 0}}><Text numberOfLines={tv ? 2 : 1} style={[nativeType({size: tv ? 26 : touchMenu === 'sheet' ? 16 : grouped ? 15.5 : 15, weight: tv && !flyout ? 700 : 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: ink}]}>{label}</Text>
         {description != null && (typeof description === 'string' || typeof description === 'number' ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginTop: 2}]}>{description}</Text> : <View style={{marginTop: 2}}>{description}</View>)}
       </View>
       {typeof trailing === 'string' || typeof trailing === 'number' ? <Text style={[theme.type.captionStrong, {color: theme.colors.textTertiary}]}>{trailing}</Text> : trailing ?? (icon && selected ? <Icon name="i-check" size={tv ? 28 : 18} color={theme.colors.accentStrong}/> : undefined)}
     </Focusable>;
 });
 
+/** R9: the TV column's cell for a menu or a picker (`overlayForms`, packages/design): the side sheet with key hints at its foot. */
+const tvMenuForm = overlayForm('actions', 'tv');
+
+/** R9, TV column: on TV a menu or picker is never a pointer drop-down. Every popover but the rail's own flyout (`right-end`,
+ * tv-focus 9) is the TV side sheet: the right-hand panel over the dimmed page with its eyebrow (`headerContext`), title,
+ * full-width rows and the Back/Close key hints at its foot (detail-tv 5c, tv-focus 4 and 43, tv-more 23). */
 export function Popover({open, onOpenChange, anchorRef, title, headerContext, description, children, footer, initialFocusRef, returnFocusRef, restoreFocus = true, accessibilityLabel, testID, style, contentStyle, titleType, titleTextStyle, descriptionTextStyle, width = 282, modal = false, holdFocus: suppliedHoldFocus, showTitle = false, backdropOpacity = 0, placement = 'bottom-end', offset = 6, alignOffset = 0, dismissOnOutsidePress = true, touchContext = false}: PopoverProps & {touchContext?: boolean}) {
-  const theme = useTheme(), paint = useOverlayPaintMode();
+  const theme = useTheme(), paint = useOverlayPaintMode(), tvSide = theme.isTV && placement !== 'right-end' && tvMenuForm?.kind === 'side';
   // TV: an open popover holds the remote's focus (as the kit Menu does), so Down can't walk into the page behind it.
   const holdFocus = suppliedHoldFocus ?? (modal || theme.isTV);
   const viewport = useWindowDimensions();
   const hostFrame = useOverlayFrame();
   const insets = useSafeAreaInsets();
-  const animation = useSurfaceMotion(open, 'menu');
+  // The TV side sheet is a `BottomSheet` with its own motion and lifecycle; this surface's stay idle.
+  const animation = useSurfaceMotion(open && !tvSide, 'menu');
   const progress = animation.progress;
   const backdropStyle = useAnimatedStyle(() => ({opacity: progress.value}));
   const [anchor, setAnchor] = useState<{x: number; y: number; width: number; height: number}>();
@@ -66,19 +74,26 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
   const dismiss = useCallback((reason: OverlayReason) => onOpenChange(false, reason), [onOpenChange]);
   // A modal popover hides its Modal as soon as it closes, and is gone (focus back) once the platform says so
   // (useNativeModalPresence); an in-window one goes with its presence.
-  const native = useNativeModalPresence(modal && animation.present, open);
+  const native = useNativeModalPresence(modal && animation.present, open && !tvSide);
   const present = modal ? native.mounted : animation.present;
-  useOverlayLifecycle(present, modal, dismiss, initialFocusRef, returnFocusRef ?? anchorRef, animation.enterMs, testID, restoreFocus);
+  useOverlayLifecycle(present && !tvSide, modal, dismiss, initialFocusRef, returnFocusRef ?? anchorRef, animation.enterMs, testID, restoreFocus);
   useEffect(() => {
-    if (!open) return;
+    if (!open || tvSide) return;
     let live = true, frame: number | undefined;
     const measure = () => {
-      anchorRef.current?.measureInWindow((x, y, width, height) => {if (live) setAnchor(previous => previous && previous.x === x && previous.y === y && previous.width === width && previous.height === height ? previous : {x, y, width, height});});
+      // A modal surface draws from the top of the screen (statusBarTranslucent), but Android measures the anchor below
+      // the status bar (the safe area's top): without this a modal popover lands one status bar too high, over its own trigger.
+      const drop = modal && Platform.OS === 'android' ? insets.top : 0;
+      anchorRef.current?.measureInWindow((x, measuredY, width, height) => {const y = measuredY + drop; if (live) setAnchor(previous => previous && previous.x === x && previous.y === y && previous.width === width && previous.height === height ? previous : {x, y, width, height});});
       if (touchContext || placement === 'right-end') frame = requestAnimationFrame(measure);
     };
     measure();
     return () => {live = false; if (frame !== undefined) cancelAnimationFrame(frame);};
-  }, [open, anchorRef, viewport.width, viewport.height, insets.top, insets.bottom, insets.left, insets.right, touchContext, placement]);
+  }, [open, anchorRef, viewport.width, viewport.height, insets.top, insets.bottom, insets.left, insets.right, touchContext, placement, tvSide, modal]);
+  if (tvSide) return <BottomSheet open={open} onOpenChange={onOpenChange} title={title} headerContext={headerContext} description={description} footer={footer ?? (tvMenuForm?.foot === 'hints' ? <BackCloseHints/> : undefined)} showClose={false} fitContent
+    initialFocusRef={initialFocusRef} returnFocusRef={returnFocusRef ?? anchorRef} restoreFocus={restoreFocus} accessibilityLabel={accessibilityLabel} testID={testID}>
+    <View style={[{gap: menuSpec.tvSheetRowGap}, contentStyle]}>{children}</View>
+  </BottomSheet>;
   if (!present || !paint.visible || !anchor) return null;
   const touchRect = touchContext ? touchMenuRect(anchor, viewport, height, insets) : undefined;
   const canvasScale = theme.isTV && placement === 'right-end' ? Math.min(viewport.width / theme.layout.designWidth.tv, viewport.height / theme.layout.designHeight.tv) : 1;
@@ -93,7 +108,7 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
     {tvFlyout && <View pointerEvents="none" style={StyleSheet.absoluteFill}><Svg width="100%" height="100%"><Defs><LinearGradient id="tv-flyout" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor="#162c3a"/><Stop offset="1" stopColor="#0f2230"/></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#tv-flyout)"/></Svg><View style={[StyleSheet.absoluteFill, {borderRadius: 24, borderWidth: 1.5, borderColor: alpha(theme.colors.text, .1)}]}/></View>}
     <FocusBoundary modal={holdFocus} testID={testID}><View onLayout={event => setHeight(event.nativeEvent.layout.height)} style={[tvFlyout ? {padding: 14} : touchContext ? {padding: 8} : {paddingVertical: 6}, contentStyle]}>
       {headerContext}
-      {showTitle && title != null && <Text accessibilityRole="header" style={[titleType ? nativeType(titleType, theme.textScale) : touchContext ? nativeType({size: 15, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale) : theme.type.bodyStrong, {color: theme.colors.text, paddingHorizontal: touchContext ? 20 : 14, paddingTop: touchContext ? 6 : 8, paddingBottom: touchContext ? 10 : 8, marginHorizontal: touchContext ? -8 : 0, marginBottom: touchContext ? 6 : 0, borderBottomWidth: touchContext ? 1 : 0, borderBottomColor: alpha(theme.colors.text, .08)}, titleTextStyle]}>{title}</Text>}
+      {showTitle && title != null && <Text accessibilityRole="header" style={[titleType ? nativeType(titleType, theme.textScale) : touchContext ? nativeType({size: 15, weight: 800, tracking: 0, lineHeight: titleLine(15)}, theme.textScale) : theme.type.bodyStrong, {color: theme.colors.text, paddingHorizontal: touchContext ? 20 : 14, paddingTop: touchContext ? 6 : 8, paddingBottom: touchContext ? 10 : 8, marginHorizontal: touchContext ? -8 : 0, marginBottom: touchContext ? 6 : 0, borderBottomWidth: touchContext ? 1 : 0, borderBottomColor: alpha(theme.colors.text, .08)}, titleTextStyle]}>{title}</Text>}
       {description != null && <Text style={[theme.type.caption, {color: theme.colors.textSecondary, paddingHorizontal: 14}, descriptionTextStyle]}>{description}</Text>}
       {children}{footer}
     </View></FocusBoundary>
@@ -115,13 +130,15 @@ export function Popover({open, onOpenChange, anchorRef, title, headerContext, de
 export function Menu({items, open, onOpenChange, title, description, footer, initialFocusRef, returnFocusRef, restoreFocus = true, accessibilityLabel, testID, style, contentStyle, titleType, titleTextStyle, descriptionTextStyle, anchorRef, width, presentation, placement, offset, alignOffset, initialFocusId, secondaryTitle, context, touchHeader, touchContext = false}: MenuProps & {touchContext?: boolean; touchHeader?: React.ReactNode}) {
   const theme = useTheme(), viewport = useWindowDimensions(), insets = useSafeAreaInsets();
   const first = useRef<View>(null);
-  const actualPresentation = touchContext && !theme.isTV ? viewport.width < 600 ? 'sheet' : 'anchored' : presentation ?? (theme.isTV ? 'sideSheet' : anchorRef ? 'anchored' : 'sheet');
+  // R9, TV column: a TV menu is the side sheet whatever the caller asked for; only the rail's flyout stays anchored.
+  const actualPresentation = theme.isTV && tvMenuForm?.kind === 'side' ? presentation === 'anchored' && placement === 'right-end' ? 'anchored' : 'sideSheet'
+    : touchContext ? viewport.width < 600 ? 'sheet' : 'anchored' : presentation ?? (anchorRef ? 'anchored' : 'sheet');
   const tvFlyout = theme.isTV && actualPresentation === 'anchored' && placement === 'right-end';
   const compactTouch = touchContext && !theme.isTV && actualPresentation === 'sheet';
   const grouped = !touchContext && (actualPresentation === 'sheet' || (actualPresentation === 'sideSheet' && !theme.isTV));
   if (actualPresentation === 'anchored' && !anchorRef) {if (open) throw new Error('An anchored menu requires an anchor ref.'); return null;}
   const rows = items.map((entry, index) => {
-    if ('section' in entry) return <Text key={entry.id} style={[compactTouch ? nativeType({size: 13.5, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale) : theme.type.captionStrong, {color: entry.tone === 'owner' ? theme.colors.accentStrong : theme.colors.textTertiary, marginHorizontal: theme.isTV ? 0 : compactTouch && entry.tone === 'owner' ? 14 : 20, marginTop: compactTouch ? 10 : 16, marginBottom: compactTouch ? 2 : 8}]}>{entry.label}</Text>;
+    if ('section' in entry) return <Text key={entry.id} style={[compactTouch ? nativeType({size: 13.5, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale) : theme.type.captionStrong, {color: theme.colors.textTertiary, marginHorizontal: theme.isTV ? 0 : compactTouch && entry.tone === 'owner' ? 14 : 20, marginTop: compactTouch ? 10 : 16, marginBottom: compactTouch ? 2 : 8}]}>{entry.label}</Text>;
     if ('separator' in entry) return <View key={entry.id} style={grouped ? {height: 12} : {height: 1.5, backgroundColor: alpha(theme.colors.line, 0.9), marginHorizontal: tvFlyout ? 12 : 4, marginVertical: tvFlyout ? 8 : 6}}/>;
     const previousAction = items.slice(0, index).some(value => !('section' in value) && !('separator' in value) && !value.disabled);
     const initial = entry.id === initialFocusId || (!initialFocusId && !entry.disabled && !previousAction);
@@ -130,7 +147,7 @@ export function Menu({items, open, onOpenChange, title, description, footer, ini
     const groupStart = !previous || 'separator' in previous || 'section' in previous;
     const groupEnd = !next || 'separator' in next || 'section' in next;
     const corners = {borderTopLeftRadius: groupStart ? 14 : 0, borderTopRightRadius: groupStart ? 14 : 0, borderBottomLeftRadius: groupEnd ? 14 : 0, borderBottomRightRadius: groupEnd ? 14 : 0};
-    return <View key={entry.id} style={[{marginHorizontal: grouped ? 16 : 0, marginBottom: actualPresentation === 'sideSheet' && theme.isTV ? 12 : 0, overflow: grouped ? 'hidden' : 'visible', backgroundColor: grouped ? theme.colors.raisedHigh : undefined}, corners]}>
+    return <View key={entry.id} style={[{marginHorizontal: grouped ? 16 : 0, marginBottom: actualPresentation === 'sideSheet' && theme.isTV ? menuSpec.tvSheetRowGap : 0, overflow: grouped ? 'hidden' : 'visible', backgroundColor: grouped ? theme.colors.raisedHigh : undefined}, corners]}>
       <MenuRow touchMenu={touchContext && !theme.isTV ? compactTouch ? 'sheet' : 'popover' : undefined} tvFlyout={tvFlyout} testID={testID ? `${testID}-item-${entry.id}` : undefined} focusId={entry.id} ref={initial ? first : undefined} variant={grouped ? 'grouped' : actualPresentation === 'sideSheet' ? 'tv' : 'compact'} style={touchContext && !theme.isTV ? {minHeight: 44} : undefined} label={entry.label} trailing={entry.trailing} description={entry.description} icon={entry.icon} disabled={entry.disabled} selected={entry.selected} destructive={entry.destructive} tone={entry.tone} onMenu={() => onOpenChange(false, 'back')} preferredFocus={initial} onPress={() => {entry.onSelect(); if (entry.closeOnSelect !== false) onOpenChange(false, 'action');}}/>
       {grouped && !groupStart && <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 56, right: 0, height: 1, backgroundColor: alpha(theme.colors.lineStrong, 0.45)}}/>}
       {grouped && entry.tone === 'owner' && <View pointerEvents="none" style={[StyleSheet.absoluteFill, corners, {borderColor: alpha(theme.colors.accentStrong, 0.28), borderLeftWidth: 1, borderRightWidth: 1, borderTopWidth: groupStart ? 1 : 0, borderBottomWidth: groupEnd ? 1 : 0}]}/>}
@@ -140,7 +157,7 @@ export function Menu({items, open, onOpenChange, title, description, footer, ini
   const body = firstOwner < 0 ? rows : <>{rows.slice(0, firstOwner)}<View style={{marginTop: 8, marginHorizontal: 12, paddingVertical: 4, borderRadius: 16, backgroundColor: '#0b1822', overflow: 'hidden', borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .18)}}><View pointerEvents="none" style={StyleSheet.absoluteFill}><Svg width="100%" height="100%"><Defs><RadialGradient id="touch-owner" cx="100%" cy="0%" rx="120%" ry="100%"><Stop offset="0" stopColor="#2f86bb" stopOpacity={.24}/><Stop offset="0.62" stopColor="#2f86bb" stopOpacity={0}/></RadialGradient></Defs><Rect width="100%" height="100%" fill="url(#touch-owner)"/></Svg></View>{rows.slice(firstOwner)}</View></>;
   const heading = secondaryTitle == null ? title : <>{title}{'  '}<Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{secondaryTitle}</Text></>;
   if (actualPresentation === 'anchored') return <Popover showTitle={touchContext} touchContext={touchContext} modal={touchContext && !theme.isTV ? true : undefined} backdropOpacity={touchContext ? .58 : 0} holdFocus={touchContext || theme.isTV} restoreFocus={restoreFocus} open={open} onOpenChange={onOpenChange} anchorRef={anchorRef!} headerContext={context} placement={placement} offset={offset} alignOffset={alignOffset} width={touchContext ? 300 : width} title={title} description={description} titleType={titleType} titleTextStyle={titleTextStyle} descriptionTextStyle={descriptionTextStyle} footer={footer} initialFocusRef={initialFocusRef ?? first} returnFocusRef={returnFocusRef ?? anchorRef} accessibilityLabel={accessibilityLabel} testID={testID} style={style} contentStyle={contentStyle}><ScrollView keyboardShouldPersistTaps="handled">{body}</ScrollView></Popover>;
-  return <BottomSheet showClose={touchContext ? false : undefined} backdropOpacity={touchContext ? .58 : undefined} restoreFocus={restoreFocus} open={open} onOpenChange={onOpenChange} title={heading} description={description} titleType={titleType} titleTextStyle={titleTextStyle} descriptionTextStyle={descriptionTextStyle} width={touchContext ? undefined : width} footer={footer ?? (theme.isTV ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}><Text style={{color: theme.colors.text}}>{defaultI18n.t('action.back')}</Text>{'  '}{defaultI18n.t('action.close')}</Text> : undefined)} headerContext={context} headerContent={touchContext && !theme.isTV ? touchHeader : undefined} initialFocusRef={initialFocusRef ?? first} returnFocusRef={returnFocusRef} accessibilityLabel={accessibilityLabel} testID={testID} style={style} contentStyle={contentStyle} fitContent>
+  return <BottomSheet showClose={touchContext ? false : undefined} backdropOpacity={touchContext ? .58 : undefined} restoreFocus={restoreFocus} open={open} onOpenChange={onOpenChange} title={heading} description={description} titleType={titleType} titleTextStyle={titleTextStyle} descriptionTextStyle={descriptionTextStyle} width={touchContext ? undefined : width} footer={footer ?? (theme.isTV ? <BackCloseHints/> : undefined)} headerContext={context} headerContent={touchContext && !theme.isTV ? touchHeader : undefined} initialFocusRef={initialFocusRef ?? first} returnFocusRef={returnFocusRef} accessibilityLabel={accessibilityLabel} testID={testID} style={style} contentStyle={contentStyle} fitContent>
     {compactTouch ? <View style={{paddingBottom: Math.max(0, 30 - insets.bottom)}}>{body}</View> : body}
   </BottomSheet>;
 }

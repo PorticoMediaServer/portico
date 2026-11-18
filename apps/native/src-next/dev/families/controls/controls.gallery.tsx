@@ -7,13 +7,15 @@ import type {Gallery} from '../../gallery-registry';
 import {Button, Chip, Focusable, ResumeButton, Segmented, Switch, Tabs, TextField, Select, RichSelect, type ButtonSize, type ButtonVariant, type ChipVariant} from '../../../kit/controls';
 import {fontFamilies, nativeType, useTheme} from '../../../kit/theme';
 import {OverlaysProvider} from '../../../kit/overlays/OverlayHost';
+import {StartFocusScope} from '../../../kit/focus';
 
 const t = defaultI18n.t;
 const longTitle = nativeControlsFixtureMessages['next.controls.native.fixture.longTitle'];
 
-function Frame({title, children}: {title: NextMessageId; children: React.ReactNode}) {
+/** `start`: on TV, the control the case starts on (R1), by its testID: the first control drawn. */
+function Frame({title, start, children}: {title: NextMessageId; start?: string; children: React.ReactNode}) {
   const theme = useTheme();
-  return <OverlaysProvider><View style={{gap: 24, padding: 8}}><Text accessibilityRole="header" style={[theme.type.heading, {color: theme.colors.text}]}>{t(title)}</Text>{children}</View></OverlaysProvider>;
+  return <OverlaysProvider><StartFocusScope id={start}><View style={{gap: 24, padding: 8}}><Text accessibilityRole="header" style={[theme.type.heading, {color: theme.colors.text}]}>{t(title)}</Text>{children}</View></StartFocusScope></OverlaysProvider>;
 }
 function Count({value}: {value: number}) {
   const theme = useTheme();
@@ -27,7 +29,7 @@ export function ButtonsGallery() {
   const press = () => setCount(value => value + 1);
   const variants: readonly ButtonVariant[] = ['primary', 'glass', 'text', 'icon'];
   const sizes: readonly ButtonSize[] = ['hero', 'compact', 'small', 'xs', 'episode', 'dock'];
-  return <Frame title="next.controls.native.buttonsTitle">
+  return <Frame title="next.controls.native.buttonsTitle" start="controls-button-hero-primary">
     {sizes.map(size => <View key={size} style={{flexDirection: 'row', flexWrap: 'wrap', gap: 16}}>
       {variants.map(variant => <Button key={variant} variant={variant} size={size} icon={variant === 'icon' ? 'i-more' : 'i-play'}
         testID={`controls-button-${size}-${variant}`} accessibilityLabel={variant === 'icon' ? t('title.more') : undefined}
@@ -49,7 +51,7 @@ export function ButtonsGallery() {
 
 export function ResumeGallery() {
   const [count, setCount] = useState(0);
-  return <Frame title="next.controls.native.resumeTitle">
+  return <Frame title="next.controls.native.resumeTitle" start="controls-resume-0">
     {[0, .09, .67, 1].map(progress => <ResumeButton key={progress} progress={progress} testID={`controls-resume-${progress}`}
       remaining={t('next.kit.remaining', {time: t('next.kit.duration.hoursMinutes', {hours: 1, minutes: 26})})}
       onPress={() => setCount(value => value + 1)}>{t('entry.resume')}</ResumeButton>)}
@@ -60,10 +62,11 @@ export function ResumeGallery() {
 }
 
 export function ChipsGallery() {
+  const theme = useTheme();
   const [selected, setSelected] = useState<Record<string, boolean>>({facet: true, applied: true});
   const [count, setCount] = useState(0);
   const variants: readonly ChipVariant[] = ['default', 'quick', 'facet', 'applied', 'pill'];
-  return <Frame title="next.controls.native.chipsTitle">
+  return <Frame title="next.controls.native.chipsTitle" start="controls-chip-default">
     {variants.map(variant => <View key={variant} style={{flexDirection: 'row', flexWrap: 'wrap', gap: 12}}>
       <Chip variant={variant} selected={!!selected[variant]} count={variant === 'default' ? 0 : 24}
         prefix={variant === 'applied' ? t('filter.field.genre') : undefined} icon={variant === 'quick' ? 'i-check' : undefined}
@@ -73,7 +76,8 @@ export function ChipsGallery() {
       <Chip variant={variant} retry count={4} testID={`controls-chip-${variant}-retry`} onPress={() => setCount(value => value + 1)}>{t('action.tryAgain')}</Chip>
       <Chip variant={variant} disabled testID={`controls-chip-${variant}-disabled`} onPress={() => setCount(value => value + 1)}>{t('search.chip.all')}</Chip>
     </View>)}
-    <Chip style={{maxWidth: 240}} onPress={() => setCount(value => value + 1)} testID="controls-chip-long">{longTitle}</Chip>
+    {/* R1/S9: on TV no label is cut, so the long chip takes the room its name needs; elsewhere it shows the limit. */}
+    <Chip style={theme.isTV ? undefined : {maxWidth: 240}} onPress={() => setCount(value => value + 1)} testID="controls-chip-long">{longTitle}</Chip>
     <Chip defaultSelected count={2} countStyle="badge" onSelectedChange={() => setCount(value => value + 1)} testID="controls-chip-uncontrolled">{t('filter.quick.unwatched')}</Chip>
     <Count value={count} />
   </Frame>;
@@ -87,7 +91,7 @@ export function TabsGallery() {
     {value: 'details', label: t('title.details'), panel: <Text style={[theme.type.body, {color: theme.colors.text}]}>{t('title.details')}</Text>},
     {value: 'long', label: longTitle, disabled: true},
   ];
-  return <Frame title="next.controls.native.tabsTitle">
+  return <Frame title="next.controls.native.tabsTitle" start="controls-tabs-controlled-item-episodes">
     <Tabs items={items} value={value} onValueChange={setValue} testID="controls-tabs-controlled" />
     <Tabs items={items} defaultValue="details" testID="controls-tabs-uncontrolled" />
     {theme.isTV ? <Tabs items={items} value={value} onValueChange={setValue}
@@ -98,7 +102,7 @@ export function TabsGallery() {
 export function SegmentedGallery() {
   const [value, setValue] = useState('any');
   const items = [{value: 'any', label: t('lib.any')}, {value: 'yes', label: t('next.kit.yes')}, {value: 'no', label: t('next.kit.no')}];
-  return <Frame title="next.controls.native.segmentedTitle">
+  return <Frame title="next.controls.native.segmentedTitle" start={`controls-segmented-glass-item-${items[0].value}`}>
     {(['glass', 'browse', 'phone'] as const).map(variant => <Segmented key={variant} variant={variant} items={items} value={value} onValueChange={setValue} testID={`controls-segmented-${variant}`} />)}
     <Segmented items={items.map(item => ({...item, disabled: item.value === 'yes'}))} defaultValue="no" testID="controls-segmented-uncontrolled" />
   </Frame>;
@@ -106,7 +110,7 @@ export function SegmentedGallery() {
 
 export function SwitchesGallery() {
   const [checked, setChecked] = useState(true);
-  return <Frame title="next.controls.native.switchesTitle">
+  return <Frame title="next.controls.native.switchesTitle" start="controls-switch-compact-controlled">
     {(['compact', 'phone', 'episode', 'selection'] as const).map(variant => <View key={variant} style={{gap: 20}}>
       <Switch variant={variant} checked={checked} onCheckedChange={setChecked} testID={`controls-switch-${variant}-controlled`}>{t('settings.row.autoplayNext')}</Switch>
       <Switch variant={variant} defaultChecked={false} testID={`controls-switch-${variant}-uncontrolled`}>{t('settings.row.startNextDuringCredits')}</Switch>
@@ -118,7 +122,7 @@ export function SwitchesGallery() {
 /** Idle, idle-with-a-pending-flag and busy, stretched so a label off centre shows (outside review VP-12). */
 export function ButtonsBusyGallery() {
   const press = () => {};
-  return <Frame title="next.controls.native.buttonsTitle">
+  return <Frame title="next.controls.native.buttonsTitle" start="controls-busy-undefined">
     {([undefined, false, true] as const).map(loading => <Button key={String(loading)} testID={`controls-busy-${String(loading)}`} loading={loading}
       onPress={press} style={{alignSelf: 'stretch'}}>{t('action.tryAgain')}</Button>)}
     {([undefined, false, true] as const).map(loading => <Button key={`glass-${String(loading)}`} variant="glass" loading={loading}
@@ -130,7 +134,7 @@ export function FieldsGallery() {
   const [value, setValue] = useState('');
   const field = useRef<TextInput>(null);
   const theme = useTheme();
-  return <Frame title="next.controls.native.fieldsTitle">
+  return <Frame title="next.controls.native.fieldsTitle" start="controls-field-search">
     <TextField ref={field} label={t('browse.field.search')} value={value} onChangeText={setValue} variant="search" leadingIcon="i-search"
       placeholder={t('search.placeholder')} clearButtonMode="while-editing" returnKeyType="search" testID="controls-field-search" />
     <TextField label={t('settings.row.autoplayNext')} description={t('settings.help.qualityHome')} defaultValue={t('entry.play')} testID="controls-field-default" />
@@ -167,7 +171,7 @@ export function SelectGallery() {
     {value: 'always', label: t('settings.subtitleMode.always')},
     {value: 'long', label: longTitle, disabled: true},
   ];
-  return <Frame title="next.controls.native.selectTitle">
+  return <Frame title="next.controls.native.selectTitle" start="controls-select-controlled">
     <Select label={t('settings.row.subtitleMode')} options={options} value={value} onValueChange={setValue} open={open} onOpenChange={setOpen} testID="controls-select-controlled" />
     <Select label={t('settings.row.subtitleMode')} options={options} defaultValue="off" testID="controls-select-uncontrolled" />
     <Select label={t('settings.row.subtitleMode')} options={options} value="always" disabled testID="controls-select-disabled" />
@@ -183,7 +187,7 @@ export function RichSelectGallery() {
     {value: 'long', label: longTitle, description: t('settings.help.qualityHome')},
     {value: 'disabled', label: t('settings.playbackMethod.convert'), description: t('player.quality.conversionOff'), disabled: true},
   ];
-  return <Frame title="next.controls.native.richSelectTitle">
+  return <Frame title="next.controls.native.richSelectTitle" start="controls-rich-select-controlled">
     <RichSelect label={t('settings.row.qualityAway')} options={options} value={value} onValueChange={setValue} testID="controls-rich-select-controlled" />
     <RichSelect label={t('settings.row.qualityHome')} options={options} defaultValue="original" testID="controls-rich-select-uncontrolled" />
     <RichSelect label={t('settings.row.qualityAway')} options={options} disabled testID="controls-rich-select-disabled" />
@@ -198,7 +202,7 @@ export function TVChoiceGallery() {
     {value: 'auto', label: t('pref.value.playback.introSkip.auto')},
     {value: 'off', label: t('pref.value.playback.introSkip.off')},
   ];
-  return <Frame title="next.controls.native.selectTitle">
+  return <Frame title="next.controls.native.selectTitle" start="controls-select-tv-choice">
     <Select label={t('pref.label.playback.introSkip')} options={options} value={value} onValueChange={setValue}
       pickerContext={<Text style={[nativeType({size: 22, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{t('settings.section.skipping')}</Text>}
       pickerDescription={t('pref.help.playback.introSkip')} testID="controls-select-tv-choice" />

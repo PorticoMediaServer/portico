@@ -101,9 +101,10 @@ test('text buttons keep authored default geometry and grow/wrap only when text i
     const outer = f.host.render(() => Button({size: 'xs', children: 'A longer action label', style: {height: 28, minHeight: 32}}));
     const button = f.host.render(() => outer.type(outer.props));
     const style = flatten(button.props.style(idle)), content = button.props.children(idle), label = nodes(content).find(node => node.type === 'Text');
-    assert.equal(style.height, scale === 1 ? 28 : undefined);
+    // A labelled button's height is a minimum at every text size: its label wraps to a second line before it is ever cut (owner, 18 Nov).
+    assert.equal(style.height, undefined);
     assert.equal(style.minHeight, 32, 'a caller minimum is retained');
-    assert.equal(label.props.numberOfLines, scale === 1 ? 1 : undefined);
+    assert.equal(label.props.numberOfLines, scale === 1 ? 2 : undefined);
     const iconOuter = f.host.render(() => Button({variant: 'icon', size: 'xs', iconOnly: true, icon: 'i-more'}));
     const icon = f.host.render(() => iconOuter.type(iconOuter.props));
     assert.equal(flatten(icon.props.style(idle)).height, 34, 'decorative glyph geometry does not scale');

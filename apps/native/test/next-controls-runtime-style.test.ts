@@ -130,7 +130,7 @@ test('actual hero Button and every PhoneTabBar item deliver their geometry acros
   const button = await mount(Button, {size: 'hero', children: 'Actual action'});
   try {
     const style = nativeStyle(button.native());
-    assert.equal(style.height, 46); assert.equal(style.paddingHorizontal, 20);
+    assert.equal(style.minHeight, 46); assert.equal(style.paddingHorizontal, 20);
     assert.equal(style.borderRadius, 10); assert.equal(style.alignItems, 'center');
     assert.deepEqual(style.transform, [{scale: 1}]);
     assert.ok(animatedInputs.every(props => Array.isArray(props.style)));

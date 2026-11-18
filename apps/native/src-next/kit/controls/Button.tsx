@@ -1,6 +1,6 @@
 import React, {forwardRef} from 'react';
 import {ActivityIndicator, Platform, StyleSheet, Text, View, type TextStyle, type ViewStyle, type StyleProp} from 'react-native';
-import {buttonSpec} from '@portico/design';
+import {buttonSpec, emphasis, iconClass as iconClasses, type IconClass} from '@portico/design';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {Icon, type IconName} from '../Icon';
 import {useTheme} from '../theme';
@@ -17,11 +17,16 @@ export type ButtonProps = Omit<FocusableProps, 'children'> & {
   iconSize?: number;
   /** Optional drawn glyph color; labels continue to use textStyle. */
   iconColor?: string;
+  /** R4: the glyph's class. It sets the glyph's size for this form and its level of emphasis (a white primary button
+   * keeps its ink). A transport button is `primary` unless it says otherwise; shuffle, repeat and tool glyphs are `secondary`. */
+  iconClass?: IconClass;
+  /** With `iconClass`: the control is on (repeat on, a panel's button while its panel is open), so its glyph is the accent. */
+  active?: boolean;
   iconOnly?: boolean;
   /** The leading slot is drawn only for an icon or a running spinner, so an idle label stays centred on every platform. */
   loading?: boolean;
   textStyle?: StyleProp<TextStyle>;
-  /** Lines the label may take before it is cut (default 1); the face grows to hold them. Larger text always wraps. */
+  /** Lines the label may take: at least 2, so a label that does not fit on one line wraps and is never cut. The face grows to hold them. Larger text always wraps. */
   labelLines?: number;
   /** Where the button sits across its parent. React Native would stretch it, so the kit's own default is 'start' (content width); a centring parent's button says 'center'. */
   align?: 'start' | 'center' | 'end' | 'stretch';
@@ -32,26 +37,30 @@ type ButtonContentProps = ButtonProps & {progress?: number; remaining?: React.Re
 const paddingKeys = ['padding', 'paddingHorizontal', 'paddingVertical', 'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom', 'paddingStart', 'paddingEnd', 'paddingBlock', 'paddingBlockStart', 'paddingBlockEnd', 'paddingInline', 'paddingInlineStart', 'paddingInlineEnd'] as const;
 
 const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonContent({
-  variant = 'primary', size = 'hero', children, icon, trailingIcon, iconSize, iconColor, iconOnly = variant === 'icon', loading,
+  variant = 'primary', size = 'hero', children, icon, trailingIcon, iconSize, iconColor, iconClass, active, iconOnly = variant === 'icon', loading,
   disabled, style, textStyle, labelLines = 1, accessibilityState, hitSlop, progress, remaining, align = 'start', ...props
 }, ref) {
   const theme = useTheme();
   // A link's label is a sentence: it wraps rather than cutting off, at every text size, unless it is given a height.
   const linkWraps = variant === 'link' && !theme.isTV && typeof StyleSheet.flatten(typeof style === 'function' ? undefined : style)?.height !== 'number';
   const grow = !iconOnly && (linkWraps || theme.fontScale > 1 || theme.textScale > 1);
-  const fluid = grow || (!iconOnly && labelLines > 1);
-  const geometry = buttonGeometry(size, theme.platform, variant);
+  // Owner's rule (18 Nov): a label is never shrunk and never cut. A button is as wide as its label; where its place is too narrow for
+  // that, the label takes a second line and the face grows to hold it. So a labelled button's height is a minimum, not a limit: the
+  // same face every button already has at larger text.
+  const lines = Math.max(labelLines, 2), fluid = !iconOnly;
+  const geometry = buttonGeometry(size, theme.column, variant);
   const nativeStyle = StyleSheet.flatten(typeof style === 'function' ? undefined : style);
   const height = typeof nativeStyle?.height === 'number' ? nativeStyle.height : geometry.height;
-  const radius = typeof nativeStyle?.borderRadius === 'number' ? nativeStyle.borderRadius : iconOnly ? height / 2 : geometry.radius;
-  const glyphSize = iconSize ?? geometry.icon;
+  // A round icon button is the `icon` variant (and the round transport size). An icon-only action beside labelled ones (Add, Download, More) keeps the button's own corners.
+  const radius = typeof nativeStyle?.borderRadius === 'number' ? nativeStyle.borderRadius : variant === 'icon' ? height / 2 : geometry.radius;
+  const glyphSize = iconSize ?? (iconClass ? theme.scale.icon[iconClass].size : geometry.icon);
   const recipe = glassRecipe();
   const white = variant === 'primary';
   const tvDisabledPrimary = theme.isTV && white && disabled;
   const glass = variant === 'glass' || variant === 'icon' || variant === 'danger';
   const androidGlass = glass && recipe.nativeBlur && Platform.OS === 'android';
   const foreground = tvDisabledPrimary ? theme.colors[buttonSpec.tvDisabledPrimary.foreground] : white ? theme.colors.ink : variant === 'danger' ? theme.colors.record : variant === 'link' ? theme.colors.accentStrong : variant === 'text' ? theme.platform === 'web' ? theme.colors.textSecondary : theme.colors.accentStrong : theme.colors.text;
-  const glyphColor = iconColor ?? foreground;
+  const glyphColor = iconColor ?? (iconClass && !white ? theme.emphasis[active ? emphasis.active : iconClasses[iconClass].level] : foreground);
   const labelStyle = [theme.type.button, styles.label, {fontSize: geometry.fontSize * theme.textScale, color: foreground}, textStyle];
   const labelId = props.testID ?? props.focusId;
   const labelObservation = useNativeObservation<Text>({kind: 'text', semanticId: labelId ? `${labelId}/label` : undefined,
@@ -85,8 +94,7 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
         {icon || loading ? <View style={{width: glyphSize, height: glyphSize, alignItems: 'center', justifyContent: 'center'}}>
           {loading ? <ActivityIndicator size={glyphSize} color={glyphColor} /> : icon ? <Icon name={icon} size={glyphSize} color={glyphColor} /> : null}
         </View> : null}
-        {/* A control's label is never cut (owner's rule): a one-line label that does not fit shrinks a little first ("Continue readi…", W4 F11). */}
-        {!iconOnly ? <Text {...labelObservation.textProps} numberOfLines={grow ? undefined : labelLines} ellipsizeMode="tail" {...(!grow && labelLines === 1 ? {adjustsFontSizeToFit: true, minimumFontScale: .8} : {})} style={labelStyle}>{children}</Text> : null}
+        {!iconOnly ? <Text {...labelObservation.textProps} numberOfLines={grow ? undefined : lines} style={labelStyle}>{children}</Text> : null}
         {inline && fraction !== undefined && !iconOnly ? <View style={[styles.inlineTrack, {backgroundColor: colorAlpha(white ? theme.colors.ink : theme.colors.text, .16)}]}><View style={[styles.fill, {width: `${fraction * 100}%`, backgroundColor: white ? theme.colors.accent : theme.colors.accentStrong}]} /></View> : null}
         {remaining !== undefined && !iconOnly ? <>
           <Text numberOfLines={grow ? undefined : 1} style={[theme.type.button, {fontSize: (theme.isTV ? 22 : geometry.fontSize) * theme.textScale, color: white ? colorAlpha(theme.colors.ink, .66) : theme.colors.textTertiary, flexShrink: grow ? 1 : undefined}, textStyle]}>{remaining}</Text>

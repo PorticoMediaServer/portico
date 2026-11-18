@@ -27,6 +27,19 @@ export function usePhone() {
   return phone;
 }
 
+/** The frame form of the window (packages/design `frameForm`): phone under 600, medium to 1023, expanded from 1024.
+ * The web has no TV form. Overlays read their kind for a task from `overlayForms` with it (R9). */
+export function useFrameForm(): 'phone' | 'medium' | 'expanded' {
+  const read = (): 'phone' | 'medium' | 'expanded' => typeof window === 'undefined' ? 'expanded' : window.matchMedia('(max-width: 599px)').matches ? 'phone' : window.matchMedia('(max-width: 1023px)').matches ? 'medium' : 'expanded';
+  const [form, setForm] = useState(read);
+  useEffect(() => {
+    const queries = ['(max-width: 599px)', '(max-width: 1023px)'].map(query => window.matchMedia(query)), update = () => setForm(read());
+    queries.forEach(media => media.addEventListener('change', update)); update();
+    return () => queries.forEach(media => media.removeEventListener('change', update));
+  }, []);
+  return form;
+}
+
 export function useReducedMotion(elementRef?: RefObject<HTMLElement | null>) {
   const [reduced, setReduced] = useState(false);
   useLayoutEffect(() => {
@@ -62,7 +75,18 @@ export function useOverlayKeys(open: boolean, onOpenChange: OverlayChange, escap
   return () => stack.at(-1) === identity.current;
 }
 
+/** The document's last input: `keyboard` after a key, `pointer` after a press. An overlay's opening focus draws its ring
+ * only after a key (overlays.module.css), so a pointer-opened menu shows none at rest. */
+let inputWatched = false;
+function watchInput() {
+  if (inputWatched || typeof document === 'undefined') return;
+  inputWatched = true;
+  const root = document.documentElement;
+  document.addEventListener('keydown', event => { if (!event.metaKey && !event.ctrlKey && !event.altKey) root.dataset.input = 'keyboard'; }, true);
+  document.addEventListener('pointerdown', () => { root.dataset.input = 'pointer'; }, true);
+}
 export function useSurfaceFocus(open: boolean, initialFocusRef?: RefObject<HTMLElement | null>, returnFocusRef?: RefObject<HTMLElement | null>) {
+  watchInput();
   const opener = useRef<HTMLElement | null>(null);
   const returnTarget = useRef(returnFocusRef);
   useLayoutEffect(() => {returnTarget.current = returnFocusRef;}, [returnFocusRef]);

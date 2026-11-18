@@ -8,8 +8,9 @@
 }
 .button:disabled, .chip:disabled, .tab:disabled, .segment:disabled, .select:disabled {cursor: default; opacity: var(--spec-button-disabled-opacity);}
 .button {
-  --control-height: var(--spec-button-hero-height-web); --control-radius: var(--spec-button-hero-radius-web);
-  --control-inset: var(--spec-button-hero-padding-x-web); --control-gap: var(--spec-button-hero-gap-web); --control-icon: var(--spec-button-hero-icon-web);
+  /* R2: a button's size is the form's (`formScale.button`: phone, tablet, web or TV), never the width's own guess. */
+  --control-height: var(--button-hero-height); --control-radius: var(--button-hero-radius);
+  --control-inset: var(--button-hero-padding-x); --control-gap: var(--button-hero-gap); --control-icon: var(--button-hero-icon);
   position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; max-width: 100%;
   /* A control's label is never cut: past the room it has, it wraps and the button grows to fit it (owner rule, 12 Nov);
      a one-line button keeps the height drawn for it, by the kit or by its caller. */
@@ -27,12 +28,24 @@
 .buttonLabel {min-width: 0; overflow-wrap: anywhere; text-wrap: balance;}
 .button > .glyph, .spinner {width: var(--control-icon); height: var(--control-icon); flex: none;}
 .button[data-size="compact"] {--control-height: 46px; font-size: var(--type-compact-button-size); line-height: var(--type-compact-button-line);}
-.button[data-size="small"] {--control-height: 42px; --control-radius: 10px; --control-inset: 18px; --control-gap: 8px; --control-icon: 18px; font-size: 15px;}
-.button[data-size="xs"] {--control-height: 34px; --control-radius: 9px; --control-inset: 13px; --control-gap: 6px; --control-icon: 16px; font-size: 14px;}
+.button[data-size="small"] {--control-height: var(--button-small-height); --control-radius: var(--button-small-radius); --control-inset: var(--button-small-padding-x); --control-gap: var(--button-small-gap); --control-icon: var(--button-small-icon); font-size: var(--type-compact-button-size);}
+.button[data-size="xs"] {--control-height: var(--button-xs-height); --control-radius: var(--button-xs-radius); --control-inset: var(--button-xs-padding-x); --control-gap: var(--button-xs-gap); --control-icon: var(--button-xs-icon); font-size: 14px;}
 .button[data-size="episode"] {--control-height: 48px; --control-radius: 11px; --control-inset: 22px; --control-icon: 20px; font-size: 16px;}
 .button[data-size="dock"] {--control-height: 38px; --control-radius: 10px; --control-inset: 14px; --control-gap: 8px; --control-icon: 18px; font-size: 14px;}
 .button[data-icon-only] {width: var(--control-height); padding: 0;}
-.button[data-variant="icon"] {--control-height: 40px; --control-icon: 22px; width: 40px; padding: 0; border-radius: 50%; color: var(--color-text-secondary);}
+/* Player transport (componentSpec.transport): round and icon-only. The white primary is Play or Pause. */
+.button[data-size="transport"] {--control-height: var(--spec-transport-control-size-web); --control-icon: var(--icon-primary); width: var(--control-height); padding: 0; border-radius: 50%;}
+.button[data-size="transport"][data-variant="primary"] {--control-height: var(--spec-transport-primary-size-web);}
+/* R4: a glyph's class sets its size for the form and its level of emphasis (a white primary button keeps its ink). The
+   transport is `primary`; shuffle, repeat and tool glyphs `secondary`; inline glyphs `tertiary`. On is the accent. */
+.button[data-icon-class="primary"] {--control-icon: var(--icon-primary);}
+.button[data-icon-class="secondary"] {--control-icon: var(--icon-secondary);}
+.button[data-icon-class="tertiary"] {--control-icon: var(--icon-tertiary);}
+.button[data-icon-class="primary"]:not([data-variant="primary"]) > .glyph {color: var(--icon-primary-color);}
+.button[data-icon-class="secondary"]:not([data-variant="primary"]) > .glyph {color: var(--icon-secondary-color);}
+.button[data-icon-class="tertiary"]:not([data-variant="primary"]) > .glyph {color: var(--icon-tertiary-color);}
+.button[data-icon-class][data-active]:not([data-variant="primary"]) > .glyph {color: var(--emphasis-active);}
+.button[data-variant="icon"] {--control-height: 40px; --control-icon: var(--icon-secondary); width: 40px; padding: 0; border-radius: 50%; color: var(--icon-secondary-color);}
 .button[data-variant="icon"]:hover:not(:disabled) {background: color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text);}
 .button[data-variant="text"] {--control-height: 32px; --control-radius: 8px; --control-inset: 10px; --control-gap: 6px; --control-icon: 16px; font-size: 13.5px; color: var(--color-text-secondary);}
 .button[data-variant="text"]:hover:not(:disabled) {background: color-mix(in srgb, var(--color-text) 8%, transparent); color: var(--color-text);}
@@ -95,9 +108,9 @@
 .tabStrip {position: relative; z-index: var(--layer-content); border-bottom: 1px solid var(--color-line);}
 .tabs {display: flex; gap: 34px; padding: 0 0 1px; margin-bottom: -1px; overflow-x: auto; scrollbar-width: none;}
 .tabs::-webkit-scrollbar {display: none;}
-.tab {position: relative; flex: none; padding: 16px 0 14px; font-size: var(--type-tab-size); line-height: var(--type-tab-line); font-weight: var(--type-tab-weight); color: var(--color-text-tertiary); white-space: nowrap;}
+.tab {position: relative; flex: none; padding: 16px 0 14px; font-size: var(--type-tab-size); line-height: var(--type-tab-line); font-weight: var(--type-tab-weight); color: var(--emphasis-off); white-space: nowrap;}
 .tab:hover:not(:disabled) {color: var(--color-text-secondary);}
-.tab[data-state="active"] {color: var(--color-text);}
+.tab[data-state="active"] {color: var(--emphasis-on);}
 .tab[data-state="active"]::after {content: ''; position: absolute; inset: auto 0 -1px; height: 3px; border-radius: 3px; background: var(--color-accent);}
 .tab:focus-visible {outline-offset: -3px;}
 .tabPanel:focus-visible {outline: 3px solid var(--color-focus); outline-offset: -3px;}

@@ -15,7 +15,7 @@ import {AccountMenu, NotificationItem, ProfileAvatar, ProfileSwitchRow, WatchTog
 function AccountGallery() {
   const theme = useTheme();
   const [profile, setProfile] = useState<ProfileOption>(fixture.profiles[0]);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [manage, setManage] = useState(false);
   const [result, setResult] = useState('');
   const anchor = useRef<View>(null);

@@ -2,13 +2,13 @@ import type {CSSProperties} from 'react';
 import {Artwork, artClass, artSize} from './Artwork';
 import type {AmbientArtSource, ArtworkPalette, ArtworkSource, ArtStyleProps, ArtworkStatus} from './types';
 import styles from './artwork.module.css';
+import glow from './artwork-glow.module.css';
 
-/** The one standard backdrop (bootstrap.css), drawn over the whole window. `shape`, `fill` and
- * `viewport` are retired: every shape draws the same backdrop, which picks the phone band or the
- * full glows from the window width alone. They stay accepted until their remaining callers drop them. */
-export type ColourBackdropProps = Readonly<{className?: string; /** @deprecated */ shape?: 'side' | 'round' | 'top' | 'workspace'; /** @deprecated */ fill?: boolean; /** @deprecated */ viewport?: boolean}>;
-export function ColourBackdrop({className}: ColourBackdropProps) {
-  return <div aria-hidden="true" className={artClass('portico-backdrop', styles.colour, className)} />;
+/** R10: the audio player's backdrop, a glow from the playing item's artwork (the server's own small saturated wash of
+ * it). It is the first child of the audio player's cover (kit/backdrop.css) with `data-cover="audio"`; with no artwork the
+ * cover leaves `data-cover` off and is the one backdrop. Nothing else draws it (web/test/one-backdrop.test.ts). */
+export function ArtworkGlow({source, phone = false}: {source?: AmbientArtSource | null; phone?: boolean}) {
+  return <AmbientArt treatment="listening" source={source} className={`${glow.ambient}${phone ? ` ${glow.phone}` : ''}`}/>;
 }
 
 /** Bounded card washes contain no sharp art, scrims, controls or readiness overrides. */

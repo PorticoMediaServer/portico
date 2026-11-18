@@ -5,9 +5,8 @@ import {Fragment, useId, useEffect, useRef, useState, useSyncExternalStore, type
 import {preferenceValue} from '@core/preferences.ts';
 import type {ShowWorkspaceRoute, ShowWorkspaceData, WorkspaceSeason, WorkspaceShowCredit} from '@core/show-workspace.ts';
 import {cardText, episodeLabel, titleFactParts, type FactPart} from '@core/presentation/kit-model';
-import {Button, Chip, ResumeButton, Tabs, Switch} from '../../kit/controls';
-import {AmbientArt, Artwork} from '../../kit/artwork';
-import {Icon} from '../../kit/Icon';
+import {Button, Chip, ResumeButton, Tabs} from '../../kit/controls';
+import {AmbientArt} from '../../kit/artwork';
 import {Lockup, layoutType, platformType} from '../../kit/layout';
 import {EpisodeTile} from '../../kit/cards';
 import {Menu, MenuItem} from '../../kit/overlays';
@@ -32,6 +31,7 @@ import {runScreenCommand} from './context';
 import {GenreNames} from './GenreNames';
 import type {ContainerState} from '@core/container-state.ts';
 import {SeasonMenu} from './SeasonMenu';
+import {EpisodeList, EpisodeListOpened, EpisodeNeighbour, SeasonBar, episodeRowClass} from '../../kit/frames';
 import {showPrimary} from './show-primary';
 import {OwnerMetadataGroup} from './OwnerMetadataGroup';
 
@@ -179,7 +179,7 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
     <div key={tab} id={tabPanelId} role="tabpanel" aria-labelledby={`${tabPanelId}-tab-${tab}`} tabIndex={0} className={detail.tabPanel}>
     {tab === 'episodes' && <section className={styles.episodes}>
       {selection?.toolbar}
-      {!selecting && <div className={styles.toolbar}>
+      {!selecting && <SeasonBar season={<>
         {data.groups.length === 0 ? <SeasonMenu open={seasonMenu} onOpenChange={setSeasonMenu} label={seasonLabel} seasons={data.seasons} selectedId={data.selected.seasonId ?? undefined}
           totalCount={data.seasonTotalCount} hasPrevious={snapshot.seasonPagination.canPrevious} hasNext={!!snapshot.seasonPagination.nextCursor}
           onSelect={selectSeason} onPrevious={() => pageSeasons(false)} onNext={() => pageSeasons(true)} onJump={jumpSeason} />
@@ -188,11 +188,10 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
             {data.groups.map(group => <MenuItem key={group.id} selected={group.id === data.selected.group} onSelect={() => runScreenCommand(binding.context, () => { binding.current(data); return binding.service.selectGroup(group.id); })}>{group.title}</MenuItem>)}
             {snapshot.seasonPagination.canPrevious && <MenuItem onSelect={() => pageSeasons(false)}>{t('title.earlierSeasons')}</MenuItem>}
             {snapshot.seasonPagination.nextCursor && <MenuItem onSelect={() => pageSeasons(true)}>{t('title.laterSeasons')}</MenuItem>}
-          </Menu>}
-        {selectedSeason?.episodeCount !== undefined && <span className={styles.progress}>{t('count.episodes', {count: selectedSeason.episodeCount})}</span>}
-        {selectedProgress ? <><span className={styles.progressDivider} aria-hidden="true" /><span className={styles.watchedProgress}><span className={styles.watchedMeter} aria-hidden="true"><i style={{width: `${selectedProgress.total > 0 ? 100 * selectedProgress.watched / selectedProgress.total : 0}%`}} /></span>{t('title.seasonProgress', {watched: selectedProgress.watched, total: selectedProgress.total})}</span></>
-          : null}
-        <div className={styles.toolbarActions}>
+          </Menu>}</>}
+        count={selectedSeason?.episodeCount !== undefined ? t('count.episodes', {count: selectedSeason.episodeCount}) : undefined}
+        progress={selectedProgress ? {watched: selectedProgress.watched, total: selectedProgress.total, label: t('title.seasonProgress', {watched: selectedProgress.watched, total: selectedProgress.total})} : undefined}
+        actions={<>
         <Menu presentation="anchored" open={orderMenu} onOpenChange={setOrderMenu} title={t('next.detail.episodeOrder')} trigger={<Chip variant="toolbar" icon="i-sort" iconSize={18} trailingIcon="i-down" trailingSize={16}>{t('next.detail.episodeOrder')}</Chip>}>
           <MenuItem selected={(snapshot.route?.episodeDirection ?? 'asc') === 'asc'} onSelect={() => runScreenCommand(binding.context, () => { binding.current(data); setOrderMenu(false); return binding.service.selectEpisodeDirection('asc'); })}>{t('next.detail.episodeOrder')}</MenuItem>
           <MenuItem selected={snapshot.route?.episodeDirection === 'desc'} onSelect={() => runScreenCommand(binding.context, () => { binding.current(data); setOrderMenu(false); return binding.service.selectEpisodeDirection('desc'); })}>{t('next.detail.reverseEpisodeOrder')}</MenuItem>
@@ -202,18 +201,13 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
           <MenuItem selected={snapshot.route?.playState === 'unplayed'} onSelect={() => setPlayState('unplayed')}>{t('filter.quick.unplayed')}</MenuItem>
           <MenuItem selected={snapshot.route?.playState === 'played'} onSelect={() => setPlayState('played')}>{t('filter.quick.played')}</MenuItem>
           <MenuItem selected={snapshot.route?.playState === 'in-progress'} onSelect={() => setPlayState('in-progress')}>{t('filter.quick.inProgress')}</MenuItem>
-        </Menu>
-        <label className={styles.hide}>{t('next.controls.hideWatched')}<Switch checked={snapshot.route?.playState === 'unplayed'} onCheckedChange={checked => runScreenCommand(binding.context, () => { binding.current(data); const route = snapshot.route; if (route) return binding.select({...route, playState: checked ? 'unplayed' : 'all'}); })} /></label>
-        <span className={styles.layoutToggle} role="group" aria-label={t('next.controls.layout')}>
-          <button type="button" aria-label={t('next.controls.list')} aria-pressed={layout === 'list'} onClick={() => runScreenCommand(binding.context, () => binding.view.layout('list'))}><Icon name="i-list" size={18} /></button>
-          <button type="button" aria-label={t('next.controls.grid')} aria-pressed={layout === 'grid'} onClick={() => runScreenCommand(binding.context, () => binding.view.layout('grid'))}><Icon name="i-grid" size={18} /></button>
-        </span>
-        {data.selected.seasonId && <SeasonOptions binding={binding} data={data} label={seasonLabel} />}
-        </div>
-      </div>}
+        </Menu></>}
+        hideWatched={{label: t('next.controls.hideWatched'), checked: snapshot.route?.playState === 'unplayed', onCheckedChange: checked => runScreenCommand(binding.context, () => { binding.current(data); const route = snapshot.route; if (route) return binding.select({...route, playState: checked ? 'unplayed' : 'all'}); })}}
+        layout={{value: layout === 'grid' ? 'grid' : 'list', onValueChange: value => runScreenCommand(binding.context, () => binding.view.layout(value)), label: t('next.controls.layout'), listLabel: t('next.controls.list'), gridLabel: t('next.controls.grid')}}
+        more={data.selected.seasonId ? <SeasonOptions binding={binding} data={data} label={seasonLabel} /> : undefined} />}
       {snapshot.phase === 'error' || snapshot.phase === 'refresh-required' ? <ScreenFailure retry={() => { void binding.service.retry(); }} /> : null}
       {!episodes.length && snapshot.phase === 'ready' && <StateView title={t('title.noEpisodes')} body={t('title.noEpisodesBody')} />}
-      <div className={styles.tiles} data-layout={episodeLayout} style={{'--episode-columns': columns} as React.CSSProperties}>
+      <EpisodeList layout={episodeLayout} columns={columns}>
         {episodes.map((episode, index) => {
           const expanded = snapshot.anchor.expandedEpisodeId === episode.id, rowEnd = episodeLayout === 'list' ? index : Math.min(episodes.length - 1, Math.floor(index / columns) * columns + columns - 1);
           const opened = episodes.slice(episodeLayout === 'list' ? index : Math.floor(index / columns) * columns, rowEnd + 1).find(entry => entry.id === snapshot.anchor.expandedEpisodeId);
@@ -221,13 +215,13 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
           const date = subject.episode?.mode !== 'date' && subject.episode?.mode !== 'special' ? episodeLabel({mode: 'date', day: episode.airDate}, 'in-show', env) : undefined;
           const continuing = !episode.watched && (episode.progressSeconds ?? 0) > 0;
           const status: FactPart[] = continuing ? [{id: 'continue', text: t('title.continueEpisode'), role: 'status'}, ...cardText(subject, 'continuation', env).detail] : next ? [{id: 'up-next', text: t('title.nextUp'), role: 'status'}] : [];
-          return <Fragment key={episode.id}><CatalogueSelectionEntry selection={selection} entry={episode} position={index}>{picked => <EpisodeTile selection={picked} className={styles.episodeRow} model={{...model, caption: [...model.caption, ...status]}} length={model.detail.find(part => part.id === 'duration')?.text} airDate={!continuing && date ? {...date, id: 'air-date'} : undefined} context="detail" artworkKind={episode.stillUrl ? 'still' : 'backdrop'} artwork={art.foreground(episode.stillUrl ?? episode.backdropUrl ?? show.backdropUrl, 632, 16 / 9)} watched={episode.watched} expanded={expanded} next={next} description={episode.overview}
+          return <Fragment key={episode.id}><CatalogueSelectionEntry selection={selection} entry={episode} position={index}>{picked => <EpisodeTile selection={picked} className={episodeRowClass} model={{...model, caption: [...model.caption, ...status]}} length={model.detail.find(part => part.id === 'duration')?.text} airDate={!continuing && date ? {...date, id: 'air-date'} : undefined} context="detail" artworkKind={episode.stillUrl ? 'still' : 'backdrop'} artwork={art.foreground(episode.stillUrl ?? episode.backdropUrl ?? show.backdropUrl, 632, 16 / 9)} watched={episode.watched} expanded={expanded} next={next} description={episode.overview}
             onPlay={episode.available !== false && episode.playback?.itemId === episode.id ? () => runScreenCommand(binding.context, () => binding.playEpisode(data, episode)) : undefined}
             onNavigate={() => { void binding.expand(data, episode).catch(binding.context.effects.reportError); }} />}</CatalogueSelectionEntry>
-            {rowEnd === index && opened && <div className={styles.expanded}><EpisodeBody binding={binding} data={data} /></div>}
+            {rowEnd === index && opened && <EpisodeListOpened><EpisodeBody binding={binding} data={data} /></EpisodeListOpened>}
           </Fragment>;
         })}
-      </div>
+      </EpisodeList>
       <div className={styles.paging}>{snapshot.pagination.canPrevious && <Button size="compact" onClick={() => runScreenCommand(binding.context, () => { binding.current(data); return binding.service.previousEpisodes(); })}>{t('title.previousPage')}</Button>}{snapshot.pagination.nextCursor && <Button size="compact" onClick={() => runScreenCommand(binding.context, () => { binding.current(data); return binding.service.nextEpisodes(); })}>{t('title.nextPage')}</Button>}</div>
     </section>}
     {tab === 'details' && <ShowDetails binding={binding} data={data} />}
@@ -248,10 +242,8 @@ export function EpisodeBody({binding, data}: {binding: ShowBindings; data: ShowW
     const target = episode.episodeDetails?.[direction];
     if (!target) return null;
     const art = listed.find(value => value.id === target.id);
-    return <button key={direction} type="button" className={styles.episodeNav} aria-label={t(direction === 'previous' ? 'title.previousEpisode' : 'title.nextEpisode')} onClick={() => open(target.id)}>
-      <span className={styles.episodeNavArt}><Artwork source={binding.context.artwork.foreground(art?.stillUrl ?? art?.backdropUrl ?? data.show.backdropUrl, 224, 16 / 9)} alt="" /></span>
-      <span className={styles.episodeNavCopy}><small>{direction === 'previous' && <Icon name="i-left" size={14} />}{t(direction === 'previous' ? 'title.previousEpisode' : 'title.nextEpisode')}{direction === 'next' && <Icon name="i-right" size={14} />}</small><b>{target.title}</b><small>{t('next.kit.episode', {number: target.number})}</small></span>
-    </button>;
+    return <EpisodeNeighbour key={direction} direction={direction} label={t(direction === 'previous' ? 'title.previousEpisode' : 'title.nextEpisode')} title={target.title} detail={t('next.kit.episode', {number: target.number})}
+      artwork={binding.context.artwork.foreground(art?.stillUrl ?? art?.backdropUrl ?? data.show.backdropUrl, 224, 16 / 9)} onPress={() => open(target.id)} />;
   });
   const credits = episode.metadata.credits;
   const guests = credits.filter(credit => /acting|cast/i.test(credit.department ?? ''));

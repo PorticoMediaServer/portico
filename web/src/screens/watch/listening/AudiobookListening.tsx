@@ -4,7 +4,7 @@ import type {PlayerChapter, PlayerChaptersSnapshot} from '@core/player-chapters.
 import type {WebPlaybackRuntimeSnapshot} from '../../../platform/playback';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
 import {generatedCoverTint} from '@design';
-import {AmbientArt, GeneratedCover, WholeArtwork} from '../../../kit/artwork';
+import {ArtworkGlow, GeneratedCover, WholeArtwork} from '../../../kit/artwork';
 import {Button, Segmented, Slider} from '../../../kit/controls';
 import {Banner} from '../../../kit/overlays';
 import {StateView} from '../../../kit/states';
@@ -14,7 +14,6 @@ import {watchClock, watchSeek, watchSeekBounds, type WatchIntent} from '../model
 import {durationText} from '@core/presentation/kit-model/text.ts';
 import {ListeningSeek} from './ListeningSeek';
 import {BookChapterList, playingBookChapter} from './BookChapterList';
-import ambientStyles from './listening-ambient.module.css';
 import styles from './audiobook-listening.module.css';
 import {sleepChoiceFrom, sleepChoiceLabel, sleepChoiceValue, type ListeningSleepChoice} from './listening-owner';
 const t = defaultI18n.t;
@@ -55,8 +54,8 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
   const speedLeft = bookLeft !== undefined && p.rate > 0 ? t('web.player.speedLeft', {time: durationText(bookLeft / p.rate, t) ?? '', rate: new Intl.NumberFormat(defaultI18n.region.formatLocale).format(p.rate)}) : undefined;
   const sleepAt = snapshot.playback?.listeningDeadlines?.sleepAtMs, sleepLeft = typeof sleepAt === 'number' ? Math.max(0, (sleepAt - Date.now()) / 1000) : undefined;
   const sleepStops = sleepLeft !== undefined && sleepLeft >= 60 ? t('web.player.sleepStops', {time: durationText(sleepLeft, t) ?? ''}) : undefined;
-  return <section className={styles.frame} aria-label={t('player.nowPlayingTitle', {title})} tabIndex={-1} data-watch-audiobook data-phone={phone || undefined}>
-    <AmbientArt treatment="listening" source={ambient} className={`${ambientStyles.ambient}${phone ? ` ${ambientStyles.phone}` : ''}`}/>
+  return <section className={`portico-cover ${styles.frame}`} data-cover={ambient ? 'audio' : undefined} aria-label={t('player.nowPlayingTitle', {title})} tabIndex={-1} data-watch-audiobook data-phone={phone || undefined}>
+    <ArtworkGlow source={ambient} phone={phone}/>
     <header className={styles.top}>
       <Button variant={phone ? 'ghost' : 'glass'} icon="i-down" aria-label={t('player.minimize')} onClick={onCollapse}/>
       {/* phone-app 15: on a phone "Playing from" sits centred over its source, on two lines. */}

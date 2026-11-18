@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {registerHooks} from 'node:module';
 import * as React from 'react';
-import {Children, isValidElement, type Context, type ReactNode} from 'react';
+import {cloneElement, Children, isValidElement, type Context, type ReactNode} from 'react';
 import {easings, reducedMotion, springs, springTiming} from '@design';
 import type {QueuePlaybackFence} from '../../packages/player-core/src/index.ts';
 import type {WebPlaybackRuntimeSnapshot} from '../src/platform/playback/types.ts';
@@ -151,7 +151,9 @@ class HookFrame {
       if (typeof type === 'object' && typeof type.render === 'function') { current = type.render(current.props); continue; }
       if (typeof type !== 'function') return current;
       if (type.prototype?.isReactComponent) { current = this.instantiate(type, current.props).render(current.props); continue; }
-      current = type(current.props);
+      // A keyed component's root is a new node when the key changes, as React remounts it (the kit's Up next card).
+      const key = current.key, rendered = type(current.props);
+      current = key !== null && isValidElement<any>(rendered) && rendered.key === null ? cloneElement(rendered, {key}) : rendered;
     }
     throw new Error('Prompt component chain did not reach an element within sixteen components');
   }
@@ -275,7 +277,8 @@ function timerHarness(t: TestContext) {
 }
 function buttons(element: ReactNode): any[] {
   const found: any[] = [];
-  const visit = (node: ReactNode) => { if (!isValidElement<any>(node)) return; if (node.props.type === 'button') found.push(node); Children.forEach(node.props.children, visit); };
+  // The Up next card is the kit's own component: its buttons are in what it renders.
+  const visit = (node: ReactNode) => { if (!isValidElement<any>(node)) return; if (typeof node.type === 'function') { visit((node.type as (props: unknown) => ReactNode)(node.props)); return; } if (node.props.type === 'button') found.push(node); Children.forEach(node.props.children, visit); };
   visit(element); return found;
 }
 const rootNode = (element: ReactNode) => (element as any).props.ref.current as PromptNode;
@@ -507,7 +510,7 @@ test('a withdrawal release queued before unmount is cleared and cannot repaint',
 
 test('prompt press feedback remains local at 90 ms and becomes opacity-only under both reduced signals', () => {
   const skip = readFileSync(new URL('../src/screens/watch/skip-prompt.module.css', import.meta.url), 'utf8');
-  const upNext = readFileSync(new URL('../src/screens/watch/up-next.module.css', import.meta.url), 'utf8');
+  const upNext = readFileSync(new URL('../src/kit/player/up-next.module.css', import.meta.url), 'utf8');
   assert.match(skip, /\.skip \{[^}]*transition: transform 90ms var\(--ease-out\)/);
   assert.match(skip, /@media \(prefers-reduced-motion: reduce\) \{ \.skip \{ transition: opacity var\(--motion-reduced\) linear; \} \.skip:active \{ transform: none; opacity: \.85; \} \}/);
   assert.match(skip, /\[data-reduce-motion='true'\]\) \.skip:active \{ transform: none; opacity: \.85; \}/);

@@ -79,16 +79,6 @@
 .phoneTabs { padding-inline: var(--shell-gutter); }
 .scopeChips { display: flex; align-items: center; gap: 8px; }
 .scopeSeparator { width: 1px; height: 22px; margin: 0 4px; background: var(--color-line); flex: none; }
-.filterHeader { padding: 30px 32px 0; }
-.filterHeader h2 { margin: 0; font-size: calc(var(--type-title-size) + 2px); font-weight: var(--type-lockup-weight); letter-spacing: calc(var(--type-row-heading-tracking) * 2); }
-.filterHeader + p { padding: 6px 32px 10px; }
-.filterCount { font-size: calc(var(--type-body-size) - .5px); }
-.filterBody { padding: 0 32px 32px; }
-.filterFooter { display: flex; gap: 12px; margin-top: 0; padding: 18px 32px 24px; background: var(--color-raised); box-shadow: 0 -1px 0 var(--color-line), 0 -30px 30px -10px var(--color-raised); }
-.filterFooter > :last-child { flex: 1; }
-.phoneFilterHeader h2 { flex: 1; }
-.filterTitle { display: flex; align-items: center; justify-content: space-between; width: 100%; }
-@media (max-width: 599px) { .filterFooter { padding: 12px 16px max(30px, env(safe-area-inset-bottom)); } }
 /* Wide: the kit LibraryHeader, then the cards on the page gutter. Phone: its own title row (phone-app 4d). */
 .libraries { padding-bottom: 72px; }
 .librariesBody { padding: 28px var(--shell-gutter) 0; }
@@ -117,8 +107,6 @@
 /* Expanded touch libraries keep their results live beside the Filters region. */
 .browseContent { min-width: 0; overflow-x: clip; } /* E-web-20: the A–Z rail's widened hit areas never widen the page. */
 .browseContent[data-filters-docked='true'] { margin-right: 380px; }
-.dockedFilters { border-radius: 0; }
-.dockedFilters > footer { display: flex; gap: 10px; }
 /* phone-app 4d: the Libraries title with Edit pins at its right. */
 .librariesHead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .editPins[data-variant=text] { flex: none; color: var(--color-accent-strong); }

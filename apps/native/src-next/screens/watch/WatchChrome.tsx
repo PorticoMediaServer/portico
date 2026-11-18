@@ -26,7 +26,7 @@ import {createLandingStore, type LandingStore} from './landing-store';
 import {useSkipPromptMotion} from './useSkipPromptMotion';
 import {useInitialPlayerPaint, usePublishedPlayerMorph} from '../../kit/dock/PlayerMorphBridge';
 import {NativeUpNextCard} from './UpNextCard';
-import {NativeStillWatchingCard} from './StillWatchingCard';
+import {NativeStillWatchingCard} from '../../kit/player/StillWatchingCard';
 import {Artwork, type ArtworkSource} from '../../kit/artwork';
 import type {NativeWatchNotice} from './playback-info';
 import {emptyLiveGuide, noLiveGuideSubscription, type NativeTVLiveGuide} from './live-guide';

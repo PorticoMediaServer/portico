@@ -195,7 +195,7 @@
 /* ================= The drawn phone Dashboard (owner-dashboard.html#9, mobile web) =================
    The web app at phone width is the phone app screen for screen; the one honest difference is the
    Refresh button beside "Updated …" (a browser cannot draw Portico's pull-to-refresh ring). */
-.phonePage { position: fixed; z-index: var(--layer-player); inset: 0; display: flex; flex-direction: column; color: var(--color-text); background-color: var(--color-ink); background-image: var(--backdrop-glows); background-size: var(--backdrop-glows-size); background-repeat: no-repeat; font-family: var(--font); font-size: var(--type-body-size); line-height: var(--type-body-line); }
+.phonePage { position: fixed; z-index: var(--layer-player); inset: 0; display: flex; flex-direction: column; color: var(--color-text); font-family: var(--font); font-size: var(--type-body-size); line-height: var(--type-body-line); }
 .phoneBar { position: absolute; z-index: var(--layer-art-label); inset: 0 0 auto; height: 56px; display: flex; align-items: center; padding: 0 12px; }
 .phoneBar[data-solid] { background: color-mix(in srgb, var(--color-ink) 86%, transparent); -webkit-backdrop-filter: blur(24px) saturate(1.3); backdrop-filter: blur(24px) saturate(1.3); border-bottom: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent); }
 .phoneBack { width: 44px; height: 44px; margin-left: -8px; display: grid; place-items: center; border: 0; border-radius: var(--radius-control); background: none; color: var(--color-text); cursor: pointer; }

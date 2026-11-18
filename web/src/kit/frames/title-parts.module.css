@@ -1,0 +1,170 @@
+/* The title page's panel and side parts (title-parts.tsx). The season bar, season menu and episode list rules are the
+   show page's, moved here with them (screens/detail/show.module.css). */
+
+.toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
+.toolbarActions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.toolbarActions > button[data-variant="toolbar"], .toolbarActions > * > button[data-variant="toolbar"] { height: 38px; padding: 0 13px; font-size: var(--type-see-all-size); gap: 7px; }
+.toolbarActions > button[data-icon-only] { width: 38px; height: 38px; }
+.progress { font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+.progressDivider { width: 1px; height: 22px; background: var(--color-line); }
+.watchedProgress { display: inline-flex; align-items: center; gap: 10px; font-size: var(--type-see-all-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-secondary); }
+.watchedMeter { width: 64px; height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--color-text) 18%, transparent); overflow: hidden; }
+.watchedMeter i { display: block; height: 100%; background: var(--color-accent-strong); }
+.hide { margin-left: 12px; display: flex; align-items: center; gap: 10px; font-size: var(--type-caption-size); color: var(--color-text-secondary); }
+.layoutToggle { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 8px; background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.layoutToggle button { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-tertiary); cursor: pointer; }
+.layoutToggle button:hover { color: var(--color-text); }
+.layoutToggle button[aria-pressed="true"] { background: var(--color-raised-bright); color: var(--color-text); }
+.layoutToggle button:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 1px; }
+
+.tiles { display: grid; grid-template-columns: repeat(var(--episode-columns), minmax(0, 1fr)); gap: 28px 16px; align-items: start; }
+.tiles > * { width: 100%; }
+.tiles[data-layout=list] { display: flex; flex-direction: column; gap: 12px; }
+.tiles[data-layout=list] .episodeRow > button { display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: auto 1fr; column-gap: 24px; text-align: left; }
+.tiles[data-layout=list] .episodeRow > button > [class*="_art_"] { grid-column: 1; grid-row: 1 / 3; }
+.tiles[data-layout=list] .episodeRow > button > [class*="episodeCopy"] { grid-column: 2; grid-row: 1; margin-top: 0; align-self: end; }
+.tiles[data-layout=list] .episodeRow > button > [class*="description"] { grid-column: 2; grid-row: 2; align-self: start; }
+.episodeRow [class*="episodeTitle"] { font-size: var(--type-wide-title-size); }
+.episodeRow [data-role="status"] { color: var(--color-accent-strong); font-weight: var(--type-caption-strong-weight); }
+.episodeRow [data-role="supplement"] { color: var(--color-text-secondary); }
+.expanded { grid-column: 1 / -1; margin-top: -28px; }
+
+.episodeNav { display: flex; align-items: center; gap: 14px; margin: 0 -8px; padding: 8px; border: 0; border-radius: 12px; background: none; color: inherit; text-align: left; cursor: pointer; }
+.episodeNav:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.episodeNav:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 0; }
+.episodeNavArt { position: relative; width: 112px; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; flex: none; background: var(--color-raised); }
+.episodeNavArt > * { width: 100%; height: 100%; }
+.episodeNavCopy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.episodeNavCopy small { display: flex; align-items: center; gap: 2px; font-size: var(--type-caption-strong-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-tertiary); }
+.episodeNavCopy b { font-size: var(--type-episode-title-size); font-weight: var(--type-episode-title-weight); color: var(--color-text); }
+
+.seasonPopover { padding: 10px 8px 8px; }
+.seasonHeader { display: flex; align-items: center; gap: 12px; padding: 4px 6px 10px 10px; }
+.seasonHeader b { font-size: var(--type-see-all-size); font-weight: var(--type-lockup-weight); color: var(--color-text-secondary); }
+.seasonJump { margin-left: auto; width: 168px; }
+.seasonList { display: flex; flex-direction: column; gap: 0; max-height: min(52vh, 290px); overflow: auto; }
+.seasonRow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 0 14px 0 12px; border: 0; border-radius: 9px; background: transparent; color: var(--color-text-secondary); text-align: left; font: inherit; cursor: pointer; }
+.seasonRow:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); color: var(--color-text); }
+.seasonRow:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: -2px; }
+.seasonRow[aria-selected="true"] { background: color-mix(in srgb, var(--color-accent) 16%, transparent); color: var(--color-text); }
+.seasonName { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.seasonName b { font-size: var(--type-compact-button-size); font-weight: var(--type-button-weight); }
+.seasonName small { font-size: var(--type-audiobook-detail-progress-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-tertiary); }
+.seasonFacts { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; margin-left: auto; font-size: var(--type-audiobook-detail-progress-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-tertiary); white-space: nowrap; }
+.seasonWatched { display: inline-flex; align-items: center; gap: 4px; color: var(--color-accent-strong); }
+.seasonProgress { width: 56px; height: 4px; border-radius: 2px; overflow: hidden; background: color-mix(in srgb, var(--color-text) 16%, transparent); }
+.seasonProgress i { display: block; height: 100%; background: var(--color-accent-strong); }
+.seasonPaging { display: flex; gap: 8px; padding: 8px 4px 2px; }
+.seasonPaging button { border: 0; padding: 6px 8px; border-radius: 8px; background: transparent; color: var(--color-text-secondary); font: inherit; font-size: var(--type-see-all-size); font-weight: var(--type-row-heading-weight); cursor: pointer; }
+.seasonPaging button:hover { color: var(--color-text); background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.seasonSpecials { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-line); }
+
+@media (max-width: 1023px) {
+  .toolbar { flex-wrap: wrap; gap: 12px; }
+  .progressDivider, .watchedProgress { display: none; }
+  .hide { margin-left: auto; }
+  .layoutToggle { display: none; }
+  .tiles { gap: 24px 12px; }
+  .tiles[data-layout=list] { gap: 20px; }
+  .tiles[data-layout=list] .episodeRow > button { grid-template-columns: 136px minmax(0, 1fr); column-gap: 14px; }
+  .tiles[data-layout=list] .episodeRow > button > [class*="_art_"] { grid-row: 1; }
+  .tiles[data-layout=list] .episodeRow > button > [class*="episodeCopy"] { align-self: center; }
+  .tiles[data-layout=list] .episodeRow > button > [class*="episodeCopy"] > :first-child { font-size: var(--type-episode-title-size); }
+  .tiles[data-layout=list] .episodeRow > button > [class*="description"] { grid-column: 1 / -1; grid-row: 2; margin-top: 9px; }
+  .expanded { margin-top: -24px; }
+}
+/* A phone (phone-detail d2, phone-app ep-bar): the season and its count, Hide watched at the end; the order, Filters and ⋯ wrap onto the row under them. */
+@media (max-width: 599px) {
+  .toolbarActions { display: contents; }
+  .toolbarActions > :not(.hide) { order: 2; }
+  .hide { order: 1; }
+  .toolbar { row-gap: var(--space-control-gap); }
+}
+@media (min-width: 600px) and (max-width: 1023px) {
+  .tiles[data-layout=list] .episodeRow > button { grid-template-columns: 210px minmax(0, 1fr); column-gap: 18px; }
+  .tiles[data-layout=list] .episodeRow > button > [class*="_art_"] { grid-row: 1 / 3; }
+  .tiles[data-layout=list] .episodeRow > button > [class*="episodeCopy"] { align-self: end; }
+  .tiles[data-layout=list] .episodeRow > button > [class*="description"] { grid-column: 2; margin-top: 6px; }
+}
+
+/* A block's heading (rule 6 row heading), its count and grey note, and its control at the end. */
+.heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-control-gap) var(--space-sm); margin-bottom: var(--frame-heading-gap); }
+.heading h2 { flex: 0 1 auto; max-width: 100%; }
+.heading h2 { margin: 0; display: flex; align-items: baseline; gap: var(--space-control-gap); font-size: var(--type-row-heading-size); line-height: var(--type-row-heading-line); font-weight: var(--type-row-heading-weight); letter-spacing: var(--type-row-heading-tracking); }
+.heading h2 small, .note { font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-row-help-weight); color: var(--color-text-tertiary); }
+.headingEnd { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-control-gap); }
+
+/* The About table: labels in the tertiary grey, values white; links underlined (desktop-detail f3). */
+.about { margin: 0; display: grid; gap: var(--space-px-12); }
+.about > div { display: grid; grid-template-columns: minmax(96px, 140px) minmax(0, 1fr); column-gap: var(--space-sm); }
+.about dt { font-size: var(--type-row-help-size); line-height: var(--type-row-label-line); color: var(--color-text-tertiary); }
+.about dd { margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-label-line); color: var(--color-text); }
+.link { border: 0; padding: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--color-text) 40%, transparent); text-underline-offset: 3px; }
+.link:hover { text-decoration-color: var(--color-text); }
+.link:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 2px; border-radius: 2px; }
+@media (max-width: 599px) {
+  .about { gap: 0; padding: 0 var(--space-px-12); border-radius: var(--frame-card-radius); background: var(--color-raised); }
+  .about > div { padding: var(--space-px-12) 0; grid-template-columns: 104px minmax(0, 1fr); }
+  .about > div + div { border-top: 1px solid var(--color-line); }
+  .about dd { font-weight: var(--type-row-label-weight); }
+}
+
+/* Cast and crew: circles 96 wide from 600, 64 on a phone; the crew under a rule (desktop-detail f3). */
+.cast { display: flex; flex-direction: column; gap: var(--space-md); }
+.castGroup { display: flex; flex-wrap: wrap; gap: var(--space-md) var(--space-sm); }
+.castGroup + .castGroup { padding-top: var(--space-md); border-top: 1px solid var(--color-line); }
+.person { width: 120px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: center; cursor: pointer; }
+.person:disabled { cursor: default; }
+.person > span:first-child { width: 96px; height: 96px; margin-bottom: var(--space-control-gap); }
+.person b { font-size: var(--type-card-title-size); line-height: var(--type-card-title-line); font-weight: var(--type-card-title-weight); }
+.person small { font-size: var(--type-card-subtitle-size); line-height: var(--type-card-subtitle-line); color: var(--color-text-tertiary); }
+.person:focus-visible { outline: none; }
+.person:focus-visible > span:first-child { box-shadow: 0 0 0 2px var(--color-ink), 0 0 0 4px var(--color-focus); }
+@media (max-width: 599px) {
+  .castGroup { flex-wrap: nowrap; overflow-x: auto; gap: var(--space-px-12); scrollbar-width: none; }
+  .castGroup + .castGroup { padding-top: 0; border-top: 0; }
+  .cast { gap: var(--space-px-12); }
+  .person { width: 78px; flex: none; }
+  .person > span:first-child { width: 64px; height: 64px; }
+}
+
+/* The audio and subtitles row (phone-detail d1 frame 1): a quiet outlined row, full width. */
+.picker { display: flex; align-items: center; gap: var(--space-sm); width: 100%; min-height: 40px; padding: 0 var(--space-px-12); border: 1px solid var(--color-line); border-radius: var(--frame-card-radius); background: color-mix(in srgb, var(--color-ink) 30%, transparent); color: var(--color-text-secondary); font: inherit; font-size: var(--type-row-help-size); font-weight: var(--type-row-label-weight); cursor: pointer; }
+.picker > span { display: inline-flex; align-items: center; gap: var(--space-tight); }
+.picker > :last-child { margin-left: auto; color: var(--color-text-tertiary); }
+.picker:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 2px; }
+
+/* A numbered row (desktop-detail f8): the large outlined number, the poster, the words, the state and action. */
+.numbered { display: grid; grid-template-columns: 56px 106px minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-sm); padding: var(--space-px-12) 0; }
+.numbered + .numbered { border-top: 1px solid var(--color-line); }
+.number { justify-self: center; font-size: var(--type-lockup-medium-size); line-height: var(--type-lockup-medium-line); font-weight: var(--type-row-label-weight); color: transparent; -webkit-text-stroke: 1.5px color-mix(in srgb, var(--color-text) 30%, transparent); }
+.numberedArt { position: relative; aspect-ratio: 2 / 3; border-radius: 6px; overflow: hidden; background: var(--color-raised); }
+.numberedArt > :first-child { width: 100%; height: 100%; }
+.numberedArt i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--color-accent-strong); }
+.numberedCopy { display: flex; flex-direction: column; gap: var(--space-tight); min-width: 0; }
+.numberedCopy b { font-size: var(--type-row-heading-size); line-height: var(--type-row-heading-line); font-weight: var(--type-row-heading-weight); }
+.numberedCopy p { margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-secondary); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.numberedEnd { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-control-gap); }
+.numberedEnd > span { white-space: nowrap; display: inline-flex; align-items: center; gap: var(--space-tight); font-size: var(--type-row-help-size); color: var(--color-text-secondary); }
+.numberedEnd > span[data-accent] { color: var(--color-accent-strong); font-weight: var(--type-row-label-weight); }
+@media (max-width: 599px) {
+  /* A phone (phone-detail d3 frame 8): the poster, then the words with the state and the action on a line under them. */
+  .numbered { grid-template-columns: 56px minmax(0, 1fr); align-items: start; }
+  .number { display: none; }
+  .numberedArt { grid-row: 1 / 3; }
+  .numberedEnd { grid-column: 2; flex-direction: row; align-items: center; justify-content: space-between; margin-top: var(--space-tight); }
+  .numberedCopy b { font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); }
+  .numberedCopy p { display: none; }
+}
+
+/* The owner's card (desktop-detail f8): a raised card with the Owner only mark. */
+.owner { display: flex; flex-direction: column; gap: var(--space-control-gap); padding: var(--frame-card-padding); border-radius: var(--frame-card-radius); background: var(--color-raised); border: 1px solid var(--color-line); }
+.owner header { display: flex; align-items: center; gap: var(--space-sm); }
+.owner header b { font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-row-label-weight); }
+.owner header span { margin-left: auto; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--color-line); font-size: var(--type-row-help-size); color: var(--color-text-secondary); }
+.owner p { margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-secondary); }
+.owner div { display: flex; flex-wrap: wrap; gap: var(--space-tight) var(--space-sm); }
+.block { margin: 0 var(--g); min-width: 0; }
+.aside .block { margin: 0; }
+.text { margin: 0 0 var(--space-md); font-size: var(--type-intro-size); line-height: var(--type-intro-line); font-weight: var(--type-intro-weight); color: var(--color-text-secondary); max-width: var(--frame-paragraph-max); }
+.text[data-tone=note] { margin: var(--frame-section-gap) 0 0; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-tertiary); }

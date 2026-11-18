@@ -1,7 +1,7 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import {playbackIdentity} from '@core/presentation/kit-model/index.ts';
-import {AmbientArt, Artwork} from '../../../kit/artwork';
+import {ArtworkGlow, Artwork} from '../../../kit/artwork';
 import {Icon} from '../../../kit/Icon';
 import {Slider} from '../../../kit/controls';
 import {Menu, Dialog, Banner} from '../../../kit/overlays';
@@ -22,7 +22,6 @@ import type {V1QueuePolicyIntent} from '@core/playback-v1/v1-queue-player.ts';
 import {ListeningSeek} from '../listening/ListeningSeek';
 import {musicQueueNext, musicQueueOrigin} from './queue-facts';
 import {useMusicFavorite} from './use-music-favorite';
-import ambientStyles from '../listening/listening-ambient.module.css';
 import styles from './now-playing.module.css';
 import type {MusicExpansion} from './expansion-owner';
 
@@ -134,8 +133,9 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
     runtime={binding.runtime} port={equalizer} {...(isCurrent?{isCurrent}:{})} {...(scope?{scope}:{})}
     close={()=>closeEq(eqReceipt)} openSettings={()=>{if(!open)return;void router.navigate({to:'/settings',search:()=>({scope:'account' as const,section:'music'})});}}/>:null;
   const panel=eqOpen?eqPanel:listening?<><ListeningTabs host={listening}/><ListeningPanels host={listening} snapshot={snapshot} reportError={binding.reportError} artwork={binding.artwork} policyInTransport/></>:<StateView title={t('player.queueUnavailable')}/>;
-  return <section ref={motion?.scope ? motion.frame : undefined} className={`portico-backdrop ${styles.frame}`} data-music-motion-owned={!!motion?.scope || undefined} inert={!open || undefined} aria-hidden={!open || undefined} aria-label={t('next.music.nowPlaying')} tabIndex={-1} data-watch-music data-phone={phone || undefined}>
-    <AmbientArt treatment="listening" source={binding.artwork.ambient(presentation.posterUrl ?? presentation.backdropUrl)} className={`${ambientStyles.ambient}${phone ? ` ${ambientStyles.phone}` : ''}`}/>
+  const glowSource = binding.artwork.ambient(presentation.posterUrl ?? presentation.backdropUrl);
+  return <section ref={motion?.scope ? motion.frame : undefined} className={`portico-cover ${styles.frame}`} data-cover={glowSource ? 'audio' : undefined} data-music-motion-owned={!!motion?.scope || undefined} inert={!open || undefined} aria-hidden={!open || undefined} aria-label={t('next.music.nowPlaying')} tabIndex={-1} data-watch-music data-phone={phone || undefined}>
+    <ArtworkGlow source={glowSource} phone={phone}/>
     <header className={styles.top}>
       <button type="button" className={styles.round} aria-label={t('player.minimize')} onClick={onCollapse}><Icon name="i-down" size={22} /></button>
       {/* phone-app 14: on a phone "Playing from" sits centred over its source, on two lines. */}

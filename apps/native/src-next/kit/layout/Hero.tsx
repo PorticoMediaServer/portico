@@ -52,8 +52,10 @@ export type HeroProps<T extends HeroCandidate> = {
 
 export function HeroMetadata({facts, centered = false}: {facts: readonly FactPart[]; centered?: boolean}) {
   const theme = useTheme();
-  return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centered ? 'center' : 'flex-start', columnGap: heroSpec.facts.gap[theme.platform], rowGap: heroSpec.facts.rowGap[theme.platform]}}>
-    {facts.map(fact => <Text key={fact.id} style={[theme.type.meta, {includeFontPadding: false, color: fact.id === 'year' || fact.role === 'identity' ? theme.colors.text : theme.colors.textSecondary, fontFamily: fact.id === 'year' || fact.role === 'identity' ? theme.type.bodyStrong.fontFamily : theme.type.meta.fontFamily}]}>{fact.text}</Text>)}
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centered ? 'center' : 'flex-start', columnGap: heroSpec.facts.gap[theme.column], rowGap: heroSpec.facts.rowGap[theme.column]}}>
+    {/* A rating, a runtime and a season count are outlined chips (phone-detail 1, mock.html home); the rest is plain text. */}
+    {facts.map(fact => <Text key={fact.id} style={[theme.type.meta, {includeFontPadding: false, color: fact.id === 'year' || fact.role === 'identity' ? theme.colors.text : theme.colors.textSecondary, fontFamily: fact.id === 'year' || fact.role === 'identity' ? theme.type.bodyStrong.fontFamily : theme.type.meta.fontFamily},
+      (fact.id === 'rating' || fact.id === 'runtime' || fact.id === 'seasons') && {paddingHorizontal: theme.space.tight, paddingVertical: theme.space.hairline, borderWidth: theme.space.hairline, borderColor: theme.colors.textTertiary, borderRadius: theme.baseRadii.control / 2, overflow: 'hidden'}]}>{fact.text}</Text>)}
   </View>;
 }
 
@@ -271,7 +273,7 @@ export function Hero<T extends HeroCandidate>({candidates, activeIndex, onIndexC
       onTouchEnd: (event: {nativeEvent: {touches: readonly unknown[]}}) => {if (event.nativeEvent.touches.length === 0) setTouching(false);},
       onTouchCancel: () => setTouching(false)})}
     onFocus={() => setControlFocused(true)} onBlur={() => setControlFocused(false)}
-    style={[{height: height ?? (variant === 'phone-web' ? heroSpec.mobileWeb.homeHeight : variant === 'desktop' ? heroSpec.homeHeight.web : heroSpec.homeHeight[theme.platform]), position: 'relative'}, style]}>
+    style={[{height: height ?? (variant === 'phone-web' ? heroSpec.mobileWeb.homeHeight : variant === 'desktop' ? heroSpec.homeHeight.web : heroSpec.homeHeight[theme.column]), position: 'relative'}, style]}>
     <HeroSurface {...props} entry={candidates[index]} variant={variant} active={active} visible={visible && appVisible} reducedMotion={reducedMotion} heroFocused={heroFocused}
       renderAfterCopy={entry => <>{props.renderAfterCopy?.(entry)}{!desktop && dots}</>} />
     {desktop && renderThumbnail && <View style={{position: 'absolute', right: props.thumbnailSize?.right ?? theme.gutter, bottom: props.thumbnailSize?.bottom ?? heroSpec.thumbnail.bottom, flexDirection: 'row', gap: props.thumbnailSize?.gap ?? heroSpec.thumbnail.gap}}>

@@ -134,7 +134,8 @@ export function Banner({message, accessibilityLabel, variant = 'quiet', tone = '
       {recipe.nativeBlur && <BlurView pointerEvents="none" style={StyleSheet.absoluteFill} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={theme.colors.raised}/>}
       {variant === 'quiet' ? <View accessible={false} style={{width: 7, height: 7, borderRadius: 4, backgroundColor: toneColor}}/> : <Icon name={icon ?? 'i-info'} color={toneColor} size={theme.isTV ? 28 : 20}/>}
       <Text accessible accessibilityLabel={accessibilityLabel} style={[theme.isTV ? theme.type.bodyStrong : nativeType({size: variant === 'quiet' ? 14 : 14.5, lineHeight: variant === 'quiet' ? 'normal' : 21.025, weight: variant === 'quiet' ? 600 : 400, tracking: 0}, theme.textScale), {color: theme.colors.textSecondary, flexShrink: 1}]}>{message}</Text>
-      {variant === 'notice' && action && <Button variant="glass" size="small" onPress={action.onPress}>{action.label}</Button>}
+      {/* The message gives way, never the action's label. */}
+      {variant === 'notice' && action && <Button variant="glass" size="small" style={{flexShrink: 0}} onPress={action.onPress}>{action.label}</Button>}
     </Animated.View>
   </View>;
 }
