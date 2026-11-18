@@ -69,7 +69,9 @@ func inspect(ctx context.Context, supervisor *processpool.Supervisor, ffprobe st
 	whole := func(context.Context, string) (io.ReaderAt, int64, func() error, error) {
 		return source, size, func() error { return nil }, nil
 	}
-	prober := mediafacts.Probe{Binary: ffprobe, ScanCommand: run, ReadPrefix: readPrefix, OpenReader: whole}
+	// The setup hashes say whether a film's parts can be copied into one stream (a few bytes
+	// each to hash; a scan does not keep them).
+	prober := mediafacts.Probe{Binary: ffprobe, CodecSetup: true, ScanCommand: run, ReadPrefix: readPrefix, OpenReader: whole}
 	facts, err := prober.InspectRemote(ctx, bridge.URL())
 	if err == nil && packets {
 		err = prober.CompleteAudioPackets(ctx, bridge.URL(), &facts)

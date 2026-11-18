@@ -329,11 +329,9 @@ func (h *HLS) copyTimelineFor(
 		return t, nil
 	}
 	if s := h.streams[id]; s != nil && len(s.parts) > 1 {
-		local, ok := s.source.(libraryFile)
+		// The library folders local parts are found in; parts on remote storage need none.
+		local, _ := s.source.(libraryFile)
 		h.mu.Unlock()
-		if !ok {
-			return nil, errCopyTimeline
-		}
 		return h.joinedVideoTimeline(ctx, s.parts, local.roots)
 	}
 	key := timelineKey{}
