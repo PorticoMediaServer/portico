@@ -18,7 +18,7 @@ func (s *Server) homeSpotlight(r *http.Request, continuing []db.Item) ([]HomeSpo
 	}
 	out := make([]HomeSpotlight, 0, len(picks))
 	for _, pick := range picks {
-		detail, err := s.db.Item(r.Context(), viewer(r), pick.PublicID)
+		detail, err := s.db.ItemSummary(r.Context(), viewer(r), pick.PublicID)
 		if errors.Is(err, db.ErrNotFound) {
 			continue
 		}
@@ -29,8 +29,8 @@ func (s *Server) homeSpotlight(r *http.Request, continuing []db.Item) ([]HomeSpo
 			continue
 		}
 		entry := detailShape(detail)
-		// Home needs the short synopsis and genre facts, not versions, credits or external ids.
-		entry.Versions, entry.Credits, entry.ExternalIDs = nil, nil, nil
+		// Home needs the short synopsis and genre facts, not versions, credits or external ids,
+		// which ItemSummary does not read.
 		if utf8.RuneCountInString(entry.Summary) > 300 {
 			entry.Summary = string([]rune(entry.Summary)[:300])
 		}
@@ -53,7 +53,7 @@ func (s *Server) homeSpotlight(r *http.Request, continuing []db.Item) ([]HomeSpo
 			if targetID == "" {
 				continue
 			}
-			target, err := s.db.Item(r.Context(), viewer(r), targetID)
+			target, err := s.db.ItemSummary(r.Context(), viewer(r), targetID)
 			if errors.Is(err, db.ErrNotFound) {
 				continue
 			}
