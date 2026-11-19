@@ -2,6 +2,7 @@ import {useEffect, useRef, useState, useSyncExternalStore, type RefObject} from 
 import type {View} from 'react-native';
 import type {NativeStartArtworkOffer} from '../../../platform/playback/start-presentation';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
+import type {WorkspaceSeason} from '../../../../../../packages/client-core/src/show-workspace';
 import {cardText, episodeLabel, titleFactParts, type FactPart} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {durationText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
@@ -18,6 +19,13 @@ import type {NativeTitleTab} from '../../../screens/watch/title-memory';
 export type TitleTab = Readonly<{value: NativeTitleTab; label: string}>;
 /** What a film's title page shows, from the title controller (the same reads and commands the old screen used).
  * No layout: the touch and TV pages draw it on `TitleFrame`. */
+/** One season (or an owner's episode group) for the TV column, with what the band says about it. */
+export type TVSeason = Readonly<{id: string; label: string; count?: string; year?: string; overview?: string; progress?: string; fraction?: number; current: boolean; complete: boolean; group: boolean}>;
+/** One episode tile on TV (detail-tv-5b): the length alone on the still (no air date there), Up next, its progress. */
+export type TVTile = Readonly<{key: string; title: string; label: readonly FactPart[]; length?: string; status?: string; watched?: boolean; progress?: number; artwork?: ArtworkSource; backdropFallback: boolean;
+  onMore: (anchor: React.RefObject<View | null>) => void}>;
+export type TVEpisodes = Readonly<{seasons: readonly TVSeason[]; tiles: readonly TVTile[]; nextUp?: string; select: (id: string) => void; focusEpisode: (key: string | undefined) => void; play: (key: string) => void;
+  playSeason: (id: string) => void; markSeason: (id: string, watched: boolean) => void; moreSeasons: () => void}>;
 export type TitleView = Readonly<{
   retired: boolean;
   entry: ContentEntry;
@@ -41,7 +49,10 @@ export type TitleView = Readonly<{
   people: PeopleSheetProps;
   /** A show (or a season or episode page): the season bar, the season's episodes with the opened one, the season sheet. */
   episodes?: Readonly<{bar: Readonly<{label: string; count?: string; onSeasons: () => void; hideWatched: boolean; onHideWatched: (value: boolean) => void; settings?: Readonly<{label: string}>}>;
-    list: EpisodeListProps; sheet: SeasonSheetProps}>;
+    list: EpisodeListProps; sheet: SeasonSheetProps;
+    /** TV (detail-tv-5a, 5b): the season column chooses a season as focus reaches it (no sheet), the band describes the
+     * episode in focus (the plate in `list.opened`), OK on a tile plays it, and Hold OK on a season offers its options. */
+    tv: TVEpisodes}>;
   /** Loading with nothing to show yet, or the whole page failed. */
   state?: Readonly<{kind: 'loading'}> | PageStateProps;
 }>;
@@ -247,6 +258,30 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
         selectedId: group ? `group:${group.id}` : space.selected.seasonId ?? null,
         onSelect: id => {const held = seasonsLease; close(); if (!held) return; void (id.startsWith('group:') ? controller.group(id.slice(6), held) : controller.season(id, held)).catch(fail);},
         onMore: () => {void controller.moreSeasons().catch(fail);}},
+      tv: tvEpisodes(rows, seasons, group ? `group:${group.id}` : space.selected.seasonId ?? null),
+    };
+  }
+  /** TV: the same rows with each season's year and overview for the band; choosing a season or group takes the page's
+   * lease at that moment (there is no sheet to hold one), and an episode is opened for the band, played, or closed by key. */
+  function tvEpisodes(rows: readonly SeasonSheetRow[], seasons: readonly WorkspaceSeason[], selectedId: string | null): TVEpisodes {
+    const byId = new Map(seasons.map(season => [season.id, season])), episodes = snapshot.episodes ?? [], find = (key: string) => episodes.find(episode => episode.id === key);
+    const tiles = episodes.map((episode): TVTile => {
+      const copy = cardText({id: episode.id, kind: episode.kind, title: episode.displayTitle ?? episode.title, episode: numbering(episode), durationSeconds: episode.duration, positionSeconds: episode.progressSeconds}, 'in-show', text);
+      return {key: episode.id, title: episode.displayTitle ?? episode.title, label: copy.caption, length: episode.duration ? durationText(episode.duration, t) : undefined,
+        status: episode.id === nextUp?.id ? t('player.post.upNext') : undefined, watched: episode.watched, progress: copy.progress,
+        artwork: props.artwork(episode.stillUrl ?? workspace?.show.backdropUrl), backdropFallback: !episode.stillUrl, onMore: anchor => props.more(episode, anchor)};
+    });
+    return {
+      tiles, nextUp: nextUp && episodes.some(episode => episode.id === nextUp.id) ? nextUp.id : episodes[0]?.id,
+      seasons: rows.map(row => {const season = byId.get(row.id); return {id: row.id, label: row.label, count: row.count, progress: row.progress, fraction: row.fraction, complete: !!row.complete,
+        current: row.id === selectedId, group: row.id.startsWith('group:'), year: season?.firstAired?.slice(0, 4), overview: season?.overview || undefined};}),
+      select: id => {if (id === selectedId) return; const lease = controller.pageLease(); if (!lease) return;
+        void (id.startsWith('group:') ? controller.group(id.slice(6), lease) : controller.season(id, lease)).catch(fail);},
+      focusEpisode: key => {const episode = key ? find(key) : undefined; if (episode) controller.episode.open(episode); else controller.episode.close();},
+      play: key => {const episode = find(key); if (episode) void controller.play(episode).catch(fail);},
+      playSeason: id => {void controller.playSeason(id).catch(fail);},
+      markSeason: (id, watched) => {void controller.markSeason(id, watched).catch(fail);},
+      moreSeasons: () => {void controller.moreSeasons().catch(fail);},
     };
   }
   /** The opened episode (phone-detail d2 frame 4): its own detail read by the controller, the row's words meanwhile. */
