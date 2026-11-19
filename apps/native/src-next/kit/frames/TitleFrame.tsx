@@ -1,4 +1,4 @@
-import React, {useState, type ReactNode} from 'react';
+import React, {useRef, useState, type ReactNode} from 'react';
 import {ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
@@ -114,7 +114,11 @@ const titlePrimaryId = 'title-primary';
 function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, testID, actionsRegion}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
-  const [passed, setPassed] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY);
+  const [passed, setPassed] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY), [titleEnd, setTitleEnd] = useState(Number.POSITIVE_INFINITY);
+  // A page without tabs collapses its bar once the title passes under it (an album, an artist): where the title line
+  // ends in the page, measured against the page's head, so the bar with Back takes over as the title goes.
+  const headRef = useRef<View>(null), titleRef = useRef<View>(null);
+  const measureTitle = () => {const head = headRef.current; if (head) titleRef.current?.measureLayout(head, (_x, y, _width, h) => setTitleEnd(y + h));};
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   if (failure) return <View testID={testID} style={{flex: 1}}>
     {!tv && <View style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, top: insets.top + theme.space.tight}}><RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/></View>}
@@ -132,7 +136,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   </View>;
   const identity = <>
     {kickerLine}
-    {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={tvCollapsed ? spec.lockup.expanded : lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
+    <View ref={titleRef} collapsable={false} onLayout={measureTitle}>{loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={tvCollapsed ? spec.lockup.expanded : lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}</View>
     {!tvCollapsed && <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: centre, justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/> : metadata}</View>}
   </>;
   const names = (value: TitleCredit['names']) => typeof value === 'string' ? value : value.map((name, index) => <Text key={index}>{index > 0 ? ', ' : ''}
@@ -234,6 +238,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   // centred and Play on, with the tabs under it; a tablet on its side: the title, the tabs, the primary and the pinned actions.
   const barHeight = insets.top + 56; // R5 interim: rule 3's 56 bar under the status bar
   const shown = !tv && !split && (collapsed ?? passed);
+  const collapseAt = (tabs ? tabsY : titleEnd) - barHeight;
   // Held collapsed by the screen (a tab's content opened directly): the bar stands in place of the hero and the page's
   // tabs, and the panel starts under it (phone-detail d1 frame 2, desktop-detail f3).
   const held = shown && collapsed === true;
@@ -266,14 +271,14 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
       : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingTop: insets.top, paddingBottom: frame.bottomClear}}>{tabBar()}{content}</ScrollView>}
   </View>;
   const page = <>
-    {!held && head}
+    {!held && <View ref={headRef} collapsable={false}>{head}</View>}
     {tabs && !held && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>}
     {content}
   </>;
   return <View testID={testID} style={{flex: 1}}>
     {held && bar}
-    {scroller ? <View style={{flex: 1}}>{scroller(page, {paddingBottom: frame.bottomClear}, {at: tabsY - barHeight, onChange: setPassed})}</View>
-      : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setPassed(event.nativeEvent.contentOffset.y > tabsY - barHeight)}>{page}</ScrollView>}
+    {scroller ? <View style={{flex: 1}}>{scroller(page, {paddingBottom: frame.bottomClear}, {at: collapseAt, onChange: setPassed})}</View>
+      : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setPassed(event.nativeEvent.contentOffset.y > collapseAt)}>{page}</ScrollView>}
     {!held && bar}
   </View>;
 }
