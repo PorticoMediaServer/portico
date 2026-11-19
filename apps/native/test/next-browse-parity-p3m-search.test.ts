@@ -12,7 +12,8 @@ import {NativeSearchOnNow} from '../src-next/screens/search/on-now';
 import {nativeSearchGenreTiles} from '../src-next/screens/search/genre-tiles';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+// SearchFrame's regions are props beside its children: the walk reads them too.
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...['field', 'cancel', 'scopes', 'list'].flatMap(region => nodes(node.props[region]))] : [];
 const text = (node: any): string => Array.isArray(node) ? node.map(text).join('') : typeof node === 'string' ? node : node?.props ? text(node.props.children) : '';
 const idle = {generation: 1, scope: {}, query: null, phase: 'idle', data: null, groups: [], pagination: {cursor: null, canPrevious: false}, error: null};
 
@@ -39,7 +40,7 @@ async function mountSearch({hasLiveTV, onNow, typed = false, at = now}: {hasLive
     '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType}, '../../kit/theme': {useTheme: () => theme},
     '../home/model': {homeCardText, nativeSearchCardText: () => ({})}, './model': {NativeSearchDestination: class {}, nativeSearchEntryKey: (_group: string, entry: any) => entry.id},
-    './genre-tiles': {nativeSearchGenreTiles}, './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, './TVSearchScreen': {TVSearchScreen: 'TVSearchScreen'},
+    './genre-tiles': {nativeSearchGenreTiles}, './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, './TVSearchScreen': {TVSearchScreen: 'TVSearchScreen'}, '../../kit/frames': {SearchFrame: 'SearchFrame'},
     '../../../../../packages/client-core/src/presentation/kit-model': {channelTint, programmeTimeRange},
   });
   const snapshot = {text: typed ? 'matrix' : '', group: 'all', search: idle, groups: [], clearing: false, recent: [], paging: {}, problem: undefined};

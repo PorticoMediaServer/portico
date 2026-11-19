@@ -10,7 +10,8 @@ import {nativeSearchGenreTiles} from '../src-next/screens/search/genre-tiles';
 import {nativeSearchEntryKey} from '../src-next/screens/search/model';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+// SearchFrame's regions are props beside its children: the walk reads them too.
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...['field', 'cancel', 'scopes', 'list'].flatMap(region => nodes(node.props[region]))] : [];
 const flat = (node: any) => Array.isArray(node) ? node : nodes(node);
 const texts = (node: any) => flat(node).filter(n => n.type === 'Text');
 const label = (node: any) => Array.isArray(node.props.children) ? node.props.children[0] : node.props.children;
@@ -57,7 +58,7 @@ async function mount(snapshot: any, landing: any, text = defaultI18n) {
     '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType}, '../../kit/theme': {useTheme: () => theme},
     '../home/model': {homeCardText, nativeSearchCardText: (entry: any, env: any) => homeCardText(entry.kind === 'show' ? {...entry, seasonCount: undefined} : entry, false, env)}, './model': {NativeSearchDestination: class {}, nativeSearchEntryKey}, './genre-tiles': {nativeSearchGenreTiles},
-    './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, './TVSearchScreen': {TVSearchScreen: 'TVSearchScreen'},
+    './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, './TVSearchScreen': {TVSearchScreen: 'TVSearchScreen'}, '../../kit/frames': {SearchFrame: 'SearchFrame'},
     '../../../../../packages/client-core/src/presentation/kit-model': {channelTint},
   });
   const tree = host.render(() => view.SearchScreen({
@@ -82,16 +83,8 @@ test('phone Search draws the frame 7 empty state: 32pt title, bare 44px recent r
     recent: [{q: 'slow horses', updatedAt: '2026-10-24T09:00:00Z', uses: 2}, {q: 'tolkien', updatedAt: '2026-10-24T08:00:00Z', uses: 1}, {q: 'fleetwood mac', updatedAt: '2026-10-24T07:00:00Z', uses: 1}]};
   const {tree, paint, find} = await mount(snapshot, {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'});
 
-  // .lt: 32/800 with the drawn 1.15 line box and 12pt gap under it.
-  const heading = texts(tree).find(node => label(node) === defaultI18n.t('web.shell.search'))!;
-  const headingStyle = flatten(heading.props.style);
-  assert.equal(heading.props.accessibilityRole, 'header');
-  assert.equal(headingStyle.fontSize, 32);
-  assert.equal(headingStyle.lineHeight, 36.8);
-  assert.equal(typeof headingStyle.letterSpacing, 'number');
-  assert.equal(Number(Number(headingStyle.letterSpacing).toFixed(2)), -1.12);
-  assert.equal(headingStyle.marginBottom, 12);
-  assert.equal(headingStyle.marginHorizontal, 20);
+  // .lt: before typing the page's title is SearchFrame's, which draws it on a phone (its type and gaps are the frame's).
+  assert.equal(nodes(tree).find(node => node.type === 'SearchFrame')!.props.title, defaultI18n.t('web.shell.search'));
 
   // .shead: 19/700 "Recent searches" beside Clear, on the drawn 24/20/6 box.
   const recent = paint(find(props => props.title === defaultI18n.t('web.search.recent'))!);
@@ -139,7 +132,8 @@ test('typed no matches keeps state 17a four backdrop tiles, filtering missing ar
   }));
   const {tree, paint, find, calls} = await mount(snapshot, {phase: 'ready', genres: [missing], backdropGenres: [missing, ...backdrops],
     initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'});
-  assert.ok(nodes(tree).some(node => node.props.testID === 'search-no-matches'));
+  // No match is SearchFrame's own answer, at the top of its results.
+  assert.ok(nodes(tree).find(node => node.type === 'SearchFrame')!.props.none?.title.length);
   assert.ok(find(props => props.title === defaultI18n.t('next.search.browseInstead')));
   const tiles = nodes(tree).filter(node => typeof node.type === 'function' && node.props.genre);
   assert.deepEqual(tiles.map(node => node.props.genre.id), backdrops.slice(0, 4).map(genre => genre.id));
@@ -164,7 +158,7 @@ test('a selected type with no matches keeps the chip row and offers everything, 
   const chips = nodes(tree).filter(node => node.type === 'Chip');
   assert.ok(chips.some(chip => label(chip) === 'All'), 'All stays drawn');
   assert.equal(chips.find(chip => label(chip) === 'Movies')?.props.selected, true);
-  assert.equal(nodes(tree).some(node => node.props.testID === 'search-no-matches'), false);
+  assert.equal(nodes(tree).find(node => node.type === 'SearchFrame')!.props.none, undefined);
   const none = nodes(tree).find(node => node.props.testID === 'search-none-in')!;
   assert.equal(none.props.title, defaultI18n.t('web.search.nothingIn', {group: defaultI18n.t(searchGroupLabel('movies'))}));
   assert.equal(none.props.primaryAction.label, defaultI18n.t('web.search.everything'));

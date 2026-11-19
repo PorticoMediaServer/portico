@@ -18,7 +18,8 @@ import {openNativeSavedDownload} from '../src-next/screens/downloads/playback.ts
 type Element = {type: any; props: Record<string, any>};
 function elements(node: any): Element[] {
   if (Array.isArray(node)) return node.flatMap(elements);
-  return node && typeof node === 'object' && 'props' in node ? [node, ...elements(node.props.children)] : [];
+  // SearchFrame's regions are props beside its children: the walk reads them too.
+  return node && typeof node === 'object' && 'props' in node ? [node, ...elements(node.props.children), ...['field', 'cancel', 'scopes', 'list'].flatMap(region => elements(node.props[region]))] : [];
 }
 const runtime = {text: defaultI18n, artwork: () => undefined, reportError() {}};
 const theme = createTheme({width: 390, isTV: false});
@@ -72,7 +73,7 @@ async function searchFixture(group = 'all') {
     '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
     '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {}, '../../kit/Icon': {}, '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
     '../home/model': {homeCardText: () => ({caption: []}), nativeSearchCardText: () => ({caption: []})}, './model': {nativeSearchEntryKey: (kind: string, item: any) => JSON.stringify([kind, item.kind, item.id])},
-    './SearchGridCard': {SearchGridCard}, './TVSearchScreen': {TVSearchScreen: 'TVSearchScreen'},
+    './SearchGridCard': {SearchGridCard}, './TVSearchScreen': {TVSearchScreen: 'TVSearchScreen'}, '../../kit/frames': {SearchFrame: 'SearchFrame'},
   });
   const tree = host.render(() => SearchScreen({destination: {subscribe() {}, getSnapshot: () => snapshot, setText() {}}, runtime,
     explore: {subscribe() {}, getSnapshot: (() => {const snapshot = {genres: []}; return () => snapshot;})()}, actions, activation: {subscribe() {}, getSnapshot: (() => {const snapshot = {visible: true, intent: 'enter', revision: 1}; return () => snapshot;})()},

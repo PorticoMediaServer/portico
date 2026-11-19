@@ -5,7 +5,8 @@ import {hooks, screenModule, stackSlotFixture} from './helpers/screen-harness.mj
 import * as seeAllModel from '../src-next/screens/home/see-all-model.ts';
 import {nativeWatchMenuGroups} from '../src-next/screens/watch/menu-model.ts';
 
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+// SearchFrame's regions are props beside its children: the walk reads them too.
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...['field', 'cancel', 'scopes', 'list'].flatMap(region => nodes(node.props[region]))] : [];
 const flat = (style: any): any => Array.isArray(style) ? Object.assign({}, ...style.map(flat)) : style ?? {};
 const t = (key: string) => key;
 const theme = {isTV: false, platform: 'phone', layoutMode: 'phone', gutter: 20, textScale: 1,
@@ -40,7 +41,7 @@ test('expanded Search shelves keep every loaded result and prefetch ten cards be
     '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
     '../../kit/Icon': {Icon: 'Icon'}, '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => ({...theme, platform: 'tablet', layoutMode: 'desktop'})},
     '../home/model': {homeCardText: () => ({}), nativeSearchCardText: () => ({})}, './model': {nativeSearchEntryKey: (id: string, entry: any) => `${id}:${entry.id}`},
-    './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, './TVSearchScreen': {TVSearchScreen: 'TVSearchScreen'}, './genre-tiles': {nativeSearchGenreTiles: () => []},
+    './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, './TVSearchScreen': {TVSearchScreen: 'TVSearchScreen'}, '../../kit/frames': {SearchFrame: 'SearchFrame'}, './genre-tiles': {nativeSearchGenreTiles: () => []},
   });
   const props = {destination: {subscribe: () => () => {}, getSnapshot: () => snapshot, setText() {}, next: async (id: string) => {calls.push(id);}, retryGroup: async () => {calls.push('retry');}},
     runtime: {text: {t}, reportError: (error: unknown) => {throw error;}, error: (_error: unknown, retry: () => void) => ({primaryAction: {onPress: retry}})},

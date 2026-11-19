@@ -1,7 +1,6 @@
 import React, {useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {FlatList, Keyboard, ScrollView, Text, View, useWindowDimensions, type TextInput} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {repeat} from '../../../../../packages/client-core/src/timer';
 import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core/src/search';
@@ -10,6 +9,7 @@ import {Artwork} from '../../kit/artwork';
 import {GenreTile, LiveCard, type CardSelection} from '../../kit/cards';
 import {CardFrame, Parts} from '../../kit/cards/primitives';
 import {Chip, Focusable, TextField} from '../../kit/controls';
+import {SearchFrame} from '../../kit/frames';
 import {SelectionCircle} from '../../kit/selection';
 import {GridSkeleton, LoadingPaint, SkeletonBlock, StateView} from '../../kit/states';
 import {Icon} from '../../kit/Icon';
@@ -45,7 +45,7 @@ export type NativeSearchScreenProps = Readonly<{
 export function SearchScreen({focusScope, destination, runtime, explore, onNow = noOnNow, actions, selection, activation, tvCopy}: NativeSearchScreenProps) {
   const t = runtime.text.t;
   useSyncExternalStore(actions.menuState?.subscribe ?? (() => () => {}), actions.menuState?.getSnapshot ?? (() => 0));
-  const theme = useTheme(), insets = useSafeAreaInsets(), dimensions = useWindowDimensions();
+  const theme = useTheme(), dimensions = useWindowDimensions();
   const state = useSyncExternalStore(destination.subscribe, destination.getSnapshot);
   const landing = useSyncExternalStore(explore.subscribe, explore.getSnapshot);
   // Only a screen given the On now port reads the shell's Live TV fact (TV search has its own page).
@@ -109,28 +109,22 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
   const available = SEARCH_CHIPS.filter(chip => chip.id === 'all' || state.search.data?.capabilities.groups.some(group => group.id === chip.id && group.available))
     // One chip is selected: the answer covers that group alone, so the drawn row keeps its other types.
     .filter(chip => chip.id === 'all' || state.group !== 'all' || !state.groups.some(group => group.id === chip.id && group.status === 'success' && group.totalCount === 0));
-  const chips = typed && !emptyAll && !problem && state.search.data && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8, paddingHorizontal: 20, paddingTop: 12}}>
-    {available.map(chip => {
+  const chips = typed && !emptyAll && !problem && state.search.data && available.map(chip => {
       const group = state.groups.find(value => value.id === chip.id);
       const count = chip.id === 'all' ? state.groups.every(value => value.totalCountExact) ? state.groups.reduce((sum, value) => sum + value.totalCount, 0) : undefined : group?.totalCountExact ? group.totalCount : undefined;
       return <Chip key={chip.id} testID={`search-chip-${chip.id}`} selected={state.group === chip.id} count={count} retry={group?.status === 'error'} disabled={!!group && group.status === 'success' && group.totalCount === 0}
         onPress={() => destination.selectGroup(chip.id)}>{t(chip.label)}</Chip>;
-    })}
-  </ScrollView></TVRow>;
-  const fields = <View style={{paddingTop: Math.max(typed || focused ? 56 : 58, insets.top)}}>
-    {!typed && !focused && <Text accessibilityRole="header" style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, marginHorizontal: 20, marginBottom: 12}]}>{t('web.shell.search')}</Text>}
-    <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16}}>
-      <View style={{flex: 1}}><TextField ref={input} testID="search-input" focusId="search-input" variant="search" leadingIcon="i-search" value={state.text}
-        cursorColor={theme.colors.accentStrong} selectionColor={theme.colors.accentStrong}
-        onChangeText={destination.setText.bind(destination)} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-        accessibilityLabel={t('web.shell.search')} placeholder={t('web.search.placeholder')} returnKeyType="search" autoCapitalize="none" autoCorrect={false}
-        onSubmitEditing={() => run(destination.commit())} fieldStyle={{height: 44, borderRadius: 12, paddingRight: typed ? 38 : 12}}/>
-        {typed && <Focusable testID="search-clear" accessibilityLabel={t('web.search.clear')} onPress={() => destination.setText('')} hitSlop={12} focusRadius={10}
-          style={{position: 'absolute', right: 12, top: 12, width: 20, height: 20, borderRadius: 10, backgroundColor: theme.colors.lineStrong, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-x" size={12} color={theme.colors.raised}/></Focusable>}
-      </View>
-      {(typed || focused) && <Focusable testID="search-cancel" accessibilityLabel={t('action.cancel')} onPress={() => {destination.setText(''); Keyboard.dismiss(); setFocused(false);}} style={{height: 44, justifyContent: 'center'}}><Text style={[browseType(theme, 15.5, 600), {color: theme.colors.textSecondary}]}>{t('action.cancel')}</Text></Focusable>}
-    </View>{chips}
+    });
+  // SearchFrame owns the title (phone, before typing), the field's line with Cancel and the chips' line.
+  const field = <View><TextField ref={input} testID="search-input" focusId="search-input" variant="search" leadingIcon="i-search" value={state.text}
+      cursorColor={theme.colors.accentStrong} selectionColor={theme.colors.accentStrong}
+      onChangeText={destination.setText.bind(destination)} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      accessibilityLabel={t('web.shell.search')} placeholder={t('web.search.placeholder')} returnKeyType="search" autoCapitalize="none" autoCorrect={false}
+      onSubmitEditing={() => run(destination.commit())} fieldStyle={{height: 44, borderRadius: 12, paddingRight: typed ? 38 : 12}}/>
+    {typed && <Focusable testID="search-clear" accessibilityLabel={t('web.search.clear')} onPress={() => destination.setText('')} hitSlop={12} focusRadius={10}
+      style={{position: 'absolute', right: 12, top: 12, width: 20, height: 20, borderRadius: 10, backgroundColor: theme.colors.lineStrong, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-x" size={12} color={theme.colors.raised}/></Focusable>}
   </View>;
+  const cancel = (typed || focused) && <Focusable testID="search-cancel" accessibilityLabel={t('action.cancel')} onPress={() => {destination.setText(''); Keyboard.dismiss(); setFocused(false);}} style={{height: 44, justifyContent: 'center'}}><Text style={[browseType(theme, 15.5, 600), {color: theme.colors.textSecondary}]}>{t('action.cancel')}</Text></Focusable>;
   const history = !!state.recent.length && <>
     <SectionHeading title={t('web.search.recent')} action={t('web.search.clearRecent')} disabled={state.clearing} onAction={() => run(destination.clearHistory())}/>
     {state.recent.map(recent => <Focusable key={recent.q} testID={`search-recent-${encodeURIComponent(recent.q)}`} accessibilityLabel={recent.q} onPress={() => destination.useRecent(recent.q)}
@@ -159,11 +153,17 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
   if (theme.isTV) return <TVSearchScreen focusScope={focusScope} destination={destination} runtime={runtime} activation={activation} explore={explore} actions={actions} selection={selection} copy={tvCopy}/>;
   return <View testID="native-search-screen" pointerEvents={activeRoute.visible ? 'auto' : 'none'} accessibilityElementsHidden={!activeRoute.visible}
     importantForAccessibility={activeRoute.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}} onLayout={event => setSurface(event.nativeEvent.layout.width)}>
-    {fields}
-    {state.group === 'all' || empty || !typed ? <ScrollView ref={scroll} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom: 28}}>
+    <SearchFrame title={!typed && !focused ? t('web.shell.search') : undefined} field={field} cancel={cancel} scopes={chips} scrollRef={scroll}
+      none={emptyAll ? {title: t('next.states.noMatches', {query: state.text.trim()}), body: t('next.states.noMatchesBody')} : undefined}
+      list={state.group === 'all' || empty || !typed ? undefined : <FlatList ref={grid} key={state.group} data={active?.items ?? []} numColumns={3} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled"
+        keyExtractor={entry => nativeSearchEntryKey(state.group as SearchGroup, entry)} contentContainerStyle={{padding: 16, gap: 16, paddingBottom: 28}}
+        columnWrapperStyle={{gap: 10}} onEndReachedThreshold={.5} onEndReached={() => {if (active?.nextCursor && state.search.phase === 'ready') run(destination.next(active.id));}}
+        renderItem={({item}) => <SearchGridCard entry={item} group={state.group as SearchGroup} runtime={runtime} actions={actions} selection={selection?.item(item, state.group as SearchGroup)} width={(surface - 52) / 3}/>}
+        ListHeaderComponent={error || null} ListEmptyComponent={loading ? <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={dimensions.height - 180} width={surface} columns={3} totalCount={9}/> : null}/>}>
+      {/* The results are one block under the frame's head: their rows keep their own rhythm. */}
+      <View>
       {problem && <StateView variant="search" title={problem} style={{margin: 20}}/>}
       {error}
-      {emptyAll && <StateView testID="search-no-matches" variant="search" title={t('next.states.noMatches', {query: state.text.trim()})} body={t('next.states.noMatchesBody')} style={{paddingTop: 26, marginHorizontal: 20}}/>}
       {emptyIn && <StateView testID="search-none-in" variant="search" title={t('web.search.nothingIn', {group: t(searchGroupLabel(emptyIn))})}
         primaryAction={{id: 'everything', label: t('web.search.everything'), onPress: () => destination.selectGroup('all')}} style={{paddingTop: 26, marginHorizontal: 20}}/>}
       {(!typed || emptyAll) && (emptyAll ? <>{genres}{history}</> : <>{history}{genres}</>)}
@@ -196,11 +196,8 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
         <SearchResultRow entry={entry} group={group} runtime={runtime} actions={actions} selection={selection?.item(entry, group)}/>
       </React.Fragment>)}
       {loading && <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={Math.max(0, dimensions.height - 180)} width={surface} columns={3} totalCount={9}/>}
-    </ScrollView> : <FlatList ref={grid} key={state.group} data={active?.items ?? []} numColumns={3} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled"
-      keyExtractor={entry => nativeSearchEntryKey(state.group as SearchGroup, entry)} contentContainerStyle={{padding: 16, gap: 16, paddingBottom: 28}}
-      columnWrapperStyle={{gap: 10}} onEndReachedThreshold={.5} onEndReached={() => {if (active?.nextCursor && state.search.phase === 'ready') run(destination.next(active.id));}}
-      renderItem={({item}) => <SearchGridCard entry={item} group={state.group as SearchGroup} runtime={runtime} actions={actions} selection={selection?.item(item, state.group as SearchGroup)} width={(surface - 52) / 3}/>}
-      ListHeaderComponent={error || null} ListEmptyComponent={loading ? <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={dimensions.height - 180} width={surface} columns={3} totalCount={9}/> : null}/>}
+      </View>
+    </SearchFrame>
     {selection?.render(path => {const source = runtime.artwork(path); return source ? <Artwork source={source} width={48} height={48}/> : undefined;})}
   </View>;
 }
