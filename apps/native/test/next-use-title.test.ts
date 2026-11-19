@@ -22,6 +22,7 @@ const detail = (over: Record<string, unknown> = {}) => ({
   collections: [{id: 'col', name: 'The Godfather Collection', memberCount: 3, posterUrls: ['/p1.jpg']}], scope: {libraryId: 'movies'},
   related: {rows: []}, ...over});
 
+let episodeSnapshot: Record<string, unknown> = {phase: 'idle'};
 async function page(snapshot: Record<string, unknown>, extra: Record<string, unknown> = {}) {
   const calls: unknown[][] = [], h = hooks();
   const {useTitle} = await screenModule(new URL('../src-next/pages/shared/title/useTitle.ts', import.meta.url), {
@@ -30,7 +31,9 @@ async function page(snapshot: Record<string, unknown>, extra: Record<string, unk
     '../../../../../../packages/client-core/src/presentation/errors': errors, '../../../../../../packages/i18n/src': {defaultI18n}});
   const record = (name: string) => (...args: unknown[]) => {calls.push([name, ...args]); return Promise.resolve();};
   const controller = {subscribe: () => () => {}, getSnapshot: () => ({entry: film, retired: false, place: {tab: 'related'}, related: {}, recommendationRows: [], ...snapshot}),
-    open: record('open'), play: record('play'), remember: record('remember'), moreCredits: record('moreCredits'), personal: record('personal'), tab: record('tab'), moreRelated: record('moreRelated'), detail: {refresh: record('refresh')}};
+    open: record('open'), play: record('play'), remember: record('remember'), moreCredits: record('moreCredits'), personal: record('personal'), tab: record('tab'), moreRelated: record('moreRelated'), detail: {refresh: record('refresh')},
+    episode: {subscribe: () => () => {}, getSnapshot: () => episodeSnapshot, open: record('openEpisode'), close: record('closeEpisode'), play: record('playEpisode'), personal: record('episodePersonal'), retry: record('retryEpisode')},
+    workspace: {retry: record('retryWorkspace')}, pageLease: () => 'lease', season: record('season'), group: record('group'), hideWatched: record('hideWatched'), moreSeasons: record('moreSeasons'), moreEpisodes: record('moreEpisodes'), setShowMyList: record('setShowMyList')};
   const props = {controller, text: {t, locale: 'en-US'}, artwork: (path?: string) => path ? {uri: path} : undefined, ambient: () => undefined,
     back: record('back'), navigate: record('navigate'), more: record('more'), reportError: record('error'), renderError: () => null, aboutLabel: 'About',
     download: record('download'), openCollection: record('collection'), person: record('person'), genre: record('genre'), ...extra};
@@ -110,4 +113,32 @@ test('See all lists everyone the server has paged so far and reads the next page
   const {view, calls} = await page({detail: {phase: 'ready', data: detail()}, credits});
   assert.deepEqual(view.people.groups[0].map((person: any) => person.name), ['Marlon Brando', 'Al Pacino']);
   view.people.more.onPress(); assert.deepEqual(calls.at(-1), ['moreCredits', credits]);
+});
+
+test('a show plays its next episode by name, lists the season, opens an episode in place and picks seasons from the sheet', async () => {
+  const show = {id: 's1', kind: 'show', title: 'The Last of Us', libraryId: 'tv'} as any;
+  const e1 = {id: 'e1', kind: 'episode', title: 'When You\'re Lost', seasonNumber: 1, episodeNumber: 1, duration: 4800, progressSeconds: 1200, libraryId: 'tv'} as any;
+  const e2 = {id: 'e2', kind: 'episode', title: 'Infected', seasonNumber: 1, episodeNumber: 2, duration: 3000, libraryId: 'tv'} as any;
+  const workspace = {show: {id: 's1', title: 'The Last of Us', libraryId: 'tv', year: 2023, genres: ['Drama'], overview: 'After a pandemic.', network: 'HBO',
+    credits: [{id: 'p9', name: 'Pedro Pascal', role: 'Joel', department: 'Acting', ordinal: 0}]}, nextUp: {...e1, playback: {itemId: 'e1', startSeconds: 1200}},
+    selected: {seasonId: 'season-1', group: null}, groups: [], seasonTotalCount: 2};
+  episodeSnapshot = {phase: 'ready', entry: e2, data: {item: {overview: 'In 2003.', duration: 3000}, personal: {watchlisted: false, progressSeconds: 0}, actions: [], metadata: {credits: []}, episodeDetails: {previous: {id: 'e1', number: 1, title: 'When You\'re Lost'}}}};
+  const {view, calls} = await page({entry: show, workspace: {phase: 'ready', data: workspace}, showState: {watchlisted: false}, episodes: [e1, e2],
+    seasons: [{id: 'season-1', number: 1, title: '', episodeCount: 9, watchedCount: 3}, {id: 'season-2', number: 2, title: '', episodeCount: 7}], place: {tab: 'episodes', hideWatched: false}});
+  assert.equal(view.primary.label, t('title.resumeEpisode', {code: 'S1 E1'}));
+  assert.deepEqual(view.tabs.items.map((item: any) => item.value), ['episodes', 'related', 'details']);
+  assert.equal(view.episodes.bar.label, t('title.season', {number: 1}));
+  assert.deepEqual(view.episodes.list.items.map((item: any) => item.key), ['e1', 'e2']);
+  assert.equal(view.episodes.list.opened.key, 'e2');
+  assert.equal(view.episodes.list.opened.previous.title, 'When You\'re Lost');
+  view.episodes.list.items[0].onNavigate(); assert.deepEqual(calls.at(-1), ['openEpisode', e1]);
+  view.episodes.list.opened.close.onPress(); assert.equal(calls.at(-1)![0], 'closeEpisode');
+  assert.deepEqual(view.episodes.sheet.rows.map((row: any) => row.id), ['season-1', 'season-2']);
+  // Details reads the show's workspace: its facts and its own credits.
+  assert.deepEqual(view.details.about.rows.map((row: any) => row.label), [t('title.genres'), t('title.network')]);
+  assert.deepEqual(view.details.people.groups[0].map((person: any) => person.name), ['Pedro Pascal']);
+  view.actions[0].onPress(); assert.deepEqual(calls.at(-1), ['setShowMyList', true]);
+  // Near the page's end on Episodes, the season's next page (the old screen's scroll paging).
+  view.onEnd(); assert.deepEqual(calls.at(-1), ['moreEpisodes']);
+  episodeSnapshot = {phase: 'idle'};
 });

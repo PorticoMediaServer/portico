@@ -2,14 +2,16 @@ import {useEffect, useRef, useState, useSyncExternalStore, type RefObject} from 
 import type {View} from 'react-native';
 import type {NativeStartArtworkOffer} from '../../../platform/playback/start-presentation';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
-import {titleFactParts, type FactPart} from '../../../../../../packages/client-core/src/presentation/kit-model';
+import {cardText, episodeLabel, titleFactParts, type FactPart} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {durationText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
 import type {CollectionCardProps} from '../../../kit/cards';
-import type {PageStateProps, PeopleSheetProps, TitleAction, TitleKicker, TitlePrimary, TitleDetailsProps, CastPerson} from '../../../kit/frames';
+import type {EpisodeListProps, EpisodePlateProps, PageStateProps, PeopleSheetProps, TitleAction, TitleKicker, TitlePrimary, TitleDetailsProps, CastPerson} from '../../../kit/frames';
 import type {PosterRowProps} from '../../../kit/layout';
+import type {SeasonSheetProps, SeasonSheetRow} from '../../../kit/layout/SeasonSheet';
+import type {NativeTitlePageLease} from '../../../screens/watch/title-controller';
 import type {NativeTitleScreenProps} from '../../../screens/watch/TitleScreen';
 import type {NativeTitleTab} from '../../../screens/watch/title-memory';
 
@@ -23,6 +25,8 @@ export type TitleView = Readonly<{
   art: Readonly<{source?: AmbientArtSource; foreground?: ArtworkSource; ref: RefObject<View | null>; onReady: (art: ArtworkSource) => void; onError: (art: ArtworkSource) => void}>;
   /** Where the page was scrolled, kept by the title controller (Back to the page returns there). */
   scroll: Readonly<{offset: number; onOffset: (y: number) => void}>;
+  /** The frame's `onEnd`: on a show's Episodes, the season's next page of episodes (the old screen's scroll paging). */
+  onEnd?: () => void;
   kicker?: TitleKicker;
   facts: readonly FactPart[];
   primary?: TitlePrimary;
@@ -35,18 +39,30 @@ export type TitleView = Readonly<{
   details: TitleDetailsProps;
   /** Cast & crew's See all: everyone, paged from the server. */
   people: PeopleSheetProps;
+  /** A show (or a season or episode page): the season bar, the season's episodes with the opened one, the season sheet. */
+  episodes?: Readonly<{bar: Readonly<{label: string; count?: string; onSeasons: () => void; hideWatched: boolean; onHideWatched: (value: boolean) => void; settings?: Readonly<{label: string}>}>;
+    list: EpisodeListProps; sheet: SeasonSheetProps}>;
   /** Loading with nothing to show yet, or the whole page failed. */
   state?: Readonly<{kind: 'loading'}> | PageStateProps;
 }>;
 
 const t = defaultI18n.t;
 const ratingKind = (provider: string) => provider === 'community' ? t('title.rating.community') : provider === 'critic' ? t('title.rating.critics') : provider;
+/** An episode's own numbering, the shape the episode rows and the player label use. */
+const numbering = (entry: ContentEntry) => entry.absoluteNumber !== undefined ? {mode: 'absolute' as const, number: entry.absoluteNumber}
+  : entry.dateBased && entry.airDate ? {mode: 'date' as const, day: entry.airDate}
+    : entry.seasonNumber === 0 ? {mode: 'special' as const} : {mode: 'seasonal' as const, season: entry.seasonNumber, episode: entry.episodeNumber};
 const dateText = (value: string, locale: string, utc = false) => new Intl.DateTimeFormat(locale, {month: 'long', day: 'numeric', year: 'numeric', ...(utc ? {timeZone: 'UTC'} : {})}).format(new Date(value));
 
 export function useTitle(props: NativeTitleScreenProps): TitleView {
   const {controller, text} = props, snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   useEffect(() => {void controller.open().catch(props.reportError);}, [controller, props.reportError]);
   const entry = snapshot.entry, detail = snapshot.detail?.data, locale = text.locale ?? 'en-US';
+  // A show, season or episode page reads the show's workspace (its seasons and episodes); a film its detail.
+  const show = ['show', 'season', 'episode'].includes(entry.kind), workspace = show ? snapshot.workspace?.data : undefined;
+  const openEpisode = useSyncExternalStore(controller.episode.subscribe, controller.episode.getSnapshot);
+  // The season sheet acts for the page it opened on, never a later one (the old screen's lease).
+  const [seasonsLease, setSeasonsLease] = useState<NativeTitlePageLease | undefined>(undefined);
   const fail = (error: unknown) => props.reportError(error);
   // Play opens the player from the title's art: the art box, measured at the press, while the art drawn is the art offered
   // and the page has not moved since (the old title screen's start motion).
@@ -57,20 +73,23 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
   const removal = useRef<AbortController | undefined>(undefined), [removing, setRemoving] = useState(false), [removed, setRemoved] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
   useEffect(() => () => removal.current?.abort(), []);
-  const title = entry.displayTitle ?? detail?.item.title ?? entry.title;
-  const backdrop = detail?.item.backdropUrl ?? entry.backdropUrl;
+  const title = workspace?.show.title ?? entry.displayTitle ?? detail?.item.title ?? entry.title;
+  const backdrop = workspace?.show.backdropUrl ?? detail?.item.backdropUrl ?? entry.backdropUrl;
 
   // Facts: year, genres, length; the rating as its outlined tag at the end (phone-detail d1).
-  const contentRating = detail?.facts?.contentRating ?? entry.contentRating, duration = detail?.item.duration ?? entry.duration;
-  const factSource = titleFactParts({year: detail?.item.year ?? entry.year, durationSeconds: duration,
-    genres: detail?.metadata.genres.map(genre => genre.name) ?? entry.genres, contentRating}, text, 'home-movie');
+  const contentRating = workspace?.show.contentRating ?? detail?.facts?.contentRating ?? entry.contentRating, duration = detail?.item.duration ?? entry.duration;
+  const factSource = titleFactParts({year: workspace?.show.year ?? detail?.item.year ?? entry.year, durationSeconds: show ? undefined : duration,
+    genres: workspace?.show.genres ?? detail?.metadata.genres.map(genre => genre.name) ?? entry.genres, contentRating, seasonCount: show ? workspace?.seasonTotalCount : undefined}, text, 'home-movie');
   const facts = [...factSource.filter(fact => fact.id !== 'content-rating'), ...(contentRating ? [{id: 'content-rating', text: contentRating, role: 'context' as const}] : [])];
 
   // Play or Resume, with the played part, the time left and Start over.
   const action = detail?.actions.find(value => value.enabled && value.playback && value.id !== 'start_over');
-  const playback = action?.playback ?? entry.playback;
-  const progressSeconds = detail?.personal.progressSeconds ?? entry.progressSeconds;
-  const resuming = !!playback?.startSeconds && (progressSeconds ?? 0) > 0 && !!duration;
+  // A show plays its next episode, named on the button ("Play S1 E1", phone-detail d2).
+  const nextUp = show ? workspace?.nextUp : undefined, code = nextUp ? episodeLabel(numbering(nextUp), 'player', text)?.text : undefined;
+  const playback = action?.playback ?? nextUp?.playback ?? entry.playback;
+  const progressSeconds = nextUp ? nextUp.progressSeconds : detail?.personal.progressSeconds ?? entry.progressSeconds;
+  const playDuration = nextUp ? nextUp.duration : duration;
+  const resuming = !!playback?.startSeconds && (progressSeconds ?? 0) > 0 && !!playDuration;
   const startOver = detail?.actions.some(value => value.id === 'start_over' && value.enabled && value.playback);
   const foreground = props.artwork(backdrop);
   const startArt = (): NativeStartArtworkOffer | undefined => {
@@ -85,12 +104,14 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
     return Object.freeze({artwork: foreground, bounds, paintCurrent, subscribe});
   };
   const play = (fromStart = false) => {void controller.play(fromStart ? entry : undefined, fromStart, fromStart ? undefined : startArt()).catch(fail);};
-  const primary: TitlePrimary | undefined = playback ? {icon: 'i-play', label: t(resuming ? 'entry.resume' : 'entry.play'), onPress: () => play(), testID: 'watch-title-play',
-    ...(resuming ? {progress: Math.min(1, progressSeconds! / duration!), remaining: t('next.kit.remaining', {time: durationText(Math.max(0, duration! - progressSeconds!), text.t)}),
+  const primary: TitlePrimary | undefined = playback ? {icon: 'i-play', label: code ? t(resuming ? 'title.resumeEpisode' : 'title.playEpisode', {code}) : t(resuming ? 'entry.resume' : 'entry.play'), onPress: () => play(), testID: 'watch-title-play',
+    ...(resuming ? {progress: Math.min(1, progressSeconds! / playDuration!), remaining: t('next.kit.remaining', {time: durationText(Math.max(0, playDuration! - progressSeconds!), text.t)}),
       ...(startOver ? {startOver: {label: t('action.startOver'), onPress: () => play(true)}} : {})} : {})} : undefined;
 
   // My List, Watched (in More on a phone), Download, More: phone-detail d1.
-  const myList = props.myList ?? (detail?.actions.some(value => value.id === 'watchlist' && value.enabled)
+  // A show's My List is the show's own (W-8), a film's its item action.
+  const myList = props.myList ?? (show ? snapshot.showState ? {selected: snapshot.showState.watchlisted, change: (value: boolean) => controller.setShowMyList(value)} : undefined
+    : detail?.actions.some(value => value.id === 'watchlist' && value.enabled)
     ? {selected: detail.personal.watchlisted, change: (value: boolean) => controller.personal({action: 'watchlist', value})} : undefined);
   const watched = detail?.actions.some(value => value.id === 'watched' && value.enabled) ? detail.personal.watched : undefined;
   const actions: TitleAction[] = [
@@ -107,7 +128,9 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
   const kicker: TitleKicker | undefined = collection ? {icon: 'i-layers', label: collection.name, detail: t('next.browse.filmCount', {count: collection.memberCount}), onPress: openCollection} : undefined;
 
   // People: the cast first, then the crew; directors and writers named under them.
-  const credits = detail?.metadata.credits ?? [];
+  // A show's own workspace carries its credits (a credit's id is its person, who can hold two roles, so each is keyed by its place).
+  const credits = show ? (workspace?.show.credits ?? []).map(credit => ({id: `show-credit-${credit.ordinal}`, ...(credit.id ? {personId: credit.id} : {}), name: credit.name,
+    role: credit.role ?? '', department: credit.department ?? '', provider: '', ...(credit.portraitUrl ? {portraitUrl: credit.portraitUrl} : {})})) : detail?.metadata.credits ?? [];
   const department = (names: readonly string[]) => credits.filter(credit => names.includes(credit.department.toLowerCase()));
   const person = (credit: typeof credits[number]): CastPerson => ({id: credit.id, name: credit.name, role: credit.role || undefined, portrait: props.artwork(credit.portraitUrl),
     onPress: credit.personId && props.person ? () => props.person!(credit.personId!) : undefined});
@@ -125,7 +148,14 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
     ...(paged?.hasMore ? {more: {label: t('action.showMore'), loading: paged.loading, onPress: () => {void controller.moreCredits(paged).catch(fail);}}} : {}),
     ...(paged?.error ? {note: presentError(paged.error, 'detail').body} : {})};
 
-  const about = [
+  const showInfo = workspace?.show;
+  const about = show ? [
+    showInfo?.firstAired && {label: t('title.releaseDate'), values: [{text: dateText(showInfo.firstAired, locale, true)}]},
+    showInfo?.genres?.length && {label: t('title.genres'), values: showInfo.genres.map(name => ({text: name}))},
+    showInfo?.network && {label: t('title.network'), values: [{text: showInfo.network}]},
+    showInfo?.studio && {label: t('title.studio'), values: [{text: showInfo.studio}]},
+    showInfo?.addedAt && {label: t('title.added'), values: [{text: dateText(showInfo.addedAt, locale)}]},
+  ].filter((row): row is {label: string; values: {text: string; onPress?: () => void}[]} => !!row) : [
     detail?.facts?.releaseDate && {label: t('title.releaseDate'), values: [{text: dateText(detail.facts.releaseDate, locale, true)}]},
     // A genre opens its Search genre page, drawn as a link (phone-detail d1 frame 2).
     detail?.metadata.genres.length && {label: t('title.genres'), values: detail.metadata.genres.map(genre => ({text: genre.name, ...(props.genre ? {onPress: () => props.genre!({id: genre.id, name: genre.name})} : {})}))},
@@ -152,9 +182,9 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
   });
 
   const state = ((): TitleView['state'] => {
-    const phase = snapshot.detail?.phase, error = snapshot.detail?.error;
-    if (phase === 'loading' && !detail) return {kind: 'loading'};
-    if (!error || detail) return undefined;
+    const read = show ? snapshot.workspace : snapshot.detail, loaded = show ? workspace : detail, phase = read?.phase, error = read?.error;
+    if (phase === 'loading' && !loaded) return {kind: 'loading'};
+    if (!error || loaded) return undefined;
     const presented = presentError(error, 'detail'), captured = (entry.displayTitle || entry.title).trim();
     // states13: a permission refusal names nothing; a gone title is named from the captured entry and the saved server.
     if (presented.category === 'permission') return {icon: 'i-lock', title: presented.title, body: presented.body};
@@ -168,17 +198,97 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
     if (presented.category === 'not-found' && captured && props.serverName) return {icon: 'i-not', title: t('next.states.removed', {title: captured, server: props.serverName}), body: t('next.states.removedBody'),
       ...(props.search ? {primaryAction: {id: 'search', icon: 'i-search', label: t('next.states.searchTitle', {title: captured}), onPress: () => props.search?.(captured)}} : {}),
       ...(removeContinue && !removed ? {secondaryAction: {id: 'remove-continue', label: t('next.states.removeContinue'), disabled: removing, onPress: remove}} : {})};
-    return {icon: 'i-warn', title: presented.title, body: presented.body, primaryAction: {id: 'retry', label: t('action.tryAgain'), onPress: () => {void controller.detail.refresh().catch(fail);}}};
+    return {icon: 'i-warn', title: presented.title, body: presented.body, primaryAction: {id: 'retry', label: t('action.tryAgain'), onPress: () => {void (show ? controller.workspace.retry() : controller.detail.refresh()).catch(fail);}}};
   })();
+
+  const airDay = (date: string) => new Intl.DateTimeFormat(locale, {month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC'}).format(new Date(`${date}T00:00:00Z`));
+  // The season bar, the season's episodes (the opened one with its plate) and the season sheet: phone-detail d2.
+  function episodesView(): TitleView['episodes'] {
+    const space = workspace!, seasons = snapshot.seasons ?? [], selected = seasons.find(season => season.id === space.selected.seasonId);
+    const group = space.selected.group ? space.groups.find(value => value.id === space.selected.group) : undefined;
+    const label = group ? group.title : selected ? selected.title || t('title.season', {number: selected.number}) : t('title.seasons');
+    const count = group ? group.count > 0 ? t('count.episodes', {count: group.count}) : undefined : selected?.episodeCount !== undefined ? t('count.episodes', {count: selected.episodeCount}) : undefined;
+    const opened = openEpisode.entry?.kind === 'episode' ? openEpisode.entry : undefined, lease = () => controller.pageLease();
+    const items = (snapshot.episodes ?? []).map(episode => {
+      const copy = cardText({id: episode.id, kind: episode.kind, title: episode.displayTitle ?? episode.title, episode: numbering(episode), durationSeconds: episode.duration, positionSeconds: episode.progressSeconds}, 'in-show', text);
+      // phone-detail d2 frame 4: "Episode 4" under the title, then its length and air date apart ("46 min  Feb 5, 2023").
+      const length = [episode.duration ? durationText(episode.duration, t) : undefined, episode.airDate ? airDay(episode.airDate) : undefined].filter(Boolean).join('  ') || undefined;
+      return {key: episode.id, title: episode.displayTitle ?? episode.title, label: copy.caption, length, synopsis: episode.overview, progress: copy.progress, watched: episode.watched,
+        status: episode.id === nextUp?.id ? t('player.queue') : undefined,
+        artwork: props.artwork(episode.stillUrl ?? space.show.backdropUrl), backdropFallback: !episode.stillUrl, selection: props.selection?.(episode),
+        onNavigate: () => controller.episode.open(episode), onMore: (anchor: React.RefObject<View | null>) => props.more(episode, anchor),
+        ...(props.download ? {onDownload: () => props.download!(episode)} : {})};
+    });
+    const plate = opened ? episodePlate(opened, space.show) : undefined;
+    // The season sheet: each season with its count and watched progress, then the owner's episode groups (screens/watch/SeasonsSheet.tsx's rows).
+    const rows: SeasonSheetRow[] = [...seasons.map(season => {
+      const watched = season.watchedCount, total = season.episodeCount, complete = watched !== undefined && total !== undefined && total > 0 && watched >= total;
+      const partial = watched !== undefined && total !== undefined && !complete && watched > 0;
+      return {id: season.id, number: season.number, label: season.title || t('title.season', {number: season.number}), count: total !== undefined ? t('count.episodes', {count: total}) : undefined,
+        progress: complete ? t('card.watched') : partial ? t('title.seasonProgress', {watched, total}) : undefined, complete, fraction: partial && total ? watched! / total : undefined};
+    }), ...space.groups.map(value => ({id: `group:${value.id}`, label: value.title, count: value.count > 0 ? t('count.episodes', {count: value.count}) : undefined}))];
+    const close = () => setSeasonsLease(undefined);
+    return {
+      bar: {label, count, onSeasons: () => setSeasonsLease(lease()), hideWatched: snapshot.place.hideWatched,
+        onHideWatched: value => {const held = lease(); if (held) void controller.hideWatched(value, held).catch(fail);}, ...(props.owner ? {settings: {label: t('card.more', {title})}} : {})},
+      list: {items, ...(plate && opened ? {opened: {key: opened.id, ...plate}} : {})},
+      sheet: {open: !!seasonsLease, onOpenChange: value => {if (value) setSeasonsLease(lease()); else close();}, rows, total: space.seasonTotalCount ?? seasons.length,
+        selectedId: group ? `group:${group.id}` : space.selected.seasonId ?? null,
+        onSelect: id => {const held = seasonsLease; close(); if (!held) return; void (id.startsWith('group:') ? controller.group(id.slice(6), held) : controller.season(id, held)).catch(fail);},
+        onMore: () => {void controller.moreSeasons().catch(fail);}},
+    };
+  }
+  /** The opened episode (phone-detail d2 frame 4): its own detail read by the controller, the row's words meanwhile. */
+  function episodePlate(episode: ContentEntry, showInfo: Readonly<{id: string; title: string; libraryId: string}>): EpisodePlateProps {
+    const data = openEpisode.data, personal = data?.personal, episodeCredits = data?.metadata.credits ?? [];
+    const of = (list: readonly string[]) => [...new Set(episodeCredits.filter(credit => list.includes(credit.department.toLowerCase())).map(credit => credit.name))];
+    const guests = episodeCredits.filter(credit => ['acting', 'cast'].includes(credit.department.toLowerCase()));
+    const length = (data?.item.duration ?? episode.duration) !== undefined ? durationText(data?.item.duration ?? episode.duration!, t) : undefined;
+    const airDate = episode.airDate ?? data?.item.episode?.airDate, rating = data?.facts?.contentRating ?? episode.contentRating;
+    const watchedNow = personal?.watched ?? episode.watched, progressNow = personal?.progressSeconds ?? episode.progressSeconds ?? 0, resume = progressNow > 0 && !watchedNow;
+    const neighbour = (value: Readonly<{id: string; number: number; title: string}> | undefined, direction: 'previous' | 'next') => value ? {
+      label: t(direction === 'previous' ? 'title.previousEpisode' : 'title.nextEpisode'), title: value.title,
+      onPress: () => props.navigate({id: value.id, kind: 'episode', title: value.title, libraryId: showInfo.libraryId, show: {id: showInfo.id, name: showInfo.title}} as ContentEntry)} : undefined;
+    // The still, then the code, title and facts: date, length, rating (phone-detail d2 frame 4 has no length on the still).
+    // A neighbour in the loaded season opens in place, as a row does; past the season's edge the server's opens its page.
+    const list = snapshot.episodes ?? [], at = list.findIndex(row => row.id === episode.id);
+    const inList = (step: -1 | 1) => {
+      const row = at >= 0 ? list[at + step] : undefined;
+      return row ? {label: t(step < 0 ? 'title.previousEpisode' : 'title.nextEpisode'), title: row.displayTitle ?? row.title, onPress: () => controller.episode.open(row)} : undefined;
+    };
+    return {still: props.artwork(data?.item.stillUrl ?? episode.stillUrl ?? workspace?.show.backdropUrl),
+      code: episodeLabel(numbering(episode), 'player', text)?.text, title: episode.displayTitle ?? episode.title,
+      facts: [...(airDate ? [{id: 'date', text: airDay(airDate), role: 'identity' as const}] : []),
+        ...(length ? [{id: 'length', text: length, role: 'context' as const}] : []), ...(rating ? [{id: 'content-rating', text: rating, role: 'context' as const}] : [])],
+      synopsis: data?.item.overview ?? episode.overview,
+      primary: {icon: 'i-play', label: t(resume ? 'entry.resume' : 'entry.play'), onPress: () => {void controller.episode.play().catch(fail);},
+        ...(resume ? {startOver: {label: t('action.startOver'), onPress: () => {void controller.episode.play(true).catch(fail);}}} : {})},
+      actions: [...(data?.actions.some(value => value.id === 'watchlist' && value.enabled) ? [{icon: personal?.watchlisted ? 'i-check' as const : 'i-plus' as const,
+        label: t(personal?.watchlisted ? 'entry.removeFromWatchlist' : 'entry.addToWatchlist'), active: !!personal?.watchlisted, onPress: () => {void controller.episode.personal({action: 'watchlist', value: !personal?.watchlisted}).catch(fail);}}] : []),
+        ...(props.download ? [{icon: 'i-dl' as const, label: t('next.cards.download'), onPress: () => props.download!(episode)}] : []),
+        {icon: 'i-more' as const, label: t('card.more', {title: episode.displayTitle ?? episode.title}), onPress: () => props.more(episode)}],
+      credits: [...(guests.length ? [{label: t('next.watch.guestStars'), people: guests.map(credit => ({name: credit.name, ...(credit.role ? {role: t('next.watch.asCharacter', {character: credit.role})} : {}),
+        ...(credit.personId && props.person ? {onPress: () => props.person!(credit.personId!)} : {})}))}] : []),
+        ...(of(['directing', 'director', 'direction']).length ? [{label: t('title.directedBy', {names: ''}).trim(), people: of(['directing', 'director', 'direction']).map(name => ({name}))}] : []),
+        ...(of(['writing', 'writer', 'writers']).length ? [{label: t('title.writtenBy', {names: ''}).trim(), people: of(['writing', 'writer', 'writers']).map(name => ({name}))}] : [])],
+      showAll: count => t('shelf.seeAllCount', {count}),
+      previous: inList(-1) ?? neighbour(data?.episodeDetails?.previous, 'previous'), next: inList(1) ?? neighbour(data?.episodeDetails?.next, 'next'),
+      close: {label: t('action.close'), onPress: () => controller.episode.close()},
+      ...(openEpisode.phase === 'loading' ? {state: {kind: 'loading' as const}} : openEpisode.phase === 'error' ? {state: {kind: 'error' as const, icon: 'i-warn' as const, title: presentError(openEpisode.error, 'detail').title,
+        action: {label: t('action.tryAgain'), onPress: () => controller.episode.retry()}}} : {}),
+      testID: `watch-episode-plate-${episode.id}`};
+  }
 
   const anchor = snapshot.place.anchor;
   return {retired: snapshot.retired, entry, title, kicker,
     art: {source: props.ambient(backdrop), foreground, ref: artRef, onReady: art => {drawn.current = art;}, onError: art => {if (drawn.current === art) {drawn.current = undefined; tell();}}},
     scroll: {offset: anchor && !anchor.itemId ? anchor.offset : 0, onOffset: y => {moved.current++; tell(); controller.remember({itemId: null, offset: y});}}, facts, primary, actions,
-    tagline: detail?.facts?.tagline || undefined, synopsis: detail?.item.overview ?? entry.overview,
+    tagline: detail?.facts?.tagline || undefined, synopsis: workspace?.show.overview ?? detail?.item.overview ?? entry.overview,
     credits: [...(directors.length ? [{label: t('title.directedBy', {names: ''}).trim(), names: names(directors)}] : []), ...(castNames.length ? [{label: t('title.starring', {names: ''}).trim(), names: defaultI18n.list(castNames)}] : [])],
-    tabs: {value: snapshot.place.tab === 'episodes' ? 'related' : snapshot.place.tab, onValueChange: value => controller.tab(value as NativeTitleTab),
-      items: [{value: 'related', label: t('next.controls.moreLikeThis')}, {value: 'details', label: t('title.details')}]},
+    tabs: {value: !show && snapshot.place.tab === 'episodes' ? 'related' : snapshot.place.tab, onValueChange: value => controller.tab(value as NativeTitleTab),
+      items: [...(show ? [{value: 'episodes' as const, label: t('title.episodes')}] : []), {value: 'related', label: t('next.controls.moreLikeThis')}, {value: 'details', label: t('title.details')}]},
+    episodes: workspace ? episodesView() : undefined,
+    ...(workspace && snapshot.place.tab === 'episodes' ? {onEnd: () => {void controller.moreEpisodes().catch(fail);}} : {}),
     related,
     details: {about: about.length ? {title: t('next.show.about'), rows: about} : undefined,
       people: credits.length ? {title: t('web.metadata.tabPeople'), groups: [cast.map(person), crew.map(person)], lines: creditLines,
