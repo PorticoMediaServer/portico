@@ -25,7 +25,8 @@ test('on a phone the Recordings head stays one line: title size, no wrap, the so
 
 test('on a phone the Channels and Recordings heads, chips and body all sit on the shell gutter, not a hard-coded 18px', () => {
   const phone = live.slice(live.lastIndexOf('@media (max-width: 599px)', live.indexOf('.recordingsBar, .recordingsBanner, .recBody { padding-inline:')));
-  assert.match(live, /\.guideHeader, \.guideChips, \.guideTime \{ padding-inline: var\(--shell-gutter\); \}/);
+  // The guide's head, chips and toolbar are LiveFrame's, on the frame's gutter; the screen keeps no padding of its own for them.
+  assert.doesNotMatch(live, /\.guideHeader|\.guideChips \{|\.guideTime \{/);
   assert.match(phone, /\.recordingsBar, \.recordingsBanner, \.recBody \{ padding-inline: var\(--shell-gutter\); \}/);
   assert.doesNotMatch(live, /padding-inline: 18px/);
 });

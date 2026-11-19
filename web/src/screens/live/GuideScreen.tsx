@@ -10,7 +10,7 @@ import type {SelectOption} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {Menu, type MenuEntry} from '../../kit/overlays';
 import {Skeleton, StateView} from '../../kit/states';
-import {LibraryHeader} from '../../kit/browse';
+import {LiveFrame} from '../../kit/frames';
 import {liveListPrograms} from './program-window';
 import {useGuideSwipe} from './guide-swipe';
 import {useChannelMenuGestures} from './channel-menu';
@@ -272,42 +272,36 @@ export function GuideScreen({title, switcher, summary, conflicts, onTabChange, c
     onValueChange={value => {if (value === 'recordings') onTabChange?.(value);}}
     items={[{value: 'guide', label: t('channels.tabGuide')},
       {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && conflicts > 0 && <span className={styles.guideTabNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>}]}/>;
-  return <section className={styles.guideScreen} data-guide-screen data-phone-landscape={landscape || undefined}>
-    <div className={styles.guideChrome}>
-    {compactHeader ? <><header className={styles.guideHeader} data-guide-header>
-      <h1>{title}</h1>
-      <Segmented className={styles.guidePhoneView} variant="view" aria-label={t('channels.view')} value={view} onValueChange={value => {if (value === 'guide' || value === 'list') onViewChange(value);}}
-        items={[{value: 'list', label: t('channels.viewList'), icon: 'i-list'}, {value: 'guide', label: t('channels.viewGuide'), icon: 'i-timeline'}]}/>
-      {onTabChange && <Button className={styles.guideRecordings} variant="icon" iconOnly icon="i-rec" aria-label={t('recordings.title')} onClick={() => onTabChange('recordings')}/>}
-      {source}
-    </header>{guideTabs}</> : <LibraryHeader name={title} menu={source}
-      switcher={switcher && <Select className={styles.guideSwitcher} aria-label={t('channels.source')} value={switcher.value} options={switcher.options} onValueChange={switcher.onChange}/>}>{guideTabs}</LibraryHeader>}
-    <div className={styles.guideChips} data-guide-chips role="group" aria-label={t('channels.filters')}>
-      {compactHeader && switcher && <Select className={styles.guideSourceChip} aria-label={t('channels.source')} value={switcher.value} options={switcher.options} onValueChange={switcher.onChange}/>}
-      {chips.map(chip => <Chip className={styles.guideChip} key={chip.id} selected={chip.selected} count={chip.count} icon={chip.favorites ? 'i-star' : undefined} onClick={chip.onSelect}>{chip.label}</Chip>)}
-    </div>
-    {view === 'guide' && onNow}
-    <div className={styles.guideTime} data-guide-time>
-      {view === 'list'
-        ? <p className={styles.guideListCount}><span>{t('next.kit.channels', {count: total})}</span><span>{t('guide.onNowAt', {time: defaultI18n.time(now)})}</span></p>
-        : <>
-          <Select className={styles.guideDay} aria-label={day.label} value={day.value} options={day.options} onValueChange={day.onChange}/>
-          <div className={styles.guideStepper} role="group" aria-label={t('guide.twoHours')}>
-            <button type="button" className={styles.guideStep} aria-label={time.earlier} onClick={time.onEarlier}><Icon name="i-left" size={18}/>{t('guide.twoHours')}</button>
-            <button type="button" className={`${styles.guideStep} ${styles.guideNow}`} onClick={time.onNow}>{time.now}</button>
-            <button type="button" className={styles.guideStep} aria-label={time.later} onClick={time.onLater}>{t('guide.twoHours')}<Icon name="i-right" size={18}/></button>
-          </div>
-        </>}
-      <div className={styles.guideRight}>
-        <div className={styles.guideSortField}><span className={styles.guideSortPrefix}>{t('channels.sort')}</span>
-          <Select className={styles.guideSort} aria-label={t('channels.sort')} value={sort.value} options={sort.options} onValueChange={sort.onChange}/>
+  const viewSwitch = <Segmented className={styles.guidePhoneView} variant="view" aria-label={t('channels.view')} value={view} onValueChange={value => {if (value === 'guide' || value === 'list') onViewChange(value);}}
+    items={[{value: 'list', label: t('channels.viewList'), icon: 'i-list'}, {value: 'guide', label: t('channels.viewGuide'), icon: 'i-timeline'}]}/>;
+  const sortField = <div className={styles.guideSortField}><span className={styles.guideSortPrefix}>{t('channels.sort')}</span>
+    <Select className={styles.guideSort} aria-label={t('channels.sort')} value={sort.value} options={sort.options} onValueChange={sort.onChange}/>
+  </div>;
+  // LiveFrame owns the title row, the tabs, the chips' line, the toolbar's line and their spacing; on a phone on its side it
+  // lays them on one row, so the toolbar there is the sort alone (the day sits in the guide's corner).
+  const toolbar = landscape ? sortField : <>
+    {view === 'list'
+      ? <p className={styles.guideListCount}><span>{t('next.kit.channels', {count: total})}</span><span>{t('guide.onNowAt', {time: defaultI18n.time(now)})}</span></p>
+      : <>
+        <Select className={styles.guideDay} aria-label={day.label} value={day.value} options={day.options} onValueChange={day.onChange}/>
+        <div className={styles.guideStepper} role="group" aria-label={t('guide.twoHours')}>
+          <button type="button" className={styles.guideStep} aria-label={time.earlier} onClick={time.onEarlier}><Icon name="i-left" size={18}/>{t('guide.twoHours')}</button>
+          <button type="button" className={`${styles.guideStep} ${styles.guideNow}`} onClick={time.onNow}>{time.now}</button>
+          <button type="button" className={styles.guideStep} aria-label={time.later} onClick={time.onLater}>{t('guide.twoHours')}<Icon name="i-right" size={18}/></button>
         </div>
-        {!compactHeader && <Segmented className={styles.guideView} variant="view" aria-label={t('channels.view')} value={view} onValueChange={value => {if (value === 'guide' || value === 'list') onViewChange(value);}}
-          items={[{value: 'guide', label: t('channels.viewGrid'), icon: 'i-timeline'},
-            {value: 'list', label: t('channels.viewList'), icon: 'i-list'}]}/>}
-      </div>
-    </div>
-    </div>
+      </>}
+    <span className={styles.guideToolbarGap}/>
+    {sortField}
+    {!compactHeader && <Segmented className={styles.guideView} variant="view" aria-label={t('channels.view')} value={view} onValueChange={value => {if (value === 'guide' || value === 'list') onViewChange(value);}}
+      items={[{value: 'guide', label: t('channels.viewGrid'), icon: 'i-timeline'},
+        {value: 'list', label: t('channels.viewList'), icon: 'i-list'}]}/>}
+  </>;
+  return <section className={styles.guideScreen} data-guide-screen data-phone-landscape={landscape || undefined}><LiveFrame title={title}
+    switcher={switcher && <Select className={compactHeader ? styles.guideSourceChip : styles.guideSwitcher} aria-label={t('channels.source')} value={switcher.value} options={switcher.options} onValueChange={switcher.onChange}/>}
+    facts={source} tabs={!compactHeader && guideTabs}
+    actions={compactHeader && <>{viewSwitch}{onTabChange && <Button className={styles.guideRecordings} variant="icon" iconOnly icon="i-rec" aria-label={t('recordings.title')} onClick={() => onTabChange('recordings')}/>}</>}
+    chips={chips.map(chip => <Chip className={styles.guideChip} key={chip.id} selected={chip.selected} count={chip.count} icon={chip.favorites ? 'i-star' : undefined} onClick={chip.onSelect}>{chip.label}</Chip>)}
+    lead={view === 'guide' && onNow} toolbar={toolbar} hints={view === 'guide' && <span data-guide-kbd>{t('guide.keyboardHint')}</span>}>
     {notice && <div className={styles.guideProblem}>{notice}</div>}
     {problem && <div className={styles.guideProblem}>{problem}</div>}
     {empty ?? (view === 'guide'
@@ -388,6 +382,5 @@ export function GuideScreen({title, switcher, summary, conflicts, onTabChange, c
             })()}
         </GuideRowFrame>)}</div>
       </div>)}
-    {view === 'guide' && <p className={styles.guideKbd} data-guide-kbd>{t('guide.keyboardHint')}</p>}
-  </section>;
+  </LiveFrame></section>;
 }
