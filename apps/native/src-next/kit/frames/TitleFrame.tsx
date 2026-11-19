@@ -19,8 +19,10 @@ import {PageStateFrame, type PageStateProps} from './PageStateFrame';
 import {seasonColumn, type AboutValue} from './title-parts';
 
 export type TitleAction = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; testID?: string;
-  /** Shown with its label where there is room (a tablet on its side and TV): Start over, My List, Shuffle. Round elsewhere. */
-  labelled?: boolean;
+  /** With its label: `true` on every form (Shuffle beside Play on a phone too, phone-app music: a label is never dropped
+   * to save room); `'wide'` where there is room (a tablet on its side and TV), round on a phone and an upright tablet
+   * (My List, phone-detail d1). Round when left out. */
+  labelled?: boolean | 'wide';
   /** On (in My List, watched, a favourite): tinted in the accent (phone-detail d1 frame 3). */
   active?: boolean;
   /** Also on the collapsed bar, after the primary (desktop-detail f3: Play and +). */
@@ -156,15 +158,21 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
       {credits.map((credit, index) => <Text key={credit.label}>{index > 0 ? '    ' : ''}{credit.label} <Text style={{color: theme.colors.textSecondary}}>{names(credit.names)}</Text></Text>)}</Text>}
   </View> : null;
 
-  // Round on a phone and an upright tablet; labelled on a tablet on its side and TV (tablet f6, detail-tv-2).
-  const side = (action: TitleAction) => action.labelled && !stacked
-    ? <Button key={action.label} ref={action.anchorRef} focusId={action.testID ?? `title-action-${action.label}`} variant="glass" size="hero" icon={action.icon} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
+  // Labelled per `labelled` (tablet f6, detail-tv-2; phone-app music); on a phone and an upright tablet a labelled action
+  // shares the row equally with the primary (the labelled pair: Play | Shuffle).
+  const side = (action: TitleAction) => action.labelled === true || (action.labelled === 'wide' && !stacked)
+    ? <Button key={action.label} ref={action.anchorRef} focusId={action.testID ?? `title-action-${action.label}`} variant="glass" size="hero" icon={action.icon} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
+      style={stacked ? share : undefined}>{action.label}</Button>
     : <Button key={action.label} ref={action.anchorRef} focusId={action.testID ?? `title-action-${action.label}`} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
       style={[{width: actionHeight, height: actionHeight}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .55)}]}/>;
   // While loading the row keeps its buttons but says nothing it does not know yet (the time left).
   const resume = primary?.progress !== undefined && !loading, lineUnder = resume && (stacked || !!cover);
-  const lead = primary && {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, focusId: primary.testID ?? titlePrimaryId, focusableWhenDisabled: loading, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1, maxWidth: form === 'medium' ? 300 : undefined} : undefined};
-  const rowStyle: ViewStyle = {minHeight: actionHeight, alignSelf: stacked ? 'stretch' : undefined, flexDirection: 'row', flexWrap: stacked ? 'nowrap' : 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.spec.hero.actions.gap[theme.column]};
+  // A labelled pair on a phone (Play | Shuffle): both keep their whole label and share the spare room; the row wraps
+  // rather than cut one (a round button that no longer fits goes to the next line).
+  const pair = stacked && actions.some(action => action.labelled === true);
+  const share = pair ? {flexGrow: 1, flexShrink: 0, maxWidth: form === 'medium' ? 300 : undefined} : {flex: 1, maxWidth: form === 'medium' ? 300 : undefined};
+  const lead = primary && {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, focusId: primary.testID ?? titlePrimaryId, focusableWhenDisabled: loading, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? share : undefined};
+  const rowStyle: ViewStyle = {minHeight: actionHeight, alignSelf: stacked ? 'stretch' : undefined, flexDirection: 'row', flexWrap: stacked && !pair ? 'nowrap' : 'wrap', rowGap: theme.space.sm, alignItems: 'center', justifyContent: centre, gap: theme.spec.hero.actions.gap[theme.column]};
   const rowButtons = <>
     {lead && (resume && !lineUnder ? <ResumeButton {...lead} size="hero" progress={primary!.progress!} remaining={primary!.remaining}>{primary!.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero">{primary!.label}</Button>)}
     {primary?.startOver && !stacked && !loading && <Button focusId="title-start-over" variant="glass" size="hero" icon="i-restart" onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}

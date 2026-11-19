@@ -58,7 +58,7 @@ function filmFrame(tab: string, setTab: (value: string) => void, tv = false): Om
   return {back, topAction: playOn, art: <AmbientArt treatment="title" foreground={asset('pool/movies/dune-part-two--bd.jpg')}/>,
     kicker: {icon: 'i-layers', label: f('duneCollection'), detail: f('duneCollectionCount'), onPress: none}, title: f('dune2'), metadata: <Meta text={f('dune2Facts')} tags={[f('dune2Rating')]}/>,
     primary: {icon: 'i-play', label: f('play'), onPress: none},
-    actions: [{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), labelled: true, wide: true, onPress: none}, ...(tv ? [] : [{icon: 'i-dl' as const, label: f('download'), labelled: true, onPress: none}]), {icon: 'i-more', label: f('more'), onPress: none}],
+    actions: [{icon: 'i-plus', label: f('myList'), labelled: 'wide' as const, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), labelled: 'wide' as const, wide: true, onPress: none}, ...(tv ? [] : [{icon: 'i-dl' as const, label: f('download'), labelled: 'wide' as const, onPress: none}]), {icon: 'i-more', label: f('more'), onPress: none}],
     tagline: f('dune2Tagline'), synopsis: f('dune2Synopsis'),
     credits: [{label: f('directedBy'), names: [link(f('dune2Director'))]}, {label: f('starring'), names: (['dune2Cast1', 'dune2Cast2', 'dune2Cast3', 'dune2Cast4'] as const).map(name => link(f(name)))}],
     picker: <TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none}/>, tabs: tabs(tab, setTab)};
@@ -80,7 +80,7 @@ function FilmResume() {
   const [tab, setTab] = useState('more');
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-film-resume" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('bd-insideout.jpg')}/>} title={f('insideOut')} metadata={<Meta text={f('insideOutFacts')} tags={[f('insideOutRating')]}/>}
     primary={{icon: 'i-play', label: f('resume'), progress: .09, remaining: f('insideOutLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none}}
-    actions={[{icon: 'i-check', label: f('myList'), labelled: true, active: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-check', label: f('myList'), labelled: 'wide' as const, active: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     tagline={f('insideOutTagline')} synopsis={f('insideOutSynopsis')} credits={[{label: f('directedBy'), names: 'Pete Docter'}, {label: f('starring'), names: 'Amy Poehler, Phyllis Smith, Richard Kind, Bill Hader'}]}
     picker={<TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none}/>} tabs={tabs(tab, setTab)}>
     <Posters title={f('moreLikeInsideOut')} items={moreLikeInsideOut}/>
@@ -178,7 +178,7 @@ function Show({opened, seasons = false}: {opened?: string; seasons?: boolean}) {
     art={<AmbientArt treatment="title" foreground={asset(simpsons ? 'pool/tv/the-simpsons--bd.jpg' : 'pool/tv/the-last-of-us--bd.jpg')}/>} title={f(simpsons ? 'simpsons' : 'tlou')}
     metadata={<Meta text={f(simpsons ? 'simpsonsFacts' : 'tlouFacts')} tags={[f(simpsons ? 'simpsonsSeasons' : 'tlouSeasons')]}/>}
     primary={simpsons ? {icon: 'i-play', label: f('playS3E5'), onPress: none} : {icon: 'i-play', label: f('resumeEpisode'), progress: .67, remaining: f('ep1Left'), onPress: none}}
-    actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-plus', label: f('myList'), labelled: 'wide' as const, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     synopsis={f(simpsons ? 'simpsonsSynopsis' : 'tlouSynopsis')} credits={[{label: f('createdBy'), names: [link('Craig Mazin'), link('Neil Druckmann')]}]}
     cast={<><PanelHeading title={f('cast')}/><CastRow groups={[showCast]}/></>} tabs={tabs(tab, setTab, true)}>
     {isTV ? <Posters title={f('moreLikeThis')} items={moreLikeShows}/> : <PanelBlock><SeasonBar label={f(simpsons ? 'season3' : 'season1')} count={f(simpsons ? 'season3Count' : 'episodeCount')} onSeasons={() => setOpen(true)} hideWatched={hide} onHideWatched={setHide}/>
@@ -202,7 +202,7 @@ function EpisodePage() {
   const theme = useTheme();
   return <Page destination={{kind: 'library', libraryId: 'show'}}><TitleFrame testID="frames-title-episode" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('pool/tv/the-last-of-us--bd.jpg')}/>} kicker={{icon: 'i-tv', label: f('tlou'), detail: f('season1'), onPress: none}} title={f('ep3')}
     metadata={<Meta text={f('episodeFacts')} tags={[f('ep3Rating')]}/>} primary={{icon: 'i-play', label: f('play'), onPress: none}}
-    actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-plus', label: f('myList'), labelled: 'wide' as const, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     synopsis={f('ep3Synopsis')} credits={[{label: f('directedBy'), names: [link(f('ep3Director'))]}, {label: f('writtenBy'), names: [link(f('ep3Writer'))]}]}
     picker={<TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none}/>}>
     <PanelBlock><PanelHeading title={f('guestStars')}/><CastRow groups={[[{id: 'g1', name: f('guest1'), role: f('guestRole1'), onPress: none}, {id: 'g2', name: f('guest2'), role: f('guestRole2'), onPress: none}]]}/></PanelBlock>
@@ -334,7 +334,7 @@ function EpisodeDisplayCase() {
   const change = useRef<View>(null), theme = useTheme(), frame = useFrameMetrics();
   return <Page destination={{kind: 'library', libraryId: 'show'}}><TitleFrame testID="frames-title-episode-display" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('pool/tv/the-last-of-us--bd.jpg')}/>} title={f('tlou')}
     metadata={<Meta text={f('tlouFacts')} tags={[f('tlouSeasons')]}/>} primary={{icon: 'i-play', label: f('resumeEpisode'), progress: .67, remaining: f('ep1Left'), onPress: none}}
-    actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-plus', label: f('myList'), labelled: 'wide' as const, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     synopsis={f('tlouSynopsis')} tabs={tabs(tab, setTab, true)} collapsed>
     <PanelBlock><View style={{gap: theme.space.sm, padding: frame.cardPadding, borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised, borderWidth: 1, borderColor: theme.colors.line}}>
       <PanelHeading title={f('showSettings')} note={f('ownerOnly')}/>
