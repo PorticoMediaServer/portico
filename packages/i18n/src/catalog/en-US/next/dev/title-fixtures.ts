@@ -146,6 +146,8 @@ export const titleFixtureMessages = {
   'next.title.fixture.ep1Length': '1 h 21 min',
   'next.title.fixture.ep1Status': 'Continue',
   'next.title.fixture.ep1Left': '27 min left',
+  'next.title.fixture.ep1Code': 'S1 E1',
+  'next.title.fixture.tlouRating': 'TV-MA',
   'next.title.fixture.ep1Synopsis': 'As a parasitic fungal outbreak begins to ravage the world, Joel Miller attempts to escape the escalating chaos with his daughter and brother.',
   'next.title.fixture.ep2': 'Infected',
   'next.title.fixture.ep2Label': 'Episode 2',
