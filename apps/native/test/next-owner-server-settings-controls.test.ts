@@ -82,10 +82,13 @@ test('Segments exposes every Advanced control the segments document has (the per
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/SegmentsPage.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView'}, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
     '../../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/theme': {useTheme: () => theme},
+    '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame'}, '../../../kit/frames/metrics': {useFrameMetrics: () => ({form: 'phone'})}, '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'},
     './AdvancedSection': {NativeAdvancedSection: 'Advanced'}, '../../../../../../packages/client-core/src/segment-review': {remeasureAllSegments: async () => ({}), retryUnreadableSegments: async () => ({})}, '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, './SettingControl': {NativeSettingControl: 'Setting'}, './settings-values': {settingEnabled, settingsSummary}, './storage/space-source': {nativeStorageOwner: (context: any) => context.current()}, './storage/forms': fixture.hooks,
   });
   const ports = {context: fixture.group.context, renderSettingsPanel: () => ({type: 'Review', props: {}})}, runtime = {text: {t}, reportError: assert.fail};
-  const render = () => host.render(() => {const outer = module.NativeServerSegments({ports, runtime});return outer.type(outer.props);});
+  // The outer part draws the page frame; the page itself is the function element among its children.
+  const inside = (node: any): any => !node || typeof node !== 'object' ? undefined : typeof node.type === 'function' ? node : [node.props?.children].flat(Infinity).map(inside).find(Boolean);
+  const render = () => host.render(() => {const outer = inside(module.NativeServerSegments({ports, runtime, title: 'settings.server.segments'}));return outer.type(outer.props);});
   const tree = render(), controls = nodes(tree).filter((node: any) => node.type === 'Setting');
   assert.equal(controls.length, 9);assert.equal(nodes(tree).filter((node: any) => node.type === 'Advanced').length, 1);assert.equal(nodes(tree).filter((node: any) => node.type === 'Review').length, 1);
   assert.ok(!controls.some((node: any) => node.props.row.id === 'segments.keepOld'));

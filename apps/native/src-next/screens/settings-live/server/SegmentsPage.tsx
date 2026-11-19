@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import {applySettingsBindingPatch, readSettingsBinding, settingsBinding, settingsBindingPatch} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsRowIndex, settingsSpec, type SettingsRow as SpecRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
@@ -7,6 +7,9 @@ import {Button} from '../../../kit/controls/Button';
 import {StateView} from '../../../kit/states';
 import {shellType} from '../../../kit/shell/visual';
 import {useTheme} from '../../../kit/theme';
+import {SettingsPageFrame} from '../../../kit/frames';
+import {useFrameMetrics} from '../../../kit/frames/metrics';
+import {ServerHeader} from '../../../kit/shell/ServerIdentity';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../ports';
 import {NativeAdvancedSection} from './AdvancedSection';
@@ -23,10 +26,17 @@ const IDS = ['segments'] as const;
 /** The spec's two bulk actions (#3255, client wrappers #3308): owner-only, drawn on every platform (no platforms tag). */
 const BULK: ReadonlySet<string> = new Set(['segments.redetectAll', 'segments.retryFailed']);
 
-/** Server settings rows use revisioned forms, never the account preference renderer. */
-export function NativeServerSegments({ports, runtime}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime}) {
-  const group = useStorageForms(ports, IDS, runtime.reportError);
-  return group ? <Segments key={group.mount} group={group} ports={ports} runtime={runtime}/> : null;
+/** Server settings rows use revisioned forms, never the account preference renderer. The page and its load error stand on
+ * the Settings page frame (header, Back, server strip, gutters, scroll): its title and Back come from the screen, and
+ * `notice`, the screen's own error, shows first. */
+export function NativeServerSegments({ports, runtime, title, back, notice}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; title: string; back?: Readonly<{label: string; onPress: () => void}>; notice?: React.ReactNode}) {
+  const group = useStorageForms(ports, IDS, runtime.reportError), frame = useFrameMetrics(), context = ports.context;
+  const viewerRole = context.account.account.role === 'owner' ? 'owner' : context.account.canManage ? 'administrator' : 'member';
+  return <SettingsPageFrame title={title} back={back}
+    server={<ServerHeader serverName={context.serverName} viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} variant={frame.form === 'phone' ? 'phone' : 'page'}/>}>
+    {notice}
+    {group ? <Segments key={group.mount} group={group} ports={ports} runtime={runtime}/> : null}
+  </SettingsPageFrame>;
 }
 function Segments({ports, runtime, group}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; group: StorageForms}) {
   const theme = useTheme(), t = runtime.text.t as typeof defaultI18n.t;
@@ -48,7 +58,7 @@ function Segments({ports, runtime, group}: {ports: NativeSettingsLivePorts; runt
   const section = settingsSpec.find(section => section.scope === 'server' && section.id === 'segments');
   const save = () => {if (current() && !invalid.size) void set.save();};
   if (settings.loadError !== undefined && !settings.draft) return <StateView {...runtime.error(settings.loadError, () => {void forms.segments.load();}, 'server-console')}/>;
-  return <ScrollView style={{flex: 1}} contentContainerStyle={{paddingHorizontal: 20, paddingBottom: 32}}>
+  return <View>
     {settings.draft && renderRow(settingsRowIndex.get('segments.mode')!.row)}
     {ports.renderSettingsPanel('server.segments', runtime)}
     <NativeAdvancedSection testID="server-segments-advanced" summary={settingsSummary(section?.advanced?.groups?.flatMap(group => group.rows) ?? [], read, t)}>
@@ -63,7 +73,7 @@ function Segments({ports, runtime, group}: {ports: NativeSettingsLivePorts; runt
     </View>}
     {state.problem && <StateView title={t(state.problem as MessageId)} tone="error"/>}
     {settings.saveError !== undefined && <StateView {...runtime.error(settings.saveError, save, 'server-console')}/>}
-  </ScrollView>;
+  </View>;
 }
 
 /** Measure everything again (after the spec's confirmation) or try the unreadable files again. */
