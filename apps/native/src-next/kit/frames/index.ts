@@ -7,7 +7,7 @@ export {SettingsListFrame, SettingsPageFrame, type SettingsListFrameProps, type 
 export {SheetFrame, type SheetFrameProps, type SheetBarProps} from './SheetFrame';
 export {SignInFrame, type SignInFrameProps} from './SignInFrame';
 export {PlayerChromeFrame, type PlayerChromeFrameProps, type PlayerReadouts} from './PlayerChromeFrame';
-export {AudioPlayerFrame, type AudioPlayerFrameProps, type AudioControl, type AudioOption} from './AudioPlayerFrame';
+export {AudioPlayerFrame, audioPlayerFramePaintTypes, type AudioPlayerFrameProps, type AudioControl, type AudioOption} from './AudioPlayerFrame';
 export {PageStateFrame, type PageStateProps} from './PageStateFrame';
 export {type PageHeaderProps} from './PageHeader';
 export {Section, SectionCard, StateRow, ArtBox, ArtPlaceholder, type StateRowProps, type SectionStale} from './parts';

@@ -16,7 +16,9 @@ import {AudioChoiceRow} from '../player/queue';
 import {ArtBox} from './parts';
 
 /** One control in a fixed place. A control the item doesn't support keeps its place with `disabled`, dimmed. */
-export type AudioControl = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean; /** Back or forward: the seconds it skips, drawn in the arrow. */ skip?: number; testID?: string}>;
+export type AudioControl = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean; /** Back or forward: the seconds it skips, drawn in the arrow. */ skip?: number; testID?: string;
+  /** Called with the drawn control, so a sheet or menu it opens (Play on, More) anchors on it. A callback, not a ref object:
+   * a retained exit paint drops it (a frozen page holds no live view). */ anchorRef?: (view: View | null) => void}>;
 /** An audiobook's Speed, Sleep timer and Chapters. A phone draws each as a tile (its `value` over its label, outlined
  * in the accent when `active`); the wide forms draw Speed and Sleep timer as a row of their `choices` with `help`. */
 export type AudioOption = Omit<AudioControl, 'icon'> & Readonly<{icon?: IconName; value?: string; help?: string; choices?: readonly Readonly<{label: string; selected?: boolean; onPress: () => void}>[]}>;
@@ -29,10 +31,11 @@ export type AudioPlayerFrameProps = Readonly<{
   /** The device it plays on ("This browser", "This iPad"): the bottom row's middle on a phone, the pill row on an upright
    * tablet, the top right beside More on the wide forms. Not drawn on TV. */
   device?: AudioControl;
-  /** More: the top right (a phone, a tablet, the web); the button row on TV. */
-  more: AudioControl;
-  /** A note over the top bar for a moment ("Went back 30 s, since it's been a while."). Wide forms. */
-  notice?: string;
+  /** More, when it has something to offer: the top right (a phone, a tablet, the web); the button row on TV. */
+  more?: AudioControl;
+  /** A note for a moment ("Went back 30 s, since it's been a while."), over the top bar on the wide forms and under it on a
+   * phone. A string is the frame's pill; a part (the screen's own alert) is drawn as it is. */
+  notice?: ReactNode;
   /** The cover. With none, the placeholder with `icon` (music or book) fills the same box. */
   artwork?: ArtworkSource | null; icon: IconName;
   /** The screen's own view in the artwork's box (the listening cover the dock's morph paints into); drawn instead of `artwork`. */
@@ -48,6 +51,8 @@ export type AudioPlayerFrameProps = Readonly<{
   chapter?: Readonly<{label: string; of: string}>;
   /** The music signal line (what the sound passes through), under the title and byline. */
   signal?: ReactNode;
+  /** One action under the signal line (Try again when the output failed). */
+  action?: ReactNode;
   /** The kit's scrubber line; the frame places `times` for the form: under its ends on a phone and TV, at its ends elsewhere. */
   scrubber: ReactNode; times: AudioTimes;
   /** Five fixed slots; the middle one is Play or Pause. Music's ends are shuffle and repeat (the secondary class). */
@@ -65,6 +70,10 @@ export type AudioPlayerFrameProps = Readonly<{
    * after the controls on TV, and on a phone a sheet over the player while it is open. */
   panel?: ReactNode;
   loading?: boolean;
+  /** Wraps each of the three groups the screen's open motion fades in turn: 0 the words (title, byline, signal, action,
+   * chapter), 1 the scrubber and transport, 2 what is under them (next line and bottom row, pill and option rows). The
+   * cover is never in a group: it is the morph's. */
+  group?: (index: 0 | 1 | 2, children: ReactNode) => ReactNode;
   testID?: string;
   /** TV: the control the page starts on (R1), by its `focusId` or `testID`. Never in the rail. */
   startFocus?: string;
@@ -127,9 +136,19 @@ function Times({times, loading, ends}: {times: AudioTimes; loading: boolean; end
   </View>;
 }
 
+/** A string notice: the frame's pill (an arrow and the words). */
+function NoticePill({text}: {text: string}) {
+  const theme = useTheme();
+  return <View pointerEvents="none" style={{height: theme.targets.touch - theme.space.xs, flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, paddingHorizontal: theme.space.sm, borderRadius: theme.targets.touch, backgroundColor: alpha(theme.colors.ink, .55), borderWidth: theme.space.hairline, borderColor: alpha(theme.colors.text, .1)}}>
+    <Icon name="i-rew" size={frameSpec.player.pillIcon} color={theme.colors.text}/><Text style={[theme.type.rowHelp, {color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{text}</Text></View>;
+}
+const drawnNotice = (notice: ReactNode) => typeof notice === 'string' ? <NoticePill text={notice}/> : notice;
+/** The screen's motion wrapper round one group, or the group as it is. */
+const grouped = (group: AudioPlayerFrameProps['group'], index: 0 | 1 | 2, children: ReactNode) => group ? group(index, children) : children;
+
 function Glyph({item, loading, size, disc = false}: {item: AudioControl; loading: boolean; size?: number; disc?: boolean}) {
   const theme = useTheme();
-  return <Button testID={item.testID} variant={disc ? 'glass' : 'text'} size="small" iconOnly icon={item.icon} iconSize={size} iconColor={item.active ? theme.colors.text : theme.colors.text} accessibilityLabel={item.label} accessibilityState={{selected: item.active}} disabled={item.disabled || loading} onPress={item.onPress}/>;
+  return <Button ref={item.anchorRef} testID={item.testID} variant={disc ? 'glass' : 'text'} size="small" iconOnly icon={item.icon} iconSize={size} iconColor={item.active ? theme.colors.text : theme.colors.text} accessibilityLabel={item.label} accessibilityState={{selected: item.active}} disabled={item.disabled || loading} onPress={item.onPress}/>;
 }
 
 function ChapterLine({chapter, loading, wide}: {chapter: NonNullable<AudioPlayerFrameProps['chapter']>; loading: boolean; wide: boolean}) {
@@ -145,7 +164,7 @@ function ChapterLine({chapter, loading, wide}: {chapter: NonNullable<AudioPlayer
 function Slot({item, loading, tile = false, inline = false}: {item: AudioControl | AudioOption; loading: boolean; tile?: boolean; inline?: boolean}) {
   const theme = useTheme(), off = item.disabled || loading, value = 'value' in item ? item.value : undefined, tint = item.active ? theme.colors.accentStrong : theme.colors.text;
   const glyph = item.icon && <Icon name={item.icon} size={frameSpec.player.promptIcon} color={tile ? item.active ? theme.colors.accentStrong : theme.colors.textSecondary : tint}/>;
-  return <Focusable testID={item.testID} accessibilityRole="button" accessibilityLabel={value !== undefined ? `${item.label}, ${value}` : item.label} accessibilityState={{disabled: !!off, selected: item.active}} disabled={off} onPress={item.onPress} focusRadius={theme.baseRadii.control}
+  return <Focusable ref={item.anchorRef} testID={item.testID} accessibilityRole="button" accessibilityLabel={value !== undefined ? `${item.label}, ${value}` : item.label} accessibilityState={{disabled: !!off, selected: item.active}} disabled={off} onPress={item.onPress} focusRadius={theme.baseRadii.control}
     style={[{flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', gap: theme.space.tight, opacity: off ? theme.spec.button.disabledOpacity : 1}, inline && !tile && {flexDirection: 'row', gap: theme.space.xs},
       tile && {borderRadius: frameSpec.card.radius.phone, paddingHorizontal: theme.space.tight, backgroundColor: item.active ? alpha(theme.colors.accent, .24) : alpha(theme.colors.text, frameSpec.player.tint.pill), borderWidth: theme.space.hairline, borderColor: item.active ? alpha(theme.colors.accentStrong, .7) : 'transparent'}]}>
     {value !== undefined ? <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.tight}}>{glyph}<Text numberOfLines={1} style={[theme.type.rowLabel, {color: tile && item.active ? theme.colors.accentStrong : theme.colors.text, fontFamily: theme.type.pageTitle.fontFamily}]}>{value}</Text></View> : glyph}
@@ -153,7 +172,7 @@ function Slot({item, loading, tile = false, inline = false}: {item: AudioControl
   </Focusable>;
 }
 
-function PhoneAudio({close, more, context, source, device, artwork, cover, icon, title, byline, favourite, chapter, signal, scrubber, times, transport, next: upcoming, lyrics, queue, speed, sleep, chapters, panel, loading = false, testID}: AudioPlayerFrameProps) {
+function PhoneAudio({close, more, context, source, device, notice, artwork, cover, icon, title, byline, favourite, chapter, signal, action, scrubber, times, transport, next: upcoming, lyrics, queue, speed, sleep, chapters, panel, loading = false, group, testID}: AudioPlayerFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), form = 'phone' as const, inset = spec.inset[form];
   const book = chapter !== undefined, tiles = [speed, sleep, chapters, device].filter((item): item is AudioOption => item !== undefined);
   // The artwork is the spec's size where the window has room; a short window gets the largest square that leaves every fixed region its place.
@@ -175,29 +194,37 @@ function PhoneAudio({close, more, context, source, device, artwork, cover, icon,
   </View>;
   return <View testID={testID} style={{flex: 1, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, frameSpec.sheet.footerClear)}}>
     <View style={{flex: 1, paddingHorizontal: inset}}>
-      <View style={{height: spec.topBar[form], flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}><Glyph item={close} loading={false}/><Context context={context} source={source} loading={loading} centred/><Glyph item={more} loading={loading}/></View>
+      <View style={{height: spec.topBar[form], flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}><Glyph item={close} loading={false}/><Context context={context} source={source} loading={loading} centred/>
+        {/* With no More its place stays, so the context stays centred. */}
+        {more ? <Glyph item={more} loading={loading}/> : <View style={{width: theme.targets.touch}}/>}</View>
       <View style={{marginTop: spec.gap[form], alignItems: 'center'}}><Art artwork={artwork} cover={cover} icon={icon} title={title} size={book ? column * spec.bookArtShare : column} loading={loading}/></View>
-      <View style={{marginTop: theme.space.sm}}>{words}</View>
-      {signal !== undefined && !loading && <View style={{alignItems: 'center', marginTop: theme.space.xs}}>{signal}</View>}
-      {chapter && <ChapterLine chapter={chapter} loading={loading} wide={false}/>}
-      <View style={{height: spec.scrubber[form], justifyContent: 'center', gap: frameSpec.player.timesGap[form]}}>{scrubber}<Times times={times} loading={loading}/></View>
-      <View style={{height: spec.transport[form], justifyContent: 'center'}}><Transport transport={transport} loading={loading}/></View>
+      {grouped(group, 0, <>
+        <View style={{marginTop: theme.space.sm}}>{words}</View>
+        {signal !== undefined && !loading && <View style={{alignItems: 'center', marginTop: theme.space.xs}}>{signal}</View>}
+        {action !== undefined && !loading && <View style={{alignItems: 'center', marginTop: theme.space.xs}}>{action}</View>}
+        {chapter && <ChapterLine chapter={chapter} loading={loading} wide={false}/>}
+      </>)}
+      {grouped(group, 1, <>
+        <View style={{height: spec.scrubber[form], justifyContent: 'center', gap: frameSpec.player.timesGap[form]}}>{scrubber}<Times times={times} loading={loading}/></View>
+        <View style={{height: spec.transport[form], justifyContent: 'center'}}><Transport transport={transport} loading={loading}/></View>
+      </>)}
       {/* What is left of the height is shared under the transport and under the next line, the same on every phone. */}
-      <View style={{flex: 1}}/>{nextLine}<View style={{flex: 1}}/>
-      {bottom}
+      <View style={{flex: 1}}/>{grouped(group, 2, nextLine)}<View style={{flex: 1}}/>
+      {grouped(group, 2, bottom)}
     </View>
+    {notice !== undefined && !loading && <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top + spec.topBar[form], left: 0, right: 0, alignItems: 'center'}}>{drawnNotice(notice)}</View>}
     {panel !== undefined && <View style={[StyleSheet.absoluteFill, {top: frameSpec.sheet.fullTop + insets.top, borderTopLeftRadius: frameSpec.sheet.fullRadius, borderTopRightRadius: frameSpec.sheet.fullRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}]}>{panel}</View>}
   </View>;
 }
 
-function WideAudio({close, more, context, source, device, notice, artwork, cover, icon, title, badge, byline = [], favourite, titleMore, chapter, signal, scrubber, times, transport, lyrics, queue, speed, sleep, panel, loading = false, testID}: AudioPlayerFrameProps) {
+function WideAudio({close, more, context, source, device, notice, artwork, cover, icon, title, badge, byline = [], favourite, titleMore, chapter, signal, action, scrubber, times, transport, lyrics, queue, speed, sleep, panel, loading = false, group, testID}: AudioPlayerFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), form = frame.form === 'medium' ? 'medium' as const : 'expanded' as const;
   // An upright tablet (tablet-play 10) keeps the device with Lyrics and Up next in a pill row under the transport; a tablet on its side and the web put it at the top right.
   const upright = window.height > window.width, book = chapter !== undefined, edge = wideSpec.panelInset[form], panelWidth = panel !== undefined ? spec.upNextWidth[form] : 0;
   const top = <View style={{height: spec.topBar[form], flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, paddingHorizontal: edge}}>
     <Glyph item={close} loading={false} disc/><Context context={context} source={source} loading={loading} centred={false}/>
-    {device && !upright && <Button testID={device.testID} variant="glass" size="small" icon={device.icon} disabled={device.disabled || loading} onPress={device.onPress}>{device.label}</Button>}
-    <Glyph item={more} loading={loading} disc/>
+    {device && !upright && <Button ref={device.anchorRef} testID={device.testID} variant="glass" size="small" icon={device.icon} disabled={device.disabled || loading} onPress={device.onPress}>{device.label}</Button>}
+    {more && <Glyph item={more} loading={loading} disc/>}
   </View>;
   // The column is as wide as the cover, which is the spec's size or the largest that leaves the column's fixed rows their room.
   const rows = spec.titleSlot[form] + wideSpec.scrubberGap[form] + spec.scrubber[form] + wideSpec.transportGap[form] + icons.primary[form] + wideSpec.belowGap[form] + theme.targets.touch;
@@ -214,26 +241,30 @@ function WideAudio({close, more, context, source, device, notice, artwork, cover
     <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{byline.join('   ')}</Text>
   </>}</View>;
   const marks = !book && !loading && (favourite || titleMore) && <View style={{flexDirection: 'row', alignSelf: 'flex-end'}}>{favourite && <Glyph item={favourite} loading={loading} size={icons.inlineIcon[form]}/>}{titleMore && <Glyph item={titleMore} loading={loading} size={icons.inlineIcon[form]}/>}</View>;
-  const head = book ? <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: wideSpec.bookArtGap}}><Art artwork={artwork} cover={cover} icon={icon} title={title} size={wideSpec.bookArt[form]} loading={loading}/>{words('pageTitle')}</View>
-    : <><Art artwork={artwork} cover={cover} icon={icon} title={title} size={column} loading={loading}/><View style={{marginTop: wideSpec.titleGap[form], flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm}}>{words('pageTitle')}{marks}</View></>;
+  // The cover is the morph's and never in a group; the words beside or under it are group 0.
+  const head = book ? <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: wideSpec.bookArtGap}}><Art artwork={artwork} cover={cover} icon={icon} title={title} size={wideSpec.bookArt[form]} loading={loading}/><View style={{flex: 1, minWidth: 0}}>{grouped(group, 0, words('pageTitle'))}</View></View>
+    : <><Art artwork={artwork} cover={cover} icon={icon} title={title} size={column} loading={loading}/>{grouped(group, 0, <View style={{marginTop: wideSpec.titleGap[form], flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm}}>{words('pageTitle')}{marks}</View>)}</>;
   const pills = upright && !book && [lyrics, device, queue].some(Boolean) && <View style={{flexDirection: 'row', justifyContent: 'center', gap: theme.space.controlGap}}>
-    {[lyrics, device, queue].filter((item): item is AudioControl => item !== undefined).map(item => <Button key={item.label} testID={item.testID} variant="glass" size="small" icon={item.icon} disabled={item.disabled || loading} onPress={item.onPress}
+    {[lyrics, device, queue].filter((item): item is AudioControl => item !== undefined).map(item => <Button key={item.label} ref={item.anchorRef} testID={item.testID} variant="glass" size="small" icon={item.icon} disabled={item.disabled || loading} onPress={item.onPress}
       style={{borderRadius: theme.targets.touch / 2}}>{item.label}</Button>)}</View>;
   const options = book && [speed, sleep].some(item => item?.choices) && <View style={{gap: theme.space.controlGap}}>
     {[speed, sleep].filter((item): item is AudioOption => !!item?.choices).map(item => <AudioChoiceRow key={item.label} testID={item.testID ?? item.label} label={item.label} help={item.help} choices={item.choices!}/>)}</View>;
   const main = <View style={{width: column, alignSelf: 'center'}}>
     {head}
-    {signal !== undefined && !loading && <View style={{marginTop: theme.space.xs}}>{signal}</View>}
-    {chapter && <View style={{marginTop: wideSpec.chapterGap}}><ChapterLine chapter={chapter} loading={loading} wide/></View>}
-    <View style={{marginTop: chapter ? theme.space.xs : wideSpec.scrubberGap[form]}}><Times times={times} loading={loading} ends={scrubber}/></View>
-    <View style={{marginTop: wideSpec.transportGap[form]}}><Transport transport={transport} loading={loading} gap={wideSpec.transportSpacing[form]}/></View>
-    {(pills || options) && <View style={{marginTop: book ? wideSpec.rowsGap : wideSpec.belowGap[form], gap: wideSpec.belowGap[form]}}>{options}{pills}</View>}
+    {grouped(group, 0, <>
+      {signal !== undefined && !loading && <View style={{marginTop: theme.space.xs}}>{signal}</View>}
+      {action !== undefined && !loading && <View style={{marginTop: theme.space.xs, alignItems: 'center'}}>{action}</View>}
+      {chapter && <View style={{marginTop: wideSpec.chapterGap}}><ChapterLine chapter={chapter} loading={loading} wide/></View>}
+    </>)}
+    {grouped(group, 1, <>
+      <View style={{marginTop: chapter ? theme.space.xs : wideSpec.scrubberGap[form]}}><Times times={times} loading={loading} ends={scrubber}/></View>
+      <View style={{marginTop: wideSpec.transportGap[form]}}><Transport transport={transport} loading={loading} gap={wideSpec.transportSpacing[form]}/></View>
+    </>)}
+    {(pills || options) && grouped(group, 2, <View style={{marginTop: book ? wideSpec.rowsGap : wideSpec.belowGap[form], gap: wideSpec.belowGap[form]}}>{options}{pills}</View>)}
   </View>;
   return <View testID={testID} style={{flex: 1, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, edge)}}>
     {top}
-    {notice !== undefined && !loading && <View pointerEvents="none" style={{position: 'absolute', top: insets.top + (spec.topBar[form] - theme.targets.touch) / 2, left: 0, right: 0, alignItems: 'center'}}>
-      <View style={{height: theme.targets.touch - theme.space.xs, flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, paddingHorizontal: theme.space.sm, borderRadius: theme.targets.touch, backgroundColor: alpha(theme.colors.ink, .55), borderWidth: theme.space.hairline, borderColor: alpha(theme.colors.text, .1)}}>
-        <Icon name="i-rew" size={frameSpec.player.pillIcon} color={theme.colors.text}/><Text style={[theme.type.rowHelp, {color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{notice}</Text></View></View>}
+    {notice !== undefined && !loading && <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top + (spec.topBar[form] - theme.targets.touch) / 2, left: 0, right: 0, alignItems: 'center'}}>{drawnNotice(notice)}</View>}
     <View style={{flex: 1, flexDirection: 'row', gap: edge, paddingHorizontal: edge}}>
       <ScrollView style={{flex: 1}} contentContainerStyle={{flexGrow: 1, justifyContent: 'center', paddingVertical: theme.space.sm}}>{main}</ScrollView>
       {panel !== undefined && <View style={{width: panelWidth, marginTop: theme.space.xs}}>{panel}</View>}
@@ -242,7 +273,7 @@ function WideAudio({close, more, context, source, device, notice, artwork, cover
 }
 
 /** TV (final3-tv-12): the regions at the mock-up's places from the cover's top edge, so nothing moves with the title's length. */
-function TVAudio({more, context, source, artwork, cover, icon, title, byline = [], chapter, signal, scrubber, times, transport, lyrics, playlist, speed, sleep, chapters, panel, loading = false, testID}: AudioPlayerFrameProps) {
+function TVAudio({more, context, source, artwork, cover, icon, title, byline = [], chapter, signal, action, scrubber, times, transport, lyrics, playlist, speed, sleep, chapters, panel, loading = false, testID}: AudioPlayerFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), form = 'tv' as const, art = spec.artwork[form];
   // The title that needed a second line at its role (state keyed by the title, so a new title measures afresh).
   const titleStyle = theme.type.audioTitle, [longTitle, setLongTitle] = useState<string>(), long = longTitle === title;
@@ -265,12 +296,13 @@ function TVAudio({more, context, source, artwork, cover, icon, title, byline = [
           {byline[0] !== undefined && <Text numberOfLines={1} style={[theme.type.audioByline, {marginTop: theme.space.sm}]}>{byline[0]}</Text>}
           {byline[1] !== undefined && <Text numberOfLines={1} style={[theme.type.meta, {marginTop: theme.space.xs, color: theme.colors.textTertiary}]}>{byline[1]}</Text>}
           {signal !== undefined && <View style={{marginTop: theme.space.sm}}>{signal}</View>}
+          {action !== undefined && <View style={{marginTop: theme.space.sm, alignSelf: 'flex-start'}}>{action}</View>}
         </>}</View>
         <View style={{position: 'absolute', top: tvSpec.scrubberTop - (chapter ? theme.space.xl : 0), width: tvSpec.scrubberWidth, gap: theme.space.sm}}>{chapter && <ChapterLine chapter={chapter} loading={loading} wide/>}{scrubber}<Times times={times} loading={loading}/></View>
         <View style={{position: 'absolute', top: tvSpec.transportTop, width: tvSpec.scrubberWidth}}><Transport transport={transport} loading={loading}/></View>
         <View style={{position: 'absolute', top: tvSpec.moreTop, flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm}}>
-          {buttons.map(item => <Button key={item.label} testID={item.testID} variant="glass" size="compact" icon={item.icon} disabled={item.disabled || loading} onPress={item.onPress}>{label(item)}</Button>)}
-          <Button testID={more.testID} variant="glass" size="compact" iconOnly icon={more.icon} accessibilityLabel={more.label} disabled={more.disabled || loading} onPress={more.onPress}/>
+          {buttons.map(item => <Button key={item.label} ref={item.anchorRef} testID={item.testID} variant="glass" size="compact" icon={item.icon} disabled={item.disabled || loading} onPress={item.onPress}>{label(item)}</Button>)}
+          {more && <Button ref={more.anchorRef} testID={more.testID} variant="glass" size="compact" iconOnly icon={more.icon} accessibilityLabel={more.label} disabled={more.disabled || loading} onPress={more.onPress}/>}
         </View>
       </View>
       {/* The queue starts where the mock-up's does and runs to the safe edge; with nothing queued the place stays empty. */}
@@ -278,3 +310,8 @@ function TVAudio({more, context, source, artwork, cover, icon, title, byline = [
     </View>
   </View>;
 }
+
+/** Every component type the frame draws inside, for a screen that freezes its drawn page for a retained exit
+ * (`RetainedOverlay allowedTypes`): the screen's list spreads this one, so it follows the frame. */
+export const audioPlayerFramePaintTypes: readonly unknown[] = Object.freeze([AudioPlayerFrame, StartFocusScope, PhoneAudio, WideAudio, TVAudio, Transport, Context, Art, Times, Glyph, NoticePill, ChapterLine, Slot,
+  PlayerControl, AudioChoiceRow, ArtBox, SkeletonBlock, Button, Focusable, Icon, ScrollView, View, Text, React.Fragment]);
