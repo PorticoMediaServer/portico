@@ -192,11 +192,40 @@ function PhoneAudio({close, more, context, source, device, notice, artwork, cove
     {book ? tiles.map(item => <Slot key={item.label} item={item} loading={loading} tile/>)
       : <>{lyrics && <Slot item={lyrics} loading={loading}/>}{device && <View style={{flex: 1.6, height: '100%'}}><Slot item={device} loading={loading} inline/></View>}{queue && <Slot item={queue} loading={loading}/>}</>}
   </View>;
+  const topBar = <View style={{height: spec.topBar[form], flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}><Glyph item={close} loading={false}/><Context context={context} source={source} loading={loading} centred/>
+        {/* With no More its place stays, so the context stays centred. */}
+        {more ? <Glyph item={more} loading={loading}/> : <View style={{width: theme.targets.touch}}/>}</View>;
+  if (window.width > window.height) {
+    // A phone on its side (lead, 19 Nov ~03:30): the cover beside the words, every region in view; a panel is still the
+    // phone's sheet. The cover is the largest square the height leaves under the bar, and never more than ~40% of the width.
+    const bottomInset = Math.max(insets.bottom, theme.space.sm), room = window.height - insets.top - bottomInset - spec.topBar[form] - theme.space.sm;
+    const across = window.width - Math.max(insets.left, inset) - Math.max(insets.right, inset);
+    const art = Math.max(0, Math.min(room, across * .4));
+    return <View testID={testID} style={{flex: 1, paddingTop: insets.top, paddingBottom: bottomInset, paddingLeft: Math.max(insets.left, inset), paddingRight: Math.max(insets.right, inset)}}>
+      {topBar}
+      <View style={{flex: 1, flexDirection: 'row', alignItems: 'center', gap: spec.gap[form]}}>
+        <Art artwork={artwork} cover={cover} icon={icon} title={title} size={book ? art * spec.bookArtShare : art} loading={loading}/>
+        <View style={{flex: 1, minWidth: 0, justifyContent: 'center'}}>
+          {grouped(group, 0, <>
+            {words}
+            {signal !== undefined && !loading && <View style={{marginTop: theme.space.xs}}>{signal}</View>}
+            {action !== undefined && !loading && <View style={{marginTop: theme.space.xs, alignItems: 'flex-start'}}>{action}</View>}
+            {chapter && <ChapterLine chapter={chapter} loading={loading} wide={false}/>}
+          </>)}
+          {grouped(group, 1, <>
+            <View style={{height: spec.scrubber[form], justifyContent: 'center', gap: frameSpec.player.timesGap[form]}}>{scrubber}<Times times={times} loading={loading}/></View>
+            <View style={{height: spec.transport[form], justifyContent: 'center'}}><Transport transport={transport} loading={loading}/></View>
+          </>)}
+          {grouped(group, 2, bottom)}
+        </View>
+      </View>
+    {notice !== undefined && !loading && <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top + spec.topBar[form], left: 0, right: 0, alignItems: 'center'}}>{drawnNotice(notice)}</View>}
+    {panel !== undefined && <View style={[StyleSheet.absoluteFill, {top: frameSpec.sheet.fullTop + insets.top, borderTopLeftRadius: frameSpec.sheet.fullRadius, borderTopRightRadius: frameSpec.sheet.fullRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}]}>{panel}</View>}
+    </View>;
+  }
   return <View testID={testID} style={{flex: 1, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, frameSpec.sheet.footerClear)}}>
     <View style={{flex: 1, paddingHorizontal: inset}}>
-      <View style={{height: spec.topBar[form], flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}><Glyph item={close} loading={false}/><Context context={context} source={source} loading={loading} centred/>
-        {/* With no More its place stays, so the context stays centred. */}
-        {more ? <Glyph item={more} loading={loading}/> : <View style={{width: theme.targets.touch}}/>}</View>
+      {topBar}
       <View style={{marginTop: spec.gap[form], alignItems: 'center'}}><Art artwork={artwork} cover={cover} icon={icon} title={title} size={book ? column * spec.bookArtShare : column} loading={loading}/></View>
       {grouped(group, 0, <>
         <View style={{marginTop: theme.space.sm}}>{words}</View>

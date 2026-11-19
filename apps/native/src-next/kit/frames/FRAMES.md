@@ -562,6 +562,8 @@ menu anchor on the drawn control); `more?` (only when it has items; a phone keep
 `notice?` as a part, drawn on a phone too (a string keeps the pill); `group` wraps the three groups the open motion fades
 (0 words, 1 scrubber and transport, 2 what is under them; never the cover); `action?` (Try again) under the signal line.
 `audioPlayerFramePaintTypes` lists every type the frame draws inside, for a screen's retained-exit paint list.
+A phone on its side (lead, 19 Nov ~03:30) keeps the phone form with the cover beside the words, every region in view (the
+cover the largest square the height leaves, at most ~40% of the width); a panel is still the phone's sheet.
 
 Parts added: `AudioPanel` (tabs, list, footer; TV: heading and count), `QueueGroup`, `QueueRow` (playing / handle /
 done / number lead, two-line title, a chapter's progress, touch More or pointer actions), `AudioChoiceRow`
