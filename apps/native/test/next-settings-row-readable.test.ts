@@ -99,7 +99,7 @@ test('on a touch screen a row hands its control the inline value form without ca
   try {
     const find = (node: any, type: string): any => !node || typeof node !== 'object' ? undefined : node.type === type ? node : [node.props?.children].flat(Infinity).map(child => find(child, type)).find(Boolean);
     const provider = find(SettingsRow({label: 'Manage Portico Account', control: {type: 'Button', props: {}}}), 'RowControlProvider');
-    assert.ok(provider && typeof provider.props.value === 'object', 'the row tells its control it sits in a row');
+    assert.ok(provider && provider.props.value === true, 'the row tells its control it sits in a row');
     assert.equal([provider.props.children].flat()[0].type, 'Button', 'the control is not wrapped in a capped box');
   } finally {television = true;}
 });
