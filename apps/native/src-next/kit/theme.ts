@@ -29,8 +29,9 @@ export function activeTextScale(): number {return publishedTextScale;}
 /** The Android line (round 8): a title's line box must clear its descenders. Android clips a Text to its line box, so
  * a bold title set tighter than this share of its size loses the tails of g, y and p on its last line. */
 export const titleLineFloor = 1.2;
-/** A sheet or menu title has no drawn line height ('normal'); on Android it is given this one, so the box is the same on every device. */
-export const titleLine = (size: number): number => Math.round(size * 1.3);
+/** A sheet or menu title has no drawn line height ('normal'); on Android it is given this one, so the box is the same on every device.
+ * On a TV it is the measured floor (below): 1.3 cuts the extra bold's ink there. */
+export const titleLine = (size: number): number => Platform.isTV ? Math.ceil(size * measuredLineFloor) : Math.round(size * 1.3);
 
 /** The measured line (G2, 19 Nov, the dev gallery's `type-ladder` and `type-tv-*` cases): Manrope's ink, the ring of
  * Å and the tails of g, j and y, needs a line box of 1.34 of its size on Android and 1.36 on tvOS at extra bold (1.30
@@ -38,10 +39,11 @@ export const titleLine = (size: number): number => Math.round(size * 1.3);
  * ('normal', about 1.37) clears on both. One number for both systems and every weight: the largest measured. */
 export const measuredLineFloor = 1.36;
 
-/** Native fonts supply their own normal line metrics. Tracking is specified in em. `lineFloor`: a role with a set line
- * box is never drawn tighter than this share of its size (the measured forms pass `measuredLineFloor`); without it the
+/** Native fonts supply their own normal line metrics. Tracking is specified in em. `lineFloor`: a text with a set line
+ * box is never drawn tighter than this share of its size. On a TV every caller gets `measuredLineFloor` (the theme's
+ * roles and the kit's own lockups, sheet titles and states alike); elsewhere, until the touch forms are measured, the
  * older Android-only floor for bold titles applies. */
-export function nativeType(style: TypeStyle, textScale = 1, lineFloor?: number): TextStyle {
+export function nativeType(style: TypeStyle, textScale = 1, lineFloor = Platform.isTV ? measuredLineFloor : undefined): TextStyle {
   const line = style.lineHeight === 'normal' ? undefined
     : lineFloor !== undefined ? Math.max(style.lineHeight, Math.ceil(style.size * lineFloor))
     : Platform.OS === 'android' && style.weight >= 700 ? Math.max(style.lineHeight, Math.ceil(style.size * titleLineFloor)) : style.lineHeight;
