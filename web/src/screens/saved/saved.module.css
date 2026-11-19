@@ -157,8 +157,6 @@
 .header { position: relative; z-index: var(--layer-content); padding: 116px var(--shell-gutter) 0; }
 .header h1 { margin: 0; font-size: calc(var(--type-lockup-size) * 28 / 23); line-height: calc(var(--type-lockup-size) * 28 / 23); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-lockup-tracking); }
 /* From 600 px the page title is the kit LibraryHeader (56 px, as every library page); .header is the phone directory's. */
-.wideHeader { z-index: var(--layer-content); }
-.tabsList { gap: 34px; padding: 0 var(--shell-gutter); }
 .downloadColumns { position: relative; z-index: var(--layer-content); display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 0 48px; padding: 0 var(--shell-gutter); }
 .downloadColumns > div { min-width: 0; }
 .downloadHeading { position: relative; display: flex; align-items: baseline; gap: 14px; padding: 28px 0 0; }
@@ -237,8 +235,7 @@
   .historyRow { grid-template-columns: 120px minmax(0, 1fr) 90px; gap: 16px; }
   .historyArt { width: 120px; height: 68px; }
   .historyRow > div:nth-child(3) { display: none; }
-  .tabsList { padding: 0 var(--shell-gutter); gap: 24px; }
-  .downloadColumns { padding: 0 24px; grid-template-columns: minmax(0, 1fr); }
+    .downloadColumns { padding: 0 24px; grid-template-columns: minmax(0, 1fr); }
   .downloadSide { padding-top: 24px; }
   .serverDownloads { padding: 0 24px; }
   .serverDownloads .downloadRow { grid-template-columns: 64px minmax(0, 1fr) 200px; }
@@ -276,8 +273,7 @@
   .historyRow time { grid-column: 2; text-align: left; }
   .header { padding: 20px 20px 0; }
   .header h1 { font-size: var(--type-display-size); }
-  .tabsList { padding: 0 20px; }
-  .downloadColumns, .serverDownloads { padding: 0 16px; }
+    .downloadColumns, .serverDownloads { padding: 0 16px; }
   .browserNote { display: none; }
   .downloadColumns .downloadRow, .serverDownloads .downloadRow { grid-template-columns: 46px minmax(0, 1fr); column-gap: 12px; padding: 12px 0; }
   .art { width: 46px; }
@@ -298,10 +294,6 @@
 .phoneDirectoryCount { color: var(--color-text-tertiary); font-size: var(--type-caption-size); font-variant-numeric: tabular-nums; }
 .phoneDirectoryChevron { color: var(--color-line-strong); flex: none; }
 /* phone-web frame 6: a pushed Saved page's own bar, replacing the desktop heading and tabs. */
-.phoneNav { position: relative; z-index: var(--layer-content); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; min-height: 56px; padding: 8px 12px 0; }
-.phoneNav > b { font-size: var(--type-subheading-size); font-weight: var(--type-row-heading-weight); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.phoneNavStart { display: flex; justify-content: flex-start; min-width: 0; }
-.phoneNavEnd { display: flex; justify-content: flex-end; min-width: 0; }
 /* phone-web frame 6 / kit.css .phone: the My List rail lifts the authored row-head
    and track values (118px cards, 12px gap, 8/20/10 track padding, 4px head margin). */
 .phonePreview { margin-top: 2px; }
