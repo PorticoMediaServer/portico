@@ -61,6 +61,8 @@ async function mount(initial: {posters: any; squares: any}) {
     '@core/freshness-hub.ts': {dependsOn: {personal: () => 'personal', progress: () => 'progress', content: () => 'content', settings: () => 'settings'}},
     '../../kit/controls': {Button: 'Button', Chip: 'Chip', Tabs: 'Tabs', Switch: 'Switch'},
     '../../kit/browse': {FiltersButton: 'FiltersButton', SortMenu: 'SortMenu', ViewToggle: 'ViewToggle'},
+    // BrowseFrame owns the page's header; the screen's lists are its rows.
+    '../../kit/frames': {BrowseFrame: (props: any) => h.react.createElement('BrowseFrame', null, props.children)},
     '../../kit/overlays': {MenuRow: 'MenuRow', Popover: 'Popover'},
     '../../kit/cards': {PlaylistMosaic: 'PlaylistMosaic', PosterCard: 'PosterCard', SquareCard: 'SquareCard', NewPlaylistCard: 'NewPlaylistCard'},
     '../../kit/artwork': {AmbientArt: 'AmbientArt', CoverMosaic: 'CoverMosaic'},
@@ -80,7 +82,6 @@ async function mount(initial: {posters: any; squares: any}) {
     './ResourceFields': {ResourceFields: 'ResourceFields'},
     './SavedDialog': {SavedDialog: 'SavedDialog'},
     './SavedPhoneDirectory': {SavedPhoneDirectory: 'SavedPhoneDirectory'},
-    './SavedPhoneNav': {SavedPhoneNav: 'SavedPhoneNav'},
     './route.ts': {sameSavedRoute: (left: any, right: any) => JSON.stringify(left) === JSON.stringify(right), savedViewKey: () => 'view'},
     './retry-admission.ts': retryAdmission,
     './use-view-operations.ts': {useSavedViewOperations: () => operations},

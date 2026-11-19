@@ -17,7 +17,7 @@ import styles from './saved.module.css';
 import directory from './saved-phone-directory.module.css';
 
 const t = defaultI18n.t;
-/** phone-web frame 6: Saved is a list of rows on a phone, each opening its own
+/** phone-web frame 6: Saved is a list of rows on a phone (under BrowseFrame's title), each opening its own
  * pushed page. Counts are the summary's published fields only; no row is offered
  * that the runtime cannot open, and there is no selection or write here. */
 export function SavedPhoneDirectory({runtime, downloadsOffered, artwork, select, openEntry, pins}: {
@@ -60,7 +60,6 @@ export function SavedPhoneDirectory({runtime, downloadsOffered, artwork, select,
   ];
   const rowsShown = preview.length ? rows.filter(row => row.id !== 'watchlist') : rows;
   return <div className={styles.phoneDirectory}>
-    <header className={styles.header}><h1>{t('saved.title')}</h1></header>
     {summary.error && !value ? <p className={styles.directoryHelp} role="alert">{t('saved.loadFailed')}</p> : null}
     {preview.length > 0 && <div className={styles.phonePreview}>
       <button type="button" className={styles.phonePreviewHead} onClick={() => select({view: 'watchlist'})}>

@@ -9,11 +9,12 @@ import type {PersonalResource, PersonalResourceEntry, PersonalSavedService} from
 import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {shapeFor} from '@core/presentation/card-shape.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
-import {Button, Chip, Tabs, Switch} from '../../kit/controls';
-import {FiltersButton, LibraryHeader, SortMenu, ViewToggle} from '../../kit/browse';
+import {Button, Chip, Switch} from '../../kit/controls';
+import {FiltersButton, SortMenu, ViewToggle} from '../../kit/browse';
+import {BrowseFrame} from '../../kit/frames';
 import {MenuRow, Popover} from '../../kit/overlays';
 import {PlaylistMosaic, PosterCard, SquareCard, NewPlaylistCard, type CardSelection} from '../../kit/cards';
-import {AmbientArt, CoverMosaic, type AmbientArtSource, type ArtworkSource} from '../../kit/artwork';
+import {CoverMosaic, type ArtworkSource} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
 import {WindowedGrid, shellBottomClearance} from '../../kit/layout';
 import {Skeleton, StateView} from '../../kit/states';
@@ -33,7 +34,6 @@ import {ResourceRow} from './ResourceRow';
 import {SavedDialog} from './SavedDialog';
 import {SavedPhoneDirectory} from './SavedPhoneDirectory';
 import type {PinnedResource} from '@core/library-pins.ts';
-import {SavedPhoneNav} from './SavedPhoneNav';
 import type {SavedPresentation} from './presentation.ts';
 export type {SavedPresentation} from './presentation.ts';
 import type {SavedOperations} from './operations.ts';
@@ -122,30 +122,27 @@ export function SavedScreen(bindings: SavedBindings) {
   if (route.view === 'playlist' || route.view === 'resource') return <SavedResourceScreen key={viewKey} bindings={viewBindings} />;
   // At phone width the home route is the drawn directory (phone-web frame 6);
   // desktop and tablet keep today's tabbed page with My List active.
-  if (phone && route.view === 'home') return <main className={styles.page}>
-    {presentation.backdrop && <div className={styles.wash} aria-hidden="true"><AmbientArt source={presentation.backdrop} treatment="hero" /></div>}
+  if (phone && route.view === 'home') return <main className={styles.page}><BrowseFrame header={{title: t('saved.title')}}>
     <SavedPhoneDirectory runtime={runtime} downloadsOffered={bindings.downloadsOffered || localUsable} artwork={bindings.artwork} select={effects.selectRoute} openEntry={effects.openEntry} pins={bindings.pins} />
-  </main>;
+  </BrowseFrame></main>;
   const dataBindings = readerRoute === route ? viewBindings : {...viewBindings, route: readerRoute};
   const active = readerRoute.view;
   const tabs = (Object.keys(tabLabels) as (keyof typeof tabLabels)[]).filter(tab => tab !== 'downloads' || bindings.downloadsOffered || localUsable);
   const server = <ServerDownloads key={viewKey} service={runtime.downloads} operations={operations} effects={effects} artwork={bindings.preparationArtwork} online={bindings.online} />;
-  return <main className={styles.page}>
-    {presentation.backdrop && <div className={styles.wash} aria-hidden="true"><AmbientArt source={presentation.backdrop} treatment="hero" /></div>}
-    {phone && active in tabLabels ? <SavedPhoneNav title={t(tabLabels[active as keyof typeof tabLabels])} onBack={() => effects.selectRoute({view: 'home'})}
-      action={active === 'playlists' && runtime.saved.getSnapshot().projection?.actions?.includes('create_playlist')
-        ? <Button variant="icon" size="small" icon="i-plus" iconOnly aria-label={t('web.saved.newPlaylist')} onClick={() => setCreating({viewKey, kind: 'playlist'})} />
-        : active === 'collections' ? <Button variant="icon" size="small" icon="i-plus" iconOnly aria-label={t('web.saved.newCollection')} onClick={() => setCreating({viewKey, kind: 'collection'})} /> : undefined} /> : phone ? null : <>
-      <LibraryHeader className={styles.wideHeader} name={t('saved.title')} switcher={null}>
-        <Tabs listClassName={styles.tabsList} value={active} aria-label={t('web.saved.sections')} onValueChange={value => { if (value in tabLabels) effects.selectRoute({view: value as keyof typeof tabLabels}); }}
-          items={tabs.map(tab => ({value: tab, label: t(tabLabels[tab])}))} />
-      </LibraryHeader>
-    </>}
+  // BrowseFrame owns the header: Saved with its tabs from 600; at phone width a pushed list's own title, Back to Saved and its
+  // one action. The window owns the backdrop.
+  const phoneAction = active === 'playlists' && runtime.saved.getSnapshot().projection?.actions?.includes('create_playlist')
+    ? <Button variant="icon" size="small" icon="i-plus" iconOnly aria-label={t('web.saved.newPlaylist')} onClick={() => setCreating({viewKey, kind: 'playlist'})} />
+    : active === 'collections' ? <Button variant="icon" size="small" icon="i-plus" iconOnly aria-label={t('web.saved.newCollection')} onClick={() => setCreating({viewKey, kind: 'collection'})} /> : undefined;
+  const header = phone ? active in tabLabels ? {title: t(tabLabels[active as keyof typeof tabLabels]), back: {label: t('saved.title'), onPress: () => effects.selectRoute({view: 'home'})}, trailing: phoneAction} : {title: t('saved.title')}
+    : {title: t('saved.title'), tabs: {value: active, onValueChange: (value: string) => { if (value in tabLabels) effects.selectRoute({view: value as keyof typeof tabLabels}); }, items: tabs.map(tab => ({value: tab, label: t(tabLabels[tab])}))}};
+  return <main className={styles.page}><BrowseFrame header={header}>
     {route.view === 'downloads' ? localUsable && bindings.localDownloads
       ? <LocalDownloads key={viewKey} port={bindings.localDownloads} operations={operations} effects={effects} server={<ServerDownloads service={runtime.downloads} operations={operations} effects={effects} artwork={bindings.preparationArtwork} online={bindings.online} embedded managed={!!effects.saveReadyPreparation} />} /> : server
       : route.view === 'history' ? <SavedHistory key={viewKey} bindings={dataBindings} />
         : readerRoute.view === 'collections' || readerRoute.view === 'views' ? <PersonalResources key={viewKey} {...dataBindings} onCreate={() => setCreating({viewKey, kind: 'collection'})} />
           : <SavedLists key={viewKey} {...dataBindings} onCreate={() => setCreating({viewKey, kind: 'playlist'})} />}
+  </BrowseFrame>
     <CreateResourceDialog key={`create:${viewKey}`} kind={creating?.viewKey === viewKey ? creating.kind : undefined} bindings={viewBindings} close={() => setCreating(undefined)} />
   </main>;
 }
@@ -245,24 +242,12 @@ function SavedLists(bindings: SavedViewBindings & {onCreate: () => void}) {
     ...(primary.phase === 'error' ? [{id: 'posters'}] : []),
     ...(squares.phase === 'error' ? [{id: 'squares'}] : []),
   ] : [];
-  // The frame's wash comes from the list's own first titles. The canonical
-  // library treatment carries it; no separate artwork request or tint is made.
-  const wash = useMemo(() => {
-    if (!presentation.backdrops) return [];
-    if (presentation.backdrop) return [presentation.backdrop];
-    const urls = (projection?.sections ?? []).flatMap(section => section.entries).flatMap(entry => {
-      const media = mediaEntry(entry), url = media && (media.backdropUrl ?? media.posterUrl);
-      return url ? [url] : [];
-    });
-    return [...new Set(urls)].slice(0, 3).flatMap(url => { const source = artwork.ambient(url); return source ? [source] : []; });
-  }, [presentation.backdrops, presentation.backdrop, projection, artwork]);
   if (!routeMatches) return null;
   const list = route.view === 'favorites' ? 'favorites' : route.view === 'playlists' ? 'playlists' : 'watchlist';
   const total = split ? primary.phase === 'ready' && squares.phase === 'ready' ? [...(primary.projection?.sections ?? []), ...(squares.projection?.sections ?? [])].reduce((sum, section) => sum + section.totalCount, 0) : undefined : projection?.sections.reduce((sum, section) => sum + section.totalCount, 0);
   const hasContent = !!primary.projection?.sections.some(section => section.entries.length) || split && !!squares.projection?.sections.some(section => section.entries.length);
   if (!split && !projection && primary.phase === 'error') return <StateView title={t('saved.loadFailed')} primary={{id: 'retry', label: t('action.tryAgain'), onPress: retry, loading: retryBusy}} />;
   return <>
-    {wash.length ? <div className={styles.wash} aria-hidden="true"><AmbientArt sources={wash} treatment="library" height={640} /></div> : null}
     {failures.length ? <div className={styles.readerFailures} data-saved-reader-failures>
       {failures.map(failure => <StateView key={failure.id} variant="compact" className={styles.readerFailure}
         title={t('saved.listLoadFailed')} primary={{id: `retry-${failure.id}`, label: t('action.tryAgain'), onPress: retry, loading: retryBusy}} />)}
