@@ -56,7 +56,8 @@ export function MediumRail({libraries, hasLiveTV, destination, profile, unread, 
       style={{width: expanded ? 224 : mediumRailMetrics.itemWidth, minHeight: expanded ? 44 : 48, paddingTop: 8, paddingBottom: 6, borderRadius: mediumRailMetrics.itemRadius,
         flexDirection: expanded ? 'row' : 'column', paddingHorizontal: expanded ? 12 : 0, alignItems: 'center', justifyContent: expanded ? 'flex-start' : 'center', gap: expanded ? 12 : 4, backgroundColor: selected ? `${theme.colors.text}1A` : undefined}}>
       <Icon name={entry.icon} size={expanded ? 20 : mediumRailMetrics.iconSize} color={selected ? theme.colors.text : theme.colors.textTertiary}/>
-      <Text numberOfLines={expanded ? 1 : 2} style={[nativeType({size: expanded ? 15 : 10.5, weight: 600, tracking: expanded ? 0 : -0.005, lineHeight: 'normal'}, theme.textScale), {lineHeight: expanded ? 20 : 13.5, color: selected ? theme.colors.text : theme.colors.textTertiary, maxWidth: expanded ? 168 : mediumRailMetrics.itemWidth, textAlign: expanded ? 'left' : 'center'}]}>{entry.label}</Text>
+      {/* A label shows whole: a long library name takes another line, never an ellipsis (owner: no cut text). */}
+      <Text style={[nativeType({size: expanded ? 15 : 10.5, weight: 600, tracking: expanded ? 0 : -0.005, lineHeight: 'normal'}, theme.textScale), {lineHeight: expanded ? 20 : 13.5, color: selected ? theme.colors.text : theme.colors.textTertiary, maxWidth: expanded ? 168 : mediumRailMetrics.itemWidth, textAlign: expanded ? 'left' : 'center'}]}>{entry.label}</Text>
     </Focusable>;
   };
   const hairline = <View accessible={false} style={{width: expanded ? 200 : 40, height: 1, backgroundColor: theme.colors.line, marginVertical: expanded ? 9 : 6}}/>;
@@ -99,7 +100,7 @@ export function MediumRail({libraries, hasLiveTV, destination, profile, unread, 
           <Icon name="i-bell" size={expanded ? 20 : mediumRailMetrics.iconSize} color={theme.colors.textTertiary}/>
           {unread && <View accessible={false} style={{position: 'absolute', top: -1, right: -2, width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.accentStrong, borderWidth: 2, borderColor: theme.colors.ink}}/>}
         </View>
-        {expanded && <Text numberOfLines={1} style={[nativeType({size: 15, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{notificationAction.label}</Text>}
+        {expanded && <Text style={[nativeType({size: 15, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {flexShrink: 1, color: theme.colors.textSecondary}]}>{notificationAction.label}</Text>}
       </Focusable>}
       {hairline}
       {serverAction && <Focusable testID="medium-rail-server" accessibilityRole="button" accessibilityLabel={activity ? activityLabel : serverAction.label} onPress={serverAction.onPress} focusRadius={mediumRailMetrics.itemRadius}
@@ -114,7 +115,7 @@ export function MediumRail({libraries, hasLiveTV, destination, profile, unread, 
         <Focusable testID="medium-rail-profile" accessibilityRole="button" accessibilityLabel={defaultI18n.t('next.home.native.profileAndServer')} onPress={onProfile} focusRadius={mediumRailMetrics.itemRadius}
           style={{width: expanded ? 224 : mediumRailMetrics.itemWidth, minHeight: expanded ? 60 : 48, marginTop: expanded ? 6 : 0, backgroundColor: expanded ? `${theme.colors.text}0F` : undefined, paddingTop: expanded ? 0 : 8, paddingBottom: expanded ? 0 : 6, borderRadius: 14, flexDirection: expanded ? 'row' : 'column', paddingHorizontal: expanded ? 10 : 0, alignItems: 'center', justifyContent: expanded ? 'flex-start' : 'center', gap: expanded ? 12 : 4}}>
           <View ref={profileRef} collapsable={false} style={{width: expanded ? 38 : 30, height: expanded ? 38 : 30}}><ProfileFace {...profile} size={expanded ? 38 : 30} locked={profile.pinRequired} scaleOnFocus={false}/></View>
-          {expanded ? <View style={{flex: 1, minWidth: 0}}><Text numberOfLines={1} style={[nativeType({size: 14, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{profile.name}</Text>{serverName && <Text numberOfLines={1} style={[nativeType({size: 12, weight: 400, tracking: 0, lineHeight: 'normal'}, theme.textScale), {marginTop: 1, color: theme.colors.textTertiary}]}>{serverName}</Text>}</View> : <Text numberOfLines={1} style={[theme.type.captionStrong, {fontSize: 10.5, lineHeight: 13.5, color: theme.colors.textTertiary}]}>{defaultI18n.t('web.shell.profile')}</Text>}
+          {expanded ? <View style={{flex: 1, minWidth: 0}}><Text style={[nativeType({size: 14, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{profile.name}</Text>{serverName && <Text style={[nativeType({size: 12, weight: 400, tracking: 0, lineHeight: 'normal'}, theme.textScale), {marginTop: 1, color: theme.colors.textTertiary}]}>{serverName}</Text>}</View> : <Text numberOfLines={1} style={[theme.type.captionStrong, {fontSize: 10.5, lineHeight: 13.5, color: theme.colors.textTertiary}]}>{defaultI18n.t('web.shell.profile')}</Text>}
           {expanded && <Icon name="i-updown" size={18} color={theme.colors.textTertiary}/>}
         </Focusable>
       </View>
