@@ -153,6 +153,20 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(align, [where, bandHeight]);
+  // Within one section (Details: About, the cast, the collection) focus can move to a control below the screen or up
+  // under the band: the page moves just enough to show it whole, with room for its ring. The page has no other mover on
+  // TV (its ScrollView does not scroll by itself).
+  const pageView = useRef<View>(null), scrollY = useRef(0), whereNow = useRef(where);
+  whereNow.current = where;
+  const reveal = (host: unknown) => {
+    const node = host as View | null, page = pageView.current;
+    if (!node || !page || scroller) return;
+    requestAnimationFrame(() => node.measureLayout(page, (_x, y, _w, h) => {
+      const room = theme.space.xl, top = y - room, bottom = y + h + room;
+      const target = bottom > scrollY.current + window.height ? bottom - window.height : top < scrollY.current + bandHeight ? top - bandHeight : undefined;
+      if (target !== undefined) scroll.current?.scrollTo({y: Math.max(0, target), animated: !motion.reduce});
+    }, () => {}));
+  };
   // The tabs follow the section that holds focus.
   const sectionTabs = useRef<readonly (string | undefined)[]>([]);
   useEffect(() => {
@@ -266,7 +280,11 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     <View onLayout={event => {ys.current.column = event.nativeEvent.layout.y;}} style={{flex: besideAside ? 1 : undefined, alignSelf: besideAside ? undefined : 'stretch', minWidth: 0, gap: frame.sectionGap}}>
       {selectionBar}
       {tv && !scroller && !loading && <TVFocusGuideView ref={upGuide} focusable={folded} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>}
-      {tv && !scroller && !loading ? sections.map((section, index) => <FocusWithin key={index} onChange={focused => {if (focused) setWhere(index);}}>
+      {tv && !scroller && !loading ? sections.map((section, index) => <FocusWithin key={index} onChange={(focused, host) => {
+        if (!focused) return;
+        // A move within the section keeps the control on screen; entering a section aligns the section itself.
+        if (whereNow.current === index) reveal(host); else setWhere(index);
+      }}>
         <View style={{gap: frame.sectionGap}} onLayout={event => {ys.current.sections[index] = event.nativeEvent.layout.y; if (where === index) align();}}>{section.node}</View></FocusWithin>)
         : panel}</View>
     {aside && !loading && <View style={{width: besideAside ? spec.side : undefined, alignSelf: besideAside ? undefined : 'stretch', marginRight: besideAside ? frame.rightGutter : 0, paddingHorizontal: besideAside ? 0 : frame.gutter, gap: frame.sectionGap}}>{aside}</View>}
@@ -317,10 +335,10 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
       : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingTop: insets.top, paddingBottom: frame.bottomClear}}>{tabBar()}{content}</ScrollView>}
   </View>;
   const strip = tabs && !held && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>;
-  const page = tv ? <>
+  const page = tv ? <View ref={pageView} collapsable={false}>
     <FocusWithin onChange={focused => {if (focused) setWhere('head');}}><Animated.View ref={headView} style={copyStyle}>{head}{strip}</Animated.View></FocusWithin>
     {content}
-  </> : <>
+  </View> : <>
     {!held && head}
     {strip}
     {content}
@@ -342,14 +360,14 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {tv && art && !cover && <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 0, height}}>{art}</View>}
     {tv && !scroller && <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: theme.colors.ink}, scrimStyle]}/>}
     {scroller ? <View style={{flex: 1}}>{scroller(page, {paddingBottom: frame.bottomClear}, {at: barAt, onChange: value => {setPassed(value); setTabsPinned(value);}})}</View>
-      : <ScrollView ref={scroll} style={{flex: 1}} contentContainerStyle={{paddingBottom: tv ? Math.max(frame.bottomClear, window.height - bandHeight) : frame.bottomClear}} scrollEventThrottle={32}
+      : <ScrollView ref={scroll} style={{flex: 1}} scrollEnabled={!tv} contentContainerStyle={{paddingBottom: tv ? Math.max(frame.bottomClear, window.height - bandHeight) : frame.bottomClear}} scrollEventThrottle={32}
         onContentSizeChange={tv ? undefined : (_, contentHeight) => {
           // Back to where the page was, once it is long enough to hold that place (its panel arrives after the head).
           const offset = scrollMemory?.offset ?? 0;
           if (restored.current || offset <= 0 || contentHeight < offset + window.height) return;
           restored.current = true; scroll.current?.scrollTo({y: offset, animated: false});
         }}
-        onScroll={tv ? undefined : event => {const y = event.nativeEvent.contentOffset.y; setPassed(y > barAt); setTabsPinned(y > tabsY - barHeight); scrollMemory?.onOffset(y);}}>{page}</ScrollView>}
+        onScroll={tv ? event => {scrollY.current = event.nativeEvent.contentOffset.y;} : event => {const y = event.nativeEvent.contentOffset.y; setPassed(y > barAt); setTabsPinned(y > tabsY - barHeight); scrollMemory?.onOffset(y);}}>{page}</ScrollView>}
     {band}
     {/* Back and the top action stay put over the page while the hero scrolls (phone-detail d1); the bar takes their place once it has gone. */}
     {!shown && !split && discs}
