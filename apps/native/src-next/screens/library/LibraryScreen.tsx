@@ -17,14 +17,15 @@ import {Button, Focusable} from '../../kit/controls';
 import {FocusItem, FocusRegion, useFocusRegistry, type FocusRegionProps} from '../../kit/focus';
 import {Banner} from '../../kit/overlays';
 import {shareLinkActions} from '../share/share-actions';
-import {FiltersDock, FiltersOver, LibraryExpandedHeader, LibraryHeader, LibraryMediumHeader, LibraryMenu, LibrarySwitcher, QuickToggle, ViewToggle, libraryFiltersTabletPane, type BrowseLabels} from '../../kit/browse';
+import {LibraryHeader, LibraryMenu, LibrarySwitcher, QuickToggle, ViewToggle, type BrowseLabels} from '../../kit/browse';
+import {BrowseFrame, type BrowseFrameProps, type BrowseHeaderProps, type PageStateProps} from '../../kit/frames';
 import {browseType, alpha} from '../../kit/browse/presentation';
 import {Icon} from '../../kit/Icon';
 import {usePullRefresh} from '../../kit/states/usePullRefresh';
 import {WindowedGrid, AlphabetRail, Row, type LayoutSelection, type WindowedGridHandle} from '../../kit/layout';
 import {discoverCell} from './discover-cells';
 import {shapeFor, type ShapeFamily} from '../../../../../packages/client-core/src/presentation/card-shape';
-import {GridSkeleton, SkeletonBlock, StateView, showSkeleton, skeletonTiming} from '../../kit/states';
+import {GridSkeleton, SkeletonBlock, StateView, showSkeleton, skeletonTiming, type StateViewProps} from '../../kit/states';
 import {useTheme, type Theme} from '../../kit/theme';
 import {TopBar} from '../../kit/layout/TopBar';
 import type {NativeShellRuntime} from '../../shell/runtime';
@@ -39,7 +40,7 @@ import type {NativeSelection} from '../selection/native-selection';
 import {LibraryToolbar} from './LibraryToolbar';
 import {LibraryListRow} from './LibraryListRow';
 import {NativeLibraryDirectory} from './directory';
-import {LibraryFilters, libraryFiltersDockWidth} from './LibraryFilters';
+import {LibraryFilters, libraryFiltersDockWidth, useLibraryFrameFilters} from './LibraryFilters';
 import {LibraryJumpSheet} from './LibraryJumpSheet';
 import {libraryAlphabetRail, libraryJumpLetter, libraryJumpLetters} from './jump';
 import type {NativeLibraryFilterDraft, NativeLibraryFilterSnapshot} from './filters';
@@ -182,7 +183,7 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
   // grid on medium, so the route owns the draft that both the pane and the grid read.
   const [filterDraft, setFilterDraft] = useState<NativeLibraryFilterDraft>();
   const discoverScroll = useRef<ScrollView>(null), mixAnchored = useRef(false), mixAnchorY = useRef<number | undefined>(undefined);
-  const filterOpening = useRef(0), filtersRef = useRef<NativeLibraryFilterDraft | undefined>(undefined), [overClosing, setOverClosing] = useState(false);
+  const filterOpening = useRef(0), filtersRef = useRef<NativeLibraryFilterDraft | undefined>(undefined);
   const filterState = useSyncExternalStore(filterDraft?.subscribe ?? noSubscribe, filterDraft?.getSnapshot ?? noFilterSnapshot);
   useEffect(() => {if (active.intent !== 'restore') mixAnchored.current = false;}, [state.library.id, active.revision, active.intent]);
   const scrollToMixes = () => {
@@ -198,24 +199,17 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
   const openFilters = useCallback(() => {
     filtersRef.current?.dispose(); filterOpening.current++;
     const next = destination.createFilters();
-    filtersRef.current = next; setFilterDraft(next); setOverClosing(false);
+    filtersRef.current = next; setFilterDraft(next);
   }, [destination]);
   // A retained close can arrive after a newer draft replaced this one. Only the
   // draft the caller actually owns is disposed and cleared, so an old panel never
-  // erases its successor.
-  // Leaving the route drops the panel at once; the drawn over-panel gets its exit
-  // motion first, and only the draft it actually owns is disposed when it lands.
+  // erases its successor. Leaving the route drops the panel at once. On the frame a
+  // closed draft is only disposed (the frame plays the exit); the next opening replaces it.
   const dropFilters = useCallback((subject?: NativeLibraryFilterDraft) => {
     const current = filtersRef.current;
     if (!current || subject && current !== subject) return;
-    filtersRef.current = undefined; current.dispose(); setFilterDraft(undefined); setOverClosing(false);
+    filtersRef.current = undefined; current.dispose(); setFilterDraft(undefined);
   }, []);
-  const closeFilters = useCallback((subject?: NativeLibraryFilterDraft) => {
-    const current = filtersRef.current;
-    if (!current || subject && current !== subject) return;
-    if (tabletLayout && !expanded) {setOverClosing(true); return;}
-    dropFilters(current);
-  }, [dropFilters, expanded, tabletLayout]);
   useEffect(() => {if (!active.visible) dropFilters(filtersRef.current);}, [active.visible, dropFilters]);
   // A filter draft belongs to the library it was opened on: another library drops it.
   useEffect(() => () => dropFilters(filtersRef.current), [state.library.id, dropFilters]);
@@ -312,63 +306,41 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
   const songCount = state.library.kind === 'music' ? summaries.libraries.find(library => library.id === state.library.id)?.summary.counts.find(part => part.kind === 'song') : undefined;
   const musicCount = songCount && <Text style={[browseType(theme, 22, 400), {marginLeft: 'auto', color: theme.colors.textTertiary}]}>
     {defaultI18n.t(songCount.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: songCount.count, pivot: 'songs'})}</Text>;
-  const header = theme.isTV ? <LibraryHeader name={state.library.name} switcher={switcher} ambient={ambient} menu={musicCount}>{tabs}</LibraryHeader>
-    : theme.platform === 'phone' ? <LibraryCompactHeader switcher={switcher} menu={menu}
-      onLibraries={() => runtime.onDestination({kind: 'libraries'})}>{tabs}</LibraryCompactHeader>
-    : expanded ? <LibraryExpandedHeader name={state.library.name} switcher={switcher} menu={menu} ambient={ambient} selection={select}>{tabs}</LibraryExpandedHeader>
-    : <LibraryMediumHeader name={state.library.name} switcher={switcher} menu={menu} ambient={ambient} wash={washed} selection={select}>{tabs}</LibraryMediumHeader>;
-  // tablet4/5: Filters docks at 380 on expanded and covers the grid at 420 on
-  // medium. The grid only ever sees the column it is actually given.
-  const docked = tabletLayout && expanded && !!filterDraft;
-  const over = tabletLayout && !expanded && !!filterDraft;
+  // TV keeps its own page until the frame's tabs carry the TV focus graph (the rail and the empty and error pages' edges).
+  const tvHeader = <LibraryHeader name={state.library.name} switcher={switcher} ambient={ambient} menu={musicCount}>{tabs}</LibraryHeader>;
+  // tablet4/5: on the frame Filters docks at 380 on expanded and covers the grid at 420 on medium (the frame picks the
+  // surface and plays its exit). The grid only ever sees the column it is actually given.
+  const filtersOpen = filterState?.open ?? false;
+  const docked = tabletLayout && expanded && filtersOpen;
   const gridWidth = Math.max(0, contentWidth - (docked ? libraryFiltersDockWidth : 0));
-  // Back closes the panel before it leaves the library, as the phone sheet does.
+  // Back closes the tablet pane before it leaves the library, as the phone sheet does.
   useEffect(() => {
-    if (!docked && !over) return;
-    const subscription = registerBack(() => {closeFilters(filtersRef.current); return true;}, {scope: 'page', active: () => activation.getSnapshot().visible});
+    if (!tabletLayout || !filtersOpen) return;
+    const subscription = registerBack(() => {filtersRef.current?.dispose(); return true;}, {scope: 'page', active: () => activation.getSnapshot().visible});
     return () => subscription();
-  }, [activation, docked, over, closeFilters]);
-  const panel = filterDraft && <LibraryFilters key={filterOpening.current} draft={filterDraft} source={state} runtime={runtime} labels={props.labels} owner={props.owner}
-    onClose={() => closeFilters(filterDraft)} docked geometry={libraryFiltersTabletPane}/>;
-  // The phone sheet and the TV panel own their exit motion, so their draft stays
-  // mounted while it closes; the tablet panes have no exit motion to finish.
-  const sheet = filterDraft && !tabletLayout && <LibraryFilters key={filterOpening.current} draft={filterDraft} source={state} runtime={runtime} labels={props.labels} owner={props.owner}
+  }, [activation, tabletLayout, filtersOpen]);
+  const frameFilters = useLibraryFrameFilters({draft: theme.isTV ? undefined : filterDraft, generation: filterOpening.current, source: state, runtime, labels: props.labels, owner: props.owner, live: docked,
+    onSave: view => actions.saveView(destination, view)});
+  // The TV panel owns its exit motion, so its draft stays mounted while it closes.
+  const sheet = theme.isTV && filterDraft && <LibraryFilters key={filterOpening.current} draft={filterDraft} source={state} runtime={runtime} labels={props.labels} owner={props.owner}
     onClose={() => filterDraft?.dispose()} onExited={() => dropFilters(filterDraft)} onSave={view => actions.saveView(destination, view)}/>;
-  return <View testID={`native-library-${encodeURIComponent(state.library.id)}`} pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
-    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} onLayout={event => setAreaWidth(event.nativeEvent.layout.width)}
-    style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
-    {wash}
-    <View style={{flex: 1, flexDirection: docked ? 'row' : 'column'}}>
-      <View style={{flex: 1}}>
-        {header}
-        {/* DESIGN: Select is in every card's hold-OK menu. The Discover tab's bar rides above
-            its shelves, exactly as the browse grid's bar sits under its toolbar. */}
-        {(state.tab.shows === 'rows' || theme.isTV && state.library.kind === 'music' && state.tab.id === 'discover')
+  // DESIGN: Select is in every card's hold-OK menu. The Discover tab's bar rides above
+  // its shelves, exactly as the browse grid's bar sits under its toolbar.
+  const shelfBar = (state.tab.shows === 'rows' || theme.isTV && state.library.kind === 'music' && state.tab.id === 'discover')
           ? shelfSelection?.render((path?: string) => {const art = path ? runtime.artwork(path) : undefined; return art ? <Artwork source={art} width={48} height={48}/> : undefined;})
-          : null}
-        {/* Counts and covers that did not load are a quiet note, never a second full error. */}
-        {summaries.phase === 'error' && !pageFailed && <View style={{paddingHorizontal: theme.isTV ? 0 : theme.gutter, paddingVertical: 8}}><Banner placement="inline" variant="notice" tone="warning" icon="i-alert"
+          : null;
+  // Counts and covers that did not load are a quiet note, never a second full error.
+  const summariesNote = summaries.phase === 'error' && !pageFailed && <View style={{paddingHorizontal: theme.isTV ? 0 : theme.gutter, paddingVertical: 8}}><Banner placement="inline" variant="notice" tone="warning" icon="i-alert"
           message={defaultI18n.t('next.browse.librarySummariesUnavailable')}
-          action={theme.isTV ? undefined : {label: defaultI18n.t('next.states.tryAgain'), onPress: () => {void directory.load().catch(runtime.reportError);}}}/></View>}
-        {state.phase === 'error' ? <FocusRegion id={errorRegion} entry="retry" order={['retry']} edges={{up: ids.libraryTabs(state.library.id), left: ids.rail}} style={{flex: 1, justifyContent: 'center'}}>
-          <StateView variant="centered" {...runtime.error(state.error, retryPage, 'library')}/></FocusRegion>
-          : state.collection ? <View style={{flex: 1}}>
-            <LibraryGrid {...props} selection={selection} source={state} paneWidth={gridWidth} tablet={tabletLayout} expanded={expanded} filtersOpen={filterState?.open ?? false} onFilters={openFilters} dockedFilters={docked}
-              entryRequest={entryRequest} onEntered={onEntered} entryCovered={emptyShown}/>
-            {emptyShown && <View testID="library-empty-page" style={{position: 'absolute', inset: 0}}>{theme.isTV && <StandardBackdrop/>}
+          action={theme.isTV ? undefined : {label: defaultI18n.t('next.states.tryAgain'), onPress: () => {void directory.load().catch(runtime.reportError);}}}/></View>;
+  const gridProps = {...props, selection, source: state, paneWidth: gridWidth, tablet: tabletLayout, expanded, filtersOpen, onFilters: openFilters, dockedFilters: docked,
+    entryRequest, onEntered, entryCovered: emptyShown};
+  const emptyOver = emptyShown && <View testID="library-empty-page" style={{position: 'absolute', inset: 0}}>{theme.isTV && <StandardBackdrop/>}
               <LibraryEmpty runtime={runtime} regionId={emptyRegion} upRegionId={ids.libraryTabs(state.library.id)} firstCardRegion={firstCardRegion}
                 surface={state.tab.shows} libraryName={state.library.name} firstScanning={firstScanning} onActivity={props.firstScan?.openActivity}
                 onLeave={() => {if (!empty) setEmptyHeld(false);}}/>
-            </View>}
-          </View>
-          : loading ? <LibraryLoading theme={theme} width={theme.isTV ? dimensions.width : contentWidth} height={dimensions.height} tablet={tabletLayout} expanded={expanded} elapsedMs={loadingElapsed}/>
-          : emptyShown ? <LibraryEmpty runtime={runtime} regionId={emptyRegion} upRegionId={ids.libraryTabs(state.library.id)} surface={state.tab.shows}
-            libraryName={state.library.name} firstScanning={firstScanning} onActivity={props.firstScan?.openActivity}/>
-          : theme.isTV && state.library.kind === 'music' && state.tab.id === 'discover' ? <TVMusicDiscover
-            destination={destination} state={state} runtime={runtime} active={active} anchor={props.mixAnchor} onEntered={onEntered}
-            renderEntry={(entry, width, context) => <LibraryCard entry={entry} family={state.library.kind} width={width} runtime={runtime} actions={actions} focusId={context.focusId} disabled={!active.visible} onFocus={context.onFocus} onBlur={context.onBlur}
-              selected={shelfSelection?.item(entry)} onSelect={shelfSelection?.item(entry)?.onEnter}/>}/>
-          : state.tab.shows === 'rows' ? <ScrollView ref={discoverScroll}>
+            </View>;
+  const discoverRows = () => <ScrollView ref={discoverScroll}>
             {state.discover.error && <StateView {...runtime.error(state.discover.error, destination.retry, 'library')}/>}
             {state.discover.appended.map((section, index) => {
             // Phone and tablet draw a Discover shelf as Home draws the same row: Home's card sizes, the 16:9 card for a
@@ -393,14 +365,54 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
             {!theme.isTV && state.library.kind === 'music' && !state.discover.appended.length && runtime.mixes ? <View onLayout={anchorMixes}>
               <MusicMixesRow focusScope={`${ids.libraryToolbar(state.library.id)}.${state.tab.id}.mixes`} port={runtime.mixes} artwork={runtime.artwork} reportError={runtime.reportError} title={defaultI18n.t('music.mixesForYou')} active={active.visible} onReady={scrollToMixes}/>
             </View> : null}
-          </ScrollView> : null}
-      </View>
-      {docked && <FiltersDock testID="library-filters-dock">{panel}</FiltersDock>}
+          </ScrollView>;
+  const testID = `native-library-${encodeURIComponent(state.library.id)}`;
+  const route = (children: ReactNode) => <View testID={testID} pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
+    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} onLayout={event => setAreaWidth(event.nativeEvent.layout.width)}
+    style={{flex: 1}}>{children}</View>;
+  if (!theme.isTV) {
+    // Phone and tablet: the library frame (`BrowseFrame`) draws the header, tabs, toolbar, grid, alphabet, Filters and page state.
+    const frameHeader: BrowseHeaderProps = {title: state.library.name, switcher, menu, ambient, trailing: theme.platform === 'phone' ? undefined : select || undefined,
+      back: theme.platform === 'phone' ? {label: defaultI18n.t('next.browse.native.libraries'), onPress: () => runtime.onDestination({kind: 'libraries'})} : undefined,
+      tabs: {items: libraryTabs(state.library.kind).map(tab => ({value: tab.id, label: defaultI18n.t(tab.label)})), value: state.tab.id,
+        onValueChange: id => {void destination.load(id as LibraryTabId).catch(runtime.reportError);}}};
+    const page = (regions: Omit<BrowseFrameProps, 'header' | 'hero' | 'testID' | 'filters'>) => <BrowseFrame testID="library-frame" header={frameHeader} filters={frameFilters} {...regions}/>;
+    // Discover keeps its own scroller, so the Mixes anchor can still scroll to its row.
+    return route(<>{wash}{pageFailed ? page({state: libraryPageState(runtime.error(state.error, retryPage, 'library'))})
+      : state.collection ? <LibraryGrid {...gridProps} frame={regions => page({toolbar: <>{summariesNote}{regions.toolbar}</>, alphabet: regions.alphabet,
+        grid: <View style={{flex: 1}}>{regions.grid}{emptyOver}</View>})}/>
+      : loading ? page({state: {kind: 'loading'}, grid: state.tab.shows !== 'rows' || undefined})
+      : emptyShown ? page({toolbar: summariesNote || undefined, grid: <LibraryEmpty runtime={runtime} regionId={emptyRegion} upRegionId={ids.libraryTabs(state.library.id)} surface={state.tab.shows}
+            libraryName={state.library.name} firstScanning={firstScanning} onActivity={props.firstScan?.openActivity}/>})
+      : state.tab.shows === 'rows' ? page({toolbar: <>{shelfBar}{summariesNote}</>, grid: discoverRows()})
+      : page({})}</>);
+  }
+  return route(<>{theme.isTV && <StandardBackdrop/>}
+    {wash}
+    <View style={{flex: 1}}>
+      {tvHeader}
+      {shelfBar}
+      {summariesNote}
+      {state.phase === 'error' ? <FocusRegion id={errorRegion} entry="retry" order={['retry']} edges={{up: ids.libraryTabs(state.library.id), left: ids.rail}} style={{flex: 1, justifyContent: 'center'}}>
+          <StateView variant="centered" {...runtime.error(state.error, retryPage, 'library')}/></FocusRegion>
+        : state.collection ? <View style={{flex: 1}}><LibraryGrid {...gridProps}/>{emptyOver}</View>
+        : loading ? <LibraryLoading theme={theme} width={theme.isTV ? dimensions.width : contentWidth} height={dimensions.height} tablet={tabletLayout} expanded={expanded} elapsedMs={loadingElapsed}/>
+        : emptyShown ? <LibraryEmpty runtime={runtime} regionId={emptyRegion} upRegionId={ids.libraryTabs(state.library.id)} surface={state.tab.shows}
+            libraryName={state.library.name} firstScanning={firstScanning} onActivity={props.firstScan?.openActivity}/>
+        : state.library.kind === 'music' && state.tab.id === 'discover' ? <TVMusicDiscover
+            destination={destination} state={state} runtime={runtime} active={active} anchor={props.mixAnchor} onEntered={onEntered}
+            renderEntry={(entry, width, context) => <LibraryCard entry={entry} family={state.library.kind} width={width} runtime={runtime} actions={actions} focusId={context.focusId} disabled={!active.visible} onFocus={context.onFocus} onBlur={context.onBlur}
+              selected={shelfSelection?.item(entry)} onSelect={shelfSelection?.item(entry)?.onEnter}/>}/>
+        : state.tab.shows === 'rows' ? discoverRows() : null}
     </View>
-    {over && filterDraft && <FiltersOver open={!overClosing} onDismiss={() => closeFilters(filterDraft)}
-      onExited={() => dropFilters(filterDraft)}>{panel}</FiltersOver>}
     {sheet}
-  </View>;
+  </>);
+}
+
+/** A failed library page for the frame's state region, from the shell's error view: the library's header stays above it. */
+function libraryPageState(view: StateViewProps): PageStateProps {
+  return {icon: view.icon ?? 'i-warn', tone: view.tone, title: typeof view.title === 'string' ? view.title : defaultI18n.t('next.states.pageFailed'),
+    body: typeof view.body === 'string' ? view.body : undefined, primaryAction: view.primaryAction, secondaryAction: view.secondaryAction, help: view.help, testID: view.testID};
 }
 
 /** The drawn loading page: the real header and tabs are already above it, and the
@@ -462,7 +474,9 @@ function LibraryGridRegion(props: FocusRegionProps) {
   return useTheme().isTV ? <FocusRegion {...props}/> : <>{props.children}</>;
 }
 
-export function LibraryGrid({destination, runtime, activation, actions, labels, selection, owner, source, paneWidth, tablet, expanded, filtersOpen, onFilters, dockedFilters, entryRequest, onEntered, entryCovered = false}: NativeLibraryScreenProps & {source: NativeLibrarySnapshot; /** The live width of this route's column, after the rail or sidebar and any docked pane. */ paneWidth: number; /** True on the medium and expanded tablet layouts, where the drawn grid is not the phone's. */ tablet: boolean; /** The one expanded classification the skeleton uses too: 1024 and wider. */ expanded: boolean; /** The route owns the filter draft, so the panel is drawn beside or over this grid. */ filtersOpen: boolean; onFilters: () => void; /** True while that panel is docked beside the grid. */ dockedFilters: boolean; entryRequest: ReturnType<typeof createDestinationEntryFocus>; onEntered: () => void; entryCovered?: boolean}) {
+export function LibraryGrid({destination, runtime, activation, actions, labels, selection, owner, source, paneWidth, tablet, expanded, filtersOpen, onFilters, dockedFilters, entryRequest, onEntered, entryCovered = false, frame}: NativeLibraryScreenProps & {source: NativeLibrarySnapshot; /** The live width of this route's column, after the rail or sidebar and any docked pane. */ paneWidth: number; /** True on the medium and expanded tablet layouts, where the drawn grid is not the phone's. */ tablet: boolean; /** The one expanded classification the skeleton uses too: 1024 and wider. */ expanded: boolean; /** The route owns the filter draft, so the panel is drawn beside or over this grid. */ filtersOpen: boolean; onFilters: () => void; /** True while that panel is docked beside the grid. */ dockedFilters: boolean; entryRequest: ReturnType<typeof createDestinationEntryFocus>; onEntered: () => void; entryCovered?: boolean;
+  /** Phone and tablet: the library frame places the toolbar's rows, the grid and the alphabet (`BrowseFrame` regions). */
+  frame?: (regions: Readonly<{toolbar: ReactNode; grid: ReactNode; alphabet?: ReactNode}>) => ReactNode}) {
   const theme = useTheme(), registry = useFocusRegistry(), grid = useRef<WindowedGridHandle>(null);
   const collection = source.collection!, state = useSyncExternalStore(collection.subscribe, collection.getSnapshot);
   const pull = usePullRefresh(() => collection.revalidate(), runtime.reportError);
@@ -552,7 +566,7 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
   const [measuredColumns, setMeasuredColumns] = useState(1);
   const onGridGeometry = useCallback((columns: number) => setMeasuredColumns(columns), []);
   const rowGutter = tabletGeometry?.gutter ?? theme.gutter;
-  return <View style={{flex: 1}}>
+  const toolbarRows = <>
     {selection && selected?.active ? selection.render(path => {const art = path ? runtime.artwork(path) : undefined;
       return art ? <Artwork source={art} width={48} height={48}/> : undefined;}) : <FocusRegion id={ids.libraryToolbar(source.library.id)} entry={theme.isTV ? 'sort' : 'filters'} orientation="horizontal" enabled={active.visible} edges={{left: ids.rail, up: ids.libraryTabs(source.library.id), ...(theme.isTV ? {down: applied.length ? appliedRegion : gridRegion} : {})}}>
       <LibraryToolbar focusScope={ids.libraryToolbar(source.library.id)} model={toolbar} labels={labels} filterCount={source.predicates.length} filtersOpen={filtersOpen} docked={dockedFilters} gutter={tabletGeometry?.gutter}
@@ -586,6 +600,8 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
     </FocusRegion> : count && theme.platform !== 'phone' && (theme.isTV || dockedFilters) && <Text style={[browseType(theme, theme.isTV ? 22 : 13, 600), {color: theme.colors.textTertiary, marginHorizontal: theme.isTV ? theme.gutter : rowGutter, marginTop: theme.isTV ? 24 : 10, marginBottom: theme.isTV ? 40 : 10}]}>{count}</Text>}
     {count && theme.platform === 'phone' && <LibraryResultCount phone controls={<ViewToggle value={view.mode} onValueChange={changeView}/>}>{count}</LibraryResultCount>}
     {state.status === 'error' && <StateView {...runtime.error(state.error, destination.retry, 'library')}/>}
+  </>;
+  const gridRegions = <>
     <LibraryGridRegion id={gridRegion} enabled={active.visible} entry={firstAddress?.childId ?? firstKey} grid={theme.isTV ? {columns: measuredColumns, count: state.total} : undefined}
       edges={theme.isTV ? {left: ids.rail, up: applied.length ? appliedRegion : ids.libraryToolbar(source.library.id)} : undefined}
       screenStart={{regionId: ids.libraryToolbar(source.library.id), childId: theme.isTV ? 'sort' : 'filters'}} style={{flex: 1}}>
@@ -622,12 +638,15 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
           : <FocusRegion id={ids.libraryCard(source.library.id, key)} entry={key} entryPolicy="entry" order={[key]} enabled={active.visible}>{card}</FocusRegion>;
       }}/>
     </LibraryGridRegion>
-    {alphabet && state.positionIndex !== undefined && state.total !== undefined && <AlphabetRail positionIndex={state.positionIndex}
-      total={state.total} firstVisible={visible.first} lastVisible={visible.last} testID="library-alphabet" onJump={index => grid.current?.scrollToIndex(index)}
-      height={theme.isTV ? 514 : 480} style={{position: 'absolute', right: theme.isTV ? 40 : 2, top: theme.isTV ? 174 : 110}}/>}
-    <LibraryJumpSheet open={jumpOpen} panelId={`${ids.libraryToolbar(source.library.id)}.jump`} letters={jumpLetters} selected={jumpLetter}
-      onSelect={key => {setJumpOpen(false); grid.current?.scrollToLetter(key);}} onClose={() => setJumpOpen(false)}/>
-  </View>;
+  </>;
+  const jump = <LibraryJumpSheet open={jumpOpen} panelId={`${ids.libraryToolbar(source.library.id)}.jump`} letters={jumpLetters} selected={jumpLetter}
+      onSelect={key => {setJumpOpen(false); grid.current?.scrollToLetter(key);}} onClose={() => setJumpOpen(false)}/>;
+  // On the frame the rail is its alphabet region, beside the grid in the right gutter; the TV page still places it itself.
+  const rail = alphabet && state.positionIndex !== undefined && state.total !== undefined ? <AlphabetRail positionIndex={state.positionIndex}
+    total={state.total} firstVisible={visible.first} lastVisible={visible.last} testID="library-alphabet" onJump={index => grid.current?.scrollToIndex(index)}
+    height={theme.isTV ? 514 : 480} style={frame ? undefined : {position: 'absolute', right: theme.isTV ? 40 : 2, top: theme.isTV ? 174 : 110}}/> : undefined;
+  if (frame) return frame({toolbar: toolbarRows, grid: <>{gridRegions}{jump}</>, alphabet: rail});
+  return <View style={{flex: 1}}>{toolbarRows}{gridRegions}{rail}{jump}</View>;
 }
 
 function LibraryCard({entry, family, width, wide = false, placeholderHeight, runtime, actions, selected, disabled, focusId, onFocus, onBlur, onSelect}: {entry?: ContentEntry; /** The grid's own library kind (the server does not put it on each entry); the shared shape rule's family. */ family?: string; width: number; wide?: boolean; placeholderHeight?: number; runtime: NativeShellRuntime; actions: NativeLibraryActions; selected?: CardSelection; disabled?: boolean; focusId?: string; onFocus?: () => void; onBlur?: () => void; onSelect?: () => void}) {
