@@ -69,6 +69,7 @@
 /* While chips lie past the end, the rail fades out from the end of the last whole chip (ChipRail sets --rail-cut): a partly visible
    chip is never drawn. */
 .chipRail[data-cut] { -webkit-mask-image: linear-gradient(90deg, #000 max(0px, calc(var(--rail-cut) - 12px)), transparent var(--rail-cut)); mask-image: linear-gradient(90deg, #000 max(0px, calc(var(--rail-cut) - 12px)), transparent var(--rail-cut)); }
+.chipRail[data-no-room] { visibility: hidden; overflow: hidden; pointer-events: none; }
 .chipRail::-webkit-scrollbar { display: none; }
 .chipRail > * { flex: none; }
 .chipRail .applied { flex-wrap: nowrap; padding: 0; }
