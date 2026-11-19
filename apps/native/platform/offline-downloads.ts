@@ -686,22 +686,28 @@ export class OfflineDownloads {
     if (generation !== this.generation) return;
     let collected = false;
     this.publishPending();
+    // A title that came to the device is no longer wanted. The markers are written once for the whole pass (a request of
+    // thousands is one write, not one per title); one already held clears its own marker, so a pass cut short leaves none behind.
+    const unwant = (id: string) => {delete this.stored.wanted[owner]?.[id]; delete this.stored.wantedPublications[owner]?.[id]; changed = true;};
+    let changed = false;
     for (const p of this.preparations().values()) {
-      if (this.generation !== generation) return;
-      if ((!mine[p.id] && !publications[p.id]) || p.state !== 'ready' || this.collecting.has(p.id) || this.all.some(e => e.id === p.id) || this.blocked(p)) continue;
+      if (this.generation !== generation) break;
+      if ((!mine[p.id] && !publications[p.id]) || this.collecting.has(p.id)) continue;
+      if (this.all.some(e => e.id === p.id)) {unwant(p.id); continue;}
+      if (p.state !== 'ready' || this.blocked(p)) continue;
       this.collecting.add(p.id);
       try {
         await this.fetch(p);
-        if (this.generation !== generation) return;
-        delete this.stored.wanted[owner]?.[p.id];
-        delete this.stored.wantedPublications[owner]?.[p.id];
-        await this.persist();
+        if (this.generation !== generation) break;
+        unwant(p.id);
         collected = true;
       } catch (error) {
         // A book the server cannot copy (book_unreadable) is not asked for again; anything else is offered by hand on the Downloads page.
-        if ((error as {code?: unknown} | null)?.code === 'book_unreadable') {delete this.stored.wanted[owner]?.[p.id]; delete this.stored.wantedPublications[owner]?.[p.id]; await this.persist();}
+        if ((error as {code?: unknown} | null)?.code === 'book_unreadable') unwant(p.id);
       } finally { this.collecting.delete(p.id); }
     }
+    if (changed) await this.persist();
+    if (this.generation !== generation) return;
     // Room on the list: a large request that was waiting for it reads on.
     if (collected && [...this.enrolled.values()].some(reading => !reading.tail)) this.enrollSoon(generation);
   }
@@ -903,8 +909,11 @@ export class OfflineDownloads {
         const until = Date.parse(permission.playableUntil), duration = permission.playableForMs;
         if (!Number.isFinite(until) || !safeInteger(duration, 1) || duration > 30 * 24 * 60 * 60 * 1000) throw new Error(serviceText('downloads.error.load'));
         this.trustServerTime([new Date(until - duration).toISOString()]);
-        this.stored.permissions[owner] = Math.min(until, this.permissionNow() + duration);
-        if (!await this.persist()) throw new Error(serviceText('downloads.deviceUnwritable'));
+        // Written when it moves earlier, or later by more than a minute (as the clock floor): a renewal on every
+        // title of a large request would otherwise rewrite the whole record each time for a few seconds' change.
+        const was = this.stored.permissions[owner], next = Math.min(until, this.permissionNow() + duration);
+        this.stored.permissions[owner] = next;
+        if ((was === undefined || next < was || next - was > 60_000) && !await this.persist()) throw new Error(serviceText('downloads.deviceUnwritable'));
       },
       });
     })().catch(() => {});
@@ -1170,7 +1179,9 @@ export class OfflineDownloads {
   /** The server supplied a new offline permission using its own clock. */
   private trustServerTime(issuedAt: readonly string[]) {
     const floor = serverReceiptFloor({floorMs: this.stored.clockFloor}, issuedAt);
-    if (floor !== this.stored.clockFloor) { this.stored.clockFloor = floor; void this.persist(); }
+    // Moved (and written) when the server sets it back, or forward by more than a minute, as in permissionNow: what is
+    // held and what is saved never differ by more than a minute.
+    if (floor < this.stored.clockFloor || floor - this.stored.clockFloor > 60_000) { this.stored.clockFloor = floor; void this.persist(); }
   }
   playabilityReason(entry: OfflineEntry, viewer: Viewer | undefined = this.viewer): OfflinePlayabilityReason|null {
     if (!viewer) return 'sign_in';
