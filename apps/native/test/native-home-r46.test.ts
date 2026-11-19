@@ -45,7 +45,7 @@ test('phone Home rows take the drawn 28 px rhythm while the hero keeps its own h
   assert.deepEqual(home.homeRowSpacing(phoneTheme), {marginTop: 28});
   assert.equal(home.homeHeroBlock(phoneTheme, 560, false), 560);
   assert.equal(home.homeTopWithoutHero('phone', 59), 109, 'with no spotlight the rows start under the 50 pt phone header, not under an empty 560 pt hero');
-  assert.equal(home.homeTopWithoutHero('tablet', 24), 24, 'a tablet has no phone header: rows start under the safe area');
+  assert.equal(home.homeTopWithoutHero('tablet', 24), 94, 'a tablet has no phone header: rows start under its Play on (tablet 2), never beside it');
   // Android walk, 12 Nov: a sideways phone keeps the shell's phone header (shellLayout), so its rows start under it too.
   assert.equal(home.homeTopWithoutHero(shellLayout(874, 402, false).kind, 0), 104, 'sideways, the rows still start under the phone header');
   assert.equal(home.homeRowSubtitle(phoneTheme).fontSize, 13, 'phone-app.html .phone .row-head .sub is 13 px');
@@ -176,7 +176,7 @@ test('the drawn phone facts badge is 9 px padding, .28 border and a 700 year; TV
 });
 
 async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), rows: readonly any[], react: any = {...React, default: React}, registry = createFocusRegistry(), bindings: Record<string, any> = {}) {
-  return screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), {'./generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
+  return screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), {'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
     '../../kit/useMotion': {useMotion: () => ({transforms: true, reduce: false, timing: () => ({})})}, 
     react: {...react, useLayoutEffect: react.useLayoutEffect ?? react.useEffect}, '@portico/design': {heroSpec},
     'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, RefreshControl: 'RefreshControl', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},

@@ -1,4 +1,5 @@
 import * as layoutModel from '../src-next/kit/layout/model.ts';
+import {shellLayout} from '../src-next/shell/model.ts';
 import {homeContinuationCard, homeContinuationSource} from '../../../packages/client-core/src/presentation/home-continuation';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -40,7 +41,7 @@ async function homeFixture(width: number, height: number) {
     getSnapshot = () => 0;
     state() {return undefined;}
   }
-  const {HomeScreen} = await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), {'./generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
+  const {HomeScreen} = await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), {'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
     '../../kit/useMotion': {useMotion: () => ({transforms: true, reduce: false, timing: () => ({})})}, 
     react,
     'react-native': {AppState: {currentState: 'active'}, RefreshControl: 'RefreshControl', Text: 'Text', View: 'View', useWindowDimensions: () => dimensions},
@@ -63,7 +64,7 @@ async function homeFixture(width: number, height: number) {
     '../destinations/useTVPageBack': {useTVPageBack() {}},
     '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
     '../../kit/focus/initial-entry': {createInitialRegionEntry: () => ({})},
-    '../../shell/model': {authorityKey: () => 'scope', sameAuthority: (a: unknown, b: unknown) => a === b},
+    '../../shell/model': {authorityKey: () => 'scope', sameAuthority: (a: unknown, b: unknown) => a === b, shellLayout},
     '../../shell/tv-focus': {tvFocusIds: () => ({spotlight: 'spotlight', row: (id: string) => id, page: (id: string) => id}),
       tvHomeRegionMap: () => ({rows: new Map()})},
     '../../shell/home-paging': {NativeHomePaging: Paging}, './tv-presentation': {},

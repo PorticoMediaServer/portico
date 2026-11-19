@@ -26,6 +26,8 @@ import {useTVPageBack} from '../destinations/useTVPageBack';
 import {FocusItem, FocusRegion, useFocusRegistry, type FocusRegionProps} from '../../kit/focus';
 import {createInitialRegionEntry} from '../../kit/focus/initial-entry';
 import {authorityKey} from '../../shell/model';
+import {PlayOnButton} from '../../shell/PlayOnButton';
+import {roundBarSize} from '../../kit/layout/TopBar';
 import {tvFocusIds, tvHomeRegionMap} from '../../shell/tv-focus';
 import {NativeHomePaging} from '../../shell/home-paging';
 import {tvHomeRows} from './tv-presentation';
@@ -75,8 +77,12 @@ export function homeHeroBlock(theme: Theme, heroHeight: number, preview: boolean
 /** With no spotlight Home draws no hero: rows start under the phone header where the shell draws one (its own
  * `shellLayout` kind, so a sideways phone agrees with the header), or under the safe area. */
 export function homeTopWithoutHero(layout: ShellLayout['kind'], topInset: number): number {
-  return layout === 'phone' ? phoneHeaderGeometry(topInset, false).height : Math.max(topInset, 20);
+  // A tablet's Play on sits at the top right of Home (tablet 2): with no hero the rows start under it, never beside it.
+  return layout === 'phone' ? phoneHeaderGeometry(topInset, false).height : layout === 'tablet' ? tabletPlayOnTop(topInset) + roundBarSize + 12 : Math.max(topInset, 20);
 }
+/** tablet 2: Play on is the round glass button at the hero's top right, drawn in the page so it scrolls away with the hero
+ * and never covers a row. */
+const tabletPlayOnTop = (topInset: number) => Math.max(topInset, 24) + 20;
 
 /**
  * The medium window draws two hero compositions in foldable.html: upright the hero is
@@ -469,6 +475,8 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
       {/* tv-focus frames1..3: the real spotlight controls stay mounted for native
           Up guides while the preview covers them. Focus restores the spotlight. */}
       {theme.isTV ? <View pointerEvents={preview ? 'none' : 'box-none'} style={{position: 'absolute', inset: 0}}>{spotlight}</View> : noHero ? null : spotlight}
+      {!theme.isTV && shellLayout(windowWidth, windowHeight, false).kind === 'tablet' && <View pointerEvents="box-none" style={{position: 'absolute', top: tabletPlayOnTop(insets.top), right: 20}}>
+        <PlayOnButton playOn={runtime.playOn} variant="round"/></View>}
       {theme.isTV && preview && <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 0, height: heroHeight}}><FocusPreviewHero focusedEntry={preview} repeating={repeating || vertical.repeating} active={heroActive} visible={active && foreground && heroVisible}
         renderArtwork={renderArtwork} renderReason={candidate => <View style={{flexDirection: 'row', gap: 16, marginBottom: 16}}>{homeCardText(candidate.entry, true, runtime.text).caption.map(part => <Text key={part.id} numberOfLines={1} style={[theme.type.eyebrow, {color: theme.colors.accentStrong, flexShrink: 1, includeFontPadding: false}]}>{part.text}</Text>)}</View>}
         renderMetadata={candidate => <HomeHeroFacts facts={candidate.facts ?? []} continuation={homeCardText(candidate.entry, true, runtime.text)}/>}
