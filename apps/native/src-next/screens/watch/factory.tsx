@@ -25,7 +25,8 @@ import type {NativeWatchOutletPort} from '../../shell/watch-outlet';
 import {NativeTitleController, type NativeTitlePageHost} from './title-controller';
 import {NativeTitleStarts} from './title-starts';
 import {NativeTitleScreen, type NativeTitleScreenProps} from './TitleScreen';
-import {TitlePage} from '../../pages/touch/title/TitlePage';
+import {touchTitlePages} from '../../pages/touch/title/routes';
+import {tvTitlePages} from '../../pages/tv/title/routes';
 import {FileInfoSession, fileInfoUsesGroups} from '../../../../../packages/client-core/src/file-info-session';
 import {NativeFileInfoPanel} from './FileInfoPanel';
 import type {NativeFileInfoOwner} from './file-info';
@@ -499,8 +500,9 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
             runtime.playOn?.open(anchorRef);
           } : undefined;
       const selection = selectionFor(key, controller);
-      // The rebuilt touch film page (pages/touch/title); TV, shows, seasons and episodes stay on the old screen until theirs land.
-      const Screen = !ports.isTV && (route.entry.kind === 'movie' || route.entry.kind === 'show') ? TitlePage : NativeTitleScreen;
+      // The rebuilt title pages, by kind: each lane keeps its own table (pages/tv/title/routes.ts, pages/touch/title/routes.ts);
+      // a kind with no rebuilt page yet stays on the old screen.
+      const Screen = (ports.isTV ? tvTitlePages : touchTitlePages)[route.entry.kind] ?? NativeTitleScreen;
       return <Screen authority={ports.authority} {...ports.title} search={search} removeContinue={removeContinue} onPlayOn={onPlayOn} playOn={runtime.playOn} key={key} controller={controller} text={runtime.text} artwork={runtime.artwork} ambient={runtime.ambient}
         selection={selection ? entry => selection.item(entry) : undefined} selectionBar={selection?.render()}
         back={() => {ports.navigation.back(ports.authority);}} more={(entry, anchorRef) => {
