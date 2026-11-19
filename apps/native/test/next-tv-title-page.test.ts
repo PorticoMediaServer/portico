@@ -3,24 +3,27 @@ import assert from 'node:assert/strict';
 import {defaultI18n} from '../../../packages/i18n/src';
 import {screenModule} from './helpers/screen-harness.mjs';
 
-// The TV film page (pages/tv/title/FilmPage.tsx) is TitleFrame filled from `useTitle` (its own test holds the data).
+// The TV title page (pages/tv/title/TitlePage.tsx; a film here, a show's Episodes below) is TitleFrame filled from `useTitle` (its own test holds the data).
 // This holds what the TV page adds: no Download on TV, Details with the synopsis, the tagline and the cast's note
 // (detail-tv-4), and each section named by its tab so the folded tabs follow focus. Seen on the Android TV emulator.
 
 const t = defaultI18n.t;
 type Node = Readonly<{type: unknown; props: Record<string, unknown> & {children: unknown[]}}>;
-const react = {default: {createElement: (type: unknown, props: Record<string, unknown> | null, ...children: unknown[]): Node => ({type, props: {...props, children}})}};
+const react = {default: {Fragment: 'Fragment', createElement: (type: unknown, props: Record<string, unknown> | null, ...children: unknown[]): Node => ({type, props: {...props, children}})},
+  useState: (initial: unknown) => [initial, () => {}]};
 
 async function film(view: Record<string, unknown>) {
   let given: Record<string, unknown> | undefined;
-  const kit = {TitleFrame: 'TitleFrame', TitleSection: 'TitleSection', TitleDetails: 'TitleDetails'};
-  const {FilmPage} = await screenModule(new URL('../src-next/pages/tv/title/FilmPage.tsx', import.meta.url), {
-    react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/artwork': {AmbientArt: 'AmbientArt'},
+  const kit = {TitleFrame: 'TitleFrame', TitleSection: 'TitleSection', TitleDetails: 'TitleDetails', StateRow: 'StateRow', TVSeasonList: 'TVSeasonList', TVEpisodeShelf: 'TVEpisodeShelf'};
+  const {TitlePage} = await screenModule(new URL('../src-next/pages/tv/title/TitlePage.tsx', import.meta.url), {
+    react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/artwork': {AmbientArt: 'AmbientArt'},
     '../../../kit/frames': kit, '../../../kit/layout': {HeroMetadata: 'HeroMetadata', PosterRow: 'PosterRow'},
     '../../shared/title/useTitle': {useTitle: (props: Record<string, unknown>) => {given = props; return view;}},
   });
   const props = {back: () => {}, download: () => {}, aboutLabel: 'About'};
-  return {node: FilmPage(props) as Node | null, given: given!};
+  // The page is the frame and, beside it, the season menu: the frame is the first child of its fragment.
+  const page = TitlePage(props) as Node | null;
+  return {node: page && (page.props.children.flat().find(child => (child as Node)?.type === 'TitleFrame') as Node), given: given!};
 }
 
 const view = {retired: false, entry: {id: 'f1'}, title: 'Dune: Part Two', art: {}, facts: [], credits: [],
@@ -59,4 +62,23 @@ test('a film with no facts still shows its synopsis in About; a retired page dra
   const about = ((bare.props.children.flat().filter(Boolean).at(-1) as Node).props.children[0] as Node).props.about;
   assert.deepEqual(about, {title: 'About', rows: [], body: 'Paul unites with Chani.', note: 'Long live the fighters.'});
   assert.equal((await film({...view, retired: true})).node, null);
+});
+
+test('a show draws its Episodes first: the season column chooses a season on focus, the tiles open the band and play on OK', async () => {
+  const calls: unknown[][] = [], record = (name: string) => (...args: unknown[]) => {calls.push([name, ...args]);};
+  const tv = {nextUp: 'e2', moreSeasons: record('moreSeasons'), select: record('select'), focusEpisode: record('focusEpisode'), play: record('play'), playSeason: record('playSeason'), markSeason: record('markSeason'),
+    seasons: [{id: 'season-1', label: 'Season 1', count: '3 episodes', year: '1962', overview: 'The Clampetts move west.', current: true, complete: false, group: false}],
+    tiles: [{key: 'e1', title: 'The Clampetts Strike Oil', label: [], backdropFallback: false, onMore: () => {}}, {key: 'e2', title: 'Getting Settled', label: [], backdropFallback: false, onMore: () => {}}]};
+  const {node} = await film({...view, episodes: {list: {items: []}, tv}, onEnd: record('onEnd')});
+  const seasons = node!.props.seasons as {tab: string; column: Node; episodes: Node};
+  assert.equal(seasons.tab, 'episodes');
+  const column = seasons.column.props as unknown as {items: {id: string; current: boolean; onFocus: () => void}[]; onEnd: () => void};
+  assert.deepEqual(column.items.map(item => [item.id, item.current]), [['season-1', true]]);
+  column.items[0]!.onFocus();
+  assert.deepEqual(calls, [['focusEpisode', undefined], ['select', 'season-1']], 'a season in focus closes the episode band and is chosen at once');
+  const shelf = seasons.episodes.props as unknown as {entry: string; items: {key: string; onFocus: () => void; onPlay: () => void}[]; band: {kind: string; title: string; facts: string[]; overview: string}};
+  assert.equal(shelf.entry, 'e2', 'focus enters the row on the next episode');
+  assert.deepEqual(shelf.band, {kind: 'season', title: 'Season 1', facts: ['1962', '3 episodes'], overview: 'The Clampetts move west.'});
+  shelf.items[1]!.onFocus(); assert.deepEqual(calls.at(-1), ['focusEpisode', 'e2']);
+  shelf.items[0]!.onPlay(); assert.deepEqual(calls.at(-1), ['play', 'e1']);
 });
