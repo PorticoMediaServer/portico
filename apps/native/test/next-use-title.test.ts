@@ -33,7 +33,8 @@ async function page(snapshot: Record<string, unknown>, extra: Record<string, unk
   const controller = {subscribe: () => () => {}, getSnapshot: () => ({entry: film, retired: false, place: {tab: 'related'}, related: {}, recommendationRows: [], ...snapshot}),
     open: record('open'), play: record('play'), remember: record('remember'), moreCredits: record('moreCredits'), personal: record('personal'), tab: record('tab'), moreRelated: record('moreRelated'), detail: {refresh: record('refresh')},
     episode: {subscribe: () => () => {}, getSnapshot: () => episodeSnapshot, open: record('openEpisode'), close: record('closeEpisode'), play: record('playEpisode'), personal: record('episodePersonal'), retry: record('retryEpisode')},
-    workspace: {retry: record('retryWorkspace')}, pageLease: () => 'lease', season: record('season'), group: record('group'), hideWatched: record('hideWatched'), moreSeasons: record('moreSeasons'), moreEpisodes: record('moreEpisodes'), setShowMyList: record('setShowMyList')};
+    workspace: {retry: record('retryWorkspace')}, pageLease: () => 'lease', season: record('season'), group: record('group'), hideWatched: record('hideWatched'), moreSeasons: record('moreSeasons'), moreEpisodes: record('moreEpisodes'), setShowMyList: record('setShowMyList'),
+    playSeason: record('playSeason'), markSeason: record('markSeason')};
   const props = {controller, text: {t, locale: 'en-US'}, artwork: (path?: string) => path ? {uri: path} : undefined, ambient: () => undefined,
     back: record('back'), navigate: record('navigate'), more: record('more'), reportError: record('error'), renderError: () => null, aboutLabel: 'About',
     download: record('download'), openCollection: record('collection'), person: record('person'), genre: record('genre'), ...extra};
@@ -141,4 +142,29 @@ test('a show plays its next episode by name, lists the season, opens an episode 
   // Near the page's end on Episodes, the season's next page (the old screen's scroll paging).
   view.onEnd(); assert.deepEqual(calls.at(-1), ['moreEpisodes']);
   episodeSnapshot = {phase: 'idle'};
+});
+
+test('on TV the season column chooses a season as focus reaches it, and the band opens the episode in focus', async () => {
+  const show = {id: 's1', kind: 'show', title: 'The Last of Us', libraryId: 'tv'} as any;
+  const e1 = {id: 'e1', kind: 'episode', title: 'When You\'re Lost', seasonNumber: 1, episodeNumber: 1, duration: 4800, libraryId: 'tv'} as any;
+  const workspace = {show: {id: 's1', title: 'The Last of Us', libraryId: 'tv', credits: []}, selected: {seasonId: 'season-1', group: null}, groups: [{id: 'g1', title: 'Episodes 1 to 100', count: 100}], seasonTotalCount: 2};
+  const {view, calls} = await page({entry: show, workspace: {phase: 'ready', data: workspace}, showState: {watchlisted: false}, episodes: [e1],
+    seasons: [{id: 'season-1', number: 1, title: '', episodeCount: 9, watchedCount: 9, firstAired: '2023-01-15', overview: 'Joel and Ellie.'}, {id: 'season-2', number: 2, title: '', episodeCount: 7}],
+    place: {tab: 'episodes', hideWatched: false}});
+  const tv = view.episodes.tv;
+  assert.deepEqual(tv.seasons.map((season: any) => [season.id, season.current, season.group]), [['season-1', true, false], ['season-2', false, false], ['group:g1', false, true]]);
+  assert.deepEqual([tv.seasons[0].year, tv.seasons[0].overview, tv.seasons[0].complete], ['2023', 'Joel and Ellie.', true]);
+  // The tiles carry the length alone (the still's badge), and focus enters on the first when nothing is next.
+  assert.deepEqual(tv.tiles.map((tile: any) => [tile.key, tile.length]), [['e1', '1 h 20 min']]);
+  assert.equal(tv.nextUp, 'e1');
+  // The current season asks nothing; another is chosen with the page's lease taken now, a group by its own id.
+  const before = calls.length; tv.select('season-1'); assert.equal(calls.length, before);
+  tv.select('season-2'); assert.deepEqual(calls.at(-1), ['season', 'season-2', 'lease']);
+  tv.select('group:g1'); assert.deepEqual(calls.at(-1), ['group', 'g1', 'lease']);
+  // The band: the episode in focus is opened, and closed when focus goes to a season; OK on a tile plays it.
+  tv.focusEpisode('e1'); assert.deepEqual(calls.at(-1), ['openEpisode', e1]);
+  tv.focusEpisode(undefined); assert.equal(calls.at(-1)![0], 'closeEpisode');
+  tv.play('e1'); assert.equal(calls.at(-1)![0], 'play'); assert.equal(calls.at(-1)![1], e1);
+  tv.playSeason('season-2'); assert.deepEqual(calls.at(-1), ['playSeason', 'season-2']);
+  tv.markSeason('season-1', false); assert.deepEqual(calls.at(-1), ['markSeason', 'season-1', false]);
 });
