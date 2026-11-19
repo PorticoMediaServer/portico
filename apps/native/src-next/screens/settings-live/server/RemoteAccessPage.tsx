@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState, useSyncExternalStore} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import {OwnerRemoteSettings} from '../../../../../../packages/client-core/src/server-admin/remote-settings';
 import {withGuardedRaw} from '../../../../../../packages/client-core/src/home-selection/list-destinations';
 import {settingsSpec, type SettingsRow as SpecRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
@@ -12,13 +12,14 @@ import {ServerHeader} from '../../../kit/shell/ServerIdentity';
 import {shellType} from '../../../kit/shell/visual';
 import {StateView} from '../../../kit/states';
 import {useTheme} from '../../../kit/theme';
+import {SettingsPageFrame} from '../../../kit/frames';
+import {useFrameMetrics} from '../../../kit/frames/metrics';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../ports';
 import {screenScopeEnded} from '../lifetime';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
 import {NativeAdvancedSection} from './AdvancedSection';
 import {NativeSettingControl} from './SettingControl';
-import {settingsPageHeading, settingsPageInset} from './page-layout';
 
 type Translate = typeof defaultI18n.t;
 type Group = Readonly<{title?: MessageId; rows: readonly SpecRow[]}>;
@@ -36,8 +37,10 @@ const LIST_ROWS = new Set(['remote.homeNets', 'remote.customAddresses', 'remote.
  * documents, the server's status (outside check, certificate, router, refused and blocked addresses) and the network
  * interface, all through OwnerRemoteSettings, the reader web's Remote access uses. A draft is saved row by row with
  * the revision each document was read at; a change that would lock the owner out asks first. */
-export function NativeRemoteAccessPage({ports, runtime, compactHeader = false}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean}) {
-  const theme = useTheme(), t = runtime.text.t as Translate, context = ports.context;
+/** On the Settings page frame (header, Back, server strip, gutters, scroll), over its load error too; `notice` is the
+ * screen's own error, shown first. */
+export function NativeRemoteAccessPage({ports, runtime, back, notice}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; back?: Readonly<{label: string; onPress: () => void}>; notice?: React.ReactNode}) {
+  const theme = useTheme(), frame = useFrameMetrics(), t = runtime.text.t as Translate, context = ports.context;
   const {api, lifetime} = useSettingsRequestScope(context);
   const source = useMemo(() => new OwnerRemoteSettings(withGuardedRaw(api, context.api, () => {if (!lifetime.current()) throw screenScopeEnded();}), lifetime.current), [api, context, lifetime]);
   useEffect(() => () => source.dispose(), [source]);
@@ -159,11 +162,11 @@ export function NativeRemoteAccessPage({ports, runtime, compactHeader = false}: 
   const role = context.account.account.role === 'owner' ? 'owner' : 'administrator';
   const notes = [status?.remoteSecurity.message, status?.remoteSecurity.problem, state.interfaces?.document.warning, state.interfaces?.document.ipv6Note, ...(status?.warnings.map(warning => warning.message) ?? [])]
     .filter((line): line is string => typeof line === 'string' && line.length > 0);
-  if (loadError !== undefined && !loaded) return <StateView {...runtime.error(loadError, load, 'server-console')}/>;
-  return <View style={{flex: 1}}>
-    <ScrollView contentContainerStyle={{...settingsPageInset(theme, compactHeader)}}>
-      <ServerHeader serverName={context.serverName} viewerRole={role} audience={role === 'administrator' ? 'administrators' : 'owner'} variant="phone" style={{marginBottom: 12}}/>
-      {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{t('settings.server.remote')}</Text>}
+  return <>
+    <SettingsPageFrame title={t('settings.server.remote')} back={back}
+      server={<ServerHeader serverName={context.serverName} viewerRole={role} audience={role === 'administrator' ? 'administrators' : 'owner'} variant={frame.form === 'phone' ? 'phone' : 'page'}/>}>
+      {notice}
+      {loadError !== undefined && !loaded ? <StateView {...runtime.error(loadError, load, 'server-console')}/> : <View>
       {!loaded ? <StateView title={t('status.loading')}/> : <>
         <View testID="remote-access-status" style={{borderRadius: 14, backgroundColor: theme.colors.raised, padding: 16, marginTop: 14, gap: 6}}>
           <View style={{flexDirection: 'row', gap: 12, alignItems: 'center'}}>
@@ -187,10 +190,11 @@ export function NativeRemoteAccessPage({ports, runtime, compactHeader = false}: 
         </View>}
         {saveError !== undefined && <StateView variant="inline" {...runtime.error(saveError, () => {void save();}, 'server-console')}/>}
       </>}
-    </ScrollView>
+      </View>}
+    </SettingsPageFrame>
     <BottomSheet open={!!state.confirmation} onOpenChange={open => {if (!open && !state.busy) source.cancelConfirmation();}} testID="remote-access-confirm"
       title={t('next.remoteOwner.confirm')} description={state.confirmation?.message}
       footer={<View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={state.busy} onPress={source.cancelConfirmation}>{t('action.cancel')}</Button>
         <Button variant="danger" loading={state.busy} onPress={confirm}>{t('next.remoteOwner.saveAnyway')}</Button></View>}><View/></BottomSheet>
-  </View>;
+  </>;
 }
