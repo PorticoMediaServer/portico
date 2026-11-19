@@ -258,12 +258,12 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
     // Continue your books draws the Read lane's resume card (tablet-read.html frame 11) at the
     // sizes the Reading library uses for its own Continue row.
     const books = row.id === 'continue_books';
-    const drawnWidth = books ? theme.platform === 'tablet' ? 392 : 296 : ranked ? theme.isTV ? 318 : desktop ? theme.spec.shelf.rank.width : 186
+    const drawnWidth = books ? booksCardSize(theme).width : ranked ? theme.isTV ? 318 : desktop ? theme.spec.shelf.rank.width : 186
       : wide ? medium ? mediumCardWidth(true, tabletMedium) : desktop ? 262 : theme.spec.card.width.wide[theme.column]
       : square ? desktop ? 150 : theme.spec.card.width.square[theme.column] : medium ? mediumCardWidth(false, tabletMedium) : desktop ? 150 : theme.spec.card.width.poster[theme.column];
     const width = cardScale === 1 ? drawnWidth : Math.round(drawnWidth * cardScale);
     const posterWidth = ranked ? Math.round((theme.isTV ? 214 : desktop ? theme.spec.shelf.rank.posterWidth : 116) * cardScale) : width;
-    const height = books ? Math.round((theme.platform === 'tablet' ? 176 : 150) * cardScale) : wide ? width * 9 / 16 + wideDetailHeight(theme) : square ? width + (theme.isTV ? 80 : 54) : posterWidth * 1.5 + (theme.isTV ? 80 : 48 + cardTitleLine(theme));
+    const height = books ? Math.round(booksCardSize(theme).height * cardScale) : wide ? width * 9 / 16 + wideDetailHeight(theme) : square ? width + (theme.isTV ? 80 : 54) : posterWidth * 1.5 + (theme.isTV ? 80 : 48 + cardTitleLine(theme));
     const cardHeight = row.live ? theme.isTV ? 225 : desktop ? theme.spec.card.live.height.web : theme.spec.card.live.height.phone : height;
     const top = theme.isTV ? Math.ceil(cardHeight * (theme.spec.focus.scale.card.tv - 1) / 2 + (theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv) * theme.spec.focus.scale.card.tv) : theme.spec.shelf.phonePaddingTop;
     const estimatedHeight = row.collection ? theme.isTV ? 360 : 236 : (theme.type.rowHeading.lineHeight ?? (theme.type.rowHeading.fontSize ?? 24) * 1.4)
@@ -628,7 +628,7 @@ function HomeCard({runtime, row, entry, rank, context, width, rowIndex, visible,
     const facts = continueBookFacts(entry, runtime.text.t, homeCardText(homeContinuationSource(entry, resume), true, runtime.text)), author = entry.author ?? (facts.reading ? undefined : entry.subtitle);
     const card = {title: entry.displayTitle ?? entry.title, caption: author ? [{id: 'author', text: author, role: 'identity' as const}] : [],
       detail: [...(facts.where ? [{id: 'where', text: facts.where, role: 'context' as const}] : []), ...(facts.left ? [{id: 'left', text: facts.left, role: 'context' as const}] : [])],
-      progress: facts.progress, width, height: Math.round((theme.platform === 'tablet' ? 176 : 150) * (width / (theme.platform === 'tablet' ? 392 : 296))),
+      progress: facts.progress, width, height: Math.round(booksCardSize(theme).height * (width / booksCardSize(theme).width)),
       visible, onFocus: context.onFocus, onBlur: context.onBlur, selection: context.selection, testID: context.testID, artwork: art,
       primaryAction: 'navigate' as const, onNavigate: !facts.reading && play ? play : navigate,
       menuAnchorRef: anchor, moreExpanded: runtime.selection(row.id).isMenuOpen?.(entry.id), onMore: () => {if (current()) runtime.actions.more(entry, row.id, anchor);},
@@ -642,6 +642,12 @@ function HomeCard({runtime, row, entry, rank, context, width, rowIndex, visible,
       : row.artworkShape === 'square' ? <SquareCard {...props} artwork={art} progress={cardText.progress} watched={entry.watched} isNew={entry.new}/>
       : <PosterCard {...props} artwork={art} watched={entry.watched} isNew={entry.new} artworkFallback={generatedPoster(entry.title, width)}/>}
   </ArtworkArrivalContext.Provider></ArtworkPlacementContext.Provider>;
+}
+
+/** The Continue your books card's drawn size: the resume card's own size per form (kit ResumeCard: 560 x 216 on TV, where
+ * its type is TV-sized), the Reading library's on a tablet (392 x 176) and the phone's elsewhere (296 x 150). */
+function booksCardSize(theme: Theme) {
+  return theme.isTV ? {width: 560, height: 216} : theme.platform === 'tablet' ? {width: 392, height: 176} : {width: 296, height: 150};
 }
 
 function HomeCollectionCard({row, runtime, width, visible, current, onFocus}: {row: HomeRow; runtime: NativeShellRuntime; width: number; visible: boolean; current: () => boolean; onFocus: () => void}) {
