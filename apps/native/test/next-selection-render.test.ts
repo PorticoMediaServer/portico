@@ -647,6 +647,8 @@ test('drawn Selection fields use native accent carets without changing selection
         state.theme = createTheme({isTV, width: isTV ? 1920 : 390});
         const field = await mount(TextField, {appearance: 'selection', value: 'Actual input', selection, onSelectionChange, autoCorrect: false});
         try {
+          // Apple TV mounts its editor when the drawn field is selected.
+          if (isTV && os === 'ios') {ofType(field.tree, Focusable)[0]!.props.onPress(); await field.host.rerender();}
           const input = () => elements(field.tree).find(node => node.type === NativeInput)!;
           assert.equal(input().props.cursorColor, !isTV && os === 'android' ? state.theme.colors.accentStrong : undefined);
           assert.equal(input().props.selectionColor, !isTV && os === 'ios' ? state.theme.colors.accentStrong : undefined);
