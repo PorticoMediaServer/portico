@@ -557,6 +557,11 @@ Rules this round (frames.ts `player` and `audio` blocks):
 Audio frame inputs for the screen move (lead, 19 Nov): `cover` (the screen's own view in the artwork's box: the listening
 cover the dock's morph paints into) and `signal` (the music signal line under the words). The listening parts fill the
 frame's regions; the screen does not re-draw them.
+Native Now Playing inputs (lead, 19 Nov ~03:00, mirroring web's): a control's `anchorRef` (Play on's sheet and More's
+menu anchor on the drawn control); `more?` (only when it has items; a phone keeps its place so the context stays centred);
+`notice?` as a part, drawn on a phone too (a string keeps the pill); `group` wraps the three groups the open motion fades
+(0 words, 1 scrubber and transport, 2 what is under them; never the cover); `action?` (Try again) under the signal line.
+`audioPlayerFramePaintTypes` lists every type the frame draws inside, for a screen's retained-exit paint list.
 
 Parts added: `AudioPanel` (tabs, list, footer; TV: heading and count), `QueueGroup`, `QueueRow` (playing / handle /
 done / number lead, two-line title, a chapter's progress, touch More or pointer actions), `AudioChoiceRow`
