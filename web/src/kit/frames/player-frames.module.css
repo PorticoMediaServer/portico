@@ -14,6 +14,8 @@
 .playerShade, .playerTop, .playerBar { transition: opacity var(--motion-standard) var(--ease-out); }
 .player[data-chrome='false'] :is(.playerShade, .playerTop, .playerBar) { opacity: 0; pointer-events: none; }
 .player[data-covered='bar'] .playerBar { opacity: 0; pointer-events: none; }
+/* A card takes the bar's place. The wide form keeps Close and the tools over it, not the title (desktop-player f4, f4b). */
+.player[data-covered='card'] :is(.playerBar, .playerTitle) { visibility: hidden; }
 .playerTop { position: absolute; inset: 0 0 auto; display: flex; align-items: flex-start; gap: var(--frame-player-title-gap); padding: var(--frame-player-top) var(--frame-player-edge); }
 .playerTitle { flex: 1; min-width: 0; align-self: center; }
 .playerTools { display: flex; gap: var(--space-control-gap); flex: none; }
@@ -72,6 +74,8 @@
   .playerBody { display: block; flex: 1; background: var(--color-ink); }
 }
 
+/* A phone's forms draw a card alone, with no top bar (phone-player 6, 6d). */
+@media (max-width: 599px), (max-height: 500px) and (min-width: 600px) { .player[data-covered='card'] .playerTop { visibility: hidden; } }
 /* A phone on its side: the finger is on the scrubber, so the transport in the middle of the picture makes way for the preview (phone-player 1b). */
 @media (max-height: 500px) { .player[data-scrubbing='true'] .playerCentre { opacity: 0; pointer-events: none; } }
 

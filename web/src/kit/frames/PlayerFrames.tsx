@@ -57,7 +57,9 @@ export type PlayerChromeFrameProps = Readonly<{
  * 4): the picture is a 16:9 strip with the chrome inside it, the scrubber on its lower edge, and the watch page below.
  * Every region is fixed; the parts that fill it are `kit/player`'s. */
 export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, panelCovers, resume, scrubbing, body}: PlayerChromeFrameProps) {
-  const covered = card ? 'all' : panel ? panelCovers : undefined, shown = chromeVisible && covered !== 'all';
+  // A card (Up next, Still watching, the end card) takes the bar's place; on the wide form the top keeps Close and the
+  // tools, not the title (desktop-player f4, f4b); a phone's forms draw the card alone (phone-player 6, 6d).
+  const covered = card ? 'card' : panel ? panelCovers : undefined, shown = chromeVisible && covered !== 'all';
   const right = times.live ? <b className={styles.playerLive}>{times.live}</b> : <b>{times.remaining}</b>;
   return <div className={styles.player} data-chrome={shown} data-covered={covered} data-scrubbing={scrubbing || undefined}>
     <div className={styles.playerStage}>
@@ -66,7 +68,7 @@ export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, 
       <div className={styles.playerTop} inert={!shown}>{close}<div className={styles.playerTitle}>{title}</div><div className={styles.playerTools}>{tools}</div></div>
       <div className={styles.playerBottom}>
         <div className={styles.playerPrompts}>{!card && !panel && prompts}</div>
-        <div className={styles.playerBar} inert={!shown || covered === 'bar'}>
+        <div className={styles.playerBar} inert={!shown || covered === 'bar' || covered === 'card'}>
           <div className={styles.playerSeek}>{scrubber}</div>
           <span className={styles.playerPosition}><b>{times.position}</b></span>
           <span className={styles.playerRemaining}><span className={styles.playerEnds}>{times.endsAt}</span>{right}</span>

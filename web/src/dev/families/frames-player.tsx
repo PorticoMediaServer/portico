@@ -88,7 +88,8 @@ function WatchPage({paused = false}: {paused?: boolean}) {
 type PlayerState = 'playing' | 'paused' | 'buffering' | 'scrubbing' | 'missing' | 'recap' | 'undo';
 /** The video player filled with the kit's player parts, with what each mock-up puts in each place for its form
  * (desktop-player 1, phone-player 1 on its side, phone-player 4 upright). `opened` is the button whose panel shows. */
-function Player({state = 'playing', panel, panelCovers, resume, card, opened, page}: {state?: PlayerState; panel?: ReactNode; panelCovers?: 'bar' | 'all'; resume?: ReactNode; card?: ReactNode; opened?: 'episodes' | 'subtitles';
+function Player({state = 'playing', panel, panelCovers, resume, card, opened, page, ended = false}: {state?: PlayerState; panel?: ReactNode; panelCovers?: 'bar' | 'all'; resume?: ReactNode; card?: ReactNode; opened?: 'episodes' | 'subtitles';
+  /** The film has ended (desktop-player f4b): the top keeps Minimise and Close alone. */ ended?: boolean;
   /** An upright phone: what stands in the watch page's place under the strip (the end card). */ page?: ReactNode}) {
   const [volume, setVolume] = useState(.7), upright = usePhone(), sideways = useSideways(), desktop = useWide() && !sideways, missing = state === 'missing';
   const tool = (icon: AudioControl['icon'], name: FrameName, disabled = false) => <PlayerControl onPicture icon={icon} label={f(name)} disabled={disabled} onPress={none} />;
@@ -100,7 +101,7 @@ function Player({state = 'playing', panel, panelCovers, resume, card, opened, pa
     : state === 'undo' ? <PlayerPrompt note={p('skippedIntro')} label={p('undo')} icon="i-undo" onPress={none} /> : undefined;
   return <Layer video><PlayerChromeFrame chromeVisible={state !== 'undo'} scrubbing={state === 'scrubbing'} panel={panel} panelCovers={panelCovers} resume={resume} card={card} picture={<Still />} close={tool('i-down', 'close')}
     title={<PlayerTitle title={f('tlou')} lead={f('videoLead')} subtitle={opened === 'episodes' ? p('pausedAt') : f('videoSubtitle')} />}
-    tools={desktop ? <>{tool('i-cast', 'playOn')}{tool('i-more', 'more')}{tool('i-x', 'dismiss')}</> : <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{upright && tool('i-subs', 'subtitles', missing)}{tool('i-sliders', 'playerSettings')}</>}
+    tools={desktop ? <>{!ended && tool('i-cast', 'playOn')}{!ended && tool('i-more', 'more')}{tool('i-x', 'dismiss')}</> : <>{tool('i-cast', 'playOn')}{tool('i-pip', 'pictureInPicture')}{upright && tool('i-subs', 'subtitles', missing)}{tool('i-sliders', 'playerSettings')}</>}
     scrubber={<Scrubber scrubbing={state === 'scrubbing'} marks={!missing} />}
     times={{position: f('elapsed'), remaining: f('remaining'), duration: f('duration'), endsAt: f('endsAt')}}
     transport={<><PlayerControl icon="i-prev" label={f('previous')} disabled={missing} onPress={none} /><PlayerControl icon={desktop ? 'i-back' : 'i-rew'} skip={10} label={f('rewind')} onPress={none} />
@@ -165,7 +166,7 @@ function PlayerEndCase() {
   const related = (['spirited-away', 'inside-out', 'alien', 'blade-runner', 'dune', 'barbie'] as const).map(id => ({id, title: id.split('-').map(word => word[0]!.toUpperCase() + word.slice(1)).join(' '), poster: art(`pool/movies/${id}.jpg`)}));
   const end = <div style={{position: upright ? 'relative' : 'absolute', inset: 0, height: upright ? '100%' : undefined}}><PlayerEndCard layout={phone ? 'phone' : 'desktop'} canReplay onReplay={none} onClose={none} reportError={none} artwork={() => undefined}
     card={{title: f('insideOut'), year: 2015, genres: ['Animation', 'Family'], related, rating: {value: null, set: async () => {}}, back: none, openRelated: none}} /></div>;
-  return upright ? <Player state="paused" page={end} /> : <Player card={end} />;
+  return upright ? <Player state="paused" page={end} /> : <Player ended card={end} />;
 }
 
 /** Still watching? (phone-player 6e): the kit's prompt over the paused player; nothing starts until the viewer says so. */
