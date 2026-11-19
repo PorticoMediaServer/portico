@@ -14,39 +14,6 @@ const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : 
 const t = defaultI18n.t;
 const text = (tree: any) => nodes(tree).filter(node => node.type === 'Text').map(node => node.props.children).filter(child => typeof child === 'string');
 
-// Phone person credits header (phone-detail.html 7: "Credits 6 titles on this server")
-
-test('the phone person page counts its credits as titles on this server', async () => {
-  const {PersonScreen} = await screenModule(new URL('../src-next/screens/people/PersonScreen.tsx', import.meta.url), {
-    '../share/share-actions': {shareLinkActions: () => []}, react: {...React, default: React},
-    './credit-refocus': await screenModule(new URL('../src-next/screens/people/credit-refocus.ts', import.meta.url), {react: {...React, default: React}}),
-    'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', VirtualizedList: 'VirtualizedList'},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', PersonCircle: 'PersonCircle', AmbientArt: 'AmbientArt', Artwork: 'Artwork'},
-    '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/cards': {PosterCard: 'PosterCard'}, '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {StateView: 'StateView'},
-    '../../kit/browse/presentation': {browseType: (_theme: unknown, size: number) => ({fontSize: size})},
-    '../../kit/theme': {useTheme: () => ({isTV: false, platform: 'phone', colors: {text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#111'}, type: {}})},
-    '../../kit/overlays': {Menu: 'Menu'}, '../../tv/layout/TVShelf': {TVShelf: 'TVShelf'}, '../../kit/layout/TVRow': {TVRow: 'TVRow'},
-    '../../kit/layout/page-inset': {usePageWidth: () => 390},
-  });
-  const page = {person: {id: 'p', name: 'Steven Spielberg', roles: [], knownFor: []}, pageInfo: {total: 6}} as any;
-  const collection = {pageSize: 60, pageOf: () => 0, subscribe: () => () => {}, subscribePage: () => () => {},
-    getSnapshot: () => ({generation: 1, total: 6, status: 'ready', refreshing: false, totalIsLowerBound: false}),
-    getPageVersion: () => 'v1', itemAt: () => undefined, ensureRange: () => {}, retry: () => {}} as any;
-  const runtime = {artwork: () => undefined, ambient: () => undefined, text: {locale: 'en-US'}, error: () => ({})} as any;
-  let tree: any;
-  const host = createFabricHookHost(() => {tree = PersonScreen({focusScope: 'person:p', page, role: 'all', collection, runtime,
-    actions: {menuState: {subscribe: () => () => {}, getSnapshot: () => 0}, isMenuOpen: () => false} as any, onRole() {}, onBack() {}});});
-  await host.mount();
-  try {
-    const list = nodes(tree).find(node => node.type === 'VirtualizedList');
-    const words = text(list.props.ListHeaderComponent);
-    assert.ok(words.includes('6 titles on this server'));
-    assert.equal(words.includes('6 titles'), false);
-  } finally {await host.unmount();}
-});
-
 // 3, 4. TV collection: More, lede, summary
 
 const themed = (isTV: boolean) => ({useTheme: () => ({isTV, platform: isTV ? 'tv' : 'phone', colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#111', line: '#222', accent: '#3af', accentStrong: '#4bf'}, type: {}})});

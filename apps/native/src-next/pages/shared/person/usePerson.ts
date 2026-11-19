@@ -1,5 +1,9 @@
 import {useState, useSyncExternalStore} from 'react';
-import type {PersonCredit} from '../../../../../../packages/client-core/src/people';
+import type {PersonCredit, PersonPage, PersonRole} from '../../../../../../packages/client-core/src/people';
+import type {WindowedCollection} from '../../../../../../packages/client-core/src/collections/windowed';
+import type {NativeShellRuntime} from '../../../shell/runtime';
+import type {createNativeEntryActions} from '../../../screens/destinations/entry-actions';
+import type {NativeSelection} from '../../../screens/selection/native-selection';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import type {FactPart} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
@@ -8,14 +12,20 @@ import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
 import type {ChoiceChip, PosterGridItem, PosterGridScrollerProps, StateRowProps} from '../../../kit/frames';
 import type {PosterRowProps} from '../../../kit/layout';
 import type {MenuEntry} from '../../../kit/overlays';
-import type {NativePersonScreenProps} from '../../../screens/people/PersonScreen';
 import {shareLinkActions} from '../../../screens/share/share-actions';
 import {useTheme} from '../../../kit/theme';
 
 const t = defaultI18n.t;
 
-/** The old screen's props, and the person's whole count kept by the route (`register.tsx`). */
-export type PersonPageProps = NativePersonScreenProps & Readonly<{total?: number}>;
+/** TV: one department of the person's credits, read as its own window and drawn as its own row (`register.tsx` builds them). */
+export type PersonCreditGroup = Readonly<{id: string; department: string; total: number; collection: WindowedCollection<PersonCredit>}>;
+/** What the route (`register.tsx`) gives a person's page: the person's read and credits, the person's whole count (the All
+ * read's, kept while Cast or Crew is chosen), and on TV the departments' own windows. */
+export type PersonPageProps = Readonly<{
+  focusScope: string; page: PersonPage; role: PersonRole; collection: WindowedCollection<PersonCredit>; groups?: readonly PersonCreditGroup[];
+  runtime: NativeShellRuntime; actions: ReturnType<typeof createNativeEntryActions>; selection?: NativeSelection;
+  onRole: (role: PersonRole) => void; onBack: () => void; total?: number;
+}>;
 
 /** What a person's page shows (phone-detail d3 frame 7), from the old person screen's own reads: data only, so the touch
  * page and the TV page draw the same person. */
