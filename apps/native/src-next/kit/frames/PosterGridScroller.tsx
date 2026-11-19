@@ -1,5 +1,5 @@
 import React, {useCallback, useId, useRef, type ReactNode} from 'react';
-import type {View, ViewStyle} from 'react-native';
+import {View, type ViewStyle} from 'react-native';
 import {frameSpec} from '@portico/design';
 import type {WindowedCollection} from '../../../../../packages/client-core/src/collections/windowed';
 import type {ArtworkSource} from '../artwork';
@@ -63,12 +63,14 @@ function PosterGridScroller<T>({collection, getKey, item, testID, content, style
  * The row is a focus region of its own, so it keeps its card when focus leaves it and comes back (tv-focus 3). */
 export function PosterWindowRow<T>({title, count, tools, collection, getKey, item, testID}: PosterGridScrollerProps<T> & Readonly<{title: string; count?: string; tools?: ReactNode}>) {
   const theme = useTheme(), frame = useFrameMetrics(), width = theme.spec.card.width.poster[theme.column], caption = cardCaptionHeight(theme, 2);
-  // The heading's tools (f9: Filters) are reached by Up from the row, whichever card holds focus: they sit at the row's far
-  // end, where geometry would never find them from the first cards. Up again goes on to whatever is above.
-  const region = `poster-window-row.${useId()}`, toolsRegion = `${region}.tools`;
+  // The heading's tools (f9: Filters) sit right after its count, not at the far end f9 draws them: there the remote never
+  // reaches them from the row's first cards (tvOS moves by position), here Up from the row finds them above it.
+  const region = `poster-window-row.${useId()}`;
   return <>
-    <PanelBlock><PanelHeading title={title} count={count} trailing={tools && <FocusRegion id={toolsRegion}>{tools}</FocusRegion>}/></PanelBlock>
-    <FocusRegion id={region} orientation="horizontal" edges={tools ? {up: toolsRegion} : undefined}>
+    <PanelBlock><View style={{flexDirection: 'row', alignItems: 'center', columnGap: theme.space.lg}}>
+      <View style={{flexShrink: 1}}><PanelHeading title={title} count={count}/></View>{tools}
+    </View></PanelBlock>
+    <FocusRegion id={region} orientation="horizontal">
       <WindowedRow testID={testID} collection={collection} getKey={getKey} itemWidth={width} itemHeight={width * 1.5 + caption} captionHeight={caption}
         gutter={frame.gutter} rightGutter={frame.rightGutter}
         renderPlaceholder={() => <SkeletonBlock width={width} height={width * 1.5} radius={theme.radii.artwork}/>}

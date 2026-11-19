@@ -311,10 +311,15 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
       {tv && !scroller && !loading && <TVFocusGuideView ref={upGuide} focusable={folded} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>}
       {tv && !scroller && !loading ? sections.map((section, index) => <FocusWithin key={index} onChange={(focused, host) => {
         if (!focused) return;
-        // A move within the section keeps the control on screen; entering a section aligns the section itself (a cover page
-        // only keeps the control on screen).
-        if (whereNow.current === index || cover) reveal(host);
-        if (whereNow.current !== index) setWhere(index);
+        // A move within the section keeps the control on screen; entering a section aligns the section itself. A cover page
+        // only keeps things on screen going down; going back up it shows the section from its heading, and the first one
+        // with the whole head above it, as on arrival (f9).
+        const entering = whereNow.current !== index, up = typeof whereNow.current === 'number' && index < whereNow.current;
+        if (entering && cover && tv && up) {
+          const top = index === 0 ? 0 : ys.current.content + ys.current.column + (ys.current.sections[index] ?? 0) - frame.titleTop;
+          scroll.current?.scrollTo({y: Math.max(0, top), animated: !motion.reduce});
+        } else if (!entering || cover) reveal(host);
+        if (entering) setWhere(index);
       }}>
         <View style={{gap: frame.sectionGap}} onLayout={event => {ys.current.sections[index] = event.nativeEvent.layout.y; if (where === index) align();}}>{section.node}</View></FocusWithin>)
         : panel}</View>
