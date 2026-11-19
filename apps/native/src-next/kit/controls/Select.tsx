@@ -69,8 +69,10 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
   const blocked = disabled || focusedValue === undefined;
   const title = rowLabel ?? label ?? accessibilityLabel ?? selected?.label ?? placeholder;
   // In a settings row on a touch screen the select is the row's value: accent text and the up/down mark, no box.
-  const row = useContext(RowControlContext), inline = !!row && !theme.isTV && rowLabel === undefined && label === undefined;
-  return <View style={styles.container}>
+  const row = useContext(RowControlContext), inline = row && !theme.isTV && rowLabel === undefined && label === undefined;
+  // As a row's value: its own words' width, up to half the row (by layout, not a measured width, which went stale across a
+  // resize and squeezed the value to a letter a line). The value wraps between words, never inside one.
+  return <View style={[styles.container, inline ? styles.inline : undefined]}>
     {label !== undefined ? <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{label}</Text> : null}
     <Focusable {...props} ref={setRef} accessibilityRole="combobox" accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : undefined)}
       accessibilityState={{...accessibilityState, expanded: isOpen, disabled: blocked}}
@@ -83,7 +85,7 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
         // settings.html `.sel`: at least 176 wide off TV, the value then the chevron spaced apart.
         // A value that took the row's leftover width (flex: 1) collapsed to nothing in a row's
         // trailing slot, which has none (walk, 1 Nov).
-        if (inline) return [styles.trigger, {minHeight: 44, gap: 4, justifyContent: 'flex-end', borderColor: 'transparent', opacity: blocked ? .45 : 1}, supplied, {backgroundColor: 'transparent', paddingHorizontal: 0, ...(row?.maxWidth ? {maxWidth: row.maxWidth} : {})}];
+        if (inline) return [styles.trigger, {minHeight: 44, gap: 4, justifyContent: 'flex-end', borderColor: 'transparent', opacity: blocked ? .45 : 1}, supplied, {backgroundColor: 'transparent', paddingHorizontal: 0}];
         return [styles.trigger, {height: theme.isTV ? 64 : 44, borderRadius: theme.isTV ? 14 : 10, minWidth: theme.isTV ? undefined : 176,
           paddingHorizontal: theme.isTV ? 20 : 16, gap: theme.isTV ? 20 : 14,
           borderColor: error ? theme.colors.danger : isOpen ? theme.colors.accent : 'transparent',
@@ -156,4 +158,4 @@ function PickerHint() {
 export const Select = forwardRef<View, SelectProps>(function Select(props, ref) {return <NativeSelect {...props} rich={false} ref={ref} />;});
 export const RichSelect = forwardRef<View, RichSelectProps>(function RichSelect(props, ref) {return <NativeSelect {...props} rich ref={ref} />;});
 
-const styles = StyleSheet.create({container: {gap: 8, alignSelf: 'stretch'}, trigger: {alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 2}, label: {flex: 1, minWidth: 0}, value: {flexShrink: 1, minWidth: 0}, option: {flexDirection: 'row', alignItems: 'center'}, optionHeading: {flexDirection: 'row', alignItems: 'center', gap: 8}});
+const styles = StyleSheet.create({container: {gap: 8, alignSelf: 'stretch'}, inline: {flexShrink: 0, maxWidth: '50%'}, trigger: {alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 2}, label: {flex: 1, minWidth: 0}, value: {flexShrink: 1, minWidth: 0}, option: {flexDirection: 'row', alignItems: 'center'}, optionHeading: {flexDirection: 'row', alignItems: 'center', gap: 8}});
