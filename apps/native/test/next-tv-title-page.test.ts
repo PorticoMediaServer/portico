@@ -82,3 +82,16 @@ test('a show draws its Episodes first: the season column chooses a season on foc
   shelf.items[1]!.onFocus(); assert.deepEqual(calls.at(-1), ['focusEpisode', 'e2']);
   shelf.items[0]!.onPlay(); assert.deepEqual(calls.at(-1), ['play', 'e1']);
 });
+
+test('an episode route lands on that episode once its season lists it; a show route starts on Play', async () => {
+  const tv = {nextUp: 'e2', moreSeasons: () => {}, select: () => {}, focusEpisode: () => {}, play: () => {}, playSeason: () => {}, markSeason: () => {},
+    seasons: [{id: 'season-1', label: 'Season 1', current: true, complete: false, group: false}],
+    tiles: [{key: 'e1', title: 'The Clampetts Strike Oil', label: []}, {key: 'e2', title: 'Getting Settled', label: []}]};
+  const page = async (entry: Record<string, unknown>, tiles = tv.tiles) => {
+    const {node} = await film({...view, entry, episodes: {list: {items: []}, tv: {...tv, tiles}}});
+    return {start: node!.props.startFocus, entry: ((node!.props.seasons as {episodes: Node}).episodes.props as unknown as {entry: string}).entry};
+  };
+  assert.deepEqual(await page({id: 'e1', kind: 'episode'}), {start: 'e1', entry: 'e1'}, 'focus starts on the episode, so the band describes it and OK plays it');
+  assert.deepEqual(await page({id: 'e1', kind: 'episode'}, []), {start: undefined, entry: 'e2'}, 'until its season lists it, Play');
+  assert.deepEqual(await page({id: 's1', kind: 'show'}), {start: undefined, entry: 'e2'}, 'a show enters its row on the next episode');
+});
