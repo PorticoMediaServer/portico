@@ -9,7 +9,7 @@ import {Button} from '../../kit/controls';
 import {useFocusRegistry} from '../../kit/focus';
 import {BottomSheet, SidePanel} from '../../kit/overlays';
 import {StateView} from '../../kit/states';
-import {browseType} from '../../kit/browse/presentation';
+import {browsePlatform, browseType} from '../../kit/browse/presentation';
 import {useTheme} from '../../kit/theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {libraryFilterChange, libraryFilterField} from './filter-controls';
@@ -23,7 +23,9 @@ export function LibraryFilters({draft, source, runtime, labels, owner, onClose, 
   /** The phone sheet has finished closing: its host can drop the draft, so a closed sheet never stays mounted. */
   onExited?: () => void; /** Omitted where the host has no real Save view action (the reading libraries). */ onSave?: (view: NativeLibraryViewDraft) => void; /** tablet-read#1b and tablet#4/#5: the same draft and controls as a pane beside the grid. */ docked?: boolean; /** Omitted keeps the reading pane's own numbers. */ geometry?: FiltersPaneGeometry}) {
   const theme = useTheme(), registry = useFocusRegistry(), state = useSyncExternalStore(draft.subscribe, draft.getSnapshot);
-  const [openFields, setOpenFields] = useState<readonly string[]>(() => !theme.isTV && source.capabilities?.fields.some(field => field.id === 'genre') ? ['genre'] : []), [failure, setFailure] = useState<unknown>();
+  // The phone sheet draws its fields inline and starts with Genre open; a tablet pane draws a field's choices in a popover,
+  // which opens only when its field is chosen (never over the other fields on opening); TV starts closed.
+  const [openFields, setOpenFields] = useState<readonly string[]>(() => browsePlatform(theme) === 'phone' && source.capabilities?.fields.some(field => field.id === 'genre') ? ['genre'] : []), [failure, setFailure] = useState<unknown>();
   const [now] = useState(() => new Date());
   // A library that is still loading (just switched to) has no capabilities or sort yet: there is nothing to filter, so
   // the panel draws nothing rather than reading them (W3 F2: `resolvedPivot` of undefined took the screen down).
