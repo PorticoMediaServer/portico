@@ -66,7 +66,7 @@ async function emptyPage(isTV: boolean) {
     '../destinations/useTVPageBack': {useTVPageBack: () => {}}, '../destinations/useEntryFocus': {useDestinationEntryFocus: () => {}},
     './model': {NativeLibraryDestination: 'NativeLibraryDestination', nativeLibraryEntryKey: (entry: any) => entry.id, nativeLibraryCanSave: () => true},
     './LibraryToolbar': {LibraryToolbar: 'LibraryToolbar'}, './LibraryListRow': {LibraryListRow: 'LibraryListRow'}, './directory': {NativeLibraryDirectory: 'NativeLibraryDirectory'},
-    './LibraryFilters': {LibraryFilters: 'LibraryFilters'}, './applied-filters': {libraryAppliedFilters: () => []}, './library-grid': {libraryTabletGridGeometry: () => ({})},
+    './LibraryFilters': {LibraryFilters: 'LibraryFilters', useLibraryFrameFilters: () => undefined, libraryFiltersDockWidth: 380}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'}, './applied-filters': {libraryAppliedFilters: () => []}, './library-grid': {libraryTabletGridGeometry: () => ({})},
     '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'}, '../destinations/music/TVMusicDiscover': {TVMusicDiscover: 'TVMusicDiscover'},
     '../read/platform': {hiddenReadingLibraryOnTV: () => false, isReadingLibraryKind: () => false}, '../share/share-actions': {shareLinkActions: () => []},
     './LibraryJumpSheet': {}, './jump': {}, '../../kit/cards/TVSparseCardFrame': {}, '../../platform/home-action-diagnostics': {homeActionDiagnostics: () => {}},
