@@ -176,7 +176,7 @@ function Show({opened, seasons = false}: {opened?: string; seasons?: boolean}) {
     cast={<><PanelHeading title={f('cast')}/><CastRow groups={[showCast]}/></>} tabs={tabs(tab, setTab, true)}>
     {isTV ? <Posters title={f('moreLikeThis')} items={moreLikeShows}/> : <><PanelBlock><SeasonBar label={f(simpsons ? 'season3' : 'season1')} count={f(simpsons ? 'season3Count' : 'episodeCount')} onSeasons={() => setOpen(true)} hideWatched={hide} onHideWatched={setHide}/></PanelBlock>
       <EpisodeRows episodes={tlouEpisodes} opened={opened}/></>}
-    {simpsons && !isTV && <SeasonSheet open={open} onOpenChange={setOpen} total={36} selectedId={selected} onSelect={setSelected} hideWatched={hide} onHideWatched={setHide} rows={[
+    {simpsons && !isTV && <SeasonSheet open={open} onOpenChange={setOpen} total={36} selectedId={selected} onSelect={setSelected} rows={[
       {id: 's1', number: 1, label: f('season1'), count: f('count13'), progress: f('watched'), complete: true}, {id: 's2', number: 2, label: f('season2'), count: f('count22'), progress: f('watched'), complete: true},
       {id: 's3', number: 3, label: f('season3'), count: f('season3Count'), progress: f('season3Progress'), fraction: 4 / 24}, {id: 's4', number: 4, label: f('season4'), count: f('count22')},
       {id: 's5', number: 5, label: f('season5'), count: f('count22')}, {id: 's0', number: 0, label: f('specials'), count: f('count12')}]}/>}

@@ -19,8 +19,10 @@ export type SeasonSheetProps = Readonly<{
   selectedId: string | null;
   onSelect: (id: string) => void;
   onMore?: () => void;
-  hideWatched: boolean;
-  onHideWatched: (value: boolean) => void;
+  /** Only where the page has no Hide watched of its own (the TV player's Episodes band); a touch title page and the
+   *  watch page's Episodes panel draw it on their season bar, so the sheet never repeats it. */
+  hideWatched?: boolean;
+  onHideWatched?: (value: boolean) => void;
   returnFocusRef?: React.RefObject<View | null>;
 }>;
 
@@ -29,6 +31,9 @@ export type SeasonSheetProps = Readonly<{
  * seasons and groups to rows; the title page and the watch page's Episodes panel draw this same part. */
 export function SeasonSheet(props: SeasonSheetProps) {
   const theme = useTheme(), t = defaultI18n.t, [jump, setJump] = useState(''), viewport = useWindowDimensions();
+  // A touch sheet is as tall as its seasons (a one-season show is a short sheet). Its list scrolls past .55 of the screen,
+  // so with its heading and the jump field the whole sheet stays near the .72 it always was; TV keeps its side panel.
+  const fit = !theme.isTV, listCap = Math.round(viewport.height * .55);
   const scroll = useRef<ScrollView>(null), first = useRef<View>(null);
   const initial = props.rows.find(row => row.id === props.selectedId)?.id ?? props.rows[0]?.id;
   useEffect(() => {if (props.open) setJump('');}, [props.open]);
@@ -45,20 +50,29 @@ export function SeasonSheet(props: SeasonSheetProps) {
       <Text accessibilityRole="header" style={{color: theme.colors.text, fontSize: 21, fontWeight: '800', letterSpacing: -0.4}}>{t('title.seasons')}</Text>
       <Text style={{color: theme.colors.textTertiary, fontSize: 14, fontWeight: '600'}}>{defaultI18n.number(props.total, {useGrouping: false})}</Text>
       <View style={{flex: 1}}/>
-      <Button ref={!initial ? first : undefined} focusId="watch-seasons-done" testID="watch-seasons-done" variant="text" onPress={() => props.onOpenChange(false)}>{t('action.done')}</Button>
+      <Button ref={!initial ? first : undefined} focusId="watch-seasons-done" testID="watch-seasons-done" variant="text"
+        // The mock-ups draw every sheet's Done muted (phone-detail .shd button: text-2), not in the accent.
+        textStyle={theme.isTV ? undefined : {color: theme.colors.textSecondary}} onPress={() => props.onOpenChange(false)}>{t('action.done')}</Button>
     </View>}
-    contentStyle={{paddingHorizontal: 0, flex: 1}} detents={[Math.round(viewport.height * .72)]}>
-    <View style={{flex: 1}}>
-      {canJump && <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 16, marginBottom: 8}}>
+    contentStyle={{paddingHorizontal: 0, ...(fit ? {} : {flex: 1})}} fitContent={fit} scrollable={fit ? false : undefined} detents={fit ? undefined : [Math.round(viewport.height * .72)]}>
+    <View style={fit ? undefined : {flex: 1}}>
+      {/* phone-detail frame 5: one search field, its range at the end; the keyboard's Go jumps. */}
+      {canJump && fit && <View style={{marginHorizontal: 16, marginBottom: 6}}>
+        <TextField variant="search" leadingIcon="i-search" placeholder={t('title.jumpToSeasonPrompt')} accessibilityLabel={t('title.jumpToSeasonPrompt')}
+          value={jump} onChangeText={setJump} keyboardType="number-pad" onSubmitEditing={go} returnKeyType="go" testID="watch-seasons-jump"
+          trailing={<Text style={[theme.type.badge, {color: theme.colors.textSecondary, backgroundColor: theme.colors.raisedBright, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden'}]}>
+            {t('title.jumpToRange', {min: '1', max: String(props.total)})}</Text>}/>
+      </View>}
+      {canJump && !fit && <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 16, marginBottom: 8}}>
         <View style={{flex: 1}}><TextField label={t('title.jumpToSeason')} value={jump} onChangeText={setJump} keyboardType="number-pad"
           description={t('title.jumpToHint', {min: '1', max: String(props.total)})} onSubmitEditing={go} returnKeyType="go" testID="watch-seasons-jump"/>
         </View>
         <Button focusId="watch-seasons-go" testID="watch-seasons-go" variant="glass" size="small" onPress={go}>{t('title.go')}</Button>
       </View>}
-      <View style={{marginHorizontal: 16, marginBottom: 6}}>
-        <Switch variant="compact" checked={props.hideWatched} onCheckedChange={props.onHideWatched} testID="watch-seasons-hide-watched">{t('next.controls.hideWatched')}</Switch>
-      </View>
-      <ScrollView ref={scroll} onScroll={event => {const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
+      {props.onHideWatched && <View style={{marginHorizontal: 16, marginBottom: 6}}>
+        <Switch variant="compact" checked={props.hideWatched ?? false} onCheckedChange={props.onHideWatched} testID="watch-seasons-hide-watched">{t('next.controls.hideWatched')}</Switch>
+      </View>}
+      <ScrollView ref={scroll} style={fit ? {maxHeight: listCap} : undefined} onScroll={event => {const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
         if (props.onMore && contentSize.height - contentOffset.y - layoutMeasurement.height < layoutMeasurement.height) props.onMore();}} scrollEventThrottle={64}>
         {props.rows.map(row => {
           const selected = row.id === props.selectedId;

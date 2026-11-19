@@ -652,8 +652,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
       onSelect={id => {const lease = seasonsSheet; closeSeasons(); if (lease) void controller.season(id, lease).catch(props.reportError);}}
       groups={workspace?.groups} selectedGroup={workspace?.selected.group}
       onSelectGroup={id => {const lease = seasonsSheet; closeSeasons(); if (lease) void controller.group(id, lease).catch(props.reportError);}}
-      onMore={() => {void controller.moreSeasons().catch(props.reportError);}}
-      hideWatched={snapshot.place.hideWatched} onHideWatched={value => {if (seasonsSheet) void controller.hideWatched(value, seasonsSheet).catch(props.reportError);}}/>}
+      onMore={() => {void controller.moreSeasons().catch(props.reportError);}}/>}
   </View>;
 }
 
