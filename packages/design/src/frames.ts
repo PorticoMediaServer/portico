@@ -93,7 +93,9 @@ export const frame = {
        * phone 104 on the web); the native phone's About card (phone-detail d1 `.kv`: label 92, gap 12, row padding 8); cast circles (phone-detail 64, tablet and web 96, TV 150); Films in order's number column and still
        * (desktop-detail f8 56 / 106, phone 56, TV 140); Previous / Next's still (desktop-detail f5, 112 wide, 16:9); a
        * choice row's label and the narrowest its choices go (desktop-detail f4 120 / 200). */
-      parts: {aboutLabel: forms(104, 140, 140, 140), aboutPhone: {label: 92, gap: 12, pad: 8}, castCircle: forms(64, 96, 96, 150), number: 56, numberedArt: forms(56, 106, 106, 140), neighbourArt: 112, choiceLabel: 120, choiceMin: 200,
+      parts: {aboutLabel: forms(104, 140, 140, 140), aboutPhone: {label: 92, gap: 12, pad: 8},
+        /** An episode row's still from a tablet up (tablet f7, 210) and the narrowest a Previous / Next card goes before the pair stacks (desktop-detail f5). */
+        episodeArt: 210, neighbourMin: 220, castCircle: forms(64, 96, 96, 150), number: 56, numberedArt: forms(56, 106, 106, 140), neighbourArt: 112, choiceLabel: 120, choiceMin: 200,
         /** Details beside About from a tablet on its side: Cast & crew takes 1.6 shares to About's 1 (desktop-detail f3). */
         detailsCastShare: 1.6},
     },
