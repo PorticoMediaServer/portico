@@ -32,6 +32,10 @@
 .live > .chips { margin-bottom: var(--frame-heading-gap); }
 .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-xs); margin-bottom: calc(var(--frame-heading-gap) - var(--frame-section-gap)); }
 .hints { font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
+/* A phone on its side: one row under the shell's top, the chips taking the room between the switch and the toolbar. */
+.liveRow { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-xs) var(--g) 0; margin-bottom: var(--space-xs); }
+.liveRow > .chips { flex: 1; min-width: 0; padding: 0; flex-wrap: nowrap; overflow-x: auto; }
+.rowTitle { margin: 0; flex: none; font-size: var(--type-row-heading-size); font-weight: var(--type-page-title-weight, 800); white-space: nowrap; }
 
 /* A page with a second pane, `frameSpec.pane.width` wide (tablet-play 6, 7; desktop-live live-sheet). */
 .split { --pane-width: var(--frame-pane-width); display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100%; }

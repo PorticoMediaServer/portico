@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import {useEffect, useState, type ReactNode} from 'react';
 import {LibraryHeader} from '../browse';
 import {Button} from '../controls';
 import {BottomSheet} from '../overlays';
@@ -102,8 +102,27 @@ export type LiveFrameProps = Readonly<{
  * Recordings on one frame. Fixed: the library-style header (title, source picker, facts; the tabs under it), the chips and
  * the toolbar. Flexible: the guide or the list. The details pane is `SplitFrame`'s. The header is the kit `LibraryHeader`,
  * as the live Recordings page (`kit/dvr` RecordingsLayout) draws it; Stage 2 moves those pages onto this frame. */
+/** A short, wide window: a phone on its side (600 wide or more and under 600 tall, the guide's own rule). LiveFrame draws its
+ * one-row form there; the screen hands it that form's content (the view switch and Recordings, the chips, the sort). */
+export function useShortWide() {
+  const query = '(min-width: 600px) and (max-height: 599px) and (orientation: landscape)';
+  const [short, setShort] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query), update = () => setShort(media.matches);
+    media.addEventListener('change', update); update();
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return short;
+}
+
 export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, lead, toolbar, children, details, hints, state}: LiveFrameProps) {
-  const phone = usePhone();
+  const phone = usePhone(), short = useShortWide() && !back;
+  // A phone on its side keeps the guide's height: the title, the view switch, the chips and the toolbar share one row, and the
+  // tabs, facts and On now give way (the Recordings button among the actions stays).
+  if (short) return <SplitFrame pane={details}><div className={`${styles.frame} ${styles.live}`}>
+    <header className={styles.liveRow}><h1 className={styles.rowTitle}>{title}</h1>{actions}{chips && <div className={styles.chips} role="group">{chips}</div>}{toolbar}</header>
+    {state ? <PageStateFrame {...state}/> : <div className={styles.rows}>{children}{hints && <div className={`${styles.edge} ${styles.hints}`}>{hints}</div>}</div>}
+  </div></SplitFrame>;
   // The tab strip's rule runs the page's width; its tabs start at the gutter (as TitleFrame's do).
   const strip = tabs && <div className={styles.tabs}>{tabs}</div>;
   const header = back && phone ? <><div className={styles.pushed}><PushedNavBar safeArea={false} backLabel={back.label} title={title} onBack={back.onPress}/></div>{strip}</>
