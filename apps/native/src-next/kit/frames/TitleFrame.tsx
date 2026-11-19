@@ -1,5 +1,5 @@
 import React, {useState, type ReactNode} from 'react';
-import {ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {frameSpec} from '@portico/design';
@@ -39,6 +39,8 @@ export type TitleKicker = Readonly<{label: string; icon?: IconName; detail?: str
 /** A person's, an artist's, an album's or a book's own picture, beside the words in place of the art box. The frame
  * sizes it per form; a picture that draws to a size (a person's initials) takes it as a function of the width. */
 export type TitleCover = Readonly<{node: ReactNode | ((size: number) => ReactNode); shape: 'poster' | 'square' | 'circle'}>;
+/** Where the collapsed bar shows, for a page's own scroller (`MusicScrollView`'s `collapseAt` and `onCollapse`). */
+export type TitleCollapse = Readonly<{at: number; onChange: (collapsed: boolean) => void}>;
 export type TitleFrameProps = Readonly<{
   /** The picture behind the words, as the kit's `AmbientArt` with `treatment="title"`. The frame gives it the box. */
   art?: ReactNode;
@@ -81,6 +83,11 @@ export type TitleFrameProps = Readonly<{
    * it from the scroll; on TV the screen sets it when focus moves into the panel. */
   collapsed?: boolean;
   state?: Readonly<{kind: 'loading'}> | PageStateProps;
+  /** The page's own scroller, in place of the frame's on every form (an album's and artist's song list windows its rows and
+   * pages the server near the end: `MusicScrollView`). The frame hands it what to scroll, the content style to put on it
+   * and where the collapsed bar shows: past `collapse.at` the scroller calls `collapse.onChange(true)`, back above it
+   * `false`. On an open foldable it scrolls the right page (the tabs and their panel). */
+  scroller?: (content: ReactNode, contentContainerStyle: ViewStyle, collapse: TitleCollapse) => ReactNode;
   testID?: string;
   /** TV: the control the page starts on (R1), by `focusId` or `testID`. Left out, it is the primary (Play or Resume). */
   startFocus?: string;
@@ -97,7 +104,7 @@ export function TitleFrame({startFocus, ...props}: TitleFrameProps) {
 }
 /** The primary's own focus id when the screen gives it no test id. */
 const titlePrimaryId = 'title-primary';
-function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, testID}: Omit<TitleFrameProps, 'startFocus'>) {
+function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
   const [passed, setPassed] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY);
@@ -243,16 +250,21 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
       {cast && <View style={{paddingHorizontal: frame.gutter, marginTop: frame.sectionGap}}>{cast}</View>}
     </ScrollView>
     <View style={{width: 1, backgroundColor: theme.colors.line}}/>
-    <ScrollView style={{flex: 1}} contentContainerStyle={{paddingTop: insets.top, paddingBottom: frame.bottomClear}}>{tabBar()}{content}</ScrollView>
+    {scroller ? <View style={{flex: 1}}>{scroller(<>{tabBar()}{content}</>, {paddingTop: insets.top, paddingBottom: frame.bottomClear}, noBar)}</View>
+      : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingTop: insets.top, paddingBottom: frame.bottomClear}}>{tabBar()}{content}</ScrollView>}
   </View>;
+  const page = <>
+    {!held && head}
+    {tabs && !held && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>}
+    {content}
+  </>;
   return <View testID={testID} style={{flex: 1}}>
     {held && bar}
-    <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setPassed(event.nativeEvent.contentOffset.y > tabsY - barHeight)}>
-      {!held && head}
-      {tabs && !held && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>}
-      {content}
-    </ScrollView>
+    {scroller ? <View style={{flex: 1}}>{scroller(page, {paddingBottom: frame.bottomClear}, {at: tabsY - barHeight, onChange: setPassed})}</View>
+      : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setPassed(event.nativeEvent.contentOffset.y > tabsY - barHeight)}>{page}</ScrollView>}
     {!held && bar}
   </View>;
 }
 
+/** An open foldable's pages have no collapsed bar. */
+const noBar: TitleCollapse = {at: Number.POSITIVE_INFINITY, onChange: () => {}};

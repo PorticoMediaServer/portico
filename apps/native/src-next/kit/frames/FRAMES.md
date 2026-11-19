@@ -345,6 +345,9 @@ On a tablet on its side and TV the art box is at least its drawn height and grow
 rises under Back); the words keep the copy width and the action row takes the page's width (one line, tablet f6).
 An action marked `wide` (Watched) is drawn only there; on a phone and an upright tablet it is in More (phone-detail d1).
 
+A page that keeps its own scroller (an album's and artist's `MusicScrollView`: song windowing, server paging near the end)
+passes `scroller(content, contentContainerStyle, collapse)`; the frame uses it in place of its own on every form and
+hands it the collapse point (`collapse.at`, `collapse.onChange`, the scroller's `collapseAt` / `onCollapse`).
 A screen that holds `collapsed` (a tab opened directly) gets the bar in place of the hero and the page's tabs, with the
 panel under it (desktop-detail f3, phone-detail d1 frame 2). The collapsed bar (touch): once the tabs pass under it. A phone and an upright tablet: Back, the title centred and Play
 on, with the tabs under it (phone-detail d1 frame 2). A tablet on its side: Back, the title, the tabs, the primary and

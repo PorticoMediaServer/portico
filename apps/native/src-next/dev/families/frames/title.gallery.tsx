@@ -18,6 +18,7 @@ import {SeasonSheet} from '../../../kit/layout/SeasonSheet';
 import {Menu} from '../../../kit/overlays';
 import {useTheme} from '../../../kit/theme';
 import {Page} from './frames.gallery';
+import {MusicScrollView} from '../../../screens/destinations/music/MusicWindow';
 import type {Gallery} from '../../gallery-registry';
 
 /** Family C, the title page's forms: every kind of title page filled in full on the one `TitleFrame`, from the parts its
@@ -245,7 +246,9 @@ function Songs({rows, ranked = false}: {rows: readonly TrackRowData[]; ranked?: 
   return <View>{rows.map((row, index) => <SongRow key={row.id} row={row} index={index} ranked={ranked} onPlay={none} onMore={none} onEnter={none}/>)}</View>;
 }
 function Album() {
-  return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-album" back={back} cover={{shape: 'square', node: <Artwork source={asset('pool/albums/after-hours.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('albumKicker')}} title={f('album')}
+  // The album page keeps its own scroller (song windowing, paging near the end): the frame hands it the page and the collapse point.
+  return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-album" back={back}
+    scroller={(content, style, collapse) => <MusicScrollView style={{flex: 1}} contentContainerStyle={style} collapseAt={collapse.at} onCollapse={collapse.onChange}>{content}</MusicScrollView>} cover={{shape: 'square', node: <Artwork source={asset('pool/albums/after-hours.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('albumKicker')}} title={f('album')}
     metadata={<Meta text={`${f('albumArtist')} · ${f('albumFacts')}`}/>} primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, onPress: none}, {icon: 'i-heart', label: f('favourite'), onPress: none}, {icon: 'i-listadd', label: f('addToPlaylist'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     aside={<><View><PanelHeading title={f('details')}/><AboutTable rows={[{label: f('year'), values: [{text: '2020'}]}, {label: f('label'), values: [{text: f('labelValue')}]}, {label: f('type'), values: [{text: f('albumKicker')}]}, {label: f('genre'), values: [link('R&B/Soul')]}, {label: f('added'), values: [{text: 'Oct 17, 2026'}]}]}/></View>
