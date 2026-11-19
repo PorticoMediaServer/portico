@@ -99,7 +99,11 @@ export function chipRailCut(box: number, offset: number, content: number, ends: 
   const whole = ends.filter(end => end - offset <= box + .5).pop();
   return whole === undefined ? 0 : Math.max(0, Math.min(box, whole - offset));
 }
+let chipRailSeq = 0;
 export function ChipRail({children}: {children: ReactNode}) {
+  // Each rail's mask has its own gradient id: an SVG id is shared across the window, and a rail still mounted under the page (the
+  // library under See all) would otherwise lend this one its fade.
+  const [gradient] = useState(() => `chip-rail-edge-${++chipRailSeq}`);
   const [box, setBox] = useState(0), [content, setContent] = useState(0), [height, setHeight] = useState<number>(), [offset, setOffset] = useState(0), [ends, setEnds] = useState<readonly number[]>([]);
   // Each chip is measured on its own: a fragment's chips (See all's kinds) are taken one by one.
   const flatten = (node: ReactNode): ReactNode[] => Array.isArray(node) ? node.flatMap(flatten)
@@ -116,10 +120,10 @@ export function ChipRail({children}: {children: ReactNode}) {
     accessibilityElementsHidden={!room} importantForAccessibility={room ? 'auto' : 'no-hide-descendants'}>
     {/* The rail is as tall as its chips (their measured content): a flex height in this row came out shorter on the tablet and cut
         the chips' bottom edge. */}
-    <MaskedView style={height === undefined ? {flex: 1} : {height}} maskElement={<Svg width="100%" height="100%"><Defs><LinearGradient id="chip-rail-edge" x1="0" y1="0" x2="1" y2="0">
+    <MaskedView style={height === undefined ? {flex: 1} : {height}} maskElement={<Svg width="100%" height="100%"><Defs><LinearGradient id={gradient} x1="0" y1="0" x2="1" y2="0">
       <Stop offset={0} stopColor="#fff" stopOpacity={1}/><Stop offset={solid} stopColor="#fff" stopOpacity={1}/><Stop offset={clear} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
       <Stop offset={1} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
-    </LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#chip-rail-edge)"/></Svg>}>
+    </LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#${gradient})`}/></Svg>}>
       <TVRow><ScrollView horizontal scrollEnabled={room} showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8, alignItems: 'center'}} scrollEventThrottle={32}
         onLayout={event => setBox(event.nativeEvent.layout.width)} onContentSizeChange={(width, contentHeight) => {setContent(width); setHeight(contentHeight);}}
         onScroll={event => setOffset(event.nativeEvent.contentOffset.x)}>

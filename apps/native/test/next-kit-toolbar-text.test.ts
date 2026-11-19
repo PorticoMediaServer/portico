@@ -104,3 +104,18 @@ test('the native chip rail is drawn only with room for its first chip whole (lea
   nodes.find(node => node.type === 'ScrollView')!.props.onLayout({nativeEvent: {layout: {width: 140}}});
   assert.equal(draw().find(node => node.props.testID === 'browse-chip-rail')!.props.style.opacity, 1, 'room for the first chip: drawn');
 });
+
+test('two chip rails on screen at once each fade with their own gradient (a rail under See all lent it its fade)', async () => {
+  const host = hooks();
+  const module = await screenModule(new URL('../src-next/kit/browse/Toolbar.tsx', import.meta.url), {
+    react: host.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 820})},
+    '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}}, '../../../../../packages/client-core/src/presentation/browse-toolbar': {sortDirectionKind: () => 'alpha'},
+    '../controls': {}, '../overlays': {}, '../Icon': {}, '../theme': {}, '../layout/TVRow': {TVRow: 'TVRow'}, '@react-native-masked-view/masked-view': {default: 'MaskedView'},
+    'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'}, './presentation': {},
+  });
+  const ids = [hooks(), hooks()].map(h => {
+    const mod = h.render(() => module.ChipRail({children: ['A']}));
+    return elements(elements(mod).find(node => node.type === 'MaskedView')!.props.maskElement).find(node => node.type === 'LinearGradient')!.props.id;
+  });
+  assert.notEqual(ids[0], ids[1]);
+});
