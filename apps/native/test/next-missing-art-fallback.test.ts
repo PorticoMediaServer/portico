@@ -13,13 +13,15 @@ const reactModule = {...react, default: react};
 const tree = (node: any): any[] => Array.isArray(node) ? node.flatMap(tree) : node?.props ? [node, ...tree(node.props.children)] : [];
 const tint = (title: string) => ({first: `first:${title}`, second: 'second'});
 
-async function modules() {
+async function modules(measured?: unknown) {
   const art = await screenModule(new URL('../src-next/kit/artwork/MissingArt.tsx', import.meta.url), {
     react: reactModule, '@portico/design': {generatedCoverTint: tint}, './Generated': {GeneratedArt: 'GeneratedArt', GeneratedCover: 'GeneratedCover'},
   });
-  const theme = {isTV: true, platform: 'tv', textScale: 1, layoutMode: 'tv', spec: {card: {hover: {episodeScale: 1.05}, wide: {insetX: {tv: 18}, insetBottom: {tv: 16}}, progress: {marginTop: {tv: 8}}}, episode: {width: {tv: 384}, titleMargin: {tv: 12}}}, type: {episodeTitle: {}, wideTitle: {}}, colors: {}};
+  const theme = {radii: {artwork: 10}, isTV: true, platform: 'tv', textScale: 1, layoutMode: 'tv', spec: {card: {hover: {episodeScale: 1.05}, wide: {insetX: {tv: 18}, insetBottom: {tv: 16}}, progress: {marginTop: {tv: 8}}}, episode: {width: {tv: 384}, titleMargin: {tv: 12}}}, type: {episodeTitle: {}, wideTitle: {}}, colors: {}};
+  // `measured` stands in for the art's measured size once it has loaded (the card's only undefined-initial state).
+  const cardReact = measured ? {...react, useState: (value: unknown) => [value === undefined ? measured : value, () => {}]} : react;
   const cards = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
-    react: reactModule, 'react-native': {StyleSheet: {absoluteFill: {}}, Text: 'Text', View: 'View'}, 'react-native-svg': {default: 'Svg', Text: 'SvgText'},
+    react: {...cardReact, default: cardReact}, 'react-native': {StyleSheet: {absoluteFill: {}}, Text: 'Text', View: 'View'}, 'react-native-svg': {default: 'Svg', Text: 'SvgText'},
     '../../../../../packages/i18n/src/index': {defaultI18n: {t: (key: string) => key}}, '../theme': {useTheme: () => theme},
     '../artwork/index': {useWholeBox: (_source: unknown, width: number, height: number) => ({box: {width, height}, onSize: undefined}), MediaArt: 'MediaArt', CircleArt: 'CircleArt', PersonCircle: 'PersonCircle', GeneratedCoverClearance: {Provider: 'Provider'}, missingArt: art.missingArt},
     '../controls/Focusable': {Focusable: 'Focusable'}, '../selection/index': {SelectionCircle: 'SelectionCircle'},
@@ -73,4 +75,16 @@ test('W-15: a card with a picture, its own fallback, or no title keeps what it h
   assert.equal(mediaArt(cards.PosterCard({title: 'Own', width: 214, artworkFallback: 'OWN'})).fallback, 'OWN', 'a surface chooses its own');
   assert.equal(mediaArt(cards.PosterCard({title: 'Plain', width: 214, artworkFallback: null})).fallback, null, 'null keeps the frame plain');
   assert.equal(mediaArt(cards.PosterCard({title: '', width: 214})).fallback, undefined, 'a waiting card draws no cover');
+});
+
+test('art of another shape drawn whole has only its own blurred wash behind it: no generated cover and its words', async () => {
+  // iPhone Home, Recently Added: square audiobook covers drawn whole in poster slots showed the generated cover's title above
+  // and below the art ("The Gift of…", "Persuasion" twice). Drawn whole, the card draws no generated cover under the art.
+  const picture = {uri: 'https://server/cover.jpg', cacheKey: 'cover'};
+  const square = await modules({key: 'cover', aspect: 1});
+  const whole = mediaArt(square.cards.PosterCard({title: 'Persuasion', width: 214, artwork: picture, artworkFallback: 'GENERATED'}));
+  assert.equal(whole.fit, 'contain'); assert.equal(whole.fallback, undefined, 'no generated cover under art drawn whole');
+  const poster = await modules({key: 'cover', aspect: 2 / 3});
+  const filled = mediaArt(poster.cards.PosterCard({title: 'Persuasion', width: 214, artwork: picture, artworkFallback: 'GENERATED'}));
+  assert.equal(filled.fit, undefined); assert.equal(filled.fallback, 'GENERATED', 'art of the slot\'s shape keeps the surface\'s own fallback while it loads');
 });
