@@ -3,6 +3,7 @@ import {homeContinuationCard, homeContinuationSource} from '../../../packages/cl
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {expandFrames} from './helpers/browse-frame-stub.mjs';
 import * as homeWindow from '../src-next/screens/home/home-window';
 import * as rowState from '../src-next/kit/layout/row-state';
 
@@ -68,7 +69,7 @@ async function homeFixture(width: number, height: number) {
       tvHomeRegionMap: () => ({rows: new Map()})},
     '../../shell/home-paging': {NativeHomePaging: Paging}, './tv-presentation': {},
     './home-start': {homeStartModel: () => ({actionless: false})},
-    '../../kit/cards': {}, '../../kit/layout': {Hero: 'Hero', FocusPreviewHero: 'FocusPreviewHero', Row: 'Row'},
+    '../../kit/cards': {}, '../../kit/layout': {Hero: 'Hero', FocusPreviewHero: 'FocusPreviewHero', Row: 'Row'}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
     '../../kit/layout/FocusAnchor': {useFocusAnchor: () => anchor}, '../../kit/layout/types': {},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', StateView: 'StateView', HomeSkeleton: 'HomeSkeleton', SkeletonBlock: 'SkeletonBlock'},
     '../../kit/theme': {useTheme: () => theme, nativeType: ({size, weight, tracking, lineHeight}: any, scale: number) =>
@@ -80,7 +81,7 @@ async function homeFixture(width: number, height: number) {
   return {
     setSize: (nextWidth: number, nextHeight: number) => {dimensions = {width: nextWidth, height: nextHeight, fontScale: 1};},
     setCrease: () => {posture = {status: 'available', window: dimensions, folds: [{orientation: 'vertical', bounds: {left: width / 2 - 4, right: width / 2 + 4}}]};},
-    render: () => {const tree = h.render(() => HomeScreen({runtime, authority})); for (const run of layouts.splice(0)) run(); return tree;},
+    render: () => {const tree = expandFrames(h.render(() => HomeScreen({runtime, authority}))); for (const run of layouts.splice(0)) run(); return tree;},
   };
 }
 
@@ -104,6 +105,21 @@ test('a matching upright fold keeps the side-by-side 440pt hero and 140pt shelve
   assert.equal(artwork.props.style.left, 424);
   assert.equal(named(artwork, 'AmbientArt').props.foregroundFraction, .6);
   const shelf = named(tree, 'Row'); assert.equal(shelf.props.itemWidth, 140); assert.equal(shelf.props.gutter, 24);
+});
+
+test('on the frame a row is measured from where the frame starts the rows, so its data window follows the real position', async () => {
+  // Phone and tablet Home draw on BrowseFrame: a row's onLayout is inside the frame's rows container, under the hero.
+  const fixture = await homeFixture(834, 1194);
+  fixture.render();
+  const rowWindow = (tree: any) => nodes(tree).find(node => node.type?.name === 'HomeWindow' && node.props.row.id === 'row-0');
+  const first = fixture.render();
+  nodes(first).find(node => node.type === 'BrowseFrameRows').props.onLayout({nativeEvent: {layout: {y: 1500, height: 900}}});
+  const row = nodes(rowWindow(fixture.render())).find(node => node.type === 'View' && node.props.onLayout);
+  row.props.onLayout({nativeEvent: {layout: {y: 0, height: 300}}});
+  named(fixture.render(), 'ScrollView').props.onScroll({contentOffset: {y: 0}});
+  assert.equal(rowWindow(fixture.render()).props.visible, false, 'the first row sits 1500 down the content, below the viewport at the top');
+  named(fixture.render(), 'ScrollView').props.onScroll({contentOffset: {y: 1400}});
+  assert.equal(rowWindow(fixture.render()).props.visible, true, 'scrolled to it, its data window opens');
 });
 
 test('same-width height and crease changes invalidate measured offscreen row spacers', async () => {

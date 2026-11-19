@@ -50,7 +50,7 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
       '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
       '../../kit/focus/initial-entry': {createInitialRegionEntry},
       '../../shell/tv-focus': {tvFocusIds, tvHomeRegionMap}, './tv-presentation': {tvHomeRows}, '../../shell/home-paging': {NativeHomePaging}, './home-window': homeWindow, './home-start': homeStart,
-      '../../kit/layout': {Row: 'Row', Hero: 'Hero', FocusPreviewHero: 'FocusPreviewHero'},
+      '../../kit/layout': {Row: 'Row', Hero: 'Hero', FocusPreviewHero: 'FocusPreviewHero'}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
       '../../kit/layout/FocusAnchor': {useFocusAnchor: (...args: unknown[]) => {anchorOptions = args; return vertical;}}, '../../kit/layout/types': {}, '../../kit/states': {LoadingPaint: 'LoadingPaint', },
       '../../platform/home-action-diagnostics': {homeActionDiagnostics}, '../../kit/theme': {nativeType, useTheme: () => createTheme({isTV: true, width: 1920})}, '../../shell/model': {authorityKey, sameAuthority: (a: unknown, b: unknown) => a === b},
       '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../destinations/useTVPageBack': {useTVPageBack() {}},

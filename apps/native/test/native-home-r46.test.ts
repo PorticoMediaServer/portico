@@ -24,6 +24,7 @@ import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import * as pageBack from '../src-next/screens/destinations/tv-page-back';
 import * as homeModel from '../src-next/screens/home/model';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {expandFrames} from './helpers/browse-frame-stub.mjs';
 
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];
 const labels = (node: any): string[] => Array.isArray(node) ? node.flatMap(labels) : typeof node === 'string' ? [node] : node?.props ? labels(node.props.children) : [];
@@ -176,7 +177,8 @@ test('the drawn phone facts badge is 9 px padding, .28 border and a 700 year; TV
 });
 
 async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), rows: readonly any[], react: any = {...React, default: React}, registry = createFocusRegistry(), bindings: Record<string, any> = {}) {
-  return screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), {'./generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
+  // Phone and tablet Home draw on the frame: read its parts in scroller(hero + rows) order (helpers/browse-frame-stub).
+  const module = await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), {'./generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
     '../../kit/useMotion': {useMotion: () => ({transforms: true, reduce: false, timing: () => ({})})}, 
     react: {...react, useLayoutEffect: react.useLayoutEffect ?? react.useEffect}, '@portico/design': {heroSpec},
     'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, RefreshControl: 'RefreshControl', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
@@ -196,7 +198,7 @@ async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), 
     '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
     '../../kit/focus/initial-entry': {createInitialRegionEntry},
     '../../shell/tv-focus': {tvFocusIds, tvHomeRegionMap}, '../../shell/home-paging': {NativeHomePaging}, './tv-presentation': {tvHomeRows}, './home-window': homeWindow, './home-start': homeStart,
-    '../../kit/layout': {Hero: 'Hero', FocusPreviewHero: 'FocusPreviewHero', Row: 'Row'},
+    '../../kit/layout': {Hero: 'Hero', FocusPreviewHero: 'FocusPreviewHero', Row: 'Row'}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
     '../../kit/layout/FocusAnchor': {useFocusAnchor: () => ({scrollRef: {}, offset: {value: 0}, repeating: false, stop() {}, move() {}, anchor() {}})},
     '../../kit/layout/types': {itemSelection: () => ({})},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', StateView: 'StateView', HomeSkeleton: 'HomeSkeleton', SkeletonBlock: 'SkeletonBlock'},
@@ -208,6 +210,7 @@ async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), 
     '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'}, './TvHomeRecovery': {TvHomeRecovery: 'Recovery'}, './useTvHomeRecovery': {useTvHomeRecovery: () => ({visible: false})},
     ...bindings,
   });
+  return {...module, HomeScreen: (props: any) => expandFrames(module.HomeScreen(props))};
 }
 
 test('resolved empty TV Home retains its authored actionless composition', async () => {
@@ -253,17 +256,17 @@ test('phone Home wires the drawn row rhythm, the 13 px sub-line and the live row
   const tree = h.render(() => HomeScreen({runtime, authority, bottomInset: 84}));
   const wrappers = descendants(tree).filter(node => node.type === 'View' && node.props.onLayout);
   assert.equal(wrappers.length, 2);
-  for (const wrapper of wrappers) assert.deepEqual(wrapper.props.style, {marginTop: 28}, 'phone-app.html .phone .row margin-top 28');
+  // The frame owns the space between rows (and the first row's offset under the hero): a row adds no margin of its own.
+  for (const wrapper of wrappers) assert.equal(wrapper.props.style, undefined, 'the frame spaces the rows (frameSpec rhythm.rowSection)');
   assert.equal(descendants(tree).filter(node => node.type === 'View' && node.props.style?.height === 560).length, 0, 'no spotlight: no empty 560 px hero block');
-  assert.equal(descendants(tree).filter(node => node.type === 'View' && node.props.style?.height === 104).length, 1, 'no spotlight: the rows start under the 104 px phone header');
+  assert.equal(descendants(tree).find(node => node.type === 'BrowseFrameRows').props.children[0], null, 'no spotlight: no hero; the frame starts the rows under the bar');
   // With a spotlight the hero comes back at its drawn 560 px (final3-phone-01).
   const lit = hooks(), litHome = (await homeModule(() => currentTheme, rows, lit.react)).HomeScreen;
   const litRuntime = {...runtime, home: {...runtime.home, getSnapshot: () => ({document: {rows, spotlight: [{entry, reason: 'Because you watched'}], serverId: 'actual', viewerFence: 'viewer'}, phase: 'ready'})}};
   const litTree = lit.render(() => litHome({runtime: litRuntime, authority, bottomInset: 84}));
   assert.equal(descendants(litTree).filter(node => node.type === 'View' && node.props.style?.height === 560).length, 1, 'with a spotlight: the 560 px hero block');
-  assert.equal(descendants(litTree).filter(node => node.type === 'View' && node.props.style?.height === 104).length, 0);
   const scroller = descendants(tree).find(node => node.type === 'ScrollView');
-  assert.equal(scroller.props.contentContainerStyle.paddingBottom, 96, 'drawn end padding over the 84 px bar');
+  assert.equal(scroller.props.contentContainerStyle.paddingBottom, 84, 'the frame\'s bottom clearance (0 in the stand-in) over the 84 px bar');
   const row = descendants(tree).find(node => node.type === 'Row');
   assert.equal(row.props.subtitle.type, 'Text');
   assert.equal(row.props.subtitle.props.style[0].fontSize, 13);
