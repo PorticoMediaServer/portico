@@ -107,7 +107,12 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
   const ring = useAnimatedStyle(() => ({opacity: halo.value}));
   const offset = focusInset ? 0 : focusSpec.offsetOuter[platform] + focusSpec.ringWidth[platform];
 
-  return <AnimatedPressable {...binding} {...props} testID={binding.testID} ref={observation.ref} disabled={nativeDisabled} focusable={nativeDisabled ? false : focusable}
+  // A caller's explicit next-focus wins, but an absent one (`nextFocusLeft={undefined}` passed through a wrapper such as
+  // SettingsRow) must not erase the region's declared edge: it did, and Left from a TV Settings row fell to geometry
+  // and landed on the search field (small fault 22).
+  const declaredEdges = Object.fromEntries((['nextFocusUp', 'nextFocusDown', 'nextFocusLeft', 'nextFocusRight'] as const)
+    .flatMap(key => props[key] == null && binding[key] != null ? [[key, binding[key]]] : []));
+  return <AnimatedPressable {...binding} {...props} {...declaredEdges} testID={binding.testID} ref={observation.ref} disabled={nativeDisabled} focusable={nativeDisabled ? false : focusable}
     accessibilityRole={accessibilityRole}
     accessibilityActions={longPressAccessibilityAction && onLongPressAction
       ? [...(accessibilityActions ?? []).filter(action => action.name !== longPressAccessibilityAction.name), ...(waiting ? [] : [longPressAccessibilityAction])] : accessibilityActions}
