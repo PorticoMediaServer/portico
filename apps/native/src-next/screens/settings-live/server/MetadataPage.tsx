@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState, useSyncExternalStore} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import {artworkLimitText, openSubtitlesSummary, type MetadataAnimeTitles, type MetadataFallbackLanguage, type MetadataRefreshPolicy, type MetadataSettings} from '../../../../../../packages/client-core/src/metadata-settings';
 import {settingsSpec, settingsRowIndex, type SettingsRow as SpecRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
@@ -11,6 +11,8 @@ import {BottomSheet} from '../../../kit/overlays/BottomSheet';
 import {ServerHeader} from '../../../kit/shell/ServerIdentity';
 import {StateView} from '../../../kit/states';
 import {useTheme} from '../../../kit/theme';
+import {SettingsPageFrame} from '../../../kit/frames';
+import {useFrameMetrics} from '../../../kit/frames/metrics';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../ports';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
@@ -19,15 +21,17 @@ import {SectionTitle} from '../owner-libraries/controls';
 import {NativeAdvancedSection} from './AdvancedSection';
 import {NativeTitleDatasetGroup} from './TitleDatasetGroup';
 import {NativeMetadataController, type MetadataPatch} from './metadata-controller';
-import {settingsPageHeading, settingsPageInset} from './page-layout';
 
-type Props = {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean; onLibraries: () => void};
+/** On the Settings page frame: the page's title and Back from the screen, and the screen's own error shown first. */
+type Props = {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; title: string; back?: Readonly<{label: string; onPress: () => void}>; notice?: React.ReactNode; onLibraries: () => void};
 type CredentialKey = 'tmdbReadToken' | 'tvdbProjectKey' | 'openSubtitlesApiKey' | 'openSubtitlesUsername' | 'openSubtitlesPassword' | 'acoustidKey';
 const credentialKeys: Readonly<Record<string, CredentialKey>> = {'metadata.tmdb': 'tmdbReadToken', 'metadata.tvdb': 'tvdbProjectKey', 'metadata.osKey': 'openSubtitlesApiKey', 'metadata.osUser': 'openSubtitlesUsername', 'metadata.osPass': 'openSubtitlesPassword', 'metadata.acoustid': 'acoustidKey'};
 const section = settingsSpec.find(value => value.scope === 'server' && value.id === 'metadata');
 
-/** The Metadata settings producer supplies both values and write-only credential status. */
+/** The Metadata settings producer supplies both values and write-only credential status. The page, its loading and its
+ * error all stand on the Settings page frame (header, Back, server strip, gutters, scroll). */
 export function NativeServerMetadata(props: Props) {
+  const frame = useFrameMetrics();
   const scope = useSettingsRequestScope(props.ports.context);
   const current = useCallback(() => {
     const {account} = props.ports.context;
@@ -38,11 +42,15 @@ export function NativeServerMetadata(props: Props) {
     const controller = new NativeMetadataController(scope.api, current); setOwned({controller, scope}); void controller.load();
     return () => controller.dispose();
   }, [scope, current]);
-  return owned && owned.scope === scope ? <MetadataPage {...props} controller={owned.controller} current={current}/>
-    : <StateView title={props.runtime.text.t('next.ownerLibraries.loading')}/>;
+  return <SettingsPageFrame title={props.title} back={props.back}
+    server={<ServerHeader serverName={props.ports.context.serverName} viewerRole="owner" audience="owner" variant={frame.form === 'phone' ? 'phone' : 'page'}/>}>
+    {props.notice}
+    {owned && owned.scope === scope ? <MetadataPage {...props} controller={owned.controller} current={current}/>
+      : <StateView title={props.runtime.text.t('next.ownerLibraries.loading')}/>}
+  </SettingsPageFrame>;
 }
 
-function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, current}: Props & {controller: NativeMetadataController; current: () => boolean}) {
+function MetadataPage({ports, runtime, onLibraries, controller, current}: Props & {controller: NativeMetadataController; current: () => boolean}) {
   const theme = useTheme(), t = runtime.text.t as typeof defaultI18n.t;
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), settings = state.data;
   const [editing, setEditing] = useState<{row: SpecRow; original: MetadataSettings; key: CredentialKey}>(), [text, setText] = useState('');
@@ -82,10 +90,7 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
   const subtitles = openSubtitlesSummary(settings.openSubtitles, {...defaultI18n, t});
   const advanced = settings.advanced;
   const advancedTitle = (index: number) => {const title = section?.advanced?.groups?.[index]?.title; return title ? t(title) : '';};
-  return <View style={{flex: 1}}>
-    <ScrollView contentContainerStyle={{...settingsPageInset(theme, compactHeader)}}>
-      <ServerHeader serverName={ports.context.serverName} viewerRole="owner" audience="owner" variant="phone" style={{marginBottom: 12}}/>
-      {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{t('settings.server.metadata')}</Text>}
+  return <View>
       {state.error !== undefined && <StateView variant="inline" {...runtime.error(state.error, () => {void controller.load();}, 'server-console')}/>}
       <SectionTitle>{groupTitle(0)}</SectionTitle><SettingsGroup>
         {toggle('metadata.online', settings.onlineLookups, onlineLookups => ({onlineLookups}), true)}
@@ -140,7 +145,6 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
           </SettingsGroup></>}
         </NativeAdvancedSection>;
       })()}
-    </ScrollView>
     <BottomSheet open={!!editing} onOpenChange={open => {if (!open && !state.busy) {setEditing(undefined); setText('');}}} title={editing ? t(editing.row.label) : ''}
       footer={<View style={{flexDirection: 'row', gap: 10}}><Button variant="glass" disabled={state.busy} onPress={() => {setEditing(undefined); setText('');}}>{t('action.cancel')}</Button>
         <Button disabled={disabled || !editing} loading={state.busy} onPress={() => {
