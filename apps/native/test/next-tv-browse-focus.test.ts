@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {createFocusRegistry} from '../src-next/kit/focus/registry.ts';
 import {tvEpisodeRegionMap} from '../src-next/screens/watch/tv-title-focus.ts';
-const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
-const theme = {isTV: true, textScale: 1, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', accent: '#abc', accentStrong: '#def'}, type: {caption: {}}};
+// The TV music pages draw on TitleFrame: the walk reads its `metadata` and `aside` regions with its children.
+const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...(value.type === 'TitleFrame' ? nodes([value.props.metadata, value.props.aside]) : []), ...nodes(value.props.children)] : [];
+const theme = {isTV: true, textScale: 1, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', accent: '#abc', accentStrong: '#def'}, type: {caption: {}}, gutter: 200, layout: {gutter: {tvRight: 96}}};
 const i18n = {defaultI18n: {t: (key: string) => key}};
 const native = {Text: 'Text', View: 'View', ScrollView: 'ScrollView'};
 const type = {browseType: (_theme: unknown, fontSize: number) => ({fontSize})};
@@ -154,7 +155,7 @@ test('artist Top songs has real vertical exits and Play entry; album geometry an
     '../../../kit/browse/presentation': type, '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/theme': {useTheme: () => theme},
     '../../../tv/layout/TVShelf': {TVShelf: 'TVShelf'}, '../../../tv/layout/TVArtFocus': {TVArtFocus: 'TVArtFocus'},
     './MusicErrorView': {MusicErrorView: 'MusicErrorView'}, './MusicSectionControls': {MusicSectionControls: 'MusicSectionControls', musicNearEnd: () => false}, './MusicFormatBadges': {MusicFormatBadges: 'MusicFormatBadges'},
-    './MusicWindow': {MusicScrollView: 'MusicScrollView', MusicWindow: 'MusicWindow'},
+    './MusicWindow': {MusicScrollView: 'MusicScrollView', MusicWindow: 'MusicWindow'}, '../../../kit/frames': {TitleFrame: 'TitleFrame'},
   });
   const song = {id: 'track', kind: 'song', title: 'Track'}, album = {id: 'release', title: 'Release'}, entry = {id: 'entity', kind: 'artist', title: 'Artist'};
   let state: any = {songs: [song], albums: [album], similar: Array.from({length: 12}, (_, index) => ({id: `similar-${index}`, title: 'Similar', kind: 'artist'})),
@@ -163,9 +164,11 @@ test('artist Top songs has real vertical exits and Play entry; album geometry an
   let tree = TVArtistScreen({controller, entry, runtime, actions, openEntry() {}}), all = nodes(tree);
   const top = all.find(node => node.props.id === 'music-artist-entity.songs');
   assert.deepEqual(top.props.edges, {up: 'music-play-entity.actions', down: 'music-artist-entity.rest', right: 'music-artist-entity.albums'});
-  const actionNode = all.find(node => node.type?.name === 'ActionBar'), action = actionNode.type(actionNode.props);
-  assert.equal(action.type, 'FocusRegion'); assert.equal(action.props.edges.down, top.props.id);
-  const play = nodes(action).find(node => node.props.testID === 'music-play-entity'); assert.equal(play.props.preferredFocus, true);
+  // The action row is TitleFrame's TV focus region, under the id the sections' Up names; its Down is Top songs.
+  const frame = all.find(node => node.type === 'TitleFrame');
+  assert.deepEqual(frame.props.actionsRegion, {id: 'music-play-entity.actions', edges: {down: top.props.id}});
+  assert.equal(frame.props.primary.testID, 'music-play-entity'); assert.equal(frame.props.startFocus, undefined, 'the page opens on Play (the frame\'s primary)');
+  assert.deepEqual(frame.props.actions.map((action: any) => action.testID), ['music-shuffle-entity', 'music-favorite-entity', 'music-more-entity']);
   assert.equal(all.find(node => node.type === 'TVShelf').props.items.length, 12);
   assert.ok(all.some(node => node.props.title === 'music.similarArtists'));
   const similar = state.similar;
@@ -179,12 +182,11 @@ test('artist Top songs has real vertical exits and Play entry; album geometry an
   assert.equal(nodes(tree).find(node => node.props.id === 'music-artist-entity.songs').props.edges.right, undefined);
   state = {...state, similar: state.similar.map((value: any) => ({...value, kind: 'album'}))};
   tree = TVAlbumScreen({controller, entry: {...entry, kind: 'album', artist: {id: 'artist', name: 'Artist'}}, runtime, actions, openEntry() {}}); all = nodes(tree);
-  assert.equal(all.find(node => node.props.style?.left === 742).props.style.width, 1082);
-  assert.equal(all.find(node => node.props.style?.left === 200 && node.props.style?.width === 480).props.style.boxShadow[0].blurRadius, 120);
-  assert.equal(all.find(node => node.type === 'ArtistCircle').props.size, 44);
+  const albumFrame = all.find(node => node.type === 'TitleFrame');
+  assert.equal(albumFrame.props.cover.shape, 'square'); assert.equal(albumFrame.props.primary.testID, 'music-play-entity');
+  assert.equal(all.find(node => node.type === 'ArtistCircle').props.size, 44, 'the artist beside the facts');
   assert.equal(all.find(node => node.type === 'TVShelf').props.items.length, 12);
-  const albumActions = all.find(node => node.type?.name === 'ActionBar');
-  assert.equal(albumActions.type(albumActions.props).type, 'View', 'artist focus graph must not introduce an edgeless album action boundary');
+  assert.equal(albumFrame.props.actionsRegion, undefined, 'artist focus graph must not introduce an edgeless album action boundary');
   // LR03/LR04 TV: the album's songs mount only the rows in view; Top songs (a declared focus order) stays whole.
   const albumSongs = all.find(node => node.type?.name === 'TrackList');
   assert.equal(albumSongs.props.windowed, true);
@@ -194,8 +196,8 @@ test('artist Top songs has real vertical exits and Play entry; album geometry an
   const artistSongs = nodes(TVArtistScreen({controller, entry, runtime, actions, openEntry() {}})).find(node => node.type?.name === 'TrackList');
   assert.ok(!artistSongs.props.windowed);
   assert.equal(nodes(artistSongs.type(artistSongs.props)).some(node => node.type === 'MusicWindow'), false);
-  const backdrop = all.find(node => node.type?.name === 'Backdrop');
-  assert.equal(nodes(backdrop.type(backdrop.props)).find(node => node.type === 'AmbientArt').props.treatment, 'music');
+  // TitleFrame with a cover draws no art: the route layer's own backdrop shows (the page draws none of its own).
+  assert.equal(all.some(node => node.type === 'AmbientArt' || node.type?.name === 'Backdrop'), false);
 });
 
 test('W-12: Back to an artist returns focus to the album card it opened, and a fresh visit still opens on Play', async () => {
@@ -212,7 +214,7 @@ test('W-12: Back to an artist returns focus to the album card it opened, and a f
     '../../../kit/browse/presentation': type, '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/theme': {useTheme: () => theme},
     '../../../tv/layout/TVShelf': {TVShelf: 'TVShelf'}, '../../../tv/layout/TVArtFocus': {TVArtFocus: 'TVArtFocus'},
     './MusicErrorView': {MusicErrorView: 'MusicErrorView'}, './MusicSectionControls': {MusicSectionControls: 'MusicSectionControls', musicNearEnd: () => false}, './MusicFormatBadges': {MusicFormatBadges: 'MusicFormatBadges'},
-    './MusicWindow': {MusicScrollView: 'MusicScrollView', MusicWindow: 'MusicWindow'},
+    './MusicWindow': {MusicScrollView: 'MusicScrollView', MusicWindow: 'MusicWindow'}, '../../../kit/frames': {TitleFrame: 'TitleFrame'},
   });
   const album = {id: 'release', title: 'Release'}, entry = {id: 'entity', kind: 'artist', title: 'Artist'};
   const state: any = {songs: [], albums: [album], similar: [], allSongs: {songs: [], phase: 'idle'}, songPage: {offset: 0}, releases: {}};
@@ -221,17 +223,17 @@ test('W-12: Back to an artist returns focus to the album card it opened, and a f
   // Back opens a new navigation revision, so the returning page has its own new controller.
   const page = (pageController: any = {...controller}) => {
     const all = nodes(TVArtistScreen({controller: pageController, entry, runtime, actions, openEntry: (value: unknown) => opened.push(value)}));
-    const bar = all.find(node => node.type?.name === 'ActionBar'), card = all.find(node => node.type?.name === 'AlbumCard' && node.props.focusId === 'music-artist-album-release');
+    const bar = all.find(node => node.type === 'TitleFrame'), card = all.find(node => node.type?.name === 'AlbumCard' && node.props.focusId === 'music-artist-album-release');
     return {bar, card};
   };
   const first = page();
-  assert.notEqual(first.bar.props.entryFocus, false, 'the artist page opens on Play (ruling 31)');
+  assert.equal(first.bar.props.startFocus, undefined, 'the artist page opens on Play, the frame\'s primary (ruling 31)');
   first.card.props.openEntry({id: 'release', kind: 'album'});
   assert.equal(opened.length, 1);
   const back = page();
-  assert.equal(back.bar.props.entryFocus, false, 'Back does not hand focus to Play, though the returning page has a new controller');
+  assert.equal(back.bar.props.startFocus, 'music-artist-album-release', 'Back does not hand focus to Play, though the returning page has a new controller');
   assert.equal(back.card.props.preferred, true, 'Back returns focus to the album card it opened');
   const fresh = page();
-  assert.notEqual(fresh.bar.props.entryFocus, false, 'the return is used once; the next visit opens on Play');
+  assert.equal(fresh.bar.props.startFocus, undefined, 'the return is used once; the next visit opens on Play');
   assert.notEqual(fresh.card.props.preferred, true);
 });
