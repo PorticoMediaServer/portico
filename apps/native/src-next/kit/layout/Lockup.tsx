@@ -1,6 +1,6 @@
 import React, {useState} from 'react';
 import {StyleSheet, Text, type TextProps, type TextStyle} from 'react-native';
-import {typeScale} from '@portico/design';
+import {frameSpec, typeScale} from '@portico/design';
 import {nativeType, useTheme} from '../theme';
 import type {LayoutVariant} from './types';
 
@@ -43,8 +43,12 @@ export function Lockup({title, long = false, lines, size, lineRatio, tracking = 
   // The phone frames' starting size by length (46; 42 past 20 characters; 34 past 40); a frame-sized page names its own.
   const step = phoneSteps ? (lockupStep(title) === 'lockup' && long ? 'lockupLong' : lockupStep(title)) : long ? 'lockupLong' : 'lockup';
   const base = typeScale[column][step === 'veryLong' ? 'lockupLong' : step], display = typeScale.handheld.display.size;
+  // The line box is the frames' (`frameSpec.hero.lockupLine`, 1.04), not the scale's .94: a native Text clips its glyphs to
+  // its line box, so at .94 the heavy face lost the tops of its round capitals (S, O) and a second line's capitals met the
+  // first line's descenders (owner, SMALL-FAULTS 1b).
+  const stepType = step === 'veryLong' ? {...lockup, size: display} : base;
   const type = size !== undefined ? {size, lineHeight: lineRatio === undefined ? 'normal' as const : size * lineRatio, weight: 800 as const, tracking}
-    : step === 'veryLong' ? {...lockup, size: display, lineHeight: display * (lockup.lineHeight as number) / lockup.size} : base;
+    : {...stepType, lineHeight: stepType.size * frameSpec.hero.lockupLine};
   // A caller's own size (a tablet hero's drawn column) is where the steps start; its line height and tracking scale with it.
   const drawn = StyleSheet.flatten([nativeType(type, theme.textScale), style]) as TextStyle, start = (drawn.fontSize ?? type.size) / theme.textScale;
   const key = `${title}|${start}|${column}`, [fit, setFit] = useState<{key: string; size: number}>();
