@@ -27,6 +27,10 @@ export const FrameColumn = createContext(false);
  * its track keeps for a card's growth) and the frame's `rowSection` and `rowHeadingGap` are the whole rhythm. */
 export const FrameRhythm = createContext(false);
 
+/** Set by `TitleFrame` on touch: scrolls the page so a part's top sits just under the compact bar and pinned tabs (an
+ * episode opened on arrival). Absent outside a title frame and on TV, which moves its page with focus. */
+export const FrameReveal = createContext<((node: unknown) => void) | undefined>(undefined);
+
 /** The system rules' spacing for this window: the theme's gutter and packages/design `frameSpec`. Only frames and kit
  * parts call this; a screen has no use for it, because a screen types no spacing of its own. Type is `theme.type`. */
 export function useFrameMetrics(): FrameMetrics {

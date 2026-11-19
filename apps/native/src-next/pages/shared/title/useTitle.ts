@@ -63,6 +63,17 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
   const openEpisode = useSyncExternalStore(controller.episode.subscribe, controller.episode.getSnapshot);
   // The season sheet acts for the page it opened on, never a later one (the old screen's lease).
   const [seasonsLease, setSeasonsLease] = useState<NativeTitlePageLease | undefined>(undefined);
+  // An episode's own route (a Search hit, a neighbour past the season's edge) lands on that episode: once its row is
+  // listed, it opens in place and the page scrolls to it (desk, 19 Nov; Plex shows the episode). Only on a first visit:
+  // a page with a place of its own to go back to keeps that place.
+  const arrived = useRef(false), revealFor = useRef<string | undefined>(undefined);
+  const arrival = entry.kind === 'episode' && !arrived.current && !snapshot.place.anchor?.offset ? snapshot.episodes?.find(row => row.id === entry.id) : undefined;
+  useEffect(() => {
+    if (!arrival) return;
+    arrived.current = true; revealFor.current = arrival.id;
+    if (openEpisode.entry?.id !== arrival.id) controller.episode.open(arrival);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arrival?.id]);
   const fail = (error: unknown) => props.reportError(error);
   // Play opens the player from the title's art: the art box, measured at the press, while the art drawn is the art offered
   // and the page has not moved since (the old title screen's start motion).
@@ -273,7 +284,7 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
         ...(of(['writing', 'writer', 'writers']).length ? [{label: t('title.writtenBy', {names: ''}).trim(), people: of(['writing', 'writer', 'writers']).map(name => ({name}))}] : [])],
       showAll: count => t('shelf.seeAllCount', {count}),
       previous: inList(-1) ?? neighbour(data?.episodeDetails?.previous, 'previous'), next: inList(1) ?? neighbour(data?.episodeDetails?.next, 'next'),
-      close: {label: t('action.close'), onPress: () => controller.episode.close()},
+      close: {label: t('action.close'), onPress: () => {revealFor.current = undefined; controller.episode.close();}}, reveal: revealFor.current === episode.id,
       ...(openEpisode.phase === 'loading' ? {state: {kind: 'loading' as const}} : openEpisode.phase === 'error' ? {state: {kind: 'error' as const, icon: 'i-warn' as const, title: presentError(openEpisode.error, 'detail').title,
         action: {label: t('action.tryAgain'), onPress: () => controller.episode.retry()}}} : {}),
       testID: `watch-episode-plate-${episode.id}`};

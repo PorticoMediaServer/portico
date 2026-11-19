@@ -1,4 +1,4 @@
-import React, {useRef, useState} from 'react';
+import React, {useContext, useRef, useState} from 'react';
 import {Text, View} from 'react-native';
 import {frameSpec} from '@portico/design';
 import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model';
@@ -10,7 +10,7 @@ import {HeroMetadata} from '../layout/Hero';
 import {RoundBarButton} from '../layout/TopBar';
 import {alpha} from '../shell/visual';
 import {useTheme} from '../theme';
-import {useFrameMetrics} from './metrics';
+import {FrameReveal, useFrameMetrics} from './metrics';
 import {EpisodeNeighbour} from './title-parts';
 import {StateRow, type StateRowProps} from './parts';
 
@@ -35,7 +35,9 @@ export type EpisodePlateProps = Readonly<{
   /** Folds the plate back into its row (the chevron on its still). */
   close: Readonly<{label: string; onPress: () => void}>;
   /** Its detail still reading, or failed (the row's own words show meanwhile). */
-  state?: StateRowProps; testID?: string}>;
+  state?: StateRowProps;
+  /** The page opened it on arrival (an episode's own route): the page scrolls to it once it is laid out. */
+  reveal?: boolean; testID?: string}>;
 export type EpisodeListProps = Readonly<{items: readonly EpisodeListItem[];
   /** The opened episode: drawn in place of its row. */
   opened?: Readonly<{key: string} & EpisodePlateProps>; testID?: string}>;
@@ -60,13 +62,14 @@ function EpisodeRow({item, width}: Readonly<{item: EpisodeListItem; width: numbe
     menuAnchorRef={anchor} onMore={more ? () => more(anchor) : undefined}/>;
 }
 
-export function EpisodePlate({still, length, code, title, facts, synopsis, primary, actions, credits, showAll, previous, next, close, state, testID}: EpisodePlateProps) {
+export function EpisodePlate({still, length, code, title, facts, synopsis, primary, actions, credits, showAll, previous, next, close, state, reveal, testID}: EpisodePlateProps) {
   const theme = useTheme(), frame = useFrameMetrics(), [all, setAll] = useState(false);
+  const revealPage = useContext(FrameReveal), box = useRef<View>(null), revealed = useRef(false);
   // The plate sits `inset` from the page's edges, wider than the list's gutter; its words sit a little inside its own padding (`.epo` 6).
   const stillWidth = frame.width - 2 * plateSpec.inset - 2 * plateSpec.padding, words = {marginHorizontal: theme.space.tight};
   // Neighbours with a still keep a width each (desktop-detail f5); the phone's small cards share the row (frame 4).
   const pictured = !!(previous?.artwork || next?.artwork);
-  return <View testID={testID} style={{marginHorizontal: plateSpec.inset - frame.gutter, padding: plateSpec.padding, paddingBottom: plateSpec.foot, gap: theme.space.sm,
+  return <View ref={box} testID={testID} onLayout={() => {if (reveal && revealPage && !revealed.current) {revealed.current = true; revealPage(box.current);}}} style={{marginHorizontal: plateSpec.inset - frame.gutter, padding: plateSpec.padding, paddingBottom: plateSpec.foot, gap: theme.space.sm,
     borderRadius: plateSpec.radius, backgroundColor: alpha(theme.colors.text, plateSpec.fill), borderWidth: 1, borderColor: alpha(theme.colors.text, plateSpec.edge)}}>
     <View style={{width: stillWidth, height: stillWidth * 9 / 16, borderRadius: plateSpec.stillRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
       {still && <Artwork source={still} width={stillWidth} height={stillWidth * 9 / 16}/>}

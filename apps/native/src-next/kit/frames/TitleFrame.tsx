@@ -17,7 +17,7 @@ import {buttonGeometry} from '../controls/control-model';
 import {useTheme} from '../theme';
 import {FocusWithin, StartFocusScope} from '../focus';
 import {useMotion} from '../useMotion';
-import {useFrameMetrics} from './metrics';
+import {FrameReveal, useFrameMetrics} from './metrics';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
 import {seasonColumn, type AboutValue} from './title-parts';
 
@@ -159,7 +159,15 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   // Within one section (Details: About, the cast, the collection) focus can move to a control below the screen or up
   // under the band: the page moves just enough to show it whole, with room for its ring. The page has no other mover on
   // TV (its ScrollView does not scroll by itself).
-  const pageView = useRef<View>(null), scrollY = useRef(0), whereNow = useRef(where);
+  const pageView = useRef<View>(null), scrollY = useRef(0), whereNow = useRef(where), tabsHeight = useRef(0);
+  // Touch: bring a part to just under the compact bar and the pinned tabs (FrameReveal), from where it is on screen now.
+  const revealTouch = (host: unknown) => {
+    const node = host as View | null;
+    if (!node || tv || scroller) return;
+    requestAnimationFrame(() => node.measureInWindow((_x, y) => {
+      scroll.current?.scrollTo({y: Math.max(0, scrollY.current + y - (insets.top + 56) - tabsHeight.current - theme.space.sm), animated: !motion.reduce});
+    }));
+  };
   whereNow.current = where;
   const reveal = (host: unknown) => {
     const node = host as View | null, page = pageView.current;
@@ -337,7 +345,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {scroller ? <View style={{flex: 1}}>{scroller(<>{tabBar()}{content}</>, {paddingTop: insets.top, paddingBottom: frame.bottomClear}, noBar)}</View>
       : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingTop: insets.top, paddingBottom: frame.bottomClear}}>{tabBar()}{content}</ScrollView>}
   </View>;
-  const strip = tabs && !held && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>;
+  const strip = tabs && !held && <View onLayout={event => {setTabsY(event.nativeEvent.layout.y); tabsHeight.current = event.nativeEvent.layout.height;}}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>;
   const page = tv ? <View ref={pageView} collapsable={false}>
     <FocusWithin onChange={focused => {if (focused) setWhere('head');}}><Animated.View ref={headView} style={copyStyle}>{head}{strip}</Animated.View></FocusWithin>
     {content}
@@ -372,9 +380,10 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
         }}
         onScroll={event => {
           const {contentOffset: {y}, contentSize, layoutMeasurement} = event.nativeEvent;
-          if (tv) scrollY.current = y; else {setPassed(y > barAt); setTabsPinned(y > tabsY - barHeight); scrollMemory?.onOffset(y);}
+          scrollY.current = y;
+          if (!tv) {setPassed(y > barAt); setTabsPinned(y > tabsY - barHeight); scrollMemory?.onOffset(y);}
           if (onEnd && contentSize.height - y - layoutMeasurement.height < layoutMeasurement.height) onEnd();
-        }}>{page}</ScrollView>}
+        }}><FrameReveal.Provider value={revealTouch}>{page}</FrameReveal.Provider></ScrollView>}
     {band}
     {/* Back and the top action stay put over the page while the hero scrolls (phone-detail d1); the bar takes their place once it has gone. */}
     {!shown && !split && discs}
