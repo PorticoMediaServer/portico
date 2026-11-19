@@ -244,7 +244,10 @@ test('History draws rebuilt play history and loads more with the server cursor',
   const historyRuntime = {...runtime, error: (error: unknown, _retry: () => void, context: ErrorContext) => {
     const notice = presentError(error, context);errors.push(notice.body);return notice;
   }};
-  const render = () => host.render(() => {const outer = module.NativeServerHistory({ports: {context: fixture.group.context}, runtime: historyRuntime});return outer ? outer.type(outer.props) : null;});
+  // The page hands the Settings page frame its list; the frame draws it as a FlatList (next-family-render), so the list
+  // is read as that FlatList.
+  const render = () => host.render(() => {const outer = module.NativeServerHistory({ports: {context: fixture.group.context}, runtime: historyRuntime, title: 'settings.server.playHistory'});
+    const page = outer ? outer.type(outer.props) : null;return page?.props?.list ? {type: 'FlatList', props: page.props.list} : page;});
   render();host.flush();await settle();render();host.flush();
   const tree = render();assert.equal(tree.type, 'FlatList');
   assert.deepEqual(errors, []);

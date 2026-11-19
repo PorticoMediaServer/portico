@@ -1,5 +1,5 @@
 import React, {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 'react';
-import {FlatList, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import {playHistoryPlatform, playHistoryTitle, type PlayHistoryEntry} from '../../../../../../packages/client-core/src/play-history';
 import {readServerAccounts, readServerPlayHistory, serverPlayHistoryQuery, type ServerPlayFilters} from '../../../../../../packages/client-core/src/admin/server-play-history';
 import {readDocument} from '../../../../../../packages/client-core/src/query/admin-documents';
@@ -13,13 +13,14 @@ import {ServerHeader} from '../../../kit/shell/ServerIdentity';
 import {shellType} from '../../../kit/shell/visual';
 import {StateView} from '../../../kit/states';
 import {useTheme} from '../../../kit/theme';
+import {SettingsPageFrame} from '../../../kit/frames';
+import {useFrameMetrics} from '../../../kit/frames/metrics';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeSettingsLivePorts} from '../ports';
 import {NativeScreenLifetime, screenScopeEnded} from '../lifetime';
 import {NativeHistorySource, historyLocation, type HistoryQuery} from './history-source';
 import {nativeStorageOwner} from './storage/space-source';
-import {settingsPageHeading, settingsPageInset} from './page-layout';
 
 export function historyReportContext(reportError: (error: unknown) => void) {
   let zone = 'UTC';
@@ -51,14 +52,17 @@ function createHistory(context: NativeShellBootstrapContext, reportError: Native
 }
 type Group = ReturnType<typeof createHistory>;
 
-/** The owner's server history is separate from a viewer's personal saved titles. */
-export function NativeServerHistory({ports, runtime, compactHeader = false}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean}) {
+type Framing = Readonly<{title: string; back?: Readonly<{label: string; onPress: () => void}>; notice?: React.ReactNode}>;
+/** The owner's server history is separate from a viewer's personal saved titles. It is one long list on the Settings page
+ * frame (header, Back, server strip, gutters): its title and Back come from the screen, and `notice`, the screen's own
+ * error, leads the list's own header. */
+export function NativeServerHistory({ports, runtime, ...framing}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime} & Framing) {
   const context = ports.context, reportError = runtime.reportError, [group, setGroup] = useState<Group>();
   useLayoutEffect(() => {const next = createHistory(context, reportError);setGroup(next);next.source.start();return next.dispose;}, [context, reportError]);
-  return group?.context === context ? <History group={group} runtime={runtime} compactHeader={compactHeader}/> : null;
+  return group?.context === context ? <History group={group} runtime={runtime} {...framing}/> : null;
 }
-function History({group, runtime, compactHeader}: {group: Group; runtime: NativeShellRuntime; compactHeader: boolean}) {
-  const {source} = group, theme = useTheme(), t = runtime.text.t as typeof defaultI18n.t;
+function History({group, runtime, title, back, notice}: {group: Group; runtime: NativeShellRuntime} & Framing) {
+  const {source} = group, theme = useTheme(), frame = useFrameMetrics(), t = runtime.text.t as typeof defaultI18n.t;
   const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   const [search, setSearch] = useState('');
   useEffect(() => {const timer = setInterval(() => {const current = source.getSnapshot();if (current.phase === 'ready' && current.pages === 1) source.refresh();}, 15000);return () => clearInterval(timer);}, [source]);
@@ -85,11 +89,11 @@ function History({group, runtime, compactHeader}: {group: Group; runtime: Native
       </View>
     </View>;
   };
-  return <FlatList testID="server-history-list" data={state.entries} keyExtractor={entry => entry.id} renderItem={drawEntry}
-    contentContainerStyle={{...settingsPageInset(theme, compactHeader)}}
-    ListHeaderComponent={<View style={{gap: 12}}>
-      <ServerHeader serverName={group.context.serverName} viewerRole="owner" audience="owner" variant="phone"/>
-      {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{t('settings.server.playHistory')}</Text>}
+  return <SettingsPageFrame title={title} back={back}
+    server={<ServerHeader serverName={group.context.serverName} viewerRole="owner" audience="owner" variant={frame.form === 'phone' ? 'phone' : 'page'}/>}
+    list={{testID: 'server-history-list', data: state.entries, keyExtractor: entry => entry.id, renderItem: drawEntry,
+    ListHeaderComponent: <View style={{gap: 12}}>
+      {notice}
       <TextField testID="server-history-search" label={t(table.control.search!)} value={search} onChangeText={setSearch} maxLength={160} returnKeyType="search" onSubmitEditing={() => change({search: search.trim() || undefined})}/>
       <View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" size="compact" onPress={() => change({search: search.trim() || undefined})}>{t(table.control.search!)}</Button><Button variant="glass" size="compact" disabled={state.phase === 'loading'} onPress={() => source.refresh()}>{t('action.tryAgain')}</Button></View>
       <Select testID="server-history-media" rowLabel={t(filter('media')!.label)} value={state.query.media ?? 'all'} options={filter('media')!.options.map(option => ({value: option.value, label: t(option.label)}))} onValueChange={value => change({media: value === 'all' ? undefined : value})}/>
@@ -100,9 +104,9 @@ function History({group, runtime, compactHeader}: {group: Group; runtime: Native
       <Select testID="server-history-sort" rowLabel={t('web.filters.sortBy')} value={state.query.sort} options={(table.control.columns ?? []).filter(column => column.sort && column.id).map(column => ({value: column.id!, label: t(column.label)}))} onValueChange={sort => change({sort})}/>
       <Select testID="server-history-direction" rowLabel={t('builder.preset.order')} value={state.query.direction} options={[{value: 'desc', label: t('web.filters.direction', {kind: 'other', dir: 'desc'})}, {value: 'asc', label: t('web.filters.direction', {kind: 'other', dir: 'asc'})}]} onValueChange={direction => {if (direction === 'asc' || direction === 'desc') change({direction});}}/>
       {state.error !== undefined && <StateView variant="inline" {...runtime.error(state.error, () => source.retry(), 'server-console')}/>}
-    </View>}
-    ListEmptyComponent={state.phase === 'ready' ? <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary, marginTop: 20}]}>{t(table.control.empty!)}</Text> : state.phase === 'loading' || state.phase === 'idle' ? <StateView title={t('status.loading')}/> : null}
-    ListFooterComponent={<View style={{gap: 14, marginTop: 16}}>
+    </View>,
+    ListEmptyComponent: state.phase === 'ready' ? <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary, marginTop: 20}]}>{t(table.control.empty!)}</Text> : state.phase === 'loading' || state.phase === 'idle' ? <StateView title={t('status.loading')}/> : null,
+    ListFooterComponent: <View style={{gap: 14, marginTop: 16}}>
       {!!state.nextCursor && <Button variant="glass" loading={state.phase === 'loading'} disabled={state.phase !== 'ready'} onPress={() => source.more()}>{t('action.showMore')}</Button>}
-    </View>}/>;
+    </View>}}/>;
 }
