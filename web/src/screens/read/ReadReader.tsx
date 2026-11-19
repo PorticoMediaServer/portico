@@ -1,10 +1,10 @@
 import {useCallback, useMemo, useSyncExternalStore, type ReactNode} from 'react';
 import {isReaderComicFormat, readerErrorCode, type ReaderController, type ReaderSnapshot} from '@portico/reader-core';
-import {ReaderChrome, type ReaderChromeProps} from './ReaderChrome';
+import {ReaderFrame, type ReaderFrameProps} from '../../kit/frames';
 import {ReaderSurface, type ReaderSurfaceProps} from './ReaderSurface';
 import styles from '../../kit/reader/surface.module.css';
 
-export type ReaderChromePresentation = Omit<ReaderChromeProps,
+export type ReaderChromePresentation = Omit<ReaderFrameProps,
   'title' | 'subtitle' | 'progression' | 'pageTurnsEnabled' | 'onBack' | 'onTurn' | 'onSeek' | 'subscribeSurfaceInput' | 'readActivity' | 'children' | 'fixedPage' | 'comic' | 'textSelectionActive'>;
 export type ReadReaderProps<P extends object> = ReaderSurfaceProps<P> & Readonly<{
   /** Source/profile data is formatted by the real localized adapter, never a fixture here. */
@@ -58,12 +58,12 @@ export function ReadReader<P extends object>({controller, source, format, initia
   const seek = useCallback((value: number) => navigate({kind: 'progression', value}), [navigate]);
   const currentPublication = !signal?.aborted && snapshot.sourceId === source.id && snapshot.sourceRevision === source.revision;
   const publicationReady = currentPublication && snapshot.status === 'ready';
-  return <ReaderChrome {...chrome} title={metadata ? metadata.title : snapshot.metadata?.title} subtitle={metadata ? metadata.author : snapshot.metadata?.author}
+  return <ReaderFrame {...chrome} title={metadata ? metadata.title : snapshot.metadata?.title} subtitle={metadata ? metadata.author : snapshot.metadata?.author}
     progression={snapshot.location?.progression} pageTurnsEnabled={publicationReady && snapshot.canTurnAtFit}
     fixedPage={format !== 'epub'} comic={isReaderComicFormat(format)} holdOpen={chrome.holdOpen || !publicationReady || snapshot.selection !== null}
     textSelectionActive={snapshot.selection !== null}
     subscribeSurfaceInput={controller.subscribeSurfaceInput} readActivity={readActivity} onTurn={turn} onSeek={seek} onBack={onBack}>
     <ReaderSurface controller={controller} source={source} format={format} initialLocation={initialLocation} metadata={metadata} signal={signal} authority={authority} reportError={reportError} crease={crease} turnClearance={turnClearance(chrome.showPageArrows)} />
     {snapshot.status !== 'ready' && state && <div className={styles.state}>{state(snapshot)}</div>}
-  </ReaderChrome>;
+  </ReaderFrame>;
 }
