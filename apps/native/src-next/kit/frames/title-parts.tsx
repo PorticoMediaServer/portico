@@ -206,7 +206,9 @@ export function SeasonListRow({label, detail, progress, current, focusId, testID
 const rowHeight = 84;
 /** `window`: rows shown before the list scrolls (six and half the seventh, detail-tv-5e); `fade`: its edge fades; `tile`: the
  * episode still's width (detail-tv-5a, 384); the band's words and credits share the row 640 : 516, its bar is 220. */
-export const seasonColumn = {width: 330, gap: 70, rowGap: 6, window: 6.5, fade: 70, fadeOpacity: .9, tile: 384, bandWords: 640, bandCredits: 516, bandBar: 220} as const;
+export const seasonColumn = {width: 330, gap: 70, rowGap: 6, window: 6.5, fade: 70, fadeOpacity: .9, tile: 384, bandWords: 640, bandCredits: 516, bandBar: 220,
+  /** The episode tile the row has moved past: all but hidden, never to nothing (tvOS will not focus a transparent view). */
+  passed: .03} as const;
 
 /** "Play a different version" (detail-phone 9b, desktop-detail 9b, detail-tv-8b): one row of two lines per version, in
  * File info's order: the edition or the picture summary, then the rest. The whole row is the button and plays that
@@ -340,9 +342,12 @@ export type TVSeasonItem = Readonly<{id: string; label: string; detail?: string;
  * peeking in when there are more; an edge fades only where the list goes on; the Hold OK hint under it while a season
  * holds focus. `onEnd` reads more seasons as focus nears the end. */
 export function TVSeasonList({items, hint, onEnd}: Readonly<{items: readonly TVSeasonItem[]; hint?: Readonly<{key: string; label: string}>; onEnd?: () => void}>) {
-  const theme = useTheme(), {edges, scroll} = useListEdges(seasonColumn.fade), [focused, setFocused] = useState(false);
+  // The edges are drawn on Android too: its own fading edge dims the first and last rows even when the list fits.
+  const theme = useTheme(), {edges, scroll} = useListEdges(seasonColumn.fade, true), [focused, setFocused] = useState(false);
   const current = items.find(item => item.current)?.id ?? items[0]?.id;
-  return <FocusWithin onChange={setFocused}><FocusRegion id={`tv-seasons.${useId()}`} orientation="vertical" order={items.map(item => item.id)} entry={current}>
+  // Free, not vertical: a vertical region holds Up and Down at its ends, and the column has to let Up go back to the
+  // buttons (through the frame's guide on tvOS) and Down on to the rows under it.
+  return <FocusWithin onChange={setFocused}><FocusRegion id={`tv-seasons.${useId()}`} orientation="free" order={items.map(item => item.id)} entry={current}>
     <View style={{maxHeight: seasonColumn.window * (rowHeight + seasonColumn.rowGap)}}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{gap: seasonColumn.rowGap}} {...scroll}>
         {items.map((item, index) => <SeasonListRow key={item.id} focusId={item.id} testID={`tv-season-${item.id}`} label={item.label} detail={item.detail} progress={item.progress} current={item.current}
@@ -374,11 +379,17 @@ export function TVEpisodeShelf({items, entry, band, empty, onEnd}: Readonly<{ite
   // gives it back by the same amount, so the tiles stay on the column and the first one's ring and caption are never cut.
   const room = tvFocusRoom(width, width * 9 / 16 + caption, 'card').side;
   const onRange = (_first: number, last: number) => {if (onEnd && last >= items.length - 10) onEnd();};
+  // The row brings the tile in focus to its start, so once it has moved on, the end of the tile before would show cut in
+  // that room beside the season column. That tile is all but hidden until focus comes back to it. Every tile keeps its
+  // own view (never flattened away when its opacity is 1): a tile re-parented as it took focus left tvOS unable to move
+  // Left from it.
+  const [at, setAt] = useState<string>(), before = items[items.findIndex(item => item.key === at) - 1]?.key;
   return <View style={{gap: theme.space.lg}}>
     {items.length === 0 && empty !== undefined && <Text testID="tv-episodes-empty" accessibilityRole="header" style={[theme.type.groupLabel, {color: theme.colors.textSecondary}]}>{empty}</Text>}
     {items.length > 0 && <View style={{marginHorizontal: -room}}><Row showHeading={false} title="" items={items} getKey={item => item.key} itemWidth={width} itemHeight={width * 9 / 16 + caption} captionHeight={caption}
       gutter={room} rightGutter={room} selection={resting} focus={{id: region, entry}} onVisibleRange={onRange}
-      renderItem={(item, context) => <EpisodeItem item={item} focusId={context.focusId} testID={context.testID} onFocus={() => {context.onFocus?.(); item.onFocus();}} onBlur={context.onBlur} width={width}/>}/></View>}
+      renderItem={(item, context) => <View collapsable={false} style={{opacity: item.key === before ? seasonColumn.passed : 1}}>
+        <EpisodeItem item={item} focusId={context.focusId} testID={context.testID} onFocus={() => {context.onFocus?.(); setAt(item.key); item.onFocus();}} onBlur={context.onBlur} width={width}/></View>}/></View>}
     {band && <EpisodeBand band={band}/>}
   </View>;
 }

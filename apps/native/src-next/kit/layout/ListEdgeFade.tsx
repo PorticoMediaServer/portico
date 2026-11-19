@@ -24,10 +24,11 @@ export function ListEdgeFade({edge, length, opacity, color, testID}: {edge: 'top
  * from the edge instead of under the fade; `edges` then stays empty and the caller draws nothing. */
 type EdgeScrollProps = Readonly<{fadingEdgeLength?: number; scrollEventThrottle?: number; onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onLayout?: (event: LayoutChangeEvent) => void; onContentSizeChange?: (width: number, height: number) => void}>;
-export function useListEdges(length: number): {edges: ListEdges; scroll: EdgeScrollProps} {
+export function useListEdges(length: number, /** Draw the edges on Android too: its own edge is drawn at full strength whether
+  * or not the list goes on past it (ReactScrollView's fading edge strength), so a list that fits shows dimmed ends. */ drawn = false): {edges: ListEdges; scroll: EdgeScrollProps} {
   const [edges, setEdges] = useState<ListEdges>(noListEdges), at = useRef({offset: 0, content: 0, viewport: 0});
   const show = () => {const next = listEdges(at.current.offset, at.current.content, at.current.viewport); setEdges(now => now.top === next.top && now.bottom === next.bottom ? now : next);};
-  if (Platform.OS === 'android') return {edges: noListEdges, scroll: {fadingEdgeLength: length}};
+  if (Platform.OS === 'android' && !drawn) return {edges: noListEdges, scroll: {fadingEdgeLength: length}};
   return {edges, scroll: {
     scrollEventThrottle: 64,
     onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => {const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
