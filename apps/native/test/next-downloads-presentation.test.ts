@@ -118,6 +118,8 @@ test('Remove from this phone asks first with the shared confirm, and removes onl
     react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})}, '../../../../../packages/i18n/src': {defaultI18n},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', Switch: 'Switch'},
+    // A pushed Downloads page heads on BrowseFrame; the walks read its `grid`.
+    '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
     '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType: () => ({}), alpha: () => ''}, '../../kit/theme': {useTheme: () => theme},
     './inventory': downloadInventory,
@@ -131,7 +133,7 @@ test('Remove from this phone asks first with the shared confirm, and removes onl
   });
   function nodes(node: any): any[] {
     if (Array.isArray(node)) return node.flatMap(nodes);
-    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children)] : [];
+    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.grid), ...nodes(node.props.children)] : [];
   }
   const screen = await mount(DownloadsScreen, {device, runtime: {text}, copy, back() {}, openTitle() {}});
   try {
@@ -165,6 +167,8 @@ test('Downloads rows use the shared hold/menu boundary with their actual native 
     react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})}, '../../../../../packages/i18n/src': {defaultI18n},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', Switch: 'Switch'},
+    // A pushed Downloads page heads on BrowseFrame; the walks read its `grid`.
+    '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
     '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType: () => ({}), alpha: () => ''}, '../../kit/theme': {useTheme: () => theme},
     './inventory': downloadInventory,
@@ -178,7 +182,7 @@ test('Downloads rows use the shared hold/menu boundary with their actual native 
   });
   function nodes(node: any): any[] {
     if (Array.isArray(node)) return node.flatMap(nodes);
-    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children)] : [];
+    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.grid), ...nodes(node.props.children)] : [];
   }
   const screen = await mount(DownloadsScreen, {device, runtime: {text}, copy, back() {}, openTitle() {}});
   try {

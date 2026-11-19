@@ -18,7 +18,7 @@ import {useDownloadArtwork} from './useDownloadArtwork';
 import {useReadingFacts} from './useReadingFacts';
 import {SavedConfirmSheet} from '../saved/SavedForms';
 import {createDownloadInventory, createDownloadViewport, downloadWindow} from './inventory';
-import {TopBar} from '../../kit/layout/TopBar';
+import {BrowseFrame} from '../../kit/frames';
 
 const t = defaultI18n.t;
 const emptyRequests: readonly TrackedDownloadRequest[] = Object.freeze([]);
@@ -188,9 +188,7 @@ export function DownloadsScreen({device, runtime, copy, back, openTitle, service
   const openMenu = useCallback((entry: OfflineEntry, anchor: RefObject<View | null>) => setEntryMenu({entry, anchor}), []);
   const playEntry = useCallback((entry: OfflineEntry) => {if (device.openOffline) run(() => device.openOffline!(entry));}, [device, run]);
   const retryEntry = useCallback((entry: OfflineEntry) => run(() => device.resume(entry)), [device, run]);
-  return <View testID="native-downloads-screen" onLayout={event => setPaneWidth(event.nativeEvent.layout.width)} style={{flex: 1}}>
-    {!inline && <TopBar surface back={{label: t('saved.title'), onPress: back, testID: 'downloads-back'}} title={t('downloads.title')}/>}
-    <ScrollView ref={scroll} style={{flex: 1}} scrollEventThrottle={64}
+  const list = <ScrollView ref={scroll} style={{flex: 1}} scrollEventThrottle={64}
       onLayout={event => viewport.update({...viewport.getSnapshot(), height: event.nativeEvent.layout.height})}
       onScroll={event => viewport.update({...viewport.getSnapshot(), offset: event.nativeEvent.contentOffset.y})} contentContainerStyle={{paddingTop: inline ? 8 : 0, paddingBottom: 28}}>
       {!snapshot.supported ? <StateView title={t('downloads.unavailableOnDevice')}/> : <>
@@ -252,7 +250,10 @@ export function DownloadsScreen({device, runtime, copy, back, openTitle, service
           <View style={rulesBeside ? {width: 360} : expanded && !empty ? {marginTop: 10} : undefined}>{ruleList}{otherNotice}</View>
         </View>
       </>}
-    </ScrollView>
+    </ScrollView>;
+  return <View testID="native-downloads-screen" onLayout={event => setPaneWidth(event.nativeEvent.layout.width)} style={{flex: 1}}>
+    {/* A phone's pushed Downloads page heads on BrowseFrame (Back to Saved, the title); as Saved's tab it sits in Saved's own frame. */}
+    {inline ? list : <BrowseFrame header={{title: t('downloads.title'), back: {label: t('saved.title'), onPress: back, testID: 'downloads-back'}}} grid={list}/>}
     {sheetMenu ? <BottomSheet testID="downloads-entry-menu" title={undefined} open={!!menu} onOpenChange={open => {if (!open) setEntryMenu(undefined);}}
       onExited={() => {const entry = removeAfterMenu.current; removeAfterMenu.current = undefined; if (entry) setRemoving(entry);}}
       initialFocusRef={firstMenuAction} returnFocusRef={entryMenu?.anchor} accessibilityLabel={menu?.title} headerContent={menu && <DownloadMenuContext entry={menu} copy={copy}/>}
