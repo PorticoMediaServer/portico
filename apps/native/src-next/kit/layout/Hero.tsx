@@ -64,8 +64,11 @@ export type HeroProps<T extends HeroCandidate> = {
 
 /** `runtimeChip`: Home's hero outlines the runtime too (mock.html home); a title page draws it as plain text (phone-detail d1,
  * desktop-detail f1, f2). */
-export function HeroMetadata({facts, centered = false, runtimeChip = false, children}: {facts: readonly FactPart[]; centered?: boolean; runtimeChip?: boolean; children?: ReactNode}) {
-  const theme = useTheme();
+/** Set by a frame whose head is centred (a stacked title page): the facts under it centre too, also when they wrap. */
+export const HeroFactsCentred = createContext(false);
+
+export function HeroMetadata({facts, centered: given, runtimeChip = false, children}: {facts: readonly FactPart[]; centered?: boolean; runtimeChip?: boolean; children?: ReactNode}) {
+  const theme = useTheme(), frameCentred = useContext(HeroFactsCentred), centered = given ?? frameCentred;
   return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centered ? 'center' : 'flex-start', columnGap: heroSpec.facts.gap[theme.column], rowGap: heroSpec.facts.rowGap[theme.column]}}>
     {/* A rating and a season count are outlined chips, and on Home a runtime (phone-detail 1, mock.html home); the rest is plain text. */}
     {facts.map(fact => <Text key={fact.id} style={[theme.type.meta, {includeFontPadding: false, color: fact.id === 'year' || fact.role === 'identity' ? theme.colors.text : theme.colors.textSecondary, fontFamily: fact.id === 'year' || fact.role === 'identity' ? theme.type.bodyStrong.fontFamily : theme.type.meta.fontFamily},

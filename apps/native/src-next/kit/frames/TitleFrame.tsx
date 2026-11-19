@@ -10,6 +10,7 @@ import {Tabs, type TabItem} from '../controls/Tabs';
 import {Focusable} from '../controls/Focusable';
 import {Icon, type IconName} from '../Icon';
 import {Lockup} from '../layout/Lockup';
+import {HeroFactsCentred} from '../layout/Hero';
 import {BarSurface, RoundBarButton, roundBarSize, type TopBarBack} from '../layout/TopBar';
 import {alpha} from '../shell/visual';
 import {SkeletonBlock} from '../states/SkeletonBlock';
@@ -212,7 +213,9 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   const identity = <>
     {kickerLine}
     {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
-    <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: centre, justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/> : metadata}</View>
+    <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: centre, justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/>
+      // A stacked head is centred, so its facts are too, line by line when they wrap: the page passes facts, never alignment.
+      : <HeroFactsCentred.Provider value={stacked}>{metadata}</HeroFactsCentred.Provider>}</View>
   </>;
   const names = (value: TitleCredit['names']) => typeof value === 'string' ? value : value.map((name, index) => <Text key={index}>{index > 0 ? ', ' : ''}
     {name.onPress && !theme.isTV ? <Text accessibilityRole="link" onPress={name.onPress} style={{textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .35)}}>{name.text}</Text> : name.text}</Text>);
