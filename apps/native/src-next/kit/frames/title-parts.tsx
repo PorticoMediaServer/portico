@@ -9,6 +9,8 @@ import {TVRow} from '../layout/TVRow';
 import {useTheme} from '../theme';
 import {frameSpec, tvFocusRoom} from '@portico/design';
 import {useFrameMetrics} from './metrics';
+import {SheetFrame} from './SheetFrame';
+import type {TopBarBack} from '../layout/TopBar';
 
 const sizes = frameSpec.hero.title.parts;
 
@@ -59,8 +61,9 @@ const initials = (name: string) => name.split(/\s+/u).filter(Boolean).slice(0, 2
  * under a rule, wrapping, on a tablet. */
 /** A person with no page of their own: the card is drawn disabled and its navigate does nothing. */
 const noPage = () => {};
-export function CastRow({groups}: Readonly<{groups: readonly (readonly CastPerson[])[]}>) {
-  const theme = useTheme(), frame = useFrameMetrics(), scroll = frame.form === 'phone' || frame.form === 'tv';
+/** `wrap`: everyone in wrapping rows on every form (the full list in `PeopleSheet`), never one sideways row. */
+export function CastRow({groups, wrap = false}: Readonly<{groups: readonly (readonly CastPerson[])[]; wrap?: boolean}>) {
+  const theme = useTheme(), frame = useFrameMetrics(), scroll = !wrap && (frame.form === 'phone' || frame.form === 'tv');
   const size = sizes.castCircle[frame.form], width = size + (frame.form === 'tv' ? 50 : frame.form === 'phone' ? 14 : 24);
   // The kit's person card: the ring wraps only the circle and the whole person grows on focus (detail-tv-4); the name and
   // role take the column's width under the circle.
@@ -247,4 +250,26 @@ export function TitleDetails({about, people, collection}: TitleDetailsProps) {
       ? <View style={{marginHorizontal: frame.cardInset}}><CollectionTile {...collection} layout="link" width={frame.width - 2 * frame.cardInset}/></View>
       : <PanelBlock><CollectionBanner {...collection} width={frame.width - frame.gutter - frame.rightGutter}/></PanelBlock> : null}
   </>;
+}
+
+export type PeopleSheetProps = Readonly<{open: boolean; onOpenChange: (open: boolean) => void;
+  /** The sheet's bar: its title (Cast & crew) and Back, named after the tab it returns to (Details): a title page's name
+   * would be cut beside the centred title. */
+  title: string; back: TopBarBack;
+  groups: readonly (readonly CastPerson[])[];
+  /** While the server has more people: the button that reads the next page (busy while it reads). */
+  more?: Readonly<{label: string; loading: boolean; onPress: () => void}>;
+  /** A page that failed to read, in one sentence; `more` offers it again. */
+  note?: string}>;
+/** Cast & crew's See all (phone-detail d1 frame 2, notes/detail-phone: "opens the full, paged people list"): everyone
+ * on a full-height sheet, the cast then the crew under a rule, in wrapping rows of the same circles. */
+export function PeopleSheet({open, onOpenChange, title, back, groups, more, note}: PeopleSheetProps) {
+  const theme = useTheme(), frame = useFrameMetrics();
+  return <SheetFrame kind="full" open={open} onOpenChange={onOpenChange} bar={{title, back}}>
+    <View style={{paddingHorizontal: frame.gutter, paddingTop: frame.headingGap, paddingBottom: frame.bottomClear, gap: frame.sectionGap}}>
+      <CastRow groups={groups} wrap/>
+      {note !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{note}</Text>}
+      {more && <Button variant="text" size="small" align="center" disabled={more.loading} onPress={more.onPress}>{more.label}</Button>}
+    </View>
+  </SheetFrame>;
 }

@@ -6,7 +6,7 @@ import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../ki
 import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
-import {AboutTable, CastRow, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, SeasonListRow, SheetFrame, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SeasonListRow, SheetFrame, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
 import {KeyHints} from '../../../kit/controls';
@@ -91,6 +91,12 @@ function DuneDetails() {
       lines: [{label: f('directedBy'), names: f('dune2Director')}, {label: f('writtenBy'), names: `${f('dune2Crew1')}, ${f('dune2Crew2')}`}]}}
     collection={{title: f('duneCollectionName'), kindLabel: f('duneCollectionKind'), body: f('duneCollectionBody'), covers: [asset('pool/movies/dune.jpg'), asset('pool/movies/dune-part-two.jpg')],
       backdrop: asset('pool/movies/dune-part-two--bd.jpg'), onNavigate: none}}/>;
+}
+/** Cast & crew's See all: everyone on the full sheet over the Details tab, with Show more while the server has more. */
+function FilmPeople() {
+  const [open, setOpen] = useState(true);
+  return <><FilmDetails/><PeopleSheet open={open} onOpenChange={setOpen} title={f('castAndCrew')} back={{label: f('details'), onPress: () => setOpen(false)}}
+    groups={[duneCast, duneCrew]} more={{label: defaultI18n.t('action.showMore'), loading: false, onPress: none}}/></>;
 }
 /** Details with the hero gone: the collapsed bar (title, tabs, Play and +) as the page shows it once scrolled (desktop-detail f3; phone-detail d1 frame 2; detail-tv-4). */
 function FilmDetails() {
@@ -343,6 +349,7 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-title-film-resume', title: 'next.platform.frame.titleFilmResume', render: FilmResume, ...whole},
   {id: 'frames-title-film-more', title: 'next.platform.frame.titleFilmMore', render: () => <Film more/>, ...whole},
   {id: 'frames-title-film-details', title: 'next.platform.frame.titleFilmDetails', render: FilmDetails, ...whole},
+  {id: 'frames-title-film-people', title: 'next.platform.frame.titleFilmDetails', render: FilmPeople, ...whole},
   {id: 'frames-title-show', title: 'next.platform.frame.titleShow', render: () => <Show/>, ...whole},
   {id: 'frames-title-show-seasons', title: 'next.platform.frame.titleShowSeasons', render: () => <Show seasons/>, ...whole},
   {id: 'frames-title-show-episode', title: 'next.platform.frame.titleShowEpisode', render: () => <Show opened="e3"/>, ...whole},
