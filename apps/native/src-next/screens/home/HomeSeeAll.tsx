@@ -181,8 +181,9 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
     // Touch moves no focus between controls, so the page has no focus region here (as the library's touch page has none).
     return <View testID="home-see-all" style={{flex: 1}}>{wash}
         <BrowseFrame testID="home-see-all-frame" header={{title, back: {label: t('next.home.shell.home'), onPress: onBack, testID: 'home-see-all-back'}, intro,
-          actions: playable ? <><Button focusId="play" icon="i-play" style={phone ? {flex: 1} : undefined} onPress={() => onPlay(false)}>{t('entry.play')}</Button>
-            <Button focusId="shuffle" variant="glass" icon="i-shuffle" style={phone ? {flex: 1} : undefined} onPress={() => onPlay(true)}>{t('title.shuffle')}</Button></> : undefined}}
+          // The frame shares a phone's action row in equal halves; the buttons add no sizing of their own (a flex here collapsed them).
+          actions: playable ? <><Button focusId="play" icon="i-play" onPress={() => onPlay(false)}>{t('entry.play')}</Button>
+            <Button focusId="shuffle" variant="glass" icon="i-shuffle" onPress={() => onPlay(true)}>{t('title.shuffle')}</Button></> : undefined}}
           toolbar={<BrowseToolbar testID="home-see-all-toolbar" model={toolbarModel} labels={browseLabels} resultCount={total && t('count.titles', {count: total.total})} resultTotal={total?.total}
             onFilters={onFilters} onSortChange={controller.setSort} onReshuffle={onReshuffle} view={{value: view, onValueChange: setView}}
             onQuickChange={(id, checked) => {
