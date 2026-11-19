@@ -11,7 +11,7 @@ const musicImports = {
   './use-playing-item': {usePlayingItem: (runtime: any) => runtime.playback?.getSnapshot().playback.itemId},
   './MusicWindow': {MusicScrollView: 'ScrollView', MusicWindow: 'MusicWindow', MusicShelf: 'ScrollView'},
   '../../../kit/selection': {SelectionCircle: 'SelectionCircle'},
-  // The album page draws on TitleFrame (the artist page has not moved yet).
+  // The album and artist pages draw on TitleFrame.
   '../../../kit/frames': {TitleFrame: 'TitleFrame', PanelHeading: 'PanelHeading', AboutTable: 'AboutTable'},
 };
 
@@ -107,9 +107,10 @@ for (const kind of ['album', 'artist'] as const) {
   for (const phase of ['loading', 'error', 'ready'] as const)
   test(`tablet ${kind} keeps one route Back while ${phase} and only ${phase === 'error' ? 'fails' : 'does not fail'} into the recovery view`, async () => {
     const view = await tabletMusic(kind, phase);
-    // The album's Back is TitleFrame's (its round disc over the head); the artist page still draws its own.
-    const frame = typed(view.tree, 'TitleFrame')[0];
-    const backs = kind === 'album' ? [{props: {...frame.props.back, icon: 'i-left', accessibilityLabel: frame.props.back.label}}] : backButtons(view.tree);
+    // Both pages draw on TitleFrame: their one Back is the frame's (its round disc over the head), and none of their own.
+    const frames = typed(view.tree, 'TitleFrame'); assert.equal(frames.length, 1);
+    assert.equal(backButtons(view.tree).length, 0, 'no Back button of the page\'s own');
+    const backs = [{props: {...frames[0].props.back, icon: 'i-left', accessibilityLabel: frames[0].props.back.label}}];
     assert.equal(backs.length, 1, 'exactly one accessible tablet Back');
     assert.equal(backs[0].props.testID, kind === 'album' ? 'native-tablet-album-back' : 'native-tablet-artist-back');
     assert.equal(backs[0].props.icon, 'i-left');
