@@ -68,10 +68,10 @@ function Film({more = false}: {more?: boolean}) {
     {id: 'owner', section: true, label: f('ownerOnly'), tone: 'owner'}, {id: 'edit', icon: 'i-edit', label: f('menuEdit'), onSelect: none}, {id: 'refresh', icon: 'i-refresh', label: f('menuRefresh'), onSelect: none}]}/>}</Page>;
 }
 function FilmResume() {
-  const [tab, setTab] = useState('more');
+  const [tab, setTab] = useState('more'), {isTV} = useTheme();
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-film-resume" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('bd-insideout.jpg')}/>} title={f('insideOut')} metadata={<Meta text={f('insideOutFacts')} tags={[f('insideOutRating')]}/>}
     primary={{icon: 'i-play', label: f('resume'), progress: .09, remaining: f('insideOutLeft'), startOver: {label: f('startOver'), onPress: none}, onPress: none}}
-    actions={[{icon: 'i-check', label: f('myList'), labelled: true, active: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    actions={[{icon: 'i-check', label: f('myList'), labelled: true, active: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, ...(isTV ? [] : [{icon: 'i-dl' as const, label: f('download'), onPress: none}]), {icon: 'i-more', label: f('more'), onPress: none}]}
     tagline={f('insideOutTagline')} synopsis={f('insideOutSynopsis')} credits={[{label: f('directedBy'), names: 'Pete Docter'}, {label: f('starring'), names: 'Amy Poehler, Phyllis Smith, Richard Kind, Bill Hader'}]}
     picker={<TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none}/>} tabs={tabs(tab, setTab)}>
     <Posters title={f('moreLikeInsideOut')} items={moreLikeInsideOut}/>

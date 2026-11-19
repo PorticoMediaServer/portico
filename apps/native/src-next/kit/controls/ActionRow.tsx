@@ -33,12 +33,13 @@ export type ActionRowProps = Readonly<{primary?: RowPrimary; actions?: readonly 
  * - an upright tablet (tablet f8): the same, centred, with the primary at its own width;
  * - a tablet on its side (tablet f6, f15): from the start, the primary, Start over, then each action, labelled where it
  *   says so; a label that does not fit takes a second line inside its button, it is never cut;
- * - TV (tv-detail 2): the TV lane's form. Until it lands, as the tablet on its side but wrapping, as before.
+ * - TV (tv-detail 1, 2): as a tablet on its side, one line at the mock-ups' 72 high with the gap of 18, except that an
+ *   extra (`wide`) action such as Watched is a round disc there, like More: only Start over and My List carry words.
  */
 export function ActionRow({primary, actions = [], loading = false}: ActionRowProps) {
   const theme = useTheme(), spec = frameSpec.actionRow, {form} = theme;
   const stacked = form === 'phone' || form === 'medium', height = theme.spec.button.hero.height[theme.column];
-  const side = (action: RowAction) => action.labelled && !stacked
+  const side = (action: RowAction) => action.labelled && !stacked && !(form === 'tv' && action.wide)
     ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
     : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
       style={[{width: height, height}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, spec.activeEdge)}]}/>;
@@ -46,7 +47,7 @@ export function ActionRow({primary, actions = [], loading = false}: ActionRowPro
   const lead = primary && {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, focusId: primary.focusId ?? primary.testID,
     focusableWhenDisabled: loading, align: stacked ? 'stretch' as const : 'start' as const, style: form === 'phone' ? {flex: 1} : width ? {width} : undefined};
   // While loading the row keeps its buttons but says nothing it does not know yet (the time left).
-  return <View style={{minHeight: height, alignSelf: stacked ? 'stretch' : undefined, flexDirection: 'row', flexWrap: form === 'tv' ? 'wrap' : 'nowrap', alignItems: 'center', justifyContent: stacked ? 'center' : 'flex-start', gap: spec.gap[form]}}>
+  return <View style={{minHeight: height, alignSelf: stacked ? 'stretch' : undefined, flexDirection: 'row', alignItems: 'center', justifyContent: stacked ? 'center' : 'flex-start', gap: spec.gap[form]}}>
     {lead && (primary.progress !== undefined && !loading
       ? <ResumeButton {...lead} size="hero" progress={primary.progress} remaining={primary.remaining}>{primary.label}</ResumeButton>
       : <Button {...lead} variant="primary" size="hero">{primary.label}</Button>)}
