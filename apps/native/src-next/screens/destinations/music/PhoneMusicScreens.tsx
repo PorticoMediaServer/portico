@@ -1,11 +1,9 @@
-import React, {useId, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import React, {useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View, type NativeScrollEvent, type NativeSyntheticEvent, type View as NativeView} from 'react-native';
-import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import {cardText} from '../../../../../../packages/client-core/src/presentation/kit-model';
-import {AmbientArt, Artwork, ArtistCircle, missingArt} from '../../../kit/artwork';
+import {Artwork, ArtistCircle, missingArt} from '../../../kit/artwork';
 import {Button, Chip, Focusable} from '../../../kit/controls';
 import {CircleCard, SquareCard} from '../../../kit/cards';
 import {Icon} from '../../../kit/Icon';
@@ -24,8 +22,6 @@ import {MusicScrollView, MusicWindow, MusicShelf} from './MusicWindow';
 import type {NativeSavedSelectionPort} from '../../saved/SavedScreen';
 import {SelectionCircle} from '../../../kit/selection';
 import {TVRow} from '../../../kit/layout/TVRow';
-import {Lockup} from '../../../kit/layout/Lockup';
-import {TopBar, RoundBarButton} from '../../../kit/layout/TopBar';
 import {AboutTable, PanelHeading, TitleFrame, type TitleAction} from '../../../kit/frames';
 
 const t = defaultI18n.t;
@@ -44,73 +40,12 @@ export const phoneMusicGeometry = Object.freeze({
 });
 
 
-/** The floating back/More header the phone music frames draw over the wash. */
-function PhoneHeader({title, collapsed = false, onBack, onMore, moreRef}: {title: string; collapsed?: boolean; onBack: () => void; onMore: () => void; moreRef: React.RefObject<NativeView | null>}) {
-  // As the title page's: once the page title has scrolled under the bar, the bar takes its surface and the title, so the
-  // page's own title never shows cut under the round Back button.
-  return <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10}}>
-    <TopBar overArtwork surface={collapsed} title={collapsed ? title : undefined} back={{label: t('action.back'), onPress: onBack}} trailing={<RoundBarButton ref={moreRef} icon="i-more" label={t('card.more', {title})} onPress={onMore}/>}/>
-  </View>;
-}
-
-/** The cover's colours spread behind the page and fade down (phone-app#13 .amb-l). On a tablet it keeps its own drawing. */
-function Wash({runtime, path}: {runtime: NativeShellRuntime; path: string | undefined}) {
-  const theme = useTheme(), source = runtime.ambient(path), gradient = useId();
-  // A phone draws the frames' wash in the kit (W2): its private ink layer at .45 turned the cover's colour grey.
-  if (theme.platform === 'phone') return source ? <AmbientArt source={source} treatment="page" style={{position: 'absolute', top: 0, left: 0, right: 0}}/> : null;
-  return <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: 700, overflow: 'hidden'}}>
-    {source ? <AmbientArt source={source} treatment="title" style={{position: 'absolute', inset: 0}}/> : null}
-    <View style={{position: 'absolute', inset: 0, backgroundColor: alpha(theme.colors.ink, .45)}}/>
-    <Svg width="100%" height="100%" style={{position: 'absolute', inset: 0}} accessible={false}>
-      <Defs><LinearGradient id={gradient} x1="0" y1="0" x2="0" y2="1"><Stop offset="0.25" stopColor={theme.colors.ink} stopOpacity={0}/><Stop offset="1" stopColor={theme.colors.ink} stopOpacity={1}/></LinearGradient></Defs>
-      <Rect width="100%" height="100%" fill={`url(#${gradient})`}/>
-    </Svg>
-  </View>;
-}
-
 /** The drawn meta line: the strong first fact, then quiet ones, centred. */
 function Facts({facts, strongFirst = true}: {facts: readonly string[]; strongFirst?: boolean}) {
   const theme = useTheme();
   return <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: theme.platform === 'phone' ? 'center' : 'flex-start', columnGap: 12, rowGap: 6, marginTop: 8, paddingHorizontal: theme.platform === 'phone' ? 20 : 0}}>
     {facts.map((fact, index) => <Text key={`${fact}-${index}`} style={[browseType(theme, theme.platform === 'phone' ? phoneMusicGeometry.meta : 14.5, strongFirst && index === 0 ? 700 : 400),
       {color: strongFirst && index === 0 ? theme.colors.text : theme.colors.textSecondary}]}>{fact}</Text>)}
-  </View>;
-}
-
-/** Play and Shuffle are the drawn wide pair; the round slot carries the drawn More on an artist. */
-function MusicActions({controller, entry, runtime, actions, moreRef, roundMore, download}: {
-  controller: NativeTVMusicController; entry: ContentEntry; runtime: NativeShellRuntime; actions: Actions; moreRef: React.RefObject<NativeView | null>; roundMore: boolean; download?: (entry: ContentEntry) => void;
-}) {
-  const theme = useTheme();
-  const run = (work: Promise<unknown>) => {void work.catch(runtime.reportError);};
-  const label = entry.kind === 'album' ? t('music.playAlbum', {album: entry.title}) : t('music.playArtist', {artist: entry.title});
-  const shuffle = entry.kind === 'album' ? t('title.shuffle') : t('music.shuffleArtist', {artist: entry.title});
-  const action = {height: phoneMusicGeometry.actionHeight, borderRadius: phoneMusicGeometry.actionRadius, paddingHorizontal: 20, gap: 8};
-  return <View style={{flexDirection: 'row', alignItems: 'center', gap: phoneMusicGeometry.actionGap}}>
-    <Button style={[action, {flex: 1}]} icon="i-play" textStyle={browseType(theme, 15, 700)} accessibilityLabel={label} onPress={() => run(controller.play())}>{t('entry.play')}</Button>
-    <Button variant="glass" style={[action, {flex: 1}]} icon="i-shuffle" textStyle={browseType(theme, 15, 700)} accessibilityLabel={shuffle} onPress={() => run(controller.play(undefined, true))}>{t('title.shuffle')}</Button>
-    {download ? <Button variant="glass" iconOnly icon="i-dl" style={{height: phoneMusicGeometry.actionHeight, width: phoneMusicGeometry.actionHeight, borderRadius: phoneMusicGeometry.actionRadius}}
-      accessibilityLabel={t('next.cards.download')} onPress={() => download(entry)}/> : roundMore ? <Button ref={moreRef} variant="glass" iconOnly icon="i-more" style={{height: phoneMusicGeometry.actionHeight, width: phoneMusicGeometry.actionHeight, borderRadius: phoneMusicGeometry.actionRadius}}
-      accessibilityLabel={t('card.more', {title: entry.title})} onPress={() => actions.menu(entry, moreRef)}/> : null}
-  </View>;
-}
-
-/**
- * The tablet album and artist pages' one action row (tablet-play 11): Play and Shuffle with their labels, then the round
- * Favorite, Add to playlist and More. Where the column is too narrow for one line (upright, beside the cover) it wraps:
- * the round buttons move to a second line and no label is ever cut ("S" for Shuffle, owner's standing complaint).
- */
-function TabletMusicActions({controller, runtime, favorite, height, labelSize, onPlaylist, more, centered = false}: {
-  controller: NativeTVMusicController; runtime: NativeShellRuntime; favorite: boolean | undefined; height: number; labelSize: number;
-  onPlaylist?: () => void; more: React.ReactNode; centered?: boolean;
-}) {
-  const theme = useTheme(), wide = {height, borderRadius: phoneMusicGeometry.actionRadius, paddingHorizontal: 24}, round = {height, width: height, borderRadius: phoneMusicGeometry.actionRadius};
-  return <View testID="native-tablet-music-actions" style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centered ? 'center' : 'flex-start', gap: 10, marginTop: 20}}>
-    <Button style={wide} icon="i-play" textStyle={browseType(theme, labelSize, 700)} onPress={() => {void controller.play().catch(runtime.reportError);}}>{t('entry.play')}</Button>
-    <Button variant="glass" style={wide} icon="i-shuffle" textStyle={browseType(theme, labelSize, 700)} onPress={() => {void controller.play(undefined, true).catch(runtime.reportError);}}>{t('title.shuffle')}</Button>
-    <Button variant="glass" iconOnly icon={favorite ? 'i-heart-f' : 'i-heart'} style={round} accessibilityLabel={t(favorite ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite')} onPress={() => {void controller.toggleFavorite().catch(runtime.reportError);}}/>
-    {onPlaylist ? <Button variant="glass" iconOnly icon="i-list-plus" style={round} accessibilityLabel={t('next.selection.addToPlaylist')} onPress={onPlaylist}/> : null}
-    {more}
   </View>;
 }
 
@@ -318,13 +253,13 @@ function TabletSongLine({song, index, digits, columns = {plays: true, duration: 
   </Focusable>;
 }
 
-/** phone-app#15b: the artist body, with the drawn circle, Top songs and Albums. */
+/** phone-app#15b, tablet-play 11: the artist page on TitleFrame: the circle, Play and its buttons, Top songs, the releases by
+ * kind and Similar artists. The page keeps its own scroller (the song window and the shelves' paging). */
 export function PhoneArtistScreen({controller, entry, runtime, actions, openEntry, onBack, selection}: {
   controller: NativeTVMusicController; entry: ContentEntry; runtime: NativeShellRuntime; actions: Actions; selection?: NativeSavedSelectionPort; openEntry: (entry: ContentEntry) => void; onBack: () => void;
 }) {
-  const theme = useTheme(), insets = useSafeAreaInsets(), snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot), playingId = usePlayingItem(runtime);
+  const theme = useTheme(), snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot), playingId = usePlayingItem(runtime);
   useSyncExternalStore(selection?.subscribe ?? noSubscribe, selection?.getSnapshot ?? noRevision);
-  const more = useRef<NativeView>(null), [collapsed, setCollapsed] = useState(false);
   const [tableWidth, setTableWidth] = useState(0), columns = songTableColumns(tableWidth, theme.textScale * theme.fontScale);
   const releases=useMemo(()=>artistReleaseGroups(snapshot.albums),[snapshot.albums]);
   const covers = useMemo(() => snapshot.albums.flatMap(album => {const source = runtime.artwork(album.posterUrl); return source ? [source] : [];}), [snapshot.albums, runtime]);
@@ -333,70 +268,40 @@ export function PhoneArtistScreen({controller, entry, runtime, actions, openEntr
     snapshot.songTotal ? t('title.songCount', {count: snapshot.songTotal}) : undefined,
     entry.genres?.[0],
   ].filter((value): value is string => !!value);
-  if (theme.platform !== 'phone') {
-    const round = {height: phoneMusicGeometry.actionHeight, width: phoneMusicGeometry.actionHeight, borderRadius: phoneMusicGeometry.actionRadius};
-    const years = entry.activeBeginYear || entry.activeEndYear ? `${entry.activeBeginYear ?? ''}–${entry.activeEndYear ?? ''}` : undefined;
-    const details = [[t('title.genres'), entry.genres?.join(', ')], [t('title.country'), entry.country], [t('title.year'), years]].filter(([, value]) => !!value) as [string, string][];
-    return <View testID="native-tablet-artist" style={{flex: 1}}>
-      <Wash runtime={runtime} path={snapshot.albums[0]?.posterUrl ?? entry.posterUrl ?? entry.backdropUrl}/>
-      <MusicScrollView contentContainerStyle={{paddingTop: 56, paddingBottom: 100}} showsVerticalScrollIndicator={false}>
-        <View style={{alignItems: 'center', paddingHorizontal: 32}}>
-          <ArtistCircle covers={covers} rings={[3]} initials={[...entry.title.trim()][0] ?? ''} alt={entry.title} size={220} visible/>
-          <Lockup title={entry.title} size={58} lineRatio={61 / 58} tracking={-.04} style={{textAlign: 'center', marginTop: 20}}/>
-          {facts.length ? <Facts facts={facts} strongFirst={false}/> : null}
-          <TabletMusicActions controller={controller} runtime={runtime} favorite={snapshot.favorite} height={phoneMusicGeometry.actionHeight} labelSize={15} centered
-            more={<Button ref={more} variant="glass" iconOnly icon="i-more" style={round} accessibilityLabel={t('card.more', {title: entry.title})} onPress={() => actions.menu(entry, more)}/>}/>
-        </View>
-        {snapshot.phase === 'error' ? <MusicErrorView testID={`music-page-${entry.id}-error`} error={snapshot.error} onRetry={() => {void controller.load();}} style={{marginHorizontal: 32, marginTop: 24}}/> : null}
-        {selection?.start && controller.selectionProjection() ? <View style={{alignItems: 'flex-end', paddingHorizontal: 32, marginTop: 24}}><Chip icon="i-check" onPress={() => selection.start?.()}>{t('next.selection.select')}</Chip></View> : null}
-        {snapshot.songs.length ? <View style={{marginTop: 32, paddingHorizontal: 32}}>
-          <Text style={[browseType(theme, 19, 700), {color: theme.colors.text, marginBottom: 8}]}>{t('music.topSongs')}</Text>
-          <SongTableHeader columns={columns} onWidth={setTableWidth}/>
-          <MusicWindow items={snapshot.songs} itemHeight={60} renderItem={(song, index) => <TabletSongLine song={song} columns={columns} index={index} digits={trackDigits(snapshot.songs)} runtime={runtime} controller={controller} actions={actions} playingId={playingId} selection={selection}/>}/>
-        </View> : null}
-        {releases.map(group=><View key={group.id} style={{marginTop:28,paddingHorizontal:32}}>
-          <Text style={[browseType(theme,19,700),{color:theme.colors.text,marginBottom:10}]}>{t(group.label)}</Text>
-          <MusicShelf items={group.entries} width={phoneMusicGeometry.albumCard} gap={14} inset={0} onNearEnd={()=>{void controller.nextReleases(snapshot.releases);}}
-            renderItem={album=><AlbumCard album={album} controller={controller} selection={selection} runtime={runtime} actions={actions} openEntry={openEntry} onFocus={()=>controller.focusRelease(album,snapshot.releases)} onBlur={()=>controller.blurRelease(album,snapshot.releases)}/>}/>
-        </View>)}
-        <View style={{paddingHorizontal:32}}><MusicSectionControls id="artist-releases" section={snapshot.releases} next={()=>{void controller.nextReleases(snapshot.releases);}} previous={()=>{void controller.previousReleases(snapshot.releases);}} retry={()=>{void controller.retryReleases(snapshot.releases);}} refresh={()=>{void controller.refreshReleases(snapshot.releases);}}/></View>
-        {details.length ? <View style={{paddingHorizontal: 32, marginTop: 28, width: 340}}>
-          <Text style={[browseType(theme, 19, 700), {color: theme.colors.text, marginBottom: 8}]}>{t('title.details')}</Text>
-          {details.map(([label, value]) => <View key={label} style={{flexDirection: 'row', gap: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>
-            <Text style={[browseType(theme, 13, 400), {width: 96, color: theme.colors.textTertiary}]}>{label}</Text><Text style={[browseType(theme, 13, 500), {flex: 1, color: theme.colors.text}]}>{value}</Text></View>)}
-        </View> : null}
-        <SimilarArtists selection={selection} snapshot={snapshot} controller={controller} runtime={runtime} actions={actions} openEntry={openEntry} inset={32} gap={14}/>
-      </MusicScrollView>
-      <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top + 8, left: 16, zIndex: 15}}>
-        <Button testID="native-tablet-artist-back" variant="icon" icon="i-left" iconOnly accessibilityLabel={t('action.back')} onPress={onBack} style={{height: 44, width: 44}}/>
-      </View>
-    </View>;
-  }
-  return <View testID="native-phone-artist" style={{flex: 1}}>
-    <Wash runtime={runtime} path={snapshot.albums[0]?.posterUrl ?? entry.posterUrl ?? entry.backdropUrl}/>
-    <MusicScrollView contentContainerStyle={{paddingTop: Math.max(phoneMusicGeometry.artistTop, insets.top + 56), paddingBottom: 40}} showsVerticalScrollIndicator={false}
-      collapseAt={Math.max(phoneMusicGeometry.artistTop, insets.top + 56) + phoneMusicGeometry.artistCircle + 18 - (insets.top + 44)} onCollapse={setCollapsed}>
-      <View style={{alignItems: 'center', paddingHorizontal: 20}}>
-        <ArtistCircle covers={covers} rings={[3]} initials={[...entry.title.trim()][0] ?? ''} alt={entry.title} size={phoneMusicGeometry.artistCircle} visible/>
-        <Lockup title={entry.title} size={phoneMusicGeometry.artistTitle} style={{textAlign: 'center', marginTop: 18}}/>
-        {facts.length ? <Facts facts={facts} strongFirst={false}/> : null}
-      </View>
-      <View style={{paddingHorizontal: 20, marginTop: 18}}><MusicActions controller={controller} entry={entry} runtime={runtime} actions={actions} moreRef={more} roundMore/></View>
-      {snapshot.phase === 'error' ? <MusicErrorView testID={`music-page-${entry.id}-error`} error={snapshot.error} onRetry={() => {void controller.load();}} style={{margin: 20}}/> : null}
-      {snapshot.songs.length ? <View style={{marginTop: 18}}>
-        <Text style={[browseType(theme, phoneMusicGeometry.sectionLabel, 700), {color: theme.colors.textTertiary, marginHorizontal: 20, marginBottom: 8}]}>{t('music.topSongs')}</Text>
-        <SongLines songs={snapshot.songs} runtime={runtime} controller={controller} actions={actions} playingId={playingId} selection={selection}/>
-      </View> : null}
-      {releases.map(group=><View key={group.id} style={{marginTop:14}}>
-        <Text style={[browseType(theme,19,700),{color:theme.colors.text,marginHorizontal:20,marginBottom:10}]}>{t(group.label)}</Text>
-        <MusicShelf items={group.entries} width={phoneMusicGeometry.albumCard} gap={12} inset={20} onNearEnd={()=>{void controller.nextReleases(snapshot.releases);}}
-            renderItem={album=><AlbumCard album={album} controller={controller} selection={selection} runtime={runtime} actions={actions} openEntry={openEntry} onFocus={()=>controller.focusRelease(album,snapshot.releases)} onBlur={()=>controller.blurRelease(album,snapshot.releases)}/>}/>
-      </View>)}
-      <View style={{paddingHorizontal:20}}><MusicSectionControls id="artist-releases" section={snapshot.releases} next={()=>{void controller.nextReleases(snapshot.releases);}} previous={()=>{void controller.previousReleases(snapshot.releases);}} retry={()=>{void controller.retryReleases(snapshot.releases);}} refresh={()=>{void controller.refreshReleases(snapshot.releases);}}/></View>
-      <SimilarArtists selection={selection} snapshot={snapshot} controller={controller} runtime={runtime} actions={actions} openEntry={openEntry} inset={20} gap={12}/>
-    </MusicScrollView>
-    <PhoneHeader title={entry.title} collapsed={collapsed} onBack={onBack} onMore={() => actions.menu(entry, more)} moreRef={more}/>
-  </View>;
+  const tablet = theme.platform !== 'phone', inset = tablet ? 32 : 20;
+  const run = (work: Promise<unknown>) => {void work.catch(runtime.reportError);};
+  const years = entry.activeBeginYear || entry.activeEndYear ? `${entry.activeBeginYear ?? ''}–${entry.activeEndYear ?? ''}` : undefined;
+  const details = tablet ? [[t('title.genres'), entry.genres?.join(', ')], [t('title.country'), entry.country], [t('title.year'), years]].filter(([, value]) => !!value) as [string, string][] : [];
+  // Each form keeps its own buttons: a phone Shuffle and More; a tablet Shuffle, Favorite and More.
+  const buttons: TitleAction[] = [
+    {icon: 'i-shuffle', label: t('title.shuffle'), labelled: true, onPress: () => run(controller.play(undefined, true))},
+    ...(tablet ? [{icon: snapshot.favorite ? 'i-heart-f' as const : 'i-heart' as const, label: t(snapshot.favorite ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite'), active: !!snapshot.favorite, onPress: () => run(controller.toggleFavorite())}] : []),
+    {icon: 'i-more', label: t('card.more', {title: entry.title}), onPress: () => actions.menu(entry)},
+  ];
+  return <TitleFrame testID={tablet ? 'native-tablet-artist' : 'native-phone-artist'} back={{label: t('action.back'), onPress: onBack, testID: tablet ? 'native-tablet-artist-back' : 'native-phone-artist-back'}}
+    scroller={(content, style, collapse) => <MusicScrollView style={{flex: 1}} contentContainerStyle={style} showsVerticalScrollIndicator={false} collapseAt={collapse.at} onCollapse={collapse.onChange}>{content}</MusicScrollView>}
+    cover={{shape: 'circle', node: (size: number) => <ArtistCircle covers={covers} rings={[3]} initials={[...entry.title.trim()][0] ?? ''} alt={entry.title} size={size} visible/>}}
+    title={entry.title} metadata={facts.length ? <Facts facts={facts} strongFirst={false}/> : undefined}
+    primary={{icon: 'i-play', label: t('entry.play'), onPress: () => run(controller.play())}} actions={buttons}
+    aside={details.length ? <View><PanelHeading title={t('title.details')}/><AboutTable rows={details.map(([label, value]) => ({label, values: [{text: value}]}))}/></View> : undefined}>
+    {snapshot.phase === 'error' ? <MusicErrorView testID={`music-page-${entry.id}-error`} error={snapshot.error} onRetry={() => {void controller.load();}} style={{marginHorizontal: inset}}/> : null}
+    {tablet && selection?.start && controller.selectionProjection() ? <View style={{alignItems: 'flex-end', paddingHorizontal: inset}}><Chip icon="i-check" onPress={() => selection.start?.()}>{t('next.selection.select')}</Chip></View> : null}
+    {snapshot.songs.length ? tablet ? <View style={{paddingHorizontal: inset}}>
+      <Text style={[browseType(theme, 19, 700), {color: theme.colors.text, marginBottom: 8}]}>{t('music.topSongs')}</Text>
+      <SongTableHeader columns={columns} onWidth={setTableWidth}/>
+      <MusicWindow items={snapshot.songs} itemHeight={60} renderItem={(song, index) => <TabletSongLine song={song} columns={columns} index={index} digits={trackDigits(snapshot.songs)} runtime={runtime} controller={controller} actions={actions} playingId={playingId} selection={selection}/>}/>
+    </View> : <View>
+      <Text style={[browseType(theme, phoneMusicGeometry.sectionLabel, 700), {color: theme.colors.textTertiary, marginHorizontal: inset, marginBottom: 8}]}>{t('music.topSongs')}</Text>
+      <SongLines songs={snapshot.songs} runtime={runtime} controller={controller} actions={actions} playingId={playingId} selection={selection}/>
+    </View> : null}
+    {releases.map(group=><View key={group.id}>
+      <Text style={[browseType(theme,19,700),{color:theme.colors.text,marginHorizontal:inset,marginBottom:10}]}>{t(group.label)}</Text>
+      <MusicShelf items={group.entries} width={phoneMusicGeometry.albumCard} gap={tablet ? 14 : 12} inset={inset} onNearEnd={()=>{void controller.nextReleases(snapshot.releases);}}
+        renderItem={album=><AlbumCard album={album} controller={controller} selection={selection} runtime={runtime} actions={actions} openEntry={openEntry} onFocus={()=>controller.focusRelease(album,snapshot.releases)} onBlur={()=>controller.blurRelease(album,snapshot.releases)}/>}/>
+    </View>)}
+    <View style={{paddingHorizontal:inset}}><MusicSectionControls id="artist-releases" section={snapshot.releases} next={()=>{void controller.nextReleases(snapshot.releases);}} previous={()=>{void controller.previousReleases(snapshot.releases);}} retry={()=>{void controller.retryReleases(snapshot.releases);}} refresh={()=>{void controller.refreshReleases(snapshot.releases);}}/></View>
+    <SimilarArtists selection={selection} snapshot={snapshot} controller={controller} runtime={runtime} actions={actions} openEntry={openEntry} inset={inset} gap={tablet ? 14 : 12}/>
+  </TitleFrame>;
 }
 
 /** TV-005/WEB-050 parity: a similar row reads its next page within a screen of its end. */
