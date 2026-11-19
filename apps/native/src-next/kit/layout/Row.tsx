@@ -59,6 +59,20 @@ export type RowProps<T> = {
   refocus?: RowPage<T>['refocus'];
 };
 
+export type SeeAllLinkProps = Readonly<{label: string; onPress: () => void; accessibilityHint?: string; testID?: string;
+  onFocus?: () => void; onBlur?: () => void; style?: StyleProp<ViewStyle>}>;
+/** A section's "See all ›" at the end of its heading (phone-detail `.dh .a`, desktop-browse rows): the `seeAll` role in the
+ * tertiary colour with its chevron, flush with the heading's end (no padding; the hit area is a slop). A row's own wide
+ * heading and a title page's Cast and crew draw it. */
+export function SeeAllLink({label, onPress, accessibilityHint, testID, onFocus, onBlur, style}: SeeAllLinkProps) {
+  const theme = useTheme();
+  return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} accessibilityHint={accessibilityHint} onPress={onPress} onFocus={onFocus} onBlur={onBlur} hitSlop={10}
+    style={[{marginLeft: 'auto', minHeight: theme.scale.icon.tertiary.size, flexDirection: 'row', alignItems: 'center', gap: theme.space.hairline * 2}, style]}>
+    <Text style={[theme.type.seeAll, {color: theme.colors.textTertiary, includeFontPadding: false}]}>{label}</Text>
+    <Icon name="i-right" size={theme.scale.icon.tertiary.size} color={theme.colors.textTertiary}/>
+  </Pressable>;
+}
+
 function ArrowBackdrop({back}: {back: boolean}) {
   const {colors} = useTheme(), id = useId();
   return <Svg pointerEvents="none" accessible={false} width="100%" height="100%" style={{position: 'absolute', inset: 0}}>
@@ -232,10 +246,8 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
         <Text accessibilityRole="header" style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text><Icon name="i-right" size={18} color={theme.colors.textTertiary} />
       </Pressable> : <Text accessibilityRole="header" style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text>}
       {subtitle && <View style={{flexShrink: 1}}>{typeof subtitle === 'string' ? <Text style={[theme.type.rowSubtitle, {color: theme.colors.textTertiary, includeFontPadding: false}]}>{subtitle}</Text> : subtitle}</View>}
-      {onSeeAll && !theme.isTV && theme.form !== 'phone' && <Pressable testID={testID ? `${testID}-see-all` : undefined} accessibilityRole="button" accessibilityLabel={defaultI18n.t('next.layout.seeAll')} accessibilityHint={title} onPress={onSeeAll}
-        onFocus={() => setArrowFocus('all')} onBlur={() => setArrowFocus(undefined)} hitSlop={10} style={[{marginLeft: 'auto', minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: 2}, controlStyle(arrowFocus === 'all')]}>
-        <Text style={[theme.type.seeAll, {color: theme.colors.textTertiary, includeFontPadding: false}]}>{defaultI18n.t('next.layout.seeAll')}</Text><Icon name="i-right" size={16} color={theme.colors.textTertiary} />
-      </Pressable>}
+      {onSeeAll && !theme.isTV && theme.form !== 'phone' && <SeeAllLink testID={testID ? `${testID}-see-all` : undefined} label={defaultI18n.t('next.layout.seeAll')} accessibilityHint={title} onPress={onSeeAll}
+        onFocus={() => setArrowFocus('all')} onBlur={() => setArrowFocus(undefined)} style={controlStyle(arrowFocus === 'all')}/>}
 
     </View>}
     <RowRegion focus={theme.isTV ? focus : undefined} order={activeOrder} entry={activeEntry}

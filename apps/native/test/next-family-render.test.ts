@@ -327,9 +327,10 @@ test('a row\'s See all is the chevron after its heading on a phone and the label
         renderItem: (item: {id: string}) => React.createElement('View', {key: item.id})});
       try {
         const control = nodes(row.tree).find(node => node.props.testID === 'shelf-see-all')!;
-        const words = nodes(control).filter(node => node.type === 'Text').map(node => node.props.children);
+        // Wider forms draw the kit's SeeAllLink (its label, flush with the heading's end, is its own); a phone's heading carries the chevron.
+        const words = end ? [control.props.label] : nodes(control).filter(node => node.type === 'Text').map(node => node.props.children);
         assert.deepEqual(words, end ? ['See all'] : ['Recently Added'], `${width}: ${end ? 'the labelled See all at the end' : 'the heading carries the chevron'}`);
-        if (end) assert.equal(Object.assign({}, ...[control.props.style].flat(9).filter(Boolean)).marginLeft, 'auto');
+        if (end) assert.equal((control.type as {name?: string}).name, 'SeeAllLink');
         control.props.onPress(); assert.equal(opened, 1);
       } finally {await row.host.unmount();}
     }
