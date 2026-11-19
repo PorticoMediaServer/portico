@@ -17,6 +17,10 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
 }, ref) {
   const theme = useTheme(), paint = useOverlayPaintMode(), input = useRef<TextInput>(null), target = useRef<View>(null);
   const [editing, setEditing] = useState(false), submitted = useRef(false);
+  // tvOS opens its keyboard only when the focused text field itself is selected; a hidden field made first responder
+  // after Select (Android's way) never shows it. So on Apple TV the native field, laid over the drawn one, is the focus
+  // stop, and the drawn field takes its focus look from it.
+  const appleTV = Platform.OS === 'ios', [typing, setTyping] = useState(false);
   const eligible = paint.interactive && editable && focusable !== false;
   const search = variant === 'search', height = search ? fieldSpec.search.height.tv : fieldSpec.height.tv;
   const suppliedRadius = StyleSheet.flatten(fieldStyle)?.borderRadius;
@@ -42,14 +46,14 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
     {color: value ? theme.colors.text : placeholderTextColor ?? theme.colors[fieldSpec.tv.muted]}];
   return <View style={[{gap: fieldSpec.tv.labelGap, alignSelf: 'stretch'}, containerStyle]}>
     {label !== undefined && <Text style={[theme.type[fieldSpec.tv.label], {color: theme.colors[fieldSpec.tv.muted]}]}>{label}</Text>}
-    <Focusable ref={target} focusId={focusId} testID={testID} disabled={!eligible} preferredFocus={autoFocus}
+    <View><Focusable ref={target} focusId={focusId} testID={testID} disabled={!eligible} preferredFocus={autoFocus && !appleTV} focusable={appleTV ? false : undefined}
       accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : props.placeholder)}
       accessibilityValue={{text: displayed || props.placeholder || ''}} accessibilityState={{...accessibilityState, disabled: !editable}}
       focusKind="field" focusRadius={radius} onPress={open} onAccessibilityTap={open} onFocus={onFocus} onBlur={onBlur}
-      style={({focused}) => [{minHeight: height, borderRadius: radius, paddingHorizontal: search ? fieldSpec.search.paddingX.tv : fieldSpec.paddingX.tv,
+      style={({focused: own}) => {const focused = own || typing; return [{minHeight: height, borderRadius: radius, paddingHorizontal: search ? fieldSpec.search.paddingX.tv : fieldSpec.paddingX.tv,
         flexDirection: 'row', alignItems: 'center', gap: 10, opacity: editable ? 1 : .45}, fieldStyle,
         {backgroundColor: focused ? theme.colors[fieldSpec.fill.focus] : colorAlpha(theme.colors[fieldSpec.tv.rest.background], fieldSpec.tv.rest.backgroundAlpha ?? 1),
-          borderWidth: fieldSpec.borderWidth.tv, borderColor: theme.colors[error ? fieldSpec.border.invalid : focused ? fieldSpec.border.focus : fieldSpec.border.rest]}]}>
+          borderWidth: fieldSpec.borderWidth.tv, borderColor: theme.colors[error ? fieldSpec.border.invalid : focused ? fieldSpec.border.focus : fieldSpec.border.rest]}];}}>
       {leadingIcon && <Icon name={leadingIcon} size={iconSize ?? 30} color={theme.colors.textTertiary}/>}
       {/* A typed value keeps its end in view (an address's last part, as typing it); the placeholder starts at its first
           word and takes a second line rather than being cut (tv-more, final3-tv-09). */}
@@ -57,8 +61,12 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
         : <Text style={[textStyle, {flex: 1, minWidth: 0}]}>{props.placeholder ?? ''}</Text>}
       {trailing}
     </Focusable>
+    {appleTV && <TextInput {...props} ref={input} nativeID={nativeID} value={value} editable={eligible} focusable={eligible} hasTVPreferredFocus={autoFocus}
+      accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : props.placeholder)}
+      style={styles.appleTVInput} onChangeText={eligible ? props.onChangeText : undefined}
+      onFocus={event => {setTyping(true); onFocus?.(event);}} onBlur={event => {setTyping(false); onBlur?.(event);}}/>}</View>
     {/* Focus on native mount so the text input is in the window when it asks for the keyboard. */}
-    <TextInput key={editing ? 'editing' : 'idle'} {...props} ref={input} nativeID={nativeID} value={value} multiline={multiline}
+    {!appleTV && <TextInput key={editing ? 'editing' : 'idle'} {...props} ref={input} nativeID={nativeID} value={value} multiline={multiline}
       autoFocus={editing && eligible} editable={eligible} focusable={editing && eligible}
       accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : props.placeholder)}
       accessible={false} importantForAccessibility="no-hide-descendants" cursorColor={cursorColor} selectionColor={selectionColor}
@@ -66,10 +74,12 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
       onSubmitEditing={event => {
         submitted.current = true; setEditing(false);
         if (props.onSubmitEditing) props.onSubmitEditing(event); else target.current?.requestTVFocus();
-      }} onBlur={close}/>
+      }} onBlur={close}/>}
     {error !== undefined ? <FormError placement="inline">{error}</FormError>
       : description !== undefined && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{description}</Text>}
   </View>;
 });
 
-const styles = StyleSheet.create({keyboardInput: {position: 'absolute', width: 1, height: 1, opacity: 0}});
+// The Apple TV field covers the drawn one; the focus engine skips a view under ~1% opacity, so it is barely visible, never 0.
+const styles = StyleSheet.create({keyboardInput: {position: 'absolute', width: 1, height: 1, opacity: 0},
+  appleTVInput: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.02}});
