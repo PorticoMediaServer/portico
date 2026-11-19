@@ -29,12 +29,12 @@ export function LibraryToolbar({focusScope, model, labels, filterCount, filtersO
   trailing?: ReactNode;
   /** The drawn tablet gutter, so the row lines up with the cards. */
   gutter?: number;
-  /** Phone: while a filter applies, how many match ("Filters · 12"); a phone draws no standing count. */
+  /** Phone and tablet: while a filter applies, how many match ("Filters · 12"); no standing count. */
   matches?: number;
 }) {
   const theme = useTheme(), {width} = useWindowDimensions();
   const sort = <LibrarySortMenu focusScope={focusScope} sorts={model.sorts} value={model.sort} label={labels.sort} onValueChange={onSort} onReshuffle={onReshuffle}/>;
-  const filters = <FocusItem focusId="filters"><FiltersButton count={filterCount} matches={theme.platform === 'phone' && filterCount > 0 ? matches : undefined} open={filtersOpen} onPress={onFilters}/></FocusItem>;
+  const filters = <FocusItem focusId="filters"><FiltersButton count={filterCount} matches={!theme.isTV && filterCount > 0 ? matches : undefined} open={filtersOpen} onPress={onFilters}/></FocusItem>;
   const controls = <>
     {theme.isTV ? <>{sort}{filters}<Chip ref={jumpAnchor} focusId="jump" disabled={!jumpEnabled} onPress={onJump}>{defaultI18n.t('next.browse.native.jumpTo')}</Chip></>
       : <>{width >= 600 && onSelect && !selecting && showSelect && <FocusItem focusId="select"><Button testID="library-select" variant="glass" size="small" onPress={onSelect} style={{height: 44}}>{defaultI18n.t('next.selection.select')}</Button></FocusItem>}{filters}{sort}</>}
@@ -43,19 +43,13 @@ export function LibraryToolbar({focusScope, model, labels, filterCount, filtersO
     {theme.isTV && <View style={{marginLeft: 'auto'}}><FocusItem focusId="save"><SaveViewButton canSave={canSave} onSave={onSave}/></FocusItem></View>}
   </>;
   if (theme.isTV) return <View style={{paddingLeft: theme.gutter, paddingRight: theme.layout.gutter.tvRight, paddingTop: 16, flexDirection: 'row', alignItems: 'center', gap: 14}}>{controls}</View>;
-  // tablet4/5: one drawn toolbar row, with the real count and the grid/list control at the right.
-  if (theme.platform !== 'phone') {
-    // Select lives in the drawn library header on both tablet sizes.
-    return <View style={{paddingHorizontal: gutter ?? theme.gutter, paddingTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8}}>
-      {filters}{sort}
-      <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{trailing}</View>
-    </View>;
-  }
-  // Phone (owner's one-row rule, kit BrowseToolbar): Filters, sort, then the quick chips in the kit's sideways rail (it never draws
-  // a chip cut off), and grid / list pinned at the right end. No count line: Filters says how many match while a filter applies.
-  return <View style={{paddingHorizontal: theme.gutter, paddingTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8}}>
+  // Phones, tablets (both ways) and foldables (owner's header rule, kit BrowseToolbar): ONE row of Filters, sort, then the quick
+  // chips in the kit's sideways rail (it never draws a chip cut off), and grid / list pinned at the right end. No count line:
+  // Filters says how many match while a filter applies. Select lives in the tablet header. A docked Filters pane carries the
+  // quick play states as its own fields, so the rail drops them while it is docked.
+  return <View style={{paddingHorizontal: gutter ?? theme.gutter, paddingTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8}}>
     {filters}{sort}
-    <ChipRail>{model.quick.map(preset => <FocusItem key={preset.id} focusId={`quick:${preset.id}`}><QuickToggle checked={preset.active} onCheckedChange={enabled => onQuick(preset.id, enabled)}>{preset.label?.text ?? labels.quick(preset)}</QuickToggle></FocusItem>)}</ChipRail>
+    <ChipRail>{!docked && model.quick.map(preset => <FocusItem key={preset.id} focusId={`quick:${preset.id}`}><QuickToggle checked={preset.active} onCheckedChange={enabled => onQuick(preset.id, enabled)}>{preset.label?.text ?? labels.quick(preset)}</QuickToggle></FocusItem>)}</ChipRail>
     {trailing}
   </View>;
 }

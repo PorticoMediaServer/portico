@@ -42,7 +42,7 @@ test('the library row never draws its own Select and keeps its drawn controls ex
     // Phone (owner's one-row rule): one row of Filters, sort, the quick chips in the kit ChipRail and grid / list at the end;
     // the tablet row keeps Filters and sort with its count and grid / list at the right.
     assert.equal(tree.type, 'View', 'one drawn row, no scrolling strip of every control');
-    assert.equal(nodes.some(node => node.type === 'ChipRail'), width < 600, width < 600 ? 'the phone\'s chips sit in the rail' : 'the tablet draws no chip rail here');
+    assert.ok(nodes.some(node => node.type === 'ChipRail'), 'phones and tablets alike: the chips sit in the rail of the one row');
     // 'Button' stays in the filter so an unexpected row button fails this order instead
     // of escaping it; the expected shape is the drawn filters control, then sort.
     const controls = nodes.filter(node => ['Button', 'FiltersButton', 'LibrarySortMenu'].includes(node.type as string)).map(node => node.type);
@@ -55,9 +55,11 @@ test('the library row never draws its own Select and keeps its drawn controls ex
   assert.deepEqual(nodes.filter(node => ['Button', 'LibrarySortMenu', 'FiltersButton', 'Chip'].includes(node.type as string)).map(node => node.type), ['LibrarySortMenu', 'FiltersButton', 'Chip']);
 });
 
-test('a phone library toolbar is ONE row: Filters (with how many match while filtering), sort, the chip rail, grid / list at the end', async () => {
-  // SMALL-FAULTS 28: the Pixel drew two rows (the controls, then "104 movies" with grid / list) and a strip cut at the edge.
-  const f = await fixture(390);
+test('a phone or tablet library toolbar is ONE row: Filters (with how many match while filtering), sort, the chip rail, grid / list at the end', async () => {
+  // SMALL-FAULTS 28: the Pixel drew two rows (the controls, then "104 movies" with grid / list) and a strip cut at the edge; the
+  // tablet drew the quick chips as a second row with a standing count (owner: tablets both ways, one row, no standing count).
+  for (const width of [390, 820, 1180]) {
+  const f = await fixture(width);
   const tree = f.render({trailing: 'VIEW-TOGGLE', matches: 29, model: {quick: [{id: 'unplayed', active: false, label: {text: 'Unplayed'}}], filterQuick: [], groups: [], applied: [],
     sorts: [], sort: {field: 'title', direction: 'asc', flippable: false, reshufflable: false}}});
   const row = [tree.props.children].flat(9).filter(Boolean);
@@ -65,4 +67,8 @@ test('a phone library toolbar is ONE row: Filters (with how many match while fil
     ['FiltersButton', 'LibrarySortMenu', 'ChipRail', 'VIEW-TOGGLE'], 'Filters, sort, the chips, then grid / list pinned at the right');
   assert.equal(elements(tree).find(node => node.type === 'FiltersButton')!.props.matches, 29, '"Filters · 29" while a filter applies');
   assert.equal(elements(f.render({filterCount: 0, matches: 104})).find(node => node.type === 'FiltersButton')!.props.matches, undefined, 'no filter: no count');
+  const quickModel = {quick: [{id: 'unplayed', active: false, label: {text: 'Unplayed'}}], filterQuick: [], groups: [], applied: [], sorts: [], sort: {field: 'title', direction: 'asc', flippable: false, reshufflable: false}};
+  assert.equal(elements(f.render({model: quickModel})).filter(node => node.type === 'QuickToggle').length, 1);
+  assert.equal(elements(f.render({model: quickModel, docked: true})).filter(node => node.type === 'QuickToggle').length, 0, 'a docked pane carries the quick states itself');
+  }
 });
