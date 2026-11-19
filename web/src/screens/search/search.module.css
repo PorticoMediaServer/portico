@@ -1,7 +1,8 @@
-.search { position: relative; padding: 108px var(--shell-gutter) 80px; }
+/* SearchFrame owns the page's top, gutters, title, field line, chips and the space between them; the results take its gutter. */
+.search { position: relative; }
 
 
-.field,.chips,.results { position: relative; }
+.field,.results { position: relative; }
 
 .field { margin: 0; }
 
@@ -9,9 +10,8 @@
 
 .hint kbd { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--color-line-strong); font: inherit; font-weight: var(--type-button-weight); }
 
-.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
 
-.results { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 52px 40px; padding-top: 40px; }
+.results { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 52px 40px; padding: 0 var(--g); }
 
 .empty { width: 100%; display: flex; flex-direction: column; gap: 48px; }
 
@@ -93,11 +93,9 @@
 
 .song small { font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
 
-.single,.partial { width: 100%; }
+.single { width: 100%; }
 
 
-.partial { display: flex; align-items: center; gap: 14px; color: var(--color-text-secondary); padding: 12px 12px 12px 18px; border-radius: 12px; background: var(--color-raised); box-shadow: inset 0 0 0 1px var(--color-line); }
-.partial > button { margin-left: auto; }
 
 .top { width: 100%; display: flex; gap: 24px; align-items: center; }
 
@@ -107,9 +105,9 @@
 
 .skeletonBlock,.placeholder { display: block; aspect-ratio: 2/3; border-radius: 12px; background: var(--color-raised); }
 
-@media(max-width:1023px) { .search { padding: 80px var(--shell-gutter) 110px; }
+@media(max-width:1023px) {
 
-.results { gap: 30px 20px; padding-top: 24px; }
+.results { gap: 30px 20px; }
 
 .empty { gap: 30px; }
 
@@ -132,10 +130,8 @@
 .section[data-group=episodes] .cards > * { width: 262px; }
 
 /* Swipe strips (phone-web.html #w2 frame 4): no native scrollbar or arrow buttons; they still scroll by touch, trackpad and keyboard. */
-.chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-.lives::-webkit-scrollbar, .cards::-webkit-scrollbar, .chips::-webkit-scrollbar { display: none; }
+.lives::-webkit-scrollbar, .cards::-webkit-scrollbar { display: none; }
 
-.chips > * { flex: none; }
 
 .top { flex-wrap: wrap; }
 
@@ -162,13 +158,7 @@
 .section:hover .selectGroup,.section:focus-within .selectGroup { opacity: 1; }
 @media (pointer: coarse) { .section .selectGroup { opacity: 1; } }
 
-/* Frame 4: the phone search bar is the app's field and Cancel, not the desktop field. */
-.sbar { position: relative; }
-@media (max-width: 599px) {
-  .sbar { display: flex; align-items: center; gap: 10px; }
-  .sbar .field { flex: 1; min-width: 0; }
-  .sbar .cancel[data-variant='text'] { flex: none; color: var(--color-text-secondary); font-size: var(--type-fixed-size-15point-5px); font-weight: var(--type-fixed-weight-600); }
-}
+
 
 /* Desktop-search frame 3: a full-width Songs answer carries the Music library's columns. */
 .resultTotal { margin-left: 12px; font-size: var(--type-person-title-size); font-weight: var(--type-fixed-weight-400); color: var(--color-text-tertiary); }
@@ -215,15 +205,11 @@
 /* Frame 4: the phone field's query is the app's 600 weight, and its song rows keep
    the artist only, never the album line the desktop row adds. */
 @media (max-width: 599px) {
-  .sbar .field input { font-weight: var(--type-body-strong-weight); }
+  .field input { font-weight: var(--type-body-strong-weight); }
   .song small > span { display: none; }
 }
 
-/* Phone-app 7: the Search title sits above the field until the viewer types; frame 4's
-   Cancel then takes over in the bar. */
-@media (max-width: 599px) {
-  .phoneSearchTitle { margin: 0 0 12px; font-size: var(--type-fixed-size-2rem); line-height: var(--type-fixed-line-1point-15); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-035em); }
-}
+
 
 /* Phone-app 7: each recent search keeps its own remove control beside the row. */
 
