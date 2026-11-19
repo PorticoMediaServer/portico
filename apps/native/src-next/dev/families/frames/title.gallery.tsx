@@ -1,4 +1,4 @@
-import React, {useRef, useState, type ReactNode} from 'react';
+import React, {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {Text, View} from 'react-native';
 import {formatMessage} from '../../../../../../packages/i18n/src';
 import {titleFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/title-fixtures';
@@ -6,7 +6,7 @@ import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../ki
 import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
-import {AboutTable, CastRow, EpisodeList, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, ChoiceChips, EpisodeList, posterGridScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
@@ -20,6 +20,7 @@ import {Page} from './frames.gallery';
 import {MusicScrollView} from '../../../screens/destinations/music/MusicWindow';
 import type {Gallery} from '../../gallery-registry';
 import {referenceOrigin} from '../../reference-art';
+import {createWindowedCollection} from '../../../../../../packages/client-core/src/collections/windowed';
 
 /** Family C, the title page's forms: every kind of title page filled in full on the one `TitleFrame`, from the parts its
  * tab panel and side are built from. The same cases as the web gallery (`web/src/dev/families/frames-title.tsx`).
@@ -205,23 +206,28 @@ function EpisodePage() {
 }
 
 /** A person (phone-detail d3 frame 7): their initials over a glow from their films, the name with their department and
- * birth, the biography, Known for, then every credit on this server as posters, filtered by All, Cast or Crew. */
+ * birth, the biography, Known for, then every credit on this server as posters, filtered by All, Cast or Crew. The credits
+ * are a windowed grid that scrolls with the page (`posterGridScroller`), as an actor with hundreds of titles needs. */
+type PersonCreditFixture = Readonly<{id: string; art: string; title: Name; role: Name}>;
+const personCredits: readonly PersonCreditFixture[] = [{id: 'd2', art: 'pool/movies/dune-part-two.jpg', title: 'dune2', role: 'asJessica'},
+  {id: 'd1', art: 'pool/movies/dune.jpg', title: 'dune', role: 'asJessica'}, {id: 'silo', art: 'pool/tv/silo.jpg', title: 'silo', role: 'asJuliette'}];
 function Person() {
-  const theme = useTheme(), frame = useFrameMetrics(), [filter, setFilter] = useState('all'), t = defaultI18n.t;
-  const width = Math.floor((frame.width - frame.gutter - frame.rightGutter - 2 * theme.space.xs) / 3);
-  const poster = (key: string, title: string, caption: string) => <PosterCard key={key} title={title} caption={[{id: 'role', text: caption, role: 'context'}]} artwork={asset(key)} width={width} onNavigate={none}/>;
+  const theme = useTheme(), [filter, setFilter] = useState('all'), t = defaultI18n.t;
+  const collection = useMemo(() => createWindowedCollection({pageSize: 30, maxResidentPages: 4, maxConcurrent: 1, keyOf: (credit: PersonCreditFixture) => credit.id,
+    fetchPage: async (start, count) => ({items: personCredits.slice(start, start + count), total: personCredits.length})}), []);
+  useEffect(() => () => collection.dispose(), [collection]);
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-person" back={{label: f('dune2'), onPress: none}}
     topAction={{icon: 'i-more', label: f('more'), onPress: none}}
     // The served ambient image is not available to the gallery (artwork.gallery.tsx); its palette stands in for the glow.
-    art={<AmbientArt treatment="library" palette={{first: '#a8692a', second: '#1d3848'}} height={560}/>}
+    art={<AmbientArt treatment="library" palette={{first: '#a8692a', second: '#1d3848'}}/>}
     cover={{shape: 'circle', node: size => <PersonCircle size={size} initials="RF" alt=""/>}}
-    title={f('person')} metadata={<Meta text={f('personRoleBorn')}/>} synopsis={f('personBio')} readMore={{label: f('readMore'), onPress: none}}>
+    title={f('person')} metadata={<Meta text={f('personRoleBorn')}/>} synopsis={f('personBio')} readMore={{label: f('readMore'), onPress: none}}
+    scroller={posterGridScroller({collection, getKey: credit => credit.id, testID: 'frames-title-person-credits',
+      item: credit => ({title: f(credit.title), caption: f(credit.role), artwork: asset(credit.art), onNavigate: none, onMore: none})})}>
     <Posters title={t('web.person.knownFor')} items={[['pool/movies/dune-part-two.jpg', f('dune2'), '2024'], ['pool/movies/dune.jpg', f('dune'), '2021'], ['pool/tv/silo.jpg', f('silo'), '2023']]}/>
     <PanelBlock>
-      <PanelHeading title={t('web.person.credits')} trailing={t('web.person.titlesOnServer', {count: 3})}/>
-      <View style={{flexDirection: 'row', gap: theme.space.xs, marginBottom: theme.space.sm}}>{([['all', 'title.creditsAll'], ['cast', 'web.person.cast'], ['crew', 'web.person.crew']] as const).map(([id, label]) =>
-        <Chip key={id} selected={filter === id} onPress={() => setFilter(id)}>{t(label)}</Chip>)}</View>
-      <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.xs}}>{poster('pool/movies/dune-part-two.jpg', f('dune2'), f('asJessica'))}{poster('pool/movies/dune.jpg', f('dune'), f('asJessica'))}{poster('pool/tv/silo.jpg', f('silo'), f('asJuliette'))}</View>
+      <PanelHeading title={t('web.person.credits')} trailing={t('web.person.titlesOnServer', {count: personCredits.length})}/>
+      <ChoiceChips items={([['all', 'title.creditsAll'], ['cast', 'web.person.cast'], ['crew', 'web.person.crew']] as const).map(([id, label]) => ({id, label: t(label), selected: filter === id, onPress: () => setFilter(id)}))}/>
     </PanelBlock>
   </TitleFrame></Page>;
 }
