@@ -1,7 +1,7 @@
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {channelUnavailableMessage, liveGuideStale, liveServerWideNotice} from '../../../../../packages/client-core/src/presentation/live-availability';
 import React, {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {FlatList, Platform, ScrollView, Text, View, VirtualizedList, useWindowDimensions} from 'react-native';
+import {Platform, ScrollView, Text, View, VirtualizedList, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {GestureDetector} from 'react-native-gesture-handler';
 import Animated, {useAnimatedStyle, type SharedValue} from 'react-native-reanimated';
@@ -31,7 +31,7 @@ import {useTVRemoteActivity} from '../../platform/tv-keys';
 import {sameAuthority, shellLayout} from '../../shell/model';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {tvFocusIds} from '../../shell/tv-focus';
-import {Screen, ScreenText, useScreenBack, useScreenEntry} from './Screen';
+import {ScreenText, useScreenBack, useScreenEntry} from './Screen';
 import type {NativeSettingsLivePorts} from './ports';
 import type {NativeLiveController} from './live-controller';
 import type {NativeRecordingsController} from './recordings-controller';
@@ -54,7 +54,7 @@ import {nativeServerAdmission} from './server/tv-server-reader';
 import {GUIDE_RECOVERY_SETTLE_MS, guideFocusMoved, guideReentryNext, liveGuideEntry, livePageTakesFocus, tvGroupEdges, tvProgrammeGroups, type GuideReentry, type GuideReentryEvent} from './tv-settings-focus';
 import {registerBack} from '../../kit/navigation/back';
 import {useRailHold} from '../../kit/navigation/rail-hold';
-import {TVRow} from '../../kit/layout/TVRow';
+import {LiveFrame} from '../../kit/frames';
 
 export function NativeLiveScreen({controller, recordings, owner, ports, runtime}: {controller: NativeLiveController; recordings: NativeRecordingsController; owner: NativeLiveOwnerController; ports: Pick<NativeSettingsLivePorts, 'context' | 'dvrRequestId' | 'requestId'>; runtime: NativeShellRuntime}) {
   const theme = useTheme(), t = runtime.text.t, dimensions = useWindowDimensions(), insets = useSafeAreaInsets(), shadeId = useId().replace(/:/g, '');
@@ -65,9 +65,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const compact = !theme.isTV && theme.width < 600, screenReader = useScreenReader();
   const landscape = !theme.isTV && theme.width >= 600 && dimensions.height < 600, phone = compact || landscape;
   const tabletMedium = !theme.isTV && theme.platform === 'tablet', phoneChrome = phone || tabletMedium;
-  // The authored phone header stack covers the medium tablet too; landscape keeps its own
-  // single-row header and wide layouts keep the desktop controls row.
-  const stackedHeader = phoneChrome && !landscape;
+  // The authored phone header controls cover the medium tablet too; wide touch windows keep the desktop controls.
   const expandedTouch = !theme.isTV && !phoneChrome;
   // foldable7: only a reported vertical crease for this exact window may split the page;
   // an absent posture report keeps the single-page guide and its panel.
@@ -76,7 +74,9 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     ? posture.folds.find(value => value.orientation === 'vertical' && value.bounds.left > 0 && value.bounds.left < value.bounds.right && value.bounds.right <= dimensions.width) : undefined;
   const insetLeft = landscape ? Math.max(12, insets.left + 8) : compact ? 0 : theme.isTV ? 0 : 20;
   const insetRight = landscape ? Math.max(12, insets.right + 8) : compact || theme.isTV ? 0 : 20;
-  const [now, setNow] = useState(serverNow), [start, setStart] = useState(() => floorTo(serverNow(), SLOT_MS) - (theme.isTV || phoneChrome ? SLOT_MS : 0)), [measuredWidth, setMeasuredWidth] = useState(theme.isTV ? 1660 : theme.width - 40);
+  // The guide's own side room under the frame's head: TV's rail edge, a phone on its side's notch, a tablet's 20.
+  const bodyLeft = theme.isTV ? theme.gutter : insetLeft, bodyRight = theme.isTV ? 8 : insetRight;
+  const [now, setNow] = useState(serverNow), [start, setStart] = useState(() => floorTo(serverNow(), SLOT_MS) - (theme.isTV || phoneChrome ? SLOT_MS : 0)), [measuredWidth, setMeasuredWidth] = useState(theme.isTV ? 1660 + bodyLeft + bodyRight : theme.width - 40);
   // phone-guide 2: until the user chooses, a phone held upright opens on the list and a phone held
   // sideways on the guide; the shell's own layout classifier decides which windows are phones
   // (a short landscape window is one), and a remembered view always wins.
@@ -189,7 +189,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   // expanded player releases it, and it folds again when the guide is back with the panel still open.
   const liveOnTop = route.route?.kind === 'shell' && route.route.destination.kind === 'live' && shell.contentVisible !== false && !shell.mediaExpanded;
   useRailHold(!theme.isTV && twoPane && onLive && liveOnTop && !ownerOpen && !recordingsOpen && !management);
-  const width = Math.max(0, measuredWidth - insetLeft - (twoPane ? Math.max(0, contentWidth - guideEnd) : insetRight));
+  const width = Math.max(0, measuredWidth - bodyLeft - (twoPane ? Math.max(0, contentWidth - guideEnd) : bodyRight));
   const rowHeight = theme.isTV ? 92 : view === 'list' ? 100 : landscape ? 62 : 72, rowGap = theme.isTV ? 8 : phoneChrome ? 0 : 6, px = pxPerMsFor(halfHour), end = start + Math.max(halfHour, width - channelWidth) / px;
   useEffect(() => {void controller.loadSources(); const timer = setInterval(() => setNow(serverNow()), 30000); return () => clearInterval(timer);}, [controller]);
   const features = useMemo(() => new GuideFeatureClient(controller.api, controller.lifetime.authority.serverId), [controller]);
@@ -408,9 +408,8 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   for (const value of selectedSources) for (const group of value.groupCounts) groupCounts.set(group.name, (groupCounts.get(group.name) ?? 0) + group.count);
   const favoriteCount = hasSources ? selectedSources.reduce((sum, value) => sum + value.favoriteCount, 0) : undefined;
   const allCount = filterActive ? hasSources ? selectedSources.reduce((sum, value) => sum + value.channelCount, 0) : undefined : data.total;
-  const filterChips = <TVRow><FlatList horizontal data={groups} keyExtractor={group => group} showsHorizontalScrollIndicator={false} initialNumToRender={10} maxToRenderPerBatch={10} windowSize={3} style={{flexGrow: landscape ? 1 : 0, flex: landscape ? 1 : undefined, height: theme.isTV ? 64 : phoneChrome ? 34 : 44}} contentContainerStyle={{gap: theme.isTV ? 12 : phoneChrome ? 8 : 10, paddingHorizontal: compact ? 20 : 0}}
-          ListHeaderComponent={<View style={{flexDirection: 'row', gap: theme.isTV ? 12 : phoneChrome ? 8 : 10}}>{phoneChrome && sourcePicker}<Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId="all" testID="live-filter-all" count={allCount} selected={!state.options.favorites && !state.options.group} onPress={() => select({favorites: false, group: undefined})}>{t('channels.filterAll')}</Chip><Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId="favorites" testID="live-filter-favorites" count={favoriteCount} selected={state.options.favorites === true} onPress={() => select({favorites: !state.options.favorites, group: undefined})}>{t('channels.favorites')}</Chip>{ports.context.account.account.role === 'owner' && <Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId="hidden" testID="live-filter-hidden" selected={state.options.includeServerHidden === true} onPress={() => select({includeServerHidden: !state.options.includeServerHidden})}>{t('channels.showHidden')}</Chip>}</View>}
-          renderItem={({item: group}) => <Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId={`group:${group}`} testID={`live-filter-${group}`} count={groupCounts.get(group)} selected={state.options.group === group} onPress={() => select({group, favorites: false})}>{group}</Chip>}/></TVRow>;
+  // The frame's chip line scrolls the chips sideways (and heads them with the source picker on a phone).
+  const filterChips = <><Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId="all" testID="live-filter-all" count={allCount} selected={!state.options.favorites && !state.options.group} onPress={() => select({favorites: false, group: undefined})}>{t('channels.filterAll')}</Chip><Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId="favorites" testID="live-filter-favorites" count={favoriteCount} selected={state.options.favorites === true} onPress={() => select({favorites: !state.options.favorites, group: undefined})}>{t('channels.favorites')}</Chip>{ports.context.account.account.role === 'owner' && <Chip style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId="hidden" testID="live-filter-hidden" selected={state.options.includeServerHidden === true} onPress={() => select({includeServerHidden: !state.options.includeServerHidden})}>{t('channels.showHidden')}</Chip>}{groups.map(group => <Chip key={group} style={phoneChrome ? {height: 34, borderRadius: 9, paddingHorizontal: 12} : undefined} textStyle={phoneChrome ? shellType(13.5, 700) : undefined} focusId={`group:${group}`} testID={`live-filter-${group}`} count={groupCounts.get(group)} selected={state.options.group === group} onPress={() => select({group, favorites: false})}>{group}</Chip>)}</>;
   useDestinationEntryFocus({visible: theme.isTV && !managementActive && !recordingsOpen && recordingsReturn > 0, intent: 'restore', revision: recordingsReturn}, {regionId: controls, childId: 'live-recordings'});
   useDestinationEntryFocus({visible: theme.isTV && !managementActive && !recordingsOpen && managementReturn > 0, intent: 'restore', revision: managementReturn}, {regionId: controls, childId: 'live-owner-open'});
   const empty = !state.loading && state.sources.length === 0;
@@ -538,16 +537,16 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const viewIcons = <Segmented testID="live-view" value={view} onValueChange={value => setView(value as 'list' | 'guide')}
     itemProps={item => ({accessibilityLabel: t(item.value === 'list' ? 'channels.viewList' : 'channels.viewGuide'), style: {minHeight: 44, minWidth: 44, paddingHorizontal: 12}})}
     items={(['guide', 'list'] as const).map(value => ({value, label: <Icon name={value === 'list' ? 'i-list' : 'i-timeline'} size={20} color={view === value ? theme.colors.text : theme.colors.textTertiary}/>}))}/>;
-  const controlsRow = <FocusRegion id={controls} orientation="horizontal" edges={{left: ids.rail, down: filters}} stops={{up: true}} style={{flexDirection: 'row', gap: 22, alignItems: 'center', marginBottom: 24, minHeight: 64}}>
-    <Text accessibilityRole="header" style={[shellType(44, 800, 'normal', -.03), {color: theme.colors.text, marginRight: 14}]}>{t('search.chip.liveTV')}</Text>
+  // TV: the source picker, the day, Now, Recordings and the owner's button are one focus region, so they are the frame's
+  // actions together (the frame keeps TV's title row; it draws no toolbar there).
+  const controlsRow = <FocusRegion id={controls} orientation="horizontal" edges={{left: ids.rail, down: filters}} stops={{up: true}} style={{flexDirection: 'row', gap: 22, alignItems: 'center'}}>
     {sourcePicker}
     {dayPicker}
     <Button testID="live-now" variant="glass" size="small" onPress={goNow}>{t('guide.now')}</Button>
     {hasRecordings && <Button focusId="live-recordings" testID="live-recordings" variant="glass" size="small" icon="i-rec" onPress={() => setRecordingsOpen(true)}>{t('recordings.title')}</Button>}
     {ownerButton}
   </FocusRegion>;
-  const timeRow = <View testID="live-time" style={{flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 20}}>
-    {sourcePicker}
+  const timeRow = <View testID="live-time" style={{flex: 1, flexDirection: 'row', gap: 12, alignItems: 'center'}}>
     {dayPicker}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
       {view === 'guide' && <Button testID="live-earlier" variant="glass" size="small" style={{height: 44}} icon="i-left" accessibilityLabel={t('guide.earlier')} disabled={!panActive} onPress={() => pan.adjust(-4 * SLOT_MS)}>2 h</Button>}
@@ -558,25 +557,23 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     {sortPicker}
   </View>;
   const programmeFocusBody = theme.isTV && programmeBody ? <FocusRegion id={programmeRegion} entryRegion={`${programmeRegion}.${programmeGroups.find(group => !group.startsWith('later:'))}`} stops={{up: true, down: true, left: true, right: true}}>{programmeBody}</FocusRegion> : programmeBody;
-  return <Screen style={theme.isTV ? {paddingTop: 56, paddingRight: 8} : phoneChrome ? {paddingTop: insets.top + (landscape ? 0 : 14)} : undefined}>
+  const ownerIcon = managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>;
+  // The frame draws the head for its form; the page hands it the controls this window has had: TV's one controls row; a phone
+  // (and an upright tablet) List | Guide with Recordings, the source heading the chips, then the day and Sort; a phone on its
+  // side all in one row; an expanded touch window Guide | Recordings, the Grid | List pair, then the day, the steps and Sort.
+  const frameActions = theme.isTV ? controlsRow : expandedTouch ? viewIcons : <>{viewSwitch}{hasRecordings && recordingsIcon}{ownerIcon}</>;
+  const frameToolbar = theme.isTV ? undefined : expandedTouch ? timeRow : landscape ? sortPicker
+    : <>{view === 'guide' ? dayPicker : <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}><Text style={[shellType(13, 700), {color: theme.colors.text}]}>{t('guide.onNow')}</Text><Text style={[shellType(13), {color: theme.colors.textSecondary}]}>{clock(now)}</Text></View>}<View style={{flex: 1}}/>{sortPicker}</>;
+  const chipsRegion = <FocusRegion id={filters} orientation="horizontal" entry={state.options.favorites ? 'favorites' : state.options.group ? `group:${state.options.group}` : 'all'} edges={{left: ids.rail, up: controls, down: grid}} style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}>
+    {filterChips}
+  </FocusRegion>;
+  // A programme beside the guide on a tablet takes the right of the whole page, head and guide alike.
+  return <View style={{flex: 1}}>
     <View ref={content} onLayout={event => {setMeasuredWidth(event.nativeEvent.layout.width); measureContent();}}
-      style={{flex: 1, paddingLeft: insetLeft, paddingRight: twoPane ? Math.max(insetRight, contentWidth - guideEnd) : insetRight}}>
-      {stackedHeader && <View style={{flexDirection: 'row', gap: 6, alignItems: 'center', paddingHorizontal: compact ? 20 : 0, marginBottom: 12, minHeight: 38}}>
-        <Text accessibilityRole="header" style={[shellType(32, 800, 36.8, -.035), {color: theme.colors.text, flex: 1}]}>{t('search.chip.liveTV')}</Text>
-        {viewSwitch}
-        {hasRecordings && recordingsIcon}
-        {managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>}
-      </View>}
-      {landscape && <View style={{flexDirection: 'row', gap: 12, alignItems: 'center', height: 50, paddingTop: 6, marginBottom: 6}}><Text accessibilityRole="header" style={[shellType(24, 800, 'normal', -.035), {color: theme.colors.text}]}>{t('search.chip.liveTV')}</Text>{viewSwitch}{filterChips}{sortPicker}{hasRecordings && recordingsIcon}{managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>}</View>}
-      {theme.isTV && controlsRow}
-      {expandedTouch && <NativeLiveTabs value="guide" t={t} conflicts={conflicts} onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}>
-        {viewIcons}
-      </NativeLiveTabs>}
-      {!landscape && <FocusRegion id={filters} orientation="horizontal" entry={state.options.favorites ? 'favorites' : state.options.group ? `group:${state.options.group}` : 'all'} edges={{left: ids.rail, up: controls, down: grid}} style={{marginBottom: theme.isTV ? 38 : stackedHeader ? 8 : 14}}>
-        {filterChips}
-      </FocusRegion>}
-      {expandedTouch && timeRow}
-      {stackedHeader && <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: compact ? 20 : 0}}>{view === 'guide' ? dayPicker : <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}><Text style={[shellType(13, 700), {color: theme.colors.text}]}>{t('guide.onNow')}</Text><Text style={[shellType(13), {color: theme.colors.textSecondary}]}>{clock(now)}</Text></View>}{sortPicker}</View>}
+      style={{flex: 1, paddingRight: twoPane ? Math.max(insetRight, contentWidth - guideEnd) : 0}}>
+      <LiveFrame title={t('search.chip.liveTV')} switcher={theme.isTV ? undefined : sourcePicker} actions={frameActions}
+        tabs={expandedTouch && <NativeLiveTabs framed value="guide" t={t} conflicts={conflicts} onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}/>}
+        chips={chipsRegion} toolbar={frameToolbar} list={<View style={{flex: 1, paddingLeft: bodyLeft, paddingRight: twoPane ? 0 : bodyRight}}>
       {state.error !== undefined ? <StateView {...runtime.error(state.error, () => {void controller.loadSources();}, 'live')}/> : empty ? <StateView testID="live-no-sources" variant={compact ? 'centered' : 'inline'} stackActions={compact}
         // states 17c: the owner's state names the server it sets up, with the Owner only tag over the heading.
         kicker={managesServer && !theme.isTV ? <OwnerTag testID="live-no-sources-owner-tag" identity={shell.serverName}/> : undefined} title={t(managesServer ? 'web.live.empty.noSourcesOwnerTitle' : 'web.live.empty.noSourcesTitle')}
@@ -604,6 +601,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
         </View></GestureDetector>}
         {data.channelsError && <StateView {...runtime.error(new Error('guide_channels_unavailable'), () => guide.reset(), 'live')}/>}
       </>}
+      </View>}/>
     </View>
     {twoPane && <View testID="live-programme-pane" style={{position: 'absolute', left: paneLeft, right: 0, top: 0, bottom: 0, backgroundColor: theme.colors.ink,
       borderLeftWidth: 1, borderLeftColor: theme.colors.line}}>
@@ -627,7 +625,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
       onOpenChange={value => {if (!value) setSeries(undefined);}}
       onCreated={() => {setSelected(undefined); setSeries(undefined); guide.invalidate(); if (!theme.isTV) void recordings.loadSummary(); setToast({id: `series-${Date.now()}`, message: t('guide.seriesSet'), icon: 'i-rec'});}}/>
     <ToastHost toast={toast} onDismiss={() => setToast(null)} bottomOffset={phone ? 96 : 0} obstructionTop={dockTop}/>
-  </Screen>;
+  </View>;
 }
 
 // tv.html frame 6: the grid is one focus region, so every cell carries the served

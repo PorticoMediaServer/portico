@@ -10,6 +10,13 @@ export function liveTabsFixture(react) {
       react.createElement('Tab', {key: 'recordings', testID: 'live-recordings', selected: value === 'recordings', onPress: value === 'recordings' ? () => {} : onRecordings},
         conflicts > 0 ? react.createElement(LiveConflictDot, null) : null),
     ] : null, children);
-  return {'./LiveTabs': {NativeLiveTabs, LiveConflictDot}};
+  return {'./LiveTabs': {NativeLiveTabs, LiveConflictDot}, ...liveFrameFixture(react)};
+}
+// The Live pages draw on the kit LiveFrame: its stand-in lays its regions out in the frame's order (title, the source picker,
+// the buttons, the tabs, the chips, the toolbar, then the guide or list) so the maps can read them.
+export function liveFrameFixture(react) {
+  const LiveFrame = ({title, switcher, actions, tabs, chips, toolbar, list, children, testID}) => react.createElement('LiveFrame', {testID, title},
+    switcher ?? null, actions ?? null, tabs || null, chips ?? null, toolbar ?? null, list ?? null, children ?? null);
+  return {'../../kit/frames': {LiveFrame}};
 }
 export const ownerTagFixture = {'../../kit/shell/ServerIdentity': {OwnerTag: 'OwnerTag'}};

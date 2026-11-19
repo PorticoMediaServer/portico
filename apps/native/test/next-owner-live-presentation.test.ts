@@ -5,10 +5,12 @@ import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {liveTabsFixture, ownerTagFixture} from './helpers/live-fixtures.mjs';
 import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-focus.ts';
 
-const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children)] : [];
+// The page draws on LiveFrame, whose regions are props: the walk reads them as the frame lays them out.
+const regions = ['switcher', 'actions', 'tabs', 'chips', 'toolbar', 'list'] as const;
+const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...(tree.type?.name === 'LiveFrame' ? regions.flatMap(key => nodes(tree.props[key])) : []), ...nodes(tree.props?.children)] : [];
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.testID === id);
 const colors = new Proxy({}, {get: (_target, key) => String(key)});
-const theme = {isTV: false, width: 1180, platform: 'web', colors};
+const theme = {isTV: false, width: 1180, platform: 'web', colors, space: {xs: 8}};
 const t = (id: string, values?: any) => id === 'player.clockOf' ? `${values.position} of ${values.duration}` : id;
 const visual = {alpha: (color: string) => color, shellType: () => ({})};
 function fixture() {

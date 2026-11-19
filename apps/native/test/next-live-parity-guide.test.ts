@@ -379,14 +379,15 @@ test('an upright tablet\'s guide docks Now at its edges, as the phone does, and 
   } finally {await f.close();}
 });
 
-// tablet-play6: at expanded touch widths the title row carries the Guide / Recordings pair and the view switch; the day,
+// tablet-play6: at expanded touch widths LiveFrame's title row carries the view switch and its tabs the Guide / Recordings pair; the day,
 // the 2-hour steps with Now between them, and Sort sit under the chips. TV keeps its one controls row.
 test('an expanded tablet draws Live TV with the Guide / Recordings pair over the chips, then the day, the steps and Sort', async () => {
   const f = await fixture({width: 1180, height: 820}); try {
     const header = f.find('live-header'); assert.ok(header); assert.equal(header.props.value, 'guide');
     const inHeader = nodes(header).map(node => node.props?.testID);
-    for (const id of ['live-recordings', 'live-view']) assert.ok(inHeader.includes(id), id);
+    assert.ok(inHeader.includes('live-recordings'), 'the tab pair holds Recordings');
     assert.ok(!inHeader.includes('live-owner-open'), 'tablet-play6 draws no owner button in the title row');
+    assert.deepEqual(order(f.host.root, ['live-view', 'live-header']), ['live-view', 'live-header'], 'the Grid / List pair is the title row\'s, over the tab pair');
     assert.equal(f.find('live-owner-open'), undefined, 'and none elsewhere on the expanded guide');
     assert.deepEqual(f.find('live-view').props.items.map((item: any) => item.value), ['guide', 'list'], 'the icon-only Grid / List pair, Grid first');
     assert.deepEqual(order(f.host.root, ['live-header', 'live-filter-all', 'live-time']), ['live-header', 'live-filter-all', 'live-time']);
