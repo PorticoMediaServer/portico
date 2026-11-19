@@ -573,7 +573,8 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
       return art ? <Artwork source={art} width={48} height={48}/> : undefined;}) : <FocusRegion id={ids.libraryToolbar(source.library.id)} entry={theme.isTV ? 'sort' : 'filters'} orientation="horizontal" enabled={active.visible} edges={{left: ids.rail, up: ids.libraryTabs(source.library.id), ...(theme.isTV ? {down: applied.length ? appliedRegion : gridRegion} : {})}}>
       <LibraryToolbar focusScope={ids.libraryToolbar(source.library.id)} model={toolbar} labels={labels} filterCount={source.predicates.length} filtersOpen={filtersOpen} docked={dockedFilters} gutter={tabletGeometry?.gutter}
         showSelect={!expanded}
-        trailing={theme.isTV || theme.platform === 'phone' ? undefined : <>{count && !dockedFilters ? <Text style={[browseType(theme, 14.5, 600), {color: theme.colors.textSecondary, marginRight: 6}]}>{count}</Text> : null}<ViewToggle value={view.mode} onValueChange={changeView}/></>}
+        matches={filtered && state.total !== undefined ? state.total : undefined}
+        trailing={theme.isTV ? undefined : theme.platform === 'phone' ? <ViewToggle value={view.mode} onValueChange={changeView}/> : <>{count && !dockedFilters ? <Text style={[browseType(theme, 14.5, 600), {color: theme.colors.textSecondary, marginRight: 6}]}>{count}</Text> : null}<ViewToggle value={view.mode} onValueChange={changeView}/></>}
         canSave={nativeLibraryCanSave(source, {predicates: source.predicates, sort: source.sort!})}
         onFilters={onFilters}
         onSort={sort => destination.setQuery(source.predicates, sort)} onReshuffle={() => destination.setQuery(source.predicates, {...source.sort!, seed: Math.floor(Math.random() * 4294967296)})}
@@ -600,7 +601,6 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
       {/* tv4 .active-f .count sits 18 after Clear all; phone and tablet keep the right edge. */}
       {count && theme.platform !== 'phone' && (theme.isTV || dockedFilters) && <Text style={[browseType(theme, theme.isTV ? 22 : 13, 600), {color: theme.colors.textTertiary, marginLeft: theme.isTV ? 18 : 'auto'}]}>{count}</Text>}
     </FocusRegion> : count && theme.platform !== 'phone' && (theme.isTV || dockedFilters) && <Text style={[browseType(theme, theme.isTV ? 22 : 13, 600), {color: theme.colors.textTertiary, marginHorizontal: theme.isTV ? theme.gutter : rowGutter, marginTop: theme.isTV ? 24 : 10, marginBottom: theme.isTV ? 40 : 10}]}>{count}</Text>}
-    {count && theme.platform === 'phone' && <LibraryResultCount phone controls={<ViewToggle value={view.mode} onValueChange={changeView}/>}>{count}</LibraryResultCount>}
     {state.status === 'error' && <StateView {...runtime.error(state.error, destination.retry, 'library')}/>}
   </>;
   const gridRegions = <>
