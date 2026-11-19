@@ -12,6 +12,7 @@ const loader = registerHooks({load(url, context, next) {
   if (url.endsWith('/kit/browse/index.ts')) return module("export const LibraryHeader='library-header';");
   if (url.endsWith('/kit/artwork/index.ts')) return module("export const ChannelMark='channel';");
   if (url.endsWith('/kit/states/index.ts')) return module("export const StateView='state';");
+  if (url.endsWith('/kit/frames/index.ts')) return module("export const LiveFrame='live-frame';");
   if (url.endsWith('/src/router.tsx')) return module('export const router={};');
   if (url.endsWith('/screens/browse/screen-context.ts')) return module('export const useCommittedLibraryScreenContext=()=>undefined;');
   if (url.endsWith('/screens/live/useRecordedGroupLease.ts')) return module('export const useRecordedGroupLease=()=>undefined;');

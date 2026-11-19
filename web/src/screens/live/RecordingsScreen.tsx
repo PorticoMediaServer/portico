@@ -11,7 +11,8 @@ import {ChannelMark} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
 import {Banner, Dialog, Menu, SidePanel, type MenuEntry} from '../../kit/overlays';
 import {StateView} from '../../kit/states';
-import {RecordingsLayout} from '../../kit/dvr/RecordingsLayout';
+import {LiveFrame} from '../../kit/frames';
+import {useWindowWidth} from '../../kit/theme';
 import {RuleGap} from '../../kit/dvr/RuleCard';
 import {LiveRecordingTabs, RecordingPhoneTabs} from './SeriesRules';
 import type {RecordingsController, RecordingsSort, RecordingsView} from './recordings-controller';
@@ -360,6 +361,7 @@ function StorageView({snapshot, tuners}: {snapshot: ReturnType<RecordingsControl
 
 function Boundary({context, view, everyone, routeCurrent, onView, onScope, onGuide}: {context: ScreenContext; view: RecordingsView; everyone: boolean; routeCurrent: () => boolean;
   onView: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void; onScope?: (everyone: boolean) => void; onGuide: () => void}) {
+  const phone = useWindowWidth() < 600;
   const [attempt, setAttempt] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   useScreenIdentity(context);
@@ -395,14 +397,14 @@ function Boundary({context, view, everyone, routeCurrent, onView, onScope, onGui
         : view === 'recorded' ? <RecordedView context={context} controller={lease.controller} current={lease.current} snapshot={snapshot} everyone={everyone}/>
           : view === 'history' ? <HistoryView snapshot={snapshot} now={now} controller={lease.controller}/>
             : <StorageView snapshot={snapshot} tuners={lease.tuners}/>;
-  return <RecordingsLayout key={lease.id} title={t('next.home.shell.live')} sourceLabel={t('channels.source')} allChannels={t('channels.all')}
-    sourceName={context.identity?.serverName ?? ''} navigation={undefined} tabs={<LiveRecordingTabs view="recordings" conflicts={summary?.conflicts} onChange={value => {if (value === 'guide') goGuide();}}/>}
-    back={{label: t('next.home.shell.live'), title: t('recordings.title'), onBack: goGuide}}>
-    <RecordingPhoneTabs views={views} value={view} onChange={goView}/>
-    <div className={styles.recordingsBar}>
-      <div className={styles.recordingsChips} role="group" aria-label={t('recordings.title')}>
-        {views.map(item => <Chip className={styles.recordingsChip} key={item.id} selected={item.id === view} count={item.count} onClick={() => goView(item.id)}>{item.label}</Chip>)}
-      </div>
+  // LiveFrame owns the head: Live TV with the source picker, its facts and the Guide | Recordings tabs from 600; on a phone the
+  // pushed "‹ Live TV  Recordings" with the views as tabs. The chips' line carries the views (from 600), whose recordings, and storage.
+  return <LiveFrame key={lease.id} title={phone ? t('recordings.title') : t('next.home.shell.live')} back={{label: t('next.home.shell.live'), onPress: goGuide}}
+    switcher={<Select className={styles.recordingsSource} aria-label={t('channels.source')} value="all" options={[{value: 'all', label: t('channels.all')}]}/>}
+    facts={<p className={styles.recordingsFacts}><strong>{context.identity?.serverName ?? ''}</strong></p>}
+    tabs={phone ? <RecordingPhoneTabs views={views} value={view} onChange={goView}/> : <LiveRecordingTabs view="recordings" conflicts={summary?.conflicts} onChange={value => {if (value === 'guide') goGuide();}}/>}
+    chips={<>
+      {!phone && views.map(item => <Chip className={styles.recordingsChip} key={item.id} selected={item.id === view} count={item.count} onClick={() => goView(item.id)}>{item.label}</Chip>)}
       {/* Recordings open on this profile's own, with everyone's one tap away for a profile that may see them (rule 48). */}
       {onScope && summary?.everyonesRecordings !== false && (view === 'upcoming' || view === 'recorded' || view === 'history') && <Segmented className={styles.recordingsScope} aria-label={t('next.live.whose')} value={everyone ? 'everyone' : 'mine'}
         onValueChange={value => {if (lease.current() && (value === 'mine' || value === 'everyone')) onScope(value === 'everyone');}}
@@ -410,12 +412,12 @@ function Boundary({context, view, everyone, routeCurrent, onView, onScope, onGui
       {snapshot.storage && <button type="button" className={styles.storageButton} aria-label={t('recordings.storage')} onClick={() => goView('storage')}>
         <span>{t('next.live.storageFree', {amount: Math.round(snapshot.storage.freeBytes / 1e9)})} · {t('recordings.hoursLeft', {count: snapshot.storage.hoursLeft})}</span>
       </button>}
-    </div>
+    </>}>
     {snapshot.error && <Banner className={styles.recordingsBanner} action={{label: t('next.states.tryAgain'), onAction: retry}}>{snapshot.error}</Banner>}
     {body}
     {conflictOpening && <ConflictDialog key={conflictOpening.id} context={context} opening={conflictOpening} current={lease.current} consume={consumeConflict}
       controller={lease.controller} onClose={dismissConflict}/>}
-  </RecordingsLayout>;
+  </LiveFrame>;
 }
 
 export function RecordingsScreen({captured, view, everyone = false, onView, onScope, onGuide}: {captured: ProtectedLibraryScreen; view: RecordingsView; everyone?: boolean; onView: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void; onScope?: (everyone: boolean) => void; onGuide: () => void}) {

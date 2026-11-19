@@ -10,7 +10,8 @@ test('the Recordings head and body follow the shell gutter, as the Channels tab 
     const rule = rules.slice(rules.indexOf(selector + ' {')).split('}')[0];
     assert.match(rule, /var\(--shell-gutter\)/, selector);
   }
-  for (const selector of ['.recordingsBar', '.recordingsBanner', '.recBody']) {
+  // The bar (views, whose, storage) is LiveFrame's chips line, on the frame's gutter.
+  for (const selector of ['.recordingsBanner', '.recBody']) {
     const rule = live.slice(live.indexOf(selector + ' {')).split('}')[0];
     assert.match(rule, /var\(--shell-gutter\)/, selector);
   }
@@ -24,8 +25,8 @@ test('on a phone the Recordings head stays one line: title size, no wrap, the so
 });
 
 test('on a phone the Channels and Recordings heads, chips and body all sit on the shell gutter, not a hard-coded 18px', () => {
-  const phone = live.slice(live.lastIndexOf('@media (max-width: 599px)', live.indexOf('.recordingsBar, .recordingsBanner, .recBody { padding-inline:')));
+  const phone = live.slice(live.lastIndexOf('@media (max-width: 599px)', live.indexOf('.recordingsBanner, .recBody { padding-inline:')));
   assert.match(live, /\.guideHeader, \.guideChips, \.guideTime \{ padding-inline: var\(--shell-gutter\); \}/);
-  assert.match(phone, /\.recordingsBar, \.recordingsBanner, \.recBody \{ padding-inline: var\(--shell-gutter\); \}/);
+  assert.match(phone, /\.recordingsBanner, \.recBody \{ padding-inline: var\(--shell-gutter\); \}/);
   assert.doesNotMatch(live, /padding-inline: 18px/);
 });

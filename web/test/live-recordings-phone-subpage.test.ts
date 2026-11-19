@@ -20,7 +20,9 @@ test('on a phone the back bar replaces the Live TV head and the Guide | Recordin
   const phone = css.slice(css.lastIndexOf('@media (max-width: 599px) {'));
   assert.match(phone, /\.page:has\(> \.phoneNav\) > :is\(\.header, \.tabs\) \{ display: none; \}/);
   assert.match(phone, /\.phoneNav \{ display: block;/);
-  for (const file of ['../src/screens/live/RecordingsScreen.tsx', '../src/screens/live/SeriesRules.tsx']) {
+  // Recordings draws on LiveFrame, whose phone form is the pushed "‹ Live TV  Recordings" bar.
+  assert.match(readFileSync(new URL('../src/screens/live/RecordingsScreen.tsx', import.meta.url), 'utf8'), /<LiveFrame [^>]*title=\{phone \? t\('recordings\.title'\) : t\('next\.home\.shell\.live'\)\} back=\{\{label: t\('next\.home\.shell\.live'\), onPress: goGuide\}\}/);
+  for (const file of ['../src/screens/live/SeriesRules.tsx']) {
     assert.match(readFileSync(new URL(file, import.meta.url), 'utf8'), /back=\{[^}]*label: t\('next\.home\.shell\.live'\), title: t\('recordings\.title'\), onBack: (goGuide|onGuide)\}/, file);
   }
 });

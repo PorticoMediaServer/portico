@@ -273,9 +273,11 @@
 }
 
 /* ---- Recordings door: desktop-live.html#live-upcoming and #live-recorded ---- */
-.recordingsBar { position: relative; z-index: var(--layer-content); display: flex; align-items: flex-end; gap: 20px; padding: 22px var(--shell-gutter) 0; }
-.recordingsChips { display: flex; flex-wrap: wrap; gap: 8px; }
 .recordingsScope { flex: none; }
+/* LiveFrame's head: the source picker and facts are the guide's (live-recordings), and storage ends the chips' line. */
+.recordingsSource { min-width: 0; }
+.recordingsFacts { margin: 0; font-size: calc(var(--type-body-size) - 1px); color: var(--color-text-tertiary); }
+.recordingsFacts strong { color: var(--color-text-secondary); }
 .recordingsChip { height: 38px; padding: 0 14px; font-size: calc(var(--type-body-size) * 29 / 30); gap: 7px; color: var(--color-text-secondary); }
 .recordingsChip[data-selected] { background: color-mix(in srgb, var(--color-accent) 20%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 62%, transparent); color: var(--color-text); }
 .storageButton { margin-left: auto; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; text-align: right; border-radius: 10px; }
@@ -353,7 +355,7 @@
 .storageFacts dd { margin:0;text-align:right; }
 @media (max-width: 1279px) and (min-width: 1024px) { .recordedGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 1023px) {
-  .recordingsBar, .recordingsBanner, .recBody { padding-inline: 30px; }
+  .recordingsBanner, .recBody { padding-inline: 30px; }
   .recRow { grid-template-columns: 120px 140px minmax(0, 1fr); }
   .recRight { grid-column: 1 / -1; }
   .recordedGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -362,7 +364,7 @@
   .recordedSortLabel { margin-left: auto; }
 }
 @media (max-width: 599px) {
-  .recordingsBar, .recordingsBanner, .recBody { padding-inline: var(--shell-gutter); }
+  .recordingsBanner, .recBody { padding-inline: var(--shell-gutter); }
   .recRow { grid-template-columns: 84px minmax(0, 1fr); gap: 12px; }
   .recArt { grid-row: span 2; }
   .recRight { grid-column: 1 / -1; }
@@ -391,4 +393,3 @@
 .guideScreen[data-phone-landscape] .guideChannelText b { font-size: var(--type-fixed-size-12point-5px); }
 .guideScreen[data-phone-landscape] .guideChannelText small { font-size: var(--type-fixed-size-11point-5px); }
 /* phone-app 12: on a phone the Recordings views are the page's underline tabs (RecordingPhoneTabs), not chips. */
-@media (max-width: 599px) { .recordingsChips { display: none; } }
