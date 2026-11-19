@@ -290,6 +290,8 @@
 /* A long genre name wraps to a second line before it is cut (visual rules: cut text). */
 .genreTitle { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; font-size:24px; line-height:1.1; font-weight:800; letter-spacing:-.025em; overflow:hidden; }
 .genreFacts { font-size:13px; color:var(--color-text-secondary); margin-top:2px; }
+/* Phone width (phone-app 7): the name is the phone size, inset as drawn, so a one-word name (Documentary) fits its tile whole. */
+@media (max-width: 599px) { .videoGenre .genreCopy { left:14px; right:14px; bottom:14px; } .videoGenre .genreTitle { font-size:18px; line-height:1.15; } }
 .musicGenre { --cards-width:250px; height:152px; border-radius:14px; background:radial-gradient(120% 150% at 100% 0%,var(--cards-tint) 0%,transparent 70%),var(--color-raised); }
 .musicGenre .genreTitle { font-size:22px; letter-spacing:-.02em; text-shadow:0 2px 16px rgba(7,16,24,.6); }
 .genreFan { top:16px; right:18px; width:120px; height:90px; }
