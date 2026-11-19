@@ -139,7 +139,8 @@ export function TrackRow({row, variant, columns = defaultColumns[variant], selec
   const actions = <View style={{width: phone ? 44 : variant === 'chapters' ? 60 : 84, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center'}}>
     {variant === 'chapters' ? <Button variant="icon" size="small" iconOnly icon="i-play" accessibilityLabel={t('next.browse.native.play', {title: row.text.title})} onPress={() => onPlay(row.id)}/> : <>
     {row.favorite !== undefined && onToggleFavorite && !phone && <Button variant="icon" size="small" iconOnly icon={row.favorite ? 'i-heart-f' : 'i-heart'} accessibilityLabel={t(row.favorite ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite')} accessibilityState={{checked: row.favorite}} onPress={() => onToggleFavorite(row.id, !row.favorite)}/>}
-    {onMore && <Button variant="icon" size="small" iconOnly icon="i-more" accessibilityLabel={t('next.browse.native.moreFor', {title: row.text.title})} onPress={() => onMore(row.id, menuAnchorRef)}/>}
+    {/* A phone's ⋯ is plain, as the music frames draw it (phone-app 13, 15b); the round disc stays on wider forms. */}
+    {onMore && <Button variant={phone ? 'text' : 'icon'} size="small" iconOnly icon="i-more" iconColor={phone ? theme.colors.textTertiary : undefined} accessibilityLabel={t('next.browse.native.moreFor', {title: row.text.title})} onPress={() => onMore(row.id, menuAnchorRef)}/>}
     </>}
   </View>;
   const select = () => selection.onToggle(row.id);

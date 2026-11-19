@@ -5,7 +5,7 @@ import {titleFixtureMessages} from '../../../../../../packages/i18n/src/catalog/
 import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../kit/artwork/index';
 import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
-import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
+import {SongRow, TrackRow, type TrackRowData, type TrackSelection} from '../../../kit/browse/Tracks';
 import {AboutTable, CastRow, ChoiceChips, EpisodeList, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
@@ -278,7 +278,25 @@ const songs = (names: readonly Name[], album?: string): TrackRowData[] => names.
 function Songs({rows, ranked = false}: {rows: readonly TrackRowData[]; ranked?: boolean}) {
   return <View>{rows.map((row, index) => <SongRow key={row.id} row={row} index={index} ranked={ranked} onPlay={none} onMore={none} onEnter={none}/>)}</View>;
 }
+/** An album on a phone (phone-app frame 13): its cover over a glow from it, the artist as a link under the title, Play,
+ * Shuffle and Download, ⋯ at the top, and its numbered songs (the playing one marked). */
+const restingTracks: TrackSelection = {active: false, isSelected: () => false, onToggle: () => {}, onEnter: () => {}, renderControl: () => null};
+function PhoneAlbum() {
+  const rows = songs(['song1', 'song2', 'song3', 'song4']).map((row, index) => ({...row, number: index + 1}));
+  return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-album" back={back}
+    topAction={{icon: 'i-more', label: f('more'), onPress: none}}
+    scroller={(content, style, collapse) => <MusicScrollView style={{flex: 1}} contentContainerStyle={style} collapseAt={collapse.at} onCollapse={collapse.onChange}>{content}</MusicScrollView>}
+    // The served ambient image is not available to the gallery (artwork.gallery.tsx); the cover's palette stands in for the glow.
+    art={<AmbientArt treatment="library" palette={{first: '#8a5636', second: '#3b2418'}}/>}
+    cover={{shape: 'square', node: <Artwork source={asset('pool/albums/after-hours.jpg')} style={{width: '100%', height: '100%'}}/>}}
+    title={f('album')} byline={{text: f('albumArtist'), onPress: none}} metadata={<Meta text={f('albumFacts')}/>}
+    primary={{icon: 'i-play', label: f('play'), onPress: none}}
+    actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, split: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}]}>
+    <View>{rows.map((row, index) => <TrackRow key={row.id} row={row} variant="album" index={index} selection={restingTracks} onPlay={none} onMore={none}/>)}</View>
+  </TitleFrame></Page>;
+}
 function Album() {
+  if (useFrameMetrics().form === 'phone') return <PhoneAlbum/>;
   // The album page keeps its own scroller (song windowing, paging near the end): the frame hands it the page and the collapse point.
   return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-album" back={back}
     scroller={(content, style, collapse) => <MusicScrollView style={{flex: 1}} contentContainerStyle={style} collapseAt={collapse.at} onCollapse={collapse.onChange}>{content}</MusicScrollView>} cover={{shape: 'square', node: <Artwork source={asset('pool/albums/after-hours.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('albumKicker')}} title={f('album')}
