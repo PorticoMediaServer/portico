@@ -32,7 +32,7 @@ async function fixture(isTV: boolean, width = isTV ? 1920 : 390, loading = false
     '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel}, '../../../../../packages/i18n/src': {defaultI18n},
     '../../kit/browse': {FilterBuilder: 'FilterBuilder'}, '../../kit/controls': {Button: 'Button'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/focus': {useFocusRegistry: () => ({focus: (address: unknown) => calls.push(['focus', address])})},
     '../../kit/overlays': {BottomSheet: 'BottomSheet', SidePanel: 'SidePanel'}, '../../kit/states': {StateView: 'StateView'},
-    '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => theme}, './filter-controls': {libraryFilterChange, libraryFilterField},
+    '../../kit/browse/presentation': {browseType: () => ({}), browsePlatform: (used: any) => used.isTV ? 'tv' : used.platform === 'phone' ? 'phone' : 'desktop'}, '../../kit/theme': {useTheme: () => theme}, './filter-controls': {libraryFilterChange, libraryFilterField},
     './model': {nativeLibraryCanSave},
   });
   if (frame) {
@@ -74,6 +74,16 @@ test('TV Library filters enter the actual first field and Apply returns through 
   builder.props.onFieldChange('genre', {kind: 'values', included: ['Drama'], excluded: [], mode: 'any'});
   assert.deepEqual(calls.at(-1), ['predicates', [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Drama']}]]);
   state.count.phase = 'loading';
+});
+
+test('Genre starts open only in the phone sheet: a tablet pane opens a field\'s popover only when that field is chosen', async () => {
+  for (const [width, open] of [[390, ['genre']], [768, []], [1180, []]] as const) {
+    const {fields} = await fixture(false, width);
+    const builder = nodes(fields).find(node => node.type === 'FilterBuilder');
+    assert.deepEqual(builder.props.openFields, open, `${width}: ${open.length ? 'Genre open inline' : 'no popover open'} on opening`);
+  }
+  const tv = await fixture(true), builder = nodes(tv.fields).find(node => node.type === 'FilterBuilder');
+  assert.deepEqual(builder.props.openFields, [], 'TV starts closed');
 });
 
 test('Library filters over a library that is still loading draw nothing instead of taking the screen down (W3 F2)', async () => {

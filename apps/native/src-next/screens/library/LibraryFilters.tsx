@@ -9,7 +9,7 @@ import {Button} from '../../kit/controls';
 import {useFocusRegistry} from '../../kit/focus';
 import {BottomSheet, SidePanel} from '../../kit/overlays';
 import {StateView} from '../../kit/states';
-import {browseType} from '../../kit/browse/presentation';
+import {browsePlatform, browseType} from '../../kit/browse/presentation';
 import {useTheme} from '../../kit/theme';
 import type {BrowseFiltersProps} from '../../kit/frames';
 import type {NativeShellRuntime} from '../../shell/runtime';
@@ -72,7 +72,9 @@ export function LibraryFilters({draft, source, runtime, labels, owner, onClose, 
  * applies each change at once; a sheet or panel applies on its primary. */
 function LibraryFilterFields({draft, source, runtime, labels, owner, live, panelId}: {draft: NativeLibraryFilterDraft; source: NativeLibrarySnapshot; runtime: NativeShellRuntime; labels: BrowseLabels; owner: boolean; live: boolean; panelId: string}) {
   const theme = useTheme(), focusPrefix = JSON.stringify([panelId, 'controls']), state = useSyncExternalStore(draft.subscribe, draft.getSnapshot);
-  const [openFields, setOpenFields] = useState<readonly string[]>(() => !theme.isTV && source.capabilities?.fields.some(field => field.id === 'genre') ? ['genre'] : []), [failure, setFailure] = useState<unknown>();
+  // The phone sheet draws its fields inline and starts with Genre open; a tablet pane draws a field's choices in a popover,
+  // which opens only when its field is chosen (never over the other fields on opening); TV starts closed.
+  const [openFields, setOpenFields] = useState<readonly string[]>(() => browsePlatform(theme) === 'phone' && source.capabilities?.fields.some(field => field.id === 'genre') ? ['genre'] : []), [failure, setFailure] = useState<unknown>();
   const [now] = useState(() => new Date());
   useEffect(() => {draft.setOpenFields(openFields);}, [draft, openFields]);
   const model = useMemo(() => source.capabilities && source.sort ? browseToolbarModel(source.capabilities, source.library.kind, state.predicates, source.sort, {...runtime.text, owner, textEntry: !theme.isTV}) : undefined,
