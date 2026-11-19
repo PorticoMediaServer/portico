@@ -7,6 +7,7 @@ import {FormError} from './FormError';
 import {Icon} from '../Icon';
 import {useTheme} from '../theme';
 import {useOverlayPaintMode} from '../overlays/OverlayPaintContext';
+import {useFocusTarget} from '../focus';
 import type {TextFieldProps} from './TextField';
 
 /** TV draws its own field. The native input only supplies the system keyboard after Select. */
@@ -22,6 +23,8 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
   // stop, and the drawn field takes its focus look from it.
   const appleTV = Platform.OS === 'ios', [typing, setTyping] = useState(false);
   const eligible = paint.interactive && editable && focusable !== false;
+  // Apple TV: the input is the focus target, so it takes the field's place in the focus registry and its start focus.
+  const {waiting: _waiting, ...appleFocus} = useFocusTarget<TextInput>({focusId, testID, disabled: !appleTV || !eligible, ref: input, preferred: appleTV && autoFocus});
   const search = variant === 'search', height = search ? fieldSpec.search.height.tv : fieldSpec.height.tv;
   const suppliedRadius = StyleSheet.flatten(fieldStyle)?.borderRadius;
   const radius = typeof suppliedRadius === 'number' ? suppliedRadius : search ? fieldSpec.search.radius.tv : fieldSpec.radius.tv;
@@ -46,7 +49,7 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
     {color: value ? theme.colors.text : placeholderTextColor ?? theme.colors[fieldSpec.tv.muted]}];
   return <View style={[{gap: fieldSpec.tv.labelGap, alignSelf: 'stretch'}, containerStyle]}>
     {label !== undefined && <Text style={[theme.type[fieldSpec.tv.label], {color: theme.colors[fieldSpec.tv.muted]}]}>{label}</Text>}
-    <View><Focusable ref={target} focusId={focusId} testID={testID} disabled={!eligible} preferredFocus={autoFocus && !appleTV} focusable={appleTV ? false : undefined}
+    <View><Focusable ref={target} focusId={appleTV ? undefined : focusId} testID={appleTV ? undefined : testID} disabled={!eligible} preferredFocus={autoFocus && !appleTV} focusable={appleTV ? false : undefined}
       accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : props.placeholder)}
       accessibilityValue={{text: displayed || props.placeholder || ''}} accessibilityState={{...accessibilityState, disabled: !editable}}
       focusKind="field" focusRadius={radius} onPress={open} onAccessibilityTap={open} onFocus={onFocus} onBlur={onBlur}
@@ -61,10 +64,10 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
         : <Text style={[textStyle, {flex: 1, minWidth: 0}]}>{props.placeholder ?? ''}</Text>}
       {trailing}
     </Focusable>
-    {appleTV && <TextInput {...props} ref={input} nativeID={nativeID} value={value} editable={eligible} focusable={eligible} hasTVPreferredFocus={autoFocus}
-      accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : props.placeholder)}
+    {appleTV && <TextInput {...appleFocus} {...props} testID={appleFocus.testID} ref={appleFocus.ref} nativeID={nativeID} value={value} editable={eligible} focusable={eligible}
+      accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : props.placeholder)} cursorColor={cursorColor} selectionColor={selectionColor}
       style={styles.appleTVInput} onChangeText={eligible ? props.onChangeText : undefined}
-      onFocus={event => {setTyping(true); onFocus?.(event);}} onBlur={event => {setTyping(false); onBlur?.(event);}}/>}</View>
+      onFocus={event => {appleFocus.onFocus(); setTyping(true); onFocus?.(event);}} onBlur={event => {appleFocus.onBlur(); setTyping(false); onBlur?.(event);}}/>}</View>
     {/* Focus on native mount so the text input is in the window when it asks for the keyboard. */}
     {!appleTV && <TextInput key={editing ? 'editing' : 'idle'} {...props} ref={input} nativeID={nativeID} value={value} multiline={multiline}
       autoFocus={editing && eligible} editable={eligible} focusable={editing && eligible}
