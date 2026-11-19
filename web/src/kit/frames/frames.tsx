@@ -163,7 +163,10 @@ export function SettingsPageFrame({title, back, action, status, actions, server,
     <header className={styles.pageHead}><h1 className={styles.pageTitle}>{title}</h1>
       <span role="status" className={styles.pageStatus}>{status === 'saving' ? t('next.settings.saving') : status === 'saved' ? <><Icon name="i-check" size={16} />{t('next.settings.saved')}</> : null}</span>
       {actions && <span className={styles.pageActions}>{actions}</span>}</header>
-    {state ? <PageStateFrame {...state} /> : <>{intro !== undefined && <p className={styles.intro}>{intro}</p>}{tabs && <div className={styles.pageTabs}>{tabs}</div>}{children}</>}
+    {state ? <PageStateFrame {...state} /> : <>{intro !== undefined && <p className={styles.intro}>{intro}</p>}{tabs && <div className={styles.pageTabs}>{tabs}</div>}
+      {/* The flexible region is a column at the card inset: whatever a page puts there (sections, rows, a page's own lists)
+          lines up with the cards, on every width. */}
+      <div className={styles.pageBody}>{children}</div></>}
   </div>;
 }
 
