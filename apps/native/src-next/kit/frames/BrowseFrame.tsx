@@ -13,6 +13,7 @@ import {useTheme} from '../theme';
 import {FrameRhythm, useFrameMetrics, type FrameMetrics} from './metrics';
 import {PageHeader, type PageHeaderProps} from './PageHeader';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
+import {HeroWordsTop} from '../layout/Hero';
 
 /** The header regions (`frameRegions.browse`): a library's title is its switcher; a pushed list has Back and a plain title. */
 export type BrowseHeaderProps = PageHeaderProps & Readonly<{
@@ -82,7 +83,10 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, chil
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   // A library's header and toolbar stay put while its grid or rows scroll under them; a plain page's title scrolls away.
   const pinned = !!header && (!!header.switcher || !!toolbar || !!grid);
-  const top = header ? <BrowseHeader {...header}/> : hero ?? <View style={{height: form === 'tv' ? frame.titleTop : insets.top + frameSpec.header.wordmarkBar}}/>;
+  // The hero's words start a header gap under the status bar and, on a phone and an upright tablet, the wordmark bar over it.
+  const wordsTop = insets.top + (form === 'phone' || form === 'medium' ? frameSpec.header.wordmarkBar : 0) + frame.headerGap;
+  const top = header ? <BrowseHeader {...header}/> : hero ? <HeroWordsTop.Provider value={wordsTop}>{hero}</HeroWordsTop.Provider>
+    : <View style={{height: form === 'tv' ? frame.titleTop : insets.top + frameSpec.header.wordmarkBar}}/>;
   if (failure) return <View testID={testID} style={{flex: 1}}>{top}<PageStateFrame {...failure}/></View>;
   const rows = <FrameRhythm.Provider value><View style={{gap: frame.rowSection, marginTop: hero ? frameSpec.hero.home.rowOffset[form] : header ? frame.headerGap : 0}}>{loading ? <RowsSkeleton/> : children}</View></FrameRhythm.Provider>;
   const body = grid || (loading && toolbar)

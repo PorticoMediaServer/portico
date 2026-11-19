@@ -224,7 +224,7 @@ test('paused audio keeps the phone and TV restoration delays', async () => {
 
 async function heroModule(state: ReturnType<typeof lifecycle>, overlay = {open: false}) {
   return screenModule(new URL('../src-next/kit/layout/Hero.tsx', import.meta.url), {
-    '../overlays/OverlayHost': {useOverlayOpen: () => overlay.open},
+    '../overlays/OverlayHost': {useOverlayOpen: () => overlay.open}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../frames/metrics': {useFrameMetrics: () => ({headerGap: 12})},
     react: state.react, 'react-native': state.native, 'react-native-reanimated': state.animated, '@portico/design': {heroSpec},
     '../theme': {useTheme: () => ({isTV: false, layoutMode: 'phone', platform: 'phone', colors: {text: '#edf5fa'}})}, '../useMotion': {useMotion: () => state.motion},
     './Lockup': {Lockup: 'Lockup'}, './model': heroModel,
@@ -233,6 +233,16 @@ async function heroModule(state: ReturnType<typeof lifecycle>, overlay = {open: 
 }
 const heroProps = () => ({candidates: [{id: 'a', title: 'A'}, {id: 'b', title: 'B'}], variant: 'phone-app',
   renderArtwork: () => null, renderActions: () => null, onIndexChange: (_index: number) => {}});
+
+test('a hero\'s words never rise past the frame\'s line: the overview gives way a line at a time, the rest stays', async () => {
+  // The landscape tablet's 440 pt hero with a two-line 58 pt title lifted its words under the status bar (JUJUTSU KAISEN).
+  const {heroOverviewLines} = await heroModule(lifecycle());
+  const steps: number[] = [];
+  for (let lines = 3, top = -10; ; top += 22) {const next = heroOverviewLines(top, 24, lines); if (next === lines) break; steps.push(lines = next);}
+  assert.deepEqual(steps, [2, 1], 'two lines given up lift the words to 34, under the 24 line');
+  assert.equal(heroOverviewLines(30, 24, 3), 3, 'words already under the line keep the full overview');
+  assert.equal(heroOverviewLines(-80, 24, 0), 0, 'with no overview left nothing else gives way');
+});
 
 test('hero interruption preserves remaining dwell and rejects a previously queued timeout', async t => {
   const state = lifecycle(), timer = timers(t, state), {Hero} = await heroModule(state), changes: number[] = [];
