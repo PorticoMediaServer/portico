@@ -14,7 +14,7 @@ async function fixture(width: number, isTV = false) {
     react: host.react, 'react-native': {View: 'View', ScrollView: 'ScrollView', useWindowDimensions: () => ({width})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}},
     '../../kit/controls': {Button: 'Button', Chip: 'Chip'}, '../../kit/focus': {FocusItem: 'FocusItem'},
-    '../../kit/browse': {FiltersButton: 'FiltersButton', QuickToggle: 'QuickToggle', SaveViewButton: 'SaveViewButton'},
+    '../../kit/browse': {ChipRail: 'ChipRail', FiltersButton: 'FiltersButton', QuickToggle: 'QuickToggle', SaveViewButton: 'SaveViewButton'},
     '../../kit/theme': {useTheme: () => theme}, './LibrarySortMenu': {LibrarySortMenu: 'LibrarySortMenu'},
   });
   const start = () => calls.push('actual-library-context');
@@ -39,8 +39,10 @@ test('the library row never draws its own Select and keeps its drawn controls ex
     assert.equal(nodes.some(node => node.props.testID === 'library-select'), false, 'the row never draws a second Select');
     assert.deepEqual(f.calls, [], 'the row never invokes the header action by itself');
     assert.equal(nodes.find(node => node.type === 'FiltersButton')?.props.open, true, 'actual draft open state reaches the control');
-    // The phone strip sits in its TVRow (TV focus step 5).
-    assert.equal(([tree.props.children].flat().find((child: any) => child?.type === 'ScrollView') ?? tree).type, width < 600 ? 'ScrollView' : 'View', width < 600 ? 'the phone keeps the scrolling strip' : 'the drawn tablet row replaces the strip');
+    // Phone (owner's one-row rule): one row of Filters, sort, the quick chips in the kit ChipRail and grid / list at the end;
+    // the tablet row keeps Filters and sort with its count and grid / list at the right.
+    assert.equal(tree.type, 'View', 'one drawn row, no scrolling strip of every control');
+    assert.equal(nodes.some(node => node.type === 'ChipRail'), width < 600, width < 600 ? 'the phone\'s chips sit in the rail' : 'the tablet draws no chip rail here');
     // 'Button' stays in the filter so an unexpected row button fails this order instead
     // of escaping it; the expected shape is the drawn filters control, then sort.
     const controls = nodes.filter(node => ['Button', 'FiltersButton', 'LibrarySortMenu'].includes(node.type as string)).map(node => node.type);
@@ -51,4 +53,16 @@ test('the library row never draws its own Select and keeps its drawn controls ex
   const tv = await fixture(1920, true), nodes = elements(tv.render());
   assert.equal(nodes.some(node => node.props.testID === 'library-select'), false);
   assert.deepEqual(nodes.filter(node => ['Button', 'LibrarySortMenu', 'FiltersButton', 'Chip'].includes(node.type as string)).map(node => node.type), ['LibrarySortMenu', 'FiltersButton', 'Chip']);
+});
+
+test('a phone library toolbar is ONE row: Filters (with how many match while filtering), sort, the chip rail, grid / list at the end', async () => {
+  // SMALL-FAULTS 28: the Pixel drew two rows (the controls, then "104 movies" with grid / list) and a strip cut at the edge.
+  const f = await fixture(390);
+  const tree = f.render({trailing: 'VIEW-TOGGLE', matches: 29, model: {quick: [{id: 'unplayed', active: false, label: {text: 'Unplayed'}}], filterQuick: [], groups: [], applied: [],
+    sorts: [], sort: {field: 'title', direction: 'asc', flippable: false, reshufflable: false}}});
+  const row = [tree.props.children].flat(9).filter(Boolean);
+  assert.deepEqual(row.map((child: any) => typeof child === 'string' ? child : child.type === 'FocusItem' ? [child.props.children].flat()[0]?.type : child.type),
+    ['FiltersButton', 'LibrarySortMenu', 'ChipRail', 'VIEW-TOGGLE'], 'Filters, sort, the chips, then grid / list pinned at the right');
+  assert.equal(elements(tree).find(node => node.type === 'FiltersButton')!.props.matches, 29, '"Filters · 29" while a filter applies');
+  assert.equal(elements(f.render({filterCount: 0, matches: 104})).find(node => node.type === 'FiltersButton')!.props.matches, undefined, 'no filter: no count');
 });
