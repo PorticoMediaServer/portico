@@ -104,7 +104,7 @@ function GridSkeleton() {
  * episode's number and name go in `reason`, the kicker over the title. */
 export type HomeHeroEntry = HeroCandidate & Readonly<{progress?: number; remaining?: string}>;
 /** What a screen may say about Home's hero: what to feature and how to draw its art, thumbnails and buttons. Never a size. */
-export type HomeHeroProps<T extends HomeHeroEntry> = Pick<HeroProps<T>, 'candidates' | 'activeIndex' | 'onIndexChange' | 'active' | 'visible'
+export type HomeHeroProps<T extends HomeHeroEntry> = Pick<HeroProps<T>, 'candidates' | 'activeIndex' | 'onIndexChange' | 'active' | 'visible' | 'reducedMotion'
   | 'renderArtwork' | 'renderThumbnail' | 'renderActions' | 'renderMetadata' | 'renderReason' | 'titleLink' | 'onArtworkError' | 'onArtworkReady'>;
 /** Rule 14, the moderate hero, for `BrowseFrame`'s `hero`: the kit's Hero (its cross-fade and drift unchanged) at the rule's
  * fixed sizes. From tablet width its pager is the thumbnails with their names (mock.html home). */
