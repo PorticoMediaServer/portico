@@ -1,13 +1,9 @@
 /** Cursor ownership for one original music section. Rows are held in three
  * bounded chunks; cursor bookmarks allow revisiting earlier chunks without
  * treating a displayed window as whole-container membership. */
-export type MusicSection<T> = Readonly<{
-  phase: 'idle' | 'loading' | 'ready' | 'error' | 'refresh-required';
-  items: readonly T[]; nextCursor: string; offset: number; revision?: string;
-  canNext: boolean; canPrevious: boolean; total?: number; totalIsLowerBound?: boolean;
-  error?: unknown;
-}>;
-export type MusicSectionPage<T> = Readonly<{items: readonly T[]; nextCursor: string; revision?: string; total?: number; totalIsLowerBound?: boolean; offset?: number}>;
+// The section types moved with the music parts that draw them (kit/music/section.ts).
+import type {MusicSection, MusicSectionPage} from '../../../kit/music/section';
+export type {MusicSection, MusicSectionPage};
 export const emptyMusicSection = <T>(): MusicSection<T> => Object.freeze({phase: 'idle', items: [], nextCursor: '', offset: 0, canNext: false, canPrevious: false});
 const changed = () => Object.assign(new Error('music_section_changed'), {code: 'stale_continuation'});
 type Chunk<T> = Readonly<{index: number; offset: number; page: MusicSectionPage<T>}>;

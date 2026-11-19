@@ -84,6 +84,7 @@
   "apps/native/src-next/kit/layout/TopBar.tsx": 3,
   "apps/native/src-next/kit/live/Guide.tsx": 5,
   "apps/native/src-next/kit/live/MiniGuide.tsx": 19,
+  "apps/native/src-next/kit/music/MusicFormatBadges.tsx": 1,
   "apps/native/src-next/kit/overlays/Feedback.tsx": 3,
   "apps/native/src-next/kit/overlays/Menu.tsx": 6,
   "apps/native/src-next/kit/overlays/surface.tsx": 3,

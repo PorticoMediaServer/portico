@@ -15,6 +15,7 @@ import {browseGridCard} from './BrowseFrame';
 import {useFrameMetrics} from './metrics';
 import type {TitleCollapse} from './TitleFrame';
 import {TitleListRow, titleListRowHeight, type TitleListItem} from './TitleListRow';
+import {MusicScrollView} from '../music/MusicWindow';
 import {PanelBlock, PanelHeading} from './title-parts';
 
 /** One poster in a page's grid: what the page knows about the title, never how big it is (as `PosterRowItem`). */
@@ -107,4 +108,12 @@ function TitleRowsScroller<T>({collection, getKey, item, testID, content, style,
     onScrollOffset={onOffset}
     renderPlaceholder={() => <SkeletonBlock width={row.poster} height={row.poster * 1.5} radius={theme.radii.artwork}/>}
     renderItem={value => <TitleListRow item={item(value)}/>}/>;
+}
+
+/** A title page whose songs page in as it nears its end (an album, an artist's top songs: phone-app frames 13, 15b):
+ * `TitleFrame`'s `scroller`, the music scroll view the old music pages scroll with (song windowing and `onNearEnd`), with
+ * the frame's page as its content and the frame's compact bar at the frame's point. */
+export function musicScroller(props: Readonly<{onNearEnd?: () => void; testID?: string}>) {
+  return (content: ReactNode, style: ViewStyle, collapse: TitleCollapse) => <MusicScrollView testID={props.testID} style={{flex: 1}} contentContainerStyle={style}
+    collapseAt={collapse.at} onCollapse={collapse.onChange} onNearEnd={props.onNearEnd}>{content}</MusicScrollView>;
 }
