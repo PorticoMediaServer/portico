@@ -295,13 +295,16 @@ export function createFocusRegistry() {
     getSnapshot: () => revision,
     subscribeRegion,
     regionSnapshot: (id: string) => scopedRevisions.get(id) ?? 0,
-    subscribeTarget(id: string | undefined, edges: readonly string[], listener: () => void, childId?: string) {
-      const releases = [...new Set(edges)].map(edge => subscribeHost(edge, listener));
+    /** `entries`: also follow each edge region's own changes (its children, and focus moving in or out of it or within it,
+     * which moves its remembered entry), for a control that points at that region's entry leaf rather than its guide
+     * (Android TV, R1). A focus move elsewhere still notifies nobody that points at an unchanged region. */
+    subscribeTarget(id: string | undefined, edges: readonly string[], listener: () => void, childId?: string, entries = false) {
+      const releases = [...new Set(edges)].flatMap(edge => entries ? [subscribeHost(edge, listener), subscribeRegion(edge, listener)] : [subscribeHost(edge, listener)]);
       if (id !== undefined) releases.push(subscribeTargetRegion(id, listener));
       if (id !== undefined && childId !== undefined) releases.push(subscribeChild(childKey(id, childId), listener));
       return () => {for (const release of releases) release();};
     },
-    targetSnapshot: (id: string | undefined, edges: readonly string[], childId?: string) => edges.reduce((latest, edge) => Math.max(latest, hostRevisions.get(edge) ?? 0),
+    targetSnapshot: (id: string | undefined, edges: readonly string[], childId?: string, entries = false) => edges.reduce((latest, edge) => Math.max(latest, hostRevisions.get(edge) ?? 0, entries ? scopedRevisions.get(edge) ?? 0 : 0),
       id === undefined ? 0 : Math.max(targetRevisions.get(id) ?? 0, childId === undefined ? 0 : childRevisions.get(childKey(id, childId)) ?? 0)),
     capture: (): FocusSnapshot | undefined => active && {...currentSnapshot(active), order: [...currentSnapshot(active).order]},
     focus, focusRegion, entryTarget, entryAddress, restore,

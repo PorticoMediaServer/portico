@@ -7,6 +7,7 @@ import {BarSurface, TopBar, type TopBarBack} from '../layout/TopBar';
 import {MenuRow, Popover} from '../overlays';
 import type {FocusRef} from '../overlays';
 import {Icon, type IconName} from '../Icon';
+import {FocusRegion, type FocusRegionProps} from '../focus';
 import {useTheme} from '../theme';
 import {alpha, browseType} from './presentation';
 import type {LibraryChoice, LibraryHeaderProps} from './types';
@@ -91,23 +92,27 @@ export function LibraryMediumHeader({name, counts, switcher, menu, selection, am
 }
 
 /** Its trigger is the centred phone name, or only the round chevron beside a wide header's title; the header it sits in decides. */
-export function LibrarySwitcher({libraries, value, onValueChange, open: suppliedOpen, onOpenChange, trigger: suppliedTrigger, testID, returnFocusRef}: {
+export function LibrarySwitcher({libraries, value, onValueChange, open: suppliedOpen, onOpenChange, trigger: suppliedTrigger, testID, returnFocusRef, focusRegion}: {
   libraries: readonly LibraryChoice[]; value: string; onValueChange: (id: string) => void;
   open?: boolean; onOpenChange?: (open: boolean) => void; trigger?: 'name' | 'chevron'; testID?: string; returnFocusRef?: FocusRef;
+  /** TV: the switcher's own stop in the page's focus graph (R1: declared edges), around its button only, not its popover. */
+  focusRegion?: Pick<FocusRegionProps, 'id' | 'edges' | 'enabled'>;
 }) {
   const theme = useTheme(), anchorRef = useRef<View>(null), [localOpen, setLocalOpen] = useState(false);
   // The header's slot decides; a switcher outside a header (a chooser) draws what it is given.
   const trigger = useContext(SwitcherSlot) ?? suppliedTrigger ?? 'name';
   const open = suppliedOpen ?? localOpen, current = libraries.find(library => library.id === value);
   const setOpen = (next: boolean) => {if (suppliedOpen === undefined) setLocalOpen(next); onOpenChange?.(next);};
+  const wrapSwitcher = (button: ReactNode) => focusRegion ? <FocusRegion {...focusRegion} entry="switcher" order={['switcher']} orientation="horizontal">{button}</FocusRegion> : button;
   return <>
-    <Focusable ref={anchorRef} testID={testID} accessibilityRole="button" focusKind="row" onPress={() => setOpen(!open)} accessibilityLabel={current ? t('next.browse.native.switchLibraryNamed', {name: current.name}) : t('next.browse.native.switchLibrary')} accessibilityState={{expanded: open}}
+    {wrapSwitcher(
+    <Focusable ref={anchorRef} testID={testID} focusId={focusRegion ? 'switcher' : undefined} accessibilityRole="button" focusKind="row" onPress={() => setOpen(!open)} accessibilityLabel={current ? t('next.browse.native.switchLibraryNamed', {name: current.name}) : t('next.browse.native.switchLibrary')} accessibilityState={{expanded: open}}
       style={{height: theme.isTV ? 64 : 44, maxWidth: '100%', paddingHorizontal: trigger === 'chevron' ? 8 : 0, minWidth: trigger === 'chevron' ? 40 : 0, justifyContent: 'center'}}>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%'}}>
         {trigger === 'name' && current && <Text numberOfLines={1} style={[browseType(theme, theme.isTV ? 44 : 17, theme.isTV ? 800 : 700), {color: theme.colors.text, flexShrink: 1}]}>{current.name}</Text>}
         <Icon name="i-down" size={theme.isTV ? 30 : trigger === 'chevron' ? 22 : 16} color={theme.isTV ? theme.colors.textTertiary : theme.colors.text} style={{transform: [{rotate: open ? '180deg' : '0deg'}]}}/>
       </View>
-    </Focusable>
+    </Focusable>)}
     <Popover testID={testID ? `${testID}-surface` : undefined} open={open} onOpenChange={setOpen} anchorRef={anchorRef} returnFocusRef={returnFocusRef ?? anchorRef} title={t('next.browse.native.switchLibrary')} accessibilityLabel={t('next.browse.native.switchLibrary')} placement="bottom-center" width={theme.isTV ? 520 : 252} offset={4} modal backdropOpacity={.62}>
       {libraries.filter(library => !theme.isTV || library.tv !== false).map(library => <MenuRow focusId={library.id} testID={testID ? `${testID}-library-${encodeURIComponent(library.id)}` : undefined} key={library.id} label={library.name} trailing={theme.isTV ? library.count : undefined} description={theme.isTV ? undefined : library.count} selected={library.id === value} preferredFocus={library.id === value} accessibilityRole="radio" accessibilityState={{checked: library.id === value}} variant={theme.isTV ? 'tv' : 'compact'} onPress={() => {onValueChange(library.id); setOpen(false);}}/>)}
     </Popover>
