@@ -16,7 +16,10 @@ export type RowAction = Readonly<{icon: IconName; label: string; onPress: () => 
   pinned?: boolean;
   /** Drawn only on a tablet on its side and TV. On a phone and an upright tablet it is in More, so the primary keeps the
    * room for its label (phone-detail d1: Play, My List, Download, More; Watched is in More). */
-  wide?: boolean}>;
+  wide?: boolean;
+  /** Shares the row with the primary at its width, labelled, on a phone and an upright tablet too (phone-app frames 13 and
+   * 15b: Play and Shuffle side by side, then the round buttons). */
+  split?: boolean}>;
 /** The one flexible button. With `progress` it is drawn as Resume, the played part along its lower edge and the time
  * left beside its label; with `startOver` that is the button after it. */
 export type RowPrimary = Omit<RowAction, 'labelled' | 'pinned' | 'wide'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>;
@@ -41,13 +44,17 @@ export type ActionRowProps = Readonly<{primary?: RowPrimary; actions?: readonly 
 export function ActionRow({primary, actions = [], loading = false, primaryRef}: ActionRowProps) {
   const theme = useTheme(), spec = frameSpec.actionRow, {form} = theme;
   const stacked = form === 'phone' || form === 'medium', height = theme.spec.button.hero.height[theme.column];
-  const side = (action: RowAction) => action.labelled && !stacked && !(form === 'tv' && action.wide)
-    ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
+  const side = (action: RowAction) => (action.split && stacked) || (action.labelled && !stacked && !(form === 'tv' && action.wide))
+    ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} style={action.split && stacked ? shared : undefined} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
     : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
       style={[{width: height, height}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, spec.activeEdge)}]}/>;
   const width = spec.primaryWidth[form];
+  // A split row (frames 13, 15b) halves its width between the primary and the split action, whatever their labels say.
+  // No side padding on either: their words are centred, and padding would count towards one half (on Android a glass
+  // button pads its inner face, the primary its own box), leaving the halves unequal.
+  const split = stacked && actions.some(action => action.split), shared = {flex: 1, flexBasis: 0, paddingHorizontal: 0};
   const lead = primary && {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, focusId: primary.focusId ?? primary.testID,
-    focusableWhenDisabled: loading, align: stacked ? 'stretch' as const : 'start' as const, style: form === 'phone' ? {flex: 1} : width ? {width} : undefined};
+    focusableWhenDisabled: loading, align: stacked ? 'stretch' as const : 'start' as const, style: split ? shared : form === 'phone' ? {flex: 1} : width ? {width} : undefined};
   // While loading the row keeps its buttons but says nothing it does not know yet (the time left).
   return <View style={{minHeight: height, alignSelf: stacked ? 'stretch' : undefined, flexDirection: 'row', alignItems: 'center', justifyContent: stacked ? 'center' : 'flex-start', gap: spec.gap[form]}}>
     {lead && (primary.progress !== undefined && !loading

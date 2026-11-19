@@ -63,6 +63,8 @@ export type TitleFrameProps = Readonly<{
   /** The page's selection bar while titles in its panel are selected (Select in a card's menu), at the top of the panel. */
   selectionBar?: ReactNode;
   kicker?: TitleKicker;
+  /** Who made it, under the title in the accent: an album's artist (phone-app frame 13), a link to their page. */
+  byline?: Readonly<{text: string; onPress?: () => void}>;
   title: string;
   /** The metadata line (`HeroMetadata`). Its line is kept when there is nothing to show. */
   metadata?: ReactNode;
@@ -127,7 +129,7 @@ export function TitleSection({children}: Readonly<{tab: string; children?: React
 const titlePrimaryId = 'title-primary';
 /** How far the folded head's words fade: almost away, never to zero (tvOS will not focus a transparent view). */
 const tvFoldedCopy = .03;
-function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, note, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
+function TitlePage({art, cover, back, topAction, kicker, byline, title, metadata, picker, primary, actions = [], tagline, synopsis, note, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
   const [passed, setPassed] = useState(false), [tabsPinned, setTabsPinned] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY), [heroEnd, setHeroEnd] = useState(Number.POSITIVE_INFINITY);
@@ -217,6 +219,10 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   const identity = <>
     {kickerLine}
     {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
+    {byline && (byline.onPress
+      ? <Focusable accessibilityRole="link" accessibilityLabel={byline.text} onPress={byline.onPress} style={{alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
+        <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></Focusable>
+      : <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left', marginTop: theme.space.hairline * 2}]}>{byline.text}</Text>)}
     <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: centre, justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/>
       // A stacked head is centred, so its facts are too, line by line when they wrap: the page passes facts, never alignment.
       : <HeroFactsCentred.Provider value={stacked}>{metadata}</HeroFactsCentred.Provider>}</View>
