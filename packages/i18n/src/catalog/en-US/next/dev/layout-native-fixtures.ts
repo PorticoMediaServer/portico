@@ -1,5 +1,9 @@
 /** Reference-domain text. Import only from the native layout development gallery. */
 export const layoutNativeFixtureMessages = {
+  'next.layout.native.fixture.typeSpecimen': 'ÅÉÑ jgyQ CAPS',
+  'next.layout.native.fixture.typeSpecimenTwo': 'ÅÉÑ jgyQ\nCAPS Ågjy',
+  'next.layout.native.fixture.typeSpecimenShort': 'Åjg',
+  'next.layout.native.fixture.typeSpecimenShortTwo': 'Åjg\nÉgy',
   'next.layout.native.fixture.stressTitle': 'A sparse grid of 50,000 items',
   'next.layout.native.fixture.jumpMiddle': 'Jump to item 25,001',
   'next.layout.native.fixture.visibleRange': '{first} to {last} of {total}',

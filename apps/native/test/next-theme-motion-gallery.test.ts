@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createTheme, fontFamilies, nativeType} from '../src-next/kit/theme.ts';
+import {createTheme, fontFamilies, measuredLineFloor, nativeType} from '../src-next/kit/theme.ts';
 import {motionPolicy} from '../src-next/platform/motion-policy.ts';
 import {collectGalleries, galleriesForPlatform, kitSelectionFromURL, type Gallery, type GalleryContext} from '../src-next/dev/gallery-registry.ts';
 import {colors, emphasis, formScale, layout, platformRadii, typeScale, springs, type FrameForm, type TypeRole, type TypeStyle} from '@portico/design';
@@ -50,7 +50,8 @@ test('native windows change layout and type at the canonical boundaries without 
     const theme = createTheme({isTV: true, width});
     assert.equal(theme.platform, 'tv'); assert.equal(theme.layoutMode, 'tv'); assert.equal(theme.gutter, layout.gutter.tv);
     assert.equal(theme.radii, platformRadii.tv);
-    assert.deepEqual(theme.type.lockup, nativeType(typeScale.tenFoot.lockup));
+    // G2: the TV column takes the measured line floor (the lockup's 112.8 box becomes 164 at 120).
+    assert.deepEqual(theme.type.lockup, nativeType(typeScale.tenFoot.lockup, 1, measuredLineFloor));
   }
 });
 test('motion uses the physical token springs and 160ms transform-free reduced states', () => {

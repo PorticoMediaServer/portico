@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {activeTextScale, createTheme, fontFamilies, nativeType, textScaleFor, tvTextScale} from '../src-next/kit/theme.ts';
+import {activeTextScale, createTheme, fontFamilies, measuredLineFloor, nativeType, textScaleFor, tvTextScale} from '../src-next/kit/theme.ts';
 import {shellType} from '../src-next/kit/shell/visual.ts';
 import {colors, emphasis, formScale, typeScale, type TypeRole} from '@portico/design';
 
@@ -22,7 +22,7 @@ test('Large scales every semantic ten-foot role once, font size and line height 
   // tv.html and tv-more.html draw every TV page heading at 44/800 with -.03em;
   // theme.ts applies that one drawn correction to the published ten-foot title
   // (44/700 at -.027). It is drawn geometry, so it scales once with the rest.
-  const drawnTitle = (scale: number) => ({...nativeType(typeScale.tenFoot.title, scale),
+  const drawnTitle = (scale: number) => ({...nativeType(typeScale.tenFoot.title, scale, measuredLineFloor),
     fontFamily: fontFamilies[800], fontWeight: '800', letterSpacing: -0.03 * 44 * scale});
   for (const [role, base] of Object.entries(typeScale.tenFoot)) {
     const scaled = large.type[role as keyof typeof large.type];
@@ -31,13 +31,14 @@ test('Large scales every semantic ten-foot role once, font size and line height 
     assert.equal(scaled.fontSize, unscaled.fontSize! * 1.2, `${role} size scales once`);
     assert.equal(scaled.letterSpacing, unscaled.letterSpacing! * 1.2, `${role} tracking scales once`);
     if (base.lineHeight !== 'normal') {
-      assert.equal(scaled.lineHeight, base.lineHeight * 1.2, `${role} line height`);
+      // G2: a set line box is never under the measured floor on TV.
+      assert.equal(scaled.lineHeight, Math.max(base.lineHeight, Math.ceil(base.size * measuredLineFloor)) * 1.2, `${role} line height`);
       assert.equal(scaled.lineHeight, unscaled.lineHeight! * 1.2, `${role} line height scales once`);
     } else assert.equal('lineHeight' in scaled, false, `${role} keeps normal metrics`);
     // R3: a role with a level of emphasis carries that level's colour; the colour is not geometry and never scales.
     const level = formScale.emphasis.tv[role as TypeRole], tint = level ? {color: colors[emphasis.level[level]]} : {};
-    assert.deepEqual(scaled, {...(role === 'title' ? drawnTitle(1.2) : nativeType(base, 1.2)), ...tint}, `${role} is scaled exactly once`);
-    assert.deepEqual(unscaled, {...(role === 'title' ? drawnTitle(1) : nativeType(base)), ...tint}, `${role} standard geometry`);
+    assert.deepEqual(scaled, {...(role === 'title' ? drawnTitle(1.2) : nativeType(base, 1.2, measuredLineFloor)), ...tint}, `${role} is scaled exactly once`);
+    assert.deepEqual(unscaled, {...(role === 'title' ? drawnTitle(1) : nativeType(base, 1, measuredLineFloor)), ...tint}, `${role} standard geometry`);
   }
 });
 
