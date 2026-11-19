@@ -40,7 +40,8 @@ const gesture = moduleURL(`const pan=()=>new Proxy({}, {get:()=>()=>pan()}); exp
 const svg = moduleURL(`export default 'Svg'; export const Defs='Defs',LinearGradient='LinearGradient',RadialGradient='RadialGradient',Rect='Rect',Stop='Stop',Path='Path',Circle='Circle',Ellipse='Ellipse',Line='Line',Polyline='Polyline',Polygon='Polygon',G='G',ClipPath='ClipPath',Mask='Mask',Use='Use',Text='SvgText';`);
 registerHooks({
   resolve(specifier, context, next) {
-    if(specifier.endsWith('/kit/states'))return {url:new URL('../src-next/kit/states/StateView.tsx',import.meta.url).href,shortCircuit:true};
+    // The states index, by where it resolves (`../../../kit/states` from screens, `../states` from the kit's music parts).
+    if(specifier.startsWith('.')&&context.parentURL?.startsWith('file:')&&/\/kit\/states$/.test(new URL(specifier,context.parentURL).pathname))return {url:new URL('../src-next/kit/states/StateView.tsx',import.meta.url).href,shortCircuit:true};
     if (specifier === '@react-native-masked-view/masked-view') return {url: moduleURL(`export default 'MaskedView';`), shortCircuit: true};
     if (specifier === 'react-native') return {url: native, shortCircuit: true};
     if (specifier === 'react-native-reanimated') return {url: reanimated, shortCircuit: true};
@@ -101,8 +102,8 @@ async function nativeControlID(element: Element): Promise<string | undefined> {
 
 
 
-const {MusicErrorView}=await import('../src-next/screens/destinations/music/MusicErrorView.tsx');
-const {MusicSectionControls}=await import('../src-next/screens/destinations/music/MusicSectionControls.tsx');
+const {MusicErrorView}=await import('../src-next/kit/music/MusicErrorView.tsx');
+const {MusicSectionControls}=await import('../src-next/kit/music/MusicSectionControls.tsx');
 const {createFocusRegistry}=await import('../src-next/kit/focus/registry.ts');
 const {FocusProvider}=await import('../src-next/kit/focus/FocusRegion.tsx');
 
