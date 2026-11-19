@@ -83,7 +83,7 @@ function Index({selected, onOpen, query = ''}: {selected: string; onOpen: (id: s
 /** phone-app 16, desktop-settings f2: a search field with its glyph, no label over it. */
 function Search({value, onChange}: {value: string; onChange: (value: string) => void}) {
   const frame = useFrameMetrics();
-  return <View style={{marginHorizontal: frame.form === 'phone' ? frame.gutter : 0, marginBottom: frame.headingGap}}><TextField variant="search" leadingIcon="i-search" accessibilityLabel={t('next.shell.searchSettings')} placeholder={t('next.shell.searchSettings')} value={value} onChangeText={onChange}/></View>;
+  return <View style={{marginHorizontal: frame.form === 'phone' ? frame.gutter : 0}}><TextField variant="search" leadingIcon="i-search" accessibilityLabel={t('next.shell.searchSettings')} placeholder={t('next.shell.searchSettings')} value={value} onChangeText={onChange}/></View>;
 }
 function SettingsIndex({search = false}: {search?: boolean}) {
   const {form} = useFrameMetrics(), wide = form !== 'phone', [page, setPage] = useState<string>(), [query, setQuery] = useState(search ? sample.settingsQuery : '');

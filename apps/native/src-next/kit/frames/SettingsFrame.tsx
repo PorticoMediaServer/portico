@@ -60,7 +60,8 @@ function SettingsListBody({bar, search, list, profile, shortcuts, page, hints, t
         contentContainerStyle={phone ? {paddingBottom: frameSpec.sheet.footerClear} : {paddingTop: frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}>
         <FrameColumn.Provider value={!phone || column}>
           {!phone && <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, marginBottom: frame.headerGap}]}>{bar.title}</Text>}
-          {search}{phone && profile}{phone && shortcuts}{list}
+          {/* The search field keeps the heading gap above what follows it on every form. */}
+          {search !== undefined && <View style={{marginBottom: frame.headingGap}}>{search}</View>}{phone && profile}{phone && shortcuts}{list}
         </FrameColumn.Provider>
       </ScrollView>
       {form === 'tv' && hints ? <View style={{paddingBottom: frame.bottomClear}}>{hints}</View> : null}
@@ -123,7 +124,9 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
   const body = <>
     {intro !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: beside ? 0 : frame.gutter, maxWidth: frameSpec.settings.paragraphMax}]}>{intro}</Text>}
     {tabs}
-    {children}
+    {/* The flexible region is one column at the card inset: whatever a page puts there (sections, a page's own rows and
+        lists) lines up with the cards, and the parts in it start at its edges (as web, SMALL-FAULTS 14). */}
+    <View style={{gap: frame.sectionGap, marginHorizontal: beside ? 0 : frame.cardInset}}><FrameColumn.Provider value>{children}</FrameColumn.Provider></View>
   </>;
   // A page shown alone on a tablet or TV is held to the page's column, as it is beside the list.
   const column = !beside && frame.form !== 'phone' && !inSheet ? {maxWidth: frameSpec.settings.pageMax + 2 * frame.gutter} : undefined;
