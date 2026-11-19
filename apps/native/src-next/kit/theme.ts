@@ -93,7 +93,9 @@ const ThemeContext = createContext<Theme | undefined>(undefined);
 
 export function ThemeProvider({children, width: surfaceWidth, reduceMotion = false, textScale, textSize}: {children: React.ReactNode; width?: number; reduceMotion?: boolean; /** Numeric scale used by specimens and the confirmed preference itself. */ textScale?: number; /** Confirmed `appearance.textSize`; ignored outside TV per ruling R46. */ textSize?: TextSizePreference}) {
   const dimensions = useWindowDimensions();
-  const width = surfaceWidth ?? dimensions.width, height = surfaceWidth === undefined ? dimensions.height : undefined;
+  // A surface as wide as the window is the window: keep its height, so a phone held sideways stays the phone form even
+  // under a nested provider that passes the inherited width (NativeSettingsAppearance wraps the whole shell).
+  const width = surfaceWidth ?? dimensions.width, height = surfaceWidth === undefined || surfaceWidth === dimensions.width ? dimensions.height : undefined;
   const isTV = Platform.isTV === true;
   const scale = textScale ?? textScaleFor(textSize, isTV);
   publishedTextScale = scale;
