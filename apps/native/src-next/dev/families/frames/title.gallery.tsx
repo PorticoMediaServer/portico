@@ -6,7 +6,7 @@ import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../ki
 import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
-import {AboutTable, CastRow, ChoiceChips, EpisodeList, posterGridScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, ChoiceChips, EpisodeList, posterGridScroller, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
@@ -232,7 +232,30 @@ function Person() {
   </TitleFrame></Page>;
 }
 
+/** A collection on a phone (phone-detail d3 frame 8): the films in one windowed list, each with Watched or how far in,
+ * and the count with the sort on one line. */
+type CollectionFilmFixture = Readonly<{id: string; art: string; title: Name; facts: Name; watched?: boolean; progress?: number; left?: Name}>;
+const collectionFilms: readonly CollectionFilmFixture[] = [
+  // A long title wraps to two lines and the row makes room for it (it is never cut).
+  {id: 'f1', art: 'pool/movies/the-lord-of-the-rings-the-fellowship-of-the-ring.jpg', title: 'fellowshipFull', facts: 'fellowshipFacts', watched: true},
+  {id: 'f2', art: 'pool/movies/the-lord-of-the-rings-the-two-towers.jpg', title: 'towers', facts: 'towersFacts', progress: .5, left: 'towersLeft'},
+  {id: 'f3', art: 'pool/movies/the-lord-of-the-rings-the-return-of-the-king.jpg', title: 'king', facts: 'kingFacts'}];
+function PhoneCollection() {
+  const t = defaultI18n.t;
+  const collection = useMemo(() => createWindowedCollection({pageSize: 30, maxResidentPages: 4, maxConcurrent: 1, keyOf: (film: CollectionFilmFixture) => film.id,
+    fetchPage: async (start, count) => ({items: collectionFilms.slice(start, start + count), total: collectionFilms.length})}), []);
+  useEffect(() => () => collection.dispose(), [collection]);
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-collection" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('bd-lotr.jpg')}/>}
+    kicker={{label: f('collectionKicker')}} title={f('lotr')} metadata={<Meta text={`${t('next.browse.filmCount', {count: 3})} · 2001 to 2003`}/>}
+    primary={{icon: 'i-play', label: f('playAll'), onPress: none}} actions={[{icon: 'i-shuffle', label: t('title.shuffle'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
+    note={t('next.collection.automaticDescription')}
+    scroller={titleRowsScroller({collection, getKey: film => film.id, testID: 'frames-title-collection-films', item: film => ({title: f(film.title), facts: f(film.facts).split(' · '),
+      watched: film.watched, progress: film.progress, remaining: film.left ? f(film.left) : undefined, artwork: asset(film.art), onNavigate: none, onMore: none})})}>
+    <PanelBlock><PanelHeading title={t('next.browse.filmCount', {count: 3})} trailing={<Chip trailingIcon="i-chdown" onPress={none}>{f('byRelease')}</Chip>}/></PanelBlock>
+  </TitleFrame></Page>;
+}
 function Collection() {
+  if (useFrameMetrics().form === 'phone') return <PhoneCollection/>;
   const film = (number: number, key: string, title: string, made: string, synopsis: string, status: {label: string; icon?: 'i-check'; accent?: boolean}, action: ReactNode, progress?: number) =>
     <NumberedRow key={key} number={number} artwork={asset(key)} title={title} facts={<Meta text={made} tags={['PG-13']}/>} synopsis={synopsis} status={status} action={action} progress={progress} onPress={none}/>;
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-collection" back={back} topAction={playOn} art={<AmbientArt treatment="title" foreground={asset('bd-lotr.jpg')}/>}

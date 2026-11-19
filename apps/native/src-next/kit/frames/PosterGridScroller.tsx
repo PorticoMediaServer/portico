@@ -12,6 +12,7 @@ import {useTheme} from '../theme';
 import {browseGridCard} from './BrowseFrame';
 import {useFrameMetrics} from './metrics';
 import type {TitleCollapse} from './TitleFrame';
+import {TitleListRow, titleListRowHeight, type TitleListItem} from './TitleListRow';
 
 /** One poster in a page's grid: what the page knows about the title, never how big it is (as `PosterRowItem`). */
 export type PosterGridItem = Readonly<{title: string; caption?: string; artwork?: ArtworkSource; watched?: boolean; progress?: number;
@@ -60,4 +61,26 @@ function GridPoster({item, context, width}: Readonly<{item: PosterGridItem; cont
     title={item.title} caption={item.caption !== undefined ? [{id: 'caption', text: item.caption, role: 'context'}] : undefined}
     artwork={item.artwork} watched={item.watched} progress={item.progress} selection={item.selection} onNavigate={item.onNavigate}
     menuAnchorRef={anchor} onMore={more ? () => more(anchor) : undefined}/>;
+}
+
+export type TitleRowsScrollerProps<T> = Readonly<{collection: WindowedCollection<T>; getKey: (value: T) => string; item: (value: T) => TitleListItem; testID?: string}>;
+
+/** A title page whose panel ends in a long list of titles, one per row (a collection's films on a phone, phone-detail d3
+ * frame 8): `TitleFrame`'s `scroller`, windowed like `posterGridScroller`, the rows at the page's width. */
+export function titleRowsScroller<T>(props: TitleRowsScrollerProps<T>) {
+  return (content: ReactNode, style: ViewStyle, collapse: TitleCollapse) => <TitleRowsScroller {...props} content={content} style={style} collapse={collapse}/>;
+}
+
+function TitleRowsScroller<T>({collection, getKey, item, testID, content, style, collapse}: TitleRowsScrollerProps<T> & Readonly<{content: ReactNode; style: ViewStyle; collapse: TitleCollapse}>) {
+  const theme = useTheme(), frame = useFrameMetrics(), row = frameSpec.hero.title.parts.listRow;
+  const width = frame.width - frame.gutter - frame.rightGutter, height = titleListRowHeight(theme);
+  const bottom = typeof style.paddingBottom === 'number' ? style.paddingBottom : 0, top = typeof style.paddingTop === 'number' ? style.paddingTop : 0;
+  const latest = useRef(collapse);
+  latest.current = collapse;
+  const onOffset = useCallback((offset: number) => latest.current.onChange(offset > latest.current.at), []);
+  return <WindowedGrid testID={testID} collection={collection} getKey={getKey} header={content} style={{flex: 1}}
+    itemWidth={width} itemHeight={height} gap={0} rowGap={0} gutter={frame.gutter} rightGutter={frame.rightGutter} paddingTop={top + frame.headingGap} paddingBottom={bottom}
+    onScrollOffset={onOffset}
+    renderPlaceholder={() => <SkeletonBlock width={row.poster} height={row.poster * 1.5} radius={theme.radii.artwork}/>}
+    renderItem={value => <TitleListRow item={item(value)}/>}/>;
 }

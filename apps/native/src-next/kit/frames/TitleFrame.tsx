@@ -74,6 +74,8 @@ export type TitleFrameProps = Readonly<{
   /** One bold line over the synopsis, on a tablet on its side and TV. */
   tagline?: string;
   synopsis?: string;
+  /** A quiet note under the buttons with ⓘ (phone-detail d3 frame 8: how Portico made an automatic collection). */
+  note?: string;
   /** A biography's Read more and where it is from ("Biography from TMDB"). */
   /** `expanded`: the whole paragraph shows and the link reads Show less (the old person screen's biography). */
   readMore?: Readonly<{label: string; onPress: () => void; note?: string; expanded?: boolean}>;
@@ -124,7 +126,7 @@ export function TitleSection({children}: Readonly<{tab: string; children?: React
 const titlePrimaryId = 'title-primary';
 /** How far the folded head's words fade: almost away, never to zero (tvOS will not focus a transparent view). */
 const tvFoldedCopy = .03;
-function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
+function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, note, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
   const [passed, setPassed] = useState(false), [tabsPinned, setTabsPinned] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY), [heroEnd, setHeroEnd] = useState(Number.POSITIVE_INFINITY);
@@ -223,7 +225,10 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   // as the web page at phone width). Loading keeps the loaded page's boxes (rule 12): the synopsis's lines, so the tabs and the panel do not move when the words arrive.
   const words = loading ? <View style={{gap: spec.creditsGap}}>
     {Array.from({length: spec.synopsisLines[form]}, (_, index) => <SkeletonBlock key={index} width={index === 0 ? '96%' : '70%'} height={theme.type.intro.lineHeight ?? theme.type.intro.fontSize}/>)}
-  </View> : (tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{gap: spec.creditsGap, maxWidth: stacked ? undefined : theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>
+  </View> : (note !== undefined || tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{alignSelf: 'stretch', gap: spec.creditsGap, maxWidth: stacked ? undefined : theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>
+    {note !== undefined && <View style={{alignSelf: 'stretch', flexDirection: 'row', alignItems: 'flex-start', gap: theme.space.controlGap}}>
+      <Icon name="i-info" size={frameSpec.hero.title.parts.listRow.check} color={theme.colors.textTertiary}/>
+      <Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textTertiary}]}>{note}</Text></View>}
     {!stacked && tagline !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{tagline}</Text>}
     {synopsis !== undefined && <Text numberOfLines={readMore?.expanded ? undefined : readMore ? spec.readMoreLines[form] : spec.synopsisLines[form]} style={[theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax}]}>{synopsis}</Text>}
     {readMore && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
