@@ -141,12 +141,18 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
   </>;
   const scrolled = {onScroll, scrollEventThrottle: onScroll && 100, keyboardShouldPersistTaps: 'handled' as const, keyboardDismissMode: 'interactive' as const,
     style: {flex: 1}, contentContainerStyle: {paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingRight: beside ? frame.rightGutter : 0}};
+  // A list page's own parts (its rows, its own header, empty and footer) stand in the same card-inset column as the
+  // children do, so they line up with every other page's sections.
+  const part = (value: React.ComponentType | React.ReactElement | null | undefined) => React.isValidElement(value) ? value : value ? React.createElement(value) : null;
+  const inColumn = (node: ReactNode) => node ? <View style={{marginHorizontal: beside ? 0 : frame.cardInset}}><FrameColumn.Provider value>{node}</FrameColumn.Provider></View> : null;
   const pageHeader = list?.ListHeaderComponent;
   // A list's rows are its cells, so the gap the scroll puts between the intro, the tabs and the sections is the list
   // header's own, with one more under it before the rows.
   const listHeader = list && (lead || tabs || pageHeader) ? <View style={{gap: frame.sectionGap, marginBottom: frame.sectionGap}}>
-    {lead}{tabs}{React.isValidElement(pageHeader) ? pageHeader : pageHeader ? React.createElement(pageHeader as React.ComponentType) : null}
+    {lead}{tabs}{inColumn(part(pageHeader))}
   </View> : undefined;
+  const listParts = list && {renderItem: list.renderItem && ((info: Parameters<NonNullable<SettingsPageList['renderItem']>>[0]) => inColumn(list.renderItem!(info))),
+    ListEmptyComponent: inColumn(part(list.ListEmptyComponent)), ListFooterComponent: inColumn(part(list.ListFooterComponent))};
   // A page shown alone on a tablet or TV is held to the page's column, as it is beside the list.
   const column = !beside && frame.form !== 'phone' && !inSheet ? {maxWidth: frameSpec.settings.pageMax + 2 * frame.gutter} : undefined;
   return <View testID={testID} style={[{flex: 1}, column]}>
@@ -156,7 +162,7 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
     {/* Beside the list the frame has already placed this column's edges, so its sections start at the column. One
         provider on every form, so a form change restyles the body and never remounts it. */}
     {state ? <PageStateFrame {...state}/> : list ? <FrameColumn.Provider value={beside || parentColumn}>
-      <FlatList {...list} {...scrolled} ListHeaderComponent={listHeader}/>
+      <FlatList {...list} {...listParts} {...scrolled} ListHeaderComponent={listHeader}/>
     </FrameColumn.Provider> : <FormScrollView ref={scrollRef} onLayout={onScrollLayout && (event => onScrollLayout(event.nativeEvent.layout.height))} {...scrolled}
       contentContainerStyle={{...scrolled.contentContainerStyle, gap: frame.sectionGap}}>
       <FrameColumn.Provider value={beside || parentColumn}>{body}</FrameColumn.Provider>
