@@ -1,13 +1,12 @@
 import {CatalogueSelectionEntry, useCatalogueSelectionActive, type CatalogueDocumentSelection} from '../browse/document-selection';
 import {t, locale, environment as env} from './text';
 import {useWatchBodyPlayback, watchEpisodeLine, watchHeaderFacts} from './watch-body-playback';
-import {Fragment, useId, useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {Fragment, cloneElement, useId, useEffect, useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode, type RefObject} from 'react';
 import {preferenceValue} from '@core/preferences.ts';
 import type {ShowWorkspaceRoute, ShowWorkspaceData, WorkspaceSeason, WorkspaceShowCredit} from '@core/show-workspace.ts';
 import {cardText, episodeLabel, titleFactParts, type FactPart} from '@core/presentation/kit-model';
 import {Button, Chip, ResumeButton, Tabs} from '../../kit/controls';
 import {AmbientArt} from '../../kit/artwork';
-import {Lockup, layoutType, platformType} from '../../kit/layout';
 import {EpisodeTile} from '../../kit/cards';
 import {Menu, MenuItem} from '../../kit/overlays';
 import {StateView} from '../../kit/states';
@@ -23,7 +22,7 @@ import styles from './show.module.css';
 import detail from './detail.module.css';
 import {dependsOn, titlesWithPersonalState} from '@core/freshness-hub.ts';
 import {useFreshDocument} from '../../platform/freshness';
-import {EpisodeDetailsLayout, TitleProse, TitleFactsLine} from '../../kit/title/TitleParts';
+import {EpisodeDetailsLayout, TitleFactsLine} from '../../kit/title/TitleParts';
 import {TitlePeople, ShowPeople, CreditNames} from './People';
 import {TitleTabs} from './TitleTabs';
 import {ScreenProblem} from './ScreenProblem';
@@ -31,7 +30,7 @@ import {runScreenCommand} from './context';
 import {GenreNames} from './GenreNames';
 import type {ContainerState} from '@core/container-state.ts';
 import {SeasonMenu} from './SeasonMenu';
-import {EpisodeList, EpisodeListOpened, EpisodeNeighbour, SeasonBar, episodeRowClass} from '../../kit/frames';
+import {EpisodeList, EpisodeListOpened, EpisodeNeighbour, SeasonBar, TitleFrame, episodeRowClass, type TitleAction} from '../../kit/frames';
 import {showPrimary} from './show-primary';
 import {OwnerMetadataGroup} from './OwnerMetadataGroup';
 
@@ -82,18 +81,46 @@ export function seasonMenuDescription(season: WorkspaceSeason): ReactNode {
 }
 
 /** Show-level commands must not target the next episode's detail binding. */
-function ShowMore({binding, data, personal, busy, watchedInMenu = false}: {binding: ShowBindings; data: ShowWorkspaceData; personal?: ContainerState; busy: boolean; watchedInMenu?: boolean}) {
+function ShowMore({binding, data, personal, busy, watchedInMenu = false, trigger: drawn}: {binding: ShowBindings; data: ShowWorkspaceData; personal?: ContainerState; busy: boolean; watchedInMenu?: boolean; /** The title frame's own More button. */ trigger?: ReactElement}) {
   const [open, setOpen] = useState(false), anchor = useRef<HTMLButtonElement>(null), owner = binding.canManage();
   useEffect(() => { setOpen(false); }, [data]);
   if (!personal && !owner) return null;
   return <>
-    <Menu open={open} onOpenChange={setOpen} title={data.show.title} trigger={<Button ref={anchor} icon="i-more" iconOnly aria-label={t('next.controls.more')} />}>
+    <Menu open={open} onOpenChange={setOpen} title={data.show.title} trigger={drawn ? cloneElement(drawn as ReactElement<{ref?: RefObject<HTMLButtonElement | null>}>, {ref: anchor}) : <Button ref={anchor} icon="i-more" iconOnly aria-label={t('next.controls.more')} />}>
       {personal && watchedInMenu && <MenuItem icon="i-check" disabled={busy} selected={personal.watched} onSelect={() => runScreenCommand(binding.context, () => binding.setWatched(data, !personal.watched))}>{t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')}</MenuItem>}
       {personal && <MenuItem icon="i-heart" disabled={busy} selected={personal.favorite} onSelect={() => runScreenCommand(binding.context, () => binding.setFavorite(data, !personal.favorite))}>{t(personal.favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites')}</MenuItem>}
       {owner && <OwnerMetadataGroup separated={!!personal} context={binding.context} anchor={() => anchor.current} guard={() => manageGuard(binding, data)}
         target={{entityKind: 'show', entityId: data.show.id, libraryId: data.scope.libraryId, title: data.show.title}} />}
     </Menu>
   </>;
+}
+
+/** A show on the title frame (frame 2): its art, title and facts, Play or Resume the next episode, My List, Watched and
+ * More (the page's own menu), the synopsis and who stars in it, and the tabs over the episodes, More like this and
+ * Details. The frame places them, collapses to its bar on scroll and draws them on every width. */
+function ShowTitle({binding, data, personal, busy, offer, label, play, unplayable, facts, starring, showBackdrops, tabs, children}: {binding: ShowBindings; data: ShowWorkspaceData; personal?: ContainerState; busy: boolean;
+  offer: ReturnType<typeof showPrimary>; label?: string; play: () => void; unplayable: boolean; facts: ReactNode; starring: readonly WorkspaceShowCredit[]; showBackdrops: boolean;
+  tabs: Readonly<{items: readonly Readonly<{value: string; label: string}>[]; value: string; onValueChange: (value: string) => void}>; children: ReactNode}) {
+  const {show} = data, art = binding.context.artwork, width = useShellWidth(), phone = width < 1024;
+  const report = (task: Promise<unknown>) => { void task.catch(binding.context.effects.reportError); };
+  const command = (action: () => void) => () => runScreenCommand(binding.context, () => { binding.current(data); action(); });
+  const actions: TitleAction[] = [
+    ...(personal ? [{icon: personal.watchlisted ? 'i-check' as const : 'i-plus' as const, label: t('next.controls.myList'), labelled: true, pinned: true, active: personal.watchlisted, disabled: busy,
+      onPress: () => report(binding.setMyList(data, !personal.watchlisted))},
+    {icon: 'i-check' as const, label: t(personal.watched ? 'title.markUnwatched' : 'title.markWatched'), wide: true, active: personal.watched, disabled: busy, onPress: () => report(binding.setWatched(data, !personal.watched))}] : []),
+    // Up to 1024 Watched is in More (the frame draws it only from there).
+    ...(personal || binding.canManage() ? [{icon: 'i-more' as const, label: t('next.controls.more'), onPress: () => {}, wrap: (button: ReactElement) => <ShowMore binding={binding} data={data} personal={personal} busy={busy} watchedInMenu={phone} trigger={button} />}] : []),
+  ];
+  // The catalogue's sentence ("Starring {names}") gives the label before the names.
+  const before = t('title.starring', {names: '\uFFF0'}).split('\uFFF0')[0]!.trim();
+  return <TitleFrame
+    art={showBackdrops && <AmbientArt treatment={phone ? 'phone' : 'title'} position={phone ? width < 600 ? '44% 20%' : '30% 30%' : undefined} source={art.ambient(show.backdropUrl ?? show.posterUrl)} foreground={art.foreground(show.backdropUrl ?? show.posterUrl, phone ? 800 : 1920, 16 / 9)} />}
+    back={binding.context.effects.back ? {label: t('next.states.back'), onPress: command(() => binding.context.effects.back?.())} : undefined}
+    title={show.title} metadata={facts}
+    primary={offer && label ? {icon: 'i-play', label, onPress: play, ...(offer.resume ? {progress: offer.progress} : {})} : unplayable ? {icon: 'i-play', label: t('next.controls.play'), disabled: true, onPress: () => {}, note: t('title.fileUnavailable')} : undefined}
+    actions={actions} synopsis={show.overview}
+    credits={starring.length ? [{label: before, names: starring.map(credit => ({text: credit.name, ...(credit.id ? {onPress: command(() => binding.context.effects.openEntry({id: credit.id!, kind: 'person', title: credit.name, navigation: {view: 'person', entityId: credit.id!}}))} : {})}))}] : undefined}
+    tabs={tabs}>{children}</TitleFrame>;
 }
 
 /** One body below Watch's video as well as on the title route. No independent video host. */
@@ -153,30 +180,16 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
     {personal && !threeControls && <Button disabled={busy} icon="i-check" iconOnly aria-label={t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')} aria-pressed={personal.watched} onClick={() => { void binding.setWatched(data, !personal.watched).catch(binding.context.effects.reportError); }} />}
     <ShowMore binding={binding} data={data} personal={personal} busy={busy} watchedInMenu={threeControls} />
   </div>;
-  const unplayableNote = !offer && nextUnplayable ? <p id={`${show.id}-unplayable`} className={detail.unplayable}>{t('title.fileUnavailable')}</p> : null;
-  // The pinned bar carries the drawn Resume Sx Ey and My List controls once the hero is gone.
-  const pin = offer && (offer.resume ? <ResumeButton size="small" progress={offer.progress} onClick={playPrimary}>{primaryLabel}</ResumeButton> : <Button variant="primary" size="small" icon="i-play" onClick={playPrimary}>{primaryLabel}</Button>);
   const facts = titlePageFacts({year: show.year, seasonCount: data.seasonTotalCount, genres: show.genres, contentRating: show.contentRating}, env);
   // phone-player 4: under the playing video, the episode stays on one line.
   const episodeLine = compact ? watchEpisodeLine(watch?.subject, env) : [];
-  const starring = showPeople(show.credits).cast.slice(0, 4), [starringBefore, starringAfter] = t('title.starring', {names: '\uFFF0'}).split('\uFFF0');
-  const credits = starring.length > 0 && <div className={styles.starring}>{starringBefore}<ShowPersonLinks credits={starring} binding={binding} data={data} />{starringAfter}</div>;
+  const starring = showPeople(show.credits).cast.slice(0, 4);
   const titleFacts = <TitleFactsLine parts={facts} genres={<GenreNames names={show.genres ?? []} onOpen={binding.context.effects.openBrowse ? genre => runScreenCommand(binding.context, () => binding.browseGenre(data, genre)) : undefined} />} />;
   // Phone frames always list episodes; retain the desktop choice across rotation.
   const episodeLayout = phone ? 'list' : layout, columns = 4;
-  return <article className={`${detail.page} ${styles.showPage}`} data-show-id={show.id} data-compact={compact || undefined}>
-    {!compact ? phone ? <header className={styles.phoneHero}>
-      <div className={styles.phonePicture}>
-        {preferenceValue<boolean>(preferences, 'appearance.showBackdrops') && <AmbientArt className={`${detail.phoneHeroArt} ${styles.phoneArt}`} treatment="phone" position={width < 600 ? '44% 20%' : '30% 30%'} source={art.ambient(show.backdropUrl ?? show.posterUrl)} foreground={art.foreground(show.backdropUrl ?? show.posterUrl, width < 600 ? 800 : 1600, 16 / 9)} />}
-        <div className={styles.phoneCopy}><Lockup title={show.title} platform="phone-web" style={width < 600 ? undefined : layoutType(platformType('desktop').lockupLong)} />{titleFacts}</div>
-      </div>
-      {actions}{unplayableNote}{show.overview && <TitleProse variant="hero" className={styles.phoneSynopsis}>{show.overview}</TitleProse>}{credits}
-    </header> : <header className={detail.hero}>
-      {preferenceValue<boolean>(preferences, 'appearance.showBackdrops') && <AmbientArt className={detail.heroArt} treatment="title" source={art.ambient(show.backdropUrl ?? show.posterUrl)} foreground={art.foreground(show.backdropUrl ?? show.posterUrl, 1920, 16 / 9)} />}
-      <div className={detail.copy}><Lockup title={show.title} platform="desktop" />{titleFacts}{show.overview && <TitleProse variant="hero" className={detail.blurb}>{show.overview}</TitleProse>}{credits}{actions}{unplayableNote}</div>
-    </header> : <div className={detail.compactHeader}><h1>{show.title}</h1>{episodeLine.length > 0 && <p className={detail.episodeLine}>{episodeLine.map(part => <span key={part.id} data-fact={part.id}>{part.text}</span>)}</p>}<TitleFactsLine parts={watchHeaderFacts(facts, watch?.leftSeconds, env)} />{actions}</div>}
-    <TitleTabs title={show.title} compact={compact} onBack={binding.context.effects.back ? () => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); }) : undefined} actions={!compact ? <div className={`${detail.actions} ${styles.pinActions}`}>{pin}{personal && <Button size="small" disabled={busy} icon={personal.watchlisted ? 'i-check' : 'i-plus'} iconOnly aria-label={t('next.controls.myList')} title={t('next.controls.myList')} aria-pressed={personal.watchlisted} onClick={() => { void binding.setMyList(data, !personal.watchlisted).catch(binding.context.effects.reportError); }} />}</div> : undefined}><Tabs externalPanelId={tabPanelId} value={tab} onValueChange={value => runScreenCommand(binding.context, () => { binding.current(data); if (value === 'episodes' || value === 'related' || value === 'details') binding.view.tab(value); })} items={[{value: 'episodes', label: t('next.controls.episodes')}, ...(hasRelated ? [{value: 'related', label: t('next.controls.moreLikeThis')}] : []), {value: 'details', label: t('next.controls.details')}]} /></TitleTabs>
-    <div key={tab} id={tabPanelId} role="tabpanel" aria-labelledby={`${tabPanelId}-tab-${tab}`} tabIndex={0} className={detail.tabPanel}>
+  const tabItems = [{value: 'episodes', label: t('next.controls.episodes')}, ...(hasRelated ? [{value: 'related', label: t('next.controls.moreLikeThis')}] : []), {value: 'details', label: t('next.controls.details')}];
+  const changeTab = (value: string) => runScreenCommand(binding.context, () => { binding.current(data); if (value === 'episodes' || value === 'related' || value === 'details') binding.view.tab(value); });
+  const panel = <>
     {tab === 'episodes' && <section className={styles.episodes}>
       {selection?.toolbar}
       {!selecting && <SeasonBar season={<>
@@ -226,6 +239,16 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
     </section>}
     {tab === 'details' && <ShowDetails binding={binding} data={data} />}
     {tab === 'related' && (recommendations.phase === 'error' ? <ScreenFailure retry={() => { void binding.recommendations.select(data, () => binding.service.getSnapshot().data === data); }} /> : recommendations.phase !== 'ready' ? <DetailLoading /> : <div className={styles.relatedRows}>{relatedRows.map(row => <TitleRecommendationRow key={row.id} binding={binding} row={row} owner={{kind: 'show', id: data.show.id}} guard={() => binding.current(data)} />)}</div>)}
+  </>;
+  // A show's page is the title frame (frame 2): the screen hands it its parts; the frame places them on every width.
+  if (!compact) return <div data-show-id={show.id}><ShowTitle binding={binding} data={data} personal={personal} busy={busy} offer={offer} label={primaryLabel} play={playPrimary}
+    unplayable={!offer && nextUnplayable} facts={titleFacts} starring={starring} showBackdrops={preferenceValue<boolean>(preferences, 'appearance.showBackdrops')} tabs={{items: tabItems, value: tab, onValueChange: changeTab}}>{panel}</ShowTitle></div>;
+  return <article className={`${detail.page} ${styles.showPage}`} data-show-id={show.id} data-compact={compact || undefined}>
+    {/* Under the watch page's video (compact) the show keeps its compact header; the title route is the frame above. */}
+    <div className={detail.compactHeader}><h1>{show.title}</h1>{episodeLine.length > 0 && <p className={detail.episodeLine}>{episodeLine.map(part => <span key={part.id} data-fact={part.id}>{part.text}</span>)}</p>}<TitleFactsLine parts={watchHeaderFacts(facts, watch?.leftSeconds, env)} />{actions}</div>
+    <TitleTabs title={show.title} compact onBack={binding.context.effects.back ? () => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); }) : undefined}><Tabs externalPanelId={tabPanelId} value={tab} onValueChange={value => runScreenCommand(binding.context, () => { binding.current(data); if (value === 'episodes' || value === 'related' || value === 'details') binding.view.tab(value); })} items={[{value: 'episodes', label: t('next.controls.episodes')}, ...(hasRelated ? [{value: 'related', label: t('next.controls.moreLikeThis')}] : []), {value: 'details', label: t('next.controls.details')}]} /></TitleTabs>
+    <div key={tab} id={tabPanelId} role="tabpanel" aria-labelledby={`${tabPanelId}-tab-${tab}`} tabIndex={0} className={detail.tabPanel}>
+    {panel}
     </div>
   </article>;
 }

@@ -1,30 +1,3 @@
-.starring { margin: -4px 0 26px; font-size: var(--type-starring-size); color: var(--color-text-tertiary); }
-.starring .personLink { box-shadow: none; }
-.starring .personLink:hover { box-shadow: inset 0 -1px 0 color-mix(in srgb,var(--color-text) 70%,transparent); }
-
-.phoneHero { position: relative; margin-bottom: 24px; }
-.phonePicture { position: relative; height: 330px; }
-.phoneCopy { position: absolute; z-index: 1; left: var(--shell-gutter); right: var(--shell-gutter); bottom: 4px; text-align: center; }
-.phoneCopy h1 { margin: 0 0 10px; }
-.phoneCopy > div { justify-content: center; gap: 6px 12px; margin: 0; font-size: var(--type-fixed-size-13px); }
-.phoneHero .heroActions { position: relative; margin: 0; padding: 18px var(--shell-gutter) 0; flex-wrap: nowrap; gap: 10px; }
-.phoneHero .heroActions > button:not([data-icon-only]) { flex: 1; min-width: 0; padding-left: 12px; padding-right: 12px; }
-.phoneHero .phoneSynopsis[data-variant=hero] { position: relative; margin: 16px var(--shell-gutter) 0; font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.phoneHero .starring { position: relative; margin: 8px var(--shell-gutter) 0; }
-
-@media(min-width:600px) and (max-width:1023px) {
-  .phonePicture { height: 560px; }
-  .phonePicture .phoneArt::after { inset: 0; background: linear-gradient(180deg,transparent 40%,color-mix(in srgb,var(--color-ink) 70%,transparent) 66%,color-mix(in srgb,var(--color-ink) 96%,transparent) 100%); }
-  .phoneCopy { left: var(--shell-gutter); right: var(--shell-gutter); bottom: 20px; }
-  .phoneCopy h1 { margin-bottom: 12px; }
-  .phoneCopy > div { font-size: var(--type-fixed-size-15px); }
-  .phoneHero .heroActions { padding: 0 var(--shell-gutter); justify-content: center; }
-  .phoneHero .heroActions > button:not([data-icon-only]) { flex: none; padding-left: 20px; padding-right: 20px; }
-  .phoneHero .heroActions > button[data-variant=primary] { flex: 0 1 300px; }
-  .phoneHero .phoneSynopsis[data-variant=hero] { max-width: 600px; margin: 16px auto 0; padding: 0 28px; text-align: center; font-size: var(--type-fixed-size-15point-5px); line-height: var(--type-fixed-line-1point-55); -webkit-line-clamp: 3; }
-  .phoneHero .starring { text-align: center; }
-}
-
 .episodes { padding: 28px var(--shell-gutter) 82px; }
 
 .context { margin: 0 0 8px; font-size: var(--type-caption-size); }
@@ -76,7 +49,6 @@
 
 .showPage [class*="pinnedDesktopTitle"] { font-size: calc(var(--type-detail-heading-size) + 2px); line-height: var(--type-detail-heading-line); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-detail-heading-tracking); }
 
-.pinActions { gap: 10px; }
 
 .owner { margin: 48px 0 0; padding: 22px 24px 24px; border-radius: 16px; background: radial-gradient(120% 70% at 100% 0%, color-mix(in srgb,var(--color-accent-deep) 20%,transparent), transparent 62%), radial-gradient(100% 60% at 0% 100%, color-mix(in srgb,var(--color-generated-green) 20%,transparent), transparent 66%), color-mix(in srgb,var(--color-ink) 70%,var(--color-raised)); box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--color-accent-strong) 16%,transparent); }
 
