@@ -77,7 +77,7 @@ export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, 
         </div>
       </div>
       {covered === 'bar' && resume !== undefined && <div className={styles.playerResume}>{resume}</div>}
-      {card}{panel}
+      {card !== undefined && <div className={styles.playerCard}>{card}</div>}{panel}
     </div>
     {body !== undefined && <div className={styles.playerBody}>{body}</div>}
   </div>;
