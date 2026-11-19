@@ -135,7 +135,9 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
   const myList = props.myList ?? (show ? snapshot.showState ? {selected: snapshot.showState.watchlisted, change: (value: boolean) => controller.setShowMyList(value)} : undefined
     : detail?.actions.some(value => value.id === 'watchlist' && value.enabled)
     ? {selected: detail.personal.watchlisted, change: (value: boolean) => controller.personal({action: 'watchlist', value})} : undefined);
-  const watched = detail?.actions.some(value => value.id === 'watched' && value.enabled) ? detail.personal.watched : undefined;
+  // Watched is the film's. A show's page (also reached as a season or an episode) has none: an episode route's detail is
+  // the episode's, and its watched lives in the episode's own menu and plate, not on the show's hero.
+  const watched = !show && detail?.actions.some(value => value.id === 'watched' && value.enabled) ? detail.personal.watched : undefined;
   const actions: TitleAction[] = [
     ...(myList ? [{icon: myList.selected ? 'i-check' as const : 'i-plus' as const, label: t(myList.selected ? 'entry.removeFromWatchlist' : 'entry.addToWatchlist'), active: myList.selected, labelled: true, pinned: true,
       testID: 'watch-title-my-list', onPress: () => {void myList.change(!myList.selected).catch(fail);}}] : []),
