@@ -38,8 +38,8 @@ function Meta({text, tags = []}: {text: string; tags?: string[]}) {
 const back = {label: f('back'), onPress: none}, playOn = {icon: 'i-cast' as const, label: f('playOn'), onPress: none};
 const link = (text: string) => ({text, onPress: none});
 
-function Posters({title, items}: {title: string; items: readonly (readonly [string, string, string])[]}) {
-  return <PosterRow title={title} items={items.map(item => ({key: item[0], title: item[1], year: item[2], artwork: asset(item[0]), onNavigate: none}))}/>;
+function Posters({title, items, small}: {title: string; items: readonly (readonly [string, string, string])[]; small?: boolean}) {
+  return <PosterRow title={title} small={small} items={items.map(item => ({key: item[0], title: item[1], year: item[2], artwork: asset(item[0]), onNavigate: none}))}/>;
 }
 const moreLikeDune = [['pool/movies/dune.jpg', 'Dune', '2021'], ['pool/movies/blade-runner.jpg', 'Blade Runner', '1982'], ['pool/movies/interstellar.jpg', 'Interstellar', '2014'], ['pool/movies/star-wars.jpg', 'Star Wars', '1977'],
   ['pool/movies/avatar.jpg', 'Avatar', '2009'], ['pool/movies/the-empire-strikes-back.jpg', 'The Empire Strikes Back', '1980'], ['pool/movies/the-matrix.jpg', 'The Matrix', '1999']] as const;
@@ -212,7 +212,7 @@ type PersonCreditFixture = Readonly<{id: string; art: string; title: Name; role:
 const personCredits: readonly PersonCreditFixture[] = [{id: 'd2', art: 'pool/movies/dune-part-two.jpg', title: 'dune2', role: 'asJessica'},
   {id: 'd1', art: 'pool/movies/dune.jpg', title: 'dune', role: 'asJessica'}, {id: 'silo', art: 'pool/tv/silo.jpg', title: 'silo', role: 'asJuliette'}];
 function Person() {
-  const theme = useTheme(), [filter, setFilter] = useState('all'), t = defaultI18n.t;
+  const [filter, setFilter] = useState('all'), [open, setOpen] = useState(false), t = defaultI18n.t;
   const collection = useMemo(() => createWindowedCollection({pageSize: 30, maxResidentPages: 4, maxConcurrent: 1, keyOf: (credit: PersonCreditFixture) => credit.id,
     fetchPage: async (start, count) => ({items: personCredits.slice(start, start + count), total: personCredits.length})}), []);
   useEffect(() => () => collection.dispose(), [collection]);
@@ -221,10 +221,10 @@ function Person() {
     // The served ambient image is not available to the gallery (artwork.gallery.tsx); its palette stands in for the glow.
     art={<AmbientArt treatment="library" palette={{first: '#a8692a', second: '#1d3848'}}/>}
     cover={{shape: 'circle', node: size => <PersonCircle size={size} initials="RF" alt=""/>}}
-    title={f('person')} metadata={<Meta text={f('personRoleBorn')}/>} synopsis={f('personBio')} readMore={{label: f('readMore'), onPress: none}}
+    title={f('person')} metadata={<Meta text={f('personRoleBorn')}/>} synopsis={f('personBio')} readMore={{label: t(open ? 'web.person.showLess' : 'web.person.readMore'), expanded: open, onPress: () => setOpen(value => !value)}}
     scroller={posterGridScroller({collection, getKey: credit => credit.id, testID: 'frames-title-person-credits',
       item: credit => ({title: f(credit.title), caption: f(credit.role), artwork: asset(credit.art), onNavigate: none, onMore: none})})}>
-    <Posters title={t('web.person.knownFor')} items={[['pool/movies/dune-part-two.jpg', f('dune2'), '2024'], ['pool/movies/dune.jpg', f('dune'), '2021'], ['pool/tv/silo.jpg', f('silo'), '2023']]}/>
+    <Posters small title={t('web.person.knownFor')} items={[['pool/movies/dune-part-two.jpg', f('dune2'), '2024'], ['pool/movies/dune.jpg', f('dune'), '2021'], ['pool/tv/silo.jpg', f('silo'), '2023']]}/>
     <PanelBlock>
       <PanelHeading title={t('web.person.credits')} trailing={t('web.person.titlesOnServer', {count: personCredits.length})}/>
       <ChoiceChips items={([['all', 'title.creditsAll'], ['cast', 'web.person.cast'], ['crew', 'web.person.crew']] as const).map(([id, label]) => ({id, label: t(label), selected: filter === id, onPress: () => setFilter(id)}))}/>

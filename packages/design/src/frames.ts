@@ -86,6 +86,10 @@ export const frame = {
       /** A cover page's cover, its width per form (a poster is 1.5 times as tall): phone-app 13 and phone-detail d3 frame 7
        * (220 square, 180 poster, 104 circle), tablet f8, desktop-listen album, artist and book (340). R5 interim. */
       cover: {square: {...forms(220, 280, 300, 400), web: 340}, poster: {...forms(180, 220, 260, 340), web: 340}, circle: {...forms(104, 160, 300, 280), web: 340}},
+      /** A cover page's name: smaller than a title's lockup on a phone (phone-detail d3 frame 7's person, 28/800). */
+      coverLockup: {...forms(28, 52, 52, 100), web: 72},
+      /** A small row of posters on a phone (phone-detail d3 frame 7's Known for); wider forms keep the poster width. */
+      smallPoster: 96,
       /** Between a cover and its words, side by side (desktop-listen 56), and the played line's width under them. R5 interim. */
       coverGap: 56, coverResumeWidth: 320,
       /** A cover page's glow (phone-detail d3 frame 7: a person's films behind the circle): drawn this tall from the top. */
@@ -96,7 +100,8 @@ export const frame = {
        * phone 104 on the web); the native phone's About card (phone-detail d1 `.kv`: label 92, gap 12, row padding 8); cast circles (phone-detail 64, tablet and web 96, TV 150); Films in order's number column and still
        * (desktop-detail f8 56 / 106, phone 56, TV 140); Previous / Next's still (desktop-detail f5, 112 wide, 16:9); a
        * choice row's label and the narrowest its choices go (desktop-detail f4 120 / 200). */
-      parts: {aboutLabel: forms(104, 140, 140, 140), aboutPhone: {label: 92, gap: 12, pad: 8},
+      // coverCirclePhone: a native phone's cover circle (phone-detail d3 frame 7's person, 96); the web keeps `cover.circle`.
+      parts: {aboutLabel: forms(104, 140, 140, 140), aboutPhone: {label: 92, gap: 12, pad: 8}, coverCirclePhone: 96,
         /** An episode row's still from a tablet up (tablet f7, 210) and the narrowest a Previous / Next card goes before the pair stacks (desktop-detail f5). */
         episodeArt: 210, neighbourMin: 220,
         /** The opened episode's plate (phone-detail d2 frame 4 `.epo`): 12 in from the page's edge, 8 inside (14 at its foot), corners 18 (its still's 12),
