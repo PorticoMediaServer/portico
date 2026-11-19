@@ -89,18 +89,38 @@ export function AppliedFilterChips({filters, onRemove, onClear, platform, childr
   </View>;
 }
 
-/** A tablet toolbar's quick chips. A control's label is never cut: when the chips do not fit they scroll sideways and the
- * row's end fades softly while more lie past it, as the phone frames draw a chip row; nothing else in the toolbar gives way. */
+/** The toolbar's sideways chip rail (phone and tablet). A chip is never shown cut (owner): while chips lie past the end, the rail
+ * fades out from the end of the last chip that fits whole, so a partly visible chip is never drawn (it read as a stray "(" beside
+ * grid / list, SMALL-FAULTS 29). With every chip in view there is no fade. */
+export function chipRailCut(box: number, offset: number, content: number, ends: readonly number[]): number | undefined {
+  // Nothing past the end (all in view, or scrolled to the end): no fade.
+  if (box <= 0 || content <= box + 1 || offset + box >= content - 1) return undefined;
+  const whole = ends.filter(end => end - offset <= box + .5).pop();
+  return whole === undefined ? 0 : Math.max(0, Math.min(box, whole - offset));
+}
 export function ChipRail({children}: {children: ReactNode}) {
-  const [box, setBox] = useState(0), [content, setContent] = useState(0), [offset, setOffset] = useState(0);
-  const fade = box > 0 && content > box + 1 && offset + box < content - 1, edge = box > 0 ? Math.max(0, 1 - 36 / box) : 1;
+  const [box, setBox] = useState(0), [content, setContent] = useState(0), [offset, setOffset] = useState(0), [ends, setEnds] = useState<readonly number[]>([]);
+  // Each chip is measured on its own: a fragment's chips (See all's kinds) are taken one by one.
+  const flatten = (node: ReactNode): ReactNode[] => Array.isArray(node) ? node.flatMap(flatten)
+    : node === null || node === undefined || typeof node === 'boolean' || node === '' ? []
+    : React.Fragment !== undefined && typeof node === 'object' && 'type' in node && node.type === React.Fragment ? flatten((node.props as {children?: ReactNode}).children) : [node];
+  const items = flatten(children);
+  const cut = chipRailCut(box, offset, content, ends);
+  // Solid to 12 before the cut (a chip's own end padding), clear from the cut on.
+  const solid = cut === undefined || box <= 0 ? 1 : Math.max(0, cut - 12) / box, clear = cut === undefined || box <= 0 ? 1 : cut / box;
   return <View testID="browse-chip-rail" style={{flex: 1, minWidth: 0}}>
     <MaskedView style={{flex: 1}} maskElement={<Svg width="100%" height="100%"><Defs><LinearGradient id="chip-rail-edge" x1="0" y1="0" x2="1" y2="0">
-      <Stop offset={0} stopColor="#fff" stopOpacity={1}/><Stop offset={edge} stopColor="#fff" stopOpacity={1}/><Stop offset={1} stopColor="#fff" stopOpacity={fade ? 0 : 1}/>
+      <Stop offset={0} stopColor="#fff" stopOpacity={1}/><Stop offset={solid} stopColor="#fff" stopOpacity={1}/><Stop offset={clear} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
+      <Stop offset={1} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
     </LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#chip-rail-edge)"/></Svg>}>
       <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8, alignItems: 'center'}} scrollEventThrottle={32}
         onLayout={event => setBox(event.nativeEvent.layout.width)} onContentSizeChange={width => setContent(width)}
-        onScroll={event => setOffset(event.nativeEvent.contentOffset.x)}>{children}</ScrollView></TVRow>
+        onScroll={event => setOffset(event.nativeEvent.contentOffset.x)}>
+        {items.map((item, index) => <View key={index} onLayout={event => {
+          const end = event.nativeEvent.layout.x + event.nativeEvent.layout.width;
+          setEnds(previous => previous[index] === end ? previous : Object.assign([...previous], {[index]: end}).slice(0, items.length));
+        }}>{item}</View>)}
+      </ScrollView></TVRow>
     </MaskedView>
   </View>;
 }

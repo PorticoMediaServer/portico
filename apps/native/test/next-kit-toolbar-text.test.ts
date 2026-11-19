@@ -67,3 +67,18 @@ test('a tablet toolbar puts its quick chips in a sideways rail that fades at its
   assert.equal(endOpacity(draw()), 1, 'scrolled to the end: no fade');
   assert.deepEqual([rail!.props.children].flat().length > 0, true);
 });
+
+test('SMALL-FAULTS 29: the chip rail fades out from the end of the last whole chip, so a partly visible chip is never drawn', async () => {
+  const {chipRailCut} = await screenModule(new URL('../src-next/kit/browse/Toolbar.tsx', import.meta.url), {
+    react: hooks().react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390})},
+    '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}}, '../../../../../packages/client-core/src/presentation/browse-toolbar': {sortDirectionKind: () => 'alpha'},
+    '../controls': {}, '../overlays': {}, '../Icon': {}, '../theme': {}, '../layout/TVRow': {}, '@react-native-masked-view/masked-view': {default: 'MaskedView'},
+    'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'}, './presentation': {},
+  });
+  // Chips end at 90, 190, 300 in a 140-wide rail: only the first fits whole, so the rail is clear from 90 on.
+  assert.equal(chipRailCut(140, 0, 300, [90, 190, 300]), 90);
+  assert.equal(chipRailCut(40, 0, 300, [90, 190, 300]), 0, 'a rail narrower than its first chip draws none (the Pixel\'s stray "(")');
+  assert.equal(chipRailCut(140, 60, 300, [90, 190, 300]), 130, 'scrolled: the cut follows the chips');
+  assert.equal(chipRailCut(400, 0, 300, [90, 190, 300]), undefined, 'every chip in view: no fade');
+  assert.equal(chipRailCut(140, 160, 300, [90, 190, 300]), undefined, 'scrolled to the end: no fade');
+});

@@ -1,4 +1,4 @@
-import {useRef, useState, type ButtonHTMLAttributes, type ReactNode} from 'react';
+import {useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
 import type {BrowseSortCapability, BrowseSortSelection} from '@core/browse';
 import {sortDirectionKind} from '@core/presentation/browse-toolbar';
@@ -113,6 +113,28 @@ export type BrowseToolbarProps = Readonly<{
   /** Presentation only: the collection's own accepted-answer witness and the collection it belongs to. */
   accepted?: AcceptedAnswer; acceptedSource?: unknown;
 }>;
+/** The phone toolbar's sideways chip rail. A chip is never shown cut (owner): while chips lie past the end, the rail fades out
+ * from the end of the last chip that fits whole, so a partly visible chip is never drawn (it read as a stray "(" beside grid /
+ * list, SMALL-FAULTS 29). With every chip in view there is no fade. */
+export function ChipRail({children, className}: {children: ReactNode; className?: string}) {
+  const ref = useRef<HTMLDivElement>(null), [cut, setCut] = useState<number>();
+  useLayoutEffect(() => {
+    const rail = ref.current;
+    if (!rail) return;
+    const read = () => {
+      const view = rail.clientWidth, left = rail.scrollLeft, items = [...rail.children] as HTMLElement[];
+      if (rail.scrollWidth <= view + 1) {setCut(undefined); return;}
+      const whole = items.filter(item => item.offsetLeft + item.offsetWidth - left <= view + .5).pop();
+      setCut(whole ? Math.max(0, whole.offsetLeft + whole.offsetWidth - left) : 0);
+    };
+    read();
+    const observer = new ResizeObserver(read); observer.observe(rail);
+    rail.addEventListener('scroll', read, {passive: true});
+    return () => {observer.disconnect(); rail.removeEventListener('scroll', read);};
+  }, [children]);
+  const style = cut === undefined ? undefined : {'--rail-cut': `${cut}px`} as CSSProperties;
+  return <div ref={ref} className={[styles.chipRail, className].filter(Boolean).join(' ')} data-cut={cut === undefined ? undefined : ''} style={style}>{children}</div>;
+}
 /** The drawn count; motion 3.8 cross-fades it when an accepted answer lands, and it stays a plain span otherwise. */
 function ResultCount({children, accepted, source, className}: {children: ReactNode; accepted?: AcceptedAnswer; source?: unknown; className?: string}) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -131,7 +153,7 @@ export function BrowseToolbar({model, labels, resultCount, resultTotal, platform
   // that fades at its end, grid / list pinned at the right. No count line; Filters says how many match while a filter applies.
   if (phone) return <div className={[styles.toolbar, className].filter(Boolean).join(' ')} data-platform={platform} data-sticky={sticky || undefined} style={{top: topInset}}>
     {selection}{!(selectionActive ?? selection != null) && <div className={styles.toolbarMain}>{filters}{sort}
-      <div className={styles.chipRail}>{applied.length > 0 && onRemoveFilter && <AppliedFilterChips items={applied} onRemove={onRemoveFilter}/>}{actions}{quickChips}</div>
+      <ChipRail>{applied.length > 0 && onRemoveFilter && <AppliedFilterChips items={applied} onRemove={onRemoveFilter}/>}{actions}{quickChips}</ChipRail>
       {view && <ViewToggle {...view}/>}</div>}
   </div>;
   return <div className={[styles.toolbar, className].filter(Boolean).join(' ')} data-platform={platform} data-sticky={sticky || undefined} style={{top: topInset}}>
