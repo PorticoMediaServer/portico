@@ -118,13 +118,14 @@ const tlouEpisodes: readonly Episode[] = [
 ];
 /** The episode rows (tablet f8, phone-detail d2, foldable f2): the kit's row, its synopsis beside the picture on a tablet. */
 function EpisodeRows({episodes, opened}: {episodes: readonly Episode[]; opened?: string}) {
-  const {isTV} = useTheme();
+  const {isTV, form} = useTheme();
   return <EpisodeList items={episodes.map(episode => ({key: episode.id, title: episode.title, label: [{id: 'episode', text: episode.label, role: 'context'}], status: episode.status,
     length: episode.length, synopsis: episode.synopsis, artwork: asset(episode.art), watched: episode.watched, progress: episode.progress, onNavigate: none, onDownload: isTV ? undefined : none}))}
-    opened={opened ? {key: opened, ...openedPlate()} : undefined}/>;
+    opened={opened ? {key: opened, ...openedPlate(form !== 'phone')} : undefined}/>;
 }
 /** The episode opened in place under its row (phone-detail d2 frame 4; desktop-detail f5): its code and facts, synopsis, Play row, credits and neighbours. */
-function openedPlate(): EpisodePlateProps {
+/** `pictured`: the neighbours carry their stills (desktop-detail f5); a phone's are small cards (frame 4). */
+function openedPlate(pictured: boolean): EpisodePlateProps {
   return {still: asset('bd-tlou.jpg'), length: f('ep3Length'), code: f('ep3Code'), title: f('ep3'),
     facts: [{id: 'date', text: f('ep3Date'), role: 'identity'}, {id: 'content-rating', text: f('ep3Rating'), role: 'context'}],
     synopsis: f('ep3Synopsis'), primary: {icon: 'i-play', label: f('play'), onPress: none},
@@ -132,8 +133,8 @@ function openedPlate(): EpisodePlateProps {
     credits: [{label: f('guestStars'), people: [{name: f('guest1'), role: `as ${f('guestRole1')}`, onPress: none}, {name: f('guest2'), role: `as ${f('guestRole2')}`, onPress: none}]},
       {label: f('directedBy'), people: [{name: f('ep3Director')}]}],
     showAll: count => defaultI18n.t('shelf.seeAllCount', {count}),
-    previous: {label: f('previousEpisode'), title: f('ep2'), detail: f('ep2Label'), artwork: asset('bd-tlou.jpg'), onPress: none},
-    next: {label: f('nextEpisode'), title: f('ep4'), detail: f('ep4Label'), artwork: asset('bd-tlou.jpg'), onPress: none}, close: {label: f('back'), onPress: none}};
+    previous: {label: f('previousEpisode'), title: f('ep2'), ...(pictured ? {detail: f('ep2Label'), artwork: asset('bd-tlou.jpg')} : {}), onPress: none},
+    next: {label: f('nextEpisode'), title: f('ep4'), ...(pictured ? {detail: f('ep4Label'), artwork: asset('bd-tlou.jpg')} : {}), onPress: none}, close: {label: f('back'), onPress: none}};
 }
 /** TV, the Episodes tab's season column and episodes (detail-tv-5a): the seasons with the current one marked, Hold OK
  * under them; beside them the season's episodes as a row of stills and the band describing the season. */
