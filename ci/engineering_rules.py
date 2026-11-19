@@ -40,7 +40,21 @@ RULES = [
     ('page-memory', set(), re.compile(r'\busePageMemory\(|\bpages\.(?:remember|recall)\(')),
     # §4.7: currency is the cache's to own; no new per-screen lease hooks re-checking it.
     ('lease-layer', set(), re.compile(r'\bfunction\s+use\w*Lease\b')),
+    # Native rebuild R-B: a page is data hooks, one frame, kit parts and strings. No React Native value import, no
+    # style attribute, and no type setting, spacing number or colour of its own; the frame or the kit is what is missing.
+    ('native-page-layout', set(), re.compile(
+        r'''^\s*import\s+(?!type\b)[^;]*?\bfrom\s+['"]react-native['"]|\brequire\(\s*['"]react-native['"]\s*\)'''
+        r'''|\b(?:style|\w+Style)=|\b(?:numberOfLines|fontSize|lineHeight|fontWeight|letterSpacing)\b'''
+        r'''|\b(?:margin|padding)\w*\b|\b(?:gap|rowGap|columnGap|width|height|top|bottom|left|right|inset|size|spacing)\s*[:=]\s*\{?\s*-?\d'''
+        r'''|['"]#[0-9a-fA-F]{3,8}['"]|\brgba?\(|\bcolou?r\s*[:=]''', re.MULTILINE)),
+    # R-D: type in the native kit comes from theme.type[role]; literal settings there may only fall. A `number` type
+    # annotation is not a setting. kit/theme.ts applies the type table (nativeType) and is its home.
+    ('kit-type-literal', {'apps/native/src-next/kit/theme.ts'},
+     re.compile(r'\b(?:fontSize|lineHeight|numberOfLines)\s*[:=](?!\s*number\b)')),
 ]
+# A rule that counts only under these paths (every other rule counts in every source file).
+SCOPE = {'native-page-layout': re.compile(r'^apps/native/src-next/pages/.+\.tsx$'),
+         'kit-type-literal': re.compile(r'^apps/native/src-next/kit/')}
 # A compare kept on purpose carries `// fence-compare: kept (reason)` as a real line comment on its own line, with a
 # non-empty reason. The marker spares exactly one match on that line: a second compare there still counts. The text
 # inside a string or template, or without a reason, spares nothing, and neither does a marker on the line above.
@@ -118,6 +132,8 @@ GUIDE = {
     'fence-compare': 'read through the viewer query cache (packages/client-core/src/query); a moved fence means read again, and only a revision of the same entity is compared',
     'page-memory': 'keep a screen\'s document in the viewer query cache (packages/client-core/src/query) instead of a page memory',
     'lease-layer': 'read through the viewer query cache, which owns cancellation and the viewer boundary, instead of a new lease hook',
+    'native-page-layout': 'a page is data hooks, one kit/frames frame, kit parts and strings; add or fix the missing frame or kit part in its own pull request (apps/native/src-next/kit/frames/FRAMES.md)',
+    'kit-type-literal': 'take type from theme.type[role] (nativeType in apps/native/src-next/kit/theme.ts), never a literal fontSize, lineHeight or numberOfLines',
 }
 
 
@@ -138,7 +154,7 @@ def counts(paths, read=lambda p: (ROOT / p).read_text(encoding='utf-8', errors='
     for path in paths:
         text = read(path)
         for rule, allowed, pattern in RULES:
-            if exempt(path, allowed):
+            if exempt(path, allowed) or rule in SCOPE and not SCOPE[rule].match(path):
                 continue
             n = count(pattern, text, KEPT.get(rule))
             if n:
@@ -209,6 +225,9 @@ def _main(argv, root=ROOT, paths=None):
     for ref in dict.fromkeys(merge_base(root,ref)for ref in [args.base,args.predecessor]if ref):
         old_baseline=historical_json(root,ref,str(BASELINE.relative_to(ROOT)))
         for rule,path,a,b in compare(baseline,old_baseline)[0]:
+            # A rule the base's baseline does not name is new in this change and starts at today's counts; the
+            # baseline names every rule (empty when none is allowed), so a known rule's allowance can never grow.
+            if rule not in old_baseline:continue
             print(f'{path}: {rule} baseline increased {b} -> {a}; only decreases are allowed.')
             queue_errors.append('Engineering baseline growth is forbidden, including beneath a stale upper bound.')
         with source_snapshot(root,ref) as (snapshot,paths):
@@ -220,7 +239,7 @@ def _main(argv, root=ROOT, paths=None):
     if queue_errors:return 1
     if risen:return 1
     if args.update:
-        (write_root/BASELINE.relative_to(ROOT)).write_text(json.dumps(found, indent=1, sort_keys=True) + '\n')
+        (write_root/BASELINE.relative_to(ROOT)).write_text(json.dumps({rule: found.get(rule, {}) for rule, _, _ in RULES}, indent=1, sort_keys=True) + '\n')
         print(f'engineering-rules baseline written ({sum(len(v) for v in found.values())} files)')
         return 0
     print('engineering rules hold')

@@ -84,6 +84,29 @@ class EngineeringRuleTests(unittest.TestCase):
         self.assertEqual(self.found('if (fence === held.fence) a(); // fence-compare: kept (same answer)\nif (fence === other.fence) b();'), one)
 
 
+    def test_a_native_page_holds_no_layout_of_its_own(self):
+        page = 'apps/native/src-next/pages/touch/title/FilmPage.tsx'
+        for layout in ["import {View} from 'react-native';",
+                       "import {type ViewStyle, Text} from 'react-native';",
+                       "const {Platform} = require('react-native');",
+                       '<Row style={{flex: 1}}/>', '<List contentContainerStyle={x}/>', '<Label numberOfLines={2}/>',
+                       'const s = {marginTop: theme.space};', '<Spacer size={12}/>', "const tint = '#0b1220';",
+                       "const tint = 'rgba(0,0,0,.4)';", '<Icon color={theme.colors.text}/>']:
+            self.assertEqual(self.found(layout, page), {'native-page-layout': {page: 1}}, layout)
+        for allowed in ["import type {ViewStyle} from 'react-native';", "import {TitleFrame} from '../../../kit/frames';",
+                        '<TitleFrame title={title} actions={<ActionRow actions={actions}/>}/>', '<Button size="hero"/>']:
+            self.assertEqual(self.found(allowed, page), {}, allowed)
+        # Only page files: a kit part, a page's hook and a page's test may draw.
+        for elsewhere in ['apps/native/src-next/kit/controls/Button.tsx', 'apps/native/src-next/pages/shared/title/useTitle.ts']:
+            self.assertNotIn('native-page-layout', self.found('<Row style={{flex: 1}}/>', elsewhere), elsewhere)
+
+    def test_literal_type_settings_are_counted_in_the_native_kit_only(self):
+        kit = 'apps/native/src-next/kit/cards/Card.tsx'
+        self.assertEqual(self.found('<Text numberOfLines={2} style={{fontSize: 14, lineHeight: 18}}/>', kit), {'kit-type-literal': {kit: 3}})
+        self.assertEqual(self.found('type G = {fontSize: number}; <Text style={theme.type.cardTitle}/>', kit), {})
+        self.assertEqual(self.found('fontSize: style.size * textScale,', 'apps/native/src-next/kit/theme.ts'), {})
+        self.assertEqual(self.found('<Text numberOfLines={2}/>', 'apps/native/src-next/screens/x/Old.tsx'), {})
+
     def test_the_homes_of_the_helpers_are_exempt(self):
         self.assertEqual(self.found('a.accessToken === b.accessToken', 'packages/client-core/src/session-authority.ts'), {})
         self.assertEqual(self.found("'retry-after'", 'packages/client-core/src/timer.ts'), {})
