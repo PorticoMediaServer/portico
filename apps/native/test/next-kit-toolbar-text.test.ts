@@ -82,3 +82,25 @@ test('SMALL-FAULTS 29: the chip rail fades out from the end of the last whole ch
   assert.equal(chipRailCut(400, 0, 300, [90, 190, 300]), undefined, 'every chip in view: no fade');
   assert.equal(chipRailCut(140, 160, 300, [90, 190, 300]), undefined, 'scrolled to the end: no fade');
 });
+
+test('the native chip rail is drawn only with room for its first chip whole (lead, 19 Nov)', async () => {
+  const host = hooks();
+  const module = await screenModule(new URL('../src-next/kit/browse/Toolbar.tsx', import.meta.url), {
+    react: host.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390})},
+    '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}}, '../../../../../packages/client-core/src/presentation/browse-toolbar': {sortDirectionKind: () => 'alpha'},
+    '../controls': {}, '../overlays': {}, '../Icon': {}, '../theme': {}, '../layout/TVRow': {TVRow: 'TVRow'}, '@react-native-masked-view/masked-view': {default: 'MaskedView'},
+    'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'}, './presentation': {},
+  });
+  const draw = () => elements(host.render(() => module.ChipRail({children: ['Unplayed', 'In progress']})));
+  let nodes = draw();
+  nodes.find(node => node.type === 'ScrollView')!.props.onLayout({nativeEvent: {layout: {width: 40}}});
+  const cells = draw().filter(node => node.type === 'View' && node.props.onLayout);
+  cells[0]!.props.onLayout({nativeEvent: {layout: {x: 0, width: 96}}}); cells[1]!.props.onLayout({nativeEvent: {layout: {x: 104, width: 110}}});
+  nodes = draw();
+  const rail = nodes.find(node => node.props.testID === 'browse-chip-rail')!;
+  assert.equal(rail.props.style.opacity, 0, 'no room for the first chip: not drawn');
+  assert.equal(rail.props.pointerEvents, 'none'); assert.equal(rail.props.importantForAccessibility, 'no-hide-descendants');
+  assert.equal(nodes.find(node => node.type === 'ScrollView')!.props.scrollEnabled, false, 'no hidden swipe area');
+  nodes.find(node => node.type === 'ScrollView')!.props.onLayout({nativeEvent: {layout: {width: 140}}});
+  assert.equal(draw().find(node => node.props.testID === 'browse-chip-rail')!.props.style.opacity, 1, 'room for the first chip: drawn');
+});

@@ -115,14 +115,17 @@ export type BrowseToolbarProps = Readonly<{
 }>;
 /** The phone toolbar's sideways chip rail. A chip is never shown cut (owner): while chips lie past the end, the rail fades out
  * from the end of the last chip that fits whole, so a partly visible chip is never drawn (it read as a stray "(" beside grid /
- * list, SMALL-FAULTS 29). With every chip in view there is no fade. */
+ * list, SMALL-FAULTS 29). With every chip in view there is no fade. With no room for even its first chip whole, the rail is not
+ * drawn at all (lead, 19 Nov); its choices stay in Filters. */
 export function ChipRail({children, className}: {children: ReactNode; className?: string}) {
-  const ref = useRef<HTMLDivElement>(null), [cut, setCut] = useState<number>();
+  const ref = useRef<HTMLDivElement>(null), [cut, setCut] = useState<number>(), [room, setRoom] = useState(true);
   useLayoutEffect(() => {
     const rail = ref.current;
     if (!rail) return;
     const read = () => {
       const view = rail.clientWidth, left = rail.scrollLeft, items = [...rail.children] as HTMLElement[];
+      // The rail is drawn only with room for its first chip whole; its choices are all in Filters too, so nothing is lost.
+      setRoom(!items[0] || items[0].offsetLeft + items[0].offsetWidth <= view + .5);
       if (rail.scrollWidth <= view + 1) {setCut(undefined); return;}
       const whole = items.filter(item => item.offsetLeft + item.offsetWidth - left <= view + .5).pop();
       setCut(whole ? Math.max(0, whole.offsetLeft + whole.offsetWidth - left) : 0);
@@ -133,7 +136,10 @@ export function ChipRail({children, className}: {children: ReactNode; className?
     return () => {observer.disconnect(); rail.removeEventListener('scroll', read);};
   }, [children]);
   const style = cut === undefined ? undefined : {'--rail-cut': `${cut}px`} as CSSProperties;
-  return <div ref={ref} className={[styles.chipRail, className].filter(Boolean).join(' ')} data-cut={cut === undefined ? undefined : ''} style={style}>{children}</div>;
+  // Without room the rail stays laid out (grid / list keeps its place, the rail keeps measuring) but is not drawn: hidden, not
+  // scrollable and out of the accessibility tree, so there is no invisible swipe area.
+  return <div ref={ref} className={[styles.chipRail, className].filter(Boolean).join(' ')} data-cut={cut === undefined ? undefined : ''} data-no-room={room ? undefined : ''}
+    aria-hidden={room ? undefined : true} style={style}>{children}</div>;
 }
 /** The drawn count; motion 3.8 cross-fades it when an accepted answer lands, and it stays a plain span otherwise. */
 function ResultCount({children, accepted, source, className}: {children: ReactNode; accepted?: AcceptedAnswer; source?: unknown; className?: string}) {
