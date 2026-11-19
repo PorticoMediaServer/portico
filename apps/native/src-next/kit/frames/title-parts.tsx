@@ -244,7 +244,8 @@ export function TitleDetails({about, people, collection}: TitleDetailsProps) {
     </View></PanelBlock> : null}
     {/* A phone draws the collection as its short link card at the card inset (phone-detail d1 `.colc`); wider forms as the banner (desktop-detail f3). */}
     {collection ? frame.form === 'phone'
-      ? <View style={{marginHorizontal: frame.cardInset}}><CollectionTile {...collection} layout="link" width={frame.width - 2 * frame.cardInset}/></View>
+      // The link card's third line ("2 films on your server") is its caption: the banner's body, when no caption is given.
+      ? <View style={{marginHorizontal: frame.cardInset}}><CollectionTile {...collection} caption={collection.caption ?? (collection.body ? [{id: 'count', text: collection.body, role: 'context'}] : undefined)} layout="link" width={frame.width - 2 * frame.cardInset}/></View>
       : <PanelBlock><CollectionBanner {...collection} width={frame.width - frame.gutter - frame.rightGutter}/></PanelBlock> : null}
   </>;
 }
