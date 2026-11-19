@@ -403,9 +403,9 @@ test('an expanded tablet draws Live TV with the Guide / Recordings pair over the
   } finally {await tv.close();}
 });
 
-// tablet-play6/7: while a conflict needs a look, Recordings carries a red dot (the tab on an expanded tablet, the header
-// button on an upright tablet and a phone) and says so; the count is the DVR summary's, read when the guide shows. TV: none.
-for (const [name, options, where] of [['phone', {width: 390, height: 844}, 'button'], ['upright tablet', {width: 820, height: 1180}, 'button'], ['expanded tablet', {width: 1180, height: 820}, 'tab']] as const) {
+// tablet-play6/7: while a conflict needs a look, Recordings carries a red dot (the tab on a tablet, the header button on
+// a phone) and says so; the count is the DVR summary's, read when the guide shows. TV: none.
+for (const [name, options, where] of [['phone', {width: 390, height: 844}, 'button'], ['upright tablet', {width: 820, height: 1180}, 'tab'], ['expanded tablet', {width: 1180, height: 820}, 'tab']] as const) {
   test(`${name}: Recordings draws the conflict dot on its ${where} while the summary has a conflict`, async () => {
     const f = await fixture(options); try {
       assert.ok(f.summaryReads.length >= 1, 'the guide read the DVR summary');

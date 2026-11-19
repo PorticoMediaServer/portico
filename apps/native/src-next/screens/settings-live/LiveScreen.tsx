@@ -67,6 +67,9 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const tabletMedium = !theme.isTV && theme.platform === 'tablet', phoneChrome = phone || tabletMedium;
   // The authored phone header controls cover the medium tablet too; wide touch windows keep the desktop controls.
   const expandedTouch = !theme.isTV && !phoneChrome;
+  // tablet-play6/7: every touch window from 600 (an upright tablet too; a phone on its side is a phone) heads the guide with
+  // Guide | Recordings and the Grid | List pair. An upright tablet keeps its day and Sort line and Now docked at the edges.
+  const liveTabs = !theme.isTV && !phone;
   // foldable7: only a reported vertical crease for this exact window may split the page;
   // an absent posture report keeps the single-page guide and its panel.
   const posture = usePlatformPosture();
@@ -558,10 +561,10 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   </View>;
   const programmeFocusBody = theme.isTV && programmeBody ? <FocusRegion id={programmeRegion} entryRegion={`${programmeRegion}.${programmeGroups.find(group => !group.startsWith('later:'))}`} stops={{up: true, down: true, left: true, right: true}}>{programmeBody}</FocusRegion> : programmeBody;
   const ownerIcon = managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>;
-  // The frame draws the head for its form; the page hands it the controls this window has had: TV's one controls row; a phone
-  // (and an upright tablet) List | Guide with Recordings, the source heading the chips, then the day and Sort; a phone on its
-  // side all in one row; an expanded touch window Guide | Recordings, the Grid | List pair, then the day, the steps and Sort.
-  const frameActions = theme.isTV ? controlsRow : expandedTouch ? viewIcons : <>{viewSwitch}{hasRecordings && recordingsIcon}{ownerIcon}</>;
+  // The frame draws the head for its form; the page hands it its controls: TV's one controls row; a phone List | Guide with
+  // Recordings, the source heading the chips, then the day and Sort (all in one row on its side); a tablet Guide | Recordings
+  // and the Grid | List pair, then the day and Sort upright, or the day, the steps and Sort from 1024.
+  const frameActions = theme.isTV ? controlsRow : liveTabs ? viewIcons : <>{viewSwitch}{hasRecordings && recordingsIcon}{ownerIcon}</>;
   const frameToolbar = theme.isTV ? undefined : expandedTouch ? timeRow : landscape ? sortPicker
     : <>{view === 'guide' ? dayPicker : <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}><Text style={[shellType(13, 700), {color: theme.colors.text}]}>{t('guide.onNow')}</Text><Text style={[shellType(13), {color: theme.colors.textSecondary}]}>{clock(now)}</Text></View>}<View style={{flex: 1}}/>{sortPicker}</>;
   const chipsRegion = <FocusRegion id={filters} orientation="horizontal" entry={state.options.favorites ? 'favorites' : state.options.group ? `group:${state.options.group}` : 'all'} edges={{left: ids.rail, up: controls, down: grid}} style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}>
@@ -572,7 +575,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     <View ref={content} onLayout={event => {setMeasuredWidth(event.nativeEvent.layout.width); measureContent();}}
       style={{flex: 1, paddingRight: twoPane ? Math.max(insetRight, contentWidth - guideEnd) : 0}}>
       <LiveFrame title={t('search.chip.liveTV')} switcher={theme.isTV ? undefined : sourcePicker} actions={frameActions}
-        tabs={expandedTouch && <NativeLiveTabs framed value="guide" t={t} conflicts={conflicts} onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}/>}
+        tabs={liveTabs && <NativeLiveTabs framed value="guide" t={t} conflicts={conflicts} onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}/>}
         chips={chipsRegion} toolbar={frameToolbar} list={<View style={{flex: 1, paddingLeft: bodyLeft, paddingRight: twoPane ? 0 : bodyRight}}>
       {state.error !== undefined ? <StateView {...runtime.error(state.error, () => {void controller.loadSources();}, 'live')}/> : empty ? <StateView testID="live-no-sources" variant={compact ? 'centered' : 'inline'} stackActions={compact}
         // states 17c: the owner's state names the server it sets up, with the Owner only tag over the heading.

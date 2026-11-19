@@ -205,7 +205,8 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
   const emptyBody: MessageId | undefined = query.view === 'upcoming' ? 'recordings.noneScheduledBody' : query.view === 'rules' ? 'recordings.noneRulesBody' : query.view === 'history' ? undefined : 'recordings.noneRecordedBody';
   const unavailable = state.page && !state.page.captureAvailable && !recordings.length && query.view === 'upcoming';
   // Local open-sheet/group state must not outlive an authoritative DVR access denial.
-  const expandedTouch = !theme.isTV && theme.platform === 'web';
+  // tablet-play7: from 600 on touch (an upright tablet too) Recordings is Live TV's second tab.
+  const expandedTouch = !theme.isTV && theme.platform !== 'phone';
   if (state.accessDenied) return <Screen><StateView {...runtime.error(state.error ?? {status: 403}, onGuide, 'live')}/></Screen>;
   return <Screen style={{paddingTop: theme.isTV ? 56 : 20}}>
     {/* desktop-live, tablet-play6: at expanded touch widths Recordings is Live TV's second tab, so the page keeps
