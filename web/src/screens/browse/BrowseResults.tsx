@@ -119,7 +119,7 @@ export function BrowseResults(props: BrowseResultsProps) {
       cardWidth={tiles ? tileWidth : musicGenres ? musicGenreWidth : cardWidth} fullWidth={list} fill={!list && !tiles} rowHeight={rowHeight} gap={list ? 0 : gap} rowGap={list ? 0 : tiles ? 24 : gridRowGap} reducedMotion={props.reducedMotion}
       onVisibleRange={range} renderPlaceholder={(_, width) => <Skeleton height={list ? 54 : musicGenres ? 152 : width / ratio} width={list ? '100%' : width}/>}
       renderItem={(member, context) => list ? <BrowseListRow {...props} member={member} index={context.index} reading={reading} music={music}/> : <BrowseEntryCard entry={member.entry} actions={props.actions(member, context.index)} artwork={props.artwork} env={props.env}
-        width={context.width} family={props.familyForEntry?.(member.entry) ?? state.capabilities?.library.kind} mixed={controller.source.libraryId === '*'} visible order={context.index} group={controller.source.libraryId} backdrops={props.backdrops}/>} />
+        width={context.width} family={props.familyForEntry?.(member.entry) ?? state.capabilities?.library.kind} mixed={controller.source.libraryId === '*'} slot={shape === 'poster' || shape === 'square' ? shape : undefined} visible order={context.index} group={controller.source.libraryId} backdrops={props.backdrops}/>} />
     {state.sort?.field === 'title' && anchors.length > 0 && !tiles && <AlphabetRail anchors={anchors} visibleRange={visible} onJump={anchor => grid.current?.scrollToIndex(anchor.index)} platform={phone ? 'phone' : 'desktop'} className={styles.rail}/>}
   </div>;
 }

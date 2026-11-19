@@ -24,11 +24,16 @@ export type BrowseItemActions = Readonly<{
 export type BrowseEntryCardProps = Readonly<{entry: ContentEntry; actions: BrowseItemActions; artwork: ShellArtwork; env: TextEnvironment;
   width: number; family?: string; mixed?: boolean; order: number; group: string; visible: boolean; backdrops: boolean;
   /** A Continue listening card (phone-app, audiobook library): its time left stands where the author sits. */
-  continuing?: boolean}>;
+  continuing?: boolean;
+  /** A grid's one card shape (the row's server shape, the one kind's, or poster for mixed items). Every card in the grid takes it,
+   * so its rows are uniform; art of another shape is drawn whole inside the slot (the card art rule). */
+  slot?: 'poster' | 'square'}>;
 /** Display fields never stand in for a navigation target or a permission offer. */
-export function BrowseEntryCard({entry, actions, artwork, env, width, family, mixed, order, group, visible, backdrops, continuing}: BrowseEntryCardProps) {
+export function BrowseEntryCard({entry, actions, artwork, env, width, family, mixed, order, group, visible, backdrops, continuing, slot}: BrowseEntryCardProps) {
   const title = entry.displayTitle ?? entry.title;
-  const shape = shapeFor(entry.kind, 'grid', family as ShapeFamily | undefined);
+  const own = shapeFor(entry.kind, 'grid', family as ShapeFamily | undefined);
+  // In a grid every card takes the grid's one shape; a circle (an artist) keeps its own.
+  const shape = slot && own !== 'circle' ? slot : own;
   const ordinary = cardText({...homeCardSubject(entry), itemCount: ['collection', 'category', 'playlist'].includes(entry.kind) ? entry.count : undefined, albumCount: entry.albumCount, songCount: entry.kind === 'album' || entry.kind === 'disc' ? entry.count : undefined, countIsLowerBound: entry.countIsLowerBound}, 'ordinary', env);
   const kind = entry.kind === 'movie' ? 'next.browse.kind.movie' : entry.kind === 'show' && family === 'anime' ? 'next.browse.kind.anime' : entry.kind === 'show' && family === 'tv' ? 'next.browse.kind.show' : undefined;
   // Frame #collections draws the watched share after the years, and only when a film is watched.
@@ -44,7 +49,8 @@ export function BrowseEntryCard({entry, actions, artwork, env, width, family, mi
     onNavigate: actions.onOpen, onPlay: actions.onPlay, onMore: actions.onMore, moreExpanded: actions.moreExpanded,
     onNotInterested: actions.onNotInterested, selection: actions.selection, style: {'--cards-width': `${width}px`} as CSSProperties,
     fallback: <GeneratedCover title={coverTitle(entry)} glyph={Array.from(coverTitle(entry).trim())[0] ?? ''} tint={generatedCoverTint(coverTitle(entry))}/>};
-  const source = artwork.foreground(entry.posterUrl, width * devicePixelRatio, shape === 'poster' ? 2 / 3 : 1, {group, order});
+  // The art is asked for in its own shape, never the slot's: a slot of another shape draws it whole, uncropped.
+  const source = artwork.foreground(entry.posterUrl, width * devicePixelRatio, own === 'poster' ? 2 / 3 : 1, {group, order});
   if (entry.kind === 'category' && family === 'music') return <GenreTile variant="music" context="grid" visible={visible} onNavigate={actions.onOpen} selection={actions.selection} style={props.style}
     model={{title, caption: entry.count === undefined ? [] : [{id: 'album-count', role: 'supplement', text: defaultI18n.t(entry.countIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: entry.count, pivot: 'albums'})}]}}
     covers={(entry.artworkPaths ?? []).slice(0, 3).flatMap((path, index) => {const cover = artwork.foreground(path, 76 * devicePixelRatio, 1, {group, order: order * 3 + index});return cover ? [cover] : [];})}/>;
@@ -58,7 +64,10 @@ export function BrowseEntryCard({entry, actions, artwork, env, width, family, mi
   // The finished check is this profile's own mark on this exact row, read from the parser's
   // checked readingMark; the video watched flag and an explicit unread mark never draw it.
   // A reading library's series is a book cover too (2:3, the generated cover without art).
-  if (entry.kind === 'ebook' || entry.kind === 'comic' || entry.kind === 'book_series' && shape === 'poster') return <CoverCard {...props} onPlay={undefined} watched={entry.readingMark?.read === true}
+  const reading = entry.kind === 'ebook' || entry.kind === 'comic' || entry.kind === 'book_series' && own === 'poster';
+  // A square grid draws a Reading title in the square slot, its cover whole at the slot's foot, with the same reading marks.
+  if (reading && shape === 'square') return <SquareCard {...props} onPlay={undefined} watched={entry.readingMark?.read === true} artwork={source} variant="audiobook"/>;
+  if (reading) return <CoverCard {...props} onPlay={undefined} watched={entry.readingMark?.read === true}
     watchedLabel={entry.readingMark?.read === true ? defaultI18n.t('next.cards.finished') : undefined} kind={entry.kind === 'comic' || family === 'comic' ? 'comic' : 'book'} artwork={source}
     generated={{title, glyph: Array.from(title.trim())[0] ?? '', tint: generatedCoverTint(title)}}/>;
   return shape === 'square' ? <SquareCard {...props} artwork={source} variant={entry.kind === 'book' || entry.kind === 'audiobook_file' ? 'audiobook' : 'music'}/> : <PosterCard {...props} artwork={source}/>;
