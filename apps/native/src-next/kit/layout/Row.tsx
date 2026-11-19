@@ -225,11 +225,17 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
   return <View testID={testID} onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)} style={style}>
     {/* A heading is never cut or squeezed: it wraps, and its subtitle moves under it when the two do not fit on one line. */}
     {showHeading && <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: theme.spec.shelf.headingGap[theme.column], rowGap: 2, paddingLeft: leading, paddingRight: trailing, marginBottom: framed ? frameSpec.rhythm.rowHeadingGap[theme.form] : theme.spec.shelf.headingMargin[theme.column]}}>
-      {onSeeAll && !theme.isTV ? <Pressable testID={testID ? `${testID}-see-all` : undefined} accessibilityRole="button" accessibilityLabel={title} accessibilityHint={defaultI18n.t('shelf.seeAll')} onPress={onSeeAll}
+      {/* A phone's See all is the chevron after the heading (phone-app 2: "On now ›"); a wider row draws the labelled
+          "See all ›" at its end (tablet 1b, desktop-browse), as web does. TV has no See all control. */}
+      {onSeeAll && !theme.isTV && theme.form === 'phone' ? <Pressable testID={testID ? `${testID}-see-all` : undefined} accessibilityRole="button" accessibilityLabel={title} accessibilityHint={defaultI18n.t('shelf.seeAll')} onPress={onSeeAll}
         onFocus={() => setArrowFocus('all')} onBlur={() => setArrowFocus(undefined)} style={[{minHeight: 24, flexDirection: 'row', alignItems: 'center', flexShrink: 1}, controlStyle(arrowFocus === 'all')]}>
         <Text accessibilityRole="header" style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text><Icon name="i-right" size={18} color={theme.colors.textTertiary} />
       </Pressable> : <Text accessibilityRole="header" style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text>}
       {subtitle && <View style={{flexShrink: 1}}>{typeof subtitle === 'string' ? <Text style={[theme.type.rowSubtitle, {color: theme.colors.textTertiary, includeFontPadding: false}]}>{subtitle}</Text> : subtitle}</View>}
+      {onSeeAll && !theme.isTV && theme.form !== 'phone' && <Pressable testID={testID ? `${testID}-see-all` : undefined} accessibilityRole="button" accessibilityLabel={defaultI18n.t('next.layout.seeAll')} accessibilityHint={title} onPress={onSeeAll}
+        onFocus={() => setArrowFocus('all')} onBlur={() => setArrowFocus(undefined)} hitSlop={10} style={[{marginLeft: 'auto', minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: 2}, controlStyle(arrowFocus === 'all')]}>
+        <Text style={[theme.type.seeAll, {color: theme.colors.textTertiary, includeFontPadding: false}]}>{defaultI18n.t('next.layout.seeAll')}</Text><Icon name="i-right" size={16} color={theme.colors.textTertiary} />
+      </Pressable>}
 
     </View>}
     <RowRegion focus={theme.isTV ? focus : undefined} order={activeOrder} entry={activeEntry}

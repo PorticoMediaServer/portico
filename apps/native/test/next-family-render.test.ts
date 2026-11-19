@@ -314,6 +314,27 @@ test('phone continuation facts stay on one quiet line while TV retains its full 
   }
 });
 
+test('a row\'s See all is the chevron after its heading on a phone and the labelled "See all ›" at its end on wider forms', async () => {
+  // tablet 1b and desktop-browse draw "See all ›" at the row's end; phone-app 2 draws "On now ›" (web's Row does the same).
+  const previous = state.theme;
+  try {
+    for (const [width, end] of [[390, false], [820, true], [1180, true]] as const) {
+      state.theme = createTheme({isTV: false, width});
+      let opened = 0;
+      const row = await mount(Row, {title: 'Recently Added', testID: 'shelf', items: [{id: 'a'}], getKey: (item: {id: string}) => item.id,
+        itemWidth: 150, itemHeight: 225, selection: {active: false, isSelected: () => false, onToggle() {}, onEnter() {}}, onSeeAll: () => opened++,
+        renderItem: (item: {id: string}) => React.createElement('View', {key: item.id})});
+      try {
+        const control = nodes(row.tree).find(node => node.props.testID === 'shelf-see-all')!;
+        const words = nodes(control).filter(node => node.type === 'Text').map(node => node.props.children);
+        assert.deepEqual(words, end ? ['See all'] : ['Recently Added'], `${width}: ${end ? 'the labelled See all at the end' : 'the heading carries the chevron'}`);
+        if (end) assert.equal(Object.assign({}, ...[control.props.style].flat(9).filter(Boolean)).marginLeft, 'auto');
+        control.props.onPress(); assert.equal(opened, 1);
+      } finally {await row.host.unmount();}
+    }
+  } finally {state.theme = previous;}
+});
+
 test('TV shelves reserve focus overflow without shifting the card edge and preserve all native actions', async () => {
   state.theme = createTheme({isTV: true, width: 1920});
   state.workletTargets = [];
