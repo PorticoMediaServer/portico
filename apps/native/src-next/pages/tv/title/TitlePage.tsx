@@ -10,7 +10,8 @@ import {useTitle, type TitleView, type TVSeason} from '../../shared/title/useTit
 const t = defaultI18n.t;
 const hold = (label: string) => ({key: t('next.layout.holdOk'), label});
 
-/** A film's or a show's title page on a TV (tv-detail frames 1 to 5): `TitleFrame` filled from the title controller. Every
+/** A film's or a show's title page on a TV (tv-detail frames 1 to 5); a season's and an episode's route open their show's
+ * page on that season: `TitleFrame` filled from the title controller. Every
  * section is drawn and focus walks down them: a show's Episodes (the season column and the episodes with the band that
  * describes what holds focus), More like this's rows, then Details; the frame folds the hero as focus leaves the buttons.
  * A TV keeps nothing for offline, so the page offers no Download. */
@@ -21,8 +22,11 @@ export function TitlePage(props: NativeTitleScreenProps) {
   const [menu, setMenu] = useState<TVSeason>();
   if (view.retired) return null;
   const {about, people} = view.details, tv = view.episodes?.tv;
+  // An episode's own route (a Search hit, Continue Watching) lands on that episode once its season lists it: focus starts on
+  // its tile, so the band describes it and OK plays it (the touch page opens it in place; desk, 19 Nov). Until then, Play.
+  const landing = view.entry.kind === 'episode' && tv?.tiles.some(tile => tile.key === view.entry.id) ? view.entry.id : undefined;
   return <>
-    <TitleFrame testID="watch-title-screen" back={{label: t('action.back'), onPress: props.back, testID: 'watch-title-back'}}
+    <TitleFrame testID="watch-title-screen" startFocus={landing} back={{label: t('action.back'), onPress: props.back, testID: 'watch-title-back'}}
       art={<AmbientArt treatment="title" source={view.art.source} foreground={view.art.foreground}/>}
       kicker={view.kicker} title={view.title} metadata={<HeroMetadata facts={view.facts}/>}
       // tv-detail 1 and 2 name it My List whether it is on or off; on, it carries the accent tick.
@@ -32,7 +36,7 @@ export function TitlePage(props: NativeTitleScreenProps) {
         column: <TVSeasonList hint={hold(t('next.watch.seasonOptions'))} onEnd={tv.moreSeasons} items={tv.seasons.map(season => ({id: season.id, label: season.label,
           detail: season.progress ?? season.count, progress: season.fraction ?? (season.complete ? 1 : undefined), current: season.current,
           onFocus: () => {setBand({season: season.id}); tv.focusEpisode(undefined); tv.select(season.id);}, onLongPress: season.group ? undefined : () => setMenu(season)}))}/>,
-        episodes: <TVEpisodeShelf entry={tv.nextUp} empty={t('title.noEpisodes')} onEnd={view.onEnd} band={bandData(view, band)}
+        episodes: <TVEpisodeShelf entry={landing ?? tv.nextUp} empty={t('title.noEpisodes')} onEnd={view.onEnd} band={bandData(view, band)}
           items={tv.tiles.map(tile => ({...tile, onFocus: () => {setBand({episode: tile.key}); tv.focusEpisode(tile.key);}, onPlay: () => tv.play(tile.key)}))}/>}}>
       {view.related.map(row => <TitleSection key={row.testID ?? row.title} tab="related"><PosterRow {...row}/></TitleSection>)}
       {/* detail-tv-4: About carries the whole synopsis and the tagline beside the facts. */}
