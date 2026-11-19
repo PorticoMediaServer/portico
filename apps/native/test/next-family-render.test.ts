@@ -83,7 +83,7 @@ const {FilterBuilder, FacetChips} = await import('../src-next/kit/browse/index.t
 const {Focusable, Tabs, Segmented} = await import('../src-next/kit/controls/index.ts');
 const {FocusProvider, FocusRegion} = await import('../src-next/kit/focus/index.ts');
 const {Menu, MenuRow, Popover} = await import('../src-next/kit/overlays/Menu.tsx');
-const {LibrarySwitcher, LibraryMenu} = await import('../src-next/kit/browse/Library.tsx');
+const {LibrarySwitcher, LibraryMenu, LibraryMediumHeader, LibraryExpandedHeader, LibraryHeader, StickyBrowseHeader} = await import('../src-next/kit/browse/Library.tsx');
 const {TextField, Button} = await import('../src-next/kit/controls/index.ts');
 const {TVTextField} = await import('../src-next/kit/controls/TVTextField.tsx');
 const {OwnerTag} = await import('../src-next/kit/shell/index.ts');
@@ -567,6 +567,32 @@ test('F06 CardFrame and TextField attach exactly the hosts native props make eli
       assert.equal(scope.registry.child({regionId: 'eligibility', childId: 'input'}), inputHost);
     } finally {await field.host.unmount(); await input.host.unmount();}
   } finally {await card.host.unmount(); await scope.unmount();}
+});
+
+test('a wide library header draws its switcher as the round chevron alone; the phone bar keeps the centred name', async () => {
+  // tablet 3-5 and desktop-browse set the library's name as the title and the switcher beside it as a round chevron. A name
+  // drawn inside that 44 pt slot was cut to "F…" (owner: no cut text), whatever trigger the screen asked for.
+  const previous = state.theme;
+  try {
+    const props = {libraries: [{id: 'films', name: 'Films'}], value: 'films', onValueChange() {}, trigger: 'name' as const};
+    const element = React.createElement(LibrarySwitcher, props);
+    const named = (tree: ReactNode) => nodes(tree).some(node => node.type === 'Text' && node.props.children === 'Films');
+    for (const [Header, width, isTV, slot] of [[LibraryMediumHeader, 820, false, 'chevron'], [LibraryExpandedHeader, 1180, false, 'chevron'],
+      [LibraryHeader, 1920, true, 'chevron'], [StickyBrowseHeader, 390, false, 'name']] as const) {
+      state.theme = createTheme({isTV, width});
+      const header = await mount(Header, {name: 'Films', switcher: element});
+      try {
+        const tree: any = header.tree, inBar = Header === StickyBrowseHeader ? tree.props.center : undefined;
+        const provider: any = inBar ?? nodes(tree).find(node => node.props.children === element && 'value' in node.props);
+        assert.equal(provider?.props.value, slot, `${Header.name} sets its switcher slot to ${slot}`);
+        const drawn = await mount(LibrarySwitcher, props, [[provider.type._context ?? provider.type, slot]]);
+        try {assert.equal(named(drawn.tree), slot === 'name', slot === 'name' ? 'the phone bar draws the name' : `${Header.name} draws the chevron alone`);}
+        finally {await drawn.host.unmount();}
+      } finally {await header.host.unmount();}
+    }
+    const chooser = await mount(LibrarySwitcher, props);
+    try {assert.equal(named(chooser.tree), true, 'outside a header the switcher draws what it is given');} finally {await chooser.host.unmount();}
+  } finally {state.theme = previous;}
 });
 
 test('F01 Library composites forward caller-fenced surface and semantic inner identities', async () => {
