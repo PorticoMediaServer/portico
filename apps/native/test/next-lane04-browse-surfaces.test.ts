@@ -94,7 +94,9 @@ test('phone See all draws on the library frame: its header regions, one toolbar 
   const header = frame.props.header;
   assert.equal(header.title, 'Recommended'); assert.equal(header.back.testID, 'home-see-all-back');
   assert.equal(header.intro, 'Your actual recommendation reason');
-  const buttons = nodes(header.actions).filter(node => node.type === 'Button'); assert.equal(buttons.length, 2); assert.ok(buttons.every(node => flat(node.props.style).flex === 1));
+  const buttons = nodes(header.actions).filter(node => node.type === 'Button'); assert.equal(buttons.length, 2);
+  // The frame halves a phone's action row; a button's own flex inside that half collapsed it under the toolbar (Pixel 6a).
+  assert.ok(buttons.every(node => node.props.style === undefined), 'the buttons carry no sizing of their own');
   // One toolbar row (owner: Filters, then Sort, then the kinds and quick filters in a line that scrolls, never four wrapped rows).
   const toolbar = frame.props.toolbar;
   assert.equal(toolbar.type, 'BrowseToolbar'); assert.equal(toolbar.props.resultTotal, 72);
