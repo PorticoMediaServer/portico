@@ -31,8 +31,15 @@ test('A21: a collection card\'s years stay grey; only the watched share is blue 
 
 test('A23/A24 (owner, 18 Nov): at phone width the toolbar is one row with no count line and no Save view; the divider after Filters only draws when something follows', () => {
   const toolbar = read('../src/kit/browse/BrowseToolbar.tsx');
-  assert.match(toolbar, /<div className=\{styles\.toolbarMain\}>\{filters\}\{sort\}\n\s*<div className=\{styles\.chipRail\}>/);
+  assert.match(toolbar, /<div className=\{styles\.toolbarMain\}>\{filters\}\{sort\}\n\s*<ChipRail>/);
   assert.doesNotMatch(toolbar, /phoneCount/);
   assert.match(toolbar, /\{filters\}\{sort\}\{platform === 'tv' && onJump/, 'wide and TV: Sort sits directly after Filters (owner, 18 Nov)');
   assert.match(toolbar, /\{\(actions != null && actions !== false \|\| quick\.length > 0\) && <span className=\{styles\.separator\} aria-hidden="true"\/>\}/);
+});
+
+test('SMALL-FAULTS 29: the chip rail never draws a partly visible chip: it fades out from the end of the last whole chip', () => {
+  const css = read('../src/kit/browse/browse.module.css'), toolbar = read('../src/kit/browse/BrowseToolbar.tsx');
+  assert.doesNotMatch(css, /\.chipRail \{[^}]*mask-image/, 'no fixed end fade that a wide partial chip shows through');
+  assert.match(css, /\.chipRail\[data-cut\] \{[^}]*transparent var\(--rail-cut\)/, 'past the last whole chip the rail is transparent');
+  assert.match(toolbar, /item\.offsetLeft \+ item\.offsetWidth - left <= view/, 'the cut is the end of the last chip that fits whole');
 });

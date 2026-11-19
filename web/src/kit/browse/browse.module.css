@@ -65,7 +65,10 @@
 .toolbar[data-sticky]::after { content: ''; position: absolute; inset: 100% 0 auto; height: 28px; background: linear-gradient(color-mix(in srgb, var(--color-ink) 70%, transparent), transparent); pointer-events: none; }
 /* Phone width: one row (owner, 18 Nov): Filters, sort, the chips' sideways rail fading at its end, grid / list pinned at the right. */
 .toolbar[data-platform=phone] .toolbarMain { padding: 10px var(--shell-gutter); flex-wrap: nowrap; }
-.chipRail { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+.chipRail { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+/* While chips lie past the end, the rail fades out from the end of the last whole chip (ChipRail sets --rail-cut): a partly visible
+   chip is never drawn. */
+.chipRail[data-cut] { -webkit-mask-image: linear-gradient(90deg, #000 max(0px, calc(var(--rail-cut) - 12px)), transparent var(--rail-cut)); mask-image: linear-gradient(90deg, #000 max(0px, calc(var(--rail-cut) - 12px)), transparent var(--rail-cut)); }
 .chipRail::-webkit-scrollbar { display: none; }
 .chipRail > * { flex: none; }
 .chipRail .applied { flex-wrap: nowrap; padding: 0; }
