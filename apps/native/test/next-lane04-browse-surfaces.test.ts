@@ -60,7 +60,7 @@ test('expanded Search shelves keep every loaded result and prefetch ten cards be
   snapshot.paging.movies = {}; visible = false; shelf().props.onEndReached(); assert.equal(calls.length, 2);
 });
 
-test('phone See all composes the drawn header, separate controls and three-column grid from one width', async () => {
+test('phone See all draws on the library frame: its header regions, one toolbar row with the kinds in it, the three-column grid', async () => {
   const h = host(), selected: unknown[] = [];
   const row = {id: 'recommended', title: 'Recommended', reason: {text: 'Your actual recommendation reason'}, entries: []};
   const state = {phase: 'ready', row, capabilities: {library: {kind: 'movie'}}, sort: {field: 'groupOrder'}, filters: [], counts: [{id: 'all', total: 72}]};
@@ -74,7 +74,7 @@ test('phone See all composes the drawn header, separate controls and three-colum
     '../../../../../packages/client-core/src/home-row-browse': await import('../../../packages/client-core/src/home-row-browse'),
     '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_labels: unknown, value: any, fallback: any) => value ?? fallback}, '../../../../../packages/client-core/src/presentation/home-row-reason': {homeRowReasonParts: () => undefined},
     '../../../../../packages/client-core/src/home-selection': {homeEntryCapabilities: () => ({})},
-    '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'}, '../../kit/browse': {FiltersButton: 'FiltersButton', QuickToggle: 'QuickToggle', SortMenu: 'SortMenu', ViewToggle: 'ViewToggle'},
+    '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'}, '../../kit/browse': {BrowseToolbar: 'BrowseToolbar', FiltersButton: 'FiltersButton', QuickToggle: 'QuickToggle', SortMenu: 'SortMenu', ViewToggle: 'ViewToggle'}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
     '../../kit/cards/primitives': {CardFrame: 'CardFrame', Parts: 'Parts'}, '../../kit/cards': {PosterCard: 'PosterCard'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', MediaArt: 'MediaArt', AmbientArt: 'AmbientArt'},
     '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => ({subscribe: () => () => {}, getSnapshot: () => 0})},
     '../../kit/layout': {WindowedGrid: 'WindowedGrid'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', LoadingBoundary: 'LoadingBoundary', LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
@@ -85,15 +85,21 @@ test('phone See all composes the drawn header, separate controls and three-colum
   const root = h.render(() => HomeSeeAll({controller, runtime, active: true, kindLabel: t}));
   const boundary = nodes(root).find(node => node.type === 'LoadingBoundary');
   const ready = nodes(boundary).find(node => typeof node.type === 'function');
-  const tree = h.render(() => ready.type(ready.props)), grid = nodes(tree).find(node => node.type === 'WindowedGrid');
+  const tree = h.render(() => ready.type(ready.props)), frame = nodes(tree).find(node => node.type === 'BrowseFrame');
+  const grid = nodes(frame.props.grid).find(node => node.type === 'WindowedGrid');
+  // The kit toolbar's controls carry no focus ids: inside a focus region they would refuse to render (touch has none).
+  assert.equal(nodes(tree).some(node => node.type === 'FocusRegion'), false, 'the touch page has no focus region');
   assert.equal(grid.props.itemWidth, 110); assert.equal(grid.props.gap, 10);
-  const header = grid.props.header, toolbar = grid.props.stickyHeader;
-  const title = nodes(header).find(node => node.props.accessibilityRole === 'header');
-  assert.equal(flat(title.props.style).fontSize, 34); assert.equal(flat(title.props.style).fontWeight, '800');
-  const buttons = nodes(header).filter(node => node.type === 'Button'); assert.ok(buttons.every(node => flat(node.props.style).flex === 1));
-  assert.deepEqual(nodes(toolbar).filter(node => node.props.testID).map(node => node.props.testID), ['home-see-all-kind-row', 'home-see-all-quick-row', 'home-see-all-count-row']);
-  const kindRow = nodes(toolbar).find(node => node.props.testID === 'home-see-all-kind-row');
-  nodes(kindRow).find(node => node.type === 'Chip' && node.props.selected === false).props.onPress(); assert.deepEqual(selected, ['movies']);
+  assert.equal(grid.props.header, undefined, 'the frame holds the header; the grid scrolls under it');
+  const header = frame.props.header;
+  assert.equal(header.title, 'Recommended'); assert.equal(header.back.testID, 'home-see-all-back');
+  assert.equal(header.intro, 'Your actual recommendation reason');
+  const buttons = nodes(header.actions).filter(node => node.type === 'Button'); assert.equal(buttons.length, 2); assert.ok(buttons.every(node => flat(node.props.style).flex === 1));
+  // One toolbar row (owner: Filters, then Sort, then the kinds and quick filters in a line that scrolls, never four wrapped rows).
+  const toolbar = frame.props.toolbar;
+  assert.equal(toolbar.type, 'BrowseToolbar'); assert.equal(toolbar.props.resultTotal, 72);
+  assert.deepEqual(toolbar.props.model.quick.map((quick: any) => quick.id), ['unwatched']);
+  nodes(toolbar.props.children).find(node => node.type === 'Chip' && node.props.selected === false).props.onPress(); assert.deepEqual(selected, ['movies']);
   const skeleton = h.render(() => boundary.props.skeleton.type(boundary.props.skeleton.props));
   const skeletonGrid = nodes(skeleton).find(node => node.type === 'GridSkeleton');
   assert.equal(skeletonGrid.props.cardWidth, grid.props.itemWidth); assert.equal(skeletonGrid.props.columns, 3);
