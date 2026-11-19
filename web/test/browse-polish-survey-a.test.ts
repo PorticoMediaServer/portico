@@ -41,12 +41,12 @@ test('SMALL-FAULTS 29: the chip rail never draws a partly visible chip: it fades
   const css = read('../src/kit/browse/browse.module.css'), toolbar = read('../src/kit/browse/BrowseToolbar.tsx');
   assert.doesNotMatch(css, /\.chipRail \{[^}]*mask-image/, 'no fixed end fade that a wide partial chip shows through');
   assert.match(css, /\.chipRail\[data-cut\] \{[^}]*transparent var\(--rail-cut\)/, 'past the last whole chip the rail is transparent');
-  assert.match(toolbar, /item\.offsetLeft \+ item\.offsetWidth - left <= view/, 'the cut is the end of the last chip that fits whole');
+  assert.match(toolbar, /ends\.filter\(end => end <= view \+ \.5\)\.pop\(\)/, 'the cut is the end of the last chip that fits whole');
 });
 
 test('the chip rail is drawn only with room for its first chip whole: with less it is hidden, not scrollable and not read (lead, 19 Nov)', () => {
   const css = read('../src/kit/browse/browse.module.css'), toolbar = read('../src/kit/browse/BrowseToolbar.tsx');
   assert.match(css, /\.chipRail\[data-no-room\] \{ visibility: hidden; overflow: hidden; pointer-events: none; \}/);
-  assert.match(toolbar, /setRoom\(!items\[0\] \|\| items\[0\]\.offsetLeft \+ items\[0\]\.offsetWidth <= view \+ \.5\)/, 'room is the first chip fitting whole');
+  assert.match(toolbar, /setRoom\(!items\[0\] \|\| first <= view \+ \.5\)/, 'room is the first chip fitting whole');
   assert.match(toolbar, /aria-hidden=\{room \? undefined : true\}/);
 });
