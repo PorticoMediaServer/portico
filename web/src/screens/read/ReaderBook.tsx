@@ -22,7 +22,7 @@ import {ComicPageFooter, FixedPageFooter, FixedPageMenus, FixedPageZoom, FixedPa
 import {readingDisplayCopy} from './display-copy';
 import {readerBookPresentation, type ReaderEnvironment} from './native/tablet-presentation';
 import type {ReaderMountAuthority} from './mount';
-import type {ReaderChapterMark} from './ReaderChrome';
+import type {ReaderChapterMark} from '../../kit/reader/ReaderChrome';
 import fixedStyles from './fixed-page.module.css';
 import {ReaderMatchNavigation} from './ReaderMatchNavigation';
 import {ReaderBrowserHint} from './ReaderBrowserHint';

@@ -1,7 +1,5 @@
 export {ReadLibraryHeader, ReadLibrarySurface, ReadDiscovery, ReadShelf} from './ReadLibrary';
 export type {ReadLibraryHeaderProps, ReadDiscoveryRow, ReadPivot, ReadCoverItem, ReadResumeItem, ReadSeriesItem} from './ReadLibrary';
-export {ReaderChrome} from './ReaderChrome';
-export type {ReaderChromeProps, ReaderChromeCopy, ReaderChromeAction, ReaderChapterMark} from './ReaderChrome';
 export {ReaderPanel, ReaderContents, ReaderAnnotations} from '../../kit/reader/ReaderPanel';
 export type {ReaderPanelProps, ReaderPanelTab, ReaderContentsEntry, ReaderAnnotationEntry} from '../../kit/reader/ReaderPanel';
 export {ReaderSearch, ReaderBookmarks} from '../../kit/reader/ReaderSearch';

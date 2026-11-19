@@ -7,7 +7,7 @@ import {isReaderComicFormat, readerErrorCode, type ReadingController, type Reade
 import {Menu, MenuItem, MenuSeparator} from '../../kit/overlays';
 import {Icon} from '../../kit/Icon';
 import {ReaderZoomMap} from '../../kit/reader/ReaderZoomMap';
-import type {ReaderChapterMark} from './ReaderChrome';
+import type {ReaderChapterMark} from '../../kit/reader/ReaderChrome';
 import {loadReadPagePreview, type ReadPagePreview} from './preview';
 import type {ReaderMountAuthority} from './mount';
 import {fixedPageWindow} from './fixed-page-window';
