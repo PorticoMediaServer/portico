@@ -17,6 +17,8 @@ import {createNativeEntryActions} from '../destinations/entry-actions';
 import {createNativePersonController, personDepartments, type NativePersonController, type NativePersonSnapshot} from './controller';
 import {createNativePersonCreditWindow, type NativePersonCreditWindow} from './credit-window';
 import {PersonScreen} from './PersonScreen';
+import {PersonPage} from '../../pages/touch/person/PersonPage';
+import {Artwork} from '../../kit/artwork';
 import {authorityKey} from '../../shell/model';
 import {usePageWidth} from '../../kit/layout/page-inset';
 import {TopBar} from '../../kit/layout/TopBar';
@@ -25,6 +27,9 @@ type PersonRoute = Extract<NativeShellRoute, {kind: 'person'}>;
 type Entry = {
   route: PersonRoute; focusScope: string; source: NativePersonController; key: number; stop: () => void;
   snapshot?: NativePersonSnapshot; selection?: NativeSelection; window?: NativePersonCreditWindow;
+  /** The person's whole count, from the All read: Cast or Crew re-reads and counts only its own credits, and the page is
+   *  drawn again for it, so the route keeps the total (phone-detail d3 frame 7's heading). */
+  allTotal?: number;
   /** TV: one window per department of the all-credits page, drawn as a row each (tv-detail frame 10, `f9`). */
   groupWindows?: readonly Readonly<{id: string; department: string; total: number; window: NativePersonCreditWindow}>[]; actions?: ReturnType<typeof createNativeEntryActions>;
 };
@@ -101,6 +106,7 @@ function PersonHost({entry, runtime, back}: {entry: Entry; runtime: NativeShellR
   const place = useNativeStackPlacement(entry.route), stacked = useNativeStackHosted();
   const state = useSyncExternalStore(entry.source.subscribe, entry.source.getSnapshot);
   const active = useSyncExternalStore(entry.source.activation.subscribe, entry.source.activation.getSnapshot);
+  if (state.phase === 'ready' && state.page && 'role' in state.group && state.group.role === 'all') entry.allTotal = state.page.pageInfo.total;
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {if (active.visible && state.phase === 'idle') void entry.source.load();}, [active.visible, entry.source, state.phase]);
   useEffect(() => {
@@ -110,8 +116,11 @@ function PersonHost({entry, runtime, back}: {entry: Entry; runtime: NativeShellR
   }, [state.phase]);
   return place(<View pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible} importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'}
     style={{position: 'absolute', inset: 0, display: active.visible || stacked ? 'flex' : 'none'}}>
-    {state.phase === 'ready' && state.page && entry.window && entry.actions && 'role' in state.group ? <PersonScreen focusScope={entry.focusScope} page={state.page} role={state.group.role} collection={entry.window.collection}
+    {state.phase === 'ready' && state.page && entry.window && entry.actions && 'role' in state.group ? theme.isTV ? <PersonScreen focusScope={entry.focusScope} page={state.page} role={state.group.role} collection={entry.window.collection}
       runtime={runtime} actions={entry.actions} selection={entry.selection} groups={entry.groupWindows?.map(group => ({id: group.id, department: group.department, total: group.total, collection: group.window.collection}))} onRole={role => {void entry.source.select({role});}} onBack={back}/>
+      // Phones and tablets: the rebuilt page (pages/touch/person), its selection bar drawn here as the old screen drew it.
+      : <><PersonPage total={entry.allTotal} focusScope={entry.focusScope} page={state.page} role={state.group.role} collection={entry.window.collection}
+      runtime={runtime} actions={entry.actions} selection={entry.selection} groups={entry.groupWindows?.map(group => ({id: group.id, department: group.department, total: group.total, collection: group.window.collection}))} onRole={role => {void entry.source.select({role});}} onBack={back}/>{entry.selection?.render(path => <Artwork source={runtime.artwork(path)} width={40} height={40}/>)}</>
       // W-2 sweep: the full-page state, below Back and the status bar, as a title that couldn't load.
       : state.phase === 'error' ? <ScreenErrorPage {...runtime.error(state.error, () => {void entry.source.load();})}/>
       : <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={dimensions.height} width={pageWidth} totalCount={9} columns={3}/>}
