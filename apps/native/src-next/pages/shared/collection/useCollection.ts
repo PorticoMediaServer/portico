@@ -5,11 +5,11 @@ import type {FactPart} from '../../../../../../packages/client-core/src/presenta
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
-import {posterGridScroller, titleRowsScroller, type StateRowProps, type TitleCollapse} from '../../../kit/frames';
+import {posterGridScroller, titleRowsScroller, type PosterGridItem, type PosterGridScrollerProps, type StateRowProps, type TitleCollapse} from '../../../kit/frames';
 import type {MenuEntry} from '../../../kit/overlays';
 import {useTheme} from '../../../kit/theme';
 import {durationText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
-import {sortLabel, years, type NativeCollectionScreenProps} from '../../../screens/collections/CollectionScreen';
+import {composedCollectionLede, sortLabel, years, type NativeCollectionScreenProps} from '../../../screens/collections/CollectionScreen';
 import type {NativeCollectionSort} from '../../../screens/collections/controller';
 
 const t = defaultI18n.t;
@@ -38,6 +38,9 @@ export type CollectionView = Readonly<{
   /** The members, windowed: rows on a phone (frame 8), posters on a tablet (the old screen's grid). */
   scroller: (content: ReactNode, style: ViewStyle, collapse: TitleCollapse) => ReactNode;
   sortMenu: Menu; pageMenu: Menu;
+  /** TV (tv-detail frame 11): the lede under the facts (the read's overview, else composed from the films as Home's banner
+   * says it), how many are watched beside the row's heading, and the films as one windowed row of posters. */
+  lede?: string; watched?: string; row: PosterGridScrollerProps<ContentEntry>;
 }>;
 
 export function useCollection({state, runtime, actions, selection, onPlay, onShuffle, onSort, onOpen, onRetry}: NativeCollectionScreenProps): CollectionView & Readonly<{play: () => void; shuffle: () => void}> {
@@ -54,6 +57,11 @@ export function useCollection({state, runtime, actions, selection, onPlay, onShu
   const retry = {label: t('action.tryAgain'), onPress: onRetry};
   const more = (entry: ContentEntry) => actions ? (anchor: Parameters<NonNullable<typeof actions>['menu']>[1]) => actions.menu(entry, anchor, selection?.item(entry)?.onEnter) : undefined;
   const select = selection?.start ? () => selection.start?.() : undefined;
+  const poster = (entry: ContentEntry): PosterGridItem => ({title: entry.displayTitle || entry.title,
+    caption: entry.year === undefined ? undefined : String(entry.year), artwork: runtime.artwork(entry.posterUrl), watched: entry.watched,
+    progress: entry.duration && entry.progressSeconds ? Math.min(1, entry.progressSeconds / entry.duration) : undefined,
+    selection: selection?.item(entry), onNavigate: () => onOpen(entry), onMore: more(entry)});
+  const watchedCount = state.complete ? state.complete.filter(entry => entry.watched).length : state.projection?.entity?.watchedCount;
   return {
     title: state.title, ambient: runtime.ambient(backdrop), backdrop: runtime.artwork(backdrop),
     kicker: t('next.home.collection'),
@@ -77,16 +85,16 @@ export function useCollection({state, runtime, actions, selection, onPlay, onShu
           watched: entry.watched, progress, remaining: progress !== undefined ? t('next.kit.remaining', {time: length(Math.max(0, (entry.duration ?? 0) - (entry.progressSeconds ?? 0))) ?? ''}) : undefined,
           artwork: runtime.artwork(entry.posterUrl), selection: selection?.item(entry), onNavigate: () => onOpen(entry), onMore: more(entry), testID: `collection-item-${entry.id}`};
       }})
-      : posterGridScroller({collection: state.collection, getKey: keyOf, testID: 'collection-grid', item: entry => ({title: entry.displayTitle || entry.title,
-        caption: entry.year === undefined ? undefined : String(entry.year), artwork: runtime.artwork(entry.posterUrl), watched: entry.watched,
-        progress: entry.duration && entry.progressSeconds ? Math.min(1, entry.progressSeconds / entry.duration) : undefined,
-        selection: selection?.item(entry), onNavigate: () => onOpen(entry), onMore: more(entry)})}),
+      : posterGridScroller({collection: state.collection, getKey: keyOf, testID: 'collection-grid', item: poster}),
     sortMenu: {title: t('web.filters.sortBy'), open: sortOpen, onOpenChange: setSortOpen,
       items: state.sorts.map(value => ({id: value.id, label: sortName(value), selected: value.id === state.sort, onSelect: () => onSort(value.id, value.directions[0] ?? 'asc')}))},
     pageMenu: {title: state.title, open: pageOpen, onOpenChange: setPageOpen, items: [
       {id: 'play', label: t('next.cards.playAll'), icon: 'i-play', onSelect: onPlay},
       {id: 'shuffle', label: t('title.shuffle'), icon: 'i-shuffle', onSelect: onShuffle},
       ...(select ? [{id: 'select', label: t('next.selection.select'), icon: 'i-check' as const, onSelect: select}] : [])]},
+    lede: state.projection?.entity?.overview?.trim() || composedCollectionLede(state, {t}),
+    watched: watchedCount && state.totalCount ? t('next.browse.watchedOf', {watched: watchedCount, count: state.totalCount}) : undefined,
+    row: {collection: state.collection, getKey: keyOf, testID: 'collection-row', item: poster},
     play: onPlay, shuffle: onShuffle,
   };
 }
