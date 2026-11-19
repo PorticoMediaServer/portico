@@ -17,7 +17,8 @@ import {continueBookFacts} from '@core/presentation/continue-books.ts';
 import {channelMonograms, programmeFactParts, type TimeEnvironment} from '@portico/client-core/kit-model';
 import {useFreshness, useRecovering} from '../../platform/freshness';
 import {Artwork, AmbientArt, GeneratedArt, GeneratedCover, coverTitle} from '../../kit/artwork';
-import {Hero, HeroFacts, longTitle, type HeroCandidate, type LayoutPlatform} from '../../kit/layout';
+import {HeroFacts, longTitle, type HeroCandidate, type LayoutPlatform} from '../../kit/layout';
+import {BrowseFrame, HomeHero} from '../../kit/frames';
 import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {CollectionBanner, LiveCard, PosterCard, RankedCard, ReadResumeCard, ResumeCard, SquareCard, WideCard, type CardSelection} from '../../kit/cards';
@@ -197,8 +198,8 @@ export function HomeView({service, customization, document, nowMs, onMore, refre
   const mixesState = useSyncExternalStore(musicMixes?.subscribe ?? noSubscription, musicMixes?.getSnapshot ?? noMixes, musicMixes?.getSnapshot ?? noMixes);
   const mixesContent = !!mixesState && (mixesState.phase === 'loading' || mixesState.phase === 'ready' && mixesState.rows.length > 0);
   const empty = candidates.length === 0 && !mixesContent && !anyContent(rows);
-  return <div className={styles.home} data-size-class={sizeClass} data-home-document="">
-    {candidates.length > 0 && <div ref={hero.ref}><Hero<Spotlight> candidates={candidates} platform={platform} sizeClass={sizeClass} visible={hero.visible} reducedMotion={appearance?.reducedMotion ?? reducedMotion}
+  // Home on the library frame (`BrowseFrame`, `.home`): the frame's moderate hero and its row rhythm; the rows stay Home's own.
+  return <div className={styles.home} data-home-document=""><BrowseFrame hero={candidates.length > 0 ? <div ref={hero.ref}><HomeHero<Spotlight> candidates={candidates} visible={hero.visible} reducedMotion={appearance?.reducedMotion ?? reducedMotion}
       renderReason={slide => slide.reason}
       titleLink={slide => { const href = effects.entryHref?.(slide.entry); return href ? {href, open: () => effects.openEntry(slide.entry)} : undefined; }}
       renderMetadata={slide => <HeroFacts parts={slide.facts} platform={platform} sizeClass={sizeClass} runtimeChip />}
@@ -209,10 +210,9 @@ export function HomeView({service, customization, document, nowMs, onMore, refre
         {homeEntryCapabilities(slide.entry, {platform: 'web', playbackAvailable: true, queueAvailable: true}).watchlisted !== undefined && <Button variant="glass" size="hero" phone={platform !== 'desktop'} icon={slide.entry.watchlisted ? 'i-check' : 'i-plus'} aria-pressed={slide.entry.watchlisted === true}
           aria-label={t(slide.entry.watchlisted ? 'next.home.removeMyList' : 'next.home.addMyList')}
           onClick={() => { void effects.setMyList(slide.source).catch(effects.reportError); }}>{t('next.home.myList')}</Button>}
-      </>} /></div>}
+      </>} /></div> : null}>
     {notice}
     {selection.toolbar}
-    <div className={styles.rows} data-with-hero={candidates.length > 0}>
       {rows.map((row, index) => <Fragment key={row.id}><HomeRowView focusScope={service} row={row} rowIndex={index} platform={platform} layout={layout} nowMs={nowMs} refreshLive={refreshLive} onMore={() => onMore(row.id)} onNear={onNear}
         artwork={artwork} effects={effects} selection={selection} time={time} appearance={appearance} reducedMotion={appearance?.reducedMotion ?? reducedMotion} />{index === mixesAfter && mixes}</Fragment>)}
       {mixesAfter < 0 && mixes}
@@ -221,8 +221,7 @@ export function HomeView({service, customization, document, nowMs, onMore, refre
         <StateView variant="page" className={styles.emptyState} icon="i-home" title={t('next.home.emptyTitle')} body={t('next.home.emptyBody')}/>
         {customization && <HomeCustomizeEntry service={service} binding={customization} inline/>}
       </div> : customization && <HomeCustomizeEntry service={service} binding={customization}/>}
-    </div>
-  </div>;
+  </BrowseFrame></div>;
 }
 
 type HomeRowProps = HomePresentation & {focusScope: object; row: HomeRow; rowIndex: number; platform: LayoutPlatform; layout: ReturnType<typeof homeLayout>; nowMs: number; onMore: () => void; refreshLive: () => void};

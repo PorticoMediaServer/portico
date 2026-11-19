@@ -4,6 +4,8 @@
 .top { height: var(--spec-navigation-mobile-web-top-height); }
 .rows { composes: framedRows from '../layout/layout.module.css'; }
 .browse[data-header] > .rows { margin-top: var(--frame-header-gap); }
+/* A row slot with nothing drawn yet (Home's deferred rows keep an empty box for their visibility watch) adds no gap. */
+.rows > :empty { margin-bottom: calc(-1 * var(--frame-row-section)); }
 /* After the hero the first row starts at the rule's own offset from the art's bottom edge. */
 .browse[data-hero] > .rows { position: relative; margin-top: var(--frame-hero-home-row-offset); }
 .tabsInset { padding-left: var(--g); padding-right: var(--g); }

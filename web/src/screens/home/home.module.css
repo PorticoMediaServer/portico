@@ -8,12 +8,6 @@
 /* The authored extras panel draws the backdrop at 72% with only the left mask. */
 .heroPanelBackdrop { position: absolute; inset: 0 0 0 auto; width: 72%; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, black 40%); mask-image: linear-gradient(90deg, transparent, black 40%); }
 .heroPanelBackdrop img { object-position: center 30%; }
-.rows { position: relative; z-index: var(--layer-content); padding-bottom: 72px; }
-.rows[data-with-hero='true'] { margin-top: -40px; }
-/* Rows space only from the row drawn above them. An empty slot (a row with nothing yet) adds
-   nothing, so the first drawn row always rises 40px into the hero as the frame does. */
-.rowSlot:not(:empty) ~ .rowSlot:not(:empty) { margin-top: 44px; }
-.rows > [data-music-mixes]:not(:first-child), .rows > [data-music-mixes] ~ .rowSlot:not(:empty) { margin-top:44px; }
 /* Listen next's shorter square cards centre in the line set by its drawn continuation card. */
 .rowSlot[data-home-row='listen_next'] [class*='track'] { align-items: center; }
 .collection { margin: 0 var(--shell-gutter) 0; }
@@ -30,18 +24,8 @@
   .heroPosterShade { background: linear-gradient(180deg, color-mix(in srgb, var(--color-ink) 35%, transparent), color-mix(in srgb, var(--color-ink) 85%, transparent)); }
   .scaledRanked > div > span { width: calc(70px * var(--home-card-scale)); height: calc(172px * var(--home-card-scale)); margin-right: calc(-16px * var(--home-card-scale)); font-size: calc(120px * var(--home-card-scale)); }
   .scaledRanked [data-card-kind='poster'] { width: calc(116px * var(--home-card-scale)); }
-  .rows { padding-bottom: 32px; }
-  .rows[data-with-hero='true'] { margin-top: 0; }
-  .rowSlot:not(:empty) ~ .rowSlot:not(:empty) { margin-top: 28px; }
-  .rows > [data-music-mixes]:not(:first-child), .rows > [data-music-mixes] ~ .rowSlot:not(:empty) { margin-top:28px; }
   .collection { margin: 0 20px 0; }
   .slowNotice { top: 104px; max-width: calc(100% - 16px); height: auto; min-height: 36px; padding: 8px 12px; white-space: normal; font-size: calc(var(--type-body-size) - 1.5px); }
-}
-
-@media (min-width: 600px) and (max-width: 1023px) {
-  .home[data-size-class='medium'] .rows[data-with-hero='true'] { margin-top: -6px; }
-  .home[data-size-class='medium'] .rowSlot:not(:empty) ~ .rowSlot:not(:empty) { margin-top: 30px; }
-  .home[data-size-class='medium'] .rows > [data-music-mixes]:not(:first-child), .home[data-size-class='medium'] .rows > [data-music-mixes] ~ .rowSlot:not(:empty) { margin-top: 30px; }
 }
 /* J-22: a Home with nothing to show yet: the state centred above Customize Home, as the customize entry is. */
 .emptyHome { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 96px 24px 24px; }
