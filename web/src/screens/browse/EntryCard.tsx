@@ -67,6 +67,10 @@ export function BrowseEntryCard({entry, actions, artwork, env, width, family, mi
   const reading = entry.kind === 'ebook' || entry.kind === 'comic' || entry.kind === 'book_series' && own === 'poster';
   // A square grid draws a Reading title in the square slot, its cover whole at the slot's foot, with the same reading marks.
   if (reading && shape === 'square') return <SquareCard {...props} onPlay={undefined} watched={entry.readingMark?.read === true} artwork={source} variant="audiobook"/>;
+  // A MIXED grid's poster slots draw a Reading title as the other cards do: a poster card, its cover whole over its own wash
+  // (one shape per grid, SMALL-FAULTS 27). A Books library keeps its own cover cards (spine, foot of the slot).
+  if (reading && mixed && slot === 'poster') return <PosterCard {...props} onPlay={undefined} watched={entry.readingMark?.read === true}
+    watchedLabel={entry.readingMark?.read === true ? defaultI18n.t('next.cards.finished') : undefined} artwork={source}/>;
   if (reading) return <CoverCard {...props} onPlay={undefined} watched={entry.readingMark?.read === true}
     watchedLabel={entry.readingMark?.read === true ? defaultI18n.t('next.cards.finished') : undefined} kind={entry.kind === 'comic' || family === 'comic' ? 'comic' : 'book'} artwork={source}
     generated={{title, glyph: Array.from(title.trim())[0] ?? '', tint: generatedCoverTint(title)}}/>;

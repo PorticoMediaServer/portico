@@ -19,9 +19,9 @@ const {BrowseEntryCard} = await import('../src/screens/browse/EntryCard.tsx');
 
 const asked: number[] = [];
 const entry = (kind: string, fields: Partial<ContentEntry> = {}): ContentEntry => Object.freeze({id: `${kind}-1`, kind, libraryId: 'lib', title: 'A Title', posterUrl: '/art', ...fields}) as ContentEntry;
-const render = (item: ContentEntry, slot?: 'poster' | 'square', family?: string) => renderToStaticMarkup(createElement(BrowseEntryCard, {
+const render = (item: ContentEntry, slot?: 'poster' | 'square', family?: string, mixed = false) => renderToStaticMarkup(createElement(BrowseEntryCard, {
   entry: item, actions: {onOpen() {}, onPlay() {}}, artwork: {foreground: (_path: string, _width: number, aspect: number) => {asked.push(aspect); return undefined;}, ambient: () => undefined} as never,
-  env: {t: defaultI18n.t, locale: 'en-US'}, width: 170, family, order: 0, group: 'lib', visible: true, backdrops: true, slot,
+  env: {t: defaultI18n.t, locale: 'en-US'}, width: 170, family, mixed, order: 0, group: 'lib', visible: true, backdrops: true, slot,
 }));
 const card = (html: string) => /class="card ([a-z]+)/.exec(html)?.[1] ?? /class="[^"]*\b(square|poster|cover|circle)\b/.exec(html)?.[1];
 
@@ -38,4 +38,15 @@ test('in a poster grid an audiobook is a poster card (its square cover drawn who
   assert.match(render(entry('ebook'), 'poster', 'book'), /class="card cover/);
   assert.match(render(entry('artist'), 'square', 'music'), /circle/, 'an artist keeps its circle');
   assert.match(render(entry('book'), undefined, 'audiobook'), /class="card square/, 'outside a grid a card keeps its own shape');
+});
+
+test('a MIXED poster grid draws books, comics and ebooks as poster cards (their covers whole over a wash); a Books library keeps cover cards', () => {
+  // SMALL-FAULTS 27: See all's books and comics sat at the foot of their slots with no wash, a ragged row beside the posters.
+  for (const kind of ['ebook', 'comic'] as const) {
+    const html = render(entry(kind, {readingMark: {read: true}} as never), 'poster', kind === 'comic' ? 'comic' : 'book', true);
+    assert.match(html, /class="card poster/, `${kind} in a mixed grid`);
+    assert.match(html, new RegExp(defaultI18n.t('next.cards.finished')), 'the finished mark stays');
+    assert.doesNotMatch(html, /aria-label="Play/, 'a reading title still offers no play');
+  }
+  assert.match(render(entry('ebook'), 'poster', 'book', false), /class="card cover/, 'a Books library keeps its cover cards');
 });
