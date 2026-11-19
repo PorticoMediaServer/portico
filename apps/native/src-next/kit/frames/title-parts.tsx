@@ -1,7 +1,7 @@
 import React, {type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {Artwork, type ArtworkSource} from '../artwork';
-import {CircleCard} from '../cards';
+import {CircleCard, CollectionBanner, type CollectionCardProps} from '../cards';
 import {Button, Focusable, Segmented} from '../controls';
 import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
@@ -212,4 +212,32 @@ export function EpisodeDisplay({title, mark, intro, rows, preview}: Readonly<{ti
       <Text style={[theme.type.rowHelp, {color: theme.colors.text}]}>{preview.title}</Text>
     </View>
   </View>;
+}
+
+/** One credits line under the cast on a phone and an upright tablet: "Directed by" and the names (phone-detail d1 frame 2). */
+export type TitleCreditLine = Readonly<{label: string; names: string}>;
+export type TitleDetailsProps = Readonly<{
+  about?: Readonly<{title: string; rows: readonly Readonly<{label: string; values: readonly AboutValue[]}>[]}>;
+  people?: Readonly<{title: string; groups: readonly (readonly CastPerson[])[]; seeAll?: Readonly<{label: string; onPress: () => void}>; lines?: readonly TitleCreditLine[]}>;
+  /** The collection the title belongs to: the kit `CollectionBanner`, drawn at the panel's width (any width given is replaced). */
+  collection?: CollectionCardProps;
+}>;
+/** A title's Details tab (desktop-detail f3, phone-detail d1 frame 2, tablet f6): About and Cast & crew, one above the
+ * other on a phone and an upright tablet and side by side from a tablet on its side, then the collection. The frame
+ * spaces the blocks; the page passes words and people only. */
+export function TitleDetails({about, people, collection}: TitleDetailsProps) {
+  const theme = useTheme(), frame = useFrameMetrics(), stacked = frame.form === 'phone' || frame.form === 'medium';
+  const cast = people && (people.groups.some(group => group.length > 0) || people.lines?.length) ? <View style={{flex: stacked ? undefined : sizes.detailsCastShare, minWidth: 0}}>
+    <PanelHeading title={people.title} trailing={people.seeAll && <Button variant="text" size="small" trailingIcon="i-right" onPress={people.seeAll.onPress}>{people.seeAll.label}</Button>}/>
+    <CastRow groups={people.groups}/>
+    {people.lines?.length ? <View style={{marginTop: theme.space.sm, gap: theme.space.tight}}>{people.lines.map(line => <Text key={line.label} style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>
+      {line.label} <Text style={{color: theme.colors.text}}>{line.names}</Text></Text>)}</View> : null}
+  </View> : null;
+  return <>
+    {(about?.rows.length || cast) ? <PanelBlock><View style={{flexDirection: stacked ? 'column' : 'row', gap: frame.sectionGap}}>
+      {about && about.rows.length > 0 && <View style={{flex: stacked ? undefined : 1, minWidth: 0}}><PanelHeading title={about.title}/><AboutTable rows={about.rows}/></View>}
+      {cast}
+    </View></PanelBlock> : null}
+    {collection ? <PanelBlock><CollectionBanner {...collection} width={frame.width - frame.gutter - frame.rightGutter}/></PanelBlock> : null}
+  </>;
 }

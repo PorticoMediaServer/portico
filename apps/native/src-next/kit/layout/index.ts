@@ -7,6 +7,8 @@ export type {HeroProps} from './Hero';
 export {FocusPreviewHero} from './FocusPreviewHero';
 export type {FocusPreviewHeroProps} from './FocusPreviewHero';
 export {Row, Shelf} from './Row';
+export {PosterRow} from './PosterRow';
+export type {PosterRowItem, PosterRowProps} from './PosterRow';
 export type {RowProps, RowPage} from './Row';
 export {FlowSections} from './FlowSections';
 export type {FlowSection, FlowSectionsProps} from './FlowSections';

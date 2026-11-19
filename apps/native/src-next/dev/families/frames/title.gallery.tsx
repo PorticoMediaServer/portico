@@ -3,17 +3,17 @@ import {ScrollView, Text, View} from 'react-native';
 import {formatMessage} from '../../../../../../packages/i18n/src';
 import {titleFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/title-fixtures';
 import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../kit/artwork/index';
-import {CollectionBanner, EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
+import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
-import {AboutTable, CastRow, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, SeasonListRow, SheetFrame, TitleFrame, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, SeasonListRow, SheetFrame, TitleDetails, TitleFrame, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
 import {KeyHints} from '../../../kit/controls';
 import {TVRow} from '../../../kit/layout/TVRow';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
-import {HeroMetadata, Row, SeasonBar, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
+import {HeroMetadata, PosterRow, SeasonBar} from '../../../kit/layout';
 import {SeasonSheet} from '../../../kit/layout/SeasonSheet';
 import {Menu} from '../../../kit/overlays';
 import {useTheme} from '../../../kit/theme';
@@ -28,8 +28,6 @@ type Name = keyof typeof titleFixtureMessages extends `next.title.fixture.${infe
 const f = (name: Name) => formatMessage(titleFixtureMessages[`next.title.fixture.${name}`]);
 const none = () => {};
 const asset = (path: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${path}`, cacheKey: `frames-reference:${path}`});
-const selection: LayoutSelection = {active: false, isSelected: () => false, onToggle: none, onEnter: none};
-const card = ({onFocus, onBlur, focusId, testID}: LayoutItemContext) => ({onFocus, onBlur, focusId, testID});
 /** Facts as the server sends them: the first is the identity; a rating and a season count are outlined, a runtime on a title page is not (phone-detail d1). */
 function Meta({text, tags = []}: {text: string; tags?: string[]}) {
   const {form} = useFrameMetrics(), stacked = form === 'phone' || form === 'medium';
@@ -40,9 +38,7 @@ const back = {label: f('back'), onPress: none}, playOn = {icon: 'i-cast' as cons
 const link = (text: string) => ({text, onPress: none});
 
 function Posters({title, items}: {title: string; items: readonly (readonly [string, string, string])[]}) {
-  const theme = useTheme(), width = theme.spec.card.width.poster[theme.column];
-  return <Row title={title} items={items} getKey={item => item[0]} itemWidth={width} itemHeight={width * 1.5} selection={selection}
-    renderItem={(item, context) => <PosterCard {...card(context)} title={item[1]} caption={[{id: 'year', text: item[2], role: 'context'}]} artwork={asset(item[0])} width={width} onNavigate={none}/>}/>;
+  return <PosterRow title={title} items={items.map(item => ({key: item[0], title: item[1], year: item[2], artwork: asset(item[0]), onNavigate: none}))}/>;
 }
 const moreLikeDune = [['pool/movies/dune.jpg', 'Dune', '2021'], ['pool/movies/blade-runner.jpg', 'Blade Runner', '1982'], ['pool/movies/interstellar.jpg', 'Interstellar', '2014'], ['pool/movies/star-wars.jpg', 'Star Wars', '1977'],
   ['pool/movies/avatar.jpg', 'Avatar', '2009'], ['pool/movies/the-empire-strikes-back.jpg', 'The Empire Strikes Back', '1980'], ['pool/movies/the-matrix.jpg', 'The Matrix', '1999']] as const;
@@ -85,18 +81,13 @@ function FilmResume() {
 const duneCast: readonly CastPerson[] = (['1', '2', '3', '4', '5', '6'] as const).map(n => ({id: n, name: f(`dune2Cast${n}`), role: f(`dune2Role${n}`), onPress: none}));
 const duneCrew: readonly CastPerson[] = (['1', '2', '3', '4'] as const).map(n => ({id: `crew-${n}`, name: f(`dune2Crew${n}`), role: f(`dune2CrewRole${n}`), onPress: none}));
 function DuneDetails() {
-  const theme = useTheme(), frame = useFrameMetrics();
-  return <>
-    <PanelBlock><View style={{flexDirection: frame.form === 'phone' || frame.form === 'medium' ? 'column' : 'row', gap: frame.sectionGap}}>
-      <View style={{flex: 1, minWidth: 0}}><PanelHeading title={f('about')}/><AboutTable rows={[{label: f('released'), values: [{text: f('releasedValue')}]}, {label: f('runtime'), values: [{text: f('runtimeValue')}]},
-        {label: f('genres'), values: [link(f('genre1')), link(f('genre2'))]}, {label: f('rated'), values: [{text: f('dune2Rating')}]}, {label: f('directedBy'), values: [link(f('dune2Director'))]},
-        {label: f('studio'), values: [link(f('studioValue'))]}, {label: f('added'), values: [{text: f('addedValue')}]}]}/></View>
-      <View style={{flex: 1.6, minWidth: 0}}><PanelHeading title={f('castAndCrew')} trailing={<Button variant="text" size="small" trailingIcon="i-right" onPress={none}>{f('seeAllCount')}</Button>}/><CastRow groups={[duneCast, duneCrew]}/></View>
-    </View></PanelBlock>
-    <PanelBlock><CollectionBanner title={f('duneCollectionName')} kindLabel={f('duneCollectionKind')} body={f('duneCollectionBody')} covers={[asset('pool/movies/dune.jpg'), asset('pool/movies/dune-part-two.jpg')]}
-      backdrop={asset('pool/movies/dune-part-two--bd.jpg')} width={frame.width - frame.gutter - frame.rightGutter} onNavigate={none}/></PanelBlock>
-    <View style={{height: theme.space.sm}}/>
-  </>;
+  return <TitleDetails about={{title: f('about'), rows: [{label: f('released'), values: [{text: f('releasedValue')}]}, {label: f('runtime'), values: [{text: f('runtimeValue')}]},
+      {label: f('genres'), values: [link(f('genre1')), link(f('genre2'))]}, {label: f('rated'), values: [{text: f('dune2Rating')}]}, {label: f('directedBy'), values: [link(f('dune2Director'))]},
+      {label: f('studio'), values: [link(f('studioValue'))]}, {label: f('added'), values: [{text: f('addedValue')}]}]}}
+    people={{title: f('castAndCrew'), groups: [duneCast, duneCrew], seeAll: {label: f('seeAllCount'), onPress: none},
+      lines: [{label: f('directedBy'), names: f('dune2Director')}, {label: f('writtenBy'), names: `${f('dune2Crew1')}, ${f('dune2Crew2')}`}]}}
+    collection={{title: f('duneCollectionName'), kindLabel: f('duneCollectionKind'), body: f('duneCollectionBody'), covers: [asset('pool/movies/dune.jpg'), asset('pool/movies/dune-part-two.jpg')],
+      backdrop: asset('pool/movies/dune-part-two--bd.jpg'), onNavigate: none}}/>;
 }
 /** Details with the hero gone: the collapsed bar (title, tabs, Play and +) as the page shows it once scrolled (desktop-detail f3; phone-detail d1 frame 2; detail-tv-4). */
 function FilmDetails() {
