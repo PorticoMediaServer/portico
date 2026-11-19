@@ -1,5 +1,5 @@
 import React, {type ReactNode} from 'react';
-import {StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent} from 'react-native';
 import {PlayerBeside, PlayerCompact, PlayerNameTags} from '../player/parts';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
@@ -12,6 +12,9 @@ import {useFrameMetrics, usePlayerUpright} from './metrics';
 /** The time read-outs; the frame places them for the form (under the scrubber, either side of it, or as one clock). */
 export type PlayerReadouts = Readonly<{position: string; /** With a minus sign: the time left. */ remaining?: string; duration?: string; /** "Ends 4:48 PM". */ endsAt?: string; /** Said in place of the time left. */ live?: string; /** Live TV, after the position: "2 min behind live". */ behind?: string;
   /** TV: the time of day, large at the top right with `endsAt` under it (tv-player 1). */ clock?: string}>;
+/** The video player's four drawn forms: upright (the 16:9 strip and the watch page), a phone on its side, the wide form
+ * (tablet-play) and TV. */
+export type PlayerForm = 'upright' | 'sideways' | 'wide' | 'tv';
 export type PlayerChromeFrameProps = Readonly<{
   /** The video surface, or the frozen frame when playback failed. */
   picture: ReactNode;
@@ -52,6 +55,13 @@ export type PlayerChromeFrameProps = Readonly<{
   hints?: ReactNode;
   /** The upright form only: the watch page under the picture (the title page's own content). */
   body?: ReactNode;
+  /** The form, when the host chooses it (its presentation knows the posture and the dock); by default the window's. */
+  form?: PlayerForm;
+  /** The host owns the geometry (WatchHost): the frame draws only the picture's chrome inside the pane it is given, with
+   * no stage, watch page or panel placement of its own; `form` says which chrome. */
+  pane?: boolean;
+  /** The measured height of the bar's box, its bottom inset included, so a host keeps what it draws clear of it. */
+  onControlsLayout?: (height: number) => void;
   testID?: string;
   /** TV: the control the page starts on (R1), by its `focusId` or `testID`. Never in the rail. */
   startFocus?: string;
@@ -76,9 +86,12 @@ function Shade() {
 export function PlayerChromeFrame({startFocus, ...props}: PlayerChromeFrameProps) {
   return <StartFocusScope id={startFocus}><PlayerChromeFrameBody {...props}/></StartFocusScope>;
 }
-function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, panelWide = false, band, scrubbing = false, hints, body, testID}: Omit<PlayerChromeFrameProps, 'startFocus'>) {
+function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, panelWide = false, band, scrubbing = false, hints, body, testID, form: chosen, pane = false, onControlsLayout}: Omit<PlayerChromeFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), spec = frameSpec.player, {form} = frame;
-  const phone = form === 'phone', tv = form === 'tv', upright = usePlayerUpright(), sideways = phone && !upright, beside = !!panel && !upright && !phone && !tv;
+  const windowUpright = usePlayerUpright();
+  const drawn: PlayerForm = chosen ?? (form === 'tv' ? 'tv' : windowUpright ? 'upright' : form === 'phone' ? 'sideways' : 'wide');
+  // `form` (the metrics' size class) picks the spec's numbers; `drawn` picks the layout. A pane is the host's: no panel placement.
+  const phone = drawn === 'sideways', tv = drawn === 'tv', upright = drawn === 'upright', sideways = phone, beside = !pane && !!panel && drawn === 'wide';
   const edge = upright ? spec.portrait.edge : Math.max(spec.edge[form], insets.left, insets.right);
   // The controls make way for a panel wherever it lies over the picture (phone-player 3, tv-player 4).
   const banded = tv && !!band, visible = chromeVisible && !card && !(panel && !beside) && !banded;
@@ -95,15 +108,16 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
     {(times.live ?? times.remaining) !== undefined && <Text style={[time, strong]}>{times.live ?? times.remaining}</Text>}
   </View>;
   const row = {flexDirection: 'row', alignItems: 'center'} as const;
+  const measureBar = onControlsLayout && ((event: LayoutChangeEvent) => onControlsLayout(event.nativeEvent.layout.height));
   // Buttons keep their own height in a row, so the row is centred by a column around it, not by the row's own alignment.
   const centre = <View pointerEvents={touch} style={[StyleSheet.absoluteFill, {justifyContent: 'center'}, shown, scrubbing && {opacity: 0}]}>
-    <View style={[row, {justifyContent: 'center', gap: upright ? spec.transport.upright[phone ? 'phone' : 'tablet'].gap : spec.transport.gap[form]}]}>{transport}</View>
+    <View style={[row, {justifyContent: 'center', gap: upright ? spec.transport.upright[form === 'phone' ? 'phone' : 'tablet'].gap : spec.transport.gap[form]}]}>{transport}</View>
   </View>;
   const top = <View pointerEvents={touch} style={[row, {position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'flex-start', gap: upright ? 0 : spec.titleGap[form],
     paddingTop: upright ? spec.portrait.top : Math.max(spec.top[form], insets.top), paddingHorizontal: edge}, tv && panel ? {opacity: chromeVisible ? spec.panelDim : 0} : shown]}>
     {!tv && close}<View style={{flex: 1, minWidth: 0, alignSelf: 'center'}}>{!upright && title}</View>{clock ?? <View style={[row, {gap: upright ? 0 : theme.space.controlGap}]}>{tools}</View>}
   </View>;
-  const stage = <View style={upright ? {aspectRatio: spec.portrait.aspect, overflow: 'hidden'} : {flex: 1, overflow: 'hidden'}}>
+  const stage = <View style={upright && !pane ? {aspectRatio: spec.portrait.aspect, overflow: 'hidden'} : {flex: 1, overflow: 'hidden'}}>
     <View style={StyleSheet.absoluteFill}>{picture}</View>
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, banded ? undefined : shown]}>{upright ? <View style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.portrait.shade)}]}/> : <Shade/>}</View>
     {tv && !!panel && <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.panelDim)}]}/>}
@@ -113,7 +127,7 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
     {/* The prompt corner rides on the bar's box, which keeps its size while the chrome is hidden, so a prompt never moves. */}
     <View pointerEvents="box-none" style={{position: 'absolute', left: 0, right: 0, bottom: 0}}>
       {!upright && !panel && !card && !banded && <View pointerEvents="box-none" style={{alignItems: 'flex-end', paddingHorizontal: edge, paddingBottom: theme.space.sm}}>{prompts}</View>}
-      {upright ? <View pointerEvents="box-none">
+      {upright ? <View pointerEvents="box-none" onLayout={measureBar}>
         <View pointerEvents="box-none" style={[row, {gap: theme.space.xs, paddingLeft: spec.portrait.timeInset, paddingRight: edge, paddingBottom: spec.portrait.bottom, minHeight: theme.targets.touch}]}>
           {/* The read-out gives way first, so the options at the row's end always keep the gutter. */}
           <View style={[shown, {flexShrink: 1, minWidth: 0, overflow: 'hidden'}]}>{times.behind !== undefined ? position : times.live !== undefined ? remaining : <Text style={time}><Text style={strong}>{times.position}</Text>{times.duration !== undefined ? ` / ${times.duration}` : ''}</Text>}</View>
@@ -122,7 +136,7 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
           <View pointerEvents={touch} style={[row, {gap: spec.endGap[form]}, shown]}>{trailing}</View>
         </View>
         <View pointerEvents={touch} style={shown}>{scrubber}</View>
-      </View> : <View pointerEvents={touch} style={[{paddingHorizontal: edge, paddingBottom: Math.max(spec.bottom[form], insets.bottom)}, shown]}>
+      </View> : <View pointerEvents={touch} onLayout={measureBar} style={[{paddingHorizontal: edge, paddingBottom: Math.max(spec.bottom[form], insets.bottom)}, shown]}>
         {sideways ? <View style={[row, {gap: theme.space.controlGap}]}>{position}<View style={{flex: 1}}>{scrubber}</View>{remaining}</View>
           : <View style={{gap: spec.timesGap[form]}}>{scrubber}<View style={[row, {justifyContent: 'space-between'}, tv && scrubbing && {opacity: 0}]}>{position}{remaining}</View></View>}
         {/* Three fixed places. The transport is centred on the bar itself, not between the ends, so it stays in the middle whatever each end holds. */}
@@ -140,11 +154,11 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
     {banded && <View style={{position: 'absolute', left: 0, right: 0, bottom: Math.max(spec.bottom[form], insets.bottom)}}>{band}</View>}
   </View>;
   const panelWidth = spec.panel[panelWide ? 'wideWidth' : 'width'][form];
-  const over = !!panel && !upright && !beside && <View style={{position: 'absolute', top: 0, right: 0, bottom: 0, width: panelWidth}}>{panel}</View>;
+  const over = !pane && !!panel && !upright && !beside && <View style={{position: 'absolute', top: 0, right: 0, bottom: 0, width: panelWidth}}>{panel}</View>;
   // The frame draws no backdrop: the player's layer is black (R10). Beside a panel the bar's spare parts make way (SC-10).
-  return <View testID={testID} style={{flex: 1, flexDirection: beside ? 'row' : 'column', paddingTop: upright ? insets.top : 0}}>
+  return <View testID={testID} style={{flex: 1, flexDirection: beside ? 'row' : 'column', paddingTop: upright && !pane ? insets.top : 0}}>
     {upright ? <PlayerCompact.Provider value>{stage}</PlayerCompact.Provider> : <PlayerBeside.Provider value={beside}>{stage}</PlayerBeside.Provider>}
-    {upright && <View style={{flex: 1}}>{body}{!!panel && <View style={StyleSheet.absoluteFill}>{panel}</View>}</View>}
+    {upright && !pane && <View style={{flex: 1}}>{body}{!!panel && <View style={StyleSheet.absoluteFill}>{panel}</View>}</View>}
     {beside && <View style={{width: panelWidth}}>{panel}</View>}
     {over}
   </View>;

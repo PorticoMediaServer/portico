@@ -6,7 +6,7 @@ export {PanelBlock, PanelHeading, AboutTable, CastRow, TrackPicker, NumberedRow,
 export {SettingsListFrame, SettingsPageFrame, type SettingsListFrameProps, type SettingsPageFrameProps} from './SettingsFrame';
 export {SheetFrame, type SheetFrameProps, type SheetBarProps} from './SheetFrame';
 export {SignInFrame, type SignInFrameProps} from './SignInFrame';
-export {PlayerChromeFrame, type PlayerChromeFrameProps, type PlayerReadouts} from './PlayerChromeFrame';
+export {PlayerChromeFrame, type PlayerChromeFrameProps, type PlayerReadouts, type PlayerForm} from './PlayerChromeFrame';
 export {AudioPlayerFrame, type AudioPlayerFrameProps, type AudioControl, type AudioOption} from './AudioPlayerFrame';
 export {PageStateFrame, type PageStateProps} from './PageStateFrame';
 export {type PageHeaderProps} from './PageHeader';
