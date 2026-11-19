@@ -1,4 +1,4 @@
-export {FocusProvider, FocusRegion, FocusItem, FocusScrollRowScope, StartFocusScope, useFocusRegistry, useIsStartFocus, useOptionalFocusRegistry, useFocusTarget, useFocusWaiting} from './FocusRegion';
+export {FocusProvider, FocusRegion, FocusItem, FocusScrollRowScope, FocusWithin, StartFocusScope, useFocusRegistry, useIsStartFocus, useOptionalFocusRegistry, useFocusTarget, useFocusWaiting} from './FocusRegion';
 export {CoveredLayer, CoveredSignal, UncoveredWindow, useCovered, useLayerCovered} from './CoveredLayer';
 export type {FocusRegionProps, FocusTargetOptions} from './FocusRegion';
 export {createFocusRegistry, focusTestID, requestNativeFocus} from './registry';

@@ -22,6 +22,14 @@ const ScrollRowContext = createContext<((change: 1 | -1) => void) | undefined>(u
 export function FocusScrollRowScope({count, children}: {count: (change: 1 | -1) => void; children: React.ReactNode}) {
   return <ScrollRowContext.Provider value={count}>{children}</ScrollRowContext.Provider>;
 }
+/** Hears focus arriving on any kit control inside it (and leaving it), through the same `useFocusTarget` every control
+ * uses: a TV title page folds its hero when focus enters the panel. An outer scope hears what an inner one does. */
+const FocusWithinContext = createContext<((focused: boolean) => void) | undefined>(undefined);
+export function FocusWithin({onChange, children}: {onChange: (focused: boolean) => void; children: React.ReactNode}) {
+  const parent = useContext(FocusWithinContext);
+  const notify = useCallback((focused: boolean) => {onChange(focused); parent?.(focused);}, [onChange, parent]);
+  return <FocusWithinContext.Provider value={notify}>{children}</FocusWithinContext.Provider>;
+}
 /**
  * R1 start focus (tv-focus "START" marks). A TV frame names the control its page starts on (the first Continue
  * Watching card on Home, Play or Resume on a title, the first row of a list, sheet or panel, Cancel in a confirmation)
@@ -147,7 +155,7 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
   }, []);
   const {native, ref: setRef} = useHostRef<T>(ref ?? null, onHost);
   // A live focus stop inside a TVRow lets that row scroll (and so be focusable) on Android TV.
-  const scrollRow = useContext(ScrollRowContext);
+  const scrollRow = useContext(ScrollRowContext), within = useContext(FocusWithinContext);
   useLayoutEffect(() => {
     if (!scrollRow || disabled) return;
     scrollRow(1);
@@ -226,7 +234,7 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
     }
   }
   return {ref: setRef, testID: stableTestID, waiting: item?.waiting ?? false, ...edgeProps,
-    onFocus: () => {focusSerial++; landed.current = true; if (registry && address && !disabled) registry.didFocus(address);},
-    onBlur: () => {if (registry && address) registry.didBlur(address);},
+    onFocus: () => {focusSerial++; landed.current = true; if (registry && address && !disabled) registry.didFocus(address); within?.(true);},
+    onBlur: () => {if (registry && address) registry.didBlur(address); within?.(false);},
   };
 }
