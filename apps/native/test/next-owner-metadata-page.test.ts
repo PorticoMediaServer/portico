@@ -29,16 +29,18 @@ async function fixture(legacy = false) {
     '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsSpec, settingsRowIndex}, '../../../../../../packages/i18n/src': {defaultI18n: {t}},
     '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/controls/Select': {Select: 'Select'}, '../../../kit/controls/Switch': {Switch: 'Switch'},
     '../../../kit/controls/TextField': {TextField: 'TextField'}, '../../../kit/overlays/BottomSheet': {BottomSheet: 'BottomSheet'},
-    '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'}, '../../../kit/states': {StateView: 'StateView'}, './page-layout': {settingsPageInset: () => ({}), settingsPageHeading: () => ({})}, '../../../kit/shell/visual': {shellType: () => ({})},
+    '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'}, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame'}, '../../../kit/frames/metrics': {useFrameMetrics: () => ({form: 'phone'})}, '../../../kit/shell/visual': {shellType: () => ({})},
     '../../../kit/theme': {useTheme: () => ({colors: {text: '#fff', textSecondary: '#aaa'}, type: {caption: {}}})},
     '../use-settings-request-scope': {useSettingsRequestScope: () => scope}, '../owner-libraries/controls': {SectionTitle: 'SectionTitle'}, '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
     './AdvancedSection': {NativeAdvancedSection: 'NativeAdvancedSection'}, './metadata-controller': {NativeMetadataController: Controller},
     './TitleDatasetGroup': {NativeTitleDatasetGroup: 'NativeTitleDatasetGroup'},
   });
-  const props = {ports: {context: {serverName: 'Server', account: {canManage: true, account: {role: 'owner', primaryProfileId: 'owner'}}}},
+  const props = {title: 'settings.server.metadata', ports: {context: {serverName: 'Server', account: {canManage: true, account: {role: 'owner', primaryProfileId: 'owner'}}}},
     runtime: {text: {t}, reportError() {}, error: () => ({title: 'Error'})}, onLibraries: () => calls.push('libraries')};
   outer.render(() => module.NativeServerMetadata(props)); setup();
-  const page = outer.render(() => module.NativeServerMetadata(props)) as Node;
+  // The outer part draws the page frame; the page itself is the function element among its children.
+  const inside = (node: any): any => !node || typeof node !== 'object' ? undefined : typeof node.type === 'function' ? node : [node.props?.children].flat(Infinity).map(inside).find(Boolean);
+  const page = inside(outer.render(() => module.NativeServerMetadata(props))) as Node;
   return {writes, calls, render: () => {active = inner; return inner.render(() => page.type(page.props));}};
 }
 

@@ -1,7 +1,7 @@
 import {OwnerStreamingSettings} from '../../../../../../packages/client-core/src/server-admin/streaming-settings';
 import {withRequestRaw} from '../../../../../../packages/client-core/src/home-selection/list-destinations';
 import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import {type SettingsConfiguration} from '../../../../../../packages/client-core/src/settings-configuration';
 import {readOwnerStreamingHardware, runOwnerHardwareTest, type OwnerStreamingHardware} from '../../../../../../packages/client-core/src/server-admin/streaming-hardware';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
@@ -18,14 +18,17 @@ import {settingEnabled, settingsSummary} from './settings-values';
 import {ServerHeader} from '../../../kit/shell/ServerIdentity';
 import {StateView} from '../../../kit/states';
 import {useTheme} from '../../../kit/theme';
+import {SettingsPageFrame} from '../../../kit/frames';
+import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {NativeScreenLifetime} from '../lifetime';
 import type {NativeSettingsLivePorts} from '../ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {settingsPageHeading, settingsPageInset} from './page-layout';
 import {hardwareSelectionChoices} from '../../../../../../packages/client-core/src/presentation/hardware-selection';
 /** Phone Streaming uses the rebuilt documents through the shared row bindings and save path. */
-export function NativeServerStreaming({ports, runtime, compactHeader = false}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean}) {
-  const theme = useTheme(), t = runtime.text.t, context = ports.context;
+/** On the Settings page frame (header, Back, server strip, gutters, scroll), with its Save bar under the frame's scroll.
+ * `notice` is the screen's own error, shown first. */
+export function NativeServerStreaming({ports, runtime, back, notice}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; back?: Readonly<{label: string; onPress: () => void}>; notice?: React.ReactNode}) {
+  const theme = useTheme(), frame = useFrameMetrics(), t = runtime.text.t, context = ports.context;
   const owned = useMemo(() => {
     const lifetime = new NativeScreenLifetime(context);
     const api = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => lifetime.request(next => context.api.request<T>(path, method, body, next), signal)};
@@ -107,9 +110,9 @@ export function NativeServerStreaming({ports, runtime, compactHeader = false}: {
       {row.children?.map(renderRow)}</React.Fragment>;
   };
   const renderGroups = (groups: NonNullable<typeof section>['groups']) => groups?.map((group, index) => {const rows = group.rows.map(renderRow).filter(Boolean); return rows.length ? <View key={index} style={{gap: 10}}>{group.title && <Text style={[theme.type.rowHeading, {color: theme.colors.textSecondary}]}>{t(group.title)}</Text>}<View style={{backgroundColor: theme.colors.raised, borderRadius: 14, padding: 14, gap: 16}}>{rows}</View></View> : null;});
-  return <View style={{flex: 1}}><ScrollView contentContainerStyle={{...settingsPageInset(theme, compactHeader), gap: 18}}>
-    <ServerHeader serverName={context.serverName} viewerRole="owner" audience="owner" variant="phone"/>
-    {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{section ? t(section.title) : t('settings.server.playback')}</Text>}
+  return <View style={{flex: 1}}><SettingsPageFrame title={section ? t(section.title) : t('settings.server.playback')} back={back}
+    server={<ServerHeader serverName={context.serverName} viewerRole="owner" audience="owner" variant={frame.form === 'phone' ? 'phone' : 'page'}/>}>
+    {notice}<View style={{gap: 18}}>
     {configurationError !== undefined && <StateView variant="inline" {...runtime.error(configurationError, () => {void owned.streaming.readConfiguration().then(value => {setConfiguration(value); setConfigurationError(undefined);}, setConfigurationError);}, 'server-console')}/>}
     {[runtimeState, connectivityState].map((form, index) => form.loadError !== undefined ? <StateView key={index} variant="inline" {...runtime.error(form.loadError, () => {void Object.values(owned.forms)[index]!.load();}, 'server-console')}/> : null)}
     {state.saveError !== undefined && <StateView variant="inline" {...runtime.error(state.saveError, () => {if (!invalid.size && owned.lifetime.current()) void owned.set.save();}, 'server-console')}/>}
@@ -118,6 +121,6 @@ export function NativeServerStreaming({ports, runtime, compactHeader = false}: {
     {hardwareError !== undefined && <StateView variant="inline" {...runtime.error(hardwareError, loadHardware, 'server-console')}/>}
     {hardware && <NativeStreamingHardware hardware={hardware} testing={testing} tested={tested} disabled={testing || state.saving} onTest={() => {void runHardwareTest();}} t={t}/>}
     <NativeAdvancedSection testID="server-streaming-advanced" open={advanced} onOpenChange={setAdvanced} summary={!configuration || runtimeState.loading || connectivityState.loading ? t('status.loading') : settingsSummary(section?.advanced?.groups?.flatMap(group => group.rows) ?? [], fact, t)}>{renderGroups(section?.advanced?.groups)}</NativeAdvancedSection>
-  </ScrollView><View style={{flexDirection: 'row', justifyContent: 'flex-end', padding: 16, gap: 12}}><Button variant="glass" disabled={(!state.dirty && invalid.size === 0) || state.saving} onPress={() => {owned.set.discard(); setInvalid(new Set()); setCustomAway(false); setDiscardRevision(value => value + 1);}}>{t('action.discard')}</Button><Button disabled={!state.dirty || state.saving || invalid.size > 0 || !!state.problem} loading={state.saving} onPress={() => {if (!invalid.size && owned.lifetime.current()) void owned.set.save();}}>{t('action.save')}</Button></View></View>;
+  </View></SettingsPageFrame><View style={{flexDirection: 'row', justifyContent: 'flex-end', padding: 16, gap: 12}}><Button variant="glass" disabled={(!state.dirty && invalid.size === 0) || state.saving} onPress={() => {owned.set.discard(); setInvalid(new Set()); setCustomAway(false); setDiscardRevision(value => value + 1);}}>{t('action.discard')}</Button><Button disabled={!state.dirty || state.saving || invalid.size > 0 || !!state.problem} loading={state.saving} onPress={() => {if (!invalid.size && owned.lifetime.current()) void owned.set.save();}}>{t('action.save')}</Button></View></View>;
 }
 
