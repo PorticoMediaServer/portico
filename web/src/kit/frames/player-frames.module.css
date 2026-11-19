@@ -108,6 +108,8 @@ button.audioSquare.audioSquare { background: none; backdrop-filter: none; -webki
 .audioSeek { flex: none; min-height: var(--frame-audio-scrubber); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'bar bar bar' 'pos mid end'; align-content: center; row-gap: var(--frame-player-times-gap);
   font-size: var(--type-player-time-size); font-weight: var(--type-player-time-weight); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
 .audioSeek > div { grid-area: bar; min-width: 0; }
+/* The scrubber with its own read-outs (`times` left out) takes the whole row. */
+.audioSeek[data-own] { display: block; }
 .audioSeek > span:first-child { grid-area: pos; }
 .audioSeek > span:last-child { grid-area: end; text-align: end; }
 .audioMiddle { grid-area: mid; text-align: center; }
