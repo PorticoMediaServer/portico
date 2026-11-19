@@ -1,4 +1,5 @@
-import {useEffect, useRef, useState, type ReactNode} from 'react';
+import {Fragment, useEffect, useId, useRef, useState, type ReactElement, type ReactNode} from 'react';
+import {inlineMarkup} from '@core/presentation/inline-markup.ts';
 import {Button, ResumeButton, Tabs, type ChoiceItem} from '../controls';
 import {Icon, type IconName} from '../Icon';
 import {usePhone} from '../overlays/shared';
@@ -16,12 +17,16 @@ export type TitleAction = Readonly<{icon: IconName; label: string; onPress: () =
   pinned?: boolean;
   /** Drawn only from 1024. Up to 1024 it is in More, so the primary keeps the room for its label (phone-detail d1:
    * Play, My List, Download, More; Watched is in More). */
-  wide?: boolean}>;
+  wide?: boolean;
+  /** The button is the trigger of the screen's own menu (More): the frame draws the button, the screen wraps it. */
+  wrap?: (button: ReactElement) => ReactNode}>;
 /** The one flexible button. With `progress` it is Resume. From tablet width the time left is beside its label, the
  * played part runs along its lower edge and Start over is the button after it (desktop-detail f2). On a phone, and on
  * a cover page from tablet width (desktop-listen book), the played part, the time left and Start over are one line
  * under the action row (phone-detail d1 frame 3). */
-export type TitlePrimary = Omit<TitleAction, 'labelled' | 'pinned' | 'wide'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>}>;
+export type TitlePrimary = Omit<TitleAction, 'labelled' | 'pinned' | 'wide' | 'wrap'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>;
+  /** Why a disabled primary can't play ("The file can't be reached"), under the action row (J-23). */
+  note?: string}>;
 /** One part of the credits line: "Directed by" and the names; a name with `onPress` opens its page. */
 export type TitleCredit = Readonly<{label: string; names: string | readonly AboutValue[]}>;
 /** The line above the title (desktop-detail f1 "Dune collection · 2 films", f7 "Acting", desktop-listen "Album"). */
@@ -33,8 +38,8 @@ export type TitleFrameProps = Readonly<{
   art?: ReactNode;
   /** In place of `art`: the cover beside the words (a poster or square at the left, a circle at the right). */
   cover?: TitleCover;
-  /** A glass disc over the art up to tablet width. From 1024 the nav is the way back. */
-  back: FrameBack;
+  /** A glass disc over the art up to tablet width. From 1024 the nav is the way back. Absent where there is no way back. */
+  back?: FrameBack;
   /** One glass disc opposite Back (Play on). */
   topAction?: TitleAction;
   kicker?: TitleKicker;
@@ -43,7 +48,8 @@ export type TitleFrameProps = Readonly<{
   metadata?: ReactNode;
   /** The audio and subtitles for the next play (`TrackPicker`), under the synopsis on a phone and tablet. */
   picker?: ReactNode;
-  /** The one flexible button: at phone width it takes the room the round buttons leave. A person has none. */
+  /** The one flexible button: at phone width it takes the room the round buttons leave. A person has none. The synopsis
+   * below is the server's text with its inline bold, italic and line breaks drawn. */
   primary?: TitlePrimary;
   /** The buttons after it, in order: labelled ones first, then round ones. One that the title doesn't support stays
    * in its slot with `disabled`. */
@@ -93,21 +99,24 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
   const phone = usePhone(), failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   const tabsTop = useRef<HTMLDivElement>(null), slot = useRef<HTMLDivElement>(null), shown = useCollapsed(tabsTop, slot, collapsed);
   const disc = (action: TitleAction) => <Button variant="glass" size="small" iconOnly icon={action.icon} aria-label={action.label} disabled={action.disabled} onClick={action.onPress} className={styles.disc} />;
-  const backButton = disc({icon: 'i-left', label: back.label, onPress: back.onPress});
+  const backButton = back && disc({icon: 'i-left', label: back.label, onPress: back.onPress}), panelId = useId();
   if (failure) return <div className={styles.title}><div className={styles.top}>{backButton}</div><PageStateFrame {...failure} /></div>;
   const round = (action: TitleAction) => <Button key={`${action.label}:round`} variant="glass" phone={phone} iconOnly icon={action.icon} aria-label={action.label} title={action.label} aria-pressed={action.active} data-active={action.active || undefined} data-labelled={action.labelled || undefined} data-wide={action.wide || undefined} disabled={action.disabled || loading} onClick={action.onPress} className={styles.round} />;
   // A labelled action is round up to 1024 and labelled from there (CSS shows one of the two).
-  const button = (action: TitleAction) => action.labelled ? [round(action), <Button key={action.label} variant="glass" icon={action.icon} aria-pressed={action.active} data-active={action.active || undefined} disabled={action.disabled || loading} onClick={action.onPress} className={styles.labelled}>{action.label}</Button>] : round(action);
+  const button = (action: TitleAction) => action.labelled ? [round(action), <Button key={action.label} variant="glass" icon={action.icon} aria-pressed={action.active} data-active={action.active || undefined} disabled={action.disabled || loading} onClick={action.onPress} className={styles.labelled}>{action.label}</Button>]
+    : action.wrap ? <Fragment key={`${action.label}:menu`}>{action.wrap(round(action))}</Fragment> : round(action);
   // While loading the action row keeps its buttons but says nothing it does not know yet (the time left).
   const resume = primary?.progress !== undefined && !loading;
   // Resume carries its played part from 1024 (desktop-detail f2); up to 1024, and on a cover page, the played part is the line under the row (CSS shows one).
-  const plain = primary && <Button variant="primary" phone={phone} icon={primary.icon} disabled={primary.disabled} onClick={primary.onPress} className={styles.primary} data-paired={resume && !cover || undefined}>{primary.label}</Button>;
+  const noteId = `${panelId}-note`, described = primary?.note ? noteId : undefined;
+  const plain = primary && <Button variant="primary" phone={phone} icon={primary.icon} disabled={primary.disabled} aria-describedby={described} onClick={primary.onPress} className={styles.primary} data-paired={resume && !cover || undefined}>{primary.label}</Button>;
   const lead = primary && <>{resume && !cover && <ResumeButton icon={primary.icon} progress={primary.progress!} remaining={primary.remaining} disabled={primary.disabled} onClick={primary.onPress} className={styles.resume}>{primary.label}</ResumeButton>}{plain}</>;
   const row = (primary || actions.length > 0) && <div className={styles.actions}>
     {lead}
     {primary?.startOver && !loading && <Button variant="glass" icon="i-restart" onClick={primary.startOver.onPress} className={styles.startOver}>{primary.startOver.label}</Button>}
     {actions.map(action => button(action))}
   </div>;
+  const note = primary?.note && <p id={noteId} className={styles.note}>{primary.note}</p>;
   const progress = resume && <div className={styles.progress}>
     <span role="progressbar" aria-valuemin={0} aria-valuemax={1} aria-valuenow={primary!.progress} aria-label={primary!.remaining}><i style={{width: `${primary!.progress! * 100}%`}} /></span>
     <b>{primary!.remaining}</b>
@@ -116,7 +125,8 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
   const words = loading ? <div className={styles.words} aria-hidden="true"><Skeleton line width="96%" /><Skeleton line width="70%" /></div>
     : (tagline !== undefined || synopsis !== undefined || credits?.length) ? <div className={styles.words}>
       {tagline !== undefined && <p className={styles.tagline}>{tagline}</p>}
-      {synopsis !== undefined && <p className={styles.synopsis} data-read-more={readMore ? true : undefined}>{synopsis}</p>}
+      {synopsis !== undefined && <p className={styles.synopsis} data-read-more={readMore ? true : undefined}>{inlineMarkup(synopsis).map((run, index) => run.kind === 'break' ? <br key={index} />
+        : run.strong && run.emphasis ? <strong key={index}><em>{run.text}</em></strong> : run.strong ? <strong key={index}>{run.text}</strong> : run.emphasis ? <em key={index}>{run.text}</em> : <Fragment key={index}>{run.text}</Fragment>)}</p>}
       {readMore && <p className={styles.readMore}><button type="button" onClick={readMore.onPress}>{readMore.label}<Icon name="i-chdown" size={16} /></button>{readMore.note !== undefined && <span>{readMore.note}</span>}</p>}
       {credits && credits.length > 0 && <p className={styles.credits}>{credits.map(credit => <span key={credit.label}>{credit.label} <b>{names(credit.names)}</b></span>)}</p>}
     </div> : null;
@@ -158,6 +168,7 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
             </div>
             <div className={styles.body}>
               {row}
+              {note}
               {progress}
               {words}
               {picker && !loading && <div className={styles.picker}>{picker}</div>}
@@ -168,9 +179,9 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
       </div>
       <div className={styles.page}>
         <div ref={tabsTop} className={styles.tabsTop} data-title-tabs-top="" />
-        {tabs && <Tabs className={styles.tabs} listClassName={styles.inset} phone={phone} items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} />}
+        {tabs && <Tabs className={styles.tabs} listClassName={styles.inset} phone={phone} items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} externalPanelId={panelId} />}
         <div className={styles.content}>
-          <div className={styles.panel}>{loading ? <div className={styles.skeletonRow} aria-hidden="true">{Array.from({length: 7}, (_, index) => <Skeleton key={index} className={styles.skeletonCard} />)}</div> : children}</div>
+          <div className={styles.panel} {...(tabs ? {id: panelId, role: 'tabpanel', 'aria-labelledby': `${panelId}-tab-${tabs.value}`, tabIndex: 0} : {})}>{loading ? <div className={styles.skeletonRow} aria-hidden="true">{Array.from({length: 7}, (_, index) => <Skeleton key={index} className={styles.skeletonCard} />)}</div> : children}</div>
           {aside && !loading && <aside className={styles.aside}>{aside}</aside>}
         </div>
       </div>

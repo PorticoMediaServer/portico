@@ -16,8 +16,9 @@ async function render(phase: string, rows: unknown[] = []) {
     '../../kit/controls': {Tabs: 'Tabs'}, './Loading': {DetailLoading: 'DetailLoading'}, './detail.module.css': {default: {}},
   });
   const nodes = tree(host.render(() => TitleBody({binding})));
-  return {tabs: nodes.find((node: any) => node.type === 'Tabs').props,
-    panel: nodes.find((node: any) => node.props?.role === 'tabpanel'), retryCount: () => retries};
+  // A film's page is the title frame: the screen hands FilmTitle the tabs, the chosen tab and the panel (its children).
+  const film = nodes.find((node: any) => node.type?.name === 'FilmTitle');
+  return {tabs: {value: film.props.tab, items: film.props.tabs}, panel: film, retryCount: () => retries};
 }
 
 test('a film with no recommendation rows opens Details and omits the empty tab', async () => {
