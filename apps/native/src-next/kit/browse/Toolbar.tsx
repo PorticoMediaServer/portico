@@ -100,7 +100,7 @@ export function chipRailCut(box: number, offset: number, content: number, ends: 
   return whole === undefined ? 0 : Math.max(0, Math.min(box, whole - offset));
 }
 export function ChipRail({children}: {children: ReactNode}) {
-  const [box, setBox] = useState(0), [content, setContent] = useState(0), [offset, setOffset] = useState(0), [ends, setEnds] = useState<readonly number[]>([]);
+  const [box, setBox] = useState(0), [content, setContent] = useState(0), [height, setHeight] = useState<number>(), [offset, setOffset] = useState(0), [ends, setEnds] = useState<readonly number[]>([]);
   // Each chip is measured on its own: a fragment's chips (See all's kinds) are taken one by one.
   const flatten = (node: ReactNode): ReactNode[] => Array.isArray(node) ? node.flatMap(flatten)
     : node === null || node === undefined || typeof node === 'boolean' || node === '' ? []
@@ -114,12 +114,14 @@ export function ChipRail({children}: {children: ReactNode}) {
   const solid = cut === undefined || box <= 0 ? 1 : Math.max(0, cut - 12) / box, clear = cut === undefined || box <= 0 ? 1 : cut / box;
   return <View testID="browse-chip-rail" style={{flex: 1, minWidth: 0, opacity: room ? 1 : 0}} pointerEvents={room ? 'auto' : 'none'}
     accessibilityElementsHidden={!room} importantForAccessibility={room ? 'auto' : 'no-hide-descendants'}>
-    <MaskedView style={{flex: 1}} maskElement={<Svg width="100%" height="100%"><Defs><LinearGradient id="chip-rail-edge" x1="0" y1="0" x2="1" y2="0">
+    {/* The rail is as tall as its chips (their measured content): a flex height in this row came out shorter on the tablet and cut
+        the chips' bottom edge. */}
+    <MaskedView style={height === undefined ? {flex: 1} : {height}} maskElement={<Svg width="100%" height="100%"><Defs><LinearGradient id="chip-rail-edge" x1="0" y1="0" x2="1" y2="0">
       <Stop offset={0} stopColor="#fff" stopOpacity={1}/><Stop offset={solid} stopColor="#fff" stopOpacity={1}/><Stop offset={clear} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
       <Stop offset={1} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
     </LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#chip-rail-edge)"/></Svg>}>
       <TVRow><ScrollView horizontal scrollEnabled={room} showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8, alignItems: 'center'}} scrollEventThrottle={32}
-        onLayout={event => setBox(event.nativeEvent.layout.width)} onContentSizeChange={width => setContent(width)}
+        onLayout={event => setBox(event.nativeEvent.layout.width)} onContentSizeChange={(width, contentHeight) => {setContent(width); setHeight(contentHeight);}}
         onScroll={event => setOffset(event.nativeEvent.contentOffset.x)}>
         {items.map((item, index) => <View key={index} onLayout={event => {
           const end = event.nativeEvent.layout.x + event.nativeEvent.layout.width;
