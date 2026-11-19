@@ -342,8 +342,7 @@ export type TVSeasonItem = Readonly<{id: string; label: string; detail?: string;
  * peeking in when there are more; an edge fades only where the list goes on; the Hold OK hint under it while a season
  * holds focus. `onEnd` reads more seasons as focus nears the end. */
 export function TVSeasonList({items, hint, onEnd}: Readonly<{items: readonly TVSeasonItem[]; hint?: Readonly<{key: string; label: string}>; onEnd?: () => void}>) {
-  // The edges are drawn on Android too: its own fading edge dims the first and last rows even when the list fits.
-  const theme = useTheme(), {edges, scroll} = useListEdges(seasonColumn.fade, true), [focused, setFocused] = useState(false);
+  const theme = useTheme(), {edges, scroll} = useListEdges(), [focused, setFocused] = useState(false);
   const current = items.find(item => item.current)?.id ?? items[0]?.id;
   // Free, not vertical: a vertical region holds Up and Down at its ends, and the column has to let Up go back to the
   // buttons (through the frame's guide on tvOS) and Down on to the rows under it.
