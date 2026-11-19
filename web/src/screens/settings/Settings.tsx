@@ -3,9 +3,10 @@ import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type
 import {defaultI18n} from '@i18n';
 import {settingsRowIndex, settingsSpec, type SettingsHolder, type SettingsRow, type SettingsSection, type SettingsValue} from '@core/presentation/settings-spec.ts';
 import {SettingsNav, type SettingsSearchGroup} from '../../kit/shell/SettingsSurfaces';
-import {SettingsPageFailure, SettingsPageHeading, SettingsPanel, SettingsRows, SettingsWorkspace, searchSettings, settingsRoute, type SettingPresentation, type SettingsRoute, type SettingsPanelProps} from '../../kit/settings';
+import {SettingsPageFailure, SettingsPanel, SettingsRows, searchSettings, settingsRoute, type SettingPresentation, type SettingsRoute, type SettingsPanelProps} from '../../kit/settings';
 import type {FactPart} from '@core/presentation/kit-model/index.ts';
 import {Icon} from '../../kit/Icon';
+import {SettingsListFrame, SettingsPageFrame} from '../../kit/frames';
 import {Button} from '../../kit/controls';
 import {Dialog, useRetained} from '../../kit/overlays';
 import {settingsChangeConfirmation} from '@core/presentation/settings-change-confirm.ts';
@@ -18,7 +19,6 @@ import {configurationFieldEligible} from './eligibility';
 import {settingsRowVisible, settingsSectionVisible, type SettingsEnvironment} from '@core/presentation/settings-visibility.ts';
 import {useWebAction} from '../../route-registry-view';
 import kitStyles from '../../kit/settings/settings.module.css';
-import styles from './settings.module.css';
 
 const t = defaultI18n.t;
 const noPresentation = () => () => {};
@@ -140,12 +140,13 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false}: 
   const audience = bindings.audience(section);
   const fact = configuration.find(fact => fact.key === configurationKey);
   const editing = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement && !['button','checkbox','radio','range','submit','reset','file','color','hidden'].includes(target.type));
-  return <SettingsOpenContext.Provider value={quietOpen}><div className={styles.screen} onFocusCapture={event => {if(editing(event.target))bindings.inputActive?.(true);}}
-    onBlurCapture={event => {if(editing(event.target) && !editing(event.relatedTarget))bindings.inputActive?.(false);}}><SettingsWorkspace scope={selected.scope} navigation={navigation} compactPage={compactPage} onBack={() => setCompactPage(false)}
-      title={libraryPage ? String(libraryTitle) : t(section.title)} onDone={() => {void router.navigate({href: settingsReturnHref()});}}>
-    {selected.scope === 'server' && bindings.role !== 'member' && (bindings.role === 'owner' ? <ServerHeader serverName={bindings.serverName} viewerRole="owner" audience={audience} health={bindings.serverHealth?.()} facts={bindings.serverFacts()} /> : <ServerHeader serverName={bindings.serverName} viewerRole="administrator" audience="administrators" facts={bindings.serverFacts()} />)}
+  const done = () => {void router.navigate({href: settingsReturnHref()});};
+  const server = selected.scope === 'server' && bindings.role !== 'member' && (bindings.role === 'owner' ? <ServerHeader serverName={bindings.serverName} viewerRole="owner" audience={audience} health={bindings.serverHealth?.()} facts={bindings.serverFacts()} /> : <ServerHeader serverName={bindings.serverName} viewerRole="administrator" audience="administrators" facts={bindings.serverFacts()} />) || undefined;
+  // The library editor page brings its own head (name, artwork and its menu) in the frame's heading region.
+  const heading = libraryPage && bindings.panelHeader ? bindings.panelHeader(panelContext, libraryTitle) : undefined;
+  const page = shown ? <SettingsPageFrame title={libraryPage ? String(libraryTitle) : t(section.title)} status={heading ? undefined : snapshot.saveState} server={server} heading={heading}
+    back={{label: t('next.shell.settings'), onPress: () => setCompactPage(false)}} action={{label: t('next.settings.done'), onPress: done}}>
     {libraryPage && <Button variant="glass" size="small" icon="i-left" onClick={() => {setPanel(undefined);opener.current?.focus();}}>{t(section.title)}</Button>}
-    {libraryPage && bindings.panelHeader ? bindings.panelHeader(panelContext, libraryTitle) : <SettingsPageHeading title={libraryPage ? libraryTitle : t(section.title)} saveState={snapshot.saveState} />}
     {libraryPage && panelSpec?.tabs ? <Tabs aria-label={libraryTitle} value={panel?.tab ?? panelSpec.tabs[0]?.id} onValueChange={value => setPanel(current => current && {...current, tab: value})}
       phone={compact} items={panelSpec.tabs.map(item => ({value: item.id, label: t(item.title), panel: <>{bindings.panelIntro?.({...panelContext, tabId: item.id})}{rows(item, {...panelContext, tabId: item.id})}</>}))}/> : fact ? <ConfigurationFact fact={fact} /> : snapshot.error ? <SettingsPageFailure retry={() => {void bindings.load(section);}} home={bindings.openHome} error={snapshot.error}
       server={section.scope === 'server' ? {name: bindings.serverName, openMySettings: () => go('account/profile')} : undefined} /> : snapshot.loading ? <p role="status">{t('next.settings.loading')}</p> : bindings.section?.(context, openPanel, holder => rows(holder, context)) ?? rows(section, context)}
@@ -159,7 +160,10 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false}: 
           if (rowState(pending.row, pending.context).present) bindings.change(pending.row, pending.value, pending.context);}}>{t('settings.confirm.change')}</Button></>}>
       <p>{shownConfirming.message}</p>
     </Dialog>}
-  </SettingsWorkspace></div></SettingsOpenContext.Provider>;
+  </SettingsPageFrame> : undefined;
+  return <SettingsOpenContext.Provider value={quietOpen}><div onFocusCapture={event => {if(editing(event.target))bindings.inputActive?.(true);}}
+    onBlurCapture={event => {if(editing(event.target) && !editing(event.relatedTarget))bindings.inputActive?.(false);}}>
+    <SettingsListFrame bar={{title: t('next.shell.settings'), action: {label: t('next.settings.done'), onPress: done}}} list={navigation} page={page} /></div></SettingsOpenContext.Provider>;
 }
 
 function ConfigurationFact({fact}: {fact: SettingsConfigurationMatch}) {
