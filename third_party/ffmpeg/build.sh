@@ -291,7 +291,11 @@ sources() {
             echo "$name|$repo|$ref" >> "$WORK/library-versions.txt"
             if [[ "$repo" == *.tar.* ]]; then
                 mkdir -p "$dest"
-                curl --fail --silent --show-error --location --retry 3 -o "$dest/source.tar" "$repo" &&
+                # A GNU archive on kernel.org's mirror is also on GNU's own server, byte for byte
+                # (the SHA-256 below holds either way): the mirror has failed GitHub's Mac runners.
+                { curl --fail --silent --show-error --location --retry 3 -o "$dest/source.tar" "$repo" ||
+                    { [[ "$repo" == https://mirrors.edge.kernel.org/gnu/* ]] &&
+                        curl --fail --silent --show-error --location --retry 3 -o "$dest/source.tar" "https://ftp.gnu.org/gnu/${repo#https://mirrors.edge.kernel.org/gnu/}"; }; } &&
                     [[ "$(sha256_of "$dest/source.tar")" == "$ref" ]] && tar -xf "$dest/source.tar" -C "$dest" --strip-components=1 &&
                     rm "$dest/source.tar" || { echo "sources: could not fetch $name from $repo" >&2; problems=$((problems + 1)); continue; }
             elif [[ "$repo" == *svn* ]]; then
