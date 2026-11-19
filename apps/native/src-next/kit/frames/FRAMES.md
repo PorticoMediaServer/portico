@@ -538,6 +538,8 @@ Rules this round (frames.ts `player` and `audio` blocks):
   out it is the window's). With `pane` the frame draws only the picture's chrome inside the pane the host gives it (WatchHost
   keeps its posture-aware geometry: the watch page, the panel beside or over, a foldable's tabletop column and book crease);
   `onControlsLayout` reports the bar's measured height so the host keeps what it draws clear of it.
+- **The controls fade as motion.html A-03 says** (`PlayerChromeFrame`): they arrive over the standard duration (out) and leave
+  over the slow one (in), one fade for every way they hide; the prompt corner and a card never fade with them.
 - **R6: the scrubber** is one continuous line (`player.track`: 6 on the web and a tablet, 4 on a phone, 8 on TV); the
   recap, intro and credits are tinted on it; desktop draws no chapter marks. The knob grows while held (`knobHeld`).
 - **R8: the upright form is a window taller than wide** (`player.upright.maxAspect` 1). An open foldable (wider than

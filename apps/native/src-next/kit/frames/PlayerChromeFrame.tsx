@@ -1,12 +1,14 @@
-import React, {type ReactNode} from 'react';
+import React, {useEffect, type ReactNode} from 'react';
 import {StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent} from 'react-native';
 import {PlayerBeside, PlayerCompact, PlayerNameTags} from '../player/parts';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
+import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {frameSpec} from '@portico/design';
 import {alpha} from '../shell/visual';
 import {useTheme} from '../theme';
 import {StartFocusScope} from '../focus';
+import {useMotion} from '../useMotion';
 import {useFrameMetrics, usePlayerUpright} from './metrics';
 
 /** The time read-outs; the frame places them for the form (under the scrubber, either side of it, or as one clock). */
@@ -77,6 +79,14 @@ function Shade() {
   </Svg>;
 }
 
+/** motion.html A-03: the controls arrive over the standard duration (out) and leave over the slow one (in), one fade for
+ * every way they hide (a tap, the idle timer, a card or a panel taking the picture). */
+function useFade(target: number) {
+  const motion = useMotion(), value = useSharedValue(target);
+  useEffect(() => {value.value = withTiming(target, target > 0 ? motion.timing('standard', 'out') : motion.timing('slow', 'in'));}, [target, value, motion]);
+  return useAnimatedStyle(() => ({opacity: value.value}));
+}
+
 /** Frame 7, the video player's chrome, in its three drawn forms. Tablet and TV (tablet-play, tv-player): the picture
  * fills the window; top bar, then a bar of scrubber, read-outs and a row of left end, transport, right end. A phone on
  * its side (phone-player 1 and 2): the same, with the transport in the middle of the picture and the read-outs either
@@ -95,7 +105,9 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
   const edge = upright ? spec.portrait.edge : Math.max(spec.edge[form], insets.left, insets.right);
   // The controls make way for a panel wherever it lies over the picture (phone-player 3, tv-player 4).
   const banded = tv && !!band, visible = chromeVisible && !card && !(panel && !beside) && !banded;
-  const shown = {opacity: visible ? 1 : 0} as const, touch = visible ? 'box-none' : 'none';
+  const shown = useFade(visible ? 1 : 0), touch = visible ? 'box-none' : 'none';
+  // The top bar stays dimmed behind a TV's panel (tv-player 4); the shade stays under a TV's Episodes band.
+  const topShown = useFade(tv && panel ? chromeVisible ? spec.panelDim : 0 : visible ? 1 : 0), shade = useFade(banded || visible ? 1 : 0);
   const time = [theme.type.playerTime, {color: theme.colors.textTertiary, fontVariant: ['tabular-nums' as const]}], strong = {color: theme.colors.text, fontFamily: theme.type.button.fontFamily};
   const clock = tv && times.clock !== undefined ? <View style={{alignItems: 'flex-end'}}>
     <Text style={[theme.type.playerTitle, {color: theme.colors.text}]}>{times.clock}</Text>
@@ -110,16 +122,16 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
   const row = {flexDirection: 'row', alignItems: 'center'} as const;
   const measureBar = onControlsLayout && ((event: LayoutChangeEvent) => onControlsLayout(event.nativeEvent.layout.height));
   // Buttons keep their own height in a row, so the row is centred by a column around it, not by the row's own alignment.
-  const centre = <View pointerEvents={touch} style={[StyleSheet.absoluteFill, {justifyContent: 'center'}, shown, scrubbing && {opacity: 0}]}>
+  const centre = <Animated.View pointerEvents={touch} style={[StyleSheet.absoluteFill, shown]}><View pointerEvents="box-none" style={[StyleSheet.absoluteFill, {justifyContent: 'center'}, scrubbing && {opacity: 0}]}>
     <View style={[row, {justifyContent: 'center', gap: upright ? spec.transport.upright[form === 'phone' ? 'phone' : 'tablet'].gap : spec.transport.gap[form]}]}>{transport}</View>
-  </View>;
-  const top = <View pointerEvents={touch} style={[row, {position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'flex-start', gap: upright ? 0 : spec.titleGap[form],
-    paddingTop: upright ? spec.portrait.top : Math.max(spec.top[form], insets.top), paddingHorizontal: edge}, tv && panel ? {opacity: chromeVisible ? spec.panelDim : 0} : shown]}>
+  </View></Animated.View>;
+  const top = <Animated.View pointerEvents={touch} style={[row, {position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'flex-start', gap: upright ? 0 : spec.titleGap[form],
+    paddingTop: upright ? spec.portrait.top : Math.max(spec.top[form], insets.top), paddingHorizontal: edge}, topShown]}>
     {!tv && close}<View style={{flex: 1, minWidth: 0, alignSelf: 'center'}}>{!upright && title}</View>{clock ?? <View style={[row, {gap: upright ? 0 : theme.space.controlGap}]}>{tools}</View>}
-  </View>;
+  </Animated.View>;
   const stage = <View style={upright && !pane ? {aspectRatio: spec.portrait.aspect, overflow: 'hidden'} : {flex: 1, overflow: 'hidden'}}>
     <View style={StyleSheet.absoluteFill}>{picture}</View>
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, banded ? undefined : shown]}>{upright ? <View style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.portrait.shade)}]}/> : <Shade/>}</View>
+    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, shade]}>{upright ? <View style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.portrait.shade)}]}/> : <Shade/>}</Animated.View>
     {tv && !!panel && <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.panelDim)}]}/>}
     {top}
     {(phone || upright) && centre}
@@ -130,13 +142,13 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
       {upright ? <View pointerEvents="box-none" onLayout={measureBar}>
         <View pointerEvents="box-none" style={[row, {gap: theme.space.xs, paddingLeft: spec.portrait.timeInset, paddingRight: edge, paddingBottom: spec.portrait.bottom, minHeight: theme.targets.touch}]}>
           {/* The read-out gives way first, so the options at the row's end always keep the gutter. */}
-          <View style={[shown, {flexShrink: 1, minWidth: 0, overflow: 'hidden'}]}>{times.behind !== undefined ? position : times.live !== undefined ? remaining : <Text style={time}><Text style={strong}>{times.position}</Text>{times.duration !== undefined ? ` / ${times.duration}` : ''}</Text>}</View>
+          <Animated.View style={[shown, {flexShrink: 1, minWidth: 0, overflow: 'hidden'}]}>{times.behind !== undefined ? position : times.live !== undefined ? remaining : <Text style={time}><Text style={strong}>{times.position}</Text>{times.duration !== undefined ? ` / ${times.duration}` : ''}</Text>}</Animated.View>
           {/* A prompt's own place in the strip, between the read-out and the options: it covers neither them nor the transport. */}
           <View pointerEvents="box-none" style={{flex: 1, minWidth: 0, alignItems: 'flex-end'}}>{!panel && !card && prompts}</View>
-          <View pointerEvents={touch} style={[row, {gap: spec.endGap[form]}, shown]}>{trailing}</View>
+          <Animated.View pointerEvents={touch} style={[row, {gap: spec.endGap[form]}, shown]}>{trailing}</Animated.View>
         </View>
-        <View pointerEvents={touch} style={shown}>{scrubber}</View>
-      </View> : <View pointerEvents={touch} onLayout={measureBar} style={[{paddingHorizontal: edge, paddingBottom: Math.max(spec.bottom[form], insets.bottom)}, shown]}>
+        <Animated.View pointerEvents={touch} style={shown}>{scrubber}</Animated.View>
+      </View> : <Animated.View pointerEvents={touch} onLayout={measureBar} style={[{paddingHorizontal: edge, paddingBottom: Math.max(spec.bottom[form], insets.bottom)}, shown]}>
         {sideways ? <View style={[row, {gap: theme.space.controlGap}]}>{position}<View style={{flex: 1}}>{scrubber}</View>{remaining}</View>
           : <View style={{gap: spec.timesGap[form]}}>{scrubber}<View style={[row, {justifyContent: 'space-between'}, tv && scrubbing && {opacity: 0}]}>{position}{remaining}</View></View>}
         {/* Three fixed places. The transport is centred on the bar itself, not between the ends, so it stays in the middle whatever each end holds. */}
@@ -148,7 +160,7 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
           </View>
           {tv && scrubbing && hints !== undefined && <View pointerEvents="none" style={[StyleSheet.absoluteFill, {justifyContent: 'center', marginTop: spec.controlsGap[form]}]}>{hints}</View>}
         </View>
-      </View>}
+      </Animated.View>}
     </View>
     {/* Over the hidden bar, so the band's tiles are what the remote reaches. */}
     {banded && <View style={{position: 'absolute', left: 0, right: 0, bottom: Math.max(spec.bottom[form], insets.bottom)}}>{band}</View>}
