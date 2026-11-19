@@ -6,7 +6,7 @@ import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../ki
 import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
-import {AboutTable, CastRow, ChoiceChips, EpisodeList, posterGridScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, ChoiceChips, EpisodeList, posterGridScroller, PosterWindowRow, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
@@ -212,7 +212,7 @@ type PersonCreditFixture = Readonly<{id: string; art: string; title: Name; role:
 const personCredits: readonly PersonCreditFixture[] = [{id: 'd2', art: 'pool/movies/dune-part-two.jpg', title: 'dune2', role: 'asJessica'},
   {id: 'd1', art: 'pool/movies/dune.jpg', title: 'dune', role: 'asJessica'}, {id: 'silo', art: 'pool/tv/silo.jpg', title: 'silo', role: 'asJuliette'}];
 function Person() {
-  const [filter, setFilter] = useState('all'), [open, setOpen] = useState(false), t = defaultI18n.t;
+  const [filter, setFilter] = useState('all'), [open, setOpen] = useState(false), t = defaultI18n.t, tv = useTheme().isTV;
   const collection = useMemo(() => createWindowedCollection({pageSize: 30, maxResidentPages: 4, maxConcurrent: 1, keyOf: (credit: PersonCreditFixture) => credit.id,
     fetchPage: async (start, count) => ({items: personCredits.slice(start, start + count), total: personCredits.length})}), []);
   useEffect(() => () => collection.dispose(), [collection]);
@@ -222,15 +222,17 @@ function Person() {
     art={<AmbientArt treatment="library" palette={{first: '#a8692a', second: '#1d3848'}}/>}
     cover={{shape: 'circle', node: size => <PersonCircle size={size} initials="RF" alt=""/>}}
     title={f('person')} metadata={<Meta text={f('personRoleBorn')}/>} synopsis={f('personBio')} readMore={{label: t(open ? 'web.person.showLess' : 'web.person.readMore'), expanded: open, onPress: () => setOpen(value => !value)}}
-    scroller={posterGridScroller({collection, getKey: credit => credit.id, testID: 'frames-title-person-credits',
-      item: credit => ({title: f(credit.title), caption: f(credit.role), artwork: asset(credit.art), onNavigate: none, onMore: none})})}>
+    // TV (tv-detail frame 10): the circle at the left, and the credits as a row (one per department) instead of the grid.
+    scroller={tv ? undefined : posterGridScroller({collection, getKey: credit => credit.id, testID: 'frames-title-person-credits', item: credit})}>
     <Posters small title={t('web.person.knownFor')} items={[['pool/movies/dune-part-two.jpg', f('dune2'), '2024'], ['pool/movies/dune.jpg', f('dune'), '2021'], ['pool/tv/silo.jpg', f('silo'), '2023']]}/>
-    <PanelBlock>
+    {tv ? <PosterWindowRow title={t('web.person.credits')} count={t('web.person.titles', {count: personCredits.length})} collection={collection} getKey={credit => credit.id}
+      item={credit} testID="frames-title-person-credits"/> : <PanelBlock>
       <PanelHeading title={t('web.person.credits')} trailing={t('web.person.titlesOnServer', {count: personCredits.length})}/>
       <ChoiceChips items={([['all', 'title.creditsAll'], ['cast', 'web.person.cast'], ['crew', 'web.person.crew']] as const).map(([id, label]) => ({id, label: t(label), selected: filter === id, onPress: () => setFilter(id)}))}/>
-    </PanelBlock>
+    </PanelBlock>}
   </TitleFrame></Page>;
 }
+const credit = (value: PersonCreditFixture) => ({title: f(value.title), caption: f(value.role), artwork: asset(value.art), onNavigate: none, onMore: none});
 
 function Collection() {
   const film = (number: number, key: string, title: string, made: string, synopsis: string, status: {label: string; icon?: 'i-check'; accent?: boolean}, action: ReactNode, progress?: number) =>
