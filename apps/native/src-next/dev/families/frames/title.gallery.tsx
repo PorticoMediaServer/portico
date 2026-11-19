@@ -87,7 +87,9 @@ function FilmResume() {
 const duneCast: readonly CastPerson[] = (['1', '2', '3', '4', '5', '6'] as const).map(n => ({id: n, name: f(`dune2Cast${n}`), role: f(`dune2Role${n}`), onPress: none}));
 const duneCrew: readonly CastPerson[] = (['1', '2', '3', '4'] as const).map(n => ({id: `crew-${n}`, name: f(`dune2Crew${n}`), role: f(`dune2CrewRole${n}`), onPress: none}));
 function DuneDetails() {
-  return <TitleDetails about={{title: f('about'), rows: [{label: f('released'), values: [{text: f('releasedValue')}]}, {label: f('runtime'), values: [{text: f('runtimeValue')}]},
+  const {isTV} = useTheme();
+  // TV's About carries the full synopsis and the tagline beside the facts (detail-tv-4).
+  return <TitleDetails about={{title: f('about'), ...(isTV ? {body: f('dune2Synopsis'), note: f('dune2Tagline')} : {}), rows: [{label: f('released'), values: [{text: f('releasedValue')}]}, {label: f('runtime'), values: [{text: f('runtimeValue')}]},
       {label: f('genres'), values: [link(f('genre1')), link(f('genre2'))]}, {label: f('rated'), values: [{text: f('dune2Rating')}]}, {label: f('directedBy'), values: [link(f('dune2Director'))]},
       {label: f('studio'), values: [link(f('studioValue'))]}, {label: f('added'), values: [{text: f('addedValue')}]}]}}
     people={{title: f('castAndCrew'), groups: [duneCast, duneCrew], seeAll: {label: f('seeAllCount'), onPress: none},

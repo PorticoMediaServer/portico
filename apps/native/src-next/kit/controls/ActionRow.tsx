@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {type Ref} from 'react';
 import {View} from 'react-native';
 import {frameSpec} from '@portico/design';
 import type {IconName} from '../Icon';
@@ -23,6 +23,8 @@ export type RowPrimary = Omit<RowAction, 'labelled' | 'pinned' | 'wide'> & Reado
   /** The focus id the page starts on. */
   focusId?: string}>;
 export type ActionRowProps = Readonly<{primary?: RowPrimary; actions?: readonly RowAction[];
+  /** The primary's own view: a TV title page's frame points a focus guide at it (tvOS moves only to what is on screen). */
+  primaryRef?: Ref<View>;
   /** The page is still loading: every button keeps its place, none can be pressed, and the primary can still take focus. */
   loading?: boolean}>;
 
@@ -36,7 +38,7 @@ export type ActionRowProps = Readonly<{primary?: RowPrimary; actions?: readonly 
  * - TV (tv-detail 1, 2): as a tablet on its side, one line at the mock-ups' 72 high with the gap of 18, except that an
  *   extra (`wide`) action such as Watched is a round disc there, like More: only Start over and My List carry words.
  */
-export function ActionRow({primary, actions = [], loading = false}: ActionRowProps) {
+export function ActionRow({primary, actions = [], loading = false, primaryRef}: ActionRowProps) {
   const theme = useTheme(), spec = frameSpec.actionRow, {form} = theme;
   const stacked = form === 'phone' || form === 'medium', height = theme.spec.button.hero.height[theme.column];
   const side = (action: RowAction) => action.labelled && !stacked && !(form === 'tv' && action.wide)
@@ -49,8 +51,8 @@ export function ActionRow({primary, actions = [], loading = false}: ActionRowPro
   // While loading the row keeps its buttons but says nothing it does not know yet (the time left).
   return <View style={{minHeight: height, alignSelf: stacked ? 'stretch' : undefined, flexDirection: 'row', alignItems: 'center', justifyContent: stacked ? 'center' : 'flex-start', gap: spec.gap[form]}}>
     {lead && (primary.progress !== undefined && !loading
-      ? <ResumeButton {...lead} size="hero" progress={primary.progress} remaining={primary.remaining}>{primary.label}</ResumeButton>
-      : <Button {...lead} variant="primary" size="hero">{primary.label}</Button>)}
+      ? <ResumeButton {...lead} ref={primaryRef} size="hero" progress={primary.progress} remaining={primary.remaining}>{primary.label}</ResumeButton>
+      : <Button {...lead} ref={primaryRef} variant="primary" size="hero">{primary.label}</Button>)}
     {primary?.startOver && !loading && <Button variant="glass" size="hero" icon="i-restart" onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
     {actions.filter(action => !action.wide || !stacked).map(side)}
   </View>;
