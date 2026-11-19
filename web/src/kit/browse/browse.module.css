@@ -72,6 +72,8 @@
 .chipRail[data-no-room] { visibility: hidden; overflow: hidden; pointer-events: none; }
 .chipRail::-webkit-scrollbar { display: none; }
 .chipRail > * { flex: none; }
+/* A chip in the rail keeps its whole label: it never shrinks to the rail's width (the rail scrolls instead). */
+.chipRail :is(button, a, [role=radio], [role=checkbox]) { max-width: none; }
 .chipRail .applied { flex-wrap: nowrap; padding: 0; }
 .toolbar[data-platform=phone] .viewToggle { background: none; padding: 0; gap: 2px; flex: none; }
 .toolbar[data-platform=phone] .viewToggle button { width: 32px; min-width: 32px; height: 30px; }

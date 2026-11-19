@@ -123,12 +123,16 @@ export function ChipRail({children, className}: {children: ReactNode; className?
     const rail = ref.current;
     if (!rail) return;
     const read = () => {
-      const view = rail.clientWidth, left = rail.scrollLeft, items = [...rail.children] as HTMLElement[];
+      // The chips are the rail's controls (a group, such as See all's kinds, holds several; separators are not chips).
+      const view = rail.clientWidth, start = rail.getBoundingClientRect().left, items = [...rail.querySelectorAll<HTMLElement>('button, a, [role=radio], [role=checkbox]')];
+      // Each chip's end in the rail's own visible coordinates (rects: offsetLeft would count from the toolbar).
+      const ends = items.map(item => item.getBoundingClientRect().right - start);
+      const first = items[0] ? ends[0] + rail.scrollLeft : 0;
       // The rail is drawn only with room for its first chip whole; its choices are all in Filters too, so nothing is lost.
-      setRoom(!items[0] || items[0].offsetLeft + items[0].offsetWidth <= view + .5);
-      if (rail.scrollWidth <= view + 1) {setCut(undefined); return;}
-      const whole = items.filter(item => item.offsetLeft + item.offsetWidth - left <= view + .5).pop();
-      setCut(whole ? Math.max(0, whole.offsetLeft + whole.offsetWidth - left) : 0);
+      setRoom(!items[0] || first <= view + .5);
+      if (rail.scrollWidth <= view + 1 || rail.scrollLeft + view >= rail.scrollWidth - 1) {setCut(undefined); return;}
+      const whole = ends.filter(end => end <= view + .5).pop();
+      setCut(whole === undefined ? 0 : Math.max(0, whole));
     };
     read();
     const observer = new ResizeObserver(read); observer.observe(rail);
