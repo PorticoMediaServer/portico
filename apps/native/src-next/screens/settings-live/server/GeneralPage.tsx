@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import {serverNow} from '../../../../../../packages/client-core/src/server-clock';
 import {checkServerUpdates, latestVersionLine, readServerUpdates, type ServerUpdates} from '../../../../../../packages/client-core/src/server-admin/server-updates';
 import {OwnerGeneralSettings, readBackgroundPause, setBackgroundPause} from '../../../../../../packages/client-core/src/server-admin/general-settings';
@@ -18,6 +18,8 @@ import {ServerHeader} from '../../../kit/shell/ServerIdentity';
 import {StateView} from '../../../kit/states';
 import {shellType} from '../../../kit/shell/visual';
 import {useTheme} from '../../../kit/theme';
+import {SettingsPageFrame} from '../../../kit/frames';
+import {useFrameMetrics} from '../../../kit/frames/metrics';
 import type {NativeSettingsLivePorts} from '../ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {screenScopeEnded} from '../lifetime';
@@ -26,15 +28,15 @@ import {NativeAdvancedSection} from './AdvancedSection';
 import {NativeSettingControl} from './SettingControl';
 import {NativeBroadcastSheet} from './BroadcastSheet';
 import {settingsSummary} from './settings-values';
-import {settingsPageHeading, settingsPageInset} from './page-layout';
 type Translate = typeof defaultI18n.t;
 type Group = Readonly<{title?: MessageId; rows: readonly SpecRow[]}>;
 
-/** Settings › Server › General on the phone. Every row reads and saves the rebuilt server's settings
- * documents through the same client-core reader web uses (OwnerGeneralSettings); a draft is saved row by
- * row, each with the revision it was read at. */
-export function NativeServerGeneral({ports, runtime, compactHeader = false}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean}) {
-  const theme = useTheme(), t = runtime.text.t as Translate, context = ports.context;
+/** Settings › Server › General on phones and tablets, on the Settings page frame (its header, Back, server strip, gutters
+ * and scroll). Every row reads and saves the rebuilt server's settings documents through the same client-core reader web
+ * uses (OwnerGeneralSettings); a draft is saved row by row, each with the revision it was read at. `notice`: the
+ * screen's own error, shown first on the page as on every Settings page. */
+export function NativeServerGeneral({ports, runtime, back, notice}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; back?: Readonly<{label: string; onPress: () => void}>; notice?: React.ReactNode}) {
+  const theme = useTheme(), frame = useFrameMetrics(), t = runtime.text.t as Translate, context = ports.context;
   const {api, lifetime} = useSettingsRequestScope(context);
   // The documents' revisions travel in headers, so the reader takes the app's header-sending call; it ends with the page.
   const settings = useMemo(() => new OwnerGeneralSettings(withGuardedRaw(api, context.api, () => {if (!lifetime.current()) throw screenScopeEnded();})), [api, context, lifetime]);
@@ -124,27 +126,28 @@ export function NativeServerGeneral({ports, runtime, compactHeader = false}: {po
     </View>;
   };
   const viewerRole = context.account.account.role === 'owner' ? 'owner' : context.account.canManage ? 'administrator' : 'member';
-  if (loadError !== undefined && !configuration) return <StateView {...runtime.error(loadError, load, 'server-console')}/>;
-  return <View style={{flex: 1}}>
-    <ScrollView contentContainerStyle={{...settingsPageInset(theme, compactHeader)}}>
-      <ServerHeader serverName={context.serverName} viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} variant="phone" style={{marginBottom: 12}}/>
-      {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{t('settings.server.general')}</Text>}
-      {configuration ? main.map(renderGroup) : <StateView title={t('status.loading')}/>}
-      {configuration && extra.length > 0 && <NativeAdvancedSection testID="server-general-advanced" open={advanced} onOpenChange={setAdvanced}
-        summary={settingsSummary(extra.flatMap(group => group.rows), row => {const fact = settings.read(row.id); return fact && {...fact, current: value(row.id)};}, t)}>
-        {extra.map(renderGroup)}
-      </NativeAdvancedSection>}
-      {problem ? <Text accessibilityRole="alert" style={[shellType(13, 600), {color: theme.colors.record, marginTop: 10}]}>{problem}</Text> : null}
-      {drafts.size > 0 ? <View style={{flexDirection: 'row', gap: 8, marginTop: 16}}>
-        <Button testID="server-general-discard" variant="glass" disabled={saving} onPress={() => {setDrafts(new Map()); setSaveError(undefined);}}>{t('action.discard')}</Button>
-        <Button testID="server-general-save" loading={saving} onPress={() => {void save();}}>{t('action.save')}</Button>
-      </View> : null}
-      {saveError !== undefined && <StateView variant="inline" {...runtime.error(saveError, () => {void save();}, 'server-console')}/>}
-    </ScrollView>
+  return <>
+    <SettingsPageFrame title={t('settings.server.general')} back={back}
+      server={<ServerHeader serverName={context.serverName} viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} variant={frame.form === 'phone' ? 'phone' : 'page'}/>}>
+      {notice}
+      {loadError !== undefined && !configuration ? <StateView {...runtime.error(loadError, load, 'server-console')}/> : <View>
+        {configuration ? main.map(renderGroup) : <StateView title={t('status.loading')}/>}
+        {configuration && extra.length > 0 && <NativeAdvancedSection testID="server-general-advanced" open={advanced} onOpenChange={setAdvanced}
+          summary={settingsSummary(extra.flatMap(group => group.rows), row => {const fact = settings.read(row.id); return fact && {...fact, current: value(row.id)};}, t)}>
+          {extra.map(renderGroup)}
+        </NativeAdvancedSection>}
+        {problem ? <Text accessibilityRole="alert" style={[shellType(13, 600), {color: theme.colors.record, marginTop: 10}]}>{problem}</Text> : null}
+        {drafts.size > 0 ? <View style={{flexDirection: 'row', gap: 8, marginTop: 16}}>
+          <Button testID="server-general-discard" variant="glass" disabled={saving} onPress={() => {setDrafts(new Map()); setSaveError(undefined);}}>{t('action.discard')}</Button>
+          <Button testID="server-general-save" loading={saving} onPress={() => {void save();}}>{t('action.save')}</Button>
+        </View> : null}
+        {saveError !== undefined && <StateView variant="inline" {...runtime.error(saveError, () => {void save();}, 'server-console')}/>}
+      </View>}
+    </SettingsPageFrame>
     <NativeBroadcastSheet ports={ports} runtime={runtime} open={messageOpen} onOpenChange={setMessageOpen}/>
     <BottomSheet open={restarting} onOpenChange={open => {if (!open && !busy) setRestarting(false);}} testID="server-general-restart"
       title={t('web.maintenance.serverRestart')} description={t('server.restart.body')}
       footer={<View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={busy} onPress={() => setRestarting(false)}>{t('action.cancel')}</Button>
         <Button variant="danger" loading={busy} onPress={restart}>{t('web.maintenance.serverRestart')}</Button></View>}><View/></BottomSheet>
-  </View>;
+  </>;
 }
