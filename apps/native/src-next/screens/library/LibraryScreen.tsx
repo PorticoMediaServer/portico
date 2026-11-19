@@ -125,9 +125,9 @@ export function LibraryCompactHeader({switcher, menu, children, onLibraries, tes
 
 /** The pivot strip: it scrolls on a phone because Music and Audiobooks have more
  * pivots than fit (phone-app 15a), and stays one drawn row on TV. */
-export function LibraryTabs({items, selected, enabled, disabled, regionId, leftEdge, downEdge, phone, gutter, onSelect, onFocusTab}: {
+export function LibraryTabs({items, selected, enabled, disabled, regionId, leftEdge, upEdge, downEdge, phone, gutter, onSelect, onFocusTab}: {
   items: readonly Readonly<{id: LibraryTabId; label: MessageId}>[]; selected: string; enabled: boolean; disabled?: boolean;
-  regionId: string; leftEdge: string; downEdge?: string; phone: boolean; /** The drawn tablet gutter, so the pivots line up with the header's title. */ gutter?: number; onSelect: (id: LibraryTabId) => void; onFocusTab?: (id: LibraryTabId) => void;
+  regionId: string; leftEdge: string; upEdge?: string; downEdge?: string; phone: boolean; /** The drawn tablet gutter, so the pivots line up with the header's title. */ gutter?: number; onSelect: (id: LibraryTabId) => void; onFocusTab?: (id: LibraryTabId) => void;
 }) {
   const theme = useTheme();
   const strip = items.map(tab => <Focusable key={tab.id} focusId={tab.id} accessibilityRole="tab" accessibilityLabel={defaultI18n.t(tab.label)}
@@ -139,7 +139,7 @@ export function LibraryTabs({items, selected, enabled, disabled, regionId, leftE
     <Text style={[browseType(theme, theme.isTV ? 24 : 15.5, 700), {color: selected === tab.id ? theme.colors.text : theme.colors.textTertiary}]}>{defaultI18n.t(tab.label)}</Text>
     {phone && selected === tab.id && <View style={[nativeLibraryR46.tabUnderline, {backgroundColor: theme.colors.accent}]}/>}
   </Focusable>);
-  return <FocusRegion id={regionId} entry="browse" orientation="horizontal" enabled={enabled} edges={{left: leftEdge, ...(downEdge ? {down: downEdge} : {})}}
+  return <FocusRegion id={regionId} entry="browse" orientation="horizontal" enabled={enabled} edges={{left: leftEdge, ...(upEdge ? {up: upEdge} : {}), ...(downEdge ? {down: downEdge} : {})}}
     style={phone ? undefined : {flexDirection: 'row', gap: theme.isTV ? 32 : 28, paddingHorizontal: theme.isTV ? 0 : gutter ?? theme.gutter}}>
     {phone ? <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow: 0, flexShrink: 0}} contentContainerStyle={nativeLibraryR46.tabStrip}>{strip}</ScrollView></TVRow> : strip}
   </FocusRegion>;
@@ -263,8 +263,9 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
     return {id: library.id, name: library.name, count: summary && <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 12}}>{summary.counts.filter(part => pivots[part.kind]).map(part => <Text key={part.kind}
       style={[browseType(theme, theme.isTV ? 22 : 14), {color: theme.colors.textTertiary}]}>{defaultI18n.t(part.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: part.count, pivot: pivots[part.kind]})}</Text>)}</View>};
   });
+  const switcherRegion = `${ids.libraryTabs(state.library.id)}.switcher`;
   const tabs = <LibraryTabs items={libraryTabs(state.library.kind)} selected={state.tab.id} enabled={active.visible} phone={theme.platform === 'phone'} gutter={theme.isTV || theme.platform === 'phone' ? undefined : dimensions.width >= 1024 ? 32 : 28}
-    disabled={theme.isTV && active.intent === 'enter' && !entered} regionId={ids.libraryTabs(state.library.id)} leftEdge={ids.rail} downEdge={emptyShown ? emptyRegion : pageFailed ? errorRegion : undefined}
+    disabled={theme.isTV && active.intent === 'enter' && !entered} regionId={ids.libraryTabs(state.library.id)} leftEdge={theme.isTV ? switcherRegion : ids.rail} upEdge={theme.isTV ? switcherRegion : undefined} downEdge={emptyShown ? emptyRegion : pageFailed ? errorRegion : undefined}
     onSelect={id => {void destination.load(id).catch(runtime.reportError);}} onFocusTab={id => {void destination.load(id).catch(runtime.reportError);}}/>;
   const switcher = <LibrarySwitcher value={state.library.id} libraries={choices} onValueChange={id => runtime.onDestination({kind: 'library', libraryId: id})} trigger={theme.isTV || expanded ? 'chevron' : 'name'}/>;
   const latestArtwork = summaries.libraries.find(library => library.id === state.library.id)?.summary.latestArtwork;
@@ -310,7 +311,11 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
   const musicCount = songCount && <Text style={[browseType(theme, 22, 400), {marginLeft: 'auto', color: theme.colors.textTertiary}]}>
     {defaultI18n.t(songCount.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: songCount.count, pivot: 'songs'})}</Text>;
   // TV keeps its own page until the frame's tabs carry the TV focus graph (the rail and the empty and error pages' edges).
-  const tvHeader = <LibraryHeader name={state.library.name} switcher={switcher} ambient={ambient} menu={musicCount}>{tabs}</LibraryHeader>;
+  // The TV switcher is a stop in the header's focus graph with declared edges (R1: on Android TV only declared edges move
+  // focus): Left from the first tab or Up from the tabs reaches it; Right or Down returns to the tabs; Left goes to the rail.
+  const tvSwitcher = <LibrarySwitcher value={state.library.id} libraries={choices} onValueChange={id => runtime.onDestination({kind: 'library', libraryId: id})} trigger="chevron"
+    focusRegion={{id: switcherRegion, enabled: active.visible, edges: {left: ids.rail, right: ids.libraryTabs(state.library.id), down: ids.libraryTabs(state.library.id)}}}/>;
+  const tvHeader = <LibraryHeader name={state.library.name} switcher={tvSwitcher} ambient={ambient} menu={musicCount}>{tabs}</LibraryHeader>;
   // tablet4/5: on the frame Filters docks at 380 on expanded and covers the grid at 420 on medium (the frame picks the
   // surface and plays its exit); both tablet panes apply each change live. The grid only ever sees the column it is given.
   const filtersOpen = filterState?.open ?? false;
