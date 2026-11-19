@@ -1,4 +1,4 @@
-import React, {useRef} from 'react';
+import React, {useId, useRef} from 'react';
 import type {View} from 'react-native';
 import type {ArtworkSource} from '../artwork';
 import {PosterCard} from '../cards';
@@ -24,7 +24,10 @@ const resting: LayoutSelection = {active: false, isSelected: () => false, onTogg
 export function PosterRow({title, items, paging, testID}: PosterRowProps) {
   // The row reserves the captions' two lines, so a title's year never runs into the next section.
   const theme = useTheme(), width = theme.spec.card.width.poster[theme.column], caption = cardCaptionHeight(theme, 2);
-  return <Row testID={testID} title={title} items={items} getKey={item => item.key} itemWidth={width} itemHeight={width * 1.5 + caption} captionHeight={caption} selection={resting} paging={paging}
+  // TV: the row is a focus region of its own, so it keeps its card when focus leaves it and comes back (tv-focus 3: "rows
+  // keep their remembered card"), instead of landing on whichever poster lies nearest.
+  const region = `poster-row.${useId()}`;
+  return <Row testID={testID} title={title} items={items} focus={theme.isTV ? {id: region} : undefined} getKey={item => item.key} itemWidth={width} itemHeight={width * 1.5 + caption} captionHeight={caption} selection={resting} paging={paging}
     renderItem={(item, context) => <PosterItem item={item} context={context} width={width}/>}/>;
 }
 
