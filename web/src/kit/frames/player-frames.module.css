@@ -99,6 +99,8 @@ button.audioSquare.audioSquare { background: none; backdrop-filter: none; -webki
 .audioMarks { flex: none; display: flex; }
 .audioMarks > button.audioMark { color: var(--color-text); --control-icon: var(--frame-audio-icon-inline-icon); }
 .audioBadge { display: inline-flex; vertical-align: middle; margin-inline-start: var(--space-sm); padding: var(--space-px-2) var(--space-xs); border-radius: var(--space-xs); font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-group-label-weight); letter-spacing: 0; background: color-mix(in srgb, var(--color-text) 10%, transparent); }
+/* The music signal line sits under the words, centred at phone width and at the column's start from 600. */
+.audioSignal { flex: none; display: flex; justify-content: center; margin-top: var(--space-xs); }
 .audioChapter { margin: 0; display: flex; align-items: center; gap: var(--space-xs); min-height: var(--type-row-label-line); font-size: var(--type-row-label-size); color: var(--color-text-secondary); }
 .audioChapter > svg { width: var(--frame-player-pill-icon); height: var(--frame-player-pill-icon); }
 .audioChapter > b { flex: 1; min-width: 0; font-weight: var(--type-row-label-weight); }
@@ -133,6 +135,7 @@ button.audioSlot.audioSlot { flex: 1; min-width: 0; height: 100%; padding: 0 var
 /* From 600 (desktop-listen "now", tablet-play 9): the bar spans the window; a column as wide as the cover sits centred
    in the room beside the raised queue panel; the title, scrubber, transport and volume share the cover's edges. */
 @media (min-width: 600px) {
+  .audioSignal { justify-content: flex-start; }
   .audio { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: var(--frame-audio-top-bar) minmax(0, 1fr); column-gap: var(--frame-audio-wide-panel-inset);
     padding: 0 var(--frame-audio-wide-panel-inset) var(--frame-audio-wide-panel-inset); }
   .audioTop { grid-column: 1 / -1; gap: var(--space-sm); }
