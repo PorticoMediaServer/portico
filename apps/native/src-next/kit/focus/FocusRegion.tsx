@@ -23,11 +23,13 @@ export function FocusScrollRowScope({count, children}: {count: (change: 1 | -1) 
   return <ScrollRowContext.Provider value={count}>{children}</ScrollRowContext.Provider>;
 }
 /** Hears focus arriving on any kit control inside it (and leaving it), through the same `useFocusTarget` every control
- * uses: a TV title page folds its hero when focus enters the panel. An outer scope hears what an inner one does. */
-const FocusWithinContext = createContext<((focused: boolean) => void) | undefined>(undefined);
-export function FocusWithin({onChange, children}: {onChange: (focused: boolean) => void; children: React.ReactNode}) {
+ * uses, with the control's own view: a TV title page folds its hero when focus enters the panel and keeps the focused
+ * control on screen. An outer scope hears what an inner one does. */
+type FocusWithinListener = (focused: boolean, host: FocusHost | null) => void;
+const FocusWithinContext = createContext<FocusWithinListener | undefined>(undefined);
+export function FocusWithin({onChange, children}: {onChange: FocusWithinListener; children: React.ReactNode}) {
   const parent = useContext(FocusWithinContext);
-  const notify = useCallback((focused: boolean) => {onChange(focused); parent?.(focused);}, [onChange, parent]);
+  const notify = useCallback<FocusWithinListener>((focused, host) => {onChange(focused, host); parent?.(focused, host);}, [onChange, parent]);
   return <FocusWithinContext.Provider value={notify}>{children}</FocusWithinContext.Provider>;
 }
 /**
@@ -234,7 +236,7 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
     }
   }
   return {ref: setRef, testID: stableTestID, waiting: item?.waiting ?? false, ...edgeProps,
-    onFocus: () => {focusSerial++; landed.current = true; if (registry && address && !disabled) registry.didFocus(address); within?.(true);},
-    onBlur: () => {if (registry && address) registry.didBlur(address); within?.(false);},
+    onFocus: () => {focusSerial++; landed.current = true; if (registry && address && !disabled) registry.didFocus(address); within?.(true, native.current);},
+    onBlur: () => {if (registry && address) registry.didBlur(address); within?.(false, native.current);},
   };
 }
