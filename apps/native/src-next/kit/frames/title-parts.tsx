@@ -296,6 +296,7 @@ function TVTitleDetails({about, people, collection}: TitleDetailsProps) {
     {people && people.groups.some(group => group.length > 0) ? <View><PanelBlock><PanelHeading title={people.title} note={people.note}
       trailing={people.seeAll && <Button variant="text" size="small" trailingIcon="i-right" onPress={people.seeAll.onPress}>{people.seeAll.label}</Button>}/></PanelBlock>
       <PanelBlock><CastRow groups={people.groups}/></PanelBlock></View> : null}
-    {collection ? <PanelBlock><CollectionBanner {...collection} width={frame.width - frame.gutter - frame.rightGutter}/></PanelBlock> : null}
+    {/* The banner says its count once: its body (a phone's link card carries it as its caption instead). */}
+    {collection ? <PanelBlock><CollectionBanner {...collection} caption={collection.body !== undefined ? undefined : collection.caption} width={frame.width - frame.gutter - frame.rightGutter}/></PanelBlock> : null}
   </>;
 }

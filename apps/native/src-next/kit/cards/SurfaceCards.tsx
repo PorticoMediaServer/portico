@@ -69,7 +69,8 @@ export type CollectionCardProps = CardProps & ArtCollection & {backdrop?: Artwor
 function Collection({banner = false, ...props}: CollectionCardProps & {banner?: boolean}) {
   const t = useTheme(), width = props.width ?? (t.isTV ? 800 : 350), height = props.height ?? (banner ? t.isTV ? 360 : 236 : width * 9 / 16);
   const pad = t.isTV ? 32 : banner ? 24 : 22;
-  return <CardFrame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={height} />}>
+  // A banner is as wide as the page: grown like a card it would reach into the rail and the screen's edge, so it grows like a row.
+  return <CardFrame {...props} width={width} focusScale={banner ? t.spec.focus.scale.row.tv : undefined} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={height} />}>
     {s => <ArtFrame height={height} radius={banner ? 16 : 14} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={1.025} selected={props.selection?.selected}>
       <AmbientArt source={props.ambient} foreground={props.backdrop} palette={props.palette} treatment="library" visible={props.visible} priority={props.priority} />
       <Scrim start={0} opacity={0.78} />
