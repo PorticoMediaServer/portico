@@ -22,7 +22,7 @@ type PanelAction = Readonly<{label: string; onPress: () => void}>;
  * `back` is for a list opened from Playback options; its title is then that list's name. A TV closes with the
  * remote's Back, so it draws no close button. */
 export function PlayerPanel({title, note, back, close, footer, children, testID}: {title: string; /** Under the title: what a change here lasts for. */ note?: string; back?: PanelAction; close: PanelAction; /** Pinned under the list (the Episodes note; TV's Back hint, R11). */ footer?: ReactNode; children: ReactNode; testID?: string}) {
-  const theme = useTheme(), {form} = useFrameMetrics(), upright = usePlayerUpright(), insets = useSafeAreaInsets(), edges = useListEdges(theme.space.xl), tv = form === 'tv', pad = spec.padding[form], sheet = upright;
+  const theme = useTheme(), {form} = useFrameMetrics(), upright = usePlayerUpright(), insets = useSafeAreaInsets(), edges = useListEdges(), tv = form === 'tv', pad = spec.padding[form], sheet = upright;
   return <View testID={testID} accessibilityViewIsModal style={[{flex: 1, backgroundColor: theme.colors.raised}, sheet && {borderTopLeftRadius: frameSpec.sheet.fullRadius, borderTopRightRadius: frameSpec.sheet.fullRadius}]}>
     {sheet && <View style={{alignSelf: 'center', marginTop: spec.grab.top, width: spec.grab.width, height: spec.grab.height, borderRadius: spec.grab.height / 2, backgroundColor: alpha(theme.colors.text, frameSpec.player.tint.buffered)}}/>}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, paddingHorizontal: pad, paddingTop: sheet ? theme.space.xs : pad, minHeight: theme.targets.touch + (sheet ? theme.space.xs : pad)}}>
