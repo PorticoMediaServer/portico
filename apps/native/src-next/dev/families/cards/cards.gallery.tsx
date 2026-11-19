@@ -7,9 +7,10 @@ import {cardsFixtureText as fixture} from '../../../../../../packages/i18n/src/c
 import {GeneratedCover, ProfileFace, type ArtworkSource} from '../../../kit/artwork/index';
 import {CircleCard, CollectionBanner, CollectionTile, CoverCard, EpisodeTile, GenreTile, LibraryCard, LibraryRow, LiveCard, NotInterestedButton, PlaylistMosaic, PosterCard, QuickTile, RankedCard, ReadResumeCard, ResumeCard, SeriesTile, SessionCard, SquareCard, WideCard, type CardProps} from '../../../kit/cards/index';
 import {useTheme} from '../../../kit/theme';
+import {referenceOrigin} from '../../reference-art';
 
 // Reference media belongs only to this __DEV__ gallery. Production cards never compose fixtures.
-const referenceRoot = 'http://100.120.50.24:8787/';
+const referenceRoot = `${referenceOrigin}/`;
 const artwork = (path: string): ArtworkSource => ({uri: `${referenceRoot}${path}`, cacheKey: `cards-reference:${path}`});
 const toy = artwork('assets/pool/movies/toy-story.jpg');
 const inside = artwork('assets/pool/movies/inside-out.jpg');

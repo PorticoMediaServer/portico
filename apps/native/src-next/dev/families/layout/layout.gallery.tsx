@@ -10,6 +10,7 @@ import {Button} from '../../../kit/controls';
 import {AlphabetRail, FlowSections, FocusPreviewHero, Hero, Lockup, Row, WindowedGrid, type ArtworkRenderContext, type HeroCandidate, type LayoutItemContext, type LayoutSelection, type WindowedGridHandle} from '../../../kit/layout';
 import {useTheme} from '../../../kit/theme';
 import type {Gallery} from '../../gallery-registry';
+import {referenceOrigin} from '../../reference-art';
 
 /** Reference-only records and artwork. This entire module is under the scaffold's __DEV__ boundary. */
 const t = defaultI18n.t;
@@ -19,7 +20,7 @@ type LayoutArtworkEvidence = Readonly<Record<string, {foreground: ArtworkSource;
 declare global {
   var __porticoLayoutArtworkEvidence: LayoutArtworkEvidence | undefined;
 }
-const asset = (path: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${path}`, cacheKey: `layout-reference:${path}`});
+const asset = (path: string): ArtworkSource => ({uri: `${referenceOrigin}/assets/${path}`, cacheKey: `layout-reference:${path}`});
 type ReferenceEntry = HeroCandidate & {subject: CardSubject; art: ArtworkSource; poster: ArtworkSource};
 const referenceEntries: readonly ReferenceEntry[] = [
   {id: 'spirited-away', title: fixture('spiritedAway'), reason: fixture('becauseInsideOut'), subject: {id: 'spirited-away', kind: 'movie', title: fixture('spiritedAway'), year: 2001, genres: [fixture('animation'), fixture('family')], durationSeconds: 7500}, art: asset('bd-spirited.jpg'), poster: asset('pool/movies/spirited-away.jpg')},

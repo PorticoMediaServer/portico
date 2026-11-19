@@ -20,6 +20,7 @@ import {useTheme} from '../../../kit/theme';
 import {Page} from './frames.gallery';
 import {MusicScrollView} from '../../../screens/destinations/music/MusicWindow';
 import type {Gallery} from '../../gallery-registry';
+import {referenceOrigin} from '../../reference-art';
 
 /** Family C, the title page's forms: every kind of title page filled in full on the one `TitleFrame`, from the parts its
  * tab panel and side are built from. The same cases as the web gallery (`web/src/dev/families/frames-title.tsx`).
@@ -27,7 +28,7 @@ import type {Gallery} from '../../gallery-registry';
 type Name = keyof typeof titleFixtureMessages extends `next.title.fixture.${infer N}` ? N : never;
 const f = (name: Name) => formatMessage(titleFixtureMessages[`next.title.fixture.${name}`]);
 const none = () => {};
-const asset = (path: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${path}`, cacheKey: `frames-reference:${path}`});
+const asset = (path: string): ArtworkSource => ({uri: `${referenceOrigin}/assets/${path}`, cacheKey: `frames-reference:${path}`});
 const selection: LayoutSelection = {active: false, isSelected: () => false, onToggle: none, onEnter: none};
 const card = ({onFocus, onBlur, focusId, testID}: LayoutItemContext) => ({onFocus, onBlur, focusId, testID});
 /** Facts as the server sends them: the first is the identity; a rating and a season count are outlined, a runtime on a title page is not (phone-detail d1). */

@@ -20,6 +20,7 @@ import {Icon} from '../../../kit/Icon';
 import {useTheme} from '../../../kit/theme';
 import {Layer} from '../../../kit/shell/Layer';
 import type {Gallery} from '../../gallery-registry';
+import {referenceOrigin} from '../../reference-art';
 
 /** Frame 7 (the video player) and frame 8 (the audio player), each case full, on every form the window gives it:
  * family D of the Stage 1 rebuild. Every region the frame has (packages/design `frameRegions.player` and `.audio`) is
@@ -28,7 +29,7 @@ type FrameName = keyof typeof framesFixtureMessages extends `next.frames.fixture
 type PlayerName = keyof typeof playerFixtureMessages extends `next.player.fixture.${infer Name}` ? Name : never;
 const f = (name: FrameName) => formatMessage(framesFixtureMessages[`next.frames.fixture.${name}`]);
 const p = (name: PlayerName) => formatMessage(playerFixtureMessages[`next.player.fixture.${name}`]);
-const asset = (path: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${path}`, cacheKey: `frames-reference:${path}`});
+const asset = (path: string): ArtworkSource => ({uri: `${referenceOrigin}/assets/${path}`, cacheKey: `frames-reference:${path}`});
 const none = () => {};
 const chip = (part: string) => /^\d+ h( \d+ min)?$|^\d+ min$/.test(part) ? 'duration' : / seasons?$/.test(part) ? 'season-count' : /^(G|PG|PG-13|R|TV-[A-Z0-9]+)$/.test(part) ? 'content-rating' : undefined;
 const fact = (text: string) => text.split(' · ').map((part, index) => ({id: chip(part) ?? (index === 0 ? 'year' : `fact-${index}`), text: part, role: index === 0 ? 'identity' as const : 'context' as const}));

@@ -14,6 +14,7 @@ import {changeFacetSelection} from '../../../kit/browse/facet-selection';
 import {OwnerTag} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
 import type {Gallery} from '../../gallery-registry';
+import {referenceOrigin} from '../../reference-art';
 
 const t = defaultI18n.t;
 const fixture = (id: keyof typeof browseNativeFixtures) => formatMessage(browseNativeFixtures[id]);
@@ -50,7 +51,7 @@ const songReferences: readonly SongReference[] = [
   {title: 'song.maxwell', artist: 'artist.beatles', album: 'album.abbeyRoad', asset: 'abbey-road-2019-mix', seconds: 207, plays: 6},
   {title: 'song.neverGoingBack', artist: 'artist.fleetwoodMac', album: 'album.rumours', asset: 'rumours', seconds: 134, plays: 8},
 ];
-const sourceOrigin = 'http://100.120.50.24:8787';
+const sourceOrigin = referenceOrigin;
 export const libraryChoices = [
   {id: 'movies', name: movies, count: t('lib.count', {count: 80, pivot: 'movies'})},
   {id: 'shows', name: shows, count: t('lib.count', {count: 24, pivot: 'shows'})},
