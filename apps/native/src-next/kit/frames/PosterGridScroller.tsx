@@ -45,7 +45,8 @@ function PosterGridScroller<T>({collection, getKey, item, testID, content, style
   latest.current = collapse;
   const onOffset = useCallback((offset: number) => latest.current.onChange(offset > latest.current.at), []);
   return <WindowedGrid testID={testID} collection={collection} getKey={getKey} header={content} style={{flex: 1}}
-    itemWidth={width} itemHeight={width * 1.5} captionHeight={caption} gap={grid.columnGap[frame.form]} rowGap={grid.rowGap[frame.form]}
+    // A card is its poster and its two caption lines (as the library grid): each row's stride makes room for the words.
+    itemWidth={width} itemHeight={width * 1.5 + caption} captionHeight={caption} gap={grid.columnGap[frame.form]} rowGap={grid.rowGap[frame.form]}
     // The grid sits a heading's gap under the page's last part (the credits' filters).
     gutter={frame.gutter} rightGutter={frame.rightGutter} paddingTop={top + frame.headingGap} paddingBottom={bottom}
     onScrollOffset={onOffset}

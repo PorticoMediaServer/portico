@@ -3,6 +3,7 @@ import type {View} from 'react-native';
 import type {ArtworkSource} from '../artwork';
 import {PosterCard} from '../cards';
 import {cardCaptionHeight} from '../cards/caption-metrics';
+import {frameSpec} from '@portico/design';
 import {useTheme} from '../theme';
 import {Row} from './Row';
 import type {RowPage} from './row-state';
@@ -14,16 +15,18 @@ export type PosterRowItem = Readonly<{key: string; title: string; year?: string;
   /** Opens the title's menu from the card's own place (a popover on a tablet). */
   onMore?: (anchor: React.RefObject<View | null>) => void;
   selection?: CardSelection}>;
-export type PosterRowProps = Readonly<{title: string; items: readonly PosterRowItem[]; paging?: RowPage<PosterRowItem>; testID?: string}>;
+export type PosterRowProps = Readonly<{title: string; items: readonly PosterRowItem[]; paging?: RowPage<PosterRowItem>;
+  /** Smaller posters on a phone (a person's Known for, phone-detail d3 frame 7). */
+  small?: boolean; testID?: string}>;
 
 const resting: LayoutSelection = {active: false, isSelected: () => false, onToggle: () => {}, onEnter: () => {}};
 
 /** A heading and a row of poster cards at the form's poster width (rule 14, `theme.spec.card.width.poster`): More like
  * this on a title page (phone-detail d1, tablet f6), and any other row of titles a page shows. The kit `Row` places and
  * spaces it on the frame; the page passes titles, never sizes. */
-export function PosterRow({title, items, paging, testID}: PosterRowProps) {
+export function PosterRow({title, items, paging, small, testID}: PosterRowProps) {
   // The row reserves the captions' two lines, so a title's year never runs into the next section.
-  const theme = useTheme(), width = theme.spec.card.width.poster[theme.column], caption = cardCaptionHeight(theme, 2);
+  const theme = useTheme(), width = small && theme.form === 'phone' ? frameSpec.hero.title.smallPoster : theme.spec.card.width.poster[theme.column], caption = cardCaptionHeight(theme, 2);
   // TV: the row is a focus region of its own, so it keeps its card when focus leaves it and comes back (tv-focus 3: "rows
   // keep their remembered card"), instead of landing on whichever poster lies nearest.
   const region = `poster-row.${useId()}`;

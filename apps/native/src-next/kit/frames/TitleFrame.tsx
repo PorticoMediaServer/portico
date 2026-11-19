@@ -192,7 +192,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {!tv && <View style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, top: insets.top + theme.space.tight}}><RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/></View>}
     <PageStateFrame {...failure}/>
   </View>;
-  const height = split ? spec.height.phone : spec.height[form], lockup = split ? spec.lockup.phone : spec.lockup[form];
+  const height = split ? spec.height.phone : spec.height[form], lockup = cover ? spec.coverLockup[split ? 'phone' : form] : split ? spec.lockup.phone : spec.lockup[form];
   const discTop = insets.top + theme.space.tight, discRow = discTop + roundBarSize + theme.space.sm;
   const centre = stacked ? 'center' as const : 'flex-start' as const;
 
@@ -253,12 +253,14 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {topControl ?? (topAction && <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress} disabled={topAction.disabled} testID={topAction.testID}/>)}
   </View>;
   const body = <View style={{gap: theme.space.sm, alignItems: stacked ? 'center' : 'flex-start', alignSelf: 'stretch'}}>{stacked ? <>{row}{resumeLine}{words}{pickerRow}</> : <>{words}<View style={{marginTop: spec.actionGap[form] - theme.space.sm, gap: theme.space.sm}}>{row}{resumeLine}</View></>}</View>;
-  const coverSize = spec.cover[cover?.shape ?? 'square'][split ? 'phone' : form];
+  const coverSize = cover?.shape === 'circle' && (split || form === 'phone') ? spec.parts.coverCirclePhone : spec.cover[cover?.shape ?? 'square'][split ? 'phone' : form];
   const coverBox = cover && <View style={{width: coverSize, height: cover.shape === 'poster' ? coverSize * 1.5 : coverSize, borderRadius: cover.shape === 'circle' ? coverSize / 2 : frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{typeof cover.node === 'function' ? cover.node(coverSize) : cover.node}</View>;
   const head = cover ? stacked
     // A cover page reports where its name starts (the head is the page's first part, so that is a page offset): the compact
     // bar, which carries the name, takes over as the name reaches it, so the name never runs under Back and the top action.
-    ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{split && discs}{coverBox}<View onLayout={event => setHeroEnd(event.nativeEvent.layout.y)} style={{alignSelf: 'stretch'}}>{identity}</View><View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View></View>
+    ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{split && discs}{coverBox}<View onLayout={event => setHeroEnd(event.nativeEvent.layout.y)} style={{alignSelf: 'stretch'}}>{identity}</View>
+      {/* A cover page with no buttons and no words (a person without a biography) ends at its name: no empty gap. */}
+      {(primary || actions.length > 0 || words || picker) && <View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View>}</View>
     : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: spec.coverGap}}>
       {split && discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
