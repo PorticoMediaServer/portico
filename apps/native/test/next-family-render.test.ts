@@ -879,3 +879,33 @@ test('Settings frames keep one tree on every form: a phone-tablet-phone resize r
     }
   } finally {state.theme = previous;}
 });
+
+test('A Settings page that is one long list draws a FlatList in place of its scroll on every form, the intro, tabs and its own list header leading it, and the page hears its scroll from either', async () => {
+  const previous = state.theme;
+  const nodes = (node: any): any[] => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes)
+    : [node, ...nodes(node.props?.children), ...(node.props?.ListHeaderComponent ? nodes(node.props.ListHeaderComponent) : [])];
+  const body = async (props: any) => {
+    let tree: any;
+    const host = createFabricHookHost(() => {const scope: any = SettingsPageFrame(props); tree = scope.props.children.type(scope.props.children.props);});
+    await host.mount();
+    try {return tree;} finally {await host.unmount();}
+  };
+  const onScroll = () => {}, tabs = React.createElement('View', {testID: 'tabs'}), filters = React.createElement('View', {testID: 'filters'});
+  const list = {data: ['a'], keyExtractor: (item: string) => item, renderItem: () => null, ListHeaderComponent: filters};
+  try {
+    for (const width of [390, 820]) {
+      state.theme = createTheme({isTV: false, width});
+      const drawn = nodes(await body({title: 'Play history', intro: 'Every play.', tabs, list, onScroll}));
+      const flat = drawn.find(node => node.type === 'FlatList');
+      assert.ok(flat, `${width}: the list is a FlatList`);
+      assert.equal(drawn.filter(node => node.type === 'ScrollView' || node.type?.displayName === 'FormScrollView' || node.type?.render?.name === 'FormScrollView').length, 0, `${width}: no scroll around the list`);
+      assert.equal(flat.props.data, list.data); assert.equal(flat.props.onScroll, onScroll, `${width}: the list hands the page its scroll`);
+      const header = nodes(flat.props.ListHeaderComponent);
+      assert.ok(header.some(node => node.props?.children === 'Every play.'), 'the intro leads the list');
+      assert.ok(header.includes(tabs) && header.includes(filters), "the tabs, then the page's own list header");
+      const plain = nodes(await body({title: 'Troubleshooting', onScroll, children: React.createElement('View')}));
+      assert.ok(plain.some(node => node.props?.onScroll === onScroll && node.props?.contentContainerStyle), `${width}: the scroll hands the page its scroll`);
+      assert.equal(plain.filter(node => node.type === 'FlatList').length, 0);
+    }
+  } finally {state.theme = previous;}
+});
