@@ -144,6 +144,14 @@ test('a show plays its next episode by name, lists the season, opens an episode 
   episodeSnapshot = {phase: 'idle'};
 });
 
+test('a show reached as an episode offers no Watched on its hero: the episode\'s detail marks only that episode', async () => {
+  const episode = {id: 'e1', kind: 'episode', title: 'When You\'re Lost', seasonNumber: 1, episodeNumber: 1, libraryId: 'tv'} as any;
+  const workspace = {show: {id: 's1', title: 'The Last of Us', libraryId: 'tv', credits: []}, selected: {seasonId: 'season-1', group: null}, groups: [], seasonTotalCount: 1};
+  const {view} = await page({entry: episode, detail: {phase: 'ready', data: detail()}, workspace: {phase: 'ready', data: workspace}, showState: {watchlisted: false}, episodes: [episode],
+    seasons: [{id: 'season-1', number: 1, title: '', episodeCount: 1}], place: {tab: 'episodes', hideWatched: false}});
+  assert.deepEqual(view.actions.map((action: any) => action.label), [t('entry.addToWatchlist'), t('next.cards.download'), t('card.more', {title: 'The Last of Us'})]);
+});
+
 test('on TV the season column chooses a season as focus reaches it, and the band opens the episode in focus', async () => {
   const show = {id: 's1', kind: 'show', title: 'The Last of Us', libraryId: 'tv'} as any;
   const e1 = {id: 'e1', kind: 'episode', title: 'When You\'re Lost', seasonNumber: 1, episodeNumber: 1, duration: 4800, libraryId: 'tv'} as any;
