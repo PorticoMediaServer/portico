@@ -16,6 +16,7 @@ import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {HeroMetadata, PosterRow, SeasonBar} from '../../../kit/layout';
 import {SeasonSheet} from '../../../kit/layout/SeasonSheet';
 import {Menu} from '../../../kit/overlays';
+import {SelectionBar} from '../../../kit/selection';
 import {useTheme} from '../../../kit/theme';
 import {Page} from './frames.gallery';
 import {MusicScrollView} from '../../../screens/destinations/music/MusicWindow';
@@ -58,9 +59,11 @@ function filmFrame(tab: string, setTab: (value: string) => void, tv = false): Om
     credits: [{label: f('directedBy'), names: [link(f('dune2Director'))]}, {label: f('starring'), names: (['dune2Cast1', 'dune2Cast2', 'dune2Cast3', 'dune2Cast4'] as const).map(name => link(f(name)))}],
     picker: <TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none}/>, tabs: tabs(tab, setTab)};
 }
-function Film({more = false}: {more?: boolean}) {
+function Film({more = false, selecting = false}: {more?: boolean; selecting?: boolean}) {
   const [tab, setTab] = useState('more'), [open, setOpen] = useState(more), {isTV} = useTheme();
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-film" {...filmFrame(tab, setTab, isTV)}>
+  // Two titles of More like this selected (Select in a card's menu): the page's selection bar at the top of the panel.
+  const bar = selecting ? <SelectionBar count={2} selectionLabel={defaultI18n.t('next.selection.movie', {count: 2})} actions={[]} menu={null} onMenuChange={none} onAction={none} onCancel={none}/> : undefined;
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-film" {...filmFrame(tab, setTab, isTV)} selectionBar={bar}>
     <TitleSection tab="more"><Posters title={f('moreLikeDune')} items={moreLikeDune}/></TitleSection>
     {/* TV draws every section, and focus walks down them into Details. */}
     {isTV && <TitleSection tab="details"><DuneDetails/></TitleSection>}
@@ -342,6 +345,7 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-title-film', title: 'next.platform.frame.titleFilm', render: () => <Film/>, ...whole},
   {id: 'frames-title-film-resume', title: 'next.platform.frame.titleFilmResume', render: FilmResume, ...whole},
   {id: 'frames-title-film-more', title: 'next.platform.frame.titleFilmMore', render: () => <Film more/>, ...whole},
+  {id: 'frames-title-film-selecting', title: 'next.platform.frame.titleFilm', render: () => <Film selecting/>, ...whole},
   {id: 'frames-title-film-details', title: 'next.platform.frame.titleFilmDetails', render: FilmDetails, ...whole},
   {id: 'frames-title-show', title: 'next.platform.frame.titleShow', render: () => <Show/>, ...whole},
   {id: 'frames-title-show-seasons', title: 'next.platform.frame.titleShowSeasons', render: () => <Show seasons/>, ...whole},

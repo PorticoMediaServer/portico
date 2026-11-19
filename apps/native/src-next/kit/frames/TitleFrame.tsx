@@ -9,7 +9,7 @@ import {ActionRow, type RowAction, type RowPrimary} from '../controls/ActionRow'
 import {Tabs, type TabItem} from '../controls/Tabs';
 import {Icon, type IconName} from '../Icon';
 import {Lockup} from '../layout/Lockup';
-import {RoundBarButton, roundBarSize, type TopBarBack} from '../layout/TopBar';
+import {BarSurface, RoundBarButton, roundBarSize, type TopBarBack} from '../layout/TopBar';
 import {alpha} from '../shell/visual';
 import {SkeletonBlock} from '../states/SkeletonBlock';
 import {buttonGeometry} from '../controls/control-model';
@@ -46,6 +46,15 @@ export type TitleFrameProps = Readonly<{
   back: TopBarBack;
   /** One glass disc opposite Back (Play on). */
   topAction?: TitleAction;
+  /** The shell's own control in the top-action place, drawn in place of `topAction` on the art and on the collapsed bar:
+   * Play on (`PlayOnButton variant="round"`), which names and marks the device it will play on. */
+  topControl?: ReactNode;
+  /** The art box, measured by the page when Play opens the player from it (the start motion grows the art into the player). */
+  artRef?: React.RefObject<View | null>;
+  /** Where the page was scrolled: the frame scrolls back there once the page is long enough, and reports each new place. */
+  scrollMemory?: Readonly<{offset: number; onOffset: (y: number) => void}>;
+  /** The page's selection bar while titles in its panel are selected (Select in a card's menu), at the top of the panel. */
+  selectionBar?: ReactNode;
   kicker?: TitleKicker;
   title: string;
   /** The metadata line (`HeroMetadata`). Its line is kept when there is nothing to show. */
@@ -106,10 +115,10 @@ export function TitleSection({children}: Readonly<{tab: string; children?: React
 
 /** The primary's own focus id when the screen gives it no test id. */
 const titlePrimaryId = 'title-primary';
-function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, testID}: Omit<TitleFrameProps, 'startFocus'>) {
+function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
-  const [passed, setPassed] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY);
+  const [passed, setPassed] = useState(false), [tabsPinned, setTabsPinned] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY), [heroEnd, setHeroEnd] = useState(Number.POSITIVE_INFINITY);
   // TV (detail-tv-3): focus moving into the panel folds the hero to the title and the tabs at the top, the art dims, and
   // the section that holds focus rises to just under them; focus back on the buttons unfolds it. The head stays laid out
   // (its words fade), so Up from the first row finds the buttons again. `where` is the head or a section's index; focus
@@ -117,7 +126,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   // does not fold.
   const motion = useMotion(), [where, setWhere] = useState<'head' | number>('head');
   const folded = tv && !scroller && (collapsed ?? where !== 'head');
-  const scroll = useRef<ScrollView>(null), ys = useRef({content: 0, column: 0, sections: [] as number[]}), [bandHeight, setBandHeight] = useState(0);
+  const restored = useRef(false), scroll = useRef<ScrollView>(null), ys = useRef({content: 0, column: 0, sections: [] as number[]}), [bandHeight, setBandHeight] = useState(0);
   const fold = useSharedValue(0);
   useEffect(() => {fold.value = withTiming(folded ? 1 : 0, motion.timing('standard'));}, [fold, folded, motion]);
   const copyStyle = useAnimatedStyle(() => ({opacity: 1 - fold.value}));
@@ -181,27 +190,28 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   const resumeLine = lineUnder ? <View style={{gap: theme.space.tight, width: '100%', maxWidth: cover && !stacked ? spec.coverResumeWidth : undefined}}>
     <View accessibilityRole="progressbar" accessibilityValue={{min: 0, max: 1, now: primary!.progress}} style={{height: track, borderRadius: track, overflow: 'hidden', backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
       <View style={{width: `${primary!.progress! * 100}%`, height: track, backgroundColor: theme.colors.accentStrong}}/></View>
-    <View style={{minHeight: buttonGeometry('xs', theme.column, 'text').height, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}><Text style={[theme.type.rowHelp, {color: theme.colors.text}]}>{primary!.remaining}</Text>
-      {primary!.startOver && stacked && <Button variant="text" size="xs" icon="i-restart" onPress={primary!.startOver.onPress}>{primary!.startOver.label}</Button>}</View>
+    {/* phone-detail d1 frame 3 `.rsm .rl`: the time left in the secondary caption, Start over a link whose right edge is the bar's. */}
+    <View style={{minHeight: buttonGeometry('xs', theme.column, 'link').height, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}><Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{primary!.remaining}</Text>
+      {primary!.startOver && stacked && <Button variant="link" size="xs" icon="i-restart" onPress={primary!.startOver.onPress}>{primary!.startOver.label}</Button>}</View>
   </View> : null;
   const pickerRow = picker && stacked && !loading ? <View style={{alignSelf: 'stretch'}}>{picker}</View> : null;
 
   // The head: the art box with the words hanging from its bottom edge, or the cover beside them.
   const discs = !tv && <View pointerEvents="box-none" style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, right: theme.space.sm, top: discTop, flexDirection: 'row', justifyContent: 'space-between'}}>
     <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/>
-    {topAction && <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress} disabled={topAction.disabled} testID={topAction.testID}/>}
+    {topControl ?? (topAction && <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress} disabled={topAction.disabled} testID={topAction.testID}/>)}
   </View>;
   const body = <View style={{gap: theme.space.sm, alignItems: stacked ? 'center' : 'flex-start', alignSelf: 'stretch'}}>{stacked ? <>{row}{resumeLine}{words}{pickerRow}</> : <>{words}<View style={{marginTop: spec.actionGap[form] - theme.space.sm, gap: theme.space.sm}}>{row}{resumeLine}</View></>}</View>;
   const coverSize = spec.cover[cover?.shape ?? 'square'][split ? 'phone' : form];
   const coverBox = cover && <View style={{width: coverSize, height: cover.shape === 'poster' ? coverSize * 1.5 : coverSize, borderRadius: cover.shape === 'circle' ? coverSize / 2 : frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{typeof cover.node === 'function' ? cover.node(coverSize) : cover.node}</View>;
   const head = cover ? stacked
-    ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{discs}{coverBox}<View style={{alignSelf: 'stretch'}}>{identity}</View><View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View></View>
+    ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{split && discs}{coverBox}<View style={{alignSelf: 'stretch'}}>{identity}</View><View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View></View>
     : <View style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: spec.coverGap}}>
-      {discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
+      {split && discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
     // second line of buttons pushes the panel down rather than rising under Back (the words never overlap the discs).
-    : <><View style={stacked ? {height} : {minHeight: height, justifyContent: 'flex-end', paddingTop: tv ? frame.titleTop : discRow, paddingBottom: spec.copyBottom[form]}}>
-      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>{!tv && art}
+    : <><View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={stacked ? {height} : {minHeight: height, justifyContent: 'flex-end', paddingTop: tv ? frame.titleTop : discRow, paddingBottom: spec.copyBottom[form]}}>
+      <View ref={artRef} collapsable={false} pointerEvents="box-none" style={StyleSheet.absoluteFill}>{!tv && art}
         {/* A tablet's words are over the picture, so the picture is shaded behind them (a phone's words are under its picture and a TV's art has its own). */}
         {!stacked && !tv && <Svg pointerEvents="none" accessible={false} width="100%" height="100%" style={StyleSheet.absoluteFill}>
           <Defs>
@@ -211,7 +221,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
           <Rect width="100%" height="100%" fill="url(#title-shade-side)"/><Rect width="100%" height="100%" fill="url(#title-shade-foot)"/>
         </Svg>}
       </View>
-      {discs}
+      {split && discs}
       {/* Everything in the art box hangs from its bottom edge, so a longer title grows upward and the row below never moves. */}
       <View pointerEvents="box-none" style={stacked ? {position: 'absolute', left: frame.gutter, right: frame.gutter, bottom: split ? 0 : spec.copyBottom[form]} : {paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
         <View style={stacked || tv ? undefined : {maxWidth: theme.spec.hero.copy.titleWidth.web}}>{identity}</View>
@@ -232,6 +242,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   sectionTabs.current = sections.map(section => section.tab);
   const content = <View onLayout={event => {ys.current.content = event.nativeEvent.layout.y;}} style={{marginTop: tabs ? frame.headerGap + frame.headingGap : frame.sectionGap, flexDirection: besideAside ? 'row' : 'column', alignItems: 'flex-start', gap: besideAside ? theme.space.xl : frame.sectionGap}}>
     <View onLayout={event => {ys.current.column = event.nativeEvent.layout.y;}} style={{flex: besideAside ? 1 : undefined, alignSelf: besideAside ? undefined : 'stretch', minWidth: 0, gap: frame.sectionGap}}>
+      {selectionBar}
       {tv && !scroller && !loading ? sections.map((section, index) => <FocusWithin key={index} onChange={focused => {if (focused) setWhere(index);}}>
         <View style={{gap: frame.sectionGap}} onLayout={event => {ys.current.sections[index] = event.nativeEvent.layout.y; if (where === index) align();}}>{section.node}</View></FocusWithin>)
         : panel}</View>
@@ -241,22 +252,28 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   // the first row and Up from it back to the buttons (detail-tv-3).
   const tabBar = (style?: object) => tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} passive={tv} disabled={loading} style={style} contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
 
-  // The collapsed bar (touch): it shows once the tabs pass under it. A phone and an upright tablet: Back, the title
-  // centred and Play on, with the tabs under it; a tablet on its side: the title, the tabs, the primary and the pinned actions.
+  // The collapsed bar (touch): it shows once the hero (the art and the title on it) has scrolled away under it, so Back
+  // and the title are never lost (phone-detail d1 frame 2); the tabs join it once the page's own tabs reach it. A phone
+  // and an upright tablet: Back, the title centred and Play on, with the tabs under it; a tablet on its side: the title,
+  // the tabs, the primary and the pinned actions. A cover page (no art box) shows it at its tabs.
   const barHeight = insets.top + 56; // R5 interim: rule 3's 56 bar under the status bar
+  const barAt = Math.min(heroEnd, tabsY) - barHeight;
   const shown = !tv && !split && (collapsed ?? passed);
   // Held collapsed by the screen (a tab's content opened directly): the bar stands in place of the hero and the page's
   // tabs, and the panel starts under it (phone-detail d1 frame 2, desktop-detail f3).
   const held = shown && collapsed === true;
   const pinned = actions.filter(action => action.pinned);
-  const bar = shown && <View style={{position: held ? 'relative' : 'absolute', left: 0, right: 0, top: 0, zIndex: theme.layers.sticky, backgroundColor: alpha(theme.colors.ink, .92), borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>
+  // The shared bar surface every pushed page's bar wears (ink over a blur, one hairline; phone-detail `.ph-top.solid`),
+  // so what scrolls under it is not legible through it.
+  const bar = shown && <View style={{position: held ? 'relative' : 'absolute', left: 0, right: 0, top: 0, zIndex: theme.layers.sticky}}>
+    <BarSurface/>
     {stacked ? <>
       <View style={{height: barHeight, paddingTop: insets.top, paddingHorizontal: theme.space.sm, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>
         <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress}/>
         <Text accessibilityRole="header" style={[theme.type.barTitle, {flex: 1, textAlign: 'center', color: theme.colors.text}]}>{title}</Text>
-        {topAction ? <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress}/> : <View style={{width: roundBarSize}}/>}
+        {topControl ?? (topAction ? <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress}/> : <View style={{width: roundBarSize}}/>)}
       </View>
-      {tabBar()}
+      {(held || tabsPinned) && tabBar()}
     </> : <View style={{minHeight: barHeight, paddingTop: insets.top, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
       <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress}/>
       <Text accessibilityRole="header" style={[theme.type.barTitle, {color: theme.colors.text, paddingRight: theme.space.md, borderRightWidth: 1, borderRightColor: theme.colors.line}]}>{title}</Text>
@@ -299,10 +316,18 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   return <View testID={testID} style={{flex: 1}}>
     {held && bar}
     {tv && art && !cover && <Animated.View pointerEvents="none" style={[{position: 'absolute', left: 0, right: 0, top: 0, height}, artStyle]}>{art}</Animated.View>}
-    {scroller ? <View style={{flex: 1}}>{scroller(page, {paddingBottom: frame.bottomClear}, {at: tabsY - barHeight, onChange: setPassed})}</View>
+    {scroller ? <View style={{flex: 1}}>{scroller(page, {paddingBottom: frame.bottomClear}, {at: barAt, onChange: value => {setPassed(value); setTabsPinned(value);}})}</View>
       : <ScrollView ref={scroll} style={{flex: 1}} contentContainerStyle={{paddingBottom: tv ? Math.max(frame.bottomClear, window.height - bandHeight) : frame.bottomClear}} scrollEventThrottle={32}
-        onScroll={tv ? undefined : event => setPassed(event.nativeEvent.contentOffset.y > tabsY - barHeight)}>{page}</ScrollView>}
+        onContentSizeChange={tv ? undefined : (_, contentHeight) => {
+          // Back to where the page was, once it is long enough to hold that place (its panel arrives after the head).
+          const offset = scrollMemory?.offset ?? 0;
+          if (restored.current || offset <= 0 || contentHeight < offset + window.height) return;
+          restored.current = true; scroll.current?.scrollTo({y: offset, animated: false});
+        }}
+        onScroll={tv ? undefined : event => {const y = event.nativeEvent.contentOffset.y; setPassed(y > barAt); setTabsPinned(y > tabsY - barHeight); scrollMemory?.onOffset(y);}}>{page}</ScrollView>}
     {band}
+    {/* Back and the top action stay put over the page while the hero scrolls (phone-detail d1); the bar takes their place once it has gone. */}
+    {!shown && !split && discs}
     {!held && bar}
   </View>;
 }
