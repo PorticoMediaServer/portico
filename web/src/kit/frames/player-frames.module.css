@@ -11,8 +11,9 @@
 /* desktop-player f6: the resume disc sits in the middle of the picture the Episodes drawer leaves. */
 .playerResume { position: absolute; z-index: var(--layer-hero-navigation); inset: 0 0 var(--frame-player-drawer); display: grid; place-items: center; pointer-events: none; }
 .playerResume > * { pointer-events: auto; }
+/* motion.html A-03: the controls arrive over the standard duration (out) and leave over the slow one (in). */
 .playerShade, .playerTop, .playerBar { transition: opacity var(--motion-standard) var(--ease-out); }
-.player[data-chrome='false'] :is(.playerShade, .playerTop, .playerBar) { opacity: 0; pointer-events: none; }
+.player[data-chrome='false'] :is(.playerShade, .playerTop, .playerBar) { opacity: 0; pointer-events: none; transition: opacity var(--motion-slow) var(--ease-in); }
 .player[data-covered='bar'] .playerBar { opacity: 0; pointer-events: none; }
 .playerTop { position: absolute; inset: 0 0 auto; display: flex; align-items: flex-start; gap: var(--frame-player-title-gap); padding: var(--frame-player-top) var(--frame-player-edge); }
 .playerTitle { flex: 1; min-width: 0; align-self: center; }
