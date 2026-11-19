@@ -6,7 +6,8 @@ export {PanelBlock, PanelHeading, ChoiceChips, type ChoiceChip, AboutTable, Cast
 export {SettingsListFrame, SettingsPageFrame, type SettingsListFrameProps, type SettingsPageFrameProps} from './SettingsFrame';
 export {EpisodeList, EpisodePlate, type EpisodeListProps, type EpisodeListItem, type EpisodePlateProps, type EpisodeNeighbourItem, type EpisodeCreditPerson} from './EpisodeList';
 export {SheetFrame, type SheetFrameProps, type SheetBarProps} from './SheetFrame';
-export {posterGridScroller, type PosterGridItem, type PosterGridScrollerProps} from './PosterGridScroller';
+export {posterGridScroller, titleRowsScroller, type PosterGridItem, type PosterGridScrollerProps, type TitleRowsScrollerProps} from './PosterGridScroller';
+export {TitleListRow, type TitleListItem} from './TitleListRow';
 export {SignInFrame, type SignInFrameProps} from './SignInFrame';
 export {PlayerChromeFrame, type PlayerChromeFrameProps, type PlayerReadouts, type PlayerForm} from './PlayerChromeFrame';
 export {AudioPlayerFrame, type AudioPlayerFrameProps, type AudioControl, type AudioOption} from './AudioPlayerFrame';
