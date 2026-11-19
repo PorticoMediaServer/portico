@@ -18,7 +18,8 @@ import {Skeleton} from '../../kit/states';
 import {Banner} from '../../kit/overlays';
 import {SearchResultStatus} from './SearchResultStatus';
 import {searchResultCount} from './result-status';
-import {SearchEmpty} from '../../kit/states/SearchEmpty';
+import {SearchFrame} from '../../kit/frames';
+import {WaitingNotice} from '../../kit/shell';
 import {entryCard} from '../detail/model';
 import {useFreshDocument, useQuery} from '../../platform/freshness';
 import {Icon} from '../../kit/Icon';
@@ -179,50 +180,53 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
         programme={onNowProgramme(card, now)} onNavigate={() => onOpenLive?.(card.channel.sourceId)} />)}</div>
     </section>}
   </div>;
+  const searching = !!text.trim(), selecting = !!selection?.isActive();
+  const chips = searching && !(empty && !group) && SEARCH_CHIPS.map(value => {
+    const result = groups.find(item => item.id === value.id) ?? binding.summary().find(item => item.id === value.id);
+    if (!searchChipOffered(value.id, showing?.capabilities)) return null;
+    const off = value.id !== 'all' && result?.status === 'success' && result.totalCountExact && result.totalCount === 0 && !('nextCursor' in result && result.nextCursor);
+    return <Chip key={value.id} variant="search" selected={chip === value.id} dim={off} disabled={off} retry={result?.status === 'error'}
+      count={!off && result?.totalCountExact ? result.totalCount : undefined} onClick={() => { setChip(value.id); }}>{t(value.label)}</Chip>;
+  });
+  // SearchFrame owns the title (phone width, before typing), the field with Cancel, the scope chips, the late notice and the
+  // no-match answer; the screen keeps its results under them.
   return <SearchTitleMenu.Provider value={titleMenu.open}><div className={styles.search} style={{'--search-card-scale': size, '--search-columns': Math.max(1, Math.round(7 / size))} as React.CSSProperties}>
-    {/* Phone-app 7 draws the Search title only before typing; frame 4's Cancel belongs to the
-        results state, so it is absent on the empty one. */}
-    {compact && !text.trim() && <h1 className={styles.phoneSearchTitle}>{t('web.search.title')}</h1>}
-    <div className={styles.sbar}>
-      <form className={styles.field} role="search" onSubmit={event => { event.preventDefault(); submit(true); }}>
+    <SearchFrame title={compact && !searching ? t('web.search.title') : undefined}
+      field={<form className={styles.field} role="search" onSubmit={event => { event.preventDefault(); submit(true); }}>
         <TextField ref={input} variant={compact ? 'search' : 'large-search'} type="search" autoComplete="off" spellCheck={false} value={text}
           aria-label={t('web.search.title')} placeholder={t('next.controls.searchLibraries')}
           onChange={event => { setText(event.currentTarget.value); setChip('all'); committed.current = ''; }}
           onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); results.current?.querySelector<HTMLElement>('button:not(:disabled),a[href]')?.focus(); } }}
           trailing={text ? <Button variant="icon" icon="i-x" iconOnly aria-label={t('web.search.clear')} onClick={() => { setText(''); setChip('all'); input.current?.focus(); }} />
             : <span className={styles.hint}><kbd>{t('next.controls.searchShortcut')}</kbd>{t('next.controls.searchFromAnywhere')}</span>} />
-      </form>
-      {compact && text.trim() && context.effects.openHome && <Button variant="text" size="small" className={styles.cancel}
+      </form>}
+      cancel={compact && searching && context.effects.openHome && <Button variant="text" size="small"
         onClick={() => runScreenCommand(context, () => { context.effects.openHome?.(); })}>{t('action.cancel')}</Button>}
-    </div>
-    <SearchResultStatus identity={`${snapshot.generation}:${text.trim()}:${group ?? ''}`} count={snapshot.phase === 'ready' && showing ? searchResultCount(groups) : undefined}/>
-    {selection?.isActive() ? selection.toolbar : text.trim() && !(empty && !group) && <div className={styles.chips} role="group" aria-label={t('web.search.title')}>{SEARCH_CHIPS.map(value => {
-      const result = groups.find(item => item.id === value.id) ?? binding.summary().find(item => item.id === value.id);
-      if (!searchChipOffered(value.id, showing?.capabilities)) return null;
-      const off = value.id !== 'all' && result?.status === 'success' && result.totalCountExact && result.totalCount === 0 && !('nextCursor' in result && result.nextCursor);
-      return <Chip key={value.id} variant="search" selected={chip === value.id} dim={off} disabled={off} retry={result?.status === 'error'}
-        count={!off && result?.totalCountExact ? result.totalCount : undefined} onClick={() => { setChip(value.id); }}>{t(value.label)}</Chip>;
-    })}</div>}
-    <div ref={results} className={styles.results}>
-      {!text.trim() && beforeTyping}
-      {clearFailed && <p role="alert">{t('web.search.clearFailed')}</p>}
-      {problem && <p role="status">{t(problem === 'short' ? 'web.search.tooShort' : problem === 'words' ? 'web.search.tooManyWords' : 'web.search.tooLong')}</p>}
-      {snapshot.phase === 'loading' && !showing && <SearchLoading key={snapshot.generation} />}
-      {(snapshot.phase === 'error' || snapshot.phase === 'refresh-required') && <ScreenProblem embedded context={context} error={snapshot.error} retry={() => { if (binding.results.getSnapshot() === snapshot) void binding.results.retry().catch(context.effects.reportError); }} />}
-      {failed.length > 0 && <div role="status" className={styles.partial}><Icon name="i-clock" size={22} /><span>{t('web.search.partial', {groups: new Intl.ListFormat(locale(), {style: 'long', type: 'conjunction'}).format(failed.map(value => t(searchGroupLabel(value.id))))})}</span><Button icon="i-retry" size="small" onClick={() => { void service.refresh(); }}>{t('next.states.tryAgain')}</Button></div>}
-      {empty && <SearchEmpty title={t(group ? 'web.search.nothingIn' : 'web.search.noMatches', group ? {group: t(searchGroupLabel(group))} : {query: text.trim()})} body={group ? undefined : t('web.search.noMatchesBody')}
-        action={group ? <Button variant="primary" size="compact" onClick={() => setChip('all')}>{t('web.search.everything')}</Button> : undefined} />}
-      {empty && !group && browseInstead}
-      {top && <TopResult binding={binding} result={top} fallbackArtwork={topAlbumArt} compact={compact}
-        onOpen={() => runScreenCommand(context, () => { if (!top) return; binding.open(top.entry); commit(); })} />}
-      {group && !empty ? <SearchGroupWindow binding={binding} group={group} result={groups.find(value => value.id === group)} selection={selection} onCommit={commit} />
-        : allRows.map((result, groupIndex, ordered) => {
-          const offset = ordered.slice(0, groupIndex).reduce((sum, value) => sum + value.items.length, 0);
-          return <AllResultsRow key={`${snapshot.generation}:${result.id}`} result={result} binding={binding} selection={selection} excluded={top?.entry} size={size} onSeeAll={() => setChip(result.id)}
-            renderEntry={(entry, position, selectionVisible) => <SearchResult key={keyOf(entry)} entry={entry} binding={binding} selection={selection} selectionVisible={selectionVisible} position={offset + position} onCommit={commit}
-              albumArt={entry.kind === 'artist' ? artistAlbumArt(entry, groups) : undefined} />} />;
-        })}
-    </div>
+      scopes={!selecting && chips}
+      notice={failed.length > 0 && <WaitingNotice icon="i-clock" action={{id: 'retry', label: t('next.states.tryAgain'), onAction: () => { void service.refresh(); }}}>
+        {t('web.search.partial', {groups: new Intl.ListFormat(locale(), {style: 'long', type: 'conjunction'}).format(failed.map(value => t(searchGroupLabel(value.id))))})}</WaitingNotice>}
+      none={empty ? {title: t(group ? 'web.search.nothingIn' : 'web.search.noMatches', group ? {group: t(searchGroupLabel(group))} : {query: text.trim()}), body: group ? undefined : t('web.search.noMatchesBody'),
+        action: group ? <Button variant="primary" size="compact" onClick={() => setChip('all')}>{t('web.search.everything')}</Button> : undefined} : undefined}>
+      <SearchResultStatus identity={`${snapshot.generation}:${text.trim()}:${group ?? ''}`} count={snapshot.phase === 'ready' && showing ? searchResultCount(groups) : undefined}/>
+      {selecting && selection?.toolbar}
+      <div ref={results} className={styles.results}>
+        {!searching && beforeTyping}
+        {clearFailed && <p role="alert">{t('web.search.clearFailed')}</p>}
+        {problem && <p role="status">{t(problem === 'short' ? 'web.search.tooShort' : problem === 'words' ? 'web.search.tooManyWords' : 'web.search.tooLong')}</p>}
+        {snapshot.phase === 'loading' && !showing && <SearchLoading key={snapshot.generation} />}
+        {(snapshot.phase === 'error' || snapshot.phase === 'refresh-required') && <ScreenProblem embedded context={context} error={snapshot.error} retry={() => { if (binding.results.getSnapshot() === snapshot) void binding.results.retry().catch(context.effects.reportError); }} />}
+        {empty && !group && browseInstead}
+        {top && <TopResult binding={binding} result={top} fallbackArtwork={topAlbumArt} compact={compact}
+          onOpen={() => runScreenCommand(context, () => { if (!top) return; binding.open(top.entry); commit(); })} />}
+        {group && !empty ? <SearchGroupWindow binding={binding} group={group} result={groups.find(value => value.id === group)} selection={selection} onCommit={commit} />
+          : allRows.map((result, groupIndex, ordered) => {
+            const offset = ordered.slice(0, groupIndex).reduce((sum, value) => sum + value.items.length, 0);
+            return <AllResultsRow key={`${snapshot.generation}:${result.id}`} result={result} binding={binding} selection={selection} excluded={top?.entry} size={size} onSeeAll={() => setChip(result.id)}
+              renderEntry={(entry, position, selectionVisible) => <SearchResult key={keyOf(entry)} entry={entry} binding={binding} selection={selection} selectionVisible={selectionVisible} position={offset + position} onCommit={commit}
+                albumArt={entry.kind === 'artist' ? artistAlbumArt(entry, groups) : undefined} />} />;
+          })}
+      </div>
+    </SearchFrame>
   </div>{titleMenu.menu}</SearchTitleMenu.Provider>;
 }
 

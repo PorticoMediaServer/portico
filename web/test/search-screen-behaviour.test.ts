@@ -36,7 +36,10 @@ async function mount(context: any, options: {text?: string; remember?: boolean; 
     '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard', CircleCard: 'CircleCard', EpisodeTile: 'EpisodeTile', GenreTile: 'GenreTile', LiveCard: 'LiveCard'},
     '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/layout': {WindowedGrid: 'WindowedGrid'},
     '../../kit/states': {Skeleton: 'Skeleton'}, '../../kit/overlays': {Banner: 'Banner'},
-    '../../kit/states/SearchEmpty': {SearchEmpty: 'SearchEmpty'}, '../../kit/Icon': {Icon: 'Icon'},
+    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/shell': {WaitingNotice: 'WaitingNotice'},
+    // SearchFrame's regions, drawn in order; its no-match answer is the SearchNone node.
+    '../../kit/frames': {SearchFrame: (props: any) => h.react.createElement('SearchFrame', null, props.title, props.field, props.cancel, props.scopes, props.notice,
+      props.none && h.react.createElement('SearchNone', props.none), props.children)},
     '../../platform/freshness': {useFreshDocument() {}, useQuery}, '../../shell/viewport': {useShellWidth: () => 1440},
     '../../shell/title-menu': {useTitleMenu: () => ({open() {}, menu: null, play: () => undefined})},
     '../detail/Loading': {useLoadingClock: () => 0}, '../detail/ScreenProblem': {ScreenProblem: 'ScreenProblem'},
@@ -148,8 +151,8 @@ test('partial group failure uses refresh while unavailable capabilities hide the
   const f = await mount(context, {snapshot: {phase: 'ready', query: {q: 'harbor'}, groups, pagination: {cursor: ''},
     data: {query: {q: 'harbor', group: ''}, capabilities: {groups: [{id: 'shows', available: false}]}}}});
   assert.equal(all(f.flat(), 'Chip').some(node => textOf(node) === t('search.chip.shows')), false);
-  const retry = all(f.flat(), 'Button').find(node => node.props.icon === 'i-retry'); assert.ok(retry);
-  retry.props.onClick();
+  const notice = one(f.flat(), 'WaitingNotice'); assert.equal(notice.props.icon, 'i-clock');
+  notice.props.action.onAction();
   assert.equal(f.calls.filter(call => call.name === 'refresh').length, 1);
   assert.equal(selects(f).length, 0);
 });
@@ -162,11 +165,11 @@ test('empty-but-continuable All groups keep their pending row in authored order 
   ];
   const f = await mount(context, {snapshot: {generation: 1, phase: 'ready', query: {q: 'harbor'}, groups, pagination: {cursor: ''},
     data: {query: {q: 'harbor', group: ''}, capabilities: {groups: []}}}});
-  assert.equal(all(f.flat(), 'SearchEmpty').length, 0);
+  assert.equal(all(f.flat(), 'SearchNone').length, 0);
   assert.deepEqual(all(f.flat(), 'AllResultsRow').map(node => node.props.result), [groups[2], groups[0]]);
   groups[0].nextCursor = '';groups[2].nextCursor = '';
   assert.equal(all(f.flat(), 'AllResultsRow').length, 0);
-  assert.equal(all(f.flat(), 'SearchEmpty').length, 1, 'true EOF with no entries is the empty answer');
+  assert.equal(all(f.flat(), 'SearchNone').length, 1, 'true EOF with no entries is the empty answer');
 });
 
 
