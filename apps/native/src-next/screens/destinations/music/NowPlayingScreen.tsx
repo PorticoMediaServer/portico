@@ -458,12 +458,13 @@ function ListeningFrameCover({fence, source, measureOnly = false}: {fence: Playb
   </View>;
   return gesture ? <GestureDetector gesture={gesture}>{view}</GestureDetector> : view;
 }
-/** A pure inset glass surface in the frame's panel place; its contents never feed Android's own blur. */
+/** A pure inset glass surface in the frame's panel place; its contents never feed Android's own blur. The blur is a
+ * backdrop with no children of its own: Android's blur view lays its children out over each other (SMALL-FAULTS 26). */
 function ListeningSidePanel({children}: {children: React.ReactNode}) {
   const theme = useTheme(), material = glassRecipe();
-  const body = <View style={{flex: 1, backgroundColor: material.nativeBlur ? 'rgba(7,16,24,.44)' : theme.colors.ink}}>{children}</View>;
   return <View style={{flex: 1, marginBottom: 28, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(237,245,250,.08)'}}>
-    {material.nativeBlur ? <BlurView style={{flex: 1}} blurType="dark" blurAmount={30} reducedTransparencyFallbackColor={theme.colors.ink}>{body}</BlurView> : body}
+    {material.nativeBlur ? <BlurView style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0}} blurType="dark" blurAmount={30} reducedTransparencyFallbackColor={theme.colors.ink}/> : null}
+    <View style={{flex: 1, backgroundColor: material.nativeBlur ? 'rgba(7,16,24,.44)' : theme.colors.ink}}>{children}</View>
   </View>;
 }
 export function ListeningPageBackground({fence, height, ambient, fallbackVisible = true}: {fallbackVisible?: boolean; fence: PlaybackFence; height: number; ambient: DockOccupant['presentation']['ambient']}) {
