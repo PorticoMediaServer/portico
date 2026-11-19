@@ -42,7 +42,7 @@ export function ActionRow({primary, actions = [], loading = false, primaryRef}: 
   const theme = useTheme(), spec = frameSpec.actionRow, {form} = theme;
   const stacked = form === 'phone' || form === 'medium', height = theme.spec.button.hero.height[theme.column];
   const side = (action: RowAction) => action.labelled && !stacked && !(form === 'tv' && action.wide)
-    ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
+    ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
     : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
       style={[{width: height, height}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, spec.activeEdge)}]}/>;
   const width = spec.primaryWidth[form];
