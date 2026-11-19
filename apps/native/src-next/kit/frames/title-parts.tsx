@@ -40,7 +40,12 @@ export function PanelHeading({title, count, note, trailing, quiet = false}: Read
   quiet?: boolean}>) {
   const theme = useTheme(), frame = useFrameMetrics();
   return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: theme.space.sm, rowGap: theme.space.controlGap, marginBottom: frame.headingGap}}>
-    <Text accessibilityRole="header" style={quiet ? [theme.type.rowHelp, {fontFamily: fontFamilies[600], color: theme.colors.textTertiary}] : [theme.type.rowHeading, {color: theme.colors.text}]}>{title}{count !== undefined ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{'  '}{count}</Text> : null}</Text>
+    {/* The count is its own line of text on the heading's baseline: nested in the heading, Android set the line by the
+        smaller count and cut the heading's descenders ("Acting" drew as "Actina"). */}
+    <View style={{flexDirection: 'row', alignItems: 'baseline', columnGap: theme.space.sm, flexShrink: 1}}>
+      <Text accessibilityRole="header" style={[...(quiet ? [theme.type.rowHelp, {fontFamily: fontFamilies[600], color: theme.colors.textTertiary}] : [theme.type.rowHeading, {color: theme.colors.text}]), {flexShrink: 1}]}>{title}</Text>
+      {count !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{count}</Text>}
+    </View>
     {note !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{note}</Text>}
     {trailing && <View style={{marginLeft: 'auto', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.space.controlGap}}>
       {typeof trailing === 'string' ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{trailing}</Text> : trailing}</View>}
