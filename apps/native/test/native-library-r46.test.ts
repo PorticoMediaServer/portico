@@ -55,7 +55,8 @@ async function libraryScreen(width: number, isTV = false) {
     './model': {NativeLibraryDestination: 'NativeLibraryDestination', nativeLibraryEntryKey: (entry: any) => entry.id, nativeLibraryCanSave: () => true},
     './LibraryToolbar': {LibraryToolbar: 'LibraryToolbar'}, './LibraryListRow': {LibraryListRow: 'LibraryListRow'},
     './directory': {NativeLibraryDirectory: 'NativeLibraryDirectory'},
-    './LibraryFilters': {LibraryFilters: 'LibraryFilters'},
+    './LibraryFilters': {LibraryFilters: 'LibraryFilters', useLibraryFrameFilters: () => undefined, libraryFiltersDockWidth: 380},
+    '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
     './applied-filters': {libraryAppliedFilters: () => []},
     './library-grid': {libraryTabletGridGeometry},
     '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'},
@@ -94,34 +95,36 @@ test('Library keeps default poster geometry and reserves both title lines after 
 });
 
 test('a library page renders with no selection port and routes the supplied tablet Select action', async () => {
-  // The drawn Select entry belongs to the actual library header: medium below 1024 and
-  // expanded from 1024 (LibraryScreen.tsx:251,373,375), whatever the theme calls the
-  // platform. The phone compact header draws none, so 390 keeps the no-port shape.
+  // Phone and tablet draw the library on its frame: Select is the frame header's trailing action on a tablet (medium and
+  // expanded alike; the frame picks the header per form). The phone's bar draws none and carries ‹ Libraries.
   for (const width of [390, 600, 820, 1023, 1180]) {
     const {module, host} = await libraryScreen(width);
-    let starts = 0;
+    let starts = 0, libraries = 0;
     const selection = width >= 600 ? {start: () => {starts++;}} : undefined;
     const library = {id: 'movies', name: 'Movies', kind: 'movie'};
     const state = {phase: 'loading', library, tab: {id: 'movies'}, predicates: []};
     const props = {destination: {getSnapshot: () => state, subscribe: () => () => {}},
-      runtime: {getSnapshot: () => ({authority: {}}), libraryMenu: () => ({owner: false, onEditPins: () => {}})},
+      runtime: {getSnapshot: () => ({authority: {}}), libraryMenu: () => ({owner: false, onEditPins: () => {}}), onDestination: (to: {kind: string}) => {if (to.kind === 'libraries') libraries++;}},
       activation: {getSnapshot: () => ({visible: true, revision: 1, intent: 'enter'}), subscribe: () => () => {}},
       directory: {getSnapshot: () => ({phase: 'ready', libraries: []}), subscribe: () => () => {}},
       libraries: [library], actions: {}, labels: {}, selection};
     const tree = host.render(() => module.LibraryScreen(props));
     assert.ok(elements(tree).some(node => node.props.testID === 'native-library-movies'));
+    const frame = elements(tree).find(node => node.type === 'BrowseFrame');
+    assert.ok(frame, `${width} draws the library frame`);
+    assert.deepEqual(frame.props.state, {kind: 'loading'}, 'a library loading keeps its header over the frame\'s loading boxes');
+    const header = frame.props.header;
+    assert.equal(header.title, 'Movies'); assert.equal(header.switcher.type, 'LibrarySwitcher'); assert.equal(header.menu.type, 'LibraryMenu');
     if (selection) {
-      const header = elements(tree).find(node => node.type === (width >= 1024 ? 'LibraryExpandedHeader' : 'LibraryMediumHeader'));
-      assert.ok(header, `${width} draws the ${width >= 1024 ? 'expanded' : 'medium'} library header`);
-      const button = header.props.selection;
+      const button = header.trailing;
       assert.equal(button?.props.testID, 'library-select-header');
       assert.equal(button.props.onPress, selection.start);
       button.props.onPress();
       assert.equal(starts, 1);
+      assert.equal(header.back, undefined, 'the sidebar already says where you are');
     } else {
-      const compact = elements(tree).find(node => node.type === module.LibraryCompactHeader);
-      assert.ok(compact, '390 draws the phone compact header');
-      assert.equal(compact.props.selection, undefined, 'the compact header carries no Select element');
+      assert.equal(header.trailing, undefined, 'the phone bar carries no Select element');
+      assert.equal(header.back.label, 'next.browse.native.libraries'); header.back.onPress(); assert.equal(libraries, 1);
     }
   }
 });

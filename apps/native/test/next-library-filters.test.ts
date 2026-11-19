@@ -12,7 +12,7 @@ function nodes(node: any): any[] {
   if (Array.isArray(node)) return node.flatMap(nodes);
   return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children)] : [];
 }
-async function fixture(isTV: boolean, width = isTV ? 1920 : 390, loading = false, onExited?: () => void) {
+async function fixture(isTV: boolean, width = isTV ? 1920 : 390, loading = false, onExited?: () => void, frame?: {live: boolean}) {
   const host = hooks(), calls: any[] = [], theme = createTheme({width, isTV});
   const field = {id: 'genre', labelKey: 'filter.field.genre', type: 'identity-set', operators: ['contains-any'], controlHint: 'facet-multi-select', complexity: 'quick', cost: 'indexed', applicableKinds: ['movie']};
   const capability = {library: {id: 'actual-library', kind: 'movie'}, fields: [field], sorts: [], quickFilters: [], resolvedPivot: null};
@@ -23,9 +23,10 @@ async function fixture(isTV: boolean, width = isTV ? 1920 : 390, loading = false
     defaultSort: {field: 'title', direction: 'asc'}, tab: {id: 'browse', pivot: 'movies'},
     // A library just switched to: its capabilities and sort have not arrived yet.
     ...(loading ? {phase: 'loading', library: {id: 'next-library', kind: 'movie'}, capabilities: undefined, sort: undefined} : {})};
-  const draft = {getSnapshot: () => state, subscribe() {}, setPredicates: (value: unknown) => calls.push(['predicates', value]), apply: () => {calls.push('apply'); return true;}, clear: () => calls.push('clear'), search() {}, retryFacet() {}};
+  const draft = {getSnapshot: () => state, subscribe() {}, setPredicates: (value: unknown) => calls.push(['predicates', value]), apply: () => {calls.push('apply'); return true;}, clear: () => calls.push('clear'), search() {}, retryFacet() {},
+    dispose: () => calls.push('dispose'), applyLive: () => calls.push('live'), refresh() {}, setOpenFields() {}};
   const runtime = {text: {t: defaultI18n.t}, getSnapshot: () => ({authority: {serverId: 'server', epoch: 'epoch'}}), reportError: (error: unknown) => {throw error;}};
-  const {LibraryFilters} = await screenModule(new URL('../src-next/screens/library/LibraryFilters.tsx', import.meta.url), {
+  const {LibraryFilters, useLibraryFrameFilters} = await screenModule(new URL('../src-next/screens/library/LibraryFilters.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34, left: 0, right: 0})},
     '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel}, '../../../../../packages/i18n/src': {defaultI18n},
@@ -34,8 +35,17 @@ async function fixture(isTV: boolean, width = isTV ? 1920 : 390, loading = false
     '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => theme}, './filter-controls': {libraryFilterChange, libraryFilterField},
     './model': {nativeLibraryCanSave},
   });
-  const tree = host.render(() => LibraryFilters({draft, source, runtime, labels: {field: () => 'Genre'}, owner: true, onClose: () => calls.push('close'), onExited, onSave: (value: unknown) => calls.push(['save', value])}));
-  return {tree, calls, state, source};
+  if (frame) {
+    const filters = host.render(() => useLibraryFrameFilters({draft, generation: 1, source, runtime, labels: {field: () => 'Genre'}, owner: true, live: frame.live, onSave: (value: unknown) => calls.push(['save', value])}));
+    return {tree: undefined, fields: undefined, filters, calls, state, source};
+  }
+  // The fields are their own component (the frame's Filters draws the same ones): render them in the same pass.
+  const {tree, fields} = host.render(() => {
+    const tree = LibraryFilters({draft, source, runtime, labels: {field: () => 'Genre'}, owner: true, onClose: () => calls.push('close'), onExited, onSave: (value: unknown) => calls.push(['save', value])});
+    const element = nodes(tree).find(node => typeof node.type === 'function' && node.props.panelId);
+    return {tree, fields: element && element.type(element.props)};
+  });
+  return {tree, fields, calls, state, source};
 }
 
 test('phone filter-sheet detents preserve the existing tablet defaults and TV panel', async () => {
@@ -54,9 +64,9 @@ test('phone filter-sheet detents preserve the existing tablet defaults and TV pa
 });
 
 test('TV Library filters enter the actual first field and Apply returns through the real staged controller', async () => {
-  const {tree, calls, state} = await fixture(true);
+  const {tree, fields, calls, state} = await fixture(true);
   assert.equal(tree.type, 'SidePanel'); assert.equal(tree.props.width, 680); assert.equal(tree.props.topInset, 0);
-  const builder = nodes(tree).find(node => node.type === 'FilterBuilder');
+  const builder = nodes(fields).find(node => node.type === 'FilterBuilder');
   tree.props.initialFocusRef.current.focus();
   assert.deepEqual(calls[0], ['focus', {regionId: tree.props.testID, childId: JSON.stringify([JSON.stringify([builder.props.focusPrefix, 'field', 'genre']), 'open'])}]);
   const apply = nodes(tree.props.footer).find(node => node.props.focusId === 'apply');
@@ -73,6 +83,21 @@ test('Library filters over a library that is still loading draw nothing instead 
   }
   const exited: string[] = [], {tree} = await fixture(false, 390, false, () => exited.push('exited'));
   tree.props.onExited(); assert.deepEqual(exited, ['exited'], 'the phone sheet tells its host when it has closed, so the host drops the draft');
+});
+
+test('On the library frame, Filters hands the frame its fields, count and actions: Done applies, or closes a docked pane that applied live', async () => {
+  for (const live of [false, true]) {
+    const {filters, calls, state, source} = await fixture(false, live ? 1180 : 390, false, undefined, {live});
+    assert.equal(filters.open, true); assert.equal(filters.count, '19 movies');
+    assert.equal(filters.children.type.name, 'LibraryFilterFields'); assert.equal(filters.children.props.key, 1, 'each draft opened starts its fields afresh');
+    filters.onDone(); assert.deepEqual(calls.at(-1), live ? 'dispose' : 'apply');
+    filters.onClear(); assert.deepEqual(calls.slice(-2), live ? ['clear', 'live'] : ['apply', 'clear']);
+    filters.onClose(); assert.equal(calls.at(-1), 'dispose', 'closing disposes the draft; the frame plays the exit');
+    assert.equal(filters.save.canSave, true); filters.save.onSave();
+    assert.deepEqual(calls.at(-1), ['save', {predicates: state.predicates, sort: source.sort}], 'Save view keeps the staged query');
+  }
+  const {filters} = await fixture(false, 390, true, undefined, {live: false});
+  assert.equal(filters, undefined, 'a library still loading has no Filters yet');
 });
 
 test('Phone Library filters put Clear all in the heading and save the actual staged query, not the mounted grid query', async () => {
