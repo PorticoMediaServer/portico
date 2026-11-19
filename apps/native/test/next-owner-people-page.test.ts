@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {bindingModule, lifecycleHooks, nodes, content, t, i18n, theme, specification} from './helpers/owner-server-settings.mjs';
+// The page hands the Settings page frame its list; the frame draws it as a FlatList (next-family-render), so the list is
+// read as that FlatList.
+const pageNodes = (value: unknown): any[] => nodes(value).flatMap((node: any) => node.type === 'SettingsPageFrame' && node.props.list ? [node, ...nodes({type: 'FlatList', props: node.props.list})] : [node]);
 import {createStorageForms} from '../src-next/screens/settings-live/server/storage/forms.ts';
 
 async function fixture(forms = {}) {
@@ -20,7 +23,7 @@ async function fixture(forms = {}) {
     '../../../../../../packages/i18n/src': {defaultI18n: {...i18n, date: (value: string) => value}},
     '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', Tabs: 'Tabs', TextField: 'TextField'},
     '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'},
-    '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'}, './page-layout': {settingsPageInset: () => ({}), settingsPageHeading: () => ({})}, '../../../kit/shell/visual': {shellType: () => ({})},
+    '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'}, '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame'}, '../../../kit/frames/metrics': {useFrameMetrics: () => ({form: 'phone'})}, '../../../kit/shell/visual': {shellType: () => ({})},
     '../../../kit/states': {StateView: 'StateView'}, '../../../kit/theme': {useTheme: () => theme},
     './AdvancedSection': {NativeAdvancedSection: 'Advanced'}, './SettingControl': {NativeSettingControl: 'Setting'},
     './storage/forms': forms, './people-source': {NativePeopleSource: class {constructor() {return source;}}}, './InvitationReadySheet': {InvitationReadySheet: 'InvitationReadySheet'}, './PeopleMemberProfiles': {PeopleMemberProfiles: 'PeopleMemberProfiles'},
@@ -28,8 +31,8 @@ async function fixture(forms = {}) {
   const ports = {context, requestId: () => 'operation-fixture'};
   // Render the private details component reached through the public page.
   const frames = () => host.render(() => {
-    const element = module.NativeServerPeople({ports, runtime}), page = element ? element.type(element.props) : null;
-    const details = nodes(page).find((node: any) => typeof node.type === 'function' && node.props.person === person);
+    const element = module.NativeServerPeople({ports, runtime, title: 'settings.server.people'}), page = element ? element.type(element.props) : null;
+    const details = pageNodes(page).find((node: any) => typeof node.type === 'function' && node.props.person === person);
     return {page, details: details ? details.type(details.props) : null};
   });
   const render = () => frames().details;
@@ -51,7 +54,7 @@ test('People Advanced reads the default stream limit from the rebuilt server', a
     useStorageSet: (value: ReturnType<typeof createStorageForms>) => value.set.getSnapshot(),
   });
   try {
-    const advanced = nodes(f.page()).find((node: any) => node.type?.name === 'PeopleAdvanced');
+    const advanced = pageNodes(f.page()).find((node: any) => node.type?.name === 'PeopleAdvanced');
     assert.ok(advanced);
     f.host.render(() => advanced.type(advanced.props));
     assert.deepEqual(Object.keys(group!.forms), ['streamLimits']);
@@ -88,17 +91,17 @@ test('Person Devices is windowed and both sign-out actions wait for confirmation
     assert.deepEqual(f.writes, [{readDevices: f.person}]); f.writes.length = 0;
     const deviceList = nodes(f.render()).find((node: any) => node.props.testID === 'people-devices');
     assert.deepEqual(deviceList.props.data, [f.device]);
-    assert.equal(nodes(f.page()).find((node: any) => node.type === 'BottomSheet' && node.props.open && node.props.title === f.person.username).props.scrollable, false);
+    assert.equal(pageNodes(f.page()).find((node: any) => node.type === 'BottomSheet' && node.props.open && node.props.title === f.person.username).props.scrollable, false);
     const item = deviceList.props.renderItem({item: f.device});
     nodes(item).find((node: any) => node.props.testID === `people-device-signout-${f.device.id}`).props.onPress();
     assert.equal(f.writes.length, 0);
-    let confirmation = nodes(f.page()).find((node: any) => node.type === 'BottomSheet' && node.props.showClose === false);
+    let confirmation = pageNodes(f.page()).find((node: any) => node.type === 'BottomSheet' && node.props.showClose === false);
     assert.equal(confirmation.props.open, true);
     await nodes(confirmation.props.footer).find((node: any) => node.type === 'Button' && content(node) === 'action.signOut').props.onPress();
     assert.deepEqual(f.writes, [{signOut: f.person, device: f.device}]); f.writes.length = 0;
     nodes(f.render()).find((node: any) => node.props.testID === 'people-devices-signout-all').props.onPress();
     assert.equal(f.writes.length, 0);
-    confirmation = nodes(f.page()).find((node: any) => node.type === 'BottomSheet' && node.props.showClose === false);
+    confirmation = pageNodes(f.page()).find((node: any) => node.type === 'BottomSheet' && node.props.showClose === false);
     await nodes(confirmation.props.footer).find((node: any) => node.type === 'Button' && content(node) === 'action.signOut').props.onPress();
     assert.deepEqual(f.writes, [{signOut: f.person, device: undefined}]);
   } finally {f.host.dispose();}
@@ -120,12 +123,12 @@ test('the owner\'s Let back in sits on a Left row only and asks once before it i
     const left = {...f.person, accountId: 'left-fixture', username: 'left', status: 'left', allowedLibraries: [], libraryNames: [], profileNames: [], effectiveMaxStreams: null, liveState: 'idle'};
     const active = {...left, accountId: 'active-fixture', username: 'active', status: 'active'};
     (f.source as any).letBackIn = async (captured: unknown) => {f.writes.push({letBackIn: captured});};
-    const list = () => nodes(f.page()).find((node: any) => node.type === 'FlatList');
+    const list = () => pageNodes(f.page()).find((node: any) => node.type === 'FlatList');
     const button = (item: unknown, id: string) => nodes(list().props.renderItem({item})).find((node: any) => node.props.testID === `people-let-back-in-${id}`);
     assert.equal(button(active, 'active-fixture'), undefined, 'no button for someone who has not left');
     button(left, 'left-fixture').props.onPress();
     assert.equal(f.writes.length, 0, 'nothing is sent before it is confirmed');
-    const confirmation = nodes(f.page()).find((node: any) => node.type === 'BottomSheet' && node.props.showClose === false);
+    const confirmation = pageNodes(f.page()).find((node: any) => node.type === 'BottomSheet' && node.props.showClose === false);
     assert.equal(confirmation.props.open, true);
     // The page names the person in the title; this helper's text is the key itself.
     assert.equal(confirmation.props.title, (t as (key: string, values?: unknown) => string)('next.settings.letBackInTitle', {name: 'left'}));

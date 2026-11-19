@@ -14,6 +14,8 @@ import {ServerHeader} from '../../../kit/shell/ServerIdentity';
 import {shellType} from '../../../kit/shell/visual';
 import {StateView} from '../../../kit/states';
 import {useTheme} from '../../../kit/theme';
+import {SettingsPageFrame} from '../../../kit/frames';
+import {useFrameMetrics} from '../../../kit/frames/metrics';
 import type {NativeSettingsLivePorts} from '../ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {NativeAdvancedSection} from './AdvancedSection';
@@ -22,9 +24,10 @@ import {useStorageForms, useStorageSet, useFormState, type StorageForms} from '.
 import {NativePeopleSource, type InvitationOpening} from './people-source';
 import {InvitationReadySheet} from './InvitationReadySheet';
 import {PeopleMemberProfiles} from './PeopleMemberProfiles';
-import {settingsPageHeading, settingsPageInset} from './page-layout';
 
-type Props = {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean};
+/** On the Settings page frame as one long list: the page's title and Back from the screen, and the screen's own error
+ * leading the list's own header. */
+type Props = {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; title: string; back?: Readonly<{label: string; onPress: () => void}>; notice?: React.ReactNode};
 type Confirmation = Readonly<{person: AccessMember; action: 'disable' | 'enable' | 'role' | 'devices'; role?: 'admin' | 'member'; device?: AccessDevice} | {person: AccessMember; action: 'remove'; preview: MemberDeletionPreview} | {invitation: ServerInvitation; action: 'revoke'} | {row: SettingsPersonRow; action: 'letBackIn'}>;
 const IDS = ['streamLimits'] as const;
 // List contracts expose strings; the shared parser admits these three roles.
@@ -39,8 +42,8 @@ export function NativeServerPeople(props: Props) {
   return source?.context === context && source.current() ? <People key={context.authority().accountId} {...props} source={source}/> : null;
 }
 
-function People({ports, runtime, compactHeader, source}: Props & {source: NativePeopleSource}) {
-  const theme = useTheme(), t = runtime.text.t, state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
+function People({ports, runtime, title, back, notice, source}: Props & {source: NativePeopleSource}) {
+  const theme = useTheme(), frame = useFrameMetrics(), t = runtime.text.t, state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   const [search, setSearch] = useState(''), [cursors, setCursors] = useState<readonly string[]>(['']);
   const [confirmation, setConfirmation] = useState<Confirmation>(), [typedName, setTypedName] = useState('');
   const view = useMemo(() => ({active: true, source, confirmation: undefined as Confirmation | undefined}), [source]);
@@ -64,10 +67,9 @@ function People({ports, runtime, compactHeader, source}: Props & {source: Native
   const loading = state.loading || state.busy;
   const page = state.tab === 'people' ? state.people : state.invitations;
   const rows: readonly (SettingsPersonRow | ServerInvitation)[] = state.tab === 'people' ? state.people?.items ?? [] : state.invitations?.items ?? [];
-  const header = <View style={{gap: 14, marginBottom: 12}}>
-    <ServerHeader serverName={ports.context.serverName} viewerRole={source.ownerControls() ? 'owner' : 'administrator'} audience={source.ownerControls() ? 'owner' : 'administrators'} variant="phone"/>
-    {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{t('settings.server.people')}</Text>}
-    <Tabs value={state.tab} onValueChange={tab => {if (current() && !loading && (tab === 'people' || tab === 'invitations')) {setCursors(['']); source.select(tab);}}} items={[{value: 'people', label: t('settings.server.people')}, {value: 'invitations', label: t('settings.server.invitations')}]}/>
+  const tabs = <Tabs value={state.tab} onValueChange={tab => {if (current() && !loading && (tab === 'people' || tab === 'invitations')) {setCursors(['']); source.select(tab);}}} items={[{value: 'people', label: t('settings.server.people')}, {value: 'invitations', label: t('settings.server.invitations')}]}/>;
+  const header = <View style={{gap: 14}}>
+    {notice}
     <TextField testID="people-search" accessibilityLabel={t('web.shell.search')} value={search} maxLength={160} returnKeyType="search" editable={!state.busy} onChangeText={setSearch} onSubmitEditing={() => choose({search: search.trim()})}/>
     <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8}}>
       <Button size="compact" variant="glass" onPress={() => choose({search: search.trim()})} disabled={loading}>{t('web.shell.search')}</Button>
@@ -91,9 +93,11 @@ function People({ports, runtime, compactHeader, source}: Props & {source: Native
     {loading && <Text style={[shellType(14, 400, 20), {color: theme.colors.textTertiary}]}>{t('next.settings.loading')}</Text>}
   </View>;
   return <View testID="server-people" style={{flex: 1}}>
-    <FlatList data={rows} keyExtractor={row => 'accountId' in row && 'username' in row ? row.accountId : row.id} contentContainerStyle={{...settingsPageInset(theme, compactHeader)}}
-      ListHeaderComponent={header} ListEmptyComponent={!loading && page ? <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{t('web.people.noResults')}</Text> : null}
-      renderItem={({item}) => 'username' in item ? <View><Focusable testID={`people-person-${item.accountId}`} accessibilityRole="button" accessibilityLabel={item.username} disabled={loading} onPress={() => {if (current()) void source.open(item);}} style={{paddingVertical: 14, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft, gap: 4}}>
+    <SettingsPageFrame title={title} back={back} tabs={tabs}
+      server={<ServerHeader serverName={ports.context.serverName} viewerRole={source.ownerControls() ? 'owner' : 'administrator'} audience={source.ownerControls() ? 'owner' : 'administrators'} variant={frame.form === 'phone' ? 'phone' : 'page'}/>}
+      list={{data: rows, keyExtractor: (row: (typeof rows)[number]) => 'accountId' in row && 'username' in row ? row.accountId : row.id,
+      ListHeaderComponent: header, ListEmptyComponent: !loading && page ? <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{t('web.people.noResults')}</Text> : null,
+      renderItem: ({item}: {item: (typeof rows)[number]}) => 'username' in item ? <View><Focusable testID={`people-person-${item.accountId}`} accessibilityRole="button" accessibilityLabel={item.username} disabled={loading} onPress={() => {if (current()) void source.open(item);}} style={{paddingVertical: 14, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft, gap: 4}}>
         <View style={{flexDirection: 'row', justifyContent: 'space-between', gap: 12}}><Text style={[shellType(16, 700), {color: theme.colors.text}]}>{item.username}</Text><Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{roleLabel(t, item.role)}</Text></View>
         {item.email && <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{item.email}</Text>}
         <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{item.allowedLibraries.length ? item.libraryNames.join(' · ') : t('server.people.allLibraries')} · {item.effectiveMaxStreams === null ? t('settings.server.unlimited') : t('server.people.streams', {count: item.effectiveMaxStreams})}</Text>
@@ -105,11 +109,11 @@ function People({ports, runtime, compactHeader, source}: Props & {source: Native
         <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{roleLabel(t, item.role)} · {invitationState(t, item.state)} · {defaultI18n.date(item.expiresAt)}</Text>
         {source.ownerControls() && item.state === 'pending' && <Button variant="glass" size="compact" disabled={loading} onPress={() => {if (current()) source.beginInvitation(item);}}>{t('next.selection.edit')}</Button>}
         {source.ownerControls() && item.state === 'pending' && <Button size="compact" variant="danger" disabled={loading} onPress={() => ask({action: 'revoke', invitation: item})}>{t('web.access.revoke')}</Button>}
-      </View>}
-      ListFooterComponent={<View style={{gap: 16, marginTop: 12}}><View style={{flexDirection: 'row', gap: 8}}>
+      </View>,
+      ListFooterComponent: <View style={{gap: 16, marginTop: 12}}><View style={{flexDirection: 'row', gap: 8}}>
         {cursors.length > 1 && <Button variant="glass" disabled={loading} onPress={() => {if (!current() || loading) return; const next = cursors.slice(0, -1); setCursors(next); void source.load(next[next.length - 1]);}}>{t('action.back')}</Button>}
         {!!page?.nextCursor && <Button variant="glass" disabled={loading} onPress={() => {if (!current() || loading || page !== (source.getSnapshot().tab === 'people' ? source.getSnapshot().people : source.getSnapshot().invitations)) return; setCursors([...cursors, page.nextCursor]); void source.load(page.nextCursor);}}>{t('action.showMore')}</Button>}
-      </View>{source.ownerControls() && <PeopleAdvanced ports={ports} runtime={runtime}/>}</View>}/>
+      </View>{source.ownerControls() && <PeopleAdvanced ports={ports} runtime={runtime}/>}</View>}}/>
     <BottomSheet scrollable={false} open={!!state.selected} onOpenChange={open => {if (!open && current() && source.getSnapshot().selected === state.selected) source.closePerson();}} title={state.selected?.username} dismissOnBack={!state.busy} dismissOnGesture={!state.busy} dismissOnOutsidePress={!state.busy}>
       {state.opening && <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{t('next.settings.loading')}</Text>}
       {state.person && <PersonDetails key={`${state.person.accountId}:${state.person.revision}:${state.person.limitsRevision}`} source={source} person={state.person} runtime={runtime} ask={ask}/>}
@@ -213,7 +217,7 @@ function InvitationEditor({source, opening, runtime}: {source: NativePeopleSourc
   </BottomSheet>;
 }
 
-function PeopleAdvanced({ports, runtime}: Props) {
+function PeopleAdvanced({ports, runtime}: Pick<Props, 'ports' | 'runtime'>) {
   const group = useStorageForms(ports, IDS, runtime.reportError);
   return group ? <BoundPeopleAdvanced key={group.mount} group={group} runtime={runtime}/> : null;
 }
