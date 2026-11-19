@@ -118,7 +118,8 @@ test('the drawn top result keeps f5 meta at 24px with 26px gaps, season count as
   assert.deepEqual(label, {...browseType(theme, 20, 700), color: colors.accentStrong, marginBottom: 10});
   const title = style(elements(row).find(node => node.type === 'Text' && node.props.numberOfLines === 3)!.props.style);
   assert.deepEqual(title, {...browseType(theme, 52, 800, -.04, 52), color: colors.text, marginBottom: 14});
-  assert.equal(title.lineHeight, 52);
+  // G2: a set line box is never under the measured floor (1.36 of the size) on any form.
+  assert.equal(title.lineHeight, Math.ceil(52 * 1.36));
   const meta = elements(row).find(node => style(node.props.style).rowGap === 10 && style(node.props.style).columnGap === 26)!;
   assert.deepEqual(style(meta.props.style), {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 26, rowGap: 10, marginBottom: 14});
   const facts = elements(meta).filter(node => node.type === 'Text').map(node => ({text: flatText(node.props.children), style: style(node.props.style)}));
