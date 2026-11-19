@@ -1,5 +1,5 @@
 import React, {Children, isValidElement, useEffect, useRef, useState, type ReactNode} from 'react';
-import {ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle} from 'react-native';
+import {ScrollView, StyleSheet, TVFocusGuideView, Text, View, useWindowDimensions, type FocusGuideMethods, type ViewStyle} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
@@ -7,6 +7,7 @@ import {frameSpec} from '@portico/design';
 import {Button} from '../controls/Button';
 import {ActionRow, type RowAction, type RowPrimary} from '../controls/ActionRow';
 import {Tabs, type TabItem} from '../controls/Tabs';
+import {Focusable} from '../controls/Focusable';
 import {Icon, type IconName} from '../Icon';
 import {Lockup} from '../layout/Lockup';
 import {RoundBarButton, roundBarSize, type TopBarBack} from '../layout/TopBar';
@@ -106,21 +107,32 @@ export function TitleSection({children}: Readonly<{tab: string; children?: React
 
 /** The primary's own focus id when the screen gives it no test id. */
 const titlePrimaryId = 'title-primary';
+/** How far the folded head's words fade: almost away, never to zero (tvOS will not focus a transparent view). */
+const tvFoldedCopy = .03;
 function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
   const [passed, setPassed] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY);
   // TV (detail-tv-3): focus moving into the panel folds the hero to the title and the tabs at the top, the art dims, and
   // the section that holds focus rises to just under them; focus back on the buttons unfolds it. The head stays laid out
-  // (its words fade), so Up from the first row finds the buttons again. `where` is the head or a section's index; focus
+  // (it scrolls under the band, its words faded), so Up from the first row finds the buttons again. `where` is the head or a section's index; focus
   // leaving the page (the rail, an overlay) keeps it. A page with its own scroller (an album's songs) scrolls itself and
   // does not fold.
   const motion = useMotion(), [where, setWhere] = useState<'head' | number>('head');
   const folded = tv && !scroller && (collapsed ?? where !== 'head');
   const scroll = useRef<ScrollView>(null), ys = useRef({content: 0, column: 0, sections: [] as number[]}), [bandHeight, setBandHeight] = useState(0);
   const fold = useSharedValue(0);
+  // tvOS moves focus only to what is on screen, and folded, the buttons are scrolled away above: a guide over the first
+  // section sends Up to Play (or, with no Play, into the head). It is live only while folded, so Down from Play is untouched.
+  const primaryView = useRef<View>(null), headView = useRef<View>(null), upGuide = useRef<View & FocusGuideMethods>(null);
+  useEffect(() => {
+    const target = primaryView.current ?? headView.current;
+    upGuide.current?.setDestinations(folded && target ? [target] : []);
+  }, [folded]);
   useEffect(() => {fold.value = withTiming(folded ? 1 : 0, motion.timing('standard'));}, [fold, folded, motion]);
-  const copyStyle = useAnimatedStyle(() => ({opacity: 1 - fold.value}));
+  // The words fade as the page folds, so they never show through the band; never to nothing, since tvOS will not move
+  // focus to a fully transparent view and Up must still reach Play.
+  const copyStyle = useAnimatedStyle(() => ({opacity: 1 - fold.value * (1 - tvFoldedCopy)}));
   const bandStyle = useAnimatedStyle(() => ({opacity: fold.value}));
   const artStyle = useAnimatedStyle(() => ({opacity: 1 - fold.value * (1 - frameSpec.hero.title.tvCollapsedArt)}));
   const align = () => {
@@ -146,11 +158,19 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   const discTop = insets.top + theme.space.tight, discRow = discTop + roundBarSize + theme.space.sm;
   const centre = stacked ? 'center' as const : 'flex-start' as const;
 
-  const kickerLine = kicker && <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.space.controlGap, marginBottom: theme.space.controlGap}}>
-    <Text accessibilityRole={kicker.onPress ? 'link' : undefined} onPress={kicker.onPress} style={[theme.type.rowHelp, {color: kicker.onPress || kicker.icon ? theme.colors.accentStrong : theme.colors.textSecondary, fontFamily: theme.type.rowLabel.fontFamily}]}>
-      {kicker.icon ? <><Icon name={kicker.icon} size={16} color={theme.colors.accentStrong}/>{' '}</> : null}{kicker.label}</Text>
+  const kickerWords = kicker && <>
+    <Text accessibilityRole={kicker.onPress && !tv ? 'link' : undefined} onPress={tv ? undefined : kicker.onPress} style={[theme.type.rowHelp, {color: kicker.onPress || kicker.icon ? theme.colors.accentStrong : theme.colors.textSecondary, fontFamily: theme.type.rowLabel.fontFamily}]}>
+      {kicker.icon ? <><Icon name={kicker.icon} size={tv ? theme.scale.icon.tertiary.size : 16} color={theme.colors.accentStrong}/>{' '}</> : null}{kicker.label}</Text>
     {kicker.detail !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.text, fontFamily: theme.type.rowLabel.fontFamily}]}>{kicker.detail}</Text>}
-  </View>;
+  </>;
+  const kickerRow = {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.space.controlGap} as const;
+  // On TV a kicker that opens something (the collection, tv-detail frame 1) is a focus stop of its own, above the buttons:
+  // text alone takes no D-pad focus.
+  const kickerLine = kicker && (tv && kicker.onPress
+    ? <Focusable focusId="title-kicker" testID="title-kicker" accessibilityRole="link" accessibilityLabel={[kicker.label, kicker.detail].filter(Boolean).join(', ')} onPress={kicker.onPress}
+      // The ring is drawn outside the line: its room comes on top of the gap, so it never touches the title (R1).
+      style={[kickerRow, {alignSelf: 'flex-start', marginBottom: theme.space.controlGap + theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv}]}>{kickerWords}</Focusable>
+    : <View style={[kickerRow, {marginBottom: theme.space.controlGap}]}>{kickerWords}</View>);
   const identity = <>
     {kickerLine}
     {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
@@ -175,7 +195,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
 
   // The played part and the time left are in the button on a tablet on its side and TV; under the row elsewhere, with Start over.
   const resume = primary?.progress !== undefined && !loading, lineUnder = resume && (stacked || !!cover);
-  const row = (primary || actions.length > 0) && <ActionRow loading={loading} actions={actions} primary={primary && {...primary, focusId: primary.testID ?? titlePrimaryId,
+  const row = (primary || actions.length > 0) && <ActionRow loading={loading} actions={actions} primaryRef={primaryView} primary={primary && {...primary, focusId: primary.testID ?? titlePrimaryId,
     progress: lineUnder ? undefined : primary.progress, startOver: stacked ? undefined : primary.startOver}}/>;
   const track = theme.spec.card.progress.height[theme.column];
   const resumeLine = lineUnder ? <View style={{gap: theme.space.tight, width: '100%', maxWidth: cover && !stacked ? spec.coverResumeWidth : undefined}}>
@@ -232,6 +252,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   sectionTabs.current = sections.map(section => section.tab);
   const content = <View onLayout={event => {ys.current.content = event.nativeEvent.layout.y;}} style={{marginTop: tabs ? frame.headerGap + frame.headingGap : frame.sectionGap, flexDirection: besideAside ? 'row' : 'column', alignItems: 'flex-start', gap: besideAside ? theme.space.xl : frame.sectionGap}}>
     <View onLayout={event => {ys.current.column = event.nativeEvent.layout.y;}} style={{flex: besideAside ? 1 : undefined, alignSelf: besideAside ? undefined : 'stretch', minWidth: 0, gap: frame.sectionGap}}>
+      {tv && !scroller && !loading && <TVFocusGuideView ref={upGuide} focusable={folded} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>}
       {tv && !scroller && !loading ? sections.map((section, index) => <FocusWithin key={index} onChange={focused => {if (focused) setWhere(index);}}>
         <View style={{gap: frame.sectionGap}} onLayout={event => {ys.current.sections[index] = event.nativeEvent.layout.y; if (where === index) align();}}>{section.node}</View></FocusWithin>)
         : panel}</View>
@@ -278,7 +299,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   </View>;
   const strip = tabs && !held && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>;
   const page = tv ? <>
-    <FocusWithin onChange={focused => {if (focused) setWhere('head');}}><Animated.View style={copyStyle}>{head}{strip}</Animated.View></FocusWithin>
+    <FocusWithin onChange={focused => {if (focused) setWhere('head');}}><Animated.View ref={headView} style={copyStyle}>{head}{strip}</Animated.View></FocusWithin>
     {content}
   </> : <>
     {!held && head}
@@ -289,10 +310,11 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   // folded band (the title at display size and the tabs over a wash of ink) sits over the top of the page.
   const band = tv && !scroller && <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" onLayout={event => setBandHeight(event.nativeEvent.layout.height)}
     style={[{position: 'absolute', left: 0, right: 0, top: 0, paddingTop: frame.titleTop, paddingBottom: frame.headingGap}, bandStyle]}>
-    <Svg pointerEvents="none" accessible={false} width="100%" height={bandHeight || '100%'} style={StyleSheet.absoluteFill}>
+    {/* Sized and placed by number: tvOS draws nothing for this wash when it is laid out by absoluteFill. */}
+    {bandHeight > 0 && <Svg pointerEvents="none" accessible={false} width="100%" height={bandHeight} style={{position: 'absolute', left: 0, top: 0}}>
       <Defs><LinearGradient id="title-band" x1="0" y1="0" x2="0" y2="1">{spec.tvBand.map(([opacity, at]) => <Stop key={at} offset={at} stopColor={theme.colors.ink} stopOpacity={opacity}/>)}</LinearGradient></Defs>
       <Rect width="100%" height="100%" fill="url(#title-band)"/>
-    </Svg>
+    </Svg>}
     <View style={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}><Lockup title={title} size={spec.tvFoldedLockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking}/></View>
     {tabs && tabBar({marginTop: frame.headerGap})}
   </Animated.View>;

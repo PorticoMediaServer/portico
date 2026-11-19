@@ -221,16 +221,21 @@ export function EpisodeDisplay({title, mark, intro, rows, preview}: Readonly<{ti
 /** One credits line under the cast on a phone and an upright tablet: "Directed by" and the names (phone-detail d1 frame 2). */
 export type TitleCreditLine = Readonly<{label: string; names: string}>;
 export type TitleDetailsProps = Readonly<{
-  about?: Readonly<{title: string; rows: readonly Readonly<{label: string; values: readonly AboutValue[]}>[]}>;
-  people?: Readonly<{title: string; groups: readonly (readonly CastPerson[])[]; seeAll?: Readonly<{label: string; onPress: () => void}>; lines?: readonly TitleCreditLine[]}>;
+  /** `body` and `note`: on TV, About carries the full synopsis and the tagline beside the facts (detail-tv-4). */
+  about?: Readonly<{title: string; rows: readonly Readonly<{label: string; values: readonly AboutValue[]}>[]; body?: string; note?: string}>;
+  people?: Readonly<{title: string; groups: readonly (readonly CastPerson[])[]; seeAll?: Readonly<{label: string; onPress: () => void}>; lines?: readonly TitleCreditLine[];
+    /** The grey note beside the heading ("Cast, then crew", detail-tv-4). */
+    note?: string}>;
   /** The collection the title belongs to: the kit `CollectionBanner`, drawn at the panel's width (any width given is replaced). */
   collection?: CollectionCardProps;
 }>;
 /** A title's Details tab (desktop-detail f3, phone-detail d1 frame 2, tablet f6): About and Cast & crew, one above the
- * other on a phone and an upright tablet and side by side from a tablet on its side, then the collection. The frame
- * spaces the blocks; the page passes words and people only. */
+ * other on a phone and an upright tablet and side by side from a tablet on its side, then the collection. On TV
+ * (detail-tv-4) About is the words beside the facts and Cast & crew one full-width row under it, so Down from a row of
+ * posters lands on a person on every TV. The frame spaces the blocks; the page passes words and people only. */
 export function TitleDetails({about, people, collection}: TitleDetailsProps) {
   const theme = useTheme(), frame = useFrameMetrics(), stacked = frame.form === 'phone' || frame.form === 'medium';
+  if (frame.form === 'tv') return <TVTitleDetails about={about} people={people} collection={collection}/>;
   const cast = people && (people.groups.some(group => group.length > 0) || people.lines?.length) ? <View style={{flex: stacked ? undefined : sizes.detailsCastShare, minWidth: 0}}>
     <PanelHeading title={people.title} trailing={people.seeAll && <Button variant="text" size="small" trailingIcon="i-right" onPress={people.seeAll.onPress}>{people.seeAll.label}</Button>}/>
     <CastRow groups={people.groups}/>
@@ -246,5 +251,25 @@ export function TitleDetails({about, people, collection}: TitleDetailsProps) {
     {collection ? frame.form === 'phone'
       ? <View style={{marginHorizontal: frame.cardInset}}><CollectionTile {...collection} layout="link" width={frame.width - 2 * frame.cardInset}/></View>
       : <PanelBlock><CollectionBanner {...collection} width={frame.width - frame.gutter - frame.rightGutter}/></PanelBlock> : null}
+  </>;
+}
+
+function TVTitleDetails({about, people, collection}: TitleDetailsProps) {
+  const theme = useTheme(), frame = useFrameMetrics();
+  const words = about && (about.body !== undefined || about.note !== undefined);
+  // Directed by and Written by are facts here, after Released (detail-tv-4), not lines under the cast.
+  const lines = (people?.lines ?? []).filter(line => !about?.rows.some(row => row.label === line.label));
+  const rows = about ? [...about.rows.slice(0, 1), ...lines.map(line => ({label: line.label, values: [{text: line.names}]})), ...about.rows.slice(1)] : [];
+  return <>
+    {about && (words || rows.length > 0) ? <PanelBlock><View style={{flexDirection: 'row', alignItems: 'flex-start', gap: sizes.tvAboutGap}}>
+      <View style={{width: sizes.tvAboutWidth}}><PanelHeading title={about.title}/>
+        {about.body !== undefined && <Text style={[theme.type.synopsis, {color: theme.colors.textSecondary}]}>{about.body}</Text>}
+        {about.note !== undefined && <Text style={[theme.type.intro, {marginTop: theme.space.sm}]}>{about.note}</Text>}</View>
+      {rows.length > 0 && <View style={{flex: 1, minWidth: 0}}><AboutTable rows={rows}/></View>}
+    </View></PanelBlock> : null}
+    {people && people.groups.some(group => group.length > 0) ? <View><PanelBlock><PanelHeading title={people.title} note={people.note}
+      trailing={people.seeAll && <Button variant="text" size="small" trailingIcon="i-right" onPress={people.seeAll.onPress}>{people.seeAll.label}</Button>}/></PanelBlock>
+      <PanelBlock><CastRow groups={people.groups}/></PanelBlock></View> : null}
+    {collection ? <PanelBlock><CollectionBanner {...collection} width={frame.width - frame.gutter - frame.rightGutter}/></PanelBlock> : null}
   </>;
 }
