@@ -26,6 +26,7 @@ import {NativeTitleController, type NativeTitlePageHost} from './title-controlle
 import {NativeTitleStarts} from './title-starts';
 import {NativeTitleScreen, type NativeTitleScreenProps} from './TitleScreen';
 import {FilmPage} from '../../pages/touch/title/FilmPage';
+import {FilmPage as TVFilmPage} from '../../pages/tv/title/FilmPage';
 import {FileInfoSession, fileInfoUsesGroups} from '../../../../../packages/client-core/src/file-info-session';
 import {NativeFileInfoPanel} from './FileInfoPanel';
 import type {NativeFileInfoOwner} from './file-info';
@@ -499,8 +500,8 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
             runtime.playOn?.open(anchorRef);
           } : undefined;
       const selection = selectionFor(key, controller);
-      // The rebuilt touch film page (pages/touch/title); TV, shows, seasons and episodes stay on the old screen until theirs land.
-      const Screen = !ports.isTV && route.entry.kind === 'movie' ? FilmPage : NativeTitleScreen;
+      // The rebuilt film pages (pages/touch/title, pages/tv/title); shows, seasons and episodes stay on the old screen until theirs land.
+      const Screen = route.entry.kind === 'movie' ? ports.isTV ? TVFilmPage : FilmPage : NativeTitleScreen;
       return <Screen authority={ports.authority} {...ports.title} search={search} removeContinue={removeContinue} onPlayOn={onPlayOn} playOn={runtime.playOn} key={key} controller={controller} text={runtime.text} artwork={runtime.artwork} ambient={runtime.ambient}
         selection={selection ? entry => selection.item(entry) : undefined} selectionBar={selection?.render()}
         back={() => {ports.navigation.back(ports.authority);}} more={(entry, anchorRef) => {
