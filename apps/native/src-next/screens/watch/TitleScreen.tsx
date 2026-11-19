@@ -69,6 +69,8 @@ export type NativeTitleScreenProps = Readonly<{
   playOn?: NativePlayOn;
   /** A registered person route, where the shell has one. */
   person?: (personId: string) => void;
+  /** The Search genre page for one of the title's genres (its tag id is the genre's id). */
+  genre?: (genre: Readonly<{id: string; name: string}>) => void;
   /** The signed-in viewer owns this server; Show settings is drawn for owners. */
   owner?: boolean;
   /** A real catalogue collection named by the title's detail projection. */
