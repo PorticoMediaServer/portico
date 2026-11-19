@@ -9,7 +9,8 @@ import {createTheme, fontFamilies} from '../src-next/kit/theme.ts';
 import {browseType} from '../src-next/kit/browse/presentation.ts';
 
 type Element = {type: any; props: Record<string, any>};
-const elements = (node: any): Element[] => Array.isArray(node) ? node.flatMap(elements) : node && typeof node === 'object' && 'props' in node ? [node, ...elements(node.props.children)] : [];
+// BrowseFrame's self-scrolling region is a prop beside its children: the walk reads it too.
+const elements = (node: any): Element[] => Array.isArray(node) ? node.flatMap(elements) : node && typeof node === 'object' && 'props' in node ? [node, ...elements(node.props.children), ...elements(node.props.grid)] : [];
 const flat = (style: any): Record<string, any> => Array.isArray(style) ? style.reduce((out, part) => Object.assign(out, flat(part)), {}) : {...(style ?? {})};
 const text = (node: Element | undefined): string => ([] as any[]).concat(node?.props.children ?? []).join('');
 const theme = createTheme({width: 390, isTV: false});
@@ -56,7 +57,7 @@ async function savedScreen() {
     '../../../../../packages/i18n/src': {defaultI18n: {t, bytes: () => '3.4 GB', number: (value: number) => String(value)}},
     '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard'},
     '../../kit/cards/primitives': {CardFrame: 'CardFrame', Parts: 'Parts'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/overlays': {Menu: 'Menu'},
-    '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Tabs: 'Tabs'},
+    '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Tabs: 'Tabs'}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
     '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType, alpha: (color: string) => color},
     '../../kit/theme': {useTheme: () => theme},
@@ -78,15 +79,12 @@ test('Saved phone body keeps the drawn large title, shelf and track rhythm', asy
   const {screen, tree} = await savedScreen();
   const mounted: Array<Awaited<ReturnType<typeof mount>>> = [];
   try {
-    const scroll = elements(tree).find(node => node.type === 'ScrollView' && node.props.contentContainerStyle?.paddingTop !== undefined)!;
-    assert.equal(scroll.props.contentContainerStyle.paddingTop, 58, 'phone-app9 .lt starts 58 below the top');
-    const title = elements(tree).find(node => node.type === 'Text' && node.props.accessibilityRole === 'header' && text(node) === 'saved.title')!;
-    const titleStyle = flat(title.props.style);
-    assert.equal(titleStyle.fontSize, drawn.largeTitle, '.lt h1 is 32');
-    assert.equal(titleStyle.letterSpacing, -.035 * drawn.largeTitle);
-    assert.equal(titleStyle.lineHeight, drawn.largeTitleLine, '.lt h1 line-height 1.15');
-    const titleBlock = elements(tree).find(node => node.type === 'View' && childrenOf(node).some(child => child === title))!;
-    assert.deepEqual({paddingHorizontal: flat(titleBlock.props.style).paddingHorizontal, paddingBottom: flat(titleBlock.props.style).paddingBottom}, {paddingHorizontal: 20, paddingBottom: 12});
+    // The large title and the page's top are BrowseFrame's (its header); the screen's own scroller starts under it.
+    const frame = elements(tree).find(node => node.type === 'BrowseFrame')!;
+    assert.equal(frame.props.header.title, 'saved.title');
+    assert.equal(frame.props.header.tabs, undefined, 'a phone draws no tabs');
+    const scroll = elements(tree).find(node => node.type === 'ScrollView' && !node.props.horizontal)!;
+    assert.equal(scroll.props.contentContainerStyle.paddingTop, undefined);
 
     const drawnSections = elements(tree).filter(node => node.type?.name === 'SavedSection');
     const sections = await Promise.all(drawnSections.map(async node => {const rendered = await mount(node.type, node.props); mounted.push(rendered); return flat(rendered.tree.props.style);}));
