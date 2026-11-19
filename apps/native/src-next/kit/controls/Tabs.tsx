@@ -102,7 +102,9 @@ export function Segmented({items, value, defaultValue, onValueChange, variant = 
         hitSlop={childProps?.hitSlop ?? {top: slop, bottom: slop}}
         onPress={event => {if (!blocked) {setCurrent(item.value); childProps?.onPress?.(event);}}}
         style={state => [styles.segment, {minHeight: height, borderRadius: theme.isTV ? 12 : phone ? 7 : 8, paddingHorizontal: theme.isTV ? 20 : fill ? 6 : phone ? 11 : 14,
-          ...(theme.isTV ? {flex: 1} : fill ? {flexGrow: 1, flexShrink: 0, flexBasis: 'auto' as const} : {}), borderWidth: theme.isTV ? 1.5 : 0, borderColor: theme.isTV && selected ? colorAlpha(theme.colors.accentStrong, .7) : 'transparent',
+          // A TV segment grows from its own label's width (not from zero): a group placed at its own width (a Filters toggle at
+          // a row's end) keeps its labels, and a full-width group still shares the row and shrinks as before.
+          ...(theme.isTV ? {flexGrow: 1, flexShrink: 1, flexBasis: 'auto' as const} : fill ? {flexGrow: 1, flexShrink: 0, flexBasis: 'auto' as const} : {}), borderWidth: theme.isTV ? 1.5 : 0, borderColor: theme.isTV && selected ? colorAlpha(theme.colors.accentStrong, .7) : 'transparent',
           backgroundColor: !theme.isTV && selected ? variant === 'browse' ? theme.colors.raisedBright : colorAlpha(theme.colors.text, .16) : 'transparent', opacity: blocked ? .45 : 1},
           typeof childProps?.style === 'function' ? childProps.style(state) : childProps?.style]}>
         {state => <>
