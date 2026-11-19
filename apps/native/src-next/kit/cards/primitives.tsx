@@ -59,10 +59,12 @@ export type Interaction = {focused: boolean; hovered: boolean; pressed: boolean;
 
 type ReadOnlyCardActions = Readonly<{primaryAction?: undefined; onNavigate?: undefined; onPlay?: undefined; onMore?: undefined; selection?: undefined}>;
 export type CardFrameSurfaceProps = CardNativeProps & (CardActions | ReadOnlyCardActions);
-export type CardFrameProps = CardFrameSurfaceProps & {children: (state: Interaction) => ReactNode; overlay?: (state: Interaction) => ReactNode};
+export type CardFrameProps = CardFrameSurfaceProps & {children: (state: Interaction) => ReactNode; overlay?: (state: Interaction) => ReactNode;
+  /** TV: how much the card grows with focus, when not a card's (a page-wide banner grows like a row, R1). */
+  focusScale?: number};
 
 /** One root TV focus target. Images and secondary affordances never register Menu. */
-export function CardFrame({children, overlay, frame: _frame, title, titleMargin: _titleMargin, caption, detail, accessibilityDetails = [], watched, isNew, playing, progress, primaryAction, onNavigate, onPlay, onMore, selection, width, style, onFocus, onBlur, disabled, accessibilityLabel, testID, focusId, focusable, moreExpanded, pressableStyle, menuAnchorRef, preferredFocus = false, ...native}: CardFrameProps) {
+export function CardFrame({children, overlay, frame: _frame, title, titleMargin: _titleMargin, caption, detail, accessibilityDetails = [], watched, isNew, playing, progress, primaryAction, onNavigate, onPlay, onMore, selection, width, style, onFocus, onBlur, disabled, accessibilityLabel, testID, focusId, focusable, moreExpanded, pressableStyle, menuAnchorRef, preferredFocus = false, focusScale, ...native}: CardFrameProps) {
   const theme = useTheme(), motion = useMotion(), covered = useCovered();
   const eligible = !disabled && focusable !== false;
   const {waiting, ...binding} = useFocusTarget({focusId, testID, disabled: !eligible, ref: menuAnchorRef, preferred: theme.isTV && preferredFocus, preferredBlocked: covered});
@@ -83,9 +85,9 @@ export function CardFrame({children, overlay, frame: _frame, title, titleMargin:
     return () => {menuRegistration.current?.(); menuRegistration.current = undefined;};
   }, [focused, disabled, waiting, onMore, theme.isTV]);
   useEffect(() => {
-    const next = !motion.transforms || disabled ? 1 : theme.isTV && focused ? theme.spec.focus.scale.card.tv : pressed ? 0.97 : 1;
+    const next = !motion.transforms || disabled ? 1 : theme.isTV && focused ? focusScale ?? theme.spec.focus.scale.card.tv : pressed ? 0.97 : 1;
     scale.value = withTiming(next, motion.timing('quick'));
-  }, [focused, pressed, holding, disabled, theme.isTV, theme.spec.focus.scale.card.tv, motion, scale]);
+  }, [focused, pressed, holding, disabled, theme.isTV, theme.spec.focus.scale.card.tv, focusScale, motion, scale]);
   const animated = useAnimatedStyle(() => ({transform: [{scale: scale.value}]}));
   const label = waiting ? defaultI18n.t('next.selection.native.loading') : accessibilityLabel ?? cardAccessibilityLabel(title, caption, detail,
     [...accessibilityDetails, watched ? defaultI18n.t('card.watched') : undefined, isNew ? defaultI18n.t('next.kit.new') : undefined, playing ? defaultI18n.t('next.kit.session.playing') : undefined]);
