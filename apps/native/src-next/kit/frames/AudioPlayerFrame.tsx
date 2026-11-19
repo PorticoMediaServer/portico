@@ -35,6 +35,8 @@ export type AudioPlayerFrameProps = Readonly<{
   notice?: string;
   /** The cover. With none, the placeholder with `icon` (music or book) fills the same box. */
   artwork?: ArtworkSource | null; icon: IconName;
+  /** The screen's own view in the artwork's box (the listening cover the dock's morph paints into); drawn instead of `artwork`. */
+  cover?: ReactNode;
   title: string;
   /** "Unabridged", after the title. Wide forms. */
   badge?: string;
@@ -44,6 +46,8 @@ export type AudioPlayerFrameProps = Readonly<{
   favourite?: AudioControl; titleMore?: AudioControl;
   /** An audiobook: the chapter line over the scrubber ("Chapter 8" ... "of 19"). */
   chapter?: Readonly<{label: string; of: string}>;
+  /** The music signal line (what the sound passes through), under the title and byline. */
+  signal?: ReactNode;
   /** The kit's scrubber line; the frame places `times` for the form: under its ends on a phone and TV, at its ends elsewhere. */
   scrubber: ReactNode; times: AudioTimes;
   /** Five fixed slots; the middle one is Play or Pause. Music's ends are shuffle and repeat (the secondary class). */
@@ -107,9 +111,9 @@ function Context({context, source, loading, centred}: {context?: string; source?
   </View>;
 }
 
-function Art({artwork, icon, title, size, loading}: {artwork?: ArtworkSource | null; icon: IconName; title: string; size: number; loading: boolean}) {
+function Art({artwork, cover, icon, title, size, loading}: {artwork?: ArtworkSource | null; cover?: ReactNode; icon: IconName; title: string; size: number; loading: boolean}) {
   const theme = useTheme();
-  return <View style={{width: size, height: size, borderRadius: theme.radii.artwork, ...shadow}}>{loading ? <SkeletonBlock width={size} height={size} radius={theme.radii.artwork} shine/> : <ArtBox kind="square" source={artwork} icon={icon} width={size} alt={title}/>}</View>;
+  return <View style={{width: size, height: size, borderRadius: theme.radii.artwork, ...shadow}}>{loading ? <SkeletonBlock width={size} height={size} radius={theme.radii.artwork} shine/> : cover ?? <ArtBox kind="square" source={artwork} icon={icon} width={size} alt={title}/>}</View>;
 }
 const shadow = {shadowColor: '#000', shadowOpacity: .6, shadowRadius: 30, shadowOffset: {width: 0, height: 24}, elevation: 12} as const;
 
@@ -149,7 +153,7 @@ function Slot({item, loading, tile = false, inline = false}: {item: AudioControl
   </Focusable>;
 }
 
-function PhoneAudio({close, more, context, source, device, artwork, icon, title, byline, favourite, chapter, scrubber, times, transport, next: upcoming, lyrics, queue, speed, sleep, chapters, panel, loading = false, testID}: AudioPlayerFrameProps) {
+function PhoneAudio({close, more, context, source, device, artwork, cover, icon, title, byline, favourite, chapter, signal, scrubber, times, transport, next: upcoming, lyrics, queue, speed, sleep, chapters, panel, loading = false, testID}: AudioPlayerFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), form = 'phone' as const, inset = spec.inset[form];
   const book = chapter !== undefined, tiles = [speed, sleep, chapters, device].filter((item): item is AudioOption => item !== undefined);
   // The artwork is the spec's size where the window has room; a short window gets the largest square that leaves every fixed region its place.
@@ -172,8 +176,9 @@ function PhoneAudio({close, more, context, source, device, artwork, icon, title,
   return <View testID={testID} style={{flex: 1, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, frameSpec.sheet.footerClear)}}>
     <View style={{flex: 1, paddingHorizontal: inset}}>
       <View style={{height: spec.topBar[form], flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}><Glyph item={close} loading={false}/><Context context={context} source={source} loading={loading} centred/><Glyph item={more} loading={loading}/></View>
-      <View style={{marginTop: spec.gap[form], alignItems: 'center'}}><Art artwork={artwork} icon={icon} title={title} size={book ? column * spec.bookArtShare : column} loading={loading}/></View>
+      <View style={{marginTop: spec.gap[form], alignItems: 'center'}}><Art artwork={artwork} cover={cover} icon={icon} title={title} size={book ? column * spec.bookArtShare : column} loading={loading}/></View>
       <View style={{marginTop: theme.space.sm}}>{words}</View>
+      {signal !== undefined && !loading && <View style={{alignItems: 'center', marginTop: theme.space.xs}}>{signal}</View>}
       {chapter && <ChapterLine chapter={chapter} loading={loading} wide={false}/>}
       <View style={{height: spec.scrubber[form], justifyContent: 'center', gap: frameSpec.player.timesGap[form]}}>{scrubber}<Times times={times} loading={loading}/></View>
       <View style={{height: spec.transport[form], justifyContent: 'center'}}><Transport transport={transport} loading={loading}/></View>
@@ -185,7 +190,7 @@ function PhoneAudio({close, more, context, source, device, artwork, icon, title,
   </View>;
 }
 
-function WideAudio({close, more, context, source, device, notice, artwork, icon, title, badge, byline = [], favourite, titleMore, chapter, scrubber, times, transport, lyrics, queue, speed, sleep, panel, loading = false, testID}: AudioPlayerFrameProps) {
+function WideAudio({close, more, context, source, device, notice, artwork, cover, icon, title, badge, byline = [], favourite, titleMore, chapter, signal, scrubber, times, transport, lyrics, queue, speed, sleep, panel, loading = false, testID}: AudioPlayerFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), form = frame.form === 'medium' ? 'medium' as const : 'expanded' as const;
   // An upright tablet (tablet-play 10) keeps the device with Lyrics and Up next in a pill row under the transport; a tablet on its side and the web put it at the top right.
   const upright = window.height > window.width, book = chapter !== undefined, edge = wideSpec.panelInset[form], panelWidth = panel !== undefined ? spec.upNextWidth[form] : 0;
@@ -209,8 +214,8 @@ function WideAudio({close, more, context, source, device, notice, artwork, icon,
     <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{byline.join('   ')}</Text>
   </>}</View>;
   const marks = !book && !loading && (favourite || titleMore) && <View style={{flexDirection: 'row', alignSelf: 'flex-end'}}>{favourite && <Glyph item={favourite} loading={loading} size={icons.inlineIcon[form]}/>}{titleMore && <Glyph item={titleMore} loading={loading} size={icons.inlineIcon[form]}/>}</View>;
-  const head = book ? <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: wideSpec.bookArtGap}}><Art artwork={artwork} icon={icon} title={title} size={wideSpec.bookArt[form]} loading={loading}/>{words('pageTitle')}</View>
-    : <><Art artwork={artwork} icon={icon} title={title} size={column} loading={loading}/><View style={{marginTop: wideSpec.titleGap[form], flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm}}>{words('pageTitle')}{marks}</View></>;
+  const head = book ? <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: wideSpec.bookArtGap}}><Art artwork={artwork} cover={cover} icon={icon} title={title} size={wideSpec.bookArt[form]} loading={loading}/>{words('pageTitle')}</View>
+    : <><Art artwork={artwork} cover={cover} icon={icon} title={title} size={column} loading={loading}/><View style={{marginTop: wideSpec.titleGap[form], flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm}}>{words('pageTitle')}{marks}</View></>;
   const pills = upright && !book && [lyrics, device, queue].some(Boolean) && <View style={{flexDirection: 'row', justifyContent: 'center', gap: theme.space.controlGap}}>
     {[lyrics, device, queue].filter((item): item is AudioControl => item !== undefined).map(item => <Button key={item.label} testID={item.testID} variant="glass" size="small" icon={item.icon} disabled={item.disabled || loading} onPress={item.onPress}
       style={{borderRadius: theme.targets.touch / 2}}>{item.label}</Button>)}</View>;
@@ -218,6 +223,7 @@ function WideAudio({close, more, context, source, device, notice, artwork, icon,
     {[speed, sleep].filter((item): item is AudioOption => !!item?.choices).map(item => <AudioChoiceRow key={item.label} testID={item.testID ?? item.label} label={item.label} help={item.help} choices={item.choices!}/>)}</View>;
   const main = <View style={{width: column, alignSelf: 'center'}}>
     {head}
+    {signal !== undefined && !loading && <View style={{marginTop: theme.space.xs}}>{signal}</View>}
     {chapter && <View style={{marginTop: wideSpec.chapterGap}}><ChapterLine chapter={chapter} loading={loading} wide/></View>}
     <View style={{marginTop: chapter ? theme.space.xs : wideSpec.scrubberGap[form]}}><Times times={times} loading={loading} ends={scrubber}/></View>
     <View style={{marginTop: wideSpec.transportGap[form]}}><Transport transport={transport} loading={loading} gap={wideSpec.transportSpacing[form]}/></View>
@@ -236,7 +242,7 @@ function WideAudio({close, more, context, source, device, notice, artwork, icon,
 }
 
 /** TV (final3-tv-12): the regions at the mock-up's places from the cover's top edge, so nothing moves with the title's length. */
-function TVAudio({more, context, source, artwork, icon, title, byline = [], chapter, scrubber, times, transport, lyrics, playlist, speed, sleep, chapters, panel, loading = false, testID}: AudioPlayerFrameProps) {
+function TVAudio({more, context, source, artwork, cover, icon, title, byline = [], chapter, signal, scrubber, times, transport, lyrics, playlist, speed, sleep, chapters, panel, loading = false, testID}: AudioPlayerFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), form = 'tv' as const, art = spec.artwork[form];
   // The title that needed a second line at its role (state keyed by the title, so a new title measures afresh).
   const titleStyle = theme.type.audioTitle, [longTitle, setLongTitle] = useState<string>(), long = longTitle === title;
@@ -248,7 +254,7 @@ function TVAudio({more, context, source, artwork, icon, title, byline = [], chap
       <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{loading ? '' : context}</Text>{source !== undefined && !loading && <Text style={[theme.type.intro, {color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{source}</Text>}
     </View>
     <View style={{position: 'absolute', top: tvSpec.artTop, left: frame.gutter, right: frame.rightGutter, bottom: 0, flexDirection: 'row', gap: spec.gap[form]}}>
-      <Art artwork={artwork} icon={icon} title={title} size={art} loading={loading}/>
+      <Art artwork={artwork} cover={cover} icon={icon} title={title} size={art} loading={loading}/>
       <View style={{width: spec.controlsWidth[form]}}>
         <View style={{position: 'absolute', top: tvSpec.titleTop, left: 0, right: 0, height: tvSpec.scrubberTop - tvSpec.titleTop - theme.space.md}}>{loading ? <SkeletonBlock width="70%" height={titleStyle.fontSize}/> : <>
           {/* final3-tv-12: the title is one line at its role, with the artist and album under it, all above the scrubber.
@@ -258,6 +264,7 @@ function TVAudio({more, context, source, artwork, icon, title, byline = [], chap
             style={[long ? theme.type.pageTitle : titleStyle, {color: theme.colors.text}]}>{title}</Text>
           {byline[0] !== undefined && <Text numberOfLines={1} style={[theme.type.audioByline, {marginTop: theme.space.sm}]}>{byline[0]}</Text>}
           {byline[1] !== undefined && <Text numberOfLines={1} style={[theme.type.meta, {marginTop: theme.space.xs, color: theme.colors.textTertiary}]}>{byline[1]}</Text>}
+          {signal !== undefined && <View style={{marginTop: theme.space.sm}}>{signal}</View>}
         </>}</View>
         <View style={{position: 'absolute', top: tvSpec.scrubberTop - (chapter ? theme.space.xl : 0), width: tvSpec.scrubberWidth, gap: theme.space.sm}}>{chapter && <ChapterLine chapter={chapter} loading={loading} wide/>}{scrubber}<Times times={times} loading={loading}/></View>
         <View style={{position: 'absolute', top: tvSpec.transportTop, width: tvSpec.scrubberWidth}}><Transport transport={transport} loading={loading}/></View>
