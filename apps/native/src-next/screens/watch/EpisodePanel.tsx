@@ -167,8 +167,7 @@ export function NativeWatchEpisodes({controller, currentId, playing, text, artwo
     {!pane && <NativeSeasonsSheet open={!!seasonsSheet} returnFocusRef={seasonOpener} onOpenChange={value => {if (value) openSeasons(); else closeSeasons();}} seasons={seasons}
       total={data?.seasonTotalCount ?? seasons.length} selectedId={selected}
       onSelect={id => {const sheet = seasonsSheet; closeSeasons(); if (sheet) void controller.season(id, sheet).catch(() => {});}}
-      onMore={() => {void controller.moreSeasons().catch(() => {});}}
-      hideWatched={snapshot.place.hideWatched} onHideWatched={value => {if (seasonsSheet) void controller.hideWatched(value, seasonsSheet).catch(() => {});}}/>}
+      onMore={() => {void controller.moreSeasons().catch(() => {});}}/>}
   </View>;
   return theme.isTV && !pane ? <FocusRegion id="watch-episodes" orientation="vertical" entry={initialId ? `episodes-${initialId}` : 'watch-episodes-seasons'} enabled={interactive && !seasonsSheet} style={{flex: 1}}>{body}</FocusRegion> : body;
 }

@@ -1941,6 +1941,8 @@ export const enUS = {
   'title.jumpToSeason': 'Season number',
   'title.jumpToEpisode': 'Episode number',
   'title.jumpToHint': '{min}–{max}',
+  'title.jumpToSeasonPrompt': 'Jump to season',
+  'title.jumpToRange': '{min} to {max}',
   'title.go': 'Go',
   'title.noEpisodes': 'No episodes here',
   'title.noEpisodesBody': 'This season has no episodes on the server yet.',

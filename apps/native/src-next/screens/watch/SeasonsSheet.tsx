@@ -17,8 +17,8 @@ export type NativeSeasonsSheetProps = Readonly<{
   selectedGroup?: string;
   onSelectGroup?: (group: string) => void;
   onMore?: () => void;
-  hideWatched: boolean;
-  onHideWatched: (value: boolean) => void;
+  hideWatched?: boolean;
+  onHideWatched?: (value: boolean) => void;
   returnFocusRef?: React.RefObject<View | null>;
 }>;
 
