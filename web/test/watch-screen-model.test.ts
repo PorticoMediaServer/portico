@@ -404,10 +404,11 @@ test('the actual screen renders one empty picture target and real identity, with
     snapshot: failed, expanded: true, surfaceSlotRef: {current: null}, onCollapse() {},
   }));
   assert.doesNotMatch(failedHtml, /aria-label="(Pause|Play)"/, 'no transport under a failure');
-  assert.doesNotMatch(failedHtml, /class="center"|class="transport"/);
+  // The transport is the frame's centre (PlayerChromeFrame): empty under a failure.
+  assert.doesNotMatch(failedHtml, /class="playerCentre"><button/);
   assert.match(failedHtml, /<h2>Title<\/h2>/, 'the top row stays');
   assert.match(failedHtml, /aria-label="Playback position"/, 'the bottom row stays, with the seek bar');
-  assert.match(html, /class="transport"/, 'while playing, the transport is there');
+  assert.match(html, /class="playerCentre"><button/, 'while playing, the transport is there');
   const dock = new PlaybackDock(fence.playback.scope), playback = {kind: 'video' as const, fence, queue: null, positionSeconds: 30, playing: true, expanded: true};
   dock.start(playback);
   dock.beginRemote({id: 'cast', kind: 'cast', phase: 'connecting', sequence: '1', playback, positionSeconds: 0}, 0);
