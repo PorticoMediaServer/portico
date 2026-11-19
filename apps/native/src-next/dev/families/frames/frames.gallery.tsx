@@ -10,7 +10,7 @@ import {ArtBox, BrowseFrame, PageStateFrame, Section, SectionCard, SettingsListF
 import {frameSpec} from '@portico/design';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {Row, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
-import {LargeTitleHeader, SettingsNav, SettingsRow, ShortcutTiles} from '../../../kit/shell';
+import {SettingsNav, SettingsRow, ShortcutTiles} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {MediumRail} from '../../../shell/MediumRail';
@@ -110,7 +110,7 @@ export const settingsPages = {
 function SettingsList() {
   const [page, setPage] = useState<string>(), {form} = useFrameMetrics(), wide = form !== 'phone';
   const tiles = ([['profiles', 'i-person', 'settingsSwitchProfile'], ['servers', 'i-server', 'switchServer'], ['notifications', 'i-bell', 'notifications'], ['together', 'i-people', 'settingsTogether']] as const).map(([id, icon, name]) => ({id, icon, label: f(name), onPress: none}));
-  const list = <View>{form !== 'phone' && <LargeTitleHeader title={f('settings')} style={{paddingHorizontal: 0}}/>}{form === 'phone' && <ShortcutTiles testID="frames-settings-tiles" actions={tiles}/>}
+  const list = <View>{form === 'phone' && <ShortcutTiles testID="frames-settings-tiles" actions={tiles}/>}
     <SettingsNav testID="frames-settings-nav" accountPages={settingsPages.account} serverPages={settingsPages.server} viewerRole="owner" serverName={f('serverName')} selectedId={form === 'tv' ? 'playback' : page ?? (wide ? 'playback' : '')} onNavigate={form === 'tv' ? none : setPage} mode={form === 'tv' ? 'account' : 'combined'}/></View>;
   const hints = <KeyHints hints={[{key: [f('keyUp'), f('keyDown')], label: f('hintChoosePage')}, {key: f('keyRight'), label: f('hintEditRows')}, {key: f('keyLeft'), label: f('hintPages')}]}/>;
   return <Page destination={{kind: 'settings'}}><SettingsListFrame testID="frames-settings-list" startFocus={focusTestID('frames-settings-nav', JSON.stringify(['account', 'playback']))} hints={hints} open onOpenChange={none} bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
