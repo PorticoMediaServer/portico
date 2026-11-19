@@ -6,6 +6,12 @@ import type {FocusCell} from './cell-navigation';
 import {useHostRef} from './useHostRef';
 
 const nativeHandle = createFocusHandleResolver((host: FocusHost) => findNodeHandle(host as View));
+// R1: a declared edge is real on Android TV. Android drops a next-focus aimed at a region's TVFocusGuideView (the guide
+// is often not focusable natively, e.g. after react-native-tvos's focus recovery), and plain geometry decides instead. So
+// there an edge names the region's entry leaf, the same view the guide would hand focus to, with the guide as fallback.
+// The control re-reads the leaf when that region changes or focus moves within it (its remembered child), so Right from
+// the rail returns to where focus was on the page, as the guide's memory does. tvOS keeps the guide.
+const edgesToLeaves = () => Platform?.OS === 'android' && !!Platform.isTV;
 
 const RegistryContext = createContext<FocusRegistry | null>(null);
 const RegionContext = createContext<string | undefined>(undefined);
@@ -178,8 +184,9 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
   const dependencyKey = JSON.stringify([...new Set([...Object.values({...inherited, ...config?.edges}).filter((id): id is string => !!id), ...neighbours])]);
   const dependencies = useMemo<readonly string[]>(() => JSON.parse(dependencyKey), [dependencyKey]);
   // Structure, edge hosts and (in grids) this cell's own focus: never another cell's focus move.
-  const subscribe = useCallback((listener: () => void) => registry?.subscribeTarget(regionId, dependencies, listener, childId) ?? (() => {}), [childId, dependencies, regionId, registry]);
-  const getSnapshot = useCallback(() => registry?.targetSnapshot(regionId, dependencies, childId) ?? 0, [childId, dependencies, regionId, registry]);
+  const leaves = edgesToLeaves();
+  const subscribe = useCallback((listener: () => void) => registry?.subscribeTarget(regionId, dependencies, listener, childId, leaves) ?? (() => {}), [childId, dependencies, leaves, regionId, registry]);
+  const getSnapshot = useCallback(() => registry?.targetSnapshot(regionId, dependencies, childId, leaves) ?? 0, [childId, dependencies, leaves, regionId, registry]);
   useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   useLayoutEffect(() => {
     committed.current = {registry, regionId, childId, disabled, cell, entityId};
@@ -189,6 +196,7 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
     const registrationOwner = owner.current;
     return () => {registry.attach(address, null, registrationOwner);};
   }, [cell, childId, disabled, entityId, native, regionId, registry]);
+  const regionTarget = (id: string) => (leaves ? registry?.entryTarget(id) : undefined) ?? registry?.host(id);
   const edgeProps: Pick<ViewProps, 'nextFocusUp' | 'nextFocusDown' | 'nextFocusLeft' | 'nextFocusRight'> = {};
   const order = regionId && (config?.orientation === 'horizontal' || config?.orientation === 'vertical') ? registry?.order(regionId) : undefined;
   if (registry && config && childId) {
@@ -199,8 +207,7 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
       if (!target || config.hold) continue;
       if (config.orientation === 'horizontal' && (direction === 'left' && order?.[0] !== childId || direction === 'right' && order?.at(-1) !== childId)) continue;
       if (config.orientation === 'vertical' && (direction === 'up' && order?.[0] !== childId || direction === 'down' && order?.at(-1) !== childId)) continue;
-      const host = registry.host(target);
-      const handle = nativeHandle(host);
+      const handle = nativeHandle(regionTarget(target));
       if (handle != null) {
         const key = {up: 'nextFocusUp', down: 'nextFocusDown', left: 'nextFocusLeft', right: 'nextFocusRight'} as const;
         edgeProps[key[direction]] = handle;
@@ -210,7 +217,7 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
   const address: FocusAddress | undefined = regionId && childId ? {regionId, childId} : undefined;
   if (registry && address && !config?.hold) {
     for (const [direction, target] of Object.entries(registry.destinations(address))) {
-      const host = 'regionId' in target ? registry.host(target.regionId) : registry.child({regionId: address.regionId, childId: target.childId});
+      const host = 'regionId' in target ? regionTarget(target.regionId) : registry.child({regionId: address.regionId, childId: target.childId});
       const handle = nativeHandle(host);
       if (handle != null) {
         const key = {up: 'nextFocusUp', down: 'nextFocusDown', left: 'nextFocusLeft', right: 'nextFocusRight'} as const;

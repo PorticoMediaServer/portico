@@ -168,3 +168,27 @@ test('P2-71-PERF: in a grid only the newly focused cell re-renders for its remem
   assert.equal(registry.destinations({regionId: 'grid', childId: 't-9'}).down && 'childId' in registry.destinations({regionId: 'grid', childId: 't-9'}).down!
     ? (registry.destinations({regionId: 'grid', childId: 't-9'}).down as {childId: string}).childId : undefined, 't-15', 'the focused cell still reads fresh column memory');
 });
+
+test('R1: a control that points at an edge region\'s entry leaf follows that region (children and its remembered child), not focus elsewhere', () => {
+  const registry = createFocusRegistry();
+  registry.configure({id: 'toolbar', entry: 'sort', order: ['sort', 'filters']});
+  registry.attachRegion('toolbar', {requestTVFocus() {}});
+  registry.configure({id: 'grid', edges: {up: 'toolbar'}, order: ['a', 'b']});
+  for (const childId of ['a', 'b']) registry.attach({regionId: 'grid', childId}, {requestTVFocus() {}});
+  let notified = 0;
+  const release = registry.subscribeTarget('grid', ['toolbar'], () => notified++, undefined, true);
+  const sort = {requestTVFocus() {}}, filters = {requestTVFocus() {}};
+  registry.attach({regionId: 'toolbar', childId: 'sort'}, sort);
+  assert.ok(notified > 0, 'the entry leaf attaching republishes the edge');
+  assert.equal(registry.entryTarget('toolbar'), sort);
+  registry.attach({regionId: 'toolbar', childId: 'filters'}, filters);
+  registry.didFocus({regionId: 'toolbar', childId: 'filters'});
+  assert.equal(registry.entryTarget('toolbar'), filters);
+  let settled = notified;
+  registry.didFocus({regionId: 'grid', childId: 'a'});
+  assert.ok(notified > settled, 'focus leaving the toolbar republishes its remembered leaf');
+  settled = notified;
+  registry.didFocus({regionId: 'grid', childId: 'b'});
+  assert.equal(notified, settled, 'a move inside the grid re-renders nothing that points at the toolbar');
+  release();
+});
