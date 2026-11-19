@@ -17,7 +17,7 @@ const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : 
 async function rig() {
   let tree: any;
   const ctx = () => tree.props.value;
-  const {ListeningCoverProvider, useListeningCoverSlot} = await screenModule(new URL('../src-next/kit/dock/ListeningCoverBridge.tsx', import.meta.url), {
+  const {ListeningCoverProvider, useListeningCoverSlot, useListeningPageOwner} = await screenModule(new URL('../src-next/kit/dock/ListeningCoverBridge.tsx', import.meta.url), {
     react: {...React, default: React, createContext: () => ({Provider: 'Provider'}), useContext: () => ctx()},
     'react-native': {View: 'View'},
     'react-native-gesture-handler': {Gesture: {Pan: () => ({enabled() {return this;}})}, GestureDetector: 'GestureDetector'}, 'react-native-reanimated': {default: {View: 'AnimatedView'}, useSharedValue: (value: any) => React.useRef({value}).current,
@@ -50,7 +50,7 @@ async function rig() {
     await act(() => {canvasReplies.at(-1)!(10, 20, 480, 900);});
   }
   const layer = () => nodes(tree).find(node => node.type?.name === 'CoverLayer');
-  return {provider, ctx, publish, slot, deliver, layer, canvas, canvasReplies,
+  return {provider, ctx, publish, slot, deliver, layer, canvas, canvasReplies, useListeningPageOwner,
     relayout: () => nodes(tree).find(node => node.props.collapsable === false).props.onLayout(),
     retire: () => {current = undefined; for (const listener of [...listeners]) listener();}};
 }
@@ -153,4 +153,18 @@ test('original publication retirement removes passive paint without a successor 
     assert.equal(r.ctx().active, false);
     assert.equal(r.layer(), undefined);
   } finally {await full.host.unmount(); await mini.host.unmount(); await r.provider.unmount();}
+});
+
+test('SMALL-FAULTS 31: a page keeps one owner for its playback across fresh fence objects; another playback is a new owner', async () => {
+  const r = await rig();
+  let owned = dockFence();
+  const page = createFabricHookHost(() => {r.useListeningPageOwner(owned);}); await page.mount();
+  const first = r.ctx().pageOwner; assert.ok(first);
+  // Every playback tick hands the page a fresh fence object for the same playback: the listening context (which the
+  // whole shell reads) must not change, or the shell re-renders each tick and Pause reaches the player seconds late.
+  for (let tick = 0; tick < 3; tick++) {owned = dockFence(); await page.rerender();}
+  assert.equal(r.ctx().pageOwner, first, 'the same playback keeps its owner');
+  owned = dockFence('next'); await page.rerender();
+  assert.notEqual(r.ctx().pageOwner, first, 'another playback is a new owner');
+  assert.ok(sameFence(r.ctx().pageOwner.fence, owned));
 });

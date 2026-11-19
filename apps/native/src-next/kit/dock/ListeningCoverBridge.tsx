@@ -243,7 +243,12 @@ export function useListeningPaintPermit(fence: PlaybackFence): OverlayPaintPermi
 }
 export function useListeningPageOwner(fence: PlaybackFence) {
   const hold = useContext(Context)?.holdPage;
-  const owner = useMemo(() => ({fence}), [fence]);
+  // One owner per playback, not per fence object: every playback tick hands the page a fresh fence object for the same
+  // playback, and a new owner each tick changed the listening context and re-rendered the whole shell behind the page,
+  // which kept the JavaScript thread busy enough that Pause reached the player seconds late.
+  const kept = useRef<Readonly<{fence: PlaybackFence}> | undefined>(undefined);
+  if (!kept.current || !sameFence(kept.current.fence, fence)) kept.current = {fence};
+  const owner = kept.current;
   useLayoutEffect(() => {if (hold) return hold(owner);}, [hold, owner]);
 }
 export function useListeningPagePresent(fence: PlaybackFence): boolean {
