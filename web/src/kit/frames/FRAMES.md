@@ -278,6 +278,11 @@ progress, Specials, a box to type a season number past 30), `EpisodeList` with `
 tile's parts (`[class*="episodeCopy"]`) instead of counting its children: the tile has hidden accessible spans first, so
 the counted rules had put the synopsis under the picture on the show page's list.
 
+Moved onto the frame (19 Nov): the film page (`screens/detail/Detail.tsx` `FilmTitle`). For it the frame gained: `back`
+optional (no way back, no disc); `TitleAction.wrap` (the screen's own menu around the frame's More button);
+`TitlePrimary.note` (why a disabled Play can't play, under the row, J-23); the synopsis draws the server's inline bold,
+italic and line breaks; the tabs and their panel are linked (tab ids, `role="tabpanel"`).
+
 Gallery: `dev/families/frames-title.tsx` (family `frames-title`): the same cases as native, with versions, file-info
 (the kit's `FileInfoBody` on the `details` form) and episode-display. The frames family's old
 `title`, `title-missing` and `title-loading` cases are these now.

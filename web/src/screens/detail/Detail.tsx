@@ -1,6 +1,6 @@
 import {refreshCatalogueMetadata} from '@core/query/catalogue-actions.ts';
 import {t, locale, environment as env} from './text';
-import {useId, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject} from 'react';
+import {cloneElement, useId, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode, type RefObject} from 'react';
 import type {DetailProjection} from '@core/detail.ts';
 import type {ContentEntry} from '@core/library-content.ts';
 import type {DownloadOptionsView} from '@core/downloads.ts';
@@ -28,6 +28,7 @@ import {CollectionBanner, PosterCard, SquareCard} from '../../kit/cards';
 import {Menu, MenuGroup, MenuItem, MenuSeparator, Dialog, ToastHost, type ToastData} from '../../kit/overlays';
 import {StateView} from '../../kit/states';
 import {Icon} from '../../kit/Icon';
+import {TitleFrame, type TitleAction, type TitleCredit, type TitlePrimary} from '../../kit/frames';
 import {useShellWidth} from '../../shell/viewport';
 import {entryCard, titlePageFacts, calendarDate, instantDate} from './model';
 import type {DetailBindings} from './bindings';
@@ -92,6 +93,17 @@ export function TitleBody({binding, compact = false, artworkClaim}: {binding: De
       : !!data.related?.rows.length;
   const tab = requestedTab === 'related' && !hasRelated ? 'details' : requestedTab;
   const tabs = [...(hasRelated ? [{value: 'related', label: t('next.controls.moreLikeThis')}] : []), {value: 'details', label: t('next.controls.details')}, ...(data.extras?.some(extra => extra.items.length) ? [{value: 'extras', label: t('next.controls.extras')}] : [])];
+  // A film's page is the title frame (frame 2): the screen hands it its parts and the frame places them on every form.
+  if (!compact && data.item.kind === 'movie') return <div data-title-id={data.scope.itemId}><FilmTitle binding={binding} data={data} artworkClaim={artworkClaim}
+    showBackdrops={preferenceValue<boolean>(preferences, 'appearance.showBackdrops')} tabs={tabs} tab={tab}>
+    {snapshot.phase === 'error' && <ScreenFailure retry={() => { void binding.service.retry(); }} />}
+    {snapshot.mutationError && <ScreenFailure retry={() => { void binding.service.retryMutation(); }} />}
+    {tab === 'details' ? <TitleDetails binding={binding} data={data} />
+      : tab === 'extras' ? data.extras?.map(extra => <TitleRow key={extra.type} heading={extra.label} entries={extra.items} binding={binding} />)
+      : recommendations.phase === 'error' ? <ScreenFailure retry={() => { void binding.readRecommendations(data); }} />
+      : recommendations.phase !== 'ready' ? <DetailLoading />
+      : relatedRows.map(row => <TitleRecommendationRow key={row.id} row={row} owner={{kind: 'item', id: data.item.id}} binding={binding} guard={() => binding.current(data)} />)}
+  </FilmTitle></div>;
   return <article className={styles.page} data-compact={compact || undefined} data-title-id={data.scope.itemId}>
     {standalonePhone && !compact && <div className={styles.phoneTopBar}>{binding.context.effects.back && <Button variant="icon" icon="i-left" iconOnly aria-label={t('next.states.back')} onClick={() => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); })} />}</div>}
     {!compact && <TitleHero binding={binding} data={data} artworkClaim={artworkClaim} showBackdrops={preferenceValue<boolean>(preferences, 'appearance.showBackdrops')} />}
@@ -106,6 +118,57 @@ export function TitleBody({binding, compact = false, artworkClaim}: {binding: De
         : similar?.data === data ? (<SimilarTitleRow first={similar.value} scope={similar.scope} heading={t('music.moreLikeThis')} subtitle={t(similar.value.bySound ? 'music.moreLikeThisBySound' : 'music.moreLikeThisHint')} binding={binding} guard={() => binding.current(data)} />)
         : data.related?.rows.map(row => <RelatedTitleRow key={row.id} row={row} data={data} binding={binding} guard={() => binding.current(data)} />)}</div>
   </article>;
+}
+
+/** A film on the title frame (frame 2): its art, the collection it belongs to, its facts, Play or Resume with Start over,
+ * My List, Watched and More (the screen's own menu), the tagline, synopsis and credits, and the tabs; the frame places
+ * them, collapses to its bar on scroll and draws them on every form. */
+function FilmTitle({binding, data, artworkClaim, showBackdrops, tabs, tab, children}: {binding: DetailBindings; data: DetailProjection; artworkClaim?: SourceArtClaim; showBackdrops: boolean;
+  tabs: readonly Readonly<{value: string; label: string}>[]; tab: string; children: ReactNode}) {
+  const {item, facts, metadata} = data, art = binding.context.artwork, width = useShellWidth(), {reduced} = useLayoutMotion();
+  const run = (task: Promise<unknown>) => { void task.catch(binding.context.effects.reportError); };
+  const command = (action: () => void) => () => runScreenCommand(binding.context, () => { binding.current(data); action(); });
+  const shown = detailActions(data, {platform: 'web'}).primary;
+  const playAction = data.actions.find(action => action.enabled && action.playback && action.id !== 'start_over');
+  const restart = data.actions.find(action => action.id === 'start_over' && action.enabled && action.playback);
+  const length = item.duration ?? 0, fraction = length > 0 ? data.personal.progressSeconds / length : 0;
+  const left = length > 0 ? titleFactParts({durationSeconds: Math.max(0, length - data.personal.progressSeconds)}, env).find(part => part.id === 'duration')?.text : undefined;
+  const resume = shown?.id === 'resume' && !!playAction;
+  // A playable title whose file the server can't reach offers a disabled Play and says why (J-23).
+  const unplayable = !playAction && PLAYABLE_KINDS.has(item.kind) && item.available === false;
+  const primary: TitlePrimary | undefined = shown && playAction ? {icon: 'i-play', label: t(resume ? 'next.controls.resume' : 'next.controls.play'), onPress: () => run(binding.play(data, playAction.id)),
+    ...(resume ? {progress: fraction, remaining: left ? serviceText('duration.remaining', {duration: left}) : shown.caption,
+      ...(restart ? {startOver: {label: t('next.controls.startOver'), onPress: () => run(binding.play(data, restart.id))}} : {})} : {})}
+    : unplayable ? {icon: 'i-play', label: t('next.controls.play'), disabled: true, onPress: () => {}, note: t('title.fileUnavailable')} : undefined;
+  const actions: TitleAction[] = [
+    ...(data.actions.some(action => action.id === 'watchlist' && action.enabled) ? [{icon: data.personal.watchlisted ? 'i-check' as const : 'i-plus' as const, label: t('next.controls.myList'), labelled: true, pinned: true,
+      active: data.personal.watchlisted, onPress: () => run(binding.mutate(data, {action: 'watchlist', value: !data.personal.watchlisted}))}] : []),
+    ...(data.actions.some(action => action.id === 'watched' && action.enabled) ? [{icon: 'i-check' as const, label: t(data.personal.watched ? 'title.markUnwatched' : 'title.markWatched'), wide: true,
+      active: data.personal.watched, onPress: () => run(binding.mutate(data, {action: 'watched', value: !data.personal.watched}))}] : []),
+    {icon: 'i-more', label: t('next.controls.more'), onPress: () => {}, wrap: button => <TitleMore binding={binding} data={data} trigger={button} />},
+  ];
+  const person = (credit: DetailProjection['metadata']['credits'][number]) => ({text: credit.name,
+    ...(credit.personId ? {onPress: command(() => binding.context.effects.openEntry({id: credit.personId!, kind: 'person', title: credit.name, navigation: {view: 'person', entityId: credit.personId!}}))} : {})});
+  // The catalogue's sentence ("Directed by {names}") gives the label before the names.
+  const label = (message: 'title.directedBy' | 'title.starring') => t(message, {names: '￰'}).split('￰')[0]!.trim();
+  const directed = metadata.credits.filter(credit => credit.role.toLowerCase() === 'director');
+  const starring = metadata.credits.filter(credit => credit.department.toLowerCase() === 'acting' || credit.role.toLowerCase() === 'cast').slice(0, 4);
+  const credits: TitleCredit[] = [...(directed.length ? [{label: label('title.directedBy'), names: directed.map(person)}] : []), ...(starring.length ? [{label: label('title.starring'), names: starring.map(person)}] : [])];
+  const collection = data.collections?.[0];
+  const all = titlePageFacts({year: item.year, durationSeconds: item.duration, genres: metadata.genres.map(genre => genre.name), contentRating: facts?.contentRating}, env);
+  const genres = <GenreNames names={metadata.genres.map(value => value.name)} onOpen={binding.context.effects.openBrowse ? genre => runScreenCommand(binding.context, () => binding.browseGenre(data, genre)) : undefined} />;
+  const phone = width < 1024;
+  // Up to 1024 the year and genres lead (phone-detail d1), as the page had them.
+  const parts = phone ? [...all.filter(part => part.id === 'year' || part.id === 'genres'), ...all.filter(part => part.id !== 'year' && part.id !== 'genres')] : all;
+  const foreground = art.foreground(item.backdropUrl ?? item.posterUrl, phone ? 800 : 1920, 16 / 9);
+  return <TitleFrame
+    art={showBackdrops && <TitleArtwork key={phone ? 'phone' : 'desktop'} artworkClaim={artworkClaim} titleKey={item.id} reduced={reduced} treatment={phone ? 'phone' : 'title'} source={art.ambient(item.backdropUrl ?? item.posterUrl)} foreground={foreground} />}
+    back={binding.context.effects.back ? {label: t('next.states.back'), onPress: command(() => binding.context.effects.back?.())} : undefined}
+    kicker={collection && {icon: 'i-layers', label: collection.name, detail: t('lib.count', {count: collection.memberCount, pivot: 'other'}),
+      onPress: command(() => binding.context.effects.openEntry({id: collection.id, libraryId: data.scope.libraryId, kind: 'collection', title: collection.name, navigation: {view: 'collection', entityId: collection.id}}))}}
+    title={item.title} metadata={<TitleFactsLine parts={parts} genres={genres} />} primary={primary} actions={actions}
+    tagline={facts?.tagline} synopsis={item.overview} credits={credits}
+    tabs={{items: tabs, value: tab, onValueChange: value => runScreenCommand(binding.context, () => { binding.current(data); if (value === 'related' || value === 'details' || value === 'extras') binding.view.tab(value); })}}>{children}</TitleFrame>;
 }
 
 function TitleHero({binding, data, artworkClaim, showBackdrops}: {binding: DetailBindings; data: DetailProjection; artworkClaim?: SourceArtClaim; showBackdrops: boolean}) {
@@ -228,7 +291,7 @@ function TitlePinnedActions({binding, data}: {binding: DetailBindings; data: Det
   </div>;
 }
 
-function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjection}) {
+function TitleMore({binding, data, trigger: drawn}: {binding: DetailBindings; data: DetailProjection; /** The title frame's own More button. */ trigger?: ReactElement}) {
   const [open, setOpen] = useState(false), [fileOpen, setFileOpen] = useState(false);
   const [manage, setManage] = useState<FileInfoManageContext>(), [rating, setRating] = useState(false), [linkToast, setLinkToast] = useState<ToastData | null>(null);
   const trigger = useRef<HTMLButtonElement>(null), width = useShellWidth(), phone = width < 1024;
@@ -332,7 +395,7 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
     binding.current(data); if (entryTarget && effect && trigger.current) return effect(entryTarget, trigger.current);
   });
   return <>
-    <Menu open={open} onOpenChange={setOpen} title={data.item.title} width={280} trigger={<Button ref={trigger} icon="i-more" iconOnly aria-label={t('next.controls.more')} className={open ? styles.moreOpen : undefined} />}>
+    <Menu open={open} onOpenChange={setOpen} title={data.item.title} width={280} trigger={drawn ? cloneElement(drawn as ReactElement<{ref?: RefObject<HTMLButtonElement | null>}>, {ref: trigger}) : <Button ref={trigger} icon="i-more" iconOnly aria-label={t('next.controls.more')} className={open ? styles.moreOpen : undefined} />}>
       {/* The drawn menu (desktop-detail 1 and 2, phone-detail 9): everyone's rows keep the frame's
           order — personal first, then playlist, collection and Download — before the version and
           File info block and the owner's own section, with Delete last and destructive. The sheet
