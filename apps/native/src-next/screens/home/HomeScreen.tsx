@@ -3,7 +3,8 @@ import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {noteHomeRead} from '../../shell/home-read-log';
 import {liveRereadPlan, type LiveRereadMemory} from './live-expiry';
 import {logBootMilestone} from '../../shell/boot-timing';
-import {AppState, RefreshControl, ScrollView, Text, View, useWindowDimensions, type ViewProps} from 'react-native';
+import {AppState, RefreshControl, ScrollView, Text, View, useWindowDimensions, type ViewProps, type ViewStyle} from 'react-native';
+import {BrowseFrame} from '../../kit/frames';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Animated, {cancelAnimation, runOnJS, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming, type LayoutAnimationFunction} from 'react-native-reanimated';
 import {useMotion} from '../../kit/useMotion';
@@ -201,6 +202,8 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
   const [heroVisible, setHeroVisible] = useState(true), [visibleRows, setVisibleRows] = useState<ReadonlySet<string>>(new Set());
   const [visibleRange, setVisibleRange] = useState<readonly [number, number]>([0, 0]);
   const [measuredRows, setMeasuredRows] = useState<Readonly<{layout: string; boxes: ReadonlyMap<string, {y: number; height: number}>}>>({layout: '', boxes: new Map()});
+  // Phone and tablet: where the frame starts the rows in the scrolled content (a row measures itself from there).
+  const [rowsTop, setRowsTop] = useState<number>();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- Shelf offsets belong to this authority.
   const shelfOffsets = useMemo(() => new Map<string, {offset: number}>(), [authority]);
   const [focus, setFocusState] = useState<{rowId: string; entryId: string}>(), [heroFocused, setHeroFocused] = useState(false), [repeating, setRepeating] = useState(false);
@@ -269,12 +272,14 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
   });
   const noHero = !theme.isTV && !document?.spotlight.length;
   const heroBlock = (preview: boolean) => noHero ? homeTopWithoutHero(shellLayout(windowWidth, windowHeight, theme.isTV).kind, insets.top) : homeHeroBlock(theme, heroHeight, preview);
-  let rowY = heroBlock(rows.some(row => row.id === focus?.rowId && row.entries.some(entry => entry.id === focus?.entryId)));
+  // TV measures its rows in the scrolled content; on the frame a row's box is measured from where the frame starts the rows.
+  const framedTop = theme.isTV ? 0 : rowsTop ?? 0;
+  let rowY = !theme.isTV && rowsTop !== undefined ? rowsTop : heroBlock(rows.some(row => row.id === focus?.rowId && row.entries.some(entry => entry.id === focus?.entryId)));
   const spacing = homeRowSpacing(theme);
   const rowBoxes: readonly HomeRowBox[] = rowModels.map(({row, slotHeight}) => {
     rowY += spacing.marginTop ?? 0;
     const measured = measuredRows.layout === rowLayoutKey ? measuredRows.boxes.get(row.id) : undefined;
-    const box = {id: row.id, y: measured?.y ?? rowY, height: slotHeight};
+    const box = {id: row.id, y: measured ? measured.y + framedTop : rowY, height: slotHeight};
     rowY = box.y + slotHeight + (spacing.marginBottom ?? 0);
     return box;
   });
@@ -457,29 +462,21 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
   if (theme.isTV ? startModel.actionless : !document.spotlight.length && !rows.length) return <LoadingPaint ready immediate={cachedAtMount.current} skeleton={null}>
     {librariesUnavailable ? <View style={{paddingTop: theme.isTV ? 120 : 100}}>{librariesNotice}</View> : runtime.renderHomeEmpty()}{theme.isTV ? mixesContent : null}</LoadingPaint>;
 
-  return <LoadingPaint ready immediate={cachedAtMount.current} skeleton={null}><Animated.ScrollView ref={vertical.scrollRef} testID="native-home" style={vertical.scrollStyle} scrollEventThrottle={16} onScroll={onScroll}
+  const scroll = (content: React.ReactNode, contentContainerStyle: ViewStyle) => <Animated.ScrollView ref={vertical.scrollRef} testID="native-home" style={vertical.scrollStyle} scrollEventThrottle={16} onScroll={onScroll}
     refreshControl={theme.isTV ? undefined : <RefreshControl refreshing={refreshing} tintColor={theme.colors.text} onRefresh={() => {
       if (!current() || refreshing) return;
       setRefreshing(true);
       noteHomeRead('pull'); void runtime.home.revalidate().catch(runtime.reportError).finally(() => {if (current()) setRefreshing(false);});
     }}/>}
     onContentSizeChange={(_, height) => {contentHeight.current = height;}} onScrollBeginDrag={vertical.stop}
-    showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: homeContentBottom(theme, bottomInset)}}>
-    <View style={{height: heroBlock(!!preview)}}>
-      {/* tv-focus frames1..3: the real spotlight controls stay mounted for native
-          Up guides while the preview covers them. Focus restores the spotlight. */}
-      {theme.isTV ? <View pointerEvents={preview ? 'none' : 'box-none'} style={{position: 'absolute', inset: 0}}>{spotlight}</View> : noHero ? null : spotlight}
-      {theme.isTV && preview && <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 0, height: heroHeight}}><FocusPreviewHero focusedEntry={preview} repeating={repeating || vertical.repeating} active={heroActive} visible={active && foreground && heroVisible}
-        renderArtwork={renderArtwork} renderReason={candidate => <View style={{flexDirection: 'row', gap: 16, marginBottom: 16}}>{homeCardText(candidate.entry, true, runtime.text).caption.map(part => <Text key={part.id} numberOfLines={1} style={[theme.type.eyebrow, {color: theme.colors.accentStrong, flexShrink: 1, includeFontPadding: false}]}>{part.text}</Text>)}</View>}
-        renderMetadata={candidate => <HomeHeroFacts facts={candidate.facts ?? []} continuation={homeCardText(candidate.entry, true, runtime.text)}/>}
-        renderHint={candidate => <HomeRemoteHint resume={!!candidate.target?.progressSeconds} text={runtime.text}/>}
-        onPreviewError={(error, candidate) => runtime.onArtworkError(error, candidate.entry)}/></View>}
-    </View>
+    showsVerticalScrollIndicator={false}
+    contentContainerStyle={contentContainerStyle}>{content}</Animated.ScrollView>;
+  const rowsContent = <>
     {librariesNotice}
     {rowModels.map(({row, presentation, width, height, slotHeight}, rowIndex) => {
       const sourceRow = document.rows.find(value => value.id === row.id);
       if (!sourceRow) return null;
-      if (!mountedRows.has(rowIndex)) return <View key={row.id} style={homeRowSpacing(theme)}><View style={{height: slotHeight}}/></View>;
+      if (!mountedRows.has(rowIndex)) return <View key={row.id} style={theme.isTV ? homeRowSpacing(theme) : undefined}><View style={{height: slotHeight}}/></View>;
       let scrollMemory = theme.isTV ? undefined : shelfOffsets.get(row.id);
       if (!theme.isTV && !scrollMemory) {scrollMemory = {offset: 0}; shelfOffsets.set(row.id, scrollMemory);}
       const physicalIds = theme.isTV ? row.live ? row.live.channels.map(item => JSON.stringify([item.channel.sourceId, item.channel.id])) : row.entries.map(entry => entry.id) : undefined;
@@ -521,16 +518,37 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
               current={current}/></LoadingPaint></View>}/>}
 </>;
       return <HomeWindow key={row.id} runtime={runtime} row={sourceRow} sectionOrder={rowIndex} visible={shown} physicalIds={physicalIds} retainedIds={retainedIds} range={ranges.current.get(row.id)}><>{theme.isTV ? <TVHomeRowShift heroDelta={heroDelta} style={homeRowSpacing(theme)} onLayout={rowLayout}>{rowBody}</TVHomeRowShift>
-        : <View onLayout={rowLayout} style={homeRowSpacing(theme)}>{rowBody}</View>}</></HomeWindow>;
+        : <View onLayout={rowLayout}>{rowBody}</View>}</></HomeWindow>;
     })}
     {pendingRows.map(row => <HomePendingRow key={`pending:${row.id}`} row={row} labels={labels} viewportWidth={viewportWidth}/>)}
     {mixesContent}
-    <HomeRegion focus={theme.isTV ? {...regionMap.customize, order: ['customize'], enabled: !holdCustomize} : undefined}><View style={theme.isTV ? {flexDirection: 'row', alignItems: 'center', gap: 30, paddingLeft: theme.gutter, paddingRight: theme.layout.gutter.tvRight, paddingVertical: 24} : {marginTop: 34, marginHorizontal: 24, alignItems: 'center', gap: 12}}><Button focusId="customize" disabled={holdCustomize} variant="glass" icon="i-sliders" style={theme.isTV ? undefined : {height: 48, paddingHorizontal: 22}} onPress={() => guarded(runtime.actions.customize)}>{t('home.customize.action')}</Button>
+    <HomeRegion focus={theme.isTV ? {...regionMap.customize, order: ['customize'], enabled: !holdCustomize} : undefined}><View style={theme.isTV ? {flexDirection: 'row', alignItems: 'center', gap: 30, paddingLeft: theme.gutter, paddingRight: theme.layout.gutter.tvRight, paddingVertical: 24} : {marginHorizontal: 24, alignItems: 'center', gap: 12}}><Button focusId="customize" disabled={holdCustomize} variant="glass" icon="i-sliders" style={theme.isTV ? undefined : {height: 48, paddingHorizontal: 22}} onPress={() => guarded(runtime.actions.customize)}>{t('home.customize.action')}</Button>
       {theme.isTV
         ? <Text style={[nativeType({size: 22, weight: 400, tracking: 0, lineHeight: 30.8}, theme.textScale), {color: theme.colors.textTertiary, flexShrink: 1}]}>{t('next.home.customizeDescriptionTV')}</Text>
         : <Text style={[nativeType({size: 13, weight: 400, tracking: 0, lineHeight: 19.5}, theme.textScale), {color: theme.colors.textTertiary, textAlign: 'center'}]}>{t('next.home.customizeDescription')}</Text>}
     </View></HomeRegion>
-  </Animated.ScrollView></LoadingPaint>;
+  </>;
+  // Phone and tablet: the library frame (`BrowseFrame`) draws Home with its hero. The frame places the hero, the rows, the
+  // gaps between them and the bottom clearance; Home keeps its own scroller, whose handler drives the row window, the
+  // scrolled header and pull to refresh, and measures its rows from where the frame starts them.
+  if (!theme.isTV) return <LoadingPaint ready immediate={cachedAtMount.current} skeleton={null}>
+    <BrowseFrame testID="home-frame" hero={noHero ? null : <View style={{height: heroBlock(false)}}>{spotlight}</View>}
+      onRowsLayout={event => setRowsTop(event.nativeEvent.layout.y)}
+      scroller={(content, style) => scroll(content, {paddingBottom: Number(style.paddingBottom ?? 0) + bottomInset})}>{rowsContent}</BrowseFrame>
+  </LoadingPaint>;
+  return <LoadingPaint ready immediate={cachedAtMount.current} skeleton={null}>{scroll(<>
+    <View style={{height: heroBlock(!!preview)}}>
+      {/* tv-focus frames1..3: the real spotlight controls stay mounted for native
+          Up guides while the preview covers them. Focus restores the spotlight. */}
+      {theme.isTV ? <View pointerEvents={preview ? 'none' : 'box-none'} style={{position: 'absolute', inset: 0}}>{spotlight}</View> : noHero ? null : spotlight}
+      {theme.isTV && preview && <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 0, height: heroHeight}}><FocusPreviewHero focusedEntry={preview} repeating={repeating || vertical.repeating} active={heroActive} visible={active && foreground && heroVisible}
+        renderArtwork={renderArtwork} renderReason={candidate => <View style={{flexDirection: 'row', gap: 16, marginBottom: 16}}>{homeCardText(candidate.entry, true, runtime.text).caption.map(part => <Text key={part.id} numberOfLines={1} style={[theme.type.eyebrow, {color: theme.colors.accentStrong, flexShrink: 1, includeFontPadding: false}]}>{part.text}</Text>)}</View>}
+        renderMetadata={candidate => <HomeHeroFacts facts={candidate.facts ?? []} continuation={homeCardText(candidate.entry, true, runtime.text)}/>}
+        renderHint={candidate => <HomeRemoteHint resume={!!candidate.target?.progressSeconds} text={runtime.text}/>}
+        onPreviewError={(error, candidate) => runtime.onArtworkError(error, candidate.entry)}/></View>}
+    </View>
+    {rowsContent}
+  </>, {paddingBottom: homeContentBottom(theme, bottomInset)})}</LoadingPaint>;
 }
 
 /** A deferred row is real descriptor data, not a Home response: its title, shape and
@@ -542,7 +560,7 @@ function HomePendingRow({row, labels, viewportWidth}: {row: HomeRow; labels: Par
   const width = wide ? theme.spec.card.width.wide[theme.column] : square ? theme.spec.card.width.square[theme.column] : theme.spec.card.width.poster[theme.column];
   const height = wide ? width * 9 / 16 : square ? width + (theme.isTV ? 80 : 54) : width * 1.5 + (theme.isTV ? 80 : 48 + cardTitleLine(theme));
   const gap = theme.isTV ? 28 : 10, count = Math.max(1, Math.ceil(Math.max(0, viewportWidth - theme.gutter) / (width + gap)) + 1);
-  return <View testID={`home-pending-${row.id}`} style={{marginBottom: theme.isTV ? 30 : 18}}>
+  return <View testID={`home-pending-${row.id}`} style={theme.isTV ? {marginBottom: 30} : undefined}>
     <View style={{paddingHorizontal: theme.gutter, marginBottom: theme.isTV ? 22 : 12}}><Text style={[theme.type.rowHeading, {color: theme.colors.text}]}>{title}</Text></View>
     <LoadingPaint ready={false} style={{height, flexGrow: 0, flexShrink: 0, flexBasis: 'auto'}} skeleton={<View style={{flexDirection: 'row', gap, paddingLeft: theme.gutter, overflow: 'hidden'}}>{Array.from({length: count}, (_, index) =>
       <SkeletonBlock key={index} width={width} height={height} radius={theme.isTV ? 14 : 8} shine={index === 0}/>)}</View>}/>
