@@ -174,3 +174,10 @@ test('retirement prevents queued sidebar writes even inside a delayed store call
   live = false; resume(); await pending;
   assert.equal(records.writes, 0);
 });
+
+test('TV Continue your books keeps only what TV can resume: books and comics leave the row (fault 18)', () => {
+  const books = row('continue_books', {entries: [entry('pride', {kind: 'ebook'}), entry('scarlet', {kind: 'audiobook'}), entry('nemo', {kind: 'comic'})]});
+  const document = {rows: [books], spotlight: [], layout: {revision: 1, rowOrder: ['continue_books'], hiddenRowIds: []}} as unknown as HomeDocument;
+  assert.deepEqual(platformRows(document, 'tv', new Set())[0].entries.map(value => value.id), ['scarlet']);
+  assert.deepEqual(platformRows(document, 'phone', new Set())[0].entries.map(value => value.id), ['pride', 'scarlet', 'nemo']);
+});

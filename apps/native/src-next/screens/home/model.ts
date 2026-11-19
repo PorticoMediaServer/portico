@@ -27,7 +27,10 @@ export function authorizedHome(document: HomeDocument | undefined, authority: Sh
 
 /** Platform eligibility is server-authored; Read is additionally hidden from the TV shell. */
 export function platformRows(document: HomeDocument, platform: 'phone' | 'tv', readLibraryIds: ReadonlySet<string>): readonly HomeRow[] {
-  return document.rows.filter(row => (!row.platforms || row.platforms.includes(platform)) && (platform !== 'tv' || !row.libraryId || !readLibraryIds.has(row.libraryId)));
+  return document.rows.filter(row => (!row.platforms || row.platforms.includes(platform)) && (platform !== 'tv' || !row.libraryId || !readLibraryIds.has(row.libraryId)))
+    // TV reads no books or comics (their resume card draws nothing there), so Continue your books keeps only what TV can
+    // resume: an empty slot left of the audiobook made the first Left scroll the row instead of reaching the rail (fault 18).
+    .map(row => platform === 'tv' && row.id === 'continue_books' ? {...row, entries: row.entries.filter(entry => entry.kind !== 'ebook' && entry.kind !== 'comic')} : row);
 }
 
 export function pageAtVisibleEnd(row: HomeRow, last: number, preload = 3): boolean {
