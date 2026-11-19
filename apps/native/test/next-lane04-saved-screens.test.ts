@@ -35,9 +35,7 @@ function fixture(phone = true) {
     '../../platform/offline-downloads': {groupOfflineEntries: () => []}, './model': {}, './SavedDownloadCard': {SavedDownloadCard: 'SavedDownloadCard'},
     '../downloads/playback': {openNativeSavedDownload() {}},
   };
-  // PersonScreen's TV credit refocus is a hook over this fixture's own React (#703).
-  const load = async (name: string) => screenModule(new URL(`../src-next/screens/${name}.tsx`, import.meta.url),
-    {...modules, './credit-refocus': await screenModule(new URL('../src-next/screens/people/credit-refocus.ts', import.meta.url), {react})});
+  const load = async (name: string) => screenModule(new URL(`../src-next/screens/${name}.tsx`, import.meta.url), modules);
   return {host, modules, load};
 }
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.ListHeaderComponent)] : [];
@@ -140,40 +138,6 @@ test('Phone collection uses the centred 300-point hero, full-width play and actu
   assert.equal(find(tree, 'collection-shuffle').props.iconOnly, true); assert.ok(find(tree, 'collection-menu'));
   assert.ok(text(tree).includes('Portico put this together from the films’ details'));
   const row = list.props.renderItem(entry, {index: 0, id: 'movie:e', onFocus() {}, onBlur() {}}); assert.equal(row.type.name, 'CollectionRow'); assert.equal(row.props.entry, entry);
-});
-
-test('Person adds the known-for ambient wash without advertising unsupported owner or sort actions', async () => {
-  const f = fixture(), {PersonScreen} = await f.load('people/PersonScreen');
-  const page = {person: {id: 'person', name: 'Person Name', roles: [], knownFor: [entry]}, pageInfo: {total: 1}};
-  const collection = {pageOf: () => 0, subscribe: () => () => {}, getSnapshot: () => ({generation: 1, total: 1, status: 'ready'}), getPageVersion: () => 0};
-  const tree = f.host.render(() => PersonScreen({focusScope: 'person', page, role: 'all', collection, runtime,
-    actions: {menuState: {subscribe: () => () => {}, getSnapshot: () => 0}}, onRole() {}, onBack() {}}));
-  const ambient = nodes(tree).find(node => node.type === 'AmbientArt'); assert.equal(ambient.props.height, 560); assert.equal(ambient.props.source, '/a');
-  assert.equal(nodes(tree).some(node => node.type === 'Menu'), false);
-  const list = nodes(tree).find(node => node.type === 'VirtualizedList');
-  const creditCollection = {...collection, itemAt: () => ({media: entry, role: 'Actor'})};
-  const next = f.host.render(() => PersonScreen({focusScope: 'person', page, role: 'all', collection: creditCollection, runtime,
-    actions: {menuState: {subscribe: () => () => {}, getSnapshot: () => 0}}, selection: {item: () => ({}), render: () => null}, onRole() {}, onBack() {}}));
-  const credit = nodes(nodes(next).find(node => node.type === 'VirtualizedList').props.renderItem({item: 0})).find(node => node.type?.name === 'PersonEntryCard');
-  assert.equal(credit.props.entry, entry); assert.ok(credit.props.selection); assert.ok(list);
-});
-
-test('Person tablet draws Select before the role chips and enters selection without a pick; phone does not', async () => {
-  const page = {person: {id: 'person', name: 'Person Name', roles: [], knownFor: [entry]}, pageInfo: {total: 1}};
-  const collection = {pageOf: () => 0, subscribe: () => () => {}, getSnapshot: () => ({generation: 1, total: 1, status: 'ready'}), getPageVersion: () => 0};
-  let started = 0;
-  const selection = {start: () => {started++;}, subscribe: () => () => {}, getSnapshot: () => 0, item: () => undefined, render: () => null};
-  const draw = async (phone: boolean) => {
-    const f = fixture(phone), {PersonScreen} = await f.load('people/PersonScreen');
-    return f.host.render(() => PersonScreen({focusScope: 'person', page, role: 'all', collection, runtime,
-      actions: {menuState: {subscribe: () => () => {}, getSnapshot: () => 0}}, selection, onRole() {}, onBack() {}}));
-  };
-  const tablet = await draw(false), chips = nodes(tablet).filter(node => node.type === 'Chip');
-  const select = find(tablet, 'person-select');
-  assert.equal(select.props.icon, 'i-check'); assert.equal(text(select), 'next.selection.select');
-  assert.equal(chips.indexOf(select), chips.findIndex(chip => chip.props.testID === 'person-role-all') - 1, 'Select leads the role chips');
-  select.props.onPress(); assert.equal(started, 1);
-  assert.equal(nodes(await draw(true)).some(node => node.props?.testID === 'person-select'), false);
 });
 
 test('Saved delayed initial skeleton retains its shape and adds the quiet line after eight seconds', async context => {

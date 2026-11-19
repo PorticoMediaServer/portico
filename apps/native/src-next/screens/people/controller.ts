@@ -13,7 +13,7 @@ export type NativePersonSnapshot = Readonly<{
   /** Provenance of the actual canonical request, never inferred from row facts. */
   pageOrigin?: 'initial' | 'continuation';
   /** TV, all credits, after a re-read only: the first page of each department (by group id), read with it so each
-   * department row holds its first page from the replacement's first render (credit-window, credit-refocus). A department
+   * department row holds its first page from the replacement's first render (credit-window). A department
    * whose page could not be read, or answered for another revision, is absent and its row reads it itself. */
   departmentPages?: ReadonlyMap<string, PersonPage>;
   error?: unknown;

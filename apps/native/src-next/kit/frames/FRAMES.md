@@ -375,8 +375,9 @@ these now.
 
 Still the screens' own, for Stage 2 (they read the title controller or TV shelves directly):
 `screens/watch/TitlePeople.tsx` (TV paging and focus; Stage 2 draws it on `CastRow`), `TitleEpisodePlate.tsx` (the
-episode opened in place; the gallery's is built from the kit parts), `screens/people/PersonScreen.tsx` and
-`screens/collections/CollectionScreen.tsx` (they still use `CoverHero`; Stage 2 puts them on `TitleFrame` with `cover`).
+episode opened in place; the gallery's is built from the kit parts) and
+`screens/collections/CollectionScreen.tsx` (it still uses `CoverHero`; Stage 2 puts it on `TitleFrame`). A person's page is
+rebuilt on `TitleFrame` with `cover` (`pages/touch/person`, `pages/tv/person`).
 The runtime chip is outlined only on Home (rule 6213a8c02a); the gallery's facts use the shared ids (`season-count`,
 `content-rating`).
 
