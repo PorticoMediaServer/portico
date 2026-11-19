@@ -38,13 +38,16 @@ export type NativeCollectionScreenProps = Readonly<{
   actions?: Readonly<{menuState?: NativeEntryMenuState; menu: (entry: ContentEntry, anchor?: RefObject<View | null>, select?: () => void) => void;
     isMenuOpen?: (entry: ContentEntry) => boolean}>;
   selection?: NativeSavedSelectionPort;
+  /** The top bar's Play on (the rebuilt touch page; this TV screen has none). */
+  playOn?: import('../../shell/runtime').NativeShellRuntime['playOn'];
+  onPlayOn?: (anchor?: RefObject<View | null>) => void;
 }>;
 
 /** The window's own key for a member (the controller's `keyOf`). */
 const nativeCollectionEntryKey = (entry: ContentEntry) => `${entry.kind}:${entry.id}`;
-const sortLabel = (sort: NativeCollectionSort) => defaultI18n.has(sort.labelKey) ? defaultI18n.t(sort.labelKey as never) : sort.id;
+export const sortLabel = (sort: NativeCollectionSort) => defaultI18n.has(sort.labelKey) ? defaultI18n.t(sort.labelKey as never) : sort.id;
 /** The year span, only when every member is in memory: a partial window never guesses it. */
-const years = (state: NativeCollectionState) => {
+export const years = (state: NativeCollectionState) => {
   if (!state.totalCount || !state.complete) return undefined;
   const values = state.complete.map(entry => entry.year).filter((year): year is number => Number.isFinite(year));
   if (!values.length) return undefined;
