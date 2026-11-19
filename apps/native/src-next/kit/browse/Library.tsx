@@ -1,4 +1,4 @@
-import React, {useRef, useState, type ReactNode} from 'react';
+import React, {createContext, useContext, useRef, useState, type ReactNode} from 'react';
 import {StyleSheet, Text, View, type StyleProp, type ViewStyle} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -14,6 +14,11 @@ import type {FactPart} from '../../../../../packages/client-core/src/presentatio
 
 const t = defaultI18n.t;
 
+/** The header decides how its switcher is drawn: a wide header already sets the library's name as its title, so its switcher
+ * is the round chevron alone (tablet 3-5, desktop-browse); the phone bar's switcher is the centred name with its chevron. A
+ * name drawn inside the round slot was cut to "F…" (owner: no cut text). */
+const SwitcherSlot = createContext<'name' | 'chevron' | undefined>(undefined);
+
 export function LibraryHeader({name, counts, switcher, menu, ambient, children, testID}: LibraryHeaderProps) {
   const theme = useTheme();
   return <View testID={testID}>
@@ -22,7 +27,7 @@ export function LibraryHeader({name, counts, switcher, menu, ambient, children, 
       <View style={{flex: theme.isTV ? undefined : 1, minWidth: 0}}>
         <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
           <Text accessibilityRole="header" textBreakStrategy="balanced" style={[browseType(theme, theme.isTV ? 44 : 56, 800, -.045, theme.isTV ? 'normal' : 56), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text>
-          {switcher}
+          <SwitcherSlot.Provider value="chevron">{switcher}</SwitcherSlot.Provider>
         </View>
         <LibraryCounts counts={counts} style={{marginTop: 12}}/>
       </View>
@@ -35,7 +40,7 @@ export function LibraryHeader({name, counts, switcher, menu, ambient, children, 
 
 /** The phone library header: the shared top bar (kit/layout/TopBar) with "‹ Libraries", the switcher or name, ⋯ and the pivots. */
 export function StickyBrowseHeader({name, switcher, menu, children, onLibraries, back, safeArea = true, testID}: Omit<LibraryHeaderProps, 'counts'> & {onLibraries?: () => void; /** A pushed page's own Back in place of "‹ Libraries". */ back?: TopBarBack; safeArea?: boolean}) {
-  return <TopBar testID={testID} surface safeArea={safeArea} back={back ?? (onLibraries ? {label: t('next.browse.native.libraries'), onPress: onLibraries} : undefined)} title={switcher ? undefined : name} center={switcher || undefined} trailing={menu}>{children}</TopBar>;
+  return <TopBar testID={testID} surface safeArea={safeArea} back={back ?? (onLibraries ? {label: t('next.browse.native.libraries'), onPress: onLibraries} : undefined)} title={switcher ? undefined : name} center={switcher ? <SwitcherSlot.Provider value="name">{switcher}</SwitcherSlot.Provider> : undefined} trailing={menu}>{children}</TopBar>;
 }
 
 /** A library's counts under its title (final3-desktop-12, desktop-listen music and books). */
@@ -57,7 +62,7 @@ export function LibraryExpandedHeader({name, counts, switcher, menu, ambient, se
     <BarSurface/>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: theme.gutter, paddingTop: 22}}>
       <Text accessibilityRole="header" textBreakStrategy="balanced" style={[browseType(theme, 44, 800, -.045, 44), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text>
-      <View style={{width: 44, height: 44, borderRadius: 22, marginTop: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.text, .12)}}>{switcher}</View>
+      <View style={{width: 44, height: 44, borderRadius: 22, marginTop: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.text, .12)}}><SwitcherSlot.Provider value="chevron">{switcher}</SwitcherSlot.Provider></View>
       <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{selection}{menu}</View>
     </View>
     <LibraryCounts counts={counts} style={{paddingHorizontal: theme.gutter, marginTop: 8}}/>
@@ -77,7 +82,7 @@ export function LibraryMediumHeader({name, counts, switcher, menu, selection, am
     <BarSurface/>
     <View style={{height: 46, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 28}}>
       <Text accessibilityRole="header" textBreakStrategy="balanced" style={[browseType(theme, 24, 800, -.03), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text>
-      <View style={{width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.text, .12)}}>{switcher}</View>
+      <View style={{width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.text, .12)}}><SwitcherSlot.Provider value="chevron">{switcher}</SwitcherSlot.Provider></View>
       <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{selection}{menu}</View>
     </View>
     <LibraryCounts counts={counts} style={{paddingHorizontal: 28, marginTop: 4}}/>
@@ -85,12 +90,14 @@ export function LibraryMediumHeader({name, counts, switcher, menu, selection, am
   </View>;
 }
 
-/** Its trigger can be the centred phone name, or only the chevron beside a large header. */
-export function LibrarySwitcher({libraries, value, onValueChange, open: suppliedOpen, onOpenChange, trigger = 'name', testID, returnFocusRef}: {
+/** Its trigger is the centred phone name, or only the round chevron beside a wide header's title; the header it sits in decides. */
+export function LibrarySwitcher({libraries, value, onValueChange, open: suppliedOpen, onOpenChange, trigger: suppliedTrigger, testID, returnFocusRef}: {
   libraries: readonly LibraryChoice[]; value: string; onValueChange: (id: string) => void;
   open?: boolean; onOpenChange?: (open: boolean) => void; trigger?: 'name' | 'chevron'; testID?: string; returnFocusRef?: FocusRef;
 }) {
   const theme = useTheme(), anchorRef = useRef<View>(null), [localOpen, setLocalOpen] = useState(false);
+  // The header's slot decides; a switcher outside a header (a chooser) draws what it is given.
+  const trigger = useContext(SwitcherSlot) ?? suppliedTrigger ?? 'name';
   const open = suppliedOpen ?? localOpen, current = libraries.find(library => library.id === value);
   const setOpen = (next: boolean) => {if (suppliedOpen === undefined) setLocalOpen(next); onOpenChange?.(next);};
   return <>
