@@ -25,6 +25,7 @@ import type {NativeWatchOutletPort} from '../../shell/watch-outlet';
 import {NativeTitleController, type NativeTitlePageHost} from './title-controller';
 import {NativeTitleStarts} from './title-starts';
 import {NativeTitleScreen, type NativeTitleScreenProps} from './TitleScreen';
+import {FilmPage} from '../../pages/touch/title/FilmPage';
 import {FileInfoSession, fileInfoUsesGroups} from '../../../../../packages/client-core/src/file-info-session';
 import {NativeFileInfoPanel} from './FileInfoPanel';
 import type {NativeFileInfoOwner} from './file-info';
@@ -124,7 +125,7 @@ export type NativeWatchFactoryPorts = Readonly<{
   openMenu: (capture: NativeWatchCapture, actions: NativeWatchMenuActions, anchorRef?: React.RefObject<View | null>) => void;
   /** One quiet confirmation (O-162: "Link copied"). */
   notice?: (message: string) => void;
-  title: Pick<NativeTitleScreenProps, 'aboutLabel' | 'renderError' | 'renderPageError' | 'reportError' | 'navigate' | 'person' | 'owner' | 'openCollection' | 'serverName' | 'search'> & Readonly<{
+  title: Pick<NativeTitleScreenProps, 'aboutLabel' | 'renderError' | 'renderPageError' | 'reportError' | 'navigate' | 'person' | 'genre' | 'owner' | 'openCollection' | 'serverName' | 'search'> & Readonly<{
     myList?: (entry: ContentEntry) => NativeTitleScreenProps['myList'];
     download?: NativeTitleScreenProps['download'];
     menu?: NativeTitleScreenProps['menu'];
@@ -498,7 +499,9 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
             runtime.playOn?.open(anchorRef);
           } : undefined;
       const selection = selectionFor(key, controller);
-      return <NativeTitleScreen authority={ports.authority} {...ports.title} search={search} removeContinue={removeContinue} onPlayOn={onPlayOn} playOn={runtime.playOn} key={key} controller={controller} text={runtime.text} artwork={runtime.artwork} ambient={runtime.ambient}
+      // The rebuilt touch film page (pages/touch/title); TV, shows, seasons and episodes stay on the old screen until theirs land.
+      const Screen = !ports.isTV && route.entry.kind === 'movie' ? FilmPage : NativeTitleScreen;
+      return <Screen authority={ports.authority} {...ports.title} search={search} removeContinue={removeContinue} onPlayOn={onPlayOn} playOn={runtime.playOn} key={key} controller={controller} text={runtime.text} artwork={runtime.artwork} ambient={runtime.ambient}
         selection={selection ? entry => selection.item(entry) : undefined} selectionBar={selection?.render()}
         back={() => {ports.navigation.back(ports.authority);}} more={(entry, anchorRef) => {
           const owner = controller!;

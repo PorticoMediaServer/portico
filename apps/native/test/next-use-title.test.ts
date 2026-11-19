@@ -14,7 +14,7 @@ const film = {id: 'f1', kind: 'movie', title: 'The Godfather', libraryId: 'movie
 const detail = (over: Record<string, unknown> = {}) => ({
   item: {title: 'The Godfather', year: 1972, duration: 10_000, overview: 'A family.', backdropUrl: '/bd.jpg', addedAt: '2026-11-18T00:00:00Z'},
   facts: {contentRating: 'R', releaseDate: '1972-03-14', studio: 'Paramount', tagline: 'An offer.'},
-  metadata: {genres: [{name: 'Crime'}], ratings: [{provider: 'community', value: 8.689}], credits: [
+  metadata: {genres: [{id: 'g-crime', name: 'Crime'}], ratings: [{provider: 'community', value: 8.689}], credits: [
     {id: 'c1', personId: 'p1', name: 'Marlon Brando', role: 'Vito', department: 'Acting', provider: ''},
     {id: 'c2', name: 'Francis Ford Coppola', role: 'Director', department: 'Directing', provider: ''}]},
   personal: {watchlisted: false, watched: false, progressSeconds: 0},
@@ -30,10 +30,10 @@ async function page(snapshot: Record<string, unknown>, extra: Record<string, unk
     '../../../../../../packages/client-core/src/presentation/errors': errors, '../../../../../../packages/i18n/src': {defaultI18n}});
   const record = (name: string) => (...args: unknown[]) => {calls.push([name, ...args]); return Promise.resolve();};
   const controller = {subscribe: () => () => {}, getSnapshot: () => ({entry: film, retired: false, place: {tab: 'related'}, related: {}, recommendationRows: [], ...snapshot}),
-    open: record('open'), play: record('play'), remember: record('remember'), personal: record('personal'), tab: record('tab'), moreRelated: record('moreRelated'), detail: {refresh: record('refresh')}};
+    open: record('open'), play: record('play'), remember: record('remember'), moreCredits: record('moreCredits'), personal: record('personal'), tab: record('tab'), moreRelated: record('moreRelated'), detail: {refresh: record('refresh')}};
   const props = {controller, text: {t, locale: 'en-US'}, artwork: (path?: string) => path ? {uri: path} : undefined, ambient: () => undefined,
     back: record('back'), navigate: record('navigate'), more: record('more'), reportError: record('error'), renderError: () => null, aboutLabel: 'About',
-    download: record('download'), openCollection: record('collection'), person: record('person'), ...extra};
+    download: record('download'), openCollection: record('collection'), person: record('person'), genre: record('genre'), ...extra};
   return {view: h.render(() => useTitle(props)), calls};
 }
 
@@ -55,6 +55,10 @@ test('a film offers Play, My List, Watched, Download and More, and each does wha
   view.tabs.onValueChange('details'); assert.deepEqual(calls.at(-1), ['tab', 'details']);
   assert.deepEqual(view.details.people.lines.map((line: any) => line.names), ['Francis Ford Coppola']);
   view.details.people.groups[0][0].onPress(); assert.deepEqual(calls.at(-1), ['person', 'p1']);
+  assert.equal(view.details.people.seeAll.label, t('action.seeAll'));
+  assert.deepEqual(view.people.groups.map((group: any[]) => group.map(person => person.name)), [['Marlon Brando'], ['Francis Ford Coppola']]);
+  view.details.about.rows.find((row: any) => row.label === t('title.genres')).values[0].onPress();
+  assert.deepEqual(calls.at(-1), ['genre', {id: 'g-crime', name: 'Crime'}]);
 });
 
 test('a started film offers Resume with the time left and Start over; one not in My List offers to add it', async () => {
@@ -98,4 +102,12 @@ test('the page keeps its scroll place, and Play offers the drawn art to the play
   assert.equal(view.scroll.offset, 420);
   view.scroll.onOffset(600); assert.deepEqual(calls.at(-1), ['remember', {itemId: null, offset: 600}]);
   view.primary.onPress(); assert.equal(calls.at(-1)![3], undefined, 'no art drawn yet: no art offered');
+});
+
+test('See all lists everyone the server has paged so far and reads the next page while there is more', async () => {
+  const credits = {credits: [{id: 'c1', personId: 'p1', name: 'Marlon Brando', role: 'Vito', department: 'Acting', provider: ''}, {id: 'c3', name: 'Al Pacino', role: 'Michael', department: 'Acting', provider: ''}],
+    hasMore: true, loading: false, waitingId: 'w1'};
+  const {view, calls} = await page({detail: {phase: 'ready', data: detail()}, credits});
+  assert.deepEqual(view.people.groups[0].map((person: any) => person.name), ['Marlon Brando', 'Al Pacino']);
+  view.people.more.onPress(); assert.deepEqual(calls.at(-1), ['moreCredits', credits]);
 });

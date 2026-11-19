@@ -8,7 +8,7 @@ import {presentError} from '../../../../../../packages/client-core/src/presentat
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
 import type {CollectionCardProps} from '../../../kit/cards';
-import type {PageStateProps, TitleAction, TitleKicker, TitlePrimary, TitleDetailsProps, CastPerson} from '../../../kit/frames';
+import type {PageStateProps, PeopleSheetProps, TitleAction, TitleKicker, TitlePrimary, TitleDetailsProps, CastPerson} from '../../../kit/frames';
 import type {PosterRowProps} from '../../../kit/layout';
 import type {NativeTitleScreenProps} from '../../../screens/watch/TitleScreen';
 import type {NativeTitleTab} from '../../../screens/watch/title-memory';
@@ -33,6 +33,8 @@ export type TitleView = Readonly<{
   tabs: Readonly<{value: NativeTitleTab; items: readonly TitleTab[]; onValueChange: (value: string) => void}>;
   related: readonly PosterRowProps[];
   details: TitleDetailsProps;
+  /** Cast & crew's See all: everyone, paged from the server. */
+  people: PeopleSheetProps;
   /** Loading with nothing to show yet, or the whole page failed. */
   state?: Readonly<{kind: 'loading'}> | PageStateProps;
 }>;
@@ -53,6 +55,7 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
   useEffect(() => {mounted.current = true; return () => {mounted.current = false; tell();};}, [controller]);
   // Remove from Continue Watching on a removed title (states13), once, cancelled if the page goes.
   const removal = useRef<AbortController | undefined>(undefined), [removing, setRemoving] = useState(false), [removed, setRemoved] = useState(false);
+  const [peopleOpen, setPeopleOpen] = useState(false);
   useEffect(() => () => removal.current?.abort(), []);
   const title = entry.displayTitle ?? detail?.item.title ?? entry.title;
   const backdrop = detail?.item.backdropUrl ?? entry.backdropUrl;
@@ -114,17 +117,26 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
   const creditLines = [...(directors.length ? [{label: t('title.directedBy', {names: ''}).trim(), names: names(directors)}] : []),
     ...(writers.length ? [{label: t('title.writtenBy', {names: ''}).trim(), names: names(writers)}] : [])];
   const castNames = [...new Set(cast.map(credit => credit.name))].slice(0, 3);
+  // See all: the title's credits as the controller pages them (37 at a time), the cast then the crew.
+  const paged = snapshot.credits, everyone = paged?.credits ?? credits;
+  const everyoneCast = everyone.filter(credit => ['acting', 'cast'].includes(credit.department.toLowerCase()));
+  const people: PeopleSheetProps = {open: peopleOpen, onOpenChange: setPeopleOpen, title: t('web.metadata.tabPeople'), back: {label: t('title.details'), onPress: () => setPeopleOpen(false)},
+    groups: [everyoneCast.map(person), everyone.filter(credit => !everyoneCast.includes(credit)).map(person)],
+    ...(paged?.hasMore ? {more: {label: t('action.showMore'), loading: paged.loading, onPress: () => {void controller.moreCredits(paged).catch(fail);}}} : {}),
+    ...(paged?.error ? {note: presentError(paged.error, 'detail').body} : {})};
 
   const about = [
     detail?.facts?.releaseDate && {label: t('title.releaseDate'), values: [{text: dateText(detail.facts.releaseDate, locale, true)}]},
-    detail?.metadata.genres.length && {label: t('title.genres'), values: detail.metadata.genres.map(genre => ({text: genre.name}))},
+    // A genre opens its Search genre page, drawn as a link (phone-detail d1 frame 2).
+    detail?.metadata.genres.length && {label: t('title.genres'), values: detail.metadata.genres.map(genre => ({text: genre.name, ...(props.genre ? {onPress: () => props.genre!({id: genre.id, name: genre.name})} : {})}))},
     // "Community 8.7": the server names its rating's kind, not its source, so the page says which kind (phone-detail d1 frame 2 draws the source's name).
     detail?.metadata.ratings.length && {label: t('title.ratings'), values: [{text: detail.metadata.ratings.map(rating => `${ratingKind(rating.provider)} ${defaultI18n.number(rating.value, {maximumFractionDigits: 1})}`).join(', ')}]},
     detail?.facts?.studio && {label: t('title.studio'), values: [{text: detail.facts.studio}]},
     detail?.item.addedAt && {label: t('title.added'), values: [{text: dateText(detail.item.addedAt, locale)}]},
-  ].filter((row): row is {label: string; values: {text: string}[]} => !!row);
+  ].filter((row): row is {label: string; values: {text: string; onPress?: () => void}[]} => !!row);
   const banner: CollectionCardProps | undefined = collection && openCollection ? {title: collection.name, kindLabel: t('next.home.collection'),
-    body: t('next.collection.filmsOnServer', {count: collection.memberCount}), covers: collection.posterUrls.slice(0, 2).map(url => props.artwork(url)).filter((art): art is ArtworkSource => !!art),
+    // The count is the banner's body and, on a phone's link card, its one caption line (phone-detail d1 `.colc`).
+    body: t('next.collection.filmsOnServer', {count: collection.memberCount}), caption: [{id: 'count', text: t('next.collection.filmsOnServer', {count: collection.memberCount}), role: 'context'}], covers: collection.posterUrls.slice(0, 2).map(url => props.artwork(url)).filter((art): art is ArtworkSource => !!art),
     backdrop: props.artwork(backdrop), onNavigate: openCollection} : undefined;
 
   // More like this: the title's related rows and the server's recommendations; each continues to its end (MOB-054).
@@ -169,6 +181,8 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
       items: [{value: 'related', label: t('next.controls.moreLikeThis')}, {value: 'details', label: t('title.details')}]},
     related,
     details: {about: about.length ? {title: t('next.show.about'), rows: about} : undefined,
-      people: credits.length ? {title: t('web.metadata.tabPeople'), groups: [cast.map(person), crew.map(person)], lines: creditLines} : undefined, collection: banner},
+      people: credits.length ? {title: t('web.metadata.tabPeople'), groups: [cast.map(person), crew.map(person)], lines: creditLines,
+        seeAll: {label: t('action.seeAll'), onPress: () => setPeopleOpen(true)}} : undefined, collection: banner},
+    people,
     state};
 }

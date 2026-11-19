@@ -92,7 +92,7 @@ function DuneDetails() {
       {label: f('studio'), values: [link(f('studioValue'))]}, {label: f('added'), values: [{text: f('addedValue')}]}]}}
     people={{title: f('castAndCrew'), groups: [duneCast, duneCrew], seeAll: {label: f('seeAllCount'), onPress: none},
       lines: [{label: f('directedBy'), names: f('dune2Director')}, {label: f('writtenBy'), names: `${f('dune2Crew1')}, ${f('dune2Crew2')}`}]}}
-    collection={{title: f('duneCollectionName'), kindLabel: f('duneCollectionKind'), body: f('duneCollectionBody'), covers: [asset('pool/movies/dune.jpg'), asset('pool/movies/dune-part-two.jpg')],
+    collection={{title: f('duneCollectionName'), kindLabel: f('duneCollectionKind'), body: f('duneCollectionBody'), caption: [{id: 'count', text: defaultI18n.t('next.collection.filmsOnServer', {count: 2}), role: 'context'}], covers: [asset('pool/movies/dune.jpg'), asset('pool/movies/dune-part-two.jpg')],
       backdrop: asset('pool/movies/dune-part-two--bd.jpg'), onNavigate: none}}/>;
 }
 /** Cast & crew's See all: everyone on the full sheet over the Details tab, with Show more while the server has more. */
