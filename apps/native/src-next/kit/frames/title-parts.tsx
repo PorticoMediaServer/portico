@@ -56,6 +56,8 @@ const initials = (name: string) => name.split(/\s+/u).filter(Boolean).slice(0, 2
 /** Cast and crew as circles with the name and role under each (desktop-detail f3, phone-detail d1 frame 2, foldable f2,
  * detail-tv-4): initials when there is no photo. A row that scrolls sideways on a phone and TV; the cast, then the crew
  * under a rule, wrapping, on a tablet. */
+/** A person with no page of their own: the card is drawn disabled and its navigate does nothing. */
+const noPage = () => {};
 export function CastRow({groups}: Readonly<{groups: readonly (readonly CastPerson[])[]}>) {
   const theme = useTheme(), frame = useFrameMetrics(), scroll = frame.form === 'phone' || frame.form === 'tv';
   const size = sizes.castCircle[frame.form], width = size + (frame.form === 'tv' ? 50 : frame.form === 'phone' ? 14 : 24);
@@ -63,7 +65,7 @@ export function CastRow({groups}: Readonly<{groups: readonly (readonly CastPerso
   // role take the column's width under the circle.
   const person = (entry: CastPerson) => <CircleCard key={entry.id} focusId={`cast-${entry.id}`} person width={width} circle={size} title={entry.name} titleLines={2} captionLines={2}
     caption={entry.role !== undefined ? [{id: 'role', text: entry.role, role: 'context'}] : []} art={{initials: initials(entry.name), source: entry.portrait, covers: []}}
-    onNavigate={entry.onPress} disabled={!entry.onPress}/>;
+    onNavigate={entry.onPress ?? noPage} disabled={!entry.onPress}/>;
   const lists = groups.filter(group => group.length > 0);
   // R1, TV: the scroller gives a focused person its growth, ring and glow (`tvFocusRoom`) and takes it back, so the row
   // does not move. Height: the circle; the glow's room covers the name's share of the growth.
