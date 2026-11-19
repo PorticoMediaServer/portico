@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import {useSyncExternalStore, type ReactNode} from 'react';
 import type {ArtworkSource} from '../artwork';
 import {Button} from '../controls';
 import {Icon, type IconName} from '../Icon';
@@ -14,6 +14,17 @@ import styles from './player-frames.module.css';
 
 /** The time read-outs; the frame places them for the form (under the scrubber, either side of it, or as one clock). */
 export type PlayerReadouts = Readonly<{position: string; /** With a minus sign: the time left. */ remaining?: string; duration?: string; /** "Ends 4:48 PM". */ endsAt?: string; /** Said in place of the time left. */ live?: string}>;
+/** The video player's three web forms: an upright phone (the 16:9 strip and the watch page under it), a phone on its side
+ * (the transport in the middle of the picture), and the wide form (desktop-player, tablet-play). */
+export type PlayerForm = 'upright' | 'sideways' | 'wide';
+const formQueries = {upright: '(max-width: 599px)', sideways: '(max-height: 500px) and (min-width: 600px)'} as const;
+const subscribeForm = (changed: () => void) => {
+  const lists = Object.values(formQueries).map(query => window.matchMedia(query));
+  lists.forEach(list => list.addEventListener('change', changed));
+  return () => lists.forEach(list => list.removeEventListener('change', changed));
+};
+const windowForm = (): PlayerForm => window.matchMedia(formQueries.upright).matches ? 'upright' : window.matchMedia(formQueries.sideways).matches ? 'sideways' : 'wide';
+
 export type PlayerChromeFrameProps = Readonly<{
   /** The video surface, or the frozen frame when playback failed. */
   picture: ReactNode;
@@ -47,6 +58,9 @@ export type PlayerChromeFrameProps = Readonly<{
   resume?: ReactNode;
   /** A phone: the finger is on the scrubber, so the transport in the middle of the picture makes way for the preview. */
   scrubbing?: boolean;
+  /** The form, when the screen chooses it (a phone's Full screen makes an upright phone the full-window player); by default
+   * the window's: under 600 wide upright, 500 or less high sideways, else wide. */
+  form?: PlayerForm;
   /** An upright phone only: the watch page under the picture (the title page's own content). */
   body?: ReactNode;
 }>;
@@ -56,10 +70,11 @@ export type PlayerChromeFrameProps = Readonly<{
  * transport in the middle of the picture and the read-outs either side of the scrubber. An upright phone (phone-player
  * 4): the picture is a 16:9 strip with the chrome inside it, the scrubber on its lower edge, and the watch page below.
  * Every region is fixed; the parts that fill it are `kit/player`'s. */
-export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, panelCovers, resume, scrubbing, body}: PlayerChromeFrameProps) {
+export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, panelCovers, resume, scrubbing, body, form}: PlayerChromeFrameProps) {
+  const windowShape = useSyncExternalStore(subscribeForm, windowForm, () => 'wide' as const), drawn = form ?? windowShape;
   const covered = card ? 'all' : panel ? panelCovers : undefined, shown = chromeVisible && covered !== 'all';
   const right = times.live ? <b className={styles.playerLive}>{times.live}</b> : <b>{times.remaining}</b>;
-  return <div className={styles.player} data-chrome={shown} data-covered={covered} data-scrubbing={scrubbing || undefined}>
+  return <div className={styles.player} data-form={drawn} data-chrome={shown} data-covered={covered} data-scrubbing={scrubbing || undefined}>
     <div className={styles.playerStage}>
       <div className={styles.playerPicture}>{picture}</div>
       <div className={styles.playerShade} />

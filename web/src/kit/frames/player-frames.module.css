@@ -34,46 +34,44 @@
 .playerTrailing { grid-area: trailing; justify-content: flex-end; }
 .playerCentre { grid-area: centre; display: flex; align-items: center; gap: var(--frame-player-transport-gap); }
 .playerBody { display: none; }
-/* A phone on its side: the transport moves to the middle of the picture, the read-outs sit either side of the scrubber. */
-@media (max-height: 500px) and (min-width: 600px) {
-  /* R8: a window this short is a phone on its side; it takes the phone's sideways forms (phone-player 1), never the desktop's. */
-  /* The left end may be wider than the time over it and the right end wider than the time left: each spans a spare
-     column, so neither squeezes the scrubber. */
-  .playerBar { grid-template-columns: auto auto 1fr auto; grid-template-areas: 'position seek seek remaining' 'leading leading trailing trailing'; }
-  .playerSeek { margin: 0 var(--space-px-12); }
-  .playerEnds { display: none; }
-  .playerLeading, .playerTrailing { min-height: var(--frame-player-pill-height); }
-  .playerCentre { position: absolute; inset: 0; justify-content: center; gap: var(--frame-player-transport-gap); pointer-events: none; }
-  .playerCentre > * { pointer-events: auto; }
-}
-/* An upright phone: the picture is a 16:9 strip with the chrome inside it; the watch page follows. */
-@media (max-width: 599px) {
-  /* The strip's transport is its own class (phone-player 4): the owner's 58 disc. */
-  .playerStage { flex: none; aspect-ratio: var(--frame-player-portrait-aspect); --frame-player-transport-control: var(--frame-player-upright-control); --frame-player-transport-step-icon: var(--frame-player-upright-step-icon);
-    --frame-player-transport-skip-icon: var(--frame-player-upright-skip-icon); --frame-player-transport-primary: var(--frame-player-upright-primary); --frame-player-transport-primary-icon: var(--frame-player-upright-primary-icon);
-    --frame-player-transport-numeral: var(--frame-player-upright-numeral); --frame-player-transport-gap: var(--frame-player-upright-gap); }
-  .playerShade { background: color-mix(in srgb, var(--color-dim) var(--frame-player-portrait-shade), transparent); }
-  .playerTop { padding: var(--frame-player-portrait-top) var(--frame-player-portrait-edge); gap: 0; }
-  .playerTitle { visibility: hidden; }
-  .playerTools { gap: 0; }
-  /* A prompt has its own place in the strip's bottom row, between the read-out and the options, where it covers neither them nor the transport. */
-  .playerPrompts { position: absolute; z-index: 1; right: var(--frame-player-portrait-prompt-right); bottom: var(--frame-player-portrait-bottom); min-height: var(--target-touch); display: flex; align-items: center; padding: 0;
-    --frame-player-prompt-height: var(--frame-player-portrait-prompt-height); --frame-player-prompt-padding: var(--frame-player-portrait-prompt-padding-x); --frame-player-prompt-radius: calc(var(--frame-player-portrait-prompt-height) / 2); --frame-player-prompt-dismiss: 0px; --type-player-prompt-size: var(--type-player-pill-size); }
-  /* The finger is on the scrubber: the transport makes way for the preview. */
-  .player[data-scrubbing='true'] .playerCentre { opacity: 0; pointer-events: none; }
-  .playerBar { grid-template-columns: 1fr auto; grid-template-areas: 'clock trailing'; padding: 0 var(--frame-player-portrait-edge) var(--frame-player-portrait-bottom) var(--frame-player-portrait-time-inset); }
-  .playerClock { display: inline; }
-  .playerPosition, .playerRemaining, .playerLeading { display: none; }
-  .playerTrailing { min-height: var(--target-touch); }
-  .playerSeek { position: absolute; inset: auto 0 0; height: var(--frame-player-portrait-scrubber); display: flex; align-items: center; }
-  .playerSeek > * { flex: 1; }
-  .playerCentre { position: absolute; inset: 0; justify-content: center; gap: var(--frame-player-transport-gap); pointer-events: none; }
-  .playerCentre > * { pointer-events: auto; }
-  .playerBody { display: block; flex: 1; background: var(--color-ink); }
-}
+/* A phone on its side (`form` sideways; by default any window 500 or less high and at least 600 wide): the transport moves to
+   the middle of the picture, the read-outs sit either side of the scrubber. */
+/* R8: a window this short is a phone on its side; it takes the phone's sideways forms (phone-player 1), never the desktop's. */
+/* The left end may be wider than the time over it and the right end wider than the time left: each spans a spare
+   column, so neither squeezes the scrubber. */
+.player[data-form='sideways'] .playerBar { grid-template-columns: auto auto 1fr auto; grid-template-areas: 'position seek seek remaining' 'leading leading trailing trailing'; }
+.player[data-form='sideways'] .playerSeek { margin: 0 var(--space-px-12); }
+.player[data-form='sideways'] .playerEnds { display: none; }
+.player[data-form='sideways'] .playerLeading, .player[data-form='sideways'] .playerTrailing { min-height: var(--frame-player-pill-height); }
+.player[data-form='sideways'] .playerCentre { position: absolute; inset: 0; justify-content: center; gap: var(--frame-player-transport-gap); pointer-events: none; }
+.player[data-form='sideways'] .playerCentre > * { pointer-events: auto; }
+/* An upright phone (`form` upright; by default a window under 600 wide): the picture is a 16:9 strip with the chrome
+   inside it; the watch page follows. */
+/* The strip's transport is its own class (phone-player 4): the owner's 58 disc. */
+.player[data-form='upright'] .playerStage { flex: none; aspect-ratio: var(--frame-player-portrait-aspect); --frame-player-transport-control: var(--frame-player-upright-control); --frame-player-transport-step-icon: var(--frame-player-upright-step-icon);
+  --frame-player-transport-skip-icon: var(--frame-player-upright-skip-icon); --frame-player-transport-primary: var(--frame-player-upright-primary); --frame-player-transport-primary-icon: var(--frame-player-upright-primary-icon);
+  --frame-player-transport-numeral: var(--frame-player-upright-numeral); --frame-player-transport-gap: var(--frame-player-upright-gap); }
+.player[data-form='upright'] .playerShade { background: color-mix(in srgb, var(--color-dim) var(--frame-player-portrait-shade), transparent); }
+.player[data-form='upright'] .playerTop { padding: var(--frame-player-portrait-top) var(--frame-player-portrait-edge); gap: 0; }
+.player[data-form='upright'] .playerTitle { visibility: hidden; }
+.player[data-form='upright'] .playerTools { gap: 0; }
+/* A prompt has its own place in the strip's bottom row, between the read-out and the options, where it covers neither them nor the transport. */
+.player[data-form='upright'] .playerPrompts { position: absolute; z-index: 1; right: var(--frame-player-portrait-prompt-right); bottom: var(--frame-player-portrait-bottom); min-height: var(--target-touch); display: flex; align-items: center; padding: 0;
+  --frame-player-prompt-height: var(--frame-player-portrait-prompt-height); --frame-player-prompt-padding: var(--frame-player-portrait-prompt-padding-x); --frame-player-prompt-radius: calc(var(--frame-player-portrait-prompt-height) / 2); --frame-player-prompt-dismiss: 0px; --type-player-prompt-size: var(--type-player-pill-size); }
+/* The finger is on the scrubber: the transport makes way for the preview. */
+.player[data-form='upright'][data-scrubbing='true'] .playerCentre { opacity: 0; pointer-events: none; }
+.player[data-form='upright'] .playerBar { grid-template-columns: 1fr auto; grid-template-areas: 'clock trailing'; padding: 0 var(--frame-player-portrait-edge) var(--frame-player-portrait-bottom) var(--frame-player-portrait-time-inset); }
+.player[data-form='upright'] .playerClock { display: inline; }
+.player[data-form='upright'] .playerPosition, .player[data-form='upright'] .playerRemaining, .player[data-form='upright'] .playerLeading { display: none; }
+.player[data-form='upright'] .playerTrailing { min-height: var(--target-touch); }
+.player[data-form='upright'] .playerSeek { position: absolute; inset: auto 0 0; height: var(--frame-player-portrait-scrubber); display: flex; align-items: center; }
+.player[data-form='upright'] .playerSeek > * { flex: 1; }
+.player[data-form='upright'] .playerCentre { position: absolute; inset: 0; justify-content: center; gap: var(--frame-player-transport-gap); pointer-events: none; }
+.player[data-form='upright'] .playerCentre > * { pointer-events: auto; }
+.player[data-form='upright'] .playerBody { display: block; flex: 1; background: var(--color-ink); }
 
 /* A phone on its side: the finger is on the scrubber, so the transport in the middle of the picture makes way for the preview (phone-player 1b). */
-@media (max-height: 500px) { .player[data-scrubbing='true'] .playerCentre { opacity: 0; pointer-events: none; } }
+.player[data-form='sideways'][data-scrubbing='true'] .playerCentre { opacity: 0; pointer-events: none; }
 
 /* Frame 8 and rule 12 (R7: each form its own layout). The frame draws no backdrop: the audio player's layer is the
    glow from the artwork (R10). Phone width (phone-app 14 and 15): the bar, the artwork, the title, the scrubber with
