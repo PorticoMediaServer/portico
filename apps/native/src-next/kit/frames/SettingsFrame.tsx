@@ -1,5 +1,5 @@
 import React, {createContext, useContext, type ReactNode, type Ref} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {FlatList, ScrollView, Text, View, type FlatListProps, type ScrollViewProps} from 'react-native';
 import {frameSpec} from '@portico/design';
 import type {TopBarBack} from '../layout/TopBar';
 import {StartFocusScope} from '../focus';
@@ -69,6 +69,11 @@ function SettingsListBody({bar, search, list, profile, shortcuts, page, hints, t
   </View>;
 }
 
+/** A page whose body is one long list (Play history, People): FlatList's own props, passed through. The page's own
+ *  `ListHeaderComponent` (its search and filters) follows the frame's intro and tabs. */
+export type SettingsPageList<T = any> = Readonly<Pick<FlatListProps<T>, 'data' | 'renderItem' | 'keyExtractor' | 'extraData' | 'onEndReached'
+  | 'onEndReachedThreshold' | 'ListHeaderComponent' | 'ListEmptyComponent' | 'ListFooterComponent' | 'testID'>>;
+
 export type SettingsPageFrameProps = Readonly<{
   title: string;
   /** Back to the list on a phone; named after the page it returns to. */
@@ -85,8 +90,6 @@ export type SettingsPageFrameProps = Readonly<{
   intro?: string;
   /** The page's own tabs (kit `Tabs`: Unread / All / Archived; Accounts / Invitations / Devices), under the intro. */
   tabs?: ReactNode;
-  /** Sections of rows (`SectionCard`): the one flexible region. */
-  children?: ReactNode;
   /** The whole page can't load. One section failing is a `StateRow` in that section's card instead. */
   state?: PageStateProps;
   testID?: string;
@@ -95,7 +98,14 @@ export type SettingsPageFrameProps = Readonly<{
   /** The page's scroll, for a screen that brings a found row into view (Settings search), and its height once laid out. */
   scrollRef?: Ref<ScrollView>;
   onScrollLayout?: (height: number) => void;
-}>;
+  /** The page's scroll position as it moves (Troubleshooting's Messages follow it), from whichever scroll the frame draws. */
+  onScroll?: ScrollViewProps['onScroll'];
+}> & (
+  /** Sections of rows (`SectionCard`): the one flexible region, in the frame's scroll. */
+  Readonly<{children?: ReactNode; list?: never}>
+  /** Or the page is one long list, drawn as a FlatList in place of the scroll. A page gives one or the other, by what it
+   *  is, never by the form (one tree on every form, SMALL-FAULTS 35). */
+  | Readonly<{list: SettingsPageList; children?: never}>);
 
 /** Frame 4, one settings or owner page, or a form: its header, an intro, then sections of rows. Which header it
  * gets depends only on where it is (rule 3): the compact bar inside a sheet, Back and a large title full screen on
@@ -103,7 +113,7 @@ export type SettingsPageFrameProps = Readonly<{
 export function SettingsPageFrame({startFocus, ...props}: SettingsPageFrameProps) {
   return <StartFocusScope id={startFocus}><SettingsPageBody {...props}/></StartFocusScope>;
 }
-function SettingsPageBody({title, back, action, status, actions, server, intro, tabs, children, state, testID, scrollRef, onScrollLayout}: Omit<SettingsPageFrameProps, 'startFocus'>) {
+function SettingsPageBody({title, back, action, status, actions, server, intro, tabs, children, list, state, testID, scrollRef, onScrollLayout, onScroll}: Omit<SettingsPageFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), parentColumn = useContext(FrameColumn), inListPlace = useContext(InListPlace), inSheet = useInSheet() || inListPlace, beside = useContext(BesideList) && frame.form !== 'phone' && !inSheet, t = defaultI18n.t;
   const saved = status && <View accessibilityLiveRegion="polite" style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>{status === 'saved' && <Icon name="i-check" size={16} color={theme.colors.textSecondary}/>}
     <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t(status === 'saved' ? 'next.settings.saved' : 'next.settings.saving')}</Text></View>;
@@ -120,21 +130,32 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
       {(actions || own) && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>{actions}{own}</View>}</View>
     : <PageHeader title={title} back={back} trailing={trailing}/>;
   const strip = server && <View style={{marginHorizontal: beside ? 0 : frame.cardInset, marginTop: beside ? frame.titleTop || frame.headerGap : 0}}>{server}</View>;
+  const lead = intro !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: beside ? 0 : frame.gutter, maxWidth: frameSpec.settings.paragraphMax}]}>{intro}</Text>;
   const body = <>
-    {intro !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: beside ? 0 : frame.gutter, maxWidth: frameSpec.settings.paragraphMax}]}>{intro}</Text>}
+    {lead}
     {tabs}
     {children}
   </>;
+  const scrolled = {onScroll, scrollEventThrottle: onScroll && 100, keyboardShouldPersistTaps: 'handled' as const, keyboardDismissMode: 'interactive' as const,
+    style: {flex: 1}, contentContainerStyle: {paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingRight: beside ? frame.rightGutter : 0}};
+  const pageHeader = list?.ListHeaderComponent;
+  // A list's rows are its cells, so the gap the scroll puts between the intro, the tabs and the sections is the list
+  // header's own, with one more under it before the rows.
+  const listHeader = list && (lead || tabs || pageHeader) ? <View style={{gap: frame.sectionGap, marginBottom: frame.sectionGap}}>
+    {lead}{tabs}{React.isValidElement(pageHeader) ? pageHeader : pageHeader ? React.createElement(pageHeader as React.ComponentType) : null}
+  </View> : undefined;
   // A page shown alone on a tablet or TV is held to the page's column, as it is beside the list.
   const column = !beside && frame.form !== 'phone' && !inSheet ? {maxWidth: frameSpec.settings.pageMax + 2 * frame.gutter} : undefined;
   return <View testID={testID} style={[{flex: 1}, column]}>
     {beside && strip}
     {header}
     {!beside && strip}
-    {state ? <PageStateFrame {...state}/> : <FormScrollView ref={scrollRef} onLayout={onScrollLayout && (event => onScrollLayout(event.nativeEvent.layout.height))} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
-      style={{flex: 1}} contentContainerStyle={{paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingRight: beside ? frame.rightGutter : 0, gap: frame.sectionGap}}>
-      {/* Beside the list the frame has already placed this column's edges, so its sections start at the column. One
-          provider on every form, so a form change restyles the body and never remounts it. */}
+    {/* Beside the list the frame has already placed this column's edges, so its sections start at the column. One
+        provider on every form, so a form change restyles the body and never remounts it. */}
+    {state ? <PageStateFrame {...state}/> : list ? <FrameColumn.Provider value={beside || parentColumn}>
+      <FlatList {...list} {...scrolled} ListHeaderComponent={listHeader}/>
+    </FrameColumn.Provider> : <FormScrollView ref={scrollRef} onLayout={onScrollLayout && (event => onScrollLayout(event.nativeEvent.layout.height))} {...scrolled}
+      contentContainerStyle={{...scrolled.contentContainerStyle, gap: frame.sectionGap}}>
       <FrameColumn.Provider value={beside || parentColumn}>{body}</FrameColumn.Provider>
     </FormScrollView>}
   </View>;
