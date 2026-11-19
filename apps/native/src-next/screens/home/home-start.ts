@@ -59,26 +59,30 @@ function renderedFallbacks(registry: StartRegistry, model: HomeStartModel): read
   }
   return [...reversed.reverse(), ids.customize];
 }
-/** No host is invented. Waiting is distinct from a permanently absent Play action. */
+/** No host is invented. Waiting is distinct from a permanently absent Play action.
+ * Owner, 18 Nov: TV Home opens on the first row's first card (Continue Watching when there is one) and the moderate hero
+ * follows focus; the spotlight's own actions are the start only on a Home with no row drawn and none still coming. */
 export function resolveTVHomeStart(registry: StartRegistry, model: HomeStartModel): HomeStartResolution {
   if (!model.resolved) return waiting;
   if (model.actionless) return {kind: 'empty'};
-  const primary = registry.entryAddress(model.ids.spotlight);
-  if (primary) return {kind: 'ready', address: primary};
-  const declared = registry.config(model.ids.spotlight);
-  const emptyLiveSpotlight = !!registry.host(model.ids.spotlight) && declared?.enabled !== false && declared?.order?.length === 0;
-  if (model.spotlightActions && !emptyLiveSpotlight) return waiting;
   const fallbacks = renderedFallbacks(registry, model);
   if (!fallbacks) return waiting;
-  // Skeleton rows have no focus target, so the first real stop is Customize; landing there scrolls Home to the
-  // bottom (E-tv-02/03). Wait for the rows instead; the page owns the hold on Customize until they arrive.
-  for (const regionId of model.deferredPending ? fallbacks.filter(id => id !== model.ids.customize) : fallbacks) {
+  for (const regionId of fallbacks.filter(id => id !== model.ids.customize)) {
     if (registry.config(regionId)?.enabled === false) continue;
     const address = registry.entryAddress(regionId);
     // Do not skip a real virtualized first region to a later mounted control.
     return address ? {kind: 'ready', address} : waiting;
   }
-  return waiting;
+  // Skeleton rows have no focus target; landing on Customize scrolls Home to the bottom (E-tv-02/03). Wait for them.
+  if (model.deferredPending) return waiting;
+  const primary = registry.entryAddress(model.ids.spotlight);
+  if (primary) return {kind: 'ready', address: primary};
+  const declared = registry.config(model.ids.spotlight);
+  const emptyLiveSpotlight = !!registry.host(model.ids.spotlight) && declared?.enabled !== false && declared?.order?.length === 0;
+  if (model.spotlightActions && !emptyLiveSpotlight) return waiting;
+  if (!fallbacks.includes(model.ids.customize) || registry.config(model.ids.customize)?.enabled === false) return waiting;
+  const address = registry.entryAddress(model.ids.customize);
+  return address ? {kind: 'ready', address} : waiting;
 }
 export type HomeMenuState = Readonly<{
   home: boolean; visible: boolean; obscured: boolean; expanded: boolean; listening: boolean;

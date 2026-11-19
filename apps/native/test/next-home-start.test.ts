@@ -165,3 +165,15 @@ test('a hero without actions and only skeleton rows waits instead of starting on
   loaded.attach({regionId: ids.customize, childId: 'customize'});
   assert.equal(loaded.model.deferredPending, false);
 });
+
+test('owner 18 Nov: TV Home starts on the first row\'s first card even with a playable spotlight, and its hero is no stop above the rows', () => {
+  const f = fixture(document([row], [{entry, reason: {kind: 'featured', text: {code: 'featured', fallback: 'Featured'}}}]));
+  f.registry.configure({...f.graph.spotlight, order: ['play']});
+  f.attach({regionId: ids.spotlight, childId: 'play'});
+  assert.equal(f.resolve().kind, 'waiting', 'the row is not drawn yet: wait for it, never the spotlight\'s Play');
+  const card = {regionId: ids.row(row.id), childId: ids.entry(entry)};
+  f.attach(card);
+  assert.deepEqual(f.resolve(), {kind: 'ready', address: card});
+  const map = tvHomeRegionMap(authority, [row.id], {spotlightFocusable: false});
+  assert.deepEqual(map.rows.get(row.id)!.stops, {up: true});
+});

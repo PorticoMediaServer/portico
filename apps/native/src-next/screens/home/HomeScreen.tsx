@@ -141,6 +141,10 @@ function TVHomeRowShift({heroDelta, style, onLayout, children}: {heroDelta: numb
 }
 
 /** Server-authored Home only. No whole-library reads, local ranking or metadata inference. */
+/** Owner, 18 Nov: a TV session's first Home opens on the first row's first card. Its cards paint after their data, and
+ * tvOS gives its first focus to the rail before that, so that card asks for focus itself when it arrives. It stops asking
+ * once any Home row has had focus, so a later visit (from the rail, or Back) keeps the rail's or the stack's focus. */
+let tvLaunchStart = true;
 export function HomeScreen({runtime, authority, active = true, heroObscured = false, railExpanded = false, bottomInset = 0, onScrolledChange, holdRailDim, releaseRailDim}: {
   runtime: NativeShellRuntime; authority: ShellAuthority; active?: boolean; heroObscured?: boolean; railExpanded?: boolean; bottomInset?: number; onScrolledChange?: (scrolled: boolean) => void;
   holdRailDim?: (lease: Readonly<{retired: boolean}>) => void; releaseRailDim?: (lease: Readonly<{retired: boolean}>) => void;
@@ -296,7 +300,9 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
   const holdCustomize = theme.isTV && pendingRows.length > 0;
   const mixes = useSyncExternalStore(runtime.mixes?.subscribe ?? noMixesSubscription, runtime.mixes?.getSnapshot ?? noMixesSnapshot);
   const hasMixes = mixes?.phase === 'ready' && mixes.rows.length > 0;
-  const regionMap = tvHomeRegionMap(authority, [...rows.map(row => row.id), ...(hasMixes ? [mixesFocusRow] : [])], {spotlightFocusable: homeStartModel(document, authority, {rows: rows.map(row => row.id)}).spotlightActions});
+  // Owner, 18 Nov: with a row to focus, the TV hero only follows focus (no Play / My List / Details stop above the rows).
+  const regionMap = tvHomeRegionMap(authority, [...rows.map(row => row.id), ...(hasMixes ? [mixesFocusRow] : [])],
+    {spotlightFocusable: !rows.length && !hasMixes && homeStartModel(document, authority, {rows: rows.map(row => row.id)}).spotlightActions});
   const mixesRegion = regionMap.rows.get(mixesFocusRow);
   const startModel = homeStartModel(document, authority, {rows: rows.map(row => row.id), readLibraryIds: readLibraries, mixesReady: hasMixes, playbackAvailable: !!runtime.playback});
   const resolveStart = useCallback(() => resolveTVHomeStart(registry, startModel), [registry, startModel]);
@@ -423,7 +429,7 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
     </HomeRegion>;
   };
   const onRowFocus = (row: HomeRow, entryId: string) => {
-    if (theme.isTV) initialEntry.finish();
+    if (theme.isTV) {initialEntry.finish(); tvLaunchStart = false;}
     setFocus({rowId: row.id, entryId}); setHeroFocused(false);
     if (focus?.rowId === row.id && focus.entryId === entryId) return;
     const target = focusTarget.current;
@@ -514,7 +520,7 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
             gutter={medium ? mediumGutter : theme.gutter} rightGutter={medium ? mediumGutter : theme.isTV ? 96 : theme.gutter} gap={medium ? 14 : undefined} headingStyle={medium ? mediumHeadingStyle : undefined} selection={runtime.selection(row.id)} paging={paging} onVisibleRange={range} onVisibleKeys={visibleKeys}
             onSeeAll={row.seeAll ? () => guarded(() => runtime.actions.seeAll(row.seeAll!, title)) : undefined} onRepeatingChange={setRepeating}
             onItemFocus={item => onRowFocus(row, item.entry.id)} renderItem={(item, context) => <View style={theme.fontScale > 1 || theme.textScale > 1 ? {width, minHeight: height} : {width, height}}><LoadingPaint ready={!context.waiting} immediate={!context.waiting} skeleton={<View style={{backgroundColor: theme.colors.ink}}><SkeletonBlock width={width} height={height}/></View>}><HomeCard runtime={runtime} row={row} entry={item.entry} rank={item.rank} context={context}
-              width={width} rowIndex={rowIndex} visible={shown} preferred={false} medium={medium}
+              width={width} rowIndex={rowIndex} visible={shown} preferred={theme.isTV && tvLaunchStart && rowIndex === 0 && context.index === 0} medium={medium}
               current={current}/></LoadingPaint></View>}/>}
 </>;
       return <HomeWindow key={row.id} runtime={runtime} row={sourceRow} sectionOrder={rowIndex} visible={shown} physicalIds={physicalIds} retainedIds={retainedIds} range={ranges.current.get(row.id)}><>{theme.isTV ? <TVHomeRowShift heroDelta={heroDelta} style={homeRowSpacing(theme)} onLayout={rowLayout}>{rowBody}</TVHomeRowShift>
