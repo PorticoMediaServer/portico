@@ -38,6 +38,15 @@ Both ratchets share the planner's comparison range. PRs use their merge base wit
   - Read server documents through the viewer query cache in `packages/client-core/src/query`. Direct server calls outside client-core are counted by the client API ratchet.
   - Checks: no new fence comparisons (ratchet `fence-compare`), page memory (ratchet `page-memory`) or per-screen lease hooks (ratchet `lease-layer`), and the privacy tests in `packages/client-core/test/viewer-queries.test.ts`, `web/test/viewer-queries-privacy.test.ts` and `apps/native/test/next-shell-freshness.test.ts`.
 
+## Native screens
+
+- **A native page draws nothing of its own.** A file under `apps/native/src-next/pages/**/*.tsx` is data hooks, one frame from `kit/frames`, kit parts and strings: no value import from `react-native`, no `style=` or `*Style=` attribute, no type setting, spacing number or colour. When a page can't be built that way, the frame or the kit part is what's missing: add or fix it in its own pull request, then use it (`apps/native/src-next/kit/frames/FRAMES.md`).
+  - Check: ratchet `native-page-layout`, which allows none. It reads the text, comments included.
+- **Type in the native kit comes from `theme.type[role]`.** Literal `fontSize`, `lineHeight` and `numberOfLines` settings under `apps/native/src-next/kit` (outside `kit/theme.ts`, which applies the type table) may only fall.
+  - Check: ratchet `kit-type-literal`.
+
+The baseline names every rule, with an empty list when none is allowed. A rule the comparison base's baseline doesn't name is new and starts at today's counts; after that its allowance may only fall like the rest.
+
 ## API contracts
 
 - **Contracts come from the server's route table, never from hand edits.** `go run ./cmd/portico-contracts` in `server-next` writes `packages/contracts/src/next/api.ts` and `server-next/api/openapi.json` from the routes and their Go types.
