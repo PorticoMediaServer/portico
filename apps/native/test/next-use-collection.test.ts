@@ -20,7 +20,8 @@ async function collection(over: Record<string, unknown> = {}, form = 'phone') {
     '../../../kit/frames': {titleRowsScroller: (props: unknown) => {scrollers.push(['rows', props]); return 'rows';}, posterGridScroller: (props: unknown) => {scrollers.push(['grid', props]); return 'grid';}},
     '../../../kit/theme': {useTheme: () => ({form})},
     '../../../../../../packages/client-core/src/presentation/kit-model/text': kitText,
-    '../../../screens/collections/CollectionScreen': {sortLabel: (sort: {id: string}) => sort.id === 'release' ? 'Release order' : 'Title', years: (state: any) => state.complete ? '2001 – 2002' : undefined}});
+    '../../../screens/collections/CollectionScreen': {sortLabel: (sort: {id: string}) => sort.id === 'release' ? 'Release order' : 'Title', years: (state: any) => state.complete ? '2001 – 2002' : undefined,
+    composedCollectionLede: (state: any) => `${state.totalCount} films`}});
   const state = {phase: 'ready', title: 'The Lord of the Rings', totalCount: 2, first: fellowship, complete: [fellowship, towers], collection: {}, sorts: [
     {id: 'release', labelKey: 'x', directions: ['asc']}, {id: 'title', labelKey: 'y', directions: ['asc']}], sort: 'release', projection: {entity: {origin: 'automatic'}}, ...over};
   const props = {state, focusScope: 'collection:x', runtime: {artwork: (path?: string) => path ? {uri: path} : undefined, ambient: (path?: string) => path ? {url: path} : undefined},
@@ -58,6 +59,17 @@ test('the sort offers the read\'s sorts; the page menu holds Play all, Shuffle a
   const tablet = await collection({}, 'expanded');
   assert.equal(tablet.view.scroller, 'grid');
   tablet.view.select.onPress(); assert.deepEqual(tablet.calls.at(-1), ['select']);
+});
+
+test('on TV the films are one row of posters, with the lede under the facts and how many are watched', async () => {
+  const {view, calls} = await collection({}, 'tv');
+  assert.equal(view.lede, '2 films', 'composed from the films when the read has no overview');
+  assert.equal((await collection({projection: {entity: {overview: ' Frodo and the Ring. '}}}, 'tv')).view.lede, 'Frodo and the Ring.');
+  assert.equal(view.watched, t('next.browse.watchedOf', {watched: 1, count: 2}));
+  assert.equal(view.row.testID, 'collection-row');
+  const card = view.row.item(towers); assert.deepEqual([card.title, card.caption, card.progress], ['The Two Towers', '2002', .5]);
+  view.row.item(fellowship).onNavigate(); assert.deepEqual(calls.at(-1), ['open', fellowship]);
+  assert.equal((await collection({complete: undefined, projection: {entity: {}}}, 'tv')).view.watched, undefined, 'nothing watched to say');
 });
 
 test('an empty collection says so; a failed read offers Try again; a hand-made one has no note', async () => {
