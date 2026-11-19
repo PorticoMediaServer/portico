@@ -63,6 +63,7 @@ import {NativeServerStreaming} from './server/StreamingPage';
 import {NativeServerSegments} from './server/SegmentsPage';
 import {NativeServerPeople} from './server/PeoplePage';
 import {FormScrollView} from '../../platform/keyboard';
+import {SettingsListFrame, SettingsPageFrame} from '../../kit/frames';
 import {NativeServerSignIn} from './server/SignInPage';
 import {NativeServerMetadata} from './server/MetadataPage';
 import {NativeServerHistory} from './server/HistoryPage';
@@ -380,29 +381,13 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   // Android may report 0 here while the surface still draws under the status bar; StatusBar.currentHeight is the measured fallback.
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0);
   const customPage = dashboardPage || librariesPage || livePage || troubleshootingPage || storagePage || integrationsPage || generalPage || streamingPage || segmentsPage || peoplePage || signInPage || metadataPage || historyPage || remoteSourcesPage || remoteAccessPage;
-  const content = <Screen style={!theme.isTV ? {paddingTop: compact ? 0 : topInset + 14} : undefined}>
-    <View style={{flex: 1, flexDirection: 'row', gap: theme.isTV ? 80 : 0}}>
-      {(!compact || !pushed) && <View style={{width: compact ? '100%' : theme.isTV ? searching ? 500 : 480 : 280}}>
-        {(theme.isTV ? !searching : !compact) && <Text accessibilityRole="header" style={[shellType(theme.isTV ? 44 : 30, 800), {color: theme.colors.text, marginBottom: 24, marginHorizontal: 20}]}>{t('next.shell.settings')}</Text>}
-        <FocusRegion id={searchField} entry="input" edges={{left: ids.rail, down: searching ? `${keyboard}.row.0` : column}}>
+  const searchRegion = <FocusRegion id={searchField} entry="input" edges={{left: ids.rail, down: searching ? `${keyboard}.row.0` : column}}>
           <TextField focusId="input" testID="settings-search" variant="search" leadingIcon="i-search" accessibilityLabel={t('next.shell.searchSettings')} placeholder={t('next.shell.searchSettings')} value={query} onChangeText={setQuery} showSoftInputOnFocus={!theme.isTV}
             onFocus={() => {if (theme.isTV && !searching) {setSearching(true); setSearchRevision(value => value + 1);}}} containerStyle={{marginHorizontal: theme.isTV ? 0 : 16}}/>
-        </FocusRegion>
-        {theme.isTV && searching ? <View style={{marginTop: 32}}><NativeTVKeyboard id={keyboard} value={query} onChangeText={setQuery} activation={{visible: true, intent: 'enter', revision: searchRevision}} leftRegionId={ids.rail} rightRegionId={matchRegions[0]} width={500} testID="settings-keyboard" onVoice={voiceSearch.start} voiceBusy={voiceSearch.busy}/>{voiceSearch.field}</View> : <ScrollView style={{marginTop: 20, marginHorizontal: theme.isTV ? -16 : 0}} contentContainerStyle={theme.isTV ? {paddingHorizontal: 16} : {paddingBottom: 24 + insets.bottom}}>
+        </FocusRegion>;
+  const listBody = <>
           {query.trim().length >= 2 ? <SettingsSearchResults matches={matches} query={query} onNavigate={openMatch}/>
             : <>
-              {compact && <>
-                <Focusable testID="settings-profile-card" accessibilityRole="button" accessibilityLabel={shell.profile.name} onPress={() => choose('profile')} focusKind="row" focusRadius={14} style={{marginHorizontal: 16, minHeight: 78, paddingVertical: 12, paddingHorizontal: 14, gap: 14, borderRadius: 14, flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.raised}}>
-                  <ProfileFace {...shell.profile} size={54} locked={shell.profile.pinRequired} scaleOnFocus={false}/>
-                  <View style={{flex: 1, minWidth: 0}}>
-                    <Text numberOfLines={1} style={[shellType(18, 800, 'normal', -.02), {color: theme.colors.text}]}>{shell.profile.name}</Text>
-                    <Text numberOfLines={2} style={[shellType(13, 400, 17), {color: theme.colors.textTertiary, marginTop: 2}]}>{signedIn}</Text>
-                  </View>
-                  <Icon name="i-right" size={18} color={theme.colors.lineStrong}/>
-                </Focusable>
-                {dashboardCard && <PhoneDashboardCard t={t} update={updatePending} onPress={() => {if (viewCurrent()) navigation.open({kind: 'server-dashboard'}, ports.context.authority());}}/>}
-                {sheetShortcuts.length > 0 && <ShortcutTiles testID="settings-shortcuts" actions={sheetShortcuts}/>}
-              </>}
               <FocusRegion id={column} entry={orderedPages[0].id} order={orderedPages.map(value => value.id)} orientation="vertical" edges={{left: ids.rail, right: rows, up: searchField}} onLayout={enter}>
                 <SettingsSectionLabel label={t('settings.heading.account')} first={!compact}/>
                 {theme.isTV
@@ -431,26 +416,43 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
               </Focusable>)}
             </React.Fragment>)}
           </View>}
-        </ScrollView>}
-      </View>}
-      {(!compact || pushed) && <View style={{flex: 1, ...(!compact && !theme.isTV && !customPage ? {paddingTop: 46, paddingHorizontal: theme.width < 1024 ? 24 : 32, paddingBottom: 40} : {})}}>
-        {compact && <PhoneServerPageHeader title={t(page.title)} backLabel={t('next.shell.settings')} onBack={phoneBack}
-          band={serverPage ? <ServerBand viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} height={56} style={{position: 'absolute', inset: 0}}/> : undefined}/>}
-        {!compact && !dashboardPage && !(theme.isTV && searching) && !customPage && <Text accessibilityRole="header" style={[shellType(theme.isTV ? 44 : 40, 800), {color: theme.colors.text, marginBottom: 28, marginHorizontal: compact ? 20 : 0}]}>{t(page.title)}</Text>}
-        {state.error !== undefined && <StateView {...runtime.error(state.error, () => {void controller.refresh();}, 'settings')}/>}
-        {historyPage ? <NativeServerHistory ports={ports} runtime={runtime} compactHeader={compact}/> : peoplePage ? <NativeServerPeople ports={ports} runtime={runtime} compactHeader={compact}/> : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/> : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/> : remoteAccessPage ? <NativeRemoteAccessPage ports={ports} runtime={runtime} compactHeader={compact}/> : segmentsPage ? <NativeServerSegments ports={ports} runtime={runtime}/> : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/> : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime} onClose={leaveServerPage} initialChannelId={initialChannelId}/> : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/> : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/> : storagePage ? <NativeServerStorage ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : integrationsPage ? <NativeServerIntegrations ports={ports} runtime={runtime} compactHeader={compact}/> : streamingPage ? <NativeServerStreaming ports={ports} runtime={runtime} compactHeader={compact}/> : generalPage ? <NativeServerGeneral ports={ports} runtime={runtime} compactHeader={compact}/> : <FormScrollView key={page.id} ref={pageScroll} onLayout={event => pageScrollLayout(page.id, event.nativeEvent.layout.height)} style={theme.isTV ? {marginHorizontal: -24, marginTop: -16} : undefined} contentContainerStyle={theme.isTV ? {paddingHorizontal: 24, paddingTop: 16, paddingBottom: 80} : {paddingHorizontal: compact ? 20 : 0, paddingBottom: 80}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
-          {theme.isTV && searching ? <>
+  </>;
+  const tvKeyboard = <View style={{marginTop: 32}}><NativeTVKeyboard id={keyboard} value={query} onChangeText={setQuery} activation={{visible: true, intent: 'enter', revision: searchRevision}} leftRegionId={ids.rail} rightRegionId={matchRegions[0]} width={500} testID="settings-keyboard" onVoice={voiceSearch.start} voiceBusy={voiceSearch.busy}/>{voiceSearch.field}</View>;
+  // The TV search results stay in their own scroll beside the keyboard (not a settings page).
+  const tvSearchResults = <FormScrollView key={page.id} style={{marginHorizontal: -24, marginTop: -16}} contentContainerStyle={{paddingHorizontal: 24, paddingTop: 16, paddingBottom: 80}} keyboardShouldPersistTaps="handled">
             {query.trim().length >= 2 && matches.length > 0 && <Text testID="settings-search-count" style={[shellType(20, 600), {color: theme.colors.textTertiary, marginBottom: 18}]}>{t('next.shell.tvSettingsMatchCount', {count: matches.length})}</Text>}
             {query.trim().length >= 2 && !matches.length && <StateView title={t('next.states.noMatches', {query: query.trim()})}/>}
             {matchingPages.map(value => <View key={value.id}><Text accessibilityRole="header" style={[shellType(32, 800), {color: theme.colors.text, marginBottom: 24}]}>{t(value.title)}</Text><SettingsRowTargetContext.Provider value={{open: rowId => openMatch(value.id, rowId)}}><SettingsPageBody reportedOutputs={reportedOutputs} awayLimitLabel={awayLimitLabel} onStreaming={() => choose('streaming')} onQuality={() => choose('quality')} page={value} ports={ports} controller={controller} runtime={runtime} devicePreferences={devicePreferences} region={ids.surface(`settings.matches.${value.id}`)} column={keyboard} verticalEdges={matchEdges(ids.surface(`settings.matches.${value.id}`))}/></SettingsRowTargetContext.Provider></View>)}
             <Text testID="settings-search-help" style={[shellType(18, 400), {color: theme.colors.textTertiary, marginTop: 24}]}>{t('next.shell.tvSettingsSearchHelp')}</Text>
-          </> : <SettingsRowTargetContext.Provider value={rowTargeting}><SettingsPageBody reportedOutputs={reportedOutputs} awayLimitLabel={awayLimitLabel} onStreaming={() => choose('streaming')} onQuality={() => choose('quality')} page={page} ports={ports} controller={controller} runtime={runtime} devicePreferences={devicePreferences} region={rows} column={column} aimedRow={aimed}/></SettingsRowTargetContext.Provider>}
-        </FormScrollView>}
-      </View>}
-    </View>
+  </FormScrollView>;
+  const errorView = state.error !== undefined && <StateView {...runtime.error(state.error, () => {void controller.refresh();}, 'settings')}/>;
+  // Settings stands on its frames on every form: the list frame places the bar, the search, the profile and shortcuts (a
+  // phone), the list and the page, and keeps one tree across forms so an open page survives a resize; a plain page is a
+  // SettingsPageFrame. An owner's page that still draws its own header sits in the page column as before.
+  const pageNode = customPage ? <>{compact && <PhoneServerPageHeader title={t(page.title)} backLabel={t('next.shell.settings')} onBack={phoneBack}
+          band={serverPage ? <ServerBand viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} height={56} style={{position: 'absolute', inset: 0}}/> : undefined}/>}{errorView}{historyPage ? <NativeServerHistory ports={ports} runtime={runtime} compactHeader={compact}/> : peoplePage ? <NativeServerPeople ports={ports} runtime={runtime} compactHeader={compact}/> : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/> : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/> : remoteAccessPage ? <NativeRemoteAccessPage ports={ports} runtime={runtime} compactHeader={compact}/> : segmentsPage ? <NativeServerSegments ports={ports} runtime={runtime}/> : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/> : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime} onClose={leaveServerPage} initialChannelId={initialChannelId}/> : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/> : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/> : storagePage ? <NativeServerStorage ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : integrationsPage ? <NativeServerIntegrations ports={ports} runtime={runtime} compactHeader={compact}/> : streamingPage ? <NativeServerStreaming ports={ports} runtime={runtime} compactHeader={compact}/> : generalPage ? <NativeServerGeneral ports={ports} runtime={runtime} compactHeader={compact}/> : null}</>
+    : theme.isTV && searching ? tvSearchResults
+    : <SettingsPageFrame title={t(page.title)} back={{label: t('next.shell.settings'), onPress: phoneBack}} scrollRef={pageScroll} onScrollLayout={height => pageScrollLayout(page.id, height)}>
+      {errorView}
+      <SettingsRowTargetContext.Provider value={rowTargeting}><SettingsPageBody reportedOutputs={reportedOutputs} awayLimitLabel={awayLimitLabel} onStreaming={() => choose('streaming')} onQuality={() => choose('quality')} page={page} ports={ports} controller={controller} runtime={runtime} devicePreferences={devicePreferences} region={rows} column={column} aimedRow={aimed}/></SettingsRowTargetContext.Provider>
+    </SettingsPageFrame>;
+  const searchingList = query.trim().length >= 2;
+  // The frames place Settings from the window's edges (the TV gutter includes the rail), so the Screen adds none of its own.
+  const content = <Screen style={!theme.isTV ? {paddingTop: compact ? 0 : topInset + 14} : {paddingLeft: 0, paddingRight: 0, paddingTop: 0}}>
+    <SettingsListFrame bar={{title: t('next.shell.settings'), action: {label: t('action.done'), onPress: closeSettings, testID: 'settings-sheet-done'}}} search={searchRegion}
+      profile={compact && !searchingList ? <Focusable testID="settings-profile-card" accessibilityRole="button" accessibilityLabel={shell.profile.name} onPress={() => choose('profile')} focusKind="row" focusRadius={14} style={{marginHorizontal: 16, minHeight: 78, paddingVertical: 12, paddingHorizontal: 14, gap: 14, borderRadius: 14, flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.raised}}>
+                  <ProfileFace {...shell.profile} size={54} locked={shell.profile.pinRequired} scaleOnFocus={false}/>
+                  <View style={{flex: 1, minWidth: 0}}>
+                    <Text numberOfLines={1} style={[shellType(18, 800, 'normal', -.02), {color: theme.colors.text}]}>{shell.profile.name}</Text>
+                    <Text numberOfLines={2} style={[shellType(13, 400, 17), {color: theme.colors.textTertiary, marginTop: 2}]}>{signedIn}</Text>
+                  </View>
+                  <Icon name="i-right" size={18} color={theme.colors.lineStrong}/>
+                </Focusable> : undefined}
+      shortcuts={compact && !searchingList ? <>{dashboardCard && <PhoneDashboardCard t={t} update={updatePending} onPress={() => {if (viewCurrent()) navigation.open({kind: 'server-dashboard'}, ports.context.authority());}}/>}{sheetShortcuts.length > 0 && <ShortcutTiles testID="settings-shortcuts" actions={sheetShortcuts}/>}</> : undefined}
+      list={theme.isTV && searching ? tvKeyboard : listBody} page={!compact || pushed ? pageNode : undefined}/>
   </Screen>;
-  // A pushed phone page's header draws the sheet's one grabber (owner-server.html `.mh .grab`).
-  return !theme.isTV ? <SettingsSheet open={!closing} onExited={finishClose} host="inline" presentation={compact ? 'sheet' : 'page'} profile={null} shortcuts={null} scrollable={false} testID="settings-sheet" showGrabber={!(compact && pushed)}
+  // The sheet draws its one grabber over the frame's bar, on the list and on a pushed page (owner-server.html `.mh .grab`).
+  return !theme.isTV ? <SettingsSheet open={!closing} onExited={finishClose} host="inline" presentation={compact ? 'sheet' : 'page'} profile={null} shortcuts={null} scrollable={false} testID="settings-sheet" showGrabber
     onOpenChange={(open, reason) => {
       if (open || !viewCurrent() || closingRef.current) return;
       if (pushed && (reason === 'back' || reason === 'escape')) {
@@ -458,10 +460,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
         return;
       }
       closeSettings();
-    }} headerContent={pushed ? <View/> : <View testID="settings-sheet-header" style={{height: 33, paddingHorizontal: 16, justifyContent: 'center'}}>
-      <Text accessibilityRole="header" pointerEvents="none" style={[shellType(17, 700), {position: 'absolute', left: 64, right: 64, textAlign: 'center', color: theme.colors.text}]}>{t('next.shell.settings')}</Text>
-      <Button testID="settings-sheet-done" variant="text" size="small" onPress={closeSettings} style={{alignSelf: 'flex-end', height: 32, paddingHorizontal: 0}} textStyle={shellType(16, 700)}>{t('action.done')}</Button>
-    </View>}><View style={{flex: 1}} pointerEvents={closing ? 'none' : 'box-none'}>{content}</View></SettingsSheet> : content;
+    }} headerContent={<View/>}><View style={{flex: 1}} pointerEvents={closing ? 'none' : 'box-none'}>{content}</View></SettingsSheet> : content;
 }
 
 /** playback-info frame 13b draws one hint under each Player choice; the runtime settings

@@ -20,7 +20,7 @@ import {createTheme} from '../src-next/kit/theme';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-focus';
 
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...['search', 'profile', 'shortcuts', 'list', 'page'].flatMap(slot => nodes(node.props[slot]))] : [];
 
 async function fixture(isTV = false, owner = false, io?: {effects: (() => unknown)[]; api: unknown; lifetime?: unknown}) {
   const host = hooks(), bodyHost = hooks();
@@ -36,7 +36,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
   const safeMode = await screenModule(new URL('../src-next/screens/settings-live/NativeSafeModeRow.tsx', import.meta.url), {
     react, 'react-native': {View: 'View'}, '../../kit/controls': {Select: 'Select'}, '../../kit/states': {StateView: 'StateView'},
   });
-  const module = await screenModule(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), {'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},
+  const module = await screenModule(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), {'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../kit/frames': {SettingsListFrame: 'SettingsListFrame', SettingsPageFrame: 'SettingsPageFrame'}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},
     './use-tv-voice-search': {useTVVoiceSearch: () => ({start: undefined, busy: false})},
     './tv-settings-focus': tvSettingsFocus,
     './NativeSafeModeRow': safeMode,
@@ -118,11 +118,11 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
 test('Settings headings and search consume the current runtime translator after its confirmed replacement', async () => {
   const f = await fixture();
   let tree = f.render();
-  assert.ok(nodes(tree).some(node => node.type === 'Text' && node.props.children.includes('CA/next.shell.settings')));
+  assert.ok(nodes(tree).some(node => node.type === 'SettingsListFrame' && node.props.bar.title === 'CA/next.shell.settings'), 'the Settings title is the list frame\'s');
   const search = nodes(tree).find(node => node.type === 'TextField');
   assert.equal(search.props.placeholder, 'CA/next.shell.searchSettings');
   f.setLanguage('GB'); tree = f.render();
-  assert.ok(nodes(tree).some(node => node.type === 'Text' && node.props.children.includes('GB/next.shell.settings')));
+  assert.ok(nodes(tree).some(node => node.type === 'SettingsListFrame' && node.props.bar.title === 'GB/next.shell.settings'), 'the Settings title is the list frame\'s');
   const nextSearch = nodes(tree).find(node => node.type === 'TextField');
   assert.equal(nextSearch.props.placeholder, 'GB/next.shell.searchSettings');
   nextSearch.props.onChangeText('GB/settings.page'); tree = f.render();

@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-focus.ts';
 
-const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.headerContent)] : [];
+const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.headerContent), ...['search', 'profile', 'shortcuts', 'list', 'page'].flatMap(slot => nodes(tree.props?.[slot])), ...(tree.props?.bar?.action ? [{type: 'SheetBarAction', props: tree.props.bar.action}] : []),
+  // A Settings page frame owns the page's scroll: it stands for that scroll here, with the screen's ref and layout callback.
+  ...(tree.type === 'SettingsPageFrame' ? [{type: 'ScrollView', props: {ref: tree.props.scrollRef, onLayout: (event: any) => tree.props.onScrollLayout?.(event.nativeEvent.layout.height)}}] : [])] : [];
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.testID === id);
 // Settings search seams: the matches, the Covered flag, TV, and every destination entry ask the screen makes.
 const search = {matches: [] as any[], covered: false, tv: false, entries: [] as {activation: any; address: any}[]};
@@ -28,7 +30,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
   const page = (id: string) => ({id, title: id, icon: 'settings', sections: []});
   const structure = {headings: [{id: 'account', pages: ['profile', 'playback', 'region'].map(page)}, {id: 'server', pages: ['dashboard', 'history', 'metadata', 'people', 'remote-sources'].map(page)}]};
   const theme: any = {isTV: search.tv, width: initialWidth, platform: initialWidth < 600 ? 'phone' : 'tablet', colors: new Proxy({}, {get: (_t, key) => String(key)})};
-  const {NativeSettingsScreen} = await screenModule(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), {'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},  './tv-settings-focus': tvSettingsFocus,
+  const {NativeSettingsScreen} = await screenModule(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), {'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../kit/frames': {SettingsListFrame: 'SettingsListFrame', SettingsPageFrame: 'SettingsPageFrame'}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},  './tv-settings-focus': tvSettingsFocus,
     react: host.react,
     'react-native': {AppState: {}, BackHandler: {addEventListener: (_name: string, listener: () => boolean) => {hardwareBack.push(listener); return {remove: () => {hardwareBack.splice(hardwareBack.indexOf(listener), 1);}};}}, Dimensions: {get: () => ({width: theme.width, height: 844})}, NativeModules: {}, Platform: {OS: 'ios'}, ScrollView: 'ScrollView', StatusBar: {}, Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})}, 'react-native-qrcode-svg': {default: 'QRCode'},
@@ -54,7 +56,9 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
   const render = () => {tree = host.render(() => NativeSettingsScreen(props)); for (const effect of pending.splice(0)) effect(); return tree;};
   render();
   return {render, tree: () => tree, find: (id: string) => find(tree, id), nodes: () => nodes(tree), backs: () => backs, opens, shortcutCalls,
-    header: () => nodes(tree).find(node => node.type === 'PhoneHeader'),
+    // A pushed phone page's header: an owner page's own PhoneHeader, or a plain page's frame bar (title and Back).
+    header: () => nodes(tree).find(node => node.type === 'PhoneHeader') ?? (() => {const frame = theme.width < 600 && !theme.isTV ? nodes(tree).find(node => node.type === 'SettingsPageFrame') : undefined;
+      return frame && {type: 'PhoneHeader', props: {title: frame.props.title, onBack: frame.props.back?.onPress}};})(),
     routeAway: () => {navigation = {revision: navigation.revision + 1, route: {kind: 'together'}};},
     replace: () => {navigation = {...navigation, revision: navigation.revision + 1, route: {kind: 'shell', destination: {kind: 'settings'}}};},
     retire: () => retirement.abort(), endLifetime: () => {lifetime = false;}, endContext: () => {contextCurrent = false;}, retiredReads: () => retiredReads,
@@ -133,7 +137,8 @@ function ancestry(tree: any, match: (node: any) => boolean, path: any[] = []): a
   if (Array.isArray(tree)) {for (let index = 0; index < tree.length; index++) {const found = ancestry(tree[index], match, [...path, index]); if (found) return found;} return undefined;}
   if (!tree || typeof tree !== 'object') return undefined;
   const next = [...path, {type: tree.type, key: tree.props?.key}];
-  return match(tree) ? next : ancestry(tree.props?.children, match, next);
+  // The Settings frames hold the list and the page in slots; their path is part of the ancestry too.
+  return match(tree) ? next : ancestry(tree.props?.children, match, next) ?? ['list', 'page'].reduce<any[] | undefined>((found, slot) => found ?? ancestry(tree.props?.[slot], match, [...next, slot]), undefined);
 }
 
 test('An open Settings page keeps its component ancestry and selection through phone-tablet-phone resize', async () => {
@@ -180,7 +185,7 @@ test('Opening a wide pane from the compact hub keeps its visible page when shrin
   try {
     assert.equal(f.header(), undefined);
     f.resize(800); f.render(); f.render();
-    const page = f.nodes().find(node => node.props?.page)?.props.page; assert.ok(page);
+    const page = f.nodes().find(node => node.props?.page?.id)?.props.page; assert.ok(page);
     const path = ancestry(f.tree(), node => node.props?.page?.id === page.id);
     f.resize(390); f.render();
     assert.equal(f.header().props.title, page.id); assert.deepEqual(ancestry(f.tree(), node => node.props?.page?.id === page.id), path);
