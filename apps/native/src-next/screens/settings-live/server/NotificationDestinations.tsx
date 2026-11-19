@@ -6,7 +6,6 @@ import {createNativeSettingsPorts} from '../settings-ports';
 import {createNativeRecordingsController} from '../recordings-controller';
 import {NativeRecordingsScreen} from '../RecordingsScreen';
 import {NativeServerTroubleshooting} from './TroubleshootingPage';
-import {TopBar} from '../../../kit/layout/TopBar';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../../shell/route-registry';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../shell/runtime';
@@ -50,8 +49,8 @@ function RecordingsDestination({controller, ports, runtime, onGuide}: {controlle
 function ServerFeedbackDestination({ports, runtime, onBack}: {ports: ReturnType<typeof createNativeSettingsPorts>; runtime: NativeShellRuntime; onBack: () => void}) {
   const insets = useSafeAreaInsets();
   return <View style={{flex: 1, paddingTop: insets.top + 14}}>
-    <TopBar safeArea={false} title={runtime.text.t('settings.server.troubleshooting')} back={{label: runtime.text.t('action.back'), onPress: onBack}}/>
-    <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader initialTab="feedback"/>
+    {/* Troubleshooting stands on the Settings page frame, whose header carries the title and this Back. */}
+    <NativeServerTroubleshooting ports={ports} runtime={runtime} back={{label: runtime.text.t('action.back'), onPress: onBack}} initialTab="feedback"/>
   </View>;
 }
 
