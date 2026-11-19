@@ -1,5 +1,5 @@
 import React, {type ReactNode} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {TopBar, type TopBarBack} from '../layout/TopBar';
 import {useTheme} from '../theme';
@@ -29,6 +29,9 @@ export type LiveFrameProps = Readonly<{
   toolbar?: ReactNode;
   /** The one flexible region: the guide grid, the channel list, Upcoming, Recorded, Series rules. */
   children?: ReactNode;
+  /** In place of `children` and `lead`, a guide or list that scrolls itself: a virtualized list cannot sit
+   * inside the frame's scroller. The frame gives it the room under the head. */
+  list?: ReactNode;
   /** A programme's details, or the rule being edited: beside the page from tablet width, a sheet on a phone. */
   details?: FramePane;
   /** The keyboard line under the guide (desktop); TV's key hints (kit `KeyHints`). */
@@ -41,10 +44,22 @@ export type LiveFrameProps = Readonly<{
 /** Live TV (desktop-live, phone-guide, phone-app 10 to 12, tablet-play 6 and 7, final3-tv-10): the guide, the channel
  * list and Recordings share one frame. Fixed: the title row (title, the source picker, its facts and buttons), the tabs,
  * the chips and the toolbar. Flexible: the guide or the list under them. The details pane is `SplitFrame`'s. */
-export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, lead, toolbar, children, details, hints, state, testID}: LiveFrameProps) {
-  const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), {form} = frame;
+export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, lead, toolbar, children, list, details, hints, state, testID}: LiveFrameProps) {
+  const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), {form} = frame;
   const edge = {paddingLeft: frame.gutter, paddingRight: frame.rightGutter};
-  const titleRow = back && form === 'phone'
+  // On a phone the source picker heads the chips, so the title row keeps List | Guide beside the title (phone-guide g1, as the web).
+  const chipsLine = (inRow: boolean) => (chips || form === 'phone' && switcher) && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow: 0}} contentContainerStyle={[inRow ? undefined : edge, {gap: theme.space.xs, alignItems: 'center'}]}>{form === 'phone' && !back && switcher}{chips}</ScrollView></TVRow>;
+  // A phone on its side (600 wide or more, under 600 tall): the title, its buttons, the chips and the toolbar share one row
+  // under the status bar and the tabs and facts give way, so the guide keeps the height (as the web's).
+  const shortWide = form === 'phone' && !back && window.width >= 600;
+  const titleRow = shortWide
+    ? <View style={{paddingTop: insets.top + theme.space.xs, paddingLeft: Math.max(frame.gutter, insets.left), paddingRight: Math.max(frame.rightGutter, insets.right), flexDirection: 'row', alignItems: 'center', gap: theme.space.sm}}>
+      <Text accessibilityRole="header" style={[theme.type.rowHeading, {color: theme.colors.text}]}>{title}</Text>
+      {actions}
+      <View style={{flex: 1, minWidth: 0}}>{chipsLine(true)}</View>
+      {toolbar}
+    </View>
+    : back && form === 'phone'
     ? <View style={{paddingTop: insets.top}}><TopBar safeArea={false} back={back} center={<Text accessibilityRole="header" numberOfLines={2} style={[theme.type.barTitle, {color: theme.colors.text, textAlign: 'center'}]}>{title}</Text>}/></View>
     // A phone's title row holds the title, List | Guide and Recordings on one line (final3-phone-07): its items sit the small gap apart.
     : <View style={[edge, {paddingTop: Math.max(frame.titleTop, insets.top + frame.headerGap), flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: form === 'phone' ? theme.space.xs : theme.space.sm}]}>
@@ -54,16 +69,18 @@ export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, l
       {form === 'expanded' && facts}
       {actions}
     </View>;
-  const header = <View style={{gap: frame.headingGap, paddingBottom: frame.headingGap}}>
+  const header = shortWide ? <View style={{paddingBottom: theme.space.xs}}>{titleRow}</View> : <View style={{gap: frame.headingGap, paddingBottom: frame.headingGap}}>
     {titleRow}
     {tabs}
-    {/* On a phone the source picker heads the chips, so the title row keeps List | Guide beside the title (phone-guide g1, as the web). */}
-    {(chips || form === 'phone' && switcher) && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow: 0}} contentContainerStyle={[edge, {gap: theme.space.xs, alignItems: 'center'}]}>{form === 'phone' && !back && switcher}{chips}</ScrollView></TVRow>}
+    {chipsLine(false)}
     {toolbar && form !== 'tv' && <View style={[edge, {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.xs}]}>{toolbar}</View>}
   </View>;
   const page = <View testID={testID} style={{flex: 1}}>
     {header}
-    {state ? <PageStateFrame {...state}/> : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear, gap: frame.sectionGap}}>
+    {state ? <PageStateFrame {...state}/> : list ? <>
+      <View style={{flex: 1}}>{list}</View>
+      {hints && <View style={edge}>{hints}</View>}
+    </> : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear, gap: frame.sectionGap}}>
       {lead}
       {children}
       {hints && <View style={edge}>{hints}</View>}
