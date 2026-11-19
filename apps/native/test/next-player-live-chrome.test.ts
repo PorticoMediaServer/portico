@@ -4,9 +4,11 @@ import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {playbackFence, sameFence} from '../../../packages/player-core/src/identity.ts';
 import {followedByScene} from '../../../packages/player-core/src/segment-skip.ts';
 import * as landingStoreModule from '../src-next/screens/watch/landing-store.ts';
+// The handheld chrome's regions are PlayerChromeFrame's props (the frame is a string in this harness).
+const slots = (node: any) => node.type === 'PlayerChromeFrame' ? ['picture', 'close', 'title', 'tools', 'scrubber', 'transport', 'leading', 'trailing', 'prompts', 'card'].map(key => node.props[key]) : node.props.children;
 
-const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
-const strings = (value: any): string => Array.isArray(value) ? value.map(strings).join(' ') : value?.props ? strings(value.props.children) : value == null || value === false ? '' : String(value);
+const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(slots(value))] : [];
+const strings = (value: any): string => Array.isArray(value) ? value.map(strings).join(' ') : value?.props ? strings(slots(value)) : value == null || value === false ? '' : String(value);
 const noopSubscription = () => () => {};
 const scope = {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'} as const;
 const channelFence = playbackFence({kind: 'channel', playback: {scope, run: 1}, sessionId: 'session', channelKind: 'live-source', sourceId: 'source', channelId: 'channel', channelGeneration: 'generation', generation: 1});
@@ -49,6 +51,7 @@ async function fixture(input: {compact?: boolean; bar?: boolean; tabletop?: 'col
     '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({subscribe: noopSubscription, getSnapshot: () => ({}), capture: () => undefined})},
     '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': {useTheme: () => theme, nativeType: () => ({fontFamily: 'Manrope-Regular'})},
     '../../kit/useScreenReader': {useScreenReader: () => false},
+    '../../kit/frames': {PlayerChromeFrame: 'PlayerChromeFrame'}, '../../kit/player': {PlayerChannelStep: 'PlayerChannelStep', PlayerControl: 'PlayerControl', PlayerPill: 'PlayerPill', PlayerTitle: 'PlayerTitle'},
     '../../kit/useMotion': {useMotion: () => ({reduce: true, timing: () => ({}), duration: () => 0}), useReducedMotion: () => true},
     '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined, usePublishedPlayerMorph: () => undefined},
     './TVControlLabel': {TVControlLabel: 'TVControlLabel'}, './landing-store': landingStoreModule, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'}, './controls': {}, './WatchTimeline': {NativeWatchTimeline: 'Timeline'},
@@ -69,11 +72,15 @@ for (const input of [{name: 'compact phone', compact: true}, {name: 'landscape p
   test(`${input.name} exposes same-session Guide, adjacent channels and real Record/More actions`, async () => {
     const f = await fixture(input), tree = f.render(), all = nodes(tree);
     const down = all.find(node => node.props.testID === 'watch-channel-down'), up = all.find(node => node.props.testID === 'watch-channel-up');
-    assert.ok(down);assert.ok(up);assert.equal(down.props.style.width, input.bar ? 48 : 46);assert.equal(up.props.style.width, input.bar ? 48 : 46);
+    assert.ok(down);assert.ok(up);
+    // The tabletop column draws its own steps; elsewhere they are the kit's (PlayerChannelStep, sized by the frame's form).
+    if (input.tabletop) {assert.equal(down.props.style.width, 46);assert.equal(up.props.style.width, 46);}
+    else {assert.equal(down.type, 'PlayerChannelStep');assert.equal(up.type, 'PlayerChannelStep');}
     const guide = all.find(node => node.props.testID === 'watch-chip-episodes');assert.ok(guide);
     if (input.compact) {
-      const pills = all.find(node => node.props.testID === 'watch-live-pills');assert.ok(pills);
-      assert.ok(nodes(pills).includes(guide));assert.ok(nodes(pills).some(node => node.props.testID === 'watch-option-quality'));
+      // The upright strip has no bar: the guide is one of its tools, quality stays at the row's end.
+      const frame = all.find(node => node.type === 'PlayerChromeFrame');
+      assert.ok(nodes(frame.props.tools).includes(guide));assert.ok(nodes(frame.props.trailing).some(node => node.props.testID === 'watch-option-quality'));
     }
     guide.props.onPress();down.props.onPress();up.props.onPress();
     assert.deepEqual(f.calls.slice(0, 3), [['guide'], ['tune', f.previous, f.guideState()], ['tune', f.next, f.guideState()]]);
@@ -94,10 +101,12 @@ for (const input of [{name: 'compact phone', compact: true}, {name: 'landscape p
 }
 
 test('expanded live tablet shows supplied programme, channel mark/number and time range', async () => {
-  const f = await fixture({bar: true}), block = nodes(f.render()).find(node => node.props.testID === 'watch-live-identity');assert.ok(block);
-  const text = strings(block);assert.match(text, /Cycling: Mountain Stage/);assert.match(text, /Summit Sports Extra/);assert.match(text, /SSE/);assert.match(text, /202/);assert.match(text, /next\.kit\.range/);
+  // The title is the kit's PlayerTitle; its mark is the channel's own (its letters, or the logo over them).
+  const title = () => nodes(f.render()).find(node => node.type === 'PlayerTitle'), words = (node: any) => [node.props.title, node.props.lead, node.props.subtitle, node.props.detail, strings(node.props.mark)].join(' ');
+  const f = await fixture({bar: true}), block = title();assert.ok(block);
+  const text = words(block);assert.match(text, /Cycling: Mountain Stage/);assert.match(text, /Summit Sports Extra/);assert.match(text, /SSE/);assert.match(text, /202/);assert.match(text, /next\.kit\.range/);
   f.changeSource({playback: {...f.source().playback, linear: {...f.source().playback.linear, programme: undefined}}});
-  const fallback = strings(nodes(f.render()).find(node => node.props.testID === 'watch-live-identity'));assert.match(fallback, /Summit Sports Extra/);assert.doesNotMatch(fallback, /next\.kit\.range/);
+  const fallback = words(title());assert.match(fallback, /Summit Sports Extra/);assert.doesNotMatch(fallback, /next\.kit\.range/);
 });
 
 test('mobile live actions omit Record without the current server offer and keep library-channel More', async () => {
@@ -107,8 +116,10 @@ test('mobile live actions omit Record without the current server offer and keep 
 });
 
 test('WatchChrome passes the actual Cast opener ref and rejects a retired playback handler', async () => {
-  const f = await fixture({queue: true, bar: true}), button = nodes(f.render()).find(node => node.props.testID === 'watch-cast');
-  const view = {measureInWindow() {}};button.props.ref.current = view;button.props.onPress();
+  const f = await fixture({queue: true, bar: true}), all = nodes(f.render()), button = all.find(node => node.props.testID === 'watch-cast');
+  // The kit control sits in a measured anchor view; that view is the ref the Cast sheet opens from.
+  const anchor = all.find(node => node.type === 'View' && node.props.ref && nodes(node.props.children).includes(button));
+  const view = {measureInWindow() {}};anchor.props.ref.current = view;button.props.onPress();
   assert.equal(f.calls[0]![0], 'cast');assert.equal(f.calls[0]![1], f.fence);assert.equal((f.calls[0]![2] as any).current, view);
   f.changeSource({fence: {...f.fence, generation: 2}});button.props.onPress();assert.equal(f.calls.length, 1);
 });

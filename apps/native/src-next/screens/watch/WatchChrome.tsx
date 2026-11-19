@@ -28,6 +28,8 @@ import {useInitialPlayerPaint, usePublishedPlayerMorph} from '../../kit/dock/Pla
 import {NativeUpNextCard} from './UpNextCard';
 import {NativeStillWatchingCard} from '../../kit/player/StillWatchingCard';
 import {Artwork, type ArtworkSource} from '../../kit/artwork';
+import {PlayerChromeFrame, type PlayerReadouts} from '../../kit/frames';
+import {PlayerChannelStep, PlayerControl, PlayerPill, PlayerTitle, type PlayerControlProps} from '../../kit/player';
 import type {NativeWatchNotice} from './playback-info';
 import {emptyLiveGuide, noLiveGuideSubscription, type NativeTVLiveGuide} from './live-guide';
 import {nowNext} from '../../../../../packages/client-core/src/guide/now-next';
@@ -501,12 +503,6 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
     {!!label && <Text style={{fontFamily: 'Manrope-Bold', fontSize: 13.5, fontWeight: '700', color: theme.colors.text}}>{label}</Text>}
     {!!value && <Text style={{fontFamily: 'Manrope-SemiBold', fontSize: 13.5, fontWeight: '600', marginLeft: label ? 3 : 0, color: label ? theme.colors.textTertiary : theme.colors.text}}>{value}</Text>}
   </Focusable>;
-  const qualityChip = (small = false) => <Focusable focusId="watch-option-quality" testID="watch-option-quality" accessibilityRole="button" focusable={controlsEnabled} disabled={!controlsEnabled}
-    onPress={() => panel('quality')} style={small ? {height: 28, paddingLeft: 8, paddingRight: 10, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(237,245,250,.16)'}
-      : {height: 36, paddingLeft: 11, paddingRight: 14, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(237,245,250,.14)'}}>
-    <Icon name="i-quality" size={small ? 16 : 18} color={theme.colors.textSecondary}/>
-    <Text style={{fontFamily: 'Manrope-Bold', fontSize: small ? 12.5 : 13.5, fontWeight: '700', color: theme.colors.text, fontVariant: ['tabular-nums']}}>{props.quality || t('player.opt.quality')}</Text>
-  </Focusable>;
   const keycap = (label: string, icons?: IconName[]) => <View style={{minWidth: 44, height: 36, paddingHorizontal: 10, borderRadius: 9, borderWidth: 1.5, borderColor: 'rgba(237,245,250,.3)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2}}>
     {icons ? icons.map(name => <Icon key={name} name={name} size={20} color={theme.colors.textSecondary}/>) : <Text style={[nativeType({size: 17, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{label}</Text>}
   </View>;
@@ -596,82 +592,89 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
       style={phone ? {height: 44, paddingHorizontal: 16, borderRadius: 10, opacity: 1} : {opacity: 1}} textStyle={phone ? {fontSize: 15, fontWeight: '700'} : undefined}
       onPress={promptMotion.interactive && prompt ? () => skipSegment(prompt) : undefined}>{t('player.skip', {kind: paintedPrompt.kind})}</Button></Animated.View> : undefined;
   const skipNodes = skipOfferNode ?? skipNoticeNode ?? skipPromptNode;
-  // tablet-play1: an expanded window draws the desktop player's two bars — a top
-  // bar with the way out, the title and the tools, and a bottom bar with the seek,
-  // the times and one row holding the pills either side of a centred transport.
-  if (bar) return <GestureDetector gesture={minimizeSwipe}><Animated.View testID="watch-chrome" pointerEvents={initialPlayer && !initialPlayer.controlsAdmitted ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer && !initialPlayer.controlsAdmitted} importantForAccessibility={initialPlayer && !initialPlayer.controlsAdmitted ? 'no-hide-descendants' : 'auto'} style={[{width, height}, chromeMorphStyle]}>
-    <Animated.View pointerEvents={visible ? 'box-none' : 'none'} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={[{position: 'absolute', inset: 0}, fade]}>
-      <FocusRegion id="watch-controls" orientation="horizontal" entry="watch-toggle" style={{position: 'absolute', inset: 0}}>
-        <View style={{flex: 1}}>
-          <View style={{height: 115, paddingTop: 26, paddingHorizontal: 32, flexDirection: 'row', alignItems: 'flex-start', gap: 16}}>
-            {icon('minimize', 'i-down', t('player.minimize'), () => props.onMinimize(fence), false, false, 48, minimizeCurrent)}
-            {linear && <View testID="watch-live-identity" style={{flexDirection: 'row', alignItems: 'flex-start', gap: 14, flexShrink: 1, minWidth: 0, paddingTop: 2}}>
-              <View style={{width: 48, height: 48, borderRadius: 11, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: liveRow?.mark ? channelTint(liveRow.mark.seed) : '#edf5fa14'}}>
-                <Text numberOfLines={1} style={[nativeType({size: 13, weight: 800, tracking: -.01, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{liveRow?.mark?.text ?? channelNumber}</Text>
-                {linear.media.logoUrl && <Artwork source={props.artwork?.(linear.media.logoUrl)} width={48} height={48} style={{position: 'absolute', inset: 0}}/>}
-              </View>
-              <View style={{flexShrink: 1, minWidth: 0}}>
-                <Text numberOfLines={1} style={[nativeType({size: 26, weight: 800, tracking: -.03, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{linear.programme?.title ?? linear.name}</Text>
-                <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 1}}>
-                  <Text numberOfLines={1} style={[nativeType({size: 15, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary, flexShrink: 1}]}>{linear.name}</Text>
-                  {!!channelNumber && <Text style={[theme.type.caption, {fontSize: 15, color: theme.colors.textSecondary}]}>{channelNumber}</Text>}
-                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}><View style={{width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.colors.record}}/>
-                    <Text style={[theme.type.captionStrong, {fontSize: 13.5, color: theme.colors.record}]}>{t('next.kit.live')}</Text></View>
-                </View>
-                {linear.programme && <Text numberOfLines={1} style={[theme.type.caption, {fontSize: 15, marginTop: 4, color: theme.colors.textSecondary}]}>{t('next.kit.range', {start: wallClock(linear.programme.startMs), end: wallClock(linear.programme.endMs)})}</Text>}
-              </View>
-            </View>}
-            {!linear && identity && <View style={{flexShrink: 1, minWidth: 0, paddingTop: 2}}>
-              <Text numberOfLines={1} style={{fontFamily: 'Manrope-ExtraBold', fontSize: 26, fontWeight: '800', letterSpacing: -.03, color: theme.colors.text}}>{identity.title}</Text>
-              <Text numberOfLines={1} style={{fontFamily: 'Manrope-SemiBold', fontSize: 15, fontWeight: '600', marginTop: 1, color: theme.colors.textSecondary}}>{identity.subtitle.map(part => part.text).join('  ')}</Text>
-            </View>}
-            <View style={{flex: 1}}/>
-            <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
-              {props.onCast && !linear && icon('cast', 'i-cast', t('player.playOn'), () => props.onCast!(fence, castButton), false, false, 48)}
-              {pipOffered && icon('pip', 'i-pip', t('player.pictureInPicture'), () => props.onPictureInPicture!(fence), false, false, 48)}
-              {icon('options', 'i-sliders', t('player.opt.menu'), () => panel('options'), false, false, 48)}
-              {liveButtons(48, false)}
-            </View>
-          </View>
-          <View style={{marginTop: 'auto', height: 164}}>
-            <View style={{height: 44, marginHorizontal: 32}}>
-              <NativeWatchTimeline source={source} controls={controls} playback={playback} compact={false} enabled={controlsEnabled} liveEdge={liveEdge} onPreview={setLanding}
-                reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
-            </View>
-            <View style={{height: 18, marginHorizontal: 32, flexDirection: 'row', alignItems: 'center'}}>
-              <Text style={[theme.type.bodyStrong, {fontSize: 13, color: theme.colors.text, fontVariant: ['tabular-nums']}]}>{clockText(source.playback.positionSeconds)}</Text>
-              <View style={{flex: 1}}/>
-              {linear && behindLive > 5 && props.goLive
-                ? <Focusable focusId="watch-go-live" testID="watch-go-live" accessibilityRole="button" focusable={controlsEnabled} disabled={!controlsEnabled}
-                    onPress={() => {if (controlsCurrent() && props.goLive) {controls.reveal(fence); props.goLive(fence);}}}
-                    style={{height: 18, paddingHorizontal: 8, borderRadius: 9, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(237,245,250,.14)'}}>
-                    <View style={{width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.record}}/>
-                    <Text style={{fontFamily: 'Manrope-Bold', fontSize: 12, fontWeight: '700', color: theme.colors.text}}>{t('player.live.goLive')}</Text>
-                  </Focusable>
-                : <Text style={[theme.type.bodyStrong, {fontSize: 13, color: theme.colors.textSecondary, fontVariant: ['tabular-nums']}]}>{clockText(Math.max(0, source.playback.duration - source.playback.positionSeconds))}</Text>}
-            </View>
-            <View style={{height: 62, marginTop: 8}}>
-              <View pointerEvents="box-none" style={{position: 'absolute', left: 32, right: 32, top: 0, height: 62, flexDirection: 'row', alignItems: 'center'}}>
-                {linear
-                  ? (props.onGuide ? chip('episodes', 'i-list', t('player.live.guide'), undefined, () => {if (controlsCurrent() && props.onGuide) props.onGuide();}, true) : null)
-                  : fence.kind === 'queue' && fence.showId ? chip('episodes', 'i-stack', t('title.episodes'), undefined, undefined, true) : null}
-                <View style={{flex: 1}}/>
-                {source.capabilities.subtitleTrack && chip('subtitles', 'i-cc', linear ? t('player.live.captions') : t('player.opt.subtitles'), props.subtitle ?? (linear ? t('player.opt.off') : undefined), undefined, true)}
-                {source.capabilities.audioTrack && audioTracks > 1 && chip('audio', 'i-audio', t('title.audio'), props.audio, undefined, true)}
-                {chip('quality', 'i-quality', t('player.opt.quality'), props.quality, undefined, true)}
-              </View>
-              <View pointerEvents="box-none" style={{position: 'absolute', left: 0, right: 0, top: 0, height: 62, alignItems: 'center', justifyContent: 'center'}}>{transport}</View>
-            </View>
-          </View>
-        </View>
-      </FocusRegion>
-    </Animated.View>
-    {stillWatchingNode}
-    {skipNodes && <View pointerEvents="box-none" style={{position: 'absolute', right: 32, bottom: 180}}>
-      <View testID="watch-skip-prompt" style={{flexDirection: 'row', alignItems: 'center', gap: 22}}>{skipNodes}</View>
-    </View>}
-    {props.notice && state.panel === undefined && <LossNotice notice={props.notice} top={115} gutter={32} available={width}/>}
-  </Animated.View></GestureDetector>;
+  // The handheld forms draw on the kit's PlayerChromeFrame, inside the pane WatchHost gives them (`pane`): the upright
+  // strip and a book's page (compact), a phone on its side, and a wide window's two bars (tablet-play1). The frame places
+  // every region and fades the controls; this screen fills the regions and keeps its behaviour. A foldable's tabletop
+  // column stays the host's own layout below, and TV keeps its own layout (its own piece).
+  if (!theme.isTV && !tabletop) {
+    const control = (id: string, name: IconName, label: string, onPress: () => void, extra: Partial<PlayerControlProps> = {}, gate: () => boolean = controlsCurrent) =>
+      <PlayerControl key={id} testID={`watch-${id}`} icon={name} label={label} {...extra} disabled={!controlsEnabled || extra.disabled} onPress={() => {if (gate()) onPress();}}/>;
+    const step = (direction: -1 | 1) => {
+      const target = liveCurrent ? direction < 0 ? liveGuide.previous : liveGuide.next : undefined, id = direction < 0 ? 'watch-channel-down' : 'watch-channel-up';
+      // A step with no channel that way keeps its place, disabled.
+      return <PlayerChannelStep key={id} testID={id} direction={direction < 0 ? 'down' : 'up'} number={target?.channel.number ?? ''}
+        label={target ? t(direction < 0 ? 'next.live.channelDown' : 'next.live.channelUp', {channel: target.channel.name, number: target.channel.number}) : t(direction < 0 ? 'player.channelDown' : 'player.channelUp')}
+        disabled={!target || !controlsEnabled || liveGuide.busy} onPress={() => {if (target && controlsCurrent()) void props.liveGuide?.tune(target, liveGuide, props.reportError);}}/>;
+    };
+    const skipLabel = (forward: boolean) => t(forward ? 'player.skipForwardSeconds' : 'player.skipBackSeconds', {seconds: forward ? props.skipForwardSeconds : props.skipBackSeconds});
+    const playing = source.playback.intent === 'playing';
+    // The picture's waiting ring takes the transport's place in the middle of the picture (upright and sideways).
+    const handheldTransport = props.waiting && !bar ? undefined : <>
+      {fence.kind === 'channel' ? step(-1) : queue && control('previous', 'i-prev', t('player.previous'), () => act(playback.previous), {disabled: !source.capabilities.previous})}
+      {control('skip-back', 'i-rew', skipLabel(false), () => act(expected => playback.skip(expected, -props.skipBackSeconds)), {skip: props.skipBackSeconds, disabled: !source.capabilities.seek})}
+      {control('toggle', playing ? 'i-pause' : 'i-play', t(playing ? 'action.pause' : 'action.play'), () => act(playback.toggle), {primary: true, disabled: !source.capabilities.play && !source.capabilities.pause})}
+      {control('skip-forward', 'i-ffw', skipLabel(true), () => act(expected => playback.skip(expected, props.skipForwardSeconds)), {skip: props.skipForwardSeconds, disabled: !source.capabilities.seek})}
+      {fence.kind === 'channel' ? step(1) : queue && control('next', 'i-next', t('player.next'), () => act(playback.next), {disabled: !source.capabilities.next})}
+    </>;
+    const title = linear ? <PlayerTitle mark={bar ? <View testID="watch-live-identity" style={{width: 48, height: 48, borderRadius: 11, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: liveRow?.mark ? channelTint(liveRow.mark.seed) : '#edf5fa14'}}>
+          <Text numberOfLines={1} style={[nativeType({size: 13, weight: 800, tracking: -.01, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{liveRow?.mark?.text ?? channelNumber}</Text>
+          {linear.media.logoUrl && <Artwork source={props.artwork?.(linear.media.logoUrl)} width={48} height={48} style={{position: 'absolute', inset: 0}}/>}
+        </View> : undefined}
+        title={linear.programme?.title ?? linear.name} lead={linear.name} subtitle={channelNumber} live={t('next.kit.live')}
+        detail={bar && linear.programme ? t('next.kit.range', {start: wallClock(linear.programme.startMs), end: wallClock(linear.programme.endMs)}) : undefined}/>
+      : identity ? <PlayerTitle title={identity.title} subtitle={identity.subtitle.map(part => part.text).join('  ')}/> : undefined;
+    const tools = <>
+      {/* The upright strip has no bar: the guide is one of its tools (phone-player 4 live). */}
+      {compact && linear && props.onGuide && control('chip-episodes', 'i-list', t('player.live.guide'), () => props.onGuide?.(), {onPicture: true})}
+      {props.onCast && !linear && <View ref={castButton} collapsable={false}>{control('cast', 'i-cast', t('player.playOn'), () => props.onCast!(fence, castButton), {onPicture: true})}</View>}
+      {pipOffered && control('pip', 'i-pip', t('player.pictureInPicture'), () => props.onPictureInPicture!(fence), {onPicture: true})}
+      {control('options', 'i-sliders', t('player.opt.menu'), () => panel('options'), {onPicture: true, open: state.panel === 'options'})}
+      {liveButtons(compact ? 46 : 48, !bar)}
+    </>;
+    const pill = (name: NativeWatchPanel, icon: IconName, label: string, value?: string) => <PlayerPill key={name} testID={`watch-option-${name}`} icon={icon} name={label} value={value} label={label}
+      open={state.panel === name} disabled={!controlsEnabled} onPress={() => {if (controlsCurrent()) panel(name);}}/>;
+    const quality = <PlayerPill key="quality" testID="watch-option-quality" icon="i-quality" value={props.quality || t('player.opt.quality')} label={t('player.opt.quality')}
+      open={state.panel === 'quality'} disabled={!controlsEnabled} onPress={() => {if (controlsCurrent()) panel('quality');}}/>;
+    const fullWindow = compact && props.fullWindowRequest?.() && controls.canFullWindow() && !controls.getSnapshot().fullWindow
+      ? control('fullscreen', 'i-full', t('next.states.shortcut.fullscreen'), () => {if (props.fullWindowRequest?.()) controls.setFullWindow(fence, true);}, {tool: true}, current) : null;
+    const leading = linear ? props.onGuide ? <PlayerPill testID="watch-chip-episodes" icon="i-list" name={t('player.live.guide')} label={t('player.live.guide')} disabled={!controlsEnabled}
+        onPress={() => {if (controlsCurrent() && props.onGuide) props.onGuide();}}/> : undefined
+      : fence.kind === 'queue' && fence.showId ? pill('episodes', 'i-stack', t('title.episodes')) : undefined;
+    const trailing = compact ? <>{quality}{fullWindow}</> : <>
+      {source.capabilities.subtitleTrack && pill('subtitles', 'i-subs', linear ? t('player.live.captions') : t('player.opt.subtitles'), props.subtitle ?? (linear ? t('player.opt.off') : undefined))}
+      {source.capabilities.audioTrack && audioTracks > 1 && pill('audio', 'i-audio', t('title.audio'), props.audio)}
+      {quality}
+    </>;
+    const remaining = Math.max(0, source.playback.duration - source.playback.positionSeconds);
+    const times: PlayerReadouts = {position: clockText(source.playback.positionSeconds) ?? '', duration: clockText(source.playback.duration),
+      ...(linear ? behindLive > 5 ? {behind: behindLive > 30 ? t('player.live.behindLive', {duration: durationText(Math.max(60, Math.round(behindLive / 60) * 60), t)}) : undefined} : {live: t('next.kit.live')}
+        : {remaining: `-${clockText(remaining)}`})};
+    // Behind the live edge, Go live is the prompt corner's (phone-player and tablet-play live).
+    const goLive = linear && behindLive > 5 && props.goLive ? <PlayerPill testID="watch-go-live" icon="i-rec" tone="record" value={t('player.live.goLive')} label={t('player.live.goLive')}
+      disabled={!controlsEnabled} onPress={() => {if (controlsCurrent() && props.goLive) {controls.reveal(fence); props.goLive(fence);}}}/> : undefined;
+    const corner = skipNoticeNode ?? skipPromptNode;
+    const timeline = <NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact={compact} enabled={controlsEnabled} liveEdge={liveEdge} onPreview={setLanding}
+      reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>;
+    return <GestureDetector gesture={minimizeSwipe}><Animated.View testID="watch-chrome" pointerEvents={initialPlayer && !initialPlayer.controlsAdmitted ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer && !initialPlayer.controlsAdmitted} importantForAccessibility={initialPlayer && !initialPlayer.controlsAdmitted ? 'no-hide-descendants' : 'auto'} style={[{width, height}, chromeMorphStyle]}>
+      {/* The pane is the host's: under the status bar the upright strip's chrome starts below it, and a book's page keeps clear of the crease. */}
+      <View pointerEvents="box-none" style={{flex: 1, paddingTop: props.edgeInsets?.top, paddingLeft: props.edgeInsets?.left, paddingRight: props.edgeInsets?.right}}>
+        <PlayerChromeFrame pane form={compact ? 'upright' : bar ? 'wide' : 'sideways'} chromeVisible={visible} scrubbing={scrubbing} onControlsLayout={props.onPictureControlsLayout}
+          picture={bar ? null : <Focusable ref={picture} focusId="watch-picture" testID="watch-picture" focusTreatment="none" accessibilityRole="button" accessibilityLabel={identity?.title ?? t('player.opt.menu')}
+            focusable={false} onPress={() => {if (controlsCurrent()) controls.toggleVisibility(fence);}} style={{position: 'absolute', inset: 0}}/>}
+          close={control('minimize', 'i-down', t('player.minimize'), () => props.onMinimize(fence), {onPicture: true}, minimizeCurrent)}
+          title={title} tools={tools}
+          scrubber={compact ? <View pointerEvents="box-none" style={{height: 14}}>
+            {/* The upright strip's scrubber rides its lower edge (the frame's): a knob-high slot, the 44 pt touch box centred on it. */}
+            <View style={{position: 'absolute', left: 0, right: 0, top: -15}}>{timeline}</View>
+          </View> : timeline}
+          times={times} transport={handheldTransport} leading={leading} trailing={trailing}
+          prompts={goLive || corner ? <View testID="watch-skip-prompt" style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>{goLive}{corner}</View> : undefined}
+          card={skipOfferNode}/>
+      </View>
+      {stillWatchingNode}
+      {props.notice && state.panel === undefined && <LossNotice notice={props.notice} top={bar ? 115 : 64} gutter={bar ? 32 : 54} available={width}/>}
+    </Animated.View></GestureDetector>;
+  }
   if (tabletop) return <GestureDetector gesture={minimizeSwipe}><Animated.View testID="watch-chrome" pointerEvents={initialPlayer && !initialPlayer.controlsAdmitted ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer && !initialPlayer.controlsAdmitted} importantForAccessibility={initialPlayer && !initialPlayer.controlsAdmitted ? 'no-hide-descendants' : 'auto'} style={[{width, height}, chromeMorphStyle]}>
     <Animated.View pointerEvents={visible ? 'box-none' : 'none'} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={[{position: 'absolute', inset: 0}, fade]}>
       <FocusRegion id="watch-controls" orientation="horizontal" entry="watch-toggle" style={{position: 'absolute', inset: 0}}>
@@ -732,7 +735,6 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
       </Defs><Rect width="100%" height="100%" fill="url(#watch-top)"/><Rect width="100%" height="100%" fill="url(#watch-bottom)"/></Svg>}
       <FocusRegion id="watch-controls" orientation={theme.isTV ? "free" : "horizontal"} entry={theme.isTV ? undefined : barEntry} entryRegion={theme.isTV ? "watch-transport" : undefined} style={{position: 'absolute', inset: 0}}>
         <View style={{position: 'absolute', top: (compact ? 4 : theme.isTV ? 80 : 12) + (props.edgeInsets?.top ?? 0), left: (side ?? (compact ? 6 : theme.isTV ? 96 : 54)) + (props.edgeInsets?.left ?? 0), right: (side ?? (compact ? 6 : theme.isTV ? 96 : 54)) + (props.edgeInsets?.right ?? 0), flexDirection: 'row', alignItems: theme.isTV ? 'flex-start' : 'center'}}>
-          {!theme.isTV && icon('minimize', 'i-down', t('player.minimize'), () => props.onMinimize(fence), false, false, undefined, minimizeCurrent)}
           {theme.isTV && linear && <>{channelMark}<View style={{flexShrink: 1, minWidth: 0}}>
             <Text numberOfLines={1} style={[nativeType({size: 44, weight: 800, tracking: -.03, lineHeight: 52}, theme.textScale), {color: theme.colors.text}]}>{linear.programme?.title ?? linear.name}</Text>
             <View style={{flexDirection: 'row', alignItems: 'center', minWidth: 0}}>
@@ -753,20 +755,6 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
             <View style={{flexDirection: 'row', alignItems: 'baseline', minWidth: 0, marginTop: 4}}>{identity.subtitle.map(part =>
               <Text key={part.id} numberOfLines={1} ellipsizeMode="tail" style={[nativeType({size: 24, weight: part.id === 'episode-title' ? 700 : 600, tracking: 0, lineHeight: 32}, theme.textScale),
                 {color: part.id === 'episode-title' ? theme.colors.text : theme.colors.textSecondary, flexShrink: part.id === 'episode-title' ? 1 : 0, marginRight: 10}]}>{part.text}</Text>)}</View></View>}
-          {!theme.isTV && linear && <View style={{flexShrink: 1, minWidth: 0}}>
-            <Text numberOfLines={1} style={[nativeType({size: 16.5, weight: 800, tracking: -.015, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{linear.programme?.title ?? linear.name}</Text>
-            <View style={{flexDirection: 'row', alignItems: 'center', minWidth: 0, marginTop: 1}}>
-              <Text numberOfLines={1} style={[theme.type.bodyStrong, {fontSize: 13, color: theme.colors.textSecondary, flexShrink: 0}]}>{linear.name}</Text>
-              <View style={{flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 10}}>
-                <View style={{width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.colors.record}}/>
-                <Text style={{fontFamily: 'Manrope-SemiBold', fontSize: 12, fontWeight: '600', color: theme.colors.text}}>{t('next.kit.live')}</Text>
-              </View>
-            </View>
-          </View>}
-          {!theme.isTV && !linear && !compact && identity && <View style={{flexShrink: 1, minWidth: 0, marginLeft: 8}}>
-            <Text numberOfLines={1} style={[nativeType({size: 16.5, weight: 800, tracking: -.015, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{identity.title}</Text>
-            <Text numberOfLines={1} style={[theme.type.bodyStrong, {fontSize: 13, marginTop: 1, color: theme.colors.textSecondary}]}>{identity.subtitle.map(part => part.text).join('  ')}</Text>
-          </View>}
           {theme.isTV && !compact && <FocusRegion id="watch-group" entry="player-group-pill" orientation="horizontal" enabled={controlsEnabled && groupPillPresent}
             edges={{down: 'watch-seek-region', right: linear && liveOffer && props.liveActions ? 'watch-live-actions' : undefined}} stops={{up: true}}
             style={{flexShrink: 0, alignSelf: 'center', marginLeft: groupPillPresent ? 28 : 0}}>
@@ -779,12 +767,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
             <Text style={[nativeType({size: 32, weight: 700, tracking: 0, lineHeight: 40}, theme.textScale), {color: theme.colors.text, fontVariant: ['tabular-nums']}]}>{wallClock(now)}</Text>
             <Text style={[nativeType({size: 22, weight: 600, tracking: 0, lineHeight: 26}, theme.textScale), {marginTop: 2, color: theme.colors.textSecondary}]}>{t('next.watch.ends', {time: wallClock(now + Math.max(0, source.playback.duration - source.playback.positionSeconds) * 1000)})}</Text>
           </View>}
-          {props.onCast && !theme.isTV && !linear && icon('cast', 'i-cast', t('player.playOn'), () => props.onCast!(fence, castButton))}
-          {pipOffered && !theme.isTV && icon('pip', 'i-pip', t('player.pictureInPicture'), () => props.onPictureInPicture!(fence))}
-          {!theme.isTV && icon('options', 'i-sliders', t('player.opt.menu'), () => panel('options'))}
-          {!theme.isTV && liveButtons(compact ? 46 : 48)}
         </View>
-        {!theme.isTV && !props.waiting && <View style={{position: 'absolute', left: 0, right: 0, top: height / 2 - big / 2, alignItems: 'center'}}>{transport}</View>}
         {theme.isTV && <View style={{position: 'absolute', left: 96 + (props.edgeInsets?.left ?? 0), right: 96 + (props.edgeInsets?.right ?? 0), bottom: 80}}>
           <FocusRegion id="watch-seek-region" entry="watch-seek" stops={{left: true, right: true, up: !groupPillPresent && !(linear && liveOffer && props.liveActions)}} edges={{up: groupPillPresent ? 'watch-group' : linear && liveOffer && props.liveActions ? 'watch-live-actions' : undefined, down: liveEdgeAction ? 'watch-live-edge' : 'watch-transport'}}>
             <NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact={compact} enabled={controlsEnabled} tv focused={seekFocused} onPreview={setLanding} liveEdge={liveEdge} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
@@ -837,46 +820,6 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
               </View>
             </FocusRegion>
           </View>
-        </View>}
-        {!theme.isTV && <View testID="watch-picture-controls" onLayout={event => props.onPictureControlsLayout?.(event.nativeEvent.layout.height + pictureControlsBottom)}
-          style={{position: 'absolute', left: (side ?? (compact ? 14 : 60)) + (props.edgeInsets?.left ?? 0), right: (side ?? (compact ? 6 : 60)) + (props.edgeInsets?.right ?? 0), bottom: pictureControlsBottom}}>
-          {!compact && <View style={{marginBottom: 8}}>
-            <NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact={compact} enabled={controlsEnabled} liveEdge={liveEdge} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
-          </View>}
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
-            <Text style={[theme.type.bodyStrong, {fontSize: 12.5, color: theme.colors.text, fontVariant: ['tabular-nums']}]}>{clockText(source.playback.positionSeconds)}</Text>
-            {linear && behindLive > 30 && <Text style={[theme.type.bodyStrong, {fontSize: 12, marginLeft: 8, color: theme.colors.textSecondary}]}>{t('player.live.behindLive', {duration: durationText(Math.max(60, Math.round(behindLive / 60) * 60), t)})}</Text>}
-            {compact && <Text style={[theme.type.bodyStrong, {fontSize: 12, color: theme.colors.textSecondary}]}>{`/ ${clockText(source.playback.duration)}`}</Text>}
-            <View style={{flex: 1}}/>
-            {!compact && (linear && behindLive > 5 && props.goLive
-              ? <Focusable focusId="watch-go-live" testID="watch-go-live" accessibilityRole="button" focusable={controlsEnabled} disabled={!controlsEnabled}
-                  onPress={() => {if (controlsCurrent() && props.goLive) {controls.reveal(fence); props.goLive(fence);}}}
-                  style={{height: 28, paddingHorizontal: 12, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(237,245,250,.14)'}}>
-                  <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.record}}/>
-                  <Text style={{fontFamily: 'Manrope-Bold', fontSize: 12.5, fontWeight: '700', color: theme.colors.text}}>{t('player.live.goLive')}</Text>
-                </Focusable>
-              : <Text style={[theme.type.bodyStrong, {fontSize: 12.5, color: theme.colors.textSecondary, fontVariant: ['tabular-nums']}]}>{clockText(Math.max(0, source.playback.duration - source.playback.positionSeconds))}</Text>)}
-            {compact && !linear && <>{qualityChip(true)}{props.fullWindowRequest?.() && controls.canFullWindow() && !controls.getSnapshot().fullWindow && icon('fullscreen', 'i-fs', t('next.states.shortcut.fullscreen'), () => {if (current() && props.fullWindowRequest?.()) controls.setFullWindow(fence, true);})}</>}
-          </View>
-          {compact && linear && <View testID="watch-live-pills" style={{flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 8}}>
-            {props.onGuide && chip('episodes', 'i-list', t('player.live.guide'), undefined, props.onGuide)}
-            <View style={{flex: 1}}/>{qualityChip(true)}
-            {props.fullWindowRequest?.() && controls.canFullWindow() && !controls.getSnapshot().fullWindow && icon('fullscreen', 'i-fs', t('next.states.shortcut.fullscreen'), () => {if (current() && props.fullWindowRequest?.()) controls.setFullWindow(fence, true);})}
-          </View>}
-          {/* phone-player 1b: while you drag, the chips step aside (kept in place, hidden) until you let go. */}
-          {!compact && <View testID="watch-chip-row" pointerEvents={scrubbing ? 'none' : 'auto'} accessibilityElementsHidden={scrubbing} importantForAccessibility={scrubbing ? 'no-hide-descendants' : 'auto'}
-            style={{flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8, opacity: scrubbing ? 0 : 1}}>
-            {linear
-              ? (props.onGuide ? chip('episodes', 'i-list', t('player.live.guide'), undefined, () => {if (controlsCurrent() && props.onGuide) props.onGuide();}) : null)
-              : fence.kind === 'queue' && fence.showId ? chip('episodes', 'i-stack', t('title.episodes'), undefined) : null}
-            <View style={{flex: 1}}/>
-            {source.capabilities.subtitleTrack && chip('subtitles', 'i-cc', linear ? t('player.live.captions') : t('player.opt.subtitles'), props.subtitle ?? (linear ? t('player.opt.off') : undefined))}
-            {source.capabilities.audioTrack && audioTracks > 1 && chip('audio', 'i-audio', t('title.audio'), props.audio)}
-            {qualityChip()}
-          </View>}
-        </View>}
-        {!theme.isTV && compact && <View style={{position: 'absolute', left: (props.edgeInsets?.left ?? 0), right: (props.edgeInsets?.right ?? 0), bottom: -21}}>
-          <NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact enabled={controlsEnabled} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>
         </View>}
       </FocusRegion>
     </Animated.View>

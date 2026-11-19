@@ -16,6 +16,8 @@ import {NativeWatchControls} from '../src-next/screens/watch/controls.ts';
 import * as landingStoreModule from '../src-next/screens/watch/landing-store.ts';
 import * as tvPlayPause from '../src-next/platform/tv-play-pause.ts';
 import {Platform} from 'react-native';
+// The handheld chrome's regions are PlayerChromeFrame's props (the frame is a string in this harness).
+const slots = (node: any) => node.type === 'PlayerChromeFrame' ? ['picture', 'close', 'title', 'tools', 'scrubber', 'transport', 'leading', 'trailing', 'prompts', 'card'].map(key => node.props[key]) : node.props.children;
 
 const gesture = () => {const value: Record<string, unknown> = {}; for (const key of ['enabled', 'runOnJS', 'activeOffsetY', 'failOffsetX', 'onEnd']) value[key] = () => value; return value;};
 // The picture's focus request waits for the frame that makes it focusable natively; in this harness that frame is now.
@@ -47,6 +49,7 @@ const chromeModules = {
   '../../kit/theme': {nativeType: () => ({}), useTheme: () => ({isTV, colors: {}, type: {body: {}, bodyStrong: {}, caption: {}}})},
   '../../kit/useMotion': {useMotion: () => motion, useReducedMotion: () => true}, './controls': {NativeWatchControls}, './landing-store': landingStoreModule, './WatchTimeline': {NativeWatchTimeline: 'Timeline'},
   '../../kit/useScreenReader': {useScreenReader: () => false},
+  '../../kit/frames': {PlayerChromeFrame: 'PlayerChromeFrame'}, '../../kit/player': {PlayerChannelStep: 'PlayerChannelStep', PlayerControl: 'PlayerControl', PlayerPill: 'PlayerPill', PlayerTitle: 'PlayerTitle'},
   '../../platform/tv-play-pause': tvPlayPause,
 };
 const {NativeWatchChrome} = await screenModule(new URL('../src-next/screens/watch/WatchChrome.tsx', import.meta.url), chromeModules);
@@ -61,12 +64,12 @@ test('TV first Select event plus its genuine picture press only reveals; second 
   const host = createFabricHookHost(() => {tree = NativeWatchChrome({source, controls, playback, text: {t: defaultI18n.t}, quality: 'Original', width: 1920, height: 1080, compact: false, skipBackSeconds: 10, skipForwardSeconds: 30, onMinimize() {}, onPanel() {}, reportError(error: unknown) {throw error;}});});
   await host.mount();
   try {
-    const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : React.isValidElement(node) ? [node, ...all((node as any).props.children)] : [];
+    const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : React.isValidElement(node) ? [node, ...all(slots(node))] : [];
     const picture = all(tree).find(node => node.props.testID === 'watch-picture');
     event!({eventType: 'select', eventKeyAction: 1}); picture.props.onPress();
     assert.equal(controls.getSnapshot().visible, true); assert.equal(controls.getSnapshot().focus, 'toggle'); assert.deepEqual(commands, []);
     await host.flush();
-    const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : React.isValidElement(node) ? [node, ...descendants((node as any).props.children)] : [];
+    const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : React.isValidElement(node) ? [node, ...descendants(slots(node))] : [];
     const toggle = descendants(tree).find(node => node.props.testID === 'watch-toggle');
     toggle.props.onPress(); assert.deepEqual(commands, ['toggle']);
   } finally {await host.unmount(); controls.dispose();}
@@ -117,7 +120,7 @@ test('every genuine chrome child mounts the strict focus target hook with unique
     react: {...React, default: React, createContext: (current: unknown) => {const value = {current}; contexts.push(value); return value;}, useContext: (context: {current: unknown}) => context.current},
     'react-native': {findNodeHandle: () => null, TVFocusGuideView: 'Guide', View: 'View'}, '../theme': {useTheme: () => ({isTV})}, './registry': registryModule, './useHostRef': hostRefModule,
   });
-  const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : React.isValidElement(node) ? [node, ...descendants((node as any).props.children)] : [];
+  const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : React.isValidElement(node) ? [node, ...descendants(slots(node))] : [];
   const artwork = () => undefined;
   for (const {tv, compact} of [{tv: false, compact: false}, {tv: false, compact: true}, {tv: true, compact: false}]) {
     isTV = tv;
@@ -130,9 +133,16 @@ test('every genuine chrome child mounts the strict focus target hook with unique
       artwork, onMinimize() {}, onPictureInPicture() {}, onCast() {}, onFullWindow() {}, reportError: assert.fail});});
     await host.mount();
     try {
-      const region = descendants(tree).find(node => node.type === 'FocusRegion' && node.props.id === 'watch-controls'); assert.equal(region.props.id, 'watch-controls');
       // #605: every layout's timeline (TV, tablet, phone) gets the scrub picture's artwork resolver.
       assert.deepEqual(descendants(tree).filter(node => node.type === 'Timeline').map(node => node.props.artwork), [artwork], `artwork reaches the ${tv ? 'TV' : compact ? 'phone' : 'tablet'} timeline`);
+      if (!tv) {
+        // The handheld forms are the kit frame's: its parts each carry one stable semantic id.
+        const parts = descendants(tree).filter(node => node.type === 'PlayerControl' || node.type === 'PlayerPill'), ids = parts.map(node => node.props.testID);
+        assert.equal(new Set(ids).size, parts.length); assert.ok(ids.every(id => typeof id === 'string' && id.startsWith('watch-')));
+        assert.ok(ids.includes('watch-skip-back')); assert.ok(ids.includes('watch-skip-forward')); assert.ok(ids.includes('watch-option-quality'));
+        continue;
+      }
+      const region = descendants(tree).find(node => node.type === 'FocusRegion' && node.props.id === 'watch-controls'); assert.equal(region.props.id, 'watch-controls');
       const targets = descendants(region).filter(node => node.type === 'Button' || node.type === 'Focusable');
       const ids = targets.map(node => node.props.focusId);
       assert.equal(new Set(ids).size, targets.length); assert.ok(ids.every(id => typeof id === 'string' && id.startsWith('watch-')));
@@ -149,7 +159,7 @@ test('every genuine chrome child mounts the strict focus target hook with unique
   isTV = true;
 });
 
-const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : React.isValidElement(node) ? [node, ...descendants((node as any).props.children)] : [];
+const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : React.isValidElement(node) ? [node, ...descendants(slots(node))] : [];
 
 for (const kind of ['skip', 'undo', 'up-next']) for (const visible of [false, true]) test(`a ${kind} arrival with controls ${visible ? 'up preserves Quality' : 'hidden owns focus and Back stays in playback'}`, async () => {
   isTV = true;
@@ -239,15 +249,14 @@ test('phone-player 1b: while you drag, the chips step aside in place, and come b
   await host.mount();
   try {
     assert.equal(descendants(tree).find(node => node.type === 'Timeline' && !node.props.tv).props.artwork, artwork, 'the scrub picture still reaches the timeline (#605)');
-    const row = () => descendants(tree).find(node => node.props.testID === 'watch-chip-row');
-    assert.equal(row().props.style.opacity, 1); assert.equal(row().props.pointerEvents, 'auto');
+    // The chips are the frame's bar row: `scrubbing` hides it in place (PlayerChromeFrame keeps its space).
+    const frame = () => descendants(tree).find(node => node.type === 'PlayerChromeFrame');
+    assert.equal(frame().props.scrubbing, false); assert.ok(descendants(frame().props.trailing).some(node => node.props.testID === 'watch-option-subtitles'));
     const timeline = descendants(tree).find(node => node.type === 'Timeline' && !node.props.tv);
     timeline.props.onPreview(25); await host.flush();
-    assert.equal(row().props.style.opacity, 0, 'hidden while dragging');
-    assert.equal(row().props.pointerEvents, 'none'); assert.equal(row().props.importantForAccessibility, 'no-hide-descendants');
-    assert.equal(row().props.style.marginTop, 10, 'its space is kept, so nothing moves');
+    assert.equal(frame().props.scrubbing, true, 'hidden while dragging');
     timeline.props.onPreview(undefined); await host.flush();
-    assert.equal(row().props.style.opacity, 1, 'back when you let go');
+    assert.equal(frame().props.scrubbing, false, 'back when you let go');
   } finally {await host.unmount(); controls.dispose(); isTV = previousTV;}
 });
 
@@ -270,18 +279,18 @@ test('a slow first frame never bypasses ordinary timer and toggle hiding after t
   controls.source(fence, {expanded: true, autoHide: true, hiddenByPanel: false, paused: false, scrubbing: false, focusHeld: false});
   let tree: any;
   const host = createFabricHookHost(() => {tree = Chrome({source, controls, playback, text: {t: defaultI18n.t}, quality: 'Original', width: 390, height: 844, compact: true, skipBackSeconds: 10, skipForwardSeconds: 30, onMinimize() {}, reportError: assert.fail});});
-  const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : React.isValidElement(node) ? [node, ...all((node as any).props.children)] : [];
+  const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : React.isValidElement(node) ? [node, ...all(slots(node))] : [];
   try {
     await host.mount(); await host.flush(); now += 5000;
     for (const [id, timer] of [...timers]) if (timer.at <= now) {timers.delete(id); timer.callback();}
     await host.flush();
     assert.equal(controls.getSnapshot().visible, false);
-    const hidden = all(tree).find(node => node.type === 'Animated' && node.props.pointerEvents === 'none' && node.props.importantForAccessibility === 'no-hide-descendants');
-    assert.ok(hidden); assert.equal(hidden.props.style.at(-1).opacity, 0);
+    // The kit frame draws and fades the controls; the screen hands it whether they show.
+    const frame = () => all(tree).find(node => node.type === 'PlayerChromeFrame');
+    assert.equal(frame().props.chromeVisible, false);
     assert.equal(paint.controls.value, 1, 'the initial presentation is still present and its entrance is already complete');
     controls.reveal(fence); await host.flush(); controls.toggleVisibility(fence); await host.flush();
-    const toggled = all(tree).find(node => node.type === 'Animated' && node.props.pointerEvents === 'none' && node.props.importantForAccessibility === 'no-hide-descendants');
-    assert.equal(toggled.props.style.at(-1).opacity, 0);
+    assert.equal(frame().props.chromeVisible, false);
   } finally {await host.unmount(); controls.dispose(); isTV = previousTV;}
 });
 
@@ -369,9 +378,9 @@ test('a phone wait replaces the centre transport while leaving the edge controls
     for (const id of ['watch-toggle', 'watch-skip-back', 'watch-skip-forward']) assert.equal(byId(id), undefined, id);
     assert.ok(byId('watch-minimize')); assert.ok(byId('watch-options')); assert.ok(byId('watch-option-quality'));
     assert.ok(descendants(tree).some(node => node.type === 'Timeline'), 'progress remains');
-    const footer = byId('watch-picture-controls');
-    footer.props.onLayout({nativeEvent: {layout: {height: 46}}});
-    footer.props.onLayout({nativeEvent: {layout: {height: 90}}});
+    // The frame measures its bar's box, bottom inset included, and hands the height to the host's waiting column.
+    const frame = descendants(tree).find(node => node.type === 'PlayerChromeFrame');
+    frame.props.onControlsLayout(54); frame.props.onControlsLayout(98);
     assert.deepEqual(measured, [54, 98], 'the waiting column clears the actual footer, including a taller text layout');
     waiting = false; await host.rerender();
     for (const id of ['watch-toggle', 'watch-skip-back', 'watch-skip-forward']) assert.ok(byId(id), id);

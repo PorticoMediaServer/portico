@@ -317,7 +317,7 @@ async function chromeFixture(live = false) {
   const liveState = {fence: localFence, offer: {channel: {kind: 'live', number: '1', recordAvailable: true}, programme: {}}};
   const liveActions = {subscribe: () => () => {}, getSnapshot: () => liveState, restoreProof: () => () => true};
   const identity = {title: 'Title', subtitle: [{id: 'episode', role: 'context', text: 'S1 E2'}, {id: 'episode-title', role: 'identity', text: 'Episode name'}]};
-  const {NativeWatchChrome} = await screenModule(new URL('../src-next/screens/watch/WatchChrome.tsx', import.meta.url), {'../../kit/useScreenReader': {useScreenReader: () => false}, './landing-store': landingStoreModule, 
+  const {NativeWatchChrome} = await screenModule(new URL('../src-next/screens/watch/WatchChrome.tsx', import.meta.url), {'../../kit/frames': {PlayerChromeFrame: 'PlayerChromeFrame'}, '../../kit/player': {PlayerChannelStep: 'PlayerChannelStep', PlayerControl: 'PlayerControl', PlayerPill: 'PlayerPill', PlayerTitle: 'PlayerTitle'}, '../../kit/useScreenReader': {useScreenReader: () => false}, './landing-store': landingStoreModule, 
     react: h.react, 'react-native': nativeAtoms, 'react-native-svg': svg, 'react-native-gesture-handler': {Gesture: {Pan: gesture}, GestureDetector: 'Gesture'}, 'react-native-reanimated': animation(h),
     '../../../../../packages/player-core/src': playerCore, '../../../../../packages/client-core/src/up-next': {upNextCountdown: () => undefined, upNextOffer: () => undefined},
     '../../../../../packages/client-core/src/playback/linear-protocol': {channelSeconds: (microseconds: string) => Number(microseconds) / 1000000},
