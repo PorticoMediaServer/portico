@@ -10,7 +10,7 @@ import {ProfileFace, ProfilePicker, type ProfileOption} from '../../../kit/artwo
 import {Artwork} from '../../../kit/artwork/Artwork';
 import {Icon} from '../../../kit/Icon';
 import {PosterCard} from '../../../kit/cards';
-import {PageStateFrame, SectionCard, SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, StateRow} from '../../../kit/frames';
+import {PageStateFrame, SectionCard, SettingsPageFrame, SheetFrame, SignInFrame, StateRow} from '../../../kit/frames';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {Banner, MenuRow, Popover} from '../../../kit/overlays';
 import {OverlaysProvider} from '../../../kit/overlays/OverlayHost';
@@ -25,7 +25,7 @@ import {TVSwitchRow} from '../../../screens/settings-live/server/TVSettingRows';
 import {useTheme} from '../../../kit/theme';
 import type {IconName} from '../../../kit/Icon';
 import type {Gallery} from '../../gallery-registry';
-import {Page, PosterRow, Window, asset, settingsPages} from './frames.gallery';
+import {Page, PosterRow, SettingsSurface, Window, asset, settingsPages} from './frames.gallery';
 
 /** Family E (round 8): Settings, overlays by task (R9, packages/design `overlay-forms.ts`) over a real page, and the
  * page states, with the web gallery's case ids. Development builds only. */
@@ -87,7 +87,7 @@ function Search({value, onChange}: {value: string; onChange: (value: string) => 
 }
 function SettingsIndex({search = false}: {search?: boolean}) {
   const {form} = useFrameMetrics(), wide = form !== 'phone', [page, setPage] = useState<string>(), [query, setQuery] = useState(search ? sample.settingsQuery : '');
-  return <Page destination={{kind: 'settings'}}><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}} search={<Search value={query} onChange={setQuery}/>}
+  return <Page destination={{kind: 'settings'}}><SettingsSurface bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}} search={<Search value={query} onChange={setQuery}/>}
     profile={query ? undefined : <SettingsProfileCard profile={profile} description={f('signedIn')} onPress={none}/>} shortcuts={query ? undefined : <ShortcutTiles actions={tiles}/>}
     list={<Index selected={page ?? (wide ? 'playback' : '')} onOpen={setPage} query={query}/>}
     page={page || wide ? <SettingsPageFrame title={fx('playback')} status="saved" back={{label: t('next.shell.settings'), onPress: () => setPage(undefined)}} intro={fx('playbackIntro')}><PlaybackSections/></SettingsPageFrame> : undefined}/></Page>;
@@ -104,7 +104,7 @@ function OwnerPage({back}: {back?: () => void}) {
 }
 function SettingsOwner() {
   const {form} = useFrameMetrics(), [page, setPage] = useState<string | undefined>('people');
-  return <Page destination={{kind: 'settings'}}><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}}
+  return <Page destination={{kind: 'settings'}}><SettingsSurface bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}}
     list={<Index selected="people" onOpen={setPage}/>} page={page || form !== 'phone' ? <OwnerPage back={() => setPage(undefined)}/> : undefined}/></Page>;
 }
 /** The owner's Integrations page (owner-server 16, 23, phone 38-40) with its two switches (definition 13 rules 33 and 37;
@@ -132,7 +132,7 @@ function IntegrationsPage({failed = false, back, over}: {failed?: boolean; back?
 }
 function SettingsIntegrations({failed = false}: {failed?: boolean}) {
   const {form} = useFrameMetrics(), [page, setPage] = useState<string | undefined>('integrations');
-  return <Page destination={{kind: 'settings'}}><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}}
+  return <Page destination={{kind: 'settings'}}><SettingsSurface bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}}
     list={<Index selected="integrations" onOpen={setPage}/>} page={page || form !== 'phone' ? <IntegrationsPage failed={failed} back={() => setPage(undefined)}/> : undefined}/></Page>;
 }
 /** The two-step code box (security STATUS "Needs the visual rebuild"; account-10 frames 3 and 4, account-31 frame 3): a
@@ -153,7 +153,7 @@ function TwoStepBox({refused = false}: {refused?: boolean}) {
         <RecoveryLine recovery={recovery} onPress={swap}/>
       </SheetBody>
     </SheetFrame>;
-  return <OverlaysProvider><Window><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings')}} list={<Index selected="integrations" onOpen={none}/>} page={<IntegrationsPage over={sheet}/>}/></Window></OverlaysProvider>;
+  return <OverlaysProvider><Window><SettingsSurface bar={{title: t('next.shell.settings')}} list={<Index selected="integrations" onOpen={none}/>} page={<IntegrationsPage over={sheet}/>}/></Window></OverlaysProvider>;
 }
 /** A settings page shown alone (tablets SC-8): Back, the gutter and the page's column limit. */
 const SettingsAlone = () => <Page destination={{kind: 'settings'}}><OwnerPage back={none}/></Page>;
@@ -295,7 +295,7 @@ function NotificationList() {
 function Notifications() {
   const {form} = useFrameMetrics(), bell = useRef<View>(null), theme = useTheme(), settled = useSettled();
   // A phone pushes Notifications inside the Settings sheet (phone-app 21; R9 `notifications`, phone).
-  if (form === 'phone') return <Window><SettingsListFrame open onOpenChange={none} bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}} list={<Index selected="" onOpen={none}/>}
+  if (form === 'phone') return <Window><SettingsSurface bar={{title: t('next.shell.settings'), action: {label: t('next.overlays.done'), onPress: none}}} list={<Index selected="" onOpen={none}/>}
     page={<SettingsPageFrame title={f('notifications')} back={{label: t('next.shell.settings'), onPress: none}} action={{label: f('markAllRead'), onPress: none}}><NotificationList/></SettingsPageFrame>}/></Window>;
   return <OverlaysProvider><Page destination={{kind: 'home'}}><View style={{paddingTop: 60}}><PosterRow title={f('recent')} fresh/><PosterRow title={fx('newOnServer')}/></View></Page>
     <TopRight><View ref={bell} collapsable={false} style={{width: theme.targets.touch, height: theme.targets.touch, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-bell" size={theme.scale.icon.secondary.size} color={theme.colors.text}/></View><ProfileAvatar profile={me} unread size={34}/></TopRight>

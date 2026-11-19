@@ -96,6 +96,7 @@ const {default: selectionGalleries} = await import('../src-next/dev/families/sel
 const {BulkEditor} = await import('../src-next/kit/selection/BulkEditor.tsx');
 const {PlaylistPicker, MixedEditExplainer} = await import('../src-next/kit/selection/index.ts');
 const {default: overlayGalleries} = await import('../src-next/dev/families/overlays/overlays.gallery.tsx');
+const {SettingsListFrame, SettingsPageFrame} = await import('../src-next/kit/frames/SettingsFrame.tsx');
 type Element = ReactElement<Record<string, any>>;
 function nodes(node: ReactNode): Element[] {
   if (Array.isArray(node)) return node.flatMap(nodes);
@@ -861,4 +862,41 @@ test('a poster title wraps to a second line before it is cut; TV too (the owner 
     } finally {await card.host.unmount();}
   }
   state.theme = createTheme({isTV: false, width: 390});
+});
+
+test('Settings frames keep one tree on every form: a phone-tablet-phone resize restyles the list and the page and never remounts what they hold', async () => {
+  // A foldable opening or a tablet crossing 600 changes the form; the open page's edits and scroll must survive it, so the
+  // path React reconciles from each frame's root to its content may not change with the form.
+  const previous = state.theme;
+  const typed = React.createElement('TextInput', {testID: 'typed', value: 'kept'});
+  const path = (node: ReactNode, target: unknown, at: string[] = []): string[] | undefined => {
+    if (node === target) return at;
+    const children = React.isValidElement<Record<string, any>>(node) ? node.props.children : node;
+    const list = Array.isArray(children) ? children : [children];
+    for (const [index, child] of list.entries()) {
+      if (!React.isValidElement(child) && !Array.isArray(child)) {if (child === target) return [...at, String(index)]; continue;}
+      const type = React.isValidElement(child) ? (typeof child.type === 'string' ? child.type : (child.type as any).displayName ?? (child.type as any).name ?? 'provider') : 'list';
+      const found = path(child, target, [...at, `${index}:${type}`]);
+      if (found) return found;
+    }
+    return undefined;
+  };
+  const body = async (frame: any, props: any, target: unknown) => {
+    let tree: ReactNode;
+    const host = createFabricHookHost(() => {const scope: any = frame(props); tree = scope.props.children.type(scope.props.children.props);});
+    await host.mount();
+    try {return path(tree, target);} finally {await host.unmount();}
+  };
+  try {
+    for (const [name, frame, props, target] of [
+      ['SettingsListFrame', SettingsListFrame, {bar: {title: 'Settings'}, list: React.createElement('View', {testID: 'list'}), page: typed}, typed],
+      ['SettingsPageFrame', SettingsPageFrame, {title: 'Playback', children: typed}, typed],
+    ] as const) {
+      const paths: (string[] | undefined)[] = [];
+      for (const width of [390, 820, 390]) {state.theme = createTheme({isTV: false, width}); paths.push(await body(frame, props, target));}
+      assert.ok(paths[0], `${name} draws its content`);
+      assert.deepEqual(paths[1], paths[0], `${name}: phone to tablet keeps the content's place`);
+      assert.deepEqual(paths[2], paths[0], `${name}: tablet back to phone keeps it`);
+    }
+  } finally {state.theme = previous;}
 });
