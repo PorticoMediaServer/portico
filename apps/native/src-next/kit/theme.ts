@@ -26,27 +26,22 @@ export function textScaleFor(textSize: TextSizePreference | undefined, isTV: boo
 let publishedTextScale = 1;
 export function activeTextScale(): number {return publishedTextScale;}
 
-/** The Android line (round 8): a title's line box must clear its descenders. Android clips a Text to its line box, so
- * a bold title set tighter than this share of its size loses the tails of g, y and p on its last line. */
-export const titleLineFloor = 1.2;
-/** A sheet or menu title has no drawn line height ('normal'); on Android it is given this one, so the box is the same on every device.
- * On a TV it is the measured floor (below): 1.3 cuts the extra bold's ink there. */
-export const titleLine = (size: number): number => Platform.isTV ? Math.ceil(size * measuredLineFloor) : Math.round(size * 1.3);
+/** A sheet or menu title has no drawn line height ('normal'); it is given the measured floor (below), so the box is the
+ * same on every device and the extra bold's ink is never cut. */
+export const titleLine = (size: number): number => Math.ceil(size * measuredLineFloor);
 
-/** The measured line (G2, 19 Nov, the dev gallery's `type-ladder` and `type-tv-*` cases): Manrope's ink, the ring of
- * Å and the tails of g, j and y, needs a line box of 1.34 of its size on Android and 1.36 on tvOS at extra bold (1.30
- * and 1.32 at regular). In a tighter box Android cuts it at both edges and tvOS at the top. The font's own line
- * ('normal', about 1.37) clears on both. One number for both systems and every weight: the largest measured. */
+/** The measured line (G2, 19 Nov, the dev gallery's `type-ladder`, `type-tv-*` and `type-phone-*` cases on the Android TV
+ * emulator, the Apple TV simulator, the Pixel 6a and the iPhone 17 simulator): Manrope's ink, the ring of Å and the
+ * tails of g, j and y, needs a line box of 1.34 of its size on Android and 1.36 on Apple at extra bold (1.30 and 1.32
+ * at regular). In a tighter box Android cuts it at both edges and Apple at the top. The font's own line ('normal',
+ * about 1.37) clears on both. One number for both systems, every form and every weight: the largest measured. */
 export const measuredLineFloor = 1.36;
 
-/** Native fonts supply their own normal line metrics. Tracking is specified in em. `lineFloor`: a text with a set line
- * box is never drawn tighter than this share of its size. On a TV every caller gets `measuredLineFloor` (the theme's
- * roles and the kit's own lockups, sheet titles and states alike); elsewhere, until the touch forms are measured, the
- * older Android-only floor for bold titles applies. */
-export function nativeType(style: TypeStyle, textScale = 1, lineFloor = Platform.isTV ? measuredLineFloor : undefined): TextStyle {
-  const line = style.lineHeight === 'normal' ? undefined
-    : lineFloor !== undefined ? Math.max(style.lineHeight, Math.ceil(style.size * lineFloor))
-    : Platform.OS === 'android' && style.weight >= 700 ? Math.max(style.lineHeight, Math.ceil(style.size * titleLineFloor)) : style.lineHeight;
+/** Native fonts supply their own normal line metrics. Tracking is specified in em. A text with a set line box is never
+ * drawn tighter than `lineFloor` of its size: every caller gets `measuredLineFloor` (the theme's roles and the kit's own
+ * lockups, sheet titles and states alike). */
+export function nativeType(style: TypeStyle, textScale = 1, lineFloor = measuredLineFloor): TextStyle {
+  const line = style.lineHeight === 'normal' ? undefined : Math.max(style.lineHeight, Math.ceil(style.size * lineFloor));
   return {
     fontFamily: fontFamilies[style.weight],
     fontSize: style.size * textScale,
@@ -83,12 +78,9 @@ export function createTheme({isTV, width, height, reduceMotion = false, textScal
   // R3: a role with a named level of emphasis carries that level's colour, so text drawn with it needs no colour of its
   // own. A role without one (primary) carries none, and so still takes the colour of the text it sits in.
   const levels = formScale.emphasis[form];
-  // G2: the TV column is measured (Android TV emulator, Apple TV simulator); the touch forms keep the older floor until
-  // they are measured on the Pixel and the iPhone.
-  const lineFloor = form === 'tv' ? measuredLineFloor : undefined;
   const type = Object.fromEntries(Object.entries(formScale.type[form]).map(([role, value]) => {
     const level = levels[role as TypeRole];
-    const style = nativeType(value, textScale, lineFloor);
+    const style = nativeType(value, textScale);
     return [role, level ? {...style, color: emphasisColors[level]} : style];
   })) as Record<TypeRole, TextStyle>;
   // TV page and panel headings are drawn at 44/800 with -.03 tracking (tv-more .pg,
