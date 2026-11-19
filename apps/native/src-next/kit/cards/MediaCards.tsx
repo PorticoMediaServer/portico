@@ -186,11 +186,13 @@ export function EpisodeTile(props: EpisodeTileProps) {
   // Rule R7: a row on a tablet is its own layout, not the phone's widened: the synopsis beside the picture under the
   // title, the length on the picture (tablet f8, tablet-play 3; tablets.md SC-5).
   const wide = row && t.column === 'tablet';
+  // A phone's row (phone-detail d2 frame 4 `.epr`): the number and the length under the title are the small tertiary help line, and the row has no synopsis.
+  const phoneRow = row && !wide && !t.isTV;
   const width = props.width ?? (row ? 350 : t.spec.episode.width[t.column]), artWidth = row ? props.artWidth ?? 136 : width, height = artWidth * 9 / 16;
   // Where the length sits on the picture (a tile, a tablet row), Playing or Watched is a labelled chip at the picture's
   // top left (desktop-player f6, tablet-play 2a), so nothing shares the length's corner. A tile's own status keeps its badge.
   // A row's facts are the form's `meta` role at the row's weight (R2: by form, so a TV row is TV-sized).
-  const meta = (weight: 600 | 700) => {const {fontFamily, fontWeight} = titleStyle(t, 1, weight); return [t.type.meta, {fontFamily, fontWeight}];};
+  const meta = (weight: 600 | 700) => {const {fontFamily, fontWeight} = titleStyle(t, 1, weight); return [phoneRow ? t.type.rowHelp : t.type.meta, {fontFamily, fontWeight}];};
   const pictured = !row || wide, playingBars = (color: string) => [.55, 1, .38].map((factor, index) => <View key={index} style={{width: 3, height: 12 * factor, borderRadius: 1.5, backgroundColor: color}}/>);
   const chip = !pictured ? undefined : props.status && !row ? <Badge kind="new">{props.status}</Badge>
     : props.playing ? <Badge kind="playing">{defaultI18n.t('next.dock.playing')}</Badge> : props.watched ? <Badge kind="watched">{defaultI18n.t('next.cards.watched')}</Badge> : undefined;
@@ -212,7 +214,7 @@ export function EpisodeTile(props: EpisodeTileProps) {
     {wide && props.status && !(props.playing || props.watched)
       ? <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12, minWidth: 0}}><Text style={[meta(700), {color: t.colors.accentStrong}]}>{props.status}</Text>
         <View style={{flex: 1, minWidth: 0}}><Parts parts={props.label} fit="cut" style={meta(600)} /></View></View>
-      : <Parts parts={props.label} fit={row && !t.isTV ? 'wrap' : 'cut'} style={row ? meta(600) : undefined} />}
+      : <Parts parts={props.label} fit={row && !t.isTV ? 'wrap' : 'cut'} style={row ? [meta(600), phoneRow && {color: t.colors.textTertiary}] : undefined} />}
     {row && !wide && (props.length || props.status) && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12}}>
       {props.status && <Text style={[meta(700), {color: t.colors.accentStrong}]}>{props.status}</Text>}
       {props.length && <Text style={[meta(600), {color: t.colors.textTertiary}]}>{props.length}</Text>}
@@ -230,7 +232,7 @@ export function EpisodeTile(props: EpisodeTileProps) {
   </View> : <Overlays props={props} hovered={s.hovered} holding={s.holding} height={height} playSize={48} persistentPlay={!t.isTV} episode />}>
     {s => <><View style={[{flexDirection: row ? 'row' : 'column', gap: row ? wide ? 18 : 14 : 0, alignItems: wide ? 'flex-start' : row ? 'center' : undefined},
       /* A tablet row that is playing is raised (tablet-play 2a). */ wide && props.playing && {padding: t.space.xs, margin: -t.space.xs, borderRadius: t.spec.card.badge.radius[t.column] * 2, backgroundColor: t.colors.raisedHigh}]}>{art(s.focused, s.hovered, s.holding)}{text}</View>
-      {props.synopsis && !wide && <Text numberOfLines={row ? 2 : 3} style={[t.type.episodeBody, {color: t.colors.textSecondary, marginTop: row ? 9 : 8}]}>{props.synopsis}</Text>}
+      {props.synopsis && !wide && !phoneRow && <Text numberOfLines={row ? 2 : 3} style={[t.type.episodeBody, {color: t.colors.textSecondary, marginTop: row ? 9 : 8}]}>{props.synopsis}</Text>}
     </>}
   </CardFrame>;
 }
