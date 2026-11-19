@@ -19,6 +19,8 @@ import {Menu} from '../../../kit/overlays';
 import {useTheme} from '../../../kit/theme';
 import {Page} from './frames.gallery';
 import {MusicScrollView} from '../../../screens/destinations/music/MusicWindow';
+import {FocusRegion} from '../../../kit/focus';
+import type {FocusRegionConfig} from '../../../kit/focus/registry';
 import type {Gallery} from '../../gallery-registry';
 
 /** Family C, the title page's forms: every kind of title page filled in full on the one `TitleFrame`, from the parts its
@@ -242,9 +244,13 @@ function Collection() {
 
 const songs = (names: readonly Name[], album?: string): TrackRowData[] => names.map((name, index) => ({id: name, number: index + 1, text: {id: name, title: f(name), caption: album ? [{id: 'album', text: album, role: 'context'}] : [], detail: []},
   plays: [18, 9, 31, 12][index], duration: {id: 'duration', text: ['4:10', '3:59', '3:31', '3:11'][index]!, role: 'context'}, playing: !album && index === 2, favorite: !album && index === 2}));
-function Songs({rows, ranked = false}: {rows: readonly TrackRowData[]; ranked?: boolean}) {
-  return <View>{rows.map((row, index) => <SongRow key={row.id} row={row} index={index} ranked={ranked} onPlay={none} onMore={none} onEnter={none}/>)}</View>;
+/** On TV a page's list is a focus region linked to the title's action row (`actionsRegion`): Up returns to the row. */
+function Songs({rows, ranked = false, region}: {rows: readonly TrackRowData[]; ranked?: boolean; region?: FocusRegionConfig}) {
+  const theme = useTheme(), list = rows.map((row, index) => <SongRow key={row.id} focusId={row.id} row={row} index={index} ranked={ranked} onPlay={none} onMore={none} onEnter={none}/>);
+  return theme.isTV && region ? <FocusRegion {...region} orientation="vertical">{list}</FocusRegion> : <View>{list}</View>;
 }
+/** The artist page's TV chain: the action row, then Top songs. */
+const artistActions = 'frames-title-artist.actions', artistSongs = 'frames-title-artist.songs';
 function Album() {
   // The album page keeps its own scroller (song windowing, paging near the end): the frame hands it the page and the collapse point.
   return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-album" back={back}
@@ -258,12 +264,13 @@ function Album() {
 }
 function Artist() {
   const theme = useTheme();
-  return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-artist" back={back} cover={{shape: 'circle', node: <Artwork source={asset('pool/albums/abbey-road-2019-mix.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('artistKicker')}} title={f('artist')}
+  return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-artist" back={back}
+    actionsRegion={{id: artistActions, edges: {down: artistSongs}, stops: {up: true}}} cover={{shape: 'circle', node: <Artwork source={asset('pool/albums/abbey-road-2019-mix.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('artistKicker')}} title={f('artist')}
     metadata={<Meta text={f('artistFacts')}/>} primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, onPress: none}, {icon: 'i-heart', label: f('favourite'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     aside={<><View><PanelHeading title={f('albums')}/><SquareCard title={f('abbeyRoad')} caption={[{id: 'year', text: '1969', role: 'context'}]} artwork={asset('pool/albums/abbey-road-2019-mix.jpg')} width={theme.spec.card.width.poster[theme.column] * 1.2} onNavigate={none}/></View>
       <View><PanelHeading title={f('details')}/><AboutTable rows={[{label: f('country'), values: [{text: f('countryValue')}]}, {label: f('active'), values: [{text: f('activeValue')}]}, {label: f('genre'), values: [link('Rock')]}, {label: f('type'), values: [{text: f('group')}]}]}/></View></>}>
-    <PanelBlock><PanelHeading title={f('topSongs')}/><Songs ranked rows={songs(['artistSong1', 'artistSong2', 'artistSong3', 'artistSong4'], f('abbeyRoad')).map(row => ({...row, artwork: <Artwork source={asset('pool/albums/abbey-road-2019-mix.jpg')} width={40} height={40}/>}))}/></PanelBlock>
+    <PanelBlock><PanelHeading title={f('topSongs')}/><Songs ranked region={{id: artistSongs, edges: {up: artistActions}, stops: {down: true}}} rows={songs(['artistSong1', 'artistSong2', 'artistSong3', 'artistSong4'], f('abbeyRoad')).map(row => ({...row, artwork: <Artwork source={asset('pool/albums/abbey-road-2019-mix.jpg')} width={40} height={40}/>}))}/></PanelBlock>
   </TitleFrame></Page>;
 }
 function Book() {

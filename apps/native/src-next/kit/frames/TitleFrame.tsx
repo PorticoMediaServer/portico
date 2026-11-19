@@ -12,7 +12,8 @@ import {alpha} from '../shell/visual';
 import {SkeletonBlock} from '../states/SkeletonBlock';
 import {buttonGeometry} from '../controls/control-model';
 import {useTheme} from '../theme';
-import {StartFocusScope} from '../focus';
+import {FocusRegion, StartFocusScope} from '../focus';
+import type {FocusRegionConfig} from '../focus/registry';
 import {useFrameMetrics} from './metrics';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
 import {seasonColumn, type AboutValue} from './title-parts';
@@ -89,6 +90,9 @@ export type TitleFrameProps = Readonly<{
    * `false`. On an open foldable it scrolls the right page (the tabs and their panel). */
   scroller?: (content: ReactNode, contentContainerStyle: ViewStyle, collapse: TitleCollapse) => ReactNode;
   testID?: string;
+  /** TV: the action row's focus region, so the page links it to its sections: `edges.down` its first section (an artist's
+   * Top songs, an album's songs), which names this `id` as its `edges.up`. The row remembers its last button. */
+  actionsRegion?: FocusRegionConfig;
   /** TV: the control the page starts on (R1), by `focusId` or `testID`. Left out, it is the primary (Play or Resume). */
   startFocus?: string;
 }>;
@@ -104,7 +108,7 @@ export function TitleFrame({startFocus, ...props}: TitleFrameProps) {
 }
 /** The primary's own focus id when the screen gives it no test id. */
 const titlePrimaryId = 'title-primary';
-function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, testID}: Omit<TitleFrameProps, 'startFocus'>) {
+function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, testID, actionsRegion}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
   const [passed, setPassed] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY);
@@ -147,17 +151,22 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
 
   // Round on a phone and an upright tablet; labelled on a tablet on its side and TV (tablet f6, detail-tv-2).
   const side = (action: TitleAction) => action.labelled && !stacked
-    ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
-    : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
+    ? <Button key={action.label} focusId={action.testID ?? `title-action-${action.label}`} variant="glass" size="hero" icon={action.icon} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
+    : <Button key={action.label} focusId={action.testID ?? `title-action-${action.label}`} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
       style={[{width: actionHeight, height: actionHeight}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .55)}]}/>;
   // While loading the row keeps its buttons but says nothing it does not know yet (the time left).
   const resume = primary?.progress !== undefined && !loading, lineUnder = resume && (stacked || !!cover);
   const lead = primary && {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, focusId: primary.testID ?? titlePrimaryId, focusableWhenDisabled: loading, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1, maxWidth: form === 'medium' ? 300 : undefined} : undefined};
-  const row = (primary || actions.length > 0) && <View style={{minHeight: actionHeight, alignSelf: stacked ? 'stretch' : undefined, flexDirection: 'row', flexWrap: stacked ? 'nowrap' : 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.spec.hero.actions.gap[theme.column]}}>
+  const rowStyle: ViewStyle = {minHeight: actionHeight, alignSelf: stacked ? 'stretch' : undefined, flexDirection: 'row', flexWrap: stacked ? 'nowrap' : 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.spec.hero.actions.gap[theme.column]};
+  const rowButtons = <>
     {lead && (resume && !lineUnder ? <ResumeButton {...lead} size="hero" progress={primary!.progress!} remaining={primary!.remaining}>{primary!.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero">{primary!.label}</Button>)}
-    {primary?.startOver && !stacked && !loading && <Button variant="glass" size="hero" icon="i-restart" onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
+    {primary?.startOver && !stacked && !loading && <Button focusId="title-start-over" variant="glass" size="hero" icon="i-restart" onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
     {actions.filter(action => !action.wide || !stacked).map(side)}
-  </View>;
+  </>;
+  // TV: the row is a focus region the page links to its sections (`actionsRegion`); elsewhere a plain row.
+  const row = (primary || actions.length > 0) && (tv && actionsRegion
+    ? <FocusRegion orientation="horizontal" entry={lead ? lead.focusId : undefined} {...actionsRegion} style={rowStyle}>{rowButtons}</FocusRegion>
+    : <View style={rowStyle}>{rowButtons}</View>);
   const track = theme.spec.card.progress.height[theme.column];
   const resumeLine = lineUnder ? <View style={{gap: theme.space.tight, width: '100%', maxWidth: cover && !stacked ? spec.coverResumeWidth : undefined}}>
     <View accessibilityRole="progressbar" accessibilityValue={{min: 0, max: 1, now: primary!.progress}} style={{height: track, borderRadius: track, overflow: 'hidden', backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
