@@ -32,8 +32,10 @@ export function SeasonBar({label, count, onSeasons, hideWatched, onHideWatched, 
   const switchRow = !theme.isTV && !settings, end = switchRow || !!settings;
   // Every part keeps its natural width (the count is still measured while dropped), so this never flips back and forth.
   const dropCount = !!count && widths.row > 0 && widths.chip + gap + widths.count + (end ? gap + widths.end : 0) > widths.row;
+  // A phone's season chip is the frames' `.ep-bar .chip` (phone-player, phone-app: 36 tall, radius 9, 13 across, 13.5 type):
+  // the xs button (34, 9, 13, 14), the kit's nearest, in place of the 42 pt small button.
   return <View testID="watch-season-bar" onLayout={measure('row')} style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap}}>
-    <Button testID="watch-seasons-open" variant="glass" size="small" trailingIcon="i-chdown" labelLines={2} onLayout={measure('chip')}
+    <Button testID="watch-seasons-open" variant="glass" size={phone ? 'xs' : 'small'} trailingIcon="i-chdown" labelLines={2} onLayout={measure('chip')}
       accessibilityLabel={dropCount ? `${label}, ${count}` : undefined} style={{flexShrink: 0, maxWidth: '100%'}} onPress={onSeasons}>{label}</Button>
     {count ? <Text testID="watch-season-count" onLayout={measure('count')} numberOfLines={1} accessibilityElementsHidden={dropCount} importantForAccessibility={dropCount ? 'no-hide-descendants' : 'auto'}
       style={[theme.type.caption, {color: theme.colors.textTertiary, flexShrink: 0}, dropCount ? {position: 'absolute', opacity: 0} : null]}>{count}</Text> : null}
