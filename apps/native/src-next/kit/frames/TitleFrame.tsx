@@ -74,7 +74,8 @@ export type TitleFrameProps = Readonly<{
   tagline?: string;
   synopsis?: string;
   /** A biography's Read more and where it is from ("Biography from TMDB"). */
-  readMore?: Readonly<{label: string; onPress: () => void; note?: string}>;
+  /** `expanded`: the whole paragraph shows and the link reads Show less (the old person screen's biography). */
+  readMore?: Readonly<{label: string; onPress: () => void; note?: string; expanded?: boolean}>;
   /** "Directed by" and "Starring", on a tablet on its side and TV. */
   credits?: readonly TitleCredit[];
   /** The cast circles on the left page when an open foldable lies on its side (foldable f2). Elsewhere the cast is in Details. */
@@ -221,10 +222,11 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {Array.from({length: spec.synopsisLines[form]}, (_, index) => <SkeletonBlock key={index} width={index === 0 ? '96%' : '70%'} height={theme.type.intro.lineHeight ?? theme.type.intro.fontSize}/>)}
   </View> : (tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{gap: spec.creditsGap, maxWidth: stacked ? undefined : theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>
     {!stacked && tagline !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{tagline}</Text>}
-    {synopsis !== undefined && <Text numberOfLines={readMore ? spec.readMoreLines[form] : spec.synopsisLines[form]} style={[theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax}]}>{synopsis}</Text>}
+    {synopsis !== undefined && <Text numberOfLines={readMore?.expanded ? undefined : readMore ? spec.readMoreLines[form] : spec.synopsisLines[form]} style={[theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax}]}>{synopsis}</Text>}
     {readMore && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
       {/* A phone's is a plain bold link under the paragraph (frame 7); wider forms keep the chevron. */}
-      <Button variant={form === 'phone' ? 'link' : 'text'} size="xs" trailingIcon={form === 'phone' ? undefined : 'i-chdown'} textStyle={form === 'phone' ? {color: theme.colors.text} : undefined} onPress={readMore.onPress}>{readMore.label}</Button>
+      <Button variant={form === 'phone' ? 'link' : 'text'} size="xs" trailingIcon={form === 'phone' ? undefined : readMore.expanded ? 'i-chup' : 'i-chdown'} textStyle={form === 'phone' ? {color: theme.colors.text} : undefined}
+        accessibilityState={readMore.expanded !== undefined ? {expanded: readMore.expanded} : undefined} testID="title-read-more" onPress={readMore.onPress}>{readMore.label}</Button>
       {readMore.note !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{readMore.note}</Text>}
     </View>}
     {!stacked && credits && credits.length > 0 && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>
@@ -254,9 +256,9 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   const coverSize = spec.cover[cover?.shape ?? 'square'][split ? 'phone' : form];
   const coverBox = cover && <View style={{width: coverSize, height: cover.shape === 'poster' ? coverSize * 1.5 : coverSize, borderRadius: cover.shape === 'circle' ? coverSize / 2 : frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{typeof cover.node === 'function' ? cover.node(coverSize) : cover.node}</View>;
   const head = cover ? stacked
-    // A cover page reports where its name ends (the head is the page's first part, so that is a page offset): the compact bar
-    // takes over once the name has gone under it, before the words below would run under Back.
-    ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{split && discs}{coverBox}<View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{alignSelf: 'stretch'}}>{identity}</View><View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View></View>
+    // A cover page reports where its name starts (the head is the page's first part, so that is a page offset): the compact
+    // bar, which carries the name, takes over as the name reaches it, so the name never runs under Back and the top action.
+    ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{split && discs}{coverBox}<View onLayout={event => setHeroEnd(event.nativeEvent.layout.y)} style={{alignSelf: 'stretch'}}>{identity}</View><View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View></View>
     : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: spec.coverGap}}>
       {split && discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a

@@ -3,7 +3,7 @@ import {ScrollView, Text, View} from 'react-native';
 import {Artwork, type ArtworkSource} from '../artwork';
 import {CircleCard, CollectionBanner, CollectionTile, EpisodeTile, type CollectionCardProps, type EpisodeTileProps} from '../cards';
 import {cardCaptionHeight} from '../cards/caption-metrics';
-import {Button, Focusable, KeyHints, Segmented} from '../controls';
+import {Button, Chip, Focusable, KeyHints, Segmented} from '../controls';
 import {FocusRegion, FocusWithin} from '../focus';
 import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
@@ -42,6 +42,16 @@ export function PanelHeading({title, count, note, trailing}: Readonly<{title: st
     {note !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{note}</Text>}
     {trailing && <View style={{marginLeft: 'auto', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.space.controlGap}}>
       {typeof trailing === 'string' ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{trailing}</Text> : trailing}</View>}
+  </View>;
+}
+
+/** One choice of a few, as a row of chips under a heading (a person's All / Cast / Crew, phone-detail d3 frame 7); the
+ * selected one is drawn selected. A leading action chip (Select, on a tablet) may come first. */
+export type ChoiceChip = Readonly<{id: string; label: string; selected?: boolean; icon?: IconName; onPress: () => void; testID?: string}>;
+export function ChoiceChips({items}: Readonly<{items: readonly ChoiceChip[]}>) {
+  const theme = useTheme();
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.xs}}>
+    {items.map(item => <Chip key={item.id} testID={item.testID} icon={item.icon} selected={item.selected} onPress={item.onPress}>{item.label}</Chip>)}
   </View>;
 }
 
