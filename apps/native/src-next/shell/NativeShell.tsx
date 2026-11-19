@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {View, useWindowDimensions} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {layout as designLayout} from '@portico/design';
 import {OverlaysProvider} from '../kit/overlays';
 import {PlayerMorphProvider, useInitialPlayerPagePaint} from '../kit/dock/PlayerMorphBridge';
 import {DockClearanceProvider} from '../kit/dock/DockClearance';
@@ -455,11 +456,16 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   </View></NativeStackSlotsProvider>;
 }
 
-/** The rail's one scrim (tv.html f1/f2). Closed: the rail's own fade, gone by its 260 edge. Open: the 560 panel, then the page
- * dimmed evenly to the right edge, so nothing under or beside it reads as cut. */
+/** The rail's one scrim (tv.html f1/f2). Closed: the rail's own fade, gone before the page's first column (the gutter, 200),
+ * less the R1 room a focused card grows into (20), so a first-column card and its caption are never dimmed. tv.html runs it
+ * to the rail's 260 edge, over the column. Open: the 560 panel, then the page dimmed evenly to the right edge, so nothing
+ * under or beside it reads as cut. */
 export function tvRailScrim(ink: string, open: boolean): string {
   const at = (alpha: number) => `${ink.slice(0, 7)}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`;
+  const clear = designLayout.gutter.tv - railFocusRoom;
   return open
     ? `linear-gradient(to right, ${at(.99)} 0px, ${at(.96)} 370px, ${at(.42)} 560px, ${at(.42)} 100%)`
-    : `linear-gradient(to right, ${at(.78)} 0px, ${at(.42)} 117px, ${at(0)} 260px)`;
+    : `linear-gradient(to right, ${at(.78)} 0px, ${at(.42)} ${Math.round(clear * .45)}px, ${at(0)} ${clear}px)`;
 }
+/** FRAMES "TV rules": a free-standing control's ring plus its growth needs 20 each side. */
+const railFocusRoom = 20;
