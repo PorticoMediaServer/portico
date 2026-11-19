@@ -55,6 +55,20 @@ test('Credits: the count, All / Cast / Crew, a credit as its character, and Shar
   assert.equal((await person({share: false})).view.share, undefined);
 });
 
+test('on TV the credits are a row per department, one row of all when there is none, and the head names roles, place and a poster blur', async () => {
+  const {view, again} = await person({person: {roles: ['Directing', 'Production'], birthPlace: 'Cincinnati, Ohio'}});
+  assert.deepEqual(view.credits.rows.map((row: any) => [row.id, row.title, row.count]), [['all', t('web.person.credits'), t('web.person.titles', {count: 2})]]);
+  const directing = {subscribe: () => () => {}, getSnapshot: () => ({total: 5})}, production = {subscribe: () => () => {}, getSnapshot: () => ({total: 3})};
+  const grouped = again({groups: [{id: 'dir', department: 'Directing', total: 5, collection: directing}, {id: 'prod', department: 'Production', total: 3, collection: production}]});
+  assert.deepEqual(grouped.credits.rows.map((row: any) => [row.title, row.count, row.collection === directing || row.collection === production]),
+    [['Directing', t('web.person.titles', {count: 5}), true], ['Production', t('web.person.titles', {count: 3}), true]]);
+  const credit = {media: dune, character: 'Lady Jessica', role: '', creditKind: 'cast'} as any;
+  assert.equal(grouped.credits.rows[0].item(credit).caption, t('web.person.as', {character: 'Lady Jessica'}), 'a row draws a credit as the grid does');
+  assert.equal(view.roles, defaultI18n.list(['Directing', 'Production']));
+  assert.equal(view.birthPlace, 'Cincinnati, Ohio');
+  assert.deepEqual(view.mosaic, [{url: '/dune.jpg'}, {url: '/silo.jpg'}]);
+});
+
 test('the heading counts the person\'s titles: a filter keeps the All total, not its own count', async () => {
   // The route keeps the All read's total and hands it over when Cast or Crew is drawn again.
   const {again} = await person();
