@@ -117,8 +117,12 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
             continues, the kit's edge fade says so. */}
         {libraryEntries.length > 0 && <View testID="tv-rail-libraries" style={{flexShrink: 1, marginLeft: -24, marginRight: -tvRailGlow}}>
           <ScrollView {...scroll} style={{flexGrow: 0, flexShrink: 1}} contentContainerStyle={{gap: spec.itemGap, paddingLeft: 24, paddingRight: tvRailGlow, paddingVertical: spec.itemGap}} showsVerticalScrollIndicator={false}>{libraryEntries.map(item)}</ScrollView>
-          {edges.top && <ListEdgeFade testID="tv-rail-fade-top" edge="top" length={spec.itemSize} opacity={0.9}/>}
-          {edges.bottom && <ListEdgeFade testID="tv-rail-fade-bottom" edge="bottom" length={spec.itemSize} opacity={0.9}/>}
+          {/* Closed, the fades cover the icons only: the list's box runs on under the page's first column (its glow room and
+              the column's last pixels), and a fade there drew a dark block with a hard foot across a focused card's glow. */}
+          {(edges.top || edges.bottom) && <View pointerEvents="none" style={{position: 'absolute', top: 0, bottom: 0, left: 0, ...(open ? {right: tvRailGlow} : {width: tvRailClosedFade})}}>
+            {edges.top && <ListEdgeFade testID="tv-rail-fade-top" edge="top" length={spec.itemSize} opacity={0.9}/>}
+            {edges.bottom && <ListEdgeFade testID="tv-rail-fade-bottom" edge="bottom" length={spec.itemSize} opacity={0.9}/>}
+          </View>}
         </View>}
         <View style={{gap: spec.itemGap, marginTop: libraryEntries.length ? 0 : spec.itemGap}}>{pinnedBottom.map(item)}</View>
         <View style={{flex: 1}}/>
@@ -142,4 +146,6 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
 const tvRailClosedColumn = 200 - 72; // the page gutter less the rail's insetLeft (spec.navigation.tv)
 /** Room around the rail list for a focused item's glow. */
 const tvRailGlow = 40;
+/** Closed, the edge fades' width from the list's left edge: its 24 of glow room, an item's 17 padding and 30 icon, and 8 more. */
+const tvRailClosedFade = 24 + 17 + 30 + 8;
 
