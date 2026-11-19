@@ -3,7 +3,7 @@ export {BrowseFrame, HomeHero} from './BrowseFrame';
 export type {BrowseFrameProps, BrowseHeaderProps, BrowseFiltersProps, HomeHeroEntry, HomeHeroProps} from './BrowseFrame';
 export {SettingsListFrame, SettingsPageFrame, SheetFrame, SignInFrame, PageStateFrame} from './frames';
 export {PlayerChromeFrame, AudioPlayerFrame} from './PlayerFrames';
-export type {PlayerReadouts, PlayerChromeFrameProps, AudioPlayerFrameProps, AudioControl, AudioOption, AudioTimes} from './PlayerFrames';
+export type {PlayerReadouts, PlayerChromeFrameProps, PlayerForm, AudioPlayerFrameProps, AudioControl, AudioOption, AudioTimes} from './PlayerFrames';
 export type {SettingsListFrameProps, SettingsPageFrameProps, SheetFrameProps, SheetBarProps, SignInFrameProps, PageStateProps, PageHeaderProps, FrameBack} from './frames';
 export {Section, SectionCard, StateRow, ArtBox, ArtPlaceholder, type StateRowProps, type SectionStale} from './parts';
 export {TitleFrame, type TitleFrameProps, type TitleAction, type TitlePrimary, type TitleCredit, type TitleKicker, type TitleCover} from './TitleFrame';
