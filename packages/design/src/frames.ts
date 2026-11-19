@@ -86,11 +86,11 @@ export const frame = {
       coverGap: 56, coverResumeWidth: 320,
       /** The side column beside the panel (desktop-listen 360). R5 interim. */
       side: 360,
-      /** The panel's parts (kit `title-parts`), R5 interim: About's label column (desktop-detail f3 140, phone-detail d1
-       * 104); cast circles (phone-detail 64, tablet and web 96, TV 150); Films in order's number column and still
+      /** The panel's parts (kit `title-parts`), R5 interim: About's label column (desktop-detail f3 140,
+       * phone 104 on the web); the native phone's About card (phone-detail d1 `.kv`: label 92, gap 12, row padding 8); cast circles (phone-detail 64, tablet and web 96, TV 150); Films in order's number column and still
        * (desktop-detail f8 56 / 106, phone 56, TV 140); Previous / Next's still (desktop-detail f5, 112 wide, 16:9); a
        * choice row's label and the narrowest its choices go (desktop-detail f4 120 / 200). */
-      parts: {aboutLabel: forms(104, 140, 140, 140), castCircle: forms(64, 96, 96, 150), number: 56, numberedArt: forms(56, 106, 106, 140), neighbourArt: 112, choiceLabel: 120, choiceMin: 200,
+      parts: {aboutLabel: forms(104, 140, 140, 140), aboutPhone: {label: 92, gap: 12, pad: 8}, castCircle: forms(64, 96, 96, 150), number: 56, numberedArt: forms(56, 106, 106, 140), neighbourArt: 112, choiceLabel: 120, choiceMin: 200,
         /** Details beside About from a tablet on its side: Cast & crew takes 1.6 shares to About's 1 (desktop-detail f3). */
         detailsCastShare: 1.6},
     },
