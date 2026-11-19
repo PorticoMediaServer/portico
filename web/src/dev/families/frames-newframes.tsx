@@ -14,7 +14,7 @@ import {BrowseToolbar, LibraryMenu, LibrarySwitcher, SongRow} from '../../kit/br
 import {Button, Chip, Segmented, Switch, Tabs, TextField} from '../../kit/controls';
 import {RecordingStorage} from '../../kit/dvr/RecordingsLayout';
 import {RuleCard} from '../../kit/dvr/RuleCard';
-import {ArtBox, BrowseFrame, LiveFrame, ReaderFrame, SearchFrame, Section, SectionCard, type FramePane} from '../../kit/frames';
+import {ArtBox, BrowseFrame, LiveFrame, ReaderFrame, SearchFrame, Section, SectionCard, useShortWide, type FramePane} from '../../kit/frames';
 import {Shelf} from '../../kit/layout';
 import {AiringRow, ChannelRow, ConflictCard, GuideGrid, GuideGroups, GuidePicker, RecordingRow, type GuideChannel, type GuideCell} from '../../kit/live';
 import {usePhone} from '../../kit/overlays/shared';
@@ -145,7 +145,9 @@ function Switcher() {
   return <Chip variant={usePhone() ? 'pill' : undefined} trailingIcon="i-chdown" onClick={none}>{f('allChannels')}</Chip>;
 }
 function GuideTools() {
-  const phone = usePhone();
+  const phone = usePhone(), short = useShortWide();
+  // A phone on its side: the sort alone joins LiveFrame's one row (the day sits in the guide's corner).
+  if (short) return <Chip prefix={defaultI18n.t('next.browse.sort')} trailingIcon="i-chdown" onClick={none}>{f('sortByNumber')}</Chip>;
   // At phone width the day and the sort are the guide's quiet pickers, text on one line (phone-guide g1).
   if (phone) return <><GuidePicker icon="i-cal" label={f('todayShort')} value={f('guideDate')} onPress={none}/><span style={{flex: 1}}/><GuidePicker label={f('sortByNumber')} onPress={none}/></>;
   return <>
@@ -188,8 +190,8 @@ function LiveFacts() {
     <b>{source}</b>{rest.map(part => <span key={part}>{part}</span>)}</span>;
 }
 function LiveGuide({details = false}: {details?: boolean}) {
-  const phone = usePhone();
-  return <Page current="liveTvShort"><LiveFrame title={f('liveTv')} switcher={<Switcher/>} facts={<LiveFacts/>} actions={phone && <PhoneActions/>}
+  const phone = usePhone(), short = useShortWide();
+  return <Page current="liveTvShort"><LiveFrame title={f('liveTv')} switcher={<Switcher/>} facts={<LiveFacts/>} actions={(phone || short) && <PhoneActions/>}
     tabs={!phone && <LiveTabs value="guide"/>} chips={<Groups/>} lead={!phone && !details && <OnNowShelf/>} toolbar={<GuideTools/>} details={details ? programmePane() : undefined} hints={!phone && f('keyboardHint')}>
     <Grid/>
   </LiveFrame></Page>;
