@@ -59,6 +59,7 @@ const {createNativeWatchScreens} = await screenModule(new URL('../src-next/scree
   '../../shell/model': {sameAuthority}, './controls': {NativeWatchControls}, '../../../../../packages/client-core/src/file-info-session': {FileInfoSession, fileInfoUsesGroups}, './FileInfoPanel': {NativeFileInfoPanel: 'FileInfoPanel'}, './playback-info': {readNativePlaybackInfo},
   './track-identity': {nativeWatchTracks}, './EpisodePanel': episodes,
   './title-controller': {NativeTitleController}, './title-starts': {NativeTitleStarts}, './TitleScreen': {NativeTitleScreen: 'Title'}, '../../pages/touch/title/FilmPage': {FilmPage: 'Title'},
+  '../../pages/tv/title/FilmPage': {FilmPage: 'Title'},
   './version-destination': {NativeVersionChooserController}, './version-options': {nativeVersionChoices, nativeVersionNames},
   './WatchHost': {NativeWatchHost: 'WatchHost'}, './WatchChrome': {NativeWatchChrome: 'Chrome'}, './picture-slot': {NativeWatchPicture: 'Picture'},
 });

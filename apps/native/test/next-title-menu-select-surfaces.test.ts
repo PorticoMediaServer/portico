@@ -62,6 +62,7 @@ const {createNativeWatchScreens} = await screenModule(new URL('../src-next/scree
     dispose = () => {};
   }}, './title-starts': {NativeTitleStarts: class {invalidate() {} dispose() {}}},
   '../../pages/touch/title/FilmPage': {FilmPage: 'Title'}, './TitleScreen': {NativeTitleScreen: 'Title'},
+  '../../pages/tv/title/FilmPage': {FilmPage: 'Title'},
   './version-destination': {NativeVersionChooserController}, './version-options': {nativeVersionChoices, nativeVersionNames},
   './WatchHost': {NativeWatchHost: 'WatchHost'}, './WatchChrome': {NativeWatchChrome: 'Chrome'}, './picture-slot': {NativeWatchPicture: 'Picture'},
 });
