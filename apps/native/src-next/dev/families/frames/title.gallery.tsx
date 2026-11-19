@@ -6,7 +6,7 @@ import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../ki
 import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
-import {AboutTable, CastRow, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, SeasonListRow, SheetFrame, TitleDetails, TitleFrame, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, SeasonListRow, SheetFrame, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
 import {KeyHints} from '../../../kit/controls';
@@ -60,7 +60,9 @@ function filmFrame(tab: string, setTab: (value: string) => void, tv = false): Om
 function Film({more = false}: {more?: boolean}) {
   const [tab, setTab] = useState('more'), [open, setOpen] = useState(more), {isTV} = useTheme();
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-film" {...filmFrame(tab, setTab, isTV)}>
-    <Posters title={f('moreLikeDune')} items={moreLikeDune}/>
+    <TitleSection tab="more"><Posters title={f('moreLikeDune')} items={moreLikeDune}/></TitleSection>
+    {/* TV draws every section, and focus walks down them into Details. */}
+    {isTV && <TitleSection tab="details"><DuneDetails/></TitleSection>}
   </TitleFrame>
   {more && <Menu open={open} onOpenChange={setOpen} title={f('dune2')} items={[
     {id: 'fav', icon: 'i-heart', label: f('menuFavourite'), onSelect: none}, {id: 'rate', icon: 'i-star', label: f('menuRate'), onSelect: none}, {id: 'playlist', icon: 'i-listadd', label: f('menuPlaylist'), onSelect: none},

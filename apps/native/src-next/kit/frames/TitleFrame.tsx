@@ -1,5 +1,6 @@
-import React, {useState, type ReactNode} from 'react';
+import React, {Children, isValidElement, useEffect, useRef, useState, type ReactNode} from 'react';
 import {ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle} from 'react-native';
+import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {frameSpec} from '@portico/design';
@@ -13,7 +14,8 @@ import {alpha} from '../shell/visual';
 import {SkeletonBlock} from '../states/SkeletonBlock';
 import {buttonGeometry} from '../controls/control-model';
 import {useTheme} from '../theme';
-import {StartFocusScope} from '../focus';
+import {FocusWithin, StartFocusScope} from '../focus';
+import {useMotion} from '../useMotion';
 import {useFrameMetrics} from './metrics';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
 import {seasonColumn, type AboutValue} from './title-parts';
@@ -68,13 +70,14 @@ export type TitleFrameProps = Readonly<{
    * hint) at the left, and beside it the episodes and the band that describes what holds focus. The frame places it
    * at the top of the panel; the rest of the panel (More like this) runs under both at full width. Touch forms draw the
    * season in the panel's `SeasonBar` instead. */
-  seasons?: Readonly<{column: ReactNode; episodes: ReactNode}>;
-  /** The tab panel: the one flexible region. */
+  seasons?: Readonly<{column: ReactNode; episodes: ReactNode; tab?: string}>;
+  /** The tab panel: the one flexible region. On TV every section is drawn and focus walks down them; mark each with
+   * `TitleSection` so the tabs follow the one that holds focus. */
   children?: ReactNode;
   /** Beside the panel on a tablet on its side and TV (a collection's About, an album's Details); under it otherwise. */
   aside?: ReactNode;
-  /** The bar that replaces the hero (desktop-detail f3, phone-detail d1 frame 2, detail-tv-4). On touch the frame sets
-   * it from the scroll; on TV the screen sets it when focus moves into the panel. */
+  /** The bar that replaces the hero (desktop-detail f3, phone-detail d1 frame 2, detail-tv-4). The frame sets it itself:
+   * on touch from the scroll, on TV when focus moves into the panel. A screen sets it only to hold it (a tab opened directly). */
   collapsed?: boolean;
   state?: Readonly<{kind: 'loading'}> | PageStateProps;
   /** The page's own scroller, in place of the frame's on every form (an album's and artist's song list windows its rows and
@@ -96,12 +99,44 @@ export type TitleFrameProps = Readonly<{
 export function TitleFrame({startFocus, ...props}: TitleFrameProps) {
   return <StartFocusScope id={startFocus ?? props.primary?.testID ?? titlePrimaryId}><TitlePage {...props}/></StartFocusScope>;
 }
+
+/** One section of a title page's panel (More like this, Details, a related row), named by the tab it belongs to. On TV,
+ * where every section is drawn, the tabs mark the section that holds focus; elsewhere it draws its children as they are. */
+export function TitleSection({children}: Readonly<{tab: string; children?: ReactNode}>) {return <>{children}</>;}
+
 /** The primary's own focus id when the screen gives it no test id. */
 const titlePrimaryId = 'title-primary';
 function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
   const [passed, setPassed] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY);
+  // TV (detail-tv-3): focus moving into the panel folds the hero to the title and the tabs at the top, the art dims, and
+  // the section that holds focus rises to just under them; focus back on the buttons unfolds it. The head stays laid out
+  // (its words fade), so Up from the first row finds the buttons again. `where` is the head or a section's index; focus
+  // leaving the page (the rail, an overlay) keeps it. A page with its own scroller (an album's songs) scrolls itself and
+  // does not fold.
+  const motion = useMotion(), [where, setWhere] = useState<'head' | number>('head');
+  const folded = tv && !scroller && (collapsed ?? where !== 'head');
+  const scroll = useRef<ScrollView>(null), ys = useRef({content: 0, column: 0, sections: [] as number[]}), [bandHeight, setBandHeight] = useState(0);
+  const fold = useSharedValue(0);
+  useEffect(() => {fold.value = withTiming(folded ? 1 : 0, motion.timing('standard'));}, [fold, folded, motion]);
+  const copyStyle = useAnimatedStyle(() => ({opacity: 1 - fold.value}));
+  const bandStyle = useAnimatedStyle(() => ({opacity: fold.value}));
+  const artStyle = useAnimatedStyle(() => ({opacity: 1 - fold.value * (1 - frameSpec.hero.title.tvCollapsedArt)}));
+  const align = () => {
+    if (!tv || scroller) return;
+    const y = where === 'head' ? 0 : ys.current.content + ys.current.column + (ys.current.sections[where] ?? 0) - bandHeight;
+    scroll.current?.scrollTo({y: Math.max(0, y), animated: !motion.reduce});
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(align, [where, bandHeight]);
+  // The tabs follow the section that holds focus.
+  const sectionTabs = useRef<readonly (string | undefined)[]>([]);
+  useEffect(() => {
+    const tab = typeof where === 'number' ? sectionTabs.current[where] : undefined;
+    if (tabs && tab !== undefined && tab !== tabs.value) tabs.onValueChange(tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [where]);
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   if (failure) return <View testID={testID} style={{flex: 1}}>
     {!tv && <View style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, top: insets.top + theme.space.tight}}><RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/></View>}
@@ -110,7 +145,6 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   const height = split ? spec.height.phone : spec.height[form], lockup = split ? spec.lockup.phone : spec.lockup[form];
   const discTop = insets.top + theme.space.tight, discRow = discTop + roundBarSize + theme.space.sm;
   const centre = stacked ? 'center' as const : 'flex-start' as const;
-  const tvCollapsed = tv && !!collapsed;
 
   const kickerLine = kicker && <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.space.controlGap, marginBottom: theme.space.controlGap}}>
     <Text accessibilityRole={kicker.onPress ? 'link' : undefined} onPress={kicker.onPress} style={[theme.type.rowHelp, {color: kicker.onPress || kicker.icon ? theme.colors.accentStrong : theme.colors.textSecondary, fontFamily: theme.type.rowLabel.fontFamily}]}>
@@ -119,8 +153,8 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   </View>;
   const identity = <>
     {kickerLine}
-    {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={tvCollapsed ? spec.lockup.expanded : lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
-    {!tvCollapsed && <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: centre, justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/> : metadata}</View>}
+    {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
+    <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: centre, justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/> : metadata}</View>
   </>;
   const names = (value: TitleCredit['names']) => typeof value === 'string' ? value : value.map((name, index) => <Text key={index}>{index > 0 ? ', ' : ''}
     {name.onPress && !theme.isTV ? <Text accessibilityRole="link" onPress={name.onPress} style={{textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .35)}}>{name.text}</Text> : name.text}</Text>);
@@ -164,13 +198,10 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{discs}{coverBox}<View style={{alignSelf: 'stretch'}}>{identity}</View><View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View></View>
     : <View style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: spec.coverGap}}>
       {discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
-    // TV with focus in the panel (detail-tv-4, 5a): the title and tabs at the top, the art box still behind them at its full height.
-    : tvCollapsed ? <View style={{paddingTop: frame.titleTop, paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
-      <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 0, height, opacity: spec.tvCollapsedArt}}>{art}</View>{identity}</View>
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
     // second line of buttons pushes the panel down rather than rising under Back (the words never overlap the discs).
     : <><View style={stacked ? {height} : {minHeight: height, justifyContent: 'flex-end', paddingTop: tv ? frame.titleTop : discRow, paddingBottom: spec.copyBottom[form]}}>
-      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>{art}
+      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>{!tv && art}
         {/* A tablet's words are over the picture, so the picture is shaded behind them (a phone's words are under its picture and a TV's art has its own). */}
         {!stacked && !tv && <Svg pointerEvents="none" accessible={false} width="100%" height="100%" style={StyleSheet.absoluteFill}>
           <Defs>
@@ -194,14 +225,21 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   const panel = loading ? <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{flexDirection: 'row', gap: theme.space.sm, paddingLeft: frame.gutter, overflow: 'hidden'}}>
     {Array.from({length: 6}, (_, index) => <SkeletonBlock key={index} width={posterWidth} height={posterWidth * 1.5} shine={index === 0}/>)}</View> : children;
   const besideAside = !!aside && !stacked && !loading;
-  const content = <View style={{marginTop: tabs ? frame.headerGap + frame.headingGap : frame.sectionGap, flexDirection: besideAside ? 'row' : 'column', alignItems: 'flex-start', gap: besideAside ? theme.space.xl : frame.sectionGap}}>
-    <View style={{flex: besideAside ? 1 : undefined, alignSelf: besideAside ? undefined : 'stretch', minWidth: 0, gap: frame.sectionGap}}>
-      {tv && seasons && !loading && <View style={{flexDirection: 'row', gap: seasonColumn.gap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
-        <View style={{width: seasonColumn.width}}>{seasons.column}</View><View style={{flex: 1, minWidth: 0}}>{seasons.episodes}</View></View>}
-      {panel}</View>
+  // TV: the seasons and each of the panel's sections, in the order focus walks them.
+  const sections = !tv ? [] : [...(seasons ? [{tab: seasons.tab, node: <View style={{flexDirection: 'row', gap: seasonColumn.gap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
+    <View style={{width: seasonColumn.width}}>{seasons.column}</View><View style={{flex: 1, minWidth: 0}}>{seasons.episodes}</View></View>}] : []),
+    ...Children.toArray(children).map(node => ({tab: isValidElement<{tab?: string}>(node) && node.type === TitleSection ? node.props.tab : undefined, node}))];
+  sectionTabs.current = sections.map(section => section.tab);
+  const content = <View onLayout={event => {ys.current.content = event.nativeEvent.layout.y;}} style={{marginTop: tabs ? frame.headerGap + frame.headingGap : frame.sectionGap, flexDirection: besideAside ? 'row' : 'column', alignItems: 'flex-start', gap: besideAside ? theme.space.xl : frame.sectionGap}}>
+    <View onLayout={event => {ys.current.column = event.nativeEvent.layout.y;}} style={{flex: besideAside ? 1 : undefined, alignSelf: besideAside ? undefined : 'stretch', minWidth: 0, gap: frame.sectionGap}}>
+      {tv && !scroller && !loading ? sections.map((section, index) => <FocusWithin key={index} onChange={focused => {if (focused) setWhere(index);}}>
+        <View style={{gap: frame.sectionGap}} onLayout={event => {ys.current.sections[index] = event.nativeEvent.layout.y; if (where === index) align();}}>{section.node}</View></FocusWithin>)
+        : panel}</View>
     {aside && !loading && <View style={{width: besideAside ? spec.side : undefined, alignSelf: besideAside ? undefined : 'stretch', marginRight: besideAside ? frame.rightGutter : 0, paddingHorizontal: besideAside ? 0 : frame.gutter, gap: frame.sectionGap}}>{aside}</View>}
   </View>;
-  const tabBar = (style?: object) => tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} disabled={loading} style={style} contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
+  // On TV the strip marks the section that holds focus and takes no focus itself: Down from the buttons goes straight into
+  // the first row and Up from it back to the buttons (detail-tv-3).
+  const tabBar = (style?: object) => tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} passive={tv} disabled={loading} style={style} contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
 
   // The collapsed bar (touch): it shows once the tabs pass under it. A phone and an upright tablet: Back, the title
   // centred and Play on, with the tabs under it; a tablet on its side: the title, the tabs, the primary and the pinned actions.
@@ -238,15 +276,33 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {scroller ? <View style={{flex: 1}}>{scroller(<>{tabBar()}{content}</>, {paddingTop: insets.top, paddingBottom: frame.bottomClear}, noBar)}</View>
       : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingTop: insets.top, paddingBottom: frame.bottomClear}}>{tabBar()}{content}</ScrollView>}
   </View>;
-  const page = <>
+  const strip = tabs && !held && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>;
+  const page = tv ? <>
+    <FocusWithin onChange={focused => {if (focused) setWhere('head');}}><Animated.View style={copyStyle}>{head}{strip}</Animated.View></FocusWithin>
+    {content}
+  </> : <>
     {!held && head}
-    {tabs && !held && <View onLayout={event => setTabsY(event.nativeEvent.layout.y)}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>}
+    {strip}
     {content}
   </>;
+  // TV: the art stays where it is while the page moves under it (the title page's backdrop never follows focus), and the
+  // folded band (the title at display size and the tabs over a wash of ink) sits over the top of the page.
+  const band = tv && !scroller && <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" onLayout={event => setBandHeight(event.nativeEvent.layout.height)}
+    style={[{position: 'absolute', left: 0, right: 0, top: 0, paddingTop: frame.titleTop, paddingBottom: frame.headingGap}, bandStyle]}>
+    <Svg pointerEvents="none" accessible={false} width="100%" height={bandHeight || '100%'} style={StyleSheet.absoluteFill}>
+      <Defs><LinearGradient id="title-band" x1="0" y1="0" x2="0" y2="1">{spec.tvBand.map(([opacity, at]) => <Stop key={at} offset={at} stopColor={theme.colors.ink} stopOpacity={opacity}/>)}</LinearGradient></Defs>
+      <Rect width="100%" height="100%" fill="url(#title-band)"/>
+    </Svg>
+    <View style={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}><Lockup title={title} size={spec.tvFoldedLockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking}/></View>
+    {tabs && tabBar({marginTop: frame.headerGap})}
+  </Animated.View>;
   return <View testID={testID} style={{flex: 1}}>
     {held && bar}
+    {tv && art && !cover && <Animated.View pointerEvents="none" style={[{position: 'absolute', left: 0, right: 0, top: 0, height}, artStyle]}>{art}</Animated.View>}
     {scroller ? <View style={{flex: 1}}>{scroller(page, {paddingBottom: frame.bottomClear}, {at: tabsY - barHeight, onChange: setPassed})}</View>
-      : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear}} scrollEventThrottle={32} onScroll={event => setPassed(event.nativeEvent.contentOffset.y > tabsY - barHeight)}>{page}</ScrollView>}
+      : <ScrollView ref={scroll} style={{flex: 1}} contentContainerStyle={{paddingBottom: tv ? Math.max(frame.bottomClear, window.height - bandHeight) : frame.bottomClear}} scrollEventThrottle={32}
+        onScroll={tv ? undefined : event => setPassed(event.nativeEvent.contentOffset.y > tabsY - barHeight)}>{page}</ScrollView>}
+    {band}
     {!held && bar}
   </View>;
 }
